@@ -33,21 +33,25 @@ import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.store.exception.WriteAheadLogCorruptedException;
 import io.evitadb.store.kryo.ObservableInput;
 import io.evitadb.store.kryo.ObservableOutput;
+import io.evitadb.store.model.FileLocation;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.store.offsetIndex.stream.RandomAccessFileInputStream;
 import io.evitadb.store.spi.OffHeapWithFileBackupReference;
 import io.evitadb.store.spi.model.reference.WalFileReference;
 import io.evitadb.store.wal.transaction.TransactionMutationSerializer;
 import io.evitadb.utils.Assert;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.io.Serial;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
@@ -114,6 +118,10 @@ public class CatalogWriteAheadLog implements Closeable {
 	 * The Kryo pool for serializing {@link TransactionMutation} (given by outside).
 	 */
 	private final Pool<Kryo> catalogKryoPool;
+	/**
+	 * The index of the WAL file incremented each time the WAL file is rotated.
+	 */
+	private final int walFileIndex;
 
 	/**
 	 * Method checks if the WAL file is complete and if not, it truncates it. The non-complete WAL file record is
@@ -269,8 +277,9 @@ public class CatalogWriteAheadLog implements Closeable {
 		@Nonnull Pool<Kryo> catalogKryoPool,
 		@Nonnull StorageOptions storageOptions
 	) {
+		this.walFileIndex = walFileReference.fileIndex();
 		try {
-			final Path walFilePath = catalogStoragePath.resolve(getWalFileName(catalogName, walFileReference.fileIndex()));
+			final Path walFilePath = catalogStoragePath.resolve(getWalFileName(catalogName, this.walFileIndex));
 			checkAndTruncate(walFilePath, catalogKryoPool, storageOptions.computeCRC32C());
 
 			this.catalogName = catalogName;
@@ -294,7 +303,7 @@ public class CatalogWriteAheadLog implements Closeable {
 				theOutput.computeCRC32() : theOutput;
 		} catch (IOException e) {
 			throw new UnexpectedIOException(
-				"Failed to open WAL file `" + getWalFileName(catalogName, walFileReference.fileIndex()) + "`!",
+				"Failed to open WAL file `" + getWalFileName(catalogName, this.walFileIndex) + "`!",
 				"Failed to open WAL file!",
 				e
 			);
@@ -398,7 +407,9 @@ public class CatalogWriteAheadLog implements Closeable {
 			return Stream.empty();
 		} else {
 			// TODO JNO - consider some kind of caching for last queried positions (FIFO, search nearest and go from there)
-			final MutationSupplier supplier = new MutationSupplier(catalogVersion, walFile, catalogKryoPool);
+			final MutationSupplier supplier = new MutationSupplier(
+				catalogVersion, walFile, this.walFileIndex, this.catalogKryoPool
+			);
 			return Stream.generate(supplier)
 				.takeWhile(Objects::nonNull)
 				.onClose(supplier::close);
@@ -410,6 +421,26 @@ public class CatalogWriteAheadLog implements Closeable {
 		this.output.close();
 		this.walFileChannel.close();
 		this.transactionMutationOutputStream.close();
+	}
+
+	/**
+	 * Gets the reference to a WAL (Write-Ahead Log) file with the last processed WAL record position.
+	 *
+	 * @param lastProcessedTransaction The last processed WAL record position.
+	 * @return The WAL file reference with last processed WAL record position.
+	 */
+	@Nonnull
+	public WalFileReference getWalFileReference(@Nullable TransactionMutation lastProcessedTransaction) {
+		Assert.isPremiseValid(
+			lastProcessedTransaction instanceof TransactionMutationWithLocation,
+			"Invalid last processed transaction!"
+		);
+		final TransactionMutationWithLocation lastProcessedTransactionWithLocation = (TransactionMutationWithLocation) lastProcessedTransaction;
+		return new WalFileReference(
+			this.catalogName,
+			lastProcessedTransactionWithLocation.getWalFileIndex(),
+			lastProcessedTransactionWithLocation.getTransactionSpan()
+		);
 	}
 
 	/**
@@ -431,13 +462,17 @@ public class CatalogWriteAheadLog implements Closeable {
 		 */
 		private final File walFile;
 		/**
+		 * The index of the WAL file incremented each time the WAL file is rotated.
+		 */
+		private final int walFileIndex;
+		/**
 		 * The ObservableInput for reading {@link TransactionMutation} from the WAL file.
 		 */
 		private final ObservableInput<RandomAccessFileInputStream> observableInput;
 		/**
 		 * The current {@link TransactionMutation} being read from the WAL file.
 		 */
-		private TransactionMutation transactionMutation;
+		private TransactionMutationWithLocation transactionMutation;
 		/**
 		 * The size of the leading transaction mutation in the WAL file.
 		 */
@@ -455,8 +490,9 @@ public class CatalogWriteAheadLog implements Closeable {
 		 */
 		private int transactionMutationRead;
 
-		public MutationSupplier(long catalogVersion, @Nonnull File walFile, @Nonnull Pool<Kryo> catalogKryoPool) {
+		public MutationSupplier(long catalogVersion, @Nonnull File walFile, int walFileIndex, @Nonnull Pool<Kryo> catalogKryoPool) {
 			this.walFile = walFile;
+			this.walFileIndex = walFileIndex;
 			if (walFile.length() == 0) {
 				this.catalogKryoPool = catalogKryoPool;
 				this.kryo = null;
@@ -486,6 +522,7 @@ public class CatalogWriteAheadLog implements Closeable {
 						this.contentLength + 4 == this.leadTransactionMutationSize + transactionMutation.getWalSizeInBytes(),
 						"Invalid WAL file on position `" + this.filePosition + "`!"
 					);
+					FileLocation transactionSpan = new FileLocation(this.filePosition, 4 + this.contentLength);
 					// move cursor to the end of the lead mutation
 					this.filePosition += this.leadTransactionMutationSize;
 					while (transactionMutation.getCatalogVersion() < catalogVersion) {
@@ -504,6 +541,7 @@ public class CatalogWriteAheadLog implements Closeable {
 							this.contentLength + 4 == this.leadTransactionMutationSize + transactionMutation.getWalSizeInBytes(),
 							"Invalid WAL file on position `" + this.filePosition + "`!"
 						);
+						transactionSpan = new FileLocation(this.filePosition, 4 + this.contentLength);
 						// move cursor to the end of the lead mutation
 						this.filePosition += this.leadTransactionMutationSize;
 						// if the file is shorter than the expected size of the transaction mutation, we've reached EOF
@@ -513,7 +551,9 @@ public class CatalogWriteAheadLog implements Closeable {
 						}
 					}
 					// we've reached the first transaction mutation with catalog version >= requested catalog version
-					this.transactionMutation = transactionMutation;
+					this.transactionMutation = new TransactionMutationWithLocation(
+						transactionMutation, transactionSpan, this.walFileIndex
+					);
 				} catch (BufferUnderflowException e) {
 					// we've reached EOF or the tx mutation hasn't been yet completely written
 					this.transactionMutation = null;
@@ -553,9 +593,12 @@ public class CatalogWriteAheadLog implements Closeable {
 						// read content length and next leading transaction mutation
 						final long totalBeforeRead = this.observableInput.total();
 						this.contentLength = this.observableInput.readInt();
-						transactionMutation = (TransactionMutation) StorageRecord.read(
+						final TransactionMutation txMutation = (TransactionMutation) StorageRecord.read(
 							this.observableInput, (stream, length) -> kryo.readClassAndObject(stream)
 						).payload();
+						this.transactionMutation = new TransactionMutationWithLocation(
+							txMutation, new FileLocation(this.filePosition, this.contentLength + 4), this.walFileIndex
+						);
 						// measure the lead mutation size + verify the content length
 						this.leadTransactionMutationSize = Math.toIntExact(this.observableInput.total() - totalBeforeRead);
 						Assert.isPremiseValid(
@@ -591,4 +634,23 @@ public class CatalogWriteAheadLog implements Closeable {
 			}
 		}
 	}
+
+	/**
+	 * Represents a TransactionMutation with additional location information.
+	 */
+	private static class TransactionMutationWithLocation extends TransactionMutation {
+		@Serial private static final long serialVersionUID = -5873907941292188132L;
+		@Nonnull @Getter
+		private final FileLocation transactionSpan;
+		@Getter
+		private final int walFileIndex;
+
+		public TransactionMutationWithLocation(@Nonnull TransactionMutation delegate, @Nonnull FileLocation transactionSpan, int walFileIndex) {
+			super(delegate.getTransactionId(), delegate.getCatalogVersion(), delegate.getMutationCount(), delegate.getWalSizeInBytes());
+			this.transactionSpan = transactionSpan;
+			this.walFileIndex = walFileIndex;
+		}
+
+	}
+
 }

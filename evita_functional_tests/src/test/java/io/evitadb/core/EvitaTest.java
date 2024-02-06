@@ -695,7 +695,8 @@ class EvitaTest implements EvitaTestSupport {
 			return null;
 		});
 
-		assertFalse(theCollectionFile.exists());
+		// the file needs to remain on disk for other transactions to be able to read it
+		assertTrue(theCollectionFile.exists());
 	}
 
 	@Test
@@ -703,7 +704,7 @@ class EvitaTest implements EvitaTestSupport {
 		setupCatalogWithProductAndCategory();
 
 		final File theCollectionFile = getEvitaTestDirectory()
-			.resolve(TEST_CATALOG + File.separator + Entities.PRODUCT.toLowerCase() + ENTITY_COLLECTION_FILE_SUFFIX)
+			.resolve(TEST_CATALOG + File.separator + Entities.PRODUCT.toLowerCase() + "_0" + ENTITY_COLLECTION_FILE_SUFFIX)
 			.toFile();
 		assertTrue(theCollectionFile.exists());
 
@@ -720,7 +721,7 @@ class EvitaTest implements EvitaTestSupport {
 		setupCatalogWithProductAndCategory();
 
 		final File theCollectionFile = getEvitaTestDirectory()
-			.resolve(TEST_CATALOG + File.separator + Entities.PRODUCT.toLowerCase() + ENTITY_COLLECTION_FILE_SUFFIX)
+			.resolve(TEST_CATALOG + File.separator + Entities.PRODUCT.toLowerCase() + "_0" + ENTITY_COLLECTION_FILE_SUFFIX)
 			.toFile();
 		assertTrue(theCollectionFile.exists());
 
@@ -739,7 +740,8 @@ class EvitaTest implements EvitaTestSupport {
 			return null;
 		});
 
-		assertFalse(theCollectionFile.exists());
+		// the file needs to remain present for other transactions to read it
+		assertTrue(theCollectionFile.exists());
 	}
 
 	@Test

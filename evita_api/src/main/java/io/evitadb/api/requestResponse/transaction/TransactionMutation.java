@@ -38,7 +38,7 @@ import java.util.UUID;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @EqualsAndHashCode
-public final class TransactionMutation implements Mutation {
+public non-sealed class TransactionMutation implements Mutation {
 	@Serial private static final long serialVersionUID = -8039363287149601917L;
 	/**
 	 * Represents the unique identifier of a transaction.

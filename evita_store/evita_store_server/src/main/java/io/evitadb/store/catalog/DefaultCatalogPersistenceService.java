@@ -607,6 +607,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		@Nonnull CatalogState catalogState,
 		long catalogVersion,
 		int lastEntityCollectionPrimaryKey,
+		@Nullable TransactionMutation lastProcessedTransaction,
 		@Nonnull List<EntityCollectionHeader> entityHeaders
 	) {
 		// first store all entity collection headers if they differ
@@ -625,8 +626,9 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		this.catalogStoragePartPersistenceService.writeCatalogHeader(
 			STORAGE_PROTOCOL_VERSION,
 			catalogVersion,
-			/* TODO JNO - tady přidat referenci na transakci ve WAL od prvního záznamu až po úplně poslední */
-			null,
+			ofNullable(this.catalogWal)
+				.map(cwal -> cwal.getWalFileReference(lastProcessedTransaction))
+				.orElse(null),
 			entityHeaders
 				.stream()
 				.map(
@@ -852,7 +854,13 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	}
 
 	@Override
-	public void replaceCollectionWith(@Nonnull String entityType, int entityTypePrimaryKey, @Nonnull String newEntityType) {
+	@Nonnull
+	public EntityCollectionPersistenceService replaceCollectionWith(
+		@Nonnull String entityType,
+		int entityTypePrimaryKey,
+		int entityFileIndex,
+		@Nonnull String newEntityType
+	) {
 		final CatalogHeader catalogHeader = this.catalogStoragePartPersistenceService.getCatalogHeader();
 		final CollectionFileReference newEntityTypeExistingFileIndex = catalogHeader.getEntityTypeFileIndexIfExists(entityType)
 			.orElseGet(() -> new CollectionFileReference(entityType, entityTypePrimaryKey, 0, null));
@@ -860,7 +868,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		final File newFile = newEntityTypeFileIndex.toFilePath(catalogStoragePath).toFile();
 
 		final DefaultEntityCollectionPersistenceService entityPersistenceService = this.entityCollectionPersistenceServices.get(
-			newEntityTypeExistingFileIndex
+			new CollectionFileReference(entityType, entityTypePrimaryKey, entityFileIndex, null)
 		);
 		Assert.isPremiseValid(
 			entityPersistenceService != null,
@@ -868,31 +876,6 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		);
 
 		try {
-			// define new catalog header (this should be still covered by transaction)
-			final CatalogHeader newCatalogHeader = new CatalogHeader(
-				STORAGE_PROTOCOL_VERSION,
-				catalogHeader.version() + 1,
-				// TODO JNO - tohle bude taky asi součástí nějaké WAL operace?!
-				null,
-				Stream.concat(
-						catalogHeader.collectionFileIndex()
-							.values()
-							.stream()
-							.filter(it -> !Objects.equals(it.entityType(), newEntityType) && !Objects.equals(it.entityType(), entityType)),
-						Stream.of(newEntityTypeFileIndex)
-					)
-					.collect(
-						Collectors.toMap(
-							CollectionFileReference::entityType,
-							Function.identity()
-						)
-					),
-				catalogHeader.compressedKeys(),
-				catalogHeader.catalogName(),
-				catalogHeader.catalogState(),
-				catalogHeader.lastEntityCollectionPrimaryKey()
-			);
-
 			// now copy living snapshot of the entity collection to a new file
 			Assert.isPremiseValid(newFile.createNewFile(), "Cannot create new entity collection file: `" + newFile.toPath() + "`!");
 			entityPersistenceService.copySnapshotTo(newFile);
@@ -905,12 +888,14 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				throw runtimeException;
 			} else {
 				throw new EvitaInternalError(
-					"Unexpected error during entity collection rename: " + ex.getMessage(),
-					"Unexpected error during entity collection rename!",
+					"Unexpected error during the entity collection renaming: " + ex.getMessage(),
+					"Unexpected error during the entity collection renaming!",
 					ex
 				);
 			}
 		}
+
+		return this.createEntityCollectionPersistenceService(newEntityType, entityTypePrimaryKey);
 	}
 
 	@Override

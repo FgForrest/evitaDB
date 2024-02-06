@@ -118,6 +118,7 @@ public final class TrunkIncorporationTransactionStage
 			final long lastCatalogVersionInLiveView;
 			this.catalog.increaseWriterCount();
 			try {
+				TransactionMutation lastTransaction = null;
 				Transaction transaction = null;
 				// prepare finalizer that doesn't finish the catalog automatically but on demand
 				final TransactionTrunkFinalizer transactionHandler = new TransactionTrunkFinalizer(this.catalog);
@@ -191,6 +192,7 @@ public final class TrunkIncorporationTransactionStage
 
 						// this is the last mutation in the transaction, close the replay mutation now
 						transaction.close();
+						lastTransaction = transactionMutation;
 
 						log.debug("Finalizing transaction: {}", transaction);
 
@@ -200,12 +202,16 @@ public final class TrunkIncorporationTransactionStage
 
 				lastCatalogVersionInLiveView = this.catalog.getVersion();
 
-				// we've run out of mutation or the timeout has been exceeded, create new catalog version now
+				// we've run out of mutation, or the timeout has been exceeded, create a new catalog version now
+				TransactionMutation finalLastTransaction = lastTransaction;
 				Transaction.executeInTransactionIfProvided(
 					transaction,
 					() -> {
 						log.debug("Materializing catalog version: {}", this.lastFinalizedCatalogVersion);
-						this.catalog = transactionHandler.commitCatalogChanges(this.lastFinalizedCatalogVersion);
+						this.catalog = transactionHandler.commitCatalogChanges(
+							this.lastFinalizedCatalogVersion,
+							finalLastTransaction
+						);
 					}
 				);
 
@@ -296,7 +302,7 @@ public final class TrunkIncorporationTransactionStage
 	 * and thus it can be propagated to the "live view" of the evitaDB engine without primary key assignment
 	 * verifications.
 	 */
-	public class VerifiedEntityUpsertMutation extends EntityUpsertMutation {
+	public static class VerifiedEntityUpsertMutation extends EntityUpsertMutation {
 		@Serial private static final long serialVersionUID = -5775248516292883577L;
 
 		public VerifiedEntityUpsertMutation(@Nonnull EntityUpsertMutation entityUpsertMutation) {

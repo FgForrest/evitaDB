@@ -38,6 +38,7 @@ import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.CatalogIndexKey;
 import io.evitadb.store.exception.InvalidStoragePathException;
+import io.evitadb.store.model.FileLocation;
 import io.evitadb.store.spi.exception.DirectoryNotEmptyException;
 import io.evitadb.store.spi.model.CatalogHeader;
 import io.evitadb.store.spi.model.EntityCollectionHeader;
@@ -45,6 +46,7 @@ import io.evitadb.store.spi.model.reference.CollectionFileReference;
 import io.evitadb.utils.NamingConvention;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
@@ -145,6 +147,11 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	/**
 	 * Serializes all {@link EntityCollection} of the catalog to the persistent storage.
 	 *
+	 * @param catalogState                   the state of the catalog
+	 * @param catalogVersion                 the version of the catalog
+	 * @param lastEntityCollectionPrimaryKey the last primary key of the entity collection
+	 * @param lastProcessedTransaction       the last processed transaction
+	 * @param entityHeaders                  the list of entity collection headers
 	 * @throws InvalidStoragePathException when path is incorrect (cannot be created)
 	 * @throws DirectoryNotEmptyException  when directory already contains some data
 	 * @throws UnexpectedIOException       in case of any unknown IOException
@@ -153,9 +160,9 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 		@Nonnull CatalogState catalogState,
 		long catalogVersion,
 		int lastEntityCollectionPrimaryKey,
+		@Nullable TransactionMutation lastProcessedTransaction,
 		@Nonnull List<EntityCollectionHeader> entityHeaders
-	)
-		throws InvalidStoragePathException, DirectoryNotEmptyException, UnexpectedIOException;
+	) throws InvalidStoragePathException, DirectoryNotEmptyException, UnexpectedIOException;
 
 	/**
 	 * Method creates the service allowing access to the persisted contents of particular {@link EntityCollection}.
@@ -191,7 +198,7 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	 * offHeapWithFileBackupReference. After that it discards the specified off-heap data with file backup reference.
 	 *
 	 * @param transactionMutation The transaction mutation to append to the WAL.
-	 * @param walReference The off-heap data with file backup reference to discard.
+	 * @param walReference        The off-heap data with file backup reference to discard.
 	 */
 	void appendWalAndDiscard(
 		@Nonnull TransactionMutation transactionMutation,
@@ -212,9 +219,11 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	 * Replaces file of the `entityType` with contents of `newEntityType`
 	 * collection file.
 	 */
-	void replaceCollectionWith(
+	@Nonnull
+	EntityCollectionPersistenceService replaceCollectionWith(
 		@Nonnull String entityType,
 		int entityTypePrimaryKey,
+		int entityFileIndex,
 		@Nonnull String newEntityType
 	);
 
@@ -237,7 +246,7 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	 * Method closes this persistence service and also all {@link EntityCollectionPersistenceService} that were created
 	 * via. {@link #createEntityCollectionPersistenceService(String, int)}.
 	 *
-	 * You need to call {@link #storeHeader(CatalogState, long, int, List)} or {@link #flushTrappedUpdates(DataStoreIndexChanges)}
+	 * You need to call {@link #storeHeader(CatalogState, long, int, FileLocation, List)} or {@link #flushTrappedUpdates(DataStoreIndexChanges)}
 	 * before this method is called, or you will lose your data in memory buffers.
 	 */
 	@Override

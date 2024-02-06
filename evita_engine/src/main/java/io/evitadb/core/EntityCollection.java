@@ -1441,6 +1441,8 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 	 * the service is automatically recreated.
 	 */
 	private <T> T doWithPersistenceService(@Nonnull Supplier<T> lambda) {
+		// TODO JNO - tohoto se zbavit a zajistit aby entity collection měla vždy platnou vazbu na aktuální storage
+		// nutné promyslet i výměny v rámci změny fileIndexů
 		if (this.persistenceService.isClosed()) {
 			// if the service was closed in the meantime - just recreate it
 			this.persistenceService = this.catalogPersistenceService.createEntityCollectionPersistenceService(getEntityType(), getEntityTypePrimaryKey());

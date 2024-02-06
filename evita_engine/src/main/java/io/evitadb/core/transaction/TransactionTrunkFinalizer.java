@@ -24,6 +24,7 @@
 package io.evitadb.core.transaction;
 
 import io.evitadb.api.requestResponse.mutation.Mutation;
+import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.exception.EvitaInternalError;
@@ -37,7 +38,7 @@ import javax.annotation.concurrent.NotThreadSafe;
  * This implementation is used to incorporate multiple transaction into the trunk of the catalog. Commits are ignored
  * so that multiple "transaction" can be incorporated in a single "turn". The final commit that may contain at least
  * one full transaction or may also contain multiple shorter full transaction is done by calling
- * {@link #commitCatalogChanges(long)} which makes also additional uses of this instance impossible.
+ * {@link #commitCatalogChanges(long, TransactionMutation)}  which makes also additional uses of this instance impossible.
  *
  * This class is not thread-safe.
  *
@@ -57,7 +58,7 @@ public class TransactionTrunkFinalizer implements TransactionHandler {
 	/**
 	 * Represents the committed catalog.
 	 *
-	 * This variable holds the instance of the catalog that has been committed after calling {@link #commitCatalogChanges(long)}
+	 * This variable holds the instance of the catalog that has been committed after calling {@link #commitCatalogChanges(long, TransactionMutation)}
 	 * method in the TransactionTrunkFinalizer class. It stores the state of the catalog with all the changes made in the
 	 * transactional layers. When this variable is non-null additional commits are not allowed.
 	 */
@@ -99,14 +100,15 @@ public class TransactionTrunkFinalizer implements TransactionHandler {
 	 * @return committed catalog
 	 */
 	@Nonnull
-	public Catalog commitCatalogChanges(long transactionId) {
+	public Catalog commitCatalogChanges(long transactionId, @Nonnull TransactionMutation lastProcessedTransaction) {
 		Assert.isPremiseValid(committedCatalog == null, "Catalog was already committed!");
-		// init new catalog with the same collections as previous one
+		Assert.isPremiseValid(lastProcessedTransaction != null, "Information about last processed transaction must be provided!");
+		// init new catalog with the same collections as the previous one
 		final Catalog newCatalog = this.lastTransactionLayer.getStateCopyWithCommittedChanges(catalogToUpdate);
 		// verify everything was processed
 		lastTransactionLayer.verifyLayerWasFullySwept();
 		// now let's flush the catalog on the disk
-		newCatalog.flush(transactionId);
+		newCatalog.flush(transactionId, lastProcessedTransaction);
 		// assign committed catalog
 		this.committedCatalog = newCatalog;
 		// and return created catalog

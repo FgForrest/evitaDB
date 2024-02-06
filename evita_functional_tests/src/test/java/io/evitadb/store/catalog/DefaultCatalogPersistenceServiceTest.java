@@ -206,7 +206,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		entityHeaders.add(storeCollection.flush());
 
 		// try to serialize
-		ioService.storeHeader(CatalogState.WARMING_UP, 0, 0, entityHeaders);
+		ioService.storeHeader(CatalogState.WARMING_UP, 0, 0, null, entityHeaders);
 
 		// release buffers
 		ioService.release();
@@ -251,7 +251,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		// try to serialize
 		ioService.storeHeader(
 			CatalogState.WARMING_UP,
-			0, 0,
+			0, 0, null,
 			Arrays.asList(
 				productCollection.flush(),
 				brandCollection.flush(),
@@ -407,6 +407,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 					CatalogState.ALIVE,
 					2L,
 					0,
+					null,
 					Collections.emptyList()
 				);
 				return null;
