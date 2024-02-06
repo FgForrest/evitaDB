@@ -6,7 +6,6 @@ module evita.java.driver.observability {
 	uses io.evitadb.api.trace.TracingContext;
 
 	provides io.evitadb.driver.trace.ClientTracingContext with io.evitadb.driver.observability.trace.DriverTracingContext;
-	provides io.evitadb.api.trace.TracingContext with io.evitadb.driver.observability.trace.OpenTelemetryClientTracingContext;
 
 	requires static jsr305;
 	requires static lombok;
