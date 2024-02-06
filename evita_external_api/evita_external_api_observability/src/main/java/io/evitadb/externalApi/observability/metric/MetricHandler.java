@@ -29,7 +29,7 @@ import io.evitadb.core.metric.annotation.UsedMetric;
 import io.evitadb.core.metric.event.CustomMetricsExecutionEvent;
 import io.evitadb.externalApi.observability.configuration.ObservabilityConfig;
 import io.evitadb.externalApi.observability.metric.provider.CustomEventProvider;
-import io.evitadb.externalApi.observability.metric.util.ChainableConsumer;
+import io.evitadb.function.ChainableConsumer;
 import io.evitadb.utils.ReflectionLookup;
 import io.evitadb.utils.StringUtils;
 import io.prometheus.metrics.core.metrics.Counter;

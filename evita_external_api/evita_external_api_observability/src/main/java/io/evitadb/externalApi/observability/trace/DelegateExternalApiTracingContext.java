@@ -25,7 +25,6 @@ package io.evitadb.externalApi.observability.trace;
 
 import io.evitadb.api.trace.TracingContext;
 import io.evitadb.api.trace.TracingContextProvider;
-import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.utils.ExternalApiTracingContext;
 import io.grpc.Metadata;
@@ -46,21 +45,54 @@ import java.util.function.Supplier;
 public class DelegateExternalApiTracingContext implements ExternalApiTracingContext<Object> {
 	private final JsonApiTracingContext jsonApiTracingContext;
 	private final GrpcTracingContext grpcApiTracingContext;
+
 	public DelegateExternalApiTracingContext() {
 		final TracingContext context = TracingContextProvider.getContext();
 		jsonApiTracingContext = new JsonApiTracingContext(context);
 		grpcApiTracingContext = new GrpcTracingContext(context);
 	}
+
+	/**
+	 * Executes the provided {@link Runnable} within a block by delegating the execution to the appropriate
+	 * {@link ExternalApiTracingContext} implementation based on the type of the context.
+	 *
+	 * @param protocolName The name of the protocol being executed within the block.
+	 * @param context The context object representing the tracing context.
+	 * @param attributes Additional attributes associated with the execution.
+	 * @param runnable The {@link Runnable} to be executed within the block.
+	 */
 	@Override
-	public void executeWithinBlock(@Nonnull String protocolName, @Nonnull Object context, @Nullable Map<String, Object> attributes, @Nonnull Runnable runnable) {
+	public void executeWithinBlock(
+		@Nonnull String protocolName,
+		@Nonnull Object context,
+		@Nullable Map<String, Object> attributes,
+		@Nonnull Runnable runnable
+	) {
 		executeWithinBlock(protocolName, context, attributes, () -> {
 			runnable.run();
 			return null;
 		});
 	}
 
+	/**
+	 * Executes the provided lambda within a block by delegating the execution to the appropriate
+	 * ExternalApiTracingContext implementation based on the type of the context.
+	 *
+	 * @param protocolName The name of the protocol being executed within the block.
+	 * @param context The context object representing the tracing context.
+	 * @param attributes Additional attributes associated with the execution.
+	 * @param lambda The lambda expression to be executed within the block.
+	 * @param <T> The return type of the lambda expression.
+	 * @return The result of the lambda execution.
+	 * @throws EvitaInvalidUsageException If an invalid object type is sent as the External API tracing context.
+	 */
 	@Override
-	public <T> T executeWithinBlock(@Nonnull String protocolName, @Nonnull Object context, @Nullable Map<String, Object> attributes, @Nonnull Supplier<T> lambda) {
+	public <T> T executeWithinBlock(
+		@Nonnull String protocolName,
+		@Nonnull Object context,
+		@Nullable Map<String, Object> attributes,
+		@Nonnull Supplier<T> lambda
+	) {
 		if (context instanceof HttpServerExchange httpServerExchange) {
 			return jsonApiTracingContext.executeWithinBlock(protocolName, httpServerExchange, attributes, lambda);
 		} else if (context instanceof Metadata metadata) {
@@ -70,8 +102,15 @@ public class DelegateExternalApiTracingContext implements ExternalApiTracingCont
 		}
 	}
 
+	/**
+	 * Get the server interceptor of the specified type from the tracing context.
+	 *
+	 * @param type The class representing the type of the server interceptor.
+	 * @param <T>  The type of the server interceptor.
+	 * @return The server interceptor of the specified type, or null if not found.
+	 */
 	@Override
-	public <T> T getServerInterceptor(Class<T> type) {
+	public <T> T getServerInterceptor(@Nonnull Class<T> type) {
 		if (type.equals(ServerInterceptor.class) && grpcApiTracingContext != null) {
 			//noinspection unchecked
 			return (T) grpcApiTracingContext.getServerInterceptor();

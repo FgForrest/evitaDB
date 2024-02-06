@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.observability.metric.util;
+package io.evitadb.function;
 
 import java.util.function.Consumer;
 
@@ -40,7 +40,8 @@ public interface ChainableConsumer<T> extends Consumer<T> {
 
 	// Method to chain another Consumer
 	default ChainableConsumer<T> andThen(ChainableConsumer<? super T> after) {
-		return (t) -> {
+		return (t) ->
+		{
 			this.accept(t);
 			after.accept(t);
 		};

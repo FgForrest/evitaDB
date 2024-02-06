@@ -45,6 +45,7 @@ import io.evitadb.externalApi.graphql.io.GraphQLHandler.GraphQLEndpointExchange;
 import io.evitadb.externalApi.http.EndpointExchange;
 import io.evitadb.externalApi.http.EndpointHandler;
 import io.evitadb.externalApi.http.EndpointResponse;
+import io.evitadb.externalApi.http.MimeTypes;
 import io.evitadb.externalApi.http.SuccessEndpointResponse;
 import io.evitadb.externalApi.trace.ExternalApiTracingContextProvider;
 import io.evitadb.externalApi.utils.ExternalApiTracingContext;
@@ -155,7 +156,7 @@ public class GraphQLHandler extends EndpointHandler<GraphQLEndpointExchange> {
     @Nonnull
     @Override
     public Set<String> getSupportedRequestContentTypes() {
-        return Set.of(GraphQLMimeTypes.APPLICATION_JSON);
+        return Set.of(MimeTypes.APPLICATION_JSON);
     }
 
     @Nonnull
@@ -163,7 +164,7 @@ public class GraphQLHandler extends EndpointHandler<GraphQLEndpointExchange> {
     public LinkedHashSet<String> getSupportedResponseContentTypes() {
         final LinkedHashSet<String> mediaTypes = createLinkedHashSet(2);
         mediaTypes.add(GraphQLMimeTypes.APPLICATION_GRAPHQL_RESPONSE_JSON);
-        mediaTypes.add(GraphQLMimeTypes.APPLICATION_JSON);
+        mediaTypes.add(MimeTypes.APPLICATION_JSON);
         return mediaTypes;
     }
 

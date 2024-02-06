@@ -45,27 +45,70 @@ import java.util.stream.Collectors;
  */
 public class JsonApiTracingContext implements ExternalApiTracingContext<HttpServerExchange> {
 	private static final String CLIENT_ID_HEADER = "X-EvitaDB-ClientID";
+	/**
+	 * Getter for extracting information from Undertow {@link HeaderMap}.
+	 */
+	@Nonnull
+	private static final TextMapGetter<HeaderMap> CONTEXT_GETTER =
+		new TextMapGetter<>() {
+			@Override
+			public Iterable<String> keys(HeaderMap headers) {
+				return headers.getHeaderNames()
+					.stream()
+					.map(HttpString::toString)
+					.collect(Collectors.toList());
+			}
 
+			@Override
+			public String get(@Nullable HeaderMap headers, @Nonnull String s) {
+				assert headers != null;
+				return headers.getFirst(s);
+			}
+		};
 	private final TracingContext tracingContext;
+
 	public JsonApiTracingContext(@Nonnull TracingContext tracingContext) {
 		this.tracingContext = tracingContext;
 	}
+
+	/**
+	 * Executes the given lambda within a tracing block.
+	 *
+	 * @param protocolName The name of the protocol.
+	 * @param exchange     The HTTP server exchange.
+	 * @param attributes   Optional attributes to pass into the lambda.
+	 * @param lambda       The lambda to execute.
+	 */
 	@Override
-	public void executeWithinBlock(@Nonnull String protocolName,
-								   @Nonnull HttpServerExchange exchange,
-								   @Nullable Map<String, Object> attributes,
-	                               @Nonnull Runnable lambda) {
+	public void executeWithinBlock(
+		@Nonnull String protocolName,
+		@Nonnull HttpServerExchange exchange,
+		@Nullable Map<String, Object> attributes,
+		@Nonnull Runnable lambda
+	) {
 		executeWithinBlock(protocolName, exchange, attributes, () -> {
 			lambda.run();
 			return null;
 		});
 	}
 
+	/**
+	 * Executes the given lambda within a tracing block.
+	 *
+	 * @param protocolName The name of the protocol.
+	 * @param exchange     The HTTP server exchange.
+	 * @param attributes   Optional attributes to pass into the lambda.
+	 * @param lambda       The lambda to execute.
+	 * @return The value returned by the lambda.
+	 * @param <T> The type of the value returned by the lambda.
+	 */
 	@Override
-	public <T> T executeWithinBlock(@Nonnull String protocolName,
-								    @Nonnull HttpServerExchange exchange,
-								    @Nullable Map<String, Object> attributes,
-	                                @Nonnull Supplier<T> lambda) {
+	public <T> T executeWithinBlock(
+		@Nonnull String protocolName,
+		@Nonnull HttpServerExchange exchange,
+		@Nullable Map<String, Object> attributes,
+		@Nonnull Supplier<T> lambda
+	) {
 		if (!OpenTelemetryTracerSetup.isTracingEnabled()) {
 			return lambda.get();
 		}
@@ -95,25 +138,4 @@ public class JsonApiTracingContext implements ExternalApiTracingContext<HttpServ
 		);
 		return context.with(OpenTelemetryTracerSetup.CONTEXT_KEY, clientId);
 	}
-
-	/**
-	 * Getter for extracting information from Undertow {@link HeaderMap}.
-	 */
-	@Nonnull
-	private static final TextMapGetter<HeaderMap> CONTEXT_GETTER =
-		new TextMapGetter<>() {
-			@Override
-			public String get(@Nullable HeaderMap headers, @Nonnull String s) {
-				assert headers != null;
-				return headers.getFirst(s);
-			}
-
-			@Override
-			public Iterable<String> keys(HeaderMap headers) {
-				return headers.getHeaderNames()
-					.stream()
-					.map(HttpString::toString)
-					.collect(Collectors.toList());
-			}
-		};
 }

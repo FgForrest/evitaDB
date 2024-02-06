@@ -30,7 +30,7 @@ import java.io.Serial;
 
 /**
  * This exception represents an error that is caused by the client data or usage of Evita's Observability API.
- * All exceptions of this type can be solved by the client side by changing its behaviour.
+ * The client side can solve all exceptions of this type by changing its behavior.
  *
  * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
  */

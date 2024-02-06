@@ -131,6 +131,10 @@ public class OpenTelemetryTracerSetup {
 		).build();
 	}
 
+	/**
+	 * Checks if tracing is enabled.
+	 * @return true if tracing is enabled, false otherwise
+	 */
 	public static boolean isTracingEnabled() {
 		return isTracingEnabled(TRACING_CONFIG);
 	}
@@ -154,6 +158,12 @@ public class OpenTelemetryTracerSetup {
 		return OPEN_TELEMETRY;
 	}
 
+	/**
+	 * Checks if tracing is enabled.
+	 *
+	 * @param tracingConfig the tracing configuration
+	 * @return true if tracing is enabled, false otherwise
+	 */
 	private static boolean isTracingEnabled(@Nullable TracingConfig tracingConfig) {
 		return tracingConfig != null && tracingConfig.getEndpoint() != null;
 	}

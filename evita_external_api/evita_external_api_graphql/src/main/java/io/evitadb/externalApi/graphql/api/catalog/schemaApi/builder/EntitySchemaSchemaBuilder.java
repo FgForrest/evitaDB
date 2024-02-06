@@ -228,10 +228,10 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 			);
 		}
 
-		schemaObjectBuilder.field(EntitySchemaDescriptor.ALL_SORTABLE_ATTRIBUTE_COMPOUNDS.to(fieldBuilderTransformer));
+		schemaObjectBuilder.field(SortableAttributeCompoundsSchemaProviderDescriptor.ALL_SORTABLE_ATTRIBUTE_COMPOUNDS.to(fieldBuilderTransformer));
 		buildingContext.registerDataFetcher(
 			objectName,
-			EntitySchemaDescriptor.ALL_SORTABLE_ATTRIBUTE_COMPOUNDS,
+			SortableAttributeCompoundsSchemaProviderDescriptor.ALL_SORTABLE_ATTRIBUTE_COMPOUNDS,
 			new AllSortableAttributeCompoundSchemasDataFetcher()
 		);
 
@@ -289,7 +289,7 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 	private GraphQLObjectType buildEntityAttributeSchemaObject() {
 		buildingContext.registerDataFetcher(
 			EntityAttributeSchemaDescriptor.THIS,
-			EntityAttributeSchemaDescriptor.TYPE,
+			AttributeSchemaDescriptor.TYPE,
 			new AttributeSchemaTypeDataFetcher()
 		);
 
@@ -404,7 +404,7 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 	private BuiltFieldDescriptor buildSortableAttributeCompoundSchemasField(@Nonnull EntitySchemaContract entitySchema) {
 		final GraphQLObjectType object = buildSortableAttributeCompoundSchemasObject(entitySchema);
 
-		final GraphQLFieldDefinition field = EntitySchemaDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS
+		final GraphQLFieldDefinition field = SortableAttributeCompoundsSchemaProviderDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS
 			.to(fieldBuilderTransformer)
 			.type(nonNull(object))
 			.build();
@@ -547,7 +547,7 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 		);
 		buildingContext.registerDataFetcher(
 			ReferenceSchemaDescriptor.THIS_GENERIC,
-			ReferenceSchemaDescriptor.ALL_SORTABLE_ATTRIBUTE_COMPOUNDS,
+			SortableAttributeCompoundsSchemaProviderDescriptor.ALL_SORTABLE_ATTRIBUTE_COMPOUNDS,
 			new AllSortableAttributeCompoundSchemasDataFetcher()
 		);
 
@@ -619,7 +619,7 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 			.to(objectBuilderTransformer)
 			.name(objectName)
 			.field(ReferenceSchemaDescriptor.ALL_ATTRIBUTES.to(fieldBuilderTransformer))
-			.field(ReferenceSchemaDescriptor.ALL_SORTABLE_ATTRIBUTE_COMPOUNDS.to(fieldBuilderTransformer));
+			.field(SortableAttributeCompoundsSchemaProviderDescriptor.ALL_SORTABLE_ATTRIBUTE_COMPOUNDS.to(fieldBuilderTransformer));
 
 		buildingContext.registerDataFetcher(
 			objectName,
@@ -662,7 +662,7 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 		}
 		buildingContext.registerDataFetcher(
 			objectName,
-			ReferenceSchemaDescriptor.ALL_SORTABLE_ATTRIBUTE_COMPOUNDS,
+			SortableAttributeCompoundsSchemaProviderDescriptor.ALL_SORTABLE_ATTRIBUTE_COMPOUNDS,
 			new AllSortableAttributeCompoundSchemasDataFetcher()
 		);
 
@@ -718,7 +718,7 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 			referenceSchema
 		);
 
-		final GraphQLFieldDefinition field = ReferenceSchemaDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS
+		final GraphQLFieldDefinition field = SortableAttributeCompoundsSchemaProviderDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS
 			.to(fieldBuilderTransformer)
 			.type(nonNull(object))
 			.build();

@@ -62,6 +62,11 @@ public class OpenTelemetryClientTracerSetup {
 		TRACING_ENDPOINT_PROTOCOL = protocol;
 	}
 
+	/**
+	 * Initializes the OpenTelemetry instance, the tracer, and the propagator context.
+	 *
+	 * @return the initialized OpenTelemetry instance
+	 */
 	@Nonnull
 	private static OpenTelemetry initializeOpenTelemetry() {
 		final Resource resource = Resource.getDefault().toBuilder().put(ResourceAttributes.SERVICE_NAME, SERVICE_NAME).build();
@@ -100,6 +105,12 @@ public class OpenTelemetryClientTracerSetup {
 		).build();
 	}
 
+	/**
+	 * Retrieves the instance of OpenTelemetry. If the instance is not initialized, it will be
+	 * initialized before returning.
+	 *
+	 * @return the OpenTelemetry instance
+	 */
 	@Nonnull
 	public static OpenTelemetry getOpenTelemetry() {
 		if (OPEN_TELEMETRY == null) {

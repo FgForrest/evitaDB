@@ -48,16 +48,43 @@ import java.util.function.Supplier;
  * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
  */
 public class ObservabilityTracingContext implements TracingContext {
+
+	/**
+	 * Executes a provided runnable within a trace block. The trace block is created using the passed task name and attributes.
+	 * The execution of the lambda is traced and properly executed within the trace block.
+	 *
+	 * @param taskName    The name of the task to be traced.
+	 * @param attributes  Optional attributes to be added to the trace.
+	 * @param runnable    The runnable to be executed within the trace block.
+	 */
 	@Override
-	public void executeWithinBlock(@Nonnull String taskName, @Nullable Map<String, Object> attributes, @Nonnull Runnable runnable) {
+	public void executeWithinBlock(
+		@Nonnull String taskName,
+		@Nullable Map<String, Object> attributes,
+		@Nonnull Runnable runnable
+	) {
 		executeWithinBlock(taskName, attributes, () -> {
 			runnable.run();
 			return null;
 		});
 	}
 
+	/**
+	 * Executes a provided supplier within a trace block. The trace block is created using the passed task name and attributes.
+	 * The execution of the lambda is traced and properly executed within the trace block.
+	 *
+	 * @param <T>         The type of the return value
+	 * @param taskName    The name of the task to be traced.
+	 * @param attributes  Optional attributes to be added to the trace.
+	 * @param lambda      The supplier to be executed within the trace block.
+	 * @return The result of the lambda execution.
+	 */
 	@Override
-	public <T> T executeWithinBlock(@Nonnull String taskName, @Nullable Map<String, Object> attributes, @Nonnull Supplier<T> lambda) {
+	public <T> T executeWithinBlock(
+		@Nonnull String taskName,
+		@Nullable Map<String, Object> attributes,
+		@Nonnull Supplier<T> lambda
+	) {
 		if (!OpenTelemetryTracerSetup.isTracingEnabled()) {
 			return lambda.get();
 		}

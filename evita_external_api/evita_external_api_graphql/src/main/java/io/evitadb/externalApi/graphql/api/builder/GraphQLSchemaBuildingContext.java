@@ -34,7 +34,6 @@ import io.evitadb.externalApi.graphql.configuration.GraphQLConfig;
 import io.evitadb.externalApi.graphql.exception.GraphQLSchemaBuildingError;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -55,18 +54,12 @@ import static io.evitadb.utils.CollectionUtils.createHashSet;
  */
 public class GraphQLSchemaBuildingContext {
 
-    @Nonnull private final GraphQLConfig config;
-    @Getter @Nonnull private final Evita evita;
-
+    @Nonnull
+    private final GraphQLConfig config;
+    @Getter @Nonnull
+    private final Evita evita;
     @Getter
     private final TracingContext tracingContext;
-
-    public GraphQLSchemaBuildingContext(@Nonnull GraphQLConfig config, @Nonnull Evita evita) {
-        this.config = config;
-        this.evita = evita;
-        this.tracingContext = TracingContextProvider.getContext();;
-    }
-
     @Nonnull
     private final List<GraphQLFieldDefinition> queryFields = new LinkedList<>();
     @Nonnull
@@ -80,6 +73,12 @@ public class GraphQLSchemaBuildingContext {
      */
     @Nonnull
     private final Set<String> registeredCustomEnums = createHashSet(32);
+
+    public GraphQLSchemaBuildingContext(@Nonnull GraphQLConfig config, @Nonnull Evita evita) {
+        this.config = config;
+        this.evita = evita;
+        this.tracingContext = TracingContextProvider.getContext();;
+    }
 
     /**
      * Returns executor for async data fetcher. If empty, no data fetcher should run in parallel.

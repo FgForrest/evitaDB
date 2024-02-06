@@ -51,16 +51,44 @@ public class GrpcTracingContext implements ExternalApiTracingContext<Metadata> {
 		this.tracingContext = tracingContext;
 	}
 
+	/**
+	 * Executes the given {@link Runnable} within a tracing block.
+	 *
+	 * @param protocolName the name of the protocol
+	 * @param context the metadata context
+	 * @param attributes the map of attributes
+	 * @param runnable the runnable to be executed
+	 */
 	@Override
-	public void executeWithinBlock(@Nonnull String protocolName, @Nonnull Metadata context, @Nullable Map<String, Object> attributes, @Nonnull Runnable runnable) {
+	public void executeWithinBlock(
+		@Nonnull String protocolName,
+		@Nonnull Metadata context,
+		@Nullable Map<String, Object> attributes,
+		@Nonnull Runnable runnable
+	) {
 		executeWithinBlock(protocolName, context, attributes, () -> {
 			runnable.run();
 			return null;
 		});
 	}
 
+	/**
+	 * Executes the given logic within a tracing block. If tracing is disabled, the logic is executed immediately without tracing.
+	 *
+	 * @param protocolName the name of the protocol
+	 * @param context the metadata context
+	 * @param attributes the map of attributes
+	 * @param lambda the logic to be executed
+	 * @param <T> the type of the result
+	 * @return the result of executing the logic
+	 */
 	@Override
-	public <T> T executeWithinBlock(@Nonnull String protocolName, @Nonnull Metadata context, @Nullable Map<String, Object> attributes, @Nonnull Supplier<T> lambda) {
+	public <T> T executeWithinBlock(
+		@Nonnull String protocolName,
+		@Nonnull Metadata context,
+		@Nullable Map<String, Object> attributes,
+		@Nonnull Supplier<T> lambda
+	) {
 		if (!OpenTelemetryTracerSetup.isTracingEnabled()) {
 			return lambda.get();
 		}
@@ -73,6 +101,11 @@ public class GrpcTracingContext implements ExternalApiTracingContext<Metadata> {
 		}
 	}
 
+	/**
+	 * Retrieves the server interceptor for tracing.
+	 *
+	 * @return The server interceptor for tracing, or null if tracing is not enabled.
+	 */
 	@Nullable
 	public ServerInterceptor getServerInterceptor() {
 		if (!OpenTelemetryTracerSetup.isTracingEnabled()) {
