@@ -482,19 +482,8 @@ public class EvitaClient implements EvitaContract {
 				ArrayUtils.insertRecordIntoArray(SessionFlags.READ_WRITE, flags, flags.length)
 		);
 		try (final EvitaSessionContract session = this.createSession(commitBehaviour, traits)) {
-			return session.apply(updater);
+			return updater.apply(session);
 		}
-
-		// join the transaction future and return
-		final CompletableFuture<T> result = new CompletableFuture<>();
-		closeFuture.whenComplete((txId, ex) -> {
-			if (ex != null) {
-				result.completeExceptionally(ex);
-			} else {
-				result.complete(resultValue);
-			}
-		});
-		return result;
 	}
 
 	/* TODO JNO - write tests both for server side and client side */
@@ -516,10 +505,7 @@ public class EvitaClient implements EvitaContract {
 		final CompletableFuture<Long> closeFuture;
 		final T resultValue;
 		try {
-			resultValue = session.executeWithClientId(
-				configuration.clientId(),
-				() -> updater.apply(session)
-			);
+			resultValue = updater.apply(session);
 		} finally {
 			closeFuture = session.closeNow(commitBehaviour);
 		}
@@ -568,10 +554,7 @@ public class EvitaClient implements EvitaContract {
 		final EvitaSessionContract session = this.createSession(commitBehaviour, traits);
 		final CompletableFuture<Long> closeFuture;
 		try {
-			session.executeWithClientId(
-				configuration.clientId(),
-				() -> updater.accept(session)
-			);
+			updater.accept(session);
 		} finally {
 			closeFuture = session.closeNow(commitBehaviour);
 		}
