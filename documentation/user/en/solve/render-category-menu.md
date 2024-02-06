@@ -147,7 +147,7 @@ categories in a similar way:
 </SourceCodeTabs>
 
 Note that the primary key of the parent category is used in the filter of the subhierarchy calculation requirement. 
-Also, <LS to="e,j,c">`stop(level(1))`</LS><LS to="g,r">`stopAt: { level: 1 }`</LS> has been replaced by <LS to="e,j,c>`stop(distance(1))`</LS><LS to="g,r">`stopAt: { distance: 1 }`</LS>
+Also, <LS to="e,j,c">`stop(level(1))`</LS><LS to="g,r">`stopAt: { level: 1 }`</LS> has been replaced by <LS to="e,j,c">`stop(distance(1))`</LS><LS to="g,r">`stopAt: { distance: 1 }`</LS>
 because level is different for each category parent, while distance is relative to the parent node and allows us to 
 express the retrieved depth in a more general way. 
 The result will be identical to the root category listing:
