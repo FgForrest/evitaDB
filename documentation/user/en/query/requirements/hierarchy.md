@@ -1205,7 +1205,7 @@ statistics(
             tree below the given node; the count is correct regardless of whether the children themselves are
             requested/traversed by the constraint definition, and respects [`hierarchyOfReference`](#hierarchy-of-reference)
             settings for automatic removal of hierarchy nodes that would contain empty result set of queried entities
-            (REMOVE_EMPTY)
+            (`REMOVE_EMPTY`)
         - **QUERIED_ENTITY_COUNT**: triggers the calculation of the total number of queried entities that will be
             returned if the current query is focused on this particular hierarchy node using the `hierarchyWithin`
             filter constraint (the possible refining constraint in the form of [`directRelation`](../filtering/hierarchy.md#direct-relation)
@@ -1237,7 +1237,7 @@ constraints are crucial for the calculation of `queriedEntityCount` (and therefo
 - `childrenCount`: triggers calculation of the count of child hierarchy nodes that exist in the hierarchy
     tree below the given node; the count is correct regardless of whether the children themselves are
     requested/traversed by the constraint definition, and respects [`hierarchyOfReference`](#hierarchy-of-reference)
-    settings for automatic removal of hierarchy nodes that would contain empty result set of queried entities (REMOVE_EMPTY)
+    settings for automatic removal of hierarchy nodes that would contain empty result set of queried entities (`REMOVE_EMPTY`)
 - `queriedEntityCount`: triggers the calculation of the total number of queried entities that will be
     returned if the current query is focused on this particular hierarchy node using the `hierarchyWithin`
     filter constraint (the possible refining constraint in the form of [`directRelation`](../filtering/hierarchy.md#direct-relation)

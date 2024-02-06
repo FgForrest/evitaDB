@@ -2,6 +2,7 @@
  * Module contains external API of the evitaDB.
  */
 module evita.api {
+	uses io.evitadb.api.trace.TracingContext;
 
 	opens io.evitadb.api.configuration to com.fasterxml.jackson.databind;
 	opens io.evitadb.api.requestResponse.extraResult to com.graphqljava;
@@ -36,6 +37,8 @@ module evita.api {
 	exports io.evitadb.api.requestResponse.mutation;
 	exports io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound;
 	exports io.evitadb.api.requestResponse.data.annotation;
+	exports io.evitadb.api.configuration.metric;
+	exports io.evitadb.api.trace;
 
 	requires static lombok;
 	requires static jsr305;

@@ -1,0 +1,1 @@
+GET /rest/evita/entity/get?url=/en/wireless-headphones&locale=en&attributeContentAll=true&associatedDataContentAll=true&referenceContentAll=true&hierarchyContent=true

@@ -1,0 +1,21 @@
+{
+  getEntity(url: "/en/wireless-headphones", locale: en) {
+    primaryKey
+    targetEntity {
+      ... on Product {
+        attributes {
+          code
+          availability
+          brandCode
+        }
+      }
+      ... on Category {
+        attributes {
+          level
+        }
+        parentPrimaryKey
+      }
+      # ... and possibly other entities
+    }
+  }
+}

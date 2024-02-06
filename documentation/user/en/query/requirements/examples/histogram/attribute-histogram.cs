@@ -4,7 +4,7 @@ EvitaResponse<ISealedEntity> entities = evita.QueryCatalog(
         Query(
         	Collection("Product"),
         	Require(
-        		AttributeHistogram(5, "width", "height")
+        		AttributeHistogram(20, Standard, "width", "height")
         	)
         )
 	)

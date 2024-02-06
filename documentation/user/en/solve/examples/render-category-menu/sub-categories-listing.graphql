@@ -1,0 +1,41 @@
+{
+  queryProduct(
+    filterBy: {
+      entityLocaleEquals: en,
+      hierarchyCategoriesWithin: {
+        ofParent: {
+          attributeUrlEquals: "/en/accessories"
+        }
+      }
+    }
+  ) {
+    recordPage(
+      number: 1
+      size: 0
+    ) {
+      data {
+        primaryKey
+      }
+    }
+    extraResults {
+      hierarchy {
+        categories {
+          subcategories: children(
+            stopAt: {
+              distance: 1
+            }
+          ) {
+            level
+            entity {
+              primaryKey
+              attributes {
+                code
+              }
+            }
+            requested
+          }
+        }
+      }
+    }
+  }
+}

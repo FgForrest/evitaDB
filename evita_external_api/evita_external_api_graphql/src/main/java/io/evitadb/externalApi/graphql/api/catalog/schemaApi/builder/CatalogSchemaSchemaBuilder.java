@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -110,7 +110,7 @@ public class CatalogSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Cata
 			CatalogSchemaApiRootDescriptor.GET_CATALOG_SCHEMA.to(staticEndpointBuilderTransformer).build(),
 			new ReadDataFetcher(
 				new CatalogSchemaDataFetcher(),
-				buildingContext.getEvita(),
+				buildingContext.getTracingContext(),
 				buildingContext.getEvitaExecutor().orElse(null)
 			)
 		);
@@ -191,7 +191,7 @@ public class CatalogSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Cata
 	}
 
 	@Nonnull
-	private BuiltFieldDescriptor buildGlobalAttributeSchemaField(@Nonnull AttributeSchemaContract attributeSchema) {
+	private static BuiltFieldDescriptor buildGlobalAttributeSchemaField(@Nonnull AttributeSchemaContract attributeSchema) {
 		final GraphQLFieldDefinition attributeSchemaField = newFieldDefinition()
 			.name(attributeSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION))
 			.description(attributeSchema.getDescription())

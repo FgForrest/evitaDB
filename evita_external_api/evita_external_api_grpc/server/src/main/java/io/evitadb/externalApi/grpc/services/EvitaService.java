@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -35,7 +35,6 @@ import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingTopLevelCatalogSchemaMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.SchemaMutationConverter;
-import io.evitadb.externalApi.grpc.services.interceptors.ServerSessionInterceptor;
 import io.evitadb.utils.UUIDUtil;
 import io.grpc.stub.StreamObserver;
 
@@ -60,10 +59,6 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	 * Instance of Evita upon which will be executed service calls
 	 */
 	@Nonnull private final Evita evita;
-	/**
-	 * API client context.
-	 */
-	@Nonnull private final GrpcClientContext clientContext;
 
 	/**
 	 * Builds array of {@link SessionFlags} based on session type and rollback transactions flag.
@@ -89,7 +84,6 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 
 	public EvitaService(@Nonnull Evita evita) {
 		this.evita = evita;
-		this.clientContext = new GrpcClientContext(evita);
 	}
 
 	/**
@@ -99,7 +93,7 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	 * @param responseObserver observer on which errors might be thrown and result returned
 	 */
 	@Override
-	public void createReadOnlySession(@Nonnull GrpcEvitaSessionRequest request, @Nonnull StreamObserver<GrpcEvitaSessionResponse> responseObserver) {
+	public void createReadOnlySession(GrpcEvitaSessionRequest request, StreamObserver<GrpcEvitaSessionResponse> responseObserver) {
 		createSessionAndBuildResponse(responseObserver, request.getCatalogName(), GrpcSessionType.READ_ONLY, request.getDryRun());
 	}
 
@@ -110,7 +104,7 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	 * @param responseObserver observer on which errors might be thrown and result returned
 	 */
 	@Override
-	public void createReadWriteSession(@Nonnull GrpcEvitaSessionRequest request, @Nonnull StreamObserver<GrpcEvitaSessionResponse> responseObserver) {
+	public void createReadWriteSession(GrpcEvitaSessionRequest request, StreamObserver<GrpcEvitaSessionResponse> responseObserver) {
 		createSessionAndBuildResponse(responseObserver, request.getCatalogName(), GrpcSessionType.READ_WRITE, request.getDryRun());
 	}
 
@@ -121,7 +115,7 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	 * @param responseObserver observer on which errors might be thrown and result returned
 	 */
 	@Override
-	public void createBinaryReadOnlySession(@Nonnull GrpcEvitaSessionRequest request, @Nonnull StreamObserver<GrpcEvitaSessionResponse> responseObserver) {
+	public void createBinaryReadOnlySession(GrpcEvitaSessionRequest request, StreamObserver<GrpcEvitaSessionResponse> responseObserver) {
 		createSessionAndBuildResponse(responseObserver, request.getCatalogName(), GrpcSessionType.BINARY_READ_ONLY, request.getDryRun());
 	}
 
@@ -132,7 +126,7 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	 * @param responseObserver observer on which errors might be thrown and result returned
 	 */
 	@Override
-	public void createBinaryReadWriteSession(@Nonnull GrpcEvitaSessionRequest request, @Nonnull StreamObserver<GrpcEvitaSessionResponse> responseObserver) {
+	public void createBinaryReadWriteSession(GrpcEvitaSessionRequest request, StreamObserver<GrpcEvitaSessionResponse> responseObserver) {
 		createSessionAndBuildResponse(responseObserver, request.getCatalogName(), GrpcSessionType.BINARY_READ_WRITE, request.getDryRun());
 	}
 
@@ -143,20 +137,18 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	 * @param responseObserver observer on which errors might be thrown and result returned
 	 */
 	@Override
-	public void terminateSession(@Nonnull GrpcEvitaSessionTerminationRequest request, @Nonnull StreamObserver<GrpcEvitaSessionTerminationResponse> responseObserver) {
-		executeWithClientContext(() -> {
-			final boolean terminated = evita.getSessionById(request.getCatalogName(), UUIDUtil.uuid(request.getSessionId()))
-				.map(session -> {
-					evita.terminateSession(session);
-					return true;
-				})
-				.orElse(false);
+	public void terminateSession(GrpcEvitaSessionTerminationRequest request, StreamObserver<GrpcEvitaSessionTerminationResponse> responseObserver) {
+		final boolean terminated = evita.getSessionById(request.getCatalogName(), UUIDUtil.uuid(request.getSessionId()))
+			.map(session -> {
+				evita.terminateSession(session);
+				return true;
+			})
+			.orElse(false);
 
-			responseObserver.onNext(GrpcEvitaSessionTerminationResponse.newBuilder()
-				.setTerminated(terminated)
-				.build());
-			responseObserver.onCompleted();
-		});
+		responseObserver.onNext(GrpcEvitaSessionTerminationResponse.newBuilder()
+			.setTerminated(terminated)
+			.build());
+		responseObserver.onCompleted();
 	}
 
 	/**
@@ -167,13 +159,11 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	 * @see EvitaContract#getCatalogNames() (String)
 	 */
 	@Override
-	public void getCatalogNames(@Nonnull Empty request, @Nonnull StreamObserver<GrpcCatalogNamesResponse> responseObserver) {
-		executeWithClientContext(() -> {
-			responseObserver.onNext(GrpcCatalogNamesResponse.newBuilder()
-				.addAllCatalogNames(evita.getCatalogNames())
-				.build());
-			responseObserver.onCompleted();
-		});
+	public void getCatalogNames(Empty request, StreamObserver<GrpcCatalogNamesResponse> responseObserver) {
+		responseObserver.onNext(GrpcCatalogNamesResponse.newBuilder()
+			.addAllCatalogNames(evita.getCatalogNames())
+			.build());
+		responseObserver.onCompleted();
 	}
 
 	/**
@@ -185,11 +175,9 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	 */
 	@Override
 	public void defineCatalog(GrpcDefineCatalogRequest request, StreamObserver<GrpcDefineCatalogResponse> responseObserver) {
-		executeWithClientContext(() -> {
-			evita.defineCatalog(request.getCatalogName());
-			responseObserver.onNext(GrpcDefineCatalogResponse.newBuilder().setSuccess(true).build());
-			responseObserver.onCompleted();
-		});
+		evita.defineCatalog(request.getCatalogName());
+		responseObserver.onNext(GrpcDefineCatalogResponse.newBuilder().setSuccess(true).build());
+		responseObserver.onCompleted();
 	}
 
 	/**
@@ -201,11 +189,9 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	 */
 	@Override
 	public void renameCatalog(GrpcRenameCatalogRequest request, StreamObserver<GrpcRenameCatalogResponse> responseObserver) {
-		executeWithClientContext(() -> {
-			evita.renameCatalog(request.getCatalogName(), request.getNewCatalogName());
-			responseObserver.onNext(GrpcRenameCatalogResponse.newBuilder().setSuccess(true).build());
-			responseObserver.onCompleted();
-		});
+		evita.renameCatalog(request.getCatalogName(), request.getNewCatalogName());
+		responseObserver.onNext(GrpcRenameCatalogResponse.newBuilder().setSuccess(true).build());
+		responseObserver.onCompleted();
 	}
 
 	/**
@@ -217,11 +203,9 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	 */
 	@Override
 	public void replaceCatalog(GrpcReplaceCatalogRequest request, StreamObserver<GrpcReplaceCatalogResponse> responseObserver) {
-		executeWithClientContext(() -> {
-			evita.replaceCatalog(request.getCatalogNameToBeReplacedWith(), request.getCatalogNameToBeReplaced());
-			responseObserver.onNext(GrpcReplaceCatalogResponse.newBuilder().setSuccess(true).build());
-			responseObserver.onCompleted();
-		});
+		evita.replaceCatalog(request.getCatalogNameToBeReplacedWith(), request.getCatalogNameToBeReplaced());
+		responseObserver.onNext(GrpcReplaceCatalogResponse.newBuilder().setSuccess(true).build());
+		responseObserver.onCompleted();
 	}
 
 	/**
@@ -232,12 +216,10 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	 * @see EvitaContract#deleteCatalogIfExists(String)
 	 */
 	@Override
-	public void deleteCatalogIfExists(@Nonnull GrpcDeleteCatalogIfExistsRequest request, @Nonnull StreamObserver<GrpcDeleteCatalogIfExistsResponse> responseObserver) {
-		executeWithClientContext(() -> {
-			boolean success = evita.deleteCatalogIfExists(request.getCatalogName());
-			responseObserver.onNext(GrpcDeleteCatalogIfExistsResponse.newBuilder().setSuccess(success).build());
-			responseObserver.onCompleted();
-		});
+	public void deleteCatalogIfExists(GrpcDeleteCatalogIfExistsRequest request, StreamObserver<GrpcDeleteCatalogIfExistsResponse> responseObserver) {
+		boolean success = evita.deleteCatalogIfExists(request.getCatalogName());
+		responseObserver.onNext(GrpcDeleteCatalogIfExistsResponse.newBuilder().setSuccess(success).build());
+		responseObserver.onCompleted();
 	}
 
 
@@ -245,17 +227,15 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	 * Applies catalog mutation affecting entire catalog.
 	 */
 	@Override
-	public void update(@Nonnull GrpcUpdateEvitaRequest request, @Nonnull StreamObserver<Empty> responseObserver) {
+	public void update(GrpcUpdateEvitaRequest request, StreamObserver<Empty> responseObserver) {
 		final TopLevelCatalogSchemaMutation[] schemaMutations = request.getSchemaMutationsList()
 			.stream()
 			.map(CATALOG_SCHEMA_MUTATION_CONVERTER::convert)
 			.toArray(TopLevelCatalogSchemaMutation[]::new);
 
-		executeWithClientContext(() -> {
-			evita.update(schemaMutations);
-			responseObserver.onNext(Empty.getDefaultInstance());
-			responseObserver.onCompleted();
-		});
+		evita.update(schemaMutations);
+		responseObserver.onNext(Empty.getDefaultInstance());
+		responseObserver.onCompleted();
 	}
 
 	/**
@@ -265,22 +245,20 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	 * @param responseObserver   the observer for receiving the server status response
 	 */
 	@Override
-	public void serverStatus(@Nonnull Empty request, @Nonnull StreamObserver<GrpcEvitaServerStatusResponse> responseObserver) {
-		executeWithClientContext(() -> {
-			final SystemStatus systemStatus = evita.getSystemStatus();
-			responseObserver.onNext(
-				GrpcEvitaServerStatusResponse
-					.newBuilder()
-					.setVersion(systemStatus.version())
-					.setStartedAt(EvitaDataTypesConverter.toGrpcOffsetDateTime(systemStatus.startedAt()))
-					.setUptime(systemStatus.uptime().toSeconds())
-					.setInstanceId(systemStatus.instanceId())
-					.setCatalogsCorrupted(systemStatus.catalogsCorrupted())
-					.setCatalogsOk(systemStatus.catalogsOk())
-					.build()
-			);
-			responseObserver.onCompleted();
-		});
+	public void serverStatus(Empty request, StreamObserver<GrpcEvitaServerStatusResponse> responseObserver) {
+		final SystemStatus systemStatus = evita.getSystemStatus();
+		responseObserver.onNext(
+			GrpcEvitaServerStatusResponse
+				.newBuilder()
+				.setVersion(systemStatus.version())
+				.setStartedAt(EvitaDataTypesConverter.toGrpcOffsetDateTime(systemStatus.startedAt()))
+				.setUptime(systemStatus.uptime().toSeconds())
+				.setInstanceId(systemStatus.instanceId())
+				.setCatalogsCorrupted(systemStatus.catalogsCorrupted())
+				.setCatalogsOk(systemStatus.catalogsOk())
+				.build()
+		);
+		responseObserver.onCompleted();
 	}
 
 	/**
@@ -293,26 +271,12 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	 */
 	private void createSessionAndBuildResponse(@Nonnull StreamObserver<GrpcEvitaSessionResponse> responseObserver, @Nonnull String catalogName, @Nonnull GrpcSessionType sessionType, boolean rollbackTransactions) {
 		final SessionFlags[] flags = getSessionFlags(sessionType, rollbackTransactions);
-		executeWithClientContext(() -> {
-			final EvitaSessionContract session = evita.createSession(new SessionTraits(catalogName, flags));
-			responseObserver.onNext(GrpcEvitaSessionResponse.newBuilder()
-				.setSessionId(session.getId().toString())
-				.setCatalogState(toGrpcCatalogState(session.getCatalogState()))
-				.setSessionType(sessionType)
-				.build());
-			responseObserver.onCompleted();
-		});
-	}
-
-	/**
-	 * Executes entire lambda function within the scope of client context.
-	 */
-	private void executeWithClientContext(@Nonnull Runnable lambda) {
-		clientContext.executeWithClientAndRequestId(
-			ServerSessionInterceptor.CLIENT_ADDRESS.get(),
-			ServerSessionInterceptor.CLIENT_ID.get(),
-			ServerSessionInterceptor.REQUEST_ID.get(),
-			lambda
-		);
+		final EvitaSessionContract session = evita.createSession(new SessionTraits(catalogName, flags));
+		responseObserver.onNext(GrpcEvitaSessionResponse.newBuilder()
+			.setSessionId(session.getId().toString())
+			.setCatalogState(toGrpcCatalogState(session.getCatalogState()))
+			.setSessionType(sessionType)
+			.build());
+		responseObserver.onCompleted();
 	}
 }
