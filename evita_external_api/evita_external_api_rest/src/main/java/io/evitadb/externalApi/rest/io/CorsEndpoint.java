@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.rest.io;
 
 import io.evitadb.externalApi.configuration.ApiWithOriginControl;
+import io.evitadb.externalApi.http.AdditionalHeaders;
 import io.evitadb.externalApi.http.CorsPreflightHandler;
 import io.undertow.server.HttpHandler;
 import io.undertow.server.handlers.BlockingHandler;
@@ -48,6 +49,10 @@ public class CorsEndpoint {
 
 	public CorsEndpoint(@Nonnull ApiWithOriginControl restConfig) {
 		this.allowedOrigins = restConfig.getAllowedOrigins() == null ? null : Set.of(restConfig.getAllowedOrigins());
+
+		// default headers for tracing that are allowed on every endpoint by default
+		this.allowedHeaders.add(AdditionalHeaders.OPENTELEMETRY_TRACEPARENT_STRING);
+		this.allowedHeaders.add(AdditionalHeaders.EVITADB_CLIENTID_HEADER_STRING);
 	}
 
 	public void addMetadataFromHandler(@Nonnull RestEndpointHandler<?> handler) {
