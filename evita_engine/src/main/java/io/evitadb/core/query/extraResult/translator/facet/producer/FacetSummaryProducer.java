@@ -286,6 +286,16 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 		);
 	}
 
+	@Nonnull
+	@Override
+	public String getDescription() {
+		if (facetSummaryRequests.size() == 1) {
+			return "facet summary for `" + facetSummaryRequests.keySet().iterator().next() +"` references";
+		} else {
+			return "facet summary for " + facetSummaryRequests.keySet().stream().map(it -> '`' + it + '`').collect(Collectors.joining(" ,")) +" references";
+		}
+	}
+
 	/**
 	 * Returns a function that allows to fetch {@link EntityClassifier} for passed `entityType` and multiple `groupIds`
 	 * that represents primary keys of the group entity. The form and richness of the returned {@link EntityClassifier}
