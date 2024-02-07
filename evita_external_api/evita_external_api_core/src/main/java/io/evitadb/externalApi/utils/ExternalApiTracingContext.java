@@ -113,7 +113,7 @@ public interface ExternalApiTracingContext<C> {
 	 * the target implementation to use, whether the request originates from a JSON based API or a gRPC one.
 	 */
 	default void executeWithinBlock(@Nonnull String protocolName, @Nonnull C context, @Nonnull Runnable runnable) {
-		executeWithinBlock(protocolName, context, runnable);
+		runnable.run();
 	}
 
 	/**
@@ -123,7 +123,7 @@ public interface ExternalApiTracingContext<C> {
 	 */
 	@Nullable
 	default <T> T executeWithinBlock(@Nonnull String protocolName, @Nonnull C context, @Nonnull Supplier<T> lambda) {
-		return executeWithinBlock(protocolName, context, lambda);
+		return lambda.get();
 	}
 
 	/**
