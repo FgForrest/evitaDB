@@ -97,6 +97,7 @@ import io.evitadb.store.offsetIndex.model.OffsetIndexRecordTypeRegistry;
 import io.evitadb.store.schema.SchemaKryoConfigurer;
 import io.evitadb.store.service.SharedClassesConfigurer;
 import io.evitadb.store.spi.EntityCollectionPersistenceService;
+import io.evitadb.store.spi.HeaderInfoSupplier;
 import io.evitadb.store.spi.StoragePartPersistenceService;
 import io.evitadb.store.spi.model.EntityCollectionHeader;
 import io.evitadb.store.spi.model.reference.CollectionFileReference;
@@ -109,7 +110,6 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.io.File;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.util.*;
@@ -152,6 +152,10 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	/**
 	 * Contains reference to the target file where the entity collection is stored.
 	 */
+	private final CollectionFileReference entityCollectionFileReference;
+	/**
+	 * Contains path to the target file where the entity collection is stored.
+	 */
 	@Nonnull
 	private final Path entityCollectionFile;
 	/**
@@ -163,10 +167,6 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	@Nonnull @Getter
 	private final OffsetIndexRecordTypeRegistry offsetIndexRecordTypeRegistry;
 	/**
-	 * Memory manager for off-heap memory.
-	 */
-	@Nonnull private final OffHeapMemoryManager offHeapMemoryManager;
-	/**
 	 * ObservableOutputKeeper is used to track {@link io.evitadb.store.kryo.ObservableOutput} tied to particular file
 	 * and is propagated to internal {@link #storagePartPersistenceService}. It can be also retrieved and is shared with its
 	 * wrapping implementation.
@@ -174,19 +174,9 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	@Nonnull @Getter
 	private final ObservableOutputKeeper observableOutputKeeper;
 	/**
-	 * Contains information about storage configuration options.
-	 */
-	@Nonnull
-	private final StorageOptions storageOptions;
-	/**
-	 * Contains information about transaction configuration options.
-	 */
-	@Nonnull
-	private final TransactionOptions transactionOptions;
-	/**
-	 * Contains reference to the catalog entity header collecting all crucial information about single entity collection.
-	 * The catalog entity header is loaded in constructor and because it's immutable it needs to be replaced with each
-	 * {@link #flush(long, Function)} call.
+	 * Contains reference to the catalog entity header collecting all crucial information about a single entity collection.
+	 * The catalog entity header is loaded in the constructor, and because it's immutable it needs to be replaced with
+	 * each {@link #flush(long, HeaderInfoSupplier)}  call.
 	 */
 	@Nonnull @Getter
 	private EntityCollectionHeader catalogEntityHeader;
@@ -635,19 +625,17 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		@Nonnull ObservableOutputKeeper observableOutputKeeper,
 		@Nonnull OffsetIndexRecordTypeRegistry offsetIndexRecordTypeRegistry
 	) {
-		this.entityCollectionFile = new CollectionFileReference(
+		this.entityCollectionFileReference = new CollectionFileReference(
 			entityTypeHeader.entityType(),
 			entityTypeHeader.entityTypePrimaryKey(),
 			entityTypeHeader.entityTypeFileIndex(),
 			entityTypeHeader.fileLocation()
-		).toFilePath(catalogStoragePath);
+		);
+		this.entityCollectionFile = entityCollectionFileReference.toFilePath(catalogStoragePath);
 
 		this.catalogEntityHeader = entityTypeHeader;
 		this.offsetIndexRecordTypeRegistry = offsetIndexRecordTypeRegistry;
-		this.offHeapMemoryManager = offHeapMemoryManager;
 		this.observableOutputKeeper = observableOutputKeeper;
-		this.storageOptions = storageOptions;
-		this.transactionOptions = transactionOptions;
 		this.storagePartPersistenceService = new OffsetIndexStoragePartPersistenceService(
 			this.entityCollectionFile.toFile().getName(),
 			transactionOptions,
@@ -657,32 +645,6 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 					this.createTypeKryoInstance()
 				),
 				storageOptions,
-				offsetIndexRecordTypeRegistry,
-				new WriteOnlyFileHandle(entityCollectionFile, observableOutputKeeper)
-			),
-			offHeapMemoryManager,
-			observableOutputKeeper,
-			VERSIONED_KRYO_FACTORY
-		);
-	}
-
-	public DefaultEntityCollectionPersistenceService(@Nonnull DefaultEntityCollectionPersistenceService previous) {
-		this.entityCollectionFile = previous.entityCollectionFile;
-		this.catalogEntityHeader = previous.catalogEntityHeader;
-		this.offsetIndexRecordTypeRegistry = previous.offsetIndexRecordTypeRegistry;
-		this.offHeapMemoryManager = previous.offHeapMemoryManager;
-		this.observableOutputKeeper = previous.observableOutputKeeper;
-		this.storageOptions = previous.storageOptions;
-		this.transactionOptions = previous.transactionOptions;
-		this.storagePartPersistenceService = new OffsetIndexStoragePartPersistenceService(
-			this.entityCollectionFile.toFile().getName(),
-			previous.transactionOptions,
-			new OffsetIndex(
-				new OffsetIndexDescriptor(
-					previous.catalogEntityHeader,
-					this.createTypeKryoInstance()
-				),
-				previous.storageOptions,
 				offsetIndexRecordTypeRegistry,
 				new WriteOnlyFileHandle(entityCollectionFile, observableOutputKeeper)
 			),
@@ -1006,19 +968,20 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 			.iterator();
 	}
 
+	@Nonnull
 	@Override
-	public void copySnapshotTo(@Nonnull File newFile) {
-		// TODO JNO - IMPLEMENT ME
+	public PersistentStorageDescriptor copySnapshotTo(@Nonnull Path newFilePath, long catalogVersion) {
+		return getStoragePartPersistenceService().copySnapshotTo(newFilePath, catalogVersion);
 	}
 
 	@Nonnull
 	@Override
-	public EntityCollectionHeader flush(long newCatalogVersion, @Nonnull Function<PersistentStorageDescriptor, EntityCollectionHeader> catalogEntityHeaderFactory) {
+	public EntityCollectionHeader flush(long newCatalogVersion, @Nonnull HeaderInfoSupplier headerInfoSupplier) {
 		final long previousVersion = this.storagePartPersistenceService.getVersion();
 		final PersistentStorageDescriptor newDescriptor = this.storagePartPersistenceService.flush(newCatalogVersion);
 		// when versions are equal - nothing has changed, and we can reuse old header
 		if (newDescriptor.version() > previousVersion) {
-			this.catalogEntityHeader = catalogEntityHeaderFactory.apply(newDescriptor);
+			this.catalogEntityHeader = createEntityCollectionHeader(newDescriptor, headerInfoSupplier);
 		}
 
 		return this.catalogEntityHeader;
@@ -1048,6 +1011,37 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		return VERSIONED_KRYO_FACTORY;
 	}
 
+	/**
+	 * Method creates a function that allows to create new {@link EntityCollectionHeader} instance from
+	 * {@link PersistentStorageDescriptor} DTO. The catalog entity header contains additional information from this
+	 * entity collection instance we need to keep and propagate to next immutable catalog entity header object.
+	 */
+	@Nonnull
+	private EntityCollectionHeader createEntityCollectionHeader(@Nonnull PersistentStorageDescriptor newDescriptor, @Nonnull HeaderInfoSupplier headerInfoSupplier) {
+		return new EntityCollectionHeader(
+			this.entityCollectionFileReference.entityType(),
+			this.entityCollectionFileReference.entityTypePrimaryKey(),
+			this.entityCollectionFileReference.fileIndex(),
+			this.count(EntityBodyStoragePart.class),
+			headerInfoSupplier.getLastAssignedPrimaryKey(),
+			headerInfoSupplier.getLastAssignedIndexKey(),
+			newDescriptor,
+			headerInfoSupplier.getGlobalIndexKey().isPresent() ?
+				headerInfoSupplier.getGlobalIndexKey().getAsInt() : null,
+			headerInfoSupplier.getIndexKeys()
+		);
+	}
+
+	/**
+	 * Converts the given entity and its associated data, attributes, prices, and references into a BinaryEntity object.
+	 *
+	 * @param entityStorageContainer The entity storage container.
+	 * @param evitaRequest The Evita request.
+	 * @param session The Evita session.
+	 * @param entityCollectionFetcher The function used to fetch entity collections.
+	 * @param storageContainerBuffer The buffer for storing the storage containers.
+	 * @return The BinaryEntity object representing the converted entity.
+	 */
 	@Nonnull
 	private BinaryEntity toBinaryEntity(
 		@Nonnull byte[] entityStorageContainer,

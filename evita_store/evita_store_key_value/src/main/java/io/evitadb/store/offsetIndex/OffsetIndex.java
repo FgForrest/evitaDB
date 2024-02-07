@@ -57,7 +57,6 @@ import lombok.extern.slf4j.Slf4j;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
-import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.InputStream;
 import java.io.RandomAccessFile;
@@ -568,12 +567,12 @@ public class OffsetIndex {
 	 * Copies entire living data set to the target file. The file must exist and must be prepared for re-writing.
 	 * File must not be used by any other process.
 	 *
-	 * @param newFile       target file
+	 * @param newFilePath       target file
 	 * @param transactionId will be propagated to {@link StorageRecord#transactionId()}
 	 * @return length of the copied data
 	 */
 	@Nonnull
-	public OffsetIndexDescriptor copySnapshotTo(@Nonnull File newFile, long transactionId) {
+	public OffsetIndexDescriptor copySnapshotTo(@Nonnull Path newFilePath, long transactionId) {
 		// flush all non-flushed values to the disk
 		this.doSoftFlush();
 		// copy the active parts to a new file
@@ -592,7 +591,7 @@ public class OffsetIndex {
 								this,
 								randomAccessFileInputStream,
 								transactionId,
-								newFile
+								newFilePath
 							);
 							return new OffsetIndexDescriptor(
 								fileLocation,

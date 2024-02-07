@@ -30,6 +30,7 @@ import io.evitadb.store.service.KeyCompressor;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Closeable;
+import java.nio.file.Path;
 import java.util.UUID;
 import java.util.stream.Stream;
 
@@ -171,6 +172,15 @@ public interface StoragePartPersistenceService extends Closeable {
 	 */
 	@Nonnull
 	PersistentStorageDescriptor flush(long catalogVersion);
+
+	/**
+	 * Flushes entire living data set to the target file. The file must exist and must be prepared for re-writing.
+	 * File must not be used by any other process.
+	 *
+	 * @param newFilePath target file
+	 */
+	@Nonnull
+	PersistentStorageDescriptor copySnapshotTo(@Nonnull Path newFilePath, long catalogVersion);
 
 	/**
 	 * Checks whether the persistence storage is already present and filled with data.

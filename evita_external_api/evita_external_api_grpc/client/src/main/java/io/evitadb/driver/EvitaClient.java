@@ -179,11 +179,6 @@ public class EvitaClient implements EvitaContract {
 				"Tracing endpoint URL is set, but tracing context is not configured!"
 			);
 		}
-		if (tracingEndpointUrl == null && !(context instanceof DefaultClientTracingContext)) {
-			throw new EvitaInvalidUsageException(
-				"When tracing context is configured, tracing endpoint URL must be set!"
-			);
-		}
 		if (tracingEndpointUrl != null) {
 			context.setTracingEndpointUrlAndProtocol(tracingEndpointUrl, configuration.traceEndpointProtocol());
 			final ClientInterceptor clientInterceptor = context.getClientInterceptor();
@@ -229,7 +224,7 @@ public class EvitaClient implements EvitaContract {
 			final int comparisonResult = SemVer.compare(clientVersion, serverVersion);
 			if (comparisonResult < 0) {
 				log.warn(
-					"Client version {} is lower than server version {}. " +
+					"Client version {} is lower than the server version {}. " +
 						"It may not represent a compatibility issue, but it is recommended to update " +
 						"the client to the latest version.",
 					clientVersion,
@@ -238,7 +233,7 @@ public class EvitaClient implements EvitaContract {
 			} else if (comparisonResult > 0) {
 				throw new IncompatibleClientException(
 					"Client version `" + clientVersion + "` is higher than server version `" + serverVersion + "`. " +
-						"This situation will probably lead to  compatibility issues. Please update the server to " +
+						"This situation will probably lead to compatibility issues. Please update the server to " +
 						"the latest version.",
 					"Incompatible client version!"
 				);

@@ -95,6 +95,7 @@ import io.evitadb.store.entity.model.schema.CatalogSchemaStoragePart;
 import io.evitadb.store.spi.CatalogPersistenceService;
 import io.evitadb.store.spi.CatalogPersistenceServiceFactory;
 import io.evitadb.store.spi.CatalogStoragePartPersistenceService;
+import io.evitadb.store.spi.EntityCollectionPersistenceService;
 import io.evitadb.store.spi.IsolatedWalPersistenceService;
 import io.evitadb.store.spi.OffHeapWithFileBackupReference;
 import io.evitadb.store.spi.StoragePartPersistenceService;
@@ -380,7 +381,6 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 			final EntityCollection collection = new EntityCollection(
 				this,
 				entityTypePrimaryKey,
-				entityCollectionHeader.entityTypeFileIndex(),
 				entityType,
 				persistenceService,
 				cacheSupervisor,
@@ -486,7 +486,7 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 		this.entityCollections = new TransactionalMap<>(newEntityCollections, EntityCollection.class, Function.identity());
 		this.entityCollectionsByPrimaryKey = new TransactionalMap<>(newEntityCollectionsIndex, EntityCollection.class, Function.identity());
 		this.entitySchemaIndex = new TransactionalMap<>(newEntitySchemaIndex);
-		this.lastPersistedSchemaVersion = this.schema.get().version();
+		this.lastPersistedSchemaVersion = previousCatalogVersion.lastPersistedSchemaVersion;
 	}
 
 	@Override
@@ -686,7 +686,6 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 						it -> new EntityCollection(
 							this,
 							it.getEntityTypePrimaryKey(),
-							it.getFileIndex(),
 							it.getEntityType(),
 							newIoService,
 							cacheSupervisor,
@@ -864,10 +863,12 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 		@Nonnull TransactionalLayerMaintainer transactionalLayer
 	) {
 		return this.persistenceService.executeWriteSafely(() -> {
+			final long newCatalogVersionId = transactionalLayer.getStateCopyWithCommittedChanges(versionId).orElseThrow() + 1;
 			final CatalogSchemaDecorator newSchema = transactionalLayer.getStateCopyWithCommittedChanges(schema).orElseThrow();
 			final DataStoreChanges<CatalogIndexKey, CatalogIndex> transactionalChanges = transactionalLayer.getTransactionalMemoryLayer(this);
 
 			final MapChanges<String, EntityCollection> collectionChanges = transactionalLayer.getTransactionalMemoryLayerIfExists(entityCollections);
+			Map<String, EntityCollectionPersistenceService> updatedServiceCollections = null;
 			if (collectionChanges != null) {
 				final Map<String, EntityCollection> originalCollectionContents = collectionChanges.getMapDelegate();
 				final Set<String> removedCollections = new HashSet<>(collectionChanges.getRemovedKeys());
@@ -880,12 +881,16 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 					final String removedEntityType = originalCollections.get(updatedCollection);
 					final String newEntityType = updatedKey.getKey();
 					if (removedEntityType != null) {
-						this.persistenceService.replaceCollectionWith(
+						final EntityCollectionPersistenceService newPersistenceService = this.persistenceService.replaceCollectionWith(
 							removedEntityType,
 							updatedCollection.getEntityTypePrimaryKey(),
-							updatedCollection.getFileIndex(),
-							newEntityType
+							newEntityType,
+							newCatalogVersionId
 						);
+						if (updatedServiceCollections == null) {
+							updatedServiceCollections = new HashMap<>(collectionChanges.getModifiedKeys().size());
+						}
+						updatedServiceCollections.put(newEntityType, newPersistenceService);
 						removedCollections.remove(removedEntityType);
 						ofNullable(originalCollectionContents.get(newEntityType)).ifPresent(it -> it.removeLayer(transactionalLayer));
 					}
@@ -896,8 +901,17 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 				}
 			}
 
-			final long newCatalogVersionId = transactionalLayer.getStateCopyWithCommittedChanges(versionId).orElseThrow() + 1;
 			final Map<String, EntityCollection> possiblyUpdatedCollections = transactionalLayer.getStateCopyWithCommittedChanges(entityCollections);
+			// replace all entity collections with new one if their storage persistence service was changed
+			if (updatedServiceCollections != null) {
+				updatedServiceCollections.forEach((entityType, newPersistenceService) -> {
+					possiblyUpdatedCollections.compute(
+						entityType,
+						(entityTypeKey, entityCollection) -> entityCollection.createCopyWithNewPersistenceService(newPersistenceService)
+					);
+				});
+			}
+
 			final CatalogIndex possiblyUpdatedCatalogIndex = transactionalLayer.getStateCopyWithCommittedChanges(catalogIndex);
 			transactionalLayer.removeTransactionalMemoryLayerIfExists(this.entityCollectionsByPrimaryKey);
 			transactionalLayer.removeTransactionalMemoryLayerIfExists(this.entitySchemaIndex);
@@ -1104,31 +1118,38 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 	 * in BULK / non-transactional mode.
 	 */
 	void flush() {
-		// if we're going live start with TRUE (force flush), otherwise start with false
-		boolean changeOccurred = goingLive.get() || schema.get().version() != lastPersistedSchemaVersion;
-		Assert.isPremiseValid(
-			getCatalogState() == CatalogState.WARMING_UP,
-			"Cannot flush catalog that is in transactional mode. Any changes could occur only in transaction!"
-		);
-		final List<EntityCollectionHeader> entityHeaders = new ArrayList<>(this.entityCollections.size());
-		for (EntityCollection entityCollection : entityCollections.values()) {
-			final long lastSeenVersion = entityCollection.getVersion();
-			entityHeaders.add(entityCollection.flush());
-			changeOccurred = changeOccurred || entityCollection.getVersion() != lastSeenVersion;
-		}
+		this.persistenceService.executeWriteSafely(
+			() -> {
+				// if we're going live start with TRUE (force flush), otherwise start with false
+				boolean changeOccurred = goingLive.get() || schema.get().version() != lastPersistedSchemaVersion;
+				Assert.isPremiseValid(
+					getCatalogState() == CatalogState.WARMING_UP,
+					"Cannot flush catalog in transactional mode. Any changes could occur only in transaction!"
+				);
 
-		if (changeOccurred) {
-			this.persistenceService.flushTrappedUpdates(this.dataStoreBuffer.getTrappedIndexChanges());
-			this.persistenceService.storeHeader(
-				this.goingLive.get() ? CatalogState.ALIVE : getCatalogState(),
-				// version is not incremented here - we're still 0L version
-				this.versionId.get(),
-				this.entityTypeSequence.get(),
-				null,
-				entityHeaders
-			);
-			this.lastPersistedSchemaVersion = this.schema.get().version();
-		}
+				final List<EntityCollectionHeader> entityHeaders = new ArrayList<>(this.entityCollections.size());
+				for (EntityCollection entityCollection : entityCollections.values()) {
+					final long lastSeenVersion = entityCollection.getVersion();
+					entityHeaders.add(entityCollection.flush());
+					changeOccurred = changeOccurred || entityCollection.getVersion() != lastSeenVersion;
+				}
+
+				if (changeOccurred) {
+					this.persistenceService.flushTrappedUpdates(this.dataStoreBuffer.getTrappedIndexChanges());
+					this.persistenceService.storeHeader(
+						this.goingLive.get() ? CatalogState.ALIVE : getCatalogState(),
+						// version is not incremented here - we're still 0L version
+						this.versionId.get(),
+						this.entityTypeSequence.get(),
+						null,
+						entityHeaders
+					);
+					this.lastPersistedSchemaVersion = this.schema.get().version();
+				}
+				return null;
+			}
+		);
+
 	}
 
 	/*
@@ -1235,7 +1256,6 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 		final EntityCollection newCollection = new EntityCollection(
 			this,
 			this.entityTypeSequence.incrementAndGet(),
-			0,
 			createEntitySchemaMutation.getName(),
 			persistenceService,
 			cacheSupervisor,
@@ -1398,16 +1418,20 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 	) {
 		entityCollectionToBeReplacedWith.updateSchema(getSchema(), modifyEntitySchemaName);
 		this.entityCollections.remove(entityCollectionNameToBeReplacedWith);
-		this.entityCollections.put(entityCollectionNameToBeReplaced, entityCollectionToBeReplacedWith);
 		if (!transactionOpen) {
-			persistenceService.replaceCollectionWith(
+			entityCollectionToBeReplacedWith.flush();
+			final EntityCollectionPersistenceService newPersistenceService = persistenceService.replaceCollectionWith(
 				entityCollectionNameToBeReplacedWith,
 				entityCollectionToBeReplacedWith.getEntityTypePrimaryKey(),
-				entityCollectionToBeReplacedWith.getFileIndex(),
-				entityCollectionNameToBeReplaced
+				entityCollectionNameToBeReplaced,
+				getVersion()
 			);
-			// reinitialize persistence storage
-			entityCollectionToBeReplacedWith.flush();
+			this.entityCollections.put(
+				entityCollectionNameToBeReplaced,
+				entityCollectionToBeReplacedWith.createCopyWithNewPersistenceService(newPersistenceService)
+			);
+		} else {
+			this.entityCollections.put(entityCollectionNameToBeReplaced, entityCollectionToBeReplacedWith);
 		}
 	}
 

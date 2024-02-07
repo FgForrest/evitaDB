@@ -108,9 +108,9 @@ import io.evitadb.index.reference.TransactionalReference;
 import io.evitadb.store.entity.model.entity.EntityBodyStoragePart;
 import io.evitadb.store.entity.model.schema.EntitySchemaStoragePart;
 import io.evitadb.store.entity.serializer.EntitySchemaContext;
-import io.evitadb.store.model.PersistentStorageDescriptor;
 import io.evitadb.store.spi.CatalogPersistenceService;
 import io.evitadb.store.spi.EntityCollectionPersistenceService;
+import io.evitadb.store.spi.HeaderInfoSupplier;
 import io.evitadb.store.spi.StoragePartPersistenceService;
 import io.evitadb.store.spi.model.EntityCollectionHeader;
 import io.evitadb.store.spi.model.storageParts.accessor.ReadOnlyEntityStorageContainerAccessor;
@@ -135,7 +135,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -163,10 +162,6 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 	 * The primary key can be used interchangeably to {@link EntitySchema#getName() String entity type}.
 	 */
 	@Getter private final int entityTypePrimaryKey;
-	/**
-	 * TODO JNO - try to move to persistence service
-	 */
-	@Getter private final int fileIndex;
 	/**
 	 * Performance optimization flag that keeps information whether the collection was empty when it was created.
 	 */
@@ -226,17 +221,14 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 	 */
 	private final CacheSupervisor cacheSupervisor;
 	/**
-	 * The factory that reads the {@link PersistentStorageDescriptor} and creates {@link EntityCollectionHeader} from
-	 * it.
-	 *
-	 * TODO JNO - pokusit se toto posunout až na úroveň persistence service, protože to vyžaduje znalost fileIndex,
-	 * který je persistence specific a teoreticky by neměl být na úrovni této třídy, tím by bylo API čistší
-	 */
-	private final Function<PersistentStorageDescriptor, EntityCollectionHeader> catalogEntityHeaderFactory;
-	/**
 	 * Service containing I/O related methods.
 	 */
-	private EntityCollectionPersistenceService persistenceService;
+	private final EntityCollectionPersistenceService persistenceService;
+	/**
+	 * Inner class that provides information for the {@link EntityCollectionHeader} when it's created in the persistence
+	 * layer.
+	 */
+	private final HeaderInfoSupplier headerInfoSupplier = new EntityCollectionHeaderInfoSupplier();
 
 	/**
 	 * Retrieves the primary key of the given entity or throws an unified exception.
@@ -254,17 +246,36 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 		}
 	}
 
+	/**
+	 * Method processes all local mutations of passed `entityMutation` using passed `changeCollector`
+	 * and `entityIndexUpdater`.
+	 */
+	private static void processMutations(
+		@Nonnull Collection<? extends LocalMutation<?, ?>> localMutations,
+		@Nonnull LocalMutationExecutor... mutationApplicators
+	) {
+		do {
+			for (LocalMutation<?, ?> localMutation : localMutations) {
+				for (LocalMutationExecutor mutationApplicator : mutationApplicators) {
+					mutationApplicator.applyMutation(localMutation);
+				}
+			}
+
+			localMutations = Arrays.stream(mutationApplicators)
+				.flatMap(it -> it.applyChanges().stream())
+				.toList();
+		} while (!localMutations.isEmpty());
+	}
+
 	public EntityCollection(
 		@Nonnull Catalog catalog,
 		int entityTypePrimaryKey,
-		int fileIndex,
 		@Nonnull String entityType,
 		@Nonnull CatalogPersistenceService catalogPersistenceService,
 		@Nonnull CacheSupervisor cacheSupervisor,
 		@Nonnull SequenceService sequenceService
 	) {
 		this.entityTypePrimaryKey = entityTypePrimaryKey;
-		this.fileIndex = fileIndex;
 		this.catalogPersistenceService = catalogPersistenceService;
 		this.persistenceService = catalogPersistenceService.createEntityCollectionPersistenceService(entityType, entityTypePrimaryKey);
 		this.cacheSupervisor = cacheSupervisor;
@@ -315,15 +326,12 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 			entityHeader.entityType().equals(getSchema().getName()),
 			"Deserialized schema name differs from expected entity type - expected " + entityHeader.entityType() + " got " + getSchema().getName()
 		);
-		// init factory method
-		this.catalogEntityHeaderFactory = getCatalogEntityHeaderFactoryFunction();
 		this.emptyOnStart = isEmpty();
 	}
 
 	private EntityCollection(
 		@Nonnull Catalog catalog,
 		int entityTypePrimaryKey,
-		int fileIndex,
 		@Nonnull EntitySchema entitySchema,
 		@Nonnull AtomicInteger pkSequence,
 		@Nonnull AtomicInteger indexPkSequence,
@@ -333,7 +341,6 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 		@Nonnull CacheSupervisor cacheSupervisor
 	) {
 		this.entityTypePrimaryKey = entityTypePrimaryKey;
-		this.fileIndex = fileIndex;
 		this.schema = new TransactionalReference<>(new EntitySchemaDecorator(() -> getCatalog().getSchema(), entitySchema));
 		this.catalogAccessor = new AtomicReference<>(catalog);
 		this.pkSequence = pkSequence;
@@ -346,8 +353,6 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 			entityIndex.updateReferencesTo(this);
 		}
 		this.cacheSupervisor = cacheSupervisor;
-		// init factory method
-		this.catalogEntityHeaderFactory = getCatalogEntityHeaderFactoryFunction();
 		this.emptyOnStart = isEmpty();
 	}
 
@@ -369,19 +374,15 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 			primaryKey,
 			getSchema().getName(),
 			evitaRequest.getEntityRequirement(),
-			() -> doWithPersistenceService(
-				() -> persistenceService.readBinaryEntity(
-					primaryKey,
-					evitaRequest,
-					session,
-					entityType -> entityType.equals(getEntityType()) ?
-						this : getCatalog().getCollectionForEntityOrThrowException(entityType),
-					dataStoreBuffer
-				)
+			() -> persistenceService.readBinaryEntity(
+				primaryKey,
+				evitaRequest,
+				session,
+				entityType -> entityType.equals(getEntityType()) ?
+					this : getCatalog().getCollectionForEntityOrThrowException(entityType),
+				dataStoreBuffer
 			),
-			binaryEntity -> doWithPersistenceService(
-				() -> persistenceService.enrichEntity(getInternalSchema(), binaryEntity, evitaRequest, dataStoreBuffer)
-			)
+			binaryEntity -> persistenceService.enrichEntity(getInternalSchema(), binaryEntity, evitaRequest, dataStoreBuffer)
 		);
 		return entity.map(it -> limitEntity(it, evitaRequest.getEntityRequirement()));
 	}
@@ -486,20 +487,6 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 	}
 
 	@Override
-	public void applyMutation(@Nonnull EntityMutation entityMutation) throws InvalidMutationException {
-		if (entityMutation instanceof EntityUpsertMutation upsertMutation) {
-			upsertEntity(upsertMutation);
-		} else if (entityMutation instanceof EntityRemoveMutation removeMutation) {
-			deleteEntity(removeMutation.getEntityPrimaryKey());
-		} else {
-			throw new InvalidMutationException(
-				"Unexpected mutation type: " + entityMutation.getClass().getName(),
-				"Unexpected mutation type."
-			);
-		}
-	}
-
-	@Override
 	@Nonnull
 	public EntityReference upsertEntity(@Nonnull EntityMutation entityMutation) throws InvalidMutationException {
 		final int primaryKey = upsertEntityInternal(entityMutation);
@@ -526,7 +513,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 
 	@Override
 	public boolean deleteEntity(int primaryKey) {
-		// fetch entire entity from the data store
+		// fetch the entire entity from the data store
 		final Entity entityToRemove = getFullEntityById(primaryKey);
 		if (entityToRemove == null) {
 			return false;
@@ -658,13 +645,27 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 
 	@Override
 	public int size() {
-		return doWithPersistenceService(() -> this.persistenceService.count(EntityBodyStoragePart.class));
+		return this.persistenceService.count(EntityBodyStoragePart.class);
 	}
 
 	@Override
 	@Nonnull
 	public SealedEntitySchema getSchema() {
 		return schema.get();
+	}
+
+	@Override
+	public void applyMutation(@Nonnull EntityMutation entityMutation) throws InvalidMutationException {
+		if (entityMutation instanceof EntityUpsertMutation upsertMutation) {
+			upsertEntity(upsertMutation);
+		} else if (entityMutation instanceof EntityRemoveMutation removeMutation) {
+			deleteEntity(removeMutation.getEntityPrimaryKey());
+		} else {
+			throw new InvalidMutationException(
+				"Unexpected mutation type: " + entityMutation.getClass().getName(),
+				"Unexpected mutation type."
+			);
+		}
 	}
 
 	@Nonnull
@@ -676,7 +677,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 			EntitySchemaContract updatedSchema = originalSchema;
 			for (EntitySchemaMutation theMutation : schemaMutation) {
 				updatedSchema = theMutation.mutate(catalogSchema, updatedSchema);
-				/* TODO JNO - this should be diverted to separate class and handle all necessary DDL operations */
+				/* TOBEDONE #409 JNO - this should be diverted to separate class and handle all necessary DDL operations */
 				if (theMutation instanceof SetEntitySchemaWithHierarchyMutation setHierarchy) {
 					if (setHierarchy.isWithHierarchy()) {
 						getGlobalIndexIfExists()
@@ -710,10 +711,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 		} finally {
 			// finally, store the updated catalog schema to disk
 			final EntitySchema updatedInternalSchema = getInternalSchema();
-			doWithPersistenceService(() -> {
-				this.dataStoreBuffer.update(new EntitySchemaStoragePart(updatedInternalSchema));
-				return null;
-			});
+			this.dataStoreBuffer.update(new EntitySchemaStoragePart(updatedInternalSchema));
 		}
 
 		final SealedEntitySchema schemaResult = getSchema();
@@ -723,7 +721,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 
 	@Override
 	public long getVersion() {
-		return doWithPersistenceService(() -> this.persistenceService.getCatalogEntityHeader().version());
+		return this.persistenceService.getCatalogEntityHeader().version();
 	}
 
 	@Override
@@ -737,7 +735,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 
 	@Override
 	public Iterator<Entity> entityIterator() {
-		return doWithPersistenceService(() -> this.persistenceService.entityIterator(getInternalSchema(), this.dataStoreBuffer));
+		return this.persistenceService.entityIterator(getInternalSchema(), this.dataStoreBuffer);
 	}
 
 	@Nonnull
@@ -817,41 +815,39 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 			parentEntity = null;
 		}
 
-		return doWithPersistenceService(
-			() -> Entity.decorate(
-				// load all missing data according to current evita request
-				this.persistenceService.enrichEntity(
-					internalSchema,
-					// use all data from existing entity
-					partiallyLoadedEntity,
-					newHierarchyPredicate,
-					newAttributePredicate,
-					newAssociatedDataPredicate,
-					newReferenceContractPredicate,
-					newPriceContractPredicate,
-					dataStoreBuffer
-				),
-				// use original schema
+		return Entity.decorate(
+			// load all missing data according to current evita request
+			this.persistenceService.enrichEntity(
 				internalSchema,
-				// fetch parents if requested
-				parentEntity,
-				// show / hide locales the entity is fetched in
-				newLocalePredicate,
-				// show / hide parent information
+				// use all data from existing entity
+				partiallyLoadedEntity,
 				newHierarchyPredicate,
-				// show / hide attributes information
 				newAttributePredicate,
-				// show / hide associated data information
 				newAssociatedDataPredicate,
-				// show / hide references information
 				newReferenceContractPredicate,
-				// show / hide price information
 				newPriceContractPredicate,
-				// propagate original date time
-				partiallyLoadedEntity.getAlignedNow(),
-				// recursive entity loader
-				referenceFetcher
-			)
+				dataStoreBuffer
+			),
+			// use original schema
+			internalSchema,
+			// fetch parents if requested
+			parentEntity,
+			// show / hide locales the entity is fetched in
+			newLocalePredicate,
+			// show / hide parent information
+			newHierarchyPredicate,
+			// show / hide attributes information
+			newAttributePredicate,
+			// show / hide associated data information
+			newAssociatedDataPredicate,
+			// show / hide references information
+			newReferenceContractPredicate,
+			// show / hide price information
+			newPriceContractPredicate,
+			// propagate original date time
+			partiallyLoadedEntity.getAlignedNow(),
+			// recursive entity loader
+			referenceFetcher
 		);
 	}
 
@@ -932,10 +928,8 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 	 */
 	@Nonnull
 	public EntityCollectionHeader flush() {
-		return doWithPersistenceService(() -> {
-			this.persistenceService.flushTrappedUpdates(this.dataStoreBuffer.getTrappedIndexChanges());
-			return this.persistenceService.flush(0L, catalogEntityHeaderFactory);
-		});
+		this.persistenceService.flushTrappedUpdates(this.dataStoreBuffer.getTrappedIndexChanges());
+		return this.persistenceService.flush(0L, headerInfoSupplier);
 	}
 
 	/**
@@ -943,7 +937,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 	 */
 	@Nullable
 	public EntityIndex getIndexByKeyIfExists(EntityIndexKey entityIndexKey) {
-		return doWithPersistenceService(() -> this.dataStoreBuffer.getIndexIfExists(entityIndexKey, this.indexes::get));
+		return this.dataStoreBuffer.getIndexIfExists(entityIndexKey, this.indexes::get);
 	}
 
 	/**
@@ -999,6 +993,10 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 		);
 	}
 
+	/*
+		TransactionalLayerProducer implementation
+	 */
+
 	/**
 	 * Method creates {@link QueryContext} that is used for read operations.
 	 */
@@ -1014,10 +1012,6 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 			cacheSupervisor
 		);
 	}
-
-	/*
-		TransactionalLayerProducer implementation
-	 */
 
 	@Override
 	public DataStoreChanges<EntityIndexKey, EntityIndex> createLayer() {
@@ -1045,7 +1039,6 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 			return new EntityCollection(
 				this.catalogAccessor.get(),
 				this.entityTypePrimaryKey,
-				this.fileIndex,
 				transactionalLayer.getStateCopyWithCommittedChanges(this.schema)
 					.map(EntitySchemaDecorator::getDelegate)
 					.orElse(null),
@@ -1075,12 +1068,38 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 	}
 
 	/**
+	 * Creates a new copy of the EntityCollection object with a new persistence service.
+	 *
+	 * @param newPersistenceService the new persistence service to be set
+	 * @return a new EntityCollection object with the updated persistence service
+	 */
+	@Nonnull
+	public EntityCollection createCopyWithNewPersistenceService(@Nonnull EntityCollectionPersistenceService newPersistenceService) {
+		return new EntityCollection(
+			this.catalogAccessor.get(),
+			this.entityTypePrimaryKey,
+			getInternalSchema(),
+			this.pkSequence,
+			this.indexPkSequence,
+			this.catalogPersistenceService,
+			newPersistenceService,
+			this.indexes,
+			this.cacheSupervisor
+		);
+	}
+
+	/**
 	 * This method writes all changed storage parts into the persistent storage of this {@link EntityCollection} and
 	 * then returns updated {@link EntityCollectionHeader}.
 	 */
+	@Nonnull
 	EntityCollectionHeader flush(long catalogVersionId) {
-		return doWithPersistenceService(() -> this.persistenceService.flush(catalogVersionId, catalogEntityHeaderFactory));
+		return this.persistenceService.flush(catalogVersionId, headerInfoSupplier);
 	}
+
+	/*
+		PRIVATE METHODS
+	 */
 
 	/**
 	 * This method replaces references in current instance that needs to work with information outside this entity
@@ -1091,10 +1110,6 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 	void updateReferenceToCatalog(@Nonnull Catalog catalog) {
 		this.catalogAccessor.set(catalog);
 	}
-
-	/*
-		PRIVATE METHODS
-	 */
 
 	/**
 	 * Generates new UNIQUE primary key for the entity. Calling this
@@ -1112,54 +1127,6 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 	@Nonnull
 	private Catalog getCatalog() {
 		return catalogAccessor.get();
-	}
-
-	/**
-	 * Method creates a function that allows to create new {@link EntityCollectionHeader} instance from
-	 * {@link PersistentStorageDescriptor} DTO. The catalog entity header contains additional information from this
-	 * entity collection instance we need to keep and propagate to next immutable catalog entity header object.
-	 */
-	@Nonnull
-	private Function<PersistentStorageDescriptor, EntityCollectionHeader> getCatalogEntityHeaderFactoryFunction() {
-		return newDescriptor -> new EntityCollectionHeader(
-			this.getSchema().getName(),
-			this.entityTypePrimaryKey,
-			this.fileIndex,
-			this.size(),
-			this.pkSequence.get(),
-			this.indexPkSequence.get(),
-			newDescriptor,
-			ofNullable(this.indexes.get(new EntityIndexKey(EntityIndexType.GLOBAL)))
-				.map(EntityIndex::getPrimaryKey)
-				.orElse(null),
-			this.indexes
-				.values()
-				.stream()
-				.filter(it -> it.getIndexKey().getType() != EntityIndexType.GLOBAL)
-				.map(EntityIndex::getPrimaryKey)
-				.collect(Collectors.toList())
-		);
-	}
-
-	/**
-	 * Method processes all local mutations of passed `entityMutation` using passed `changeCollector`
-	 * and `entityIndexUpdater`.
-	 */
-	private void processMutations(
-		@Nonnull Collection<? extends LocalMutation<?, ?>> localMutations,
-		@Nonnull LocalMutationExecutor... mutationApplicators
-	) {
-		do {
-			for (LocalMutation<?, ?> localMutation : localMutations) {
-				for (LocalMutationExecutor mutationApplicator : mutationApplicators) {
-					mutationApplicator.applyMutation(localMutation);
-				}
-			}
-
-			localMutations = Arrays.stream(mutationApplicators)
-				.flatMap(it -> doWithPersistenceService(() -> it.applyChanges().stream()))
-				.toList();
-		} while (!localMutations.isEmpty());
 	}
 
 	/**
@@ -1229,13 +1196,11 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 	 */
 	@Nullable
 	private Entity getEntityById(int primaryKey, @Nonnull EvitaRequest evitaRequest) {
-		return doWithPersistenceService(
-			() -> persistenceService.readEntity(
-				primaryKey,
-				evitaRequest,
-				getInternalSchema(),
-				dataStoreBuffer
-			)
+		return persistenceService.readEntity(
+			primaryKey,
+			evitaRequest,
+			getInternalSchema(),
+			dataStoreBuffer
 		);
 	}
 
@@ -1340,15 +1305,15 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 				);
 			} else if (entityMutation.expects() == EntityExistence.MUST_NOT_EXIST) {
 				throw new InvalidMutationException(
-					"Entity of type " + currentSchema.getName() +
-						" is expected to have primary key automatically generated by Evita!"
+					"Entity of type `" + currentSchema.getName() +
+						"` is expected to have primary key automatically generated by Evita!"
 				);
 			} else if (entityMutation.expects() == EntityExistence.MAY_EXIST) {
 				Assert.isTrue(
 					getGlobalIndex().isPrimaryKeyKnown(entityMutation.getEntityPrimaryKey()),
 					() -> new InvalidMutationException(
-						"Entity of type " + currentSchema.getName() +
-							" is expected to have primary key automatically generated by Evita!"
+						"Entity of type `" + currentSchema.getName() +
+							"` is expected to have primary key automatically generated by Evita!"
 					)
 				);
 			}
@@ -1382,8 +1347,8 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 	 * Method applies all `localMutations` on entity with passed `entityPrimaryKey`.
 	 * TODO JNO - if exception occurs - we should revert the already applied changes in indexes!
 	 *
-	 * @param entityMutation   entity mutation to apply
-	 * @param entity           the entity to apply mutation on (needed only for entity removal)
+	 * @param entityMutation entity mutation to apply
+	 * @param entity         the entity to apply mutation on (needed only for entity removal)
 	 */
 	private void applyMutations(
 		@Nonnull EntityMutation entityMutation,
@@ -1433,22 +1398,6 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 
 		// register the mutation to the write ahead log
 		Transaction.getTransaction().ifPresent(it -> it.registerMutation(entityMutation));
-	}
-
-	/**
-	 * Method executes the lambda in that interacts with {@link #persistenceService} and returns the lambda result.
-	 * When the persistence service was closed in the meantime (for example the underlying file was renamed),
-	 * the service is automatically recreated.
-	 */
-	private <T> T doWithPersistenceService(@Nonnull Supplier<T> lambda) {
-		// TODO JNO - tohoto se zbavit a zajistit aby entity collection měla vždy platnou vazbu na aktuální storage
-		// nutné promyslet i výměny v rámci změny fileIndexů
-		if (this.persistenceService.isClosed()) {
-			// if the service was closed in the meantime - just recreate it
-			this.persistenceService = this.catalogPersistenceService.createEntityCollectionPersistenceService(getEntityType(), getEntityTypePrimaryKey());
-			this.dataStoreBuffer.setPersistenceService(this.persistenceService.getStoragePartPersistenceService());
-		}
-		return lambda.get();
 	}
 
 	/**
@@ -1519,39 +1468,37 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 		@Nonnull
 		@Override
 		public EntityIndex getOrCreateIndex(@Nonnull EntityIndexKey entityIndexKey) {
-			return doWithPersistenceService(
-				() -> EntityCollection.this.dataStoreBuffer.getOrCreateIndexForModification(
-					entityIndexKey,
-					eik ->
-						// if storage container buffer doesn't have index in "dirty" memory - retrieve index from collection
-						EntityCollection.this.indexes.computeIfAbsent(
-							eik,
-							eikAgain -> {
-								// if index doesn't exist even there create new one
-								if (eikAgain.getType() == EntityIndexType.GLOBAL) {
-									return new GlobalEntityIndex(indexPkSequence.incrementAndGet(), eikAgain, EntityCollection.this::getInternalSchema);
-								} else {
-									final EntityIndex globalIndex = getIndexIfExists(new EntityIndexKey(EntityIndexType.GLOBAL));
-									Assert.isPremiseValid(
-										globalIndex instanceof GlobalEntityIndex,
-										"When reduced index is created global one must already exist!"
+			return EntityCollection.this.dataStoreBuffer.getOrCreateIndexForModification(
+				entityIndexKey,
+				eik ->
+					// if storage container buffer doesn't have index in "dirty" memory - retrieve index from collection
+					EntityCollection.this.indexes.computeIfAbsent(
+						eik,
+						eikAgain -> {
+							// if index doesn't exist even there create new one
+							if (eikAgain.getType() == EntityIndexType.GLOBAL) {
+								return new GlobalEntityIndex(indexPkSequence.incrementAndGet(), eikAgain, EntityCollection.this::getInternalSchema);
+							} else {
+								final EntityIndex globalIndex = getIndexIfExists(new EntityIndexKey(EntityIndexType.GLOBAL));
+								Assert.isPremiseValid(
+									globalIndex instanceof GlobalEntityIndex,
+									"When reduced index is created global one must already exist!"
+								);
+								if (eikAgain.getType() == EntityIndexType.REFERENCED_ENTITY_TYPE) {
+									return new ReferencedTypeEntityIndex(
+										indexPkSequence.incrementAndGet(), eikAgain,
+										EntityCollection.this::getInternalSchema
 									);
-									if (eikAgain.getType() == EntityIndexType.REFERENCED_ENTITY_TYPE) {
-										return new ReferencedTypeEntityIndex(
-											indexPkSequence.incrementAndGet(), eikAgain,
-											EntityCollection.this::getInternalSchema
-										);
-									} else {
-										return new ReducedEntityIndex(
-											indexPkSequence.incrementAndGet(), eikAgain,
-											EntityCollection.this::getInternalSchema,
-											((GlobalEntityIndex) globalIndex)::getPriceIndex
-										);
-									}
+								} else {
+									return new ReducedEntityIndex(
+										indexPkSequence.incrementAndGet(), eikAgain,
+										EntityCollection.this::getInternalSchema,
+										((GlobalEntityIndex) globalIndex)::getPriceIndex
+									);
 								}
 							}
-						)
-				)
+						}
+					)
 			);
 		}
 
@@ -1571,10 +1518,8 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 		 */
 		@Override
 		public void removeIndex(@Nonnull EntityIndexKey entityIndexKey) {
-			final EntityIndex removedIndex = doWithPersistenceService(
-				() -> EntityCollection.this.dataStoreBuffer.removeIndex(
-					entityIndexKey, EntityCollection.this.indexes::remove
-				)
+			final EntityIndex removedIndex = EntityCollection.this.dataStoreBuffer.removeIndex(
+				entityIndexKey, EntityCollection.this.indexes::remove
 			);
 			if (removedIndex == null) {
 				throw new EvitaInternalError("Entity index for key " + entityIndexKey + " doesn't exists!");
@@ -1586,4 +1531,39 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 
 	}
 
+	/**
+	 * A private class that implements the HeaderInfoSupplier interface.
+	 * It provides information about the header of an EntityCollection.
+	 */
+	private class EntityCollectionHeaderInfoSupplier implements HeaderInfoSupplier {
+
+		@Override
+		public int getLastAssignedPrimaryKey() {
+			return EntityCollection.this.pkSequence.get();
+		}
+
+		@Override
+		public int getLastAssignedIndexKey() {
+			return EntityCollection.this.indexPkSequence.get();
+		}
+
+		@Nullable
+		@Override
+		public OptionalInt getGlobalIndexKey() {
+			return ofNullable(EntityCollection.this.indexes.get(new EntityIndexKey(EntityIndexType.GLOBAL)))
+				.map(it -> OptionalInt.of(it.getPrimaryKey()))
+				.orElseGet(OptionalInt::empty);
+		}
+
+		@Nonnull
+		@Override
+		public List<Integer> getIndexKeys() {
+			return EntityCollection.this.indexes
+				.values()
+				.stream()
+				.filter(it -> it.getIndexKey().getType() != EntityIndexType.GLOBAL)
+				.map(EntityIndex::getPrimaryKey)
+				.collect(Collectors.toList());
+		}
+	}
 }

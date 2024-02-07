@@ -224,6 +224,12 @@ public class TransactionalStoragePartPersistenceService implements StoragePartPe
 		return this.offsetIndex.flush(catalogVersion);
 	}
 
+	@Nonnull
+	@Override
+	public PersistentStorageDescriptor copySnapshotTo(@Nonnull Path newFilePath, long catalogVersion) {
+		return this.copySnapshotTo(newFilePath, catalogVersion);
+	}
+
 	@Override
 	public boolean isNew() {
 		return this.delegate.isNew();

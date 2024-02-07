@@ -50,6 +50,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.channels.FileChannel;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -193,7 +194,7 @@ public class OffsetIndexSerializationService {
 	 * @param offsetIndex   The original offset index to copy.
 	 * @param inputStream   The input stream containing the offset index file.
 	 * @param transactionId The transaction ID of the snapshot.
-	 * @param newFile       The file to copy the snapshot to.
+	 * @param newFilePath       The file to copy the snapshot to.
 	 *
 	 * @return The length of the copied snapshot.
 	 */
@@ -201,10 +202,11 @@ public class OffsetIndexSerializationService {
 		@Nonnull OffsetIndex offsetIndex,
 		@Nonnull ObservableInput<RandomAccessFileInputStream> inputStream,
 		long transactionId,
-		@Nonnull File newFile
+		@Nonnull Path newFilePath
 	) {
 		// this file won't be closed so that we don't damage the original input stream (read-handle)
 		final RandomAccessFile sourceFile = inputStream.getInputStream().getRandomAccessFile();
+		final File newFile = newFilePath.toFile();
 		try (
 			final FileChannel sourceChannel = sourceFile.getChannel();
 			final RandomAccessFile destFile = new RandomAccessFile(newFile, "rw");

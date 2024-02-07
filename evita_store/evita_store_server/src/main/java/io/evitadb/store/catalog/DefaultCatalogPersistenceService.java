@@ -29,6 +29,7 @@ import io.evitadb.api.CatalogContract;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TransactionOptions;
+import io.evitadb.api.exception.CollectionNotFoundException;
 import io.evitadb.api.exception.EntityTypeAlreadyPresentInCatalogSchemaException;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.mutation.Mutation;
@@ -754,12 +755,12 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 
 		// store the catalog that replaces the original header
 		final CatalogHeader catalogHeader = this.catalogStoragePartPersistenceService.getCatalogHeader();
-		final long catalogVersion = catalogHeader.version() + 1;
+		final long catalogVersion = catalogHeader.catalogState() == CatalogState.WARMING_UP ?
+			0L : catalogHeader.version() + 1;
 		catalogStoragePartPersistenceService.writeCatalogHeader(
 			STORAGE_PROTOCOL_VERSION,
 			catalogVersion,
-			/* TODO JNO - tady přidat referenci na transakci ve WAL od prvního záznamu až po úplně poslední */
-			null,
+			catalogHeader.walFileReference(),
 			catalogHeader.collectionFileIndex(),
 			catalogNameToBeReplaced,
 			catalogHeader.catalogState(),
@@ -843,8 +844,8 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				Assert.isPremiseValid(
 					temporaryOriginal.toFile().renameTo(newPath.toFile()),
 					() -> new EvitaInternalError(
-						"Failed to rename original directory back to `" + newPath.toAbsolutePath() + "` the original catalog will not be available as well!",
-						"Failed to rename original directory back to the original catalog will not be available as well!",
+						"Failed to rename the original directory back to `" + newPath.toAbsolutePath() + "` the original catalog will not be available as well!",
+						"Failing to rename the original directory back to the original catalog will not be available as well!",
 						ex
 					)
 				);
@@ -858,31 +859,35 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	public EntityCollectionPersistenceService replaceCollectionWith(
 		@Nonnull String entityType,
 		int entityTypePrimaryKey,
-		int entityFileIndex,
-		@Nonnull String newEntityType
+		@Nonnull String newEntityType,
+		long catalogVersion
 	) {
 		final CatalogHeader catalogHeader = this.catalogStoragePartPersistenceService.getCatalogHeader();
-		final CollectionFileReference newEntityTypeExistingFileIndex = catalogHeader.getEntityTypeFileIndexIfExists(entityType)
-			.orElseGet(() -> new CollectionFileReference(entityType, entityTypePrimaryKey, 0, null));
-		final CollectionFileReference newEntityTypeFileIndex = newEntityTypeExistingFileIndex.incrementAndGet();
-		final File newFile = newEntityTypeFileIndex.toFilePath(catalogStoragePath).toFile();
+		final CollectionFileReference replacedEntityTypeFileReference = catalogHeader.getEntityTypeFileIndexIfExists(entityType)
+			.orElseThrow(() -> new CollectionNotFoundException(entityType));
+		final CollectionFileReference newEntityTypeExistingFileReference = catalogHeader.getEntityTypeFileIndexIfExists(newEntityType)
+			.orElseGet(() -> new CollectionFileReference(newEntityType, entityTypePrimaryKey, 0, null));
+		final CollectionFileReference newEntityTypeFileIndex = newEntityTypeExistingFileReference.incrementAndGet();
+		final Path newFilePath = newEntityTypeFileIndex.toFilePath(catalogStoragePath);
 
 		final DefaultEntityCollectionPersistenceService entityPersistenceService = this.entityCollectionPersistenceServices.get(
-			new CollectionFileReference(entityType, entityTypePrimaryKey, entityFileIndex, null)
+			new CollectionFileReference(entityType, entityTypePrimaryKey, replacedEntityTypeFileReference.fileIndex(), null)
 		);
 		Assert.isPremiseValid(
 			entityPersistenceService != null,
 			"Entity collection persistence service for `" + entityType + "` not found in catalog `" + catalogName + "`!"
 		);
 
+		final File newFile = newFilePath.toFile();
+		final PersistentStorageDescriptor persistentStorageDescriptor;
 		try {
 			// now copy living snapshot of the entity collection to a new file
-			Assert.isPremiseValid(newFile.createNewFile(), "Cannot create new entity collection file: `" + newFile.toPath() + "`!");
-			entityPersistenceService.copySnapshotTo(newFile);
+			Assert.isPremiseValid(newFile.createNewFile(), "Cannot create new entity collection file: `" + newFilePath + "`!");
+			persistentStorageDescriptor = entityPersistenceService.copySnapshotTo(newFilePath, catalogVersion);
 		} catch (RuntimeException | IOException ex) {
 			// delete non-finished damaged file if exists
 			if (newFile.exists()) {
-				Assert.isPremiseValid(newFile.delete(), "Cannot remove unfinished file: `" + newFile.toPath() + "`!");
+				Assert.isPremiseValid(newFile.delete(), "Cannot remove unfinished file: `" + newFilePath + "`!");
 			}
 			if (ex instanceof RuntimeException runtimeException) {
 				throw runtimeException;
@@ -895,7 +900,35 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			}
 		}
 
-		return this.createEntityCollectionPersistenceService(newEntityType, entityTypePrimaryKey);
+		return this.entityCollectionPersistenceServices.compute(
+			newEntityTypeFileIndex,
+			(eType, oldValue) -> {
+				Assert.isPremiseValid(
+					oldValue == null,
+					"Entity collection persistence service for `" + newEntityType + "` already exists in catalog `" + catalogName + "`!"
+				);
+				final EntityCollectionHeader entityHeader = entityPersistenceService.getCatalogEntityHeader();
+				return new DefaultEntityCollectionPersistenceService(
+					catalogStoragePath,
+					new EntityCollectionHeader(
+						newEntityTypeExistingFileReference.entityType(),
+						newEntityTypeFileIndex.entityTypePrimaryKey(),
+						newEntityTypeFileIndex.fileIndex(),
+						entityHeader.recordCount(),
+						entityHeader.lastPrimaryKey(),
+						entityHeader.lastEntityIndexPrimaryKey(),
+						persistentStorageDescriptor,
+						entityHeader.globalEntityIndexId(),
+						entityHeader.usedEntityIndexIds()
+					),
+					storageOptions,
+					transactionOptions,
+					offHeapMemoryManager,
+					observableOutputKeeper,
+					recordTypeRegistry
+				);
+			}
+		);
 	}
 
 	@Override

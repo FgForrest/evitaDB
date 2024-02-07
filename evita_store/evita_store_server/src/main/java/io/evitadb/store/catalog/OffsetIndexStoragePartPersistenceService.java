@@ -41,6 +41,7 @@ import io.evitadb.store.wal.TransactionalStoragePartPersistenceService;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.nio.file.Path;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.function.Function;
@@ -229,6 +230,16 @@ public class OffsetIndexStoragePartPersistenceService implements StoragePartPers
 	public PersistentStorageDescriptor flush(long catalogVersion) {
 		if (offsetIndex.isOperative()) {
 			return this.offsetIndex.flush(catalogVersion);
+		} else {
+			throw new PersistenceServiceClosed();
+		}
+	}
+
+	@Nonnull
+	@Override
+	public PersistentStorageDescriptor copySnapshotTo(@Nonnull Path newFilePath, long catalogVersion) {
+		if (offsetIndex.isOperative()) {
+			return this.offsetIndex.copySnapshotTo(newFilePath, catalogVersion);
 		} else {
 			throw new PersistenceServiceClosed();
 		}

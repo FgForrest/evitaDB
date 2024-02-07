@@ -223,12 +223,14 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	EntityCollectionPersistenceService replaceCollectionWith(
 		@Nonnull String entityType,
 		int entityTypePrimaryKey,
-		int entityFileIndex,
-		@Nonnull String newEntityType
+		@Nonnull String newEntityType,
+		long catalogVersion
 	);
 
 	/**
 	 * Method deletes entity collection persistent storage and removes collection from the schema.
+	 *
+	 * TODO JNO - this method should be called only when there is no session working with it
 	 */
 	void deleteEntityCollection(@Nonnull String entityType);
 

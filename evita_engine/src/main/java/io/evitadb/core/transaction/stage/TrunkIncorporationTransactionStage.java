@@ -26,6 +26,9 @@ package io.evitadb.core.transaction.stage;
 import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
+import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
+import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
+import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.Transaction;
@@ -40,6 +43,7 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serial;
 import java.util.Iterator;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -312,6 +316,16 @@ public final class TrunkIncorporationTransactionStage
 				entityUpsertMutation.expects(),
 				entityUpsertMutation.getLocalMutations()
 			);
+		}
+
+		@Nonnull
+		@Override
+		public Optional<EntitySchemaMutation[]> verifyOrEvolveSchema(
+			@Nonnull SealedCatalogSchema catalogSchema,
+			@Nonnull SealedEntitySchema entitySchema,
+			boolean entityCollectionEmpty
+		) {
+			return super.verifyOrEvolveSchema(catalogSchema, entitySchema, entityCollectionEmpty, true);
 		}
 	}
 

@@ -181,9 +181,8 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 
 		// now create a snapshot of the file offset index
 		final Path snapshotPath = Path.of(System.getProperty("java.io.tmpdir") + File.separator + "snapshot.kryo");
-		final File snapshotFile = snapshotPath.toFile();
 		try {
-			final OffsetIndexDescriptor snapshotBootstrapDescriptor = purgedSourceOffsetIndex.copySnapshotTo(snapshotFile, 3L);
+			final OffsetIndexDescriptor snapshotBootstrapDescriptor = purgedSourceOffsetIndex.copySnapshotTo(snapshotPath, 3L);
 			final OffsetIndex loadedFileOffsetIndex = new OffsetIndex(
 				snapshotBootstrapDescriptor,
 				options,
@@ -201,7 +200,7 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 				);
 			}
 		} finally {
-			snapshotFile.delete();
+			snapshotPath.toFile().delete();
 		}
 
 		observableOutputKeeper.free();

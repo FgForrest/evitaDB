@@ -467,7 +467,6 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		final EntityCollection entityCollection = new EntityCollection(
 			getMockCatalog(catalogSchema, entitySchema),
 			entityTypePrimaryKey,
-			0,
 			entitySchema.getName(),
 			ioService,
 			NoCacheSupervisor.INSTANCE,
@@ -499,7 +498,6 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		final EntityCollection collection = new EntityCollection(
 			getMockCatalog(catalogSchema, schema),
 			entityCollection.getEntityTypePrimaryKey(),
-			0,
 			schema.getName(),
 			ioService,
 			NoCacheSupervisor.INSTANCE,
