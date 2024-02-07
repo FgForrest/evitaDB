@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,11 +21,9 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core;
+package io.evitadb.api;
 
-import io.evitadb.api.CatalogContract;
-import io.evitadb.api.EntityCollectionContract;
-import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.StorageOptions;
@@ -53,6 +51,8 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
+import io.evitadb.core.EntityCollection;
+import io.evitadb.core.Evita;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.function.TriConsumer;
@@ -67,6 +67,7 @@ import io.evitadb.utils.Assert;
 import io.evitadb.utils.StringUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
@@ -77,6 +78,7 @@ import java.util.Currency;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -147,6 +149,69 @@ class EvitaIndexingTest implements EvitaTestSupport {
 	void tearDown() {
 		evita.close();
 		cleanTestSubDirectoryWithRethrow(DIR_EVITA_INDEXING_TEST);
+	}
+
+	@DisplayName("Update catalog in warm-up mode with another product - synchronously.")
+	@Test
+	void shouldUpdateCatalogWithAnotherProduct() {
+		final SealedEntity addedEntity = evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				evita.defineCatalog(TEST_CATALOG)
+					.withDescription("Some description.")
+					.withEntitySchema(
+						Entities.PRODUCT,
+						whichIs -> whichIs
+							.withDescription("My fabulous product.")
+							.withGeneratedPrimaryKey()
+					)
+					.updateVia(session);
+
+				final SealedEntity upsertedEntity = session.upsertAndFetchEntity(
+					session.createNewEntity(Entities.PRODUCT)
+				);
+				assertNotNull(upsertedEntity);
+				return upsertedEntity;
+			}
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final Optional<SealedEntity> fetchedEntity = session.getEntity(Entities.PRODUCT, addedEntity.getPrimaryKey());
+				assertTrue(fetchedEntity.isPresent());
+				assertEquals(addedEntity, fetchedEntity.get());
+			}
+		);
+	}
+
+	@DisplayName("Update catalog in warm-up mode with another product - asynchronously.")
+	@Test
+	void shouldUpdateCatalogWithAnotherProductAsynchronously() {
+		shouldUpdateCatalogWithAnotherProduct();
+
+		final CompletableFuture<SealedEntity> addedEntity = evita.updateCatalogAsync(
+			TEST_CATALOG,
+			session -> {
+				final SealedEntity upsertedEntity = session.upsertAndFetchEntity(
+					session.createNewEntity(Entities.PRODUCT)
+				);
+				assertNotNull(upsertedEntity);
+				return upsertedEntity;
+			},
+			CommitBehavior.WAIT_FOR_CONFLICT_RESOLUTION
+		);
+
+		assertTrue(addedEntity.isDone());
+		final Integer addedEntityPrimaryKey = addedEntity.getNow(null).getPrimaryKey();
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				// the entity will immediately available in indexes
+				final Optional<SealedEntity> fetchedEntity = session.getEntity(Entities.PRODUCT, addedEntityPrimaryKey);
+				assertTrue(fetchedEntity.isPresent());
+			}
+		);
 	}
 
 	@Test

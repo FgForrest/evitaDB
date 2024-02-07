@@ -325,7 +325,9 @@ public final class TrunkIncorporationTransactionStage
 			@Nonnull SealedEntitySchema entitySchema,
 			boolean entityCollectionEmpty
 		) {
-			return super.verifyOrEvolveSchema(catalogSchema, entitySchema, entityCollectionEmpty, true);
+			// this has already happened in the transactional memory layer
+			// and all schema mutations have been already recorded
+			return Optional.empty();
 		}
 	}
 

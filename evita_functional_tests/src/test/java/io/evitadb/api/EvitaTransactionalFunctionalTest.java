@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,13 +21,14 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core;
+package io.evitadb.api;
 
 import com.github.javafaker.Faker;
-import io.evitadb.api.EvitaContract;
-import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.TransactionContract.CommitBehavior;
+import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
+import io.evitadb.core.Evita;
 import io.evitadb.function.TriFunction;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
@@ -39,7 +40,9 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -54,10 +57,7 @@ import static io.evitadb.test.TestConstants.LONG_RUNNING_TEST;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_URL;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * This test aims to test transactional behaviour of evitaDB.
@@ -71,13 +71,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 public class EvitaTransactionalFunctionalTest {
 	private static final String TRANSACTIONAL_DATA_SET = "transactionalDataSet";
 	private static final int SEED = 42;
+	private final DataGenerator dataGenerator = new DataGenerator();
+
 	private static final TriFunction<String, EvitaSessionContract, Faker, Integer> RANDOM_ENTITY_PICKER = (entityType, session, faker) -> {
 		final int entityCount = session.getEntityCollectionSize(entityType);
 		final int primaryKey = entityCount == 0 ? 0 : faker.random().nextInt(1, entityCount);
 		return primaryKey == 0 ? null : primaryKey;
 	};
 
-	@DataSet(value = TRANSACTIONAL_DATA_SET, readOnly = false, destroyAfterClass = true)
+	@DataSet(value = TRANSACTIONAL_DATA_SET, readOnly = false)
 	SealedEntitySchema setUp(Evita evita) {
 		return evita.updateCatalog(TEST_CATALOG, session -> {
 			session.updateCatalogSchema(
@@ -87,7 +89,6 @@ public class EvitaTransactionalFunctionalTest {
 					.withAttribute(ATTRIBUTE_URL, String.class, whichIs -> whichIs.localized().uniqueGlobally().nullable())
 			);
 
-			final DataGenerator dataGenerator = new DataGenerator();
 			final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(entityType, session, faker);
 			dataGenerator.generateEntities(
 					dataGenerator.getSampleBrandSchema(session),
@@ -126,17 +127,88 @@ public class EvitaTransactionalFunctionalTest {
 				session, schemaBuilder -> {
 					return schemaBuilder
 						.withGeneratedPrimaryKey()
-						.toInstance();
+						.updateAndFetchVia(session);
 				}
 			);
 		});
 	}
 
+	@DisplayName("Update catalog with another product - synchronously.")
+	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
+	@Test
+	void shouldUpdateCatalogWithAnotherProduct(EvitaContract evita, SealedEntitySchema productSchema) {
+		final SealedEntity addedEntity = evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(entityType, session, faker);
+				final Optional<SealedEntity> upsertedEntity = dataGenerator.generateEntities(productSchema, randomEntityPicker, SEED)
+					.limit(1)
+					.map(session::upsertAndFetchEntity)
+					.findFirst();
+				assertTrue(upsertedEntity.isPresent());
+				return upsertedEntity.get();
+			}
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final Optional<SealedEntity> fetchedEntity = session.getEntity(productSchema.getName(), addedEntity.getPrimaryKey());
+				assertTrue(fetchedEntity.isPresent());
+				assertEquals(addedEntity, fetchedEntity.get());
+			}
+		);
+	}
+
+	@DisplayName("Update catalog with another product - asynchronously.")
+	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
+	@Test
+	void shouldUpdateCatalogWithAnotherProductAsynchronously(EvitaContract evita, SealedEntitySchema productSchema) {
+		final CompletableFuture<SealedEntity> addedEntity = evita.updateCatalogAsync(
+			TEST_CATALOG,
+			session -> {
+				final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(entityType, session, faker);
+				final Optional<SealedEntity> upsertedEntity = dataGenerator.generateEntities(productSchema, randomEntityPicker, SEED)
+					.limit(1)
+					.map(session::upsertAndFetchEntity)
+					.findFirst();
+				assertTrue(upsertedEntity.isPresent());
+				return upsertedEntity.get();
+			},
+			CommitBehavior.WAIT_FOR_CONFLICT_RESOLUTION
+		);
+
+		while (!addedEntity.isDone()) {
+			Thread.onSpinWait();
+		}
+
+		final Integer addedEntityPrimaryKey = addedEntity.getNow(null).getPrimaryKey();
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				// the entity will not yet be propagated to indexes
+				final Optional<SealedEntity> fetchedEntity = session.getEntity(productSchema.getName(), addedEntityPrimaryKey);
+				assertTrue(fetchedEntity.isEmpty());
+
+				for (int i = 0; i < 10_000; i++) {
+					final Optional<SealedEntity> entityFetchedAgain = session.getEntity(productSchema.getName(), addedEntityPrimaryKey);
+					if (entityFetchedAgain.isPresent()) {
+						return;
+					}
+					Thread.onSpinWait();
+				}
+
+				fail("Entity not found in catalog!");
+			}
+		);
+	}
+
 	@DisplayName("Verify code has no problems assigning new PK in concurrent environment")
-	@UseDataSet(TRANSACTIONAL_DATA_SET)
+	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
 	@Tag(LONG_RUNNING_TEST)
 	@Test
 	void shouldAutomaticallyGeneratePrimaryKeyInParallel(EvitaContract evita, SealedEntitySchema productSchema) throws Exception {
+		/* TODO JNO - tento test nechodí!!! */
 		final int numberOfThreads = 10;
 		final int iterations = 100;
 		final ExecutorService service = Executors.newFixedThreadPool(numberOfThreads);

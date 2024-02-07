@@ -125,7 +125,49 @@ public class EntityUpsertMutation implements EntityMutation {
 		@Nonnull SealedEntitySchema entitySchema,
 		boolean entityCollectionEmpty
 	) {
-		return this.verifyOrEvolveSchema(catalogSchema, entitySchema, entityCollectionEmpty, false);
+		final Optional<EntitySchemaMutation> pkMutation;
+		// when the collection is empty - we may redefine primary key behaviour in schema (this is the only moment to do so)
+		if (entityCollectionEmpty) {
+			if (entityPrimaryKey == null && !entitySchema.isWithGeneratedPrimaryKey()) {
+				// if primary key in first entity is not present switch schema to automatically assign new ids
+				Assert.isTrue(
+					entitySchema.allows(EvolutionMode.ADAPT_PRIMARY_KEY_GENERATION),
+					() -> new InvalidMutationException(
+						"Entity of type `" + entitySchema.getName() + "` schema " +
+							"is set to expect primary keys assigned externally, but no primary key is provided in entity mutation!"
+					)
+				);
+				pkMutation = of(new SetEntitySchemaWithGeneratedPrimaryKeyMutation(true));
+			} else if (entityPrimaryKey != null && entitySchema.isWithGeneratedPrimaryKey()) {
+				// if primary key in first entity is present switch schema to expect ids generated externally
+				Assert.isTrue(
+					entitySchema.allows(EvolutionMode.ADAPT_PRIMARY_KEY_GENERATION),
+					() -> new InvalidMutationException(
+						"Entity of type `" + entitySchema.getName() + "` schema " +
+							"is set to expect to generate primary keys automatically, but primary key is provided " +
+							"in entity mutation and no appropriate entity exists in the collection!"
+					)
+				);
+				pkMutation = of(new SetEntitySchemaWithGeneratedPrimaryKeyMutation(false));
+			} else {
+				// the mutation match the expectations
+				pkMutation = empty();
+			}
+		} else {
+			// collection is not empty - cannot adapt schema primary key generation settings
+			pkMutation = empty();
+		}
+		// collect schema mutations from the local entity mutations
+		final Optional<EntitySchemaMutation[]> additionalMutations = EntityMutation.verifyOrEvolveSchema(catalogSchema, entitySchema, localMutations);
+		// combine mutation local mutations with the entity primary key mutation is provided
+		return additionalMutations
+			.map(
+				mutations -> pkMutation
+					.map(it -> Stream.concat(Stream.of(it), Arrays.stream(mutations)))
+					.orElseGet(() -> Arrays.stream(mutations))
+					.toArray(EntitySchemaMutation[]::new)
+			)
+			.or(() -> pkMutation.map(x -> new EntitySchemaMutation[]{x}));
 	}
 
 	@Nonnull
@@ -174,57 +216,5 @@ public class EntityUpsertMutation implements EntityMutation {
 			}
 		}
 		return true;
-	}
-
-	@Nonnull
-	protected Optional<EntitySchemaMutation[]> verifyOrEvolveSchema(
-		@Nonnull SealedCatalogSchema catalogSchema,
-		@Nonnull SealedEntitySchema entitySchema,
-		boolean entityCollectionEmpty,
-		boolean considerVerified
-	) {
-		final Optional<EntitySchemaMutation> pkMutation;
-		// when the collection is empty - we may redefine primary key behaviour in schema (this is the only moment to do so)
-		if (entityCollectionEmpty) {
-			if (entityPrimaryKey == null && !entitySchema.isWithGeneratedPrimaryKey()) {
-				// if primary key in first entity is not present switch schema to automatically assign new ids
-				Assert.isTrue(
-					considerVerified || entitySchema.allows(EvolutionMode.ADAPT_PRIMARY_KEY_GENERATION),
-					() -> new InvalidMutationException(
-						"Entity of type `" + entitySchema.getName() + "` schema " +
-							"is set to expect primary keys assigned externally, but no primary key is provided in entity mutation!"
-					)
-				);
-				pkMutation = of(new SetEntitySchemaWithGeneratedPrimaryKeyMutation(true));
-			} else if (entityPrimaryKey != null && entitySchema.isWithGeneratedPrimaryKey()) {
-				// if primary key in first entity is present switch schema to expect ids generated externally
-				Assert.isTrue(
-					considerVerified || entitySchema.allows(EvolutionMode.ADAPT_PRIMARY_KEY_GENERATION),
-					() -> new InvalidMutationException(
-						"Entity of type `" + entitySchema.getName() + "` schema " +
-							"is set to expect to generate primary keys automatically, but primary key is provided " +
-							"in entity mutation and no appropriate entity exists in the collection!"
-					)
-				);
-				pkMutation = of(new SetEntitySchemaWithGeneratedPrimaryKeyMutation(false));
-			} else {
-				// the mutation match the expectations
-				pkMutation = empty();
-			}
-		} else {
-			// collection is not empty - cannot adapt schema primary key generation settings
-			pkMutation = empty();
-		}
-		// collect schema mutations from the local entity mutations
-		final Optional<EntitySchemaMutation[]> additionalMutations = EntityMutation.verifyOrEvolveSchema(catalogSchema, entitySchema, localMutations);
-		// combine mutation local mutations with the entity primary key mutation is provided
-		return additionalMutations
-			.map(
-				mutations -> pkMutation
-					.map(it -> Stream.concat(Stream.of(it), Arrays.stream(mutations)))
-					.orElseGet(() -> Arrays.stream(mutations))
-					.toArray(EntitySchemaMutation[]::new)
-			)
-			.or(() -> pkMutation.map(x -> new EntitySchemaMutation[]{x}));
 	}
 }
