@@ -23,25 +23,52 @@
 
 package io.evitadb.store.spi;
 
+import io.evitadb.core.EntityCollection;
+import io.evitadb.index.GlobalEntityIndex;
+import io.evitadb.store.spi.model.EntityCollectionHeader;
+
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.List;
 import java.util.OptionalInt;
 
 /**
- * TODO JNO - document me
+ * This interface provides methods to retrieve information about the header of an EntityCollection and allows to call
+ * back the information in the {@link EntityCollection} from the persistence layer when creating {@link EntityCollectionHeader}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public interface HeaderInfoSupplier {
 
+	/**
+	 * Returns the value of the last assigned primary key in {@link EntityCollection}.
+	 *
+	 * @return the value of the last assigned primary key
+	 */
 	int getLastAssignedPrimaryKey();
 
+	/**
+	 * Returns the value of the last assigned index key in {@link EntityCollection}.
+	 *
+	 * @return the value of the last assigned index key
+	 */
 	int getLastAssignedIndexKey();
 
+	/**
+	 * Retrieves the value of the global index key. The global index key is a key that is assigned to the {@link GlobalEntityIndex}
+	 * within the {@link EntityCollection}. The index is created when the first entity is added to the collection.
+	 *
+	 * @return an optional integer representing the value of the global index key,
+	 *         or {@link OptionalInt#empty()} if the global index was not yet created (collection is empty)
+	 */
 	@Nullable
 	OptionalInt getGlobalIndexKey();
 
+	/**
+	 * Retrieves the list of index keys in the {@link EntityCollection} excluding the global index key.
+	 *
+	 * @return a list of primary keys representing the index keys in the collection
+	 */
 	@Nonnull
 	List<Integer> getIndexKeys();
 
