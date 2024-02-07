@@ -63,11 +63,9 @@ import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchema
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaNameMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.RemoveEntitySchemaMutation;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
+import io.evitadb.api.trace.TracingContext;
 import io.evitadb.core.buffer.DataStoreChanges;
 import io.evitadb.core.buffer.DataStoreMemoryBuffer;
-import io.evitadb.api.trace.TracingContext;
-import io.evitadb.core.Transaction.CommitUpdateInstructionSet;
-import io.evitadb.core.buffer.DataStoreTxMemoryBuffer;
 import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.exception.StorageImplementationNotFoundException;
 import io.evitadb.core.query.QueryContext;
@@ -247,7 +245,6 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 	 **/
 	private final TracingContext tracingContext;
 	/**
-	 * Contains id of the transaction ({@link Transaction#getId()}) that was successfully committed to the disk.
 	 * Java {@link java.util.concurrent.Flow} implementation that allows to process transactional tasks in
 	 * asynchronous reactive manner.
 	 */
@@ -450,7 +447,8 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 			catalogIndex,
 			entityCollections,
 			previousCatalogVersion.persistenceService,
-			previousCatalogVersion
+			previousCatalogVersion,
+			previousCatalogVersion.tracingContext
 		);
 	}
 
@@ -709,7 +707,8 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 							it.getEntityType(),
 							newIoService,
 							cacheSupervisor,
-							sequenceService
+							sequenceService,
+							tracingContext
 						)
 					)
 				);
@@ -720,7 +719,8 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 				catalogIndex,
 				newCollections,
 				newIoService,
-				this
+				this,
+				tracingContext
 			);
 			newCollections.values().forEach(it -> it.updateReferenceToCatalog(catalogAfterRename));
 			return catalogAfterRename;
@@ -761,7 +761,8 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 						this.catalogIndex,
 						this.entityCollections,
 						this.persistenceService,
-						this
+						this,
+						this.tracingContext
 					)
 				);
 				return true;
@@ -1279,7 +1280,8 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 			createEntitySchemaMutation.getName(),
 			persistenceService,
 			cacheSupervisor,
-			sequenceService
+			sequenceService,
+			tracingContext
 		);
 		this.entityCollectionsByPrimaryKey.put(newCollection.getEntityTypePrimaryKey(), newCollection);
 		this.entityCollections.put(newCollection.getEntityType(), newCollection);

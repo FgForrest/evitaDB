@@ -252,7 +252,8 @@ public final class Evita implements EvitaContract {
 						configuration.transaction(),
 						reflectionLookup,
 						executor,
-						this::replaceCatalogReference
+						this::replaceCatalogReference,
+						tracingContext
 					);
 					log.info("Catalog {} fully loaded in: {}", catalogName, StringUtils.formatNano(System.nanoTime() - start));
 				} catch (Throwable ex) {
@@ -637,7 +638,8 @@ public final class Evita implements EvitaContract {
 						configuration.transaction(),
 						reflectionLookup,
 						executor,
-						this::replaceCatalogReference
+						this::replaceCatalogReference,
+						tracingContext
 					);
 				} else {
 					throw new CatalogAlreadyPresentException(catalogName, existingCatalog.getName());

@@ -75,10 +75,9 @@ import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.entity.SetEntitySchemaWithHierarchyMutation;
+import io.evitadb.api.trace.TracingContext;
 import io.evitadb.core.buffer.DataStoreChanges;
 import io.evitadb.core.buffer.DataStoreMemoryBuffer;
-import io.evitadb.api.trace.TracingContext;
-import io.evitadb.core.buffer.DataStoreTxMemoryBuffer;
 import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.query.QueryContext;
 import io.evitadb.core.query.QueryPlan;
@@ -137,6 +136,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -1071,7 +1071,8 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 				this.catalogPersistenceService,
 				this.persistenceService,
 				transactionalLayer.getStateCopyWithCommittedChanges(this.indexes),
-				cacheSupervisor
+				this.cacheSupervisor,
+				this.tracingContext
 			);
 		} else {
 			final ReferenceChanges<EntitySchemaDecorator> schemaChanges = transactionalLayer.getTransactionalMemoryLayerIfExists(this.schema);
@@ -1108,7 +1109,8 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 			this.catalogPersistenceService,
 			newPersistenceService,
 			this.indexes,
-			this.cacheSupervisor
+			this.cacheSupervisor,
+			this.tracingContext
 		);
 	}
 
