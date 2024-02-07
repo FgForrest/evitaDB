@@ -77,6 +77,8 @@ import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.entity.SetEntitySchemaWithHierarchyMutation;
 import io.evitadb.core.buffer.DataStoreChanges;
 import io.evitadb.core.buffer.DataStoreMemoryBuffer;
+import io.evitadb.api.trace.TracingContext;
+import io.evitadb.core.buffer.DataStoreTxMemoryBuffer;
 import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.query.QueryContext;
 import io.evitadb.core.query.QueryPlan;
@@ -221,6 +223,10 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 	 */
 	private final CacheSupervisor cacheSupervisor;
 	/**
+	 * Provides the tracing context for tracking the execution flow in the application.
+	 **/
+	private final TracingContext tracingContext;
+	/**
 	 * Service containing I/O related methods.
 	 */
 	private final EntityCollectionPersistenceService persistenceService;
@@ -273,8 +279,10 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 		@Nonnull String entityType,
 		@Nonnull CatalogPersistenceService catalogPersistenceService,
 		@Nonnull CacheSupervisor cacheSupervisor,
-		@Nonnull SequenceService sequenceService
+		@Nonnull SequenceService sequenceService,
+		@Nonnull TracingContext tracingContext
 	) {
+		this.tracingContext = tracingContext;
 		this.entityTypePrimaryKey = entityTypePrimaryKey;
 		this.catalogPersistenceService = catalogPersistenceService;
 		this.persistenceService = catalogPersistenceService.createEntityCollectionPersistenceService(entityType, entityTypePrimaryKey);
@@ -338,8 +346,10 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 		@Nonnull CatalogPersistenceService catalogPersistenceService,
 		@Nonnull EntityCollectionPersistenceService persistenceService,
 		@Nonnull Map<EntityIndexKey, EntityIndex> indexes,
-		@Nonnull CacheSupervisor cacheSupervisor
+		@Nonnull CacheSupervisor cacheSupervisor,
+		@Nonnull TracingContext tracingContext
 	) {
+		this.tracingContext = tracingContext;
 		this.entityTypePrimaryKey = entityTypePrimaryKey;
 		this.schema = new TransactionalReference<>(new EntitySchemaDecorator(() -> getCatalog().getSchema(), entitySchema));
 		this.catalogAccessor = new AtomicReference<>(catalog);
@@ -363,7 +373,11 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 		try (final QueryContext queryContext = createQueryContext(evitaRequest, session)) {
 			queryPlan = QueryPlanner.planQuery(queryContext);
 		}
-		return queryPlan.execute();
+		return tracingContext.executeWithinBlock(
+			"query",
+			(Supplier<T>) queryPlan::execute,
+			queryPlan::getSpanAttributes
+		);
 	}
 
 	@Override
@@ -602,7 +616,12 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 		try (final QueryContext queryContext = createQueryContext(evitaRequest, session)) {
 			queryPlan = QueryPlanner.planQuery(queryContext);
 		}
-		final EvitaEntityReferenceResponse result = queryPlan.execute();
+		final EvitaEntityReferenceResponse result = tracingContext.executeWithinBlock(
+			"delete",
+			(Supplier<EvitaEntityReferenceResponse>) queryPlan::execute,
+			queryPlan::getSpanAttributes
+		);
+
 		return result
 			.getRecordData()
 			.stream()
@@ -618,7 +637,12 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 		try (final QueryContext queryContext = createQueryContext(evitaRequest, session)) {
 			queryPlan = QueryPlanner.planQuery(queryContext);
 		}
-		final EvitaResponse<? extends Serializable> result = queryPlan.execute();
+		final EvitaResponse<? extends Serializable> result = tracingContext.executeWithinBlock(
+			"delete",
+			() -> queryPlan.execute(),
+			queryPlan::getSpanAttributes
+		);
+
 		return result
 			.getRecordData()
 			.stream()

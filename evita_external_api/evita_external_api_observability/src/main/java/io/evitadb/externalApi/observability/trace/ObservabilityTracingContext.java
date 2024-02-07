@@ -34,8 +34,6 @@ import org.slf4j.MDC;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.Map;
-import java.util.Map.Entry;
 import java.util.function.Supplier;
 
 /**
@@ -50,40 +48,81 @@ import java.util.function.Supplier;
 public class ObservabilityTracingContext implements TracingContext {
 
 	/**
-	 * Executes a provided runnable within a trace block. The trace block is created using the passed task name and attributes.
-	 * The execution of the lambda is traced and properly executed within the trace block.
-	 *
-	 * @param taskName    The name of the task to be traced.
-	 * @param attributes  Optional attributes to be added to the trace.
-	 * @param runnable    The runnable to be executed within the trace block.
+	 * Initializes MDC with the given client ID and trace ID. It is used for logging purposes.
 	 */
+	private static void initMdc(@Nonnull String clientId, @Nonnull String traceId) {
+		MDC.remove(MDC_CLIENT_ID_PROPERTY);
+		MDC.put(MDC_CLIENT_ID_PROPERTY, clientId);
+
+		MDC.remove(MDC_TRACE_ID_PROPERTY);
+		MDC.put(MDC_TRACE_ID_PROPERTY, traceId);
+	}
+
+	private static void clearMdc() {
+		MDC.remove(MDC_CLIENT_ID_PROPERTY);
+		MDC.remove(MDC_TRACE_ID_PROPERTY);
+	}
+
 	@Override
 	public void executeWithinBlock(
 		@Nonnull String taskName,
-		@Nullable Map<String, Object> attributes,
-		@Nonnull Runnable runnable
+		@Nonnull Runnable runnable,
+		@Nullable SpanAttribute... attributes
 	) {
-		executeWithinBlock(taskName, attributes, () -> {
-			runnable.run();
-			return null;
-		});
+		executeWithinBlock(
+			taskName,
+			() -> {
+				runnable.run();
+				return null;
+			},
+			attributes,
+			null
+		);
 	}
 
-	/**
-	 * Executes a provided supplier within a trace block. The trace block is created using the passed task name and attributes.
-	 * The execution of the lambda is traced and properly executed within the trace block.
-	 *
-	 * @param <T>         The type of the return value
-	 * @param taskName    The name of the task to be traced.
-	 * @param attributes  Optional attributes to be added to the trace.
-	 * @param lambda      The supplier to be executed within the trace block.
-	 * @return The result of the lambda execution.
-	 */
 	@Override
 	public <T> T executeWithinBlock(
 		@Nonnull String taskName,
-		@Nullable Map<String, Object> attributes,
-		@Nonnull Supplier<T> lambda
+		@Nonnull Supplier<T> lambda,
+		@Nullable SpanAttribute... attributes
+	) {
+		return executeWithinBlock(taskName, lambda, attributes, null);
+	}
+
+	@Override
+	public void executeWithinBlock(@Nonnull String taskName, @Nonnull Runnable runnable, @Nullable Supplier<SpanAttribute[]> attributes) {
+		executeWithinBlock(
+			taskName,
+			() -> {
+				runnable.run();
+				return null;
+			},
+			null,
+			attributes
+		);
+	}
+
+	@Override
+	public <T> T executeWithinBlock(@Nonnull String taskName, @Nonnull Supplier<T> lambda, @Nullable Supplier<SpanAttribute[]> attributes) {
+		return executeWithinBlock(taskName, lambda, null, attributes);
+	}
+
+	/**
+	 * Executes the given lambda function within a block.
+	 * If tracing is enabled, it creates and manages a span for the execution of the lambda.
+	 *
+	 * @param taskName the name of the task or operation
+	 * @param lambda the lambda function to execute
+	 * @param attributes an array of SpanAttribute objects representing the attributes to set in the span (optional)
+	 * @param attributeSupplier a supplier function that provides an array of SpanAttribute objects representing additional attributes to set in the span (optional)
+	 * @param <T> the return type of the lambda function
+	 * @return the result of the lambda function
+	 */
+	private static <T> T executeWithinBlock(
+		@Nonnull String taskName,
+		@Nonnull Supplier<T> lambda,
+		@Nullable SpanAttribute[] attributes,
+		@Nullable Supplier<SpanAttribute[]> attributeSupplier
 	) {
 		if (!OpenTelemetryTracerSetup.isTracingEnabled()) {
 			return lambda.get();
@@ -102,9 +141,7 @@ public class ObservabilityTracingContext implements TracingContext {
 		final String clientId = context.get(OpenTelemetryTracerSetup.CONTEXT_KEY);
 
 		if (attributes != null) {
-			for (Entry<String, Object> attribute : attributes.entrySet()) {
-				span.setAttribute(attribute.getKey(), attribute.getValue().toString());
-			}
+			setAttributes(span, attributes);
 		}
 
 		span.setAttribute(ExternalApiTracingContext.CLIENT_ID_CONTEXT_KEY_NAME, clientId);
@@ -118,26 +155,41 @@ public class ObservabilityTracingContext implements TracingContext {
 			span.setStatus(StatusCode.ERROR);
 			span.recordException(e);
 			throw e;
-		}
-		finally {
+		} finally {
+			if (attributeSupplier != null) {
+				final SpanAttribute[] finalAttributes = attributeSupplier.get();
+				if (finalAttributes != null) {
+					setAttributes(span, finalAttributes);
+				}
+			}
+
 			span.end();
 			clearMdc();
 		}
 	}
 
 	/**
-	 * Initializes MDC with the given client ID and trace ID. It is used for logging purposes.
+	 * Sets the specified attributes in the given span.
+	 *
+	 * @param span       the span to set the attributes in
+	 * @param attributes an array of SpanAttribute objects representing the attributes to set in the span
 	 */
-	private static void initMdc(@Nonnull String clientId, @Nonnull String traceId) {
-		MDC.remove(MDC_CLIENT_ID_PROPERTY);
-		MDC.put(MDC_CLIENT_ID_PROPERTY, clientId);
-
-		MDC.remove(MDC_TRACE_ID_PROPERTY);
-		MDC.put(MDC_TRACE_ID_PROPERTY, traceId);
-	}
-
-	private static void clearMdc() {
-		MDC.remove(MDC_CLIENT_ID_PROPERTY);
-		MDC.remove(MDC_TRACE_ID_PROPERTY);
+	private static void setAttributes(
+		@Nonnull Span span,
+		@Nonnull SpanAttribute[] attributes
+	) {
+		for (SpanAttribute attribute : attributes) {
+			if (attribute.value() instanceof String string) {
+				span.setAttribute(attribute.key(), string);
+			} else if (attribute.value() instanceof Integer integer) {
+				span.setAttribute(attribute.key(), integer);
+			} else if (attribute.value() instanceof Long longValue) {
+				span.setAttribute(attribute.key(), longValue);
+			} else if (attribute.value() instanceof Double doubleValue) {
+				span.setAttribute(attribute.key(), doubleValue);
+			} else if (attribute.value() instanceof Boolean booleanValue) {
+				span.setAttribute(attribute.key(), booleanValue);
+			}
+		}
 	}
 }

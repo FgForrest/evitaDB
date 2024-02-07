@@ -23,11 +23,10 @@
 
 package io.evitadb.externalApi.utils;
 
-import org.slf4j.MDC;
+import io.evitadb.api.trace.TracingContext.SpanAttribute;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.Map;
 import java.util.Optional;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
@@ -36,10 +35,9 @@ import java.util.regex.Pattern;
  * Base tracing context interface for external APIs. Its implementations should bridge trace requests from APIs to the
  * evitaDB core to allow adding additional inner traces.
  *
- * @see io.evitadb.api.trace.TracingContext
- *
  * @param <C> type of the context, should be either {@link io.undertow.util.HeaderMap} for JSON APIs (REST, GraphQL) or
- * gRPC Metadata type.
+ *            gRPC Metadata type.
+ * @see io.evitadb.api.trace.TracingContext
  */
 public interface ExternalApiTracingContext<C> {
 	/**
@@ -62,21 +60,50 @@ public interface ExternalApiTracingContext<C> {
 	Pattern ID_FORBIDDEN_CHARACTERS = Pattern.compile("[^a-zA-Z0-9\\-_.]");
 
 	/**
-	 * Executes the given lambda within the tracing block. It requires the client ID to be provided by the client and his
-	 * network address as well for the proper client identification formatting. Passed context is used as a decider for
-	 * the target implementation to use, whether the request originates from a JSON based API or a gRPC one.
+	 * Sanitizes client-sent ID.
 	 */
-	default void executeWithinBlock(@Nonnull String protocolName, @Nonnull C context, @Nullable Map<String, Object> attributes, @Nonnull Runnable runnable) {
+	@Nullable
+	private static String sanitizeId(@Nullable String idFromClient) {
+		if (idFromClient == null) {
+			return null;
+		}
+		return ID_FORBIDDEN_CHARACTERS.matcher(idFromClient)
+			.replaceAll("-");
+	}
+
+	/**
+	 * Sets the passed task name and attributes to the trace BEFORE the lambda is executed. Within the method,
+	 * the lambda with passed logic will be traced and properly executed.
+	 */
+	default void executeWithinBlock(@Nonnull String protocolName, @Nonnull C context, @Nonnull Runnable runnable, @Nullable SpanAttribute... attributes) {
 		runnable.run();
 	}
 
 	/**
-	 * Executes the given lambda within the tracing block. It requires the client ID to be provided by the client and his
-	 * network address as well for the proper client identification formatting. Passed context is used as a decider for
-	 * the target implementation to use, whether the request originates from a JSON based API or a gRPC one.
+	 * Sets the passed task name and attributes to the trace BEFORE the lambda is executed. Within the method,
+	 * the lambda with passed logic will be traced and properly executed.
 	 */
-	@Nullable
-	default <T> T executeWithinBlock(@Nonnull String protocolName, @Nonnull C context, @Nullable Map<String, Object> attributes, @Nonnull Supplier<T> lambda) {
+	default <T> T executeWithinBlock(@Nonnull String protocolName, @Nonnull C context, @Nonnull Supplier<T> lambda, @Nullable SpanAttribute... attributes) {
+		return lambda.get();
+	}
+
+	/**
+	 * Sets the passed task name and attributes to the trace AFTER the lambda is executed. Within the method,
+	 * the lambda with passed logic will be traced and properly executed. After the method successfully finishes,
+	 * the attributes will be set to the trace. The attributes may take advantage of the data computed in the lambda
+	 * itself.
+	 */
+	default void executeWithinBlock(@Nonnull String protocolName, @Nonnull C context, @Nonnull Runnable runnable, @Nullable Supplier<SpanAttribute[]> attributes) {
+		runnable.run();
+	}
+
+	/**
+	 * Sets the passed task name and attributes to the trace AFTER the lambda is executed. Within the method,
+	 * the lambda with passed logic will be traced and properly executed. After the method successfully finishes,
+	 * the attributes will be set to the trace. The attributes may take advantage of the data computed in the lambda
+	 * itself.
+	 */
+	default <T> T executeWithinBlock(@Nonnull String protocolName, @Nonnull C context, @Nonnull Supplier<T> lambda, @Nullable Supplier<SpanAttribute[]> attributes) {
 		return lambda.get();
 	}
 
@@ -86,7 +113,7 @@ public interface ExternalApiTracingContext<C> {
 	 * the target implementation to use, whether the request originates from a JSON based API or a gRPC one.
 	 */
 	default void executeWithinBlock(@Nonnull String protocolName, @Nonnull C context, @Nonnull Runnable runnable) {
-		executeWithinBlock(protocolName, context, null, runnable);
+		executeWithinBlock(protocolName, context, runnable);
 	}
 
 	/**
@@ -96,27 +123,15 @@ public interface ExternalApiTracingContext<C> {
 	 */
 	@Nullable
 	default <T> T executeWithinBlock(@Nonnull String protocolName, @Nonnull C context, @Nonnull Supplier<T> lambda) {
-		return executeWithinBlock(protocolName, context, null, lambda);
+		return executeWithinBlock(protocolName, context, lambda);
 	}
 
 	/**
 	 * Returns server interceptor for the given type. Expected usage is from gRPC Server.
 	 */
 	@Nullable
-	default <T> T getServerInterceptor(Class<T> type) {
+	default <T> T getServerInterceptor(@Nonnull Class<T> type) {
 		return null;
-	}
-
-	/**
-	 * Sanitizes client-sent ID.
-	 */
-	@Nullable
-	private String sanitizeId(@Nullable String idFromClient) {
-		if (idFromClient == null) {
-			return null;
-		}
-		return ID_FORBIDDEN_CHARACTERS.matcher(idFromClient)
-			.replaceAll("-");
 	}
 
 	/**
@@ -130,7 +145,7 @@ public interface ExternalApiTracingContext<C> {
 		return String.format(
 			SERVER_CLIENT_ID_FORMAT,
 			protocolName,
-			Optional.ofNullable(clientIdFromClient).map(this::sanitizeId).orElse(DEFAULT_CLIENT_ID)
+			Optional.ofNullable(clientIdFromClient).map(ExternalApiTracingContext::sanitizeId).orElse(DEFAULT_CLIENT_ID)
 		);
 	}
 }

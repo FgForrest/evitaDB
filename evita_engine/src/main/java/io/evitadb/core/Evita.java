@@ -51,6 +51,8 @@ import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchem
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaNameMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.RemoveCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.system.SystemStatus;
+import io.evitadb.api.trace.TracingContext;
+import io.evitadb.api.trace.TracingContextProvider;
 import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.cache.HeapMemoryCacheSupervisor;
 import io.evitadb.core.cache.NoCacheSupervisor;
@@ -176,6 +178,10 @@ public final class Evita implements EvitaContract {
 	 */
 	private final ThreadLocal<CatalogContract> removedCatalog = new ThreadLocal<>();
 	/**
+	 * Provides the tracing context for tracking the execution flow in the application.
+	 **/
+	private final TracingContext tracingContext;
+	/**
 	 * This variable represents the starting date and time.
 	 */
 	private final OffsetDateTime started;
@@ -230,6 +236,7 @@ public final class Evita implements EvitaContract {
 				)
 			);
 
+		this.tracingContext = TracingContextProvider.getContext();
 		final Path[] directories = FileUtils.listDirectories(configuration.storage().storageDirectoryOrDefault());
 		this.catalogs = CollectionUtils.createConcurrentHashMap(directories.length);
 		final CountDownLatch startUpLatch = new CountDownLatch(directories.length);

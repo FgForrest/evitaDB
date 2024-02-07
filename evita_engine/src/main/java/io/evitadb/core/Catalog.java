@@ -65,6 +65,9 @@ import io.evitadb.api.requestResponse.schema.mutation.catalog.RemoveEntitySchema
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.core.buffer.DataStoreChanges;
 import io.evitadb.core.buffer.DataStoreMemoryBuffer;
+import io.evitadb.api.trace.TracingContext;
+import io.evitadb.core.Transaction.CommitUpdateInstructionSet;
+import io.evitadb.core.buffer.DataStoreTxMemoryBuffer;
 import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.exception.StorageImplementationNotFoundException;
 import io.evitadb.core.query.QueryContext;
@@ -127,6 +130,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -239,6 +243,11 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 	 */
 	@Getter private final CatalogEntitySchemaAccessor entitySchemaAccessor = new CatalogEntitySchemaAccessor();
 	/**
+	 * Provides the tracing context for tracking the execution flow in the application.
+	 **/
+	private final TracingContext tracingContext;
+	/**
+	 * Contains id of the transaction ({@link Transaction#getId()}) that was successfully committed to the disk.
 	 * Java {@link java.util.concurrent.Flow} implementation that allows to process transactional tasks in
 	 * asynchronous reactive manner.
 	 */
@@ -291,9 +300,11 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 		@Nonnull TransactionOptions transactionOptions,
 		@Nonnull ReflectionLookup reflectionLookup,
 		@Nonnull ExecutorService executorService,
-		@Nonnull Consumer<Catalog> newCatalogVersionConsumer
+		@Nonnull Consumer<Catalog> newCatalogVersionConsumer,
+		@Nonnull TracingContext tracingContext
 	) {
 		final String catalogName = catalogSchema.getName();
+		this.tracingContext = tracingContext;
 		final CatalogSchema internalCatalogSchema = CatalogSchema._internalBuild(
 			catalogName, catalogSchema.getNameVariants(), catalogSchema.getCatalogEvolutionMode(),
 			getEntitySchemaAccessor()
@@ -346,8 +357,10 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 		@Nonnull TransactionOptions transactionOptions,
 		@Nonnull ReflectionLookup reflectionLookup,
 		@Nonnull ExecutorService executorService,
-		@Nonnull Consumer<Catalog> newCatalogVersionConsumer
+		@Nonnull Consumer<Catalog> newCatalogVersionConsumer,
+		@Nonnull TracingContext tracingContext
 	) {
+		this.tracingContext = tracingContext;
 		this.persistenceService = ServiceLoader.load(CatalogPersistenceServiceFactory.class)
 			.findFirst()
 			.map(it -> it.load(this, catalogName, catalogPath, storageOptions, transactionOptions))
@@ -384,7 +397,8 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 				entityType,
 				persistenceService,
 				cacheSupervisor,
-				sequenceService
+				sequenceService,
+				tracingContext
 			);
 			collections.put(entityType, collection);
 			collectionIndex.put(MAX_POWER_OF_TWO, collection);
@@ -446,8 +460,10 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 		@Nonnull CatalogIndex catalogIndex,
 		@Nonnull Map<String, EntityCollection> entityCollections,
 		@Nonnull CatalogPersistenceService persistenceService,
-		@Nonnull Catalog previousCatalogVersion
+		@Nonnull Catalog previousCatalogVersion,
+		@Nonnull TracingContext tracingContext
 	) {
+		this.tracingContext = tracingContext;
 		this.versionId = new TransactionalReference<>(versionId);
 		this.state = catalogState;
 		this.catalogIndex = catalogIndex;
@@ -581,7 +597,11 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 		try (final QueryContext queryContext = createQueryContext(evitaRequest, session)) {
 			queryPlan = QueryPlanner.planQuery(queryContext);
 		}
-		return queryPlan.execute();
+		return tracingContext.executeWithinBlock(
+			"query",
+			(Supplier<T>) queryPlan::execute,
+			queryPlan::getSpanAttributes
+		);
 	}
 
 	@Override

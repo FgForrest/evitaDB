@@ -65,6 +65,6 @@ public class TracingContextProvider {
 		if (collectedContexts.size() == 1) {
 			return collectedContexts.stream().findFirst().get();
 		}
-		return new DefaultTracingContext();
+		return DefaultTracingContext.INSTANCE;
 	}
 }

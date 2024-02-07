@@ -39,6 +39,7 @@ import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import io.evitadb.externalApi.graphql.io.GraphQLExceptionHandler;
 import io.evitadb.externalApi.graphql.io.GraphQLHandler;
 import io.evitadb.externalApi.graphql.io.GraphQLSchemaHandler;
+import io.evitadb.externalApi.http.AdditionalHeaders;
 import io.evitadb.externalApi.http.CorsFilter;
 import io.evitadb.externalApi.http.CorsPreflightHandler;
 import io.evitadb.externalApi.http.PathNormalizingHandler;
@@ -251,7 +252,13 @@ public class GraphQLManager {
 					new CorsPreflightHandler(
 						graphQLConfig.getAllowedOrigins(),
 						Set.of(Methods.GET_STRING, Methods.POST_STRING),
-						Set.of(Headers.CONTENT_TYPE_STRING, Headers.ACCEPT_STRING, "traceparent")
+						Set.of(
+							Headers.CONTENT_TYPE_STRING,
+							Headers.ACCEPT_STRING,
+							// default headers for tracing that are allowed on every endpoint by default
+							AdditionalHeaders.OPENTELEMETRY_TRACEPARENT_STRING,
+							AdditionalHeaders.EVITADB_CLIENTID_HEADER_STRING
+						)
 					),
 					graphQLConfig.getAllowedOrigins()
 				)

@@ -174,6 +174,12 @@ public class PriceHistogramProducer implements CacheableExtraResultProducer {
 
 	@Nonnull
 	@Override
+	public String getDescription() {
+		return "price histogram";
+	}
+
+	@Nonnull
+	@Override
 	public ExtraResultProducer cloneInstance(@Nonnull ExtraResultCacheAccessor cacheAccessor) {
 		return new PriceHistogramProducer(
 			bucketCount, behavior, queryContext, filteringFormula, filteredPriceRecordAccessors, priceRecordsLookupResult, cacheAccessor

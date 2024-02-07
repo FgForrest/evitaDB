@@ -47,4 +47,13 @@ public interface ExtraResultProducer {
 	@Nullable
 	<T extends Serializable> EvitaResponseExtraResult fabricate(@Nonnull List<T> entities);
 
+	/**
+	 * Returns the description of the producer in human-readable form without any sensitive data that can be logged
+	 * or shown in traces.
+	 *
+	 * @return the description of the producer
+	 */
+	@Nonnull
+	String getDescription();
+
 }

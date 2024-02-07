@@ -414,6 +414,16 @@ public class AttributeHistogramProducer implements CacheableExtraResultProducer 
 
 	@Nonnull
 	@Override
+	public String getDescription() {
+		if (histogramRequests.size() == 1) {
+			return "attribute `" + histogramRequests.keySet().iterator().next() +"` histogram";
+		} else {
+			return "attributes " + histogramRequests.keySet().stream().map(it -> '`' + it + '`').collect(Collectors.joining(" ,")) +" histogram";
+		}
+	}
+
+	@Nonnull
+	@Override
 	public AttributeHistogramProducer cloneInstance(@Nonnull ExtraResultCacheAccessor cacheAccessor) {
 		return new AttributeHistogramProducer(
 			entityType, bucketCount, behavior, filterFormula, cacheAccessor, histogramRequests

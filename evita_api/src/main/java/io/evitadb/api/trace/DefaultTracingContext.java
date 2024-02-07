@@ -23,10 +23,16 @@
 
 package io.evitadb.api.trace;
 
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
+
 /**
  * Default NOOP implementation of {@link TracingContext}.
  *
  * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class DefaultTracingContext implements TracingContext {
+	public static final TracingContext INSTANCE = new DefaultTracingContext();
+
 }
