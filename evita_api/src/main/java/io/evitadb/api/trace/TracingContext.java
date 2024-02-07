@@ -86,7 +86,7 @@ public interface TracingContext {
 	 * traced and properly executed.
 	 */
 	default void executeWithinBlock(@Nonnull String taskName, @Nonnull Runnable runnable) {
-		executeWithinBlock(taskName, runnable);
+		runnable.run();
 	}
 
 	/**
@@ -94,7 +94,7 @@ public interface TracingContext {
 	 * traced and properly executed.
 	 */
 	default <T> T executeWithinBlock(@Nonnull String taskName, @Nonnull Supplier<T> lambda) {
-		return executeWithinBlock(taskName, lambda);
+		return lambda.get();
 	}
 
 	/**
