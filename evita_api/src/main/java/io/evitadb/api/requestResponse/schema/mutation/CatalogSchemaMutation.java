@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -44,8 +44,6 @@ public interface CatalogSchemaMutation extends SchemaMutation {
 	 * Method applies the mutation operation on the catalog schema in the input and returns modified version
 	 * as its return value. The create operation works with NULL input value and produces non-NULL result, the remove
 	 * operation produces the opposite. Modification operations always accept and produce non-NULL values.
-	 *
-	 * TODO JNO WRITE TESTS THAT GENERATE ENTITY SCHEMA MUTATIONS AS IMPACT (GLOBAL ATTRIBUTE UPDATE)
 	 *
 	 * @param catalogSchema current version of the schema as an input to mutate
 	 */

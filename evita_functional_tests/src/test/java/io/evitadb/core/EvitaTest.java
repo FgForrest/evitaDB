@@ -852,6 +852,85 @@ class EvitaTest implements EvitaTestSupport {
 	}
 
 	@Test
+	void shouldUpdateEntityAttributesReferringToGlobalAttributeThatIsChanged() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.getCatalogSchema()
+					.openForWrite()
+					.withAttribute(ATTRIBUTE_URL, String.class, whichIs -> whichIs.localized().uniqueGlobally())
+					.updateVia(session);
+
+				session
+					.defineEntitySchema(Entities.PRODUCT)
+					.withGlobalAttribute(ATTRIBUTE_URL)
+					.withAttribute(ATTRIBUTE_NAME, String.class, AttributeSchemaEditor::localized)
+					.updateVia(session);
+
+				session
+					.defineEntitySchema(Entities.CATEGORY)
+					.withGlobalAttribute(ATTRIBUTE_URL)
+					.withAttribute(ATTRIBUTE_NAME, String.class, AttributeSchemaEditor::localized)
+					.updateVia(session);
+			}
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EntityAttributeSchemaContract productUrl = session.getEntitySchema(Entities.PRODUCT).orElseThrow()
+					.getAttribute(ATTRIBUTE_URL).orElseThrow();
+				assertNull(productUrl.getDescription());
+				assertTrue(productUrl.isLocalized());
+				assertTrue(productUrl.isUnique());
+				assertTrue(productUrl instanceof GlobalAttributeSchemaContract ga && ga.isUniqueGlobally());
+
+				final EntityAttributeSchemaContract categoryUrl = session.getEntitySchema(Entities.CATEGORY).orElseThrow()
+					.getAttribute(ATTRIBUTE_URL).orElseThrow();
+				assertNull(categoryUrl.getDescription());
+				assertTrue(categoryUrl.isLocalized());
+				assertTrue(categoryUrl.isUnique());
+				assertTrue(categoryUrl instanceof GlobalAttributeSchemaContract ga && ga.isUniqueGlobally());
+			}
+		);
+
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.getCatalogSchema()
+					.openForWrite()
+					.withAttribute(
+						ATTRIBUTE_URL, String.class,
+						whichIs -> whichIs
+							.withDescription("URL of the entity")
+							.localized(() -> false)
+							.uniqueGloballyWithinLocale()
+					)
+					.updateVia(session);
+			}
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EntityAttributeSchemaContract productUrl = session.getEntitySchema(Entities.PRODUCT).orElseThrow()
+					.getAttribute(ATTRIBUTE_URL).orElseThrow();
+				assertEquals("URL of the entity", productUrl.getDescription());
+				assertFalse(productUrl.isLocalized());
+				assertTrue(productUrl.isUnique());
+				assertTrue(productUrl instanceof GlobalAttributeSchemaContract ga && ga.isUniqueGloballyWithinLocale());
+
+				final EntityAttributeSchemaContract categoryUrl = session.getEntitySchema(Entities.CATEGORY).orElseThrow()
+					.getAttribute(ATTRIBUTE_URL).orElseThrow();
+				assertEquals("URL of the entity", categoryUrl.getDescription());
+				assertFalse(categoryUrl.isLocalized());
+				assertTrue(categoryUrl.isUnique());
+				assertTrue(categoryUrl instanceof GlobalAttributeSchemaContract ga && ga.isUniqueGloballyWithinLocale());
+			}
+		);
+	}
+
+	@Test
 	void shouldFetchEntityByLocalizedGlobalAttributeAutomaticallySelectingProperLocale() {
 		evita.updateCatalog(
 			TEST_CATALOG,
