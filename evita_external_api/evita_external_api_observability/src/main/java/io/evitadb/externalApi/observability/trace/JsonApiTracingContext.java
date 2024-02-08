@@ -38,6 +38,8 @@ import java.util.Map;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static java.util.Optional.ofNullable;
+
 /**
  * Implementation of {@link ExternalApiTracingContext} for JSON APIs (REST, GraphQL).
  *
@@ -61,8 +63,9 @@ public class JsonApiTracingContext implements ExternalApiTracingContext<HttpServ
 
 			@Override
 			public String get(@Nullable HeaderMap headers, @Nonnull String s) {
-				assert headers != null;
-				return headers.getFirst(s);
+				return ofNullable(headers)
+					.map(it -> it.getFirst(s))
+					.orElse(null);
 			}
 		};
 	private final TracingContext tracingContext;
