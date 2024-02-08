@@ -327,7 +327,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 				}
 				// create immediately completed future
 				closeFuture = new CompletableFuture<>();
-				closeFuture.complete(0L);
+				closeFuture.complete(theCatalog.getVersion());
 			} else {
 				if (transactionAccessor.get() != null) {
 					// close transaction if present and initialize close future to transactional one

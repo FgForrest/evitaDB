@@ -765,6 +765,7 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 						this.tracingContext
 					)
 				);
+
 				return true;
 			});
 		} finally {
@@ -1160,7 +1161,7 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 					this.persistenceService.storeHeader(
 						this.goingLive.get() ? CatalogState.ALIVE : getCatalogState(),
 						// version is not incremented here - we're still 0L version
-						this.versionId.get(),
+						this.goingLive.get() ? 1L : 0L,
 						this.entityTypeSequence.get(),
 						null,
 						entityHeaders

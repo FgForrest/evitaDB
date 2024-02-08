@@ -102,6 +102,7 @@ public final class TrunkIncorporationTransactionStage
 		this.catalog = catalog;
 		this.liveCatalog = new AtomicReference<>(catalog);
 		this.timeout = timeout;
+		this.lastFinalizedCatalogVersion = catalog.getVersion();
 	}
 
 	@Override
@@ -242,6 +243,10 @@ public final class TrunkIncorporationTransactionStage
 		this.liveCatalog.set(catalog);
 		if (catalog.getVersion() > this.catalog.getVersion()) {
 			this.catalog = catalog;
+			// at this moment, the catalog transitions from non-transactional to transactional state
+			if (this.lastFinalizedCatalogVersion == 0L) {
+				this.lastFinalizedCatalogVersion = catalog.getVersion();
+			}
 		}
 	}
 

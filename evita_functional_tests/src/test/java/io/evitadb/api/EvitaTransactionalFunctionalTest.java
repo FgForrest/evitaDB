@@ -203,6 +203,88 @@ public class EvitaTransactionalFunctionalTest {
 		);
 	}
 
+	@DisplayName("Update catalog with another product - synchronously using runnable.")
+	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
+	@Test
+	void shouldUpdateCatalogWithAnotherProductUsingRunnable(EvitaContract evita, SealedEntitySchema productSchema) {
+		final AtomicReference<SealedEntity> addedEntity = new AtomicReference<>();
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(entityType, session, faker);
+				final Optional<SealedEntity> upsertedEntity = dataGenerator.generateEntities(productSchema, randomEntityPicker, SEED)
+					.limit(1)
+					.map(session::upsertAndFetchEntity)
+					.findFirst();
+				assertTrue(upsertedEntity.isPresent());
+				addedEntity.set(upsertedEntity.get());
+			}
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final SealedEntity theEntity = addedEntity.get();
+				final Optional<SealedEntity> fetchedEntity = session.getEntity(productSchema.getName(), theEntity.getPrimaryKey());
+				assertTrue(fetchedEntity.isPresent());
+				assertEquals(theEntity, fetchedEntity.get());
+			}
+		);
+	}
+
+	@DisplayName("Update catalog with another product - asynchronously using runnable.")
+	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
+	@Test
+	void shouldUpdateCatalogWithAnotherProductAsynchronouslyUsingRunnable(EvitaContract evita, SealedEntitySchema productSchema) {
+		final AtomicReference<SealedEntity> addedEntity = new AtomicReference<>();
+		final CompletableFuture<Long> nextCatalogVersion = evita.updateCatalogAsync(
+			TEST_CATALOG,
+			session -> {
+				final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(entityType, session, faker);
+				final Optional<SealedEntity> upsertedEntity = dataGenerator.generateEntities(productSchema, randomEntityPicker, SEED)
+					.limit(1)
+					.map(session::upsertAndFetchEntity)
+					.findFirst();
+				assertTrue(upsertedEntity.isPresent());
+				addedEntity.set(upsertedEntity.get());
+			},
+			CommitBehavior.WAIT_FOR_CONFLICT_RESOLUTION
+		);
+
+		while (!nextCatalogVersion.isDone()) {
+			Thread.onSpinWait();
+		}
+
+		final Integer addedEntityPrimaryKey = addedEntity.get().getPrimaryKey();
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				System.out.println(session.getCatalogVersion());
+				// the entity will not yet be propagated to indexes
+				final Optional<SealedEntity> fetchedEntity = session.getEntity(productSchema.getName(), addedEntityPrimaryKey);
+				assertTrue(fetchedEntity.isEmpty());
+
+				for (int i = 0; i < 10_000; i++) {
+					final Optional<SealedEntity> entityFetchedAgain = session.getEntity(productSchema.getName(), addedEntityPrimaryKey);
+					final long catalogVersion = session.getCatalogVersion();
+					final long expectedCatalogVersion = nextCatalogVersion.getNow(Long.MIN_VALUE);
+					if (entityFetchedAgain.isPresent()) {
+						assertEquals(expectedCatalogVersion, catalogVersion);
+						return;
+					} else {
+						assertTrue(
+							catalogVersion < expectedCatalogVersion || expectedCatalogVersion == Long.MIN_VALUE,
+							"Catalog version should be lower than the one returned by the async operation (observed `" + catalogVersion + "`, next `" + expectedCatalogVersion + "`)!"
+						);
+					}
+					Thread.onSpinWait();
+				}
+
+				fail("Entity not found in catalog!");
+			}
+		);
+	}
+
 	@DisplayName("Verify code has no problems assigning new PK in concurrent environment")
 	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
 	@Tag(LONG_RUNNING_TEST)

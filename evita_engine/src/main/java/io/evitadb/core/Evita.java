@@ -494,7 +494,6 @@ public final class Evita implements EvitaContract {
 		final CreatedSession createdSession = this.createSessionInternal(commitBehaviour, traits);
 		try {
 			final EvitaInternalSessionContract theSession = createdSession.session();
-			final long catalogVersion = theSession.getCatalogVersion();
 			theSession.execute(updater);
 			// join the transaction future and return
 			final CompletableFuture<Long> result = new CompletableFuture<>();
@@ -502,7 +501,7 @@ public final class Evita implements EvitaContract {
 				if (ex != null) {
 					result.completeExceptionally(ex);
 				} else {
-					result.complete(catalogVersion);
+					result.complete(txId);
 				}
 			});
 			return result;

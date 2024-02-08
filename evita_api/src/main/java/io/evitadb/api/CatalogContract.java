@@ -243,4 +243,5 @@ public interface CatalogContract {
 	 * ignored.
 	 */
 	void terminate();
+
 }

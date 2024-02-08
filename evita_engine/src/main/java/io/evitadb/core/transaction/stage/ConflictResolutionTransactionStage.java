@@ -85,7 +85,7 @@ public final class ConflictResolutionTransactionStage
 			task,
 			new WalAppendingTransactionTask(
 				task.catalogName(),
-				this.catalogVersion++,
+				++this.catalogVersion,
 				task.transactionId(),
 				task.mutationCount(),
 				task.walSizeInBytes(),
