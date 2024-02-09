@@ -88,4 +88,5 @@ module evita.engine {
 	requires jdk.jfr;
 
 	opens io.evitadb.core.metric.event to evita.common;
+	exports io.evitadb.core.query.algebra.price.predicate;
 }

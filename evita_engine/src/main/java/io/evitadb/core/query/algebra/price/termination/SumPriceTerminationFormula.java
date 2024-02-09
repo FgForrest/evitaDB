@@ -40,6 +40,9 @@ import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRec
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords.SortingForm;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.ResolvedFilteredPriceRecords;
 import io.evitadb.core.query.algebra.price.innerRecordHandling.PriceHandlingContainerFormula;
+import io.evitadb.core.query.algebra.price.predicate.PriceAmountPredicate;
+import io.evitadb.core.query.algebra.price.predicate.PricePredicate;
+import io.evitadb.core.query.algebra.price.predicate.PriceRecordPredicate;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder.LookUp;
 import io.evitadb.core.query.extraResult.translator.histogram.producer.PriceHistogramProducer;
@@ -61,12 +64,10 @@ import org.roaringbitmap.RoaringBitmapWriter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Objects;
 import java.util.function.Consumer;
-import java.util.function.Predicate;
 import java.util.function.ToIntFunction;
 
 /**
@@ -95,7 +96,7 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 	/**
 	 * Price filter is used to filter out entities which price doesn't match the predicate.
 	 */
-	@Getter private final PricePredicate pricePredicate;
+	@Getter private final PriceRecordPredicate pricePredicate;
 	/**
 	 * Function retrieves the proper price from the price record.
 	 */
@@ -117,7 +118,7 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 		@Nonnull PriceHandlingContainerFormula containerFormula,
 		@Nonnull PriceEvaluationContext priceEvaluationContext,
 		@Nonnull QueryPriceMode queryPriceMode,
-		@Nonnull PricePredicate pricePredicate
+		@Nonnull PriceRecordPredicate pricePredicate
 	) {
 		super(null, containerFormula);
 		this.pricePredicate = pricePredicate;
@@ -130,7 +131,13 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 		}
 	}
 
-	private SumPriceTerminationFormula(@Nullable Consumer<CacheableFormula> computationCallback, @Nonnull PriceHandlingContainerFormula containerFormula, @Nonnull PriceEvaluationContext priceEvaluationContext, @Nonnull QueryPriceMode queryPriceMode, @Nonnull PricePredicate pricePredicate) {
+	private SumPriceTerminationFormula(
+		@Nullable Consumer<CacheableFormula> computationCallback,
+		@Nonnull PriceHandlingContainerFormula containerFormula,
+		@Nonnull PriceEvaluationContext priceEvaluationContext,
+		@Nonnull QueryPriceMode queryPriceMode,
+		@Nonnull PriceRecordPredicate pricePredicate
+	) {
 		super(computationCallback, containerFormula);
 		this.pricePredicate = pricePredicate;
 		this.priceEvaluationContext = priceEvaluationContext;
@@ -142,7 +149,14 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 		}
 	}
 
-	private SumPriceTerminationFormula(@Nullable Consumer<CacheableFormula> computationCallback, @Nonnull PriceHandlingContainerFormula containerFormula, @Nonnull PriceEvaluationContext priceEvaluationContext, @Nonnull QueryPriceMode queryPriceMode, @Nonnull PricePredicate pricePredicate, @Nonnull Bitmap recordsFilteredOutByPredicate) {
+	private SumPriceTerminationFormula(
+		@Nullable Consumer<CacheableFormula> computationCallback,
+		@Nonnull PriceHandlingContainerFormula containerFormula,
+		@Nonnull PriceEvaluationContext priceEvaluationContext,
+		@Nonnull QueryPriceMode queryPriceMode,
+		@Nonnull PriceRecordPredicate pricePredicate,
+		@Nonnull Bitmap recordsFilteredOutByPredicate
+	) {
 		super(recordsFilteredOutByPredicate, computationCallback, containerFormula);
 		this.pricePredicate = pricePredicate;
 		this.priceEvaluationContext = priceEvaluationContext;
@@ -157,7 +171,7 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 
 	@Nullable
 	@Override
-	public Predicate<BigDecimal> getRequestedPredicate() {
+	public PriceAmountPredicate getRequestedPredicate() {
 		return pricePredicate.getRequestedPredicate();
 	}
 
@@ -190,7 +204,7 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 		return new SumPriceTerminationFormula(
 			computationCallback,
 			(PriceHandlingContainerFormula) innerFormulas[0],
-			priceEvaluationContext, queryPriceMode, PricePredicate.NO_FILTER,
+			priceEvaluationContext, queryPriceMode, PricePredicate.ALL_RECORD_FILTER,
 			recordsFilteredOutByPredicate
 		);
 	}
@@ -231,8 +245,10 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 			getFilteredPriceRecords(),
 			Objects.requireNonNull(getRecordsFilteredOutByPredicate()),
 			getPriceEvaluationContext(),
+			pricePredicate.getQueryPriceMode(),
 			pricePredicate.getFrom(),
-			pricePredicate.getTo()
+			pricePredicate.getTo(),
+			pricePredicate.getIndexedPricePlaces()
 		);
 	}
 
