@@ -85,6 +85,7 @@ public class OpenTelemetryTracerSetup {
 	 * the OpenTelemetry.
 	 */
 	public static void setTracingConfig(@Nonnull TracingConfig tracingConfig) {
+		TRACING_CONFIG = tracingConfig;
 		if (isTracingEnabled(tracingConfig)) {
 			OPEN_TELEMETRY = initializeOpenTelemetry();
 		}

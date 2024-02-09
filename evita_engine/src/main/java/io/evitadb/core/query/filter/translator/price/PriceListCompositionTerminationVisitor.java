@@ -30,12 +30,13 @@ import io.evitadb.core.query.algebra.FormulaVisitor;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor;
 import io.evitadb.core.query.algebra.price.innerRecordHandling.PriceHandlingContainerFormula;
+import io.evitadb.core.query.algebra.price.predicate.PricePredicate;
+import io.evitadb.core.query.algebra.price.predicate.PriceRecordPredicate;
 import io.evitadb.core.query.algebra.price.priceIndex.PriceIndexProvidingFormula;
 import io.evitadb.core.query.algebra.price.termination.FirstVariantPriceTerminationFormula;
 import io.evitadb.core.query.algebra.price.termination.PlainPriceTerminationFormula;
 import io.evitadb.core.query.algebra.price.termination.PlainPriceTerminationFormulaWithPriceFilter;
 import io.evitadb.core.query.algebra.price.termination.PriceEvaluationContext;
-import io.evitadb.core.query.algebra.price.termination.PricePredicate;
 import io.evitadb.core.query.algebra.price.termination.SumPriceTerminationFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
@@ -86,7 +87,7 @@ class PriceListCompositionTerminationVisitor implements FormulaVisitor {
 	/**
 	 * Price filter is used to filter out entities which price doesn't match the predicate.
 	 */
-	private final PricePredicate priceFilter;
+	private final PriceRecordPredicate priceFilter;
 	/**
 	 * Field is initialized when visitor walks through entire input formula and produces modified result.
 	 */
@@ -100,7 +101,7 @@ class PriceListCompositionTerminationVisitor implements FormulaVisitor {
 	public static Formula translate(
 		@Nonnull List<Formula> formula,
 		@Nonnull QueryPriceMode queryPriceMode,
-		@Nullable PricePredicate priceFilter
+		@Nullable PriceRecordPredicate priceFilter
 	) {
 		final Formula[] result = new Formula[formula.size()];
 		for (int i = 0; i < formula.size(); i++) {
@@ -177,11 +178,11 @@ class PriceListCompositionTerminationVisitor implements FormulaVisitor {
 					new PlainPriceTerminationFormulaWithPriceFilter(containerFormula, priceEvaluationContext, priceFilter);
 				case FIRST_OCCURRENCE -> new FirstVariantPriceTerminationFormula(
 					containerFormula, priceEvaluationContext, queryPriceMode,
-					ofNullable(priceFilter).orElse(PricePredicate.NO_FILTER)
+					ofNullable(priceFilter).orElse(PricePredicate.ALL_RECORD_FILTER)
 				);
 				case SUM -> new SumPriceTerminationFormula(
 					containerFormula, priceEvaluationContext, queryPriceMode,
-					ofNullable(priceFilter).orElse(PricePredicate.NO_FILTER)
+					ofNullable(priceFilter).orElse(PricePredicate.ALL_RECORD_FILTER)
 				);
 				case UNKNOWN -> throw new EvitaInternalError("Can't handle unknown price inner record handling!");
 			};

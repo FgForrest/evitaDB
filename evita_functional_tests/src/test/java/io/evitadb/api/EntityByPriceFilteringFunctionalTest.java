@@ -67,10 +67,12 @@ import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.query.order.OrderDirection.DESC;
+import static io.evitadb.core.query.algebra.prefetch.PrefetchFormulaVisitor.doWithCustomPrefetchCostEstimator;
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.generator.DataGenerator.*;
@@ -95,6 +97,207 @@ public class EntityByPriceFilteringFunctionalTest {
 
 	private static final int SEED = 40;
 	private final DataGenerator dataGenerator = new DataGenerator();
+
+	/**
+	 * Verifies histogram integrity against source entities.
+	 */
+	protected static void assertHistogramIntegrity(
+		EvitaResponse<SealedEntity> result,
+		List<SealedEntity> filteredProducts,
+		BigDecimal from, BigDecimal to
+	) {
+		final PriceHistogram priceHistogram = result.getExtraResult(PriceHistogram.class);
+		assertNotNull(priceHistogram);
+		assertTrue(priceHistogram.getBuckets().length <= 20);
+
+		assertEquals(filteredProducts.size(), priceHistogram.getOverallCount());
+		final List<BigDecimal> pricesForSale = filteredProducts
+			.stream()
+			.map(it -> it.getPriceForSale(CURRENCY_EUR, null, PRICE_LIST_VIP, PRICE_LIST_BASIC))
+			.filter(Optional::isPresent)
+			.map(Optional::get)
+			.map(PriceContract::priceWithTax)
+			.toList();
+
+		assertEquals(pricesForSale.stream().min(Comparator.naturalOrder()).orElse(BigDecimal.ZERO), priceHistogram.getMin());
+		assertEquals(pricesForSale.stream().max(Comparator.naturalOrder()).orElse(BigDecimal.ZERO), priceHistogram.getMax());
+
+		// verify bucket occurrences
+		final Map<Integer, Integer> expectedOccurrences = filteredProducts
+			.stream()
+			.collect(
+				Collectors.groupingBy(
+					it -> findIndexInHistogram(it, priceHistogram),
+					summingInt(entity -> 1)
+				)
+			);
+
+		final Bucket[] buckets = priceHistogram.getBuckets();
+		for (int i = 0; i < buckets.length; i++) {
+			final Bucket bucket = priceHistogram.getBuckets()[i];
+			if (from == null && to == null) {
+				assertTrue(bucket.requested());
+			} else if (
+				(from == null || from.compareTo(bucket.threshold()) <= 0) &&
+					(to == null || to.compareTo(bucket.threshold()) >= 0)) {
+				assertTrue(bucket.requested());
+			} else {
+				assertFalse(bucket.requested());
+			}
+			assertEquals(
+				ofNullable(expectedOccurrences.get(i)).orElse(0),
+				bucket.occurrences()
+			);
+		}
+	}
+
+	/**
+	 * Returns true if there is any indexed price for passed currency.
+	 */
+	protected static boolean hasAnySellablePrice(@Nonnull SealedEntity entity, @Nonnull Currency currency) {
+		return entity.getPrices(currency).stream().anyMatch(PriceContract::sellable);
+	}
+
+	/**
+	 * Returns true if there is any indexed price for passed price list.
+	 */
+	protected static boolean hasAnySellablePrice(@Nonnull SealedEntity entity, @Nonnull String priceList) {
+		return entity.getPrices(priceList).stream().anyMatch(PriceContract::sellable);
+	}
+
+	/**
+	 * Returns true if there is any indexed price for passed currency and price list.
+	 */
+	protected static boolean hasAnySellablePrice(@Nonnull SealedEntity entity, @Nonnull OffsetDateTime atTheMoment) {
+		return entity.getPrices().stream().filter(PriceContract::sellable).anyMatch(it -> it.validity() == null || it.validity().isValidFor(atTheMoment));
+	}
+
+	/**
+	 * Returns true if there is any indexed price for passed currency and price list.
+	 */
+	protected static boolean hasAnySellablePrice(@Nonnull SealedEntity entity, @Nonnull Currency currency, @Nonnull String priceList) {
+		return entity.getPrices(currency, priceList).stream().anyMatch(PriceContract::sellable);
+	}
+
+	/**
+	 * Returns true if there is any indexed price for passed currency and price list.
+	 */
+	protected static boolean hasAnySellablePrice(@Nonnull SealedEntity entity, @Nonnull Currency currency, @Nonnull String priceList, @Nonnull OffsetDateTime atTheMoment) {
+		return entity.getPrices(currency, priceList).stream().filter(PriceContract::sellable).anyMatch(it -> it.validAt(atTheMoment));
+	}
+
+	/**
+	 * Verifies that `record` primary keys exactly match passed `reference` ids. Both lists are sorted naturally before
+	 * the comparison is executed.
+	 */
+	protected static void assertResultEquals(@Nonnull List<SealedEntity> records, @Nonnull int... reference) {
+		final List<Integer> recordsCopy = records.stream().map(SealedEntity::getPrimaryKey).sorted().collect(Collectors.toList());
+		Arrays.sort(reference);
+
+		assertSortedResultEquals(recordsCopy, reference);
+	}
+
+	/**
+	 * Verifies that result contains only prices in specified price lists.
+	 */
+	protected static void assertResultContainOnlyPricesFrom(@Nonnull List<SealedEntity> recordData, @Nonnull String... priceLists) {
+		final Set<String> allowedPriceLists = Arrays.stream(priceLists).collect(Collectors.toSet());
+		for (SealedEntity entity : recordData) {
+			assertTrue(
+				entity.getPrices().stream().allMatch(price -> allowedPriceLists.contains(price.priceList()))
+			);
+		}
+	}
+
+	/**
+	 * Verifies that result contains at least one product with non-sellable price from passed price list.
+	 */
+	protected static void assertResultContainProductWithNonSellablePriceFrom(@Nonnull List<SealedEntity> recordData, @Nonnull String... priceLists) {
+		final Set<String> allowedPriceLists = Arrays.stream(priceLists).collect(Collectors.toSet());
+		for (SealedEntity entity : recordData) {
+			if (entity.getPrices().stream().anyMatch(price -> allowedPriceLists.contains(price.priceList()) && !price.sellable())) {
+				return;
+			}
+		}
+		fail("There is product that contains price from price lists: " + Arrays.stream(priceLists).map(Object::toString).collect(Collectors.joining(", ")));
+	}
+
+	/**
+	 * Finds appropriate index in the histogram according to histogram thresholds.
+	 */
+	private static int findIndexInHistogram(SealedEntity entity, HistogramContract histogram) {
+		final BigDecimal entityPrice = entity.getPriceForSale(CURRENCY_EUR, null, PRICE_LIST_VIP, PRICE_LIST_BASIC)
+			.orElseThrow()
+			.priceWithTax();
+		final Bucket[] buckets = histogram.getBuckets();
+		for (int i = buckets.length - 1; i >= 0; i--) {
+			final Bucket bucket = buckets[i];
+			final int priceCompared = entityPrice.compareTo(bucket.threshold());
+			if (priceCompared >= 0) {
+				return i;
+			}
+		}
+		fail("Histogram span doesn't match current entity price: " + entityPrice);
+		return -1;
+	}
+
+	/**
+	 * Returns true if there is any indexed price for passed currency and price list.
+	 */
+	private static boolean hasAnySellablePrice(@Nonnull SealedEntity entity, @Nonnull Currency currency, @Nonnull OffsetDateTime atTheMoment) {
+		return entity.getPrices(currency).stream().filter(PriceContract::sellable).anyMatch(it -> it.validity() == null || it.validity().isValidFor(atTheMoment));
+	}
+
+	/**
+	 * Verifies that `originalEntities` filtered by `predicate` match exactly contents of the `resultToVerify`.
+	 */
+	protected void assertResultIs(List<SealedEntity> originalEntities, Predicate<SealedEntity> predicate, List<SealedEntity> resultToVerify, PriceContentMode priceContentMode, Currency currency, OffsetDateTime validIn, String... priceLists) {
+		@SuppressWarnings("ConstantConditions") final int[] expectedResult = originalEntities.stream().filter(predicate).mapToInt(EntityContract::getPrimaryKey).toArray();
+		assertFalse(ArrayUtils.isEmpty(expectedResult), "Expected result should never be empty - this would cause false positive tests!");
+		assertResultEquals(
+			resultToVerify,
+			expectedResult
+		);
+
+		if (priceLists.length > 0) {
+			assertPricesForSaleAreAsExpected(resultToVerify, priceContentMode, currency, validIn, priceLists);
+		}
+	}
+
+	/**
+	 * Verifies that `originalEntities` filtered by `predicate` match exactly contents of the `resultToVerify`.
+	 */
+	protected void assertSortedResultIs(@Nonnull List<SealedEntity> originalEntities, @Nonnull Predicate<SealedEntity> predicate, @Nonnull List<SealedEntity> resultToVerify, @Nonnull Comparator<PriceContract> priceComparator, @Nonnull Page page, @Nonnull PriceContentMode priceContentMode, @Nonnull Currency currency, @Nullable OffsetDateTime validIn, @Nonnull String... priceLists) {
+		final String[] priceListClassifiers = Arrays.stream(priceLists).toArray(String[]::new);
+		@SuppressWarnings("ConstantConditions") final int[] expectedResult = originalEntities
+			.stream()
+			.filter(predicate)
+			// consider only entities that has valid selling price
+			.filter(it -> it.getPriceForSale(currency, validIn, priceListClassifiers).isPresent())
+			.sorted(
+				(o1, o2) -> priceComparator.compare(
+					o1.getPriceForSale(currency, validIn, priceListClassifiers).orElseThrow(),
+					o2.getPriceForSale(currency, validIn, priceListClassifiers).orElseThrow()
+				)
+			)
+			.mapToInt(EntityContract::getPrimaryKey)
+			.skip(PaginatedList.getFirstItemNumberForPage(page.getPageNumber(), page.getPageSize()))
+			.limit(page.getPageSize())
+			.toArray();
+
+		assertFalse(ArrayUtils.isEmpty(expectedResult), "Expected result should never be empty - this would cause false positive tests!");
+		final List<Integer> recordsCopy = resultToVerify
+			.stream()
+			.map(SealedEntity::getPrimaryKey)
+			.collect(Collectors.toList());
+
+		assertSortedResultEquals(
+			recordsCopy,
+			expectedResult
+		);
+
+		assertPricesForSaleAreAsExpected(resultToVerify, priceContentMode, currency, validIn, priceLists);
+	}
 
 	@DataSet(value = HUNDRED_PRODUCTS_WITH_PRICES, destroyAfterClass = true)
 	List<SealedEntity> setUp(Evita evita) {
@@ -697,6 +900,10 @@ public class EntityByPriceFilteringFunctionalTest {
 		);
 	}
 
+	/*
+		ASSERTIONS
+	 */
+
 	@DisplayName("Should return products with price in price list and currency within interval (without tax) ordered by price desc")
 	@UseDataSet(HUNDRED_PRODUCTS_WITH_PRICES)
 	@Test
@@ -1216,6 +1423,82 @@ public class EntityByPriceFilteringFunctionalTest {
 		);
 	}
 
+	@DisplayName("Should return price histogram for returned products excluding price between query")
+	@UseDataSet(HUNDRED_PRODUCTS_WITH_PRICES)
+	@Test
+	void shouldReturnPriceHistogramWithoutBeingAffectedByPriceFilterUsingPrefetch(Evita evita, List<SealedEntity> originalProductEntities) {
+		final BigDecimal from = new BigDecimal("80");
+		final BigDecimal to = new BigDecimal("150");
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final Predicate<PriceContract> betweenPredicate = it -> it.priceWithTax().compareTo(from) >= 0 && it.priceWithoutTax().compareTo(to) <= 0;
+				final List<SealedEntity> filteredProducts = Stream.concat(
+					originalProductEntities
+						.stream()
+						.filter(
+							sealedEntity ->
+								sealedEntity.getPriceForSale(CURRENCY_EUR, null, PRICE_LIST_VIP).map(betweenPredicate::test).orElse(false) ||
+									sealedEntity.getPriceForSale(CURRENCY_EUR, null, PRICE_LIST_BASIC).map(betweenPredicate::test).orElse(false)
+						)
+						.limit(3),
+					originalProductEntities
+						.stream()
+						.filter(
+							sealedEntity ->
+								sealedEntity.getPriceForSale(CURRENCY_EUR, null, PRICE_LIST_VIP).map(it -> !betweenPredicate.test(it)).orElse(false) ||
+									sealedEntity.getPriceForSale(CURRENCY_EUR, null, PRICE_LIST_BASIC).map(it -> !betweenPredicate.test(it)).orElse(false)
+						)
+						.limit(3)
+				).collect(Collectors.toList());
+
+				final EvitaResponse<SealedEntity> result = doWithCustomPrefetchCostEstimator(
+					() -> session.query(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(
+								and(
+									entityPrimaryKeyInSet(filteredProducts.stream().map(SealedEntity::getPrimaryKey).toArray(Integer[]::new)),
+									priceInCurrency(CURRENCY_EUR),
+									priceInPriceLists(PRICE_LIST_VIP, PRICE_LIST_BASIC),
+									userFilter(
+										priceBetween(from, to)
+									)
+								)
+							),
+							require(
+								page(1, Integer.MAX_VALUE),
+								debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+								entityFetch(),
+								priceHistogram(20)
+							)
+						),
+						SealedEntity.class
+					),
+					(t, u) -> -1L
+				);
+
+				// verify our test works
+				final Predicate<SealedEntity> priceForSaleBetweenPredicate = it -> {
+					final BigDecimal price = it.getPriceForSale(CURRENCY_EUR, null, PRICE_LIST_VIP, PRICE_LIST_BASIC)
+						.orElseThrow()
+						.priceWithTax();
+					return price.compareTo(from) >= 0 && price.compareTo(to) <= 0;
+				};
+				assertEquals(3, result.getTotalRecordCount());
+				assertTrue(
+					filteredProducts.size() > filteredProducts.stream().filter(priceForSaleBetweenPredicate).count(),
+					"Price between query didn't filter out any products. Test is not testing anything!"
+				);
+
+				// the price between query must be ignored while computing price histogram
+				assertHistogramIntegrity(result, filteredProducts, from, to);
+
+				return null;
+			}
+		);
+	}
+
 	@DisplayName("Should return products with price in price list and currency within interval (with tax) ordered by price asc without explicit AND")
 	@UseDataSet(HUNDRED_PRODUCTS_WITH_PRICES)
 	@Test
@@ -1264,10 +1547,6 @@ public class EntityByPriceFilteringFunctionalTest {
 			}
 		);
 	}
-
-	/*
-		ASSERTIONS
-	 */
 
 	void assertPricesForSaleAreAsExpected(@Nonnull List<SealedEntity> resultToVerify, @Nonnull PriceContentMode priceContentMode, @Nonnull Currency currency, @Nullable OffsetDateTime validIn, @Nonnull String[] priceLists) {
 		final Set<String> priceListsSet = Arrays.stream(priceLists).collect(Collectors.toSet());
@@ -1318,207 +1597,6 @@ public class EntityByPriceFilteringFunctionalTest {
 			// all - also not matching prices can be returned
 			assertFalse(sealedEntity.getPrices().isEmpty());
 		}
-	}
-
-	/**
-	 * Verifies histogram integrity against source entities.
-	 */
-	protected static void assertHistogramIntegrity(
-		EvitaResponse<SealedEntity> result,
-		List<SealedEntity> filteredProducts,
-		BigDecimal from, BigDecimal to
-	) {
-		final PriceHistogram priceHistogram = result.getExtraResult(PriceHistogram.class);
-		assertNotNull(priceHistogram);
-		assertTrue(priceHistogram.getBuckets().length <= 20);
-
-		assertEquals(filteredProducts.size(), priceHistogram.getOverallCount());
-		final List<BigDecimal> pricesForSale = filteredProducts
-			.stream()
-			.map(it -> it.getPriceForSale(CURRENCY_EUR, null, PRICE_LIST_VIP, PRICE_LIST_BASIC))
-			.filter(Optional::isPresent)
-			.map(Optional::get)
-			.map(PriceContract::priceWithTax)
-			.toList();
-
-		assertEquals(pricesForSale.stream().min(Comparator.naturalOrder()).orElse(BigDecimal.ZERO), priceHistogram.getMin());
-		assertEquals(pricesForSale.stream().max(Comparator.naturalOrder()).orElse(BigDecimal.ZERO), priceHistogram.getMax());
-
-		// verify bucket occurrences
-		final Map<Integer, Integer> expectedOccurrences = filteredProducts
-			.stream()
-			.collect(
-				Collectors.groupingBy(
-					it -> findIndexInHistogram(it, priceHistogram),
-					summingInt(entity -> 1)
-				)
-			);
-
-		final Bucket[] buckets = priceHistogram.getBuckets();
-		for (int i = 0; i < buckets.length; i++) {
-			final Bucket bucket = priceHistogram.getBuckets()[i];
-			if (from == null && to == null) {
-				assertTrue(bucket.requested());
-			} else if (
-				(from == null || from.compareTo(bucket.threshold()) <= 0) &&
-				(to == null || to.compareTo(bucket.threshold()) >= 0)) {
-				assertTrue(bucket.requested());
-			} else {
-				assertFalse(bucket.requested());
-			}
-			assertEquals(
-				ofNullable(expectedOccurrences.get(i)).orElse(0),
-				bucket.occurrences()
-			);
-		}
-	}
-
-	/**
-	 * Finds appropriate index in the histogram according to histogram thresholds.
-	 */
-	private static int findIndexInHistogram(SealedEntity entity, HistogramContract histogram) {
-		final BigDecimal entityPrice = entity.getPriceForSale(CURRENCY_EUR, null, PRICE_LIST_VIP, PRICE_LIST_BASIC)
-			.orElseThrow()
-			.priceWithTax();
-		final Bucket[] buckets = histogram.getBuckets();
-		for (int i = buckets.length - 1; i >= 0; i--) {
-			final Bucket bucket = buckets[i];
-			final int priceCompared = entityPrice.compareTo(bucket.threshold());
-			if (priceCompared >= 0) {
-				return i;
-			}
-		}
-		fail("Histogram span doesn't match current entity price: " + entityPrice);
-		return -1;
-	}
-
-	/**
-	 * Returns true if there is any indexed price for passed currency.
-	 */
-	protected static boolean hasAnySellablePrice(@Nonnull SealedEntity entity, @Nonnull Currency currency) {
-		return entity.getPrices(currency).stream().anyMatch(PriceContract::sellable);
-	}
-
-	/**
-	 * Returns true if there is any indexed price for passed price list.
-	 */
-	protected static boolean hasAnySellablePrice(@Nonnull SealedEntity entity, @Nonnull String priceList) {
-		return entity.getPrices(priceList).stream().anyMatch(PriceContract::sellable);
-	}
-
-	/**
-	 * Returns true if there is any indexed price for passed currency and price list.
-	 */
-	protected static boolean hasAnySellablePrice(@Nonnull SealedEntity entity, @Nonnull OffsetDateTime atTheMoment) {
-		return entity.getPrices().stream().filter(PriceContract::sellable).anyMatch(it -> it.validity() == null || it.validity().isValidFor(atTheMoment));
-	}
-
-	/**
-	 * Returns true if there is any indexed price for passed currency and price list.
-	 */
-	private static boolean hasAnySellablePrice(@Nonnull SealedEntity entity, @Nonnull Currency currency, @Nonnull OffsetDateTime atTheMoment) {
-		return entity.getPrices(currency).stream().filter(PriceContract::sellable).anyMatch(it -> it.validity() == null || it.validity().isValidFor(atTheMoment));
-	}
-
-	/**
-	 * Returns true if there is any indexed price for passed currency and price list.
-	 */
-	protected static boolean hasAnySellablePrice(@Nonnull SealedEntity entity, @Nonnull Currency currency, @Nonnull String priceList) {
-		return entity.getPrices(currency, priceList).stream().anyMatch(PriceContract::sellable);
-	}
-
-	/**
-	 * Returns true if there is any indexed price for passed currency and price list.
-	 */
-	protected static boolean hasAnySellablePrice(@Nonnull SealedEntity entity, @Nonnull Currency currency, @Nonnull String priceList, @Nonnull OffsetDateTime atTheMoment) {
-		return entity.getPrices(currency, priceList).stream().filter(PriceContract::sellable).anyMatch(it -> it.validAt(atTheMoment));
-	}
-
-	/**
-	 * Verifies that `originalEntities` filtered by `predicate` match exactly contents of the `resultToVerify`.
-	 */
-	protected void assertResultIs(List<SealedEntity> originalEntities, Predicate<SealedEntity> predicate, List<SealedEntity> resultToVerify, PriceContentMode priceContentMode, Currency currency, OffsetDateTime validIn, String... priceLists) {
-		@SuppressWarnings("ConstantConditions") final int[] expectedResult = originalEntities.stream().filter(predicate).mapToInt(EntityContract::getPrimaryKey).toArray();
-		assertFalse(ArrayUtils.isEmpty(expectedResult), "Expected result should never be empty - this would cause false positive tests!");
-		assertResultEquals(
-			resultToVerify,
-			expectedResult
-		);
-
-		if (priceLists.length > 0) {
-			assertPricesForSaleAreAsExpected(resultToVerify, priceContentMode, currency, validIn, priceLists);
-		}
-	}
-
-	/**
-	 * Verifies that `record` primary keys exactly match passed `reference` ids. Both lists are sorted naturally before
-	 * the comparison is executed.
-	 */
-	protected static void assertResultEquals(@Nonnull List<SealedEntity> records, @Nonnull int... reference) {
-		final List<Integer> recordsCopy = records.stream().map(SealedEntity::getPrimaryKey).sorted().collect(Collectors.toList());
-		Arrays.sort(reference);
-
-		assertSortedResultEquals(recordsCopy, reference);
-	}
-
-	/**
-	 * Verifies that result contains only prices in specified price lists.
-	 */
-	protected static void assertResultContainOnlyPricesFrom(@Nonnull List<SealedEntity> recordData, @Nonnull String... priceLists) {
-		final Set<String> allowedPriceLists = Arrays.stream(priceLists).collect(Collectors.toSet());
-		for (SealedEntity entity : recordData) {
-			assertTrue(
-				entity.getPrices().stream().allMatch(price -> allowedPriceLists.contains(price.priceList()))
-			);
-		}
-	}
-
-	/**
-	 * Verifies that result contains at least one product with non-sellable price from passed price list.
-	 */
-	protected static void assertResultContainProductWithNonSellablePriceFrom(@Nonnull List<SealedEntity> recordData, @Nonnull String... priceLists) {
-		final Set<String> allowedPriceLists = Arrays.stream(priceLists).collect(Collectors.toSet());
-		for (SealedEntity entity : recordData) {
-			if (entity.getPrices().stream().anyMatch(price -> allowedPriceLists.contains(price.priceList()) && !price.sellable())) {
-				return;
-			}
-		}
-		fail("There is product that contains price from price lists: " + Arrays.stream(priceLists).map(Object::toString).collect(Collectors.joining(", ")));
-	}
-
-	/**
-	 * Verifies that `originalEntities` filtered by `predicate` match exactly contents of the `resultToVerify`.
-	 */
-	protected void assertSortedResultIs(@Nonnull List<SealedEntity> originalEntities, @Nonnull Predicate<SealedEntity> predicate, @Nonnull List<SealedEntity> resultToVerify, @Nonnull Comparator<PriceContract> priceComparator, @Nonnull Page page, @Nonnull PriceContentMode priceContentMode, @Nonnull Currency currency, @Nullable OffsetDateTime validIn, @Nonnull String... priceLists) {
-		final String[] priceListClassifiers = Arrays.stream(priceLists).toArray(String[]::new);
-		@SuppressWarnings("ConstantConditions") final int[] expectedResult = originalEntities
-			.stream()
-			.filter(predicate)
-			// consider only entities that has valid selling price
-			.filter(it -> it.getPriceForSale(currency, validIn, priceListClassifiers).isPresent())
-			.sorted(
-				(o1, o2) -> priceComparator.compare(
-					o1.getPriceForSale(currency, validIn, priceListClassifiers).orElseThrow(),
-					o2.getPriceForSale(currency, validIn, priceListClassifiers).orElseThrow()
-				)
-			)
-			.mapToInt(EntityContract::getPrimaryKey)
-			.skip(PaginatedList.getFirstItemNumberForPage(page.getPageNumber(), page.getPageSize()))
-			.limit(page.getPageSize())
-			.toArray();
-
-		assertFalse(ArrayUtils.isEmpty(expectedResult), "Expected result should never be empty - this would cause false positive tests!");
-		final List<Integer> recordsCopy = resultToVerify
-			.stream()
-			.map(SealedEntity::getPrimaryKey)
-			.collect(Collectors.toList());
-
-		assertSortedResultEquals(
-			recordsCopy,
-			expectedResult
-		);
-
-		assertPricesForSaleAreAsExpected(resultToVerify, priceContentMode, currency, validIn, priceLists);
 	}
 
 }

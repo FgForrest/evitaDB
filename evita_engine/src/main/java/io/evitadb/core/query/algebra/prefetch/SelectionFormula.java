@@ -26,10 +26,16 @@ package io.evitadb.core.query.algebra.prefetch;
 import io.evitadb.api.query.require.EntityRequire;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.infra.SkipFormula;
+import io.evitadb.core.query.algebra.price.FilteredOutPriceRecordAccessor;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.ResolvedFilteredPriceRecords;
+import io.evitadb.core.query.algebra.price.predicate.PriceAmountPredicate;
+import io.evitadb.core.query.algebra.utils.FormulaFactory;
+import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
+import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder.LookUp;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.utils.Assert;
@@ -37,6 +43,7 @@ import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -57,7 +64,7 @@ import java.util.Optional;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class SelectionFormula extends AbstractFormula implements FilteredPriceRecordAccessor, RequirementsDefiner {
+public class SelectionFormula extends AbstractFormula implements FilteredPriceRecordAccessor, FilteredOutPriceRecordAccessor, RequirementsDefiner {
 	private static final long CLASS_ID = 3311110127363103780L;
 	/**
 	 * Contains reference to a visitor that was used for creating this formula instance.
@@ -67,6 +74,14 @@ public class SelectionFormula extends AbstractFormula implements FilteredPriceRe
 	 * Contains the alternative computation based on entity contents filtering.
 	 */
 	private final EntityToBitmapFilter alternative;
+	/**
+	 * Memoized predicate stored upon first calculation to lower computational resources.
+	 */
+	private PriceAmountPredicate memoizedPredicate;
+	/**
+	 * Memoized clone stored upon first calculation to lower computational resources.
+	 */
+	private Formula memoizedClone;
 
 	public SelectionFormula(@Nonnull FilterByVisitor filterByVisitor, @Nonnull Formula delegate, @Nonnull EntityToBitmapFilter alternative) {
 		super(delegate);
@@ -109,11 +124,75 @@ public class SelectionFormula extends AbstractFormula implements FilteredPriceRe
 		return 1;
 	}
 
-	/**
-	 * We need to override this method so that sorting logic will communicate with our implementation and doesn't ask
-	 * for filtered price records from this formula {@link #getDelegate()} children which would require computation executed
-	 * by the {@link #getDelegate()} which we try to avoid by alternative solution.
-	 */
+	@Override
+	public String toString() {
+		return "APPLY PREDICATE ON PREFETCHED ENTITIES IF POSSIBLE";
+	}
+
+	@Nullable
+	@Override
+	public PriceAmountPredicate getRequestedPredicate() {
+		if (this.memoizedPredicate == null) {
+			// if the entities were prefetched we passed the "is it worthwhile" check
+			this.memoizedPredicate = Optional.ofNullable(filterByVisitor.getPrefetchedEntities())
+				// ask the alternative solution for filtered price records
+				.map(it ->
+					alternative instanceof FilteredOutPriceRecordAccessor ?
+						((FilteredOutPriceRecordAccessor) alternative).getRequestedPredicate() :
+						PriceAmountPredicate.ALL
+				)
+				// otherwise collect the filtered records from the delegate
+				.orElseGet(() -> {
+					// collect all FilteredPriceRecordAccessor that were involved in computing delegate result
+					final Collection<FilteredOutPriceRecordAccessor> filteredOutPriceRecordAccessors = FormulaFinder.findAmongChildren(
+						this, FilteredOutPriceRecordAccessor.class, LookUp.SHALLOW
+					);
+					// all accessors must have the same predicate
+					PriceAmountPredicate predicate = null;
+					for (FilteredOutPriceRecordAccessor filteredOutPriceRecordAccessor : filteredOutPriceRecordAccessors) {
+						if (predicate == null) {
+							predicate = filteredOutPriceRecordAccessor.getRequestedPredicate();
+						} else {
+							Assert.isPremiseValid(
+								predicate.equals(filteredOutPriceRecordAccessor.getRequestedPredicate()),
+								"All filtered out price record accessors must have the same predicate!"
+							);
+						}
+					}
+					return predicate;
+				});
+		}
+		return this.memoizedPredicate;
+	}
+
+	@Nonnull
+	@Override
+	public Formula getCloneWithPricePredicateFilteredOutResults() {
+		if (this.memoizedClone == null) {
+			// if the entities were prefetched we passed the "is it worthwhile" check
+			this.memoizedClone = Optional.ofNullable(filterByVisitor.getPrefetchedEntities())
+				// ask the alternative solution for filtered price records
+				.map(it ->
+					alternative instanceof FilteredOutPriceRecordAccessor ?
+						((FilteredOutPriceRecordAccessor) alternative).getCloneWithPricePredicateFilteredOutResults() :
+						EmptyFormula.INSTANCE
+				)
+				// otherwise collect the filtered records from the delegate
+				.orElseGet(() -> {
+					// collect all FilteredPriceRecordAccessor that were involved in computing delegate result
+					final Formula[] filteredOutRecords = FormulaFinder.findAmongChildren(
+							this, FilteredOutPriceRecordAccessor.class, LookUp.SHALLOW
+						)
+						.stream()
+						.map(FilteredOutPriceRecordAccessor::getCloneWithPricePredicateFilteredOutResults)
+						.toArray(Formula[]::new);
+
+					return FormulaFactory.or(filteredOutRecords);
+				});
+		}
+		return this.memoizedClone;
+	}
+
 	@Nonnull
 	@Override
 	public FilteredPriceRecords getFilteredPriceRecords() {
@@ -130,8 +209,15 @@ public class SelectionFormula extends AbstractFormula implements FilteredPriceRe
 	}
 
 	@Override
-	public String toString() {
-		return "APPLY PREDICATE ON PREFETCHED ENTITIES IF POSSIBLE";
+	protected long getEstimatedCostInternal() {
+		return Optional.ofNullable(filterByVisitor.getPrefetchedEntities())
+			.map(it -> {
+				if (alternative.getEntityRequire() == null) {
+					return 0L;
+				}
+				return (1 + alternative.getEntityRequire().getRequirements().length) * 148L;
+			})
+			.orElseGet(getDelegate()::getEstimatedCost);
 	}
 
 	@Override
@@ -144,17 +230,11 @@ public class SelectionFormula extends AbstractFormula implements FilteredPriceRe
 		return CLASS_ID;
 	}
 
-	@Override
-	protected long getEstimatedCostInternal() {
-		return Optional.ofNullable(filterByVisitor.getPrefetchedEntities())
-			.map(it -> {
-				if (alternative.getEntityRequire() == null) {
-					return 0L;
-				}
-				return (1 + alternative.getEntityRequire().getRequirements().length) * 148L;
-			})
-			.orElseGet(getDelegate()::getEstimatedCost);
-	}
+	/*
+	 * We need to override this method so that sorting logic will communicate with our implementation and doesn't ask
+	 * for filtered price records from this formula {@link #getDelegate()} children which would require computation executed
+	 * by the {@link #getDelegate()} which we try to avoid by alternative solution.
+	 */
 
 	@Override
 	protected long getCostInternal() {

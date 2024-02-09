@@ -30,17 +30,15 @@ import io.evitadb.core.query.QueryContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.facet.UserFilterFormula;
+import io.evitadb.core.query.algebra.price.FilteredOutPriceRecordAccessor;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordsLookupResult;
-import io.evitadb.core.query.algebra.price.termination.PriceTerminationFormula;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaCloner;
 import io.evitadb.core.query.extraResult.CacheableExtraResultProducer;
 import io.evitadb.core.query.extraResult.ExtraResultCacheAccessor;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.extraResult.translator.histogram.cache.CacheableHistogramContract;
-import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.price.model.priceRecord.PriceRecord;
-import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -116,20 +114,12 @@ public class PriceHistogramProducer implements CacheableExtraResultProducer {
 					final Formula updatedUserFilterFormula = FormulaCloner.clone(
 						theFormula,
 						innerFormula -> {
-							if (innerFormula instanceof PriceTerminationFormula priceTerminationFormula) {
-								ofNullable(priceTerminationFormula.getRequestedPredicate())
+							if (innerFormula instanceof FilteredOutPriceRecordAccessor filteredOutPriceRecordAccessor) {
+								ofNullable(filteredOutPriceRecordAccessor.getRequestedPredicate())
 									.ifPresent(requestedPricePredicate::set);
-								final Bitmap filteredOutRecords = priceTerminationFormula.getRecordsFilteredOutByPredicate();
-								Assert.isPremiseValid(
-									filteredOutRecords != null,
-									"Compute was not yet called on price termination formula, this is not expected!"
-								);
-								if (filteredOutRecords.isEmpty()) {
-									return EmptyFormula.INSTANCE;
-								} else {
-									filteredRecordsFound.set(true);
-									return priceTerminationFormula.getCloneWithPricePredicateFilteredOutResults();
-								}
+								final Formula result = filteredOutPriceRecordAccessor.getCloneWithPricePredicateFilteredOutResults();
+								filteredRecordsFound.set(result != EmptyFormula.INSTANCE);
+								return result;
 							} else {
 								return innerFormula;
 							}

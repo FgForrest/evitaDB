@@ -26,16 +26,15 @@ package io.evitadb.core.query.algebra.price.termination;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.price.innerRecordHandling.PriceHandlingContainerFormula;
+import io.evitadb.core.query.algebra.price.predicate.PriceAmountPredicate;
+import io.evitadb.core.query.algebra.price.predicate.PricePredicate;
 import io.evitadb.index.bitmap.Bitmap;
-import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.math.BigDecimal;
-import java.util.function.Predicate;
 
 /**
  * PlainPriceTerminationFormula is a simplified variant of {@link PlainPriceTerminationFormulaWithPriceFilter} for cases
@@ -68,8 +67,8 @@ public class PlainPriceTerminationFormula extends AbstractFormula implements Pri
 
 	@Nullable
 	@Override
-	public Predicate<BigDecimal> getRequestedPredicate() {
-		return threshold -> true;
+	public PriceAmountPredicate getRequestedPredicate() {
+		return PriceAmountPredicate.ALL;
 	}
 
 	@Nonnull
@@ -94,13 +93,7 @@ public class PlainPriceTerminationFormula extends AbstractFormula implements Pri
 
 	@Override
 	public String toString() {
-		return PricePredicate.NO_FILTER.toString();
-	}
-
-	@Nullable
-	@Override
-	public Bitmap getRecordsFilteredOutByPredicate() {
-		return EmptyBitmap.INSTANCE;
+		return PricePredicate.ALL_RECORD_FILTER.toString();
 	}
 
 	@Nonnull
