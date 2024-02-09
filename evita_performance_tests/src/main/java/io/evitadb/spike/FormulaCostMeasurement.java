@@ -32,12 +32,12 @@ import io.evitadb.core.query.algebra.base.JoinFormula;
 import io.evitadb.core.query.algebra.base.NotFormula;
 import io.evitadb.core.query.algebra.base.OrFormula;
 import io.evitadb.core.query.algebra.price.innerRecordHandling.PriceHandlingContainerFormula;
+import io.evitadb.core.query.algebra.price.predicate.PricePredicate;
 import io.evitadb.core.query.algebra.price.priceIndex.PriceIdContainerFormula;
 import io.evitadb.core.query.algebra.price.termination.FirstVariantPriceTerminationFormula;
 import io.evitadb.core.query.algebra.price.termination.PlainPriceTerminationFormula;
 import io.evitadb.core.query.algebra.price.termination.PlainPriceTerminationFormulaWithPriceFilter;
 import io.evitadb.core.query.algebra.price.termination.PriceEvaluationContext;
-import io.evitadb.core.query.algebra.price.termination.PricePredicate;
 import io.evitadb.core.query.algebra.price.termination.SumPriceTerminationFormula;
 import io.evitadb.core.query.algebra.price.translate.PriceIdToEntityIdTranslateFormula;
 import io.evitadb.core.query.extraResult.translator.histogram.producer.AttributeHistogramComputer;
@@ -198,7 +198,7 @@ public class FormulaCostMeasurement {
 			new PriceEvaluationContext(
 				new PriceIndexKey("whatever", Currency.getInstance("CZK"), PriceInnerRecordHandling.NONE)
 			),
-			PricePredicate.NO_FILTER
+			PricePredicate.ALL_RECORD_FILTER
 		);
 		blackhole.consume(testedFormula.compute());
 	}
@@ -214,7 +214,7 @@ public class FormulaCostMeasurement {
 				new PriceIndexKey("whatever", Currency.getInstance("CZK"), PriceInnerRecordHandling.NONE)
 			),
 			QueryPriceMode.WITH_TAX,
-			PricePredicate.NO_FILTER
+			PricePredicate.ALL_RECORD_FILTER
 		);
 		blackhole.consume(testedFormula.compute());
 	}
@@ -230,7 +230,7 @@ public class FormulaCostMeasurement {
 				new PriceIndexKey("whatever", Currency.getInstance("CZK"), PriceInnerRecordHandling.NONE)
 			),
 			QueryPriceMode.WITH_TAX,
-			PricePredicate.NO_FILTER
+			PricePredicate.ALL_RECORD_FILTER
 		);
 		blackhole.consume(testedFormula.compute());
 	}

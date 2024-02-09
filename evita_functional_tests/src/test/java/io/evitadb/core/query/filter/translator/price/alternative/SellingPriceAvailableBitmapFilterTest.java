@@ -32,8 +32,8 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
+import io.evitadb.core.query.algebra.price.predicate.PricePredicate.PriceContractPredicate;
 import io.evitadb.core.query.filter.translator.TestFilterByVisitor;
-import io.evitadb.core.query.filter.translator.price.PriceBetweenTranslator;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.test.Entities;
@@ -185,7 +185,9 @@ class SellingPriceAvailableBitmapFilterTest {
 	void shouldFilterEntitiesByCurrencyAndPriceListAndPriceFilter() {
 		final SellingPriceAvailableBitmapFilter filter = new SellingPriceAvailableBitmapFilter(
 			new String[] {PRICE_LIST_REFERENCE},
-			PriceBetweenTranslator.createPredicate(new BigDecimal("90"), new BigDecimal("130"), QueryPriceMode.WITH_TAX, 0)
+			new PriceContractPredicate(
+				new BigDecimal("90"), new BigDecimal("130"), QueryPriceMode.WITH_TAX, 0
+			)
 		);
 		final Bitmap result = filter.filter(
 			new TestFilterByVisitor(
@@ -218,7 +220,9 @@ class SellingPriceAvailableBitmapFilterTest {
 	void shouldFilterEntitiesByCurrencyAndPriceListAndPriceFilterBasicFirst() {
 		final SellingPriceAvailableBitmapFilter filter = new SellingPriceAvailableBitmapFilter(
 			new String[] {PRICE_LIST_REFERENCE},
-			PriceBetweenTranslator.createPredicate(new BigDecimal("90"), new BigDecimal("130"), QueryPriceMode.WITH_TAX, 0)
+			new PriceContractPredicate(
+				new BigDecimal("90"), new BigDecimal("130"), QueryPriceMode.WITH_TAX, 0
+			)
 		);
 		final Bitmap result = filter.filter(
 			new TestFilterByVisitor(
