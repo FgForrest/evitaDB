@@ -999,6 +999,7 @@ public class ComplexDataObjectConverter<T extends Serializable> {
 	 * Context also allows us to process {@link @DiscardedData} annotations and allow continuous model evolution.
 	 */
 	private static class ExtractionContext {
+		private static final String NULL_STRING = "";
 		/**
 		 * Stack containing name of the lastExtractedProperty allows to reconstruct "property path" for signalling
 		 * complete (deep-wise) name of the not extracted property.
@@ -1060,7 +1061,7 @@ public class ComplexDataObjectConverter<T extends Serializable> {
 				propertyPath.push((propertyPath.isEmpty() ? "" : ".") + lastExtractedProperty.peek());
 			}
 			propertySets.push(new HashSet<>(propertyNames));
-			lastExtractedProperty.push(null);
+			lastExtractedProperty.push(NULL_STRING);
 		}
 
 		/**
@@ -1094,7 +1095,7 @@ public class ComplexDataObjectConverter<T extends Serializable> {
 		}
 
 		/**
-		 * Clears information about position in tha array.
+		 * Clears information about position in the array.
 		 */
 		public void popIndex() {
 			if (!propertySets.isEmpty()) {

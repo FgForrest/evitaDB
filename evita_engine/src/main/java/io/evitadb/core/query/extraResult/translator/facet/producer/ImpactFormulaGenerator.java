@@ -34,7 +34,6 @@ import io.evitadb.core.query.algebra.facet.FacetGroupFormula;
 import io.evitadb.core.query.algebra.facet.FacetGroupOrFormula;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
-import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;
@@ -112,7 +111,6 @@ public class ImpactFormulaGenerator extends AbstractFacetFormulaGenerator {
 					new FacetGroupOrFormula(referenceName, facetGroupId, new BaseBitmap(facetId), facetEntityIdsBitmap)
 			);
 			formula.accept(mutableFormulaFinderAndReplacer);
-			Assert.isPremiseValid(mutableFormulaFinderAndReplacer.isTargetFound(), "Expected single MutableFormula in the formula tree!");
 			return formula;
 		} else {
 			final Formula result = super.generateFormula(

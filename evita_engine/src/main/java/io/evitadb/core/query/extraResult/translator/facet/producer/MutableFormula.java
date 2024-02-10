@@ -31,6 +31,7 @@ import lombok.Getter;
 import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
+import java.util.Objects;
 
 /**
  * This formula is a HACK and don't use it!!!
@@ -145,5 +146,25 @@ class MutableFormula implements Formula {
 	@Override
 	public long getCostToPerformanceRatio() {
 		return delegate.getCostToPerformanceRatio();
+	}
+
+	@Override
+	public boolean equals(Object o) {
+		if (this == o) return true;
+		if (o == null || getClass() != o.getClass()) return false;
+
+		MutableFormula that = (MutableFormula) o;
+
+		return Objects.equals(delegate, that.delegate);
+	}
+
+	@Override
+	public int hashCode() {
+		return delegate != null ? delegate.hashCode() : 0;
+	}
+
+	@Override
+	public String toString() {
+		return delegate.toString();
 	}
 }
