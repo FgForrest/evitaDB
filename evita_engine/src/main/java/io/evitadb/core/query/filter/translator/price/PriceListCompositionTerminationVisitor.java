@@ -49,6 +49,7 @@ import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.Deque;
 import java.util.HashSet;
@@ -83,7 +84,7 @@ class PriceListCompositionTerminationVisitor implements FormulaVisitor {
 	 * used to recognizing whether the container formula needs to be reconstructed with new children or old formula can
 	 * be reused (nothing has changed in its children).
 	 */
-	private final Deque<List<Formula>> stack = new LinkedList<>();
+	private final Deque<List<Formula>> stack = new ArrayDeque<>(16);
 	/**
 	 * Price filter is used to filter out entities which price doesn't match the predicate.
 	 */

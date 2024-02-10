@@ -27,10 +27,18 @@ import io.evitadb.api.query.filter.UserFilter;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.facet.FacetGroupAndFormula;
+import io.evitadb.core.query.algebra.facet.FacetGroupOrFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
+import io.evitadb.index.bitmap.BaseBitmap;
+import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.utils.Assert;
+import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
+import java.util.Map;
 import java.util.function.BiPredicate;
 
 /**
@@ -44,6 +52,11 @@ import java.util.function.BiPredicate;
  */
 @NotThreadSafe
 public class FacetFormulaGenerator extends AbstractFacetFormulaGenerator {
+	/**
+	 * Contains cache for already generated formulas indexed by a {@link CacheKey} that distinguishes the key situations
+	 * where the formulas have to have different shape and structure.
+	 */
+	private final Map<CacheKey, Formula> cache = CollectionUtils.createHashMap(64);
 
 	public FacetFormulaGenerator(
 		@Nonnull BiPredicate<ReferenceSchemaContract, Integer> isFacetGroupConjunction,
@@ -51,6 +64,41 @@ public class FacetFormulaGenerator extends AbstractFacetFormulaGenerator {
 		@Nonnull BiPredicate<ReferenceSchemaContract, Integer> isFacetGroupNegation
 	) {
 		super(isFacetGroupConjunction, isFacetGroupDisjunction, isFacetGroupNegation);
+	}
+
+	@Nonnull
+	@Override
+	public Formula generateFormula(
+		@Nonnull Formula baseFormula,
+		@Nonnull Formula baseFormulaWithoutUserFilter,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nullable Integer facetGroupId,
+		int facetId,
+		@Nonnull Bitmap[] facetEntityIds
+	) {
+		final boolean negation = this.isFacetGroupNegation.test(referenceSchema, facetGroupId);
+		final boolean disjunction = this.isFacetGroupDisjunction.test(referenceSchema, facetGroupId);
+		final boolean conjunction = this.isFacetGroupConjunction.test(referenceSchema, facetGroupId);
+		final CacheKey key = new CacheKey(negation, disjunction, conjunction);
+
+		return cache.compute(
+			key,
+			(cacheKey, formula) -> {
+				if (formula == null) {
+					return super.generateFormula(baseFormula, baseFormulaWithoutUserFilter, referenceSchema, facetGroupId, facetId, facetEntityIds);
+				} else {
+					final Bitmap facetEntityIdsBitmap = getBaseEntityIds(facetEntityIds);
+					final MutableFormulaFinderAndReplacer mutableFormulaFinderAndReplacer = new MutableFormulaFinderAndReplacer(
+						() -> cacheKey.isConjunction() ?
+							new FacetGroupAndFormula(referenceSchema.getName(), facetGroupId, new BaseBitmap(facetId), facetEntityIdsBitmap) :
+							new FacetGroupOrFormula(referenceSchema.getName(), facetGroupId, new BaseBitmap(facetId), facetEntityIdsBitmap)
+					);
+					formula.accept(mutableFormulaFinderAndReplacer);
+					Assert.isPremiseValid(mutableFormulaFinderAndReplacer.isTargetFound(), "Expected single MutableFormula in the formula tree!");
+					return formula;
+				}
+			}
+		);
 	}
 
 	@Override
@@ -80,6 +128,32 @@ public class FacetFormulaGenerator extends AbstractFacetFormulaGenerator {
 			// output changed - just propagate it
 			return result;
 		}
+	}
+
+	/**
+	 * Represents a cache key used for caching formula generation results. The cache key contains all key information
+	 * needed to distinguish the situation when we need to analyze and create new formula composition and we can reuse
+	 * the existing one and just replace one formula with another.
+	 *
+	 * @param isConjunction true if the facet group is conjunction
+	 * @param isDisjunction true if the facet group is disjunction
+	 * @param isNegation    true if the facet group is negation
+	 */
+	private record CacheKey(
+		boolean isNegation,
+		boolean isDisjunction,
+		boolean isConjunction
+	) {
+
+		@Override
+		public String toString() {
+			return "CacheKey{" +
+				"isNegation=" + isNegation +
+				", isDisjunction=" + isDisjunction +
+				", isConjunction=" + isConjunction +
+				'}';
+		}
+
 	}
 
 }

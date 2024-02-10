@@ -230,6 +230,19 @@ public abstract class AbstractFormula implements Formula {
 	}
 
 	/**
+	 * Clears the memoized results and hashes of the formula.
+	 */
+	public void clearMemoizedResult() {
+		this.memoizedResult = null;
+		this.memoizedHash = null;
+		this.memoizedTransactionalIds = null;
+		this.memoizedTransactionalIdHash = null;
+		this.cost = null;
+		this.estimatedCost = null;
+		this.costToPerformance = null;
+	}
+
+	/**
 	 * Returns cost to performance ratio. Default implementation is sums cost to performance ratio of all inner formulas
 	 * and adds ratio of this operation that is computed as ration of its cost to output bitmap size. I.e. when large
 	 * bitmap is greatly reduced to a small one, this ratio gets bigger and thus caching output of this formula saves
