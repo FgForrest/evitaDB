@@ -289,7 +289,7 @@ public class QueryContext implements AutoCloseable, LocaleProvider {
 		this.entityStorageContainerAccessor = entityStorageContainerAccessor;
 		this.evitaSession = evitaSession;
 		this.evitaRequest = evitaRequest;
-		this.telemetryStack = new LinkedList<>();
+		this.telemetryStack = new ArrayDeque<>(16);
 		ofNullable(telemetry).ifPresent(this.telemetryStack::push);
 		//noinspection unchecked
 		this.indexes = (Map<IndexKey, Index<?>>) indexes;
@@ -1073,7 +1073,7 @@ public class QueryContext implements AutoCloseable, LocaleProvider {
 	@Nonnull
 	public int[] borrowBuffer() {
 		if (this.buffers == null) {
-			this.buffers = new LinkedList<>();
+			this.buffers = new ArrayDeque<>(16);
 		}
 		// return locally cached buffer or obtain new one from shared pool
 		return ofNullable(this.buffers.poll())

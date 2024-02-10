@@ -32,9 +32,9 @@ import io.evitadb.exception.EvitaInternalError;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.lang.reflect.Array;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.function.UnaryOperator;
 
@@ -49,7 +49,7 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class QueryPurifierVisitor implements ConstraintVisitor {
-	private final Deque<List<Constraint<?>>> levelConstraints = new LinkedList<>();
+	private final Deque<List<Constraint<?>>> levelConstraints = new ArrayDeque<>(16);
 	private final UnaryOperator<Constraint<?>> constraintTranslator;
 	private Constraint<?> result = null;
 

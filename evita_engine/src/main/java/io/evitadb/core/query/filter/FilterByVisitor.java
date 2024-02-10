@@ -180,12 +180,12 @@ public class FilterByVisitor implements ConstraintVisitor {
 	/**
 	 * Contemporary stack for keeping results resolved for each level of the query.
 	 */
-	private final Deque<List<Formula>> stack = new LinkedList<>();
+	private final Deque<List<Formula>> stack = new ArrayDeque<>(16);
 	/**
 	 * Contemporary stack for keeping results resolved for each level of the query.
 	 */
 	@Getter(AccessLevel.PROTECTED)
-	private final Deque<ProcessingScope<? extends Index<?>>> scope = new LinkedList<>();
+	private final Deque<ProcessingScope<? extends Index<?>>> scope = new ArrayDeque<>(16);
 	/**
 	 * Contains list of registered post processors. Formula post processor is used to transform final {@link Formula}
 	 * tree constructed in {@link FilterByVisitor} before computing the result. Post processors should analyze created
@@ -1023,7 +1023,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 		 * This stack contains parent chain of the current query.
 		 */
 		@Nonnull
-		private final Deque<FilterConstraint> processedConstraints = new LinkedList<>();
+		private final Deque<FilterConstraint> processedConstraints = new ArrayDeque<>(16);
 		/**
 		 * Contains requirements to be passed for entity prefetch (if available).
 		 */
