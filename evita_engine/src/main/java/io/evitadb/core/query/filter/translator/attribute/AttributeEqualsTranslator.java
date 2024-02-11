@@ -78,6 +78,7 @@ public class AttributeEqualsTranslator implements FilteringConstraintTranslator<
 						return entityReference == null ?
 							EmptyFormula.INSTANCE :
 							new MultipleEntityFormula(
+								new long[] { index.getId() },
 								filterByVisitor.translateEntityReference(entityReference)
 							);
 					}

@@ -616,8 +616,12 @@ public class FilterByVisitor implements ConstraintVisitor {
 	@Nonnull
 	public Stream<EntityIndex> getEntityIndexStream() {
 		final Deque<ProcessingScope<? extends Index<?>>> scope = getScope();
-		//noinspection unchecked
-		return scope.isEmpty() ? Stream.empty() : scope.peek().getIndexStream().filter(EntityIndex.class::isInstance).map(EntityIndex.class::cast);
+		return scope.isEmpty() ?
+			Stream.empty() :
+			scope.peek()
+				.getIndexStream()
+				.filter(EntityIndex.class::isInstance)
+				.map(EntityIndex.class::cast);
 	}
 
 	/**
@@ -834,12 +838,13 @@ public class FilterByVisitor implements ConstraintVisitor {
 		@Nonnull GlobalAttributeSchemaContract attributeDefinition,
 		@Nonnull Function<GlobalUniqueIndex, Formula> formulaFunction
 	) {
-		final Optional<CatalogIndex> catalogIndex = getIndex(CatalogIndexKey.INSTANCE);
+		final Optional<Index<CatalogIndexKey>> catalogIndex = getIndex(CatalogIndexKey.INSTANCE);
 		final String attributeName = attributeDefinition.getName();
 		if (catalogIndex.isEmpty()) {
 			throw new EntityCollectionRequiredException("filter by attribute `" + attributeName + "`");
 		} else {
-			final GlobalUniqueIndex globalUniqueIndex = catalogIndex.get().getGlobalUniqueIndex(attributeDefinition, getLocale());
+			final CatalogIndex catalogIndexKeyIndex = (CatalogIndex) catalogIndex.get();
+			final GlobalUniqueIndex globalUniqueIndex = catalogIndexKeyIndex.getGlobalUniqueIndex(attributeDefinition, getLocale());
 			if (globalUniqueIndex == null) {
 				return EmptyFormula.INSTANCE;
 			}
@@ -981,7 +986,9 @@ public class FilterByVisitor implements ConstraintVisitor {
 				}
 			}
 		}
-		return finalFormula;
+		final FormulaDeduplicator deduplicator = new FormulaDeduplicator(finalFormula);
+		deduplicator.visit(constraintFormula);
+		return deduplicator.getPostProcessedFormula();
 	}
 
 	/**
