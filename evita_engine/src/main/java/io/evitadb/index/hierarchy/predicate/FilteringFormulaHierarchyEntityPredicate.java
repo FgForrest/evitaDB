@@ -35,11 +35,11 @@ import io.evitadb.core.query.algebra.deferred.DeferredFormula;
 import io.evitadb.core.query.algebra.deferred.FormulaWrapper;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
+import io.evitadb.core.query.response.TransactionalDataRelatedStructure.CalculationContext;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.hierarchy.predicate.HierarchyTraversalPredicate.SelfTraversingPredicate;
 import lombok.Getter;
-import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -76,6 +76,10 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 	 * children should be tested by a predicate logic as "false".
 	 */
 	private boolean stopNodeEncountered;
+	/**
+	 * Contains memoized value of {@link #getHash()} method.
+	 */
+	private Long hash;
 
 	/**
 	 * This constructor should be used from filtering translators that need to take the attributes on references
@@ -251,8 +255,19 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 	}
 
 	@Override
-	public long computeHash(@Nonnull LongHashFunction hashFunction) {
-		return filteringFormula.computeHash(hashFunction);
+	public void initialize(@Nonnull CalculationContext calculationContext) {
+		if (this.hash == null) {
+			this.filteringFormula.initialize(calculationContext);
+			this.hash = this.filteringFormula.getHash();
+		}
+	}
+
+	@Override
+	public long getHash() {
+		if (this.hash == null) {
+		initialize(CalculationContext.NO_CACHING_INSTANCE);
+}
+		return this.hash;
 	}
 
 	@Override

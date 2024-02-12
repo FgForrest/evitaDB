@@ -29,7 +29,6 @@ import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.prefetch.PrefetchFormulaVisitor;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
-import io.evitadb.core.query.response.TransactionalDataRelatedStructure.CalculationContext;
 import io.evitadb.core.query.sort.NoSorter;
 import io.evitadb.core.query.sort.Sorter;
 import lombok.Getter;
@@ -141,16 +140,16 @@ public class QueryPlanBuilder implements PrefetchRequirementCollector {
 	 */
 	@Nonnull
 	public String getDescriptionWithCosts() {
-		return targetIndexes.toStringWithCosts(getEstimatedCost(queryContext.getCalculationContext()));
+		return targetIndexes.toStringWithCosts(getEstimatedCost());
 	}
 
 	/**
 	 * Returns estimated costs for computing filtered result.
 	 *
-	 * @see Formula#getEstimatedCost(CalculationContext)
+	 * @see Formula#getEstimatedCost()
 	 */
-	public long getEstimatedCost(@Nonnull CalculationContext calculationContext) {
-		return filterFormula.getEstimatedCost(calculationContext);
+	public long getEstimatedCost() {
+		return filterFormula.getEstimatedCost();
 	}
 
 	/**

@@ -31,7 +31,6 @@ import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.extraResult.CacheableEvitaResponseExtraResultComputer;
 import io.evitadb.core.query.extraResult.EvitaResponseExtraResultComputer;
-import io.evitadb.core.query.response.TransactionalDataRelatedStructure.CalculationContext;
 import io.evitadb.core.query.sort.CacheableSorter;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.core.scheduling.Scheduler;
@@ -85,7 +84,6 @@ public class HeapMemoryCacheSupervisor implements CacheSupervisor {
 	@Override
 	public <T extends Formula> T analyse(
 		@Nonnull EvitaSessionContract evitaSession,
-		@Nonnull CalculationContext calculationContext,
 		@Nonnull String entityType,
 		@Nonnull T filterFormula
 	) {
@@ -93,7 +91,7 @@ public class HeapMemoryCacheSupervisor implements CacheSupervisor {
 		// that effectively exclude the formula caches from being used
 		if (evitaSession.isReadOnly()) {
 			//noinspection unchecked
-			return (T) FormulaCacheVisitor.analyse(evitaSession, calculationContext, entityType, filterFormula, this.cacheAnteroom);
+			return (T) FormulaCacheVisitor.analyse(evitaSession, entityType, filterFormula, this.cacheAnteroom);
 		} else {
 			return filterFormula;
 		}
@@ -104,7 +102,6 @@ public class HeapMemoryCacheSupervisor implements CacheSupervisor {
 	@Override
 	public <U, T extends CacheableEvitaResponseExtraResultComputer<U>> EvitaResponseExtraResultComputer<U> analyse(
 		@Nonnull EvitaSessionContract evitaSession,
-		@Nonnull CalculationContext calculationContext,
 		@Nonnull String entityType,
 		@Nonnull T extraResultComputer
 	) {
@@ -113,7 +110,7 @@ public class HeapMemoryCacheSupervisor implements CacheSupervisor {
 		if (evitaSession.isReadOnly()) {
 			//noinspection unchecked
 			return (EvitaResponseExtraResultComputer<U>) this.cacheAnteroom.register(
-				evitaSession, calculationContext, entityType, extraResultComputer
+				evitaSession, entityType, extraResultComputer
 			);
 		} else {
 			return extraResultComputer;
@@ -124,7 +121,6 @@ public class HeapMemoryCacheSupervisor implements CacheSupervisor {
 	@Override
 	public Sorter analyse(
 		@Nonnull EvitaSessionContract evitaSession,
-		@Nonnull CalculationContext calculationContext,
 		@Nonnull String entityType,
 		@Nonnull CacheableSorter cacheableSorter
 	) {
@@ -132,7 +128,7 @@ public class HeapMemoryCacheSupervisor implements CacheSupervisor {
 		// that effectively exclude the formula caches from being used
 		if (evitaSession.isReadOnly()) {
 			return this.cacheAnteroom.register(
-				evitaSession, calculationContext, entityType, cacheableSorter
+				evitaSession, entityType, cacheableSorter
 			);
 		} else {
 			return cacheableSorter;
@@ -143,7 +139,6 @@ public class HeapMemoryCacheSupervisor implements CacheSupervisor {
 	@Override
 	public Optional<EntityDecorator> analyse(
 		@Nonnull EvitaSessionContract evitaSession,
-		@Nonnull CalculationContext calculationContext,
 		int primaryKey,
 		@Nonnull String entityType,
 		@Nonnull OffsetDateTime offsetDateTime,
@@ -156,7 +151,7 @@ public class HeapMemoryCacheSupervisor implements CacheSupervisor {
 		if (evitaSession.isReadOnly()) {
 			return ofNullable(
 				this.cacheAnteroom.register(
-					evitaSession, calculationContext, primaryKey, entityType, offsetDateTime,
+					evitaSession, primaryKey, entityType, offsetDateTime,
 					entityRequirement, entityFetcher, enricher
 				)
 			);
@@ -169,7 +164,6 @@ public class HeapMemoryCacheSupervisor implements CacheSupervisor {
 	@Override
 	public Optional<BinaryEntity> analyse(
 		@Nonnull EvitaSessionContract evitaSession,
-		@Nonnull CalculationContext calculationContext,
 		int primaryKey,
 		@Nonnull String entityType,
 		@Nullable EntityFetch entityRequirement,
@@ -181,7 +175,7 @@ public class HeapMemoryCacheSupervisor implements CacheSupervisor {
 		if (evitaSession.isReadOnly()) {
 			return ofNullable(
 				this.cacheAnteroom.register(
-					evitaSession, calculationContext, primaryKey, entityType, entityRequirement, entityFetcher
+					evitaSession, primaryKey, entityType, entityRequirement, entityFetcher
 				)
 			);
 		} else {

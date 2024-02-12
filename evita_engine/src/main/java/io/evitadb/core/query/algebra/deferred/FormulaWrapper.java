@@ -26,7 +26,6 @@ package io.evitadb.core.query.algebra.deferred;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.index.bitmap.Bitmap;
 import lombok.RequiredArgsConstructor;
-import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import java.util.function.Function;
@@ -45,18 +44,23 @@ public class FormulaWrapper implements BitmapSupplier {
 	private Bitmap computed;
 
 	@Override
+	public void initialize(@Nonnull CalculationContext calculationContext) {
+		this.formula.initialize(calculationContext);
+	}
+
+	@Override
 	public int getEstimatedCardinality() {
 		return formula.getEstimatedCardinality();
 	}
 
 	@Override
-	public long computeHash(@Nonnull LongHashFunction hashFunction) {
-		return formula.computeHash(hashFunction);
+	public long getHash() {
+		return formula.getHash();
 	}
 
 	@Override
-	public long computeTransactionalIdHash(@Nonnull LongHashFunction hashFunction) {
-		return formula.computeTransactionalIdHash(hashFunction);
+	public long getTransactionalIdHash() {
+		return formula.getTransactionalIdHash();
 	}
 
 	@Nonnull
@@ -66,13 +70,13 @@ public class FormulaWrapper implements BitmapSupplier {
 	}
 
 	@Override
-	public long getEstimatedCost(@Nonnull CalculationContext calculationContext) {
-		return formula.getEstimatedCost(calculationContext);
+	public long getEstimatedCost() {
+		return formula.getEstimatedCost();
 	}
 
 	@Override
-	public long getCost(@Nonnull CalculationContext calculationContext) {
-		return formula.getCost(calculationContext);
+	public long getCost() {
+		return formula.getCost();
 	}
 
 	@Override
@@ -81,8 +85,8 @@ public class FormulaWrapper implements BitmapSupplier {
 	}
 
 	@Override
-	public long getCostToPerformanceRatio(@Nonnull CalculationContext calculationContext) {
-		return formula.getCostToPerformanceRatio(calculationContext);
+	public long getCostToPerformanceRatio() {
+		return formula.getCostToPerformanceRatio();
 	}
 
 	@Override

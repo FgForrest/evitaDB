@@ -20,9 +20,6 @@ final EvitaResponse<SealedEntity> entities = evita.queryCatalog(
 						IMPACT,
 						entityFetch(
 							attributeContent("code")
-						),
-						entityGroupFetch(
-							attributeContent("code")
 						)
 					),
 					facetGroupsConjunction("groups")

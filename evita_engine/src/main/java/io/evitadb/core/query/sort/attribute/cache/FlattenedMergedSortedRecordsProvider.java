@@ -30,7 +30,6 @@ import io.evitadb.core.query.sort.attribute.MergedSortedRecordsSupplier;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.utils.MemoryMeasuringConstants;
 import lombok.experimental.Delegate;
-import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -73,12 +72,17 @@ public class FlattenedMergedSortedRecordsProvider extends CachePayloadHeader imp
 	}
 
 	@Override
-	public long computeHash(@Nonnull LongHashFunction hashFunction) {
+	public void initialize(@Nonnull CalculationContext calculationContext) {
+
+	}
+
+	@Override
+	public long getHash() {
 		return recordHash;
 	}
 
 	@Override
-	public long computeTransactionalIdHash(@Nonnull LongHashFunction hashFunction) {
+	public long getTransactionalIdHash() {
 		return transactionalIdHash;
 	}
 
@@ -89,12 +93,12 @@ public class FlattenedMergedSortedRecordsProvider extends CachePayloadHeader imp
 	}
 
 	@Override
-	public long getEstimatedCost(@Nonnull CalculationContext calculationContext) {
+	public long getEstimatedCost() {
 		return 0;
 	}
 
 	@Override
-	public long getCost(@Nonnull CalculationContext calculationContext) {
+	public long getCost() {
 		return 0;
 	}
 
@@ -104,7 +108,7 @@ public class FlattenedMergedSortedRecordsProvider extends CachePayloadHeader imp
 	}
 
 	@Override
-	public long getCostToPerformanceRatio(@Nonnull CalculationContext calculationContext) {
+	public long getCostToPerformanceRatio() {
 		return Long.MAX_VALUE;
 	}
 

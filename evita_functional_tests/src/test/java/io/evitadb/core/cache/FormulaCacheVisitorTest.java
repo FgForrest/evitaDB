@@ -30,7 +30,6 @@ import io.evitadb.core.query.algebra.base.AndFormula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.OrFormula;
 import io.evitadb.core.query.algebra.facet.UserFilterFormula;
-import io.evitadb.core.query.response.TransactionalDataRelatedStructure.CalculationContext;
 import io.evitadb.core.scheduling.Scheduler;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import net.openhft.hashing.LongHashFunction;
@@ -77,12 +76,11 @@ class FormulaCacheVisitorTest {
 
 		final Formula possiblyUpdatedFormula = FormulaCacheVisitor.analyse(
 			Mockito.mock(EvitaSession.class),
-			CalculationContext.NO_CACHING_INSTANCE,
 			SOME_ENTITY,
 			inputFormula,
 			cacheAnteroom
 		);
-		assertEquals(inputFormula.computeHash(HASH_FUNCTION), inputFormula.computeHash(HASH_FUNCTION));
+		assertEquals(inputFormula.getHash(), inputFormula.getHash());
 		assertSame(inputFormula, possiblyUpdatedFormula);
 
 		final CacheRecordAdept cacheAdept = cacheAnteroom.getCacheAdept(TEST_CATALOG, SOME_ENTITY, inputFormula);
@@ -101,12 +99,11 @@ class FormulaCacheVisitorTest {
 		Mockito.when(evitaSession.getCatalogName()).thenReturn(TEST_CATALOG);
 		final Formula possiblyUpdatedFormula = FormulaCacheVisitor.analyse(
 			evitaSession,
-			CalculationContext.NO_CACHING_INSTANCE,
 			SOME_ENTITY,
 			inputFormula,
 			cacheAnteroom
 		);
-		assertEquals(inputFormula.computeHash(HASH_FUNCTION), inputFormula.computeHash(HASH_FUNCTION));
+		assertEquals(inputFormula.getHash(), inputFormula.getHash());
 		assertNotSame(inputFormula, possiblyUpdatedFormula);
 
 		// compute the instrumented formula
@@ -145,7 +142,6 @@ class FormulaCacheVisitorTest {
 		Mockito.when(evitaSession.getCatalogName()).thenReturn(TEST_CATALOG);
 		final Formula possiblyUpdatedFormula = FormulaCacheVisitor.analyse(
 			evitaSession,
-			CalculationContext.NO_CACHING_INSTANCE,
 			SOME_ENTITY,
 			inputFormula,
 			cacheAnteroom
@@ -186,7 +182,6 @@ class FormulaCacheVisitorTest {
 		Mockito.when(evitaSession.getCatalogName()).thenReturn(TEST_CATALOG);
 		final Formula possiblyUpdatedFormula = FormulaCacheVisitor.analyse(
 			evitaSession,
-			CalculationContext.NO_CACHING_INSTANCE,
 			SOME_ENTITY,
 			inputFormula,
 			cacheAnteroom
@@ -213,13 +208,13 @@ class FormulaCacheVisitorTest {
 		final EvitaSession evitaSession = Mockito.mock(EvitaSession.class);
 		Mockito.when(evitaSession.getCatalogName()).thenReturn(TEST_CATALOG);
 
-		final Formula possiblyUpdatedFormula = FormulaCacheVisitor.analyse(evitaSession, CalculationContext.NO_CACHING_INSTANCE, SOME_ENTITY, inputFormula, cacheAnteroom);
+		final Formula possiblyUpdatedFormula = FormulaCacheVisitor.analyse(evitaSession, SOME_ENTITY, inputFormula, cacheAnteroom);
 
 		// compute the instrumented formula
 		possiblyUpdatedFormula.compute();
 
 		for (int i = 0; i < MINIMAL_USAGE_THRESHOLD + 10; i++) {
-			FormulaCacheVisitor.analyse(evitaSession, CalculationContext.NO_CACHING_INSTANCE, SOME_ENTITY, inputFormula, cacheAnteroom);
+			FormulaCacheVisitor.analyse(evitaSession, SOME_ENTITY, inputFormula, cacheAnteroom);
 		}
 
 		final CacheRecordAdept cacheAdept = cacheAnteroom.getCacheAdept(TEST_CATALOG, SOME_ENTITY, inputFormula);
@@ -227,7 +222,7 @@ class FormulaCacheVisitorTest {
 		assertEquals(3, cacheAdept.getSpaceToPerformanceRatio(MINIMAL_USAGE_THRESHOLD));
 
 		for (int i = 0; i < 100; i++) {
-			FormulaCacheVisitor.analyse(evitaSession, CalculationContext.NO_CACHING_INSTANCE, SOME_ENTITY, inputFormula, cacheAnteroom);
+			FormulaCacheVisitor.analyse(evitaSession, SOME_ENTITY, inputFormula, cacheAnteroom);
 		}
 
 		assertEquals(32, cacheAdept.getSpaceToPerformanceRatio(MINIMAL_USAGE_THRESHOLD));

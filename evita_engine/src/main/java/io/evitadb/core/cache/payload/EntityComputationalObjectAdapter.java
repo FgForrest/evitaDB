@@ -30,9 +30,9 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.core.cache.CacheEden;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
+import io.evitadb.utils.Assert;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
-import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -83,18 +83,44 @@ public class EntityComputationalObjectAdapter implements TransactionalDataRelate
 	 */
 	private final int requirementCount;
 	/**
-	 * Contains minimal threshold of the {@link Formula#getEstimatedCost(CalculationContext)}  that formula needs to exceed in order to
+	 * Contains minimal threshold of the {@link Formula#getEstimatedCost()}  that formula needs to exceed in order to
 	 * become a cache adept, that may be potentially moved to {@link CacheEden}.
 	 */
 	private final long minimalComplexityThreshold;
+	/**
+	 * Contains memoized value of {@link #getEstimatedCost()}  of this formula.
+	 */
+	private Long estimatedCost;
+	/**
+	 * Contains memoized value of {@link #getCost()}  of this formula.
+	 */
+	private Long cost;
 
 	@Override
-	public long computeHash(@Nonnull LongHashFunction hashFunction) {
+	public void initialize(@Nonnull CalculationContext calculationContext) {
+		if (this.estimatedCost == null) {
+			if (calculationContext.visit(CalculationType.ESTIMATED_COST, this)) {
+				this.estimatedCost = Math.max(minimalComplexityThreshold, requirementCount * getOperationCost());
+			} else {
+				this.estimatedCost = 0L;
+			}
+		}
+		if (this.cost == null) {
+			if (calculationContext.visit(CalculationType.COST, this)) {
+				this.cost = Math.max(minimalComplexityThreshold, requirementCount * getOperationCost());
+			} else {
+				this.cost = 0L;
+			}
+		}
+	}
+
+	@Override
+	public long getHash() {
 		return entityPrimaryKey;
 	}
 
 	@Override
-	public long computeTransactionalIdHash(@Nonnull LongHashFunction hashFunction) {
+	public long getTransactionalIdHash() {
 		return entityPrimaryKey;
 	}
 
@@ -105,21 +131,20 @@ public class EntityComputationalObjectAdapter implements TransactionalDataRelate
 	}
 
 	@Override
-	public long getEstimatedCost(@Nonnull CalculationContext calculationContext) {
-		if (calculationContext.visit(CalculationType.ESTIMATED_COST, this)) {
-			return Math.max(minimalComplexityThreshold, requirementCount * getOperationCost());
-		} else {
-			return 0L;
+	public long getEstimatedCost() {
+		if (this.estimatedCost == null) {
+			initialize(CalculationContext.NO_CACHING_INSTANCE);
 		}
+		return this.estimatedCost;
 	}
 
 	@Override
-	public long getCost(@Nonnull CalculationContext calculationContext) {
-		if (calculationContext.visit(CalculationType.COST, this)) {
-			return Math.max(minimalComplexityThreshold, requirementCount * getOperationCost());
-		} else {
-			return 0L;
+	public long getCost() {
+		if (this.cost == null) {
+			initialize(CalculationContext.NO_CACHING_INSTANCE);
+			Assert.isPremiseValid(this.cost != null, "Formula results haven't been computed!");
 		}
+		return this.cost;
 	}
 
 	@Override
@@ -128,8 +153,8 @@ public class EntityComputationalObjectAdapter implements TransactionalDataRelate
 	}
 
 	@Override
-	public long getCostToPerformanceRatio(@Nonnull CalculationContext calculationContext) {
-		return getCost(calculationContext);
+	public long getCostToPerformanceRatio() {
+		return getCost();
 	}
 
 	/**

@@ -27,7 +27,6 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.NonCacheableFormula;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaCloner;
-import io.evitadb.core.query.response.TransactionalDataRelatedStructure.CalculationContext;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -43,7 +42,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * usage is being tracked and evaluated.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
- * @see CacheAnteroom#register(EvitaSessionContract, CalculationContext, String, Formula, FormulaCacheVisitor)  for more details
+ * @see CacheAnteroom#register(EvitaSessionContract, String, Formula, FormulaCacheVisitor)  for more details
  */
 public class FormulaCacheVisitor extends FormulaCloner {
 
@@ -51,19 +50,17 @@ public class FormulaCacheVisitor extends FormulaCloner {
 	 * Preferred way of invoking this visitor. Accepts formula (tree) and produces clone that may contain already
 	 * cached results.
 	 *
-	 * @see CacheAnteroom#register(EvitaSessionContract, CalculationContext, String, Formula, FormulaCacheVisitor)  for more details
+	 * @see CacheAnteroom#register(EvitaSessionContract, String, Formula, FormulaCacheVisitor)  for more details
 	 */
 	@Nonnull
 	public static Formula analyse(
 		@Nonnull EvitaSessionContract evitaSession,
-		@Nonnull CalculationContext calculationContext,
 		@Nonnull String entityType,
 		@Nonnull Formula formulaToAnalyse,
 		@Nonnull CacheAnteroom cacheAnteroom
 	) {
 		final FormulaCacheVisitor visitor = new FormulaCacheVisitor(
 			evitaSession,
-			calculationContext,
 			entityType,
 			cacheAnteroom
 		);
@@ -73,11 +70,10 @@ public class FormulaCacheVisitor extends FormulaCloner {
 
 	private FormulaCacheVisitor(
 		@Nonnull EvitaSessionContract session,
-		@Nonnull CalculationContext calculationContext,
 		@Nonnull String entityType,
 		@Nonnull CacheAnteroom cacheAnteroom
 	) {
-		super((self, formula) -> cacheAnteroom.register(session, calculationContext, entityType, formula, (FormulaCacheVisitor) self));
+		super((self, formula) -> cacheAnteroom.register(session, entityType, formula, (FormulaCacheVisitor) self));
 	}
 
 	/**

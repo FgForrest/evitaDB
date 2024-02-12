@@ -33,11 +33,13 @@ import io.evitadb.core.query.extraResult.translator.histogram.cache.CacheableHis
 import io.evitadb.core.query.extraResult.translator.histogram.cache.CacheableHistogramContract;
 import io.evitadb.core.query.extraResult.translator.histogram.cache.FlattenedHistogramComputer;
 import io.evitadb.core.query.extraResult.translator.histogram.producer.AttributeHistogramProducer.AttributeHistogramRequest;
+import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.invertedIndex.InvertedIndexSubSet;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.Assert;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import net.openhft.hashing.LongHashFunction;
@@ -80,6 +82,7 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 	private final int bucketCount;
 	/**
 	 * Contains behavior that was requested by the user in the query.
+	 *
 	 * @see HistogramBehavior
 	 */
 	@Nonnull private final HistogramBehavior behavior;
@@ -88,17 +91,29 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 	 */
 	@Nonnull @Getter private final AttributeHistogramRequest request;
 	/**
-	 * Contains memoized value of {@link #computeHash(LongHashFunction)} method.
+	 * Contains memoized value of {@link #getEstimatedCost()}  of this formula.
 	 */
-	private Long memoizedHash;
+	private Long estimatedCost;
+	/**
+	 * Contains memoized value of {@link #getCost()}  of this formula.
+	 */
+	private Long cost;
+	/**
+	 * Contains memoized value of {@link #getCostToPerformanceRatio()} of this formula.
+	 */
+	private Long costToPerformance;
+	/**
+	 * Contains memoized value of {@link #getHash()} method.
+	 */
+	private Long hash;
 	/**
 	 * Contains memoized value of {@link #gatherTransactionalIds()} method.
 	 */
-	private long[] memoizedTransactionalIds;
+	private long[] transactionalIds;
 	/**
 	 * Contains memoized value of {@link #gatherTransactionalIds()} computed hash.
 	 */
-	private Long memoizedTransactionalIdHash;
+	private Long transactionalIdHash;
 	/**
 	 * Contains bucket array that contains only entity primary keys that match the {@link #filterFormula}. The array
 	 * is initialized during {@link #compute()} method and result is memoized, so it's ensured it's computed only once.
@@ -110,50 +125,6 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 	 */
 	private CacheableHistogramContract memoizedResult;
 
-	public AttributeHistogramComputer(
-		@Nonnull String attributeName,
-		@Nonnull Formula filterFormula,
-		int bucketCount,
-		@Nonnull HistogramBehavior behavior,
-		@Nonnull AttributeHistogramRequest request
-	) {
-		this.attributeName = attributeName;
-		this.filterFormula = filterFormula;
-		this.bucketCount = bucketCount;
-		this.behavior = behavior;
-		this.request = request;
-		this.onComputationCallback = null;
-	}
-
-	@Override
-	public FlattenedHistogramComputer toSerializableResult(long extraResultHash, @Nonnull LongHashFunction hashFunction) {
-		return new FlattenedHistogramComputer(
-			extraResultHash,
-			computeHash(hashFunction),
-			Arrays.stream(gatherTransactionalIds())
-				.distinct()
-				.sorted()
-				.toArray(),
-			Objects.requireNonNull(compute())
-		);
-	}
-
-	@Override
-	public int getSerializableResultSizeEstimate() {
-		return FlattenedHistogramComputer.estimateSize(
-			gatherTransactionalIds(),
-			compute()
-		);
-	}
-
-	@Nonnull
-	@Override
-	public CacheableEvitaResponseExtraResultComputer<CacheableHistogramContract> getCloneWithComputationCallback(@Nonnull Consumer<CacheableEvitaResponseExtraResultComputer<CacheableHistogramContract>> selfOperator) {
-		return new AttributeHistogramComputer(
-			attributeName, selfOperator, filterFormula, bucketCount, behavior, request
-		);
-	}
-
 	/**
 	 * Method creates instance of {@link HistogramDataCruncher} that computes optimal histogram for the attribute.
 	 */
@@ -163,7 +134,7 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 		int bucketCount,
 		@Nonnull HistogramBehavior behavior,
 		@Nonnull ValueToRecordBitmap<T>[] buckets
-		) {
+	) {
 		if (ArrayUtils.isEmpty(buckets)) {
 			return null;
 		} else {
@@ -205,6 +176,235 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 				);
 			}
 		}
+	}
+
+	/**
+	 * Method creates lambda that converts any {@link Number} value to an int value. The number overflows are checked
+	 * in this method an any data precision loss is reported.
+	 */
+	@Nonnull
+	private static <T extends Comparable<T>> ToIntFunction<T> createNumberToIntegerConverter(@Nonnull AttributeHistogramRequest histogramRequest) {
+		final ToIntFunction<T> converter;
+		if (Byte.class.isAssignableFrom(histogramRequest.attributeSchema().getType())) {
+			converter = value -> (int) ((Byte) value);
+		} else if (Short.class.isAssignableFrom(histogramRequest.attributeSchema().getType())) {
+			converter = value -> (int) ((Short) value);
+		} else if (Integer.class.isAssignableFrom(histogramRequest.attributeSchema().getType())) {
+			converter = value -> (int) ((Integer) value);
+		} else if (Long.class.isAssignableFrom(histogramRequest.attributeSchema().getType())) {
+			converter = value -> {
+				final int converted = ((Long) value).intValue();
+				if ((Long) value != (long) converted) {
+					throw new ArithmeticException("int overflow: " + value);
+				}
+				return converted;
+			};
+		} else if (BigDecimal.class.isAssignableFrom(histogramRequest.attributeSchema().getType())) {
+			converter = value -> ((BigDecimal) value).stripTrailingZeros()
+				.scaleByPowerOfTen(histogramRequest.getDecimalPlaces())
+				.intValue();
+		} else {
+			throw new EvitaInternalError(
+				"Unsupported histogram number type: " + histogramRequest.attributeSchema().getType() +
+					", supported are byte, short, int. Number types long and BigDecimal are allowed as long as their " +
+					"fit into an integer range!"
+			);
+		}
+		return converter;
+	}
+
+	public AttributeHistogramComputer(
+		@Nonnull String attributeName,
+		@Nonnull Formula filterFormula,
+		int bucketCount,
+		@Nonnull HistogramBehavior behavior,
+		@Nonnull AttributeHistogramRequest request
+	) {
+		this.attributeName = attributeName;
+		this.filterFormula = filterFormula;
+		this.bucketCount = bucketCount;
+		this.behavior = behavior;
+		this.request = request;
+		this.onComputationCallback = null;
+	}
+
+	@Override
+	public FlattenedHistogramComputer toSerializableResult(long extraResultHash, @Nonnull LongHashFunction hashFunction) {
+		return new FlattenedHistogramComputer(
+			extraResultHash,
+			getHash(),
+			Arrays.stream(gatherTransactionalIds())
+				.distinct()
+				.sorted()
+				.toArray(),
+			Objects.requireNonNull(compute())
+		);
+	}
+
+	@Override
+	public int getSerializableResultSizeEstimate() {
+		return FlattenedHistogramComputer.estimateSize(
+			gatherTransactionalIds(),
+			compute()
+		);
+	}
+
+	@Nonnull
+	@Override
+	public CacheableEvitaResponseExtraResultComputer<CacheableHistogramContract> getCloneWithComputationCallback(@Nonnull Consumer<CacheableEvitaResponseExtraResultComputer<CacheableHistogramContract>> selfOperator) {
+		return new AttributeHistogramComputer(
+			attributeName, selfOperator, filterFormula, bucketCount, behavior, request
+		);
+	}
+
+	@Nonnull
+	public List<FilterIndex> getAttributeIndexes() {
+		return request.attributeIndexes();
+	}
+
+	@Override
+	public void initialize(@Nonnull CalculationContext calculationContext) {
+		this.filterFormula.initialize(calculationContext);
+		if (this.hash == null) {
+			this.hash = calculationContext.getHashFunction().hashLongs(
+				LongStream.concat(
+					LongStream.of(
+						bucketCount,
+						behavior.ordinal(),
+						filterFormula.getHash()
+					),
+					LongStream.of(
+						request.attributeIndexes()
+							.stream()
+							.mapToLong(FilterIndex::getId)
+							.sorted()
+							.toArray()
+					)
+				).toArray()
+			);
+		}
+		if (this.transactionalIdHash == null) {
+			this.transactionalIds = LongStream.concat(
+				LongStream.of(filterFormula.gatherTransactionalIds()),
+				request.attributeIndexes()
+					.stream()
+					.mapToLong(FilterIndex::getId)
+			).toArray();
+			this.transactionalIdHash = calculationContext.getHashFunction().hashLongs(
+				Arrays.stream(this.transactionalIds)
+					.distinct()
+					.sorted()
+					.toArray()
+			);
+		}
+		if (this.estimatedCost == null) {
+			if (calculationContext.visit(CalculationType.ESTIMATED_COST, this)) {
+				this.estimatedCost = filterFormula.getEstimatedCost() +
+					getAttributeIndexes()
+						.stream()
+						.map(FilterIndex::getAllRecordsFormula)
+						.peek(it -> it.initialize(calculationContext))
+						.mapToLong(TransactionalDataRelatedStructure::getEstimatedCost)
+						.sum() * getOperationCost();
+			} else {
+				this.estimatedCost = 0L;
+			}
+		}
+		if (this.memoizedResult != null && this.cost == null) {
+			if (calculationContext.visit(CalculationType.COST, this)) {
+				this.cost = filterFormula.getCost() +
+					Arrays.stream(computeNarrowedHistogramBuckets(this, filterFormula))
+						.mapToInt(it -> it.getRecordIds().size())
+						.sum() * getOperationCost();
+				this.costToPerformance = getCost() / (getOperationCost() * bucketCount);
+			} else {
+				this.cost = 0L;
+				this.costToPerformance = Long.MAX_VALUE;
+			}
+		}
+	}
+
+	@Override
+	public long getHash() {
+		if (this.hash == null) {
+			initialize(CalculationContext.NO_CACHING_INSTANCE);
+		}
+		return this.hash;
+	}
+
+	@Override
+	public long getTransactionalIdHash() {
+		if (this.transactionalIdHash == null) {
+			initialize(CalculationContext.NO_CACHING_INSTANCE);
+		}
+		return this.transactionalIdHash;
+	}
+
+	@Nonnull
+	@Override
+	public long[] gatherTransactionalIds() {
+		if (this.transactionalIds == null) {
+			initialize(CalculationContext.NO_CACHING_INSTANCE);
+		}
+		return this.transactionalIds;
+	}
+
+	@Override
+	public long getEstimatedCost() {
+		if (this.estimatedCost == null) {
+			initialize(CalculationContext.NO_CACHING_INSTANCE);
+		}
+		return this.estimatedCost;
+	}
+
+	@Override
+	public long getCost() {
+		if (this.cost == null) {
+			initialize(CalculationContext.NO_CACHING_INSTANCE);
+			Assert.isPremiseValid(this.cost != null, "Formula results haven't been computed!");
+		}
+		return this.cost;
+	}
+
+	@Override
+	public long getOperationCost() {
+		// if the behavior is optimized we add 33% penalty because some histograms would need to be computed twice
+		return behavior == HistogramBehavior.STANDARD ? 2213 : 3320;
+	}
+
+	@Override
+	public long getCostToPerformanceRatio() {
+		if (this.costToPerformance == null) {
+			initialize(CalculationContext.NO_CACHING_INSTANCE);
+			Assert.isPremiseValid(this.costToPerformance != null, "Formula results haven't been computed!");
+		}
+		return this.costToPerformance;
+	}
+
+	@Nonnull
+	@Override
+	public CacheableHistogramContract compute() {
+		if (memoizedResult == null) {
+			// create cruncher that will compute the histogram
+			@SuppressWarnings("rawtypes") final ValueToRecordBitmap[] histogramBuckets = computeNarrowedHistogramBuckets(
+				this, filterFormula
+			);
+			@SuppressWarnings("unchecked") final HistogramDataCruncher<?> optimalHistogram = createHistogramDataCruncher(
+				this, bucketCount, behavior, histogramBuckets
+			);
+
+			if (optimalHistogram != null) {
+				memoizedResult = new CacheableHistogram(
+					optimalHistogram.getHistogram(),
+					optimalHistogram.getMaxValue()
+				);
+			} else {
+				memoizedResult = CacheableHistogramContract.EMPTY;
+			}
+
+			ofNullable(onComputationCallback).ifPresent(it -> it.accept(this));
+		}
+		return memoizedResult;
 	}
 
 	private <T extends Comparable<T>> ValueToRecordBitmap<T>[] computeNarrowedHistogramBuckets(@Nonnull AttributeHistogramComputer histogramComputer, @Nonnull Formula filterFormula) {
@@ -251,162 +451,6 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 		}
 		//noinspection unchecked
 		return (ValueToRecordBitmap<T>[]) this.memoizedNarrowedBuckets;
-	}
-
-	/**
-	 * Method creates lambda that converts any {@link Number} value to an int value. The number overflows are checked
-	 * in this method an any data precision loss is reported.
-	 */
-	@Nonnull
-	private static <T extends Comparable<T>> ToIntFunction<T> createNumberToIntegerConverter(@Nonnull AttributeHistogramRequest histogramRequest) {
-		final ToIntFunction<T> converter;
-		if (Byte.class.isAssignableFrom(histogramRequest.attributeSchema().getType())) {
-			converter = value -> (int) ((Byte) value);
-		} else if (Short.class.isAssignableFrom(histogramRequest.attributeSchema().getType())) {
-			converter = value -> (int) ((Short) value);
-		} else if (Integer.class.isAssignableFrom(histogramRequest.attributeSchema().getType())) {
-			converter = value -> (int) ((Integer) value);
-		} else if (Long.class.isAssignableFrom(histogramRequest.attributeSchema().getType())) {
-			converter = value -> {
-				final int converted = ((Long) value).intValue();
-				if ((Long) value != (long) converted) {
-					throw new ArithmeticException("int overflow: " + value);
-				}
-				return converted;
-			};
-		} else if (BigDecimal.class.isAssignableFrom(histogramRequest.attributeSchema().getType())) {
-			converter = value -> ((BigDecimal) value).stripTrailingZeros()
-				.scaleByPowerOfTen(histogramRequest.getDecimalPlaces())
-				.intValue();
-		} else {
-			throw new EvitaInternalError(
-				"Unsupported histogram number type: " + histogramRequest.attributeSchema().getType() +
-					", supported are byte, short, int. Number types long and BigDecimal are allowed as long as their " +
-					"fit into an integer range!"
-			);
-		}
-		return converter;
-	}
-
-	@Nonnull
-	public List<FilterIndex> getAttributeIndexes() {
-		return request.attributeIndexes();
-	}
-
-	@Override
-	public long computeHash(@Nonnull LongHashFunction hashFunction) {
-		if (this.memoizedHash == null) {
-			this.memoizedHash = hashFunction.hashLongs(
-				LongStream.concat(
-					LongStream.of(
-						bucketCount,
-						behavior.ordinal(),
-						filterFormula.computeHash(hashFunction)
-					),
-					LongStream.of(
-						request.attributeIndexes()
-							.stream()
-							.mapToLong(FilterIndex::getId)
-							.sorted()
-							.toArray()
-					)
-				).toArray()
-			);
-		}
-		return this.memoizedHash;
-	}
-
-	@Override
-	public long computeTransactionalIdHash(@Nonnull LongHashFunction hashFunction) {
-		if (this.memoizedTransactionalIdHash == null) {
-			this.memoizedTransactionalIdHash = hashFunction.hashLongs(
-				Arrays.stream(gatherTransactionalIds())
-					.distinct()
-					.sorted()
-					.toArray()
-			);
-		}
-		return this.memoizedTransactionalIdHash;
-	}
-
-	@Nonnull
-	@Override
-	public long[] gatherTransactionalIds() {
-		if (this.memoizedTransactionalIds == null) {
-			this.memoizedTransactionalIds = LongStream.concat(
-					LongStream.of(filterFormula.gatherTransactionalIds()),
-					request.attributeIndexes()
-						.stream()
-						.mapToLong(FilterIndex::getId)
-				)
-				.toArray();
-		}
-		return this.memoizedTransactionalIds;
-	}
-
-	@Override
-	public long getEstimatedCost(@Nonnull CalculationContext calculationContext) {
-		if (calculationContext.visit(CalculationType.ESTIMATED_COST, this)) {
-			return filterFormula.getEstimatedCost(calculationContext) +
-				getAttributeIndexes()
-					.stream()
-					.map(FilterIndex::getAllRecordsFormula)
-					.mapToLong(it -> it.getEstimatedCost(calculationContext))
-					.sum() * getOperationCost();
-		} else {
-			return 0L;
-		}
-	}
-
-	@Override
-	public long getCost(@Nonnull CalculationContext calculationContext) {
-		if (calculationContext.visit(CalculationType.COST, this)) {
-			return filterFormula.getCost(calculationContext) +
-				Arrays.stream(computeNarrowedHistogramBuckets(this, filterFormula))
-					.mapToInt(it -> it.getRecordIds().size())
-					.sum() * getOperationCost();
-		} else {
-			return 0L;
-		}
-	}
-
-	@Override
-	public long getOperationCost() {
-		// if the behavior is optimized we add 33% penalty because some histograms would need to be computed twice
-		return behavior == HistogramBehavior.STANDARD ? 2213 : 3320;
-	}
-
-	@Override
-	public long getCostToPerformanceRatio(@Nonnull CalculationContext calculationContext) {
-		return getCost(calculationContext) / (getOperationCost() * bucketCount);
-	}
-
-	@Nonnull
-	@Override
-	public CacheableHistogramContract compute() {
-		if (memoizedResult == null) {
-			// create cruncher that will compute the histogram
-			@SuppressWarnings("rawtypes")
-			final ValueToRecordBitmap[] histogramBuckets = computeNarrowedHistogramBuckets(
-				this, filterFormula
-			);
-			@SuppressWarnings("unchecked")
-			final HistogramDataCruncher<?> optimalHistogram = createHistogramDataCruncher(
-				this, bucketCount, behavior, histogramBuckets
-			);
-
-			if (optimalHistogram != null) {
-				memoizedResult = new CacheableHistogram(
-					optimalHistogram.getHistogram(),
-					optimalHistogram.getMaxValue()
-				);
-			} else {
-				memoizedResult = CacheableHistogramContract.EMPTY;
-			}
-
-			ofNullable(onComputationCallback).ifPresent(it -> it.accept(this));
-		}
-		return memoizedResult;
 	}
 
 	/**

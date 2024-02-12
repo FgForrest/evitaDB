@@ -121,7 +121,7 @@ public class DisentangleFormula extends AbstractCacheableFormula implements Cach
 	}
 
 	@Override
-	public long getEstimatedCostInternal(@Nonnull CalculationContext calculationContext) {
+	public long getEstimatedCostInternal() {
 		if (mainBitmap != null && controlBitmap != null) {
 			try {
 				long costs = mainBitmap.size();
@@ -131,7 +131,7 @@ public class DisentangleFormula extends AbstractCacheableFormula implements Cach
 				return Long.MAX_VALUE;
 			}
 		} else {
-			return super.getEstimatedCostInternal(calculationContext);
+			return super.getEstimatedCostInternal();
 		}
 	}
 
@@ -178,11 +178,11 @@ public class DisentangleFormula extends AbstractCacheableFormula implements Cach
 	}
 
 	@Override
-	protected long getCostInternal(@Nonnull CalculationContext calculationContext) {
+	protected long getCostInternal() {
 		if (mainBitmap != null && controlBitmap != null) {
 			return Stream.of(mainBitmap, controlBitmap).mapToLong(Bitmap::size).sum();
 		} else {
-			return super.getCostInternal(calculationContext);
+			return super.getCostInternal();
 		}
 	}
 

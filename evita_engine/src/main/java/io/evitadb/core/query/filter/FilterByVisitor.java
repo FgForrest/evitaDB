@@ -76,6 +76,7 @@ import io.evitadb.core.query.filter.translator.price.PriceValidInTranslator;
 import io.evitadb.core.query.filter.translator.reference.EntityHavingTranslator;
 import io.evitadb.core.query.filter.translator.reference.ReferenceHavingTranslator;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
+import io.evitadb.core.query.response.TransactionalDataRelatedStructure.CalculationContext;
 import io.evitadb.core.query.sort.attribute.translator.EntityNestedQueryComparator;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.function.TriFunction;
@@ -976,6 +977,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 	@Nonnull
 	private Formula constructFinalFormula(@Nonnull Formula constraintFormula) {
 		Formula finalFormula = constraintFormula;
+		final CalculationContext calculationContext = new CalculationContext();
 		if (!postProcessors.isEmpty()) {
 			final Set<FormulaPostProcessor> executedProcessors = CollectionUtils.createHashSet(postProcessors.size());
 			for (FormulaPostProcessor postProcessor : postProcessors.values()) {
@@ -986,7 +988,11 @@ public class FilterByVisitor implements ConstraintVisitor {
 				}
 			}
 		}
-		final FormulaDeduplicator deduplicator = new FormulaDeduplicator(finalFormula);
+		final FormulaDeduplicator deduplicator = new FormulaDeduplicator(
+			finalFormula,
+			result -> result.initialize(calculationContext),
+			result -> result.initializeAgain(calculationContext)
+		);
 		deduplicator.visit(constraintFormula);
 		return deduplicator.getPostProcessedFormula();
 	}
