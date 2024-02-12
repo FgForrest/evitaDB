@@ -34,7 +34,6 @@ import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRec
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords.PriceRecordLookup;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords.SortingForm;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.ResolvedFilteredPriceRecords;
-import io.evitadb.core.query.algebra.price.innerRecordHandling.PriceHandlingContainerFormula;
 import io.evitadb.core.query.algebra.price.predicate.PriceAmountPredicate;
 import io.evitadb.core.query.algebra.price.predicate.PricePredicate;
 import io.evitadb.core.query.algebra.price.predicate.PriceRecordPredicate;
@@ -100,7 +99,7 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 	@Getter private Bitmap recordsFilteredOutByPredicate;
 
 	public PlainPriceTerminationFormulaWithPriceFilter(
-		@Nonnull PriceHandlingContainerFormula containerFormula,
+		@Nonnull Formula containerFormula,
 		@Nonnull PriceEvaluationContext priceEvaluationContext,
 		@Nonnull PriceRecordPredicate pricePredicate
 	) {
@@ -111,7 +110,7 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 
 	private PlainPriceTerminationFormulaWithPriceFilter(
 		@Nullable Consumer<CacheableFormula> computationCallback,
-		@Nonnull PriceHandlingContainerFormula containerFormula,
+		@Nonnull Formula containerFormula,
 		@Nonnull PriceEvaluationContext priceEvaluationContext,
 		@Nonnull PriceRecordPredicate pricePredicate
 	) {
@@ -122,7 +121,7 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 
 	private PlainPriceTerminationFormulaWithPriceFilter(
 		@Nullable Consumer<CacheableFormula> computationCallback,
-		@Nonnull PriceHandlingContainerFormula containerFormula,
+		@Nonnull Formula containerFormula,
 		@Nonnull PriceEvaluationContext priceEvaluationContext,
 		@Nonnull PriceRecordPredicate pricePredicate,
 		@Nonnull Bitmap recordsFilteredOutByPredicate
@@ -143,7 +142,13 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 	 * Returns delegate formula of this container.
 	 */
 	public Formula getDelegate() {
-		return ((PriceHandlingContainerFormula) this.innerFormulas[0]).getDelegate();
+		return this.innerFormulas[0];
+	}
+
+	@Override
+	public void initialize(@Nonnull CalculationContext calculationContext) {
+		getDelegate().initialize(calculationContext);
+		super.initialize(calculationContext);
 	}
 
 	@Nonnull
@@ -151,7 +156,7 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 	public Formula getCloneWithInnerFormulas(@Nonnull Formula... innerFormulas) {
 		Assert.isPremiseValid(innerFormulas.length == 1, "Expected exactly single delegate inner formula!");
 		return new PlainPriceTerminationFormulaWithPriceFilter(
-			computationCallback, (PriceHandlingContainerFormula) innerFormulas[0], priceEvaluationContext, pricePredicate
+			computationCallback, innerFormulas[0], priceEvaluationContext, pricePredicate
 		);
 	}
 
@@ -165,7 +170,7 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 	public Formula getCloneWithPricePredicateFilteredOutResults() {
 		return new PlainPriceTerminationFormulaWithPriceFilter(
 			computationCallback,
-			(PriceHandlingContainerFormula) innerFormulas[0],
+			innerFormulas[0],
 			priceEvaluationContext,
 			PricePredicate.ALL_RECORD_FILTER,
 			recordsFilteredOutByPredicate
@@ -178,7 +183,7 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 		Assert.isPremiseValid(innerFormulas.length == 1, "Expected exactly single delegate inner formula!");
 		return new PlainPriceTerminationFormulaWithPriceFilter(
 			selfOperator,
-			(PriceHandlingContainerFormula) innerFormulas[0],
+			innerFormulas[0],
 			priceEvaluationContext, pricePredicate
 		);
 	}
@@ -199,7 +204,7 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 	public FlattenedFormula toSerializableFormula(long formulaHash, @Nonnull LongHashFunction hashFunction) {
 		return new FlattenedFormulaWithFilteredPricesAndFilteredOutRecords(
 			formulaHash,
-			computeTransactionalIdHash(hashFunction),
+			getTransactionalIdHash(),
 			Arrays.stream(gatherTransactionalIds())
 				.distinct()
 				.sorted()

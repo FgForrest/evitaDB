@@ -25,7 +25,6 @@ package io.evitadb.core.query.algebra.price.termination;
 
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.algebra.price.innerRecordHandling.PriceHandlingContainerFormula;
 import io.evitadb.core.query.algebra.price.predicate.PriceAmountPredicate;
 import io.evitadb.core.query.algebra.price.predicate.PricePredicate;
 import io.evitadb.index.bitmap.Bitmap;
@@ -53,7 +52,7 @@ public class PlainPriceTerminationFormula extends AbstractFormula implements Pri
 	 */
 	@Getter private final PriceEvaluationContext priceEvaluationContext;
 
-	public PlainPriceTerminationFormula(@Nonnull PriceHandlingContainerFormula containerFormula, @Nonnull PriceEvaluationContext priceEvaluationContext) {
+	public PlainPriceTerminationFormula(@Nonnull Formula containerFormula, @Nonnull PriceEvaluationContext priceEvaluationContext) {
 		super(containerFormula);
 		this.priceEvaluationContext = priceEvaluationContext;
 	}
@@ -62,7 +61,13 @@ public class PlainPriceTerminationFormula extends AbstractFormula implements Pri
 	 * Returns delegate formula of this container.
 	 */
 	public Formula getDelegate() {
-		return ((PriceHandlingContainerFormula) this.innerFormulas[0]).getDelegate();
+		return this.innerFormulas[0];
+	}
+
+	@Override
+	public void initialize(@Nonnull CalculationContext calculationContext) {
+		getDelegate().initialize(calculationContext);
+		super.initialize(calculationContext);
 	}
 
 	@Nullable
@@ -76,7 +81,7 @@ public class PlainPriceTerminationFormula extends AbstractFormula implements Pri
 	public Formula getCloneWithInnerFormulas(@Nonnull Formula... innerFormulas) {
 		Assert.isPremiseValid(innerFormulas.length == 1, "Expected exactly single delegate inner formula!");
 		return new PlainPriceTerminationFormula(
-			(PriceHandlingContainerFormula) innerFormulas[0], priceEvaluationContext
+			innerFormulas[0], priceEvaluationContext
 		);
 	}
 

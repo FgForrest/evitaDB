@@ -41,6 +41,7 @@ import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 import net.openhft.hashing.LongHashFunction;
 
@@ -73,6 +74,7 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 	private final int bucketCount;
 	/**
 	 * Contains behavior that was requested by the user in the query.
+	 *
 	 * @see HistogramBehavior
 	 */
 	@Nonnull private final HistogramBehavior behavior;
@@ -107,13 +109,25 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 	 */
 	@Nullable private final FilteredPriceRecordsLookupResult priceRecordsLookupResult;
 	/**
-	 * Contains memoized value of {@link #computeHash(LongHashFunction)} method.
+	 * Contains memoized value of {@link #getHash()} method.
 	 */
-	private Long memoizedHash;
+	private Long hash;
 	/**
 	 * Contains memoized value of {@link #gatherTransactionalIds()} method.
 	 */
-	private long[] memoizedTransactionalIds;
+	private long[] transactionalIds;
+	/**
+	 * Contains memoized value of {@link #getEstimatedCost()} ()}  of this formula.
+	 */
+	private Long estimatedCost;
+	/**
+	 * Contains memoized value of {@link #getCost()}  of this formula.
+	 */
+	private Long cost;
+	/**
+	 * Contains memoized value of {@link #getCostToPerformanceRatio()} of this formula.
+	 */
+	private Long costToPerformance;
 	/**
 	 * Contains memoized value of {@link #gatherTransactionalIds()} computed hash.
 	 */
@@ -151,28 +165,58 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 	}
 
 	@Override
-	public long computeHash(@Nonnull LongHashFunction hashFunction) {
-		if (this.memoizedHash == null) {
-			this.memoizedHash = hashFunction.hashLongs(
-				new long[] {
+	public void initialize(@Nonnull CalculationContext calculationContext) {
+		this.filteringFormula.initialize(calculationContext);
+		if (this.hash == null) {
+			this.hash = calculationContext.getHashFunction().hashLongs(
+				new long[]{
 					bucketCount, behavior.ordinal(),
 					queryPriceMode.ordinal(),
-					filteringFormula.computeHash(hashFunction)
+					filteringFormula.getHash()
 				}
 			);
 		}
-		return this.memoizedHash;
-	}
-
-	@Override
-	public long computeTransactionalIdHash(@Nonnull LongHashFunction hashFunction) {
 		if (this.memoizedTransactionalIdHash == null) {
-			this.memoizedTransactionalIdHash = hashFunction.hashLongs(
-				Arrays.stream(gatherTransactionalIds())
+			this.transactionalIds = filteringFormula.gatherTransactionalIds();
+			this.memoizedTransactionalIdHash = calculationContext.getHashFunction().hashLongs(
+				Arrays.stream(this.transactionalIds)
 					.distinct()
 					.sorted()
 					.toArray()
 			);
+		}
+		if (this.estimatedCost == null) {
+			if (calculationContext.visit(CalculationType.ESTIMATED_COST, this)) {
+				this.estimatedCost = filteringFormula.compute().size() *
+					(filteredPriceRecordAccessors.size() / 2) *
+					getOperationCost();
+			} else {
+				this.estimatedCost = 0L;
+			}
+		}
+		if (this.cost == null && this.memoizedResult != null) {
+			if (calculationContext.visit(CalculationType.COST, this)) {
+				this.cost = getPriceRecords().length * getOperationCost();
+				this.costToPerformance = getCost() / (getOperationCost() * bucketCount);
+			} else {
+				this.cost = 0L;
+				this.costToPerformance = Long.MAX_VALUE;
+			}
+		}
+	}
+
+	@Override
+	public long getHash() {
+		if (this.hash == null) {
+			initialize(CalculationContext.NO_CACHING_INSTANCE);
+		}
+		return this.hash;
+	}
+
+	@Override
+	public long getTransactionalIdHash() {
+		if (this.memoizedTransactionalIdHash == null) {
+			initialize(CalculationContext.NO_CACHING_INSTANCE);
 		}
 		return this.memoizedTransactionalIdHash;
 	}
@@ -180,30 +224,27 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 	@Nonnull
 	@Override
 	public long[] gatherTransactionalIds() {
-		if (this.memoizedTransactionalIds == null) {
-			this.memoizedTransactionalIds = filteringFormula.gatherTransactionalIds();
+		if (this.transactionalIds == null) {
+			initialize(CalculationContext.NO_CACHING_INSTANCE);
 		}
-		return this.memoizedTransactionalIds;
+		return this.transactionalIds;
 	}
 
 	@Override
-	public long getEstimatedCost(@Nonnull CalculationContext calculationContext) {
-		if (calculationContext.visit(CalculationType.ESTIMATED_COST, this)) {
-			return filteringFormula.compute().size() *
-				(filteredPriceRecordAccessors.size() / 2) *
-				getOperationCost();
-		} else {
-			return 0L;
+	public long getEstimatedCost() {
+		if (this.estimatedCost == null) {
+			initialize(CalculationContext.NO_CACHING_INSTANCE);
 		}
+		return this.estimatedCost;
 	}
 
 	@Override
-	public long getCost(@Nonnull CalculationContext calculationContext) {
-		if (calculationContext.visit(CalculationType.COST, this)) {
-			return getPriceRecords().length * getOperationCost();
-		} else {
-			return 0L;
+	public long getCost() {
+		if (this.cost == null) {
+			initialize(CalculationContext.NO_CACHING_INSTANCE);
+			Assert.isPremiseValid(this.cost != null, "Formula results haven't been computed!");
 		}
+		return this.cost;
 	}
 
 	@Override
@@ -213,15 +254,19 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 	}
 
 	@Override
-	public long getCostToPerformanceRatio(@Nonnull CalculationContext calculationContext) {
-		return getCost(calculationContext) / (getOperationCost() * bucketCount);
+	public long getCostToPerformanceRatio() {
+		if (this.costToPerformance == null) {
+			initialize(CalculationContext.NO_CACHING_INSTANCE);
+			Assert.isPremiseValid(this.costToPerformance != null, "Formula results haven't been computed!");
+		}
+		return this.costToPerformance;
 	}
 
 	@Override
 	public FlattenedHistogramComputer toSerializableResult(long extraResultHash, @Nonnull LongHashFunction hashFunction) {
 		return new FlattenedHistogramComputer(
 			extraResultHash,
-			computeHash(hashFunction),
+			getHash(),
 			Arrays.stream(gatherTransactionalIds())
 				.distinct()
 				.sorted()

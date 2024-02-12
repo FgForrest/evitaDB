@@ -213,7 +213,7 @@ public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProces
 			this.outputFormula = formula;
 		}
 		if (formula instanceof final SelectionFormula selectionFormula) {
-			expectedComputationalCosts += selectionFormula.getDelegate().getEstimatedCost(queryContext.getCalculationContext());
+			expectedComputationalCosts += selectionFormula.getDelegate().getEstimatedCost();
 		}
 		if (formula instanceof final RequirementsDefiner requirementsDefiner) {
 			final EntityRequire entityRequire = requirementsDefiner.getEntityRequire();

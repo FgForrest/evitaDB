@@ -42,6 +42,10 @@ import javax.annotation.Nonnull;
 public class HierarchyRootsDownToLevelBitmapSupplier extends AbstractHierarchyBitmapSupplier {
 	private static final int CLASS_ID = 390851708;
 	/**
+	 * Contains memoized value of {@link #getHash()} method.
+	 */
+	private Long hash;
+	/**
 	 * Contains count of tree levels from the root should be returned (i.e. depth of the returned tree).
 	 */
 	private final int levels;
@@ -57,11 +61,17 @@ public class HierarchyRootsDownToLevelBitmapSupplier extends AbstractHierarchyBi
 	}
 
 	@Override
+	public void initialize(@Nonnull CalculationContext calculationContext) {
+		excludedNodeTrees.initialize(calculationContext);
+		super.initialize(calculationContext);
+	}
+
+	@Override
 	public long computeHash(@Nonnull LongHashFunction hashFunction) {
 		return hashFunction.hashLongs(
 			new long[]{
 				hashFunction.hashInts(new int[]{CLASS_ID, levels}),
-				excludedNodeTrees.computeHash(hashFunction)
+				excludedNodeTrees.getHash()
 			}
 		);
 	}

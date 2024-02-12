@@ -210,7 +210,7 @@ public class JoinFormula extends AbstractFormula {
 	}
 
 	@Override
-	public long getEstimatedCostInternal(@Nonnull CalculationContext calculationContext) {
+	public long getEstimatedCostInternal() {
 		try {
 			long costs = 0L;
 			for (Bitmap bitmap : bitmaps) {
@@ -255,10 +255,10 @@ public class JoinFormula extends AbstractFormula {
 	}
 
 	@Override
-	protected long getCostInternal(@Nonnull CalculationContext calculationContext) {
+	protected long getCostInternal() {
 		return ofNullable(this.bitmaps)
 			.map(it -> Arrays.stream(it).mapToLong(Bitmap::size).sum())
-			.orElseGet(() -> super.getCostInternal(calculationContext));
+			.orElseGet(super::getCostInternal);
 	}
 
 	/*

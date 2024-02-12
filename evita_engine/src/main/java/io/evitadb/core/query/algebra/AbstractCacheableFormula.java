@@ -69,7 +69,8 @@ public abstract class AbstractCacheableFormula extends AbstractFormula implement
 	public FlattenedFormula toSerializableFormula(long formulaHash, @Nonnull LongHashFunction hashFunction) {
 		// by this time computation result should be already memoized
 		return new FlattenedFormula(
-			formulaHash, computeTransactionalIdHash(hashFunction),
+			formulaHash,
+			getTransactionalIdHash(),
 			Arrays.stream(gatherTransactionalIds())
 				.distinct()
 				.sorted()

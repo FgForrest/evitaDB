@@ -58,7 +58,7 @@ public class ConstantFormula extends AbstractFormula {
 	}
 
 	@Override
-	public long getEstimatedCostInternal(@Nonnull CalculationContext calculationContext) {
+	public long getEstimatedCostInternal() {
 		return delegate.size();
 	}
 

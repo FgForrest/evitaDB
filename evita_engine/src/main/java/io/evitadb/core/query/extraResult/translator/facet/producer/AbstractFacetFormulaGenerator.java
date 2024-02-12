@@ -30,7 +30,6 @@ import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.core.query.QueryPlanner.FutureNotFormula;
-import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.FormulaVisitor;
 import io.evitadb.core.query.algebra.base.AndFormula;
@@ -683,9 +682,7 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 						targetFound = true;
 						mutableFormula.setDelegate(formulaToReplaceSupplier.get());
 						for (Formula parentFormula : formulaStack) {
-							if (parentFormula instanceof AbstractFormula abstractFormula) {
-								abstractFormula.clearMemoizedResult();
-							}
+							parentFormula.clearMemory();
 						}
 					}
 				} else {

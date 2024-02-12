@@ -111,7 +111,7 @@ public class QueryPlan {
 		queryContext.pushStep(QueryPhase.EXECUTION);
 		new QueryPlanStepExecutedEvent(
 			QueryPhase.EXECUTION.name(),
-			this.filter.getEstimatedCost(queryContext.getCalculationContext())
+			this.filter.getEstimatedCost()
 		).commit();
 
 		try {

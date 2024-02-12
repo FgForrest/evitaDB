@@ -97,7 +97,7 @@ public class PriceListCombinationFormula extends NotFormula implements Cacheable
 		// by this time computation result should be already memoized
 		return new FlattenedFormulaWithFilteredPrices(
 			formulaHash,
-			computeTransactionalIdHash(hashFunction),
+			getTransactionalIdHash(),
 			Arrays.stream(gatherTransactionalIds())
 				.distinct()
 				.sorted()

@@ -24,8 +24,8 @@
 package io.evitadb.index.hierarchy.predicate;
 
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.response.TransactionalDataRelatedStructure.CalculationContext;
 import io.evitadb.index.EntityIndex;
-import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import java.util.Locale;
@@ -44,8 +44,13 @@ public class LocaleHierarchyEntityPredicate implements HierarchyFilteringPredica
 	}
 
 	@Override
-	public long computeHash(@Nonnull LongHashFunction hashFunction) {
-		return filteringFormula.computeHash(hashFunction);
+	public void initialize(@Nonnull CalculationContext calculationContext) {
+		filteringFormula.initialize(calculationContext);
+	}
+
+	@Override
+	public long getHash() {
+		return filteringFormula.getHash();
 	}
 
 	@Override

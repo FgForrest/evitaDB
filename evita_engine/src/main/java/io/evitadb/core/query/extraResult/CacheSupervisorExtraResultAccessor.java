@@ -42,7 +42,7 @@ public class CacheSupervisorExtraResultAccessor implements ExtraResultCacheAcces
 	@Override
 	public <U, T extends CacheableEvitaResponseExtraResultComputer<U>> EvitaResponseExtraResultComputer<U> analyse(@Nonnull String entityType, @Nonnull T computer) {
 		return queryContext.getCacheSupervisor().analyse(
-			queryContext.getEvitaSession(), queryContext.getCalculationContext(), entityType, computer
+			queryContext.getEvitaSession(), entityType, computer
 		);
 	}
 

@@ -189,7 +189,7 @@ public class FormulaCloner implements FormulaVisitor {
 		PRIVATE METHODS
 	 */
 
-	private void storeFormula(Formula formula) {
+	private void storeFormula(@Nonnull Formula formula) {
 		// store updated formula
 		if (treeStack.isEmpty()) {
 			this.resultClone = formula;

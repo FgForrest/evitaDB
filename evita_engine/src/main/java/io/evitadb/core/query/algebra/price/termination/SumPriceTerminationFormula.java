@@ -39,7 +39,6 @@ import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRec
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords.PriceRecordLookup;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords.SortingForm;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.ResolvedFilteredPriceRecords;
-import io.evitadb.core.query.algebra.price.innerRecordHandling.PriceHandlingContainerFormula;
 import io.evitadb.core.query.algebra.price.predicate.PriceAmountPredicate;
 import io.evitadb.core.query.algebra.price.predicate.PricePredicate;
 import io.evitadb.core.query.algebra.price.predicate.PriceRecordPredicate;
@@ -115,7 +114,7 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 	@Getter private Bitmap recordsFilteredOutByPredicate;
 
 	public SumPriceTerminationFormula(
-		@Nonnull PriceHandlingContainerFormula containerFormula,
+		@Nonnull Formula containerFormula,
 		@Nonnull PriceEvaluationContext priceEvaluationContext,
 		@Nonnull QueryPriceMode queryPriceMode,
 		@Nonnull PriceRecordPredicate pricePredicate
@@ -133,7 +132,7 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 
 	private SumPriceTerminationFormula(
 		@Nullable Consumer<CacheableFormula> computationCallback,
-		@Nonnull PriceHandlingContainerFormula containerFormula,
+		@Nonnull Formula containerFormula,
 		@Nonnull PriceEvaluationContext priceEvaluationContext,
 		@Nonnull QueryPriceMode queryPriceMode,
 		@Nonnull PriceRecordPredicate pricePredicate
@@ -151,7 +150,7 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 
 	private SumPriceTerminationFormula(
 		@Nullable Consumer<CacheableFormula> computationCallback,
-		@Nonnull PriceHandlingContainerFormula containerFormula,
+		@Nonnull Formula containerFormula,
 		@Nonnull PriceEvaluationContext priceEvaluationContext,
 		@Nonnull QueryPriceMode queryPriceMode,
 		@Nonnull PriceRecordPredicate pricePredicate,
@@ -179,7 +178,13 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 	 * Returns delegate formula of this container.
 	 */
 	public Formula getDelegate() {
-		return ((PriceHandlingContainerFormula) this.innerFormulas[0]).getDelegate();
+		return this.innerFormulas[0];
+	}
+
+	@Override
+	public void initialize(@Nonnull CalculationContext calculationContext) {
+		getDelegate().initialize(calculationContext);
+		super.initialize(calculationContext);
 	}
 
 	@Nonnull
@@ -188,7 +193,7 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 		Assert.isPremiseValid(innerFormulas.length == 1, "Expected exactly single delegate inner formula!");
 		return new SumPriceTerminationFormula(
 			computationCallback,
-			(PriceHandlingContainerFormula) innerFormulas[0],
+			innerFormulas[0],
 			priceEvaluationContext, queryPriceMode, pricePredicate
 		);
 	}
@@ -203,7 +208,7 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 	public Formula getCloneWithPricePredicateFilteredOutResults() {
 		return new SumPriceTerminationFormula(
 			computationCallback,
-			(PriceHandlingContainerFormula) innerFormulas[0],
+			innerFormulas[0],
 			priceEvaluationContext, queryPriceMode, PricePredicate.ALL_RECORD_FILTER,
 			recordsFilteredOutByPredicate
 		);
@@ -215,7 +220,7 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 		Assert.isPremiseValid(innerFormulas.length == 1, "Expected exactly single delegate inner formula!");
 		return new SumPriceTerminationFormula(
 			selfOperator,
-			(PriceHandlingContainerFormula) innerFormulas[0],
+			innerFormulas[0],
 			priceEvaluationContext, queryPriceMode, pricePredicate
 		);
 	}
@@ -236,7 +241,7 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 	public FlattenedFormula toSerializableFormula(long formulaHash, @Nonnull LongHashFunction hashFunction) {
 		return new FlattenedFormulaWithFilteredPricesAndFilteredOutRecords(
 			formulaHash,
-			computeTransactionalIdHash(hashFunction),
+			getTransactionalIdHash(),
 			Arrays.stream(gatherTransactionalIds())
 				.distinct()
 				.sorted()

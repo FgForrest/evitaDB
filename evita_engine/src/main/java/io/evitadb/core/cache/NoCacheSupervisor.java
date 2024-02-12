@@ -30,7 +30,6 @@ import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.extraResult.CacheableEvitaResponseExtraResultComputer;
 import io.evitadb.core.query.extraResult.EvitaResponseExtraResultComputer;
-import io.evitadb.core.query.response.TransactionalDataRelatedStructure.CalculationContext;
 import io.evitadb.core.query.sort.CacheableSorter;
 import io.evitadb.core.query.sort.Sorter;
 import lombok.AccessLevel;
@@ -59,7 +58,6 @@ public class NoCacheSupervisor implements CacheSupervisor {
 	@Override
 	public <T extends Formula> T analyse(
 		@Nullable EvitaSessionContract evitaSession,
-		@Nonnull CalculationContext calculationContext,
 		@Nonnull String entityType,
 		@Nonnull T filterFormula
 	) {
@@ -72,7 +70,6 @@ public class NoCacheSupervisor implements CacheSupervisor {
 	@Override
 	public <U, T extends CacheableEvitaResponseExtraResultComputer<U>> EvitaResponseExtraResultComputer<U> analyse(
 		@Nullable EvitaSessionContract evitaSession,
-		@Nonnull CalculationContext calculationContext,
 		@Nonnull String entityType,
 		@Nonnull T extraResultComputer
 	) {
@@ -84,7 +81,6 @@ public class NoCacheSupervisor implements CacheSupervisor {
 	@Override
 	public Sorter analyse(
 		@Nonnull EvitaSessionContract evitaSession,
-		@Nonnull CalculationContext calculationContext,
 		@Nonnull String entityType,
 		@Nonnull CacheableSorter sortedRecordsProvider
 	) {
@@ -96,7 +92,6 @@ public class NoCacheSupervisor implements CacheSupervisor {
 	@Override
 	public Optional<EntityDecorator> analyse(
 		@Nonnull EvitaSessionContract evitaSession,
-		@Nonnull CalculationContext calculationContext,
 		int primaryKey,
 		@Nonnull String entityType,
 		@Nonnull OffsetDateTime offsetDateTime,
@@ -111,7 +106,6 @@ public class NoCacheSupervisor implements CacheSupervisor {
 	@Override
 	public Optional<BinaryEntity> analyse(
 		@Nonnull EvitaSessionContract evitaSession,
-		@Nonnull CalculationContext calculationContext,
 		int primaryKey,
 		@Nonnull String entityType,
 		@Nullable EntityFetch entityRequirement,

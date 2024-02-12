@@ -23,9 +23,9 @@
 
 package io.evitadb.index.hierarchy.predicate;
 
+import io.evitadb.core.query.response.TransactionalDataRelatedStructure.CalculationContext;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
-import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -64,9 +64,16 @@ public interface HierarchyFilteringPredicate extends IntPredicate {
 	}
 
 	/**
-	 * Computes unique hash for this predicate.
+	 * Allows to compute the {@link #getHash()}. Must be called prior to {@link #getHash()} method
+	 *
+	 * @param calculationContext the context providing access to hash function
 	 */
-	long computeHash(@Nonnull LongHashFunction hashFunction);
+	void initialize(@Nonnull CalculationContext calculationContext);
+
+	/**
+	 * Returns unique hash for this predicate.
+	 */
+	long getHash();
 
 	@Nonnull
 	@Override
@@ -86,10 +93,29 @@ public interface HierarchyFilteringPredicate extends IntPredicate {
 		@Serial private static final long serialVersionUID = 1384400346650986235L;
 		private final HierarchyFilteringPredicate first;
 		private final HierarchyFilteringPredicate second;
+		private Long hash;
 
 		@Override
-		public long computeHash(@Nonnull LongHashFunction hashFunction) {
-			return hashFunction.hashLongs(new long[]{serialVersionUID, first.computeHash(hashFunction), second.computeHash(hashFunction)});
+		public void initialize(@Nonnull CalculationContext calculationContext) {
+			first.initialize(calculationContext);
+			second.initialize(calculationContext);
+			if (this.hash == null) {
+				this.hash = calculationContext.getHashFunction().hashLongs(
+					new long[]{
+						serialVersionUID,
+						first.getHash(),
+						second.getHash()
+					}
+				);
+			}
+		}
+
+		@Override
+		public long getHash() {
+			if (this.hash == null) {
+		initialize(CalculationContext.NO_CACHING_INSTANCE);
+}
+			return this.hash;
 		}
 
 		@Override
@@ -113,10 +139,29 @@ public interface HierarchyFilteringPredicate extends IntPredicate {
 		@Serial private static final long serialVersionUID = 2547741955086633818L;
 		private final HierarchyFilteringPredicate first;
 		private final HierarchyFilteringPredicate second;
+		private Long hash;
 
 		@Override
-		public long computeHash(@Nonnull LongHashFunction hashFunction) {
-			return hashFunction.hashLongs(new long[]{serialVersionUID, first.computeHash(hashFunction), second.computeHash(hashFunction)});
+		public void initialize(@Nonnull CalculationContext calculationContext) {
+			first.initialize(calculationContext);
+			second.initialize(calculationContext);
+			if (this.hash == null) {
+				this.hash = calculationContext.getHashFunction().hashLongs(
+					new long[]{
+						serialVersionUID,
+						first.getHash(),
+						second.getHash()
+					}
+				);
+			}
+		}
+
+		@Override
+		public long getHash() {
+			if (this.hash == null) {
+		initialize(CalculationContext.NO_CACHING_INSTANCE);
+}
+			return this.hash;
 		}
 
 		@Override
@@ -134,7 +179,12 @@ public interface HierarchyFilteringPredicate extends IntPredicate {
 		@Serial private static final long serialVersionUID = 5859718563627156229L;
 
 		@Override
-		public long computeHash(@Nonnull LongHashFunction hashFunction) {
+		public void initialize(@Nonnull CalculationContext calculationContext) {
+
+		}
+
+		@Override
+		public long getHash() {
 			return serialVersionUID;
 		}
 
@@ -153,7 +203,12 @@ public interface HierarchyFilteringPredicate extends IntPredicate {
 		@Serial private static final long serialVersionUID = 387062010451039137L;
 
 		@Override
-		public long computeHash(@Nonnull LongHashFunction hashFunction) {
+		public void initialize(@Nonnull CalculationContext calculationContext) {
+
+		}
+
+		@Override
+		public long getHash() {
 			return serialVersionUID;
 		}
 
@@ -171,10 +226,22 @@ public interface HierarchyFilteringPredicate extends IntPredicate {
 	@RequiredArgsConstructor
 	class NegatedHierarchyFilteringPredicate implements HierarchyFilteringPredicate {
 		@Getter private final HierarchyFilteringPredicate predicate;
+		private Long hash;
 
 		@Override
-		public long computeHash(@Nonnull LongHashFunction hashFunction) {
-			return predicate.computeHash(hashFunction) * -1;
+		public void initialize(@Nonnull CalculationContext calculationContext) {
+			predicate.initialize(calculationContext);
+			if (this.hash == null) {
+				this.hash = predicate.getHash() * -1;
+			}
+		}
+
+		@Override
+		public long getHash() {
+			if (this.hash == null) {
+		initialize(CalculationContext.NO_CACHING_INSTANCE);
+}
+			return this.hash;
 		}
 
 		@Override

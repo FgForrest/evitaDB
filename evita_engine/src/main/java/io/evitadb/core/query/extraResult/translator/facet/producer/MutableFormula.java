@@ -27,8 +27,6 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.FormulaVisitor;
 import io.evitadb.core.query.algebra.facet.FacetGroupFormula;
 import io.evitadb.index.bitmap.Bitmap;
-import lombok.Getter;
-import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import java.util.Objects;
@@ -49,7 +47,8 @@ import java.util.Objects;
  */
 class MutableFormula implements Formula {
 	private FacetGroupFormula pivot;
-	@Getter private FacetGroupFormula delegate;
+	private FacetGroupFormula delegate;
+	private FacetGroupFormula result;
 
 	public MutableFormula(@Nonnull FacetGroupFormula delegate) {
 		this.delegate = delegate;
@@ -63,8 +62,7 @@ class MutableFormula implements Formula {
 	 */
 	public void setPivot(@Nonnull FacetGroupFormula pivot) {
 		this.pivot = pivot;
-		// if the delegate is already present, merge it with the pivot
-		this.delegate = this.pivot.mergeWith(this.delegate);
+		this.result = null;
 	}
 
 	/**
@@ -75,13 +73,60 @@ class MutableFormula implements Formula {
 	 * @param delegate the new delegate formula
 	 */
 	public void setDelegate(@Nonnull FacetGroupFormula delegate) {
-		this.delegate = this.pivot == null ? delegate : this.pivot.mergeWith(delegate);
+		this.delegate = delegate;
+		this.result = null;
+	}
+
+	@Override
+	public void clearMemory() {
+		this.result = null;
+	}
+
+	@Override
+	public void initialize(@Nonnull CalculationContext calculationContext) {
+		getInnerFormula().initialize(calculationContext);
+	}
+
+	@Override
+	public long getHash() {
+		return getInnerFormula().getHash();
+	}
+
+	@Override
+	public long getTransactionalIdHash() {
+		return getInnerFormula().getTransactionalIdHash();
+	}
+
+	@Override
+	@Nonnull
+	public long[] gatherTransactionalIds() {
+		return getInnerFormula().gatherTransactionalIds();
+	}
+
+	@Override
+	public long getEstimatedCost() {
+		return getInnerFormula().getEstimatedCost();
+	}
+
+	@Override
+	public long getCost() {
+		return getInnerFormula().getCost();
+	}
+
+	@Override
+	public long getOperationCost() {
+		return getInnerFormula().getOperationCost();
+	}
+
+	@Override
+	public long getCostToPerformanceRatio() {
+		return getInnerFormula().getCostToPerformanceRatio();
 	}
 
 	@Override
 	@Nonnull
 	public String prettyPrint() {
-		return delegate.prettyPrint();
+		return getInnerFormula().prettyPrint();
 	}
 
 	@Override
@@ -92,7 +137,7 @@ class MutableFormula implements Formula {
 	@Override
 	@Nonnull
 	public Bitmap compute() {
-		return delegate.compute();
+		return getInnerFormula().compute();
 	}
 
 	@Override
@@ -104,48 +149,22 @@ class MutableFormula implements Formula {
 	@Override
 	@Nonnull
 	public Formula[] getInnerFormulas() {
-		return delegate.getInnerFormulas();
+		return getInnerFormula().getInnerFormulas();
+	}
+
+	@Override
+	public void initializeAgain(@Nonnull CalculationContext calculationContext) {
+		getInnerFormula().initializeAgain(calculationContext);
 	}
 
 	@Override
 	public int getEstimatedCardinality() {
-		return delegate.getEstimatedCardinality();
+		return getInnerFormula().getEstimatedCardinality();
 	}
 
 	@Override
-	public long computeHash(@Nonnull LongHashFunction hashFunction) {
-		return delegate.computeHash(hashFunction);
-	}
-
-	@Override
-	public long computeTransactionalIdHash(@Nonnull LongHashFunction hashFunction) {
-		return delegate.computeTransactionalIdHash(hashFunction);
-	}
-
-	@Override
-	@Nonnull
-	public long[] gatherTransactionalIds() {
-		return delegate.gatherTransactionalIds();
-	}
-
-	@Override
-	public long getEstimatedCost(@Nonnull CalculationContext calculationContext) {
-		return delegate.getEstimatedCost(calculationContext);
-	}
-
-	@Override
-	public long getCost(@Nonnull CalculationContext calculationContext) {
-		return delegate.getCost(calculationContext);
-	}
-
-	@Override
-	public long getOperationCost() {
-		return delegate.getOperationCost();
-	}
-
-	@Override
-	public long getCostToPerformanceRatio(@Nonnull CalculationContext calculationContext) {
-		return delegate.getCostToPerformanceRatio(calculationContext);
+	public int hashCode() {
+		return getInnerFormula().hashCode();
 	}
 
 	@Override
@@ -159,12 +178,23 @@ class MutableFormula implements Formula {
 	}
 
 	@Override
-	public int hashCode() {
-		return delegate != null ? delegate.hashCode() : 0;
+	public String toString() {
+		return getInnerFormula().toString();
 	}
 
-	@Override
-	public String toString() {
-		return delegate.toString();
+	/**
+	 * Returns the inner formula. If the pivot is set, the result is merged with the pivot.
+	 * @return the inner formula
+	 */
+	@Nonnull
+	private FacetGroupFormula getInnerFormula() {
+		if (this.result == null) {
+			if (this.pivot != null) {
+				this.result = this.pivot.mergeWith(this.delegate);
+			} else {
+				this.result = this.delegate;
+			}
+		}
+		return this.result;
 	}
 }

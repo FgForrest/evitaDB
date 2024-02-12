@@ -23,16 +23,16 @@
 
 package io.evitadb.core.query.filter;
 
-import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.FormulaPostProcessor;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaCloner;
 import io.evitadb.utils.CollectionUtils;
-import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Map;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 
 /**
  * This class is responsible for deduplicating formulas to optimize calculation performance by reusing memoized results.
@@ -42,21 +42,27 @@ import java.util.function.BiFunction;
  */
 public class FormulaDeduplicator extends FormulaCloner implements FormulaPostProcessor {
 	/**
-	 * Hash function used to compute hash of formulas.
-	 */
-	private static final LongHashFunction HASH_FUNCTION = CacheSupervisor.createHashFunction();
-	/**
 	 * Reference to the original unchanged {@link Formula}.
 	 */
 	private Formula originalFormula;
+	/**
+	 * Consumer that will update the cloned formula.
+	 */
+	private final Consumer<Formula> originalResultConsumer;
+	/**
+	 * Consumer that will update the cloned formula.
+	 */
+	private final Consumer<Formula> clonedResultConsumer;
 	/**
 	 * Flag indicating that at least one formula was deduplicated.
 	 */
 	private boolean deduplicationHappened = false;
 
-	public FormulaDeduplicator(@Nonnull Formula originalFormula) {
+	public FormulaDeduplicator(@Nonnull Formula originalFormula, @Nullable Consumer<Formula> originalResultConsumer, @Nullable Consumer<Formula> clonedResultConsumer) {
 		super(new Deduplicator());
 		this.originalFormula = originalFormula;
+		this.clonedResultConsumer = clonedResultConsumer;
+		this.originalResultConsumer = originalResultConsumer;
 	}
 
 	@Nonnull
@@ -65,8 +71,14 @@ public class FormulaDeduplicator extends FormulaCloner implements FormulaPostPro
 		final Formula result;
 		if (this.deduplicationHappened) {
 			result = getResultClone();
+			if (clonedResultConsumer != null) {
+				clonedResultConsumer.accept(result);
+			}
 		} else {
 			result = this.originalFormula;
+			if (originalResultConsumer != null) {
+				originalResultConsumer.accept(result);
+			}
 		}
 		((Deduplicator)this.mutator).clear();
 		this.deduplicationHappened = false;
@@ -92,7 +104,7 @@ public class FormulaDeduplicator extends FormulaCloner implements FormulaPostPro
 			if (clonerInstance.originalFormula == null) {
 				clonerInstance.originalFormula = formula;
 			}
-			final Formula existingFormula = formulaCache.putIfAbsent(formula.computeHash(HASH_FUNCTION), formula);
+			final Formula existingFormula = formulaCache.putIfAbsent(formula.getHash(), formula);
 			if (existingFormula != null) {
 				clonerInstance.deduplicationHappened = true;
 				return existingFormula;

@@ -52,9 +52,15 @@ public class HierarchyRootsBitmapSupplier extends AbstractHierarchyBitmapSupplie
 	}
 
 	@Override
+	public void initialize(@Nonnull CalculationContext calculationContext) {
+		excludedNodeTrees.initialize(calculationContext);
+		super.initialize(calculationContext);
+	}
+
+	@Override
 	public long computeHash(@Nonnull LongHashFunction hashFunction) {
 		return hashFunction.hashLongs(
-			new long[]{CLASS_ID, excludedNodeTrees.computeHash(hashFunction)}
+			new long[]{CLASS_ID, excludedNodeTrees.getHash()}
 		);
 	}
 

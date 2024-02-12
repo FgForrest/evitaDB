@@ -166,9 +166,9 @@ public class FacetGroupAndFormula extends AbstractFormula implements FacetGroupF
 	}
 
 	@Override
-	protected long getCostInternal(@Nonnull CalculationContext calculationContext) {
+	protected long getCostInternal() {
 		return ofNullable(this.bitmaps)
 			.map(it -> Arrays.stream(it).mapToLong(Bitmap::size).sum())
-			.orElseGet(() -> super.getCostInternal(calculationContext));
+			.orElseGet(super::getCostInternal);
 	}
 }

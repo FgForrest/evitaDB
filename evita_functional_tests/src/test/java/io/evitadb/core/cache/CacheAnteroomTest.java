@@ -28,7 +28,6 @@ import io.evitadb.core.cache.payload.FlattenedFormula;
 import io.evitadb.core.query.algebra.CacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.AndFormula;
-import io.evitadb.core.query.response.TransactionalDataRelatedStructure.CalculationContext;
 import io.evitadb.core.scheduling.Scheduler;
 import io.evitadb.test.TestConstants;
 import org.junit.jupiter.api.BeforeEach;
@@ -102,7 +101,7 @@ class CacheAnteroomTest {
 		for (int i = 0; i < 1000; i++) {
 			final int formulaIndex = RANDOM.nextInt(inputFormulas.length);
 			final CacheableFormula inputFormula = inputFormulas[formulaIndex];
-			final Formula theFormula = FormulaCacheVisitor.analyse(evitaSession, CalculationContext.NO_CACHING_INSTANCE, SOME_ENTITY, inputFormula, cacheAnteroom);
+			final Formula theFormula = FormulaCacheVisitor.analyse(evitaSession, SOME_ENTITY, inputFormula, cacheAnteroom);
 			assertEquals(inputFormula.compute(), theFormula.compute());
 			if (theFormula instanceof FlattenedFormula) {
 				cacheHits.merge(formulaIndex, 1, Integer::sum);
@@ -120,7 +119,7 @@ class CacheAnteroomTest {
 			for (int i = 0; i < 1000; i++) {
 				final int formulaIndex = RANDOM.nextInt(inputFormulas.length / 2);
 				final CacheableFormula inputFormula = inputFormulas[formulaIndex];
-				final Formula theFormula = FormulaCacheVisitor.analyse(evitaSession, CalculationContext.NO_CACHING_INSTANCE, SOME_ENTITY, inputFormula, cacheAnteroom);
+				final Formula theFormula = FormulaCacheVisitor.analyse(evitaSession, SOME_ENTITY, inputFormula, cacheAnteroom);
 				assertEquals(inputFormula.compute(), theFormula.compute());
 				if (theFormula instanceof FlattenedFormula) {
 					cacheHits.merge(formulaIndex, 1, Integer::sum);
