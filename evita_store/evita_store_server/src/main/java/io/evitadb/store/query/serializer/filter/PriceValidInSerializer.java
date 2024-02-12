@@ -42,13 +42,13 @@ public class PriceValidInSerializer extends Serializer<PriceValidIn> {
 
 	@Override
 	public void write(Kryo kryo, Output output, PriceValidIn object) {
-		kryo.writeObject(output, object.getTheMoment());
+		kryo.writeObjectOrNull(output, object.getTheMoment(() -> null), OffsetDateTime.class);
 	}
 
 	@Override
 	public PriceValidIn read(Kryo kryo, Input input, Class<? extends PriceValidIn> type) {
-		final OffsetDateTime theMoment = kryo.readObject(input, OffsetDateTime.class);
-		return new PriceValidIn(theMoment);
+		final OffsetDateTime theMoment = kryo.readObjectOrNull(input, OffsetDateTime.class);
+		return theMoment == null ? new PriceValidIn() : new PriceValidIn(theMoment);
 	}
 
 }

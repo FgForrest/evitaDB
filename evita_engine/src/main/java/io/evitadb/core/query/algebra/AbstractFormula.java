@@ -27,6 +27,8 @@ import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.query.algebra.utils.visitor.PrettyPrintingFormulaVisitor;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.transactionalMemory.TransactionalLayerCreator;
+import io.evitadb.utils.Assert;
 import lombok.Getter;
 import net.openhft.hashing.LongHashFunction;
 
@@ -52,49 +54,124 @@ public abstract class AbstractFormula implements Formula {
 	 */
 	protected Bitmap memoizedResult;
 	/**
-	 * Contains memoized value of {@link #getEstimatedCostInternal()} of this formula.
+	 * Contains memoized value of {@link #getEstimatedCost()}  of this formula.
 	 */
 	private Long estimatedCost;
 	/**
-	 * Contains memoized value of {@link #getCostInternal()} of this formula.
+	 * Contains memoized value of {@link #getCost()}  of this formula.
 	 */
 	private Long cost;
 	/**
-	 * Contains memoized value of {@link #getCostToPerformanceInternal()} of this formula.
+	 * Contains memoized value of {@link #getCostToPerformanceRatio()} of this formula.
 	 */
 	private Long costToPerformance;
 	/**
-	 * Contains memoized value of {@link #computeHash(LongHashFunction)} method.
+	 * Contains memoized value of {@link #getHash()} method.
 	 */
-	private Long memoizedHash;
+	private Long hash;
 	/**
 	 * Contains memoized value of {@link #gatherTransactionalIds()} method.
 	 */
-	private long[] memoizedTransactionalIds;
+	private long[] transactionalIds;
 	/**
 	 * Contains memoized value of {@link #gatherTransactionalIds()} computed hash.
 	 */
-	private Long memoizedTransactionalIdHash;
+	private Long transactionalIdHash;
 
 	protected AbstractFormula(Formula... innerFormulas) {
 		this.innerFormulas = innerFormulas;
 	}
 
 	@Override
-	public final long computeHash(@Nonnull LongHashFunction hashFunction) {
-		if (this.memoizedHash == null) {
-			final LongStream formulaHashStream = Arrays.stream(innerFormulas).mapToLong(it -> it.computeHash(hashFunction));
-			this.memoizedHash = hashFunction.hashLongs(
-				Stream.of(
-						LongStream.of(getClassId()),
-						isFormulaOrderSignificant() ? formulaHashStream : formulaHashStream.sorted(),
-						LongStream.of(includeAdditionalHash(hashFunction))
-					)
-					.flatMapToLong(it -> it)
-					.toArray()
-			);
+	public void initialize(@Nonnull CalculationContext calculationContext) {
+		initializeInternal(calculationContext, false);
+	}
+
+	@Override
+	public final long getHash() {
+		if (this.hash == null) {
+			initialize(CalculationContext.NO_CACHING_INSTANCE);
 		}
-		return this.memoizedHash;
+		return this.hash;
+	}
+
+	@Override
+	public long getTransactionalIdHash() {
+		if (this.transactionalIdHash == null) {
+			initialize(CalculationContext.NO_CACHING_INSTANCE);
+		}
+		return this.transactionalIdHash;
+	}
+
+	@Nonnull
+	@Override
+	public final long[] gatherTransactionalIds() {
+		if (this.transactionalIds == null) {
+			initialize(CalculationContext.NO_CACHING_INSTANCE);
+		}
+		return this.transactionalIds;
+	}
+
+	@Override
+	public final long getEstimatedCost() {
+		if (this.estimatedCost == null) {
+			initialize(CalculationContext.NO_CACHING_INSTANCE);
+		}
+		return this.estimatedCost;
+	}
+
+	@Override
+	public final long getCost() {
+		if (this.cost == null) {
+			initialize(CalculationContext.NO_CACHING_INSTANCE);
+			Assert.isPremiseValid(this.cost != null, "Formula results haven't been computed!");
+		}
+		return this.cost;
+	}
+
+	@Override
+	public final long getCostToPerformanceRatio() {
+		if (this.costToPerformance == null) {
+			initialize(CalculationContext.NO_CACHING_INSTANCE);
+			Assert.isPremiseValid(this.costToPerformance != null, "Formula results haven't been computed!");
+		}
+		return this.costToPerformance;
+	}
+
+	@Override
+	public void accept(@Nonnull FormulaVisitor visitor) {
+		visitor.visit(this);
+	}
+
+	@Override
+	@Nonnull
+	public Bitmap compute() {
+		if (this.memoizedResult == null) {
+			this.memoizedResult = computeInternal();
+		}
+		return this.memoizedResult;
+	}
+
+	@Override
+	public void initializeAgain(@Nonnull CalculationContext calculationContext) {
+		initializeInternal(calculationContext, true);
+	}
+
+	@Override
+	public void clearMemory() {
+		this.memoizedResult = null;
+		this.hash = null;
+		this.transactionalIds = null;
+		this.transactionalIdHash = null;
+		this.cost = null;
+		this.estimatedCost = null;
+		this.costToPerformance = null;
+	}
+
+	@Nonnull
+	@Override
+	public String prettyPrint() {
+		return PrettyPrintingFormulaVisitor.toString(this);
 	}
 
 	/**
@@ -108,57 +185,10 @@ public abstract class AbstractFormula implements Formula {
 		return false;
 	}
 
-	@Override
-	public long computeTransactionalIdHash(@Nonnull LongHashFunction hashFunction) {
-		if (this.memoizedTransactionalIdHash == null) {
-			this.memoizedTransactionalIdHash = hashFunction.hashLongs(
-				Arrays.stream(gatherTransactionalIds())
-					.distinct()
-					.sorted()
-					.toArray()
-			);
-		}
-		return this.memoizedTransactionalIdHash;
-	}
-
-	@Nonnull
-	@Override
-	public final long[] gatherTransactionalIds() {
-		if (this.memoizedTransactionalIds == null) {
-			this.memoizedTransactionalIds = gatherBitmapIdsInternal();
-		}
-		return this.memoizedTransactionalIds;
-	}
-
-	@Override
-	public final long getEstimatedCost() {
-		if (this.estimatedCost == null) {
-			this.estimatedCost = getEstimatedCostInternal();
-		}
-		return this.estimatedCost;
-	}
-
-	@Override
-	public final long getCost() {
-		if (this.cost == null) {
-			this.cost = getCostInternal();
-		}
-		return this.cost;
-	}
-
-	@Override
-	public final long getCostToPerformanceRatio() {
-		if (this.costToPerformance == null) {
-			this.costToPerformance = getCostToPerformanceInternal();
-		}
-		return this.costToPerformance;
-	}
-
-	@Override
-	public void accept(@Nonnull FormulaVisitor visitor) {
-		visitor.visit(this);
-	}
-
+	/**
+	 * Returns {@link TransactionalLayerCreator#getId()} of all bitmaps used by this formula. Should any of those ids
+	 * become obsolete the formula is also obsolete. The returned array may contain duplicates and may not be sorted.
+	 */
 	@Nonnull
 	protected long[] gatherBitmapIdsInternal() {
 		return Arrays.stream(innerFormulas)
@@ -204,7 +234,7 @@ public abstract class AbstractFormula implements Formula {
 	/**
 	 * Returns a long constant, that uniquely distinguishes this class from the others. The number must not change in
 	 * time for the same class. The number must not be inherited from the superclasses and must be implemented and return
-	 * different numbers for each "leaf class". This number is important part of {@link #computeHash(LongHashFunction)} method.
+	 * different numbers for each "leaf class". This number is important part of {@link #getHash()} method.
 	 */
 	protected abstract long getClassId();
 
@@ -220,15 +250,6 @@ public abstract class AbstractFormula implements Formula {
 				.sum() * getOperationCost();
 	}
 
-	@Override
-	@Nonnull
-	public Bitmap compute() {
-		if (this.memoizedResult == null) {
-			this.memoizedResult = computeInternal();
-		}
-		return this.memoizedResult;
-	}
-
 	/**
 	 * Returns cost to performance ratio. Default implementation is sums cost to performance ratio of all inner formulas
 	 * and adds ratio of this operation that is computed as ration of its cost to output bitmap size. I.e. when large
@@ -237,7 +258,7 @@ public abstract class AbstractFormula implements Formula {
 	 */
 	protected long getCostToPerformanceInternal() {
 		return Arrays.stream(innerFormulas)
-			.mapToLong(Formula::getCostToPerformanceRatio)
+			.mapToLong(TransactionalDataRelatedStructure::getCostToPerformanceRatio)
 			.sum() + (getCost() / Math.max(1, compute().size()));
 	}
 
@@ -247,10 +268,60 @@ public abstract class AbstractFormula implements Formula {
 	@Nonnull
 	protected abstract Bitmap computeInternal();
 
-	@Nonnull
-	@Override
-	public String prettyPrint() {
-		return PrettyPrintingFormulaVisitor.toString(this);
+	/**
+	 * Initializes the internal state of the formula by initializing inner formulas, calculating hash, transactional IDs,
+	 * estimated cost, cost, and cost-to-performance ratio. If the resetMemoizedResults flag is true, the memoized results
+	 * will be reset.
+	 *
+	 * @param calculationContext   the calculation context used to initialize the formula
+	 * @param resetMemoizedResults flag indicating whether to reset the memoized results
+	 */
+	private void initializeInternal(@Nonnull CalculationContext calculationContext, boolean resetMemoizedResults) {
+		for (Formula innerFormula : innerFormulas) {
+			if (resetMemoizedResults) {
+				innerFormula.initializeAgain(calculationContext);
+			} else {
+				innerFormula.initialize(calculationContext);
+			}
+		}
+		if (this.hash == null || resetMemoizedResults) {
+			final LongStream formulaHashStream = Arrays.stream(innerFormulas)
+				.mapToLong(TransactionalDataRelatedStructure::getHash);
+			this.hash = calculationContext.getHashFunction().hashLongs(
+				Stream.of(
+						LongStream.of(getClassId()),
+						isFormulaOrderSignificant() ? formulaHashStream : formulaHashStream.sorted(),
+						LongStream.of(includeAdditionalHash(calculationContext.getHashFunction()))
+					)
+					.flatMapToLong(it -> it)
+					.toArray()
+			);
+		}
+		if (this.transactionalIds == null || resetMemoizedResults) {
+			this.transactionalIds = gatherBitmapIdsInternal();
+			this.transactionalIdHash = calculationContext.getHashFunction().hashLongs(
+				Arrays.stream(this.transactionalIds)
+					.distinct()
+					.sorted()
+					.toArray()
+			);
+		}
+		if (this.estimatedCost == null || resetMemoizedResults) {
+			if (calculationContext.visit(CalculationType.ESTIMATED_COST, this)) {
+				this.estimatedCost = getEstimatedCostInternal();
+			} else {
+				this.estimatedCost = 0L;
+			}
+		}
+		if ((this.cost == null || resetMemoizedResults) && this.memoizedResult != null) {
+			if (calculationContext.visit(CalculationType.COST, this)) {
+				this.cost = getCostInternal();
+				this.costToPerformance = getCostToPerformanceInternal();
+			} else {
+				this.cost = 0L;
+				this.costToPerformance = Long.MAX_VALUE;
+			}
+		}
 	}
 
 }

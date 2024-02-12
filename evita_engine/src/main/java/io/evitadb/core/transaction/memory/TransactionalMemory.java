@@ -28,6 +28,7 @@ import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.ArrayDeque;
 import java.util.Collection;
 import java.util.Deque;
 import java.util.LinkedList;
@@ -67,7 +68,7 @@ import java.util.function.Function;
  */
 public class TransactionalMemory {
 	private final TransactionalLayerMaintainer transactionalLayer;
-	private final Deque<ObjectIdentityHashSet<TransactionalLayerCreator<?>>> suppressedCreatorStack = new LinkedList<>();
+	private final Deque<ObjectIdentityHashSet<TransactionalLayerCreator<?>>> suppressedCreatorStack = new ArrayDeque<>(64);
 
 	public TransactionalMemory(@Nonnull TransactionalLayerMaintainerFinalizer finalizer) {
 		this.transactionalLayer = new TransactionalLayerMaintainer(finalizer);

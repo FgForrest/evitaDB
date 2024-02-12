@@ -192,7 +192,7 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	/**
 	 * Contemporary stack for auxiliary data resolved for each level of the query.
 	 */
-	private final Deque<ProcessingScope> scope = new LinkedList<>();
+	private final Deque<ProcessingScope> scope = new ArrayDeque<>(32);
 
 	public ExtraResultPlanningVisitor(
 		@Nonnull QueryContext queryContext,

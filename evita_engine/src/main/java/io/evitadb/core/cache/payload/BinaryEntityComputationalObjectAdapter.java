@@ -27,8 +27,8 @@ import io.evitadb.api.requestResponse.data.structure.BinaryEntity;
 import io.evitadb.core.cache.CacheEden;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
+import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
-import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -63,18 +63,44 @@ public class BinaryEntityComputationalObjectAdapter implements TransactionalData
 	 */
 	private final int requirementCount;
 	/**
-	 * Contains minimal threshold of the {@link Formula#getEstimatedCost()} that formula needs to exceed in order to
+	 * Contains minimal threshold of the {@link Formula#getEstimatedCost()}  that formula needs to exceed in order to
 	 * become a cache adept, that may be potentially moved to {@link CacheEden}.
 	 */
 	private final long minimalComplexityThreshold;
+	/**
+	 * Contains memoized value of {@link #getEstimatedCost()}  of this formula.
+	 */
+	private Long estimatedCost;
+	/**
+	 * Contains memoized value of {@link #getCost()}  of this formula.
+	 */
+	private Long cost;
 
 	@Override
-	public long computeHash(@Nonnull LongHashFunction hashFunction) {
+	public void initialize(@Nonnull CalculationContext calculationContext) {
+		if (this.estimatedCost == null) {
+			if (calculationContext.visit(CalculationType.ESTIMATED_COST, this)) {
+				this.estimatedCost = Math.max(minimalComplexityThreshold, requirementCount * getOperationCost());
+			} else {
+				this.estimatedCost = 0L;
+			}
+		}
+		if (this.cost == null) {
+			if (calculationContext.visit(CalculationType.COST, this)) {
+				this.cost = Math.max(minimalComplexityThreshold, requirementCount * getOperationCost());
+			} else {
+				this.cost = 0L;
+			}
+		}
+	}
+
+	@Override
+	public long getHash() {
 		return entityPrimaryKey;
 	}
 
 	@Override
-	public long computeTransactionalIdHash(@Nonnull LongHashFunction hashFunction) {
+	public long getTransactionalIdHash() {
 		return entityPrimaryKey;
 	}
 
@@ -86,12 +112,19 @@ public class BinaryEntityComputationalObjectAdapter implements TransactionalData
 
 	@Override
 	public long getEstimatedCost() {
-		return Math.max(minimalComplexityThreshold, requirementCount * getOperationCost());
+		if (this.estimatedCost == null) {
+			initialize(CalculationContext.NO_CACHING_INSTANCE);
+		}
+		return this.estimatedCost;
 	}
 
 	@Override
 	public long getCost() {
-		return Math.max(minimalComplexityThreshold, requirementCount * getOperationCost());
+		if (this.cost == null) {
+			initialize(CalculationContext.NO_CACHING_INSTANCE);
+			Assert.isPremiseValid(this.cost != null, "Formula results haven't been computed!");
+		}
+		return this.cost;
 	}
 
 	@Override

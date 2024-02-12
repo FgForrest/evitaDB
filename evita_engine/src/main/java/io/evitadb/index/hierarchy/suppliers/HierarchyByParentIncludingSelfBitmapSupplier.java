@@ -57,11 +57,17 @@ public class HierarchyByParentIncludingSelfBitmapSupplier extends AbstractHierar
 	}
 
 	@Override
+	public void initialize(@Nonnull CalculationContext calculationContext) {
+		excludedNodeTrees.initialize(calculationContext);
+		super.initialize(calculationContext);
+	}
+
+	@Override
 	public long computeHash(@Nonnull LongHashFunction hashFunction) {
 		return hashFunction.hashLongs(
 			new long[]{
 				hashFunction.hashInts(new int[]{CLASS_ID, parentNode}),
-				excludedNodeTrees.computeHash(hashFunction)
+				excludedNodeTrees.getHash()
 			}
 		);
 	}
@@ -74,6 +80,11 @@ public class HierarchyByParentIncludingSelfBitmapSupplier extends AbstractHierar
 	@Override
 	public int getEstimatedCardinality() {
 		return hierarchyIndex.getHierarchyNodeCountFromParent(parentNode, excludedNodeTrees) + 1;
+	}
+
+	@Override
+	public String toString() {
+		return "HIERARCHY FROM PARENT: " + parentNode + " " + excludedNodeTrees + " AND SELF";
 	}
 
 }

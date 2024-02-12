@@ -331,6 +331,7 @@ public class SortIndexChanges implements Serializable {
 		 * Decrements start index of the block.
 		 */
 		public void decrement() {
+			Assert.isPremiseValid(this.index > 0, "Index of the value start index cannot be negative!");
 			this.index--;
 		}
 

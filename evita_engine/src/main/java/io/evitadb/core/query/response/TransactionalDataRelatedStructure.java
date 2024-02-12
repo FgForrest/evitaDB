@@ -23,13 +23,17 @@
 
 package io.evitadb.core.query.response;
 
+import com.carrotsearch.hppc.LongHashSet;
+import com.carrotsearch.hppc.LongSet;
 import io.evitadb.core.cache.CacheEden;
+import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.deferred.BitmapSupplier;
 import io.evitadb.core.transaction.memory.TransactionalLayerCreator;
 import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
+import java.util.Map;
 
 /**
  * This interface unifies parts of the formula tree that are either {@link Formula} directly or objects that provide
@@ -47,6 +51,20 @@ public interface TransactionalDataRelatedStructure {
 	int EXCESSIVE_HIGH_CARDINALITY = 100;
 
 	/**
+	 * Initializes internal ids and cost estimations. This method is necessary to be called prior to calling any of
+	 * these methods:
+	 *
+	 * - {@link #getHash()}
+	 * - {@link #getTransactionalIdHash()}
+	 * - {@link #getEstimatedCost()}
+	 * - {@link #getCost()}
+	 * - {@link #getCostToPerformanceRatio()}
+	 *
+	 * @param calculationContext calculation context to use for initialization
+	 */
+	void initialize(@Nonnull CalculationContext calculationContext);
+
+	/**
 	 * Hash identifies the formula and it's contents. The hash must be different for formulas with logically different
 	 * contents (we are going to rely on some hash function with low rate of collisions) and must be equal with another
 	 * formula instance that has logically same contents. For example these formulas must return same hash:
@@ -59,7 +77,7 @@ public interface TransactionalDataRelatedStructure {
 	 * 1. and(eq(name,'Jan'),greaterThanEq(age,18))
 	 * 2. or(eq(name,'Jan'),greaterThanEq(age,18))
 	 */
-	long computeHash(@Nonnull LongHashFunction hashFunction);
+	long getHash();
 
 	/**
 	 * Transactional id hash is a has computed from the output of {@link #gatherTransactionalIds()}. The hash must be
@@ -68,7 +86,7 @@ public interface TransactionalDataRelatedStructure {
 	 * that has at least single difference in the array contents (we are going to rely on some hash function with low
 	 * rate of collisions).
 	 */
-	long computeTransactionalIdHash(@Nonnull LongHashFunction hashFunction);
+	long getTransactionalIdHash();
 
 	/**
 	 * Returns {@link TransactionalLayerCreator#getId()} of all bitmaps used by this formula. Should any of those ids
@@ -80,8 +98,8 @@ public interface TransactionalDataRelatedStructure {
 	/**
 	 * Estimated effort of the operation without prior the result of the computation. From bottom to up it's getting less
 	 * useful because operation at the top of the formula doesn't count bitmap cardinality reduction that happens when
-	 * formula is processed. For precise cost computation use {@link #getCost()} operation that takes this into an account
-	 * but also requires formula to be fully computed.
+	 * formula is processed. For precise cost computation use {@link #getCost()}  operation that takes
+	 * this into an account but also requires formula to be fully computed.
 	 */
 	long getEstimatedCost();
 
@@ -104,5 +122,54 @@ public interface TransactionalDataRelatedStructure {
 	 * more resources than caching outputs of formulas with lesser ratio.
 	 */
 	long getCostToPerformanceRatio();
+
+	/**
+	 * Defines the types of calculations that can be performed, which define a key in {@link CalculationContext}.
+	 */
+	enum CalculationType {
+		ESTIMATED_COST,
+		COST
+	}
+
+	/**
+	 * Context that allows to skip already visited formulas of the tree.
+	 */
+	class CalculationContext {
+		/**
+		 * Implementation that doesn't allocate and always returns true for each passed element.
+		 */
+		public static final CalculationContext NO_CACHING_INSTANCE = new NoOpCalculationContext();
+		/**
+		 * Contains hashes of already visited elements.
+		 */
+		private final Map<CalculationType, LongSet> visitedElements = CollectionUtils.createHashMap(8);
+		/**
+		 * The hash function to use for hash calculation.
+		 */
+		@Nonnull @Getter private final LongHashFunction hashFunction = CacheSupervisor.createHashFunction();
+
+		/**
+		 * Visits the element and returns true if it was not visited before.
+		 *
+		 * @param element to visit
+		 * @return true if the element was not visited before
+		 */
+		public boolean visit(@Nonnull CalculationType calculationType, @Nonnull TransactionalDataRelatedStructure element) {
+			return visitedElements
+				.computeIfAbsent(calculationType, key -> new LongHashSet(64))
+				.add(element.getHash());
+		}
+
+		/**
+		 * Internal implementation that doesn't allocate and always returns true for each passed element.
+		 */
+		private static class NoOpCalculationContext extends CalculationContext {
+
+			@Override
+			public boolean visit(@Nonnull CalculationType calculationType, @Nonnull TransactionalDataRelatedStructure element) {
+				return true;
+			}
+		}
+	}
 
 }

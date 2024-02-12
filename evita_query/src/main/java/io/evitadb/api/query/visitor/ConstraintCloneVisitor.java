@@ -32,9 +32,9 @@ import io.evitadb.exception.EvitaInternalError;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.lang.reflect.Array;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.function.BiFunction;
 
@@ -46,7 +46,7 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class ConstraintCloneVisitor implements ConstraintVisitor {
-	private final Deque<List<Constraint<?>>> levelConstraints = new LinkedList<>();
+	private final Deque<List<Constraint<?>>> levelConstraints = new ArrayDeque<>(16);
 	private final BiFunction<ConstraintCloneVisitor, Constraint<?>, Constraint<?>> constraintTranslator;
 	private Constraint<?> result = null;
 

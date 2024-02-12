@@ -56,6 +56,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.Optional.ofNullable;
@@ -265,9 +266,9 @@ public class QueryUtil {
 	 * @return priceValidIn if found, null otherwise
 	 */
 	@Nullable
-	public static OffsetDateTime getPriceValidIn(@Nonnull Query query) {
+	public static OffsetDateTime getPriceValidIn(@Nonnull Query query, @Nonnull Supplier<OffsetDateTime> currentDateAndTime) {
 		return ofNullable(QueryUtils.findFilter(query, PriceValidIn.class))
-			.map(PriceValidIn::getTheMoment)
+			.map(it -> it.getTheMoment(currentDateAndTime))
 			.orElse(null);
 	}
 }

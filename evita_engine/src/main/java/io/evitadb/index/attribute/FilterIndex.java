@@ -457,7 +457,8 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	 */
 	@Nonnull
 	public <T extends Comparable<T>> Bitmap getRecordsLesserThanEq(@Nonnull T comparable) {
-		return getRecordsLesserThanEqFormula(comparable).compute();
+		final Formula recordsLesserThanEqFormula = getRecordsLesserThanEqFormula(comparable);
+		return recordsLesserThanEqFormula.compute();
 	}
 
 	/**
@@ -479,7 +480,8 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	 */
 	@Nonnull
 	public <T extends Comparable<T>> Bitmap getRecordsGreaterThanEq(@Nonnull T comparable) {
-		return getRecordsGreaterThanEqFormula(comparable).compute();
+		final Formula recordsGreaterThanEqFormula = getRecordsGreaterThanEqFormula(comparable);
+		return recordsGreaterThanEqFormula.compute();
 	}
 
 	/**
@@ -501,7 +503,8 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	 */
 	@Nonnull
 	public <T extends Comparable<T>> Bitmap getRecordsLesserThan(@Nonnull T comparable) {
-		return getRecordsLesserThanFormula(comparable).compute();
+		final Formula recordsLesserThanFormula = getRecordsLesserThanFormula(comparable);
+		return recordsLesserThanFormula.compute();
 	}
 
 	/**
@@ -523,7 +526,8 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	 */
 	@Nonnull
 	public <T extends Comparable<T>> Bitmap getRecordsGreaterThan(@Nonnull T comparable) {
-		return getRecordsGreaterThanFormula(comparable).compute();
+		final Formula recordsGreaterThanFormula = getRecordsGreaterThanFormula(comparable);
+		return recordsGreaterThanFormula.compute();
 	}
 
 	/**
@@ -547,7 +551,8 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	 */
 	@Nonnull
 	public <T extends Comparable<T>> Bitmap getRecordsBetween(@Nonnull T from, @Nonnull T to) {
-		return getRecordsBetweenFormula(from, to).compute();
+		final Formula recordsBetweenFormula = getRecordsBetweenFormula(from, to);
+		return recordsBetweenFormula.compute();
 	}
 
 	/**
@@ -565,7 +570,8 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	@Nonnull
 	public Bitmap getRecordsValidIn(long thePoint) {
 		Assert.notNull(this.rangeIndex, ERROR_RANGE_TYPE_NOT_SUPPORTED);
-		return getRecordsValidInFormula(thePoint).compute();
+		final Formula recordsValidInFormula = getRecordsValidInFormula(thePoint);
+		return recordsValidInFormula.compute();
 	}
 
 	/**
@@ -586,7 +592,8 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	@Nonnull
 	public Bitmap getRecordsOverlapping(long from, long to) {
 		Assert.notNull(this.rangeIndex, ERROR_RANGE_TYPE_NOT_SUPPORTED);
-		return getRecordsOverlappingFormula(from, to).compute();
+		final Formula recordsOverlappingFormula = getRecordsOverlappingFormula(from, to);
+		return recordsOverlappingFormula.compute();
 	}
 
 	/**

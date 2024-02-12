@@ -44,6 +44,7 @@ import java.util.stream.IntStream;
 import static io.evitadb.core.cache.CacheEden.COOL_ENOUGH;
 import static io.evitadb.core.cache.FormulaCacheVisitorTest.toConstantFormula;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -111,7 +112,7 @@ class CacheAnteroomTest {
 		assertEquals(12, cacheEden.getCacheRecordCount());
 		final long firstFullCacheSize = cacheEden.getByteSizeUsedByCache();
 		assertTrue(firstFullCacheSize > 2200);
-		assertTrue(cacheHits.size() > 0);
+		assertFalse(cacheHits.isEmpty());
 		cacheHits.clear();
 
 		for (int j = 0; j < COOL_ENOUGH; j++) {
@@ -128,7 +129,7 @@ class CacheAnteroomTest {
 			cacheAnteroom.evaluateAssociatesSynchronously();
 
 			assertEquals(12, cacheEden.getCacheRecordCount());
-			assertTrue(cacheHits.size() > 0);
+			assertFalse(cacheHits.isEmpty());
 			cacheHits.clear();
 		}
 

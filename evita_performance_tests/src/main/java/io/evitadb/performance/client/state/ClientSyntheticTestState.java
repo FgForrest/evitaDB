@@ -46,6 +46,7 @@ import org.openjdk.jmh.annotations.TearDown;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.nio.file.Path;
+import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.LinkedList;
 
@@ -63,7 +64,7 @@ public abstract class ClientSyntheticTestState extends ClientDataFullDatabaseSta
 	private static final int PRELOADED_QUERY_COUNT = 100_000;
 	private final Object monitor = new Object();
 
-	private Deque<Query> preloadedQueries = new LinkedList<>();
+	private Deque<Query> preloadedQueries = new ArrayDeque<>(64);
 	private Path inputFolder;
 	private Kryo kryo;
 	private Input input;

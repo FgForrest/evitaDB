@@ -252,9 +252,9 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 		final int startIndex = index >= 0 ? index : -1 * (index) - 1;
 
 		final StartsEndsDTO startsEndsDTO = collectsStartsAndEnds(startIndex, ranges.getLength() - 1, ranges);
-		return new DisentangleFormula(
-			new JoinFormula(getId(), startsEndsDTO.getRangeEndsAsBitmapArray()),
-			new JoinFormula(getId(), startsEndsDTO.getRangeStartsAsBitmapArray())
+		return createDisentangleFormulaIfNecessary(
+			getId(), startsEndsDTO.getRangeEndsAsBitmapArray(),
+			startsEndsDTO.getRangeStartsAsBitmapArray()
 		);
 	}
 
@@ -275,10 +275,7 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 		final int startIndex = index >= 0 ? index : -1 * (index) - 2;
 
 		final StartsEndsDTO startsEndsDTO = collectsStartsAndEnds(0, startIndex, ranges);
-		return new DisentangleFormula(
-			new JoinFormula(getId(), startsEndsDTO.getRangeStartsAsBitmapArray()),
-			new JoinFormula(getId(), startsEndsDTO.getRangeEndsAsBitmapArray())
-		);
+		return createDisentangleFormulaIfNecessary(getId(), startsEndsDTO.getRangeStartsAsBitmapArray(), startsEndsDTO.getRangeEndsAsBitmapArray());
 	}
 
 	/**
@@ -302,14 +299,8 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 			collectsStartsAndEnds(endIndex, ranges.getLength() - 1, ranges) : new StartsEndsDTO();
 
 		final AndFormula envelopeFormula = new AndFormula(
-			new DisentangleFormula(
-				new JoinFormula(getId(), before.getRangeStartsAsBitmapArray()),
-				new JoinFormula(getId(), before.getRangeEndsAsBitmapArray())
-			),
-			new DisentangleFormula(
-				new JoinFormula(getId(), after.getRangeEndsAsBitmapArray()),
-				new JoinFormula(getId(), after.getRangeStartsAsBitmapArray())
-			)
+			createDisentangleFormulaIfNecessary(getId(), before.getRangeStartsAsBitmapArray(), before.getRangeEndsAsBitmapArray()),
+			createDisentangleFormulaIfNecessary(getId(), after.getRangeEndsAsBitmapArray(), after.getRangeStartsAsBitmapArray())
 		);
 
 		// both should be true or false since we have same threshold
@@ -336,6 +327,59 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 	}
 
 	/**
+	 * Creates a DisentangleFormula if necessary based on the given id and bitmap arrays.
+	 * If the left or right bitmap array produces effectively empty bitmap, DisentangleFormula is not created and
+	 * more optimized result is returned.
+	 *
+	 * @param id     the id for the DisentangleFormula
+	 * @param left   the left bitmap array to be used for the DisentangleFormula
+	 * @param right  the right bitmap array to be used for the DisentangleFormula
+	 * @return a Formula object representing the DisentangleFormula if necessary
+	 */
+	@Nonnull
+	private static Formula createDisentangleFormulaIfNecessary(long id, @Nonnull Bitmap[] left, @Nonnull Bitmap[] right) {
+		final Formula leftFormula = createJoinFormulaIfNecessary(id, left);
+		final Formula rightFormula = createJoinFormulaIfNecessary(id, right);
+		if (leftFormula instanceof EmptyFormula) {
+			return EmptyFormula.INSTANCE;
+		} else if (rightFormula instanceof EmptyFormula) {
+			if (leftFormula instanceof ConstantFormula) {
+				return leftFormula;
+			} else if (leftFormula instanceof JoinFormula joinFormula) {
+				return joinFormula.getAsOrFormula();
+			} else {
+				throw new EvitaInternalError("Unexpected formula type: " + leftFormula.getClass().getSimpleName() + "!");
+			}
+		} else {
+			return new DisentangleFormula(leftFormula, rightFormula);
+		}
+	}
+
+	/**
+	 * Creates a join formula if necessary based on the given id and bitmap array.
+	 * If the bitmap array contains only one bitmap, a ConstantFormula is created with that bitmap.
+	 * If the bitmap array is empty, an EmptyFormula is returned.
+	 * Otherwise, a JoinFormula is created with the given id and filtered bitmaps.
+	 *
+	 * @param id     the id for the JoinFormula
+	 * @param bitmaps the bitmap array to be filtered and used for the JoinFormula
+	 * @return a Formula object representing the join formula if necessary
+	 */
+	@Nonnull
+	private static Formula createJoinFormulaIfNecessary(long id, @Nonnull Bitmap[] bitmaps) {
+		final Bitmap[] filteredBitmaps = Arrays.stream(bitmaps)
+			.filter(it -> !(it instanceof EmptyBitmap))
+			.toArray(Bitmap[]::new);
+		if (filteredBitmaps.length == 0) {
+			return EmptyFormula.INSTANCE;
+		} else if (filteredBitmaps.length == 1) {
+			return new ConstantFormula(filteredBitmaps[0]);
+		} else {
+			return new JoinFormula(id, filteredBitmaps);
+		}
+	}
+
+	/**
 	 * Method returns formula that computes all records which range overlap (have points in common)	passed range with
 	 * `from` and `to` bounds.
 	 *
@@ -353,14 +397,8 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 			between.getRangeStarts(),
 			between.getRangeEnds(),
 			new AndFormula(
-				new DisentangleFormula(
-					new JoinFormula(getId(), before.getRangeStartsAsBitmapArray()),
-					new JoinFormula(getId(), before.getRangeEndsAsBitmapArray())
-				),
-				new DisentangleFormula(
-					new JoinFormula(getId(), after.getRangeEndsAsBitmapArray()),
-					new JoinFormula(getId(), after.getRangeStartsAsBitmapArray())
-				)
+				createDisentangleFormulaIfNecessary(getId(), before.getRangeStartsAsBitmapArray(), before.getRangeEndsAsBitmapArray()),
+				createDisentangleFormulaIfNecessary(getId(), after.getRangeEndsAsBitmapArray(), after.getRangeStartsAsBitmapArray())
 			)
 		);
 	}

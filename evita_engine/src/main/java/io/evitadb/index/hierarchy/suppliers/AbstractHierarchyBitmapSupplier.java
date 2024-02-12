@@ -49,31 +49,105 @@ public abstract class AbstractHierarchyBitmapSupplier implements BitmapSupplier 
 	 * Set of {@link TransactionalLayerProducer#getId()} that are involved in data computation.
 	 */
 	private final long[] transactionalId;
+	/**
+	 * Contains memoized value of {@link #getEstimatedCost()}  of this formula.
+	 */
+	private Long estimatedCost;
+	/**
+	 * Contains memoized value of {@link #getCost()}  of this formula.
+	 */
+	private Long cost;
+	/**
+	 * Contains memoized value of {@link #getCostToPerformanceRatio()} of this formula.
+	 */
+	private Long costToPerformance;
+	/**
+	 * Contains memoized value of {@link #getHash()} method.
+	 */
+	private Long hash;
+	/**
+	 * Contains memoized value of {@link #gatherTransactionalIds()} method.
+	 */
+	private long[] transactionalIds;
+	/**
+	 * Contains memoized value of {@link #gatherTransactionalIds()} computed hash.
+	 */
+	private Long transactionalIdHash;
 
 	@Override
-	public long computeTransactionalIdHash(@Nonnull LongHashFunction hashFunction) {
-		return hashFunction.hashLongs(
-			Arrays.stream(gatherTransactionalIds())
-				.distinct()
-				.sorted()
-				.toArray()
-		);
+	public void initialize(@Nonnull CalculationContext calculationContext) {
+		if (this.hash == null) {
+			this.hash = computeHash(calculationContext.getHashFunction());
+		}
+		if (this.transactionalIdHash == null) {
+			this.transactionalIdHash = calculationContext.getHashFunction().hashLongs(
+				Arrays.stream(gatherTransactionalIds())
+					.distinct()
+					.sorted()
+					.toArray()
+			);
+		}
+		if (this.estimatedCost == null) {
+			if (calculationContext.visit(CalculationType.ESTIMATED_COST, this)) {
+				this.estimatedCost = getEstimatedCardinality() * 12L;
+			} else {
+				this.estimatedCost = 0L;
+			}
+		}
+		if (this.cost == null) {
+			if (calculationContext.visit(CalculationType.COST, this)) {
+				this.cost = hierarchyIndex.getHierarchySize() * getOperationCost();
+				this.costToPerformance = getCost() / (get().size() * getOperationCost());
+			} else {
+				this.cost = 0L;
+				this.costToPerformance = Long.MAX_VALUE;
+
+			}
+		}
+	}
+
+	@Override
+	public long getHash() {
+		if (this.hash == null) {
+			initialize(CalculationContext.NO_CACHING_INSTANCE);
+		}
+		return this.hash;
+	}
+
+	@Override
+	public long getTransactionalIdHash() {
+		if (this.transactionalIdHash == null) {
+			initialize(CalculationContext.NO_CACHING_INSTANCE);
+		}
+		return this.transactionalIdHash;
+
 	}
 
 	@Nonnull
 	@Override
 	public long[] gatherTransactionalIds() {
+		if (this.transactionalId == null) {
+			initialize(CalculationContext.NO_CACHING_INSTANCE);
+		}
 		return transactionalId;
 	}
 
 	@Override
 	public long getEstimatedCost() {
-		return getEstimatedCardinality() * 12L;
+		if (this.estimatedCost == null) {
+			initialize(CalculationContext.NO_CACHING_INSTANCE);
+		}
+		return this.estimatedCost;
 	}
 
 	@Override
 	public long getCost() {
-		return hierarchyIndex.getHierarchySize() * getOperationCost();
+		if (this.cost == null) {
+			initialize(CalculationContext.NO_CACHING_INSTANCE);
+			Assert.isPremiseValid(this.cost != null, "Formula results haven't been computed!");
+		}
+		return this.cost;
+
 	}
 
 	@Override
@@ -83,7 +157,18 @@ public abstract class AbstractHierarchyBitmapSupplier implements BitmapSupplier 
 
 	@Override
 	public long getCostToPerformanceRatio() {
-		return getCost() / (get().size() * getOperationCost());
+		if (this.costToPerformance == null) {
+			initialize(CalculationContext.NO_CACHING_INSTANCE);
+		}
+		return costToPerformance;
 	}
+
+	/**
+	 * Computes the hash value using the specified hash function.
+	 *
+	 * @param hashFunction the hash function to use for computing the hash value
+	 * @return the computed hash value
+	 */
+	protected abstract long computeHash(@Nonnull LongHashFunction hashFunction);
 
 }

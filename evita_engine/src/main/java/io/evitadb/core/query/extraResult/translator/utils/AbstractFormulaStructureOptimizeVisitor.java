@@ -35,9 +35,9 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.Deque;
-import java.util.LinkedList;
 import java.util.function.Predicate;
 
 /**
@@ -72,15 +72,15 @@ public abstract class AbstractFormulaStructureOptimizeVisitor implements Formula
 	/**
 	 * Stack serves internally to collect the cloned tree of formulas.
 	 */
-	private final Deque<CompositeObjectArray<Formula>> levelStack = new LinkedList<>();
+	private final Deque<CompositeObjectArray<Formula>> levelStack = new ArrayDeque<>(16);
 	/**
 	 * Stack contains parent path that is valid for currently examined formula.
 	 */
-	private final Deque<Formula> parentStack = new LinkedList<>();
+	private final Deque<Formula> parentStack = new ArrayDeque<>(16);
 	/**
 	 * Set contains all formula container, that should be optimized.
 	 */
-	private final Deque<Formula> optimizationSet = new LinkedList<>();
+	private final Deque<Formula> optimizationSet = new ArrayDeque<>(16);
 	/**
 	 * Result optimized form of formula.
 	 */
