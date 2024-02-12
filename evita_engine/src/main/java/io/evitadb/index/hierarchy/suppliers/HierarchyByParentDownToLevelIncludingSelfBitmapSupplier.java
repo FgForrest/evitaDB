@@ -80,4 +80,9 @@ public class HierarchyByParentDownToLevelIncludingSelfBitmapSupplier extends Abs
 	public int getEstimatedCardinality() {
 		return hierarchyIndex.getHierarchyNodeCountFromParentDownTo(parentNode, levels, excludedNodeTrees) + 1;
 	}
+
+	@Override
+	public String toString() {
+		return "HIERARCHY FROM PARENT: " + parentNode + " " + excludedNodeTrees + " DOWN TO " + levels + " AND SELF";
+	}
 }

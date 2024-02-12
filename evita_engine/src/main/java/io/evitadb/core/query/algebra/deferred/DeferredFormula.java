@@ -54,18 +54,18 @@ public class DeferredFormula extends AbstractFormula {
 	}
 
 	@Override
-	protected long getEstimatedCostInternal() {
-		return retrieveLambda.getEstimatedCost();
+	protected long getEstimatedCostInternal(@Nonnull CalculationContext calculationContext) {
+		return retrieveLambda.getEstimatedCost(calculationContext);
 	}
 
 	@Override
-	protected long getCostInternal() {
-		return retrieveLambda.getCost();
+	protected long getCostInternal(@Nonnull CalculationContext calculationContext) {
+		return retrieveLambda.getCost(calculationContext);
 	}
 
 	@Override
-	protected long getCostToPerformanceInternal() {
-		return retrieveLambda.getCost() / Math.max(1, retrieveLambda.get().size());
+	protected long getCostToPerformanceInternal(@Nonnull CalculationContext calculationContext) {
+		return retrieveLambda.getCost(calculationContext) / Math.max(1, retrieveLambda.get().size());
 	}
 
 	@Override
@@ -105,4 +105,8 @@ public class DeferredFormula extends AbstractFormula {
 		return CLASS_ID;
 	}
 
+	@Override
+	public String toString() {
+		return "DEFERRED CALCULATION: " + retrieveLambda.toString();
+	}
 }

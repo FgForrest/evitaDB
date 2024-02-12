@@ -73,7 +73,7 @@ public class PriceBetweenTranslator extends AbstractPriceRelatedConstraintTransl
 		final QueryPriceMode queryPriceMode = filterByVisitor.getQueryPriceMode();
 
 		final OffsetDateTime theMoment = ofNullable(filterByVisitor.findInConjunctionTree(PriceValidIn.class))
-			.map(PriceValidIn::getTheMoment)
+			.map(it -> it.getTheMoment(filterByVisitor::getNow))
 			.orElse(null);
 		final String[] priceLists = ofNullable(filterByVisitor.findInConjunctionTree(PriceInPriceLists.class))
 			.map(PriceInPriceLists::getPriceLists)

@@ -83,12 +83,12 @@ public class FlattenedFormula extends CachePayloadHeader implements Formula {
 	}
 
 	@Override
-	public long getEstimatedCost() {
+	public long getEstimatedCost(@Nonnull CalculationContext calculationContext) {
 		return 0;
 	}
 
 	@Override
-	public long getCost() {
+	public long getCost(@Nonnull CalculationContext calculationContext) {
 		return 0;
 	}
 
@@ -98,7 +98,7 @@ public class FlattenedFormula extends CachePayloadHeader implements Formula {
 	}
 
 	@Override
-	public long getCostToPerformanceRatio() {
+	public long getCostToPerformanceRatio(@Nonnull CalculationContext calculationContext) {
 		return Integer.MAX_VALUE;
 	}
 

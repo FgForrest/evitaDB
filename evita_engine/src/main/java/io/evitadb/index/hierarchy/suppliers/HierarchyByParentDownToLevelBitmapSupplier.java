@@ -80,4 +80,10 @@ public class HierarchyByParentDownToLevelBitmapSupplier extends AbstractHierarch
 	public int getEstimatedCardinality() {
 		return hierarchyIndex.getHierarchyNodeCountFromParentDownTo(parentNode, levels, excludedNodeTrees);
 	}
+
+	@Override
+	public String toString() {
+		return "HIERARCHY FROM PARENT: " + parentNode + " " + excludedNodeTrees + " DOWN TO " + levels;
+	}
+
 }

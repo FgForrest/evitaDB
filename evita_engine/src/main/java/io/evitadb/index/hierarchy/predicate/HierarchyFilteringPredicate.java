@@ -68,6 +68,7 @@ public interface HierarchyFilteringPredicate extends IntPredicate {
 	 */
 	long computeHash(@Nonnull LongHashFunction hashFunction);
 
+	@Nonnull
 	@Override
 	default HierarchyFilteringPredicate negate() {
 		return this instanceof NegatedHierarchyFilteringPredicate negatedHierarchyFilteringPredicate ?
@@ -95,6 +96,12 @@ public interface HierarchyFilteringPredicate extends IntPredicate {
 		public boolean test(int hierarchyNodeId) {
 			return first.test(hierarchyNodeId) && second.test(hierarchyNodeId);
 		}
+
+		@Override
+		public String toString() {
+			return  first + " AND " + second;
+		}
+
 	}
 
 	/**
@@ -116,6 +123,11 @@ public interface HierarchyFilteringPredicate extends IntPredicate {
 		public boolean test(int hierarchyNodeId) {
 			return first.test(hierarchyNodeId) || second.test(hierarchyNodeId);
 		}
+
+		@Override
+		public String toString() {
+			return  first + " OR " + second;
+		}
 	}
 
 	class HierarchyFilteringRejectAllPredicate implements HierarchyFilteringPredicate, Serializable {
@@ -130,6 +142,11 @@ public interface HierarchyFilteringPredicate extends IntPredicate {
 		public boolean test(int value) {
 			return false;
 		}
+
+		@Override
+		public String toString() {
+			return "REJECT ALL";
+		}
 	}
 
 	class HierarchyFilteringAcceptAllPredicate implements HierarchyFilteringPredicate, Serializable {
@@ -143,6 +160,11 @@ public interface HierarchyFilteringPredicate extends IntPredicate {
 		@Override
 		public boolean test(int value) {
 			return true;
+		}
+
+		@Override
+		public String toString() {
+			return "ACCEPT ALL";
 		}
 	}
 
@@ -159,5 +181,11 @@ public interface HierarchyFilteringPredicate extends IntPredicate {
 		public boolean test(int value) {
 			return !predicate.test(value);
 		}
+
+		@Override
+		public String toString() {
+			return "NOT(" + predicate + ")";
+		}
+
 	}
 }

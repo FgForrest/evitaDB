@@ -76,4 +76,9 @@ public class HierarchyByParentIncludingSelfBitmapSupplier extends AbstractHierar
 		return hierarchyIndex.getHierarchyNodeCountFromParent(parentNode, excludedNodeTrees) + 1;
 	}
 
+	@Override
+	public String toString() {
+		return "HIERARCHY FROM PARENT: " + parentNode + " " + excludedNodeTrees + " AND SELF";
+	}
+
 }

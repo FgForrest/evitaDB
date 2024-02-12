@@ -120,7 +120,7 @@ public class EntityFilteringFormula extends AbstractFormula implements Requireme
 	}
 
 	@Override
-	protected long getEstimatedCostInternal() {
+	protected long getEstimatedCostInternal(@Nonnull CalculationContext calculationContext) {
 		if (alternative.getEntityRequire() == null) {
 			return 0;
 		}
@@ -128,7 +128,7 @@ public class EntityFilteringFormula extends AbstractFormula implements Requireme
 	}
 
 	@Override
-	protected long getCostInternal() {
+	protected long getCostInternal(@Nonnull CalculationContext calculationContext) {
 		if (alternative.getEntityRequire() == null) {
 			return 0;
 		}
@@ -136,8 +136,8 @@ public class EntityFilteringFormula extends AbstractFormula implements Requireme
 	}
 
 	@Override
-	protected long getCostToPerformanceInternal() {
-		return getCost() / Math.max(1, compute().size());
+	protected long getCostToPerformanceInternal(@Nonnull CalculationContext calculationContext) {
+		return getCost(calculationContext) / Math.max(1, compute().size());
 	}
 
 	@Override

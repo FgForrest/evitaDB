@@ -53,4 +53,8 @@ public class LocaleHierarchyEntityPredicate implements HierarchyFilteringPredica
 		return filteringFormula.compute().contains(hierarchyNodeId);
 	}
 
+	@Override
+	public String toString() {
+		return "BASED ON LOCALE: " + filteringFormula;
+	}
 }

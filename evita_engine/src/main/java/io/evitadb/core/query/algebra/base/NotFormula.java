@@ -92,7 +92,7 @@ public class NotFormula extends AbstractCacheableFormula {
 	}
 
 	@Override
-	public long getEstimatedCostInternal() {
+	public long getEstimatedCostInternal(@Nonnull CalculationContext calculationContext) {
 		if (subtractedBitmap != null && supersetBitmap != null) {
 			try {
 				long costs = subtractedBitmap.size();
@@ -102,7 +102,7 @@ public class NotFormula extends AbstractCacheableFormula {
 				return Long.MAX_VALUE;
 			}
 		} else {
-			return super.getEstimatedCostInternal();
+			return super.getEstimatedCostInternal(calculationContext);
 		}
 	}
 
@@ -153,11 +153,11 @@ public class NotFormula extends AbstractCacheableFormula {
 	}
 
 	@Override
-	protected long getCostInternal() {
+	protected long getCostInternal(@Nonnull CalculationContext calculationContext) {
 		if (supersetBitmap != null && subtractedBitmap != null) {
 			return Stream.of(supersetBitmap, subtractedBitmap).mapToLong(Bitmap::size).sum();
 		} else {
-			return super.getCostInternal();
+			return super.getCostInternal(calculationContext);
 		}
 	}
 

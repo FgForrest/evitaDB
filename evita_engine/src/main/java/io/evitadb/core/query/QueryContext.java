@@ -65,6 +65,7 @@ import io.evitadb.core.query.algebra.prefetch.SelectionFormula;
 import io.evitadb.core.query.extraResult.CacheSupervisorExtraResultAccessor;
 import io.evitadb.core.query.extraResult.ExtraResultCacheAccessor;
 import io.evitadb.core.query.extraResult.translator.facet.producer.FilteringFormulaPredicate;
+import io.evitadb.core.query.response.TransactionalDataRelatedStructure.CalculationContext;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.function.TriFunction;
 import io.evitadb.index.CatalogIndexKey;
@@ -182,6 +183,10 @@ public class QueryContext implements AutoCloseable, LocaleProvider {
 	 */
 	@Nonnull @Getter
 	private final ExtraResultCacheAccessor extraResultCacheAccessor = new CacheSupervisorExtraResultAccessor(this);
+	/**
+	 * Context used for calculation of estimated costs.
+	 */
+	@Nonnull @Getter private final CalculationContext calculationContext = new CalculationContext();
 	/**
 	 * Contains list of prefetched entities if they were considered worthwhile to prefetch -
 	 * see {@link SelectionFormula} for more information.
@@ -824,7 +829,7 @@ public class QueryContext implements AutoCloseable, LocaleProvider {
 	@Nonnull
 	public Formula analyse(@Nonnull Formula formula) {
 		return ofNullable(evitaRequest.getEntityType())
-			.map(it -> cacheSupervisor.analyse(evitaSession, it, formula))
+			.map(it -> cacheSupervisor.analyse(evitaSession, calculationContext, it, formula))
 			.orElse(formula);
 	}
 

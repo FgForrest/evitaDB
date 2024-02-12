@@ -51,13 +51,21 @@ public class HistogramBitmapSupplier<T extends Comparable<T>> implements BitmapS
 	private final ValueToRecordBitmap<T>[] histogramBuckets;
 
 	@Override
-	public long getEstimatedCost() {
-		return getEstimatedCardinality() * getOperationCost();
+	public long getEstimatedCost(@Nonnull CalculationContext calculationContext) {
+		if (calculationContext.visit(CalculationType.ESTIMATED_COST, this)) {
+			return getEstimatedCardinality() * getOperationCost();
+		} else {
+			return 0L;
+		}
 	}
 
 	@Override
-	public long getCost() {
-		return getEstimatedCost();
+	public long getCost(@Nonnull CalculationContext calculationContext) {
+		if (calculationContext.visit(CalculationType.COST, this)) {
+			return getEstimatedCost(calculationContext);
+		} else {
+			return 0L;
+		}
 	}
 
 	@Override
@@ -73,8 +81,8 @@ public class HistogramBitmapSupplier<T extends Comparable<T>> implements BitmapS
 	}
 
 	@Override
-	public long getCostToPerformanceRatio() {
-		return getCost() / (get().size() * getOperationCost());
+	public long getCostToPerformanceRatio(@Nonnull CalculationContext calculationContext) {
+		return getCost(calculationContext) / (get().size() * getOperationCost());
 	}
 
 	@Override

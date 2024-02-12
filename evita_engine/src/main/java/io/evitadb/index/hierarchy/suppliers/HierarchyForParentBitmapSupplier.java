@@ -75,4 +75,10 @@ public class HierarchyForParentBitmapSupplier extends AbstractHierarchyBitmapSup
 	public int getEstimatedCardinality() {
 		return hierarchyIndex.getHierarchyNodeCountForParent(parentNode, excludedNodeTrees);
 	}
+
+	@Override
+	public String toString() {
+		return "HIERARCHY FOR PARENT: " + parentNode + " " + excludedNodeTrees;
+	}
+
 }

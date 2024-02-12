@@ -26,7 +26,6 @@ package io.evitadb.core.query.algebra.base;
 import io.evitadb.core.query.algebra.AbstractCacheableFormula;
 import io.evitadb.core.query.algebra.CacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
@@ -189,10 +188,10 @@ public class AndFormula extends AbstractCacheableFormula {
 	}
 
 	@Override
-	protected long getCostInternal() {
+	protected long getCostInternal(@Nonnull CalculationContext calculationContext) {
 		return ofNullable(this.bitmaps)
 			.map(it -> Arrays.stream(it).mapToLong(Bitmap::size).sum())
-			.orElseGet(super::getCostInternal);
+			.orElseGet(() -> super.getCostInternal(calculationContext));
 	}
 
 	@Override
@@ -223,6 +222,7 @@ public class AndFormula extends AbstractCacheableFormula {
 		PRIVATE METHODS
 	 */
 
+	@Nonnull
 	private RoaringBitmap[] getRoaringBitmaps() {
 		return ofNullable(this.bitmaps)
 			.map(it -> Arrays
@@ -233,7 +233,7 @@ public class AndFormula extends AbstractCacheableFormula {
 			.orElseGet(
 				() -> {
 					final List<Formula> formulasFromEasiestToHardest = Arrays.stream(getInnerFormulas())
-						.sorted(Comparator.comparingLong(TransactionalDataRelatedStructure::getEstimatedCost))
+						.sorted(Comparator.comparingLong(it -> it.getEstimatedCost(CalculationContext.NO_CACHING_INSTANCE)))
 						.toList();
 					final RoaringBitmap[] theBitmaps = new RoaringBitmap[formulasFromEasiestToHardest.size()];
 					// go from the cheapest formula to the more expensive and compute one by one

@@ -184,15 +184,23 @@ public class PreSortedRecordsSorter extends AbstractRecordsSorter implements Cac
 	}
 
 	@Override
-	public long getEstimatedCost() {
-		return Arrays.stream(getSortedRecordsProviders())
-			.mapToInt(SortedRecordsProvider::getRecordCount)
-			.sum() * getOperationCost();
+	public long getEstimatedCost(@Nonnull CalculationContext calculationContext) {
+		if (calculationContext.visit(CalculationType.ESTIMATED_COST, this)) {
+			return Arrays.stream(getSortedRecordsProviders())
+				.mapToInt(SortedRecordsProvider::getRecordCount)
+				.sum() * getOperationCost();
+		} else {
+			return 0L;
+		}
 	}
 
 	@Override
-	public long getCost() {
-		return getEstimatedCost();
+	public long getCost(@Nonnull CalculationContext calculationContext) {
+		if (calculationContext.visit(CalculationType.COST, this)) {
+			return getEstimatedCost(calculationContext);
+		} else {
+			return 0L;
+		}
 	}
 
 	@Override
@@ -201,8 +209,8 @@ public class PreSortedRecordsSorter extends AbstractRecordsSorter implements Cac
 	}
 
 	@Override
-	public long getCostToPerformanceRatio() {
-		return getEstimatedCost();
+	public long getCostToPerformanceRatio(@Nonnull CalculationContext calculationContext) {
+		return getEstimatedCost(calculationContext);
 	}
 
 	@Override

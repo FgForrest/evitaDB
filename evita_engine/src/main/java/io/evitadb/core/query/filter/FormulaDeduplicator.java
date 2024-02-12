@@ -35,7 +35,8 @@ import java.util.Map;
 import java.util.function.BiFunction;
 
 /**
- * TODO JNO - document me
+ * This class is responsible for deduplicating formulas to optimize calculation performance by reusing memoized results.
+ * In other words, existing instance can be reused on multiple places.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
@@ -53,7 +54,6 @@ public class FormulaDeduplicator extends FormulaCloner implements FormulaPostPro
 	 */
 	private boolean deduplicationHappened = false;
 
-	/* TODO JNO - tady spočítat celkovou složitost root formuly, protože se musí započítat deduplikace */
 	public FormulaDeduplicator(@Nonnull Formula originalFormula) {
 		super(new Deduplicator());
 		this.originalFormula = originalFormula;
@@ -62,14 +62,24 @@ public class FormulaDeduplicator extends FormulaCloner implements FormulaPostPro
 	@Nonnull
 	@Override
 	public Formula getPostProcessedFormula() {
-		final Formula result = this.deduplicationHappened ?
-			getResultClone() : this.originalFormula;
+		final Formula result;
+		if (this.deduplicationHappened) {
+			result = getResultClone();
+		} else {
+			result = this.originalFormula;
+		}
 		((Deduplicator)this.mutator).clear();
 		this.deduplicationHappened = false;
 		this.originalFormula = null;
 		return result;
 	}
 
+	/**
+	 * This implementation of the {@link BiFunction} interface detects whether particular formula was already observed
+	 * in the formula tree and can be thus deduplicated - i.e. existing instance can be reused on multiple places.
+	 * This deduplication optimizes the final calculation performance by allowing to reuse the memoized result of
+	 * the formula on different places of the tree.
+	 */
 	private static class Deduplicator implements BiFunction<FormulaCloner, Formula, Formula> {
 		/**
 		 * Cache of formulas.
@@ -92,6 +102,9 @@ public class FormulaDeduplicator extends FormulaCloner implements FormulaPostPro
 			}
 		}
 
+		/**
+		 * Clears the formula cache.
+		 */
 		void clear() {
 			this.formulaCache.clear();
 		}

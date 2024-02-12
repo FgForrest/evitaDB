@@ -75,7 +75,7 @@ public class PriceValidInTranslator extends AbstractPriceRelatedConstraintTransl
 		if (filterByVisitor.isAnyConstraintPresentInConjunctionScopeExcludingUserFilter(PriceBetween.class)) {
 			return SkipFormula.INSTANCE;
 		} else {
-			final OffsetDateTime theMoment = ofNullable(priceValidIn.getTheMoment()).orElseGet(filterByVisitor::getNow);
+			final OffsetDateTime theMoment = priceValidIn.getTheMoment(filterByVisitor::getNow);
 			final String[] priceLists = ofNullable(filterByVisitor.findInConjunctionTree(PriceInPriceLists.class))
 				.map(PriceInPriceLists::getPriceLists)
 				.orElse(null);

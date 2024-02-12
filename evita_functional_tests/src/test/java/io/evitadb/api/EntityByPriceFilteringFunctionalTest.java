@@ -104,7 +104,7 @@ public class EntityByPriceFilteringFunctionalTest {
 	protected static void assertHistogramIntegrity(
 		EvitaResponse<SealedEntity> result,
 		List<SealedEntity> filteredProducts,
-		BigDecimal from, BigDecimal to
+		BigDecimal from, BigDecimal to, OffsetDateTime validIn
 	) {
 		final PriceHistogram priceHistogram = result.getExtraResult(PriceHistogram.class);
 		assertNotNull(priceHistogram);
@@ -113,7 +113,7 @@ public class EntityByPriceFilteringFunctionalTest {
 		assertEquals(filteredProducts.size(), priceHistogram.getOverallCount());
 		final List<BigDecimal> pricesForSale = filteredProducts
 			.stream()
-			.map(it -> it.getPriceForSale(CURRENCY_EUR, null, PRICE_LIST_VIP, PRICE_LIST_BASIC))
+			.map(it -> it.getPriceForSale(CURRENCY_EUR, validIn, PRICE_LIST_VIP, PRICE_LIST_BASIC))
 			.filter(Optional::isPresent)
 			.map(Optional::get)
 			.map(PriceContract::priceWithTax)
@@ -127,7 +127,7 @@ public class EntityByPriceFilteringFunctionalTest {
 			.stream()
 			.collect(
 				Collectors.groupingBy(
-					it -> findIndexInHistogram(it, priceHistogram),
+					it -> findIndexInHistogram(it, priceHistogram, validIn),
 					summingInt(entity -> 1)
 				)
 			);
@@ -225,8 +225,8 @@ public class EntityByPriceFilteringFunctionalTest {
 	/**
 	 * Finds appropriate index in the histogram according to histogram thresholds.
 	 */
-	private static int findIndexInHistogram(SealedEntity entity, HistogramContract histogram) {
-		final BigDecimal entityPrice = entity.getPriceForSale(CURRENCY_EUR, null, PRICE_LIST_VIP, PRICE_LIST_BASIC)
+	private static int findIndexInHistogram(SealedEntity entity, HistogramContract histogram, OffsetDateTime validIn) {
+		final BigDecimal entityPrice = entity.getPriceForSale(CURRENCY_EUR, validIn, PRICE_LIST_VIP, PRICE_LIST_BASIC)
 			.orElseThrow()
 			.priceWithTax();
 		final Bucket[] buckets = histogram.getBuckets();
@@ -1359,7 +1359,7 @@ public class EntityByPriceFilteringFunctionalTest {
 						hasAnySellablePrice(sealedEntity, CURRENCY_EUR, PRICE_LIST_BASIC))
 					.collect(Collectors.toList());
 
-				assertHistogramIntegrity(result, filteredProducts, null, null);
+				assertHistogramIntegrity(result, filteredProducts, null, null, null);
 
 				return null;
 			}
@@ -1416,7 +1416,67 @@ public class EntityByPriceFilteringFunctionalTest {
 				);
 
 				// the price between query must be ignored while computing price histogram
-				assertHistogramIntegrity(result, filteredProducts, from, to);
+				assertHistogramIntegrity(result, filteredProducts, from, to, null);
+
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return price histogram for returned products excluding price between query (and validity)")
+	@UseDataSet(HUNDRED_PRODUCTS_WITH_PRICES)
+	@Test
+	void shouldReturnPriceHistogramWithoutBeingAffectedByPriceFilterAndValidity(Evita evita, List<SealedEntity> originalProductEntities) {
+		final BigDecimal from = new BigDecimal("80");
+		final BigDecimal to = new BigDecimal("150");
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final OffsetDateTime theMoment = OffsetDateTime.of(2023, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
+				final EvitaResponse<SealedEntity> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							userFilter(
+								priceBetween(from, to)
+							),
+							priceValidIn(theMoment),
+							priceInCurrency(CURRENCY_EUR),
+							priceInPriceLists(PRICE_LIST_VIP, PRICE_LIST_BASIC)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							entityFetch(),
+							priceHistogram(20)
+						)
+					),
+					SealedEntity.class
+				);
+
+				final List<SealedEntity> filteredProducts = originalProductEntities
+					.stream()
+					.filter(sealedEntity -> hasAnySellablePrice(sealedEntity, CURRENCY_EUR, PRICE_LIST_VIP, theMoment) ||
+						hasAnySellablePrice(sealedEntity, CURRENCY_EUR, PRICE_LIST_BASIC, theMoment))
+					.collect(Collectors.toList());
+
+				// verify our test works
+				final Predicate<SealedEntity> priceForSaleBetweenPredicate = it -> {
+					final Optional<PriceContract> priceForSale = it.getPriceForSale(CURRENCY_EUR, theMoment, PRICE_LIST_VIP, PRICE_LIST_BASIC);
+					if (priceForSale.isEmpty()) {
+						return false;
+					} else {
+						final BigDecimal price = priceForSale.get().priceWithTax();
+						return price.compareTo(from) >= 0 && price.compareTo(to) <= 0;
+					}
+				};
+				assertTrue(
+					filteredProducts.size() > filteredProducts.stream().filter(priceForSaleBetweenPredicate).count(),
+					"Price between query didn't filter out any products. Test is not testing anything!"
+				);
+
+				// the price between query must be ignored while computing price histogram
+				assertHistogramIntegrity(result, filteredProducts, from, to, theMoment);
 
 				return null;
 			}
@@ -1492,7 +1552,7 @@ public class EntityByPriceFilteringFunctionalTest {
 				);
 
 				// the price between query must be ignored while computing price histogram
-				assertHistogramIntegrity(result, filteredProducts, from, to);
+				assertHistogramIntegrity(result, filteredProducts, from, to, null);
 
 				return null;
 			}

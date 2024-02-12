@@ -54,4 +54,9 @@ public class MatchNodeIdHierarchyFilteringPredicate implements HierarchyFilterin
 	public boolean test(int nodeId) {
 		return nodeId == matchNodeId;
 	}
+
+	@Override
+	public String toString() {
+		return "MATCH NODE " + matchNodeId;
+	}
 }

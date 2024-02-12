@@ -33,7 +33,6 @@ import io.evitadb.core.query.extraResult.translator.histogram.cache.CacheableHis
 import io.evitadb.core.query.extraResult.translator.histogram.cache.CacheableHistogramContract;
 import io.evitadb.core.query.extraResult.translator.histogram.cache.FlattenedHistogramComputer;
 import io.evitadb.core.query.extraResult.translator.histogram.producer.AttributeHistogramProducer.AttributeHistogramRequest;
-import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.invertedIndex.InvertedIndexSubSet;
@@ -346,21 +345,29 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 	}
 
 	@Override
-	public long getEstimatedCost() {
-		return filterFormula.getEstimatedCost() +
-			getAttributeIndexes()
-				.stream()
-				.map(FilterIndex::getAllRecordsFormula)
-				.mapToLong(TransactionalDataRelatedStructure::getEstimatedCost)
-				.sum() * getOperationCost();
+	public long getEstimatedCost(@Nonnull CalculationContext calculationContext) {
+		if (calculationContext.visit(CalculationType.ESTIMATED_COST, this)) {
+			return filterFormula.getEstimatedCost(calculationContext) +
+				getAttributeIndexes()
+					.stream()
+					.map(FilterIndex::getAllRecordsFormula)
+					.mapToLong(it -> it.getEstimatedCost(calculationContext))
+					.sum() * getOperationCost();
+		} else {
+			return 0L;
+		}
 	}
 
 	@Override
-	public long getCost() {
-		return filterFormula.getCost() +
-			Arrays.stream(computeNarrowedHistogramBuckets(this, filterFormula))
-				.mapToInt(it -> it.getRecordIds().size())
-				.sum() * getOperationCost();
+	public long getCost(@Nonnull CalculationContext calculationContext) {
+		if (calculationContext.visit(CalculationType.COST, this)) {
+			return filterFormula.getCost(calculationContext) +
+				Arrays.stream(computeNarrowedHistogramBuckets(this, filterFormula))
+					.mapToInt(it -> it.getRecordIds().size())
+					.sum() * getOperationCost();
+		} else {
+			return 0L;
+		}
 	}
 
 	@Override
@@ -370,8 +377,8 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 	}
 
 	@Override
-	public long getCostToPerformanceRatio() {
-		return getCost() / (getOperationCost() * bucketCount);
+	public long getCostToPerformanceRatio(@Nonnull CalculationContext calculationContext) {
+		return getCost(calculationContext) / (getOperationCost() * bucketCount);
 	}
 
 	@Nonnull

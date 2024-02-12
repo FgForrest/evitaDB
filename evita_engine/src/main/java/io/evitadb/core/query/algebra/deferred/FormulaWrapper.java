@@ -66,13 +66,13 @@ public class FormulaWrapper implements BitmapSupplier {
 	}
 
 	@Override
-	public long getEstimatedCost() {
-		return formula.getEstimatedCost();
+	public long getEstimatedCost(@Nonnull CalculationContext calculationContext) {
+		return formula.getEstimatedCost(calculationContext);
 	}
 
 	@Override
-	public long getCost() {
-		return formula.getCost();
+	public long getCost(@Nonnull CalculationContext calculationContext) {
+		return formula.getCost(calculationContext);
 	}
 
 	@Override
@@ -81,8 +81,8 @@ public class FormulaWrapper implements BitmapSupplier {
 	}
 
 	@Override
-	public long getCostToPerformanceRatio() {
-		return formula.getCostToPerformanceRatio();
+	public long getCostToPerformanceRatio(@Nonnull CalculationContext calculationContext) {
+		return formula.getCostToPerformanceRatio(calculationContext);
 	}
 
 	@Override
@@ -91,5 +91,10 @@ public class FormulaWrapper implements BitmapSupplier {
 			computed = firstInvocation.apply(formula);
 		}
 		return computed;
+	}
+
+	@Override
+	public String toString() {
+		return formula.toString();
 	}
 }
