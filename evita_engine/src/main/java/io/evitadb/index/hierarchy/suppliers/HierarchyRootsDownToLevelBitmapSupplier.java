@@ -76,4 +76,9 @@ public class HierarchyRootsDownToLevelBitmapSupplier extends AbstractHierarchyBi
 		return hierarchyIndex.getHierarchyNodeCountFromRootDownTo(levels, excludedNodeTrees);
 	}
 
+	@Override
+	public String toString() {
+		return "HIERARCHY FOR ROOTS " + excludedNodeTrees + " DOWN TO " + levels;
+	}
+
 }

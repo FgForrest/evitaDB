@@ -280,6 +280,14 @@ public class SumPriceEntityByPriceFilteringFunctionalTest extends EntityByPriceF
 		super.shouldReturnPriceHistogramWithoutBeingAffectedByPriceFilter(evita, originalProductEntities);
 	}
 
+	@DisplayName("Should return price histogram for returned products excluding price between query (and validity)")
+	@UseDataSet(HUNDRED_PRODUCTS_WITH_SUM_PRICES)
+	@Test
+	@Override
+	void shouldReturnPriceHistogramWithoutBeingAffectedByPriceFilterAndValidity(Evita evita, List<SealedEntity> originalProductEntities) {
+		super.shouldReturnPriceHistogramWithoutBeingAffectedByPriceFilterAndValidity(evita, originalProductEntities);
+	}
+
 	@DisplayName("Should return price histogram for returned products excluding price between query")
 	@UseDataSet(HUNDRED_PRODUCTS_WITH_SUM_PRICES)
 	@Override

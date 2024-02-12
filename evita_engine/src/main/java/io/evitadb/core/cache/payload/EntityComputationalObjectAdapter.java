@@ -83,7 +83,7 @@ public class EntityComputationalObjectAdapter implements TransactionalDataRelate
 	 */
 	private final int requirementCount;
 	/**
-	 * Contains minimal threshold of the {@link Formula#getEstimatedCost()} that formula needs to exceed in order to
+	 * Contains minimal threshold of the {@link Formula#getEstimatedCost(CalculationContext)}  that formula needs to exceed in order to
 	 * become a cache adept, that may be potentially moved to {@link CacheEden}.
 	 */
 	private final long minimalComplexityThreshold;
@@ -105,13 +105,21 @@ public class EntityComputationalObjectAdapter implements TransactionalDataRelate
 	}
 
 	@Override
-	public long getEstimatedCost() {
-		return Math.max(minimalComplexityThreshold, requirementCount * getOperationCost());
+	public long getEstimatedCost(@Nonnull CalculationContext calculationContext) {
+		if (calculationContext.visit(CalculationType.ESTIMATED_COST, this)) {
+			return Math.max(minimalComplexityThreshold, requirementCount * getOperationCost());
+		} else {
+			return 0L;
+		}
 	}
 
 	@Override
-	public long getCost() {
-		return Math.max(minimalComplexityThreshold, requirementCount * getOperationCost());
+	public long getCost(@Nonnull CalculationContext calculationContext) {
+		if (calculationContext.visit(CalculationType.COST, this)) {
+			return Math.max(minimalComplexityThreshold, requirementCount * getOperationCost());
+		} else {
+			return 0L;
+		}
 	}
 
 	@Override
@@ -120,8 +128,8 @@ public class EntityComputationalObjectAdapter implements TransactionalDataRelate
 	}
 
 	@Override
-	public long getCostToPerformanceRatio() {
-		return getCost();
+	public long getCostToPerformanceRatio(@Nonnull CalculationContext calculationContext) {
+		return getCost(calculationContext);
 	}
 
 	/**

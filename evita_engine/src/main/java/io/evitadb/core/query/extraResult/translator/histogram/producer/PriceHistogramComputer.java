@@ -187,15 +187,23 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 	}
 
 	@Override
-	public long getEstimatedCost() {
-		return filteringFormula.compute().size() *
-			(filteredPriceRecordAccessors.size() / 2) *
-			getOperationCost();
+	public long getEstimatedCost(@Nonnull CalculationContext calculationContext) {
+		if (calculationContext.visit(CalculationType.ESTIMATED_COST, this)) {
+			return filteringFormula.compute().size() *
+				(filteredPriceRecordAccessors.size() / 2) *
+				getOperationCost();
+		} else {
+			return 0L;
+		}
 	}
 
 	@Override
-	public long getCost() {
-		return getPriceRecords().length * getOperationCost();
+	public long getCost(@Nonnull CalculationContext calculationContext) {
+		if (calculationContext.visit(CalculationType.COST, this)) {
+			return getPriceRecords().length * getOperationCost();
+		} else {
+			return 0L;
+		}
 	}
 
 	@Override
@@ -205,8 +213,8 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 	}
 
 	@Override
-	public long getCostToPerformanceRatio() {
-		return getCost() / (getOperationCost() * bucketCount);
+	public long getCostToPerformanceRatio(@Nonnull CalculationContext calculationContext) {
+		return getCost(calculationContext) / (getOperationCost() * bucketCount);
 	}
 
 	@Override

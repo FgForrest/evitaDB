@@ -188,6 +188,7 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 				final Sorter possiblyCachedSorter = canUseCache && nextSorter instanceof CacheableSorter cacheableSorter ?
 					cacheSupervisor.analyse(
 						queryContext.getEvitaSession(),
+						queryContext.getCalculationContext(),
 						queryContext.getSchema().getName(),
 						cacheableSorter
 					) : nextSorter;

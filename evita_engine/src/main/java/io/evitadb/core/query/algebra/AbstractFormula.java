@@ -25,7 +25,6 @@ package io.evitadb.core.query.algebra;
 
 import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.query.algebra.utils.visitor.PrettyPrintingFormulaVisitor;
-import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
 import io.evitadb.index.bitmap.Bitmap;
 import lombok.Getter;
 import net.openhft.hashing.LongHashFunction;
@@ -52,15 +51,15 @@ public abstract class AbstractFormula implements Formula {
 	 */
 	protected Bitmap memoizedResult;
 	/**
-	 * Contains memoized value of {@link #getEstimatedCostInternal()} of this formula.
+	 * Contains memoized value of {@link #getEstimatedCostInternal(CalculationContext)}  of this formula.
 	 */
 	private Long estimatedCost;
 	/**
-	 * Contains memoized value of {@link #getCostInternal()} of this formula.
+	 * Contains memoized value of {@link #getCostInternal(CalculationContext)}  of this formula.
 	 */
 	private Long cost;
 	/**
-	 * Contains memoized value of {@link #getCostToPerformanceInternal()} of this formula.
+	 * Contains memoized value of {@link #getCostToPerformanceInternal(CalculationContext)}  of this formula.
 	 */
 	private Long costToPerformance;
 	/**
@@ -131,25 +130,33 @@ public abstract class AbstractFormula implements Formula {
 	}
 
 	@Override
-	public final long getEstimatedCost() {
+	public final long getEstimatedCost(@Nonnull CalculationContext context) {
 		if (this.estimatedCost == null) {
-			this.estimatedCost = getEstimatedCostInternal();
+			if (context.visit(CalculationType.ESTIMATED_COST, this)) {
+				this.estimatedCost = getEstimatedCostInternal(context);
+			} else {
+				this.estimatedCost = 0L;
+			}
 		}
 		return this.estimatedCost;
 	}
 
 	@Override
-	public final long getCost() {
+	public final long getCost(@Nonnull CalculationContext context) {
 		if (this.cost == null) {
-			this.cost = getCostInternal();
+			if (context.visit(CalculationType.COST, this)) {
+				this.cost = getCostInternal(context);
+			} else {
+				this.cost = 0L;
+			}
 		}
 		return this.cost;
 	}
 
 	@Override
-	public final long getCostToPerformanceRatio() {
+	public final long getCostToPerformanceRatio(@Nonnull CalculationContext context) {
 		if (this.costToPerformance == null) {
-			this.costToPerformance = getCostToPerformanceInternal();
+			this.costToPerformance = getCostToPerformanceInternal(context);
 		}
 		return this.costToPerformance;
 	}
@@ -172,11 +179,11 @@ public abstract class AbstractFormula implements Formula {
 	 * sizes of referenced bitmaps multiplied by known {@link #getOperationCost()} of this operation.
 	 * This method doesn't trigger formula computation.
 	 */
-	protected long getEstimatedCostInternal() {
+	protected long getEstimatedCostInternal(@Nonnull CalculationContext context) {
 		try {
 			long costs = getEstimatedBaseCost();
 			for (Formula innerFormula : innerFormulas) {
-				costs = Math.addExact(costs, innerFormula.getEstimatedCost());
+				costs = Math.addExact(costs, innerFormula.getEstimatedCost(context));
 			}
 			return getEstimatedBaseCost() + getOperationCost() * getEstimatedCardinality() + costs;
 		} catch (ArithmeticException ex) {
@@ -212,8 +219,8 @@ public abstract class AbstractFormula implements Formula {
 	 * Cost of the operation based on computation result. Default implementation is sum of bitmap sizes of referenced
 	 * bitmaps multiplied by known {@link #getOperationCost()} of this operation. This method triggers formula computation.
 	 */
-	protected long getCostInternal() {
-		return Arrays.stream(innerFormulas).mapToLong(TransactionalDataRelatedStructure::getCost).sum() +
+	protected long getCostInternal(@Nonnull CalculationContext context) {
+		return Arrays.stream(innerFormulas).mapToLong(it -> it.getCost(context)).sum() +
 			Arrays.stream(innerFormulas)
 				.map(Formula::compute)
 				.mapToLong(Bitmap::size)
@@ -248,10 +255,10 @@ public abstract class AbstractFormula implements Formula {
 	 * bitmap is greatly reduced to a small one, this ratio gets bigger and thus caching output of this formula saves
 	 * more resources than caching outputs of formulas with lesser ratio.
 	 */
-	protected long getCostToPerformanceInternal() {
+	protected long getCostToPerformanceInternal(@Nonnull CalculationContext context) {
 		return Arrays.stream(innerFormulas)
-			.mapToLong(Formula::getCostToPerformanceRatio)
-			.sum() + (getCost() / Math.max(1, compute().size()));
+			.mapToLong(it -> it.getCostToPerformanceRatio(context))
+			.sum() + (getCost(context) / Math.max(1, compute().size()));
 	}
 
 	/**

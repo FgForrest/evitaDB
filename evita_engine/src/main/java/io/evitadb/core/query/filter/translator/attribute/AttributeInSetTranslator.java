@@ -92,6 +92,7 @@ public class AttributeInSetTranslator implements FilteringConstraintTranslator<A
 						return ArrayUtils.isEmpty(filteredEntityMaskedIds) ?
 							EmptyFormula.INSTANCE :
 							new MultipleEntityFormula(
+								new long[] { index.getId() },
 								new BaseBitmap(
 									filterByVisitor.translateEntityReference(filteredEntityMaskedIds)
 								)

@@ -261,7 +261,7 @@ public class QueryPlanner {
 						indexSelectionResult.targetIndexQueriedByOtherConstraints()
 					);
 
-					final PrefetchFormulaVisitor prefetchFormulaVisitor = createPrefetchFormulaVisitor(targetIndex);
+					final PrefetchFormulaVisitor prefetchFormulaVisitor = createPrefetchFormulaVisitor(targetIndex, queryContext);
 					ofNullable(prefetchFormulaVisitor)
 						.ifPresent(it -> filterByVisitor.registerFormulaPostProcessorIfNotPresent(PrefetchFormulaVisitor.class, () -> it));
 					ofNullable(queryContext.getFilterBy()).ifPresent(filterByVisitor::visit);
@@ -274,7 +274,7 @@ public class QueryPlanner {
 					final QueryPlanBuilder queryPlanBuilder = new QueryPlanBuilder(
 						queryContext, adeptFormula, targetIndex, prefetchFormulaVisitor
 					);
-					if (result.isEmpty() || adeptFormula.getEstimatedCost() < result.get(0).getEstimatedCost()) {
+					if (result.isEmpty() || adeptFormula.getEstimatedCost(queryContext.getCalculationContext()) < result.get(0).getEstimatedCost(queryContext.getCalculationContext())) {
 						result.addFirst(queryPlanBuilder);
 					} else {
 						result.addLast(queryPlanBuilder);
@@ -283,7 +283,7 @@ public class QueryPlanner {
 					if (adeptFormula == null) {
 						queryContext.popStep();
 					} else {
-						queryContext.popStep(targetIndex.toStringWithCosts(adeptFormula.getEstimatedCost()));
+						queryContext.popStep(targetIndex.toStringWithCosts(adeptFormula.getEstimatedCost(queryContext.getCalculationContext())));
 					}
 				}
 			}
@@ -401,9 +401,12 @@ public class QueryPlanner {
 	 * {@link SelectionFormula} which would also limit its performance boost to a large extent.
 	 */
 	@Nullable
-	private static PrefetchFormulaVisitor createPrefetchFormulaVisitor(@Nonnull TargetIndexes<?> targetIndex) {
+	private static PrefetchFormulaVisitor createPrefetchFormulaVisitor(
+		@Nonnull TargetIndexes<?> targetIndex,
+		@Nonnull QueryContext queryContext
+	) {
 		if (targetIndex.isGlobalIndex() || targetIndex.isCatalogIndex()) {
-			return new PrefetchFormulaVisitor();
+			return new PrefetchFormulaVisitor(queryContext);
 		} else {
 			return null;
 		}

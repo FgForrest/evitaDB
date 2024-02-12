@@ -129,13 +129,13 @@ class MutableFormula implements Formula {
 	}
 
 	@Override
-	public long getEstimatedCost() {
-		return delegate.getEstimatedCost();
+	public long getEstimatedCost(@Nonnull CalculationContext calculationContext) {
+		return delegate.getEstimatedCost(calculationContext);
 	}
 
 	@Override
-	public long getCost() {
-		return delegate.getCost();
+	public long getCost(@Nonnull CalculationContext calculationContext) {
+		return delegate.getCost(calculationContext);
 	}
 
 	@Override
@@ -144,8 +144,8 @@ class MutableFormula implements Formula {
 	}
 
 	@Override
-	public long getCostToPerformanceRatio() {
-		return delegate.getCostToPerformanceRatio();
+	public long getCostToPerformanceRatio(@Nonnull CalculationContext calculationContext) {
+		return delegate.getCostToPerformanceRatio(calculationContext);
 	}
 
 	@Override

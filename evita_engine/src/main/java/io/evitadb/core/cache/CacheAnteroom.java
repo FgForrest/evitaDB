@@ -38,6 +38,7 @@ import io.evitadb.core.query.algebra.price.termination.PriceTerminationFormula;
 import io.evitadb.core.query.extraResult.CacheableEvitaResponseExtraResultComputer;
 import io.evitadb.core.query.extraResult.EvitaResponseExtraResultComputer;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
+import io.evitadb.core.query.response.TransactionalDataRelatedStructure.CalculationContext;
 import io.evitadb.core.query.sort.CacheableSorter;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.core.scheduling.Scheduler;
@@ -67,9 +68,10 @@ import java.util.function.UnaryOperator;
  *
  * The key entry-points of this class are:
  *
- * - {@link #register(EvitaSessionContract, String, String, Formula, FormulaCacheVisitor)}
- * - {@link #register(EvitaSessionContract, String, String, CacheableEvitaResponseExtraResultComputer)}
- * - {@link #register(EvitaSessionContract, int, String, String, OffsetDateTime, EntityFetch, Supplier, UnaryOperator)}
+ * - {@link #register(EvitaSessionContract, CalculationContext, String, Formula, FormulaCacheVisitor)}
+ * - {@link #register(EvitaSessionContract, CalculationContext, String, CacheableSorter)}
+ * - {@link #register(EvitaSessionContract, CalculationContext, String, CacheableEvitaResponseExtraResultComputer)}
+ * - {@link #register(EvitaSessionContract, CalculationContext, int, Serializable, EntityFetch, Supplier)}
  * - {@link #evaluateAssociates(boolean)}
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
@@ -84,7 +86,7 @@ public class CacheAnteroom {
 	 */
 	private final int maxRecordCount;
 	/**
-	 * Contains minimal threshold of the {@link Formula#getEstimatedCost()} that formula needs to exceed in order to
+	 * Contains minimal threshold of the {@link Formula#getEstimatedCost(CalculationContext)} that formula needs to exceed in order to
 	 * become a cache adept, that may be potentially moved to {@link CacheEden}.
 	 */
 	private final long minimalComplexityThreshold;
@@ -158,19 +160,20 @@ public class CacheAnteroom {
 	@Nonnull
 	public Formula register(
 		@Nonnull EvitaSessionContract evitaSession,
+		@Nonnull CalculationContext calculationContext,
 		@Nonnull String entityType,
 		@Nonnull Formula formula,
 		@Nonnull FormulaCacheVisitor formulaVisitor
 	) {
 		if (formula instanceof final CacheableFormula inputFormula &&
 			(formula instanceof CacheablePriceFormula || !formulaVisitor.isWithin(NonCacheableFormulaScope.class))) {
-			if (formula.getEstimatedCost() >= minimalComplexityThreshold) {
+			if (formula.getEstimatedCost(calculationContext) >= minimalComplexityThreshold) {
 				final String catalogName = evitaSession.getCatalogName();
 				final long formulaHash = computeDataStructureHash(catalogName, entityType, inputFormula);
 				final Formula cachedFormula = cacheEden.getCachedRecord(evitaSession, catalogName, entityType, inputFormula, Formula.class, formulaHash);
 				return cachedFormula != null ?
 					cachedFormula :
-					recordUsageAndReturnInstrumentedCopyIfNotYetSeen(formulaVisitor, inputFormula, formulaHash);
+					recordUsageAndReturnInstrumentedCopyIfNotYetSeen(calculationContext, formulaVisitor, inputFormula, formulaHash);
 			} else {
 				return formula;
 			}
@@ -189,17 +192,18 @@ public class CacheAnteroom {
 	@Nonnull
 	public <U> EvitaResponseExtraResultComputer<?> register(
 		@Nonnull EvitaSessionContract evitaSession,
+		@Nonnull CalculationContext calculationContext,
 		@Nonnull String entityType,
 		@Nonnull CacheableEvitaResponseExtraResultComputer<U> computer
 	) {
-		if (computer.getEstimatedCost() > minimalComplexityThreshold) {
+		if (computer.getEstimatedCost(calculationContext) > minimalComplexityThreshold) {
 			final String catalogName = evitaSession.getCatalogName();
 			final long recordHash = computeDataStructureHash(catalogName, entityType, computer);
 			final EvitaResponseExtraResultComputer<?> cachedResult = cacheEden.getCachedRecord(
 				evitaSession, catalogName, entityType, computer, EvitaResponseExtraResultComputer.class, recordHash
 			);
 			return cachedResult == null ?
-				recordUsageAndReturnInstrumentedCopyIfNotYetSeen(computer, recordHash) : cachedResult;
+				recordUsageAndReturnInstrumentedCopyIfNotYetSeen(calculationContext, computer, recordHash) : cachedResult;
 		} else {
 			return computer;
 		}
@@ -215,17 +219,18 @@ public class CacheAnteroom {
 	@Nonnull
 	public Sorter register(
 		@Nonnull EvitaSessionContract evitaSession,
+		@Nonnull CalculationContext calculationContext,
 		@Nonnull String entityType,
 		@Nonnull CacheableSorter cacheableSorter
 	) {
-		if (cacheableSorter.getEstimatedCost() > minimalComplexityThreshold) {
+		if (cacheableSorter.getEstimatedCost(calculationContext) > minimalComplexityThreshold) {
 			final String catalogName = evitaSession.getCatalogName();
 			final long recordHash = computeDataStructureHash(catalogName, entityType, cacheableSorter);
 			final Sorter cachedResult = cacheEden.getCachedRecord(
 				evitaSession, catalogName, entityType, cacheableSorter, Sorter.class, recordHash
 			);
 			return cachedResult == null ?
-				recordUsageAndReturnInstrumentedCopyIfNotYetSeen(cacheableSorter, recordHash) : cachedResult;
+				recordUsageAndReturnInstrumentedCopyIfNotYetSeen(calculationContext, cacheableSorter, recordHash) : cachedResult;
 		} else {
 			return cacheableSorter;
 		}
@@ -241,6 +246,7 @@ public class CacheAnteroom {
 	@Nullable
 	public EntityDecorator register(
 		@Nonnull EvitaSessionContract evitaSession,
+		@Nonnull CalculationContext calculationContext,
 		int entityPrimaryKey,
 		@Nonnull String entityType,
 		@Nonnull OffsetDateTime alignedNow,
@@ -283,7 +289,7 @@ public class CacheAnteroom {
 						enlarged.set(true);
 						return new CacheRecordAdept(
 							fHash,
-							entityWrapper.getCostToPerformanceRatio(),
+							entityWrapper.getCostToPerformanceRatio(calculationContext),
 							1,
 							entity.estimateSize()
 						);
@@ -306,7 +312,7 @@ public class CacheAnteroom {
 	 * and registers the entity request to {@link #cacheAdepts} along with the information about its size. The cache
 	 * adept information is then used to evaluate the worthiness of keeping this entity in cache.
 	 *
-	 * The method is analogous to {@link #register(EvitaSessionContract, int, String, OffsetDateTime, EntityFetch, Supplier, UnaryOperator)}
+	 * The method is analogous to {@link #register(EvitaSessionContract, CalculationContext, int, String, OffsetDateTime, EntityFetch, Supplier, UnaryOperator)}
 	 * but it returns {@link BinaryEntity} instead.
 	 *
 	 * @see io.evitadb.api.requestResponse.EvitaBinaryEntityResponse
@@ -314,6 +320,7 @@ public class CacheAnteroom {
 	@Nullable
 	public BinaryEntity register(
 		@Nonnull EvitaSessionContract evitaSession,
+		@Nonnull CalculationContext calculationContext,
 		int entityPrimaryKey,
 		@Nonnull Serializable entityType,
 		@Nullable EntityFetch entityRequirement,
@@ -348,7 +355,7 @@ public class CacheAnteroom {
 					enlarged.set(true);
 					return new CacheRecordAdept(
 						fHash,
-						entityWrapper.getCostToPerformanceRatio(),
+						entityWrapper.getCostToPerformanceRatio(calculationContext),
 						1,
 						entity.estimateSize()
 					);
@@ -439,6 +446,7 @@ public class CacheAnteroom {
 	 */
 	@Nonnull
 	private Formula recordUsageAndReturnInstrumentedCopyIfNotYetSeen(
+		@Nonnull CalculationContext calculationContext,
 		@Nonnull FormulaCacheVisitor formulaVisitor,
 		@Nonnull CacheableFormula inputFormula,
 		long formulaHash
@@ -456,7 +464,7 @@ public class CacheAnteroom {
 					self -> recordDataOnComputationCompletion(
 						formulaHash,
 						self.getSerializableFormulaSizeEstimate(),
-						self.getCostToPerformanceRatio()
+						self.getCostToPerformanceRatio(calculationContext)
 					),
 					childrenFormulas
 				);
@@ -477,6 +485,7 @@ public class CacheAnteroom {
 	 */
 	@Nonnull
 	private CacheableEvitaResponseExtraResultComputer<?> recordUsageAndReturnInstrumentedCopyIfNotYetSeen(
+		@Nonnull CalculationContext calculationContext,
 		@Nonnull CacheableEvitaResponseExtraResultComputer<?> extraResult,
 		long extraResultHash
 	) {
@@ -488,7 +497,7 @@ public class CacheAnteroom {
 				self -> recordDataOnComputationCompletion(
 					extraResultHash,
 					self.getSerializableResultSizeEstimate(),
-					self.getCostToPerformanceRatio()
+					self.getCostToPerformanceRatio(calculationContext)
 				)
 			);
 		} else {
@@ -507,6 +516,7 @@ public class CacheAnteroom {
 	 */
 	@Nonnull
 	private Sorter recordUsageAndReturnInstrumentedCopyIfNotYetSeen(
+		@Nonnull CalculationContext calculationContext,
 		@Nonnull CacheableSorter cacheableSorter,
 		long extraResultHash
 	) {
@@ -518,7 +528,7 @@ public class CacheAnteroom {
 				self -> recordDataOnComputationCompletion(
 					extraResultHash,
 					self.getSerializableResultSizeEstimate(),
-					self.getCostToPerformanceRatio()
+					self.getCostToPerformanceRatio(calculationContext)
 				)
 			);
 		} else {

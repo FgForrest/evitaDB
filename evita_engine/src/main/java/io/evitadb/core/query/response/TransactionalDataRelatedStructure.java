@@ -23,13 +23,19 @@
 
 package io.evitadb.core.query.response;
 
+import com.carrotsearch.hppc.LongHashSet;
+import com.carrotsearch.hppc.LongSet;
 import io.evitadb.core.cache.CacheEden;
+import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.deferred.BitmapSupplier;
 import io.evitadb.index.transactionalMemory.TransactionalLayerCreator;
+import io.evitadb.utils.CollectionUtils;
 import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.util.Map;
 
 /**
  * This interface unifies parts of the formula tree that are either {@link Formula} directly or objects that provide
@@ -80,16 +86,16 @@ public interface TransactionalDataRelatedStructure {
 	/**
 	 * Estimated effort of the operation without prior the result of the computation. From bottom to up it's getting less
 	 * useful because operation at the top of the formula doesn't count bitmap cardinality reduction that happens when
-	 * formula is processed. For precise cost computation use {@link #getCost()} operation that takes this into an account
-	 * but also requires formula to be fully computed.
+	 * formula is processed. For precise cost computation use {@link #getCost(CalculationContext)}  operation that takes
+	 * this into an account but also requires formula to be fully computed.
 	 */
-	long getEstimatedCost();
+	long getEstimatedCost(@Nonnull CalculationContext context);
 
 	/**
 	 * Cost of the operation based on computation result. Sum of bitmap sizes of referenced bitmaps multiplied by known
 	 * {@link #getOperationCost()} of this operation. This method triggers formula computation.
 	 */
-	long getCost();
+	long getCost(@Nonnull CalculationContext context);
 
 	/**
 	 * Returns estimated costs of this operation. The number should be product of real measurement of this operation
@@ -103,6 +109,67 @@ public interface TransactionalDataRelatedStructure {
 	 * bitmap is greatly reduced to a small one, this ratio gets bigger and thus caching output of this formula saves
 	 * more resources than caching outputs of formulas with lesser ratio.
 	 */
-	long getCostToPerformanceRatio();
+	long getCostToPerformanceRatio(@Nonnull CalculationContext context);
+
+	/**
+	 * Defines the types of calculations that can be performed, which define a key in {@link CalculationContext}.
+	 */
+	enum CalculationType {
+		ESTIMATED_COST,
+		COST
+	}
+
+	/**
+	 * Context that allows to skip already visited formulas of the tree.
+	 */
+	class CalculationContext {
+		/**
+		 * Implementation that doesn't allocate and always returns true for each passed element.
+		 */
+		public static final CalculationContext NO_CACHING_INSTANCE = new NoOpCalculationContext();
+		/**
+		 * Hash function used to compute hash of formulas.
+		 */
+		private static final LongHashFunction HASH_FUNCTION = CacheSupervisor.createHashFunction();
+		/**
+		 * Contains hashes of already visited elements.
+		 */
+		private final Map<CalculationType, LongSet> visitedElements;
+
+		public CalculationContext() {
+			this.visitedElements = CollectionUtils.createHashMap(8);
+		}
+
+		private CalculationContext(@Nullable Map<CalculationType, LongSet> visitedElements) {
+			this.visitedElements = visitedElements;
+		}
+
+		/**
+		 * Visits the element and returns true if it was not visited before.
+		 *
+		 * @param element to visit
+		 * @return true if the element was not visited before
+		 */
+		public boolean visit(@Nonnull CalculationType calculationType, @Nonnull TransactionalDataRelatedStructure element) {
+			return visitedElements
+				.computeIfAbsent(calculationType, key -> new LongHashSet(64))
+				.add(element.computeHash(HASH_FUNCTION));
+		}
+
+		/**
+		 * Internal implementation that doesn't allocate and always returns true for each passed element.
+		 */
+		private static class NoOpCalculationContext extends CalculationContext {
+
+			private NoOpCalculationContext() {
+				super(null);
+			}
+
+			@Override
+			public boolean visit(@Nonnull CalculationType calculationType, @Nonnull TransactionalDataRelatedStructure element) {
+				return true;
+			}
+		}
+	}
 
 }

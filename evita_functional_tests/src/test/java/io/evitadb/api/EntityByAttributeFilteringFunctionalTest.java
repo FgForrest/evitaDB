@@ -1367,7 +1367,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 				);
 				assertResultIs(
 					originalProductEntities,
-					sealedEntity -> ofNullable(sealedEntity.getAttribute(ATTRIBUTE_CODE))
+					sealedEntity -> ofNullable(sealedEntity.getAttribute(ATTRIBUTE_CODE, String.class))
 						.map(randomCodes::contains)
 						.orElse(false),
 					result.getRecordData()

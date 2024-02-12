@@ -81,6 +81,7 @@ import io.evitadb.core.query.QueryPlan;
 import io.evitadb.core.query.QueryPlanner;
 import io.evitadb.core.query.ReferencedEntityFetcher;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.response.TransactionalDataRelatedStructure.CalculationContext;
 import io.evitadb.core.sequence.SequenceService;
 import io.evitadb.core.sequence.SequenceType;
 import io.evitadb.exception.EvitaInternalError;
@@ -338,6 +339,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 	public Optional<BinaryEntity> getBinaryEntity(int primaryKey, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
 		final Optional<BinaryEntity> entity = cacheSupervisor.analyse(
 			session,
+			CalculationContext.NO_CACHING_INSTANCE,
 			primaryKey,
 			getSchema().getName(),
 			evitaRequest.getEntityRequirement(),
@@ -715,6 +717,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 	public Optional<EntityDecorator> getEntityDecorator(int primaryKey, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
 		return cacheSupervisor.analyse(
 			session,
+			CalculationContext.NO_CACHING_INSTANCE,
 			primaryKey,
 			getSchema().getName(),
 			evitaRequest.getAlignedNow(),

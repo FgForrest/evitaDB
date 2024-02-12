@@ -284,4 +284,12 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 		return filteringFormula.compute().contains(hierarchyNodeId);
 	}
 
+	@Override
+	public String toString() {
+		return "HIERARCHY (" +
+			"parent=" + parent +
+			", filterBy=" + filterBy +
+			", filteringFormula=" + filteringFormula +
+			')';
+	}
 }

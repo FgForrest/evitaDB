@@ -33,6 +33,7 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.extraResult.CacheableEvitaResponseExtraResultComputer;
 import io.evitadb.core.query.extraResult.EvitaResponseExtraResultComputer;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
+import io.evitadb.core.query.response.TransactionalDataRelatedStructure.CalculationContext;
 import io.evitadb.core.query.sort.CacheableSorter;
 import io.evitadb.core.query.sort.Sorter;
 import net.openhft.hashing.LongHashFunction;
@@ -82,12 +83,13 @@ public interface CacheSupervisor {
 	 * Method traverses {@link Formula} tree and for each "expensive" formula it computes hash and checks whether
 	 * the formula has cached counterpart. If so the formula is exchanged with the {@link CachedRecord} that
 	 * has the result already memoized. The cost (expensiveness) of the formula are based on
-	 * {@link TransactionalDataRelatedStructure#getEstimatedCost()} that is the only way how to guess the cost without
+	 * {@link TransactionalDataRelatedStructure#getEstimatedCost(CalculationContext)}  that is the only way how to guess the cost without
 	 * really computing the result.
 	 */
 	@Nonnull
 	<T extends Formula> T analyse(
 		@Nonnull EvitaSessionContract evitaSession,
+		@Nonnull CalculationContext calculationContext,
 		@Nonnull String entityType,
 		@Nonnull T filterFormula
 	);
@@ -96,12 +98,13 @@ public interface CacheSupervisor {
 	 * Method examines whether `extraResultComputer` is "expensive" enough and when it is, it computes hash and checks
 	 * whether the extraResultComputer has cached counterpart. If so the computer is exchanged with
 	 * the {@link CachedRecord} that has the result already memoized. The cost (expensiveness) of the computer are based
-	 * on {@link TransactionalDataRelatedStructure#getEstimatedCost()} that is the only way how to guess the cost
+	 * on {@link TransactionalDataRelatedStructure#getEstimatedCost(CalculationContext)}  that is the only way how to guess the cost
 	 * without really computing the result.
 	 */
 	@Nonnull
 	<U, T extends CacheableEvitaResponseExtraResultComputer<U>> EvitaResponseExtraResultComputer<U> analyse(
 		@Nonnull EvitaSessionContract evitaSession,
+		@Nonnull CalculationContext calculationContext,
 		@Nonnull String entityType,
 		@Nonnull T extraResultComputer
 	);
@@ -110,12 +113,13 @@ public interface CacheSupervisor {
 	 * Method examines whether `sortedRecordsProvider` is "expensive" enough and when it is, it computes hash and checks
 	 * whether the sortedRecordsProvider has cached counterpart. If so the computer is exchanged with
 	 * the {@link CachedRecord} that has the result already memoized. The cost (expensiveness) of the computer are based
-	 * on {@link TransactionalDataRelatedStructure#getEstimatedCost()} that is the only way how to guess the cost
+	 * on {@link TransactionalDataRelatedStructure#getEstimatedCost(CalculationContext)}  that is the only way how to guess the cost
 	 * without really computing the result.
 	 */
 	@Nonnull
 	Sorter analyse(
 		@Nonnull EvitaSessionContract evitaSession,
+		@Nonnull CalculationContext calculationContext,
 		@Nonnull String entityType,
 		@Nonnull CacheableSorter sortedRecordsProvider
 	);
@@ -131,6 +135,7 @@ public interface CacheSupervisor {
 	@Nonnull
 	Optional<EntityDecorator> analyse(
 		@Nonnull EvitaSessionContract evitaSession,
+		@Nonnull CalculationContext calculationContext,
 		int primaryKey,
 		@Nonnull String entityType,
 		@Nonnull OffsetDateTime offsetDateTime,
@@ -147,7 +152,7 @@ public interface CacheSupervisor {
 	 * is created for it. If there are enough requests targeting this entity, the entity will eventually propagate to
 	 * the cache.
 	 *
-	 * This method is analogous to {@link #analyse(EvitaSessionContract, int, String, OffsetDateTime, EntityFetch, Supplier, UnaryOperator)}
+	 * This method is analogous to {@link #analyse(EvitaSessionContract, CalculationContext, int, String, OffsetDateTime, EntityFetch, Supplier, UnaryOperator)}
 	 * but it handles and returns {@link BinaryEntity} instead.
 	 *
 	 * @see io.evitadb.api.requestResponse.EvitaBinaryEntityResponse
@@ -155,6 +160,7 @@ public interface CacheSupervisor {
 	@Nonnull
 	Optional<BinaryEntity> analyse(
 		@Nonnull EvitaSessionContract evitaSession,
+		@Nonnull CalculationContext calculationContext,
 		int primaryKey,
 		@Nonnull String entityType,
 		@Nullable EntityFetch entityRequirement,

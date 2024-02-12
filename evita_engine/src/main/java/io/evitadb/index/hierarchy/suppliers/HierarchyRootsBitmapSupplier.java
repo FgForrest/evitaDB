@@ -67,4 +67,10 @@ public class HierarchyRootsBitmapSupplier extends AbstractHierarchyBitmapSupplie
 	public int getEstimatedCardinality() {
 		return hierarchyIndex.getRootHierarchyNodeCount(excludedNodeTrees);
 	}
+
+	@Override
+	public String toString() {
+		return "HIERARCHY FOR ROOTS " + excludedNodeTrees;
+	}
+
 }

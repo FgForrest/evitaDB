@@ -39,7 +39,7 @@ public interface BitmapSupplier extends TransactionalDataRelatedStructure, Suppl
 
 	/**
 	 * Returns the cardinality estimate of {@link #get()} method without really computing the result. The estimate
-	 * will not be precise but differs between AND/OR relations and helps us to compute {@link #getEstimatedCost()}.
+	 * will not be precise but differs between AND/OR relations and helps us to compute {@link #getEstimatedCost(CalculationContext)}.
 	 */
 	int getEstimatedCardinality();
 

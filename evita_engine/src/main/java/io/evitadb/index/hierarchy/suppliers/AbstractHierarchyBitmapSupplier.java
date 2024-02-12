@@ -67,13 +67,21 @@ public abstract class AbstractHierarchyBitmapSupplier implements BitmapSupplier 
 	}
 
 	@Override
-	public long getEstimatedCost() {
-		return getEstimatedCardinality() * 12L;
+	public long getEstimatedCost(@Nonnull CalculationContext calculationContext) {
+		if (calculationContext.visit(CalculationType.ESTIMATED_COST, this)) {
+			return getEstimatedCardinality() * 12L;
+		} else {
+			return 0L;
+		}
 	}
 
 	@Override
-	public long getCost() {
-		return hierarchyIndex.getHierarchySize() * getOperationCost();
+	public long getCost(@Nonnull CalculationContext calculationContext) {
+		if (calculationContext.visit(CalculationType.COST, this)) {
+			return hierarchyIndex.getHierarchySize() * getOperationCost();
+		} else {
+			return 0L;
+		}
 	}
 
 	@Override
@@ -82,8 +90,8 @@ public abstract class AbstractHierarchyBitmapSupplier implements BitmapSupplier 
 	}
 
 	@Override
-	public long getCostToPerformanceRatio() {
-		return getCost() / (get().size() * getOperationCost());
+	public long getCostToPerformanceRatio(@Nonnull CalculationContext calculationContext) {
+		return getCost(calculationContext) / (get().size() * getOperationCost());
 	}
 
 }
