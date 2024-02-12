@@ -1,0 +1,39 @@
+{
+  queryProduct(
+    filterBy: {
+      hierarchyCategoriesWithin: {
+        ofParent: {
+          attributeCodeEquals: "accessories"
+        },
+        with: {
+          having: [
+            {
+              attributeStatusEquals: "ACTIVE"
+            }
+          ]
+        }
+      }
+    }
+  ) {
+    extraResults {
+      hierarchy {
+        categories {
+          topLevel: fromRoot(
+            stopAt: {
+              level: 2
+            }
+          ) {
+            level
+            entity {
+              primaryKey
+              attributes {
+                code
+              }
+            }
+            requested
+          }
+        }
+      }
+    }
+  }
+}

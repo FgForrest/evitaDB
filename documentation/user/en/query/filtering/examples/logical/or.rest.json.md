@@ -19,19 +19,19 @@
         "type": "Product"
       }
     ],
-    "type": "PAGE",
-    "totalRecordCount": 4,
-    "first": true,
-    "last": true,
-    "hasPrevious": false,
-    "hasNext": false,
-    "singlePage": true,
     "empty": false,
-    "pageSize": 20,
-    "pageNumber": 1,
-    "lastPageNumber": 1,
+    "first": true,
     "firstPageItemNumber": 0,
-    "lastPageItemNumber": 4
+    "hasNext": false,
+    "hasPrevious": false,
+    "last": true,
+    "lastPageItemNumber": 4,
+    "lastPageNumber": 1,
+    "pageNumber": 1,
+    "pageSize": 20,
+    "singlePage": true,
+    "totalRecordCount": 4,
+    "type": "PAGE"
   }
 }
 ```

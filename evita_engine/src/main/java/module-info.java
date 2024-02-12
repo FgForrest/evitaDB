@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -62,6 +62,8 @@ module evita.engine {
 	exports io.evitadb.store.spi.model.storageParts.index;
 	exports io.evitadb.store.spi.exception;
 	exports io.evitadb.core.query;
+	exports io.evitadb.core.metric.event;
+	exports io.evitadb.core.metric.annotation;
 
 	uses CatalogStructuralChangeObserver;
 	uses CatalogPersistenceServiceFactory;
@@ -82,4 +84,9 @@ module evita.engine {
 	requires roaringbitmap;
 	requires com.esotericsoftware.kryo;
 
+	requires jdk.httpserver;
+	requires jdk.jfr;
+
+	opens io.evitadb.core.metric.event to evita.common;
+	exports io.evitadb.core.query.algebra.price.predicate;
 }

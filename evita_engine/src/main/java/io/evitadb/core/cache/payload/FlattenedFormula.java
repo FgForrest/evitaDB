@@ -28,7 +28,6 @@ import io.evitadb.core.query.algebra.FormulaVisitor;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.utils.MemoryMeasuringConstants;
-import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -62,12 +61,27 @@ public class FlattenedFormula extends CachePayloadHeader implements Formula {
 	}
 
 	@Override
-	public long computeHash(@Nonnull LongHashFunction hashFunction) {
+	public void initialize(@Nonnull CalculationContext calculationContext) {
+
+	}
+
+	@Override
+	public void initializeAgain(@Nonnull CalculationContext calculationContext) {
+
+	}
+
+	@Override
+	public void clearMemory() {
+
+	}
+
+	@Override
+	public long getHash() {
 		return recordHash;
 	}
 
 	@Override
-	public long computeTransactionalIdHash(@Nonnull LongHashFunction hashFunction) {
+	public long getTransactionalIdHash() {
 		return transactionalIdHash;
 	}
 

@@ -1,0 +1,19 @@
+query(
+    collection("Product"),
+    filterBy(
+        priceInPriceLists("management-price", "employee-basic-price", "basic"),
+        priceInCurrency("EUR"),
+        userFilter(
+           priceBetween(100.0, 125.0)
+        )
+    ),
+    orderBy(
+      priceNatural(ASC)
+    ),
+    require(
+      entityFetch(
+        attributeContent("code"),
+        priceContentRespectingFilter()
+      )
+    )
+)

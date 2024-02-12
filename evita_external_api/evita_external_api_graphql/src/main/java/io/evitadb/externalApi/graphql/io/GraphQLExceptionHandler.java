@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,17 +23,10 @@
 
 package io.evitadb.externalApi.graphql.io;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.evitadb.exception.EvitaError;
-import io.evitadb.exception.EvitaInvalidUsageException;
-import io.evitadb.externalApi.exception.HttpExchangeException;
 import io.evitadb.externalApi.graphql.GraphQLProvider;
-import io.evitadb.externalApi.http.ExternalApiExceptionHandler;
-import io.evitadb.externalApi.http.MimeTypes;
+import io.evitadb.externalApi.http.JsonApiExceptionHandler;
 import io.undertow.server.HttpHandler;
-import io.undertow.server.HttpServerExchange;
-import io.undertow.util.StatusCodes;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -44,52 +37,15 @@ import javax.annotation.Nonnull;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 @Slf4j
-public class GraphQLExceptionHandler extends ExternalApiExceptionHandler {
-
-    @Nonnull
-    private final ObjectMapper objectMapper;
+public class GraphQLExceptionHandler extends JsonApiExceptionHandler {
 
     public GraphQLExceptionHandler(@Nonnull ObjectMapper objectMapper, @Nonnull HttpHandler next) {
-        super(next);
-        this.objectMapper = objectMapper;
+        super(objectMapper, next);
     }
 
     @Nonnull
     @Override
     protected String getExternalApiCode() {
         return GraphQLProvider.CODE;
-    }
-
-    @Override
-    protected void renderError(@Nonnull EvitaError evitaError, @Nonnull HttpServerExchange exchange) {
-        if (evitaError instanceof final HttpExchangeException httpExchangeException) {
-            setResponse(exchange, httpExchangeException.getStatusCode(), httpExchangeException);
-        } else if (evitaError instanceof EvitaInvalidUsageException) {
-            setResponse(exchange, StatusCodes.BAD_REQUEST, evitaError);
-        } else {
-            setResponse(exchange, StatusCodes.INTERNAL_SERVER_ERROR, evitaError);
-        }
-    }
-
-    /**
-     * Common way to set basic error response.
-     */
-    private void setResponse(@Nonnull HttpServerExchange exchange, int statusCode, @Nonnull EvitaError evitaError) {
-        setResponse(
-            exchange,
-            statusCode,
-            MimeTypes.APPLICATION_JSON,
-            serializeError(evitaError)
-        );
-    }
-
-    private String serializeError(@Nonnull EvitaError evitaError) {
-        final ErrorDto errorDto = new ErrorDto(evitaError.getErrorCode(), evitaError.getPublicMessage());
-        try {
-            return objectMapper.writeValueAsString(errorDto);
-        } catch (JsonProcessingException e) {
-            log.error("Could not serialize ErrorDto in GraphQL API: {}", e.getMessage());
-            return "";
-        }
     }
 }

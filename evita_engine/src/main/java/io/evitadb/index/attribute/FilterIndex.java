@@ -29,6 +29,7 @@ import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
+import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.dataType.Range;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.IndexDataStructure;
@@ -55,6 +56,7 @@ import java.io.Serializable;
 import java.lang.reflect.Array;
 import java.util.BitSet;
 import java.util.Collection;
+import java.util.LinkedList;
 import java.util.Map;
 
 import static io.evitadb.core.Transaction.isTransactionAvailable;
@@ -180,19 +182,57 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	}
 
 	/**
-	 * Returns true if this {@link FilterIndex} instance contains range index.
-	 */
-	public boolean hasRangeIndex() {
-		return this.rangeIndex != null;
-	}
-
-	/**
 	 * Returns sorted (ascending, natural) collection of all distinct values present in the filter index.
 	 */
 	@Nonnull
 	public <T extends Comparable<T>> Collection<T> getValues() {
 		//noinspection unchecked
 		return (Collection<T>) getValueIndex().keySet();
+	}
+
+	/**
+	 * Returns sorted (ascending, natural) collection of all distinct values present in the filter index.
+	 */
+	@Nonnull
+	public Formula getRecordsWhoseValuesStartWith(@Nonnull String prefix) {
+		final ValueToRecordBitmap<? extends Comparable<?>>[] buckets = invertedIndex.getValueToRecordBitmap();
+		final int matchIndex = ArrayUtils.binarySearch(
+			buckets,
+			prefix,
+			(valueToRecordBitmap, textToSearch) -> {
+				final String valueA = String.valueOf(valueToRecordBitmap.getValue());
+				final String shortenedA = valueA.substring(0, Math.min(valueA.length(), textToSearch.length()));
+				return shortenedA.compareTo(textToSearch);
+			}
+		);
+		if (matchIndex < 0) {
+			return EmptyFormula.INSTANCE;
+		} else {
+			final LinkedList<Formula> formulas = new LinkedList<>();
+			// find all matching values to the end of the bucket list
+			for (int i = matchIndex; i < buckets.length; i++) {
+				final ValueToRecordBitmap<? extends Comparable<?>> bucket = buckets[i];
+				final String value = String.valueOf(bucket.getValue());
+				if (value.startsWith(prefix)) {
+					formulas.add(new ConstantFormula(bucket.getRecordIds()));
+				} else {
+					// break immediately when the prefix is no longer valid
+					break;
+				}
+			}
+			// find all matching values to the start of the bucket list
+			for (int i = matchIndex - 1; i >= 0; i--) {
+				final ValueToRecordBitmap<? extends Comparable<?>> bucket = buckets[i];
+				final String value = String.valueOf(bucket.getValue());
+				if (value.startsWith(prefix)) {
+					formulas.add(new ConstantFormula(bucket.getRecordIds()));
+				} else {
+					// break immediately when the prefix is no longer valid
+					break;
+				}
+			}
+			return FormulaFactory.or(formulas.toArray(new Formula[0]));
+		}
 	}
 
 	/**
@@ -418,7 +458,8 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	 */
 	@Nonnull
 	public <T extends Comparable<T>> Bitmap getRecordsLesserThanEq(@Nonnull T comparable) {
-		return getRecordsLesserThanEqFormula(comparable).compute();
+		final Formula recordsLesserThanEqFormula = getRecordsLesserThanEqFormula(comparable);
+		return recordsLesserThanEqFormula.compute();
 	}
 
 	/**
@@ -440,7 +481,8 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	 */
 	@Nonnull
 	public <T extends Comparable<T>> Bitmap getRecordsGreaterThanEq(@Nonnull T comparable) {
-		return getRecordsGreaterThanEqFormula(comparable).compute();
+		final Formula recordsGreaterThanEqFormula = getRecordsGreaterThanEqFormula(comparable);
+		return recordsGreaterThanEqFormula.compute();
 	}
 
 	/**
@@ -462,7 +504,8 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	 */
 	@Nonnull
 	public <T extends Comparable<T>> Bitmap getRecordsLesserThan(@Nonnull T comparable) {
-		return getRecordsLesserThanFormula(comparable).compute();
+		final Formula recordsLesserThanFormula = getRecordsLesserThanFormula(comparable);
+		return recordsLesserThanFormula.compute();
 	}
 
 	/**
@@ -484,7 +527,8 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	 */
 	@Nonnull
 	public <T extends Comparable<T>> Bitmap getRecordsGreaterThan(@Nonnull T comparable) {
-		return getRecordsGreaterThanFormula(comparable).compute();
+		final Formula recordsGreaterThanFormula = getRecordsGreaterThanFormula(comparable);
+		return recordsGreaterThanFormula.compute();
 	}
 
 	/**
@@ -508,7 +552,8 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	 */
 	@Nonnull
 	public <T extends Comparable<T>> Bitmap getRecordsBetween(@Nonnull T from, @Nonnull T to) {
-		return getRecordsBetweenFormula(from, to).compute();
+		final Formula recordsBetweenFormula = getRecordsBetweenFormula(from, to);
+		return recordsBetweenFormula.compute();
 	}
 
 	/**
@@ -526,7 +571,8 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	@Nonnull
 	public Bitmap getRecordsValidIn(long thePoint) {
 		Assert.notNull(this.rangeIndex, ERROR_RANGE_TYPE_NOT_SUPPORTED);
-		return getRecordsValidInFormula(thePoint).compute();
+		final Formula recordsValidInFormula = getRecordsValidInFormula(thePoint);
+		return recordsValidInFormula.compute();
 	}
 
 	/**
@@ -547,7 +593,8 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	@Nonnull
 	public Bitmap getRecordsOverlapping(long from, long to) {
 		Assert.notNull(this.rangeIndex, ERROR_RANGE_TYPE_NOT_SUPPORTED);
-		return getRecordsOverlappingFormula(from, to).compute();
+		final Formula recordsOverlappingFormula = getRecordsOverlappingFormula(from, to);
+		return recordsOverlappingFormula.compute();
 	}
 
 	/**

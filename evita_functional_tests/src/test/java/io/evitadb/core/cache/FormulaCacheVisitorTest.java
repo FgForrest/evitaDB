@@ -80,7 +80,7 @@ class FormulaCacheVisitorTest {
 			inputFormula,
 			cacheAnteroom
 		);
-		assertEquals(inputFormula.computeHash(HASH_FUNCTION), inputFormula.computeHash(HASH_FUNCTION));
+		assertEquals(inputFormula.getHash(), inputFormula.getHash());
 		assertSame(inputFormula, possiblyUpdatedFormula);
 
 		final CacheRecordAdept cacheAdept = cacheAnteroom.getCacheAdept(TEST_CATALOG, SOME_ENTITY, inputFormula);
@@ -103,7 +103,7 @@ class FormulaCacheVisitorTest {
 			inputFormula,
 			cacheAnteroom
 		);
-		assertEquals(inputFormula.computeHash(HASH_FUNCTION), inputFormula.computeHash(HASH_FUNCTION));
+		assertEquals(inputFormula.getHash(), inputFormula.getHash());
 		assertNotSame(inputFormula, possiblyUpdatedFormula);
 
 		// compute the instrumented formula

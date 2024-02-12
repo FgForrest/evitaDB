@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -35,6 +35,7 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.BinaryEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
+import io.evitadb.core.metric.event.QueryPlanStepExecutedEvent;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.prefetch.PrefetchFormulaVisitor;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
@@ -45,6 +46,7 @@ import io.evitadb.dataType.DataChunk;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.Delegate;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -64,6 +66,7 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @RequiredArgsConstructor
+@Slf4j
 public class QueryPlan {
 	/**
 	 * Reference to the query context that allows to access entity bodies, indexes, original request and much more.
@@ -106,6 +109,10 @@ public class QueryPlan {
 	@Nonnull
 	public <S extends Serializable, T extends EvitaResponse<S>> T execute() {
 		queryContext.pushStep(QueryPhase.EXECUTION);
+		new QueryPlanStepExecutedEvent(
+			QueryPhase.EXECUTION.name(),
+			this.filter.getEstimatedCost()
+		).commit();
 
 		try {
 			// prefetch the entities to allow using them in filtering / sorting in next step

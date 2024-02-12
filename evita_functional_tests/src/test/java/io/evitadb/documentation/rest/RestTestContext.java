@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -45,7 +45,7 @@ public class RestTestContext implements TestContext {
 
 	public RestTestContext(@Nonnull Environment profile) {
 		this.restClient = profile == Environment.LOCALHOST ?
-			new RestClient("https://localhost:5555", false) :
-			new RestClient("https://demo.evitadb.io:5555");
+			new RestClient("https://localhost:5555", false, false) :
+			new RestClient("https://demo.evitadb.io:5555", true, false);
 	}
 }

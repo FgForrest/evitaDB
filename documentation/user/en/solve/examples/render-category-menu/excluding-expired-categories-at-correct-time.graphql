@@ -1,0 +1,46 @@
+{
+  queryProduct(
+    filterBy: {
+      hierarchyCategoriesWithin: {
+        ofParent: {
+          attributeCodeEquals: "accessories"
+        },
+        with: {
+          having: [
+            {
+              or: [
+                {
+                  attributeValidityIs: NULL
+                },
+                {
+                  attributeValidityInRange: "2023-12-05T12:00:00Z"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ) {
+    extraResults {
+      hierarchy {
+        categories {
+          topLevel: fromRoot(
+            stopAt: {
+              level: 2
+            }
+          ) {
+            level
+            entity {
+              primaryKey
+              attributes {
+                code
+              }
+            }
+            requested
+          }
+        }
+      }
+    }
+  }
+}

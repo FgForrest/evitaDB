@@ -72,7 +72,7 @@ import java.util.Optional;
  * inRange("age", 24)
  * inRange("age", 63)
  * </pre>
- * 
+ *
  * <p><a href="https://evitadb.io/documentation/query/filtering/range#attribute-in-range">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
@@ -96,6 +96,7 @@ import java.util.Optional;
 	)
 )
 public class AttributeInRange extends AbstractAttributeFilterConstraintLeaf implements IndexUsingConstraint, ConstraintWithSuffix {
+	private static final String SUFFIX_NOW = "now";
 	@Serial private static final long serialVersionUID = -6018832750772234247L;
 
 	private AttributeInRange(Serializable... arguments) {
@@ -112,6 +113,7 @@ public class AttributeInRange extends AbstractAttributeFilterConstraintLeaf impl
 		);
 	}
 
+	@Creator(suffix = SUFFIX_NOW)
 	public AttributeInRange(@Nonnull @Classifier String attributeName) {
 		super(attributeName);
 	}
@@ -167,7 +169,7 @@ public class AttributeInRange extends AbstractAttributeFilterConstraintLeaf impl
 	@Nonnull
 	@Override
 	public Optional<String> getSuffixIfApplied() {
-		return getArguments().length == 1 ? Optional.of("Now") : Optional.empty();
+		return getArguments().length == 1 ? Optional.of(SUFFIX_NOW) : Optional.empty();
 	}
 
 	@Nonnull

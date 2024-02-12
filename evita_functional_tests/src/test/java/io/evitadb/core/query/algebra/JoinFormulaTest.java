@@ -92,4 +92,82 @@ class JoinFormulaTest {
 		);
 	}
 
+	@Test
+	void shouldHandleOneBitmapBeingSubsetOfOther() {
+		assertArrayEquals(
+			new int[]{1, 1, 2, 2, 3, 3, 4, 5, 5},
+			new JoinFormula(
+				1L,
+				new BaseBitmap(1, 2, 3, 4, 5),
+				new BaseBitmap(1, 2, 3, 5)
+			)
+				.compute().getArray()
+		);
+	}
+
+	@Test
+	void shouldHandleOverlappingBitmaps() {
+		assertArrayEquals(
+			new int[]{1, 1, 2, 3, 4, 5, 5, 7, 8, 8},
+			new JoinFormula(
+				1L,
+				new BaseBitmap(1, 2, 5, 7, 8),
+				new BaseBitmap(1, 3, 4, 5, 8)
+			)
+				.compute().getArray()
+		);
+	}
+
+	@Test
+	void shouldHandleFirstBitmapConsiderablySmaller() {
+		assertArrayEquals(
+			new int[]{1, 2, 2, 3, 4, 5},
+			new JoinFormula(
+				1L,
+				new BaseBitmap(2),
+				new BaseBitmap(1, 2, 3, 4, 5)
+			)
+				.compute().getArray()
+		);
+	}
+
+	@Test
+	void shouldHandleSecondBitmapConsiderablySmaller() {
+		assertArrayEquals(
+			new int[]{1, 2, 2, 3, 4, 5},
+			new JoinFormula(
+				1L,
+				new BaseBitmap(1, 2, 3, 4, 5),
+				new BaseBitmap(2)
+			)
+				.compute().getArray()
+		);
+	}
+
+	@Test
+	void shouldHandleBitmapsHavingNoCommonElements() {
+		assertArrayEquals(
+			new int[]{1, 2, 3, 4, 5, 6, 7, 8, 9, 10},
+			new JoinFormula(
+				1L,
+				new BaseBitmap(1, 2, 3, 4, 5),
+				new BaseBitmap(6, 7, 8, 9, 10)
+			)
+				.compute().getArray()
+		);
+	}
+
+	@Test
+	void shouldHandleOneBitmapBeingEmpty() {
+		assertArrayEquals(
+			new int[]{1, 2, 3, 4, 5},
+			new JoinFormula(
+				1L,
+				new BaseBitmap(1, 2, 3, 4, 5),
+				new BaseBitmap()
+			)
+				.compute().getArray()
+		);
+	}
+
 }

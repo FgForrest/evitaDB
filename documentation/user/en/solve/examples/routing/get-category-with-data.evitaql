@@ -1,0 +1,14 @@
+query(
+    filterBy(
+        attributeEquals("url", "/en/wireless-headphones"),
+        entityLocaleEquals("en")
+    ),
+    require(
+      entityFetch(
+        attributeContent("code", "availability", "brandCode", "level"),
+        associatedDataContentAll(),
+        referenceContentAll(),
+        hierarchyContent()
+      )
+    )
+)

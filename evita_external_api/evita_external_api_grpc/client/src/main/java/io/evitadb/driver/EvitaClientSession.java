@@ -236,16 +236,17 @@ public class EvitaClientSession implements EvitaSessionContract {
 			);
 		}
 		if (query.getCollection() == null) {
-			final String entityTypeByExpectedType = extractEntityTypeFromClass(expectedType, reflectionLookup)
-				.orElseGet(() -> ofNullable(query.getCollection())
-					.map(io.evitadb.api.query.head.Collection::getEntityType)
-					.orElseThrow(() -> new CollectionNotFoundException(expectedType)));
-			return Query.query(
-				collection(entityTypeByExpectedType),
-				query.getFilterBy(),
-				query.getOrderBy(),
-				query.getRequire()
-			).normalizeQuery();
+			return extractEntityTypeFromClass(expectedType, reflectionLookup)
+				.or(() -> ofNullable(query.getCollection()).map(io.evitadb.api.query.head.Collection::getEntityType))
+				.map(
+					entityType -> Query.query(
+						collection(entityType),
+						query.getFilterBy(),
+						query.getOrderBy(),
+						query.getRequire()
+					).normalizeQuery()
+				)
+				.orElseGet(query::normalizeQuery);
 		} else {
 			return query.normalizeQuery();
 		}
@@ -1463,54 +1464,50 @@ public class EvitaClientSession implements EvitaSessionContract {
 	 * @return result of the applied function
 	 */
 	private <T> T executeWithEvitaSessionService(@Nonnull Function<EvitaSessionServiceBlockingStub, T> evitaSessionServiceBlockingStub) {
-		return executeWithClientId(
-			clientId,
-			() -> {
-				final ManagedChannel managedChannel = this.channelPool.getChannel();
-				try {
-					SessionIdHolder.setSessionId(getCatalogName(), getId().toString());
-					return evitaSessionServiceBlockingStub.apply(EvitaSessionServiceGrpc.newBlockingStub(managedChannel));
-				} catch (StatusRuntimeException statusRuntimeException) {
-					final Code statusCode = statusRuntimeException.getStatus().getCode();
-					final String description = ofNullable(statusRuntimeException.getStatus().getDescription())
-						.orElse("No description.");
-					if (statusCode == Code.UNAUTHENTICATED) {
-						// close session and rethrow
-						closeInternally();
-						throw new InstanceTerminatedException("session");
-					} else if (statusCode == Code.INVALID_ARGUMENT) {
-						final Matcher expectedFormat = ERROR_MESSAGE_PATTERN.matcher(description);
-						if (expectedFormat.matches()) {
-							throw EvitaInvalidUsageException.createExceptionWithErrorCode(
-								expectedFormat.group(2), expectedFormat.group(1)
-							);
-						} else {
-							throw new EvitaInvalidUsageException(description);
-						}
-					} else {
-						final Matcher expectedFormat = ERROR_MESSAGE_PATTERN.matcher(description);
-						if (expectedFormat.matches()) {
-							throw EvitaInternalError.createExceptionWithErrorCode(
-								expectedFormat.group(2), expectedFormat.group(1)
-							);
-						} else {
-							throw new EvitaInternalError(description);
-						}
-					}
-				} catch (EvitaInvalidUsageException | EvitaInternalError evitaError) {
-					throw evitaError;
-				} catch (Throwable e) {
-					log.error("Unexpected internal Evita error occurred: {}", e.getMessage(), e);
-					throw new EvitaInternalError(
-						"Unexpected internal Evita error occurred: " + e.getMessage(),
-						"Unexpected internal Evita error occurred.",
-						e
+		final ManagedChannel managedChannel = this.channelPool.getChannel();
+		try {
+			SessionIdHolder.setSessionId(getCatalogName(), getId().toString());
+			return evitaSessionServiceBlockingStub.apply(EvitaSessionServiceGrpc.newBlockingStub(managedChannel));
+		} catch (StatusRuntimeException statusRuntimeException) {
+			final Code statusCode = statusRuntimeException.getStatus().getCode();
+			final String description = ofNullable(statusRuntimeException.getStatus().getDescription())
+				.orElse("No description.");
+			if (statusCode == Code.UNAUTHENTICATED) {
+				// close session and rethrow
+				closeInternally();
+				throw new InstanceTerminatedException("session");
+			} else if (statusCode == Code.INVALID_ARGUMENT) {
+				final Matcher expectedFormat = ERROR_MESSAGE_PATTERN.matcher(description);
+				if (expectedFormat.matches()) {
+					throw EvitaInvalidUsageException.createExceptionWithErrorCode(
+						expectedFormat.group(2), expectedFormat.group(1)
 					);
-				} finally {
-					this.channelPool.releaseChannel(managedChannel);
-					SessionIdHolder.reset();
+				} else {
+					throw new EvitaInvalidUsageException(description);
 				}
-			});
+			} else {
+				final Matcher expectedFormat = ERROR_MESSAGE_PATTERN.matcher(description);
+				if (expectedFormat.matches()) {
+					throw EvitaInternalError.createExceptionWithErrorCode(
+						expectedFormat.group(2), expectedFormat.group(1)
+					);
+				} else {
+					throw new EvitaInternalError(description);
+				}
+			}
+		} catch (EvitaInvalidUsageException | EvitaInternalError evitaError) {
+			throw evitaError;
+		} catch (Throwable e) {
+			log.error("Unexpected internal Evita error occurred: {}", e.getMessage(), e);
+			throw new EvitaInternalError(
+				"Unexpected internal Evita error occurred: " + e.getMessage(),
+				"Unexpected internal Evita error occurred.",
+				e
+			);
+		} finally {
+			this.channelPool.releaseChannel(managedChannel);
+			SessionIdHolder.reset();
+		}
 	}
 
 	@Nonnull

@@ -149,7 +149,12 @@ public class HeapMemoryCacheSupervisor implements CacheSupervisor {
 		// we use cache only for Evita read only sessions, write session might already contain client specific modifications
 		// that effectively exclude the formula caches from being used
 		if (evitaSession.isReadOnly()) {
-			return ofNullable(this.cacheAnteroom.register(evitaSession, primaryKey, entityType, offsetDateTime, entityRequirement, entityFetcher, enricher));
+			return ofNullable(
+				this.cacheAnteroom.register(
+					evitaSession, primaryKey, entityType, offsetDateTime,
+					entityRequirement, entityFetcher, enricher
+				)
+			);
 		} else {
 			return ofNullable(entityFetcher.get());
 		}
@@ -168,7 +173,11 @@ public class HeapMemoryCacheSupervisor implements CacheSupervisor {
 		// we use cache only for Evita read only sessions, write session might already contain client specific modifications
 		// that effectively exclude the formula caches from being used
 		if (evitaSession.isReadOnly()) {
-			return ofNullable(this.cacheAnteroom.register(evitaSession, primaryKey, entityType, entityRequirement, entityFetcher));
+			return ofNullable(
+				this.cacheAnteroom.register(
+					evitaSession, primaryKey, entityType, entityRequirement, entityFetcher
+				)
+			);
 		} else {
 			return ofNullable(entityFetcher.get());
 		}

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -45,11 +45,13 @@ import io.evitadb.externalApi.graphql.io.GraphQLHandler.GraphQLEndpointExchange;
 import io.evitadb.externalApi.http.EndpointExchange;
 import io.evitadb.externalApi.http.EndpointHandler;
 import io.evitadb.externalApi.http.EndpointResponse;
+import io.evitadb.externalApi.http.MimeTypes;
 import io.evitadb.externalApi.http.SuccessEndpointResponse;
+import io.evitadb.externalApi.trace.ExternalApiTracingContextProvider;
+import io.evitadb.externalApi.utils.ExternalApiTracingContext;
 import io.undertow.server.HttpServerExchange;
 import io.undertow.util.Methods;
 import io.undertow.util.StatusCodes;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -88,7 +90,7 @@ public class GraphQLHandler extends EndpointHandler<GraphQLEndpointExchange> {
     @Nonnull
     private final ObjectMapper objectMapper;
     @Nonnull
-    private final GraphQLClientContext clientContext;
+    private final ExternalApiTracingContext<Object> clientContext;
     @Nonnull
     private final EvitaConfiguration evitaConfiguration;
     @Nonnull
@@ -98,7 +100,7 @@ public class GraphQLHandler extends EndpointHandler<GraphQLEndpointExchange> {
                           @Nonnull Evita evita,
                           @Nonnull AtomicReference<GraphQL> graphQL) {
         this.objectMapper = objectMapper;
-        this.clientContext = new GraphQLClientContext(evita);
+        this.clientContext = ExternalApiTracingContextProvider.getContext();
         this.evitaConfiguration = evita.getConfiguration();
         this.graphQL = graphQL;
     }
@@ -116,11 +118,9 @@ public class GraphQLHandler extends EndpointHandler<GraphQLEndpointExchange> {
     @Nonnull
     protected EndpointResponse doHandleRequest(@Nonnull GraphQLEndpointExchange exchange) {
         final GraphQLRequest graphQLRequest = parseRequestBody(exchange, GraphQLRequest.class);
-        final ClientContextExtension clientContextExtension = graphQLRequest.clientContextExtension();
-        final GraphQLResponse<?> graphQLResponse = clientContext.executeWithClientAndRequestId(
-            exchange.serverExchange().getSourceAddress(),
-            clientContextExtension.clientId(),
-            clientContextExtension.requestId(),
+        final GraphQLResponse<?> graphQLResponse = clientContext.executeWithinBlock(
+            "GraphQL",
+            exchange.serverExchange(),
             () -> executeRequest(graphQLRequest)
         );
         return new SuccessEndpointResponse(graphQLResponse);
@@ -156,7 +156,7 @@ public class GraphQLHandler extends EndpointHandler<GraphQLEndpointExchange> {
     @Nonnull
     @Override
     public Set<String> getSupportedRequestContentTypes() {
-        return Set.of(GraphQLMimeTypes.APPLICATION_JSON);
+        return Set.of(MimeTypes.APPLICATION_JSON);
     }
 
     @Nonnull
@@ -164,7 +164,7 @@ public class GraphQLHandler extends EndpointHandler<GraphQLEndpointExchange> {
     public LinkedHashSet<String> getSupportedResponseContentTypes() {
         final LinkedHashSet<String> mediaTypes = createLinkedHashSet(2);
         mediaTypes.add(GraphQLMimeTypes.APPLICATION_GRAPHQL_RESPONSE_JSON);
-        mediaTypes.add(GraphQLMimeTypes.APPLICATION_JSON);
+        mediaTypes.add(MimeTypes.APPLICATION_JSON);
         return mediaTypes;
     }
 

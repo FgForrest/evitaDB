@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,20 +26,20 @@ package io.evitadb.test.client;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.evitadb.exception.EvitaInternalError;
+import okhttp3.ConnectionPool;
+import okhttp3.OkHttpClient;
+import okhttp3.ResponseBody;
 
 import javax.annotation.Nonnull;
+import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLEngine;
 import javax.net.ssl.TrustManager;
-import javax.net.ssl.X509ExtendedTrustManager;
+import javax.net.ssl.X509TrustManager;
 import java.io.IOException;
-import java.net.Socket;
-import java.net.http.HttpClient;
 import java.security.KeyManagementException;
 import java.security.NoSuchAlgorithmException;
-import java.security.SecureRandom;
-import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Ancestor for simple clients calling mainly JSON-based HTTP APIs.
@@ -50,81 +50,57 @@ abstract class ApiClient {
 
 	protected static final ObjectMapper objectMapper = new ObjectMapper();
 
-	protected final boolean validateSsl;
 	@Nonnull protected final String url;
+	@Nonnull protected final OkHttpClient client;
 
-	protected ApiClient(@Nonnull String url) {
-		this(url, true);
-	}
-
-	protected ApiClient(@Nonnull String url, boolean validateSsl) {
+	protected ApiClient(@Nonnull String url, boolean validateSsl, boolean useConnectionPool) {
 		this.url = url;
-		this.validateSsl = validateSsl;
-
+		this.client = createClient(validateSsl, useConnectionPool);
 	}
 
-	@Nonnull
-	protected HttpClient createClient() {
-		// todo lho - this is terrible, but I all other way result in `HTTP/1.1 header parser received no bytes`
-		if (validateSsl) {
-			return HttpClient.newBuilder()
-				.build();
-		} else {
+	protected OkHttpClient createClient(boolean validateSsl, boolean useConnectionPool) {
+		final OkHttpClient.Builder clientBuilder = new OkHttpClient.Builder();
+
+		if (!useConnectionPool) {
+			clientBuilder.connectionPool(new ConnectionPool(0, 1, TimeUnit.NANOSECONDS));
+		}
+
+		if (!validateSsl) {
 			// Create a trust manager that does not validate certificate chains
-			final TrustManager trustManager = new NoValidateTrustManager();
-			SSLContext sslContext = null;
+			final TrustManager[] trustAllCerts = new TrustManager[] {
+				new X509TrustManager() {
+					public X509Certificate[] getAcceptedIssuers() {
+						return new X509Certificate[0];
+					}
+					public void checkClientTrusted(X509Certificate[] certs, String authType) {}
+					public void checkServerTrusted(X509Certificate[] certs, String authType) {}
+				}
+			};
+			// Install the all-trusting trust manager
+			final SSLContext sc;
 			try {
-				sslContext = SSLContext.getInstance("TLS");
-				sslContext.init(null, new TrustManager[]{trustManager}, new SecureRandom());
-			} catch (NoSuchAlgorithmException | KeyManagementException e) {
-				throw new EvitaInternalError("Could create no-validate trust manager: ", e);
+				sc = SSLContext.getInstance("SSL");
+			} catch (NoSuchAlgorithmException e) {
+				throw new EvitaInternalError("Cannot get SSL context.", e);
+			}
+			try {
+				sc.init(null, trustAllCerts, new java.security.SecureRandom());
+			} catch (KeyManagementException e) {
+				throw new EvitaInternalError("Cannot init SSL context with custom trust manager.", e);
 			}
 
-			return HttpClient.newBuilder()
-				.sslContext(sslContext)
-				.build();
+			// Create an all-trusting host verifier
+			HostnameVerifier hostnameVerifier = (hostname, session) -> true;
+
+			clientBuilder
+				.sslSocketFactory(sc.getSocketFactory(), (X509TrustManager) trustAllCerts[0])
+				.hostnameVerifier(hostnameVerifier);
 		}
+		return clientBuilder.build();
 	}
 
 	@Nonnull
-	protected JsonNode readResponseBody(@Nonnull String body) throws IOException {
-		return objectMapper.readTree(body);
-	}
-
-	private static class NoValidateTrustManager extends X509ExtendedTrustManager {
-		@Override
-		public void checkClientTrusted(X509Certificate[] chain, String authType, Socket socket) throws CertificateException {
-
-		}
-
-		@Override
-		public void checkServerTrusted(X509Certificate[] chain, String authType, Socket socket) throws CertificateException {
-
-		}
-
-		@Override
-		public void checkClientTrusted(X509Certificate[] chain, String authType, SSLEngine engine) throws CertificateException {
-
-		}
-
-		@Override
-		public void checkServerTrusted(X509Certificate[] chain, String authType, SSLEngine engine) throws CertificateException {
-
-		}
-
-		@Override
-		public void checkClientTrusted(X509Certificate[] chain, String authType) throws CertificateException {
-
-		}
-
-		@Override
-		public void checkServerTrusted(X509Certificate[] chain, String authType) throws CertificateException {
-
-		}
-
-		@Override
-		public X509Certificate[] getAcceptedIssuers() {
-			return new X509Certificate[]{};
-		}
+	protected JsonNode readResponseBody(@Nonnull ResponseBody responseBody) throws IOException {
+		return objectMapper.readTree(responseBody.string());
 	}
 }

@@ -2,7 +2,6 @@ mutation {
 	deleteBrand(
 		filterBy: {
 			attributeNameStartsWith: "A"
-			entityLocaleEquals: en
 		}
 		limit: 20
 	) {

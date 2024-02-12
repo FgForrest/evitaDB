@@ -1,0 +1,11 @@
+query(  
+    filterBy(
+        attributeEquals("url", "/en/macbook-pro-13-2022"),
+        entityLocaleEquals("en")
+    ),
+    require(
+      entityFetch(
+        attributeContentAll()
+      )
+    )
+)

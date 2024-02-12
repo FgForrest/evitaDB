@@ -7,9 +7,9 @@
         "requested": false,
         "count": 60,
         "impact": {
-          "difference": -39,
-          "matchCount": 0,
-          "hasSense": false
+          "difference": 60,
+          "matchCount": 99,
+          "hasSense": true
         },
         "facetEntity": {
           "primaryKey": 66503,
@@ -51,8 +51,8 @@
         "requested": false,
         "count": 807,
         "impact": {
-          "difference": -33,
-          "matchCount": 6,
+          "difference": 801,
+          "matchCount": 840,
           "hasSense": true
         },
         "facetEntity": {
@@ -73,8 +73,8 @@
         "requested": false,
         "count": 280,
         "impact": {
-          "difference": -38,
-          "matchCount": 1,
+          "difference": 279,
+          "matchCount": 318,
           "hasSense": true
         },
         "facetEntity": {
@@ -95,8 +95,8 @@
         "requested": false,
         "count": 807,
         "impact": {
-          "difference": -35,
-          "matchCount": 4,
+          "difference": 803,
+          "matchCount": 842,
           "hasSense": true
         },
         "facetEntity": {
@@ -117,8 +117,8 @@
         "requested": false,
         "count": 209,
         "impact": {
-          "difference": -38,
-          "matchCount": 1,
+          "difference": 208,
+          "matchCount": 247,
           "hasSense": true
         },
         "facetEntity": {
@@ -139,8 +139,8 @@
         "requested": false,
         "count": 11,
         "impact": {
-          "difference": -38,
-          "matchCount": 1,
+          "difference": 10,
+          "matchCount": 49,
           "hasSense": true
         },
         "facetEntity": {
@@ -161,9 +161,9 @@
         "requested": false,
         "count": 251,
         "impact": {
-          "difference": -39,
-          "matchCount": 0,
-          "hasSense": false
+          "difference": 251,
+          "matchCount": 290,
+          "hasSense": true
         },
         "facetEntity": {
           "primaryKey": 112774,
@@ -183,9 +183,9 @@
         "requested": false,
         "count": 239,
         "impact": {
-          "difference": -39,
-          "matchCount": 0,
-          "hasSense": false
+          "difference": 239,
+          "matchCount": 278,
+          "hasSense": true
         },
         "facetEntity": {
           "primaryKey": 112775,
@@ -205,9 +205,9 @@
         "requested": false,
         "count": 49,
         "impact": {
-          "difference": -39,
-          "matchCount": 0,
-          "hasSense": false
+          "difference": 49,
+          "matchCount": 88,
+          "hasSense": true
         },
         "facetEntity": {
           "primaryKey": 112776,

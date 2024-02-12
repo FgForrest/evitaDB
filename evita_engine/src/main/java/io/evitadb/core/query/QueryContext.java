@@ -91,7 +91,6 @@ import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
-import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -161,7 +160,7 @@ public class QueryContext implements AutoCloseable, LocaleProvider {
 	@Nonnull private final Map<IndexKey, Index<?>> indexes;
 	/**
 	 * Formula supervisor is an entry point to the Evita cache. The idea is that each {@link Formula} can be identified
-	 * by its {@link Formula#computeHash(LongHashFunction)} method and when the supervisor identifies that certain
+	 * by its {@link Formula#getHash()} method and when the supervisor identifies that certain
 	 * formula is frequently used in query formulas it moves its memoized results to the cache. The non-computed formula
 	 * of the same hash will be exchanged in next query that contains it with the cached formula that already contains
 	 * memoized result.
@@ -289,7 +288,7 @@ public class QueryContext implements AutoCloseable, LocaleProvider {
 		this.entityStorageContainerAccessor = entityStorageContainerAccessor;
 		this.evitaSession = evitaSession;
 		this.evitaRequest = evitaRequest;
-		this.telemetryStack = new LinkedList<>();
+		this.telemetryStack = new ArrayDeque<>(16);
 		ofNullable(telemetry).ifPresent(this.telemetryStack::push);
 		//noinspection unchecked
 		this.indexes = (Map<IndexKey, Index<?>>) indexes;
@@ -1073,7 +1072,7 @@ public class QueryContext implements AutoCloseable, LocaleProvider {
 	@Nonnull
 	public int[] borrowBuffer() {
 		if (this.buffers == null) {
-			this.buffers = new LinkedList<>();
+			this.buffers = new ArrayDeque<>(16);
 		}
 		// return locally cached buffer or obtain new one from shared pool
 		return ofNullable(this.buffers.poll())

@@ -195,11 +195,8 @@ public class ListEntitiesDataFetcher implements DataFetcher<DataFetcherResult<Li
 
         final Optional<PriceValidIn> priceValidInConstraint = Optional.ofNullable(QueryUtils.findFilter(query, PriceValidIn.class));
         final OffsetDateTime desiredPriceValidIn = priceValidInConstraint
-            .map(PriceValidIn::getTheMoment)
+            .map(it -> it.getTheMoment(() -> OffsetDateTime.MIN))
             .orElse(null);
-        final boolean desiredpriceValidInNow = priceValidInConstraint
-            .map(it -> it.getTheMoment() == null)
-            .orElse(false);
 
         final String[] desiredPriceInPriceLists = Optional.ofNullable(QueryUtils.findFilter(query, PriceInPriceLists.class))
             .map(PriceInPriceLists::getPriceLists)
@@ -209,8 +206,8 @@ public class ListEntitiesDataFetcher implements DataFetcher<DataFetcherResult<Li
             desiredLocale,
             desiredPriceInCurrency,
             desiredPriceInPriceLists,
-            desiredPriceValidIn,
-            desiredpriceValidInNow
+            desiredPriceValidIn == OffsetDateTime.MIN ? null : desiredPriceValidIn,
+            desiredPriceValidIn == OffsetDateTime.MIN
         );
     }
 

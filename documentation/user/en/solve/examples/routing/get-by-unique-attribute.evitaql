@@ -1,0 +1,11 @@
+query(
+    collection("Product"),
+    filterBy(
+        attributeEquals("code", "macbook-pro-13-2022")
+    ),
+    require(
+      entityFetch(
+        attributeContentAll()
+      )
+    )
+)

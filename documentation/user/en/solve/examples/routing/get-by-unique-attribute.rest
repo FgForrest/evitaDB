@@ -1,0 +1,12 @@
+POST /rest/evita/Product/query
+
+{
+  "filterBy" : {
+    "attributeCodeEquals" : "macbook-pro-13-2022"
+  },
+  "require" : {
+    "entityFetch" : {
+      "attributeContentAll" : true
+    }
+  }
+}

@@ -591,7 +591,7 @@ To remove one or multiple entities, you need to define a query that will match a
 
 <LS to="j,g,r,c">
 
-<SourceCodeTabs requires="/documentation/user/en/use/api/example/finalization-of-warmup-mode.java,/documentation/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly locale>
+<SourceCodeTabs requires="/documentation/user/en/use/api/example/finalization-of-warmup-mode.java,/documentation/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly local>
 
 [Removing all entities which name starts with `A`](/documentation/user/en/use/api/example/delete-entities-by-query.java)
 </SourceCodeTabs>

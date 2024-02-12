@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,7 +23,9 @@
 
 package io.evitadb.externalApi.rest.api.builder;
 
+import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
@@ -107,6 +109,8 @@ public abstract class RestBuildingContext {
 		final SimpleModule module = new SimpleModule();
 		module.addSerializer(new BigDecimalSerializer());
 		objectMapper.registerModule(module);
+		objectMapper.enable(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS);
+		objectMapper.setConfig(objectMapper.getSerializationConfig().with(MapperFeature.SORT_PROPERTIES_ALPHABETICALLY));
 
 		return objectMapper;
 	}

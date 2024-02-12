@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -255,7 +255,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 			CatalogDataApiRootDescriptor.COLLECTIONS.to(staticEndpointBuilderTransformer).build(),
 			new ReadDataFetcher(
 				new CollectionsDataFetcher(),
-				buildingContext.getEvita(),
+				buildingContext.getTracingContext(),
 				buildingContext.getEvitaExecutor().orElse(null)
 			)
 		);
@@ -306,7 +306,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 					buildingContext.getSchema(),
 					buildingContext.getSupportedLocales()
 				),
-				buildingContext.getEvita(),
+				buildingContext.getTracingContext(),
 				buildingContext.getEvitaExecutor().orElse(null)
 			)
 		);
@@ -358,7 +358,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 					buildingContext.getSchema(),
 					buildingContext.getSupportedLocales()
 				),
-				buildingContext.getEvita(),
+				buildingContext.getTracingContext(),
 				buildingContext.getEvitaExecutor().orElse(null)
 			)
 		);
@@ -415,7 +415,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 					buildingContext.getSchema(),
 					entitySchema
 				),
-				buildingContext.getEvita(),
+				buildingContext.getTracingContext(),
 				buildingContext.getEvitaExecutor().orElse(null)
 			)
 		);
@@ -447,7 +447,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 					buildingContext.getSchema(),
 					entitySchema
 				),
-				buildingContext.getEvita(),
+				buildingContext.getTracingContext(),
 				buildingContext.getEvitaExecutor().orElse(null)
 			)
 		);
@@ -485,7 +485,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 					buildingContext.getSchema(),
 					entitySchema
 				),
-				buildingContext.getEvita(),
+				buildingContext.getTracingContext(),
 				buildingContext.getEvitaExecutor().orElse(null)
 			)
 		);
@@ -500,7 +500,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 				.build(),
 			new ReadDataFetcher(
 				new CollectionSizeDataFetcher(entitySchema),
-				buildingContext.getEvita(),
+				buildingContext.getTracingContext(),
 				buildingContext.getEvitaExecutor().orElse(null)
 			)
 		);
