@@ -77,10 +77,6 @@ public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProces
 	 */
 	@Nonnull private final Bitmap entityReferences = new BaseBitmap();
 	/**
-	 * The query context that will be used to prefetch entities.
-	 */
-	@Nonnull private final QueryContext queryContext;
-	/**
 	 * Flag that signalizes {@link #visit(Formula)} happens in conjunctive scope.
 	 */
 	protected boolean conjunctiveScope = true;
@@ -134,8 +130,7 @@ public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProces
 		return PREFETCH_COST_ESTIMATOR.apply(prefetchedEntityCount, requirements.getRequirements().length);
 	}
 
-	public PrefetchFormulaVisitor(@Nonnull QueryContext queryContext) {
-		this.queryContext = queryContext;
+	public PrefetchFormulaVisitor() {
 	}
 
 	/**

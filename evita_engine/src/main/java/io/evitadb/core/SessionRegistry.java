@@ -183,15 +183,13 @@ final class SessionRegistry {
 								throw evitaInvalidUsageException;
 							} else if (targetException instanceof EvitaInternalError evitaInternalError) {
 								log.error(
-									"Internal Evita error occurred in {}: {}",
-									evitaInternalError.getErrorCode(),
-									evitaInternalError.getPrivateMessage(),
+									"Internal Evita error occurred in " + evitaInternalError.getErrorCode() + ": " + evitaInternalError.getPrivateMessage(),
 									targetException
 								);
 								// unwrap and rethrow
 								throw evitaInternalError;
 							} else {
-								log.error("Unexpected internal Evita error occurred: {}", ex.getCause().getMessage(), targetException);
+								log.error("Unexpected internal Evita error occurred: " + ex.getCause().getMessage(), targetException);
 								throw new EvitaInternalError(
 									"Unexpected internal Evita error occurred: " + ex.getCause().getMessage(),
 									"Unexpected internal Evita error occurred.",
@@ -199,7 +197,7 @@ final class SessionRegistry {
 								);
 							}
 						} catch (Throwable ex) {
-							log.error("Unexpected system error occurred: {}", ex.getMessage(), ex);
+							log.error("Unexpected system error occurred: " + ex.getMessage(), ex);
 							throw new EvitaInternalError(
 								"Unexpected system error occurred: " + ex.getMessage(),
 								"Unexpected system error occurred.",
