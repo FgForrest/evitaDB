@@ -413,7 +413,7 @@ public class QueryPlanner {
 		@Nonnull QueryContext queryContext
 	) {
 		if (targetIndex.isGlobalIndex() || targetIndex.isCatalogIndex()) {
-			return new PrefetchFormulaVisitor(queryContext);
+			return new PrefetchFormulaVisitor();
 		} else {
 			return null;
 		}

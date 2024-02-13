@@ -72,9 +72,7 @@ public abstract class ExternalApiExceptionHandler implements HttpHandler {
             if (evitaError instanceof final ExternalApiInternalError externalApiInternalError) {
                 // log any API internal errors that Evita cannot handle because they are outside of Evita execution
                 log.error(
-                    "Internal Evita " + getExternalApiCode() + " API error occurred in {}: {}",
-                    externalApiInternalError.getErrorCode(),
-                    externalApiInternalError.getPrivateMessage(),
+                    "Internal Evita " + getExternalApiCode() + " API error occurred in " + externalApiInternalError.getErrorCode() + ": " + externalApiInternalError.getPrivateMessage(),
                     externalApiInternalError
                 );
             }

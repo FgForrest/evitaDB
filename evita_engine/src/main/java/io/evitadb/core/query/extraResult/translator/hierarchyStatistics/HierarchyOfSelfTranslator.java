@@ -32,6 +32,7 @@ import io.evitadb.api.query.require.HierarchyOfSelf;
 import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.core.EntityCollection;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
@@ -40,7 +41,7 @@ import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.extraResult.translator.RequireConstraintTranslator;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyStatisticsProducer;
-import io.evitadb.core.query.sort.Sorter;
+import io.evitadb.core.query.sort.NestedContextSorter;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.hierarchy.predicate.FilteringFormulaHierarchyEntityPredicate;
@@ -83,15 +84,15 @@ public class HierarchyOfSelfTranslator
 		// we need to register producer prematurely
 		extraResultPlanner.registerProducer(hierarchyStatisticsProducer);
 
-		final Optional<GlobalEntityIndex> targetGlobalIndexRef = extraResultPlanner.getGlobalEntityIndexIfExists(queriedEntityType);
-		if (targetGlobalIndexRef.isPresent()) {
-			final GlobalEntityIndex globalIndex = targetGlobalIndexRef.get();
-			final Sorter sorter = hierarchyOfSelf.getOrderBy()
+		final Optional<EntityCollection> targetCollectionRef = extraResultPlanner.getEntityCollection(queriedEntityType);
+		final GlobalEntityIndex globalIndex = targetCollectionRef.flatMap(EntityCollection::getGlobalIndexIfExists).orElse(null);
+		if (globalIndex != null) {
+			final NestedContextSorter sorter = hierarchyOfSelf.getOrderBy()
 				.map(
 					it -> extraResultPlanner.createSorter(
 						it,
 						null,
-						globalIndex,
+						targetCollectionRef.get(),
 						queriedEntityType,
 						() -> "Hierarchy statistics of `" + entitySchema.getName() + "`: " + it
 					)

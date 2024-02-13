@@ -909,6 +909,22 @@ public class QueryContext implements AutoCloseable, LocaleProvider {
 	 */
 
 	/**
+	 * Method returns appropriate {@link EntityCollection} for the {@link #evitaRequest} or empty value.
+	 */
+	@Nonnull
+	public Optional<EntityCollection> getEntityCollection(@Nullable String entityType) {
+		if (entityType == null) {
+			return Optional.empty();
+		} else if (Objects.equals(entityType, this.entityType) && entityCollection != null) {
+			return Optional.of(entityCollection);
+		} else {
+			return Optional.ofNullable(
+				(EntityCollection) catalog.getCollectionForEntity(entityType).orElse(null)
+			);
+		}
+	}
+
+	/**
 	 * Method returns appropriate {@link EntityCollection} for the {@link #evitaRequest} or throws comprehensible
 	 * exception. In order exception to be comprehensible you need to provide sensible `reason` for accessing
 	 * the collection in the input parameter.
