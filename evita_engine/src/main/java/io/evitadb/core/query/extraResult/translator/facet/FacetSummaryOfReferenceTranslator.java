@@ -52,8 +52,8 @@ import io.evitadb.core.query.extraResult.translator.facet.producer.FacetSummaryP
 import io.evitadb.core.query.extraResult.translator.facet.producer.FilteringFormulaPredicate;
 import io.evitadb.core.query.extraResult.translator.reference.EntityFetchTranslator;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
+import io.evitadb.core.query.sort.NestedContextSorter;
 import io.evitadb.core.query.sort.NoSorter;
-import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.collection.BitmapIntoBitmapCollector;
@@ -159,7 +159,7 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 	 * @return the created facet sorter, or null if the reference schema is not managed and sorting is not required
 	 */
 	@Nullable
-	static Sorter createFacetSorter(
+	static NestedContextSorter createFacetSorter(
 		@Nonnull OrderBy orderBy,
 		@Nullable Locale locale,
 		@Nonnull ExtraResultPlanningVisitor extraResultPlanner,
@@ -175,16 +175,16 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 		} else if (!referenceSchema.isReferencedEntityTypeManaged()) {
 			return null;
 		}
-		return extraResultPlanner.getGlobalEntityIndexIfExists(referenceSchema.getReferencedEntityType())
-			.map(ix -> extraResultPlanner.createSorter(
+		return extraResultPlanner.getEntityCollection(referenceSchema.getReferencedEntityType())
+			.map(collection -> extraResultPlanner.createSorter(
 					orderBy,
 					locale,
-					ix,
+					collection,
 					referenceSchema.getReferencedEntityType(),
 					() -> "Facet summary `" + referenceSchema.getName() + "` facet ordering: " + orderBy
 				)
 			)
-			.orElse(NoSorter.INSTANCE);
+			.orElseGet(() -> new NestedContextSorter(extraResultPlanner.getQueryContext(), NoSorter.INSTANCE));
 	}
 
 	/**
@@ -198,7 +198,7 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 	 * @return The created sorter for facet group ordering, or null if not required.
 	 */
 	@Nullable
-	static Sorter createFacetGroupSorter(
+	static NestedContextSorter createFacetGroupSorter(
 		@Nullable OrderGroupBy orderBy,
 		@Nullable Locale locale,
 		@Nonnull ExtraResultPlanningVisitor extraResultPlanner,
@@ -215,16 +215,16 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 			return null;
 		}
 
-		return extraResultPlanner.getGlobalEntityIndexIfExists(referenceSchema.getReferencedGroupType())
-			.map(ix -> extraResultPlanner.createSorter(
+		return extraResultPlanner.getEntityCollection(referenceSchema.getReferencedGroupType())
+			.map(collection -> extraResultPlanner.createSorter(
 					orderBy,
 					locale,
-					ix,
+					collection,
 					referenceSchema.getReferencedGroupType(),
 					() -> "Facet summary `" + referenceSchema.getName() + "` group ordering: " + orderBy
 				)
 			)
-			.orElse(NoSorter.INSTANCE);
+			.orElseGet(() -> new NestedContextSorter(extraResultPlanner.getQueryContext(), NoSorter.INSTANCE));
 	}
 
 	/**
