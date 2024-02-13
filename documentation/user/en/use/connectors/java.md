@@ -22,6 +22,25 @@ So none of these topics will be covered here.
 
 ## Java remote client
 
+In order to use a Java remote client you need only to add following dependency to your project:
+
+<CodeTabs>
+<CodeTabsBlock>
+```Maven
+<dependency>
+    <groupId>io.evitadb</groupId>
+    <artifactId>evita_java_driver</artifactId>
+    <version>2024.2.2</version>
+</dependency>
+```
+</CodeTabsBlock>
+<CodeTabsBlock>
+```Gradle
+implementation 'io.evitadb:evita_java_driver:2024.2.2'
+```
+</CodeTabsBlock>
+</CodeTabs>
+
 Java remote client builds on top of the [gRPC API](./grpc.md). The <SourceClass>evita_external_api/evita_external_api_grpc/client/src/main/java/io/evitadb/driver/EvitaClient.java</SourceClass>
 is thread safe and only single instance of it is expected to be used in the application. The client internally manages
 a pool of gRPC connections to handle parallel communication with the server.
@@ -223,7 +242,7 @@ needs to be added as dependency:
 <dependency>
   <groupId>one.edee.oss</groupId>
   <artifactId>proxycian_bytebuddy</artifactId>
-  <version>1.3.10</version>
+  <version>1.4.0</version>
 </dependency>
 ```
 
