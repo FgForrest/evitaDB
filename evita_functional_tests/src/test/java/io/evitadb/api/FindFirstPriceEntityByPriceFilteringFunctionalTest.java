@@ -272,6 +272,14 @@ public class FindFirstPriceEntityByPriceFilteringFunctionalTest extends EntityBy
 		super.shouldReturnPriceHistogramWithoutBeingAffectedByPriceFilter(evita, originalProductEntities);
 	}
 
+	@DisplayName("Should return price histogram for returned products excluding price between query (and validity)")
+	@UseDataSet(HUNDRED_PRODUCTS_WITH_FIND_FIRST_PRICES)
+	@Test
+	@Override
+	void shouldReturnPriceHistogramWithoutBeingAffectedByPriceFilterAndValidity(Evita evita, List<SealedEntity> originalProductEntities) {
+		super.shouldReturnPriceHistogramWithoutBeingAffectedByPriceFilterAndValidity(evita, originalProductEntities);
+	}
+
 	@DisplayName("Should return price histogram for returned products excluding price between query")
 	@UseDataSet(HUNDRED_PRODUCTS_WITH_FIND_FIRST_PRICES)
 	@Override

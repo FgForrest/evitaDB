@@ -27,7 +27,6 @@ import io.evitadb.core.cache.payload.CachePayloadHeader;
 import io.evitadb.core.query.extraResult.EvitaResponseExtraResultComputer;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
 import io.evitadb.utils.MemoryMeasuringConstants;
-import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -65,12 +64,17 @@ public class FlattenedHistogramComputer extends CachePayloadHeader implements Tr
 	}
 
 	@Override
-	public long computeHash(@Nonnull LongHashFunction hashFunction) {
+	public void initialize(@Nonnull CalculationContext calculationContext) {
+
+	}
+
+	@Override
+	public long getHash() {
 		return recordHash;
 	}
 
 	@Override
-	public long computeTransactionalIdHash(@Nonnull LongHashFunction hashFunction) {
+	public long getTransactionalIdHash() {
 		return transactionalIdHash;
 	}
 

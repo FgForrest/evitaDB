@@ -669,7 +669,7 @@ public class EvitaRequest {
 		if (this.priceValidInTimeSet == null) {
 			final List<OffsetDateTime> validitySpan = QueryUtils.findFilters(query, PriceValidIn.class)
 				.stream()
-				.map(it -> ofNullable(it.getTheMoment()).orElse(alignedNow))
+				.map(it -> it.getTheMoment(this::getAlignedNow))
 				.distinct()
 				.toList();
 			Assert.isTrue(

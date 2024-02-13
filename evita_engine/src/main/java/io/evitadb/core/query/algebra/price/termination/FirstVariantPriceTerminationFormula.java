@@ -39,7 +39,6 @@ import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRec
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords.PriceRecordLookup;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords.SortingForm;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.ResolvedFilteredPriceRecords;
-import io.evitadb.core.query.algebra.price.innerRecordHandling.PriceHandlingContainerFormula;
 import io.evitadb.core.query.algebra.price.predicate.PriceAmountPredicate;
 import io.evitadb.core.query.algebra.price.predicate.PricePredicate;
 import io.evitadb.core.query.algebra.price.predicate.PriceRecordPredicate;
@@ -113,7 +112,7 @@ public class FirstVariantPriceTerminationFormula extends AbstractCacheableFormul
 	@Getter private Bitmap recordsFilteredOutByPredicate;
 
 	public FirstVariantPriceTerminationFormula(
-		@Nonnull PriceHandlingContainerFormula containerFormula,
+		@Nonnull Formula containerFormula,
 		@Nonnull PriceEvaluationContext priceEvaluationContext,
 		@Nonnull QueryPriceMode queryPriceMode,
 		@Nonnull PriceRecordPredicate pricePredicate
@@ -129,7 +128,7 @@ public class FirstVariantPriceTerminationFormula extends AbstractCacheableFormul
 
 	private FirstVariantPriceTerminationFormula(
 		@Nullable Consumer<CacheableFormula> computationCallback,
-		@Nonnull PriceHandlingContainerFormula containerFormula,
+		@Nonnull Formula containerFormula,
 		@Nonnull PriceEvaluationContext priceEvaluationContext,
 		@Nonnull QueryPriceMode queryPriceMode,
 		@Nonnull PriceRecordPredicate pricePredicate
@@ -145,7 +144,7 @@ public class FirstVariantPriceTerminationFormula extends AbstractCacheableFormul
 
 	private FirstVariantPriceTerminationFormula(
 		@Nullable Consumer<CacheableFormula> computationCallback,
-		@Nonnull PriceHandlingContainerFormula containerFormula,
+		@Nonnull Formula containerFormula,
 		@Nonnull PriceEvaluationContext priceEvaluationContext,
 		@Nonnull QueryPriceMode queryPriceMode,
 		@Nonnull PriceRecordPredicate pricePredicate,
@@ -161,6 +160,12 @@ public class FirstVariantPriceTerminationFormula extends AbstractCacheableFormul
 		this.recordsFilteredOutByPredicate = recordsFilteredOutByPredicate;
 	}
 
+	@Override
+	public void initialize(@Nonnull CalculationContext calculationContext) {
+		getDelegate().initialize(calculationContext);
+		super.initialize(calculationContext);
+	}
+
 	@Nullable
 	@Override
 	public PriceAmountPredicate getRequestedPredicate() {
@@ -171,7 +176,7 @@ public class FirstVariantPriceTerminationFormula extends AbstractCacheableFormul
 	 * Returns delegate formula of this container.
 	 */
 	public Formula getDelegate() {
-		return ((PriceHandlingContainerFormula) this.innerFormulas[0]).getDelegate();
+		return this.innerFormulas[0];
 	}
 
 	@Nonnull
@@ -180,7 +185,7 @@ public class FirstVariantPriceTerminationFormula extends AbstractCacheableFormul
 		Assert.isPremiseValid(innerFormulas.length == 1, "Expected exactly single delegate inner formula!");
 		return new FirstVariantPriceTerminationFormula(
 			computationCallback,
-			(PriceHandlingContainerFormula) innerFormulas[0],
+			innerFormulas[0],
 			priceEvaluationContext, queryPriceMode, pricePredicate
 		);
 	}
@@ -194,7 +199,7 @@ public class FirstVariantPriceTerminationFormula extends AbstractCacheableFormul
 	@Override
 	public Formula getCloneWithPricePredicateFilteredOutResults() {
 		return new FirstVariantPriceTerminationFormula(
-			computationCallback, (PriceHandlingContainerFormula) innerFormulas[0],
+			computationCallback, innerFormulas[0],
 			priceEvaluationContext, queryPriceMode, PricePredicate.ALL_RECORD_FILTER,
 			recordsFilteredOutByPredicate
 		);
@@ -206,7 +211,7 @@ public class FirstVariantPriceTerminationFormula extends AbstractCacheableFormul
 		Assert.isPremiseValid(innerFormulas.length == 1, "Expected exactly single delegate inner formula!");
 		return new FirstVariantPriceTerminationFormula(
 			selfOperator,
-			(PriceHandlingContainerFormula) innerFormulas[0],
+			innerFormulas[0],
 			priceEvaluationContext, queryPriceMode, pricePredicate
 		);
 	}
@@ -227,7 +232,7 @@ public class FirstVariantPriceTerminationFormula extends AbstractCacheableFormul
 	public FlattenedFormula toSerializableFormula(long formulaHash, @Nonnull LongHashFunction hashFunction) {
 		return new FlattenedFormulaWithFilteredPricesAndFilteredOutRecords(
 			formulaHash,
-			computeTransactionalIdHash(hashFunction),
+			getTransactionalIdHash(),
 			Arrays.stream(gatherTransactionalIds())
 				.distinct()
 				.sorted()

@@ -42,7 +42,7 @@ public class CacheTranslatingExtraResultAccessor implements ExtraResultCacheAcce
 	@Override
 	public <U, T extends CacheableEvitaResponseExtraResultComputer<U>> EvitaResponseExtraResultComputer<U> analyse(@Nonnull String entityType, @Nonnull T computer) {
 		final LongHashFunction hashFunction = CacheSupervisor.createHashFunction();
-		return computer.toSerializableResult(computer.computeHash(hashFunction), hashFunction);
+		return computer.toSerializableResult(computer.getHash(), hashFunction);
 	}
 
 }

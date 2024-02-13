@@ -39,11 +39,11 @@ import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.ArrayDeque;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Deque;
 import java.util.Iterator;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.function.IntFunction;
 import java.util.function.IntPredicate;
@@ -75,7 +75,7 @@ public class ParentStatisticsHierarchyVisitor implements HierarchyVisitor {
 	/**
 	 * Deque of accumulators allow to compose a tree of results
 	 */
-	@Nonnull private final Deque<Accumulator> accumulator = new LinkedList<>();
+	@Nonnull private final Deque<Accumulator> accumulator = new ArrayDeque<>(16);
 	/**
 	 * Function that allows to fetch {@link SealedEntity} for `entityType` + `primaryKey` combination. SealedEntity
 	 * is fetched to the depth specified by {@link RequireConstraint[]}.

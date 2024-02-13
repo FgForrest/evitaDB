@@ -109,7 +109,10 @@ public class QueryPlan {
 	@Nonnull
 	public <S extends Serializable, T extends EvitaResponse<S>> T execute() {
 		queryContext.pushStep(QueryPhase.EXECUTION);
-		new QueryPlanStepExecutedEvent(QueryPhase.EXECUTION.name(), this.filter.getEstimatedCost()).commit();
+		new QueryPlanStepExecutedEvent(
+			QueryPhase.EXECUTION.name(),
+			this.filter.getEstimatedCost()
+		).commit();
 
 		try {
 			// prefetch the entities to allow using them in filtering / sorting in next step

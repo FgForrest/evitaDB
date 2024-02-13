@@ -72,9 +72,19 @@ public interface Formula extends TransactionalDataRelatedStructure, PrettyPrinta
 	Formula[] getInnerFormulas();
 
 	/**
+	 * Enforces initialization from scratch - this should be called only exceptionally, for example after deduplication.
+	 * @param calculationContext
+	 */
+	void initializeAgain(@Nonnull CalculationContext calculationContext);
+
+	/**
 	 * Returns the cardinality estimate of {@link #compute()} method without really computing the result. The estimate
 	 * will not be precise but differs between AND/OR relations and helps us to compute {@link #getEstimatedCost()}.
 	 */
 	int getEstimatedCardinality();
 
+	/**
+	 * Clears the memoized results and hashes of the formula.
+	 */
+	void clearMemory();
 }

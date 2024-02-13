@@ -61,6 +61,12 @@ public class PriceHandlingContainerFormula extends AbstractFormula {
 	}
 
 	@Override
+	public void initialize(@Nonnull CalculationContext calculationContext) {
+		this.getDelegate().initialize(calculationContext);
+		super.initialize(calculationContext);
+	}
+
+	@Override
 	public String toString() {
 		return "DO WITH " + innerRecordHandling;
 	}

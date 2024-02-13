@@ -129,7 +129,26 @@ thousands of products.
 
 ## Connect the Java client
 
-Open your Java IDE and create an <SourceClass>evita_external_api/evita_external_api_grpc/client/src/main/java/io/evitadb/driver/EvitaClient.java</SourceClass>
+Open your Java IDE and add the following dependency to your project:
+
+<CodeTabs>
+<CodeTabsBlock>
+```Maven
+<dependency>
+    <groupId>io.evitadb</groupId>
+    <artifactId>evita_java_driver</artifactId>
+    <version>2024.2.2</version>
+</dependency>
+```
+</CodeTabsBlock>
+<CodeTabsBlock>
+```Gradle
+implementation 'io.evitadb:evita_java_driver:2024.2.2'
+```
+</CodeTabsBlock>
+</CodeTabs>
+
+Then, create an <SourceClass>evita_external_api/evita_external_api_grpc/client/src/main/java/io/evitadb/driver/EvitaClient.java</SourceClass>
 instance:
 
 <SourceCodeTabs langSpecificTabOnly local>

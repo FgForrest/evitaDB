@@ -96,18 +96,53 @@ public class PriceHistogramProducer implements CacheableExtraResultProducer {
 	 */
 	@Nonnull private final ExtraResultCacheAccessor extraResultCacheAccessor;
 
-
 	@Nullable
 	@Override
 	public <T extends Serializable> EvitaResponseExtraResult fabricate(@Nonnull List<T> entities) {
 		// contains flag whether there was at least one formula with price predicate that filtered out some entity pks
 		final AtomicBoolean filteredRecordsFound = new AtomicBoolean();
 		final AtomicReference<Predicate<BigDecimal>> requestedPricePredicate = new AtomicReference<>();
-		// create clone of the current formula in a such way that all price termination formulas within user filter
-		// that filtered out entity primary keys based on price predicate (price between query) produce just
-		// the excluded records - this way we can compute remainder to the current filtering result and get all data
-		// for price histogram ignoring the price between filtering query
-		final Formula formulaWithFilteredOutResults = FormulaCloner.clone(
+		final Formula formulaWithFilteredOutResults = getFormulaWithFilteredOutResults(requestedPricePredicate, filteredRecordsFound);
+
+		final PriceHistogramComputer computer = new PriceHistogramComputer(
+			bucketCount,
+			behavior,
+			queryContext.getSchema().getIndexedPricePlaces(),
+			queryContext.getQueryPriceMode(),
+			filteringFormula,
+			filteredRecordsFound.get() ? formulaWithFilteredOutResults : null,
+			filteredPriceRecordAccessors, priceRecordsLookupResult
+		);
+		final CacheableHistogramContract optimalHistogram = extraResultCacheAccessor.analyse(
+			queryContext.getSchema().getName(),
+			computer
+		).compute();
+		if (optimalHistogram == CacheableHistogramContract.EMPTY) {
+			return null;
+		} else {
+			// create histogram DTO for the output
+			return new PriceHistogram(
+				optimalHistogram.convertToHistogram(
+					ofNullable(requestedPricePredicate.get())
+						.orElseGet(() -> threshold -> true)
+				)
+			);
+		}
+	}
+
+	/**
+	 * Create clone of the current formula in a such way that all price termination formulas within user filter
+	 * that filtered out entity primary keys based on price predicate (price between query) produce just
+	 * the excluded records - this way we can compute remainder to the current filtering result and get all data
+	 * for price histogram ignoring the price between filtering query.
+	 *
+	 * @param requestedPricePredicate The atomic reference to the predicate that determines the requested price.
+	 * @param filteredRecordsFound    The atomic boolean that indicates whether filtered records were found.
+	 * @return The formula with filtered out results.
+	 */
+	@Nonnull
+	private Formula getFormulaWithFilteredOutResults(@Nonnull AtomicReference<Predicate<BigDecimal>> requestedPricePredicate, @Nonnull AtomicBoolean filteredRecordsFound) {
+		final Formula result = FormulaCloner.clone(
 			filteringFormula, (formulaCloner, theFormula) -> {
 				if (theFormula instanceof UserFilterFormula) {
 					// we need to reconstruct the user filter formula
@@ -117,9 +152,9 @@ public class PriceHistogramProducer implements CacheableExtraResultProducer {
 							if (innerFormula instanceof FilteredOutPriceRecordAccessor filteredOutPriceRecordAccessor) {
 								ofNullable(filteredOutPriceRecordAccessor.getRequestedPredicate())
 									.ifPresent(requestedPricePredicate::set);
-								final Formula result = filteredOutPriceRecordAccessor.getCloneWithPricePredicateFilteredOutResults();
-								filteredRecordsFound.set(result != EmptyFormula.INSTANCE);
-								return result;
+								final Formula theResult = filteredOutPriceRecordAccessor.getCloneWithPricePredicateFilteredOutResults();
+								filteredRecordsFound.set(theResult != EmptyFormula.INSTANCE);
+								return theResult;
 							} else {
 								return innerFormula;
 							}
@@ -136,30 +171,7 @@ public class PriceHistogramProducer implements CacheableExtraResultProducer {
 				}
 			}
 		);
-
-		final CacheableHistogramContract optimalHistogram = extraResultCacheAccessor.analyse(
-			queryContext.getSchema().getName(),
-			new PriceHistogramComputer(
-				bucketCount,
-				behavior,
-				queryContext.getSchema().getIndexedPricePlaces(),
-				queryContext.getQueryPriceMode(),
-				filteringFormula,
-				filteredRecordsFound.get() ? formulaWithFilteredOutResults : null,
-				filteredPriceRecordAccessors, priceRecordsLookupResult
-			)
-		).compute();
-		if (optimalHistogram == CacheableHistogramContract.EMPTY) {
-			return null;
-		} else {
-			// create histogram DTO for the output
-			return new PriceHistogram(
-				optimalHistogram.convertToHistogram(
-					ofNullable(requestedPricePredicate.get())
-						.orElseGet(() -> threshold -> true)
-				)
-			);
-		}
+		return result;
 	}
 
 	@Nonnull

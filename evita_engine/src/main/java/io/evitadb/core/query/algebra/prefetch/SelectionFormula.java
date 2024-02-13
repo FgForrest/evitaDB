@@ -217,7 +217,7 @@ public class SelectionFormula extends AbstractFormula implements FilteredPriceRe
 				}
 				return (1 + alternative.getEntityRequire().getRequirements().length) * 148L;
 			})
-			.orElseGet(getDelegate()::getEstimatedCost);
+			.orElseGet(() -> getDelegate().getEstimatedCost());
 	}
 
 	@Override
@@ -246,14 +246,14 @@ public class SelectionFormula extends AbstractFormula implements FilteredPriceRe
 
 				return (1 + alternative.getEntityRequire().getRequirements().length) * 148L;
 			})
-			.orElseGet(getDelegate()::getCost);
+			.orElseGet(() -> getDelegate().getCost());
 	}
 
 	@Override
 	protected long getCostToPerformanceInternal() {
 		return Optional.ofNullable(filterByVisitor.getPrefetchedEntities())
 			.map(it -> getCost() / Math.max(1, compute().size()))
-			.orElseGet(getDelegate()::getCostToPerformanceRatio);
+			.orElseGet(() -> getDelegate().getCostToPerformanceRatio());
 	}
 
 	@Nonnull
