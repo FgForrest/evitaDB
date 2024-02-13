@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,35 +24,35 @@
 package io.evitadb.core.query.sort;
 
 import io.evitadb.core.query.QueryContext;
+import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
+import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 /**
- * This interface should be implemented by {@link Sorter} implementations that can be used or omitted based on
- * the condition.
+ * This class is a wrapper for {@link Sorter} along with correct nested {@link QueryContext} initialized for proper
+ * query and entity type.
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public interface ConditionalSorter extends Sorter {
+@RequiredArgsConstructor
+public class NestedContextSorter {
+	private final QueryContext context;
+	private final Sorter sorter;
 
 	/**
-	 * Method returns first applicable (either non-conditional, or conditional with satisfied condition) sorter from
-	 * the chain of sorters.
+	 * Method sorts output of the {@link AbstractFormula} input and extracts slice of the result data between `startIndex` (inclusive)
+	 * and `endIndex` (exclusive).
 	 */
-	@Nullable
-	static Sorter getFirstApplicableSorter(@Nullable Sorter sorter, @Nonnull QueryContext queryContext) {
-		while (sorter instanceof ConditionalSorter conditionalSorter && !conditionalSorter.shouldApply(queryContext)) {
-			sorter = conditionalSorter.getNextSorter();
-		}
-		return sorter;
+	public int sortAndSlice(
+		@Nonnull Formula input,
+		int startIndex,
+		int endIndex,
+		@Nonnull int[] result,
+		int peak
+	) {
+		return sorter.sortAndSlice(context, input, startIndex, endIndex, result, peak);
 	}
-
-	/**
-	 * Method must return TRUE in case the sorter {@link #sortAndSlice(QueryContext, Formula, int, int, int[], int)}  should be
-	 * applied on the query result.
-	 */
-	boolean shouldApply(@Nonnull QueryContext queryContext);
 
 }

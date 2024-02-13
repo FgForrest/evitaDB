@@ -42,7 +42,7 @@ import io.evitadb.core.query.PrefetchRequirementCollector;
 import io.evitadb.core.query.QueryContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
-import io.evitadb.core.query.sort.Sorter;
+import io.evitadb.core.query.sort.NestedContextSorter;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.function.IntBiFunction;
 import io.evitadb.index.GlobalEntityIndex;
@@ -153,7 +153,7 @@ public class HierarchyStatisticsProducer implements ExtraResultProducer {
 		@Nonnull IntBiFunction<StatisticsBase, Formula> directlyQueriedEntitiesFormulaProducer,
 		@Nullable Function<StatisticsBase, HierarchyFilteringPredicate> hierarchyFilterPredicateProducer,
 		@Nonnull EmptyHierarchicalEntityBehaviour behaviour,
-		@Nullable Sorter sorter,
+		@Nullable NestedContextSorter sorter,
 		@Nonnull Runnable interpretationLambda
 	) {
 		Assert.isTrue(context.get() == null, "HierarchyOfSelf / HierarchyOfReference cannot be nested inside each other!");
@@ -196,13 +196,13 @@ public class HierarchyStatisticsProducer implements ExtraResultProducer {
 		final HierarchyProducerContext ctx = getContext(constraintName);
 		if (ctx.referenceSchema() == null) {
 			if (this.selfHierarchyRequest == null) {
-				this.selfHierarchyRequest = new HierarchySet(queryContext);
+				this.selfHierarchyRequest = new HierarchySet();
 			}
 			this.selfHierarchyRequest.addComputer(outputName, computer);
 		} else {
 			this.hierarchyRequests.computeIfAbsent(
 					ctx.referenceSchema().getName(),
-					s -> new HierarchySet(queryContext)
+					s -> new HierarchySet()
 				)
 				.addComputer(outputName, computer);
 		}
