@@ -107,6 +107,29 @@ public class ObservabilityTracingContext implements TracingContext {
 		return executeWithinBlock(taskName, lambda, null, attributes);
 	}
 
+	@Override
+	public void executeWithinBlock(@Nonnull String taskName, @Nonnull Runnable runnable) {
+		executeWithinBlock(
+			taskName,
+			() -> {
+				runnable.run();
+				return null;
+			},
+			null,
+			null
+		);
+	}
+
+	@Override
+	public <T> T executeWithinBlock(@Nonnull String taskName, @Nonnull Supplier<T> lambda) {
+		return executeWithinBlock(
+			taskName,
+			lambda,
+			null,
+			null
+		);
+	}
+
 	/**
 	 * Executes the given lambda function within a block.
 	 * If tracing is enabled, it creates and manages a span for the execution of the lambda.

@@ -147,6 +147,33 @@ public class JsonApiTracingContext implements ExternalApiTracingContext<HttpServ
 		}
 	}
 
+	@Override
+	public void executeWithinBlock(@Nonnull String protocolName, @Nonnull HttpServerExchange context, @Nonnull Runnable runnable) {
+		if (!OpenTelemetryTracerSetup.isTracingEnabled()) {
+			runnable.run();
+		}
+		try (Scope ignored = extractContextFromHeaders(protocolName, context).makeCurrent()) {
+			tracingContext.executeWithinBlock(
+				protocolName,
+				runnable
+			);
+		}
+	}
+
+	@Nullable
+	@Override
+	public <T> T executeWithinBlock(@Nonnull String protocolName, @Nonnull HttpServerExchange context, @Nonnull Supplier<T> lambda) {
+		if (!OpenTelemetryTracerSetup.isTracingEnabled()) {
+			return lambda.get();
+		}
+		try (Scope ignored = extractContextFromHeaders(protocolName, context).makeCurrent()) {
+			return tracingContext.executeWithinBlock(
+				protocolName,
+				lambda
+			);
+		}
+	}
+
 	/**
 	 * Method for extracting information from the context received via OpenTelemetry's Context Propagation mechanism. Besides
 	 * the extracted traceId, the clientId is also extracted and injected into the received context.

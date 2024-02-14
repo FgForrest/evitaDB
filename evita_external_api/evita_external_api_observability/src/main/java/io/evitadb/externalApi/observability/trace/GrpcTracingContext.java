@@ -127,13 +127,41 @@ public class GrpcTracingContext implements ExternalApiTracingContext<Metadata> {
 		}
 	}
 
+	@Override
+	public void executeWithinBlock(@Nonnull String protocolName, @Nonnull Metadata context, @Nonnull Runnable runnable) {
+		if (!OpenTelemetryTracerSetup.isTracingEnabled()) {
+			runnable.run();
+		}
+		try (Scope ignored = extractContextFromHeaders(protocolName, context).makeCurrent()) {
+			tracingContext.executeWithinBlock(
+				protocolName,
+				runnable
+			);
+		}
+	}
+
+	@Nullable
+	@Override
+	public <T> T executeWithinBlock(@Nonnull String protocolName, @Nonnull Metadata context, @Nonnull Supplier<T> lambda) {
+		if (!OpenTelemetryTracerSetup.isTracingEnabled()) {
+			return lambda.get();
+		}
+		try (Scope ignored = extractContextFromHeaders(protocolName, context).makeCurrent()) {
+			return tracingContext.executeWithinBlock(
+				protocolName,
+				lambda
+			);
+		}
+	}
+
 	/**
 	 * Retrieves the server interceptor for tracing.
 	 *
 	 * @return The server interceptor for tracing, or null if tracing is not enabled.
 	 */
 	@Nullable
-	public ServerInterceptor getServerInterceptor() {
+	public ServerInterceptor getInstrumentation() {
+		// todo lho validate type
 		if (!OpenTelemetryTracerSetup.isTracingEnabled()) {
 			return null;
 		}

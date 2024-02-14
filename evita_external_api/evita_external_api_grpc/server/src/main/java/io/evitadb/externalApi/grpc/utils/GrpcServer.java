@@ -132,7 +132,7 @@ public class GrpcServer {
 		if (apiOptions.accessLog()) {
 			serverBuilder.intercept(new AccessLogInterceptor());
 		}
-		final ServerInterceptor serverInterceptor = ExternalApiTracingContextProvider.getContext().getServerInterceptor(ServerInterceptor.class);
+		final ServerInterceptor serverInterceptor = ExternalApiTracingContextProvider.getContext().getInstrumentation(ServerInterceptor.class);
 		if (serverInterceptor != null) {
 			serverBuilder.intercept(serverInterceptor);
 		}

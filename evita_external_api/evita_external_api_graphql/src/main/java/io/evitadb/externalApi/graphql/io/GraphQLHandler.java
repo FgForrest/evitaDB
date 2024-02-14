@@ -90,7 +90,7 @@ public class GraphQLHandler extends EndpointHandler<GraphQLEndpointExchange> {
     @Nonnull
     private final ObjectMapper objectMapper;
     @Nonnull
-    private final ExternalApiTracingContext<Object> clientContext;
+    private final ExternalApiTracingContext<Object> tracingContext;
     @Nonnull
     private final EvitaConfiguration evitaConfiguration;
     @Nonnull
@@ -100,7 +100,7 @@ public class GraphQLHandler extends EndpointHandler<GraphQLEndpointExchange> {
                           @Nonnull Evita evita,
                           @Nonnull AtomicReference<GraphQL> graphQL) {
         this.objectMapper = objectMapper;
-        this.clientContext = ExternalApiTracingContextProvider.getContext();
+        this.tracingContext = ExternalApiTracingContextProvider.getContext();
         this.evitaConfiguration = evita.getConfiguration();
         this.graphQL = graphQL;
     }
@@ -118,7 +118,7 @@ public class GraphQLHandler extends EndpointHandler<GraphQLEndpointExchange> {
     @Nonnull
     protected EndpointResponse doHandleRequest(@Nonnull GraphQLEndpointExchange exchange) {
         final GraphQLRequest graphQLRequest = parseRequestBody(exchange, GraphQLRequest.class);
-        final GraphQLResponse<?> graphQLResponse = clientContext.executeWithinBlock(
+        final GraphQLResponse<?> graphQLResponse = tracingContext.executeWithinBlock(
             "GraphQL",
             exchange.serverExchange(),
             () -> executeRequest(graphQLRequest)
