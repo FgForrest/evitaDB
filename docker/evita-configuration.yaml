@@ -82,6 +82,6 @@ api:
       tlsEnabled: ${api.endpoints.observability.tlsEnabled:false}
       allowedOrigins: ${api.endpoints.observability.allowedOrigins:null}
       tracing:
-        endpoint: ${api.endpoints.observability.tracing.endpoint:null}
-        protocol: ${api.endpoints.observability.tracing.protocol:null}
+        endpoint: http://localhost:4317
+        protocol: grpc
       allowedEvents: !include ${api.endpoints.observability.allowedEvents:null}
