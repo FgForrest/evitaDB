@@ -34,7 +34,6 @@ import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.Require;
-import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
@@ -180,15 +179,18 @@ public class GetUnknownEntityDataFetcher implements DataFetcher<DataFetcherResul
             filterConstraints.add(attributeEquals(attribute.getKey().getName(), (A) attribute.getValue()));
         }
 
-        Optional.ofNullable(arguments.locale()).ifPresent(locale -> filterConstraints.add(entityLocaleEquals(locale)));
-
+        final FilterConstraint composition;
         if (arguments.join() == QueryHeaderArgumentsJoinType.AND) {
-            return filterBy(and(filterConstraints.toArray(FilterConstraint[]::new)));
+            composition = and(filterConstraints.toArray(FilterConstraint[]::new));
         } else if (arguments.join() == QueryHeaderArgumentsJoinType.OR) {
-            return filterBy(or(filterConstraints.toArray(FilterConstraint[]::new)));
+            composition = or(filterConstraints.toArray(FilterConstraint[]::new));
         } else {
             throw new GraphQLInternalError("Unsupported join type `" + arguments.join() + "`.");
         }
+
+        return Optional.ofNullable(arguments.locale())
+            .map(locale -> filterBy(entityLocaleEquals(locale), composition))
+            .orElseGet(() -> filterBy(composition));
     }
 
     @Nonnull
