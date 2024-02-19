@@ -138,6 +138,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 
 	public ContainerizedLocalMutationExecutor(
 		@Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex, DataStoreChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer,
+		long catalogVersion,
 		int entityPrimaryKey,
 		@Nonnull EntityExistence requiresExisting,
 		@Nonnull Supplier<EntitySchema> schemaAccessor,
@@ -145,7 +146,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 		@Nonnull IndexMaintainer<EntityIndexKey, EntityIndex> entityIndexCreatingAccessor,
 		boolean removeOnly
 	) {
-		super(storageContainerBuffer, schemaAccessor);
+		super(catalogVersion, storageContainerBuffer, schemaAccessor);
 		this.schemaAccessor = schemaAccessor;
 		this.entityPrimaryKey = entityPrimaryKey;
 		this.entityType = schemaAccessor.get().getName();
@@ -190,6 +191,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 			.forEach(part -> {
 				if (part.isEmpty()) {
 					this.storageContainerBuffer.removeByPrimaryKey(
+						catalogVersion,
 						part.getStoragePartPK(),
 						part.getClass()
 					);
@@ -198,7 +200,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 						!removeOnly,
 						"Only removal operations are expected to happen!"
 					);
-					this.storageContainerBuffer.update(part);
+					this.storageContainerBuffer.update(catalogVersion, part);
 				}
 			});
 
@@ -650,7 +652,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	 * Retrieves all attribute keys specified in the passed {@link AttributesStoragePart}.
 	 */
 	@Nonnull
-	private Set<AttributeKey> collectAttributeKeys(@Nullable AttributesStoragePart storagePart) {
+	private static Set<AttributeKey> collectAttributeKeys(@Nullable AttributesStoragePart storagePart) {
 		return Arrays.stream(
 				ofNullable(storagePart)
 					.map(AttributesStoragePart::getAttributes)
@@ -665,7 +667,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	 * Retrieves all attribute keys specified in the passed {@link ReferenceContract}.
 	 */
 	@Nonnull
-	private Set<AttributeKey> collectAttributeKeys(@Nonnull ReferenceContract referenceContract) {
+	private static Set<AttributeKey> collectAttributeKeys(@Nonnull ReferenceContract referenceContract) {
 		return referenceContract.getAttributeValues()
 			.stream()
 			.filter(Droppable::exists)

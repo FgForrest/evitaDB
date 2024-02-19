@@ -65,7 +65,7 @@ class OffHeapMemoryManagerTest {
 	}
 
 	@Test
-	void shouldFailToReadFromStreamAfterItWasClosed() throws IOException {
+	void shouldFailToReadFromStreamAfterItWasClosed() {
 		final var outputStream = memoryManager.acquireRegionOutputStream().orElseThrow();
 		final OffHeapMemoryInputStream inputStream = outputStream.getInputStream();
 		inputStream.close();

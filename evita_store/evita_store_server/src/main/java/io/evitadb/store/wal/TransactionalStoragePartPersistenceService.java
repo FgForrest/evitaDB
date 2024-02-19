@@ -113,22 +113,22 @@ public class TransactionalStoragePartPersistenceService implements StoragePartPe
 
 	@Nullable
 	@Override
-	public <T extends StoragePart> T getStoragePart(long storagePartPk, @Nonnull Class<T> containerType) {
+	public <T extends StoragePart> T getStoragePart(long catalogVersion, long storagePartPk, @Nonnull Class<T> containerType) {
 		if (this.removedStoragePartKeys.contains(new RecordKey(this.offsetIndex.getIdForRecordType(containerType), storagePartPk))) {
 			return null;
 		}
-		return ofNullable(this.offsetIndex.get(storagePartPk, containerType))
-			.orElseGet(() -> this.delegate.getStoragePart(storagePartPk, containerType));
+		return ofNullable(this.offsetIndex.get(catalogVersion, storagePartPk, containerType))
+			.orElseGet(() -> this.delegate.getStoragePart(catalogVersion, storagePartPk, containerType));
 	}
 
 	@Nullable
 	@Override
-	public <T extends StoragePart> byte[] getStoragePartAsBinary(long storagePartPk, @Nonnull Class<T> containerType) {
+	public <T extends StoragePart> byte[] getStoragePartAsBinary(long catalogVersion, long storagePartPk, @Nonnull Class<T> containerType) {
 		if (this.removedStoragePartKeys.contains(new RecordKey(this.offsetIndex.getIdForRecordType(containerType), storagePartPk))) {
 			return null;
 		}
-		return ofNullable(this.offsetIndex.getBinary(storagePartPk, containerType))
-			.orElseGet(() -> this.delegate.getStoragePartAsBinary(storagePartPk, containerType));
+		return ofNullable(this.offsetIndex.getBinary(catalogVersion, storagePartPk, containerType))
+			.orElseGet(() -> this.delegate.getStoragePartAsBinary(catalogVersion, storagePartPk, containerType));
 	}
 
 	@Override
@@ -142,15 +142,15 @@ public class TransactionalStoragePartPersistenceService implements StoragePartPe
 	}
 
 	@Override
-	public <T extends StoragePart> boolean removeStoragePart(long storagePartPk, @Nonnull Class<T> containerType) {
-		final boolean addedLayerContains = this.offsetIndex.contains(storagePartPk, containerType);
-		final boolean stableLayerContains = this.delegate.containsStoragePart(storagePartPk, containerType);
+	public <T extends StoragePart> boolean removeStoragePart(long catalogVersion, long storagePartPk, @Nonnull Class<T> containerType) {
+		final boolean addedLayerContains = this.offsetIndex.contains(catalogVersion, storagePartPk, containerType);
+		final boolean stableLayerContains = this.delegate.containsStoragePart(catalogVersion, storagePartPk, containerType);
 		if (stableLayerContains || addedLayerContains) {
 			if (stableLayerContains) {
 				this.removedStoragePartKeys.add(new RecordKey(this.offsetIndex.getIdForRecordType(containerType), storagePartPk));
 			}
 			if (addedLayerContains) {
-				return this.offsetIndex.remove(storagePartPk, containerType);
+				return this.offsetIndex.remove(catalogVersion, storagePartPk, containerType);
 			}
 			return true;
 		}
@@ -158,10 +158,10 @@ public class TransactionalStoragePartPersistenceService implements StoragePartPe
 	}
 
 	@Override
-	public <T extends StoragePart> boolean containsStoragePart(long primaryKey, @Nonnull Class<T> containerType) {
-		return this.offsetIndex.contains(primaryKey, containerType) ||
+	public <T extends StoragePart> boolean containsStoragePart(long catalogVersion, long primaryKey, @Nonnull Class<T> containerType) {
+		return this.offsetIndex.contains(catalogVersion, primaryKey, containerType) ||
 			(!this.removedStoragePartKeys.contains(new RecordKey(offsetIndex.getIdForRecordType(containerType), primaryKey))
-				&& this.delegate.containsStoragePart(primaryKey, containerType));
+				&& this.delegate.containsStoragePart(catalogVersion, primaryKey, containerType));
 	}
 
 	@Nonnull
@@ -185,10 +185,10 @@ public class TransactionalStoragePartPersistenceService implements StoragePartPe
 	}
 
 	@Override
-	public <T extends StoragePart> int countStorageParts(@Nonnull Class<T> containerType) {
+	public <T extends StoragePart> int countStorageParts(long catalogVersion, @Nonnull Class<T> containerType) {
 		final byte recType = offsetIndex.getIdForRecordType(containerType);
 		// this is going to be slow, but it's not used in production scenarios
-		return this.offsetIndex.count(containerType) + this.delegate.countStorageParts(containerType) -
+		return this.offsetIndex.count(catalogVersion, containerType) + this.delegate.countStorageParts(catalogVersion, containerType) -
 			((int) this.removedStoragePartKeys.stream().filter(it -> it.recordType() == recType).count());
 	}
 
@@ -227,12 +227,19 @@ public class TransactionalStoragePartPersistenceService implements StoragePartPe
 	@Nonnull
 	@Override
 	public PersistentStorageDescriptor copySnapshotTo(@Nonnull Path newFilePath, long catalogVersion) {
-		return this.copySnapshotTo(newFilePath, catalogVersion);
+		throw new UnsupportedOperationException(
+			"Transactional storage part persistence service cannot copy snapshot to a new file!"
+		);
 	}
 
 	@Override
 	public boolean isNew() {
 		return this.delegate.isNew();
+	}
+
+	@Override
+	public void purgeHistoryEqualAndLaterThan(long catalogVersion) {
+		// do nothing, transactional storage has always single reader
 	}
 
 	@Override

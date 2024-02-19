@@ -30,6 +30,8 @@ import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.deferred.BitmapSupplier;
 import io.evitadb.core.transaction.memory.TransactionalLayerCreator;
+import io.evitadb.utils.CollectionUtils;
+import lombok.Getter;
 import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;

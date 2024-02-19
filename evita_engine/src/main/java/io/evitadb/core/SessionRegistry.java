@@ -23,13 +23,13 @@
 
 package io.evitadb.core;
 
-import io.evitadb.api.CatalogContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.exception.ConcurrentInitializationException;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.CollectionUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -39,11 +39,12 @@ import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
-import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -67,6 +68,16 @@ final class SessionRegistry {
 	 * limits in parallel execution.
 	 */
 	private final AtomicInteger activeSessionsCounter = new AtomicInteger();
+	/**
+	 * The catalogConsumedVersions variable is used to keep track of consumed versions along with number of sessions
+	 * tied to them indexed by catalog names.
+	 */
+	private final ConcurrentHashMap<String, VersionConsumingSessions> catalogConsumedVersions = CollectionUtils.createConcurrentHashMap(32);
+	/**
+	 * This variable represents a list of listeners that are registered to be notified when a catalog version
+	 * is no longer used by any of the active sessions.
+	 */
+	private final List<CatalogVersionBeyondTheHorizonListener> catalogVersionBeyondTheHorizonListeners = new CopyOnWriteArrayList<>();
 
 	/**
 	 * Returns set of all active (currently open) sessions.
@@ -79,7 +90,7 @@ final class SessionRegistry {
 	 * Method returns active session by its unique id or NULL if such session is not found.
 	 */
 	@Nullable
-	public EvitaInternalSessionContract getActiveSessionById(UUID sessionId) {
+	public EvitaInternalSessionContract getActiveSessionById(@Nonnull UUID sessionId) {
 		return ofNullable(activeSessions.get(sessionId))
 			.map(EvitaSessionTuple::proxySession)
 			.orElse(null);
@@ -90,9 +101,7 @@ final class SessionRegistry {
 	 * All changes are rolled back.
 	 */
 	public void closeAllActiveSessions() {
-		final Iterator<EvitaSessionTuple> sessionIt = activeSessions.values().iterator();
-		while (sessionIt.hasNext()) {
-			final EvitaSessionTuple sessionTuple = sessionIt.next();
+		for (EvitaSessionTuple sessionTuple : activeSessions.values()) {
 			final EvitaSession activeSession = sessionTuple.plainSession();
 			if (activeSession.isActive()) {
 				if (activeSession.isTransactionOpen()) {
@@ -101,7 +110,6 @@ final class SessionRegistry {
 				activeSession.closeNow(CommitBehavior.WAIT_FOR_WAL_PERSISTENCE);
 				log.info("There is still active session {} - terminating.", activeSession.getId());
 			}
-			sessionIt.remove();
 		}
 		Assert.isPremiseValid(
 			activeSessionsCounter.get() == 0,
@@ -114,7 +122,7 @@ final class SessionRegistry {
 	 * Method checks that there is only a single active session when catalog is in warm-up mode.
 	 */
 	@Nonnull
-	public EvitaInternalSessionContract addSession(boolean warmUp, Supplier<EvitaSession> sessionSupplier) {
+	public EvitaInternalSessionContract addSession(boolean warmUp, @Nonnull Supplier<EvitaSession> sessionSupplier) {
 		if (warmUp) {
 			activeSessionsCounter.incrementAndGet();
 		} else if (!activeSessionsCounter.compareAndSet(0, 1)) {
@@ -128,6 +136,9 @@ final class SessionRegistry {
 			new EvitaSessionProxy(newSession)
 		);
 		activeSessions.put(newSession.getId(), new EvitaSessionTuple(newSession, newSessionProxy));
+		final long catalogVersion = newSession.getCatalogVersion();
+		catalogConsumedVersions.computeIfAbsent(newSession.getCatalogName(), k -> new VersionConsumingSessions())
+			.registerSessionConsumingCatalogInVersion(catalogVersion);
 		return newSessionProxy;
 	}
 
@@ -137,19 +148,19 @@ final class SessionRegistry {
 	public void removeSession(@Nonnull EvitaSessionContract session) {
 		if (activeSessions.remove(session.getId()) != null) {
 			activeSessionsCounter.decrementAndGet();
+			final SessionFinalizationResult finalizationResult = catalogConsumedVersions.get(session.getCatalogName())
+				.unregisterSessionConsumingCatalogInVersion(session.getCatalogVersion());
+			if (finalizationResult.lastReader()) {
+				// notify listeners that the catalog version is no longer used
+				for (CatalogVersionBeyondTheHorizonListener listener : catalogVersionBeyondTheHorizonListeners) {
+					listener.catalogVersionBeyondTheHorizon(
+						session.getCatalogName(),
+						session.getCatalogVersion(),
+						finalizationResult.activeSessionsToOlderVersions()
+					);
+				}
+			}
 		}
-	}
-
-	/**
-	 * Method updates reference to the catalog in all active session it keeps track of.
-	 */
-	public void updateCatalogReference(@Nonnull CatalogContract catalog) {
-		activeSessions.values()
-			.stream()
-			.map(EvitaSessionTuple::plainSession)
-			// except those with active transaction which are protected by SNAPSHOT isolation
-			.filter(it -> it.isActive() && !it.isTransactionOpen())
-			.forEach(it -> it.updateCatalogReference(catalog));
 	}
 
 	/**
@@ -226,5 +237,58 @@ final class SessionRegistry {
 	) {
 
 	}
+
+	/**
+	 * This class represents a collection of sessions that are consuming catalogs in different versions.
+	 */
+	private static class VersionConsumingSessions {
+		/**
+		 * ConcurrentHashMap representing a collection of sessions that are consuming catalogs in different versions.
+		 * The keys of the map are the versions of the catalogs, and the values are the number of sessions consuming
+		 * catalogs in that version.
+		 */
+		private final ConcurrentHashMap<Long, Integer> versionConsumingSessions = CollectionUtils.createConcurrentHashMap(32);
+
+		/**
+		 * Registers a session consuming catalog in the specified version.
+		 *
+		 * @param version the version of the catalog
+		 */
+		void registerSessionConsumingCatalogInVersion(@Nonnull Long version) {
+			versionConsumingSessions.compute(
+				version,
+				(k, v) -> v == null ? 1 : v + 1
+			);
+		}
+
+		/**
+		 * Unregisters a session that is consuming a catalog in the specified version.
+		 *
+		 * @param version the version of the catalog
+		 * @return true if the session was the last session using particular version of the catalog
+		 */
+		SessionFinalizationResult unregisterSessionConsumingCatalogInVersion(long version) {
+			final Integer readerCount = versionConsumingSessions.compute(
+				version,
+				(k, v) -> v == 1 ? null : v - 1
+			);
+			return readerCount == null ?
+				new SessionFinalizationResult(version, true, this.versionConsumingSessions.keySet().stream().anyMatch(it -> it < version))  :
+				new SessionFinalizationResult(version, false, false);
+		}
+
+	}
+
+	/**
+	 *
+	 * @param version
+	 * @param lastReader
+	 * @param activeSessionsToOlderVersions
+	 */
+	public record SessionFinalizationResult(
+		long version,
+		boolean lastReader,
+		boolean activeSessionsToOlderVersions
+	) { }
 
 }

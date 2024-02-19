@@ -50,15 +50,11 @@ import static io.evitadb.core.Transaction.getTransactionalMemoryLayerIfExists;
  * indexes with each update (which would drastically slow initial bulk database setup).
  *
  * All reads-writes are primarily targeting transactional memory if it's present for the current thread. If the value
- * is not found there it's located via {@link StoragePartPersistenceService#getStoragePart(long, Class)}.
+ * is not found there it's located via {@link StoragePartPersistenceService#getStoragePart(long, long, Class)}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class DataStoreMemoryBuffer<IK extends IndexKey, I extends Index<IK>, DSC extends DataStoreChanges<IK, I>> {
-	/**
-	 * The version number written for all stored {@link StoragePart} using this buffer.
-	 */
-	private final long nextCatalogVersion;
 	/**
 	 * Contains reference to the entity collection this buffer refers to.
 	 */
@@ -70,22 +66,13 @@ public class DataStoreMemoryBuffer<IK extends IndexKey, I extends Index<IK>, DSC
 	/**
 	 * Contains reference to the I/O service, that allows reading/writing records to the persistent storage.
 	 */
-	@Nonnull private StoragePartPersistenceService persistenceService;
+	@Nonnull private final StoragePartPersistenceService persistenceService;
 
 	public DataStoreMemoryBuffer(
-		long catalogVersion,
 		@Nonnull TransactionalLayerCreator<DSC> transactionalMemoryDataSource,
 		@Nonnull StoragePartPersistenceService persistenceService
 	) {
-		this.nextCatalogVersion = catalogVersion + 1L;
 		this.transactionalMemoryDataSource = transactionalMemoryDataSource;
-		this.persistenceService = persistenceService;
-	}
-
-	/**
-	 * Method allows to refresh the I/O service.
-	 */
-	public void setPersistenceService(@Nonnull StoragePartPersistenceService persistenceService) {
 		this.persistenceService = persistenceService;
 	}
 
@@ -136,12 +123,12 @@ public class DataStoreMemoryBuffer<IK extends IndexKey, I extends Index<IK>, DSC
 	 * is not opened) reads it from the target {@link CatalogPersistenceService}.
 	 */
 	@Nullable
-	public <T extends StoragePart> T fetch(long primaryKey, @Nonnull Class<T> containerType) {
+	public <T extends StoragePart> T fetch(long catalogVersion, long primaryKey, @Nonnull Class<T> containerType) {
 		final DataStoreChanges<IK, I> layer = getTransactionalMemoryLayerIfExists(transactionalMemoryDataSource);
 		if (layer == null) {
-			return persistenceService.getStoragePart(primaryKey, containerType);
+			return persistenceService.getStoragePart(catalogVersion, primaryKey, containerType);
 		} else {
-			return layer.getStoragePart(primaryKey, containerType);
+			return layer.getStoragePart(catalogVersion, primaryKey, containerType);
 		}
 	}
 
@@ -150,12 +137,12 @@ public class DataStoreMemoryBuffer<IK extends IndexKey, I extends Index<IK>, DSC
 	 * is not opened) reads it from the target {@link CatalogPersistenceService}.
 	 */
 	@Nullable
-	public <T extends StoragePart> byte[] fetchBinary(long primaryKey, @Nonnull Class<T> containerType) {
+	public <T extends StoragePart> byte[] fetchBinary(long catalogVersion, long primaryKey, @Nonnull Class<T> containerType) {
 		final DataStoreChanges<IK, I> layer = getTransactionalMemoryLayerIfExists(transactionalMemoryDataSource);
 		if (layer == null) {
-			return persistenceService.getStoragePartAsBinary(primaryKey, containerType);
+			return persistenceService.getStoragePartAsBinary(catalogVersion, primaryKey, containerType);
 		} else {
-			return layer.getStoragePartAsBinary(primaryKey, containerType);
+			return layer.getStoragePartAsBinary(catalogVersion, primaryKey, containerType);
 		}
 	}
 
@@ -164,12 +151,12 @@ public class DataStoreMemoryBuffer<IK extends IndexKey, I extends Index<IK>, DSC
 	 * is not opened) reads it from the target {@link CatalogPersistenceService}.
 	 */
 	@Nullable
-	public <T extends StoragePart, U extends Comparable<U>> T fetch(@Nonnull U originalKey, @Nonnull Class<T> containerType, @Nonnull BiFunction<KeyCompressor, U, Long> compressedKeyComputer) {
+	public <T extends StoragePart, U extends Comparable<U>> T fetch(long catalogVersion, @Nonnull U originalKey, @Nonnull Class<T> containerType, @Nonnull BiFunction<KeyCompressor, U, Long> compressedKeyComputer) {
 		final DataStoreChanges<IK, I> layer = getTransactionalMemoryLayerIfExists(transactionalMemoryDataSource);
 		if (layer == null) {
 			try {
 				final long storagePartId = compressedKeyComputer.apply(this.persistenceService.getReadOnlyKeyCompressor(), originalKey);
-				return persistenceService.getStoragePart(storagePartId, containerType);
+				return persistenceService.getStoragePart(catalogVersion, storagePartId, containerType);
 			} catch (CompressionKeyUnknownException ex) {
 				// key wasn't yet assigned
 				return null;
@@ -177,7 +164,7 @@ public class DataStoreMemoryBuffer<IK extends IndexKey, I extends Index<IK>, DSC
 		} else {
 			try {
 				final long storagePartId = compressedKeyComputer.apply(layer.getReadOnlyKeyCompressor(), originalKey);
-				return layer.getStoragePart(storagePartId, containerType);
+				return layer.getStoragePart(catalogVersion, storagePartId, containerType);
 			} catch (CompressionKeyUnknownException ex) {
 				// key wasn't yet assigned
 				return null;
@@ -190,12 +177,12 @@ public class DataStoreMemoryBuffer<IK extends IndexKey, I extends Index<IK>, DSC
 	 * is not opened) reads it from the target {@link CatalogPersistenceService}.
 	 */
 	@Nullable
-	public <T extends StoragePart, U extends Comparable<U>> byte[] fetchBinary(@Nonnull U originalKey, @Nonnull Class<T> containerType, @Nonnull BiFunction<KeyCompressor, U, Long> compressedKeyComputer) {
+	public <T extends StoragePart, U extends Comparable<U>> byte[] fetchBinary(long catalogVersion, @Nonnull U originalKey, @Nonnull Class<T> containerType, @Nonnull BiFunction<KeyCompressor, U, Long> compressedKeyComputer) {
 		final DataStoreChanges<IK, I> layer = getTransactionalMemoryLayerIfExists(transactionalMemoryDataSource);
 		if (layer == null) {
 			try {
 				final long nonFlushedCompressedId = compressedKeyComputer.apply(this.persistenceService.getReadOnlyKeyCompressor(), originalKey);
-				return persistenceService.getStoragePartAsBinary(nonFlushedCompressedId, containerType);
+				return persistenceService.getStoragePartAsBinary(catalogVersion, nonFlushedCompressedId, containerType);
 			} catch (CompressionKeyUnknownException ex) {
 				// key wasn't yet assigned
 				return null;
@@ -203,7 +190,7 @@ public class DataStoreMemoryBuffer<IK extends IndexKey, I extends Index<IK>, DSC
 		} else {
 			try {
 				final long nonFlushedCompressedId = compressedKeyComputer.apply(layer.getReadOnlyKeyCompressor(), originalKey);
-				return layer.getStoragePartAsBinary(nonFlushedCompressedId, containerType);
+				return layer.getStoragePartAsBinary(catalogVersion, nonFlushedCompressedId, containerType);
 			} catch (CompressionKeyUnknownException ex) {
 				// key wasn't yet assigned
 				return null;
@@ -215,12 +202,12 @@ public class DataStoreMemoryBuffer<IK extends IndexKey, I extends Index<IK>, DSC
 	 * Removes container from the target storage. If transaction is open, it just marks the container as removed but
 	 * doesn't really remove it.
 	 */
-	public <T extends StoragePart> boolean removeByPrimaryKey(long primaryKey, @Nonnull Class<T> entityClass) {
+	public <T extends StoragePart> boolean removeByPrimaryKey(long catalogVersion, long primaryKey, @Nonnull Class<T> entityClass) {
 		final DataStoreChanges<IK, I> layer = getTransactionalMemoryLayer(transactionalMemoryDataSource);
 		if (layer == null) {
-			return this.persistenceService.removeStoragePart(primaryKey, entityClass);
+			return this.persistenceService.removeStoragePart(catalogVersion, primaryKey, entityClass);
 		} else {
-			return layer.removeStoragePart(primaryKey, entityClass);
+			return layer.removeStoragePart(catalogVersion, primaryKey, entityClass);
 		}
 	}
 
@@ -229,12 +216,12 @@ public class DataStoreMemoryBuffer<IK extends IndexKey, I extends Index<IK>, DSC
 	 * the transactional layer and are not really written to the persistent storage. Changes are written at the moment
 	 * when transaction is committed.
 	 */
-	public <T extends StoragePart> void update(@Nonnull T value) {
+	public <T extends StoragePart> void update(long catalogVersion, @Nonnull T value) {
 		final DataStoreChanges<IK, I> layer = getTransactionalMemoryLayer(transactionalMemoryDataSource);
 		if (layer == null) {
-			this.persistenceService.putStoragePart(nextCatalogVersion, value);
+			this.persistenceService.putStoragePart(catalogVersion, value);
 		} else {
-			layer.putStoragePart(nextCatalogVersion, value);
+			layer.putStoragePart(catalogVersion, value);
 		}
 	}
 
@@ -247,5 +234,4 @@ public class DataStoreMemoryBuffer<IK extends IndexKey, I extends Index<IK>, DSC
 		// or fallback to shared memory buffer with trapped updates
 		return Objects.requireNonNullElse(layer, this.dataStoreIndexChanges);
 	}
-
 }

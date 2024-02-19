@@ -125,8 +125,14 @@ public class TransactionWalFinalizer implements TransactionHandler {
 	@Override
 	public void commit(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		try {
+			// here we close all registered closeables - i.e. transactional OffsetIndexes along with their data
+			// (i.e. OffHeapManager regions and temporary files) - we will not need them anymore, they were used only
+			// for the client's transaction that is being closed right now
 			closeRegisteredCloseables();
+			// now we need to handle the isolated WAL - if there are any mutations, we need to issue instruction for
+			// copying them to the shared WAL
 			if (walPersistenceService != null) {
+				// this invokes the asynchronous action of copying the isolated WAL to the shared one
 				catalog.commitWal(
 					transactionId,
 					commitBehaviour,
@@ -134,12 +140,15 @@ public class TransactionWalFinalizer implements TransactionHandler {
 					transactionFinalizationFuture
 				);
 			} else {
+				// if there are no mutations, we can complete the future immediately
 				transactionFinalizationFuture.complete(catalog.getVersion());
 			}
 		} finally {
-			// close the WAL persistence service
+			// discard the WAL persistence service
 			if (this.walPersistenceService != null) {
-				this.walPersistenceService.close();
+				// we must not call the `this.walPersistenceService.close()` method here, because the we need to keep
+				// the references to OffHeapManager / file alive so that the transaction pipeline can take it and copy
+				// the data to the shared WAL
 				this.walPersistenceService = null;
 			}
 		}
@@ -148,12 +157,19 @@ public class TransactionWalFinalizer implements TransactionHandler {
 	@Override
 	public void rollback(@Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Throwable cause) {
 		try {
+			// here we close all registered closeables - i.e. transactional OffsetIndexes along with their data
+			// (i.e. OffHeapManager regions and temporary files) - we will not need them anymore, they were used only
+			// for the client's transaction that is being closed right now
 			closeRegisteredCloseables();
 		} finally {
+			// here we discard the WAL persistence service and and delete the isolated WAL file (either in memory or
+			// on disk) - the contents of the WAL will not be used anymore
 			if (this.walPersistenceService != null) {
 				this.walPersistenceService.close();
 				this.walPersistenceService = null;
 			}
+			// we must complete the future with the exception or the original catalog version (if the rollback was
+			// not caused by an exception)
 			if (cause != null) {
 				this.transactionFinalizationFuture.completeExceptionally(cause);
 			} else {

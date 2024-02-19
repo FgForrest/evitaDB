@@ -214,7 +214,7 @@ public class OffHeapMemoryOutputStream extends OutputStream {
 			buffer.flip();
 			final int written = fileChannel.write(buffer);
 			Assert.isPremiseValid(
-				written > 0,
+				written == buffer.limit(),
 				"Failed to dump data to the file!"
 			);
 		}

@@ -267,7 +267,7 @@ public class EvitaClient implements EvitaContract {
 					evitaService.createBinaryReadWriteSession(
 						GrpcEvitaSessionRequest.newBuilder()
 							.setCatalogName(traits.catalogName())
-							.setCommitBehaviour(EvitaEnumConverter.toGrpcCommitBehavior(commitBehaviour))
+							.setCommitBehavior(EvitaEnumConverter.toGrpcCommitBehavior(commitBehaviour))
 							.setDryRun(traits.isDryRun())
 							.build()
 					).get(configuration.timeout(), configuration.timeoutUnit())
@@ -277,7 +277,7 @@ public class EvitaClient implements EvitaContract {
 					evitaService.createReadWriteSession(
 						GrpcEvitaSessionRequest.newBuilder()
 							.setCatalogName(traits.catalogName())
-							.setCommitBehaviour(EvitaEnumConverter.toGrpcCommitBehavior(commitBehaviour))
+							.setCommitBehavior(EvitaEnumConverter.toGrpcCommitBehavior(commitBehaviour))
 							.setDryRun(traits.isDryRun())
 							.build()
 					).get(configuration.timeout(), configuration.timeoutUnit())

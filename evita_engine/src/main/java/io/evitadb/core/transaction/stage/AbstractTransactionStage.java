@@ -152,11 +152,14 @@ public sealed abstract class AbstractTransactionStage<T extends TransactionTask,
 		this.stageHandoff = offer(
 			targetTask,
 			(subscriber, theTask) -> {
-				theTask.future().completeExceptionally(
-					new TransactionTimedOutException(
-						"Transaction timed out - capacity of WAL appender reached (`" + getMaxBufferCapacity() + "`)!"
-					)
-				);
+				final CompletableFuture<Long> future = theTask.future();
+				if (future != null) {
+					future.completeExceptionally(
+						new TransactionTimedOutException(
+							"Transaction timed out - capacity of WAL appender reached (`" + getMaxBufferCapacity() + "`)!"
+						)
+					);
+				}
 				return false;
 			}
 		);

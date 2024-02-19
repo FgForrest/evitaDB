@@ -57,6 +57,8 @@ import java.util.concurrent.atomic.AtomicReference;
  *
  * Upon already performed task arrival, the task is immediately marked as processed and the processing is skipped.
  *
+ * TODO JNO - IMPLEMENT AUTO-RECOVERY AFTER EVITADB START AND WAL REPLAY
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @Slf4j
@@ -96,12 +98,12 @@ public final class TrunkIncorporationTransactionStage
 		@Nonnull Executor executor,
 		int maxBufferCapacity,
 		@Nonnull Catalog catalog,
-		long timeout
+		long timeoutInMillis
 	) {
 		super(executor, maxBufferCapacity, catalog.getName());
 		this.catalog = catalog;
 		this.liveCatalog = new AtomicReference<>(catalog);
-		this.timeout = timeout;
+		this.timeout = timeoutInMillis * 1_000_000;
 		this.lastFinalizedCatalogVersion = catalog.getVersion();
 	}
 
@@ -128,25 +130,30 @@ public final class TrunkIncorporationTransactionStage
 				// prepare finalizer that doesn't finish the catalog automatically but on demand
 				final TransactionTrunkFinalizer transactionHandler = new TransactionTrunkFinalizer(this.catalog);
 				// read the mutations from the WAL since the current task version
+				/* TODO JNO - OPTIMIZE START TO LAST FINISHED POSITION IN THE FILE */
 				final Iterator<Mutation> mutationIterator = this.catalog
-					.getCommittedMutationStream(task.catalogVersion())
+					// if the transaction failed we need to replay it again
+					.getCommittedMutationStream(Math.min(task.catalogVersion(), this.lastFinalizedCatalogVersion + 1))
 					.iterator();
 				// and process them
 				if (mutationIterator.hasNext()) {
+					int txCount = 0;
 					final long start = System.nanoTime();
-					Mutation leadingMutation = mutationIterator.next();
 					do {
+						txCount++;
+						Mutation leadingMutation = mutationIterator.next();
 						// the first mutation of the transaction bulk must be transaction mutation
 						Assert.isPremiseValid(leadingMutation instanceof TransactionMutation, "First mutation must be transaction mutation!");
 						final TransactionMutation transactionMutation = (TransactionMutation) leadingMutation;
 						Assert.isPremiseValid(
-							transactionMutation.getCatalogVersion() == lastFinalizedCatalogVersion + 1,
+							transactionMutation.getCatalogVersion() == this.lastFinalizedCatalogVersion + 1 ||
+								(lastTransaction != null  && transactionMutation.getCatalogVersion() == lastTransaction.getCatalogVersion() + 1),
 							"Unexpected catalog version! " +
 								"Transaction mutation catalog version: " + transactionMutation.getCatalogVersion() + ", " +
-								"last finalized catalog version: " + lastFinalizedCatalogVersion + "."
+								"last finalized catalog version: " + this.lastFinalizedCatalogVersion + "."
 						);
 
-						log.debug("Starting transaction: {}", transactionMutation);
+						log.info("Starting transaction: {}", transactionMutation);
 
 						// prepare "replay" transaction
 						transaction = transaction == null ?
@@ -168,18 +175,29 @@ public final class TrunkIncorporationTransactionStage
 						Transaction.executeInTransactionIfProvided(
 							transaction,
 							() -> {
+								catalog.setVersion(transactionMutation.getCatalogVersion());
 								// init mutation counter
 								int mutationCount = 0;
-								while (mutationIterator.hasNext() && mutationCount < transactionMutation.getMutationCount()) {
-									final Mutation mutation = mutationIterator.next();
-									log.debug("Processing mutation: {}", mutation);
-									mutationCount++;
-									catalog.applyMutation(
-										mutation instanceof EntityUpsertMutation ?
-											new VerifiedEntityUpsertMutation((EntityUpsertMutation) mutation)
-											:
-											mutation
-									);
+								try {
+									while (mutationCount < transactionMutation.getMutationCount() && mutationIterator.hasNext()) {
+										final Mutation mutation = mutationIterator.next();
+										log.debug("Processing mutation: {}", mutation);
+										mutationCount++;
+										/* TODO JNO - remove */
+										if (mutation instanceof EntityUpsertMutation eum) {
+											System.out.println("INSERTED: " + eum.getEntityPrimaryKey());
+										}
+										catalog.applyMutation(
+											mutation instanceof EntityUpsertMutation ?
+												new VerifiedEntityUpsertMutation((EntityUpsertMutation) mutation)
+												:
+												mutation
+										);
+									}
+								} catch (RuntimeException ex) {
+									/* TODO JNO - TADY SE MUSÍ NA OFFSET INDEXU ZAHODIT NH A VH PRO DANOU VERZI */
+									log.error("Error while processing transaction: " + transactionMutation + ", " + mutationCount + " out of " + transactionMutation.getMutationCount() + " done", ex);
+									throw ex;
 								}
 								// we should have processed all the mutations by now and the mutation count should match
 								Assert.isPremiseValid(
@@ -191,10 +209,6 @@ public final class TrunkIncorporationTransactionStage
 							}
 						);
 
-						// update the last finalized transaction ID and catalog version
-						this.lastFinalizedTransactionId = transaction.getTransactionId();
-						this.lastFinalizedCatalogVersion = transactionMutation.getCatalogVersion();
-
 						// this is the last mutation in the transaction, close the replay mutation now
 						transaction.close();
 						lastTransaction = transactionMutation;
@@ -202,7 +216,14 @@ public final class TrunkIncorporationTransactionStage
 						log.debug("Finalizing transaction: {}", transaction);
 
 						// try to process next transaction if the timeout is not exceeded
-					} while (System.nanoTime() - start < this.timeout && mutationIterator.hasNext());
+					} while (
+						/* TODO JNO - vyzkoušet podmínku na to, že na disku čeká více dat, než je velikost bufferu inputu - zá se, že to přestává fungovat, když se nenačte dost */
+						System.nanoTime() - start < this.timeout && mutationIterator.hasNext() &&
+						this.catalog.getLastCatalogVersionInMutationStream() > lastTransaction.getCatalogVersion()
+					);
+
+					/* TODO JNO - REMOVE */
+					log.info("Processed {} transactions in {} ms", txCount, (System.nanoTime() - start) / 1_000_000.0);
 				}
 
 				lastCatalogVersionInLiveView = this.catalog.getVersion();
@@ -212,13 +233,25 @@ public final class TrunkIncorporationTransactionStage
 				Transaction.executeInTransactionIfProvided(
 					transaction,
 					() -> {
-						log.debug("Materializing catalog version: {}", this.lastFinalizedCatalogVersion);
-						this.catalog = transactionHandler.commitCatalogChanges(
-							this.lastFinalizedCatalogVersion,
-							finalLastTransaction
-						);
+						try {
+							log.debug("Materializing catalog version: {}", this.lastFinalizedCatalogVersion);
+							this.catalog = transactionHandler.commitCatalogChanges(
+								finalLastTransaction.getCatalogVersion(),
+								finalLastTransaction
+							);
+						} catch (RuntimeException ex) {
+							log.error("Error while committing transaction: " + finalLastTransaction.getCatalogVersion() + ".", ex);
+							throw ex;
+						}
 					}
 				);
+
+				// update the last finalized transaction ID and catalog version
+				this.lastFinalizedTransactionId = finalLastTransaction.getTransactionId();
+				this.lastFinalizedCatalogVersion = finalLastTransaction.getCatalogVersion();
+
+				/* TODO JNO - remove */
+				log.info("Finalizing catalog: {}", this.lastFinalizedCatalogVersion);
 
 			} finally {
 				this.catalog.decreaseWriterCount();
@@ -230,7 +263,7 @@ public final class TrunkIncorporationTransactionStage
 				task,
 				new UpdatedCatalogTransactionTask(
 					this.catalog,
-					lastFinalizedTransactionId,
+					this.lastFinalizedTransactionId,
 					task.commitBehaviour(),
 					task.future()
 				)

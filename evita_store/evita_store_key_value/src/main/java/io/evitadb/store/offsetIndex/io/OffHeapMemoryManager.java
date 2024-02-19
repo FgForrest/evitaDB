@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -64,15 +64,21 @@ public class OffHeapMemoryManager implements Closeable {
 	private int lastIndex = 0;
 
 	public OffHeapMemoryManager(long sizeInBytes, int regions) {
-		if (sizeInBytes % regions != 0) {
-			log.warn(
-				"You're wasting memory - off heap memory block size is not divisible by number of regions without " +
-					"remainder (" + sizeInBytes + " / " + regions + ")!");
+		if (regions == 0 || sizeInBytes == 0) {
+			this.regionSize = 0;
+			this.usedRegions = new AtomicReferenceArray<>(0);
+			this.memoryBlock = new AtomicReference<>(null);
+		} else {
+			if (sizeInBytes % regions != 0) {
+				log.warn(
+					"You're wasting memory - off heap memory block size is not divisible by number of regions without " +
+						"remainder (" + sizeInBytes + " / " + regions + ")!");
+			}
+			this.regionSize = Math.toIntExact(sizeInBytes / regions);
+			this.usedRegions = new AtomicReferenceArray<>(regions);
+			// allocate off heap memory
+			this.memoryBlock = new AtomicReference<>(ByteBuffer.allocateDirect((int) sizeInBytes));
 		}
-		this.regionSize = Math.toIntExact(sizeInBytes / regions);
-		this.usedRegions = new AtomicReferenceArray<>(regions);
-		// allocate off heap memory
-		memoryBlock = new AtomicReference<>(ByteBuffer.allocateDirect((int) sizeInBytes));
 
 	}
 

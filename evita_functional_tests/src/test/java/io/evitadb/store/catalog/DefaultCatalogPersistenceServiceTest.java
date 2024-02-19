@@ -31,10 +31,8 @@ import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.api.exception.EntityTypeAlreadyPresentInCatalogSchemaException;
 import io.evitadb.api.mock.EmptyEntitySchemaAccessor;
 import io.evitadb.api.requestResponse.EvitaRequest;
-import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.SealedEntity;
-import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaDecorator;
@@ -90,7 +88,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -219,9 +216,9 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		final Map<String, CollectionFileReference> entityTypesIndex = catalogHeader.collectionFileIndex();
 		assertEquals(3, entityTypesIndex.size());
 
-		assertEntityCollectionsHasIdenticalContent(ioService, SEALED_CATALOG_SCHEMA, brandCollection, ioService.getEntityCollectionHeader(entityTypesIndex.get(Entities.BRAND)));
-		assertEntityCollectionsHasIdenticalContent(ioService, SEALED_CATALOG_SCHEMA, storeCollection, ioService.getEntityCollectionHeader(entityTypesIndex.get(Entities.STORE)));
-		assertEntityCollectionsHasIdenticalContent(ioService, SEALED_CATALOG_SCHEMA, productCollection, ioService.getEntityCollectionHeader(entityTypesIndex.get(Entities.PRODUCT)));
+		assertEntityCollectionsHaveIdenticalContent(ioService, SEALED_CATALOG_SCHEMA, brandCollection, ioService.getEntityCollectionHeader(entityTypesIndex.get(Entities.BRAND)));
+		assertEntityCollectionsHaveIdenticalContent(ioService, SEALED_CATALOG_SCHEMA, storeCollection, ioService.getEntityCollectionHeader(entityTypesIndex.get(Entities.STORE)));
+		assertEntityCollectionsHaveIdenticalContent(ioService, SEALED_CATALOG_SCHEMA, productCollection, ioService.getEntityCollectionHeader(entityTypesIndex.get(Entities.PRODUCT)));
 	}
 
 	@Test
@@ -486,7 +483,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		return entityCollection;
 	}
 
-	private void assertEntityCollectionsHasIdenticalContent(
+	private void assertEntityCollectionsHaveIdenticalContent(
 		@Nonnull CatalogPersistenceService ioService,
 		@Nonnull SealedCatalogSchema catalogSchema,
 		@Nonnull EntityCollection entityCollection,
@@ -507,25 +504,21 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			DefaultTracingContext.INSTANCE
 		);
 
-		final Iterator<Entity> it = entityCollection.entityIterator();
-		while (it.hasNext()) {
-			final Entity originEntity = it.next();
-			final EvitaResponse<EntityClassifier> response = collection.getEntities(
-				new EvitaRequest(
-					query(
-						collection(entityCollection.getSchema().getName()),
-						filterBy(entityPrimaryKeyInSet(originEntity.getPrimaryKey())),
-						require(entityFetchAll())
-					),
-					OffsetDateTime.now(),
-					EntityClassifier.class,
-					null,
-					EvitaRequest.CONVERSION_NOT_SUPPORTED
+		final EvitaSession mockSession = mock(EvitaSession.class);
+		for (Integer primaryKey : entityCollection.getGlobalIndex().getAllPrimaryKeys()) {
+			final EvitaRequest request = new EvitaRequest(
+				query(
+					collection(entityCollection.getSchema().getName()),
+					filterBy(entityPrimaryKeyInSet(primaryKey)),
+					require(entityFetchAll())
 				),
-				mock(EvitaSession.class)
+				OffsetDateTime.now(),
+				EntityClassifier.class,
+				null,
+				EvitaRequest.CONVERSION_NOT_SUPPORTED
 			);
-			assertEquals(1, response.getRecordData().size());
-			final SealedEntity deserializedEntity = (SealedEntity) response.getRecordData().get(0);
+			final SealedEntity deserializedEntity = collection.getEntity(primaryKey, request, mockSession).orElseThrow();
+			final SealedEntity originEntity = entityCollection.getEntity(primaryKey, request, mockSession).orElseThrow();
 			assertExactlyEquals(originEntity, deserializedEntity);
 		}
 

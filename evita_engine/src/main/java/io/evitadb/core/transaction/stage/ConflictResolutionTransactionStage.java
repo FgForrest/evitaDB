@@ -79,7 +79,7 @@ public final class ConflictResolutionTransactionStage
 			"Future is unexpectedly null on first stage!"
 		);
 		// identify conflicts with other transaction
-		// TODO JNO - implement me
+		// TODO JNO - implement conflict resolution
 		// assign new catalog version
 		push(
 			task,

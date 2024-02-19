@@ -56,31 +56,33 @@ public interface StoragePartPersistenceService extends Closeable {
 	 * Reads container primarily from transactional memory and when the container is not present there (or transaction
 	 * is not opened) reads it from the target {@link CatalogPersistenceService}.
 	 *
+	 * @param catalogVersion the current version of the catalog the value is read from
 	 * @param storagePartPk primary key of the storage part
 	 * @param containerType type of the storage part container
 	 * @param <T>           type of the storage part container
 	 * @return container contents in deserialized form
 	 */
 	@Nullable
-	<T extends StoragePart> T getStoragePart(long storagePartPk, @Nonnull Class<T> containerType);
+	<T extends StoragePart> T getStoragePart(long catalogVersion, long storagePartPk, @Nonnull Class<T> containerType);
 
 	/**
 	 * Reads container primarily from transactional memory and when the container is not present there (or transaction
 	 * is not opened) reads it from the target {@link CatalogPersistenceService}.
 	 *
+	 * @param catalogVersion the current version of the catalog the value is read from
 	 * @param storagePartPk primary key of the storage part
 	 * @param containerType type of the storage part container
 	 * @param <T>           type of the storage part container
 	 * @return container contents as byte array in binary form
 	 */
 	@Nullable
-	<T extends StoragePart> byte[] getStoragePartAsBinary(long storagePartPk, @Nonnull Class<T> containerType);
+	<T extends StoragePart> byte[] getStoragePartAsBinary(long catalogVersion, long storagePartPk, @Nonnull Class<T> containerType);
 
 	/**
 	 * Reads container primarily from transactional memory and when the container is not present there (or transaction
 	 * is not opened) reads it from the target {@link CatalogPersistenceService}.
 	 *
-	 * @param catalogVersion catalog version
+	 * @param catalogVersion catalog version the value is changed in
 	 * @param container      container to be stored
 	 * @param <T>            type of the storage part container
 	 * @return already or newly assigned {@link StoragePart#getStoragePartPK()} - primary key of the storage part
@@ -91,23 +93,25 @@ public interface StoragePartPersistenceService extends Closeable {
 	 * Removes container from the transactional memory. This method should be used only for container, that has
 	 * no uniqueId assigned so far (e.g. they haven't been stored yet).
 	 *
+	 * @param catalogVersion catalog version the value is changed in
 	 * @param storagePartPk primary key of the storage part
 	 * @param containerType type of the storage part container
 	 * @param <T>           type of the storage part container
 	 * @return true if the container was removed from the transactional memory
 	 */
-	<T extends StoragePart> boolean removeStoragePart(long storagePartPk, @Nonnull Class<T> containerType);
+	<T extends StoragePart> boolean removeStoragePart(long catalogVersion, long storagePartPk, @Nonnull Class<T> containerType);
 
 	/**
 	 * Returns true if persistent storage contains non-removed storage part of particular primary key and container
 	 * type.
 	 *
+	 * @param catalogVersion the current version of the catalog the value is read from
 	 * @param primaryKey    primary key of the storage part
 	 * @param containerType type of the storage part container
 	 * @param <T>           type of the storage part container
 	 * @return true if persistent storage contains non-removed storage part of particular primary key and container
 	 */
-	<T extends StoragePart> boolean containsStoragePart(long primaryKey, @Nonnull Class<T> containerType);
+	<T extends StoragePart> boolean containsStoragePart(long catalogVersion, long primaryKey, @Nonnull Class<T> containerType);
 
 	/**
 	 * Returns stream of all storage parts of the specified container type.
@@ -122,11 +126,12 @@ public interface StoragePartPersistenceService extends Closeable {
 	/**
 	 * Counts the number of storage parts of the specified container type.
 	 *
+	 * @param catalogVersion the version of the catalog the value is read from
 	 * @param containerType the type of the storage part containers
 	 * @param <T>           the type of the storage part container
 	 * @return the number of storage parts of the specified container type
 	 */
-	<T extends StoragePart> int countStorageParts(@Nonnull Class<T> containerType);
+	<T extends StoragePart> int countStorageParts(long catalogVersion, @Nonnull Class<T> containerType);
 
 	/**
 	 * Method serializes passed {@link StoragePart} to a byte array.
@@ -183,6 +188,15 @@ public interface StoragePartPersistenceService extends Closeable {
 	PersistentStorageDescriptor copySnapshotTo(@Nonnull Path newFilePath, long catalogVersion);
 
 	/**
+	 * Notifies the persistence service that the last reader that read this particular catalog version has exited.
+	 * The caller also ensures there is no other reader reading the later (lower) catalog versions and thus that
+	 * the entire history for this and previous versions can be purged from memory.
+	 *
+	 * @param catalogVersion the catalog version that was read by the last reader
+	 */
+	void purgeHistoryEqualAndLaterThan(long catalogVersion);
+
+	/**
 	 * Checks whether the persistence storage is already present and filled with data.
 	 *
 	 * @return true if the persistence storage is already present and filled with data
@@ -201,4 +215,5 @@ public interface StoragePartPersistenceService extends Closeable {
 	 */
 	@Override
 	void close();
+
 }

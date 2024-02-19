@@ -27,6 +27,8 @@ import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Closeable;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.Objects;
@@ -38,7 +40,7 @@ import java.util.Optional;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public final class OffHeapWithFileBackupReference {
+public final class OffHeapWithFileBackupReference implements Closeable {
 	/**
 	 * Path to the WAL file on disk (if the data did not fit into the off-heap buffer or there was no empty buffer
 	 * available at the time).
@@ -52,11 +54,16 @@ public final class OffHeapWithFileBackupReference {
 	 * The length of the data (correctly set both for data in buffer and data in file).
 	 */
 	@Getter private final int contentLength;
+	/**
+	 * The onClose action to be executed when the reference is closed.
+	 */
+	@Nonnull private final Runnable onClose;
 
-	private OffHeapWithFileBackupReference(@Nullable Path filePath, @Nullable ByteBuffer buffer, int contentLength) {
+	private OffHeapWithFileBackupReference(@Nullable Path filePath, @Nullable ByteBuffer buffer, int contentLength, @Nonnull Runnable onClose) {
 		this.filePath = filePath;
 		this.buffer = buffer;
 		this.contentLength = contentLength;
+		this.onClose = onClose;
 	}
 
 	/**
@@ -67,8 +74,8 @@ public final class OffHeapWithFileBackupReference {
 	 * @return An OffHeapWithFileBackupReference object.
 	 */
 	@Nonnull
-	public static OffHeapWithFileBackupReference withFilePath(@Nonnull Path filePath, int contentLength) {
-		return new OffHeapWithFileBackupReference(Objects.requireNonNull(filePath), null, contentLength);
+	public static OffHeapWithFileBackupReference withFilePath(@Nonnull Path filePath, int contentLength, @Nonnull Runnable onClose) {
+		return new OffHeapWithFileBackupReference(Objects.requireNonNull(filePath), null, contentLength, onClose);
 	}
 
 	/**
@@ -79,8 +86,8 @@ public final class OffHeapWithFileBackupReference {
 	 * @return An OffHeapWithFileBackupReference object.
 	 */
 	@Nonnull
-	public static OffHeapWithFileBackupReference withByteBuffer(@Nonnull ByteBuffer buffer, int bufferPeak) {
-		return new OffHeapWithFileBackupReference(null, Objects.requireNonNull(buffer), bufferPeak);
+	public static OffHeapWithFileBackupReference withByteBuffer(@Nonnull ByteBuffer buffer, int bufferPeak, @Nonnull Runnable onClose) {
+		return new OffHeapWithFileBackupReference(null, Objects.requireNonNull(buffer), bufferPeak, onClose);
 	}
 
 	/**
@@ -103,4 +110,9 @@ public final class OffHeapWithFileBackupReference {
 		return Optional.ofNullable(buffer);
 	}
 
+	@Override
+	public void close() throws IOException {
+		// finalize resources
+		onClose.run();
+	}
 }

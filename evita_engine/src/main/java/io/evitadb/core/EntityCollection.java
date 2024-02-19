@@ -74,6 +74,7 @@ import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.entity.SetEntitySchemaWithHierarchyMutation;
 import io.evitadb.api.trace.TracingContext;
 import io.evitadb.core.buffer.DataStoreChanges;
@@ -106,7 +107,6 @@ import io.evitadb.index.price.PriceRefIndex;
 import io.evitadb.index.price.PriceSuperIndex;
 import io.evitadb.index.reference.ReferenceChanges;
 import io.evitadb.index.reference.TransactionalReference;
-import io.evitadb.store.entity.model.entity.EntityBodyStoragePart;
 import io.evitadb.store.entity.model.schema.EntitySchemaStoragePart;
 import io.evitadb.store.entity.serializer.EntitySchemaContext;
 import io.evitadb.store.spi.CatalogPersistenceService;
@@ -117,7 +117,6 @@ import io.evitadb.store.spi.model.EntityCollectionHeader;
 import io.evitadb.store.spi.model.storageParts.accessor.ReadOnlyEntityStorageContainerAccessor;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
-import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -126,7 +125,6 @@ import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -216,7 +214,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 	@Getter private final DataStoreMemoryBuffer<EntityIndexKey, EntityIndex, DataStoreChanges<EntityIndexKey, EntityIndex>> dataStoreBuffer;
 	/**
 	 * Formula supervisor is an entry point to the Evita cache. The idea is that each {@link Formula} can be identified
-	 * by its {@link Formula#computeHash(LongHashFunction)} method and when the supervisor identifies that certain
+	 * by its {@link Formula#getHash()} method and when the supervisor identifies that certain
 	 * formula is frequently used in query formulas it moves its memoized results to the cache. The non-computed formula
 	 * of the same hash will be exchanged in next query that contains it with the cached formula that already contains
 	 * memoized result.
@@ -299,17 +297,17 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 
 		// initialize container buffer
 		final StoragePartPersistenceService storagePartPersistenceService = this.persistenceService.getStoragePartPersistenceService();
-		this.dataStoreBuffer = new DataStoreMemoryBuffer<>(catalog.getVersion(), this, storagePartPersistenceService);
+		this.dataStoreBuffer = new DataStoreMemoryBuffer<>(this, storagePartPersistenceService);
 		// initialize schema - still in constructor
 		this.schema = new TransactionalReference<>(
-			ofNullable(storagePartPersistenceService.getStoragePart(1, EntitySchemaStoragePart.class))
+			ofNullable(storagePartPersistenceService.getStoragePart(catalog.getVersion(), 1, EntitySchemaStoragePart.class))
 				.map(EntitySchemaStoragePart::entitySchema)
-				.map(it -> new EntitySchemaDecorator(() -> getCatalog().getSchema(), it))
+				.map(it -> new EntitySchemaDecorator(catalog::getSchema, it))
 				.orElseGet(() -> {
 					if (this.persistenceService.isNew()) {
 						final EntitySchema newEntitySchema = EntitySchema._internalBuild(entityType);
-						this.dataStoreBuffer.update(new EntitySchemaStoragePart(newEntitySchema));
-						return new EntitySchemaDecorator(() -> getCatalog().getSchema(), newEntitySchema);
+						this.dataStoreBuffer.update(catalog.getVersion(), new EntitySchemaStoragePart(newEntitySchema));
+						return new EntitySchemaDecorator(catalog::getSchema, newEntitySchema);
 					} else {
 						throw new SchemaNotFoundException(catalog.getName(), entityHeader.entityType());
 					}
@@ -357,7 +355,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 		this.catalogPersistenceService = catalogPersistenceService;
 		this.persistenceService = persistenceService;
 		this.indexPkSequence = indexPkSequence;
-		this.dataStoreBuffer = new DataStoreMemoryBuffer<>(catalog.getVersion(), this, persistenceService.getStoragePartPersistenceService());
+		this.dataStoreBuffer = new DataStoreMemoryBuffer<>(this, persistenceService.getStoragePartPersistenceService());
 		this.indexes = new TransactionalMap<>(indexes, it -> (EntityIndex) it);
 		for (EntityIndex entityIndex : this.indexes.values()) {
 			entityIndex.updateReferencesTo(this);
@@ -383,12 +381,14 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 	@Override
 	@Nonnull
 	public Optional<BinaryEntity> getBinaryEntity(int primaryKey, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
+		final long catalogVersion = catalogAccessor.get().getVersion();
 		final Optional<BinaryEntity> entity = cacheSupervisor.analyse(
 			session,
 			primaryKey,
 			getSchema().getName(),
 			evitaRequest.getEntityRequirement(),
 			() -> persistenceService.readBinaryEntity(
+				catalogVersion,
 				primaryKey,
 				evitaRequest,
 				session,
@@ -396,7 +396,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 					this : getCatalog().getCollectionForEntityOrThrowException(entityType),
 				dataStoreBuffer
 			),
-			binaryEntity -> persistenceService.enrichEntity(getInternalSchema(), binaryEntity, evitaRequest, dataStoreBuffer)
+			binaryEntity -> persistenceService.enrichEntity(catalogVersion, getInternalSchema(), binaryEntity, evitaRequest, dataStoreBuffer)
 		);
 		return entity.map(it -> limitEntity(it, evitaRequest.getEntityRequirement()));
 	}
@@ -669,7 +669,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 
 	@Override
 	public int size() {
-		return this.persistenceService.count(EntityBodyStoragePart.class);
+		return this.persistenceService.countEntities(getCatalog().getVersion());
 	}
 
 	@Override
@@ -735,7 +735,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 		} finally {
 			// finally, store the updated catalog schema to disk
 			final EntitySchema updatedInternalSchema = getInternalSchema();
-			this.dataStoreBuffer.update(new EntitySchemaStoragePart(updatedInternalSchema));
+			this.dataStoreBuffer.update(getCatalog().getVersion(), new EntitySchemaStoragePart(updatedInternalSchema));
 		}
 
 		final SealedEntitySchema schemaResult = getSchema();
@@ -755,11 +755,6 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 			"Collection was already terminated!"
 		);
 		this.persistenceService.close();
-	}
-
-	@Override
-	public Iterator<Entity> entityIterator() {
-		return this.persistenceService.entityIterator(getInternalSchema(), this.dataStoreBuffer);
 	}
 
 	@Nonnull
@@ -842,6 +837,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 		return Entity.decorate(
 			// load all missing data according to current evita request
 			this.persistenceService.enrichEntity(
+				getCatalog().getVersion(),
 				internalSchema,
 				// use all data from existing entity
 				partiallyLoadedEntity,
@@ -899,6 +895,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 				return (T) Entity.decorate(
 					// load references if missing
 					this.persistenceService.enrichEntity(
+						getCatalog().getVersion(),
 						getInternalSchema(),
 						// use all data from existing entity
 						partiallyLoadedEntity,
@@ -1005,11 +1002,12 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 		@Nonnull EvitaRequest evitaRequest,
 		@Nonnull EvitaSessionContract session
 	) {
+		final Catalog catalog = getCatalog();
 		return new QueryContext(
 			queryContext,
-			getCatalog(),
+			catalog,
 			this,
-			new ReadOnlyEntityStorageContainerAccessor(dataStoreBuffer, this::getInternalSchema),
+			new ReadOnlyEntityStorageContainerAccessor(catalog.getVersion(), this.dataStoreBuffer, this::getInternalSchema),
 			session, evitaRequest,
 			queryContext.getCurrentStep(),
 			indexes,
@@ -1026,10 +1024,11 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 	 */
 	@Nonnull
 	public QueryContext createQueryContext(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
+		final Catalog catalog = getCatalog();
 		return new QueryContext(
-			getCatalog(),
+			catalog,
 			this,
-			new ReadOnlyEntityStorageContainerAccessor(dataStoreBuffer, this::getInternalSchema),
+			new ReadOnlyEntityStorageContainerAccessor(catalog.getVersion(), this.dataStoreBuffer, this::getInternalSchema),
 			session, evitaRequest,
 			evitaRequest.isQueryTelemetryRequested() ? new QueryTelemetry(QueryPhase.OVERALL) : null,
 			indexes,
@@ -1162,8 +1161,11 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 	 */
 	private TransactionalMap<EntityIndexKey, EntityIndex> loadIndexes(@Nonnull EntityCollectionHeader entityHeader) {
 		// we need to load global index first, this is the only one index containing all data
+		final long catalogVersion = getCatalog().getVersion();
 		final GlobalEntityIndex globalIndex = (GlobalEntityIndex) this.persistenceService.readEntityIndex(
-			entityHeader.globalEntityIndexId(), this::getInternalSchema,
+			catalogVersion,
+			entityHeader.globalEntityIndexId(),
+			this::getInternalSchema,
 			() -> {
 				throw new EvitaInternalError("Global index is currently loading!");
 			},
@@ -1178,7 +1180,9 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 						.stream()
 						.map(eid ->
 							this.persistenceService.readEntityIndex(
-								eid, this::getInternalSchema,
+								catalogVersion,
+								eid,
+								this::getInternalSchema,
 								// this method is used just for `readEntityIndex` method to access global index until
 								// it's available by `this::getPriceSuperIndex` (constructor must be finished first)
 								globalIndex::getPriceIndex,
@@ -1223,6 +1227,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 	@Nullable
 	private Entity getEntityById(int primaryKey, @Nonnull EvitaRequest evitaRequest) {
 		return persistenceService.readEntity(
+			getCatalog().getVersion(),
 			primaryKey,
 			evitaRequest,
 			getInternalSchema(),
@@ -1294,7 +1299,11 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 		// - schema may have changed between entity was provided to the client and the moment upsert was called
 		final SealedCatalogSchema catalogSchema = getCatalog().getSchema();
 		entityMutation.verifyOrEvolveSchema(catalogSchema, getSchema(), emptyOnStart && isEmpty())
-			.ifPresent(it -> updateSchema(catalogSchema, it));
+			.ifPresent(
+				it -> getCatalog().applyMutation(
+					new ModifyEntitySchemaMutation(getEntityType(), it)
+				)
+			);
 
 		// check the existence of the primary key and report error when unexpectedly (not) provided
 		final SealedEntitySchema currentSchema = getSchema();
@@ -1388,6 +1397,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 
 		final ContainerizedLocalMutationExecutor changeCollector = new ContainerizedLocalMutationExecutor(
 			dataStoreBuffer,
+			getCatalog().getVersion(),
 			entityMutation.getEntityPrimaryKey(),
 			entityMutation.expects(),
 			this::getInternalSchema,

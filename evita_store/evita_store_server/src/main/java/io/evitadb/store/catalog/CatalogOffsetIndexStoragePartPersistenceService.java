@@ -147,6 +147,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 			// create new offset index
 			final OffsetIndex newOffsetIndex = new OffsetIndex(
 				new OffsetIndexDescriptor(
+					0L,
 					fileLocation,
 					Map.of(),
 					kryoFactory
@@ -182,6 +183,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 
 					catalogHeaderConsumer.accept(theCatalogHeader);
 					return new OffsetIndexDescriptor(
+						theCatalogHeader.version(),
 						fileLocation,
 						theCatalogHeader.compressedKeys(),
 						kryoFactory
@@ -213,9 +215,9 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 
 	@Nonnull
 	@Override
-	public CatalogHeader getCatalogHeader() {
+	public CatalogHeader getCatalogHeader(long catalogVersion) {
 		if (currentCatalogHeader == null) {
-			currentCatalogHeader = offsetIndex.get(1L, CatalogHeader.class);
+			currentCatalogHeader = offsetIndex.get(catalogVersion, 1L, CatalogHeader.class);
 		}
 		return currentCatalogHeader;
 	}
@@ -243,4 +245,10 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 		putStoragePart(catalogVersion, newCatalogHeader);
 		this.currentCatalogHeader = newCatalogHeader;
 	}
+
+	@Override
+	public void purgeHistoryEqualAndLaterThan(long catalogVersion) {
+		this.offsetIndex.purge(catalogVersion);
+	}
+
 }

@@ -83,9 +83,11 @@ public final class ReadOnlyEntityStorageContainerAccessor extends AbstractEntity
 	private IntObjectMap<ReferencesStoragePart> referencesStorageContainer;
 
 	public ReadOnlyEntityStorageContainerAccessor(
+		long catalogVersion,
 		@Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex, DataStoreChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer,
-		@Nonnull Supplier<EntitySchema> schemaAccessor) {
-		super(storageContainerBuffer, schemaAccessor);
+		@Nonnull Supplier<EntitySchema> schemaAccessor
+	) {
+		super(catalogVersion, storageContainerBuffer, schemaAccessor);
 	}
 
 	@Nullable

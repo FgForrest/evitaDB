@@ -33,6 +33,7 @@ import io.evitadb.core.query.algebra.base.OrFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
+import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.index.array.TransactionalComplexObjArray;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;

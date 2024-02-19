@@ -44,7 +44,6 @@ import io.evitadb.exception.EvitaInvalidUsageException;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
 
@@ -292,8 +291,4 @@ public interface EntityCollectionContract {
 	 */
 	void terminate();
 
-	/**
-	 * Returns iterator that allows to iterate through all entities in the store.
-	 */
-	Iterator<Entity> entityIterator();
 }

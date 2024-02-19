@@ -38,7 +38,6 @@ import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.CatalogIndexKey;
 import io.evitadb.store.exception.InvalidStoragePathException;
-import io.evitadb.store.model.FileLocation;
 import io.evitadb.store.spi.exception.DirectoryNotEmptyException;
 import io.evitadb.store.spi.model.CatalogHeader;
 import io.evitadb.store.spi.model.EntityCollectionHeader;
@@ -124,7 +123,7 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 
 	/**
 	 * Returns {@link CatalogHeader} that is used for this service. The header is initialized in the instance constructor
-	 * and (because it's immutable) is exchanged with each {@link #storeHeader(CatalogState, long, int, List)} method call.
+	 * and (because it's immutable) is exchanged with each {@link #storeHeader(CatalogState, long, int, TransactionMutation, List)}  method call.
 	 */
 	@Nonnull
 	CatalogHeader getCatalogHeader();
@@ -245,10 +244,16 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	Stream<Mutation> getCommittedMutationStream(long catalogVersion);
 
 	/**
+	 * TODO JNO - DOCUMENT ME
+	 * @return
+	 */
+	long getLastCatalogVersionInMutationStream();
+
+	/**
 	 * Method closes this persistence service and also all {@link EntityCollectionPersistenceService} that were created
 	 * via. {@link #createEntityCollectionPersistenceService(String, int)}.
 	 *
-	 * You need to call {@link #storeHeader(CatalogState, long, int, FileLocation, List)} or {@link #flushTrappedUpdates(DataStoreIndexChanges)}
+	 * You need to call {@link #storeHeader(CatalogState, long, int, TransactionMutation, List)}  or {@link #flushTrappedUpdates(DataStoreIndexChanges)}
 	 * before this method is called, or you will lose your data in memory buffers.
 	 */
 	@Override

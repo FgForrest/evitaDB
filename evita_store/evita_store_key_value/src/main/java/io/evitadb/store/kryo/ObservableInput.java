@@ -133,7 +133,7 @@ public class ObservableInput<T extends InputStream> extends Input {
 	 * @implNote <a href="https://codecapsule.com/2014/02/12/coding-for-ssds-part-6-a-summary-what-every-programmer-should-know-about-solid-state-drives/">Source</a>
 	 */
 	public ObservableInput(T inputStream) {
-		super(inputStream, 16_384);
+		this(inputStream, 16_384);
 	}
 
 	public ObservableInput(T inputStream, int bufferSize) {
@@ -178,6 +178,33 @@ public class ObservableInput<T extends InputStream> extends Input {
 			count -= skipCount;
 			if (count == 0) break;
 			skipCount = Math.min(count, capacity);
+		}
+	}
+
+	/**
+	 * TODO JNO - DOCUMENT AND CLEAR
+	 * @return
+	 */
+	public int simpleIntRead() {
+		this.startPosition = super.position;
+		this.expectedLength = 4;
+		this.accumulatedLength = 0;
+		this.payloadStartPosition = this.position;
+		this.payloadPrefixLength = computeReadLengthUpTo(this.payloadStartPosition);
+		this.actualLimit = this.limit > 0 ? this.limit : -1;
+		this.limit = Math.min(this.buffer.length, constraintLimitWithRecordLength(0) + this.payloadPrefixLength);
+		this.readingTail = true;
+		try {
+			return readInt();
+		} finally {
+			this.limit = this.actualLimit >= 0 ? this.actualLimit : this.limit;
+			this.actualLimit = -1;
+			this.startPosition = -1;
+			this.expectedLength = -1;
+			this.accumulatedLength = 0;
+			this.payloadStartPosition = -1;
+			this.payloadPrefixLength = 0;
+			this.readingTail = false;
 		}
 	}
 
@@ -238,7 +265,8 @@ public class ObservableInput<T extends InputStream> extends Input {
 		}
 
 		/* EXTENSION */
-		updateLostBuffer(remaining, capacity - remaining);
+		final int attemptedToRead = capacity - remaining;
+		updateLostBuffer(remaining, attemptedToRead);
 		/* END OF EXTENSION */
 
 		// Was not enough, compact and try again.
@@ -247,7 +275,7 @@ public class ObservableInput<T extends InputStream> extends Input {
 		position = 0;
 
 		while (true) {
-			count = fill(buffer, remaining, capacity - remaining);
+			count = fill(buffer, remaining, attemptedToRead);
 			if (count == -1) {
 				if (remaining >= required) break;
 				throw new KryoException("Buffer underflow.");
@@ -261,14 +289,6 @@ public class ObservableInput<T extends InputStream> extends Input {
 		this.limit = constraintLimitWithRecordLength();
 		/* END OF EXTENSION */
 		return limit;
-	}
-
-	/**
-	 * Method computes total record length read from {@link #markStart()} up to current {@link #position}.
-	 */
-	private int computeTotalReadLength() {
-		final int readLength = computeReadLengthUpTo(this.position);
-		return readLength + this.accumulatedLength;
 	}
 
 	/**
@@ -310,7 +330,8 @@ public class ObservableInput<T extends InputStream> extends Input {
 		}
 
 		/* EXTENSION */
-		updateLostBuffer(remaining, capacity - remaining);
+		final int attemptedToRead = capacity - remaining;
+		updateLostBuffer(remaining, attemptedToRead);
 		/* END OF EXTENSION */
 
 		// Was not enough, compact and try again.
@@ -319,7 +340,7 @@ public class ObservableInput<T extends InputStream> extends Input {
 		position = 0;
 
 		while (true) {
-			count = fill(buffer, remaining, capacity - remaining);
+			count = fill(buffer, remaining, attemptedToRead);
 			if (count == -1) break;
 			remaining += count;
 			if (remaining >= optional) break; // Enough has been read.
@@ -330,6 +351,14 @@ public class ObservableInput<T extends InputStream> extends Input {
 		this.limit = constraintLimitWithRecordLength();
 		return limit == 0 ? -1 : Math.min(limit, optional);
 		/* END OF EXTENSION */
+	}
+
+	/**
+	 * Method computes total record length read from {@link #markStart()} up to current {@link #position}.
+	 */
+	private int computeTotalReadLength() {
+		final int readLength = computeReadLengthUpTo(this.position);
+		return readLength + this.accumulatedLength;
 	}
 
 	/**
@@ -433,7 +462,6 @@ public class ObservableInput<T extends InputStream> extends Input {
 			this.readingTail = true;
 			// enlarge limit to original value - we're already finishing record
 			this.limit = this.actualLimit >= 0 ? this.actualLimit : this.limit;
-			this.actualLimit = -1;
 
 			if (payloadStartPosition != -1) {
 				// compute the final part of the payload that hasn't been added to accumulated length and CRC32 checksum
@@ -469,13 +497,14 @@ public class ObservableInput<T extends InputStream> extends Input {
 					)
 				);
 			}
+		} finally {
 			// reset counters
 			this.startPosition = -1;
+			this.actualLimit = -1;
 			this.payloadStartPosition = -1;
 			this.payloadPrefixLength = 0;
 			this.expectedLength = -1;
 			this.accumulatedLength = 0;
-		} finally {
 			this.readingTail = false;
 		}
 	}
@@ -496,6 +525,7 @@ public class ObservableInput<T extends InputStream> extends Input {
 	public long markStart() {
 		this.startPosition = super.position;
 		this.expectedLength = -1;
+		this.accumulatedLength = 0;
 		return total();
 	}
 
@@ -568,6 +598,15 @@ public class ObservableInput<T extends InputStream> extends Input {
 	}
 
 	/**
+	 * Variant of the method that counts with the CRC32C checksum at the end of the record.
+	 *
+	 * @see #constraintLimitWithRecordLength(int)
+	 */
+	private int constraintLimitWithRecordLength() {
+		return constraintLimitWithRecordLength(TAIL_MANDATORY_SPACE);
+	}
+
+	/**
 	 * Method will check whether the limit exceeds the {@link #expectedLength} of current record and if so, it caps
 	 * the limit to the size, that comply with the expected length. The problem is that `limit` reflect the number of
 	 * Bytes that was successfully read from the stream/file and there may be also Bytes that belong to different
@@ -579,11 +618,11 @@ public class ObservableInput<T extends InputStream> extends Input {
 	 * of the current record so that we can apply {@link #overflowing} logic and check checksum and read header
 	 * of the next record.
 	 */
-	private int constraintLimitWithRecordLength() {
+	private int constraintLimitWithRecordLength(int mandatorySpaceLength) {
 		if (!readingTail && this.expectedLength > 0 && this.expectedLength < this.accumulatedLength + this.limit - this.lastOffset) {
 			// remember but cap the limit
 			this.actualLimit = this.limit;
-			return this.startPosition + this.expectedLength - TAIL_MANDATORY_SPACE - this.accumulatedLength;
+			return this.startPosition + this.expectedLength - mandatorySpaceLength - this.accumulatedLength;
 		} else {
 			// leave limit unchanged
 			return this.limit;
@@ -615,7 +654,7 @@ public class ObservableInput<T extends InputStream> extends Input {
 			// recompute accumulated length since the start of the record
 			if (this.lastCount != -1) {
 				if (!this.readingTail) {
-					this.accumulatedLength += (this.lastCount - (this.startPosition - this.lastOffset));
+					this.accumulatedLength += this.position - (this.startPosition - offset);
 					// update payload start positions - we're going to rewrite the buffer so the sensible payload start changes
 					this.startPosition = offset;
 				}

@@ -174,13 +174,12 @@ public record StorageRecord<T>(
 		final int recordLength = input.readInt();
 		byte control = input.readByte();
 
-		final Supplier<T> payloadReader = () -> reader.apply(input, recordLength);
 		return doReadStorageRecord(
 			input,
 			new FileLocation(input.position(), recordLength),
 			control,
 			null,
-			payloadReader
+			() -> reader.apply(input, recordLength)
 		);
 	}
 

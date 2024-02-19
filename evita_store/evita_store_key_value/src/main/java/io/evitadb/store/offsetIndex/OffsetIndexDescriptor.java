@@ -94,16 +94,20 @@ public class OffsetIndexDescriptor implements PersistentStorageDescriptor {
 		@Nonnull Function<VersionedKryoKeyInputs, VersionedKryo> kryoFactory
 	) {
 		this(
-			offsetIndexHeader.fileLocation(), offsetIndexHeader.compressedKeys(), kryoFactory
+			offsetIndexHeader.version(),
+			offsetIndexHeader.fileLocation(),
+			offsetIndexHeader.compressedKeys(),
+			kryoFactory
 		);
 	}
 
 	public OffsetIndexDescriptor(
+		long version,
 		@Nullable FileLocation fileLocation,
 		@Nonnull Map<Integer, Object> compressedKeys,
 		@Nonnull Function<VersionedKryoKeyInputs, VersionedKryo> kryoFactory
 	) {
-		this.version = 1L;
+		this.version = version;
 		this.fileLocation = fileLocation;
 		this.kryoFactory = kryoFactory;
 		// create writable instances

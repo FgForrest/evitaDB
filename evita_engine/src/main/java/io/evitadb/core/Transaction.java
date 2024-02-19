@@ -388,4 +388,9 @@ public final class Transaction implements TransactionContract {
 	public void registerMutation(@Nonnull Mutation mutation) {
 		this.transactionHandler.registerMutation(mutation);
 	}
+
+	@Override
+	public String toString() {
+		return transactionId + " (replay=" + replay + ", rollbackOnly=" + rollbackOnly + '}';
+	}
 }

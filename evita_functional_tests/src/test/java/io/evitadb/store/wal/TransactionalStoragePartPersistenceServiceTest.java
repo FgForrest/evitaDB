@@ -106,10 +106,10 @@ class TransactionalStoragePartPersistenceServiceTest {
 	@Test
 	public void shouldGetStoragePartFromDelegateWhenNotRemoved() {
 		StoragePart storagePart = new EntityBodyStoragePart(1);
-		when(delegateService.getStoragePart(anyLong(), any())).thenReturn(storagePart);
-		when(delegateService.containsStoragePart(anyLong(), any())).thenReturn(true);
+		when(delegateService.getStoragePart(1L, anyLong(), any())).thenReturn(storagePart);
+		when(delegateService.containsStoragePart(1L, anyLong(), any())).thenReturn(true);
 
-		StoragePart result = service.getStoragePart(1L, StoragePart.class);
+		StoragePart result = service.getStoragePart(1L, 1L, StoragePart.class);
 
 		assertEquals(storagePart, result);
 	}
@@ -117,12 +117,12 @@ class TransactionalStoragePartPersistenceServiceTest {
 	@Test
 	public void shouldReturnNullWhenStoragePartRemoved() {
 		StoragePart storagePart = new EntityBodyStoragePart(1);
-		when(delegateService.getStoragePart(anyLong(), any())).thenReturn(storagePart);
-		when(delegateService.containsStoragePart(anyLong(), any())).thenReturn(true);
+		when(delegateService.getStoragePart(1L, anyLong(), any())).thenReturn(storagePart);
+		when(delegateService.containsStoragePart(1L, anyLong(), any())).thenReturn(true);
 
-		service.removeStoragePart(1L, EntityBodyStoragePart.class);
+		service.removeStoragePart(1L, 1L, EntityBodyStoragePart.class);
 
-		StoragePart result = service.getStoragePart(1L, EntityBodyStoragePart.class);
+		StoragePart result = service.getStoragePart(1L, 1L, EntityBodyStoragePart.class);
 
 		assertNull(result);
 	}
@@ -133,7 +133,7 @@ class TransactionalStoragePartPersistenceServiceTest {
 
 		service.putStoragePart(1L, storagePart);
 
-		assertTrue(service.containsStoragePart(1L, EntityBodyStoragePart.class));
+		assertTrue(service.containsStoragePart(1L, 1L, EntityBodyStoragePart.class));
 	}
 
 	@Test
@@ -142,27 +142,27 @@ class TransactionalStoragePartPersistenceServiceTest {
 
 		service.putStoragePart(1L, storagePart);
 
-		service.removeStoragePart(1L, EntityBodyStoragePart.class);
+		service.removeStoragePart(1L, 1L, EntityBodyStoragePart.class);
 
-		assertFalse(service.containsStoragePart(1L, EntityBodyStoragePart.class));
+		assertFalse(service.containsStoragePart(1L, 1L, EntityBodyStoragePart.class));
 	}
 
 	@Test
 	public void shouldRemoveStoragePartFromOffsetIndexAndDelegate() {
 		StoragePart storagePart = new EntityBodyStoragePart(1);
-		when(delegateService.getStoragePart(anyLong(), any())).thenReturn(storagePart);
-		when(delegateService.containsStoragePart(anyLong(), any())).thenReturn(true);
+		when(delegateService.getStoragePart(1L, anyLong(), any())).thenReturn(storagePart);
+		when(delegateService.containsStoragePart(1L, anyLong(), any())).thenReturn(true);
 
 		service.putStoragePart(1L, storagePart);
 
-		service.removeStoragePart(1L, EntityBodyStoragePart.class);
+		service.removeStoragePart(1L, 1L, EntityBodyStoragePart.class);
 
-		assertFalse(service.containsStoragePart(1L, EntityBodyStoragePart.class));
+		assertFalse(service.containsStoragePart(1L, 1L, EntityBodyStoragePart.class));
 	}
 
 	@Test
 	public void shouldReturnFalseWhenStoragePartDoesNotExistInOffsetIndex() {
-		assertFalse(service.containsStoragePart(1L, EntityBodyStoragePart.class));
+		assertFalse(service.containsStoragePart(1L, 1L, EntityBodyStoragePart.class));
 	}
 
 }

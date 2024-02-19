@@ -75,6 +75,7 @@ import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateEntitySchema
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.core.exception.CatalogCorruptedException;
 import io.evitadb.core.transaction.TransactionWalFinalizer;
+import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -181,7 +182,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	 * When initialized, subsequent calls of the close method will return the same future.
 	 * When the future is non-null any calls after {@link #close()} method has been called.
 	 */
-	private CompletableFuture<Long> closedFuture;
+	private volatile CompletableFuture<Long> closedFuture;
 	/**
 	 * Timestamp of the last session activity (call).
 	 */
@@ -190,6 +191,11 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	 * Contains a number of nested session calls.
 	 */
 	private int nestLevel;
+	/**
+	 * Flag is set to true, when the session is being closed and only termination callback is executing. The session
+	 * should still be operative until the termination callback is finished.
+	 */
+	private boolean beingClosed;
 
 	/**
 	 * Method creates implicit filtering constraint that contains price filtering constraints for price in case
@@ -295,7 +301,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 
 	@Override
 	public boolean isActive() {
-		return closedFuture == null;
+		return closedFuture == null || beingClosed;
 	}
 
 	@Override
@@ -342,12 +348,21 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 			// join both futures together and apply termination callback
 			this.closedFuture = closeFuture.whenComplete((aLong, throwable) -> {
 				// then apply termination callbacks
-				ofNullable(terminationCallback)
-					.ifPresent(it -> it.onTermination(this));
+				try {
+					this.beingClosed= true;
+					ofNullable(terminationCallback)
+						.ifPresent(it -> it.onTermination(this));
+				} finally {
+					this.beingClosed = false;
+				}
 				if (throwable instanceof CancellationException cancellationException) {
 					throw cancellationException;
 				} else if (throwable instanceof TransactionException transactionException) {
 					throw transactionException;
+				} else if (throwable instanceof EvitaInvalidUsageException invalidUsageException) {
+					throw invalidUsageException;
+				} else if (throwable instanceof EvitaInternalError internalError) {
+					throw internalError;
 				} else if (throwable != null) {
 					throw new TransactionException("Unexpected exception occurred while executing transaction!", throwable);
 				}
@@ -1102,21 +1117,6 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 				return null;
 			}
 		);
-	}
-
-	/**
-	 * Method will exchange reference to the current catalog. This method is called everytime the catalog contents are
-	 * modified (committed) so that the changes can be safely visible and usable in all other active sessions. The new
-	 * contract must not affect the reference held in currently open {@link Transaction} - since the transaction are
-	 * guaranteed to have SNAPSHOT isolation. But newly opened transaction in the session will see the changes from
-	 * other concurrent transaction.
-	 */
-	void updateCatalogReference(@Nonnull CatalogContract catalog) {
-		Assert.isPremiseValid(
-			!isTransactionOpen(),
-			"Session has opened transaction and the catalog reference can't be updated within it. We need to maintain SNAPSHOT isolation!"
-		);
-		this.catalog.set(catalog);
 	}
 
 	/**

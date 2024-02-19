@@ -27,6 +27,7 @@ import io.evitadb.core.query.algebra.deferred.BitmapSupplier;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.index.hierarchy.HierarchyIndex;
+import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 import net.openhft.hashing.LongHashFunction;
 
@@ -46,10 +47,6 @@ public abstract class AbstractHierarchyBitmapSupplier implements BitmapSupplier 
 	 */
 	protected final HierarchyIndex hierarchyIndex;
 	/**
-	 * Set of {@link TransactionalLayerProducer#getId()} that are involved in data computation.
-	 */
-	private final long[] transactionalId;
-	/**
 	 * Contains memoized value of {@link #getEstimatedCost()}  of this formula.
 	 */
 	private Long estimatedCost;
@@ -66,9 +63,9 @@ public abstract class AbstractHierarchyBitmapSupplier implements BitmapSupplier 
 	 */
 	private Long hash;
 	/**
-	 * Contains memoized value of {@link #gatherTransactionalIds()} method.
+	 * Set of {@link TransactionalLayerProducer#getId()} that are involved in data computation.
 	 */
-	private long[] transactionalIds;
+	private final long[] transactionalIds;
 	/**
 	 * Contains memoized value of {@link #gatherTransactionalIds()} computed hash.
 	 */
@@ -126,10 +123,10 @@ public abstract class AbstractHierarchyBitmapSupplier implements BitmapSupplier 
 	@Nonnull
 	@Override
 	public long[] gatherTransactionalIds() {
-		if (this.transactionalId == null) {
+		if (this.transactionalIds == null) {
 			initialize(CalculationContext.NO_CACHING_INSTANCE);
 		}
-		return transactionalId;
+		return transactionalIds;
 	}
 
 	@Override

@@ -74,7 +74,6 @@ import io.evitadb.utils.VersionUtils;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import net.openhft.hashing.LongHashFunction;
 import org.jboss.threads.EnhancedQueueExecutor;
 
 import javax.annotation.Nonnull;
@@ -133,7 +132,7 @@ public final class Evita implements EvitaContract {
 	private final Map<String, SessionRegistry> activeSessions = new ConcurrentHashMap<>();
 	/**
 	 * Formula supervisor is an entry point to the Evita cache. The idea is that each {@link Formula} can be identified by
-	 * its {@link Formula#computeHash(LongHashFunction)} method and when the supervisor identifies that certain formula
+	 * its {@link Formula#getHash()} method and when the supervisor identifies that certain formula
 	 * is frequently used in query formulas it moves its memoized results to the cache. The non-computed formula
 	 * of the same hash will be exchanged in next query that contains it with the cached formula that already contains
 	 * memoized result.
@@ -247,7 +246,9 @@ public final class Evita implements EvitaContract {
 				try {
 					final long start = System.nanoTime();
 					catalog = new Catalog(
-						catalogName, directory, cacheSupervisor,
+						catalogName,
+						directory,
+						cacheSupervisor,
 						configuration.storage(),
 						configuration.transaction(),
 						reflectionLookup,
@@ -396,7 +397,7 @@ public final class Evita implements EvitaContract {
 		if (readOnly) {
 			throw new ReadOnlyException();
 		}
-		// TODO JNO - append mutation to the WAL and execute asynchronously
+		// TODO JNO - we have to have a special WAL for the evitaDB server instance as well
 		for (CatalogSchemaMutation catalogMutation : catalogMutations) {
 			if (catalogMutation instanceof CreateCatalogSchemaMutation createCatalogSchema) {
 				createCatalogInternal(createCatalogSchema);
@@ -552,6 +553,18 @@ public final class Evita implements EvitaContract {
 			sessionRegistry.closeAllActiveSessions();
 			sessionRegistryIt.remove();
 		}
+
+		this.executor.shutdown();
+		try {
+			if (!this.executor.awaitTermination(configuration.server().shortRunningThreadsTimeoutInSeconds(), TimeUnit.SECONDS)) {
+				log.warn("EvitaDB executor did not terminate in time, forcing shutdown.");
+				this.executor.shutdownNow();
+			}
+		} catch (InterruptedException ex) {
+			log.warn("EvitaDB executor did not terminate in time (interrupted), forcing shutdown.");
+			this.executor.shutdownNow();
+		}
+
 		final Iterator<CatalogContract> it = catalogs.values().iterator();
 		while (it.hasNext()) {
 			final CatalogContract catalog = it.next();
@@ -559,8 +572,6 @@ public final class Evita implements EvitaContract {
 			it.remove();
 			log.info("Catalog {} successfully terminated.", catalog.getName());
 		}
-
-		this.executor.shutdown();
 	}
 
 	/**
@@ -740,9 +751,6 @@ public final class Evita implements EvitaContract {
 				// replace catalog only when reference/pointer differs
 				if (currentCatalog != catalog && currentCatalog.getVersion() < catalog.getVersion()) {
 					originalCatalog.set(currentCatalog);
-					// we have to also atomically update the catalog reference in all active sessions
-					ofNullable(activeSessions.get(catalogName))
-						.ifPresent(it -> it.updateCatalogReference(catalog));
 					return catalog;
 				} else {
 					return currentCatalog;

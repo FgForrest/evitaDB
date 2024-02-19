@@ -87,7 +87,7 @@ class CatalogWriteAheadLogTest {
 			tested.append(
 				writtenTransactionMutation,
 				OffHeapWithFileBackupReference.withByteBuffer(
-					byteBuffer, txSize
+					byteBuffer, txSize, byteBuffer::clear
 				)
 			);
 		}

@@ -39,7 +39,7 @@ import java.io.Serializable;
  * @param fileLocation   Contains coordinates to the space in the file that is occupied by this record.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public record NonFlushedValue(
+public record VersionedValue(
 	long primaryKey,
 	byte recordType,
 	@Nullable FileLocation fileLocation
@@ -57,7 +57,7 @@ public record NonFlushedValue(
 	public boolean equals(Object o) {
 		if (this == o) return true;
 		if (o == null || getClass() != o.getClass()) return false;
-		NonFlushedValue that = (NonFlushedValue) o;
+		VersionedValue that = (VersionedValue) o;
 		return primaryKey == that.primaryKey &&
 			Math.abs(recordType) == Math.abs(that.recordType) &&
 			fileLocation.equals(that.fileLocation);

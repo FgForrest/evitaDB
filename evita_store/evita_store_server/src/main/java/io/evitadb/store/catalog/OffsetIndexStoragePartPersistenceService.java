@@ -114,9 +114,9 @@ public class OffsetIndexStoragePartPersistenceService implements StoragePartPers
 	}
 
 	@Override
-	public <T extends StoragePart> T getStoragePart(long storagePartPk, @Nonnull Class<T> containerType) {
+	public <T extends StoragePart> T getStoragePart(long catalogVersion, long storagePartPk, @Nonnull Class<T> containerType) {
 		if (offsetIndex.isOperative()) {
-			return this.offsetIndex.get(storagePartPk, containerType);
+			return this.offsetIndex.get(catalogVersion, storagePartPk, containerType);
 		} else {
 			throw new PersistenceServiceClosed();
 		}
@@ -124,9 +124,9 @@ public class OffsetIndexStoragePartPersistenceService implements StoragePartPers
 
 	@Nullable
 	@Override
-	public <T extends StoragePart> byte[] getStoragePartAsBinary(long storagePartPk, @Nonnull Class<T> containerType) {
+	public <T extends StoragePart> byte[] getStoragePartAsBinary(long catalogVersion, long storagePartPk, @Nonnull Class<T> containerType) {
 		if (offsetIndex.isOperative()) {
-			return this.offsetIndex.getBinary(storagePartPk, containerType);
+			return this.offsetIndex.getBinary(catalogVersion, storagePartPk, containerType);
 		} else {
 			throw new PersistenceServiceClosed();
 		}
@@ -142,18 +142,18 @@ public class OffsetIndexStoragePartPersistenceService implements StoragePartPers
 	}
 
 	@Override
-	public <T extends StoragePart> boolean removeStoragePart(long storagePartPk, @Nonnull Class<T> containerType) {
+	public <T extends StoragePart> boolean removeStoragePart(long catalogVersion, long storagePartPk, @Nonnull Class<T> containerType) {
 		if (offsetIndex.isOperative()) {
-			return offsetIndex.remove(storagePartPk, containerType);
+			return offsetIndex.remove(catalogVersion, storagePartPk, containerType);
 		} else {
 			throw new PersistenceServiceClosed();
 		}
 	}
 
 	@Override
-	public <T extends StoragePart> boolean containsStoragePart(long primaryKey, @Nonnull Class<T> containerType) {
+	public <T extends StoragePart> boolean containsStoragePart(long catalogVersion, long primaryKey, @Nonnull Class<T> containerType) {
 		if (offsetIndex.isOperative()) {
-			return offsetIndex.contains(primaryKey, containerType);
+			return offsetIndex.contains(catalogVersion, primaryKey, containerType);
 		} else {
 			throw new PersistenceServiceClosed();
 		}
@@ -176,9 +176,9 @@ public class OffsetIndexStoragePartPersistenceService implements StoragePartPers
 	}
 
 	@Override
-	public <T extends StoragePart> int countStorageParts(@Nonnull Class<T> containerType) {
+	public <T extends StoragePart> int countStorageParts(long catalogVersion, @Nonnull Class<T> containerType) {
 		if (offsetIndex.isOperative()) {
-			return this.offsetIndex.count(containerType);
+			return this.offsetIndex.count(catalogVersion, containerType);
 		} else {
 			throw new PersistenceServiceClosed();
 		}
@@ -251,6 +251,13 @@ public class OffsetIndexStoragePartPersistenceService implements StoragePartPers
 			return this.offsetIndex.getFileOffsetIndexLocation() == null;
 		} else {
 			throw new PersistenceServiceClosed();
+		}
+	}
+
+	@Override
+	public void purgeHistoryEqualAndLaterThan(long catalogVersion) {
+		if (offsetIndex.isOperative()) {
+			this.offsetIndex.purge(catalogVersion);
 		}
 	}
 

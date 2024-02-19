@@ -49,7 +49,7 @@ public interface CatalogStoragePartPersistenceService extends StoragePartPersist
 	 * @return The catalog header object.
 	 */
 	@Nonnull
-	CatalogHeader getCatalogHeader();
+	CatalogHeader getCatalogHeader(long catalogVersion);
 
 	/**
 	 * Writes the catalog header with the specified information to the catalog.

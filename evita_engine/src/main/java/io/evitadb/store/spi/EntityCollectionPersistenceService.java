@@ -44,13 +44,11 @@ import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.price.PriceSuperIndex;
 import io.evitadb.store.model.PersistentStorageDescriptor;
-import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.spi.model.EntityCollectionHeader;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.nio.file.Path;
-import java.util.Iterator;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -66,7 +64,7 @@ public non-sealed interface EntityCollectionPersistenceService extends Persisten
 
 	/**
 	 * Returns current instance of {@link EntityCollectionHeader}. The header is initialized in the instance constructor
-	 * and (because it's immutable) is exchanged with each {@link #flush(long)} or
+	 * and (because it's immutable) is exchanged with each {@link #flush(long, HeaderInfoSupplier)} or
 	 * {@link #flushTrappedUpdates(DataStoreIndexChanges)} method call.
 	 */
 	@Nonnull
@@ -79,6 +77,7 @@ public non-sealed interface EntityCollectionPersistenceService extends Persisten
 	 */
 	@Nullable
 	Entity readEntity(
+		long catalogVersion,
 		int entityPrimaryKey,
 		@Nonnull EvitaRequest evitaRequest,
 		@Nonnull EntitySchema entitySchema,
@@ -92,6 +91,7 @@ public non-sealed interface EntityCollectionPersistenceService extends Persisten
 	 */
 	@Nullable
 	BinaryEntity readBinaryEntity(
+		long catalogVersion,
 		int entityPrimaryKey,
 		@Nonnull EvitaRequest evitaRequest,
 		@Nonnull EvitaSessionContract session,
@@ -109,6 +109,7 @@ public non-sealed interface EntityCollectionPersistenceService extends Persisten
 	 */
 	@Nonnull
 	Entity enrichEntity(
+		long catalogVersion,
 		@Nonnull EntitySchema entitySchema,
 		@Nonnull EntityDecorator entityDecorator,
 		@Nonnull HierarchySerializablePredicate newHierarchyPredicate,
@@ -120,6 +121,14 @@ public non-sealed interface EntityCollectionPersistenceService extends Persisten
 	) throws EntityAlreadyRemovedException;
 
 	/**
+	 * Returns count of entities of certain type in the target storage.
+	 *
+	 * <strong>Note:</strong> the count may not be accurate - it counts only already persisted containers to the
+	 * persistent storage and doesn't take transactional memory into an account.
+	 */
+	int countEntities(long catalogVersion);
+
+	/**
 	 * Loads additional data to existing entity according to requirements of type {@link EntityContentRequire}
 	 * in `evitaRequest`. Passed `fileOffsetIndex` is used for reading data from underlying data store.
 	 * Since entity is immutable object - enriched instance is a new instance based on previous entity that contains
@@ -129,6 +138,7 @@ public non-sealed interface EntityCollectionPersistenceService extends Persisten
 	 */
 	@Nonnull
 	BinaryEntity enrichEntity(
+		long catalogVersion,
 		@Nonnull EntitySchema entitySchema,
 		@Nonnull BinaryEntity entity,
 		@Nonnull EvitaRequest evitaRequest,
@@ -140,30 +150,11 @@ public non-sealed interface EntityCollectionPersistenceService extends Persisten
 	 */
 	@Nullable
 	EntityIndex readEntityIndex(
+		long catalogVersion,
 		int entityIndexId,
 		@Nonnull Supplier<EntitySchema> schemaSupplier,
 		@Nonnull Supplier<PriceSuperIndex> temporalIndexAccessor,
 		@Nonnull Supplier<PriceSuperIndex> superIndexAccessor
-	);
-
-	/**
-	 * Returns count of entities of certain type in the target storage.
-	 *
-	 * <strong>Note:</strong> the count may not be accurate - it counts only already persisted containers to the
-	 * persistent storage and doesn't take transactional memory into an account.
-	 */
-	<T extends StoragePart> int count(@Nonnull Class<T> containerClass);
-
-	/**
-	 * Returns iterator that goes through all containers of certain type in the target storage.
-	 *
-	 * <strong>Note:</strong> the list may not be accurate - it only goes through already persisted containers to the
-	 * persistent storage and doesn't take transactional memory into an account.
-	 */
-	@Nonnull
-	Iterator<Entity> entityIterator(
-		@Nonnull EntitySchema entitySchema,
-		@Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex, DataStoreChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer
 	);
 
 	/**
@@ -191,7 +182,7 @@ public non-sealed interface EntityCollectionPersistenceService extends Persisten
 	void delete();
 
 	/**
-	 * Closes the entity collection persistent storage. If you don't call {@link #flush(long)}
+	 * Closes the entity collection persistent storage. If you don't call {@link #flush(long, HeaderInfoSupplier)}
 	 * or {@link #flushTrappedUpdates(DataStoreIndexChanges)} you'll lose the data in the buffers.
 	 */
 	@Override

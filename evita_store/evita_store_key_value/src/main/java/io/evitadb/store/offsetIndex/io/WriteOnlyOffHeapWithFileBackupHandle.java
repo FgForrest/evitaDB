@@ -180,25 +180,25 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 	@Override
 	public ReadOnlyHandle toReadOnlyHandle() {
 		// sync to disk first
-		execute("flush", () -> { }, (o) -> null, true);
+		execute("flush", () -> {}, (o) -> null, true);
 
-		if (offHeapMemoryOutput != null) {
-			final ObservableInput<InputStream> observableInput = new ObservableInput<>(
-				offHeapMemoryOutput.getOutputStream().getInputStream()
-			);
-			return new ReadOnlyGenericHandle(observableInput, lastConsistentWrittenPosition);
-		} else if (fileOutput != null) {
-			return new ReadOnlyFileHandle(
-				targetFile,
-				observableOutputKeeper.getOptions().computeCRC32C()
-			);
-		} else {
-			throw new EvitaInternalError(
-				"No content has been written using this write handle!"
-			);
-		}
+		return new OffHeapWithFileBackupReadOnlyHandle(this);
 	}
 
+	/**
+	 * This method may not be called if the handle is terminated by conversion to {@link #toReadOnlyHandle()}. In such
+	 * scenario the resources are cleared when the {@link OffHeapWithFileBackupReference} is closed. It's because
+	 * the reference has longer lifespan than the {@link WriteOnlyOffHeapWithFileBackupHandle} and still needs
+	 * resources for reading purposes.
+	 */
+	@Override
+	public void close() {
+		if (offHeapMemoryOutput != null) {
+			releaseOffHeapMemory();
+		} else if (fileOutput != null) {
+			releaseTemporaryFile();
+		}
+	}
 
 	/**
 	 * Returns an OffHeapWithFileBackupReference object that represents the data written by this WriteOnlyOffHeapWithFileBackupHandle.
@@ -212,17 +212,23 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 	@Nonnull
 	public OffHeapWithFileBackupReference toReadOffHeapWithFileBackupReference() {
 		// sync to disk first
-		execute("flush", () -> { }, (o) -> null, true);
+		execute("flush", () -> {
+		}, (o) -> null, true);
 
 		if (offHeapMemoryOutput != null) {
 			final ByteBuffer byteBuffer = offHeapMemoryOutput.getOutputStream().getByteBuffer();
 			byteBuffer.limit(lastConsistentWrittenPosition);
 			return OffHeapWithFileBackupReference.withByteBuffer(
 				byteBuffer,
-				lastConsistentWrittenPosition
+				lastConsistentWrittenPosition,
+				this::releaseOffHeapMemory
 			);
 		} else if (fileOutput != null) {
-			return OffHeapWithFileBackupReference.withFilePath(targetFile, Math.toIntExact(targetFile.toFile().length()));
+			return OffHeapWithFileBackupReference.withFilePath(
+				targetFile,
+				Math.toIntExact(targetFile.toFile().length()),
+				this::releaseTemporaryFile
+			);
 		} else {
 			throw new EvitaInternalError(
 				"No content has been written using this write handle!"
@@ -231,18 +237,30 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 	}
 
 	@Override
-	public void close() {
-		if (offHeapMemoryOutput != null) {
-			offHeapMemoryOutput.close();
-		} else if (fileOutput != null && observableOutputKeeper.isPrepared()) {
-			observableOutputKeeper.free(targetFile);
-			Assert.isPremiseValid(getTargetFile(targetFile).delete(), "Failed to delete temporary file `" + targetFile + "`!");
-		}
-	}
-
-	@Override
 	public String toString() {
 		return "write handle: " + targetFile;
+	}
+
+	/**
+	 * Releases the temporary file used for writing data.
+	 *
+	 * This method closes the file output stream, frees the observable output for the target file, and deletes the temporary file.
+	 */
+	private void releaseTemporaryFile() {
+		fileOutput.close();
+		observableOutputKeeper.free(targetFile);
+		Assert.isPremiseValid(getTargetFile(targetFile).delete(), "Failed to delete temporary file `" + targetFile + "`!");
+		fileOutput = null;
+	}
+
+	/**
+	 * Releases the off-heap memory allocated for writing data.
+	 *
+	 * This method closes the off-heap memory output stream and sets it to null.
+	 */
+	private void releaseOffHeapMemory() {
+		offHeapMemoryOutput.close();
+		offHeapMemoryOutput = null;
 	}
 
 	/**
@@ -379,6 +397,62 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 			}
 			return offHeapMemoryOutput;
 		}
+	}
+
+	/**
+	 * TODO JNO - document me
+	 */
+	private static class OffHeapWithFileBackupReadOnlyHandle implements ReadOnlyHandle {
+		private final WriteOnlyOffHeapWithFileBackupHandle writeOnlyOffHeapWithFileBackupHandle;
+		private ReadOnlyHandle delegate;
+
+		private OffHeapWithFileBackupReadOnlyHandle(WriteOnlyOffHeapWithFileBackupHandle writeOnlyOffHeapWithFileBackupHandle) {
+			this.writeOnlyOffHeapWithFileBackupHandle = writeOnlyOffHeapWithFileBackupHandle;
+			this.delegate = getDelegate();
+		}
+
+		@Override
+		public <T> T execute(@Nonnull Function<ObservableInput<?>, T> logic) {
+			return getDelegate().execute(logic);
+		}
+
+		@Override
+		public void forceClose() {
+			getDelegate().forceClose();
+		}
+
+		@Override
+		public long getLastWrittenPosition() {
+			return getDelegate().getLastWrittenPosition();
+		}
+
+		@Nonnull
+		private ReadOnlyHandle getDelegate() {
+			if (this.writeOnlyOffHeapWithFileBackupHandle.offHeapMemoryOutput != null) {
+				if (!(this.delegate instanceof ReadOnlyGenericHandle)) {
+					Assert.isPremiseValid(this.delegate == null, "Delegate already set!");
+					final ObservableInput<InputStream> observableInput = new ObservableInput<>(
+						this.writeOnlyOffHeapWithFileBackupHandle.offHeapMemoryOutput.getOutputStream().getInputStream()
+					);
+					this.delegate = new ReadOnlyGenericHandle(observableInput, this.writeOnlyOffHeapWithFileBackupHandle.lastConsistentWrittenPosition);
+				}
+			} else if (this.writeOnlyOffHeapWithFileBackupHandle.fileOutput != null) {
+				if (!(this.delegate instanceof ReadOnlyFileHandle)) {
+					// we don't close the existing delegate here,
+					// because it was already close when the implementation switched to file
+					this.delegate = new ReadOnlyFileHandle(
+						this.writeOnlyOffHeapWithFileBackupHandle.targetFile,
+						this.writeOnlyOffHeapWithFileBackupHandle.observableOutputKeeper.getOptions().computeCRC32C()
+					);
+				}
+			} else {
+				throw new EvitaInternalError(
+					"No content has been written using source write handle!"
+				);
+			}
+			return delegate;
+		}
+
 	}
 
 }

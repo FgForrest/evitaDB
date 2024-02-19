@@ -52,6 +52,7 @@ import static java.util.Optional.ofNullable;
  *
  * @param storageProtocolVersion         contains the version of the storage protocol that is incremented with each
  *                                       backward incompatible change
+ * @param version                        contains the version of the catalog that is incremented with transaction
  * @param walFileReference               contains the reference to the current WAL file related to this catalog and last
  *                                       processed transaction
  * @param collectionFileIndex            contains the mapping of entity type to {@link CollectionFileReference} that

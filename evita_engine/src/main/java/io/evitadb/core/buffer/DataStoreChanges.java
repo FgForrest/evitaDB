@@ -58,20 +58,24 @@ public class DataStoreChanges<IK extends IndexKey, I extends Index<IK>> extends 
 	}
 
 	@Nullable
-	public <T extends StoragePart> T getStoragePart(long primaryKey, @Nonnull Class<T> containerType) {
-		return this.persistenceService.getStoragePart(primaryKey, containerType);
+	public <T extends StoragePart> T getStoragePart(long catalogVersion, long primaryKey, @Nonnull Class<T> containerType) {
+		return this.persistenceService.getStoragePart(catalogVersion, primaryKey, containerType);
 	}
 
 	@Nullable
-	public <T extends StoragePart> byte[] getStoragePartAsBinary(long primaryKey, @Nonnull Class<T> containerType) {
-		return this.persistenceService.getStoragePartAsBinary(primaryKey, containerType);
+	public <T extends StoragePart> byte[] getStoragePartAsBinary(long catalogVersion, long primaryKey, @Nonnull Class<T> containerType) {
+		return this.persistenceService.getStoragePartAsBinary(catalogVersion, primaryKey, containerType);
 	}
 
-	public <T extends StoragePart> boolean removeStoragePart(long primaryKey, @Nonnull Class<T> entityClass) {
-		return this.persistenceService.removeStoragePart(primaryKey, entityClass);
+	public <T extends StoragePart> boolean removeStoragePart(long catalogVersion, long primaryKey, @Nonnull Class<T> entityClass) {
+		return this.persistenceService.removeStoragePart(catalogVersion, primaryKey, entityClass);
 	}
 
 	public <T extends StoragePart> void putStoragePart(long catalogVersion, @Nonnull T value) {
 		this.persistenceService.putStoragePart(catalogVersion, value);
+	}
+
+	public int countStorageParts(long catalogVersion, Class<? extends StoragePart> containerType) {
+		return this.persistenceService.countStorageParts(catalogVersion, containerType);
 	}
 }

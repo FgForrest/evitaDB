@@ -34,9 +34,9 @@ import io.evitadb.store.offsetIndex.OffsetIndex.FileOffsetIndexBuilder;
 import io.evitadb.store.offsetIndex.OffsetIndex.FileOffsetIndexStatistics;
 import io.evitadb.store.offsetIndex.exception.CorruptedRecordException;
 import io.evitadb.store.offsetIndex.exception.IncompleteSerializationException;
-import io.evitadb.store.offsetIndex.model.NonFlushedValue;
 import io.evitadb.store.offsetIndex.model.RecordKey;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
+import io.evitadb.store.offsetIndex.model.VersionedValue;
 import io.evitadb.store.offsetIndex.stream.RandomAccessFileInputStream;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.BitUtils;
@@ -104,7 +104,11 @@ public class OffsetIndexSerializationService {
 		@Nonnull ObservableInput<?> inputStream,
 		long fileLength
 	) {
-		final FileOffsetIndexStatistics result = new FileOffsetIndexStatistics(offsetIndex.count(), offsetIndex.getTotalSize());
+		final FileOffsetIndexStatistics result = new FileOffsetIndexStatistics(
+			// use the latest possible version - we need actual count of records
+			offsetIndex.count(Long.MAX_VALUE),
+			offsetIndex.getTotalSize()
+		);
 		inputStream.resetToPosition(0);
 		final CRC32C crc32C = offsetIndex.getStorageOptions().computeCRC32C() ? new CRC32C() : null;
 		byte[] buffer = new byte[inputStream.getBuffer().length];
@@ -213,7 +217,7 @@ public class OffsetIndexSerializationService {
 			final FileChannel destChannel = destFile.getChannel();
 		) {
 			final Collection<Entry<RecordKey, FileLocation>> entries = offsetIndex.getEntries();
-			final Collection<NonFlushedValue> nonFlushedValues = new ArrayList<>(entries.size());
+			final Collection<VersionedValue> nonFlushedValues = new ArrayList<>(entries.size());
 			long position = 0;
 			for (Entry<RecordKey, FileLocation> entry : entries) {
 				final FileLocation fileLocation = entry.getValue();
@@ -231,7 +235,7 @@ public class OffsetIndexSerializationService {
 				// finally, register non-flushed value
 				final RecordKey key = entry.getKey();
 				nonFlushedValues.add(
-					new NonFlushedValue(
+					new VersionedValue(
 						key.primaryKey(), key.recordType(),
 						new FileLocation(position, Math.toIntExact(written))
 					)
@@ -272,11 +276,11 @@ public class OffsetIndexSerializationService {
 	public static FileLocation serialize(
 		@Nonnull ObservableOutput<?> output,
 		long transactionId,
-		@Nonnull Collection<NonFlushedValue> nonFlushedEntries,
+		@Nonnull Collection<VersionedValue> nonFlushedEntries,
 		@Nullable FileLocation lastFileOffsetIndexLocation,
 		@Nonnull StorageOptions storageOptions
 	) {
-		final Iterator<NonFlushedValue> entries = nonFlushedEntries.iterator();
+		final Iterator<VersionedValue> entries = nonFlushedEntries.iterator();
 
 		// start with full buffer
 		output.flush();
@@ -302,7 +306,7 @@ public class OffsetIndexSerializationService {
 						// we need to stop at the point when we know we would not be able to store any more records
 						int cnt = 0;
 						while (entries.hasNext() && cnt++ < fileOffsetIndexRecordCount.getRecordsInFragment()) {
-							final NonFlushedValue nonFlushedValue = entries.next();
+							final VersionedValue nonFlushedValue = entries.next();
 							stream.writeLong(nonFlushedValue.primaryKey());
 							stream.writeByte(nonFlushedValue.recordType());
 							final FileLocation fileLocation = nonFlushedValue.fileLocation();
@@ -417,7 +421,7 @@ public class OffsetIndexSerializationService {
 	/**
 	 * Count number of entries left in iterator.
 	 */
-	private static int countEntries(Iterator<NonFlushedValue> entries) {
+	private static int countEntries(Iterator<VersionedValue> entries) {
 		int cnt = 0;
 		while (entries.hasNext()) {
 			cnt++;

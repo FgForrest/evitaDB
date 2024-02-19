@@ -39,6 +39,7 @@ import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.core.Catalog;
+import io.evitadb.core.CatalogVersionBeyondTheHorizonListener;
 import io.evitadb.core.EntityCollection;
 import io.evitadb.core.buffer.DataStoreIndexChanges;
 import io.evitadb.dataType.ClassifierType;
@@ -127,12 +128,10 @@ import static java.util.Optional.ofNullable;
  * DefaultEntityCollectionPersistenceService class encapsulates main logic of {@link Catalog}
  * serialization to persistent storage and also deserializing the catalog contents back.
  *
- * TODO JNO - implementovat proces uzavírání a odstraňování servis, koukajících do file indexů pro něž už neexistují transakce
- *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @Slf4j
-public class DefaultCatalogPersistenceService implements CatalogPersistenceService {
+public class DefaultCatalogPersistenceService implements CatalogPersistenceService, CatalogVersionBeyondTheHorizonListener {
 	/**
 	 * Factory function that configures new instance of the versioned kryo factory.
 	 */
@@ -199,7 +198,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	/**
 	 * Contains the instance of {@link CatalogBootstrap} that contains the last bootstrap record that is currently used.
 	 */
-	private final CatalogBootstrap bootstrapUsed;
+	private CatalogBootstrap bootstrapUsed;
 	/**
 	 * Pool contains instances of {@link Kryo} that are used for serializing mutations in WAL.
 	 */
@@ -323,6 +322,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	 */
 	private static void verifyCatalogNameMatches(
 		@Nonnull CatalogContract catalogInstance,
+		long catalogVersion,
 		@Nonnull String catalogName,
 		@Nonnull Path catalogStoragePath,
 		@Nonnull StoragePartPersistenceService storagePartPersistenceService
@@ -330,7 +330,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		// verify that the catalog schema is the same as the one in the catalog directory
 		final CatalogSchemaStoragePart catalogSchemaStoragePart = CatalogSchemaStoragePart.deserializeWithCatalog(
 			catalogInstance,
-			() -> storagePartPersistenceService.getStoragePart(1, CatalogSchemaStoragePart.class)
+			() -> storagePartPersistenceService.getStoragePart(catalogVersion, 1, CatalogSchemaStoragePart.class)
 		);
 		Assert.isTrue(
 			catalogSchemaStoragePart.catalogSchema().getName().equals(catalogName),
@@ -492,9 +492,13 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			this.observableOutputKeeper,
 			VERSIONED_KRYO_FACTORY
 		);
-		verifyCatalogNameMatches(catalogInstance, catalogName, catalogStoragePath, this.catalogStoragePartPersistenceService);
+		final long catalogVersion = this.bootstrapUsed.catalogVersion();
+		verifyCatalogNameMatches(
+			catalogInstance, catalogVersion, catalogName, catalogStoragePath,
+			this.catalogStoragePartPersistenceService
+		);
 		this.entityCollectionPersistenceServices = CollectionUtils.createConcurrentHashMap(
-			this.catalogStoragePartPersistenceService.getCatalogHeader().getEntityTypeFileIndexes().size()
+			this.catalogStoragePartPersistenceService.getCatalogHeader(catalogVersion).getEntityTypeFileIndexes().size()
 		);
 	}
 
@@ -533,7 +537,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			VERSIONED_KRYO_FACTORY
 		);
 		this.entityCollectionPersistenceServices = CollectionUtils.createConcurrentHashMap(
-			this.catalogStoragePartPersistenceService.getCatalogHeader().getEntityTypeFileIndexes().size()
+			this.catalogStoragePartPersistenceService.getCatalogHeader(this.bootstrapUsed.catalogVersion()).getEntityTypeFileIndexes().size()
 		);
 	}
 
@@ -546,7 +550,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	@Nonnull
 	@Override
 	public CatalogHeader getCatalogHeader() {
-		return this.catalogStoragePartPersistenceService.getCatalogHeader();
+		return this.catalogStoragePartPersistenceService.getCatalogHeader(bootstrapUsed.catalogVersion());
 	}
 
 	@Override
@@ -575,7 +579,8 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	@Nonnull
 	@Override
 	public CatalogIndex readCatalogIndex(@Nonnull Catalog catalog) {
-		final CatalogIndexStoragePart catalogIndexStoragePart = this.catalogStoragePartPersistenceService.getStoragePart(1, CatalogIndexStoragePart.class);
+		final long catalogVersion = catalog.getVersion();
+		final CatalogIndexStoragePart catalogIndexStoragePart = this.catalogStoragePartPersistenceService.getStoragePart(catalogVersion, 1, CatalogIndexStoragePart.class);
 		if (catalogIndexStoragePart == null) {
 			return new CatalogIndex(catalog);
 		} else {
@@ -583,7 +588,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			final Map<AttributeKey, GlobalUniqueIndex> sharedUniqueIndexes = CollectionUtils.createHashMap(sharedAttributeUniqueIndexes.size());
 			for (AttributeKey attributeKey : sharedAttributeUniqueIndexes) {
 				final long partId = GlobalUniqueIndexStoragePart.computeUniquePartId(attributeKey, this.catalogStoragePartPersistenceService.getReadOnlyKeyCompressor());
-				final GlobalUniqueIndexStoragePart sharedUniqueIndexStoragePart = this.catalogStoragePartPersistenceService.getStoragePart(partId, GlobalUniqueIndexStoragePart.class);
+				final GlobalUniqueIndexStoragePart sharedUniqueIndexStoragePart = this.catalogStoragePartPersistenceService.getStoragePart(catalogVersion, partId, GlobalUniqueIndexStoragePart.class);
 				Assert.isPremiseValid(
 					sharedUniqueIndexStoragePart != null,
 					"Shared unique index not found for attribute `" + attributeKey + "`!"
@@ -611,8 +616,13 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		@Nullable TransactionMutation lastProcessedTransaction,
 		@Nonnull List<EntityCollectionHeader> entityHeaders
 	) {
+		// first we need to execute transition to alive state
+		if (catalogState == CatalogState.ALIVE && catalogVersion == 0L) {
+			this.bootstrapUsed = recordBootstrap(catalogVersion, this.catalogName, this.bootstrapUsed.catalogFileIndex());
+			catalogVersion = 1L;
+		}
 		// first store all entity collection headers if they differ
-		final CatalogHeader currentCatalogHeader = this.catalogStoragePartPersistenceService.getCatalogHeader();
+		final CatalogHeader currentCatalogHeader = this.catalogStoragePartPersistenceService.getCatalogHeader(catalogVersion);
 		for (EntityCollectionHeader entityHeader : entityHeaders) {
 			final FileLocation currentLocation = entityHeader.fileLocation();
 			final Optional<FileLocation> previousLocation = currentCatalogHeader
@@ -650,7 +660,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			catalogState,
 			lastEntityCollectionPrimaryKey
 		);
-		recordBootstrap(catalogVersion, this.catalogName, this.bootstrapUsed.catalogFileIndex());
+		this.bootstrapUsed = recordBootstrap(catalogVersion, this.catalogName, this.bootstrapUsed.catalogFileIndex());
 	}
 
 	@Nonnull
@@ -661,7 +671,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	) {
 		final EntityCollectionHeader entityCollectionHeader = ofNullable(
 			this.catalogStoragePartPersistenceService.getStoragePart(
-				entityTypePrimaryKey, EntityCollectionHeader.class
+				bootstrapUsed.catalogVersion(), entityTypePrimaryKey, EntityCollectionHeader.class
 			)
 		).orElseGet(() -> new EntityCollectionHeader(entityType, entityTypePrimaryKey));
 		return this.entityCollectionPersistenceServices.computeIfAbsent(
@@ -687,7 +697,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	@Override
 	public EntityCollectionHeader getEntityCollectionHeader(@Nonnull CollectionFileReference collectionFileReference) {
 		return this.catalogStoragePartPersistenceService.getStoragePart(
-			collectionFileReference.entityTypePrimaryKey(), EntityCollectionHeader.class
+			bootstrapUsed.catalogVersion(), collectionFileReference.entityTypePrimaryKey(), EntityCollectionHeader.class
 		);
 	}
 
@@ -716,7 +726,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		@Nonnull OffHeapWithFileBackupReference walReference
 	) {
 		if (this.catalogWal == null) {
-			final CatalogHeader catalogHeader = this.catalogStoragePartPersistenceService.getCatalogHeader();
+			final CatalogHeader catalogHeader = this.catalogStoragePartPersistenceService.getCatalogHeader(bootstrapUsed.catalogVersion());
 			this.catalogWal = getCatalogWriteAheadLog(
 				catalogName, this.catalogStoragePath, catalogHeader, catalogKryoPool, storageOptions
 			);
@@ -754,7 +764,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		);
 
 		// store the catalog that replaces the original header
-		final CatalogHeader catalogHeader = this.catalogStoragePartPersistenceService.getCatalogHeader();
+		final CatalogHeader catalogHeader = this.catalogStoragePartPersistenceService.getCatalogHeader(bootstrapUsed.catalogVersion());
 		final long catalogVersion = catalogHeader.catalogState() == CatalogState.WARMING_UP ?
 			0L : catalogHeader.version() + 1;
 		catalogStoragePartPersistenceService.writeCatalogHeader(
@@ -862,7 +872,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		@Nonnull String newEntityType,
 		long catalogVersion
 	) {
-		final CatalogHeader catalogHeader = this.catalogStoragePartPersistenceService.getCatalogHeader();
+		final CatalogHeader catalogHeader = this.catalogStoragePartPersistenceService.getCatalogHeader(bootstrapUsed.catalogVersion());
 		final CollectionFileReference replacedEntityTypeFileReference = catalogHeader.getEntityTypeFileIndexIfExists(entityType)
 			.orElseThrow(() -> new CollectionNotFoundException(entityType));
 		final CollectionFileReference newEntityTypeExistingFileReference = catalogHeader.getEntityTypeFileIndexIfExists(newEntityType)
@@ -933,7 +943,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 
 	@Override
 	public void deleteEntityCollection(@Nonnull String entityType) {
-		final CollectionFileReference entityFileIndex = this.catalogStoragePartPersistenceService.getCatalogHeader()
+		final CollectionFileReference entityFileIndex = this.catalogStoragePartPersistenceService.getCatalogHeader(bootstrapUsed.catalogVersion())
 			.getEntityTypeFileIndexIfExists(entityType)
 			.orElseGet(() -> new CollectionFileReference(entityType, 0, 0, null));
 		final EntityCollectionPersistenceService entityCollectionPersistenceService = Objects.requireNonNull(
@@ -950,6 +960,22 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			return Stream.empty();
 		} else {
 			return this.catalogWal.getCommittedMutationStream(catalogVersion);
+		}
+	}
+
+	@Override
+	public long getLastCatalogVersionInMutationStream() {
+		if (this.catalogWal == null) {
+			return 0L;
+		} else {
+			return this.catalogWal.getLastWrittenCatalogVersion();
+		}
+	}
+
+	@Override
+	public void catalogVersionBeyondTheHorizon(@Nonnull String catalogName, long catalogVersion, boolean activeSessionsToOlderVersions) {
+		if (!activeSessionsToOlderVersions && catalogName.equals(this.catalogName)) {
+			this.catalogStoragePartPersistenceService.purgeHistoryEqualAndLaterThan(catalogVersion);
 		}
 	}
 
@@ -1014,6 +1040,15 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		return this.catalogStoragePartPersistenceService.isClosed();
 	}
 
+	/**
+	 * Records a bootstrap in the catalog.
+	 *
+	 * @param catalogVersion the version of the catalog
+	 * @param newCatalogName the name of the new catalog
+	 * @param catalogFileIndex the index of the catalog file
+	 * @return the recorded CatalogBootstrap object
+	 */
+	@Nonnull
 	private CatalogBootstrap recordBootstrap(long catalogVersion, @Nonnull String newCatalogName, int catalogFileIndex) {
 		final PersistentStorageDescriptor newDescriptor = this.catalogStoragePartPersistenceService.flush(catalogVersion);
 		final Kryo kryo = catalogKryoPool.obtain();
