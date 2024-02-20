@@ -51,6 +51,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
@@ -167,7 +168,7 @@ public class EvitaTransactionalFunctionalTest {
 	@DisplayName("Update catalog with another product - asynchronously.")
 	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
 	@Test
-	void shouldUpdateCatalogWithAnotherProductAsynchronously(EvitaContract evita, SealedEntitySchema productSchema) {
+	void shouldUpdateCatalogWithAnotherProductAsynchronously(EvitaContract evita, SealedEntitySchema productSchema) throws ExecutionException, InterruptedException, TimeoutException {
 		final CompletableFuture<SealedEntity> addedEntity = evita.updateCatalogAsync(
 			TEST_CATALOG,
 			session -> {
@@ -186,25 +187,33 @@ public class EvitaTransactionalFunctionalTest {
 			Thread.onSpinWait();
 		}
 
-		final Integer addedEntityPrimaryKey = addedEntity.getNow(null).getPrimaryKey();
+		final Integer addedEntityPrimaryKey = addedEntity.get(1, TimeUnit.SECONDS).getPrimaryKey();
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
 				// the entity will not yet be propagated to indexes
 				final Optional<SealedEntity> fetchedEntity = session.getEntity(productSchema.getName(), addedEntityPrimaryKey);
 				assertTrue(fetchedEntity.isEmpty());
-
-				for (int i = 0; i < 10_000; i++) {
-					final Optional<SealedEntity> entityFetchedAgain = session.getEntity(productSchema.getName(), addedEntityPrimaryKey);
-					if (entityFetchedAgain.isPresent()) {
-						return;
-					}
-					Thread.onSpinWait();
-				}
-
-				fail("Entity not found in catalog!");
 			}
 		);
+
+		boolean expectedResult = false;
+		for (int i = 0; i < 10_000; i++) {
+			//noinspection NonShortCircuitBooleanExpression
+			expectedResult = expectedResult | evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					final Optional<SealedEntity> entityFetchedAgain = session.getEntity(productSchema.getName(), addedEntityPrimaryKey);
+					if (entityFetchedAgain.isPresent()) {
+						return true;
+					} else {
+						return false;
+					}
+				}
+			);
+		}
+
+		assertTrue(expectedResult, "Entity not found in catalog!");
 	}
 
 	@DisplayName("Update catalog with another product - synchronously using runnable.")
@@ -267,14 +276,21 @@ public class EvitaTransactionalFunctionalTest {
 				// the entity will not yet be propagated to indexes
 				final Optional<SealedEntity> fetchedEntity = session.getEntity(productSchema.getName(), addedEntityPrimaryKey);
 				assertTrue(fetchedEntity.isEmpty());
+			}
+		);
 
-				for (int i = 0; i < 10_000; i++) {
+		boolean expectedResult = false;
+		for (int i = 0; i < 10_000; i++) {
+			//noinspection NonShortCircuitBooleanExpression
+			expectedResult = expectedResult | evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
 					final Optional<SealedEntity> entityFetchedAgain = session.getEntity(productSchema.getName(), addedEntityPrimaryKey);
 					final long catalogVersion = session.getCatalogVersion();
 					final long expectedCatalogVersion = nextCatalogVersion.getNow(Long.MIN_VALUE);
 					if (entityFetchedAgain.isPresent()) {
 						assertEquals(expectedCatalogVersion, catalogVersion);
-						return;
+						return true;
 					} else {
 						// we must try again to see if the entity is present, because it happens asynchronously
 						// the catalog version might have been updated between fetch and version fetch
@@ -282,13 +298,14 @@ public class EvitaTransactionalFunctionalTest {
 							catalogVersion < expectedCatalogVersion || expectedCatalogVersion == Long.MIN_VALUE || session.getEntity(productSchema.getName(), addedEntityPrimaryKey).isPresent(),
 							"Catalog version should be lower than the one returned by the async operation (observed `" + catalogVersion + "`, next `" + expectedCatalogVersion + "`)!"
 						);
+						Thread.onSpinWait();
+						return false;
 					}
-					Thread.onSpinWait();
 				}
+			);
+		}
 
-				fail("Entity not found in catalog!");
-			}
-		);
+		assertTrue(expectedResult, "Entity not found in catalog!");
 	}
 
 	@DisplayName("Verify code has no problems assigning new PK in concurrent environment")

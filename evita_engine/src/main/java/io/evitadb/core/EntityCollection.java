@@ -1300,9 +1300,12 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 		final SealedCatalogSchema catalogSchema = getCatalog().getSchema();
 		entityMutation.verifyOrEvolveSchema(catalogSchema, getSchema(), emptyOnStart && isEmpty())
 			.ifPresent(
-				it -> getCatalog().applyMutation(
-					new ModifyEntitySchemaMutation(getEntityType(), it)
-				)
+				it -> {
+					// we need to call apply mutation on the catalog level in order to insert the mutations to the WAL
+					getCatalog().applyMutation(
+						new ModifyEntitySchemaMutation(getEntityType(), it)
+					);
+				}
 			);
 
 		// check the existence of the primary key and report error when unexpectedly (not) provided

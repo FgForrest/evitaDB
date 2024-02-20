@@ -218,8 +218,8 @@ public class DataGenerator {
 		if (hierarchy != null) {
 			try {
 				// when there are very few root items, force to create some by making next other one as root
-				final Integer parentKey = hierarchy.getRootItems().size() < 5 && genericFaker.random().nextBoolean() ?
-					null : referencedEntityResolver.apply(schema.getName(), genericFaker);
+				final boolean generateRoot = hierarchy.getRootItems().size() < 5 && genericFaker.random().nextBoolean();
+				final Integer parentKey = generateRoot ? null : referencedEntityResolver.apply(schema.getName(), genericFaker);
 				if (parentKey == null) {
 					hierarchy.createRootItem(Objects.requireNonNull(detachedBuilder.getPrimaryKey()).toString());
 				} else {

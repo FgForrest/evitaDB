@@ -99,6 +99,11 @@ import io.evitadb.store.wal.schema.attribute.*;
 import io.evitadb.store.wal.schema.catalog.*;
 import io.evitadb.store.wal.schema.entity.*;
 import io.evitadb.store.wal.schema.reference.*;
+import io.evitadb.store.wal.schema.sortableAttributeCompound.CreateSortableAttributeCompoundSchemaMutationSerializer;
+import io.evitadb.store.wal.schema.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaDeprecationNoticeMutationSerializer;
+import io.evitadb.store.wal.schema.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaDescriptionMutationSerializer;
+import io.evitadb.store.wal.schema.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaNameMutationSerializer;
+import io.evitadb.store.wal.schema.sortableAttributeCompound.RemoveSortableAttributeCompoundSchemaMutationSerializer;
 import io.evitadb.store.wal.transaction.TransactionMutationSerializer;
 import io.evitadb.utils.Assert;
 
@@ -190,11 +195,11 @@ public class WalKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(SetReferenceSchemaFacetedMutation.class, new SerialVersionBasedSerializer<>(new SetReferenceSchemaFacetedMutationSerializer(), SetReferenceSchemaFacetedMutation.class), index++);
 		kryo.register(SetReferenceSchemaIndexedMutation.class, new SerialVersionBasedSerializer<>(new SetReferenceSchemaIndexedMutationSerializer(), SetReferenceSchemaIndexedMutation.class), index++);
 
-		kryo.register(CreateSortableAttributeCompoundSchemaMutation.class, new SerialVersionBasedSerializer<>(null, CreateSortableAttributeCompoundSchemaMutation.class), index++);
-		kryo.register(ModifySortableAttributeCompoundSchemaDeprecationNoticeMutation.class, new SerialVersionBasedSerializer<>(null, ModifySortableAttributeCompoundSchemaDeprecationNoticeMutation.class), index++);
-		kryo.register(ModifySortableAttributeCompoundSchemaDescriptionMutation.class, new SerialVersionBasedSerializer<>(null, ModifySortableAttributeCompoundSchemaDescriptionMutation.class), index++);
-		kryo.register(ModifySortableAttributeCompoundSchemaNameMutation.class, new SerialVersionBasedSerializer<>(null, ModifySortableAttributeCompoundSchemaNameMutation.class), index++);
-		kryo.register(RemoveSortableAttributeCompoundSchemaMutation.class, new SerialVersionBasedSerializer<>(null, RemoveSortableAttributeCompoundSchemaMutation.class), index++);
+		kryo.register(CreateSortableAttributeCompoundSchemaMutation.class, new SerialVersionBasedSerializer<>(new CreateSortableAttributeCompoundSchemaMutationSerializer(), CreateSortableAttributeCompoundSchemaMutation.class), index++);
+		kryo.register(ModifySortableAttributeCompoundSchemaDeprecationNoticeMutation.class, new SerialVersionBasedSerializer<>(new ModifySortableAttributeCompoundSchemaDeprecationNoticeMutationSerializer(), ModifySortableAttributeCompoundSchemaDeprecationNoticeMutation.class), index++);
+		kryo.register(ModifySortableAttributeCompoundSchemaDescriptionMutation.class, new SerialVersionBasedSerializer<>(new ModifySortableAttributeCompoundSchemaDescriptionMutationSerializer(), ModifySortableAttributeCompoundSchemaDescriptionMutation.class), index++);
+		kryo.register(ModifySortableAttributeCompoundSchemaNameMutation.class, new SerialVersionBasedSerializer<>(new ModifySortableAttributeCompoundSchemaNameMutationSerializer(), ModifySortableAttributeCompoundSchemaNameMutation.class), index++);
+		kryo.register(RemoveSortableAttributeCompoundSchemaMutation.class, new SerialVersionBasedSerializer<>(new RemoveSortableAttributeCompoundSchemaMutationSerializer(), RemoveSortableAttributeCompoundSchemaMutation.class), index++);
 
 		kryo.register(RemoveAssociatedDataMutation.class, new SerialVersionBasedSerializer<>(new RemoveAssociatedDataMutationSerializer(), RemoveAssociatedDataMutation.class), index++);
 		kryo.register(UpsertAssociatedDataMutation.class, new SerialVersionBasedSerializer<>(new UpsertAssociatedDataMutationSerializer(), UpsertAssociatedDataMutation.class), index++);

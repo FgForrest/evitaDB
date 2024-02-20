@@ -1312,9 +1312,9 @@ public class OffsetIndex {
 				int index = Arrays.binarySearch(nv, catalogVersion + 1);
 				if (index != -1) {
 					final int startIndex = index >= 0 ? index - 1 : -index - 2;
-					for (int ix = nv.length - 1; ix > startIndex; ix--) {
+					for (int ix = nv.length - 1; ix >= startIndex; ix--) {
 						final NonFlushedValueSet nonFlushedValueSet = nvValues.get(nv[ix]);
-						diff -= nonFlushedValueSet.getAddedKeys().size() - nonFlushedValueSet.getRemovedKeys().size();
+						diff += nonFlushedValueSet.getAddedKeys().size() - nonFlushedValueSet.getRemovedKeys().size();
 					}
 				}
 			}
@@ -1353,16 +1353,16 @@ public class OffsetIndex {
 				int index = Arrays.binarySearch(nv, catalogVersion + 1);
 				if (index != -1) {
 					final int startIndex = index >= 0 ? index - 1 : -index - 2;
-					for (int ix = nv.length - 1; ix > startIndex; ix--) {
+					for (int ix = nv.length - 1; ix >= startIndex; ix--) {
 						final NonFlushedValueSet nonFlushedValueSet = nvValues.get(nv[ix]);
 						for (RecordKey addedKey : nonFlushedValueSet.getAddedKeys()) {
 							if (addedKey.recordType() == recordTypeId) {
-								diff--;
+								diff++;
 							}
 						}
 						for (RecordKey removedKey : nonFlushedValueSet.getRemovedKeys()) {
 							if (removedKey.recordType() == recordTypeId) {
-								diff++;
+								diff--;
 							}
 						}
 					}

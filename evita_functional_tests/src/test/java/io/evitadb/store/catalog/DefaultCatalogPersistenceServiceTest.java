@@ -35,6 +35,7 @@ import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
+import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaDecorator;
 import io.evitadb.api.requestResponse.schema.EntitySchemaDecorator;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
@@ -42,6 +43,7 @@ import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.api.trace.DefaultTracingContext;
 import io.evitadb.core.Catalog;
@@ -76,6 +78,7 @@ import io.evitadb.utils.NamingConvention;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
@@ -462,8 +465,10 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 
 	@Nonnull
 	private EntityCollection constructEntityCollectionWithSomeEntities(@Nonnull CatalogPersistenceService ioService, @Nonnull SealedCatalogSchema catalogSchema, @Nonnull SealedEntitySchema entitySchema, int entityTypePrimaryKey) {
+		final Catalog mockCatalog = getMockCatalog(catalogSchema, entitySchema);
+		final CatalogSchemaContract catalogSchemaContract = Mockito.mock(CatalogSchemaContract.class);
 		final EntityCollection entityCollection = new EntityCollection(
-			getMockCatalog(catalogSchema, entitySchema),
+			mockCatalog,
 			entityTypePrimaryKey,
 			entitySchema.getName(),
 			ioService,
@@ -471,6 +476,18 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			sequenceService,
 			DefaultTracingContext.INSTANCE
 		);
+
+
+		final ArgumentCaptor<Mutation> mutationCaptor = ArgumentCaptor.forClass(Mutation.class);
+
+		// Use the captor when defining the mock behavior
+		Mockito.doAnswer(invocation -> {
+			if (mutationCaptor.getValue() instanceof ModifyEntitySchemaMutation modifyEntitySchemaMutation) {
+				return entityCollection.updateSchema(catalogSchemaContract, modifyEntitySchemaMutation.getSchemaMutations());
+			} else {
+				return null;
+			}
+		}).when(mockCatalog).applyMutation(mutationCaptor.capture());
 
 		dataGenerator.generateEntities(
 				entitySchema,

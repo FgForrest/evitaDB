@@ -752,21 +752,22 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			Assert.isPremiseValid(newPath.toFile().isDirectory(), () -> "Path `" + newPath.toAbsolutePath() + "` is not a directory!");
 		}
 
+		// store the catalog that replaces the original header
+		final CatalogHeader catalogHeader = this.catalogStoragePartPersistenceService.getCatalogHeader(bootstrapUsed.catalogVersion());
+		final long catalogVersion = catalogHeader.catalogState() == CatalogState.WARMING_UP ?
+			0L : catalogHeader.version() + 1;
+
 		// first changes and replace name of the catalog in the catalog schema in catalog that replaces the original
 		CatalogSchemaStoragePart.serializeWithCatalogName(
 			catalogNameToBeReplaced,
 			catalogNameVariationsToBeReplaced,
 			() -> {
 				final CatalogSchemaStoragePart storagePart = new CatalogSchemaStoragePart(catalogSchema);
-				this.catalogStoragePartPersistenceService.putStoragePart(storagePart.getStoragePartPK(), storagePart);
+				this.catalogStoragePartPersistenceService.putStoragePart(catalogVersion, storagePart);
 				return null;
 			}
 		);
 
-		// store the catalog that replaces the original header
-		final CatalogHeader catalogHeader = this.catalogStoragePartPersistenceService.getCatalogHeader(bootstrapUsed.catalogVersion());
-		final long catalogVersion = catalogHeader.catalogState() == CatalogState.WARMING_UP ?
-			0L : catalogHeader.version() + 1;
 		catalogStoragePartPersistenceService.writeCatalogHeader(
 			STORAGE_PROTOCOL_VERSION,
 			catalogVersion,
