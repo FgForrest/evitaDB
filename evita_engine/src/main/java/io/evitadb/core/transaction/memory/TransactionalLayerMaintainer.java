@@ -259,16 +259,14 @@ public class TransactionalLayerMaintainer {
 
 	/**
 	 * Rolls back the changes made in a transactional layer and frees related {@link Closeable} resources.
-	 *
-	 * @param exception the cause of the rollback
 	 */
-	void rollback(@Nullable Throwable exception) {
+	void rollback() {
 		// no new transactional memories may happen
 		allowTransactionalLayerCreation = false;
 
 		// let's process all the transactional memory consumers - it's their responsibility to process all transactional
 		// memory containers
-		finalizer.rollback(this, exception);
+		finalizer.rollback(this);
 	}
 
 	/**

@@ -312,13 +312,14 @@ public class EvitaTransactionalFunctionalTest {
 	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
 	@Tag(LONG_RUNNING_TEST)
 	@Test
-	void shouldAutomaticallyGeneratePrimaryKeyInParallel(EvitaContract evita, SealedEntitySchema productSchema) throws Exception {
+	void shouldAutomaticallyGenerateEntitiesInParallel(EvitaContract evita, SealedEntitySchema productSchema) throws Exception {
 		final int numberOfThreads = 10;
 		final int iterations = 100;
 		final ExecutorService service = Executors.newFixedThreadPool(numberOfThreads);
 		final CountDownLatch latch = new CountDownLatch(numberOfThreads);
 		final Set<PkWithCatalogVersion> primaryKeysWithTxIds = new ConcurrentSkipListSet<>();
 
+		final long initialStart = System.currentTimeMillis();
 		final AtomicReference<Exception> thrownException = new AtomicReference<>();
 		try (EvitaSessionContract readOnlySession = evita.createReadOnlySession(TEST_CATALOG)) {
 			final DataGenerator dataGenerator = new DataGenerator();
@@ -396,10 +397,10 @@ public class EvitaTransactionalFunctionalTest {
 		}
 
 		// wait until Evita reaches the last version of the catalog
-		long start = System.currentTimeMillis();
+		long watitingStart = System.currentTimeMillis();
 		while (
 			// cap to one minute
-			System.currentTimeMillis() - start < 120_000 &&
+			System.currentTimeMillis() - watitingStart < 120_000 &&
 			// and finish when the last transaction is visible
 			evita.queryCatalog(TEST_CATALOG, session -> { return session.getCatalogVersion(); }) < numberOfThreads * iterations + 1
 		) {
@@ -413,6 +414,11 @@ public class EvitaTransactionalFunctionalTest {
 		for (int i = 1; i <= numberOfThreads * iterations; i++) {
 			assertTrue(primaryKeys.contains(i), "Primary key missing: " + (i));
 		}
+
+		System.out.println(
+			"Created " + primaryKeysWithTxIds.size() + " entities in " + (numberOfThreads * iterations) +
+				" transactions and " + (System.currentTimeMillis() - initialStart) + " ms."
+		);
 	}
 
 	private record PkWithCatalogVersion(

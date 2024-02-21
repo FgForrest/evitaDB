@@ -1312,7 +1312,7 @@ public class OffsetIndex {
 				int index = Arrays.binarySearch(nv, catalogVersion + 1);
 				if (index != -1) {
 					final int startIndex = index >= 0 ? index - 1 : -index - 2;
-					for (int ix = nv.length - 1; ix >= startIndex; ix--) {
+					for (int ix = nv.length - 1; ix >= startIndex && ix >= 0; ix--) {
 						final NonFlushedValueSet nonFlushedValueSet = nvValues.get(nv[ix]);
 						diff += nonFlushedValueSet.getAddedKeys().size() - nonFlushedValueSet.getRemovedKeys().size();
 					}
@@ -1326,7 +1326,7 @@ public class OffsetIndex {
 				int index = Arrays.binarySearch(hv, catalogVersion + 1);
 				if (index != -1) {
 					final int startIndex = index >= 0 ? index - 1 : -index - 2;
-					for (int ix = hv.length - 1; ix > startIndex; ix--) {
+					for (int ix = hv.length - 1; ix > startIndex && ix >= 0; ix--) {
 						final PastMemory differenceSet = hvValues.get(hv[ix]);
 						diff -= differenceSet.getAddedKeys().size() - differenceSet.getRemovedKeys().size();
 					}
@@ -1353,7 +1353,7 @@ public class OffsetIndex {
 				int index = Arrays.binarySearch(nv, catalogVersion + 1);
 				if (index != -1) {
 					final int startIndex = index >= 0 ? index - 1 : -index - 2;
-					for (int ix = nv.length - 1; ix >= startIndex; ix--) {
+					for (int ix = nv.length - 1; ix >= startIndex && ix >= 0; ix--) {
 						final NonFlushedValueSet nonFlushedValueSet = nvValues.get(nv[ix]);
 						for (RecordKey addedKey : nonFlushedValueSet.getAddedKeys()) {
 							if (addedKey.recordType() == recordTypeId) {
@@ -1376,7 +1376,7 @@ public class OffsetIndex {
 				int index = Arrays.binarySearch(hv, catalogVersion + 1);
 				if (index != -1) {
 					final int startIndex = index >= 0 ? index - 1 : -index - 2;
-					for (int ix = hv.length - 1; ix > startIndex; ix--) {
+					for (int ix = hv.length - 1; ix > startIndex && ix >= 0; ix--) {
 						final PastMemory differenceSet = hvValues.get(hv[ix]);
 						for (RecordKey addedKey : differenceSet.getAddedKeys()) {
 							if (addedKey.recordType() == recordTypeId) {
@@ -1410,8 +1410,8 @@ public class OffsetIndex {
 				int index = Arrays.binarySearch(nv, catalogVersion);
 				if (index != -1) {
 					final int startIndex = index >= 0 ? index - 1 : -index - 2;
-					for (int i = nv.length - 1; i > startIndex; i--) {
-						final Optional<VersionedValue> versionedValue = ofNullable(nvSet.get(nv[i]))
+					for (int ix = nv.length - 1; ix > startIndex && ix >= 0; ix--) {
+						final Optional<VersionedValue> versionedValue = ofNullable(nvSet.get(nv[ix]))
 							.map(it -> it.get(key));
 						if (versionedValue.isPresent()) {
 							return versionedValue;
@@ -1430,7 +1430,7 @@ public class OffsetIndex {
 		@Nonnull
 		public OptionalLong getLastNonFlushedCatalogVersionIfExists() {
 			final long[] nv = this.nonFlushedVersions;
-			return nv == null ?
+			return nv == null || nv.length == 0 ?
 				OptionalLong.empty() :
 				OptionalLong.of(nv[nv.length - 1]);
 		}

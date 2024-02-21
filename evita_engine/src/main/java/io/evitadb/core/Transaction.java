@@ -344,7 +344,7 @@ public final class Transaction implements TransactionContract {
 				} else {
 					log.debug("Rolling back transaction `{}`.", transactionId);
 				}
-				transactionalMemory.rollback(rollbackCause);
+				transactionalMemory.rollback();
 			} else {
 				log.debug("Committing transaction `{}`.", transactionId);
 				transactionalMemory.commit();

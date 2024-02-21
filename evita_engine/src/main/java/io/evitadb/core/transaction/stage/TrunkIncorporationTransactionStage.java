@@ -153,7 +153,7 @@ public final class TrunkIncorporationTransactionStage
 								"last finalized catalog version: " + this.lastFinalizedCatalogVersion + "."
 						);
 
-						log.info("Starting transaction: {}", transactionMutation);
+						log.debug("Starting transaction: {}", transactionMutation);
 
 						// prepare "replay" transaction
 						transaction = transaction == null ?
@@ -209,17 +209,15 @@ public final class TrunkIncorporationTransactionStage
 						transaction.close();
 						lastTransaction = transactionMutation;
 
-						log.debug("Finalizing transaction: {}", transaction);
-
-						// try to process next transaction if the timeout is not exceeded
+						log.debug("Processed transaction: {}", transaction);
 					} while (
-						/* TODO JNO - vyzkoušet podmínku na to, že na disku čeká více dat, než je velikost bufferu inputu - zá se, že to přestává fungovat, když se nenačte dost */
+						// try to process next transaction if the timeout is not exceeded
 						System.nanoTime() - start < this.timeout && mutationIterator.hasNext() &&
+						// and the next transaction is fully written by previous stage
 						this.catalog.getLastCatalogVersionInMutationStream() > lastTransaction.getCatalogVersion()
 					);
 
-					/* TODO JNO - REMOVE */
-					log.info("Processed {} transactions in {} ms", txCount, (System.nanoTime() - start) / 1_000_000.0);
+					log.debug("Processed {} transactions in {} ms", txCount, (System.nanoTime() - start) / 1_000_000.0);
 				}
 
 				lastCatalogVersionInLiveView = this.catalog.getVersion();
@@ -246,8 +244,7 @@ public final class TrunkIncorporationTransactionStage
 				this.lastFinalizedTransactionId = finalLastTransaction.getTransactionId();
 				this.lastFinalizedCatalogVersion = finalLastTransaction.getCatalogVersion();
 
-				/* TODO JNO - remove */
-				log.info("Finalizing catalog: {}", this.lastFinalizedCatalogVersion);
+				log.debug("Finalizing catalog: {}", this.lastFinalizedCatalogVersion);
 
 			} finally {
 				this.catalog.decreaseWriterCount();

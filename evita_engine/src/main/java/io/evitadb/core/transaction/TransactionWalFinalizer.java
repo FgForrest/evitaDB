@@ -155,7 +155,7 @@ public class TransactionWalFinalizer implements TransactionHandler {
 	}
 
 	@Override
-	public void rollback(@Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Throwable cause) {
+	public void rollback(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		try {
 			// here we close all registered closeables - i.e. transactional OffsetIndexes along with their data
 			// (i.e. OffHeapManager regions and temporary files) - we will not need them anymore, they were used only
@@ -168,13 +168,8 @@ public class TransactionWalFinalizer implements TransactionHandler {
 				this.walPersistenceService.close();
 				this.walPersistenceService = null;
 			}
-			// we must complete the future with the exception or the original catalog version (if the rollback was
-			// not caused by an exception)
-			if (cause != null) {
-				this.transactionFinalizationFuture.completeExceptionally(cause);
-			} else {
-				this.transactionFinalizationFuture.complete(catalog.getVersion());
-			}
+			// we must complete the future with the exception or the original catalog version
+			this.transactionFinalizationFuture.complete(catalog.getVersion());
 		}
 	}
 
