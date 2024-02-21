@@ -91,7 +91,7 @@ public class CatalogSnapshotPropagationTransactionStage implements Flow.Subscrib
 			);
 			this.newCatalogVersionConsumer.accept(task.catalog());
 			if (task.future() != null) {
-				log.info("Snapshot propagating task for catalog `" + catalogName + "` completed (" + task.catalog().getEntityTypes() + ")!");
+				log.debug("Snapshot propagating task for catalog `" + catalogName + "` completed (" + task.catalog().getEntityTypes() + ")!");
 				task.future().complete(task.catalogVersion());
 			} else {
 				Assert.isPremiseValid(
