@@ -732,6 +732,14 @@ public class OffsetIndex {
 	}
 
 	/**
+	 * Forgets all non-flushed values. This method is used when it's known those data will never be promoted to
+	 * the shared state.
+	 */
+	public void forgetVolatileData() {
+		this.volatileValues.forgetNonFlushedValues();
+	}
+
+	/**
 	 * Returns unmodifiable collection of all ACTIVE keys in the OffsetIndex.
 	 */
 	Collection<RecordKey> getKeys() {
@@ -1306,9 +1314,9 @@ public class OffsetIndex {
 			int diff = 0;
 
 			// scan non-flushed values
-			if (this.nonFlushedVersions != null) {
-				final long[] nv = this.nonFlushedVersions;
-				final ConcurrentHashMap<Long, NonFlushedValueSet> nvValues = this.nonFlushedValues;
+			final ConcurrentHashMap<Long, NonFlushedValueSet> nvValues = this.nonFlushedValues;
+			final long[] nv = this.nonFlushedVersions;
+			if (nv != null) {
 				int index = Arrays.binarySearch(nv, catalogVersion + 1);
 				if (index != -1) {
 					final int startIndex = index >= 0 ? index - 1 : -index - 2;
@@ -1320,9 +1328,9 @@ public class OffsetIndex {
 			}
 
 			// scan also all previous versions we still keep in memory
-			if (this.historicalVersions != null) {
-				final long[] hv = this.historicalVersions;
-				final ConcurrentHashMap<Long, PastMemory> hvValues = this.volatileValues;
+			final ConcurrentHashMap<Long, PastMemory> hvValues = this.volatileValues;
+			final long[] hv = this.historicalVersions;
+			if (hv != null) {
 				int index = Arrays.binarySearch(hv, catalogVersion + 1);
 				if (index != -1) {
 					final int startIndex = index >= 0 ? index - 1 : -index - 2;
@@ -1347,9 +1355,9 @@ public class OffsetIndex {
 			int diff = 0;
 
 			// scan non-flushed values
-			if (this.nonFlushedVersions != null) {
-				final long[] nv = this.nonFlushedVersions;
-				final ConcurrentHashMap<Long, NonFlushedValueSet> nvValues = this.nonFlushedValues;
+			final ConcurrentHashMap<Long, NonFlushedValueSet> nvValues = this.nonFlushedValues;
+			final long[] nv = this.nonFlushedVersions;
+			if (nv != null) {
 				int index = Arrays.binarySearch(nv, catalogVersion + 1);
 				if (index != -1) {
 					final int startIndex = index >= 0 ? index - 1 : -index - 2;
@@ -1370,9 +1378,9 @@ public class OffsetIndex {
 			}
 
 			// scan also all previous versions we still keep in memory
-			if (this.historicalVersions != null) {
-				final long[] hv = this.historicalVersions;
-				final ConcurrentHashMap<Long, PastMemory> hvValues = this.volatileValues;
+			final ConcurrentHashMap<Long, PastMemory> hvValues = this.volatileValues;
+			final long[] hv = this.historicalVersions;
+			if (hv != null) {
 				int index = Arrays.binarySearch(hv, catalogVersion + 1);
 				if (index != -1) {
 					final int startIndex = index >= 0 ? index - 1 : -index - 2;
@@ -1404,9 +1412,9 @@ public class OffsetIndex {
 		 */
 		@Nonnull
 		public Optional<VersionedValue> getNonFlushedValueIfVersionMatches(long catalogVersion, @Nonnull RecordKey key) {
-			if (this.nonFlushedVersions != null) {
-				final long[] nv = this.nonFlushedVersions;
-				final ConcurrentHashMap<Long, NonFlushedValueSet> nvSet = this.nonFlushedValues;
+			final ConcurrentHashMap<Long, NonFlushedValueSet> nvSet = this.nonFlushedValues;
+			final long[] nv = this.nonFlushedVersions;
+			if (nv != null) {
 				int index = Arrays.binarySearch(nv, catalogVersion);
 				if (index != -1) {
 					final int startIndex = index >= 0 ? index - 1 : -index - 2;
@@ -1441,9 +1449,7 @@ public class OffsetIndex {
 		 * @return true if there are non-flushed values, false otherwise
 		 */
 		public boolean hasValuesToFlush() {
-			return ofNullable(nonFlushedValues)
-				.map(it -> !it.isEmpty())
-				.orElse(false);
+			return !(nonFlushedValues == null || nonFlushedValues.isEmpty());
 		}
 
 		/**
@@ -1507,9 +1513,9 @@ public class OffsetIndex {
 		 */
 		@Nonnull
 		public Collection<NonFlushedValueSet> getNonFlushedEntriesToPromote(long catalogVersion) {
-			if (this.nonFlushedVersions != null) {
-				final long[] nv = this.nonFlushedVersions;
-				final ConcurrentHashMap<Long, NonFlushedValueSet> nvSet = this.nonFlushedValues;
+			final ConcurrentHashMap<Long, NonFlushedValueSet> nvSet = this.nonFlushedValues;
+			final long[] nv = this.nonFlushedVersions;
+			if (nv != null) {
 				Assert.isPremiseValid(
 					catalogVersion >= nv[nv.length - 1],
 					"Catalog version is expected to be at least " + nv[nv.length - 1] + "!"
@@ -1593,6 +1599,14 @@ public class OffsetIndex {
 		}
 
 		/**
+		 * Clears all non-flushed values.
+		 */
+		public void forgetNonFlushedValues() {
+			this.nonFlushedVersions = null;
+			this.nonFlushedValues = null;
+		}
+
+		/**
 		 * Retrieves the NonFlushedValueSet associated with the given catalog version or creates new set.
 		 *
 		 * @param catalogVersion the catalog version to check against
@@ -1601,8 +1615,8 @@ public class OffsetIndex {
 		@Nonnull
 		private NonFlushedValueSet getNonFlushedValues(long catalogVersion) {
 			if (this.nonFlushedVersions == null) {
-				this.nonFlushedVersions = new long[]{catalogVersion};
 				this.nonFlushedValues = CollectionUtils.createConcurrentHashMap(16);
+				this.nonFlushedVersions = new long[]{catalogVersion};
 				final NonFlushedValueSet nv = new NonFlushedValueSet(catalogVersion);
 				this.nonFlushedValues.put(catalogVersion, nv);
 				return nv;

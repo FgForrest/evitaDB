@@ -1108,10 +1108,6 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 		this.persistenceService.appendWalAndDiscard(transactionMutation, walReference);
 	}
 
-	/*
-		TransactionalLayerProducer implementation
-	 */
-
 	/**
 	 * Notifies the system that a catalog is present in the live view.
 	 * This method is used to indicate that a catalog is currently available in the live view.
@@ -1131,6 +1127,16 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 				}
 			}
 		}
+	}
+
+	/**
+	 * We need to forget all volatile data when the data written to catalog aren't going to be committed (incorporated
+	 * in the final state).
+	 *
+	 * @see CatalogPersistenceService#forgetVolatileData()
+	 */
+	public void forgetVolatileData() {
+		this.persistenceService.forgetVolatileData();
 	}
 
 	/**

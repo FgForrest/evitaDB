@@ -169,6 +169,14 @@ public interface StoragePartPersistenceService extends Closeable {
 	long getVersion();
 
 	/**
+	 * We need to forget all volatile data when the data written to catalog aren't going to be committed (incorporated
+	 * in the final state). Usually the data are immediately written to the disk and are volatile until
+	 * {@link #flush(long)} is called. But those data can be read within particular transaction from the volatile
+	 * storage and we need to forget them when the transaction is rolled back.
+	 */
+	void forgetVolatileData();
+
+	/**
 	 * Returns the storage descriptor that contains crucial information for successful reopening of the persistent
 	 * storage.
 	 *

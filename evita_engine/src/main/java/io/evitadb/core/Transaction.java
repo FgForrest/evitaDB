@@ -98,6 +98,14 @@ public final class Transaction implements TransactionContract {
 	 * the "current" transaction.
 	 */
 	public static void executeInTransactionIfProvided(@Nullable Transaction transaction, @Nonnull Runnable lambda) {
+		executeInTransactionIfProvided(transaction, lambda, true);
+	}
+
+	/**
+	 * Method initializes current session UUID to the thread context and binds transaction for particular session as
+	 * the "current" transaction.
+	 */
+	public static void executeInTransactionIfProvided(@Nullable Transaction transaction, @Nonnull Runnable lambda, boolean rollbackOnException) {
 		if (transaction == null) {
 			lambda.run();
 		} else {
@@ -106,7 +114,9 @@ public final class Transaction implements TransactionContract {
 				bound = transaction.bindTransactionToThread();
 				lambda.run();
 			} catch (Throwable ex) {
-				transaction.setRollbackOnly();
+				if (rollbackOnException) {
+					transaction.setRollbackOnlyWithException(ex);
+				}
 				throw ex;
 			} finally {
 				if (bound) {
@@ -114,6 +124,14 @@ public final class Transaction implements TransactionContract {
 				}
 			}
 		}
+	}
+
+	/**
+	 * Method initializes current session UUID to the thread context and binds transaction for particular session as
+	 * the "current" transaction.
+	 */
+	public static <T> T executeInTransactionIfProvided(@Nullable Transaction transaction, @Nonnull Supplier<T> lambda) {
+		return executeInTransactionIfProvided(transaction, lambda, true);
 	}
 
 	/**

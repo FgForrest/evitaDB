@@ -225,6 +225,15 @@ public class OffsetIndexStoragePartPersistenceService implements StoragePartPers
 		}
 	}
 
+	@Override
+	public void forgetVolatileData() {
+		if (offsetIndex.isOperative()) {
+			this.offsetIndex.forgetVolatileData();
+		} else {
+			throw new PersistenceServiceClosed();
+		}
+	}
+
 	@Nonnull
 	@Override
 	public PersistentStorageDescriptor flush(long catalogVersion) {

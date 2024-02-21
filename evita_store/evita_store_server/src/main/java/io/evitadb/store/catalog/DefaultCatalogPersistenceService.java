@@ -981,6 +981,14 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	}
 
 	@Override
+	public void forgetVolatileData() {
+		this.catalogStoragePartPersistenceService.forgetVolatileData();
+		for (DefaultEntityCollectionPersistenceService collectionPersistenceServices : entityCollectionPersistenceServices.values()) {
+			collectionPersistenceServices.getStoragePartPersistenceService().forgetVolatileData();
+		}
+	}
+
+	@Override
 	public void close() {
 		try {
 			// close all services

@@ -251,6 +251,15 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	long getLastCatalogVersionInMutationStream();
 
 	/**
+	 * We need to forget all volatile data when the data written to catalog aren't going to be committed (incorporated
+	 * in the final state). Usually the data written by {@link #getStoragePartPersistenceService()} are immediately
+	 * written to the disk and are volatile until {@link #storeHeader(CatalogState, long, int, TransactionMutation, List)}
+	 * is called. But those data can be read within particular transaction from the volatile storage and we need to
+	 * forget them when the transaction is rolled back.
+	 */
+	void forgetVolatileData();
+
+	/**
 	 * Method closes this persistence service and also all {@link EntityCollectionPersistenceService} that were created
 	 * via. {@link #createEntityCollectionPersistenceService(String, int)}.
 	 *
@@ -259,4 +268,5 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	 */
 	@Override
 	void close();
+
 }

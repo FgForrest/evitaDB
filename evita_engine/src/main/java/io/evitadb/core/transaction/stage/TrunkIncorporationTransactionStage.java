@@ -120,10 +120,9 @@ public final class TrunkIncorporationTransactionStage
 		} else {
 			final long lastCatalogVersionInLiveView;
 			this.catalog.increaseWriterCount();
-			UUID lastFinalizedTransactionId;
+			TransactionMutation lastTransaction = null;
+			Transaction transaction = null;
 			try {
-				TransactionMutation lastTransaction = null;
-				Transaction transaction = null;
 				// prepare finalizer that doesn't finish the catalog automatically but on demand
 				final TransactionTrunkFinalizer transactionHandler = new TransactionTrunkFinalizer(this.catalog);
 				// read the mutations from the WAL since the current task version
@@ -141,10 +140,11 @@ public final class TrunkIncorporationTransactionStage
 						Mutation leadingMutation = mutationIterator.next();
 						// the first mutation of the transaction bulk must be transaction mutation
 						Assert.isPremiseValid(leadingMutation instanceof TransactionMutation, "First mutation must be transaction mutation!");
+
 						final TransactionMutation transactionMutation = (TransactionMutation) leadingMutation;
 						Assert.isPremiseValid(
 							transactionMutation.getCatalogVersion() == this.lastFinalizedCatalogVersion + 1 ||
-								(lastTransaction != null  && transactionMutation.getCatalogVersion() == lastTransaction.getCatalogVersion() + 1),
+								(lastTransaction != null && transactionMutation.getCatalogVersion() == lastTransaction.getCatalogVersion() + 1),
 							"Unexpected catalog version! " +
 								"Transaction mutation catalog version: " + transactionMutation.getCatalogVersion() + ", " +
 								"last finalized catalog version: " + this.lastFinalizedCatalogVersion + "."
@@ -153,54 +153,11 @@ public final class TrunkIncorporationTransactionStage
 						log.debug("Starting transaction: {}", transactionMutation);
 
 						// prepare "replay" transaction
-						transaction = transaction == null ?
-							new Transaction(
-								transactionMutation.getTransactionId(),
-								transactionHandler,
-								true
-							)
-							:
-							new Transaction(
-								transactionMutation.getTransactionId(),
-								transactionHandler,
-								transaction.getTransactionalMemory(),
-								true
-							);
+						transaction = createTransaction(transactionMutation, transaction, transactionHandler);
 
 						// and replay all the mutations of the entire transaction from the WAL
 						// this cannot be interrupted even if the timeout is exceeded and must be fully applied
-						Transaction.executeInTransactionIfProvided(
-							transaction,
-							() -> {
-								catalog.setVersion(transactionMutation.getCatalogVersion());
-								// init mutation counter
-								int mutationCount = 0;
-								try {
-									while (mutationCount < transactionMutation.getMutationCount() && mutationIterator.hasNext()) {
-										final Mutation mutation = mutationIterator.next();
-										log.debug("Processing mutation: {}", mutation);
-										mutationCount++;
-										catalog.applyMutation(
-											mutation instanceof EntityUpsertMutation ?
-												new VerifiedEntityUpsertMutation((EntityUpsertMutation) mutation)
-												:
-												mutation
-										);
-									}
-								} catch (RuntimeException ex) {
-									/* TODO JNO - TADY SE MUSÍ NA OFFSET INDEXU ZAHODIT NH A VH PRO DANOU VERZI */
-									log.error("Error while processing transaction: " + transactionMutation + ", " + mutationCount + " out of " + transactionMutation.getMutationCount() + " done", ex);
-									throw ex;
-								}
-								// we should have processed all the mutations by now and the mutation count should match
-								Assert.isPremiseValid(
-									mutationCount == transactionMutation.getMutationCount(),
-									"Unexpected transaction `" + transactionMutation.getTransactionId() + "` mutation count! " +
-										"Transaction mutation mutation count: " + transactionMutation.getMutationCount() + ", " +
-										"actual mutation count: " + mutationCount + "."
-								);
-							}
-						);
+						replayMutationsOnCatalog(transactionMutation, transaction, mutationIterator);
 
 						// this is the last mutation in the transaction, close the replay mutation now
 						transaction.close();
@@ -210,8 +167,8 @@ public final class TrunkIncorporationTransactionStage
 					} while (
 						// try to process next transaction if the timeout is not exceeded
 						System.nanoTime() - start < this.timeout && mutationIterator.hasNext() &&
-						// and the next transaction is fully written by previous stage
-						this.catalog.getLastCatalogVersionInMutationStream() > lastTransaction.getCatalogVersion()
+							// and the next transaction is fully written by previous stage
+							this.catalog.getLastCatalogVersionInMutationStream() > lastTransaction.getCatalogVersion()
 					);
 
 					log.debug("Processed {} transactions in {} ms", txCount, (System.nanoTime() - start) / 1_000_000.0);
@@ -220,40 +177,32 @@ public final class TrunkIncorporationTransactionStage
 				lastCatalogVersionInLiveView = this.catalog.getVersion();
 
 				// we've run out of mutation, or the timeout has been exceeded, create a new catalog version now
-				TransactionMutation finalLastTransaction = lastTransaction;
-				Transaction.executeInTransactionIfProvided(
-					transaction,
-					() -> {
-						try {
-							log.debug("Materializing catalog version: {}", this.lastFinalizedCatalogVersion);
-							this.catalog = transactionHandler.commitCatalogChanges(
-								finalLastTransaction.getCatalogVersion(),
-								finalLastTransaction
-							);
-						} catch (RuntimeException ex) {
-							log.error("Error while committing transaction: " + finalLastTransaction.getCatalogVersion() + ".", ex);
-							throw ex;
-						}
-					}
-				);
+				this.catalog = commitChangesToSharedCatalog(lastTransaction, transaction, transactionHandler);
 
 				// update the last finalized transaction ID and catalog version
-				lastFinalizedTransactionId = finalLastTransaction.getTransactionId();
-				this.lastFinalizedCatalogVersion = finalLastTransaction.getCatalogVersion();
+				this.lastFinalizedCatalogVersion = lastTransaction.getCatalogVersion();
 
 				log.debug("Finalizing catalog: {}", this.lastFinalizedCatalogVersion);
 
+			} catch (RuntimeException ex) {
+				// we need to forget about the data written to disk, but not yet propagated to indexes (volatile data)
+				this.catalog.forgetVolatileData();
+
+				// rethrow the exception - we will have to re-try the transaction
+				throw ex;
 			} finally {
 				this.catalog.decreaseWriterCount();
 			}
+
 			// we can't push another catalog version until the previous one is propagated to the "live view"
 			waitUntilLiveVersionReaches(lastCatalogVersionInLiveView);
+
 			// and propagate it to the live view
 			push(
 				task,
 				new UpdatedCatalogTransactionTask(
 					this.catalog,
-					lastFinalizedTransactionId,
+					transaction.getTransactionId(),
 					task.commitBehaviour(),
 					task.future()
 				)
@@ -271,6 +220,105 @@ public final class TrunkIncorporationTransactionStage
 				this.lastFinalizedCatalogVersion = catalog.getVersion();
 			}
 		}
+	}
+
+	/**
+	 * Creates a new transaction based on the given parameters.
+	 *
+	 * @param transactionMutation The transaction mutation object.
+	 * @param previousTransaction The previous transaction, can be null if there is no previous transaction.
+	 * @param transactionHandler The transaction trunk finalizer object.
+	 * @return The newly created transaction.
+	 */
+	@Nonnull
+	private static Transaction createTransaction(
+		@Nonnull TransactionMutation transactionMutation,
+		@Nullable Transaction previousTransaction,
+		@Nonnull TransactionTrunkFinalizer transactionHandler
+	) {
+		return previousTransaction == null ?
+			new Transaction(
+				transactionMutation.getTransactionId(),
+				transactionHandler,
+				true
+			)
+			:
+			new Transaction(
+				transactionMutation.getTransactionId(),
+				transactionHandler,
+				previousTransaction.getTransactionalMemory(),
+				true
+			);
+	}
+
+	/**
+	 * Replays mutations in the given transaction on the current catalog.
+	 *
+	 * @param transactionMutation The transaction mutation containing the catalog version and mutation details.
+	 * @param transaction         The transaction object to execute the mutations in.
+	 * @param mutationIterator    The iterator containing the mutations to replay.
+	 */
+	private void replayMutationsOnCatalog(
+		@Nonnull TransactionMutation transactionMutation,
+		@Nonnull Transaction transaction,
+		@Nonnull Iterator<Mutation> mutationIterator
+	) {
+		Transaction.executeInTransactionIfProvided(
+			transaction,
+			() -> {
+				this.catalog.setVersion(transactionMutation.getCatalogVersion());
+				// init mutation counter
+				int mutationCount = 0;
+				while (mutationCount < transactionMutation.getMutationCount() && mutationIterator.hasNext()) {
+					final Mutation mutation = mutationIterator.next();
+					log.debug("Processing mutation: {}", mutation);
+					mutationCount++;
+					catalog.applyMutation(
+						mutation instanceof EntityUpsertMutation ?
+							new VerifiedEntityUpsertMutation((EntityUpsertMutation) mutation)
+							:
+							mutation
+					);
+				}
+				// we should have processed all the mutations by now and the mutation count should match
+				Assert.isPremiseValid(
+					mutationCount == transactionMutation.getMutationCount(),
+					"Unexpected transaction `" + transactionMutation.getTransactionId() + "` mutation count! " +
+						"Transaction mutation mutation count: " + transactionMutation.getMutationCount() + ", " +
+						"actual mutation count: " + mutationCount + "."
+				);
+			}
+		);
+	}
+
+	/**
+	 * Commits the changes made to the shared catalog.
+	 *
+	 * @param lastTransactionMutation The last transaction mutation made on the catalog.
+	 * @param transaction             The transaction used to commit the changes.
+	 * @param transactionHandler      The handler responsible for finalizing the transaction.
+	 */
+	@Nonnull
+	private Catalog commitChangesToSharedCatalog(
+		@Nonnull TransactionMutation lastTransactionMutation,
+		@Nonnull Transaction transaction,
+		@Nonnull TransactionTrunkFinalizer transactionHandler
+	) {
+		return Transaction.executeInTransactionIfProvided(
+			transaction,
+			() -> {
+				try {
+					log.debug("Materializing catalog version: {}", this.lastFinalizedCatalogVersion);
+					return transactionHandler.commitCatalogChanges(
+						lastTransactionMutation.getCatalogVersion(),
+						lastTransactionMutation
+					);
+				} catch (RuntimeException ex) {
+					log.error("Error while committing transaction: " + lastTransactionMutation.getCatalogVersion() + ".", ex);
+					throw ex;
+				}
+			}
+		);
 	}
 
 	/**

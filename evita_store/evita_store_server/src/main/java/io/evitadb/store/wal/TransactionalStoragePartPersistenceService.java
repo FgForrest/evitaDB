@@ -243,6 +243,11 @@ public class TransactionalStoragePartPersistenceService implements StoragePartPe
 	}
 
 	@Override
+	public void forgetVolatileData() {
+		this.offsetIndex.forgetVolatileData();
+	}
+
+	@Override
 	public boolean isClosed() {
 		return !this.offsetIndex.isOperative() || this.delegate.isClosed();
 	}
