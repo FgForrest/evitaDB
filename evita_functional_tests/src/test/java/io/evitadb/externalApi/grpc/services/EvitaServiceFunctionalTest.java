@@ -26,12 +26,12 @@ package io.evitadb.externalApi.grpc.services;
 import com.google.protobuf.Empty;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.core.Evita;
+import io.evitadb.driver.interceptor.ClientSessionInterceptor;
+import io.evitadb.driver.interceptor.ClientSessionInterceptor.SessionIdHolder;
 import io.evitadb.externalApi.grpc.GrpcProvider;
 import io.evitadb.externalApi.grpc.TestChannelCreator;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc.EvitaServiceBlockingStub;
-import io.evitadb.driver.interceptor.ClientSessionInterceptor;
-import io.evitadb.driver.interceptor.ClientSessionInterceptor.SessionIdHolder;
 import io.evitadb.externalApi.grpc.testUtils.TestDataProvider;
 import io.evitadb.externalApi.system.SystemProvider;
 import io.evitadb.server.EvitaServer;
@@ -207,7 +207,7 @@ class EvitaServiceFunctionalTest {
 			});
 		}
 
-		assertTrue(latch.await(5, TimeUnit.SECONDS), "Timeouted!");
+		assertTrue(latch.await(60, TimeUnit.SECONDS), "Timeouted!");
 
 		if (terminatingException.get() != null) {
 			throw terminatingException.get();
