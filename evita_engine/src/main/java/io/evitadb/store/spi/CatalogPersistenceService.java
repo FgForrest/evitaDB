@@ -244,8 +244,9 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	Stream<Mutation> getCommittedMutationStream(long catalogVersion);
 
 	/**
-	 * TODO JNO - DOCUMENT ME
-	 * @return
+	 * Retrieves the last catalog version written in the WAL stream.
+	 *
+	 * @return the last catalog version written in the WAL stream
 	 */
 	long getLastCatalogVersionInMutationStream();
 

@@ -146,6 +146,41 @@ public class ObservableInput<T extends InputStream> extends Input {
 		return (T) super.getInputStream();
 	}
 
+	/**
+	 * This method allows reading a single int from the buffer outside of {@link #markStart()} and {@link #markEnd(byte)}
+	 * method calls. It's used when there is numeric information between consecutive {@link StorageRecord}. We can't
+	 * simply call {@link #readInt()} on observable input because it would trigger {@link #require(int)} method that
+	 * interoperates with internal counters expecting a {@link StorageRecord} lifecycle. This method will set and clears
+	 * all the internal counters so that the single integer can be read "off the record".
+	 *
+	 * @return int read from the buffer
+	 */
+	public int simpleIntRead() {
+		this.startPosition = super.position;
+		this.expectedLength = 4;
+		this.accumulatedLength = 0;
+		this.payloadStartPosition = this.position;
+		this.payloadPrefixLength = computeReadLengthUpTo(this.payloadStartPosition);
+		this.actualLimit = this.limit > 0 ? this.limit : -1;
+		this.limit = Math.min(this.buffer.length, constraintLimitWithRecordLength(0) + this.payloadPrefixLength);
+		this.readingTail = true;
+		try {
+			return readInt();
+		} finally {
+			this.limit = this.actualLimit >= 0 ? this.actualLimit : this.limit;
+			this.actualLimit = -1;
+			this.startPosition = -1;
+			this.expectedLength = -1;
+			this.accumulatedLength = 0;
+			this.payloadStartPosition = -1;
+			this.payloadPrefixLength = 0;
+			this.readingTail = false;
+		}
+	}
+
+	/**
+	 * This method overrides original implementation and clears also all the internal counters.
+	 */
 	@Override
 	public void reset() {
 		super.reset();
@@ -178,33 +213,6 @@ public class ObservableInput<T extends InputStream> extends Input {
 			count -= skipCount;
 			if (count == 0) break;
 			skipCount = Math.min(count, capacity);
-		}
-	}
-
-	/**
-	 * TODO JNO - DOCUMENT AND CLEAR
-	 * @return
-	 */
-	public int simpleIntRead() {
-		this.startPosition = super.position;
-		this.expectedLength = 4;
-		this.accumulatedLength = 0;
-		this.payloadStartPosition = this.position;
-		this.payloadPrefixLength = computeReadLengthUpTo(this.payloadStartPosition);
-		this.actualLimit = this.limit > 0 ? this.limit : -1;
-		this.limit = Math.min(this.buffer.length, constraintLimitWithRecordLength(0) + this.payloadPrefixLength);
-		this.readingTail = true;
-		try {
-			return readInt();
-		} finally {
-			this.limit = this.actualLimit >= 0 ? this.actualLimit : this.limit;
-			this.actualLimit = -1;
-			this.startPosition = -1;
-			this.expectedLength = -1;
-			this.accumulatedLength = 0;
-			this.payloadStartPosition = -1;
-			this.payloadPrefixLength = 0;
-			this.readingTail = false;
 		}
 	}
 

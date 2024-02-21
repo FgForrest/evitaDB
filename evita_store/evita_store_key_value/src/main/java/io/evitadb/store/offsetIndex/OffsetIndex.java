@@ -1511,7 +1511,7 @@ public class OffsetIndex {
 				final long[] nv = this.nonFlushedVersions;
 				final ConcurrentHashMap<Long, NonFlushedValueSet> nvSet = this.nonFlushedValues;
 				Assert.isPremiseValid(
-					catalogVersion >= nv[nv.length -1],
+					catalogVersion >= nv[nv.length - 1],
 					"Catalog version is expected to be at least " + nv[nv.length - 1] + "!"
 				);
 				final List<NonFlushedValueSet> result = new ArrayList<>(nv.length);
@@ -1535,7 +1535,7 @@ public class OffsetIndex {
 		 * versions of the records that were overwritten by the new versions.
 		 *
 		 * @param nonFlushedValueSetsToPromote the set of non-flushed values to promote to the shared state
-		 * @param keyToLocations the map of current shared state of the record keys to their file locations
+		 * @param keyToLocations               the map of current shared state of the record keys to their file locations
 		 */
 		public void recordHistoricalVersions(
 			@Nonnull Collection<NonFlushedValueSet> nonFlushedValueSetsToPromote,
@@ -1767,6 +1767,21 @@ public class OffsetIndex {
 	}
 
 	/**
+	 * This record is used to propagate multiple values in the {@link #doFlush(long, OffsetIndexDescriptor, boolean)}
+	 * method.
+	 *
+	 * @param nonFlushedValueSets set of non-flushed value sets that have been flushed
+	 * @param valueCount          count of non-flushed values that have been flushed (allows to properly initialize collection sizes)
+	 * @param fileLocation        the file location of the offset-index descriptor in the file that covers the newly flushed values
+	 */
+	private record NonFlushedValuesWithFileLocation(
+		@Nonnull Collection<NonFlushedValueSet> nonFlushedValueSets,
+		int valueCount,
+		@Nonnull FileLocation fileLocation
+	) {
+	}
+
+	/**
 	 * This class is used to monitor and limit {@link ReadOnlyHandle} pool. It creates new handles on demand in
 	 * locked fashion and verifies that maximum opened handles limit is not exceeded.
 	 */
@@ -1817,16 +1832,5 @@ public class OffsetIndex {
 		}
 
 	}
-
-	/**
-	 * TODO JNO - document me
-	 * @param nonFlushedValueSets
-	 * @param fileLocation
-	 */
-	record NonFlushedValuesWithFileLocation(
-		@Nonnull Collection<NonFlushedValueSet> nonFlushedValueSets,
-		int valueCount,
-		@Nonnull FileLocation fileLocation
-	) {}
 
 }

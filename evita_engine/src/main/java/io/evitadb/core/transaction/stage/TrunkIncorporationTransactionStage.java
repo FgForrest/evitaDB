@@ -183,10 +183,6 @@ public final class TrunkIncorporationTransactionStage
 										final Mutation mutation = mutationIterator.next();
 										log.debug("Processing mutation: {}", mutation);
 										mutationCount++;
-										/* TODO JNO - remove */
-										if (mutation instanceof EntityUpsertMutation eum) {
-											System.out.println("INSERTED: " + eum.getEntityPrimaryKey());
-										}
 										catalog.applyMutation(
 											mutation instanceof EntityUpsertMutation ?
 												new VerifiedEntityUpsertMutation((EntityUpsertMutation) mutation)

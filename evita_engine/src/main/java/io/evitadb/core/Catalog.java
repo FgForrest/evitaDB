@@ -1048,8 +1048,9 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 	}
 
 	/**
-	 * TODO JNO - document me
-	 * @return
+	 * Retrieves the last catalog version written in the WAL stream.
+	 *
+	 * @return the last catalog version written in the WAL stream
 	 */
 	public long getLastCatalogVersionInMutationStream() {
 		return this.persistenceService.getLastCatalogVersionInMutationStream();
