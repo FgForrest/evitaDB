@@ -24,6 +24,7 @@
 package io.evitadb.core.transaction.memory;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Closeable;
 
 /**
@@ -50,7 +51,8 @@ public interface TransactionalLayerMaintainerFinalizer {
 	 * Rolls back the changes made in a transactional layer and frees related {@link Closeable} resources.
 	 *
 	 * @param transactionalLayer the transactional layer to rollback changes from
+	 * @param cause              the cause of the rollback
 	 */
-	void rollback(@Nonnull TransactionalLayerMaintainer transactionalLayer);
+	void rollback(@Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Throwable cause);
 
 }

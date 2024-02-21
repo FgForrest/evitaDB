@@ -26,11 +26,15 @@ package io.evitadb.api;
 import com.github.javafaker.Faker;
 import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.TransactionContract.CommitBehavior;
+import io.evitadb.api.exception.RollbackException;
+import io.evitadb.api.requestResponse.data.InstanceEditor;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.core.Evita;
 import io.evitadb.core.Transaction;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.function.TriFunction;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
@@ -56,6 +60,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
+import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.TestConstants.LONG_RUNNING_TEST;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
@@ -214,6 +219,113 @@ public class EvitaTransactionalFunctionalTest {
 		}
 
 		assertTrue(expectedResult, "Entity not found in catalog!");
+	}
+
+	@DisplayName("Update rollback transaction in manually opened session when exception is thrown.")
+	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
+	@Test
+	void shouldAutomaticallyRollbackTheTransactionWhenExceptionIsThrownInManuallyOpenedSession(EvitaContract evita, SealedEntitySchema productSchema) {
+		final EvitaSessionContract session = evita.createSession(new SessionTraits(TEST_CATALOG, CommitBehavior.WAIT_FOR_INDEX_PROPAGATION, SessionFlags.READ_WRITE));
+
+		final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(entityType, session, faker);
+		final Optional<EntityMutation> entityMutation = dataGenerator.generateEntities(productSchema, randomEntityPicker, SEED)
+			.findFirst()
+			.flatMap(InstanceEditor::toMutation);
+		assertTrue(entityMutation.isPresent());
+
+		final SealedEntity addedEntity = session.upsertAndFetchEntity(entityMutation.get(), entityFetchAllContent());
+
+		try {
+			session.upsertEntity(entityMutation.get());
+			fail("Exception should be thrown (duplicate values)!");
+		} catch (Exception ex) {
+			// yes, we expect exception
+		}
+
+		try {
+			session.close();
+			fail("Exception should be thrown (rollback)!");
+		} catch (RollbackException ex) {
+			// yes, we expect exception on rollback that documents that the evitaDB automatically rolled back the transaction
+		}
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			theNewSession -> {
+				final Optional<SealedEntity> fetchedEntity = theNewSession.getEntity(productSchema.getName(), addedEntity.getPrimaryKey());
+				assertFalse(fetchedEntity.isPresent());
+			}
+		);
+	}
+
+	@DisplayName("Update rollback transaction in manually opened session when exception is thrown.")
+	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
+	@Test
+	void shouldAutomaticallyRollbackTheTransactionWhenExceptionIsThrownInLambda(EvitaContract evita, SealedEntitySchema productSchema) {
+		final AtomicReference<SealedEntity> addedEntity = new AtomicReference<>();
+		try {
+			evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(entityType, session, faker);
+					final Optional<EntityMutation> entityMutation = dataGenerator.generateEntities(productSchema, randomEntityPicker, SEED)
+						.findFirst()
+						.flatMap(InstanceEditor::toMutation);
+					assertTrue(entityMutation.isPresent());
+
+					addedEntity.set(session.upsertAndFetchEntity(entityMutation.get(), entityFetchAllContent()));
+					// this call will throw an exception
+					session.upsertEntity(entityMutation.get());
+					fail("Exception should be thrown (duplicate values)!");
+				}
+			);
+		} catch (EvitaInvalidUsageException ex) {
+			// yes, we expect exception (duplicate values)
+		}
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			theNewSession -> {
+				final Optional<SealedEntity> fetchedEntity = theNewSession.getEntity(productSchema.getName(), addedEntity.get().getPrimaryKey());
+				assertFalse(fetchedEntity.isPresent());
+			}
+		);
+	}
+
+	@DisplayName("Don't rollback action when exception is throw and caught in lambda.")
+	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
+	@Test
+	void shouldNotRollbackTheTransactionWhenExceptionIsThrownAndCaughtInLambda(EvitaContract evita, SealedEntitySchema productSchema) {
+		final SealedEntity addedEntity = evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(entityType, session, faker);
+				final Optional<EntityMutation> entityMutation = dataGenerator.generateEntities(productSchema, randomEntityPicker, SEED)
+					.findFirst()
+					.flatMap(InstanceEditor::toMutation);
+				assertTrue(entityMutation.isPresent());
+
+				final SealedEntity result = session.upsertAndFetchEntity(entityMutation.get(), entityFetchAllContent());
+
+				try {
+					session.upsertEntity(entityMutation.get());
+					fail("Exception should be thrown (duplicate values)!");
+				} catch (Exception ex) {
+					// yes, we expect exception
+				}
+
+				return result;
+			}
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final Optional<SealedEntity> fetchedEntity = session.getEntity(productSchema.getName(), addedEntity.getPrimaryKey());
+				assertTrue(fetchedEntity.isPresent());
+				assertEquals(addedEntity, fetchedEntity.get());
+			}
+		);
 	}
 
 	@DisplayName("Update catalog with another product - synchronously using runnable.")

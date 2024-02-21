@@ -325,12 +325,9 @@ public final class Evita implements EvitaContract {
 	@Override
 	@Nonnull
 	@SuppressWarnings("resource")
-	public EvitaSessionContract createSession(@Nullable CommitBehavior commitBehaviour, @Nonnull SessionTraits traits) {
+	public EvitaSessionContract createSession(@Nonnull SessionTraits traits) {
 		notNull(traits.catalogName(), "Catalog name is mandatory information.");
-		return createSessionInternal(
-			commitBehaviour == null ? CommitBehavior.defaultBehaviour() : commitBehaviour,
-			traits
-		).session();
+		return createSessionInternal(traits).session();
 	}
 
 	@Override
@@ -452,11 +449,12 @@ public final class Evita implements EvitaContract {
 		}
 		final SessionTraits traits = new SessionTraits(
 			catalogName,
+			commitBehaviour,
 			flags == null ?
 				new SessionFlags[]{SessionFlags.READ_WRITE} :
 				ArrayUtils.insertRecordIntoArray(SessionFlags.READ_WRITE, flags, flags.length)
 		);
-		final CreatedSession createdSession = this.createSessionInternal(commitBehaviour, traits);
+		final CreatedSession createdSession = this.createSessionInternal(traits);
 		try {
 			final T resultValue = createdSession.session().execute(updater);
 			// join the transaction future and return the result
@@ -487,12 +485,13 @@ public final class Evita implements EvitaContract {
 		}
 		final SessionTraits traits = new SessionTraits(
 			catalogName,
+			commitBehaviour,
 			flags == null ?
 				new SessionFlags[]{SessionFlags.READ_WRITE} :
 				ArrayUtils.insertRecordIntoArray(SessionFlags.READ_WRITE, flags, flags.length)
 		);
 
-		final CreatedSession createdSession = this.createSessionInternal(commitBehaviour, traits);
+		final CreatedSession createdSession = this.createSessionInternal(traits);
 		try {
 			final EvitaInternalSessionContract theSession = createdSession.session();
 			theSession.execute(updater);
@@ -817,8 +816,7 @@ public final class Evita implements EvitaContract {
 	 * Creates {@link EvitaSession} instance and registers all appropriate termination callbacks along.
 	 */
 	@Nonnull
-	private CreatedSession createSessionInternal(@Nonnull CommitBehavior commitBehaviour, @Nonnull SessionTraits sessionTraits) {
-		Assert.notNull(commitBehaviour, "Commit behaviour is mandatory information.");
+	private CreatedSession createSessionInternal(@Nonnull SessionTraits sessionTraits) {
 		final CatalogContract catalogContract = getCatalogInstanceOrThrowException(sessionTraits.catalogName());
 		final Catalog catalog;
 		if (catalogContract instanceof CorruptedCatalog corruptedCatalog) {
@@ -854,7 +852,7 @@ public final class Evita implements EvitaContract {
 			catalog.supportsTransaction(),
 			() -> {
 				final EvitaSession evitaSession = new EvitaSession(
-					this, catalog, reflectionLookup, terminationCallback, commitBehaviour, sessionTraits
+					this, catalog, reflectionLookup, terminationCallback, sessionTraits.commitBehaviour(), sessionTraits
 				);
 				if (sessionTraits.isReadWrite()) {
 					catalog.increaseWriterCount();

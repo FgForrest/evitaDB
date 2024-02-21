@@ -98,9 +98,9 @@ public class TransactionalMemory {
 	/**
 	 * Rolls back the transaction, cleans up all resources connected with them.
 	 */
-	public void rollback() {
+	public void rollback(@Nullable Throwable cause) {
 		// execute rollback - some transactional objects may want to react and clean-up resources
-		transactionalLayer.rollback();
+		transactionalLayer.rollback(cause);
 	}
 
 	/**

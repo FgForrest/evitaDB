@@ -88,10 +88,6 @@ public final class TrunkIncorporationTransactionStage
 	/**
 	 * Contains the ID of the last finalized transaction. This is used to skip already processed transaction.
 	 */
-	private UUID lastFinalizedTransactionId;
-	/**
-	 * The version number of the last finalized catalog.
-	 */
 	private long lastFinalizedCatalogVersion;
 
 	public TrunkIncorporationTransactionStage(
@@ -114,7 +110,7 @@ public final class TrunkIncorporationTransactionStage
 
 	@Override
 	protected void handleNext(@Nonnull TrunkIncorporationTransactionTask task) {
-		if (task.catalogVersion() <= lastFinalizedCatalogVersion) {
+		if (task.catalogVersion() <= this.lastFinalizedCatalogVersion) {
 			// the transaction has been already processed
 			if (task.future() != null) {
 				// we can't mark transaction as processed until it's propagated to the "live view"
@@ -124,6 +120,7 @@ public final class TrunkIncorporationTransactionStage
 		} else {
 			final long lastCatalogVersionInLiveView;
 			this.catalog.increaseWriterCount();
+			UUID lastFinalizedTransactionId;
 			try {
 				TransactionMutation lastTransaction = null;
 				Transaction transaction = null;
@@ -241,7 +238,7 @@ public final class TrunkIncorporationTransactionStage
 				);
 
 				// update the last finalized transaction ID and catalog version
-				this.lastFinalizedTransactionId = finalLastTransaction.getTransactionId();
+				lastFinalizedTransactionId = finalLastTransaction.getTransactionId();
 				this.lastFinalizedCatalogVersion = finalLastTransaction.getCatalogVersion();
 
 				log.debug("Finalizing catalog: {}", this.lastFinalizedCatalogVersion);
@@ -256,7 +253,7 @@ public final class TrunkIncorporationTransactionStage
 				task,
 				new UpdatedCatalogTransactionTask(
 					this.catalog,
-					this.lastFinalizedTransactionId,
+					lastFinalizedTransactionId,
 					task.commitBehaviour(),
 					task.future()
 				)

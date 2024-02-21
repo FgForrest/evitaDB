@@ -23,6 +23,8 @@
 
 package io.evitadb.api;
 
+import io.evitadb.api.TransactionContract.CommitBehavior;
+
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Arrays;
@@ -38,11 +40,20 @@ import java.util.EnumSet;
 public record SessionTraits(
 	@Nonnull String catalogName,
 	@Nonnull EnumSet<SessionFlags> flags,
+	@Nullable CommitBehavior commitBehaviour,
 	@Nullable EvitaSessionTerminationCallback onTermination
 ) {
 
 	public SessionTraits(@Nonnull String catalogName) {
-		this(catalogName, null, (SessionFlags[]) null);
+		this(catalogName, null, CommitBehavior.defaultBehaviour(), (SessionFlags[]) null);
+	}
+
+	public SessionTraits(@Nonnull String catalogName, @Nullable CommitBehavior commitBehaviour) {
+		this(catalogName, null, commitBehaviour, (SessionFlags[]) null);
+	}
+
+	public SessionTraits(@Nonnull String catalogName, @Nullable CommitBehavior commitBehaviour, @Nullable SessionFlags... flags) {
+		this(catalogName, null, commitBehaviour, flags);
 	}
 
 	public SessionTraits(
@@ -50,17 +61,27 @@ public record SessionTraits(
 		@Nullable EvitaSessionTerminationCallback onTermination,
 		@Nullable SessionFlags... flags
 	) {
+		this(catalogName, onTermination, CommitBehavior.defaultBehaviour(), flags);
+	}
+
+	public SessionTraits(
+		@Nonnull String catalogName,
+		@Nullable EvitaSessionTerminationCallback onTermination,
+		@Nullable CommitBehavior commitBehaviour,
+		@Nullable SessionFlags... flags
+	) {
 		this(
 			catalogName,
 			flags == null || flags.length == 0 ?
 				EnumSet.noneOf(SessionFlags.class) :
 				(flags.length == 1 ? EnumSet.of(flags[0]) : EnumSet.of(flags[0], Arrays.copyOfRange(flags, 1, flags.length))),
+			commitBehaviour == null ? CommitBehavior.defaultBehaviour() : commitBehaviour,
 			onTermination
 		);
 	}
 
 	public SessionTraits(@Nonnull String catalogName, @Nullable SessionFlags... flags) {
-		this(catalogName, null, flags);
+		this(catalogName, null, CommitBehavior.defaultBehaviour(), flags);
 	}
 
 	/**

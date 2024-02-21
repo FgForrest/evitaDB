@@ -80,7 +80,7 @@ public class TransactionTrunkFinalizer implements TransactionHandler {
 	}
 
 	@Override
-	public void rollback(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
+	public void rollback(@Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Throwable cause) {
 		throw new EvitaInternalError("Rollback is not supported here!");
 	}
 

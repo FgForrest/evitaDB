@@ -105,22 +105,7 @@ public interface EvitaContract extends AutoCloseable {
 	 * @see #close()
 	 */
 	@Nonnull
-	default EvitaSessionContract createSession(@Nonnull SessionTraits traits) {
-		return createSession(CommitBehavior.defaultBehaviour(), traits);
-	}
-
-	/**
-	 * Creates {@link EvitaSessionContract} for querying the database. This is the most versatile method for initializing a new
-	 * session allowing to pass all configurable options in `traits` argument.
-	 *
-	 * Remember to {@link #close()} or {@link #terminateSession(EvitaSessionContract)} when your work with Evita is finished.
-	 * EvitaSession is not thread safe!
-	 *
-	 * @return new instance of EvitaSession
-	 * @see #close()
-	 */
-	@Nonnull
-	EvitaSessionContract createSession(@Nullable CommitBehavior commitBehaviour, @Nonnull SessionTraits traits);
+	EvitaSessionContract createSession(@Nonnull SessionTraits traits);
 
 	/**
 	 * Method returns active session by its unique id or NULL if such session is not found.

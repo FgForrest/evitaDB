@@ -31,6 +31,7 @@ import graphql.execution.instrumentation.SimplePerformantInstrumentation;
 import graphql.execution.instrumentation.parameters.InstrumentationExecutionParameters;
 import graphql.language.OperationDefinition;
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.exception.RollbackException;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import lombok.RequiredArgsConstructor;
@@ -84,7 +85,12 @@ public class EvitaSessionManagingInstrumentation extends SimplePerformantInstrum
                                                                         @Nonnull InstrumentationState state) {
         final EvitaSessionContract evitaSession = parameters.getGraphQLContext().get(GraphQLContextKey.EVITA_SESSION);
         if (evitaSession != null) {
-            evitaSession.close();
+            try {
+                evitaSession.close();
+            } catch (RollbackException ex) {
+                // we can ignore the rollback exception here,
+                // because the exception has been already handled by exception handler
+            }
         }
 
         return CompletableFuture.completedFuture(executionResult);

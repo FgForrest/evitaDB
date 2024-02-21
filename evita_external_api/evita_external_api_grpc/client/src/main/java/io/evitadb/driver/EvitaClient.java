@@ -257,7 +257,7 @@ public class EvitaClient implements EvitaContract {
 
 	@Nonnull
 	@Override
-	public EvitaClientSession createSession(@Nullable CommitBehavior commitBehaviour, @Nonnull SessionTraits traits) {
+	public EvitaClientSession createSession(@Nonnull SessionTraits traits) {
 		assertActive();
 		final GrpcEvitaSessionResponse grpcResponse;
 
@@ -267,7 +267,7 @@ public class EvitaClient implements EvitaContract {
 					evitaService.createBinaryReadWriteSession(
 						GrpcEvitaSessionRequest.newBuilder()
 							.setCatalogName(traits.catalogName())
-							.setCommitBehavior(EvitaEnumConverter.toGrpcCommitBehavior(commitBehaviour))
+							.setCommitBehavior(EvitaEnumConverter.toGrpcCommitBehavior(traits.commitBehaviour()))
 							.setDryRun(traits.isDryRun())
 							.build()
 					).get(configuration.timeout(), configuration.timeoutUnit())
@@ -277,7 +277,7 @@ public class EvitaClient implements EvitaContract {
 					evitaService.createReadWriteSession(
 						GrpcEvitaSessionRequest.newBuilder()
 							.setCatalogName(traits.catalogName())
-							.setCommitBehavior(EvitaEnumConverter.toGrpcCommitBehavior(commitBehaviour))
+							.setCommitBehavior(EvitaEnumConverter.toGrpcCommitBehavior(traits.commitBehaviour()))
 							.setDryRun(traits.isDryRun())
 							.build()
 					).get(configuration.timeout(), configuration.timeoutUnit())
@@ -472,11 +472,12 @@ public class EvitaClient implements EvitaContract {
 		assertActive();
 		final SessionTraits traits = new SessionTraits(
 			catalogName,
+			commitBehaviour,
 			flags == null ?
 				new SessionFlags[]{SessionFlags.READ_WRITE} :
 				ArrayUtils.insertRecordIntoArray(SessionFlags.READ_WRITE, flags, flags.length)
 		);
-		try (final EvitaSessionContract session = this.createSession(commitBehaviour, traits)) {
+		try (final EvitaSessionContract session = this.createSession(traits)) {
 			return updater.apply(session);
 		}
 	}
@@ -491,11 +492,12 @@ public class EvitaClient implements EvitaContract {
 		assertActive();
 		final SessionTraits traits = new SessionTraits(
 			catalogName,
+			commitBehaviour,
 			flags == null ?
 				new SessionFlags[]{SessionFlags.READ_WRITE} :
 				ArrayUtils.insertRecordIntoArray(SessionFlags.READ_WRITE, flags, flags.length)
 		);
-		final EvitaSessionContract session = this.createSession(commitBehaviour, traits);
+		final EvitaSessionContract session = this.createSession(traits);
 		final CompletableFuture<Long> closeFuture;
 		final T resultValue;
 		try {
@@ -521,11 +523,12 @@ public class EvitaClient implements EvitaContract {
 		assertActive();
 		final SessionTraits traits = new SessionTraits(
 			catalogName,
+			commitBehaviour,
 			flags == null ?
 				new SessionFlags[]{SessionFlags.READ_WRITE} :
 				ArrayUtils.insertRecordIntoArray(SessionFlags.READ_WRITE, flags, flags.length)
 		);
-		try (final EvitaSessionContract session = this.createSession(commitBehaviour, traits)) {
+		try (final EvitaSessionContract session = this.createSession(traits)) {
 			updater.accept(session);
 		}
 	}
@@ -540,11 +543,12 @@ public class EvitaClient implements EvitaContract {
 		assertActive();
 		final SessionTraits traits = new SessionTraits(
 			catalogName,
+			commitBehaviour,
 			flags == null ?
 				new SessionFlags[]{SessionFlags.READ_WRITE} :
 				ArrayUtils.insertRecordIntoArray(SessionFlags.READ_WRITE, flags, flags.length)
 		);
-		final EvitaSessionContract session = this.createSession(commitBehaviour, traits);
+		final EvitaSessionContract session = this.createSession(traits);
 		final CompletableFuture<Long> closeFuture;
 		try {
 			updater.accept(session);

@@ -333,7 +333,7 @@ public class AssertionUtils {
 		}
 
 		@Override
-		public void rollback(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
+		public void rollback(@Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Throwable cause) {
 			// do nothing
 		}
 	}
@@ -370,7 +370,7 @@ public class AssertionUtils {
 		}
 
 		@Override
-		public void rollback(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
+		public void rollback(@Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Throwable cause) {
 			this.committed = new ArrayList<>(tested.size());
 			for (int i = 0; i < tested.size(); i++) {
 				this.committed.add(null);
