@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,22 +21,23 @@
  *   limitations under the License.
  */
 
-package io.evitadb.index.iterator;
+package io.evitadb.dataType.iterator;
 
-import java.util.Iterator;
 import java.util.NoSuchElementException;
+import java.util.PrimitiveIterator.OfInt;
 
 /**
- * This {@link Iterator} implementation iterates over constant array of objects passed in constructor.
+ * This {@link OfInt} implementation iterates over constant array of ints passed in constructor.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
-public class ConstantObjIterator<T extends Comparable<T>> implements Iterator<T> {
-	private final T[] constant;
+public class ConstantIntIterator implements OfInt {
+	private static final int END_OF_STREAM = -1;
+	private final int[] constant;
 	private int index = -1;
-	private T nextNumberToReturn = null;
+	private int nextNumberToReturn = END_OF_STREAM;
 
-	public ConstantObjIterator(T[] constant) {
+	public ConstantIntIterator(int[] constant) {
 		this.constant = constant;
 		if (this.constant.length > 0) {
 			this.nextNumberToReturn = this.constant[++index];
@@ -44,24 +45,24 @@ public class ConstantObjIterator<T extends Comparable<T>> implements Iterator<T>
 	}
 
 	@Override
-	public T next() {
-		if (nextNumberToReturn == null) {
+	public int nextInt() {
+		if (nextNumberToReturn == END_OF_STREAM) {
 			throw new NoSuchElementException("Stream exhausted!");
 		}
-		final T numberToReturn = this.nextNumberToReturn;
+		final int numberToReturn = this.nextNumberToReturn;
 		final int nextIndex = index + 1;
 		if (nextIndex < constant.length) {
 			this.nextNumberToReturn = this.constant[++index];
 		} else {
 			index++;
-			this.nextNumberToReturn = null;
+			this.nextNumberToReturn = END_OF_STREAM;
 		}
 		return numberToReturn;
 	}
 
 	@Override
 	public boolean hasNext() {
-		return nextNumberToReturn != null;
+		return nextNumberToReturn != END_OF_STREAM;
 	}
 
 }

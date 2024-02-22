@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -41,7 +41,6 @@ import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure.CalculationContext;
 import io.evitadb.core.query.sort.CacheableSorter;
 import io.evitadb.core.query.sort.Sorter;
-import io.evitadb.core.scheduling.Scheduler;
 import io.evitadb.utils.CollectionUtils;
 import lombok.extern.slf4j.Slf4j;
 import net.openhft.hashing.LongHashFunction;
@@ -55,6 +54,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
@@ -97,7 +97,7 @@ public class CacheAnteroom {
 	/**
 	 * Contains reference to the asynchronous task executor.
 	 */
-	private final Scheduler scheduler;
+	private final ScheduledExecutorService scheduler;
 	/**
 	 * Contains a hash map that collects adepts for the caching. In other terms the expensive data structures that were
 	 * recently computed and might be worth caching. The map is cleared each time {@link #evaluateAssociates(boolean)}
@@ -105,7 +105,7 @@ public class CacheAnteroom {
 	 */
 	private final AtomicReference<ConcurrentHashMap<Long, CacheRecordAdept>> cacheAdepts;
 
-	public CacheAnteroom(int maxRecordCount, long minimalComplexityThreshold, @Nonnull CacheEden cacheEden, @Nonnull Scheduler scheduler) {
+	public CacheAnteroom(int maxRecordCount, long minimalComplexityThreshold, @Nonnull CacheEden cacheEden, @Nonnull ScheduledExecutorService scheduler) {
 		this.cacheAdepts = new AtomicReference<>(CollectionUtils.createConcurrentHashMap((int) (maxRecordCount * 1.1)));
 		this.cacheEden = cacheEden;
 		this.maxRecordCount = maxRecordCount;

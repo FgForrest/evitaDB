@@ -114,6 +114,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -196,9 +197,9 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	@Nonnull
 	private final WriteOnlyHandle bootstrapWriteHandle;
 	/**
-	 * Contains the instance of {@link CatalogBootstrap} that contains the last bootstrap record that is currently used.
+	 * Scheduled executor service is used for planning maintenance tasks on the data level.
 	 */
-	private CatalogBootstrap bootstrapUsed;
+	@Nonnull private final ScheduledExecutorService executorService;
 	/**
 	 * Pool contains instances of {@link Kryo} that are used for serializing mutations in WAL.
 	 */
@@ -208,6 +209,10 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			return KryoFactory.createKryo(WalKryoConfigurer.INSTANCE);
 		}
 	};
+	/**
+	 * Contains the instance of {@link CatalogBootstrap} that contains the last bootstrap record that is currently used.
+	 */
+	private CatalogBootstrap bootstrapUsed;
 	/**
 	 * Contains the instance of {@link CatalogWriteAheadLog} that is used for writing mutations into shared WAL.
 	 */
@@ -360,7 +365,8 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		@Nonnull Path catalogStoragePath,
 		@Nonnull CatalogHeader catalogHeader,
 		@Nonnull Pool<Kryo> catalogKryoPool,
-		@Nonnull StorageOptions storageOptions
+		@Nonnull StorageOptions storageOptions,
+		@Nonnull ScheduledExecutorService executorService
 	) {
 		WalFileReference currentWalFileRef = catalogHeader.walFileReference();
 		if (catalogHeader.catalogState() == CatalogState.ALIVE && currentWalFileRef == null) {
@@ -393,7 +399,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		return ofNullable(currentWalFileRef)
 			.map(
 				walFileReference -> new CatalogWriteAheadLog(
-					catalogName, catalogStoragePath, walFileReference, catalogKryoPool, storageOptions
+					catalogName, catalogStoragePath, walFileReference, catalogKryoPool, storageOptions, executorService
 				)
 			)
 			.orElse(null);
@@ -402,10 +408,12 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	public DefaultCatalogPersistenceService(
 		@Nonnull String catalogName,
 		@Nonnull StorageOptions storageOptions,
-		@Nonnull TransactionOptions transactionOptions
+		@Nonnull TransactionOptions transactionOptions,
+		@Nonnull ScheduledExecutorService executorService
 	) {
 		this.storageOptions = storageOptions;
 		this.transactionOptions = transactionOptions;
+		this.executorService = executorService;
 		this.offHeapMemoryManager = new OffHeapMemoryManager(
 			transactionOptions.transactionMemoryBufferLimitSizeBytes(),
 			transactionOptions.transactionMemoryRegionCount()
@@ -457,10 +465,12 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		@Nonnull String catalogName,
 		@Nonnull Path catalogStoragePath,
 		@Nonnull StorageOptions storageOptions,
-		@Nonnull TransactionOptions transactionOptions
+		@Nonnull TransactionOptions transactionOptions,
+		@Nonnull ScheduledExecutorService executorService
 	) {
 		this.storageOptions = storageOptions;
 		this.transactionOptions = transactionOptions;
+		this.executorService = executorService;
 		this.offHeapMemoryManager = new OffHeapMemoryManager(
 			transactionOptions.transactionMemoryBufferLimitSizeBytes(),
 			transactionOptions.transactionMemoryRegionCount()
@@ -511,7 +521,8 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		@Nonnull CatalogBootstrap bootstrapUsed,
 		@Nonnull WriteOnlyHandle bootstrapWriteHandle,
 		@Nonnull StorageOptions storageOptions,
-		@Nonnull TransactionOptions transactionOptions
+		@Nonnull TransactionOptions transactionOptions,
+		@Nonnull ScheduledExecutorService executorService
 	) {
 		this.bootstrapUsed = bootstrapUsed;
 		this.recordTypeRegistry = fileOffsetIndexRecordTypeRegistry;
@@ -522,6 +533,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		this.bootstrapWriteHandle = bootstrapWriteHandle;
 		this.storageOptions = storageOptions;
 		this.transactionOptions = transactionOptions;
+		this.executorService = executorService;
 
 		final String catalogFileName = getCatalogDataStoreFileName(catalogName, this.bootstrapUsed.catalogFileIndex());
 		final Path catalogFilePath = this.catalogStoragePath.resolve(catalogFileName);
@@ -728,7 +740,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		if (this.catalogWal == null) {
 			final CatalogHeader catalogHeader = this.catalogStoragePartPersistenceService.getCatalogHeader(bootstrapUsed.catalogVersion());
 			this.catalogWal = getCatalogWriteAheadLog(
-				catalogName, this.catalogStoragePath, catalogHeader, catalogKryoPool, storageOptions
+				catalogName, this.catalogStoragePath, catalogHeader, catalogKryoPool, storageOptions, executorService
 			);
 		}
 		Assert.isPremiseValid(
@@ -847,7 +859,8 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 					this.observableOutputKeeper
 				),
 				this.storageOptions,
-				this.transactionOptions
+				this.transactionOptions,
+				this.executorService
 			);
 		} catch (RuntimeException ex) {
 			// rename original directory back
@@ -960,7 +973,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		if (this.catalogWal == null) {
 			return Stream.empty();
 		} else {
-			return this.catalogWal.getCommittedMutationStream(catalogVersion);
+			return this.catalogWal.getCommittedMutationStreamAvoidingPartiallyWrittenBuffer(catalogVersion);
 		}
 	}
 

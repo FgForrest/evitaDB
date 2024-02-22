@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,15 +21,15 @@
  *   limitations under the License.
  */
 
-package io.evitadb.index.iterator;
+package io.evitadb.dataType.iterator;
 
-import io.evitadb.index.array.CompositeIntArray;
-import org.roaringbitmap.RoaringBitmap;
+
+import io.evitadb.dataType.array.CompositeIntArray;
 
 import java.util.Iterator;
 
 /**
- * Interface that allows to wrap both {@link RoaringBitmap#getBatchIterator()} and {@link CompositeIntArray} to unified
+ * Interface that allows to wrap both RoaringBitmap batchIterator and {@link CompositeIntArray} to unified
  * iterator that optimally traverses the internal structures providing arrays with data loaded optimally in a batch
  * fashion.
  *
@@ -77,7 +77,7 @@ public interface BatchArrayIterator {
 	 * The benefit of calling advanceIfNeeded is that each such call can be much faster than repeated calls to "next".
 	 * The underlying implementation can "skip" over some data.
 	 *
-	 * The method copies the approach in {@link org.roaringbitmap.BatchIterator#advanceIfNeeded(int)}
+	 * The method copies the approach in `org.roaringbitmap.BatchIterator#advanceIfNeeded(int)`
 	 */
 	void advanceIfNeeded(int target);
 

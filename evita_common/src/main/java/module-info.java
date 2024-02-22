@@ -12,6 +12,8 @@ module evita.common {
 	exports io.evitadb.comparator;
 	exports io.evitadb.exception;
 	exports io.evitadb.utils;
+	exports io.evitadb.dataType.array;
+	exports io.evitadb.dataType.iterator;
 
 	requires org.slf4j;
 	requires jsr305;

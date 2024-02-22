@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,26 +21,47 @@
  *   limitations under the License.
  */
 
-package io.evitadb.index.iterator;
+package io.evitadb.dataType.iterator;
 
+import java.util.Iterator;
 import java.util.NoSuchElementException;
-import java.util.PrimitiveIterator.OfInt;
 
 /**
- * This implementation {@link OfInt} represents empty iterator.
+ * This {@link Iterator} implementation iterates over constant array of objects passed in constructor.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
-public class EmptyIntIterator implements OfInt {
-	public static final EmptyIntIterator INSTANCE = new EmptyIntIterator();
+public class ConstantObjIterator<T extends Comparable<T>> implements Iterator<T> {
+	private final T[] constant;
+	private int index = -1;
+	private T nextNumberToReturn = null;
+
+	public ConstantObjIterator(T[] constant) {
+		this.constant = constant;
+		if (this.constant.length > 0) {
+			this.nextNumberToReturn = this.constant[++index];
+		}
+	}
 
 	@Override
-	public int nextInt() {
-		throw new NoSuchElementException("No data in stream!");
+	public T next() {
+		if (nextNumberToReturn == null) {
+			throw new NoSuchElementException("Stream exhausted!");
+		}
+		final T numberToReturn = this.nextNumberToReturn;
+		final int nextIndex = index + 1;
+		if (nextIndex < constant.length) {
+			this.nextNumberToReturn = this.constant[++index];
+		} else {
+			index++;
+			this.nextNumberToReturn = null;
+		}
+		return numberToReturn;
 	}
 
 	@Override
 	public boolean hasNext() {
-		return false;
+		return nextNumberToReturn != null;
 	}
+
 }

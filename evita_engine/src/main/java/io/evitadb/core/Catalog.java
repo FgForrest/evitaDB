@@ -122,6 +122,7 @@ import java.util.Map.Entry;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Flow.Subscriber;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.SubmissionPublisher;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -296,7 +297,7 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull TransactionOptions transactionOptions,
 		@Nonnull ReflectionLookup reflectionLookup,
-		@Nonnull ExecutorService executorService,
+		@Nonnull ScheduledExecutorService executorService,
 		@Nonnull Consumer<Catalog> newCatalogVersionConsumer,
 		@Nonnull TracingContext tracingContext
 	) {
@@ -309,7 +310,8 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 		this.schema = new TransactionalReference<>(new CatalogSchemaDecorator(internalCatalogSchema));
 		this.persistenceService = ServiceLoader.load(CatalogPersistenceServiceFactory.class)
 			.findFirst()
-			.map(it -> it.createNew(this, this.getSchema().getName(), storageOptions, transactionOptions))
+			.map(it -> it.createNew(this, this.getSchema().getName(), storageOptions, transactionOptions, executorService)
+			)
 			.orElseThrow(StorageImplementationNotFoundException::new);
 
 		final CatalogStoragePartPersistenceService storagePartPersistenceService = this.persistenceService.getStoragePartPersistenceService();
@@ -353,14 +355,14 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull TransactionOptions transactionOptions,
 		@Nonnull ReflectionLookup reflectionLookup,
-		@Nonnull ExecutorService executorService,
+		@Nonnull ScheduledExecutorService executorService,
 		@Nonnull Consumer<Catalog> newCatalogVersionConsumer,
 		@Nonnull TracingContext tracingContext
 	) {
 		this.tracingContext = tracingContext;
 		this.persistenceService = ServiceLoader.load(CatalogPersistenceServiceFactory.class)
 			.findFirst()
-			.map(it -> it.load(this, catalogName, catalogPath, storageOptions, transactionOptions))
+			.map(it -> it.load(this, catalogName, catalogPath, storageOptions, transactionOptions, executorService))
 			.orElseThrow(() -> new IllegalStateException("IO service is unexpectedly not available!"));
 		final CatalogHeader catalogHeader = this.persistenceService.getCatalogHeader();
 		final long catalogVersion = catalogHeader.version();

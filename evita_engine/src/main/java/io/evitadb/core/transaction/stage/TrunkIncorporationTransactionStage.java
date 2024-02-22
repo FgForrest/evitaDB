@@ -126,7 +126,6 @@ public final class TrunkIncorporationTransactionStage
 				// prepare finalizer that doesn't finish the catalog automatically but on demand
 				final TransactionTrunkFinalizer transactionHandler = new TransactionTrunkFinalizer(this.catalog);
 				// read the mutations from the WAL since the current task version
-				/* TODO JNO - OPTIMIZE START TO LAST FINISHED POSITION IN THE FILE */
 				final Iterator<Mutation> mutationIterator = this.catalog
 					// if the transaction failed we need to replay it again
 					.getCommittedMutationStream(Math.min(task.catalogVersion(), this.lastFinalizedCatalogVersion + 1))

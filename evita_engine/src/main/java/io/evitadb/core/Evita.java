@@ -60,7 +60,6 @@ import io.evitadb.core.exception.CatalogCorruptedException;
 import io.evitadb.core.maintenance.SessionKiller;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.scheduling.RejectingExecutor;
-import io.evitadb.core.scheduling.Scheduler;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.thread.TimeoutableThread;
 import io.evitadb.utils.ArrayUtils;
@@ -149,11 +148,6 @@ public final class Evita implements EvitaContract {
 	 */
 	@Getter private final EvitaConfiguration configuration;
 	/**
-	 * Field contains reference to the scheduler that maintains shared Evita asynchronous tasks used for maintenance
-	 * operations.
-	 */
-	private final Scheduler scheduler;
-	/**
 	 * Reflection lookup is used to speed up reflection operation by memoizing the results for examined classes.
 	 */
 	private final ReflectionLookup reflectionLookup;
@@ -208,23 +202,22 @@ public final class Evita implements EvitaContract {
 			.setRegisterMBean(false)
 			.build();
 		this.executor.prestartAllCoreThreads();
-		this.scheduler = new Scheduler(executor);
 		if (configuration.server().killTimedOutShortRunningThreadsEverySeconds() > 0 &&
 			configuration.server().shortRunningThreadsTimeoutInSeconds() > 0) {
 			this.timeoutThreadKiller = new TimeoutThreadKiller(
 				configuration.server().shortRunningThreadsTimeoutInSeconds(),
 				configuration.server().killTimedOutShortRunningThreadsEverySeconds(),
-				this.executor,
-				this.scheduler);
+				this.executor
+			);
 		} else {
 			this.timeoutThreadKiller = null;
 		}
 		this.sessionKiller = of(configuration.server().closeSessionsAfterSecondsOfInactivity())
 			.filter(it -> it > 0)
-			.map(it -> new SessionKiller(it, this, this.scheduler))
+			.map(it -> new SessionKiller(it, this, this.executor))
 			.orElse(null);
 		this.cacheSupervisor = configuration.cache().enabled() ?
-			new HeapMemoryCacheSupervisor(configuration.cache(), scheduler) : NoCacheSupervisor.INSTANCE;
+			new HeapMemoryCacheSupervisor(configuration.cache(), this.executor) : NoCacheSupervisor.INSTANCE;
 		this.reflectionLookup = new ReflectionLookup(configuration.cache().reflection());
 		this.structuralChangeObservers = ServiceLoader.load(CatalogStructuralChangeObserver.class)
 			.stream()
@@ -241,7 +234,7 @@ public final class Evita implements EvitaContract {
 		final CountDownLatch startUpLatch = new CountDownLatch(directories.length);
 		for (Path directory : directories) {
 			final String catalogName = directory.toFile().getName();
-			scheduler.execute(() -> {
+			this.executor.execute(() -> {
 				CatalogContract catalog;
 				try {
 					final long start = System.nanoTime();
@@ -1040,13 +1033,14 @@ public final class Evita implements EvitaContract {
 		@Nonnull private final EnhancedQueueExecutor executor;
 		private final long timeoutInSeconds;
 
-		public TimeoutThreadKiller(int timeoutInSeconds,
-		                           int checkRateInSeconds,
-		                           @Nonnull EnhancedQueueExecutor executor,
-		                           @Nonnull Scheduler scheduler) {
+		public TimeoutThreadKiller(
+			int timeoutInSeconds,
+           int checkRateInSeconds,
+           @Nonnull EnhancedQueueExecutor executor
+		) {
 			this.timeoutInSeconds = timeoutInSeconds;
 			this.executor = executor;
-			scheduler.scheduleAtFixedRate(this, Math.min(60, checkRateInSeconds), Math.min(60, checkRateInSeconds), TimeUnit.SECONDS);
+			this.executor.scheduleAtFixedRate(this, Math.min(60, checkRateInSeconds), Math.min(60, checkRateInSeconds), TimeUnit.SECONDS);
 		}
 
 		@Override

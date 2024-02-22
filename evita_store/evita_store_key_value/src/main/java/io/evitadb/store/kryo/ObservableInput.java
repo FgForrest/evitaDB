@@ -560,7 +560,7 @@ public class ObservableInput<T extends InputStream> extends Input {
 	 *
 	 * @throws ClassCastException when internal stream is not {@link RandomAccessFileInputStream}
 	 */
-	public void seekWithUnknownLength(@Nonnull long startingPosition) throws ClassCastException {
+	public void seekWithUnknownLength(long startingPosition) throws ClassCastException {
 		seek(new FileLocation(startingPosition, this.buffer.length));
 	}
 

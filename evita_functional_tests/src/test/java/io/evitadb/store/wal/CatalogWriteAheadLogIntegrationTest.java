@@ -42,6 +42,7 @@ import io.evitadb.store.service.KryoFactory;
 import io.evitadb.store.spi.IsolatedWalPersistenceService;
 import io.evitadb.store.spi.OffHeapWithFileBackupReference;
 import io.evitadb.store.spi.model.reference.WalFileReference;
+import io.evitadb.store.wal.CatalogWriteAheadLog.MutationSupplier;
 import io.evitadb.test.TestConstants;
 import io.evitadb.test.generator.DataGenerator;
 import io.evitadb.utils.CollectionUtils;
@@ -63,6 +64,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 
 import static io.evitadb.store.spi.CatalogPersistenceService.getWalFileName;
@@ -90,7 +92,8 @@ class CatalogWriteAheadLogIntegrationTest {
 		walDirectory,
 		walFileReference,
 		catalogKryoPool,
-		StorageOptions.builder().build()
+		StorageOptions.builder().build(),
+		Mockito.mock(ScheduledExecutorService.class)
 	);
 	private final Path walFilePath = walDirectory.resolve(getWalFileName(TEST_CATALOG, walFileReference.fileIndex()));
 	private final Path isolatedWalFilePath = walDirectory.resolve("isolatedWal.tmp");
@@ -99,7 +102,7 @@ class CatalogWriteAheadLogIntegrationTest {
 	);
 	private final OffHeapMemoryManager noOffHeapMemoryManager = new OffHeapMemoryManager(0, 0);
 	private final OffHeapMemoryManager bigOffHeapMemoryManager = new OffHeapMemoryManager(10_000_000, 128);
-	private final int[] txSizes = new int[] {2000, 3000, 4000, 5000, 7000, 9000, 1_000};
+	private final int[] txSizes = new int[]{2000, 3000, 4000, 5000, 7000, 9000, 1_000};
 
 	@BeforeEach
 	void setUp() {
@@ -115,26 +118,47 @@ class CatalogWriteAheadLogIntegrationTest {
 
 	@Tag(LONG_RUNNING_TEST)
 	@Test
+	void shouldWriteAndRealSmallAmountOfTransactionsAndReuseCacheOnNextAccess() {
+		final int[] aFewTransactions = {1, 2, 3, 2, 1};
+		final Map<Long, List<Mutation>> txInMutations = writeWal(bigOffHeapMemoryManager, aFewTransactions);
+		readAndVerifyWal(txInMutations, aFewTransactions, 0);
+
+		createCachedSupplierReadAndVerifyFrom(txInMutations, aFewTransactions, 4);
+		createCachedSupplierReadAndVerifyFrom(txInMutations, aFewTransactions, 3);
+		createCachedSupplierReadAndVerifyFrom(txInMutations, aFewTransactions, 2);
+		createCachedSupplierReadAndVerifyFrom(txInMutations, aFewTransactions, 1);
+		createCachedSupplierReadAndVerifyFrom(txInMutations, aFewTransactions, 0);
+	}
+
+	@Tag(LONG_RUNNING_TEST)
+	@Test
 	void shouldReadAllTransactionsUsingOffHeapIsolatedWal() {
-		final Map<Long, List<Mutation>> txInMutations = writeWal(bigOffHeapMemoryManager);
-		readAndVerifyWal(txInMutations);
+		final Map<Long, List<Mutation>> txInMutations = writeWal(bigOffHeapMemoryManager, txSizes);
+		readAndVerifyWal(txInMutations, txSizes, 0);
 	}
 
 	@Tag(LONG_RUNNING_TEST)
 	@Test
 	void shouldReadAllTransactionsUsingFileIsolatedWal() {
-		final Map<Long, List<Mutation>> txInMutations = writeWal(noOffHeapMemoryManager);
-		readAndVerifyWal(txInMutations);
+		final Map<Long, List<Mutation>> txInMutations = writeWal(noOffHeapMemoryManager, txSizes);
+		readAndVerifyWal(txInMutations, txSizes, 0);
+	}
+
+	private void createCachedSupplierReadAndVerifyFrom(Map<Long, List<Mutation>> txInMutations, int[] aFewTransactions, int index) {
+		final MutationSupplier supplier = tested.createSupplier(index + 1, false, walFilePath.toFile());
+		assertEquals(1, supplier.getTransactionsRead());
+		readAndVerifyWal(txInMutations, aFewTransactions, index);
 	}
 
 	/**
 	 * Writes the Write-Ahead Log (WAL) using the provided off-heap memory manager.
 	 *
 	 * @param offHeapMemoryManager the off-heap memory manager to use
+	 * @param transactionSizes     an array of transaction sizes
 	 * @return a map of catalog versions to corresponding mutations
 	 */
 	@Nonnull
-	private Map<Long, List<Mutation>> writeWal(@Nonnull OffHeapMemoryManager offHeapMemoryManager) {
+	private Map<Long, List<Mutation>> writeWal(@Nonnull OffHeapMemoryManager offHeapMemoryManager, int[] transactionSizes) {
 		final DataGenerator dataGenerator = new DataGenerator();
 		final CatalogSchema catalogSchema = CatalogSchema._internalBuild(
 			TestConstants.TEST_CATALOG,
@@ -153,9 +177,9 @@ class CatalogWriteAheadLogIntegrationTest {
 			)
 		);
 
-		final Map<Long, List<Mutation>> txInMutations = CollectionUtils.createHashMap(txSizes.length);
-		for (int i = 0; i < txSizes.length; i++) {
-			int txSize = txSizes[i];
+		final Map<Long, List<Mutation>> txInMutations = CollectionUtils.createHashMap(transactionSizes.length);
+		for (int i = 0; i < transactionSizes.length; i++) {
+			int txSize = transactionSizes[i];
 			final LinkedList<Mutation> mutations = dataGenerator.generateEntities(
 					dataGenerator.getSampleProductSchema(
 						mockSession,
@@ -196,12 +220,15 @@ class CatalogWriteAheadLogIntegrationTest {
 	 * Reads and verifies the Write-Ahead Log (WAL) using the provided transaction
 	 * mutations map.
 	 *
-	 * @param txInMutations a map of catalog versions to corresponding mutations
+	 * @param txInMutations    a map of catalog versions to corresponding mutations
+	 * @param transactionSizes an array of transaction sizes
 	 */
-	private void readAndVerifyWal(@Nonnull Map<Long, List<Mutation>> txInMutations) {
-		long lastCatalogVersion = 0;
-		final Iterator<Mutation> mutationIterator = tested.getCommittedMutationStream(1L).iterator();
+	private void readAndVerifyWal(@Nonnull Map<Long, List<Mutation>> txInMutations, int[] transactionSizes, int startIndex) {
+		long lastCatalogVersion = startIndex;
+		final Iterator<Mutation> mutationIterator = tested.getCommittedMutationStream(startIndex + 1).iterator();
+		int txRead = 0;
 		while (mutationIterator.hasNext()) {
+			txRead++;
 			final Mutation mutation = mutationIterator.next();
 			assertInstanceOf(TransactionMutation.class, mutation);
 
@@ -216,7 +243,8 @@ class CatalogWriteAheadLogIntegrationTest {
 			lastCatalogVersion = transactionMutation.getCatalogVersion();
 		}
 
-		assertEquals(txSizes.length, lastCatalogVersion);
+		assertEquals(transactionSizes.length, lastCatalogVersion);
+		assertEquals(txRead, transactionSizes.length - startIndex);
 	}
 
 }

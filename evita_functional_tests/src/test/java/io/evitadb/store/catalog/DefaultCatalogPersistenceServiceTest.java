@@ -94,6 +94,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ScheduledExecutorService;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
@@ -181,7 +182,8 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		final CatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
 			SEALED_CATALOG_SCHEMA.getName(),
 			getStorageOptions(),
-			getTransactionOptions()
+			getTransactionOptions(),
+			Mockito.mock(ScheduledExecutorService.class)
 		);
 		ioService.prepare();
 
@@ -229,7 +231,8 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		final CatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
 			SEALED_CATALOG_SCHEMA.getName(),
 			getStorageOptions(),
-			getTransactionOptions()
+			getTransactionOptions(),
+			Mockito.mock(ScheduledExecutorService.class)
 		);
 		ioService.prepare();
 
@@ -280,7 +283,8 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 					RENAMED_CATALOG,
 					renamedCatalogPath,
 					getStorageOptions(),
-					getTransactionOptions()
+					getTransactionOptions(),
+					Mockito.mock(ScheduledExecutorService.class)
 				)) {
 					// do nothing
 				}
@@ -296,7 +300,8 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 				try (var cps = new DefaultCatalogPersistenceService(
 					SEALED_CATALOG_SCHEMA.getName(),
 					getStorageOptions(),
-					getTransactionOptions()
+					getTransactionOptions(),
+					Mockito.mock(ScheduledExecutorService.class)
 				)) {
 					cps.verifyEntityType(
 						Collections.emptyList(),
@@ -315,7 +320,8 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 				try (var cps = new DefaultCatalogPersistenceService(
 					SEALED_CATALOG_SCHEMA.getName(),
 					getStorageOptions(),
-					getTransactionOptions()
+					getTransactionOptions(),
+					Mockito.mock(ScheduledExecutorService.class)
 				)) {
 					final EntityCollection mockCollection = mock(EntityCollection.class);
 					when(mockCollection.getEntityType()).thenReturn("a");
@@ -335,7 +341,8 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		try (var ignored1 = new DefaultCatalogPersistenceService(
 			SEALED_CATALOG_SCHEMA.getName(),
 			getStorageOptions(),
-			getTransactionOptions()
+			getTransactionOptions(),
+			Mockito.mock(ScheduledExecutorService.class)
 		)) {
 		}
 
@@ -346,7 +353,8 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 				try (var ignored2 = new DefaultCatalogPersistenceService(
 					CATALOG_SCHEMA.getName(),
 					getStorageOptions(),
-					getTransactionOptions()
+					getTransactionOptions(),
+					Mockito.mock(ScheduledExecutorService.class)
 				)) {
 				}
 			}
@@ -363,7 +371,8 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			TEST_CATALOG,
 			catalogDirectory,
 			getStorageOptions(),
-			getTransactionOptions()
+			getTransactionOptions(),
+			Mockito.mock(ScheduledExecutorService.class)
 		)) {
 			assertTrue(catalogDirectory.toFile().exists());
 			assertEquals(5, countFiles(catalogDirectory));
@@ -377,7 +386,8 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		try (var cps = new DefaultCatalogPersistenceService(
 			SEALED_CATALOG_SCHEMA.getName(),
 			getStorageOptions(),
-			getTransactionOptions()
+			getTransactionOptions(),
+			Mockito.mock(ScheduledExecutorService.class)
 		)) {
 			final CatalogHeader header = cps.getCatalogHeader();
 			assertNotNull(header);
@@ -399,7 +409,8 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		try (var cps = new DefaultCatalogPersistenceService(
 			catalogName,
 			getStorageOptions(),
-			getTransactionOptions()
+			getTransactionOptions(),
+			Mockito.mock(ScheduledExecutorService.class)
 		)) {
 			cps.executeWriteSafely(() -> {
 				cps.getStoragePartPersistenceService()
@@ -423,7 +434,8 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			catalogName,
 			getStorageOptions().storageDirectory().resolve(catalogName),
 			getStorageOptions(),
-			getTransactionOptions()
+			getTransactionOptions(),
+			Mockito.mock(ScheduledExecutorService.class)
 		)) {
 			cps.appendWalAndDiscard(
 				writtenTransactionMutation,

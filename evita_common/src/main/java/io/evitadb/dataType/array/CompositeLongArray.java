@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.index.array;
+package io.evitadb.dataType.array;
 
 import io.evitadb.utils.Assert;
 import lombok.extern.slf4j.Slf4j;
@@ -40,8 +40,8 @@ import java.util.PrimitiveIterator.OfLong;
  * smaller arrays of specified CHUNK_SIZE, that are created as necessary. This class is similar to ArrayList but doesn't
  * reallocate entire array to the bigger one, just asks for another small chunk if the current array limit is exceeded.
  *
- * When you know the array will hold ordered distinct longs it's much more efficient to use
- * {@link org.roaringbitmap.longlong.Roaring64Bitmap} instead of this data structure.
+ * When you know the array will hold ordered distinct longs it's much more efficient to use Roaring64Bitmap instead of
+ * this data structure.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */

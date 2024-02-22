@@ -23,7 +23,7 @@
 
 package io.evitadb.core.cache;
 
-import io.evitadb.index.array.CompositeLongArray;
+import io.evitadb.dataType.array.CompositeLongArray;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;

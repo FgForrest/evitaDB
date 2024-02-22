@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,12 +21,14 @@
  *   limitations under the License.
  */
 
-package io.evitadb.index.array;
+package io.evitadb.dataType.array;
 
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.lang.reflect.Array;
 import java.util.Arrays;
 import java.util.Iterator;
@@ -34,6 +36,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+import java.util.function.ToIntBiFunction;
 
 /**
  * Composite array is a way around fixed size arrays. It allows to have arrays with elastic size composed of handful of
@@ -99,7 +102,7 @@ public class CompositeObjectArray<T> implements Iterable<T> {
 	/**
 	 * Converts any Object iterator to an array.
 	 */
-	public static <T extends Comparable<T>> T[] toArray(Class<T> objectType, Iterator<T> iterator) {
+	public static <T extends Comparable<T>> T[] toArray(@Nonnull Class<T> objectType, @Nonnull Iterator<T> iterator) {
 		return toCompositeArray(objectType, iterator).toArray();
 	}
 
@@ -107,7 +110,7 @@ public class CompositeObjectArray<T> implements Iterable<T> {
 	 * Converts any Object iterator to an elastic {@link CompositeObjectArray}.
 	 */
 	@SuppressWarnings({"unchecked", "rawtypes"})
-	public static <T extends Comparable<T>> CompositeObjectArray<T> toCompositeArray(Class objectType, Iterator<T> iterator) {
+	public static <T extends Comparable<T>> CompositeObjectArray<T> toCompositeArray(@Nonnull Class objectType, @Nonnull Iterator<T> iterator) {
 		final CompositeObjectArray<T> result = new CompositeObjectArray<>(objectType);
 		while (iterator.hasNext()) {
 			result.add(iterator.next());
@@ -125,14 +128,20 @@ public class CompositeObjectArray<T> implements Iterable<T> {
 	/**
 	 * Returns last number written to the composite array.
 	 */
+	@Nullable
 	public T getLast() {
-		//noinspection unchecked
-		return (T) currentChunk[chunkPeek];
+		if (isEmpty()) {
+			return null;
+		} else {
+			//noinspection unchecked
+			return (T) currentChunk[chunkPeek];
+		}
 	}
 
 	/**
 	 * Return number on the specific index of the array.
 	 */
+	@Nullable
 	public T get(int index) {
 		final int chunkIndex = index / CHUNK_SIZE;
 		final int indexInChunk = index % CHUNK_SIZE;
@@ -144,7 +153,7 @@ public class CompositeObjectArray<T> implements Iterable<T> {
 	/**
 	 * Returns true if the specified record is already part of the array.
 	 */
-	public boolean contains(T recordId) {
+	public boolean contains(@Nonnull T recordId) {
 		for (Object[] chunk : chunks) {
 			if (monotonic) {
 				// use fast binary search if array contains only monotonic record ids
@@ -167,13 +176,18 @@ public class CompositeObjectArray<T> implements Iterable<T> {
 	/**
 	 * Returns index of the recordId in the array.
 	 */
-	public int indexOf(T recordId) {
+	public int indexOf(@Nonnull T recordId) {
 		for (int i = 0; i < chunks.size(); i++) {
 			final Object[] chunk = chunks.get(i);
 			int index;
 			if (monotonic) {
-				// use fast binary search if array contains only monotonic record ids
-				index = Arrays.binarySearch(chunk, recordId);
+				if (i == chunks.size() - 1) {
+					// use fast binary search if array contains only monotonic record ids
+					index = chunkPeek >= 0 ? Arrays.binarySearch(chunk, 0, chunkPeek + 1, recordId) : -1;
+				} else {
+					// use fast binary search if array contains only monotonic record ids
+					index = Arrays.binarySearch(chunk, recordId);
+				}
 			} else {
 				// else array must be full scanned
 				index = -1 * (CHUNK_SIZE + 1);
@@ -197,6 +211,39 @@ public class CompositeObjectArray<T> implements Iterable<T> {
 	}
 
 	/**
+	 * Returns index of the recordId in the array using the provided comparator. This function can be used only if
+	 * the array is monotonically increasing.
+	 */
+	public <U> int indexOf(@Nonnull U recordId, @Nonnull ToIntBiFunction<T, U> comparator) {
+		Assert.isPremiseValid(monotonic, "The array must be monotonically increasing to use this method.");
+		for (int i = 0; i < chunks.size(); i++) {
+			final Object[] chunk = chunks.get(i);
+			int index;
+			if (i == chunks.size() - 1) {
+				// use fast binary search if array contains only monotonic record ids
+				// we can safely cast to Comparable because we know that the array is monotonic
+				//noinspection unchecked
+				index = chunkPeek >= 0 ?
+					ArrayUtils.binarySearch(chunk, recordId, 0, chunkPeek + 1, (o, u) -> comparator.applyAsInt((T) o, u))
+					: -1;
+			} else {
+				// use fast binary search if array contains only monotonic record ids
+				// we can safely cast to Comparable because we know that the array is monotonic
+				//noinspection unchecked
+				index = ArrayUtils.binarySearch(chunk, recordId, (o, u) -> comparator.applyAsInt((T) o, u));
+			}
+			if (index >= 0) {
+				return i * CHUNK_SIZE + index;
+			} else if (index * -1 > CHUNK_SIZE) {
+				// continue searching - the index is out of this chunk
+			} else if (index < -1) {
+				return -1 * CHUNK_SIZE + index;
+			}
+		}
+		return -1;
+	}
+
+	/**
 	 * Returns the size of the array.
 	 */
 	public int getSize() {
@@ -206,7 +253,7 @@ public class CompositeObjectArray<T> implements Iterable<T> {
 	/**
 	 * Overwrites number at the specified index of the array.
 	 */
-	public void set(T recordId, int index) {
+	public void set(@Nonnull T recordId, int index) {
 		Assert.isTrue(index < getSize(), "Index " + index + " out of bounds (" + getSize() + ")!");
 		chunks.get(index / CHUNK_SIZE)[index % CHUNK_SIZE] = recordId;
 	}
@@ -214,7 +261,7 @@ public class CompositeObjectArray<T> implements Iterable<T> {
 	/**
 	 * Appends another record at the end of the array.
 	 */
-	public void add(T record) {
+	public void add(@Nonnull T record) {
 		// keep eye on monotonic row
 		//noinspection unchecked
 		if (monotonic && chunkPeek != -1 && ((Comparable<T>) record).compareTo((T) currentChunk[chunkPeek]) <= 0) {
