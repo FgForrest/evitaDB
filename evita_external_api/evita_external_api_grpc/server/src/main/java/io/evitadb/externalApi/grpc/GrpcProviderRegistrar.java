@@ -23,13 +23,13 @@
 
 package io.evitadb.externalApi.grpc;
 
+import com.linecorp.armeria.server.Server;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.grpc.configuration.GrpcConfig;
 import io.evitadb.externalApi.grpc.utils.GrpcServer;
 import io.evitadb.externalApi.http.ExternalApiProvider;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
-import io.grpc.Server;
 
 import javax.annotation.Nonnull;
 

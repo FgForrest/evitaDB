@@ -23,15 +23,14 @@
 
 package io.evitadb.externalApi.grpc;
 
+import com.linecorp.armeria.server.Server;
 import io.evitadb.externalApi.grpc.configuration.GrpcConfig;
 import io.evitadb.externalApi.grpc.exception.GrpcServerStartFailedException;
 import io.evitadb.externalApi.http.ExternalApiProvider;
-import io.grpc.Server;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
-import java.io.IOException;
 
 /**
  * Descriptor of external API provider that provides gRPC API.
@@ -65,8 +64,9 @@ public class GrpcProvider implements ExternalApiProvider<GrpcConfig> {
 	@Override
 	public void afterStart() {
 		try {
-			server.start();
-		} catch (IOException e) {
+			server.closeOnJvmShutdown();
+			server.start().join();
+		} catch (Exception e) {
 			throw new GrpcServerStartFailedException(
 				"Failed to start gRPC server due to: " + e.getMessage(),
 				"Failed to start gRPC server.",
@@ -77,6 +77,6 @@ public class GrpcProvider implements ExternalApiProvider<GrpcConfig> {
 
 	@Override
 	public void beforeStop() {
-		server.shutdown();
+		server.stop();
 	}
 }

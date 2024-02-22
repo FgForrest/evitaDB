@@ -57,13 +57,15 @@ module evita.external.api.grpc {
 	requires evita.engine;
 	requires evita.external.api.core;
 	requires evita.external.api.grpc.shared;
-
-	requires org.bouncycastle.pkix;
-	requires org.bouncycastle.provider;
 	requires undertow.core;
-	requires io.grpc.netty;
-	requires io.netty.transport;
+	requires armeria.grpc;
+	requires armeria.grpc.protocol;
+	requires armeria.protobuf;
+	requires armeria;
+
+	requires io.netty.handler;
+	requires io.grpc.services;
 	requires io.grpc;
-	requires io.grpc.stub;
 	requires io.grpc.protobuf;
+	requires io.grpc.stub;
 }
