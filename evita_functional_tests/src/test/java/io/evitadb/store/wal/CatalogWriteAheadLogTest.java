@@ -26,6 +26,7 @@ package io.evitadb.store.wal;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.util.Pool;
 import io.evitadb.api.configuration.StorageOptions;
+import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.store.exception.WriteAheadLogCorruptedException;
 import io.evitadb.store.service.KryoFactory;
@@ -65,9 +66,9 @@ class CatalogWriteAheadLogTest {
 	private final CatalogWriteAheadLog tested = new CatalogWriteAheadLog(
 		TEST_CATALOG,
 		walDirectory,
-		walFileReference,
 		catalogKryoPool,
 		StorageOptions.builder().build(),
+		TransactionOptions.builder().build(),
 		Mockito.mock(ScheduledExecutorService.class)
 	);
 	private final Path walFilePath = walDirectory.resolve(getWalFileName(TEST_CATALOG, walFileReference.fileIndex()));

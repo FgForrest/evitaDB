@@ -366,6 +366,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		@Nonnull CatalogHeader catalogHeader,
 		@Nonnull Pool<Kryo> catalogKryoPool,
 		@Nonnull StorageOptions storageOptions,
+		@Nonnull TransactionOptions transactionOptions,
 		@Nonnull ScheduledExecutorService executorService
 	) {
 		WalFileReference currentWalFileRef = catalogHeader.walFileReference();
@@ -399,7 +400,8 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		return ofNullable(currentWalFileRef)
 			.map(
 				walFileReference -> new CatalogWriteAheadLog(
-					catalogName, catalogStoragePath, walFileReference, catalogKryoPool, storageOptions, executorService
+					catalogName, catalogStoragePath, catalogKryoPool,
+					storageOptions, transactionOptions, executorService
 				)
 			)
 			.orElse(null);
@@ -740,7 +742,8 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		if (this.catalogWal == null) {
 			final CatalogHeader catalogHeader = this.catalogStoragePartPersistenceService.getCatalogHeader(bootstrapUsed.catalogVersion());
 			this.catalogWal = getCatalogWriteAheadLog(
-				catalogName, this.catalogStoragePath, catalogHeader, catalogKryoPool, storageOptions, executorService
+				catalogName, this.catalogStoragePath, catalogHeader, catalogKryoPool,
+				storageOptions, transactionOptions, executorService
 			);
 		}
 		Assert.isPremiseValid(

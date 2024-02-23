@@ -179,6 +179,38 @@ public class ObservableInput<T extends InputStream> extends Input {
 	}
 
 	/**
+	 * This method allows reading a single long from the buffer outside of {@link #markStart()} and {@link #markEnd(byte)}
+	 * method calls. It's used when there is numeric information between consecutive {@link StorageRecord}. We can't
+	 * simply call {@link #readLong()} on observable input because it would trigger {@link #require(int)} method that
+	 * interoperates with internal counters expecting a {@link StorageRecord} lifecycle. This method will set and clears
+	 * all the internal counters so that the single long can be read "off the record".
+	 *
+	 * @return long read from the buffer
+	 */
+	public long simpleLongRead() {
+		this.startPosition = super.position;
+		this.expectedLength = 8;
+		this.accumulatedLength = 0;
+		this.payloadStartPosition = this.position;
+		this.payloadPrefixLength = computeReadLengthUpTo(this.payloadStartPosition);
+		this.actualLimit = this.limit > 0 ? this.limit : -1;
+		this.limit = Math.min(this.buffer.length, constraintLimitWithRecordLength(0) + this.payloadPrefixLength);
+		this.readingTail = true;
+		try {
+			return readLong();
+		} finally {
+			this.limit = this.actualLimit >= 0 ? this.actualLimit : this.limit;
+			this.actualLimit = -1;
+			this.startPosition = -1;
+			this.expectedLength = -1;
+			this.accumulatedLength = 0;
+			this.payloadStartPosition = -1;
+			this.payloadPrefixLength = 0;
+			this.readingTail = false;
+		}
+	}
+
+	/**
 	 * This method overrides original implementation and clears also all the internal counters.
 	 */
 	@Override

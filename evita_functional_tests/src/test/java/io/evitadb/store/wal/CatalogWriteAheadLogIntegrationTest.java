@@ -26,6 +26,7 @@ package io.evitadb.store.wal;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.util.Pool;
 import io.evitadb.api.configuration.StorageOptions;
+import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
@@ -46,6 +47,7 @@ import io.evitadb.store.wal.CatalogWriteAheadLog.MutationSupplier;
 import io.evitadb.test.TestConstants;
 import io.evitadb.test.generator.DataGenerator;
 import io.evitadb.utils.CollectionUtils;
+import io.evitadb.utils.FileUtils;
 import io.evitadb.utils.NamingConvention;
 import io.evitadb.utils.UUIDUtil;
 import org.junit.jupiter.api.AfterEach;
@@ -87,14 +89,6 @@ class CatalogWriteAheadLogIntegrationTest {
 		}
 	};
 	private final WalFileReference walFileReference = new WalFileReference(TEST_CATALOG, 0, null);
-	private final CatalogWriteAheadLog tested = new CatalogWriteAheadLog(
-		TEST_CATALOG,
-		walDirectory,
-		walFileReference,
-		catalogKryoPool,
-		StorageOptions.builder().build(),
-		Mockito.mock(ScheduledExecutorService.class)
-	);
 	private final Path walFilePath = walDirectory.resolve(getWalFileName(TEST_CATALOG, walFileReference.fileIndex()));
 	private final Path isolatedWalFilePath = walDirectory.resolve("isolatedWal.tmp");
 	private final ObservableOutputKeeper observableOutputKeeper = new ObservableOutputKeeper(
@@ -103,17 +97,22 @@ class CatalogWriteAheadLogIntegrationTest {
 	private final OffHeapMemoryManager noOffHeapMemoryManager = new OffHeapMemoryManager(0, 0);
 	private final OffHeapMemoryManager bigOffHeapMemoryManager = new OffHeapMemoryManager(10_000_000, 128);
 	private final int[] txSizes = new int[]{2000, 3000, 4000, 5000, 7000, 9000, 1_000};
+	private CatalogWriteAheadLog wal;
 
 	@BeforeEach
 	void setUp() {
+		// clear the WAL directory
+		FileUtils.deleteDirectory(walDirectory);
 		observableOutputKeeper.prepare();
+		wal = createCatalogWriteAheadLogOfLargeEnoughSize();
 	}
 
 	@AfterEach
 	void tearDown() throws IOException {
 		observableOutputKeeper.free();
-		tested.close();
-		walFilePath.toFile().delete();
+		wal.close();
+		// clear the WAL directory
+		FileUtils.deleteDirectory(walDirectory);
 	}
 
 	@Tag(LONG_RUNNING_TEST)
@@ -130,6 +129,21 @@ class CatalogWriteAheadLogIntegrationTest {
 		createCachedSupplierReadAndVerifyFrom(txInMutations, aFewTransactions, 0);
 	}
 
+	@Test
+	void shouldWriteAndReadWalOverMultipleFiles() {
+		wal = createCatalogWriteAheadLogOfSmallSize();
+
+		final int[] transactionSizes = {10, 15, 20, 15, 10};
+		final Map<Long, List<Mutation>> txInMutations = writeWal(bigOffHeapMemoryManager, transactionSizes);
+		readAndVerifyWal(txInMutations, transactionSizes, 0);
+
+		createCachedSupplierReadAndVerifyFrom(txInMutations, transactionSizes, 4);
+		createCachedSupplierReadAndVerifyFrom(txInMutations, transactionSizes, 3);
+		createCachedSupplierReadAndVerifyFrom(txInMutations, transactionSizes, 2);
+		createCachedSupplierReadAndVerifyFrom(txInMutations, transactionSizes, 1);
+		createCachedSupplierReadAndVerifyFrom(txInMutations, transactionSizes, 0);
+	}
+
 	@Tag(LONG_RUNNING_TEST)
 	@Test
 	void shouldReadAllTransactionsUsingOffHeapIsolatedWal() {
@@ -144,8 +158,35 @@ class CatalogWriteAheadLogIntegrationTest {
 		readAndVerifyWal(txInMutations, txSizes, 0);
 	}
 
+	@Nonnull
+	private CatalogWriteAheadLog createCatalogWriteAheadLogOfSmallSize() {
+		return new CatalogWriteAheadLog(
+			TEST_CATALOG,
+			walDirectory,
+			catalogKryoPool,
+			StorageOptions.builder().build(),
+			TransactionOptions.builder()
+				.walFileCountKept(5)
+				.walFileSizeBytes(16_384)
+				.build(),
+			Mockito.mock(ScheduledExecutorService.class)
+		);
+	}
+
+	@Nonnull
+	private CatalogWriteAheadLog createCatalogWriteAheadLogOfLargeEnoughSize() {
+		return new CatalogWriteAheadLog(
+			TEST_CATALOG,
+			walDirectory,
+			catalogKryoPool,
+			StorageOptions.builder().build(),
+			TransactionOptions.builder().walFileSizeBytes(Long.MAX_VALUE).build(),
+			Mockito.mock(ScheduledExecutorService.class)
+		);
+	}
+
 	private void createCachedSupplierReadAndVerifyFrom(Map<Long, List<Mutation>> txInMutations, int[] aFewTransactions, int index) {
-		final MutationSupplier supplier = tested.createSupplier(index + 1, false, walFilePath.toFile());
+		final MutationSupplier supplier = wal.createSupplier(index + 1, false);
 		assertEquals(1, supplier.getTransactionsRead());
 		readAndVerifyWal(txInMutations, aFewTransactions, index);
 	}
@@ -193,19 +234,19 @@ class CatalogWriteAheadLogIntegrationTest {
 				.map(Optional::get)
 				.collect(Collectors.toCollection(LinkedList::new));
 
+			final long catalogVersion = i + 1;
 			for (Mutation mutation : mutations) {
-				walPersistenceService.write(1, mutation);
+				walPersistenceService.write(catalogVersion, mutation);
 			}
 
 			final OffHeapWithFileBackupReference walReference = walPersistenceService.getWalReference();
-			final long catalogVersion = i + 1;
 			final TransactionMutation transactionMutation = new TransactionMutation(
 				UUIDUtil.randomUUID(),
 				catalogVersion,
 				mutations.size(),
 				walReference.getContentLength()
 			);
-			tested.append(
+			wal.append(
 				transactionMutation,
 				walReference
 			);
@@ -225,7 +266,7 @@ class CatalogWriteAheadLogIntegrationTest {
 	 */
 	private void readAndVerifyWal(@Nonnull Map<Long, List<Mutation>> txInMutations, int[] transactionSizes, int startIndex) {
 		long lastCatalogVersion = startIndex;
-		final Iterator<Mutation> mutationIterator = tested.getCommittedMutationStream(startIndex + 1).iterator();
+		final Iterator<Mutation> mutationIterator = wal.getCommittedMutationStream(startIndex + 1).iterator();
 		int txRead = 0;
 		while (mutationIterator.hasNext()) {
 			txRead++;

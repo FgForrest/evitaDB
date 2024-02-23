@@ -64,7 +64,6 @@ public record TransactionOptions(
 	@Nullable Path transactionWorkDirectory,
 	long transactionMemoryBufferLimitSizeBytes,
 	int transactionMemoryRegionCount,
-	/* TODO JNO - musím ještě zajistit rotaci WAL */
 	long walFileSizeBytes,
 	int walFileCountKept,
 	int maxQueueSize,

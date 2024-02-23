@@ -113,6 +113,19 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	}
 
 	/**
+	 * Returns the index extracted from the given Write-Ahead-Log file name.
+	 *
+	 * @param catalogName  the name of the catalog
+	 * @param walFileName  the name of the WAL file
+	 * @return the index extracted from the WAL file name
+	 */
+	static int getIndexFromWalFileName(@Nonnull String catalogName, @Nonnull String walFileName) {
+		return Integer.parseInt(
+			walFileName.substring(catalogName.length() + 1, walFileName.length() - WAL_FILE_SUFFIX.length())
+		);
+	}
+
+	/**
 	 * Retrieves the {@link CatalogStoragePartPersistenceService} associated with this {@link CatalogPersistenceService}.
 	 *
 	 * @return the {@link CatalogStoragePartPersistenceService} associated with this {@link CatalogPersistenceService}

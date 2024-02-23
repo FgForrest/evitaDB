@@ -1038,9 +1038,6 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 	 * Retrieves the stream of committed mutations since the given catalogVersion. The first mutation in the stream
 	 * will be {@link TransactionMutation} that evolved the catalog to the catalogVersion plus one.
 	 *
-	 * TODO JNO - implement support for multiple WAL files (with different index and iterating over them)
-	 * TODO JNO - maybe the WALs should have a tail information about first and last transaction = catalog ID
-	 *
 	 * @param catalogVersion The catalog version to start the stream from
 	 * @return The stream of committed mutations since the given catalogVersion
 	 */
