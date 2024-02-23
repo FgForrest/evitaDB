@@ -235,27 +235,33 @@ public final class Evita implements EvitaContract {
 		for (Path directory : directories) {
 			final String catalogName = directory.toFile().getName();
 			this.executor.execute(() -> {
-				CatalogContract catalog;
 				try {
 					final long start = System.nanoTime();
-					catalog = new Catalog(
+					final CatalogContract catalog = new Catalog(
 						catalogName,
 						directory,
-						cacheSupervisor,
-						configuration.storage(),
-						configuration.transaction(),
-						reflectionLookup,
-						executor,
+						this.cacheSupervisor,
+						this.configuration.storage(),
+						this.configuration.transaction(),
+						this.reflectionLookup,
+						this.executor,
 						this::replaceCatalogReference,
-						tracingContext
+						this.tracingContext
 					);
 					log.info("Catalog {} fully loaded in: {}", catalogName, StringUtils.formatNano(System.nanoTime() - start));
+					// this will be one day used in more clever way, when entire catalog loading will be split into
+					// multiple smaller tasks and done asynchronously after the startup (along with catalog loading / unloading feature)
+					catalog.processWriteAheadLog(
+						updatedCatalog -> {
+							this.catalogs.put(catalogName, updatedCatalog);
+						}
+					);
 				} catch (Throwable ex) {
 					log.error("Catalog {} is corrupted!", catalogName);
-					catalog = new CorruptedCatalog(catalogName, directory, ex);
+					this.catalogs.put(catalogName, new CorruptedCatalog(catalogName, directory, ex));
+				} finally {
+					startUpLatch.countDown();
 				}
-				this.catalogs.put(catalogName, catalog);
-				startUpLatch.countDown();
 			});
 		}
 
@@ -537,32 +543,33 @@ public final class Evita implements EvitaContract {
 	 */
 	@Override
 	public void close() {
-		assertActive();
-		active = false;
-		final Iterator<SessionRegistry> sessionRegistryIt = activeSessions.values().iterator();
-		while (sessionRegistryIt.hasNext()) {
-			final SessionRegistry sessionRegistry = sessionRegistryIt.next();
-			sessionRegistry.closeAllActiveSessions();
-			sessionRegistryIt.remove();
-		}
+		if (active) {
+			active = false;
+			final Iterator<SessionRegistry> sessionRegistryIt = activeSessions.values().iterator();
+			while (sessionRegistryIt.hasNext()) {
+				final SessionRegistry sessionRegistry = sessionRegistryIt.next();
+				sessionRegistry.closeAllActiveSessions();
+				sessionRegistryIt.remove();
+			}
 
-		this.executor.shutdown();
-		try {
-			if (!this.executor.awaitTermination(configuration.server().shortRunningThreadsTimeoutInSeconds(), TimeUnit.SECONDS)) {
-				log.warn("EvitaDB executor did not terminate in time, forcing shutdown.");
+			this.executor.shutdown();
+			try {
+				if (!this.executor.awaitTermination(configuration.server().shortRunningThreadsTimeoutInSeconds(), TimeUnit.SECONDS)) {
+					log.warn("EvitaDB executor did not terminate in time, forcing shutdown.");
+					this.executor.shutdownNow();
+				}
+			} catch (InterruptedException ex) {
+				log.warn("EvitaDB executor did not terminate in time (interrupted), forcing shutdown.");
 				this.executor.shutdownNow();
 			}
-		} catch (InterruptedException ex) {
-			log.warn("EvitaDB executor did not terminate in time (interrupted), forcing shutdown.");
-			this.executor.shutdownNow();
-		}
 
-		final Iterator<CatalogContract> it = catalogs.values().iterator();
-		while (it.hasNext()) {
-			final CatalogContract catalog = it.next();
-			catalog.terminate();
-			it.remove();
-			log.info("Catalog {} successfully terminated.", catalog.getName());
+			final Iterator<CatalogContract> it = catalogs.values().iterator();
+			while (it.hasNext()) {
+				final CatalogContract catalog = it.next();
+				catalog.terminate();
+				it.remove();
+				log.info("Catalog {} successfully terminated.", catalog.getName());
+			}
 		}
 	}
 

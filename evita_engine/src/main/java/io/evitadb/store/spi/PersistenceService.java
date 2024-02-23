@@ -90,7 +90,7 @@ sealed interface PersistenceService<IK extends IndexKey, I extends Index<IK>>
 	 * Flushes all trapped memory data to the persistent storage.
 	 * This method doesn't take transactional memory into an account but only flushes changes for trapped updates.
 	 */
-	void flushTrappedUpdates(@Nonnull DataStoreIndexChanges<IK, I> dataStoreIndexChanges);
+	void flushTrappedUpdates(long catalogVersion, @Nonnull DataStoreIndexChanges<IK, I> dataStoreIndexChanges);
 
 	/**
 	 * Returns true if the persistence service is closed.

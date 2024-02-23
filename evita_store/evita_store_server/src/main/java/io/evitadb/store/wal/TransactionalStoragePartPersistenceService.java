@@ -75,6 +75,7 @@ public class TransactionalStoragePartPersistenceService implements StoragePartPe
 	private final Set<RecordKey> removedStoragePartKeys = new HashSet<>(64);
 
 	public TransactionalStoragePartPersistenceService(
+		long catalogVersion,
 		@Nonnull UUID transactionId,
 		@Nonnull String name,
 		@Nonnull StoragePartPersistenceService delegate,
@@ -91,6 +92,7 @@ public class TransactionalStoragePartPersistenceService implements StoragePartPe
 			.resolve(transactionId.toString())
 			.resolve(name + ".tmp");
 		this.offsetIndex = new OffsetIndex(
+			catalogVersion + 1,
 			new OffsetIndexDescriptor(
 				new PersistentStorageHeader(1L, null, this.delegate.getReadOnlyKeyCompressor().getKeys()),
 				kryoFactory

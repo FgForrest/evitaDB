@@ -50,6 +50,7 @@ import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Stream;
 
@@ -218,6 +219,13 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	);
 
 	/**
+	 * Retrieves the first non-processed transaction in the WAL.
+	 * @return the first non-processed transaction in the WAL
+	 */
+	@Nonnull
+	Optional<TransactionMutation> getFirstNonProcessedTransactionInWal();
+
+	/**
 	 * Replaces folder of the `catalogNameToBeReplaced` with contents of this catalog.
 	 */
 	@Nonnull
@@ -250,11 +258,24 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	 * Retrieves a stream of committed mutations starting with a {@link TransactionMutation} that will transition
 	 * the catalog to the given version.
 	 *
+	 * DO NOT USE THIS METHOD if the WAL is being actively written to. Use {@link #getCommittedLiveMutationStream(long)}
+	 *
 	 * @param catalogVersion version of the catalog to start the stream with
 	 * @return a stream containing committed mutations
 	 */
 	@Nonnull
 	Stream<Mutation> getCommittedMutationStream(long catalogVersion);
+
+	/**
+	 * Retrieves a stream of committed mutations starting with a {@link TransactionMutation} that will transition
+	 * the catalog to the given version. This method differs from {@link #getCommittedMutationStream(long)} in that
+	 * it expects the WAL is being actively written to and the returned stream may be potentially infinite.
+	 *
+	 * @param catalogVersion version of the catalog to start the stream with
+	 * @return a stream containing committed mutations
+	 */
+	@Nonnull
+	Stream<Mutation> getCommittedLiveMutationStream(long catalogVersion);
 
 	/**
 	 * Retrieves the last catalog version written in the WAL stream.

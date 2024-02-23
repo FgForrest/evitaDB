@@ -289,7 +289,9 @@ public final class Transaction implements TransactionContract {
 	) {
 		final Transaction transaction = CURRENT_TRANSACTION.get();
 		if (transaction != null && !transaction.isReplay()) {
-			final StoragePartPersistenceService transactionalService = storagePartPersistenceService.createTransactionalService(transaction.getTransactionId());
+			final StoragePartPersistenceService transactionalService = storagePartPersistenceService.createTransactionalService(
+				transaction.getTransactionId()
+			);
 			final TransactionalLayerMaintainerFinalizer finalizer = transaction.getTransactionalMemory().getTransactionalLayerMaintainerFinalizer();
 			if (finalizer instanceof TransactionWalFinalizer transactionWalFinalizer) {
 				transactionWalFinalizer.registerCloseable(transactionalService);

@@ -621,6 +621,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	}
 
 	public DefaultEntityCollectionPersistenceService(
+		long catalogVersion,
 		@Nonnull Path catalogStoragePath,
 		@Nonnull EntityCollectionHeader entityTypeHeader,
 		@Nonnull StorageOptions storageOptions,
@@ -641,9 +642,11 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		this.offsetIndexRecordTypeRegistry = offsetIndexRecordTypeRegistry;
 		this.observableOutputKeeper = observableOutputKeeper;
 		this.storagePartPersistenceService = new OffsetIndexStoragePartPersistenceService(
+			catalogVersion,
 			this.entityCollectionFile.toFile().getName(),
 			transactionOptions,
 			new OffsetIndex(
+				catalogVersion,
 				new OffsetIndexDescriptor(
 					entityTypeHeader,
 					this.createTypeKryoInstance()
@@ -692,10 +695,10 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	}
 
 	@Override
-	public void flushTrappedUpdates(@Nonnull DataStoreIndexChanges<EntityIndexKey, EntityIndex> dataStoreIndexChanges) {
+	public void flushTrappedUpdates(long catalogVersion, @Nonnull DataStoreIndexChanges<EntityIndexKey, EntityIndex> dataStoreIndexChanges) {
 		// now store all entity trapped updates
 		dataStoreIndexChanges.popTrappedUpdates()
-			.forEach(it -> this.storagePartPersistenceService.putStoragePart(0L, it));
+			.forEach(it -> this.storagePartPersistenceService.putStoragePart(catalogVersion, it));
 	}
 
 	@Override

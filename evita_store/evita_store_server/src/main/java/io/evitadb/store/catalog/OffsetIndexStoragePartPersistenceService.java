@@ -59,6 +59,10 @@ public class OffsetIndexStoragePartPersistenceService implements StoragePartPers
 	 */
 	protected final String name;
 	/**
+	 * Version of the catalog the storage parts are related to.
+	 */
+	protected final long catalogVersion;
+	/**
 	 * Configuration settings related to transaction.
 	 */
 	@Nonnull
@@ -83,6 +87,7 @@ public class OffsetIndexStoragePartPersistenceService implements StoragePartPers
 	@Nonnull protected final Function<VersionedKryoKeyInputs, VersionedKryo> kryoFactory;
 
 	public OffsetIndexStoragePartPersistenceService(
+		long catalogVersion,
 		@Nonnull String name,
 		@Nonnull TransactionOptions transactionOptions,
 		@Nonnull OffsetIndex offsetIndex,
@@ -90,6 +95,7 @@ public class OffsetIndexStoragePartPersistenceService implements StoragePartPers
 		@Nonnull ObservableOutputKeeper observableOutputKeeper,
 		@Nonnull Function<VersionedKryoKeyInputs, VersionedKryo> kryoFactory
 	) {
+		this.catalogVersion = catalogVersion;
 		this.name = name;
 		this.transactionOptions = transactionOptions;
 		this.offsetIndex = offsetIndex;
@@ -102,8 +108,10 @@ public class OffsetIndexStoragePartPersistenceService implements StoragePartPers
 	@Override
 	public StoragePartPersistenceService createTransactionalService(@Nonnull UUID transactionId) {
 		return new TransactionalStoragePartPersistenceService(
+			this.catalogVersion,
 			transactionId,
-			this.name, this,
+			this.name,
+			this,
 			this.offsetIndex.getStorageOptions(),
 			this.transactionOptions,
 			this.offHeapMemoryManager,

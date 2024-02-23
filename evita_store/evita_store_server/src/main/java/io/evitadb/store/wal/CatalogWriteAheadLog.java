@@ -45,6 +45,7 @@ import io.evitadb.store.spi.model.reference.WalFileReference;
 import io.evitadb.store.wal.transaction.TransactionMutationSerializer;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
@@ -68,6 +69,7 @@ import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
@@ -78,6 +80,8 @@ import java.util.stream.Stream;
 import static io.evitadb.store.spi.CatalogPersistenceService.WAL_FILE_SUFFIX;
 import static io.evitadb.store.spi.CatalogPersistenceService.getIndexFromWalFileName;
 import static io.evitadb.store.spi.CatalogPersistenceService.getWalFileName;
+import static java.util.Optional.empty;
+import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
@@ -178,10 +182,12 @@ public class CatalogWriteAheadLog implements Closeable {
 	/**
 	 * The index of the WAL file incremented each time the WAL file is rotated.
 	 */
+	@Getter(AccessLevel.PACKAGE)
 	private int walFileIndex;
 	/**
 	 * The path to the WAL file.
 	 */
+	@Getter(AccessLevel.PACKAGE)
 	private Path walFilePath;
 	/**
 	 * The file channel for writing to the WAL file.
@@ -629,6 +635,49 @@ public class CatalogWriteAheadLog implements Closeable {
 	@Nonnull
 	public Stream<Mutation> getCommittedMutationStreamAvoidingPartiallyWrittenBuffer(long catalogVersion) {
 		return getCommittedMutationStream(catalogVersion, true);
+	}
+
+	/**
+	 * Returns UUID of the first transaction that is present in the WAL file and which transitions the catalog to
+	 * the version that is greater by one than the current catalog version.
+	 *
+	 * @param currentCatalogVersion the current catalog version
+	 * @return UUID of the first transaction that is present in the WAL file and which transitions the catalog to
+	 */
+	@Nonnull
+	public Optional<TransactionMutation> getFirstNonProcessedTransaction(@Nullable WalFileReference currentCatalogVersion) {
+		final Path walFilePath;
+		final long startPosition;
+		if (currentCatalogVersion == null) {
+			walFilePath = this.catalogStoragePath.resolve(getWalFileName(this.catalogName, this.walFileIndex));
+			startPosition = 0L;
+		} else {
+			walFilePath = currentCatalogVersion.toFilePath(this.catalogStoragePath);
+			startPosition = currentCatalogVersion.fileLocation().startingPosition() + currentCatalogVersion.fileLocation().recordLength();
+		}
+		final File walFile = walFilePath.toFile();
+		if (walFile.exists() && walFile.length() > startPosition + 4) {
+			try (
+				final RandomAccessFile randomAccessOldWalFile = new RandomAccessFile(walFile, "r");
+				final ObservableInput<RandomAccessFileInputStream> input = new ObservableInput<>(
+					new RandomAccessFileInputStream(
+						randomAccessOldWalFile
+					)
+				)
+			) {
+				input.seekWithUnknownLength(startPosition + 4);
+				final TransactionMutation firstTransactionMutation = (TransactionMutation) StorageRecord.read(
+					input, (stream, length) -> catalogKryoPool.obtain().readClassAndObject(stream)
+				).payload();
+				return of(firstTransactionMutation);
+			} catch (Exception e) {
+				throw new WriteAheadLogCorruptedException(
+					"Failed to read `" + walFilePath + "`!",
+					"Failed to read WAL file!", e
+				);
+			}
+		}
+		return empty();
 	}
 
 	@Override
@@ -1162,7 +1211,7 @@ public class CatalogWriteAheadLog implements Closeable {
 	/**
 	 * Represents a TransactionMutation with additional location information.
 	 */
-	private static class TransactionMutationWithLocation extends TransactionMutation {
+	static class TransactionMutationWithLocation extends TransactionMutation {
 		@Serial private static final long serialVersionUID = -5873907941292188132L;
 		@Nonnull @Getter
 		private final FileLocation transactionSpan;

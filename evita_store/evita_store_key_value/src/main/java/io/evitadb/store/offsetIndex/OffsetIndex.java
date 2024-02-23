@@ -208,6 +208,7 @@ public class OffsetIndex {
 	private long lastSyncedPosition;
 
 	public OffsetIndex(
+		long catalogVersion,
 		@Nonnull OffsetIndexDescriptor fileOffsetDescriptor,
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull OffsetIndexRecordTypeRegistry recordTypeRegistry,
@@ -233,7 +234,7 @@ public class OffsetIndex {
 				readFileOffsetIndex(fileOffsetDescriptor.fileLocation())
 			);
 		}
-		this.keyCatalogVersion = fileOffsetDescriptor.version();
+		this.keyCatalogVersion = catalogVersion;
 		this.keyToLocations = fileOffsetIndexBuilder
 			.map(FileOffsetIndexBuilder::getBuiltIndex)
 			.orElseGet(() -> CollectionUtils.createConcurrentHashMap(KEY_HASH_MAP_INITIAL_SIZE));
@@ -248,6 +249,7 @@ public class OffsetIndex {
 	}
 
 	public OffsetIndex(
+		long catalogVersion,
 		@Nonnull Path filePath,
 		@Nonnull FileLocation fileLocation,
 		@Nonnull StorageOptions storageOptions,
@@ -287,7 +289,7 @@ public class OffsetIndex {
 			this.totalSize.set(fileOffsetIndexBuilder.getTotalSize());
 			this.maxRecordSize.set(fileOffsetIndexBuilder.getMaxSize());
 			this.fileOffsetDescriptor = offsetIndexDescriptorFactory.apply(fileOffsetIndexBuilder, input);
-			this.keyCatalogVersion = fileOffsetDescriptor.version();
+			this.keyCatalogVersion = catalogVersion;
 			this.readKryoPool = new FileOffsetIndexKryoPool(
 				storageOptions.maxOpenedReadHandles(),
 				version -> this.fileOffsetDescriptor.getReadKryoFactory().apply(version)
@@ -631,7 +633,7 @@ public class OffsetIndex {
 								newFilePath
 							);
 							return new OffsetIndexDescriptor(
-								this.keyCatalogVersion,
+								this.fileOffsetDescriptor.version() + 1,
 								fileLocation,
 								this.getCompressedKeys(),
 								this.fileOffsetDescriptor.getKryoFactory()

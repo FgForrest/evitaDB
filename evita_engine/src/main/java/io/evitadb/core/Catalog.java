@@ -108,6 +108,7 @@ import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.ReflectionLookup;
+import io.evitadb.utils.StringUtils;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -788,6 +789,26 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 	}
 
 	@Override
+	public void processWriteAheadLog(@Nonnull Consumer<CatalogContract> updatedCatalogConsumer) {
+		this.persistenceService.getFirstNonProcessedTransactionInWal()
+			.ifPresentOrElse(
+				transactionMutation -> {
+					final TrunkIncorporationTransactionStage trunkStage = getTrunkIncorporationStage();
+					final long start = System.nanoTime();
+					this.persistenceService.prepare();
+					try {
+						trunkStage.processTransactions(transactionMutation.getCatalogVersion(), Long.MAX_VALUE, false);
+						log.info("WAL of `{}` catalog was processed in {}.", this.getName(), StringUtils.formatNano(System.nanoTime() - start));
+						updatedCatalogConsumer.accept(trunkStage.getCatalog());
+					} finally {
+						this.persistenceService.release();
+					}
+				},
+				() -> updatedCatalogConsumer.accept(this)
+			);
+	}
+
+	@Override
 	public void terminate() {
 		try {
 			persistenceService.executeWriteSafely(() -> {
@@ -1038,12 +1059,28 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 	 * Retrieves the stream of committed mutations since the given catalogVersion. The first mutation in the stream
 	 * will be {@link TransactionMutation} that evolved the catalog to the catalogVersion plus one.
 	 *
+	 * DO NOT USE THIS METHOD if the WAL is being actively written to. Use {@link #getCommittedLiveMutationStream(long)}
+	 *
 	 * @param catalogVersion The catalog version to start the stream from
 	 * @return The stream of committed mutations since the given catalogVersion
 	 */
 	@Nonnull
 	public Stream<Mutation> getCommittedMutationStream(long catalogVersion) {
 		return this.persistenceService.getCommittedMutationStream(catalogVersion);
+	}
+
+	/**
+	 * Retrieves the stream of committed mutations since the given catalogVersion. The first mutation in the stream
+	 * will be {@link TransactionMutation} that evolved the catalog to the catalogVersion plus one. This method differs
+	 * from {@link #getCommittedMutationStream(long)} in that it expects the WAL is being actively written to and
+	 * the returned stream may be potentially infinite.
+	 *
+	 * @param catalogVersion The catalog version to start the stream from
+	 * @return The stream of committed mutations since the given catalogVersion
+	 */
+	@Nonnull
+	public Stream<Mutation> getCommittedLiveMutationStream(long catalogVersion) {
+		return this.persistenceService.getCommittedLiveMutationStream(catalogVersion);
 	}
 
 	/**
@@ -1070,7 +1107,10 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 		}
 
 		if (changeOccurred) {
-			this.persistenceService.flushTrappedUpdates(this.dataStoreBuffer.getTrappedIndexChanges());
+			this.persistenceService.flushTrappedUpdates(
+				catalogVersion,
+				this.dataStoreBuffer.getTrappedIndexChanges()
+			);
 			this.persistenceService.storeHeader(
 				CatalogState.ALIVE,
 				catalogVersion,
@@ -1185,7 +1225,10 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 				}
 
 				if (changeOccurred) {
-					this.persistenceService.flushTrappedUpdates(this.dataStoreBuffer.getTrappedIndexChanges());
+					this.persistenceService.flushTrappedUpdates(
+						0L,
+						this.dataStoreBuffer.getTrappedIndexChanges()
+					);
 					this.persistenceService.storeHeader(
 						this.goingLive.get() ? CatalogState.ALIVE : getCatalogState(),
 						0L,
@@ -1199,6 +1242,33 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 			}
 		);
 
+	}
+
+	/**
+	 * Retrieves the TrunkIncorporationTransactionStage from the transactional pipeline.
+	 *
+	 * @return The TrunkIncorporationTransactionStage.
+	 */
+	@Nonnull
+	private TrunkIncorporationTransactionStage getTrunkIncorporationStage() {
+		SubmissionPublisher<?> current = this.transactionalPipeline;
+		while (current != null) {
+			//noinspection unchecked
+			final List<Subscriber<?>> subscribers = (List<Subscriber<?>>) current.getSubscribers();
+			Assert.isPremiseValid(subscribers.size() == 1, "Only one subscriber is expected!");
+			for (Subscriber<?> subscriber : subscribers) {
+				if (subscriber instanceof TrunkIncorporationTransactionStage stage) {
+					return stage;
+				} else if (subscriber instanceof AbstractTransactionStage<?, ?> transactionStage) {
+					current = transactionStage;
+				} else {
+					current = null;
+				}
+			}
+		}
+		throw new EvitaInternalError(
+			"TrunkIncorporationTransactionStage is not present in the transactional pipeline!"
+		);
 	}
 
 	/*
@@ -1523,6 +1593,9 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 
 	}
 
+	/**
+	 * A class that serves as an accessor for the entity schemas in a Catalog object.
+	 */
 	private class CatalogEntitySchemaAccessor implements EntitySchemaProvider {
 		@Nonnull
 		@Override

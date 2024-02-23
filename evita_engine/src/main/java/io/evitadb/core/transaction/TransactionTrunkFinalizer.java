@@ -96,19 +96,19 @@ public class TransactionTrunkFinalizer implements TransactionHandler {
 
 	/**
 	 * This method finally commits the catalog changes and returns the new instance of the committed catalog.
-	 * @param transactionId transaction id
+	 * @param catalogVersion transaction id
 	 * @return committed catalog
 	 */
 	@Nonnull
-	public Catalog commitCatalogChanges(long transactionId, @Nonnull TransactionMutation lastProcessedTransaction) {
+	public Catalog commitCatalogChanges(long catalogVersion, @Nonnull TransactionMutation lastProcessedTransaction) {
 		Assert.isPremiseValid(committedCatalog == null, "Catalog was already committed!");
 		Assert.isPremiseValid(lastProcessedTransaction != null, "Information about last processed transaction must be provided!");
+		// now let's flush the catalog on the disk
+		catalogToUpdate.flush(catalogVersion, lastProcessedTransaction);
 		// init new catalog with the same collections as the previous one
 		final Catalog newCatalog = this.lastTransactionLayer.getStateCopyWithCommittedChanges(catalogToUpdate);
 		// verify everything was processed
 		lastTransactionLayer.verifyLayerWasFullySwept();
-		// now let's flush the catalog on the disk
-		newCatalog.flush(transactionId, lastProcessedTransaction);
 		// assign committed catalog
 		this.committedCatalog = newCatalog;
 		// and return created catalog

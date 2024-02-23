@@ -79,6 +79,7 @@ class TransactionalStoragePartPersistenceServiceTest {
 		doAnswer(invocation -> EntityBodyStoragePart.class).when(registry).typeFor((byte) 1);
 
 		service = new TransactionalStoragePartPersistenceService(
+			0L,
 			UUID.randomUUID(),
 			"test",
 			delegateService,

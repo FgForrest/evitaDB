@@ -37,6 +37,7 @@ import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.core.EvitaSession;
 import io.evitadb.store.catalog.DefaultIsolatedWalService;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
+import io.evitadb.store.model.FileLocation;
 import io.evitadb.store.offsetIndex.io.OffHeapMemoryManager;
 import io.evitadb.store.offsetIndex.io.WriteOnlyOffHeapWithFileBackupHandle;
 import io.evitadb.store.service.KryoFactory;
@@ -44,6 +45,7 @@ import io.evitadb.store.spi.IsolatedWalPersistenceService;
 import io.evitadb.store.spi.OffHeapWithFileBackupReference;
 import io.evitadb.store.spi.model.reference.WalFileReference;
 import io.evitadb.store.wal.CatalogWriteAheadLog.MutationSupplier;
+import io.evitadb.store.wal.CatalogWriteAheadLog.TransactionMutationWithLocation;
 import io.evitadb.test.TestConstants;
 import io.evitadb.test.generator.DataGenerator;
 import io.evitadb.utils.CollectionUtils;
@@ -69,11 +71,12 @@ import java.util.UUID;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 
-import static io.evitadb.store.spi.CatalogPersistenceService.getWalFileName;
 import static io.evitadb.test.TestConstants.LONG_RUNNING_TEST;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Test verifying the behaviour of {@link CatalogWriteAheadLog}.
@@ -88,8 +91,6 @@ class CatalogWriteAheadLogIntegrationTest {
 			return KryoFactory.createKryo(WalKryoConfigurer.INSTANCE);
 		}
 	};
-	private final WalFileReference walFileReference = new WalFileReference(TEST_CATALOG, 0, null);
-	private final Path walFilePath = walDirectory.resolve(getWalFileName(TEST_CATALOG, walFileReference.fileIndex()));
 	private final Path isolatedWalFilePath = walDirectory.resolve("isolatedWal.tmp");
 	private final ObservableOutputKeeper observableOutputKeeper = new ObservableOutputKeeper(
 		StorageOptions.builder().build()
@@ -142,6 +143,39 @@ class CatalogWriteAheadLogIntegrationTest {
 		createCachedSupplierReadAndVerifyFrom(txInMutations, transactionSizes, 2);
 		createCachedSupplierReadAndVerifyFrom(txInMutations, transactionSizes, 1);
 		createCachedSupplierReadAndVerifyFrom(txInMutations, transactionSizes, 0);
+	}
+
+	@Test
+	void shouldFindProperTransactionUUID() {
+		final int[] aFewTransactions = {1, 2, 3, 2, 1};
+		final Map<Long, List<Mutation>> txInMutations = writeWal(bigOffHeapMemoryManager, aFewTransactions);
+
+		for (int i = 1; i < aFewTransactions.length; i++) {
+			final List<Mutation> mutations = txInMutations.get((long) i);
+			final List<Mutation> nextMutations = txInMutations.get((long) i + 1);
+			final TransactionMutationWithLocation transactionMutation = (TransactionMutationWithLocation) mutations.get(0);
+			final Optional<TransactionMutation> txId = wal.getFirstNonProcessedTransaction(
+				new WalFileReference(
+					TEST_CATALOG,
+					transactionMutation.getWalFileIndex(),
+					transactionMutation.getTransactionSpan()
+				)
+			);
+			assertTrue(txId.isPresent());
+			assertEquals(nextMutations.get(0), txId.get());
+		}
+
+		// last transaction must return empty value (there is no next transaction to transition to)
+		final List<Mutation> mutations = txInMutations.get((long) aFewTransactions.length);
+		final TransactionMutationWithLocation transactionMutation = (TransactionMutationWithLocation) mutations.get(0);
+		final Optional<TransactionMutation> txId = wal.getFirstNonProcessedTransaction(
+			new WalFileReference(
+				TEST_CATALOG,
+				transactionMutation.getWalFileIndex(),
+				transactionMutation.getTransactionSpan()
+			)
+		);
+		assertFalse(txId.isPresent());
 	}
 
 	@Tag(LONG_RUNNING_TEST)
@@ -246,12 +280,20 @@ class CatalogWriteAheadLogIntegrationTest {
 				mutations.size(),
 				walReference.getContentLength()
 			);
-			wal.append(
+
+			final long start = this.wal.getWalFilePath().toFile().length();
+			this.wal.append(
 				transactionMutation,
 				walReference
 			);
 
-			mutations.addFirst(transactionMutation);
+			mutations.addFirst(
+				new TransactionMutationWithLocation(
+					transactionMutation,
+					new FileLocation(start, (int) (this.wal.getWalFilePath().toFile().length() - start)),
+					this.wal.getWalFileIndex()
+				)
+			);
 			txInMutations.put(catalogVersion, mutations);
 		}
 		return txInMutations;

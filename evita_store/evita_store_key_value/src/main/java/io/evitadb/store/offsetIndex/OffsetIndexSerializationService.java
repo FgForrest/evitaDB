@@ -275,7 +275,7 @@ public class OffsetIndexSerializationService {
 	@Nonnull
 	public static FileLocation serialize(
 		@Nonnull ObservableOutput<?> output,
-		long transactionId,
+		long catalogVersion,
 		@Nonnull Collection<VersionedValue> nonFlushedEntries,
 		@Nullable FileLocation lastFileOffsetIndexLocation,
 		@Nonnull StorageOptions storageOptions
@@ -290,7 +290,9 @@ public class OffsetIndexSerializationService {
 		for (int i = 0; i < fileOffsetIndexRecordCount.getFragments(); i++) {
 			lastStorageRecordLocation.set(
 				new StorageRecord<>(
-					output, transactionId, i + 1 == fileOffsetIndexRecordCount.getFragments(),
+					output,
+					catalogVersion,
+					i + 1 == fileOffsetIndexRecordCount.getFragments(),
 					stream -> {
 						final FileLocation lsrl = lastStorageRecordLocation.get();
 						if (lsrl == null) {
