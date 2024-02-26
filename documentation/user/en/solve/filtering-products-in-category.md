@@ -153,23 +153,23 @@ its unique URL *"/en/smartwatches"*:
 The query is probably more complex than you might expect. It is not just a simple `categories` reference filter, but
 contains a lot of other filters and requirements. So let's break it down:
 
-1. **`entityLocaleEquals("en")`** - constraint filters only products with English localization
-2. **`hierarchyWithin("categories", attributeEquals("url", "/en/smartwatches"))`** - filters only products that belong
+1. <LS to="e,j,c">**`entityLocaleEquals("en")`**</LS><LS to="g,r">**`entityLocaleEquals: en`**</LS> - constraint filters only products with English localization
+2. <LS to="e,j,c">**`hierarchyWithin("categories", attributeEquals("url", "/en/smartwatches"))`**</LS><LS to="g,r">**`hierarchyCategoriesWithin: { ofParent: { attributeUrlEquals: "/en/smartwatches" } }`**</LS> - filters only products that belong
    to the category with URL *"/en/smartwatches"* or its subcategories
-3. **`attributeEquals("status", "ACTIVE")`** - filters only public products, there may also be products in *PRIVATE* 
+3. <LS to="e,j,c">**`attributeEquals("status", "ACTIVE")`**</LS><LS to="g,r">**`attributeStatusEquals: "ACTIVE"`**</LS> - filters only public products, there may also be products in *PRIVATE* 
    status, which can only be seen by employees preparing the product for publication.
-4. **`or(attributeInRangeNow("validity"), attributeIsNull("validity"))`** - filters only products that are valid now or
+4. <LS to="e,j,c">**`or(attributeInRangeNow("validity"), attributeIsNull("validity"))`**</LS><LS to="g,r">**`or: [ { attributeValidityInRangeNow: true }, { attributeValidityIs: NULL } ]`**</LS> - filters only products that are valid now or
    have no validity set at all
-5. **`referenceHaving("stocks", attributeGreaterThan("quantityOnStock", 0))`** - filters only products that are actually 
+5. <LS to="e,j,c">**`referenceHaving("stocks", attributeGreaterThan("quantityOnStock", 0))`**</LS><LS to="e,j,c">**`referenceStocksHaving: [ { attributeQuantityOnStockGreaterThan: 0 } ]`**</LS> - filters only products that are actually 
    in stock (have a positive quantity on stock) - no matter which stock it is (there may be multiple stocks in the system)
-6. **`priceInCurrency("EUR"), priceInPriceLists("basic"), priceValidInNow()`** - filters only products that have a valid 
+6. <LS to="e,j,c">**`priceInCurrency("EUR"), priceInPriceLists("basic"), priceValidInNow()`**</LS><LS to="g,r">**`priceInCurrency: EUR, priceInPriceLists: ["basic"], priceValidInNow: true`**</LS> - filters only products that have a valid 
    price in EUR currency and in the *"basic"* price list
 
 In order to render the product tiles, the query also includes the following content set in the `entityFetch` request:
 
-1. **`attributeContent("name")`** - retrieves product name
-2. **`referenceContentWithAttributes("stocks", attributeContent("quantityOnStock"))`** - retrieves the quantity on stock
-3. **`priceContentRespectingFilter("reference")`** - retrieves the price for sale and reference price to calculate the discount
+1. <LS to="e,j,c">**`attributeContent("name")`**</LS><LS to="r">**`attributeContent: ["name"]`**</LS><LS to="g">**`attributes { name }`**</LS> - retrieves product name
+2. <LS to="e,j,c">**`referenceContentWithAttributes("stocks", attributeContent("quantityOnStock"))`**</LS><LS to="r">**`referenceStocksContentWithAttributes: { attributeContent: ["quantityOnStock"] }`**</LS><LS to="g">**`stocks { attributes { quantityOnStock } }`**</LS> - retrieves the quantity on stock
+3. <LS to="e,j,c">**`priceContentRespectingFilter("reference")`**</LS><LS to="r">**`priceContentRespectingFilter: ["reference"]`**</LS><LS to="g">**`priceForSale { ... }, price(priceList: "reference") { ... }`**</LS> - retrieves the price for sale and reference price to calculate the discount
 
 The query also requests only the first page with 16 products using the requirement `page(1, 16)`.
 
@@ -259,7 +259,7 @@ selected by the user:
 </SourceCodeTabs>
 
 The returned brands are sorted by name in ascending order, the *Apple* brand is marked as requested, which refers to 
-the user's selection of one of the brands in the `userFilter' container, and the calculation contains a lot of 
+the user's selection of one of the brands in the `userFilter` container, and the calculation contains a lot of 
 calculated numbers. To render the filter's UI correctly, you'll need to follow these rules:
 
 1. facets marked as `requested` should be rendered as *checked*.
@@ -316,7 +316,7 @@ Let's demonstrate the situation when the user has already selected a certain pri
 
 <Note type="warning">
 
-Note that only the `priceBetween' is inside the `userFilter' container, which means that other price-related filter 
+Note that only the `priceBetween` is inside the `userFilter` container, which means that other price-related filter 
 conditions are mandatory and the system must not omit them in any of the calculations of the result data.
 
 </Note>
@@ -355,13 +355,13 @@ The last part of the product listing page is the sort options. The sort options 
 list or a tabbed interface. The most common sort options are:
 
 1. **Relevance** - the default sort option, which is usually based on some predefined ordering property of the product.
-   In our case it would be represented by the sorting constraint: `orderBy(attributeNatural("order", ASC))`.
+   In our case it would be represented by the sorting constraint: <LS to="e,j,c">`orderBy(attributeNatural("order", ASC))`</LS><LS to="g,r">`orderBy: [ { attributeOrderNatural: ASC } ]`</LS>.
 2. **Price** - Sort by price in ascending or descending order.
-   In our case it would be represented by sorting constraint: `orderBy(priceNatural(DESC))`.
+   In our case it would be represented by sorting constraint: <LS to="e,j,c">`orderBy(priceNatural(DESC))`</LS><LS to="g,r">`orderBy: [ { priceNatural: DESC } ]`</LS>.
 3. **Popularity** - Sort by the number of sales or views.
-   In our case it would be represented by sorting constraint: `orderBy(attributeNatural("rating", DESC))`.
+   In our case it would be represented by sorting constraint: <LS to="e,j,c">`orderBy(attributeNatural("rating", DESC))`</LS><LS to="g,r">`orderBy: [ { attributeRatingNatural: DESC } ]`</LS>.
 4. **Alphabetically** - Sort by name in ascending or descending order
-   In our case it would be represented by the sorting constraint: `orderBy(attributeNatural("name", ASC))`.
+   In our case it would be represented by the sorting constraint: <LS to="e,j,c">`orderBy(attributeNatural("name", ASC))`</LS><LS to="g,r">`orderBy: [ { attributeNameNatural: ASC } ]`</LS>.
 
 Since sorting is quite simple, we'll skip the full queries in this chapter and move on to the last one, where we can see
 all aspects of the product listing page combined.
