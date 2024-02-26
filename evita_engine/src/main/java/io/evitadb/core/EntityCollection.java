@@ -949,7 +949,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 	 */
 	@Nonnull
 	public EntityCollectionHeader flush() {
-		this.persistenceService.flushTrappedUpdates(this.dataStoreBuffer.getTrappedIndexChanges());
+		this.persistenceService.flushTrappedUpdates(0L, this.dataStoreBuffer.getTrappedIndexChanges());
 		return this.persistenceService.flush(0L, headerInfoSupplier);
 	}
 
@@ -1118,8 +1118,9 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 	 * then returns updated {@link EntityCollectionHeader}.
 	 */
 	@Nonnull
-	EntityCollectionHeader flush(long catalogVersionId) {
-		return this.persistenceService.flush(catalogVersionId, headerInfoSupplier);
+	EntityCollectionHeader flush(long catalogVersion) {
+		this.persistenceService.flushTrappedUpdates(catalogVersion, this.dataStoreBuffer.getTrappedIndexChanges());
+		return this.persistenceService.flush(catalogVersion, headerInfoSupplier);
 	}
 
 	/*

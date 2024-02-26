@@ -124,7 +124,7 @@ public class OffsetIndexDescriptor implements PersistentStorageDescriptor {
 		@Nullable FileLocation fileLocation,
 		@Nonnull OffsetIndexDescriptor fileOffsetIndexDescriptor
 	) {
-		this.version = fileOffsetIndexDescriptor.version + 1;
+		this.version = fileOffsetIndexDescriptor.version() + 1;
 		this.fileLocation = fileLocation;
 		this.kryoFactory = fileOffsetIndexDescriptor.kryoFactory;
 		// keep all write instances

@@ -26,7 +26,7 @@ package io.evitadb.index.array;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
-import io.evitadb.index.iterator.ConstantObjIterator;
+import io.evitadb.dataType.iterator.ConstantObjIterator;
 import io.evitadb.utils.ArrayUtils;
 import lombok.Getter;
 

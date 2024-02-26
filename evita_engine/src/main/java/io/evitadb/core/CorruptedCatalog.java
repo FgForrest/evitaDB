@@ -49,6 +49,7 @@ import java.nio.file.Path;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Consumer;
 
 /**
  * This implementation of {@link CatalogContract} represents a catalog instance that cannot be loaded into a memory due
@@ -178,6 +179,11 @@ public final class CorruptedCatalog implements CatalogContract {
 
 	@Override
 	public void applyMutation(@Nonnull Mutation mutation) throws InvalidMutationException {
+		throw new CatalogCorruptedException(this);
+	}
+
+	@Override
+	public void processWriteAheadLog(@Nonnull Consumer<CatalogContract> updatedCatalog) {
 		throw new CatalogCorruptedException(this);
 	}
 

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,12 +29,12 @@ import io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordsLookupResult;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder.LookUp;
+import io.evitadb.dataType.array.CompositeIntArray;
+import io.evitadb.dataType.array.CompositeObjectArray;
+import io.evitadb.dataType.iterator.BatchArrayIterator;
 import io.evitadb.exception.EvitaInternalError;
-import io.evitadb.index.array.CompositeIntArray;
-import io.evitadb.index.array.CompositeObjectArray;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
-import io.evitadb.index.iterator.BatchArrayIterator;
 import io.evitadb.index.iterator.RoaringBitmapBatchArrayIterator;
 import io.evitadb.index.price.PriceListAndCurrencyPriceIndex;
 import io.evitadb.index.price.model.priceRecord.PriceRecord;

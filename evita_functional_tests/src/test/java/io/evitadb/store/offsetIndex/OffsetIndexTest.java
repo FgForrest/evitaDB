@@ -144,6 +144,7 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 		final InsertionOutput insertionOutput = serializeAndReconstructBigFileOffsetIndex();
 		final OffsetIndexDescriptor fileOffsetIndexDescriptor = insertionOutput.descriptor();
 		final OffsetIndex sourceOffsetIndex = new OffsetIndex(
+			0L,
 			new OffsetIndexDescriptor(
 				fileOffsetIndexDescriptor.fileLocation(),
 				fileOffsetIndexDescriptor
@@ -162,6 +163,7 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 
 		final OffsetIndexDescriptor updatedOffsetIndexDescriptor = sourceOffsetIndex.flush(nextCatalogVersion);
 		final OffsetIndex purgedSourceOffsetIndex = new OffsetIndex(
+			0L,
 			new OffsetIndexDescriptor(
 				updatedOffsetIndexDescriptor.fileLocation(),
 				updatedOffsetIndexDescriptor
@@ -177,6 +179,7 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 			final long finalCatalogVersion = nextCatalogVersion + 1;
 			final OffsetIndexDescriptor snapshotBootstrapDescriptor = purgedSourceOffsetIndex.copySnapshotTo(snapshotPath, finalCatalogVersion);
 			final OffsetIndex loadedFileOffsetIndex = new OffsetIndex(
+				snapshotBootstrapDescriptor.version(),
 				snapshotBootstrapDescriptor,
 				options,
 				fileOffsetIndexRecordTypeRegistry,
@@ -218,6 +221,7 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 		final OffsetIndexDescriptor fileOffsetIndexInfo = insertionResult.descriptor();
 
 		final OffsetIndex loadedFileOffsetIndex = new OffsetIndex(
+			0L,
 			new OffsetIndexDescriptor(
 				fileOffsetIndexInfo.fileLocation(),
 				fileOffsetIndexInfo
@@ -264,6 +268,7 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 		final OffsetIndexDescriptor fileOffsetIndexDescriptor = insertionResult.descriptor();
 
 		final OffsetIndex loadedFileOffsetIndex = new OffsetIndex(
+			0L,
 			new OffsetIndexDescriptor(
 				fileOffsetIndexDescriptor.fileLocation(),
 				fileOffsetIndexDescriptor
@@ -307,6 +312,7 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 		observableOutputKeeper.prepare();
 
 		final OffsetIndex fileOffsetIndex = new OffsetIndex(
+			0L,
 			new OffsetIndexDescriptor(
 				new EntityCollectionHeader(ENTITY_TYPE, 1),
 				createKryo()
@@ -336,6 +342,7 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 		observableOutputKeeper.prepare();
 
 		final OffsetIndex fileOffsetIndex = new OffsetIndex(
+			0L,
 			new OffsetIndexDescriptor(
 				new EntityCollectionHeader(ENTITY_TYPE, 1),
 				createKryo()
@@ -408,6 +415,7 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 
 				long start = System.nanoTime();
 				final OffsetIndex loadedFileOffsetIndex = new OffsetIndex(
+					0L,
 					new OffsetIndexDescriptor(
 						fileOffsetIndexDescriptor.fileLocation(),
 						fileOffsetIndexDescriptor
@@ -499,6 +507,7 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 		observableOutputKeeper.prepare();
 
 		final OffsetIndex fileOffsetIndex = new OffsetIndex(
+			0L,
 			new OffsetIndexDescriptor(
 				new EntityCollectionHeader(ENTITY_TYPE, 1),
 				createKryo()
@@ -517,6 +526,7 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 		log.info("Flushing table (" + transactionId + ")");
 		final OffsetIndexDescriptor fileOffsetIndexDescriptor = fileOffsetIndex.flush(transactionId);
 		final OffsetIndex loadedFileOffsetIndex = new OffsetIndex(
+			0L,
 			new OffsetIndexDescriptor(
 				fileOffsetIndexDescriptor.fileLocation(),
 				fileOffsetIndexDescriptor
@@ -555,6 +565,7 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 		int iterationCount
 	) {
 		final OffsetIndex fileOffsetIndex = new OffsetIndex(
+			0L,
 			new OffsetIndexDescriptor(
 				new EntityCollectionHeader(ENTITY_TYPE, 1),
 				createKryo()

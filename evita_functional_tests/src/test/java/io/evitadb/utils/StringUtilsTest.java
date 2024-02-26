@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -48,7 +48,7 @@ class StringUtilsTest {
 	void shouldFormatNano() {
 		assertEquals("106751d 23h 47m 16s", StringUtils.formatNano(Long.MAX_VALUE));
 		assertEquals("14s", StringUtils.formatNano(14587877547L));
-		assertEquals("0.000000001s", StringUtils.formatNano(1L));
+		assertEquals("0.000001ms", StringUtils.formatNano(1L));
 	}
 
 	@Test

@@ -25,7 +25,7 @@ package io.evitadb.core.query.extraResult.translator.histogram.producer;
 
 import io.evitadb.api.exception.InvalidHistogramBucketCountException;
 import io.evitadb.core.query.extraResult.translator.histogram.cache.CacheableHistogramContract.CacheableBucket;
-import io.evitadb.index.array.CompositeObjectArray;
+import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;

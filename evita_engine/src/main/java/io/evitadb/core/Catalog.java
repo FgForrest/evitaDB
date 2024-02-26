@@ -108,6 +108,7 @@ import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.ReflectionLookup;
+import io.evitadb.utils.StringUtils;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -122,6 +123,7 @@ import java.util.Map.Entry;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Flow.Subscriber;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.SubmissionPublisher;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -296,7 +298,7 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull TransactionOptions transactionOptions,
 		@Nonnull ReflectionLookup reflectionLookup,
-		@Nonnull ExecutorService executorService,
+		@Nonnull ScheduledExecutorService executorService,
 		@Nonnull Consumer<Catalog> newCatalogVersionConsumer,
 		@Nonnull TracingContext tracingContext
 	) {
@@ -309,7 +311,8 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 		this.schema = new TransactionalReference<>(new CatalogSchemaDecorator(internalCatalogSchema));
 		this.persistenceService = ServiceLoader.load(CatalogPersistenceServiceFactory.class)
 			.findFirst()
-			.map(it -> it.createNew(this, this.getSchema().getName(), storageOptions, transactionOptions))
+			.map(it -> it.createNew(this, this.getSchema().getName(), storageOptions, transactionOptions, executorService)
+			)
 			.orElseThrow(StorageImplementationNotFoundException::new);
 
 		final CatalogStoragePartPersistenceService storagePartPersistenceService = this.persistenceService.getStoragePartPersistenceService();
@@ -353,14 +356,14 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull TransactionOptions transactionOptions,
 		@Nonnull ReflectionLookup reflectionLookup,
-		@Nonnull ExecutorService executorService,
+		@Nonnull ScheduledExecutorService executorService,
 		@Nonnull Consumer<Catalog> newCatalogVersionConsumer,
 		@Nonnull TracingContext tracingContext
 	) {
 		this.tracingContext = tracingContext;
 		this.persistenceService = ServiceLoader.load(CatalogPersistenceServiceFactory.class)
 			.findFirst()
-			.map(it -> it.load(this, catalogName, catalogPath, storageOptions, transactionOptions))
+			.map(it -> it.load(this, catalogName, catalogPath, storageOptions, transactionOptions, executorService))
 			.orElseThrow(() -> new IllegalStateException("IO service is unexpectedly not available!"));
 		final CatalogHeader catalogHeader = this.persistenceService.getCatalogHeader();
 		final long catalogVersion = catalogHeader.version();
@@ -786,6 +789,26 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 	}
 
 	@Override
+	public void processWriteAheadLog(@Nonnull Consumer<CatalogContract> updatedCatalogConsumer) {
+		this.persistenceService.getFirstNonProcessedTransactionInWal()
+			.ifPresentOrElse(
+				transactionMutation -> {
+					final TrunkIncorporationTransactionStage trunkStage = getTrunkIncorporationStage();
+					final long start = System.nanoTime();
+					this.persistenceService.prepare();
+					try {
+						trunkStage.processTransactions(transactionMutation.getCatalogVersion(), Long.MAX_VALUE, false);
+						log.info("WAL of `{}` catalog was processed in {}.", this.getName(), StringUtils.formatNano(System.nanoTime() - start));
+						updatedCatalogConsumer.accept(trunkStage.getCatalog());
+					} finally {
+						this.persistenceService.release();
+					}
+				},
+				() -> updatedCatalogConsumer.accept(this)
+			);
+	}
+
+	@Override
 	public void terminate() {
 		try {
 			persistenceService.executeWriteSafely(() -> {
@@ -1036,8 +1059,7 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 	 * Retrieves the stream of committed mutations since the given catalogVersion. The first mutation in the stream
 	 * will be {@link TransactionMutation} that evolved the catalog to the catalogVersion plus one.
 	 *
-	 * TODO JNO - implement support for multiple WAL files (with different index and iterating over them)
-	 * TODO JNO - maybe the WALs should have a tail information about first and last transaction = catalog ID
+	 * DO NOT USE THIS METHOD if the WAL is being actively written to. Use {@link #getCommittedLiveMutationStream(long)}
 	 *
 	 * @param catalogVersion The catalog version to start the stream from
 	 * @return The stream of committed mutations since the given catalogVersion
@@ -1048,8 +1070,23 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 	}
 
 	/**
-	 * TODO JNO - document me
-	 * @return
+	 * Retrieves the stream of committed mutations since the given catalogVersion. The first mutation in the stream
+	 * will be {@link TransactionMutation} that evolved the catalog to the catalogVersion plus one. This method differs
+	 * from {@link #getCommittedMutationStream(long)} in that it expects the WAL is being actively written to and
+	 * the returned stream may be potentially infinite.
+	 *
+	 * @param catalogVersion The catalog version to start the stream from
+	 * @return The stream of committed mutations since the given catalogVersion
+	 */
+	@Nonnull
+	public Stream<Mutation> getCommittedLiveMutationStream(long catalogVersion) {
+		return this.persistenceService.getCommittedLiveMutationStream(catalogVersion);
+	}
+
+	/**
+	 * Retrieves the last catalog version written in the WAL stream.
+	 *
+	 * @return the last catalog version written in the WAL stream
 	 */
 	public long getLastCatalogVersionInMutationStream() {
 		return this.persistenceService.getLastCatalogVersionInMutationStream();
@@ -1070,7 +1107,10 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 		}
 
 		if (changeOccurred) {
-			this.persistenceService.flushTrappedUpdates(this.dataStoreBuffer.getTrappedIndexChanges());
+			this.persistenceService.flushTrappedUpdates(
+				catalogVersion,
+				this.dataStoreBuffer.getTrappedIndexChanges()
+			);
 			this.persistenceService.storeHeader(
 				CatalogState.ALIVE,
 				catalogVersion,
@@ -1107,10 +1147,6 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 		this.persistenceService.appendWalAndDiscard(transactionMutation, walReference);
 	}
 
-	/*
-		TransactionalLayerProducer implementation
-	 */
-
 	/**
 	 * Notifies the system that a catalog is present in the live view.
 	 * This method is used to indicate that a catalog is currently available in the live view.
@@ -1130,6 +1166,16 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 				}
 			}
 		}
+	}
+
+	/**
+	 * We need to forget all volatile data when the data written to catalog aren't going to be committed (incorporated
+	 * in the final state).
+	 *
+	 * @see CatalogPersistenceService#forgetVolatileData()
+	 */
+	public void forgetVolatileData() {
+		this.persistenceService.forgetVolatileData();
 	}
 
 	/**
@@ -1179,7 +1225,10 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 				}
 
 				if (changeOccurred) {
-					this.persistenceService.flushTrappedUpdates(this.dataStoreBuffer.getTrappedIndexChanges());
+					this.persistenceService.flushTrappedUpdates(
+						0L,
+						this.dataStoreBuffer.getTrappedIndexChanges()
+					);
 					this.persistenceService.storeHeader(
 						this.goingLive.get() ? CatalogState.ALIVE : getCatalogState(),
 						0L,
@@ -1193,6 +1242,33 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 			}
 		);
 
+	}
+
+	/**
+	 * Retrieves the TrunkIncorporationTransactionStage from the transactional pipeline.
+	 *
+	 * @return The TrunkIncorporationTransactionStage.
+	 */
+	@Nonnull
+	private TrunkIncorporationTransactionStage getTrunkIncorporationStage() {
+		SubmissionPublisher<?> current = this.transactionalPipeline;
+		while (current != null) {
+			//noinspection unchecked
+			final List<Subscriber<?>> subscribers = (List<Subscriber<?>>) current.getSubscribers();
+			Assert.isPremiseValid(subscribers.size() == 1, "Only one subscriber is expected!");
+			for (Subscriber<?> subscriber : subscribers) {
+				if (subscriber instanceof TrunkIncorporationTransactionStage stage) {
+					return stage;
+				} else if (subscriber instanceof AbstractTransactionStage<?, ?> transactionStage) {
+					current = transactionStage;
+				} else {
+					current = null;
+				}
+			}
+		}
+		throw new EvitaInternalError(
+			"TrunkIncorporationTransactionStage is not present in the transactional pipeline!"
+		);
 	}
 
 	/*
@@ -1517,6 +1593,9 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 
 	}
 
+	/**
+	 * A class that serves as an accessor for the entity schemas in a Catalog object.
+	 */
 	private class CatalogEntitySchemaAccessor implements EntitySchemaProvider {
 		@Nonnull
 		@Override

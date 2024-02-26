@@ -31,7 +31,6 @@ import javax.annotation.Nullable;
 import java.util.ArrayDeque;
 import java.util.Collection;
 import java.util.Deque;
-import java.util.LinkedList;
 import java.util.function.Consumer;
 import java.util.function.Function;
 

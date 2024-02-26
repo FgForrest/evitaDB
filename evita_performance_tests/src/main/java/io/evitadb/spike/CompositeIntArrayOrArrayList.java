@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@
 package io.evitadb.spike;
 
 import com.carrotsearch.hppc.IntArrayList;
-import io.evitadb.index.array.CompositeIntArray;
+import io.evitadb.dataType.array.CompositeIntArray;
 import lombok.Data;
 import org.openjdk.jmh.annotations.*;
 import org.openjdk.jmh.infra.Blackhole;
@@ -33,7 +33,7 @@ import java.util.ArrayList;
 import java.util.concurrent.TimeUnit;
 
 /**
- * This performance test compares {@link io.evitadb.index.array.CompositeIntArray} with {@link ArrayList}
+ * This performance test compares {@link CompositeIntArray} with {@link ArrayList}
  * performance.
  *
  * Benchmark                                      (valueCount)   Mode  Cnt          Score   Error  Units

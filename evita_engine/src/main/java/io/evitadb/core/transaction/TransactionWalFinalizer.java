@@ -25,6 +25,7 @@ package io.evitadb.core.transaction;
 
 import io.evitadb.api.TransactionContract;
 import io.evitadb.api.TransactionContract.CommitBehavior;
+import io.evitadb.api.exception.RollbackException;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
@@ -171,7 +172,12 @@ public class TransactionWalFinalizer implements TransactionHandler {
 			// we must complete the future with the exception or the original catalog version (if the rollback was
 			// not caused by an exception)
 			if (cause != null) {
-				this.transactionFinalizationFuture.completeExceptionally(cause);
+				this.transactionFinalizationFuture.completeExceptionally(
+					new RollbackException(
+						"Transaction changes have been rolled back due to previous exception.",
+						cause
+					)
+				);
 			} else {
 				this.transactionFinalizationFuture.complete(catalog.getVersion());
 			}

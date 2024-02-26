@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,7 +28,7 @@ import io.evitadb.core.query.algebra.FormulaVisitor;
 import io.evitadb.core.query.algebra.base.NotFormula;
 import io.evitadb.core.query.algebra.facet.UserFilterFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
-import io.evitadb.index.array.CompositeObjectArray;
+import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.utils.ArrayUtils;
 import lombok.AccessLevel;
 import lombok.Getter;

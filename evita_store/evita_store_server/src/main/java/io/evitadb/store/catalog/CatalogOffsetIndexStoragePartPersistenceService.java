@@ -109,6 +109,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 			catalogHeaderRef::set
 		);
 		return new CatalogOffsetIndexStoragePartPersistenceService(
+			lastCatalogBootstrap.catalogVersion(),
 			catalogFileName,
 			catalogHeaderRef.get(),
 			transactionOptions,
@@ -146,6 +147,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 		if (fileLocation == null) {
 			// create new offset index
 			final OffsetIndex newOffsetIndex = new OffsetIndex(
+				lastCatalogBootstrap.catalogVersion(),
 				new OffsetIndexDescriptor(
 					0L,
 					fileLocation,
@@ -163,6 +165,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 		} else {
 			// load existing offset index
 			return new OffsetIndex(
+				lastCatalogBootstrap.catalogVersion(),
 				catalogFilePath,
 				fileLocation,
 				storageOptions,
@@ -194,6 +197,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 	}
 
 	private CatalogOffsetIndexStoragePartPersistenceService(
+		long catalogVersion,
 		@Nonnull String name,
 		@Nullable CatalogHeader catalogHeader,
 		@Nonnull TransactionOptions transactionOptions,
@@ -203,6 +207,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 		@Nonnull Function<VersionedKryoKeyInputs, VersionedKryo> kryoFactory
 	) {
 		super(
+			catalogVersion,
 			name,
 			transactionOptions,
 			offsetIndex,

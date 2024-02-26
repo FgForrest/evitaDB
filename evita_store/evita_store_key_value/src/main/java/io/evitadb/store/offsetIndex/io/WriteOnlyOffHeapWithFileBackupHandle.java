@@ -400,13 +400,23 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 	}
 
 	/**
-	 * TODO JNO - document me
+	 * This implementation provides read-only access to data stored in off-heap memory or a file backup.
+	 * It automatically adapts to the situation when the corresponding {@link #writeOnlyOffHeapWithFileBackupHandle}
+	 * switches from off-heap memory to a file backup.
 	 */
 	private static class OffHeapWithFileBackupReadOnlyHandle implements ReadOnlyHandle {
+		/**
+		 * The write-only handle that this read-only handle is associated with.
+		 */
 		private final WriteOnlyOffHeapWithFileBackupHandle writeOnlyOffHeapWithFileBackupHandle;
+		/**
+		 * The delegate read-only handle that this read-only handle uses to access the data.
+		 * It's not final because it may change when the write-only handle switches from off-heap memory to
+		 * a file backup.
+		 */
 		private ReadOnlyHandle delegate;
 
-		private OffHeapWithFileBackupReadOnlyHandle(WriteOnlyOffHeapWithFileBackupHandle writeOnlyOffHeapWithFileBackupHandle) {
+		private OffHeapWithFileBackupReadOnlyHandle(@Nonnull WriteOnlyOffHeapWithFileBackupHandle writeOnlyOffHeapWithFileBackupHandle) {
 			this.writeOnlyOffHeapWithFileBackupHandle = writeOnlyOffHeapWithFileBackupHandle;
 			this.delegate = getDelegate();
 		}
@@ -426,20 +436,32 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 			return getDelegate().getLastWrittenPosition();
 		}
 
+		/**
+		 * Retrieves the delegate ReadOnlyHandle used for accessing data. It uses cached {@link #delegate} if it's
+		 * already set and matches the current state of the {@link #writeOnlyOffHeapWithFileBackupHandle}.
+		 *
+		 * @return the delegate ReadOnlyHandle
+		 * @throws EvitaInternalError if no content has been written using the source write handle
+		 */
 		@Nonnull
 		private ReadOnlyHandle getDelegate() {
 			if (this.writeOnlyOffHeapWithFileBackupHandle.offHeapMemoryOutput != null) {
+				// initial state - we may be reading the data from the off-heap memory
 				if (!(this.delegate instanceof ReadOnlyGenericHandle)) {
+					// check that it's really invoked only in the initial state
 					Assert.isPremiseValid(this.delegate == null, "Delegate already set!");
+					// create a new delegate to off-heap memory
 					final ObservableInput<InputStream> observableInput = new ObservableInput<>(
 						this.writeOnlyOffHeapWithFileBackupHandle.offHeapMemoryOutput.getOutputStream().getInputStream()
 					);
 					this.delegate = new ReadOnlyGenericHandle(observableInput, this.writeOnlyOffHeapWithFileBackupHandle.lastConsistentWrittenPosition);
 				}
 			} else if (this.writeOnlyOffHeapWithFileBackupHandle.fileOutput != null) {
+				// check the delegate already reads from the file
 				if (!(this.delegate instanceof ReadOnlyFileHandle)) {
-					// we don't close the existing delegate here,
+					// we don't close the existing off-heap memory delegate here,
 					// because it was already close when the implementation switched to file
+					// and also because there may be multiple read-only handles created from the same write handle
 					this.delegate = new ReadOnlyFileHandle(
 						this.writeOnlyOffHeapWithFileBackupHandle.targetFile,
 						this.writeOnlyOffHeapWithFileBackupHandle.observableOutputKeeper.getOptions().computeCRC32C()

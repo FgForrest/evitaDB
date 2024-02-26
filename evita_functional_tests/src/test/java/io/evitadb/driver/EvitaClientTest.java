@@ -1988,7 +1988,6 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 
 	@Test
 	@UseDataSet(value = EVITA_CLIENT_DATA_SET, destroyAfterTest = true)
-	@Disabled
 	void shouldDeleteHierarchyAndFetchRoot(EvitaClient evitaClient) {
 		evitaClient.updateCatalog(
 			TEST_CATALOG,

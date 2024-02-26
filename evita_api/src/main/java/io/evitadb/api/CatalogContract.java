@@ -42,6 +42,7 @@ import java.io.Serializable;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Consumer;
 
 /**
  * Catalog is a fragment of evitaDB database that can be compared to a schema of relational database. Catalog allows
@@ -237,11 +238,16 @@ public interface CatalogContract {
 	boolean goLive();
 
 	/**
+	 * Method checks whether there are new records in the WAL that haven't been incorporated into the catalog yet and
+	 * processes them. The method returns completable future that is completed when all records are processed.
+	 */
+	void processWriteAheadLog(@Nonnull Consumer<CatalogContract> updatedCatalog);
+
+	/**
 	 * Terminates catalog instance and frees all claimed resources. Prepares catalog instance to be garbage collected.
 	 *
 	 * This method is idempotent and may be called multiple times. Only first call is really processed and others are
 	 * ignored.
 	 */
 	void terminate();
-
 }

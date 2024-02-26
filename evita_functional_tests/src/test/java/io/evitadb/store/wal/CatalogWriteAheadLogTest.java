@@ -26,6 +26,7 @@ package io.evitadb.store.wal;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.util.Pool;
 import io.evitadb.api.configuration.StorageOptions;
+import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.store.exception.WriteAheadLogCorruptedException;
 import io.evitadb.store.service.KryoFactory;
@@ -35,11 +36,13 @@ import io.evitadb.utils.UUIDUtil;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
+import java.util.concurrent.ScheduledExecutorService;
 
 import static io.evitadb.store.spi.CatalogPersistenceService.getWalFileName;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
@@ -63,9 +66,10 @@ class CatalogWriteAheadLogTest {
 	private final CatalogWriteAheadLog tested = new CatalogWriteAheadLog(
 		TEST_CATALOG,
 		walDirectory,
-		walFileReference,
 		catalogKryoPool,
-		StorageOptions.builder().build()
+		StorageOptions.builder().build(),
+		TransactionOptions.builder().build(),
+		Mockito.mock(ScheduledExecutorService.class)
 	);
 	private final Path walFilePath = walDirectory.resolve(getWalFileName(TEST_CATALOG, walFileReference.fileIndex()));
 	private final int[] txSizes = new int[] {55, 152, 199, 46};

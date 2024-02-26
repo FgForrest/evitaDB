@@ -114,6 +114,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -196,9 +197,9 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	@Nonnull
 	private final WriteOnlyHandle bootstrapWriteHandle;
 	/**
-	 * Contains the instance of {@link CatalogBootstrap} that contains the last bootstrap record that is currently used.
+	 * Scheduled executor service is used for planning maintenance tasks on the data level.
 	 */
-	private CatalogBootstrap bootstrapUsed;
+	@Nonnull private final ScheduledExecutorService executorService;
 	/**
 	 * Pool contains instances of {@link Kryo} that are used for serializing mutations in WAL.
 	 */
@@ -208,6 +209,10 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			return KryoFactory.createKryo(WalKryoConfigurer.INSTANCE);
 		}
 	};
+	/**
+	 * Contains the instance of {@link CatalogBootstrap} that contains the last bootstrap record that is currently used.
+	 */
+	private CatalogBootstrap bootstrapUsed;
 	/**
 	 * Contains the instance of {@link CatalogWriteAheadLog} that is used for writing mutations into shared WAL.
 	 */
@@ -360,7 +365,9 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		@Nonnull Path catalogStoragePath,
 		@Nonnull CatalogHeader catalogHeader,
 		@Nonnull Pool<Kryo> catalogKryoPool,
-		@Nonnull StorageOptions storageOptions
+		@Nonnull StorageOptions storageOptions,
+		@Nonnull TransactionOptions transactionOptions,
+		@Nonnull ScheduledExecutorService executorService
 	) {
 		WalFileReference currentWalFileRef = catalogHeader.walFileReference();
 		if (catalogHeader.catalogState() == CatalogState.ALIVE && currentWalFileRef == null) {
@@ -393,19 +400,53 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		return ofNullable(currentWalFileRef)
 			.map(
 				walFileReference -> new CatalogWriteAheadLog(
-					catalogName, catalogStoragePath, walFileReference, catalogKryoPool, storageOptions
+					catalogName, catalogStoragePath, catalogKryoPool,
+					storageOptions, transactionOptions, executorService
 				)
 			)
 			.orElse(null);
 	}
 
+	/**
+	 * Creates a CatalogWriteAheadLog if there are any WAL files present in the catalog file path.
+	 *
+	 * @param catalogName        the name of the catalog
+	 * @param storageOptions     the storage options
+	 * @param transactionOptions the transaction options
+	 * @param executorService    the executor service
+	 * @param catalogFilePath    the path to the catalog file
+	 * @param kryoPool           the Kryo pool
+	 * @return a CatalogWriteAheadLog object if WAL files are present, otherwise null
+	 */
+	@Nullable
+	private static CatalogWriteAheadLog createWalIfAnyWalFilePresent(
+		@Nonnull String catalogName,
+		@Nonnull StorageOptions storageOptions,
+		@Nonnull TransactionOptions transactionOptions,
+		@Nonnull ScheduledExecutorService executorService,
+		@Nonnull Path catalogFilePath,
+		@Nonnull Pool<Kryo> kryoPool
+	) {
+		final File[] walFiles = catalogFilePath
+			.toFile()
+			.listFiles((dir, name) -> name.endsWith(WAL_FILE_SUFFIX));
+		return walFiles == null || walFiles.length == 0 ?
+			null :
+			new CatalogWriteAheadLog(
+				catalogName, catalogFilePath, kryoPool,
+				storageOptions, transactionOptions, executorService
+			);
+	}
+
 	public DefaultCatalogPersistenceService(
 		@Nonnull String catalogName,
 		@Nonnull StorageOptions storageOptions,
-		@Nonnull TransactionOptions transactionOptions
+		@Nonnull TransactionOptions transactionOptions,
+		@Nonnull ScheduledExecutorService executorService
 	) {
 		this.storageOptions = storageOptions;
 		this.transactionOptions = transactionOptions;
+		this.executorService = executorService;
 		this.offHeapMemoryManager = new OffHeapMemoryManager(
 			transactionOptions.transactionMemoryBufferLimitSizeBytes(),
 			transactionOptions.transactionMemoryRegionCount()
@@ -423,17 +464,21 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			this.catalogStoragePath.resolve(getCatalogBootstrapFileName(catalogName)),
 			this.observableOutputKeeper
 		);
+		this.catalogWal = createWalIfAnyWalFilePresent(
+			catalogName, storageOptions, transactionOptions, executorService,
+			this.catalogStoragePath, this.catalogKryoPool
+		);
+
 		final String catalogFileName = getCatalogDataStoreFileName(catalogName, lastCatalogBootstrap.catalogFileIndex());
 		final Path catalogFilePath = this.catalogStoragePath.resolve(catalogFileName);
-
 		try {
 			this.observableOutputKeeper.prepare();
 			this.catalogStoragePartPersistenceService = CatalogOffsetIndexStoragePartPersistenceService.create(
-				catalogName,
+				this.catalogName,
 				catalogFileName,
 				catalogFilePath,
-				storageOptions,
-				transactionOptions,
+				this.storageOptions,
+				this.transactionOptions,
 				lastCatalogBootstrap,
 				recordTypeRegistry,
 				offHeapMemoryManager,
@@ -457,10 +502,12 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		@Nonnull String catalogName,
 		@Nonnull Path catalogStoragePath,
 		@Nonnull StorageOptions storageOptions,
-		@Nonnull TransactionOptions transactionOptions
+		@Nonnull TransactionOptions transactionOptions,
+		@Nonnull ScheduledExecutorService executorService
 	) {
 		this.storageOptions = storageOptions;
 		this.transactionOptions = transactionOptions;
+		this.executorService = executorService;
 		this.offHeapMemoryManager = new OffHeapMemoryManager(
 			transactionOptions.transactionMemoryBufferLimitSizeBytes(),
 			transactionOptions.transactionMemoryRegionCount()
@@ -480,12 +527,18 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 
 		final String catalogFileName = getCatalogDataStoreFileName(catalogName, this.bootstrapUsed.catalogFileIndex());
 		final Path catalogFilePath = this.catalogStoragePath.resolve(catalogFileName);
+
+		this.catalogWal = createWalIfAnyWalFilePresent(
+			catalogName, storageOptions, transactionOptions, executorService,
+			this.catalogStoragePath, this.catalogKryoPool
+		);
+
 		this.catalogStoragePartPersistenceService = CatalogOffsetIndexStoragePartPersistenceService.create(
-			catalogName,
+			this.catalogName,
 			catalogFileName,
 			catalogFilePath,
-			storageOptions,
-			transactionOptions,
+			this.storageOptions,
+			this.transactionOptions,
 			this.bootstrapUsed,
 			this.recordTypeRegistry,
 			this.offHeapMemoryManager,
@@ -511,7 +564,9 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		@Nonnull CatalogBootstrap bootstrapUsed,
 		@Nonnull WriteOnlyHandle bootstrapWriteHandle,
 		@Nonnull StorageOptions storageOptions,
-		@Nonnull TransactionOptions transactionOptions
+		@Nonnull TransactionOptions transactionOptions,
+		@Nonnull ScheduledExecutorService executorService,
+		@Nullable CatalogWriteAheadLog catalogWal
 	) {
 		this.bootstrapUsed = bootstrapUsed;
 		this.recordTypeRegistry = fileOffsetIndexRecordTypeRegistry;
@@ -522,6 +577,8 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		this.bootstrapWriteHandle = bootstrapWriteHandle;
 		this.storageOptions = storageOptions;
 		this.transactionOptions = transactionOptions;
+		this.executorService = executorService;
+		this.catalogWal = catalogWal;
 
 		final String catalogFileName = getCatalogDataStoreFileName(catalogName, this.bootstrapUsed.catalogFileIndex());
 		final Path catalogFilePath = this.catalogStoragePath.resolve(catalogFileName);
@@ -682,6 +739,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				entityCollectionHeader.fileLocation()
 			),
 			eType -> new DefaultEntityCollectionPersistenceService(
+				bootstrapUsed.catalogVersion(),
 				catalogStoragePath,
 				entityCollectionHeader,
 				storageOptions,
@@ -728,7 +786,8 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		if (this.catalogWal == null) {
 			final CatalogHeader catalogHeader = this.catalogStoragePartPersistenceService.getCatalogHeader(bootstrapUsed.catalogVersion());
 			this.catalogWal = getCatalogWriteAheadLog(
-				catalogName, this.catalogStoragePath, catalogHeader, catalogKryoPool, storageOptions
+				catalogName, this.catalogStoragePath, catalogHeader, catalogKryoPool,
+				storageOptions, transactionOptions, executorService
 			);
 		}
 		Assert.isPremiseValid(
@@ -737,6 +796,16 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		);
 
 		this.catalogWal.append(transactionMutation, walReference);
+	}
+
+	@Nonnull
+	@Override
+	public Optional<TransactionMutation> getFirstNonProcessedTransactionInWal() {
+		if (this.catalogWal == null) {
+			return Optional.empty();
+		} else {
+			return this.catalogWal.getFirstNonProcessedTransaction(getCatalogHeader().walFileReference());
+		}
 	}
 
 	@Nonnull
@@ -847,7 +916,9 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 					this.observableOutputKeeper
 				),
 				this.storageOptions,
-				this.transactionOptions
+				this.transactionOptions,
+				this.executorService,
+				this.catalogWal
 			);
 		} catch (RuntimeException ex) {
 			// rename original directory back
@@ -920,6 +991,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				);
 				final EntityCollectionHeader entityHeader = entityPersistenceService.getCatalogEntityHeader();
 				return new DefaultEntityCollectionPersistenceService(
+					bootstrapUsed.catalogVersion(),
 					catalogStoragePath,
 					new EntityCollectionHeader(
 						newEntityTypeExistingFileReference.entityType(),
@@ -964,6 +1036,16 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		}
 	}
 
+	@Nonnull
+	@Override
+	public Stream<Mutation> getCommittedLiveMutationStream(long catalogVersion) {
+		if (this.catalogWal == null) {
+			return Stream.empty();
+		} else {
+			return this.catalogWal.getCommittedMutationStreamAvoidingPartiallyWrittenBuffer(catalogVersion);
+		}
+	}
+
 	@Override
 	public long getLastCatalogVersionInMutationStream() {
 		if (this.catalogWal == null) {
@@ -974,9 +1056,10 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	}
 
 	@Override
-	public void catalogVersionBeyondTheHorizon(@Nonnull String catalogName, long catalogVersion, boolean activeSessionsToOlderVersions) {
-		if (!activeSessionsToOlderVersions && catalogName.equals(this.catalogName)) {
-			this.catalogStoragePartPersistenceService.purgeHistoryEqualAndLaterThan(catalogVersion);
+	public void forgetVolatileData() {
+		this.catalogStoragePartPersistenceService.forgetVolatileData();
+		for (DefaultEntityCollectionPersistenceService collectionPersistenceServices : entityCollectionPersistenceServices.values()) {
+			collectionPersistenceServices.getStoragePartPersistenceService().forgetVolatileData();
 		}
 	}
 
@@ -997,6 +1080,13 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		} catch (IOException e) {
 			// ignore / log - we tried to close everything
 			log.error("Failed to close catalog persistence service `" + this.catalogName + "`!", e);
+		}
+	}
+
+	@Override
+	public void catalogVersionBeyondTheHorizon(@Nonnull String catalogName, long catalogVersion, boolean activeSessionsToOlderVersions) {
+		if (!activeSessionsToOlderVersions && catalogName.equals(this.catalogName)) {
+			this.catalogStoragePartPersistenceService.purgeHistoryEqualAndLaterThan(catalogVersion);
 		}
 	}
 
@@ -1030,10 +1120,10 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	}
 
 	@Override
-	public void flushTrappedUpdates(@Nonnull DataStoreIndexChanges<CatalogIndexKey, CatalogIndex> dataStoreIndexChanges) {
+	public void flushTrappedUpdates(long catalogVersion, @Nonnull DataStoreIndexChanges<CatalogIndexKey, CatalogIndex> dataStoreIndexChanges) {
 		// now store all entity trapped updates
 		dataStoreIndexChanges.popTrappedUpdates()
-			.forEach(it -> this.catalogStoragePartPersistenceService.putStoragePart(0L, it));
+			.forEach(it -> this.catalogStoragePartPersistenceService.putStoragePart(catalogVersion, it));
 	}
 
 	@Override
@@ -1044,8 +1134,8 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	/**
 	 * Records a bootstrap in the catalog.
 	 *
-	 * @param catalogVersion the version of the catalog
-	 * @param newCatalogName the name of the new catalog
+	 * @param catalogVersion   the version of the catalog
+	 * @param newCatalogName   the name of the new catalog
 	 * @param catalogFileIndex the index of the catalog file
 	 * @return the recorded CatalogBootstrap object
 	 */

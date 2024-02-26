@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -785,10 +785,18 @@ public class StringUtils {
 		appendIfNonZero(sb, minutes, "", "m");
 
 		seconds -= (minutes * 60);
-		if (!omitNanoIfPossible || (sb.length() == 0 && seconds == 0)) {
-			long nanos = nanoSeconds % 1000000000;
-			final String suffix = getIfNonZero(nanos, "." + "0".repeat(9 - String.valueOf(nanos).length()), "s");
-			append(sb, seconds, "", suffix);
+		final boolean emptyWithoutSeconds = sb.isEmpty() && seconds == 0;
+		if (!omitNanoIfPossible || emptyWithoutSeconds) {
+			if (emptyWithoutSeconds) {
+				final long millis = nanoSeconds / 1000000;
+				long nanos = nanoSeconds - (millis * 1000000);
+				final String suffix = getIfNonZero(nanos, "." + "0".repeat(6 - String.valueOf(nanos).length()), "ms");
+				append(sb, millis, "", suffix);
+			} else {
+				long nanos = nanoSeconds % 1000000000;
+				final String suffix = getIfNonZero(nanos, "." + "0".repeat(9 - String.valueOf(nanos).length()), "s");
+				append(sb, seconds, "", suffix);
+			}
 		} else {
 			appendIfNonZero(sb, seconds, "", "s");
 		}

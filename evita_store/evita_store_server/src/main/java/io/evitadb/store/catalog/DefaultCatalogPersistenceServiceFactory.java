@@ -31,6 +31,7 @@ import io.evitadb.store.spi.CatalogPersistenceServiceFactory;
 
 import javax.annotation.Nonnull;
 import java.nio.file.Path;
+import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * This implementation is the single and only implementation of {@link CatalogPersistenceServiceFactory}. Instance is
@@ -47,9 +48,12 @@ public class DefaultCatalogPersistenceServiceFactory implements CatalogPersisten
 		@Nonnull CatalogContract catalogInstance,
 		@Nonnull String catalogName,
 		@Nonnull StorageOptions storageOptions,
-		@Nonnull TransactionOptions transactionOptions
+		@Nonnull TransactionOptions transactionOptions,
+		@Nonnull ScheduledExecutorService executorService
 	) {
-		return new DefaultCatalogPersistenceService(catalogName, storageOptions, transactionOptions);
+		return new DefaultCatalogPersistenceService(
+			catalogName, storageOptions, transactionOptions, executorService
+		);
 	}
 
 	@Nonnull
@@ -59,9 +63,12 @@ public class DefaultCatalogPersistenceServiceFactory implements CatalogPersisten
 		@Nonnull String catalogName,
 		@Nonnull Path catalogStoragePath,
 		@Nonnull StorageOptions storageOptions,
-		@Nonnull TransactionOptions transactionOptions
+		@Nonnull TransactionOptions transactionOptions,
+		@Nonnull ScheduledExecutorService executorService
 	) {
-		return new DefaultCatalogPersistenceService(catalogInstance, catalogName, catalogStoragePath, storageOptions, transactionOptions);
+		return new DefaultCatalogPersistenceService(
+			catalogInstance, catalogName, catalogStoragePath, storageOptions, transactionOptions, executorService
+		);
 	}
 
 }

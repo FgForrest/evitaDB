@@ -26,9 +26,9 @@ package io.evitadb.index.array;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
+import io.evitadb.dataType.iterator.ConstantIntIterator;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
-import io.evitadb.index.iterator.ConstantIntIterator;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
