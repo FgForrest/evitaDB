@@ -204,6 +204,18 @@ public final class CorruptedCatalog implements CatalogContract {
 		throw new CatalogCorruptedException(this);
 	}
 
+	@Nonnull
+	@Override
+	public Stream<Mutation> getCommittedMutationStream(long catalogVersion) {
+		throw new CatalogCorruptedException(this);
+	}
+
+	@Nonnull
+	@Override
+	public Stream<Mutation> getReversedCommittedMutationStream(long catalogVersion) {
+		throw new CatalogCorruptedException(this);
+	}
+
 	@Override
 	public boolean goLive() {
 		throw new CatalogCorruptedException(this);

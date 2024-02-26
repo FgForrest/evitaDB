@@ -88,6 +88,7 @@ public record CatalogVersionDescriptor(
 	 *
 	 * @return aggregated entity changes
 	 */
+	@Nonnull
 	public EntityCollectionChanges[] entityCollectionChanges() {
 		return Arrays.stream(transactionChanges)
 			.flatMap(tc -> Arrays.stream(tc.entityCollectionChanges))

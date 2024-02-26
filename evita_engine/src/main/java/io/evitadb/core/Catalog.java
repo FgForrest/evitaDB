@@ -825,6 +825,18 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 	}
 
 	@Override
+	@Nonnull
+	public Stream<Mutation> getCommittedMutationStream(long catalogVersion) {
+		return this.persistenceService.getCommittedMutationStream(catalogVersion);
+	}
+
+	@Nonnull
+	@Override
+	public Stream<Mutation> getReversedCommittedMutationStream(long catalogVersion) {
+		return this.persistenceService.getReversedCommittedMutationStream(catalogVersion);
+	}
+
+	@Override
 	public void terminate() {
 		try {
 			persistenceService.executeWriteSafely(() -> {
@@ -1069,20 +1081,6 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 				);
 			}
 		}
-	}
-
-	/**
-	 * Retrieves the stream of committed mutations since the given catalogVersion. The first mutation in the stream
-	 * will be {@link TransactionMutation} that evolved the catalog to the catalogVersion plus one.
-	 *
-	 * DO NOT USE THIS METHOD if the WAL is being actively written to. Use {@link #getCommittedLiveMutationStream(long)}
-	 *
-	 * @param catalogVersion The catalog version to start the stream from
-	 * @return The stream of committed mutations since the given catalogVersion
-	 */
-	@Nonnull
-	public Stream<Mutation> getCommittedMutationStream(long catalogVersion) {
-		return this.persistenceService.getCommittedMutationStream(catalogVersion);
 	}
 
 	/**

@@ -39,6 +39,7 @@ import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation
 import io.evitadb.api.requestResponse.system.CatalogVersion;
 import io.evitadb.api.requestResponse.system.CatalogVersionDescriptor;
 import io.evitadb.api.requestResponse.system.TimeFlow;
+import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.dataType.PaginatedList;
 
 import javax.annotation.Nonnull;
@@ -272,6 +273,32 @@ public interface CatalogContract {
 	 */
 	@Nonnull
 	Stream<CatalogVersionDescriptor> getCatalogVersionDescriptors(long... catalogVersion);
+
+	/**
+	 * Retrieves a stream of committed mutations starting with a {@link TransactionMutation} that will transition
+	 * the catalog to the given version. The stream goes through all the mutations in this transaction and continues
+	 * forward with next transaction after that until the end of the WAL.
+	 *
+	 * BEWARE! Stream implements {@link java.io.Closeable} and needs to be closed to release resources.
+	 *
+	 * @param catalogVersion version of the catalog to start the stream with
+	 * @return a stream containing committed mutations
+	 */
+	@Nonnull
+	Stream<Mutation> getCommittedMutationStream(long catalogVersion);
+
+	/**
+	 * Retrieves a stream of committed mutations starting with a {@link TransactionMutation} that will transition
+	 * the catalog to the given version. The stream goes through all the mutations in this transaction from last to
+	 * first one and continues backward with previous transaction after that until the beginning of the WAL.
+	 *
+	 * BEWARE! Stream implements {@link java.io.Closeable} and needs to be closed to release resources.
+	 *
+	 * @param catalogVersion version of the catalog to start the stream with
+	 * @return a stream containing committed mutations
+	 */
+	@Nonnull
+	Stream<Mutation> getReversedCommittedMutationStream(long catalogVersion);
 
 	/**
 	 * Terminates catalog instance and frees all claimed resources. Prepares catalog instance to be garbage collected.

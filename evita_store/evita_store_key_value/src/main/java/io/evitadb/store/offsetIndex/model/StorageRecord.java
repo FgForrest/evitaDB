@@ -184,6 +184,25 @@ public record StorageRecord<T>(
 	}
 
 	/**
+	 * Reads the {@link FileLocation} of a record from the specified {@link ObservableInput}.
+	 *
+	 * @param input          The input stream to read from.
+	 * @param startPosition The starting position of the record in the file.
+	 * @return The {@link FileLocation} of the record.
+	 */
+	@Nonnull
+	public static FileLocation readFileLocation(
+		@Nonnull ObservableInput<?> input,
+		long startPosition
+	) {
+		input.seek(new FileLocation(startPosition, 4));
+		input.markStart();
+		final int recordLength = input.readInt();
+		input.reset();
+		return new FileLocation(startPosition, recordLength);
+	}
+
+	/**
 	 * Reads a storage record from the input stream.
 	 *
 	 * @param input         The input stream to read from.
@@ -241,6 +260,12 @@ public record StorageRecord<T>(
 		}
 	}
 
+	/**
+	 * Writes the header of a storage record to the specified output.
+	 *
+	 * @param output The output stream to write the header to.
+	 * @param transactionId The transaction id of the record.
+	 */
 	private static void writeHeader(@Nonnull ObservableOutput<?> output, long transactionId) {
 		output.markStart();
 

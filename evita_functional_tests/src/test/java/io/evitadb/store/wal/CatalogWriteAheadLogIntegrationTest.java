@@ -44,8 +44,8 @@ import io.evitadb.store.service.KryoFactory;
 import io.evitadb.store.spi.IsolatedWalPersistenceService;
 import io.evitadb.store.spi.OffHeapWithFileBackupReference;
 import io.evitadb.store.spi.model.reference.WalFileReference;
-import io.evitadb.store.wal.CatalogWriteAheadLog.MutationSupplier;
-import io.evitadb.store.wal.CatalogWriteAheadLog.TransactionMutationWithLocation;
+import io.evitadb.store.wal.supplier.MutationSupplier;
+import io.evitadb.store.wal.supplier.TransactionMutationWithLocation;
 import io.evitadb.test.TestConstants;
 import io.evitadb.test.generator.DataGenerator;
 import io.evitadb.utils.CollectionUtils;
@@ -144,6 +144,15 @@ class CatalogWriteAheadLogIntegrationTest {
 		createCachedSupplierReadAndVerifyFrom(txInMutations, transactionSizes, 2);
 		createCachedSupplierReadAndVerifyFrom(txInMutations, transactionSizes, 1);
 		createCachedSupplierReadAndVerifyFrom(txInMutations, transactionSizes, 0);
+	}
+
+	@Test
+	void shouldWriteAndReadWalOverMultipleFilesInReversedOrder() {
+		wal = createCatalogWriteAheadLogOfSmallSize();
+
+		final int[] transactionSizes = {10, 15, 20, 15, 10};
+		final Map<Long, List<Mutation>> txInMutations = writeWal(bigOffHeapMemoryManager, transactionSizes);
+		readAndVerifyWalInReverse(txInMutations, transactionSizes, 4);
 	}
 
 	@Test
@@ -330,6 +339,42 @@ class CatalogWriteAheadLogIntegrationTest {
 
 		assertEquals(transactionSizes.length, lastCatalogVersion);
 		assertEquals(txRead, transactionSizes.length - startIndex);
+	}
+
+	/**
+	 * Reads and verifies the Write-Ahead Log (WAL) using the provided transaction
+	 * mutations map in backward fashion.
+	 *
+	 * @param txInMutations    a map of catalog versions to corresponding mutations
+	 * @param transactionSizes an array of transaction sizes
+	 */
+	private void readAndVerifyWalInReverse(@Nonnull Map<Long, List<Mutation>> txInMutations, int[] transactionSizes, int startIndex) {
+		long firstCatalogVersion = -1L;
+		long catalogVersion = startIndex + 1;
+		final Iterator<Mutation> mutationIterator = wal.getCommittedReversedMutationStream(catalogVersion).iterator();
+		int txRead = 0;
+		while (mutationIterator.hasNext()) {
+			txRead++;
+			final List<Mutation> mutationsInTx = txInMutations.get(catalogVersion);
+			for (int i = mutationsInTx.size() - 1; i > 0; i--) {
+				final Mutation mutationInTx = mutationIterator.next();
+				assertEquals(mutationsInTx.get(i), mutationInTx);
+			}
+
+			final Mutation mutation = mutationIterator.next();
+			assertInstanceOf(TransactionMutation.class, mutation);
+
+			final TransactionMutation transactionMutation = (TransactionMutation) mutation;
+			assertEquals(mutationsInTx.get(0), transactionMutation);
+
+			if (firstCatalogVersion == -1L) {
+				firstCatalogVersion = transactionMutation.getCatalogVersion();
+			}
+			catalogVersion--;
+		}
+
+		assertEquals(transactionSizes.length, firstCatalogVersion);
+		assertEquals(transactionSizes.length - (transactionSizes.length - startIndex) + 1, txRead);
 	}
 
 }

@@ -1078,6 +1078,16 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 
 	@Nonnull
 	@Override
+	public Stream<Mutation> getReversedCommittedMutationStream(long catalogVersion) {
+		if (this.catalogWal == null) {
+			return Stream.empty();
+		} else {
+			return this.catalogWal.getCommittedReversedMutationStream(catalogVersion);
+		}
+	}
+
+	@Nonnull
+	@Override
 	public Stream<Mutation> getCommittedLiveMutationStream(long catalogVersion) {
 		if (this.catalogWal == null) {
 			return Stream.empty();

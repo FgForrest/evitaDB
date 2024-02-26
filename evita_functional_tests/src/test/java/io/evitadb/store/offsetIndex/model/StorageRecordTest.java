@@ -54,7 +54,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -174,19 +173,35 @@ class StorageRecordTest {
 		final Map<FileLocation, StorageRecord<ByteChunk>> index = generateAndWriteRandomRecords(count, records::add);
 
 		try (final ObservableInput<?> input = new ObservableInput<>(new FileInputStream(tempFile), 16_384).computeCRC32()) {
-			final AtomicReference<FileLocation> locRef = new AtomicReference<>();
 			for (int i = 0; i < count; i++) {
 				final StorageRecord<ByteChunk> loadedRecord = StorageRecord.read(
 					kryo, input,
-					fl -> {
-						locRef.set(fl);
-						return ByteChunk.class;
-					}
+					fl -> ByteChunk.class
 				);
 				assertEquals(records.get(i), loadedRecord, "Record " + i + " doesn't match!");
-				final StorageRecord<ByteChunk> originalRecord = index.get(locRef.get());
+				final StorageRecord<ByteChunk> originalRecord = index.get(loadedRecord.fileLocation());
 				assertNotNull(originalRecord);
 				assertEquals(originalRecord, loadedRecord);
+			}
+		}
+	}
+
+	@DisplayName("File locations of multiple records of various random size should be written and read with checksum")
+	@Test
+	void shouldWriteAndReadFileLocationsOfMultipleDifferentRecordsOfVaryingSize() throws IOException {
+		final int count = 256;
+		final List<StorageRecord<ByteChunk>> records = new ArrayList<>(count);
+		final Map<FileLocation, StorageRecord<ByteChunk>> index = generateAndWriteRandomRecords(count, records::add);
+
+		try (final ObservableInput<?> input = new ObservableInput<>(new RandomAccessFileInputStream(new RandomAccessFile(tempFile, "r")), 16_384).computeCRC32()) {
+			long startPosition = 0;
+			for (int i = 0; i < count; i++) {
+				final FileLocation location = StorageRecord.readFileLocation(input, startPosition);
+				assertTrue(
+					index.containsKey(location),
+					"Record " + i + " file position doesn't match!"
+				);
+				startPosition += location.recordLength();
 			}
 		}
 	}
