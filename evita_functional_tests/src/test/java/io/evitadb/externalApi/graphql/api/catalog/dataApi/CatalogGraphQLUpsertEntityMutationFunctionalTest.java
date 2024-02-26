@@ -191,7 +191,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 
 	@Test
 	@UseDataSet(value = GRAPHQL_THOUSAND_PRODUCTS_FOR_UPDATE, destroyAfterTest = true)
-	@DisplayName("Should return error when missing mutations for product insert")
+	@DisplayName("Should return error when missing mutations for required data for product insert")
 	void shouldReturnErrorWhenMissingMutationsForProductInsert(GraphQLTester tester) {
 		tester.test(TEST_CATALOG)
 			.document(
@@ -211,7 +211,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 	@Test
 	@UseDataSet(value = GRAPHQL_THOUSAND_PRODUCTS_FOR_UPDATE, destroyAfterTest = true)
 	@DisplayName("Should update product with attribute mutations")
-	void shouldUpdateProductWithAttributeMutations(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+	void shouldUpdateProductWithAttributeMutations(Evita evita, GraphQLTester tester) {
 		final SealedEntity entity = getEntity(
 			evita,
 			query(
