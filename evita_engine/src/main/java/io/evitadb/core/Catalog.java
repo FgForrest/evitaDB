@@ -62,6 +62,9 @@ import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateEntitySchema
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaNameMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.RemoveEntitySchemaMutation;
+import io.evitadb.api.requestResponse.system.CatalogVersion;
+import io.evitadb.api.requestResponse.system.CatalogVersionDescriptor;
+import io.evitadb.api.requestResponse.system.TimeFlow;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.api.trace.TracingContext;
 import io.evitadb.core.buffer.DataStoreChanges;
@@ -83,6 +86,7 @@ import io.evitadb.core.transaction.stage.ConflictResolutionTransactionStage;
 import io.evitadb.core.transaction.stage.ConflictResolutionTransactionStage.ConflictResolutionTransactionTask;
 import io.evitadb.core.transaction.stage.TrunkIncorporationTransactionStage;
 import io.evitadb.core.transaction.stage.WalAppendingTransactionStage;
+import io.evitadb.dataType.PaginatedList;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.CatalogIndexKey;
@@ -806,6 +810,18 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 				},
 				() -> updatedCatalogConsumer.accept(this)
 			);
+	}
+
+	@Nonnull
+	@Override
+	public PaginatedList<CatalogVersion> getCatalogVersions(@Nonnull TimeFlow timeFlow, int page, int pageSize) {
+		return this.persistenceService.getCatalogVersions(timeFlow, page, pageSize);
+	}
+
+	@Nonnull
+	@Override
+	public Stream<CatalogVersionDescriptor> getCatalogVersionDescriptors(long... catalogVersion) {
+		return this.persistenceService.getCatalogVersionDescriptors(catalogVersion);
 	}
 
 	@Override

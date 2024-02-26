@@ -61,6 +61,7 @@ import org.mockito.Mockito;
 import javax.annotation.Nonnull;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.time.OffsetDateTime;
 import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -278,7 +279,8 @@ class CatalogWriteAheadLogIntegrationTest {
 				UUIDUtil.randomUUID(),
 				catalogVersion,
 				mutations.size(),
-				walReference.getContentLength()
+				walReference.getContentLength(),
+				OffsetDateTime.now()
 			);
 
 			final long start = this.wal.getWalFilePath().toFile().length();

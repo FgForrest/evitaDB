@@ -41,6 +41,10 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
+import io.evitadb.api.requestResponse.system.CatalogVersion;
+import io.evitadb.api.requestResponse.system.CatalogVersionDescriptor;
+import io.evitadb.api.requestResponse.system.CatalogVersionDescriptor.TransactionChanges;
+import io.evitadb.api.requestResponse.system.TimeFlow;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.core.Evita;
 import io.evitadb.core.EvitaSession;
@@ -73,6 +77,9 @@ import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
 import java.nio.file.Path;
+import java.time.OffsetDateTime;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -90,6 +97,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
@@ -116,6 +124,8 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 		final int primaryKey = entityCount == 0 ? 0 : faker.random().nextInt(1, entityCount);
 		return primaryKey == 0 ? null : primaryKey;
 	};
+	private static final Pattern DATE_TIME_PATTERN = Pattern.compile("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d+\\+\\d{2}:\\d{2}");
+	private static final Pattern LAG_PATTERN = Pattern.compile("lag \\d*m?s");
 	private final DataGenerator dataGenerator = new DataGenerator();
 	private final Pool<Kryo> catalogKryoPool = new Pool<>(false, false, 1) {
 		@Override
@@ -168,6 +178,32 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 			}
 		}
 		return catalogVersion;
+	}
+
+	/**
+	 * Replaces timestamps in ISO OFFSET DATE TIME format (2024-02-26T14:48:54.984) to a placeholder.
+	 * We need to do this in order to get the repeatable test results.
+	 *
+	 * @param textWithTimestamps The text with timestamps to replace.
+	 * @return the text with timestamps replaced.
+	 */
+	@Nonnull
+	private static String replaceTimeStamps(@Nonnull String textWithTimestamps) {
+		// the pattern is in the form of 2024-02-26T14:48:54.984+01:00
+		return DATE_TIME_PATTERN.matcher(textWithTimestamps).replaceAll("REPLACED_OFFSET_DATE_TIME");
+	}
+
+	/**
+	 * Replaces occurrences of "lag 123ms" pattern in the given text with the string "REPLACED_LAG".
+	 * We need to do this in order to get the repeatable test results.
+	 *
+	 * @param textWithLag the input text that may contain occurrences of "lag 123ms" pattern
+	 * @return the updated text with occurrences of "lag 123ms" pattern replaced by "REPLACED_LAG"
+	 */
+	@Nonnull
+	private static String replaceLag(@Nonnull String textWithLag) {
+		// the pattern is in the form of lag 123ms
+		return LAG_PATTERN.matcher(textWithLag).replaceAll("REPLACED_LAG");
 	}
 
 	@DataSet(value = TRANSACTIONAL_DATA_SET, readOnly = false)
@@ -227,7 +263,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 	@DisplayName("Catalog should be automatically updated after a load with existing WAL contents.")
 	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
 	@Test
-	void shouldPickUpExistingWalOnStartAndReplayItsContents(Evita evita) throws Exception {
+	void shouldPickUpExistingWalOnStartAndReplayItsContents(Evita evita) {
 		// close evita first so that the processing pipeline is shut down
 		final EvitaConfiguration cfg = evita.getConfiguration();
 		final SealedCatalogSchema catalogSchema = evita.getCatalogInstance(TEST_CATALOG).orElseThrow().getSchema();
@@ -272,6 +308,210 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 		assertEquals(6L, nextCatalogVersion);
 
 		thirdInstance.close();
+	}
+
+	@DisplayName("Catalog history should be aggregated correctly.")
+	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
+	@Tag(LONG_RUNNING_TEST)
+	@Test
+	void shouldBuildCorrectHistory(Evita evita) {
+		// close evita first so that the processing pipeline is shut down
+		final EvitaConfiguration cfg = evita.getConfiguration();
+		final SealedCatalogSchema catalogSchema = evita.getCatalogInstance(TEST_CATALOG).orElseThrow().getSchema();
+		final EntitySchemaContract productSchema = catalogSchema.getEntitySchema(Entities.PRODUCT).orElseThrow();
+		evita.close();
+
+		final Path catalogDirectory = cfg.storage().storageDirectory().resolve(TEST_CATALOG);
+		final CatalogWriteAheadLog wal = new CatalogWriteAheadLog(
+			TEST_CATALOG,
+			catalogDirectory,
+			catalogKryoPool,
+			StorageOptions.builder().build(),
+			TransactionOptions.builder().build(),
+			Mockito.mock(ScheduledExecutorService.class)
+		);
+
+		// create WAL file multiple times, start Catalog to crunch the history and close evitaDB again
+		final int[][] transactionSizes = new int[][]{
+			{3, 4, 2}, // 3 transactions, 9 mutations
+			{5, 1, 1, 4, 2}, // 5 transactions, 13 mutations
+			{1, 2, 5, 3, 4}, // 5 transactions, 15 mutations
+
+			{3, 2, 1, 4}, // 4 transactions, 10 mutations
+			{1, 5, 3, 2, 4}, // 5 transactions, 15 mutations
+			{3, 4, 5, 1}, // 4 transactions, 13 mutations
+			{2, 4, 1, 3, 5}, // 5 transactions, 15 mutations
+			{5, 3, 2, 4}, // 4 transactions, 14 mutations
+
+			{1, 2, 3, 5, 4}, // 5 transactions, 15 mutations
+			{5, 1, 3, 4}, // 4 transactions, 13 mutations
+			{4, 1, 5, 2, 3}, // 5 transactions, 15 mutations
+			{2, 3, 5, 4}, // 4 transactions, 14 mutations
+			{1, 4, 2, 5, 3} // 5 transactions, 15 mutations
+		};
+		long catalogVersion = 1L;
+		for (int[] transactionSize : transactionSizes) {
+			// create WAL file with a few contents first
+			appendWal(
+				catalogVersion, offHeapMemoryManager, wal, transactionSize, catalogSchema, productSchema
+			);
+			catalogVersion += transactionSize.length;
+
+			// start evita again and wait for the WAL to be processed
+			final Evita secondInstance = new Evita(cfg);
+
+			// now shut down evitaDB again
+			secondInstance.close();
+		}
+
+		// now we can browse the history
+		final Evita thirdInstance = new Evita(cfg);
+		final CatalogContract catalog = thirdInstance.getCatalogInstance(TEST_CATALOG).orElseThrow();
+
+		final long[] versions = catalog.getCatalogVersions(TimeFlow.FROM_NEWEST_TO_OLDEST, 1, 5)
+			.getData()
+			.stream()
+			.mapToLong(CatalogVersion::version)
+			.toArray();
+		assertArrayEquals(new long[]{59, 54, 50, 45, 41}, versions);
+
+		assertEquals(
+			replaceTimeStamps(
+				"""
+					Catalog version: 59, processed at REPLACED_OFFSET_DATE_TIME with 5 transactions (15 mutations, 8 KB):
+						 - changes in `PRODUCT`: 15 upserted entities
+					Catalog version: 54, processed at REPLACED_OFFSET_DATE_TIME with 4 transactions (14 mutations, 8 KB):
+						 - changes in `PRODUCT`: 14 upserted entities
+					Catalog version: 50, processed at REPLACED_OFFSET_DATE_TIME with 5 transactions (15 mutations, 8 KB):
+						 - changes in `PRODUCT`: 15 upserted entities
+					Catalog version: 45, processed at REPLACED_OFFSET_DATE_TIME with 4 transactions (13 mutations, 7 KB):
+						 - changes in `PRODUCT`: 13 upserted entities
+					Catalog version: 41, processed at REPLACED_OFFSET_DATE_TIME with 5 transactions (15 mutations, 9 KB):
+						 - changes in `PRODUCT`: 15 upserted entities"""
+			),
+			replaceTimeStamps(
+				catalog.getCatalogVersionDescriptors(versions)
+					.map(CatalogVersionDescriptor::toString)
+					.collect(Collectors.joining("\n"))
+			)
+		);
+
+		assertEquals(
+			replaceTimeStamps(
+				replaceLag(
+					"""
+						Transaction to version: 59, committed at REPLACED_OFFSET_DATE_TIME(processing lag 59ms)(3 mutations, 1 KB):
+							 - changes in `PRODUCT`: 3 upserted entities
+						Transaction to version: 58, committed at REPLACED_OFFSET_DATE_TIME(processing lag 73ms)(5 mutations, 2 KB):
+							 - changes in `PRODUCT`: 5 upserted entities
+						Transaction to version: 57, committed at REPLACED_OFFSET_DATE_TIME(processing lag 87ms)(2 mutations, 920 B):
+							 - changes in `PRODUCT`: 2 upserted entities
+						Transaction to version: 56, committed at REPLACED_OFFSET_DATE_TIME(processing lag 105ms)(4 mutations, 2 KB):
+							 - changes in `PRODUCT`: 4 upserted entities
+						Transaction to version: 55, committed at REPLACED_OFFSET_DATE_TIME(processing lag 119ms)(1 mutations, 561 B):
+							 - changes in `PRODUCT`: 1 upserted entities
+						Transaction to version: 54, committed at REPLACED_OFFSET_DATE_TIME(processing lag 57ms)(4 mutations, 2 KB):
+							 - changes in `PRODUCT`: 4 upserted entities
+						Transaction to version: 53, committed at REPLACED_OFFSET_DATE_TIME(processing lag 73ms)(5 mutations, 2 KB):
+							 - changes in `PRODUCT`: 5 upserted entities
+						Transaction to version: 52, committed at REPLACED_OFFSET_DATE_TIME(processing lag 87ms)(3 mutations, 1 KB):
+							 - changes in `PRODUCT`: 3 upserted entities
+						Transaction to version: 51, committed at REPLACED_OFFSET_DATE_TIME(processing lag 101ms)(2 mutations, 1 KB):
+							 - changes in `PRODUCT`: 2 upserted entities
+						Transaction to version: 50, committed at REPLACED_OFFSET_DATE_TIME(processing lag 60ms)(3 mutations, 1 KB):
+							 - changes in `PRODUCT`: 3 upserted entities
+						Transaction to version: 49, committed at REPLACED_OFFSET_DATE_TIME(processing lag 74ms)(2 mutations, 1 KB):
+							 - changes in `PRODUCT`: 2 upserted entities
+						Transaction to version: 48, committed at REPLACED_OFFSET_DATE_TIME(processing lag 88ms)(5 mutations, 2 KB):
+							 - changes in `PRODUCT`: 5 upserted entities
+						Transaction to version: 47, committed at REPLACED_OFFSET_DATE_TIME(processing lag 102ms)(1 mutations, 613 B):
+							 - changes in `PRODUCT`: 1 upserted entities
+						Transaction to version: 46, committed at REPLACED_OFFSET_DATE_TIME(processing lag 115ms)(4 mutations, 2 KB):
+							 - changes in `PRODUCT`: 4 upserted entities
+						Transaction to version: 45, committed at REPLACED_OFFSET_DATE_TIME(processing lag 67ms)(4 mutations, 2 KB):
+							 - changes in `PRODUCT`: 4 upserted entities
+						Transaction to version: 44, committed at REPLACED_OFFSET_DATE_TIME(processing lag 84ms)(3 mutations, 1 KB):
+							 - changes in `PRODUCT`: 3 upserted entities
+						Transaction to version: 43, committed at REPLACED_OFFSET_DATE_TIME(processing lag 101ms)(1 mutations, 696 B):
+							 - changes in `PRODUCT`: 1 upserted entities
+						Transaction to version: 42, committed at REPLACED_OFFSET_DATE_TIME(processing lag 115ms)(5 mutations, 2 KB):
+							 - changes in `PRODUCT`: 5 upserted entities
+						Transaction to version: 41, committed at REPLACED_OFFSET_DATE_TIME(processing lag 66ms)(4 mutations, 2 KB):
+							 - changes in `PRODUCT`: 4 upserted entities
+						Transaction to version: 40, committed at REPLACED_OFFSET_DATE_TIME(processing lag 84ms)(5 mutations, 2 KB):
+							 - changes in `PRODUCT`: 5 upserted entities
+						Transaction to version: 39, committed at REPLACED_OFFSET_DATE_TIME(processing lag 103ms)(3 mutations, 1 KB):
+							 - changes in `PRODUCT`: 3 upserted entities
+						Transaction to version: 38, committed at REPLACED_OFFSET_DATE_TIME(processing lag 119ms)(2 mutations, 1 KB):
+							 - changes in `PRODUCT`: 2 upserted entities
+						Transaction to version: 37, committed at REPLACED_OFFSET_DATE_TIME(processing lag 136ms)(1 mutations, 747 B):
+							 - changes in `PRODUCT`: 1 upserted entities"""
+				)
+			),
+			replaceTimeStamps(
+				replaceLag(
+					catalog.getCatalogVersionDescriptors(versions)
+						.flatMap(
+							it -> Arrays.stream(it.transactionChanges())
+								.sorted(Comparator.comparingLong(TransactionChanges::catalogVersion).reversed())
+								.map(x -> x.toString(it.processedTimestamp()))
+						)
+						.collect(Collectors.joining("\n"))
+				)
+			)
+		);
+
+		final long[] prevVersions = catalog.getCatalogVersions(TimeFlow.FROM_NEWEST_TO_OLDEST, 2, 5)
+			.getData()
+			.stream()
+			.mapToLong(CatalogVersion::version)
+			.toArray();
+		assertArrayEquals(new long[]{36, 32, 27, 23, 18}, prevVersions);
+
+		assertEquals(
+			replaceTimeStamps(
+				"""
+					Catalog version: 36, processed at REPLACED_OFFSET_DATE_TIME with 4 transactions (14 mutations, 8 KB):
+						 - changes in `PRODUCT`: 14 upserted entities
+					Catalog version: 32, processed at REPLACED_OFFSET_DATE_TIME with 5 transactions (15 mutations, 8 KB):
+						 - changes in `PRODUCT`: 15 upserted entities
+					Catalog version: 27, processed at REPLACED_OFFSET_DATE_TIME with 4 transactions (13 mutations, 8 KB):
+						 - changes in `PRODUCT`: 13 upserted entities
+					Catalog version: 23, processed at REPLACED_OFFSET_DATE_TIME with 5 transactions (15 mutations, 9 KB):
+						 - changes in `PRODUCT`: 15 upserted entities
+					Catalog version: 18, processed at REPLACED_OFFSET_DATE_TIME with 4 transactions (10 mutations, 6 KB):
+						 - changes in `PRODUCT`: 10 upserted entities"""
+			),
+			replaceTimeStamps(
+				catalog.getCatalogVersionDescriptors(prevVersions)
+					.map(CatalogVersionDescriptor::toString)
+					.collect(Collectors.joining("\n"))
+			)
+		);
+
+		final long[] prevPrevVersions = catalog.getCatalogVersions(TimeFlow.FROM_NEWEST_TO_OLDEST, 3, 5)
+			.getData()
+			.stream()
+			.mapToLong(CatalogVersion::version)
+			.toArray();
+		assertArrayEquals(new long[]{14, 9, 4, 1, 0}, prevPrevVersions);
+
+		assertEquals(
+			replaceTimeStamps(
+				"""
+					Catalog version: 14, processed at REPLACED_OFFSET_DATE_TIME with 5 transactions (15 mutations, 9 KB):
+						 - changes in `PRODUCT`: 15 upserted entities
+					Catalog version: 9, processed at REPLACED_OFFSET_DATE_TIME with 5 transactions (13 mutations, 8 KB):
+						 - changes in `PRODUCT`: 13 upserted entities
+					Catalog version: 4, processed at REPLACED_OFFSET_DATE_TIME with 3 transactions (9 mutations, 6 KB):
+						 - changes in `PRODUCT`: 9 upserted entities"""
+			),
+			replaceTimeStamps(
+				catalog.getCatalogVersionDescriptors(prevPrevVersions)
+					.map(CatalogVersionDescriptor::toString)
+					.collect(Collectors.joining("\n"))
+			)
+		);
 	}
 
 	@DisplayName("Update catalog with another product - synchronously.")
@@ -722,7 +962,8 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 				UUIDUtil.randomUUID(),
 				catalogVersion,
 				entities.size(),
-				walReference.getContentLength()
+				walReference.getContentLength(),
+				OffsetDateTime.now()
 			);
 			wal.append(
 				transactionMutation,

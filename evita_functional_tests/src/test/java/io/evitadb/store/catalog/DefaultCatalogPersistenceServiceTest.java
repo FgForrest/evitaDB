@@ -44,6 +44,8 @@ import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
+import io.evitadb.api.requestResponse.system.CatalogVersion;
+import io.evitadb.api.requestResponse.system.TimeFlow;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.api.trace.DefaultTracingContext;
 import io.evitadb.core.Catalog;
@@ -51,6 +53,7 @@ import io.evitadb.core.EntityCollection;
 import io.evitadb.core.EvitaSession;
 import io.evitadb.core.cache.NoCacheSupervisor;
 import io.evitadb.core.sequence.SequenceService;
+import io.evitadb.dataType.PaginatedList;
 import io.evitadb.exception.InvalidClassifierFormatException;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.store.entity.model.schema.CatalogSchemaStoragePart;
@@ -426,7 +429,9 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			});
 		}
 
-		final TransactionMutation writtenTransactionMutation = new TransactionMutation(transactionId, 1L, 2, walReference.getContentLength());
+		final TransactionMutation writtenTransactionMutation = new TransactionMutation(
+			transactionId, 1L, 2, walReference.getContentLength(), OffsetDateTime.MIN
+		);
 
 		// and then write to the WAL
 		try (var cps = new DefaultCatalogPersistenceService(
@@ -453,7 +458,8 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			input -> {
 				final int transactionSize = input.readInt();
 				// the 2 bytes are required to record the classId
-				assertEquals(walReference.getContentLength() + CatalogWriteAheadLog.TRANSACTION_MUTATION_SIZE + 2, transactionSize);
+				final int offsetDateTimeDelta = 11;
+				assertEquals(walReference.getContentLength() + CatalogWriteAheadLog.TRANSACTION_MUTATION_SIZE - offsetDateTimeDelta + 2, transactionSize);
 				final Mutation loadedTransactionMutation = (Mutation) StorageRecord.read(input, (stream, length) -> kryo.readClassAndObject(stream)).payload();
 				assertEquals(writtenTransactionMutation, loadedTransactionMutation);
 				final Mutation firstMutation = (Mutation) StorageRecord.read(input, (stream, length) -> kryo.readClassAndObject(stream)).payload();
@@ -463,6 +469,78 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 				return null;
 			}
 		);
+	}
+
+	@Test
+	void shouldTraverseBootstrapRecordsFromOldestToNewest() {
+		final String catalogName = SEALED_CATALOG_SCHEMA.getName();
+		final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
+			catalogName,
+			getStorageOptions(),
+			getTransactionOptions(),
+			Mockito.mock(ScheduledExecutorService.class)
+		);
+		ioService.prepare();
+
+		for (int i = 0; i < 12; i++) {
+			ioService.recordBootstrap(i + 1, catalogName, 0);
+		}
+
+		final PaginatedList<CatalogVersion> catalogVersions = ioService.getCatalogVersions(TimeFlow.FROM_OLDEST_TO_NEWEST, 1, 5);
+		assertEquals(5, catalogVersions.getData().size());
+		assertEquals(13, catalogVersions.getTotalRecordCount());
+		for (int i = 0; i <= 4; i++) {
+			final CatalogVersion record = catalogVersions.getData().get(i);
+			assertEquals(i, record.version());
+			assertNotNull(record.timestamp());
+		}
+
+		final PaginatedList<CatalogVersion> catalogVersionsLastPage = ioService.getCatalogVersions(TimeFlow.FROM_OLDEST_TO_NEWEST, 3, 5);
+		assertEquals(3, catalogVersionsLastPage.getData().size());
+		for (int i = 0; i < 3; i++) {
+			final CatalogVersion record = catalogVersionsLastPage.getData().get(i);
+			assertEquals(10 + i, record.version());
+			assertNotNull(record.timestamp());
+		}
+
+		// release buffers
+		ioService.release();
+	}
+
+	@Test
+	void shouldTraverseBootstrapRecordsFromNewestToOldest() {
+		final String catalogName = SEALED_CATALOG_SCHEMA.getName();
+		final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
+			catalogName,
+			getStorageOptions(),
+			getTransactionOptions(),
+			Mockito.mock(ScheduledExecutorService.class)
+		);
+		ioService.prepare();
+
+		for (int i = 0; i < 12; i++) {
+			ioService.recordBootstrap(i + 1, catalogName, 0);
+		}
+
+		final PaginatedList<CatalogVersion> catalogVersions = ioService.getCatalogVersions(TimeFlow.FROM_NEWEST_TO_OLDEST, 1, 5);
+		assertEquals(5, catalogVersions.getData().size());
+		assertEquals(13, catalogVersions.getTotalRecordCount());
+		for (int i = 0; i < 5; i++) {
+			final CatalogVersion record = catalogVersions.getData().get(i);
+			assertEquals(13 - (i + 1), record.version());
+			assertNotNull(record.timestamp());
+		}
+
+		final PaginatedList<CatalogVersion> catalogVersionsLastPage = ioService.getCatalogVersions(TimeFlow.FROM_NEWEST_TO_OLDEST, 3, 5);
+		assertEquals(3, catalogVersionsLastPage.getData().size());
+		for (int i = 0; i < 3; i++) {
+			final CatalogVersion record = catalogVersionsLastPage.getData().get(i);
+			assertEquals(3 - (i + 1), record.version());
+			assertNotNull(record.timestamp());
+		}
+
+		// release buffers
+		ioService.release();
 	}
 
 	/*

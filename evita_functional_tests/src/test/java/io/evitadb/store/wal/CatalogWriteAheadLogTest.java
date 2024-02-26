@@ -42,6 +42,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
+import java.time.OffsetDateTime;
 import java.util.concurrent.ScheduledExecutorService;
 
 import static io.evitadb.store.spi.CatalogPersistenceService.getWalFileName;
@@ -85,7 +86,8 @@ class CatalogWriteAheadLogTest {
 			}
 
 			final TransactionMutation writtenTransactionMutation = new TransactionMutation(
-				UUIDUtil.randomUUID(), 1L, 2, txSize);
+				UUIDUtil.randomUUID(), 1L, 2, txSize, OffsetDateTime.MIN
+			);
 
 			byteBuffer.flip();
 			tested.append(
@@ -123,8 +125,9 @@ class CatalogWriteAheadLogTest {
 
 		final int txLengthBytes = 4;
 		final int classIdBytes = 2;
+		final int offsetDateTimeBytesDelta = 11;
 		assertEquals(
-			originalWalFileLength - txSizes[txSizes.length - 1] - CatalogWriteAheadLog.TRANSACTION_MUTATION_SIZE - txLengthBytes - classIdBytes,
+			originalWalFileLength - txSizes[txSizes.length - 1] - (CatalogWriteAheadLog.TRANSACTION_MUTATION_SIZE - offsetDateTimeBytesDelta) - txLengthBytes - classIdBytes,
 			walFile.length()
 		);
 	}

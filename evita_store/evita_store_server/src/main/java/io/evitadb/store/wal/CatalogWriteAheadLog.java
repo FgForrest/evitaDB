@@ -29,7 +29,15 @@ import com.esotericsoftware.kryo.io.Output;
 import com.esotericsoftware.kryo.util.Pool;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TransactionOptions;
+import io.evitadb.api.exception.InvalidMutationException;
+import io.evitadb.api.requestResponse.data.mutation.EntityRemoveMutation;
+import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
+import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
+import io.evitadb.api.requestResponse.system.CatalogVersionDescriptor;
+import io.evitadb.api.requestResponse.system.CatalogVersionDescriptor.EntityCollectionChanges;
+import io.evitadb.api.requestResponse.system.CatalogVersionDescriptor.TransactionChanges;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.exception.UnexpectedIOException;
@@ -66,8 +74,12 @@ import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
@@ -418,6 +430,40 @@ public class CatalogWriteAheadLog implements Closeable {
 		byteBuffer.put((byte) (longValue >>> 56));
 	}
 
+	/**
+	 * Creates a new instance of TransactionChanges based on the given parameters.
+	 *
+	 * @param txMutation           the transaction mutation.
+	 * @param catalogSchemaChanges the number of catalog schema changes.
+	 * @param aggregations         the map of entity collection changes.
+	 * @return a new instance of TransactionChanges.
+	 */
+	@Nonnull
+	private static TransactionChanges createTransactionChanges(
+		@Nonnull TransactionMutation txMutation,
+		int catalogSchemaChanges,
+		@Nonnull Map<String, EntityCollectionChangesTriple> aggregations
+	) {
+		return new TransactionChanges(
+			txMutation.getCatalogVersion(),
+			txMutation.getCommitTimestamp(),
+			catalogSchemaChanges,
+			txMutation.getMutationCount(),
+			txMutation.getWalSizeInBytes(),
+			aggregations.entrySet().stream()
+				.map(
+					it -> new EntityCollectionChanges(
+						it.getKey(),
+						it.getValue().getSchemaChanges(),
+						it.getValue().getUpserted(),
+						it.getValue().getRemoved()
+					)
+				)
+				.sorted(Comparator.comparing(EntityCollectionChanges::entityName))
+				.toArray(EntityCollectionChanges[]::new)
+		);
+	}
+
 	public CatalogWriteAheadLog(
 		@Nonnull String catalogName,
 		@Nonnull Path catalogStoragePath,
@@ -678,6 +724,83 @@ public class CatalogWriteAheadLog implements Closeable {
 			}
 		}
 		return empty();
+	}
+
+	/**
+	 * Calculates descriptor for particular version in history.
+	 *
+	 * @param catalogVersion              the catalog version to describe
+	 * @param previousKnownCatalogVersion the previous known catalog version (delimites transactions incorporated in
+	 *                                    previous version of the catalog), -1 if there is no known previous version
+	 * @param introducedAt                the time when the version was introduced
+	 * @return the descriptor for the version in history or NULL if the version is not present in the WAL
+	 */
+	@Nullable
+	public CatalogVersionDescriptor getCatalogVersionDescriptor(
+		long catalogVersion,
+		long previousKnownCatalogVersion,
+		@Nonnull OffsetDateTime introducedAt
+	) {
+		try (
+			final MutationSupplier supplier = createSupplier(
+				previousKnownCatalogVersion + 1, false
+			)
+		) {
+			TransactionMutation txMutation = (TransactionMutation) supplier.get();
+			if (txMutation == null) {
+				return null;
+			} else {
+				final List<TransactionChanges> txChanges = new ArrayList<>(Math.toIntExact(catalogVersion - previousKnownCatalogVersion));
+				final Map<String, EntityCollectionChangesTriple> aggregations = CollectionUtils.createHashMap(16);
+				int catalogSchemaChanges = 0;
+				while (txMutation != null) {
+					final Mutation nextMutation = supplier.get();
+					if (nextMutation instanceof TransactionMutation anotherTxMutation) {
+						txChanges.add(
+							createTransactionChanges(txMutation, catalogSchemaChanges, aggregations)
+						);
+						if (anotherTxMutation.getCatalogVersion() == catalogVersion + 1) {
+							txMutation = null;
+						} else {
+							txMutation = anotherTxMutation;
+							aggregations.clear();
+							catalogSchemaChanges = 0;
+						}
+					} else if (nextMutation == null) {
+						txChanges.add(
+							createTransactionChanges(txMutation, catalogSchemaChanges, aggregations)
+						);
+						txMutation = null;
+					} else {
+						if (nextMutation instanceof ModifyEntitySchemaMutation schemaMutation) {
+							aggregations
+								.computeIfAbsent(schemaMutation.getEntityType(), s -> new EntityCollectionChangesTriple())
+								.recordSchemaChange();
+						} else if (nextMutation instanceof LocalCatalogSchemaMutation) {
+							catalogSchemaChanges++;
+						} else if (nextMutation instanceof EntityUpsertMutation entityMutation) {
+							aggregations
+								.computeIfAbsent(entityMutation.getEntityType(), s -> new EntityCollectionChangesTriple())
+								.recordUpsert();
+						} else if (nextMutation instanceof EntityRemoveMutation entityMutation) {
+							aggregations
+								.computeIfAbsent(entityMutation.getEntityType(), s -> new EntityCollectionChangesTriple())
+								.recordRemoval();
+						} else {
+							throw new InvalidMutationException(
+								"Unexpected mutation type: " + nextMutation.getClass().getName(),
+								"Unexpected mutation type."
+							);
+						}
+					}
+				}
+				return new CatalogVersionDescriptor(
+					catalogVersion,
+					introducedAt,
+					txChanges.toArray(TransactionChanges[]::new)
+				);
+			}
+		}
 	}
 
 	@Override
@@ -1219,7 +1342,13 @@ public class CatalogWriteAheadLog implements Closeable {
 		private final int walFileIndex;
 
 		public TransactionMutationWithLocation(@Nonnull TransactionMutation delegate, @Nonnull FileLocation transactionSpan, int walFileIndex) {
-			super(delegate.getTransactionId(), delegate.getCatalogVersion(), delegate.getMutationCount(), delegate.getWalSizeInBytes());
+			super(
+				delegate.getTransactionId(),
+				delegate.getCatalogVersion(),
+				delegate.getMutationCount(),
+				delegate.getWalSizeInBytes(),
+				delegate.getCommitTimestamp()
+			);
 			this.transactionSpan = transactionSpan;
 			this.walFileIndex = walFileIndex;
 		}
@@ -1393,6 +1522,47 @@ public class CatalogWriteAheadLog implements Closeable {
 		long firstCatalogVersion,
 		long lastCatalogVersion
 	) {
+	}
+
+	/**
+	 * Represents a triplet of recorded changes in an entity collection.
+	 */
+	@Getter
+	private class EntityCollectionChangesTriple {
+		/**
+		 * The number of schema mutations.
+		 */
+		private int schemaChanges;
+		/**
+		 * The number of upserted entities.
+		 */
+		private int upserted;
+		/**
+		 * The number of removed entities.
+		 */
+		private int removed;
+
+		/**
+		 * Increments the count of upserted entities in the entity collection changes.
+		 */
+		public void recordUpsert() {
+			this.upserted++;
+		}
+
+		/**
+		 * Records the removal of an entity in the entity collection changes.
+		 */
+		public void recordRemoval() {
+			this.removed++;
+		}
+
+		/**
+		 * Increments the count of schema changes in the entity collection changes.
+		 */
+		public void recordSchemaChange() {
+			this.schemaChanges++;
+		}
+
 	}
 
 }

@@ -36,6 +36,10 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.system.CatalogVersion;
+import io.evitadb.api.requestResponse.system.CatalogVersionDescriptor;
+import io.evitadb.api.requestResponse.system.TimeFlow;
+import io.evitadb.dataType.PaginatedList;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
@@ -43,6 +47,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.stream.Stream;
 
 /**
  * Catalog is a fragment of evitaDB database that can be compared to a schema of relational database. Catalog allows
@@ -242,6 +247,31 @@ public interface CatalogContract {
 	 * processes them. The method returns completable future that is completed when all records are processed.
 	 */
 	void processWriteAheadLog(@Nonnull Consumer<CatalogContract> updatedCatalog);
+
+	/**
+	 * Returns a paginated list of catalog versions based on the provided time flow, page number, and page size.
+	 * It returns only versions that are known in history - there may be a lot of other versions for which we don't have
+	 * information anymore, because the data were purged to save space.
+	 *
+	 * @param timeFlow   the time flow used to filter the catalog versions
+	 * @param page       the page number of the paginated list
+	 * @param pageSize   the number of versions per page
+	 * @return a paginated list of {@link CatalogVersion} instances
+	 */
+	@Nonnull
+	PaginatedList<CatalogVersion> getCatalogVersions(@Nonnull TimeFlow timeFlow, int page, int pageSize);
+
+	/**
+	 * Returns a stream of {@link CatalogVersionDescriptor} instances for the given catalog versions. Descriptors will
+	 * be ordered the same way as the input catalog versions, but may be missing some versions if they are not known in
+	 * history. Creating a descriptor could be an expensive operation, so it's recommended to stream changes to clients
+	 * gradually as the stream provides the data.
+	 *
+	 * @param catalogVersion the catalog versions to get descriptors for
+	 * @return a stream of {@link CatalogVersionDescriptor} instances
+	 */
+	@Nonnull
+	Stream<CatalogVersionDescriptor> getCatalogVersionDescriptors(long... catalogVersion);
 
 	/**
 	 * Terminates catalog instance and frees all claimed resources. Prepares catalog instance to be garbage collected.

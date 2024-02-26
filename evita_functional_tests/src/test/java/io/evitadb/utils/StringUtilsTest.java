@@ -243,7 +243,7 @@ class StringUtilsTest {
 	void shouldFormatZeroDuration() {
 		Duration duration = Duration.ZERO;
 		String formattedDuration = StringUtils.formatDuration(duration);
-		assertEquals("0s", formattedDuration);
+		assertEquals("0ms", formattedDuration);
 	}
 
 }

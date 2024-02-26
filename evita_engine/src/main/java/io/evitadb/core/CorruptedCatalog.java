@@ -38,7 +38,11 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.system.CatalogVersion;
+import io.evitadb.api.requestResponse.system.CatalogVersionDescriptor;
+import io.evitadb.api.requestResponse.system.TimeFlow;
 import io.evitadb.core.exception.CatalogCorruptedException;
+import io.evitadb.dataType.PaginatedList;
 import io.evitadb.utils.FileUtils;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -50,6 +54,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.stream.Stream;
 
 /**
  * This implementation of {@link CatalogContract} represents a catalog instance that cannot be loaded into a memory due
@@ -184,6 +189,18 @@ public final class CorruptedCatalog implements CatalogContract {
 
 	@Override
 	public void processWriteAheadLog(@Nonnull Consumer<CatalogContract> updatedCatalog) {
+		throw new CatalogCorruptedException(this);
+	}
+
+	@Nonnull
+	@Override
+	public PaginatedList<CatalogVersion> getCatalogVersions(@Nonnull TimeFlow timeFlow, int page, int pageSize) {
+		throw new CatalogCorruptedException(this);
+	}
+
+	@Nonnull
+	@Override
+	public Stream<CatalogVersionDescriptor> getCatalogVersionDescriptors(long... catalogVersion) {
 		throw new CatalogCorruptedException(this);
 	}
 

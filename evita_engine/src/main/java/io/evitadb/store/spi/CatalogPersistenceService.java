@@ -29,10 +29,14 @@ import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.exception.EntityTypeAlreadyPresentInCatalogSchemaException;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
+import io.evitadb.api.requestResponse.system.CatalogVersion;
+import io.evitadb.api.requestResponse.system.CatalogVersionDescriptor;
+import io.evitadb.api.requestResponse.system.TimeFlow;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.EntityCollection;
 import io.evitadb.core.buffer.DataStoreIndexChanges;
+import io.evitadb.dataType.PaginatedList;
 import io.evitadb.exception.InvalidClassifierFormatException;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.index.CatalogIndex;
@@ -116,8 +120,8 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	/**
 	 * Returns the index extracted from the given Write-Ahead-Log file name.
 	 *
-	 * @param catalogName  the name of the catalog
-	 * @param walFileName  the name of the WAL file
+	 * @param catalogName the name of the catalog
+	 * @param walFileName the name of the WAL file
 	 * @return the index extracted from the WAL file name
 	 */
 	static int getIndexFromWalFileName(@Nonnull String catalogName, @Nonnull String walFileName) {
@@ -220,6 +224,7 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 
 	/**
 	 * Retrieves the first non-processed transaction in the WAL.
+	 *
 	 * @return the first non-processed transaction in the WAL
 	 */
 	@Nonnull
@@ -294,10 +299,35 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	void forgetVolatileData();
 
 	/**
+	 * Returns a paginated list of catalog versions based on the provided time flow, page number, and page size.
+	 * It returns only versions that are known in history - there may be a lot of other versions for which we don't have
+	 * information anymore, because the data were purged to save space.
+	 *
+	 * @param timeFlow the time flow used to filter the catalog versions
+	 * @param page     the page number of the paginated list
+	 * @param pageSize the number of versions per page
+	 * @return a paginated list of {@link CatalogVersion} instances
+	 */
+	@Nonnull
+	PaginatedList<CatalogVersion> getCatalogVersions(@Nonnull TimeFlow timeFlow, int page, int pageSize);
+
+	/**
+	 * Returns a stream of {@link CatalogVersionDescriptor} instances for the given catalog versions. Descriptors will
+	 * be ordered the same way as the input catalog versions, but may be missing some versions if they are not known in
+	 * history. Creating a descriptor could be an expensive operation, so it's recommended to stream changes to clients
+	 * gradually as the stream provides the data.
+	 *
+	 * @param catalogVersion the catalog versions to get descriptors for
+	 * @return a stream of {@link CatalogVersionDescriptor} instances
+	 */
+	@Nonnull
+	Stream<CatalogVersionDescriptor> getCatalogVersionDescriptors(long... catalogVersion);
+
+	/**
 	 * Method closes this persistence service and also all {@link EntityCollectionPersistenceService} that were created
 	 * via. {@link #createEntityCollectionPersistenceService(String, int)}.
 	 *
-	 * You need to call {@link #storeHeader(CatalogState, long, int, TransactionMutation, List)}  or {@link #flushTrappedUpdates(DataStoreIndexChanges)}
+	 * You need to call {@link #storeHeader(CatalogState, long, int, TransactionMutation, List)}  or {@link #flushTrappedUpdates(long, DataStoreIndexChanges)}
 	 * before this method is called, or you will lose your data in memory buffers.
 	 */
 	@Override

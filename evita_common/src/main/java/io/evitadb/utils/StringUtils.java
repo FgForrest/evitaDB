@@ -539,6 +539,7 @@ public class StringUtils {
 		long hours = duration.toHoursPart();
 		long minutes = duration.toMinutesPart();
 		long seconds = duration.toSecondsPart();
+		long milliSeconds = duration.toMillis();
 
 		StringBuilder sb = new StringBuilder(32);
 
@@ -551,7 +552,11 @@ public class StringUtils {
 		if (minutes > 0 || hours > 0 || days > 0) {
 			sb.append(minutes).append("m ");
 		}
-		sb.append(seconds).append("s");
+		if (days > 0 || hours > 0 || minutes > 0 || seconds > 0) {
+			sb.append(seconds).append("s");
+		} else {
+			sb.append(milliSeconds).append("ms");
+		}
 
 		return sb.toString().trim();
 	}

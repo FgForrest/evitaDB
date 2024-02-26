@@ -37,12 +37,16 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.api.requestResponse.system.CatalogVersion;
+import io.evitadb.api.requestResponse.system.CatalogVersionDescriptor;
+import io.evitadb.api.requestResponse.system.TimeFlow;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.CatalogVersionBeyondTheHorizonListener;
 import io.evitadb.core.EntityCollection;
 import io.evitadb.core.buffer.DataStoreIndexChanges;
 import io.evitadb.dataType.ClassifierType;
+import io.evitadb.dataType.PaginatedList;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.InvalidClassifierFormatException;
@@ -89,6 +93,7 @@ import io.evitadb.store.spi.model.storageParts.index.CatalogIndexStoragePart;
 import io.evitadb.store.spi.model.storageParts.index.GlobalUniqueIndexStoragePart;
 import io.evitadb.store.wal.CatalogWriteAheadLog;
 import io.evitadb.store.wal.WalKryoConfigurer;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ClassifierUtils;
 import io.evitadb.utils.CollectionUtils;
@@ -104,7 +109,9 @@ import java.io.IOException;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.time.OffsetDateTime;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -278,8 +285,8 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		if (bootstrapFile.exists()) {
 			final long length = bootstrapFile.length();
 			final long lastMeaningfulPosition = CatalogBootstrap.getLastMeaningfulPosition(length);
+			final ReadOnlyFileHandle readHandle = new ReadOnlyFileHandle(bootstrapFilePath, storageOptions.computeCRC32C());
 			try {
-				final ReadOnlyFileHandle readHandle = new ReadOnlyFileHandle(bootstrapFilePath, storageOptions.computeCRC32C());
 				return readHandle.execute(
 					input -> StorageRecord.read(
 						input,
@@ -301,6 +308,8 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 					"Failed to open catalog bootstrap file!",
 					e
 				);
+			} finally {
+				readHandle.forceClose();
 			}
 		} else {
 			if (FileUtils.isDirectoryEmpty(catalogStoragePath)) {
@@ -436,6 +445,37 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				catalogName, catalogFilePath, kryoPool,
 				storageOptions, transactionOptions, executorService
 			);
+	}
+
+	/**
+	 * Reads a catalog version from a file handle and returns a CatalogVersion object.
+	 *
+	 * @param readHandle        The file handle used for reading the catalog version.
+	 * @param positionForRecord The position in the file for the catalog record.
+	 * @return The CatalogVersion object containing the catalog version and timestamp.
+	 */
+	@Nonnull
+	private static CatalogVersion readCatalogVersion(@Nonnull ReadOnlyFileHandle readHandle, long positionForRecord) {
+		final CatalogBootstrap catalogBootstrap = readHandle.execute(
+			input -> StorageRecord.read(
+				input,
+				new FileLocation(positionForRecord, CatalogBootstrap.BOOTSTRAP_RECORD_SIZE),
+				(theInput, recordLength) -> new CatalogBootstrap(
+					theInput.readLong(),
+					theInput.readInt(),
+					Instant.ofEpochMilli(theInput.readLong()).atZone(ZoneId.systemDefault()).toOffsetDateTime(),
+					new FileLocation(
+						theInput.readLong(),
+						theInput.readInt()
+					)
+				)
+			)
+		).payload();
+
+		return new CatalogVersion(
+			catalogBootstrap.catalogVersion(),
+			catalogBootstrap.timestamp()
+		);
 	}
 
 	public DefaultCatalogPersistenceService(
@@ -1063,6 +1103,80 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		}
 	}
 
+	@Nonnull
+	@Override
+	public PaginatedList<CatalogVersion> getCatalogVersions(@Nonnull TimeFlow timeFlow, int page, int pageSize) {
+		final String bootstrapFileName = getCatalogBootstrapFileName(catalogName);
+		final Path bootstrapFilePath = catalogStoragePath.resolve(bootstrapFileName);
+		final File bootstrapFile = bootstrapFilePath.toFile();
+		if (bootstrapFile.exists()) {
+			final long length = bootstrapFile.length();
+			final int recordCount = CatalogBootstrap.getRecordCount(length);
+			final int pageNumber = PaginatedList.isRequestedResultBehindLimit(page, pageSize, recordCount) ? 1 : page;
+			final ReadOnlyFileHandle readHandle = new ReadOnlyFileHandle(bootstrapFilePath, storageOptions.computeCRC32C());
+			try {
+				final List<CatalogVersion> catalogVersions = new ArrayList<>(pageSize);
+				if (timeFlow == TimeFlow.FROM_OLDEST_TO_NEWEST) {
+					final int firstNumber = PaginatedList.getFirstItemNumberForPage(pageNumber, pageSize);
+					for (int i = firstNumber; i < Math.min(firstNumber + pageSize, recordCount); i++) {
+						catalogVersions.add(
+							readCatalogVersion(readHandle, CatalogBootstrap.getPositionForRecord(i))
+						);
+					}
+				} else {
+					final int firstNumber = recordCount - (((pageNumber - 1) * pageSize) + 1);
+					for (int i = firstNumber; i > Math.max(firstNumber - pageSize, -1); i--) {
+						catalogVersions.add(
+							readCatalogVersion(readHandle, CatalogBootstrap.getPositionForRecord(i))
+						);
+					}
+				}
+				return new PaginatedList<>(
+					pageNumber,
+					pageSize,
+					recordCount,
+					catalogVersions
+				);
+			} catch (Exception e) {
+				throw new UnexpectedIOException(
+					"Failed to open catalog bootstrap file `" + bootstrapFile.getAbsolutePath() + "`!",
+					"Failed to open catalog bootstrap file!",
+					e
+				);
+			} finally {
+				readHandle.forceClose();
+			}
+		} else {
+			return PaginatedList.emptyList();
+		}
+	}
+
+	@Nonnull
+	@Override
+	public Stream<CatalogVersionDescriptor> getCatalogVersionDescriptors(long... catalogVersion) {
+		if (catalogVersion.length == 0) {
+			return Stream.empty();
+		}
+		final String bootstrapFileName = getCatalogBootstrapFileName(catalogName);
+		final Path bootstrapFilePath = catalogStoragePath.resolve(bootstrapFileName);
+		final File bootstrapFile = bootstrapFilePath.toFile();
+		if (bootstrapFile.exists()) {
+			final Map<Long, CatalogVersion> catalogVersionPreviousVersions = createPreviousCatalogVersionsIndex(
+				catalogVersion, bootstrapFile, bootstrapFilePath
+			);
+			return this.catalogWal == null ?
+				Stream.empty() :
+				Arrays.stream(catalogVersion)
+					.mapToObj(
+						cv -> ofNullable(catalogVersionPreviousVersions.get(cv))
+							.map(it -> this.catalogWal.getCatalogVersionDescriptor(cv, it.version(), it.timestamp()))
+							.orElse(null))
+					.filter(Objects::nonNull);
+		} else {
+			return Stream.empty();
+		}
+	}
+
 	@Override
 	public void close() {
 		try {
@@ -1140,7 +1254,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	 * @return the recorded CatalogBootstrap object
 	 */
 	@Nonnull
-	private CatalogBootstrap recordBootstrap(long catalogVersion, @Nonnull String newCatalogName, int catalogFileIndex) {
+	CatalogBootstrap recordBootstrap(long catalogVersion, @Nonnull String newCatalogName, int catalogFileIndex) {
 		final PersistentStorageDescriptor newDescriptor = this.catalogStoragePartPersistenceService.flush(catalogVersion);
 		final Kryo kryo = catalogKryoPool.obtain();
 		try {
@@ -1171,6 +1285,66 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		} finally {
 			catalogKryoPool.free(kryo);
 			log.debug("Catalog `{}` stored to `{}`.", newCatalogName, catalogStoragePath);
+		}
+	}
+
+	/**
+	 * Creates an index of the previous catalog versions based on the specified catalog version array and bootstrap file
+	 * path. It uses binary search to quickly locate min / max version indexes and then indexes all versions between
+	 * them and for each version stores the previous version.
+	 *
+	 * @param catalogVersion an array of catalog versions
+	 * @return a {@link CatalogVersion} object that contains PREVIOUS VERSION and CURRENT VERSION TIMESTAMP
+	 * (this is a little bit hacky, but we avoid declaring new record type)
+	 */
+	@Nonnull
+	private Map<Long, CatalogVersion> createPreviousCatalogVersionsIndex(
+		@Nonnull long[] catalogVersion,
+		@Nonnull File bootstrapFile,
+		@Nonnull Path bootstrapFilePath
+	) {
+		final long length = bootstrapFile.length();
+		final int recordCount = CatalogBootstrap.getRecordCount(length);
+		final ReadOnlyFileHandle readHandle = new ReadOnlyFileHandle(bootstrapFilePath, storageOptions.computeCRC32C());
+		try {
+			final int minCvIndex = ArrayUtils.binarySearch(
+				index -> readCatalogVersion(readHandle, CatalogBootstrap.getPositionForRecord(index)),
+				Arrays.stream(catalogVersion).min().orElseThrow(),
+				recordCount,
+				(cv, minimalCatalogVersion) -> Long.compare(cv.version(), minimalCatalogVersion)
+			);
+			final int maxCvIndex = ArrayUtils.binarySearch(
+				index -> readCatalogVersion(readHandle, CatalogBootstrap.getPositionForRecord(index)),
+				Arrays.stream(catalogVersion).max().orElseThrow(),
+				recordCount,
+				(cv, maximalCatalogVersion) -> Long.compare(cv.version(), maximalCatalogVersion)
+			);
+			// iterate over records between those versions
+			final int normalizedMinCvIndex = Math.max(0, minCvIndex < 0 ? -minCvIndex - 1 : minCvIndex) - 1;
+			final int normalizedMaxCvIndex = Math.min(recordCount, maxCvIndex < 0 ? -maxCvIndex - 1 : maxCvIndex);
+			final Map<Long, CatalogVersion> catalogVersionPreviousVersions = CollectionUtils.createHashMap(
+				normalizedMaxCvIndex - normalizedMinCvIndex + 1
+			);
+			CatalogVersion previousVersion = minCvIndex == -1 ? new CatalogVersion(-1L, OffsetDateTime.MIN) : null;
+			for (int i = normalizedMinCvIndex; i <= normalizedMaxCvIndex; i++) {
+				final CatalogVersion cv = readCatalogVersion(readHandle, CatalogBootstrap.getPositionForRecord(i));
+				if (previousVersion != null) {
+					catalogVersionPreviousVersions.put(
+						cv.version(),
+						new CatalogVersion(previousVersion.version(), cv.timestamp())
+					);
+				}
+				previousVersion = cv;
+			}
+			return catalogVersionPreviousVersions;
+		} catch (Exception e) {
+			throw new UnexpectedIOException(
+				"Failed to open catalog bootstrap file `" + bootstrapFile.getAbsolutePath() + "`!",
+				"Failed to open catalog bootstrap file!",
+				e
+			);
+		} finally {
+			readHandle.forceClose();
 		}
 	}
 

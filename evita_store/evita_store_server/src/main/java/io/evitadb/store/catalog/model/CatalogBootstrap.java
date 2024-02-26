@@ -40,7 +40,7 @@ import java.time.OffsetDateTime;
 public record CatalogBootstrap(
 	long catalogVersion,
 	int catalogFileIndex,
-	@Nonnull OffsetDateTime offsetDateTime,
+	@Nonnull OffsetDateTime timestamp,
 	@Nullable FileLocation fileLocation
 ) {
 
@@ -70,6 +70,27 @@ public record CatalogBootstrap(
 	public static long getLastMeaningfulPosition(long fileLength) {
 		// removes non-divisible remainder as it might be incomplete record and returns last meaningful position
 		return fileLength - (fileLength % BOOTSTRAP_RECORD_SIZE) - BOOTSTRAP_RECORD_SIZE;
+	}
+
+
+	/**
+	 * Calculates the position of a record in the file based on its index.
+	 *
+	 * @param index The index of the record.
+	 * @return The position of the record in the file.
+	 */
+	public static long getPositionForRecord(int index) {
+		return (long) index * BOOTSTRAP_RECORD_SIZE;
+	}
+
+	/**
+	 * Calculates the number of records in a file based on its length.
+	 *
+	 * @param fileLength The length of the file in bytes.
+	 * @return The number of records in the file.
+	 */
+	public static int getRecordCount(long fileLength) {
+		return Math.toIntExact(fileLength / BOOTSTRAP_RECORD_SIZE);
 	}
 
 }

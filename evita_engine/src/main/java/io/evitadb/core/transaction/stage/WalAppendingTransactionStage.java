@@ -33,6 +33,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.time.OffsetDateTime;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -76,7 +77,8 @@ public final class WalAppendingTransactionStage
 				task.transactionId(),
 				task.catalogVersion(),
 				task.mutationCount(),
-				task.walSizeInBytes()
+				task.walSizeInBytes(),
+				OffsetDateTime.now()
 			),
 			task.walReference()
 		);

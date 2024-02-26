@@ -28,7 +28,9 @@ import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
+import io.evitadb.store.dataType.serializer.OffsetDateTimeSerializer;
 
+import java.time.OffsetDateTime;
 import java.util.UUID;
 
 /**
@@ -46,7 +48,7 @@ public class TransactionMutationSerializer extends Serializer<TransactionMutatio
 	 * - mutationCount (4 bytes)
 	 * - walSizeInBytes (8 bytes)
 	 */
-	public static final int RECORD_SIZE = 8 + 8 + 8 + 8 + 4 + 8;
+	public static final int RECORD_SIZE = 8 + 8 + 8 + 8 + 4 + 8 + OffsetDateTimeSerializer.RECORD_SIZE;
 
 	@Override
 	public void write(Kryo kryo, Output output, TransactionMutation object) {
@@ -55,6 +57,7 @@ public class TransactionMutationSerializer extends Serializer<TransactionMutatio
 		output.writeLong(object.getCatalogVersion());
 		output.writeInt(object.getMutationCount());
 		output.writeLong(object.getWalSizeInBytes());
+		kryo.writeObject(output, object.getCommitTimestamp());
 	}
 
 	@Override
@@ -63,7 +66,8 @@ public class TransactionMutationSerializer extends Serializer<TransactionMutatio
 			new UUID(input.readLong(), input.readLong()),
 			input.readLong(),
 			input.readInt(),
-			input.readLong()
+			input.readLong(),
+			kryo.readObject(input, OffsetDateTime.class)
 		);
 	}
 

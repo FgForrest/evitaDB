@@ -29,6 +29,7 @@ import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
+import java.time.OffsetDateTime;
 import java.util.UUID;
 
 /**
@@ -56,17 +57,23 @@ public non-sealed class TransactionMutation implements Mutation {
 	 * Represents the size of the serialized transaction mutations that follow this mutation in bytes.
 	 */
 	@Getter private final long walSizeInBytes;
+	/**
+	 * Represents the timestamp of the commit.
+	 */
+	@Getter private final OffsetDateTime commitTimestamp;
 
 	public TransactionMutation(
 		@Nonnull UUID transactionId,
 		long catalogVersion,
 		int mutationCount,
-		long walSizeInBytes
+		long walSizeInBytes,
+		@Nonnull OffsetDateTime commitTimestamp
 	) {
 		this.transactionId = transactionId;
 		this.catalogVersion = catalogVersion;
 		this.mutationCount = mutationCount;
 		this.walSizeInBytes = walSizeInBytes;
+		this.commitTimestamp = commitTimestamp;
 	}
 
 	@Override
