@@ -1,0 +1,28 @@
+POST /rest/evita/Product/query
+
+{
+  "filterBy" : {
+    "entityLocaleEquals" : "en",
+    "hierarchyCategoriesWithin" : {
+      "ofParent" : {
+        "attributeUrlEquals" : "/en/smartwatches"
+      }
+    }
+  },
+  "orderBy" : [
+    {
+      "attributeOrderedQuantityNatural" : "DESC"
+    }
+  ],
+  "require" : {
+    "entityFetch" : {
+      "attributeContent" : [
+        "name"
+      ]
+    },
+    "page" : {
+      "number" : 1,
+      "size" : 5
+    }
+  }
+}

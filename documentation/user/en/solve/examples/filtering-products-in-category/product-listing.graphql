@@ -1,0 +1,60 @@
+{
+  queryProduct(
+    filterBy: {
+      entityLocaleEquals: en,
+      hierarchyCategoriesWithin: {
+        ofParent: {
+          attributeUrlEquals: "/en/smartwatches"
+        }
+      },
+      attributeStatusEquals: "ACTIVE",
+      or: [
+        {
+          attributeValidityInRangeNow: true
+        },
+        {
+          attributeValidityIs: NULL
+        }
+      ],
+      referenceStocksHaving: [
+        {
+          attributeQuantityOnStockGreaterThan: "0"
+        }
+      ],
+      priceInCurrency: EUR,
+      priceInPriceLists: [
+        "basic"
+      ],
+      priceValidInNow: true
+    }
+  ) {
+    recordPage(
+      number: 1
+      size: 16
+    ) {
+      data {
+        primaryKey
+        attributes {
+          name
+        }
+        priceForSale {
+          priceWithoutTax(
+            formatted: true
+            withCurrency: true
+          )
+          priceWithTax(
+            formatted: true
+            withCurrency: true
+          )
+          taxRate
+        }
+        stocks {
+          referencedPrimaryKey
+          attributes {
+            quantityOnStock
+          }
+        }
+      }
+    }
+  }
+}

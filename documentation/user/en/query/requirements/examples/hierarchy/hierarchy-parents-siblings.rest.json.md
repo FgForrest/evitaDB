@@ -42,6 +42,8 @@
       "type": "Category",
       "version": 1,
       "allLocales": [
+        "cs",
+        "de",
         "en"
       ],
       "attributes": {
@@ -346,6 +348,24 @@
     },
     "requested": false,
     "queriedEntityCount": 92,
+    "childrenCount": 0
+  },
+  {
+    "entity": {
+      "primaryKey": 347154,
+      "type": "Category",
+      "version": 1,
+      "allLocales": [
+        "en"
+      ],
+      "attributes": {
+        "global": {
+          "code": "bargain-bundles"
+        }
+      }
+    },
+    "requested": false,
+    "queriedEntityCount": 2,
     "childrenCount": 0
   }
 ]

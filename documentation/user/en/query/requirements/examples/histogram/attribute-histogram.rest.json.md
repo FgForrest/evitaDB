@@ -3,62 +3,62 @@
   "width": {
     "buckets": [
       {
-        "occurrences": 208,
+        "occurrences": 153,
         "requested": true,
         "threshold": "15.90"
       },
       {
-        "occurrences": 129,
+        "occurrences": 58,
         "requested": true,
         "threshold": "40.51"
       },
       {
-        "occurrences": 954,
+        "occurrences": 249,
         "requested": true,
         "threshold": "65.12"
       },
       {
-        "occurrences": 13,
+        "occurrences": 2,
         "requested": true,
         "threshold": "89.73"
       },
       {
-        "occurrences": 50,
+        "occurrences": 13,
         "requested": true,
         "threshold": "114.34"
       },
       {
-        "occurrences": 29,
+        "occurrences": 12,
         "requested": true,
         "threshold": "138.95"
       },
       {
-        "occurrences": 119,
+        "occurrences": 22,
         "requested": true,
         "threshold": "163.56"
       },
       {
-        "occurrences": 166,
+        "occurrences": 108,
         "requested": true,
         "threshold": "188.17"
       },
       {
-        "occurrences": 730,
+        "occurrences": 598,
         "requested": true,
         "threshold": "212.78"
       },
       {
-        "occurrences": 979,
+        "occurrences": 780,
         "requested": true,
         "threshold": "237.39"
       },
       {
-        "occurrences": 490,
+        "occurrences": 157,
         "requested": true,
         "threshold": "262.00"
       },
       {
-        "occurrences": 16,
+        "occurrences": 17,
         "requested": true,
         "threshold": "286.61"
       },
@@ -68,7 +68,7 @@
         "threshold": "311.22"
       },
       {
-        "occurrences": 2,
+        "occurrences": 0,
         "requested": true,
         "threshold": "335.83"
       },
@@ -105,114 +105,114 @@
     ],
     "max": "508.00",
     "min": "15.90",
-    "overallCount": 3911
+    "overallCount": 2195
   },
   "height": {
     "buckets": [
       {
-        "occurrences": 20,
+        "occurrences": 6,
         "requested": true,
         "threshold": "25.00"
       },
       {
-        "occurrences": 276,
+        "occurrences": 62,
         "requested": true,
-        "threshold": "39.25"
+        "threshold": "38.40"
       },
       {
         "occurrences": 2,
         "requested": true,
-        "threshold": "53.50"
+        "threshold": "51.80"
       },
       {
         "occurrences": 2,
         "requested": true,
-        "threshold": "67.75"
+        "threshold": "65.20"
       },
       {
         "occurrences": 0,
         "requested": true,
-        "threshold": "82.00"
+        "threshold": "78.60"
       },
       {
         "occurrences": 0,
         "requested": true,
-        "threshold": "96.25"
+        "threshold": "92.00"
       },
       {
-        "occurrences": 2,
+        "occurrences": 0,
         "requested": true,
-        "threshold": "110.50"
-      },
-      {
-        "occurrences": 51,
-        "requested": true,
-        "threshold": "124.75"
-      },
-      {
-        "occurrences": 168,
-        "requested": true,
-        "threshold": "139.00"
-      },
-      {
-        "occurrences": 830,
-        "requested": true,
-        "threshold": "153.25"
-      },
-      {
-        "occurrences": 61,
-        "requested": true,
-        "threshold": "167.50"
-      },
-      {
-        "occurrences": 64,
-        "requested": true,
-        "threshold": "181.75"
-      },
-      {
-        "occurrences": 24,
-        "requested": true,
-        "threshold": "196.00"
+        "threshold": "105.40"
       },
       {
         "occurrences": 4,
         "requested": true,
-        "threshold": "210.25"
+        "threshold": "118.80"
       },
       {
-        "occurrences": 5,
+        "occurrences": 6,
         "requested": true,
-        "threshold": "224.50"
+        "threshold": "132.20"
       },
       {
-        "occurrences": 118,
+        "occurrences": 69,
         "requested": true,
-        "threshold": "238.75"
+        "threshold": "145.60"
       },
       {
-        "occurrences": 20,
+        "occurrences": 230,
         "requested": true,
-        "threshold": "253.00"
+        "threshold": "159.00"
       },
       {
-        "occurrences": 48,
+        "occurrences": 44,
         "requested": true,
-        "threshold": "267.25"
+        "threshold": "172.40"
       },
       {
-        "occurrences": 1,
+        "occurrences": 7,
         "requested": true,
-        "threshold": "281.50"
+        "threshold": "185.80"
       },
       {
-        "occurrences": 1,
+        "occurrences": 10,
         "requested": true,
-        "threshold": "295.75"
+        "threshold": "199.20"
+      },
+      {
+        "occurrences": 0,
+        "requested": true,
+        "threshold": "212.60"
+      },
+      {
+        "occurrences": 2,
+        "requested": true,
+        "threshold": "226.00"
+      },
+      {
+        "occurrences": 10,
+        "requested": true,
+        "threshold": "239.40"
+      },
+      {
+        "occurrences": 0,
+        "requested": true,
+        "threshold": "252.80"
+      },
+      {
+        "occurrences": 0,
+        "requested": true,
+        "threshold": "266.20"
+      },
+      {
+        "occurrences": 49,
+        "requested": true,
+        "threshold": "279.60"
       }
     ],
-    "max": "310.00",
+    "max": "293.00",
     "min": "25.00",
-    "overallCount": 1697
+    "overallCount": 503
   }
 }
 ```

@@ -392,9 +392,10 @@ the example to fetch the facet summary along with the codes of the facets and th
 </SourceCodeTabs>
 
 </LS>
+
 <LS to="g">
 
-<SourceCodeTabs langSpecificTabOnly>
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Facet summary calculation with bodies for products in "e-readers" category](/documentation/user/en/query/requirements/examples/facet/facet-summary-of-reference-bodies.evitaql)
 
@@ -443,7 +444,7 @@ the version you want to see in the user interface:
 </LS>
 <LS to="g">
 
-<SourceCodeTabs langSpecificTabOnly>
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Facet summary calculation with localized names for products in the "e-readers" category](/documentation/user/en/query/requirements/examples/facet/facet-summary-of-reference-localized-bodies.evitaql)
 
@@ -517,7 +518,7 @@ a bit artificial. Let's say we want to display only the facet options whose *cod
 </LS>
 <LS to="g">
 
-<SourceCodeTabs langSpecificTabOnly>
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Filtering facet summary options](/documentation/user/en/query/requirements/examples/facet/facet-summary-of-reference-filtering.evitaql)
 
@@ -590,7 +591,7 @@ Let's sort both facet groups and facets alphabetically by their English names:
 </LS>
 <LS to="g,r">
 
-<SourceCodeTabs langSpecificTabOnly>
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Sort facet summary options](/documentation/user/en/query/requirements/examples/facet/facet-summary-of-reference-ordering.evitaql)
 
@@ -762,7 +763,7 @@ It's hard to find a good example for filtering a generic facet summary even for 
 a bit artificial. Let's say we want to display only the facet options whose *code* attribute contains the substring
 *ar*, and only those that are within groups with *code* starting with the letter *o*:
 
-<SourceCodeTabs langSpecificTabOnly>
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Filtering facet summary options](/documentation/user/en/query/requirements/examples/facet/facet-summary-of-reference-filtering.evitaql)
 
@@ -801,7 +802,7 @@ entity collection, which is not known in advance in the generic `facetSummary`.
 
 Let's sort both facet groups and facets alphabetically by their English names:
 
-<SourceCodeTabs langSpecificTabOnly>
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Sort facet summary options](/documentation/user/en/query/requirements/examples/facet/facet-summary-of-reference-ordering.evitaql)
 

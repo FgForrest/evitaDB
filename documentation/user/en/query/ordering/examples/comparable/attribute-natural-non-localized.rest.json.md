@@ -3,6 +3,38 @@
   "recordPage": {
     "data": [
       {
+        "primaryKey": 347156,
+        "type": "Product",
+        "version": 1,
+        "allLocales": [
+          "cs",
+          "de",
+          "en"
+        ],
+        "attributes": {
+          "global": {
+            "code": "samsung-kit-22",
+            "orderedQuantity": "0.00000"
+          }
+        }
+      },
+      {
+        "primaryKey": 347155,
+        "type": "Product",
+        "version": 1,
+        "allLocales": [
+          "cs",
+          "de",
+          "en"
+        ],
+        "attributes": {
+          "global": {
+            "code": "apple-kit-22",
+            "orderedQuantity": "0.00000"
+          }
+        }
+      },
+      {
         "primaryKey": 113891,
         "type": "Product",
         "version": 1,
@@ -253,34 +285,6 @@
             "orderedQuantity": "0.00000"
           }
         }
-      },
-      {
-        "primaryKey": 113838,
-        "type": "Product",
-        "version": 1,
-        "allLocales": [
-          "en"
-        ],
-        "attributes": {
-          "global": {
-            "code": "genius-slimstar-7230",
-            "orderedQuantity": "0.00000"
-          }
-        }
-      },
-      {
-        "primaryKey": 113834,
-        "type": "Product",
-        "version": 1,
-        "allLocales": [
-          "en"
-        ],
-        "attributes": {
-          "global": {
-            "code": "trust-primo",
-            "orderedQuantity": "0.00000"
-          }
-        }
       }
     ],
     "empty": false,
@@ -294,7 +298,7 @@
     "pageNumber": 1,
     "pageSize": 20,
     "singlePage": false,
-    "totalRecordCount": 4223,
+    "totalRecordCount": 4225,
     "type": "PAGE"
   }
 }

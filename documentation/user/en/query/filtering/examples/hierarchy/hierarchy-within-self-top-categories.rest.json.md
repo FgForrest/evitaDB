@@ -33,6 +33,8 @@
         "type": "Category",
         "version": 1,
         "allLocales": [
+          "cs",
+          "de",
           "en"
         ],
         "attributes": {
@@ -66,6 +68,19 @@
             "code": "prepared-products"
           }
         }
+      },
+      {
+        "primaryKey": 347154,
+        "type": "Category",
+        "version": 1,
+        "allLocales": [
+          "en"
+        ],
+        "attributes": {
+          "global": {
+            "code": "bargain-bundles"
+          }
+        }
       }
     ],
     "empty": false,
@@ -74,12 +89,12 @@
     "hasNext": false,
     "hasPrevious": false,
     "last": true,
-    "lastPageItemNumber": 5,
+    "lastPageItemNumber": 6,
     "lastPageNumber": 1,
     "pageNumber": 1,
     "pageSize": 20,
     "singlePage": true,
-    "totalRecordCount": 5,
+    "totalRecordCount": 6,
     "type": "PAGE"
   }
 }
