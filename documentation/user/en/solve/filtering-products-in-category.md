@@ -160,7 +160,7 @@ contains a lot of other filters and requirements. So let's break it down:
    status, which can only be seen by employees preparing the product for publication.
 4. <LS to="e,j,c">**`or(attributeInRangeNow("validity"), attributeIsNull("validity"))`**</LS><LS to="g,r">**`or: [ { attributeValidityInRangeNow: true }, { attributeValidityIs: NULL } ]`**</LS> - filters only products that are valid now or
    have no validity set at all
-5. <LS to="e,j,c">**`referenceHaving("stocks", attributeGreaterThan("quantityOnStock", 0))`**</LS><LS to="e,j,c">**`referenceStocksHaving: [ { attributeQuantityOnStockGreaterThan: 0 } ]`**</LS> - filters only products that are actually 
+5. <LS to="e,j,c">**`referenceHaving("stocks", attributeGreaterThan("quantityOnStock", 0))`**</LS><LS to="g,r">**`referenceStocksHaving: [ { attributeQuantityOnStockGreaterThan: 0 } ]`**</LS> - filters only products that are actually 
    in stock (have a positive quantity on stock) - no matter which stock it is (there may be multiple stocks in the system)
 6. <LS to="e,j,c">**`priceInCurrency("EUR"), priceInPriceLists("basic"), priceValidInNow()`**</LS><LS to="g,r">**`priceInCurrency: EUR, priceInPriceLists: ["basic"], priceValidInNow: true`**</LS> - filters only products that have a valid 
    price in EUR currency and in the *"basic"* price list
