@@ -50,7 +50,7 @@ That produces the requested data:
 
 <LS to="e,j,c">
 
-<MDInclude>[Result for category description](documentation/user/en/solve/examples/filtering-products-in-category/category-description.evitaql.json.md)</MDInclude>
+<MDInclude sourceVariable="recordPage">[Result for category description](documentation/user/en/solve/examples/filtering-products-in-category/category-description.evitaql.json.md)</MDInclude>
 
 </LS>
 
@@ -90,7 +90,7 @@ As you can see, the requested parent information is part of the category entity 
 
 <LS to="e,j,c">
 
-<MDInclude>[Result for category breadcrumb](documentation/user/en/solve/examples/filtering-products-in-category/breadcrumb-category.evitaql.json.md)</MDInclude>
+<MDInclude sourceVariable="recordPage">[Result for category breadcrumb](documentation/user/en/solve/examples/filtering-products-in-category/breadcrumb-category.evitaql.json.md)</MDInclude>
 
 </LS>
 
@@ -122,7 +122,7 @@ the longest path, the last visited category, etc.).
 
 <LS to="e,j,c">
 
-<MDInclude>[Result for product breadcrumb](documentation/user/en/solve/examples/filtering-products-in-category/breadcrumb-product.evitaql.json.md)</MDInclude>
+<MDInclude sourceVariable="recordPage">[Result for product breadcrumb](documentation/user/en/solve/examples/filtering-products-in-category/breadcrumb-product.evitaql.json.md)</MDInclude>
 
 </LS>
 
@@ -180,7 +180,7 @@ The result of the query is a list of products with their attributes and referenc
 
 <LS to="e,j,c">
 
-<MDInclude>[Result for product listing](documentation/user/en/solve/examples/filtering-products-in-category/product-listing.evitaql.json.md)</MDInclude>
+<MDInclude sourceVariable="recordPage">[Result for product listing](documentation/user/en/solve/examples/filtering-products-in-category/product-listing.evitaql.json.md)</MDInclude>
 
 </LS>
 
@@ -221,7 +221,7 @@ The result of the query is as follows:
 
 <LS to="e,j,c">
 
-<MDInclude>[Result for top-selling products](documentation/user/en/solve/examples/filtering-products-in-category/top-selling-products.evitaql.json.md)</MDInclude>
+<MDInclude sourceVariable="recordPage">[Result for top-selling products](documentation/user/en/solve/examples/filtering-products-in-category/top-selling-products.evitaql.json.md)</MDInclude>
 
 </LS>
 
