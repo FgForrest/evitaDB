@@ -102,7 +102,7 @@ As you can see, the requested parent information is part of the category entity 
 
 <LS to="r">
 
-<MDInclude">[Result for category breadcrumb](documentation/user/en/solve/examples/filtering-products-in-category/breadcrumb-category.rest.json.md)</MDInclude>
+<MDInclude>[Result for category breadcrumb](documentation/user/en/solve/examples/filtering-products-in-category/breadcrumb-category.rest.json.md)</MDInclude>
 
 </LS>
 
