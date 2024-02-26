@@ -246,7 +246,6 @@ The result will be the root level categories and the siblings of the currently s
 
 </LS>
 
-
 ## Hiding parts of the category tree
 
 Sometimes you may have noticed that a certain part of the shelves in shopping malls is behind a curtain - because a new 

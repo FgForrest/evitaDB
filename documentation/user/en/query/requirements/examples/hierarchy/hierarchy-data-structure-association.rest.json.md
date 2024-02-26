@@ -91,6 +91,8 @@
         "type": "Category",
         "version": 1,
         "allLocales": [
+          "cs",
+          "de",
           "en"
         ],
         "attributes": {

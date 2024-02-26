@@ -43,6 +43,14 @@
         "code": "prepared-products"
       }
     }
+  },
+  {
+    "entity": {
+      "primaryKey": 347154,
+      "attributes": {
+        "code": "bargain-bundles"
+      }
+    }
   }
 ]
 ```

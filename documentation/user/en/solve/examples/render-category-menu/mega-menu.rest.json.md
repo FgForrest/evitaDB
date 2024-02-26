@@ -186,6 +186,8 @@
       "type": "Category",
       "version": 1,
       "allLocales": [
+        "cs",
+        "de",
         "en"
       ],
       "attributes": {
@@ -339,6 +341,22 @@
       "attributes": {
         "global": {
           "code": "prepared-products"
+        }
+      }
+    },
+    "requested": false
+  },
+  {
+    "entity": {
+      "primaryKey": 347154,
+      "type": "Category",
+      "version": 1,
+      "allLocales": [
+        "en"
+      ],
+      "attributes": {
+        "global": {
+          "code": "bargain-bundles"
         }
       }
     },

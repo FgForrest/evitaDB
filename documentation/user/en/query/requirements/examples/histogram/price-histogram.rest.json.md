@@ -17,7 +17,7 @@
       "threshold": "503.60"
     },
     {
-      "occurrences": 528,
+      "occurrences": 530,
       "requested": true,
       "threshold": "755.40"
     },
@@ -104,6 +104,6 @@
   ],
   "max": "5036.00",
   "min": "0.00",
-  "overallCount": 4125
+  "overallCount": 4127
 }
 ```

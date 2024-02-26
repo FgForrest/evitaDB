@@ -1,0 +1,56 @@
+query(
+  collection("Product"),
+  filterBy(
+    entityLocaleEquals("en"),
+    hierarchyWithin(
+      "categories",
+      attributeEquals("url", "/en/smartwatches")
+    ),
+    attributeEquals("status", "ACTIVE"),
+    or(
+      attributeInRangeNow("validity"),
+      attributeIsNull("validity")
+    ),
+    referenceHaving(
+      "stocks",
+      attributeGreaterThan("quantityOnStock", 0)
+    ),
+    priceInCurrency("EUR"),
+    priceInPriceLists("basic"),
+    priceValidInNow(),
+    userFilter(
+      facetHaving(
+        "brand",
+        entityPrimaryKeyInSet(66465)
+      ),
+      priceBetween(50, 400)
+    )
+  ),
+  orderBy(
+    attributeNatural("order", ASC)
+  ),
+  require(
+    entityFetch(
+      attributeContent("name"),
+      referenceContentWithAttributes("stocks", attributeContent("quantityOnStock")),
+      priceContentRespectingFilter("reference")
+    ),
+    facetSummaryOfReference(
+      "brand",
+      IMPACT,
+      orderBy(attributeNatural("name", ASC)),
+      entityFetch(attributeContent("name"))
+    ),
+    facetSummaryOfReference(
+      "parameterValues",
+      IMPACT,
+      filterGroupBy(attributeEquals("isVisibleInFilter", true)),
+      orderBy(attributeNatural("order", ASC)),
+      orderGroupBy(attributeNatural("order", ASC)),
+      entityFetch(attributeContent("name")),
+      entityGroupFetch(attributeContent("name"))
+    ),
+    priceHistogram(10),
+    page(1, 16)
+  )
+)

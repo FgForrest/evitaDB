@@ -5,5 +5,6 @@
 | 66468            | 'accessories'       |
 | 66469            | 'vouchers'          |
 | 66470            | 'prepared-products' |
+| 347154           | 'bargain-bundles'   |
 
-###### **Page** 1/1 **(Total number of results: 5)**
+###### **Page** 1/1 **(Total number of results: 6)**

@@ -18,8 +18,8 @@
         "code": "emos-warm-base-set-for-interconnecting-chains"
       },
       "priceForSale": {
-        "priceWithoutTax": "24.74",
-        "priceWithTax": "29.94",
+        "priceWithoutTax": "24.79",
+        "priceWithTax": "30.0",
         "taxRate": "21.0"
       }
     },
@@ -29,8 +29,8 @@
         "code": "emos-nativity-set"
       },
       "priceForSale": {
-        "priceWithoutTax": "30.21",
-        "priceWithTax": "36.55",
+        "priceWithoutTax": "30.58",
+        "priceWithTax": "37.0",
         "taxRate": "21.0"
       }
     },
@@ -51,8 +51,8 @@
         "code": "retlux-warm-white-christmas-lightning"
       },
       "priceForSale": {
-        "priceWithoutTax": "12.02",
-        "priceWithTax": "14.55",
+        "priceWithoutTax": "12.4",
+        "priceWithTax": "15.0",
         "taxRate": "21.0"
       }
     },
@@ -73,8 +73,8 @@
         "code": "retlux-cottage-acrylic-ornament"
       },
       "priceForSale": {
-        "priceWithoutTax": "11.79",
-        "priceWithTax": "14.26",
+        "priceWithoutTax": "12.4",
+        "priceWithTax": "15.0",
         "taxRate": "21.0"
       }
     },
@@ -84,8 +84,8 @@
         "code": "immax-neo-lite-smart-chain"
       },
       "priceForSale": {
-        "priceWithoutTax": "33.47",
-        "priceWithTax": "40.5",
+        "priceWithoutTax": "33.88",
+        "priceWithTax": "41.0",
         "taxRate": "21.0"
       }
     },
@@ -106,8 +106,8 @@
         "code": "immax-neo-lite-smart-christmas-led-strip"
       },
       "priceForSale": {
-        "priceWithoutTax": "53.88",
-        "priceWithTax": "65.2",
+        "priceWithoutTax": "54.55",
+        "priceWithTax": "66.0",
         "taxRate": "21.0"
       }
     }
