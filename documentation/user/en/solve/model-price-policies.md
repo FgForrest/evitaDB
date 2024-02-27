@@ -13,7 +13,7 @@ proofreading: 'done'
 
 In most scenarios, there is one main price list with prices for sales - we usually call it *basic*, which contains 
 prices for all products. Very often there is also another price list called *"reference"* which contains reference 
-market prices or the lowest price in the last period. The prices in the *"reference" price list are marked as 
+market prices or the lowest price in the last period. The prices in the *"reference"* price list are marked as 
 non-selling prices and are used for comparison with the real selling price and for calculating the discount.
 
 Then there are various other price lists, which usually contain prices for only a subset of products and take precedence
