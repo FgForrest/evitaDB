@@ -141,8 +141,6 @@ public class ReverseMutationSupplier extends AbstractMutationSupplier {
 			(index) -> new TransactionLocations()
 		).findNearestLocation(previousCatalogVersion);
 
-		/* TODO JNO OPTIMIZE TO AVOID REPEATED SCANS */
-
 		// move forward, until we reach EOL or current tx mutation
 		this.observableInput.seekWithUnknownLength(this.filePosition);
 
