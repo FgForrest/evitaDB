@@ -49,11 +49,13 @@ import static io.evitadb.store.spi.CatalogPersistenceService.getWalFileName;
 import static java.util.Optional.ofNullable;
 
 /**
- * TODO JNO - document me
+ * Abstract ancestor for both {@link MutationSupplier} and {@link ReverseMutationSupplier} to reuse common logic and
+ * state fields.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-abstract class AbstractMutationSupplier implements Supplier<Mutation>, AutoCloseable {
+abstract sealed class AbstractMutationSupplier implements Supplier<Mutation>, AutoCloseable
+	permits MutationSupplier, ReverseMutationSupplier {
 	/**
 	 * The Kryo pool for serializing {@link TransactionMutation} (given by outside).
 	 */

@@ -40,7 +40,7 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * This class is used to supply Mutation objects from a Write-Ahead Log (WAL) file in forward order.
  */
-public class MutationSupplier extends AbstractMutationSupplier {
+public final class MutationSupplier extends AbstractMutationSupplier {
 
 	public MutationSupplier(
 		long catalogVersion,
