@@ -34,18 +34,10 @@ import lombok.Getter;
  * of the {@link FileOffsetIndexKryoPool} that was used for creating those instances.
  * Version serves to safely discard all instances once they become obsolete.
  *
- * TODO JNO - zvážit jestli z této třídy nevytvořit jen wrapper, který jen obaluje původní Kryo
- * a přidává k němu verzi. Myslím si, že toto vzniklo kvůli přidávání nových tříd za běhu pro enumy, ale to již není
- * podporováno a Kryo instance jsou podle mě teď po vytvoření již nezměněné
- *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class VersionedKryo extends Kryo {
 	@Getter private final long version;
-
-	static {
-		System.setProperty("kryo.unsafe", "false");
-	}
 
 	public VersionedKryo(long version) {
 		this.version = version;
