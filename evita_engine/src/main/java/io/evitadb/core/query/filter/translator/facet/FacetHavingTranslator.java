@@ -85,7 +85,7 @@ public class FacetHavingTranslator implements FilteringConstraintTranslator<Face
 				return entityIndex.getFacetReferencingEntityIdsFormula(
 					facetHaving.getReferenceName(),
 					(groupId, theFacetIds, recordIdBitmaps) -> {
-						if (referenceSchema.isReferencedGroupTypeManaged() && filterByVisitor.isFacetGroupConjunction(referenceSchema, groupId)) {
+						if ((referenceSchema.isReferencedGroupTypeManaged() || groupId == null) && filterByVisitor.isFacetGroupConjunction(referenceSchema, groupId)) {
 							// AND relation is requested for facet of this group
 							return new FacetGroupAndFormula(
 								facetHaving.getReferenceName(), groupId, theFacetIds, recordIdBitmaps
