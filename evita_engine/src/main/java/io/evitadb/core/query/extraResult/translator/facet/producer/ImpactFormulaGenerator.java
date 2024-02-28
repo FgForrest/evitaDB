@@ -121,9 +121,9 @@ public class ImpactFormulaGenerator extends AbstractFacetFormulaGenerator {
 			boolean foundAtLast = ofNullable(this.facetGroupsInUserFilter.get(referenceName))
 				.map(it -> it.contains(normalizedFacetGroupId))
 				.orElse(false);
-			final CacheKey cacheKey = new CacheKey(
-				foundAtLast ? referenceName : null, negation, disjunction, conjunction, foundAtLast ? facetGroupId : null
-			);
+			final CacheKey cacheKey = foundAtLast ?
+				new CacheKey(referenceName, negation, disjunction, conjunction, normalizedFacetGroupId) :
+				new CacheKey(null, negation, disjunction, conjunction, null);
 			this.cache.put(cacheKey, result);
 			return result;
 		}

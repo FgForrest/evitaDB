@@ -1,0 +1,17 @@
+query(
+  collection("Category"),
+  filterBy(
+    attributeEquals("url", "/en/smartwatches"),
+    entityLocaleEquals("en")
+  ),
+  require(
+    entityFetch(
+      attributeContent("code", "name"),
+      hierarchyContent(
+        entityFetch(
+          attributeContent("code", "name", "level")
+        )
+      )
+    )
+  )
+)

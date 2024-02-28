@@ -1,10 +1,10 @@
 ```md
 Facet summary:
 	parameterValues: 'ram-memory' [525]:
-		[ ] 'ram-memory-24' (4212) 0
-		[ ] 'ram-memory-64' (4116) 0
-		[ ] 'ram-memory-4' (3818) 0
-		[ ] 'ram-memory-48' (4221) 0
+		[ ] 'ram-memory-24' (4214) 0
+		[ ] 'ram-memory-64' (4118) 0
+		[ ] 'ram-memory-4' (3820) 0
+		[ ] 'ram-memory-48' (4223) 0
 	parameterValues: 'rom-memory' [1527]:
 		[ ] 'rom-memory-64' (267) 0
 		[ ] 'rom-memory-4' (83) 0

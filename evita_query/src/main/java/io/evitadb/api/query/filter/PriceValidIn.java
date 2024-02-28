@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -90,6 +90,15 @@ public class PriceValidIn extends AbstractFilterConstraintLeaf
 	@Nullable
 	public OffsetDateTime getTheMoment(@Nonnull Supplier<OffsetDateTime> currentDateAndTime) {
 		return getArguments().length == 0 ? currentDateAndTime.get() : (OffsetDateTime) getArguments()[0];
+	}
+
+	/**
+	 * Returns {@link OffsetDateTime} that should be verified whether is within the range (inclusive) of price validity.
+	 * Note for internal use only, uses current date and time.
+	 */
+	@Nullable
+	private OffsetDateTime getTheMoment() {
+		return getTheMoment(OffsetDateTime::now);
 	}
 
 	@Nonnull

@@ -1,0 +1,37 @@
+{
+  queryProduct(
+    filterBy: {
+      attributeUrlEquals: "/en/macbook-pro-13-2022",
+      entityLocaleEquals: en
+    }
+  ) {
+    recordPage {
+      data {
+        primaryKey
+        attributes {
+          code
+          name
+        }
+        categories {
+          referencedPrimaryKey
+          referencedEntity {
+            primaryKey
+            parentPrimaryKey
+            parents {
+              primaryKey
+              attributes {
+                code
+                name
+                level
+              }
+            }
+            attributes {
+              code
+              name
+            }
+          }
+        }
+      }
+    }
+  }
+}
