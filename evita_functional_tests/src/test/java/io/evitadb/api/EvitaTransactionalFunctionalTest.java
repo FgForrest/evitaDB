@@ -69,6 +69,7 @@ import io.evitadb.test.generator.DataGenerator;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.UUIDUtil;
 import lombok.extern.slf4j.Slf4j;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -134,7 +135,8 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 		}
 	};
 	private final ObservableOutputKeeper observableOutputKeeper = new ObservableOutputKeeper(
-		StorageOptions.builder().build()
+		StorageOptions.builder().build(),
+		Mockito.mock(ScheduledExecutorService.class)
 	);
 	private final OffHeapMemoryManager offHeapMemoryManager = new OffHeapMemoryManager(10_000_000, 128);
 
@@ -258,6 +260,11 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 				}
 			);
 		});
+	}
+
+	@AfterEach
+	void tearDown() {
+		observableOutputKeeper.close();
 	}
 
 	@DisplayName("Catalog should be automatically updated after a load with existing WAL contents.")

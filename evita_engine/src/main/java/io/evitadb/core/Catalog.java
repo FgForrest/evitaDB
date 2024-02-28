@@ -173,11 +173,6 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 	 */
 	private final TransactionalMap<String, EntitySchemaContract> entitySchemaIndex;
 	/**
-	 * Contains count of concurrently opened writers connected with this catalog.
-	 * This information is used to control lifecycle of {@link #persistenceService} object.
-	 */
-	private final AtomicInteger writerCount;
-	/**
 	 * Service containing I/O related methods.
 	 */
 	private final CatalogPersistenceService persistenceService;
@@ -320,20 +315,14 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 			.orElseThrow(StorageImplementationNotFoundException::new);
 
 		final CatalogStoragePartPersistenceService storagePartPersistenceService = this.persistenceService.getStoragePartPersistenceService();
-		try {
-			this.persistenceService.prepare();
-			storagePartPersistenceService.putStoragePart(0L, new CatalogSchemaStoragePart(getInternalSchema()));
-			this.persistenceService.storeHeader(
-				CatalogState.WARMING_UP, 0L, 0, null,
-				Collections.emptyList()
-			);
-		} finally {
-			this.persistenceService.release();
-		}
+		storagePartPersistenceService.putStoragePart(0L, new CatalogSchemaStoragePart(getInternalSchema()));
+		this.persistenceService.storeHeader(
+			CatalogState.WARMING_UP, 0L, 0, null,
+			Collections.emptyList()
+		);
 
 		// initialize container buffer
 		this.state = CatalogState.WARMING_UP;
-		this.writerCount = new AtomicInteger(0);
 		this.versionId = new TransactionalReference<>(0L);
 		this.dataStoreBuffer = new DataStoreMemoryBuffer<>(this, storagePartPersistenceService);
 		this.cacheSupervisor = cacheSupervisor;
@@ -384,8 +373,6 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 		);
 		this.schema = new TransactionalReference<>(new CatalogSchemaDecorator(catalogSchema));
 		this.catalogIndex = this.persistenceService.readCatalogIndex(this);
-
-		this.writerCount = new AtomicInteger(0);
 		this.cacheSupervisor = cacheSupervisor;
 		this.dataStoreBuffer = new DataStoreMemoryBuffer<>(this, storagePartPersistenceService);
 
@@ -475,7 +462,6 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 		this.catalogIndex = catalogIndex;
 		this.persistenceService = persistenceService;
 		this.cacheSupervisor = previousCatalogVersion.cacheSupervisor;
-		this.writerCount = previousCatalogVersion.writerCount;
 		this.entityTypeSequence = previousCatalogVersion.entityTypeSequence;
 		this.proxyFactory = previousCatalogVersion.proxyFactory;
 		this.storageOptions = previousCatalogVersion.storageOptions;
@@ -705,47 +691,41 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 	@Nonnull
 	@Override
 	public CatalogContract replace(@Nonnull CatalogSchemaContract updatedSchema, @Nonnull CatalogContract catalogToBeReplaced) {
-		try {
-			this.persistenceService.prepare();
-
-			this.entityCollections.values().forEach(EntityCollection::terminate);
-			final CatalogPersistenceService newIoService = persistenceService.replaceWith(
-				updatedSchema.getName(),
-				updatedSchema.getNameVariants(),
-				CatalogSchema._internalBuild(updatedSchema)
-			);
-			final Map<String, EntityCollection> newCollections = entityCollections
-				.values()
-				.stream()
-				.collect(
-					Collectors.toMap(
-						EntityCollection::getEntityType,
-						it -> new EntityCollection(
-							this,
-							it.getEntityTypePrimaryKey(),
-							it.getEntityType(),
-							newIoService,
-							cacheSupervisor,
-							sequenceService,
-							tracingContext
-						)
+		this.entityCollections.values().forEach(EntityCollection::terminate);
+		final CatalogPersistenceService newIoService = persistenceService.replaceWith(
+			updatedSchema.getName(),
+			updatedSchema.getNameVariants(),
+			CatalogSchema._internalBuild(updatedSchema)
+		);
+		final Map<String, EntityCollection> newCollections = entityCollections
+			.values()
+			.stream()
+			.collect(
+				Collectors.toMap(
+					EntityCollection::getEntityType,
+					it -> new EntityCollection(
+						this,
+						it.getEntityTypePrimaryKey(),
+						it.getEntityType(),
+						newIoService,
+						cacheSupervisor,
+						sequenceService,
+						tracingContext
 					)
-				);
-
-			final Catalog catalogAfterRename = new Catalog(
-				versionId.get() + 1,
-				getCatalogState(),
-				catalogIndex,
-				newCollections,
-				newIoService,
-				this,
-				tracingContext
+				)
 			);
-			newCollections.values().forEach(it -> it.updateReferenceToCatalog(catalogAfterRename));
-			return catalogAfterRename;
-		} finally {
-			this.persistenceService.release();
-		}
+
+		final Catalog catalogAfterRename = new Catalog(
+			versionId.get() + 1,
+			getCatalogState(),
+			catalogIndex,
+			newCollections,
+			newIoService,
+			this,
+			tracingContext
+		);
+		newCollections.values().forEach(it -> it.updateReferenceToCatalog(catalogAfterRename));
+		return catalogAfterRename;
 	}
 
 	@Nonnull
@@ -769,24 +749,22 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 				"Concurrent call of `goLive` method is not supported!"
 			);
 
-			return persistenceService.executeWriteSafely(() -> {
-				Assert.isTrue(state == CatalogState.WARMING_UP, "Catalog has already alive state!");
-				flush();
+			Assert.isTrue(state == CatalogState.WARMING_UP, "Catalog has already alive state!");
+			flush();
 
-				newCatalogVersionConsumer.accept(
-					new Catalog(
-						1L,
-						CatalogState.ALIVE,
-						this.catalogIndex,
-						this.entityCollections,
-						this.persistenceService,
-						this,
-						this.tracingContext
-					)
-				);
+			newCatalogVersionConsumer.accept(
+				new Catalog(
+					1L,
+					CatalogState.ALIVE,
+					this.catalogIndex,
+					this.entityCollections,
+					this.persistenceService,
+					this,
+					this.tracingContext
+				)
+			);
 
-				return true;
-			});
+			return true;
 		} finally {
 			goingLive.set(false);
 		}
@@ -799,14 +777,9 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 				transactionMutation -> {
 					final TrunkIncorporationTransactionStage trunkStage = getTrunkIncorporationStage();
 					final long start = System.nanoTime();
-					this.persistenceService.prepare();
-					try {
-						trunkStage.processTransactions(transactionMutation.getCatalogVersion(), Long.MAX_VALUE, false);
-						log.info("WAL of `{}` catalog was processed in {}.", this.getName(), StringUtils.formatNano(System.nanoTime() - start));
-						updatedCatalogConsumer.accept(trunkStage.getCatalog());
-					} finally {
-						this.persistenceService.release();
-					}
+					trunkStage.processTransactions(transactionMutation.getCatalogVersion(), Long.MAX_VALUE, false);
+					log.info("WAL of `{}` catalog was processed in {}.", this.getName(), StringUtils.formatNano(System.nanoTime() - start));
+					updatedCatalogConsumer.accept(trunkStage.getCatalog());
 				},
 				() -> updatedCatalogConsumer.accept(this)
 			);
@@ -839,42 +812,36 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 	@Override
 	public void terminate() {
 		try {
-			persistenceService.executeWriteSafely(() -> {
-				final List<EntityCollectionHeader> entityHeaders;
-				boolean changeOccurred = lastPersistedSchemaVersion != schema.get().version();
-				final boolean warmingUpState = getCatalogState() == CatalogState.WARMING_UP;
-				entityHeaders = new ArrayList<>(this.entityCollections.size());
-				for (EntityCollection entityCollection : entityCollections.values()) {
-					// in warmup state try to persist all changes in volatile memory
-					if (warmingUpState) {
-						final long lastSeenVersion = entityCollection.getVersion();
-						entityHeaders.add(entityCollection.flush());
-						changeOccurred = changeOccurred || entityCollection.getVersion() != lastSeenVersion;
-					}
-					// in all states terminate collection operations
-					entityCollection.terminate();
+			final List<EntityCollectionHeader> entityHeaders;
+			boolean changeOccurred = lastPersistedSchemaVersion != schema.get().version();
+			final boolean warmingUpState = getCatalogState() == CatalogState.WARMING_UP;
+			entityHeaders = new ArrayList<>(this.entityCollections.size());
+			for (EntityCollection entityCollection : entityCollections.values()) {
+				// in warmup state try to persist all changes in volatile memory
+				if (warmingUpState) {
+					final long lastSeenVersion = entityCollection.getVersion();
+					entityHeaders.add(entityCollection.flush());
+					changeOccurred = changeOccurred || entityCollection.getVersion() != lastSeenVersion;
 				}
+				// in all states terminate collection operations
+				entityCollection.terminate();
+			}
 
-				// if any change occurred (this may happen only in warm up state)
-				if (warmingUpState && changeOccurred) {
-					// store catalog header
-					this.persistenceService.storeHeader(
-						getCatalogState(),
-						this.versionId.getId(),
-						this.entityTypeSequence.get(),
-						null,
-						entityHeaders
-					);
-				}
-				// close all resources here, here we just hand all objects to GC
-				entityCollections.clear();
-				return null;
-			});
+			// if any change occurred (this may happen only in warm up state)
+			if (warmingUpState && changeOccurred) {
+				// store catalog header
+				this.persistenceService.storeHeader(
+					getCatalogState(),
+					this.versionId.getId(),
+					this.entityTypeSequence.get(),
+					null,
+					entityHeaders
+				);
+			}
+			// close all resources here, here we just hand all objects to GC
+			entityCollections.clear();
 		} finally {
-			persistenceService.executeWriteSafely(() -> {
-				persistenceService.close();
-				return null;
-			});
+			persistenceService.close();
 		}
 	}
 
@@ -947,75 +914,88 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 		@Nullable DataStoreChanges<CatalogIndexKey, CatalogIndex> layer,
 		@Nonnull TransactionalLayerMaintainer transactionalLayer
 	) {
-		return this.persistenceService.executeWriteSafely(() -> {
-			/* the version is incremented via. {@link #setVersion} method */
-			final long newCatalogVersionId = transactionalLayer.getStateCopyWithCommittedChanges(versionId).orElseThrow();
-			final CatalogSchemaDecorator newSchema = transactionalLayer.getStateCopyWithCommittedChanges(schema).orElseThrow();
-			final DataStoreChanges<CatalogIndexKey, CatalogIndex> transactionalChanges = transactionalLayer.getTransactionalMemoryLayer(this);
+		/* the version is incremented via. {@link #setVersion} method */
+		final long newCatalogVersionId = transactionalLayer.getStateCopyWithCommittedChanges(versionId).orElseThrow();
+		final CatalogSchemaDecorator newSchema = transactionalLayer.getStateCopyWithCommittedChanges(schema).orElseThrow();
+		final DataStoreChanges<CatalogIndexKey, CatalogIndex> transactionalChanges = transactionalLayer.getTransactionalMemoryLayer(this);
 
-			final MapChanges<String, EntityCollection> collectionChanges = transactionalLayer.getTransactionalMemoryLayerIfExists(entityCollections);
-			Map<String, EntityCollectionPersistenceService> updatedServiceCollections = null;
-			if (collectionChanges != null) {
-				final Map<String, EntityCollection> originalCollectionContents = collectionChanges.getMapDelegate();
-				final Set<String> removedCollections = new HashSet<>(collectionChanges.getRemovedKeys());
-				final ObjectObjectIdentityHashMap<EntityCollection, String> originalCollections = new ObjectObjectIdentityHashMap<>(removedCollections.size());
-				for (String removedKey : removedCollections) {
-					originalCollections.put(collectionChanges.getMapDelegate().get(removedKey), removedKey);
-				}
-				for (Entry<String, EntityCollection> updatedKey : collectionChanges.getModifiedKeys().entrySet()) {
-					final EntityCollection updatedCollection = updatedKey.getValue();
-					final String removedEntityType = originalCollections.get(updatedCollection);
-					final String newEntityType = updatedKey.getKey();
-					if (removedEntityType != null) {
-						final EntityCollectionPersistenceService newPersistenceService = this.persistenceService.replaceCollectionWith(
-							removedEntityType,
-							updatedCollection.getEntityTypePrimaryKey(),
-							newEntityType,
-							newCatalogVersionId
-						);
-						if (updatedServiceCollections == null) {
-							updatedServiceCollections = new HashMap<>(collectionChanges.getModifiedKeys().size());
-						}
-						updatedServiceCollections.put(newEntityType, newPersistenceService);
-						removedCollections.remove(removedEntityType);
-						ofNullable(originalCollectionContents.get(newEntityType)).ifPresent(it -> it.removeLayer(transactionalLayer));
-					}
-				}
-				for (String removedKey : removedCollections) {
-					this.persistenceService.deleteEntityCollection(removedKey);
-					originalCollectionContents.get(removedKey).removeLayer(transactionalLayer);
-				}
+		final MapChanges<String, EntityCollection> collectionChanges = transactionalLayer.getTransactionalMemoryLayerIfExists(entityCollections);
+		Map<String, EntityCollectionPersistenceService> updatedServiceCollections = null;
+		if (collectionChanges != null) {
+			final Map<String, EntityCollection> originalCollectionContents = collectionChanges.getMapDelegate();
+			final Set<String> removedCollections = new HashSet<>(collectionChanges.getRemovedKeys());
+			final ObjectObjectIdentityHashMap<EntityCollection, String> originalCollections = new ObjectObjectIdentityHashMap<>(removedCollections.size());
+			for (String removedKey : removedCollections) {
+				originalCollections.put(collectionChanges.getMapDelegate().get(removedKey), removedKey);
 			}
-
-			final Map<String, EntityCollection> possiblyUpdatedCollections = transactionalLayer.getStateCopyWithCommittedChanges(entityCollections);
-			// replace all entity collections with new one if their storage persistence service was changed
-			if (updatedServiceCollections != null) {
-				updatedServiceCollections.forEach((entityType, newPersistenceService) -> {
-					possiblyUpdatedCollections.compute(
-						entityType,
-						(entityTypeKey, entityCollection) -> entityCollection.createCopyWithNewPersistenceService(newPersistenceService)
+			for (Entry<String, EntityCollection> updatedKey : collectionChanges.getModifiedKeys().entrySet()) {
+				final EntityCollection updatedCollection = updatedKey.getValue();
+				final String removedEntityType = originalCollections.get(updatedCollection);
+				final String newEntityType = updatedKey.getKey();
+				if (removedEntityType != null) {
+					final EntityCollectionPersistenceService newPersistenceService = this.persistenceService.replaceCollectionWith(
+						removedEntityType,
+						updatedCollection.getEntityTypePrimaryKey(),
+						newEntityType,
+						newCatalogVersionId
 					);
-				});
+					if (updatedServiceCollections == null) {
+						updatedServiceCollections = new HashMap<>(collectionChanges.getModifiedKeys().size());
+					}
+					updatedServiceCollections.put(newEntityType, newPersistenceService);
+					removedCollections.remove(removedEntityType);
+					ofNullable(originalCollectionContents.get(newEntityType)).ifPresent(it -> it.removeLayer(transactionalLayer));
+				}
+			}
+			for (String removedKey : removedCollections) {
+				this.persistenceService.deleteEntityCollection(removedKey);
+				originalCollectionContents.get(removedKey).removeLayer(transactionalLayer);
+			}
+		}
+
+		final Map<String, EntityCollection> possiblyUpdatedCollections = transactionalLayer.getStateCopyWithCommittedChanges(entityCollections);
+		// replace all entity collections with new one if their storage persistence service was changed
+		if (updatedServiceCollections != null) {
+			updatedServiceCollections.forEach((entityType, newPersistenceService) -> {
+				possiblyUpdatedCollections.compute(
+					entityType,
+					(entityTypeKey, entityCollection) -> entityCollection.createCopyWithNewPersistenceService(newPersistenceService)
+				);
+			});
+		}
+
+		final CatalogIndex possiblyUpdatedCatalogIndex = transactionalLayer.getStateCopyWithCommittedChanges(catalogIndex);
+		transactionalLayer.removeTransactionalMemoryLayerIfExists(this.entityCollectionsByPrimaryKey);
+		transactionalLayer.removeTransactionalMemoryLayerIfExists(this.entitySchemaIndex);
+
+		if (transactionalChanges != null) {
+			final StoragePartPersistenceService storagePartPersistenceService = this.persistenceService.getStoragePartPersistenceService();
+			final CatalogSchemaStoragePart storedSchema = CatalogSchemaStoragePart.deserializeWithCatalog(
+				this, () -> storagePartPersistenceService.getStoragePart(newCatalogVersionId, 1, CatalogSchemaStoragePart.class)
+			);
+
+			if (newSchema.version() != storedSchema.catalogSchema().version()) {
+				final CatalogSchemaStoragePart storagePart = new CatalogSchemaStoragePart(newSchema.getDelegate());
+				storagePartPersistenceService.putStoragePart(storagePart.getStoragePartPK(), storagePart);
 			}
 
-			final CatalogIndex possiblyUpdatedCatalogIndex = transactionalLayer.getStateCopyWithCommittedChanges(catalogIndex);
-			transactionalLayer.removeTransactionalMemoryLayerIfExists(this.entityCollectionsByPrimaryKey);
-			transactionalLayer.removeTransactionalMemoryLayerIfExists(this.entitySchemaIndex);
+			// when we register all storage parts for persisting we can now release transactional memory
+			transactionalLayer.removeTransactionalMemoryLayer(this);
 
-			if (transactionalChanges != null) {
-				final StoragePartPersistenceService storagePartPersistenceService = this.persistenceService.getStoragePartPersistenceService();
-				final CatalogSchemaStoragePart storedSchema = CatalogSchemaStoragePart.deserializeWithCatalog(
-					this, () -> storagePartPersistenceService.getStoragePart(newCatalogVersionId, 1, CatalogSchemaStoragePart.class)
-				);
-
-				if (newSchema.version() != storedSchema.catalogSchema().version()) {
-					final CatalogSchemaStoragePart storagePart = new CatalogSchemaStoragePart(newSchema.getDelegate());
-					storagePartPersistenceService.putStoragePart(storagePart.getStoragePartPK(), storagePart);
-				}
-
-				// when we register all storage parts for persisting we can now release transactional memory
-				transactionalLayer.removeTransactionalMemoryLayer(this);
-
+			return new Catalog(
+				newCatalogVersionId,
+				getCatalogState(),
+				possiblyUpdatedCatalogIndex,
+				possiblyUpdatedCollections,
+				this
+			);
+		} else {
+			if (possiblyUpdatedCatalogIndex != catalogIndex ||
+				possiblyUpdatedCollections
+					.entrySet()
+					.stream()
+					.anyMatch(it -> this.entityCollections.get(it.getKey()) != it.getValue())
+			) {
 				return new Catalog(
 					newCatalogVersionId,
 					getCatalogState(),
@@ -1024,25 +1004,10 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 					this
 				);
 			} else {
-				if (possiblyUpdatedCatalogIndex != catalogIndex ||
-					possiblyUpdatedCollections
-						.entrySet()
-						.stream()
-						.anyMatch(it -> this.entityCollections.get(it.getKey()) != it.getValue())
-				) {
-					return new Catalog(
-						newCatalogVersionId,
-						getCatalogState(),
-						possiblyUpdatedCatalogIndex,
-						possiblyUpdatedCollections,
-						this
-					);
-				} else {
-					// no changes present we can return self
-					return this;
-				}
+				// no changes present we can return self
+				return this;
 			}
-		});
+		}
 	}
 
 	/**
@@ -1193,69 +1158,40 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 	}
 
 	/**
-	 * Increases number of read and write sessions that are currently talking with this catalog.
-	 *
-	 * This method is part of the internal API.
-	 */
-	public void increaseWriterCount() {
-		if (writerCount.getAndIncrement() == 0) {
-			persistenceService.prepare();
-		}
-	}
-
-	/**
-	 * Decreases number of read and write sessions that are currently talking with this catalog.
-	 * When writer count reaches zero - opened output buffers are released to free memory.
-	 *
-	 * This method is part of the internal API.
-	 */
-	public void decreaseWriterCount() {
-		if (writerCount.decrementAndGet() == 0) {
-			persistenceService.release();
-		}
-	}
-
-	/**
 	 * Method allows to immediately flush all information held in memory to the persistent storage.
 	 * This method might do nothing particular in transaction ({@link CatalogState#ALIVE}) mode.
 	 * Method stores {@link EntityCollectionHeader} in case there were any changes in the file offset index executed
 	 * in BULK / non-transactional mode.
 	 */
 	void flush() {
-		this.persistenceService.executeWriteSafely(
-			() -> {
-				// if we're going live start with TRUE (force flush), otherwise start with false
-				boolean changeOccurred = goingLive.get() || schema.get().version() != lastPersistedSchemaVersion;
-				Assert.isPremiseValid(
-					getCatalogState() == CatalogState.WARMING_UP,
-					"Cannot flush catalog in transactional mode. Any changes could occur only in transaction!"
-				);
-
-				final List<EntityCollectionHeader> entityHeaders = new ArrayList<>(this.entityCollections.size());
-				for (EntityCollection entityCollection : entityCollections.values()) {
-					final long lastSeenVersion = entityCollection.getVersion();
-					entityHeaders.add(entityCollection.flush());
-					changeOccurred = changeOccurred || entityCollection.getVersion() != lastSeenVersion;
-				}
-
-				if (changeOccurred) {
-					this.persistenceService.flushTrappedUpdates(
-						0L,
-						this.dataStoreBuffer.getTrappedIndexChanges()
-					);
-					this.persistenceService.storeHeader(
-						this.goingLive.get() ? CatalogState.ALIVE : getCatalogState(),
-						0L,
-						this.entityTypeSequence.get(),
-						null,
-						entityHeaders
-					);
-					this.lastPersistedSchemaVersion = this.schema.get().version();
-				}
-				return null;
-			}
+		// if we're going live start with TRUE (force flush), otherwise start with false
+		boolean changeOccurred = goingLive.get() || schema.get().version() != lastPersistedSchemaVersion;
+		Assert.isPremiseValid(
+			getCatalogState() == CatalogState.WARMING_UP,
+			"Cannot flush catalog in transactional mode. Any changes could occur only in transaction!"
 		);
 
+		final List<EntityCollectionHeader> entityHeaders = new ArrayList<>(this.entityCollections.size());
+		for (EntityCollection entityCollection : entityCollections.values()) {
+			final long lastSeenVersion = entityCollection.getVersion();
+			entityHeaders.add(entityCollection.flush());
+			changeOccurred = changeOccurred || entityCollection.getVersion() != lastSeenVersion;
+		}
+
+		if (changeOccurred) {
+			this.persistenceService.flushTrappedUpdates(
+				0L,
+				this.dataStoreBuffer.getTrappedIndexChanges()
+			);
+			this.persistenceService.storeHeader(
+				this.goingLive.get() ? CatalogState.ALIVE : getCatalogState(),
+				0L,
+				this.entityTypeSequence.get(),
+				null,
+				entityHeaders
+			);
+			this.lastPersistedSchemaVersion = this.schema.get().version();
+		}
 	}
 
 	/**

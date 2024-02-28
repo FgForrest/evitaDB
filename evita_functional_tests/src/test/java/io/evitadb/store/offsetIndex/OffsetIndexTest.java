@@ -50,6 +50,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ArgumentsSource;
+import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
 import java.io.File;
@@ -64,6 +65,7 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Function;
 
 import static io.evitadb.test.TestConstants.LONG_RUNNING_TEST;
@@ -80,6 +82,8 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 	public static final String ENTITY_TYPE = "whatever";
 	private final Path targetFile = Path.of(System.getProperty("java.io.tmpdir") + File.separator + "fileOffsetIndex.kryo");
 	private final OffsetIndexRecordTypeRegistry fileOffsetIndexRecordTypeRegistry = new OffsetIndexRecordTypeRegistry();
+	private final StorageOptions options = StorageOptions.temporary();
+	private final ObservableOutputKeeper observableOutputKeeper = new ObservableOutputKeeper(options, Mockito.mock(ScheduledExecutorService.class));
 
 	private static EntityBodyStoragePart getNonExisting(Set<Integer> recordIds, Set<Integer> touchedInThisRound, Random random) {
 		int recPrimaryKey;
@@ -126,6 +130,7 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 	@AfterEach
 	void tearDown() {
 		targetFile.toFile().delete();
+		observableOutputKeeper.close();
 	}
 
 	@DisplayName("Hundreds entities should be stored in OffsetIndex and retrieved intact.")
@@ -137,10 +142,6 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 	@DisplayName("Half of the entities should be removed, file offset index copied to different file and reconstructed.")
 	@Test
 	void shouldCopySnapshotOfTheBigFileOffsetIndexAndReconstruct() {
-		final StorageOptions options = StorageOptions.temporary();
-		final ObservableOutputKeeper observableOutputKeeper = new ObservableOutputKeeper(options);
-		observableOutputKeeper.prepare();
-
 		final InsertionOutput insertionOutput = serializeAndReconstructBigFileOffsetIndex();
 		final OffsetIndexDescriptor fileOffsetIndexDescriptor = insertionOutput.descriptor();
 		final OffsetIndex sourceOffsetIndex = new OffsetIndex(
@@ -198,17 +199,11 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 		} finally {
 			snapshotPath.toFile().delete();
 		}
-
-		observableOutputKeeper.free();
 	}
 
 	@DisplayName("Existing record can be removed")
 	@Test
 	void shouldRemoveRecord() {
-		final StorageOptions options = StorageOptions.temporary();
-		final ObservableOutputKeeper observableOutputKeeper = new ObservableOutputKeeper(options);
-		observableOutputKeeper.prepare();
-
 		// store 300 records in multiple chunks,
 		final int recordCount = 50;
 		final int removedRecords = 10;
@@ -243,8 +238,6 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 			}
 		}
 
-		observableOutputKeeper.free();
-
 		assertTrue(insertionResult.fileOffsetIndex().fileOffsetIndexEquals(loadedFileOffsetIndex));
 		/* 300 records +6 record for th OffsetIndex itself */
 		assertEquals(306, loadedFileOffsetIndex.verifyContents().getRecordCount());
@@ -252,10 +245,6 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 
 	@Test
 	void shouldReadBinaryRecordAndDeserializeManually() {
-		final StorageOptions options = StorageOptions.temporary();
-		final ObservableOutputKeeper observableOutputKeeper = new ObservableOutputKeeper(options);
-		observableOutputKeeper.prepare();
-
 		// store 300 records in multiple chunks,
 		final int recordCount = 50;
 		final int removedRecords = 10;
@@ -297,8 +286,6 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 			}
 		}
 
-		observableOutputKeeper.free();
-
 		assertTrue(insertionResult.fileOffsetIndex().fileOffsetIndexEquals(loadedFileOffsetIndex));
 		/* 300 records +6 record for th OffsetIndex itself */
 		assertEquals(306, loadedFileOffsetIndex.verifyContents().getRecordCount());
@@ -307,10 +294,6 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 	@DisplayName("No operation should be allowed after close")
 	@Test
 	void shouldRefuseOperationAfterClose() {
-		final StorageOptions options = StorageOptions.temporary();
-		final ObservableOutputKeeper observableOutputKeeper = new ObservableOutputKeeper(options);
-		observableOutputKeeper.prepare();
-
 		final OffsetIndex fileOffsetIndex = new OffsetIndex(
 			0L,
 			new OffsetIndexDescriptor(
@@ -323,7 +306,6 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 		);
 		fileOffsetIndex.put(0L, new EntityBodyStoragePart(1));
 		fileOffsetIndex.close();
-		observableOutputKeeper.free();
 
 		assertThrows(EvitaInternalError.class, () -> fileOffsetIndex.get(0L, 1, EntityBodyStoragePart.class));
 		assertThrows(EvitaInternalError.class, () -> fileOffsetIndex.put(0L, new EntityBodyStoragePart(2)));
@@ -337,10 +319,6 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 	@Tag(LONG_RUNNING_TEST)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	void generationalProofTest(GenerationalTestInput input) {
-		final StorageOptions options = StorageOptions.temporary();
-		final ObservableOutputKeeper observableOutputKeeper = new ObservableOutputKeeper(options);
-		observableOutputKeeper.prepare();
-
 		final OffsetIndex fileOffsetIndex = new OffsetIndex(
 			0L,
 			new OffsetIndexDescriptor(
@@ -352,8 +330,6 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 			new WriteOnlyFileHandle(targetFile, observableOutputKeeper)
 		);
 
-		observableOutputKeeper.free();
-
 		final int maximalRecordCount = 10_000;
 		final int minimalRecordCount = 1_000;
 		final int historySize = 10;
@@ -363,8 +339,6 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 			input,
 			1L,
 			(random, transactionId) -> {
-				observableOutputKeeper.prepare();
-
 				final Map<Integer, EntityBodyStoragePart> currentSnapshot = ofNullable(recordIdsHistory.get(transactionId - 1))
 					.map(HashMap::new)
 					.orElseGet(() -> CollectionUtils.createHashMap(maximalRecordCount));
@@ -425,8 +399,6 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 					new WriteOnlyFileHandle(targetFile, observableOutputKeeper)
 				);
 				long end = System.nanoTime();
-
-				observableOutputKeeper.free();
 
 				assertTrue(fileOffsetIndex.fileOffsetIndexEquals(loadedFileOffsetIndex));
 
@@ -502,10 +474,6 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 
 	@Nonnull
 	private InsertionOutput serializeAndReconstructBigFileOffsetIndex() {
-		final StorageOptions options = StorageOptions.temporary();
-		final ObservableOutputKeeper observableOutputKeeper = new ObservableOutputKeeper(options);
-		observableOutputKeeper.prepare();
-
 		final OffsetIndex fileOffsetIndex = new OffsetIndex(
 			0L,
 			new OffsetIndexDescriptor(
@@ -546,8 +514,6 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 				actual
 			);
 		}
-
-		observableOutputKeeper.free();
 
 		assertTrue(fileOffsetIndex.fileOffsetIndexEquals(loadedFileOffsetIndex));
 		/* 600 records +1 record for th OffsetIndex itself */
@@ -617,6 +583,4 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 	) {
 	}
 
-	private record TestState(long transactionId) {
-	}
 }

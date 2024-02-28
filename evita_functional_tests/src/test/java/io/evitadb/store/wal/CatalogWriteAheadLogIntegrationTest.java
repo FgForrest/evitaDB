@@ -94,7 +94,8 @@ class CatalogWriteAheadLogIntegrationTest {
 	};
 	private final Path isolatedWalFilePath = walDirectory.resolve("isolatedWal.tmp");
 	private final ObservableOutputKeeper observableOutputKeeper = new ObservableOutputKeeper(
-		StorageOptions.builder().build()
+		StorageOptions.builder().build(),
+		Mockito.mock(ScheduledExecutorService.class)
 	);
 	private final OffHeapMemoryManager noOffHeapMemoryManager = new OffHeapMemoryManager(0, 0);
 	private final OffHeapMemoryManager bigOffHeapMemoryManager = new OffHeapMemoryManager(10_000_000, 128);
@@ -105,13 +106,12 @@ class CatalogWriteAheadLogIntegrationTest {
 	void setUp() {
 		// clear the WAL directory
 		FileUtils.deleteDirectory(walDirectory);
-		observableOutputKeeper.prepare();
 		wal = createCatalogWriteAheadLogOfLargeEnoughSize();
 	}
 
 	@AfterEach
 	void tearDown() throws IOException {
-		observableOutputKeeper.free();
+		observableOutputKeeper.close();
 		wal.close();
 		// clear the WAL directory
 		FileUtils.deleteDirectory(walDirectory);

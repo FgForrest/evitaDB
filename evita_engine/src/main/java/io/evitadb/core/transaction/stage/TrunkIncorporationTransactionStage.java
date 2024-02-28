@@ -221,8 +221,6 @@ public final class TrunkIncorporationTransactionStage
 
 			// rethrow the exception - we will have to re-try the transaction
 			throw ex;
-		} finally {
-			this.catalog.decreaseWriterCount();
 		}
 
 		Assert.isPremiseValid(transaction != null, "Transaction must not be null!");
@@ -245,7 +243,6 @@ public final class TrunkIncorporationTransactionStage
 			}
 		} else {
 			final long lastCatalogVersionInLiveView = this.catalog.getVersion();
-			this.catalog.increaseWriterCount();
 			final UUID lastTransactionId = processTransactions(
 				task.catalogVersion(), this.timeout, true
 			);

@@ -123,7 +123,6 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -494,7 +493,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		this.catalogName = catalogName;
 		this.catalogStoragePath = pathForNewCatalog(catalogName, storageOptions.storageDirectoryOrDefault());
 		verifyDirectory(this.catalogStoragePath, true);
-		this.observableOutputKeeper = new ObservableOutputKeeper(storageOptions);
+		this.observableOutputKeeper = new ObservableOutputKeeper(storageOptions, executorService);
 		this.recordTypeRegistry = new OffsetIndexRecordTypeRegistry();
 		final String verifiedCatalogName = verifyDirectory(this.catalogStoragePath, false);
 		final CatalogBootstrap lastCatalogBootstrap = getLastCatalogBootstrap(
@@ -511,29 +510,24 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 
 		final String catalogFileName = getCatalogDataStoreFileName(catalogName, lastCatalogBootstrap.catalogFileIndex());
 		final Path catalogFilePath = this.catalogStoragePath.resolve(catalogFileName);
-		try {
-			this.observableOutputKeeper.prepare();
-			this.catalogStoragePartPersistenceService = CatalogOffsetIndexStoragePartPersistenceService.create(
-				this.catalogName,
-				catalogFileName,
-				catalogFilePath,
-				this.storageOptions,
-				this.transactionOptions,
-				lastCatalogBootstrap,
-				recordTypeRegistry,
-				offHeapMemoryManager,
-				observableOutputKeeper,
-				VERSIONED_KRYO_FACTORY
-			);
-			this.entityCollectionPersistenceServices = CollectionUtils.createConcurrentHashMap(16);
+		this.catalogStoragePartPersistenceService = CatalogOffsetIndexStoragePartPersistenceService.create(
+			this.catalogName,
+			catalogFileName,
+			catalogFilePath,
+			this.storageOptions,
+			this.transactionOptions,
+			lastCatalogBootstrap,
+			recordTypeRegistry,
+			offHeapMemoryManager,
+			observableOutputKeeper,
+			VERSIONED_KRYO_FACTORY
+		);
+		this.entityCollectionPersistenceServices = CollectionUtils.createConcurrentHashMap(16);
 
-			if (lastCatalogBootstrap.fileLocation() == null) {
-				this.bootstrapUsed = recordBootstrap(0, this.catalogName, 0);
-			} else {
-				this.bootstrapUsed = lastCatalogBootstrap;
-			}
-		} finally {
-			this.observableOutputKeeper.free();
+		if (lastCatalogBootstrap.fileLocation() == null) {
+			this.bootstrapUsed = recordBootstrap(0, this.catalogName, 0);
+		} else {
+			this.bootstrapUsed = lastCatalogBootstrap;
 		}
 	}
 
@@ -554,7 +548,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		);
 		this.catalogName = catalogName;
 		this.catalogStoragePath = catalogStoragePath;
-		this.observableOutputKeeper = new ObservableOutputKeeper(storageOptions);
+		this.observableOutputKeeper = new ObservableOutputKeeper(storageOptions, executorService);
 		this.recordTypeRegistry = new OffsetIndexRecordTypeRegistry();
 		final String verifiedCatalogName = verifyDirectory(this.catalogStoragePath, false);
 		this.bootstrapUsed = getLastCatalogBootstrap(
@@ -1201,6 +1195,8 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			if (this.catalogWal != null) {
 				this.catalogWal.close();
 			}
+			// close observable output keeper
+			this.observableOutputKeeper.close();
 		} catch (IOException e) {
 			// ignore / log - we tried to close everything
 			log.error("Failed to close catalog persistence service `" + this.catalogName + "`!", e);
@@ -1217,30 +1213,6 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	@Override
 	public boolean isNew() {
 		return this.catalogStoragePartPersistenceService.isNew();
-	}
-
-	@Override
-	public void prepare() {
-		observableOutputKeeper.prepare();
-	}
-
-	@Override
-	public void release() {
-		observableOutputKeeper.free();
-	}
-
-	@Override
-	public <T> T executeWriteSafely(@Nonnull Supplier<T> lambda) {
-		if (observableOutputKeeper.isPrepared()) {
-			return lambda.get();
-		} else {
-			try {
-				observableOutputKeeper.prepare();
-				return lambda.get();
-			} finally {
-				observableOutputKeeper.free();
-			}
-		}
 	}
 
 	@Override

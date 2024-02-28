@@ -248,7 +248,7 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 	 */
 	private void releaseTemporaryFile() {
 		fileOutput.close();
-		observableOutputKeeper.free(targetFile);
+		observableOutputKeeper.close(targetFile);
 		Assert.isPremiseValid(getTargetFile(targetFile).delete(), "Failed to delete temporary file `" + targetFile + "`!");
 		fileOutput = null;
 	}

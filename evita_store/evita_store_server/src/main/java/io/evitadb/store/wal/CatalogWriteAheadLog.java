@@ -708,7 +708,7 @@ public class CatalogWriteAheadLog implements Closeable {
 					this.catalogKryoPool, this.transactionLocationsCache
 				);
 			}
-			if (this.nextPlannedCacheCut == -1L) {
+			if (this.nextPlannedCacheCut == -1L && !this.scheduledExecutorService.isShutdown()) {
 				this.scheduledExecutorService.schedule(
 					this::cutWalCache, CUT_WAL_CACHE_AFTER_INACTIVITY_MS, MILLISECONDS
 				);
@@ -1065,7 +1065,7 @@ public class CatalogWriteAheadLog implements Closeable {
 			return Stream.empty();
 		} else {
 			final MutationSupplier supplier = createSupplier(catalogVersion, avoidPartiallyFilledBuffer);
-			if (this.nextPlannedCacheCut == -1L) {
+			if (this.nextPlannedCacheCut == -1L && !this.scheduledExecutorService.isShutdown()) {
 				this.scheduledExecutorService.schedule(
 					this::cutWalCache, CUT_WAL_CACHE_AFTER_INACTIVITY_MS, MILLISECONDS
 				);

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,10 +28,11 @@ import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.utils.UUIDUtil;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 
 import java.nio.file.Path;
+import java.util.concurrent.ScheduledExecutorService;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -42,16 +43,14 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  */
 class WriteOnlyOffHeapWithFileBackupHandleTest implements EvitaTestSupport {
 	private final Path targetDirectory = getPathInTargetDirectory("WriteOnlyOffHeapWithFileBackupHandle");
-	private final ObservableOutputKeeper outputKeeper = new ObservableOutputKeeper(StorageOptions.builder().storageDirectory(targetDirectory).computeCRC32(true).build());
-
-	@BeforeEach
-	void setUp() {
-		outputKeeper.prepare();
-	}
+	private final ObservableOutputKeeper outputKeeper = new ObservableOutputKeeper(
+		StorageOptions.builder().storageDirectory(targetDirectory).computeCRC32(true).build(),
+		Mockito.mock(ScheduledExecutorService.class)
+	);
 
 	@AfterEach
 	void tearDown() {
-		outputKeeper.free();
+		outputKeeper.close();
 	}
 
 	@Test

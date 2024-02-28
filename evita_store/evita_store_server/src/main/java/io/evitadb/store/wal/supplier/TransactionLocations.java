@@ -29,10 +29,8 @@ import io.evitadb.utils.Assert;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
-import java.util.Optional;
 import java.util.concurrent.locks.ReentrantLock;
 
-import static java.util.Optional.empty;
 import static java.util.Optional.ofNullable;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
@@ -42,13 +40,13 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
  */
 public class TransactionLocations {
 	/**
-	 * Lock is used for synchronization of tha access to non-thread-safe {@link #locations}.
+	 * Lock is used for synchronization of the access to non-thread-safe {@link #locations}.
 	 */
 	private final ReentrantLock lock = new ReentrantLock();
 	/**
 	 * The time of the last read of the transaction locations.
 	 */
-	@Getter private long lastReadTime;
+	@Getter private long lastReadTime = System.currentTimeMillis();
 	/**
 	 * The full known transaction location history maintained in this object.
 	 */
@@ -130,32 +128,6 @@ public class TransactionLocations {
 				lock.unlock();
 			}
 		}
-	}
-
-	/**
-	 * Finds the transaction location object based on the given catalog version.
-	 *
-	 * @param catalogVersion the catalog version to search for
-	 * @return an Optional containing the TransactionLocation object if found, otherwise an empty Optional
-	 */
-	@Nonnull
-	public Optional<TransactionLocation> findLocation(long catalogVersion) {
-		notifyAboutUsage();
-		final CompositeObjectArray<TransactionLocation> locs = this.locations;
-		if (locs != null) {
-			if (lock.tryLock()) {
-				try {
-					final int index = locs.indexOf(
-						catalogVersion,
-						(transactionLocation, cv) -> Long.compare(transactionLocation.catalogVersion(), cv)
-					);
-					return index >= 0 ? ofNullable(locs.get(index)) : empty();
-				} finally {
-					lock.unlock();
-				}
-			}
-		}
-		return empty();
 	}
 
 	/**

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -184,11 +184,11 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 			if (handleLock.tryLock(lockTimeoutSeconds, TimeUnit.SECONDS)) {
 				try {
 					premise.run();
-					final ObservableOutput<FileOutputStream> observableOutput = observableOutputKeeper.getObservableOutputOrCreate(
+					return observableOutputKeeper.executeWithOutput(
 						targetFile,
-						OUTPUT_FACTORY
+						OUTPUT_FACTORY,
+						logic::apply
 					);
-					return logic.apply(observableOutput);
 				} finally {
 					handleLock.unlock();
 				}
@@ -206,12 +206,14 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 			if (handleLock.tryLock(lockTimeoutSeconds, TimeUnit.SECONDS)) {
 				try {
 					premise.run();
-					final ObservableOutput<FileOutputStream> observableOutput = observableOutputKeeper.getObservableOutputOrCreate(
+					observableOutputKeeper.executeWithOutput(
 						targetFile,
-						OUTPUT_FACTORY
+						OUTPUT_FACTORY,
+						observableOutput -> {
+							logic.accept(observableOutput);
+							doSync(observableOutput);
+						}
 					);
-					logic.accept(observableOutput);
-					doSync(observableOutput);
 					return;
 				} finally {
 					handleLock.unlock();
@@ -230,13 +232,15 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 			if (handleLock.tryLock(lockTimeoutSeconds, TimeUnit.SECONDS)) {
 				try {
 					premise.run();
-					final ObservableOutput<FileOutputStream> observableOutput = observableOutputKeeper.getObservableOutputOrCreate(
+					return observableOutputKeeper.executeWithOutput(
 						targetFile,
-						OUTPUT_FACTORY
+						OUTPUT_FACTORY,
+						observableOutput -> {
+							final S result = logic.apply(observableOutput);
+							doSync(observableOutput);
+							return postExecutionLogic.apply(observableOutput, result);
+						}
 					);
-					final S result = logic.apply(observableOutput);
-					doSync(observableOutput);
-					return postExecutionLogic.apply(observableOutput, result);
 				} finally {
 					handleLock.unlock();
 				}
@@ -261,9 +265,7 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 
 	@Override
 	public void close() {
-		if (observableOutputKeeper.isPrepared()) {
-			observableOutputKeeper.free(targetFile);
-		}
+		this.observableOutputKeeper.close(this.targetFile);
 	}
 
 	@Override

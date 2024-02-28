@@ -667,34 +667,6 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	}
 
 	@Override
-	public void prepare() {
-		observableOutputKeeper.prepare();
-	}
-
-	@Override
-	public void release() {
-		observableOutputKeeper.free();
-	}
-
-	/*
-		PRIVATE METHODS
-	 */
-
-	@Override
-	public <T> T executeWriteSafely(@Nonnull Supplier<T> lambda) {
-		if (observableOutputKeeper.isPrepared()) {
-			return lambda.get();
-		} else {
-			try {
-				observableOutputKeeper.prepare();
-				return lambda.get();
-			} finally {
-				observableOutputKeeper.free();
-			}
-		}
-	}
-
-	@Override
 	public void flushTrappedUpdates(long catalogVersion, @Nonnull DataStoreIndexChanges<EntityIndexKey, EntityIndex> dataStoreIndexChanges) {
 		// now store all entity trapped updates
 		dataStoreIndexChanges.popTrappedUpdates()
@@ -1000,6 +972,10 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	public Function<VersionedKryoKeyInputs, VersionedKryo> createTypeKryoInstance() {
 		return VERSIONED_KRYO_FACTORY;
 	}
+
+	/*
+		PRIVATE METHODS
+	*/
 
 	/**
 	 * Method creates a function that allows to create new {@link EntityCollectionHeader} instance from

@@ -842,7 +842,6 @@ public final class Evita implements EvitaContract {
 			sessionRegistry.removeSession(session);
 
 			if (sessionTraits.isReadWrite()) {
-				catalog.decreaseWriterCount();
 				ofNullable(nonTransactionalCatalogDescriptor)
 					.ifPresent(NonTransactionalCatalogDescriptor::notifyStructuralChangeObservers);
 			}
@@ -850,15 +849,9 @@ public final class Evita implements EvitaContract {
 
 		final EvitaInternalSessionContract newSession = sessionRegistry.addSession(
 			catalog.supportsTransaction(),
-			() -> {
-				final EvitaSession evitaSession = new EvitaSession(
-					this, catalog, reflectionLookup, terminationCallback, sessionTraits.commitBehaviour(), sessionTraits
-				);
-				if (sessionTraits.isReadWrite()) {
-					catalog.increaseWriterCount();
-				}
-				return evitaSession;
-			}
+			() -> new EvitaSession(
+				this, catalog, reflectionLookup, terminationCallback, sessionTraits.commitBehaviour(), sessionTraits
+			)
 		);
 
 		final long catalogVersion = catalogContract.getVersion();

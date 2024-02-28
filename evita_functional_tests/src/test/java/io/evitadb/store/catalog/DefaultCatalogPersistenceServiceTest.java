@@ -128,7 +128,10 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 	private final UUID transactionId = UUID.randomUUID();
 	private final Path walFile = getTestDirectory().resolve(transactionId.toString());
 	private final Kryo kryo = KryoFactory.createKryo(WalKryoConfigurer.INSTANCE);
-	private final ObservableOutputKeeper observableOutputKeeper = new ObservableOutputKeeper(StorageOptions.builder().build());
+	private final ObservableOutputKeeper observableOutputKeeper = new ObservableOutputKeeper(
+		StorageOptions.builder().build(),
+		Mockito.mock(ScheduledExecutorService.class)
+	);
 	private final WriteOnlyOffHeapWithFileBackupHandle writeHandle = new WriteOnlyOffHeapWithFileBackupHandle(
 		getTestDirectory().resolve(transactionId.toString()),
 		observableOutputKeeper,
@@ -144,13 +147,12 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 	public void setUp() throws IOException {
 		final Path resolve = getTestDirectory().resolve(DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST);
 		resolve.toFile().mkdirs();
-		observableOutputKeeper.prepare();
 	}
 
 	@AfterEach
 	void tearDown() throws IOException {
 		walService.close();
-		observableOutputKeeper.free();
+		observableOutputKeeper.close();
 		final File file = walFile.toFile();
 		if (file.exists()) {
 			fail("File " + file + " should not exist after close!");
@@ -188,7 +190,6 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			getTransactionOptions(),
 			Mockito.mock(ScheduledExecutorService.class)
 		);
-		ioService.prepare();
 
 		ioService.getStoragePartPersistenceService()
 			.putStoragePart(0L, new CatalogSchemaStoragePart(CATALOG_SCHEMA));
@@ -214,9 +215,6 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		// try to serialize
 		ioService.storeHeader(CatalogState.WARMING_UP, 0, 0, null, entityHeaders);
 
-		// release buffers
-		ioService.release();
-
 		// try to deserialize again
 		final CatalogHeader catalogHeader = ioService.getCatalogHeader();
 
@@ -237,7 +235,6 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			getTransactionOptions(),
 			Mockito.mock(ScheduledExecutorService.class)
 		);
-		ioService.prepare();
 
 		ioService.getStoragePartPersistenceService()
 			.putStoragePart(0L, new CatalogSchemaStoragePart(CATALOG_SCHEMA));
@@ -265,9 +262,6 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 				storeCollection.flush()
 			)
 		);
-
-		// release buffers
-		ioService.release();
 
 		assertThrows(
 			UnexpectedCatalogContentsException.class,
@@ -415,18 +409,15 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			getTransactionOptions(),
 			Mockito.mock(ScheduledExecutorService.class)
 		)) {
-			cps.executeWriteSafely(() -> {
-				cps.getStoragePartPersistenceService()
-					.putStoragePart(0L, new CatalogSchemaStoragePart(CATALOG_SCHEMA));
-				cps.storeHeader(
-					CatalogState.ALIVE,
-					2L,
-					0,
-					null,
-					Collections.emptyList()
-				);
-				return null;
-			});
+			cps.getStoragePartPersistenceService()
+				.putStoragePart(0L, new CatalogSchemaStoragePart(CATALOG_SCHEMA));
+			cps.storeHeader(
+				CatalogState.ALIVE,
+				2L,
+				0,
+				null,
+				Collections.emptyList()
+			);
 		}
 
 		final TransactionMutation writtenTransactionMutation = new TransactionMutation(
@@ -480,7 +471,6 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			getTransactionOptions(),
 			Mockito.mock(ScheduledExecutorService.class)
 		);
-		ioService.prepare();
 
 		for (int i = 0; i < 12; i++) {
 			ioService.recordBootstrap(i + 1, catalogName, 0);
@@ -502,9 +492,6 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			assertEquals(10 + i, record.version());
 			assertNotNull(record.timestamp());
 		}
-
-		// release buffers
-		ioService.release();
 	}
 
 	@Test
@@ -516,7 +503,6 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			getTransactionOptions(),
 			Mockito.mock(ScheduledExecutorService.class)
 		);
-		ioService.prepare();
 
 		for (int i = 0; i < 12; i++) {
 			ioService.recordBootstrap(i + 1, catalogName, 0);
@@ -538,9 +524,6 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			assertEquals(3 - (i + 1), record.version());
 			assertNotNull(record.timestamp());
 		}
-
-		// release buffers
-		ioService.release();
 	}
 
 	/*
@@ -597,8 +580,10 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		@Nonnull EntityCollectionHeader collectionHeader
 	) {
 		assertEquals(entityCollection.size(), collectionHeader.recordCount());
-		final ObservableOutputKeeper outputKeeper = new ObservableOutputKeeper(getStorageOptions());
-		outputKeeper.prepare();
+		final ObservableOutputKeeper outputKeeper = new ObservableOutputKeeper(
+			getStorageOptions(),
+			Mockito.mock(ScheduledExecutorService.class)
+		);
 
 		final SealedEntitySchema schema = entityCollection.getSchema();
 		final EntityCollection collection = new EntityCollection(
@@ -629,7 +614,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			assertExactlyEquals(originEntity, deserializedEntity);
 		}
 
-		outputKeeper.free();
+		outputKeeper.close();
 	}
 
 	@Nonnull

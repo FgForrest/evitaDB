@@ -43,8 +43,8 @@ import io.evitadb.store.wal.WalKryoConfigurer;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 
 import java.io.File;
 import java.nio.ByteBuffer;
@@ -52,6 +52,7 @@ import java.nio.file.Path;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.ScheduledExecutorService;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -79,7 +80,10 @@ class DefaultIsolatedWalServiceTest implements EvitaTestSupport {
 	private final UUID transactionId = UUID.randomUUID();
 	private final Path walFile = getTestDirectory().resolve(transactionId.toString());
 	private final Kryo kryo = KryoFactory.createKryo(WalKryoConfigurer.INSTANCE);
-	private final ObservableOutputKeeper observableOutputKeeper = new ObservableOutputKeeper(StorageOptions.builder().build());
+	private final ObservableOutputKeeper observableOutputKeeper = new ObservableOutputKeeper(
+		StorageOptions.builder().build(),
+		Mockito.mock(ScheduledExecutorService.class)
+	);
 	private final WriteOnlyOffHeapWithFileBackupHandle writeHandle = new WriteOnlyOffHeapWithFileBackupHandle(
 		getTestDirectory().resolve(transactionId.toString()),
 		observableOutputKeeper,
@@ -91,15 +95,10 @@ class DefaultIsolatedWalServiceTest implements EvitaTestSupport {
 		writeHandle
 	);
 
-	@BeforeEach
-	void setUp() {
-		observableOutputKeeper.prepare();
-	}
-
 	@AfterEach
 	void tearDown() {
 		tested.close();
-		observableOutputKeeper.free();
+		observableOutputKeeper.close();
 		final File file = walFile.toFile();
 		if (file.exists()) {
 			fail("File " + file + " should not exist after close!");

@@ -23,7 +23,6 @@
 
 package io.evitadb.store.spi;
 
-import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.core.buffer.DataStoreIndexChanges;
 import io.evitadb.index.Index;
 import io.evitadb.index.IndexKey;
@@ -31,7 +30,6 @@ import io.evitadb.store.model.StoragePart;
 
 import javax.annotation.Nonnull;
 import java.io.Closeable;
-import java.util.function.Supplier;
 
 /**
  * This interface defines shared methods for permited set of persistence services.
@@ -54,37 +52,6 @@ sealed interface PersistenceService<IK extends IndexKey, I extends Index<IK>>
 	 */
 	@Nonnull
 	StoragePartPersistenceService getStoragePartPersistenceService();
-
-	/**
-	 * Method initializes intermediate memory buffers keeper that are required when contents of the catalog are persisted.
-	 * These buffers are not necessary when there are no updates to the catalog / collection, so it's wise to get rid
-	 * of them if there is no actual need.
-	 *
-	 * The need is determined by the number of opened read write {@link EvitaSessionContract} to the catalog.
-	 * If there is at least one opened read-write session we need to keep those outputs around. When there are only read
-	 * sessions we don't need the outputs.
-	 *
-	 * The opening logic is responsible for calling {@link #release()} method that drops these buffers to the GC.
-	 * TODO JNO - these methods will be moved to QueueWriter
-	 *
-	 * @see #release()
-	 */
-	void prepare();
-
-	/**
-	 * Method releases all intermediate (and large) write buffers and let the GC discard them.
-	 * TODO JNO - these methods will be moved to QueueWriter
-	 *
-	 * @see #prepare()
-	 */
-	void release();
-
-	/**
-	 * Method combines {@link #prepare()} and {@link #release()} in a safe manner.
-	 * If the write session is opened the prepare and release is not called.
-	 * TODO JNO - these methods will be moved to QueueWriter
-	 */
-	<T> T executeWriteSafely(@Nonnull Supplier<T> lambda);
 
 	/**
 	 * Flushes all trapped memory data to the persistent storage.
