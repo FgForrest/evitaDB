@@ -2,11 +2,6 @@
 
 ## Setup viewer
 
-Build docker image:
-```bash
-./build-otel-desktop-viewer.sh
-```
-
 Run docker container:
 ```bash
 docker-compose up

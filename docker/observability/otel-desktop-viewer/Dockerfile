@@ -9,5 +9,7 @@ RUN go install github.com/CtrlSpice/otel-desktop-viewer@latest
 
 # Run the application
 EXPOSE 8000
+EXPOSE 8888
 EXPOSE 4317
-ENTRYPOINT ["otel-desktop-viewer"]
+EXPOSE 4318
+ENTRYPOINT ["otel-desktop-viewer", "--host", "0.0.0.0"]

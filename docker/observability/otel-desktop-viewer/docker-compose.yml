@@ -2,11 +2,11 @@ version: "3.7"
 
 services:
   otel-desktop-viewer:
-    image: otel-desktop-viewer:latest
-    network_mode: "host"
-    # note: these ports are being exposed, but it doesn't seem to work when exposing them manually
-#    ports:
-#      - "8000:8000"
-#      - "8888:8888"
-#      - "4317:4317"
-#      - "4318:4318"
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+      - "8888:8888"
+      - "4317:4317"
+      - "4318:4318"
