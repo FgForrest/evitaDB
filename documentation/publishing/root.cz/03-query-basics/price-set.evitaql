@@ -5,7 +5,7 @@ query(
         priceInPriceLists("management-price", "employee-basic-price", "basic"),
         priceInCurrency("EUR"),
         userFilter(
-           priceBetween(100.0, 125.0)
+           priceBetween(500.0, 800.0)
         )
     ),
     require(

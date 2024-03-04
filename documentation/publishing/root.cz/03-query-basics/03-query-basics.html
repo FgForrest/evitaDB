@@ -1153,7 +1153,7 @@
 	<p>
 		Tuto úlohu modelujeme tak, že k záznamu virtuálního základního produktu přiřadíme ceny všech jeho variantních
 		produktů a použijeme pole `innerRecordId` pro odlišení sad cen jedné varianty od cen varianty druhé. Virtuálnímu
-		produktu je dále nutné nastavit režim výpočtu ceny na `FIRST_OCCURRENCE`. Tato kombinace způsobí, že pro daný
+		produktu je dále nutné nastavit režim výpočtu ceny na `LOWEST_PRICE`. Tato kombinace způsobí, že pro daný
 		produkt se nejprve vypočítají prodejní ceny pro variantní produkty (tj. separátně pro každou shodnou hodnotu
 		`innerRecordId`) a následně se vybere nejnižší z těchto prodejních cen, která se stane cenou prodejní pro
 		zastupující virtuální produkt. Drobně odlišné chování bude v případě použití `priceBetween` podmínky, kdy dojde
