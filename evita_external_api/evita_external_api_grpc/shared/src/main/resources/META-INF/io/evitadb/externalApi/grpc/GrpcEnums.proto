@@ -145,7 +145,7 @@ enum GrpcPriceInnerRecordHandling {
   NONE = 0;
   // Prices with same inner entity id will be sorted descending by priority value and first one
   // (i.e. the one with the biggest priority) will be used (others won't be considered at all)
-  FIRST_OCCURRENCE = 1;
+  LOWEST_PRICE = 1;
   // Prices with same inner entity id will be added up to a new computed aggregated price, prices must share same
   // tax rate percentage, currency and price list id in order to be added up
   SUM = 2;

@@ -586,7 +586,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				session.getEntity(Entities.PRODUCT, 1, entityFetchAllContent())
 					.orElseThrow()
 					.openForWrite()
-					.setPriceInnerRecordHandling(PriceInnerRecordHandling.FIRST_OCCURRENCE)
+					.setPriceInnerRecordHandling(PriceInnerRecordHandling.LOWEST_PRICE)
 					.upsertVia(session);
 
 				session.getEntity(Entities.PRODUCT, 1, entityFetchAllContent())

@@ -107,7 +107,7 @@ class PricesContractTest extends AbstractBuilderTest {
 					createStandardPriceSetWithMultiplier(3, new BigDecimal("0.5"))
 				)
 			),
-			PriceInnerRecordHandling.FIRST_OCCURRENCE,
+			PriceInnerRecordHandling.LOWEST_PRICE,
 			true
 		);
 
@@ -143,7 +143,7 @@ class PricesContractTest extends AbstractBuilderTest {
 				new Price(new PriceKey(combineIntoId(3, 6), BASIC, CZK), 3, new BigDecimal("90"), new BigDecimal("21"), new BigDecimal("108.9"), null, true),
 				new Price(new PriceKey(combineIntoId(3, 7), LOGGED_ONLY, CZK), 3, new BigDecimal("70"), new BigDecimal("21"), new BigDecimal("84.7"), null, true)
 			),
-			PriceInnerRecordHandling.FIRST_OCCURRENCE,
+			PriceInnerRecordHandling.LOWEST_PRICE,
 			true
 		);
 
@@ -233,7 +233,7 @@ class PricesContractTest extends AbstractBuilderTest {
 					createStandardPriceSetWithMultiplier(3, new BigDecimal("0.5"))
 				)
 			),
-			PriceInnerRecordHandling.FIRST_OCCURRENCE,
+			PriceInnerRecordHandling.LOWEST_PRICE,
 			true
 		);
 
@@ -347,7 +347,7 @@ class PricesContractTest extends AbstractBuilderTest {
 		final PriceContract priceForSale = prices.getPriceForSale(
 			currency, moment, convertToClassifiers(priceLists)
 		).orElseThrow();
-		
+
 		assertEquals(expectedPriceWithoutVat, priceForSale.priceWithoutTax());
 	}
 

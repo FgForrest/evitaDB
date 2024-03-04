@@ -77,7 +77,7 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 	void setUp() {
 		final SealedEntity sealedEntity = new InitialEntityBuilder("product", 1)
 			.setParent(5)
-			.setPriceInnerRecordHandling(PriceInnerRecordHandling.FIRST_OCCURRENCE)
+			.setPriceInnerRecordHandling(PriceInnerRecordHandling.LOWEST_PRICE)
 			.setPrice(1, "basic", CZK, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)
 			.setPrice(2, "reference", CZK, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, false)
 			.setPrice(3, "basic", EUR, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)
@@ -97,7 +97,7 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 	void shouldSkipMutationsThatMeansNoChange() {
 		builder
 			.setParent(5)
-			.setPriceInnerRecordHandling(PriceInnerRecordHandling.FIRST_OCCURRENCE)
+			.setPriceInnerRecordHandling(PriceInnerRecordHandling.LOWEST_PRICE)
 			.setPrice(1, "basic", CZK, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)
 			.setPrice(2, "reference", CZK, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, false)
 			.setPrice(3, "basic", EUR, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)
@@ -249,7 +249,7 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 	void shouldReturnOriginalEntityInstanceWhenNothingHasChanged() {
 		final SealedEntity newEntity = new ExistingEntityBuilder(initialEntity)
 			.setParent(5)
-			.setPriceInnerRecordHandling(PriceInnerRecordHandling.FIRST_OCCURRENCE)
+			.setPriceInnerRecordHandling(PriceInnerRecordHandling.LOWEST_PRICE)
 			.setPrice(1, "basic", CZK, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)
 			.setPrice(2, "reference", CZK, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, false)
 			.setPrice(3, "basic", EUR, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)

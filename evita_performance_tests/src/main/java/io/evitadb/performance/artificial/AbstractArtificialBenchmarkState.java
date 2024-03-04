@@ -34,10 +34,8 @@ import io.evitadb.performance.setup.CatalogSetup;
 import io.evitadb.test.TestConstants;
 import io.evitadb.test.generator.DataGenerator;
 import lombok.Getter;
-import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.State;
-import org.openjdk.jmh.annotations.TearDown;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
@@ -76,7 +74,7 @@ public abstract class AbstractArtificialBenchmarkState<S> implements TestConstan
 			return PriceInnerRecordHandling.NONE;
 		} else if (selectedOption < 9) {
 			// 30% of variant products
-			return PriceInnerRecordHandling.FIRST_OCCURRENCE;
+			return PriceInnerRecordHandling.LOWEST_PRICE;
 		} else {
 			// 10% of set products
 			return PriceInnerRecordHandling.SUM;

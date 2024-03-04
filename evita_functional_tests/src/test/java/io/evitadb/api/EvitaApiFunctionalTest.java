@@ -1455,7 +1455,7 @@ class EvitaApiFunctionalTest {
 			}
 		);
 
-		newProduct.setPriceInnerRecordHandling(PriceInnerRecordHandling.FIRST_OCCURRENCE);
+		newProduct.setPriceInnerRecordHandling(PriceInnerRecordHandling.LOWEST_PRICE);
 		newProduct.setPrice(1, "basic", CZK, new BigDecimal("15000"), new BigDecimal("21"), new BigDecimal("18150"), true);
 		newProduct.setPrice(2, "basic", EUR, new BigDecimal("555.5"), new BigDecimal("21"), new BigDecimal("672.16"), true);
 		newProduct.setPrice(1, "reference", CZK, new BigDecimal("20000"), new BigDecimal("21"), new BigDecimal("24200"), false);

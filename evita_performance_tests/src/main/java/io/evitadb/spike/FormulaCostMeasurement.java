@@ -207,7 +207,7 @@ public class FormulaCostMeasurement {
 	public void firstVariantPriceTermination(InnerRecordIdsWithPriceRecordsRecordState priceDataSet, Blackhole blackhole) {
 		final FirstVariantPriceTerminationFormula testedFormula = new FirstVariantPriceTerminationFormula(
 			new PriceHandlingContainerFormula(
-				PriceInnerRecordHandling.FIRST_OCCURRENCE,
+				PriceInnerRecordHandling.LOWEST_PRICE,
 				priceDataSet.getFormula()
 			),
 			new PriceEvaluationContext(
@@ -223,7 +223,7 @@ public class FormulaCostMeasurement {
 	public void sumPriceTermination(InnerRecordIdsWithPriceRecordsRecordState priceDataSet, Blackhole blackhole) {
 		final SumPriceTerminationFormula testedFormula = new SumPriceTerminationFormula(
 			new PriceHandlingContainerFormula(
-				PriceInnerRecordHandling.FIRST_OCCURRENCE,
+				PriceInnerRecordHandling.LOWEST_PRICE,
 				priceDataSet.getFormula()
 			),
 			new PriceEvaluationContext(

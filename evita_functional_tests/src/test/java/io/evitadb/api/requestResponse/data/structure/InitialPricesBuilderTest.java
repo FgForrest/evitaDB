@@ -51,13 +51,13 @@ class InitialPricesBuilderTest extends AbstractBuilderTest {
 
 	@Test
 	void shouldCreateEntityWithPrices() {
-		final PricesContract prices = builder.setPriceInnerRecordHandling(PriceInnerRecordHandling.FIRST_OCCURRENCE)
+		final PricesContract prices = builder.setPriceInnerRecordHandling(PriceInnerRecordHandling.LOWEST_PRICE)
 				.setPrice(1, "basic", CZK, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)
 				.setPrice(2, "reference", CZK, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, false)
 				.setPrice(3, "basic", EUR, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)
 				.setPrice(4, "reference", EUR, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, false)
 				.build();
-		assertEquals(PriceInnerRecordHandling.FIRST_OCCURRENCE, prices.getPriceInnerRecordHandling());
+		assertEquals(PriceInnerRecordHandling.LOWEST_PRICE, prices.getPriceInnerRecordHandling());
 		assertEquals(4, prices.getPrices().size());
 		assertPrice(prices.getPrice(1, "basic", CZK), BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true);
 		assertPrice(prices.getPrice(2, "reference", CZK), BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, false);

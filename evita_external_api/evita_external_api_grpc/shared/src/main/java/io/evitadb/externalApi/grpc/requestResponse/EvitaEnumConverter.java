@@ -408,7 +408,7 @@ public class EvitaEnumConverter {
 	public static PriceInnerRecordHandling toPriceInnerRecordHandling(@Nonnull GrpcPriceInnerRecordHandling grpcPriceInnerRecordHandling) {
 		return switch (grpcPriceInnerRecordHandling.getNumber()) {
 			case 0 -> PriceInnerRecordHandling.NONE;
-			case 1 -> PriceInnerRecordHandling.FIRST_OCCURRENCE;
+			case 1 -> PriceInnerRecordHandling.LOWEST_PRICE;
 			case 2 -> PriceInnerRecordHandling.SUM;
 			case 3 -> PriceInnerRecordHandling.UNKNOWN;
 			default ->
@@ -426,7 +426,7 @@ public class EvitaEnumConverter {
 	public static GrpcPriceInnerRecordHandling toGrpcPriceInnerRecordHandling(@Nonnull PriceInnerRecordHandling priceInnerRecordHandling) {
 		return switch (priceInnerRecordHandling) {
 			case NONE -> GrpcPriceInnerRecordHandling.NONE;
-			case FIRST_OCCURRENCE -> GrpcPriceInnerRecordHandling.FIRST_OCCURRENCE;
+			case LOWEST_PRICE -> GrpcPriceInnerRecordHandling.LOWEST_PRICE;
 			case SUM -> GrpcPriceInnerRecordHandling.SUM;
 			case UNKNOWN -> GrpcPriceInnerRecordHandling.UNKNOWN;
 		};

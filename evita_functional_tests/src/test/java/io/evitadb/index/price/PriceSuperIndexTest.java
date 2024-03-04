@@ -112,9 +112,9 @@ class PriceSuperIndexTest implements TimeBoundedTestSupport {
 
 	@Test
 	void shouldAddFirstOccurrencePrice() {
-		priceIndex.addPrice(1, 1, new PriceKey(10, PRICE_LIST, CURRENCY_CZK), PriceInnerRecordHandling.FIRST_OCCURRENCE, 20, null, 1000, 1210);
-		priceIndex.addPrice(1, 2, new PriceKey(11, PRICE_LIST, CURRENCY_CZK), PriceInnerRecordHandling.FIRST_OCCURRENCE, 21, null, 999, 2000);
-		final PriceListAndCurrencyPriceSuperIndex priceAndCurrencyIndex = priceIndex.getPriceIndex(PRICE_LIST, CURRENCY_CZK, PriceInnerRecordHandling.FIRST_OCCURRENCE);
+		priceIndex.addPrice(1, 1, new PriceKey(10, PRICE_LIST, CURRENCY_CZK), PriceInnerRecordHandling.LOWEST_PRICE, 20, null, 1000, 1210);
+		priceIndex.addPrice(1, 2, new PriceKey(11, PRICE_LIST, CURRENCY_CZK), PriceInnerRecordHandling.LOWEST_PRICE, 21, null, 999, 2000);
+		final PriceListAndCurrencyPriceSuperIndex priceAndCurrencyIndex = priceIndex.getPriceIndex(PRICE_LIST, CURRENCY_CZK, PriceInnerRecordHandling.LOWEST_PRICE);
 		assertNotNull(priceAndCurrencyIndex);
 		assertFalse(priceAndCurrencyIndex.isEmpty());
 
@@ -186,9 +186,9 @@ class PriceSuperIndexTest implements TimeBoundedTestSupport {
 	void shouldRemoveFirstOccurrencePrice() {
 		shouldAddFirstOccurrencePrice();
 
-		priceIndex.priceRemove(1, 1, new PriceKey(10, PRICE_LIST, CURRENCY_CZK), PriceInnerRecordHandling.FIRST_OCCURRENCE, 1, null, 1000, 1210);
+		priceIndex.priceRemove(1, 1, new PriceKey(10, PRICE_LIST, CURRENCY_CZK), PriceInnerRecordHandling.LOWEST_PRICE, 1, null, 1000, 1210);
 
-		final PriceListAndCurrencyPriceSuperIndex priceAndCurrencyIndex = priceIndex.getPriceIndex(PRICE_LIST, CURRENCY_CZK, PriceInnerRecordHandling.FIRST_OCCURRENCE);
+		final PriceListAndCurrencyPriceSuperIndex priceAndCurrencyIndex = priceIndex.getPriceIndex(PRICE_LIST, CURRENCY_CZK, PriceInnerRecordHandling.LOWEST_PRICE);
 		assertNotNull(priceAndCurrencyIndex);
 		assertFalse(priceAndCurrencyIndex.isEmpty());
 
@@ -204,8 +204,8 @@ class PriceSuperIndexTest implements TimeBoundedTestSupport {
 		assertArrayEquals(new int[]{2}, priceAndCurrencyIndex.getIndexedRecordIdsValidInFormula(OffsetDateTime.now()).compute().getArray());
 		assertArrayEquals(new int[]{1}, priceAndCurrencyIndex.createPriceIndexFormulaWithAllRecords().compute().getArray());
 
-		priceIndex.priceRemove(1, 2, new PriceKey(11, PRICE_LIST, CURRENCY_CZK), PriceInnerRecordHandling.FIRST_OCCURRENCE, 2, null, 999, 2000);
-		assertNull(priceIndex.getPriceIndex(PRICE_LIST, CURRENCY_CZK, PriceInnerRecordHandling.FIRST_OCCURRENCE));
+		priceIndex.priceRemove(1, 2, new PriceKey(11, PRICE_LIST, CURRENCY_CZK), PriceInnerRecordHandling.LOWEST_PRICE, 2, null, 999, 2000);
+		assertNull(priceIndex.getPriceIndex(PRICE_LIST, CURRENCY_CZK, PriceInnerRecordHandling.LOWEST_PRICE));
 	}
 
 	@Test
