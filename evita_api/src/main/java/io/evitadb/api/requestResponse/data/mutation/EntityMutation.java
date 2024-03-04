@@ -115,6 +115,8 @@ public non-sealed interface EntityMutation extends Mutation {
 	 * @param catalogSchema to check entity against
 	 * @param entitySchema to check entity against
 	 * @param entityCollectionEmpty TRUE if entire collection is empty
+	 *
+	 * todo jno - WRITE test that implicitly changes the schema - while other clients doesn't see the change yet
 	 */
 	@Nonnull
 	Optional<EntitySchemaMutation[]> verifyOrEvolveSchema(

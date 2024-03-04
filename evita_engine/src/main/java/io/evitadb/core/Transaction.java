@@ -24,6 +24,7 @@
 package io.evitadb.core;
 
 import io.evitadb.api.TransactionContract;
+import io.evitadb.api.exception.TransactionException;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.core.transaction.TransactionHandler;
 import io.evitadb.core.transaction.TransactionWalFinalizer;
@@ -146,6 +147,10 @@ public final class Transaction implements TransactionContract {
 			try {
 				bound = transaction.bindTransactionToThread();
 				return lambda.get();
+			} catch (TransactionException ex) {
+				// always rollback transaction - this is unexpected critical error we cannot recover from
+				transaction.setRollbackOnlyWithException(ex);
+				throw ex;
 			} catch (Throwable ex) {
 				if (rollbackOnException) {
 					transaction.setRollbackOnlyWithException(ex);

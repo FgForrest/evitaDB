@@ -24,6 +24,7 @@
 package io.evitadb.core.transaction.stage;
 
 import io.evitadb.api.TransactionContract.CommitBehavior;
+import io.evitadb.api.requestResponse.data.mutation.EntityRemoveMutation;
 import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
@@ -297,12 +298,13 @@ public final class TrunkIncorporationTransactionStage
 					final Mutation mutation = mutationIterator.next();
 					log.debug("Processing mutation: {}", mutation);
 					mutationCount++;
-					catalog.applyMutation(
-						mutation instanceof EntityUpsertMutation ?
-							new VerifiedEntityUpsertMutation((EntityUpsertMutation) mutation)
-							:
-							mutation
-					);
+					if (mutation instanceof EntityUpsertMutation entityUpsertMutation) {
+						catalog.applyMutation(new VerifiedEntityUpsertMutation(entityUpsertMutation));
+					} else if (mutation instanceof EntityRemoveMutation entityRemoveMutation) {
+						catalog.applyMutation(new VerifiedEntityRemoveMutation(entityRemoveMutation));
+					} else {
+						catalog.applyMutation(mutation);
+					}
 				}
 				// we should have processed all the mutations by now and the mutation count should match
 				Assert.isPremiseValid(
@@ -404,7 +406,7 @@ public final class TrunkIncorporationTransactionStage
 	/**
 	 * Represents a verified entity upsert mutation. This is used to mark the entity upsert mutation as verified
 	 * and thus it can be propagated to the "live view" of the evitaDB engine without primary key assignment
-	 * verifications.
+	 * verifications and undo support.
 	 */
 	public static class VerifiedEntityUpsertMutation extends EntityUpsertMutation {
 		@Serial private static final long serialVersionUID = -5775248516292883577L;
@@ -415,6 +417,33 @@ public final class TrunkIncorporationTransactionStage
 				entityUpsertMutation.getEntityPrimaryKey(),
 				entityUpsertMutation.expects(),
 				entityUpsertMutation.getLocalMutations()
+			);
+		}
+
+		@Nonnull
+		@Override
+		public Optional<EntitySchemaMutation[]> verifyOrEvolveSchema(
+			@Nonnull SealedCatalogSchema catalogSchema,
+			@Nonnull SealedEntitySchema entitySchema,
+			boolean entityCollectionEmpty
+		) {
+			// this has already happened in the transactional memory layer
+			// and all schema mutations have been already recorded
+			return Optional.empty();
+		}
+	}
+
+	/**
+	 * Represents a verified entity remove mutation. This is used to mark the entity remove mutation as verified
+	 * and thus it can be propagated to the "live view" of the evitaDB engine without undo support.
+	 */
+	public static class VerifiedEntityRemoveMutation extends EntityRemoveMutation {
+		@Serial private static final long serialVersionUID = 2860854495453490511L;
+
+		public VerifiedEntityRemoveMutation(@Nonnull EntityRemoveMutation entityRemoveMutation) {
+			super(
+				entityRemoveMutation.getEntityType(),
+				entityRemoveMutation.getEntityPrimaryKey()
 			);
 		}
 

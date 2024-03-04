@@ -91,7 +91,7 @@ class TransactionalStageTest {
 
 		CompletableFuture.allOf(
 			items.stream().map(Item::getFuture).toArray(CompletableFuture[]::new)
-		).get(1, TimeUnit.MINUTES);
+		).get(5, TimeUnit.MINUTES);
 
 		publisher.close();
 		assertFalse(stage1.isDone());

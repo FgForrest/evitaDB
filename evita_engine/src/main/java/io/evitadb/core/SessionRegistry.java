@@ -26,6 +26,7 @@ package io.evitadb.core;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.exception.ConcurrentInitializationException;
+import io.evitadb.api.exception.TransactionException;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.Assert;
@@ -189,7 +190,10 @@ final class SessionRegistry {
 							// handle the error
 							final Throwable targetException = ex.getTargetException() instanceof CompletionException completionException ?
 								completionException.getCause() : ex.getTargetException();
-							if (targetException instanceof EvitaInvalidUsageException evitaInvalidUsageException) {
+							if (targetException instanceof TransactionException transactionException) {
+								// just unwrap and rethrow
+								throw transactionException;
+							} else if (targetException instanceof EvitaInvalidUsageException evitaInvalidUsageException) {
 								// just unwrap and rethrow
 								throw evitaInvalidUsageException;
 							} else if (targetException instanceof EvitaInternalError evitaInternalError) {

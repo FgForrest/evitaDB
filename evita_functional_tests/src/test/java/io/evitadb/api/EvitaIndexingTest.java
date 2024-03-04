@@ -2277,6 +2277,13 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				assertNotNull(canadianSortIndex);
 
 				assertArrayEquals(new int[]{1}, canadianSortIndex.getRecordsEqualTo(new Comparable<?>[]{"ABC", "123"}).getArray());
+
+				final SealedEntity finalEntity = session.getEntity(Entities.PRODUCT, 1, attributeContentAll(), dataInLocalesAll())
+					.orElseThrow();
+
+				final Set<Locale> finalAttributeLocales = finalEntity.getAttributeLocales();
+				assertTrue(finalAttributeLocales.contains(Locale.ENGLISH));
+				assertTrue(finalAttributeLocales.contains(Locale.CANADA));
 			}
 		);
 	}

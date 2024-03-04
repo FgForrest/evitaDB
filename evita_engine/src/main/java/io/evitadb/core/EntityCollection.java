@@ -31,6 +31,7 @@ import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.SchemaAlteringException;
 import io.evitadb.api.exception.SchemaNotFoundException;
+import io.evitadb.api.exception.TransactionException;
 import io.evitadb.api.proxy.SealedEntityProxy;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.require.EntityFetch;
@@ -90,6 +91,7 @@ import io.evitadb.core.sequence.SequenceType;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
+import io.evitadb.core.transaction.stage.TrunkIncorporationTransactionStage.VerifiedEntityRemoveMutation;
 import io.evitadb.core.transaction.stage.TrunkIncorporationTransactionStage.VerifiedEntityUpsertMutation;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -258,17 +260,41 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 		@Nonnull Collection<? extends LocalMutation<?, ?>> localMutations,
 		@Nonnull LocalMutationExecutor... mutationApplicators
 	) {
-		do {
-			for (LocalMutation<?, ?> localMutation : localMutations) {
-				for (LocalMutationExecutor mutationApplicator : mutationApplicators) {
-					mutationApplicator.applyMutation(localMutation);
-				}
-			}
+		try {
 
-			localMutations = Arrays.stream(mutationApplicators)
-				.flatMap(it -> it.applyChanges().stream())
-				.toList();
-		} while (!localMutations.isEmpty());
+			do {
+				for (LocalMutation<?, ?> localMutation : localMutations) {
+					for (LocalMutationExecutor mutationApplicator : mutationApplicators) {
+						mutationApplicator.applyMutation(localMutation);
+					}
+				}
+
+				localMutations = Arrays.stream(mutationApplicators)
+					.flatMap(it -> it.popImplicitMutations().stream())
+					.toList();
+			} while (!localMutations.isEmpty());
+
+		} catch (RuntimeException ex) {
+			// rollback all changes in memory if anything failed
+			// the exception might be caught by a caller and he could continue with the transaction ... in this case
+			// we need to clean partially applied changes in his isolated indexes so that he doesn't see them
+			// each operation must behave atomically - either all local mutations are applied or none of them - it's
+			// something like a transaction within a transaction
+			for (LocalMutationExecutor mutationApplicator : mutationApplicators) {
+				mutationApplicator.rollback();
+			}
+			throw ex;
+		}
+
+		// we do not address the situation where only one applicator fails on commit and the others succeed
+		// this is unlikely situation and should cause entire transaction to be rolled back
+		try {
+			for (LocalMutationExecutor mutationApplicator : mutationApplicators) {
+				mutationApplicator.commit();
+			}
+		} catch (RuntimeException ex) {
+			throw new TransactionException("Failed to commit local mutations!", ex);
+		}
 	}
 
 	public EntityCollection(
@@ -681,9 +707,13 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 	@Override
 	public void applyMutation(@Nonnull EntityMutation entityMutation) throws InvalidMutationException {
 		if (entityMutation instanceof EntityUpsertMutation upsertMutation) {
-			upsertEntity(upsertMutation);
+			upsertEntityInternal(upsertMutation);
 		} else if (entityMutation instanceof EntityRemoveMutation removeMutation) {
-			deleteEntity(removeMutation.getEntityPrimaryKey());
+			applyMutations(
+				entityMutation,
+				Objects.requireNonNull(getFullEntityById(removeMutation.getEntityPrimaryKey())),
+				!(removeMutation instanceof VerifiedEntityRemoveMutation)
+			);
 		} else {
 			throw new InvalidMutationException(
 				"Unexpected mutation type: " + entityMutation.getClass().getName(),
@@ -1311,12 +1341,14 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 
 		// check the existence of the primary key and report error when unexpectedly (not) provided
 		final SealedEntitySchema currentSchema = getSchema();
-		final EntityMutation entityMutationToUpsert = entityMutation instanceof VerifiedEntityUpsertMutation ?
+		final boolean verifiedMutation = entityMutation instanceof VerifiedEntityUpsertMutation;
+		final EntityMutation entityMutationToUpsert = verifiedMutation ?
 			entityMutation : verifyPrimaryKeyAssignment(entityMutation, currentSchema);
 
 		applyMutations(
 			entityMutationToUpsert,
-			null
+			null,
+			!verifiedMutation
 		);
 
 		return entityMutationToUpsert.getEntityPrimaryKey();
@@ -1378,25 +1410,23 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 
 		applyMutations(
 			entityMutation,
-			entityToRemove
+			entityToRemove,
+			true
 		);
 	}
 
 	/**
 	 * Method applies all `localMutations` on entity with passed `entityPrimaryKey`.
-	 * TODO JNO - if exception occurs - we should revert the already applied changes in indexes!
 	 *
 	 * @param entityMutation entity mutation to apply
 	 * @param entity         the entity to apply mutation on (needed only for entity removal)
 	 */
 	private void applyMutations(
 		@Nonnull EntityMutation entityMutation,
-		@Nullable Entity entity
+		@Nullable Entity entity,
+		boolean undoOnError
 	) {
 		// prepare collectors
-		final Function<String, EntitySchema> otherEntitySchemaAccessor = entityType -> this.catalogAccessor.get()
-			.getCollectionForEntityOrThrowException(entityType).getInternalSchema();
-
 		final EntityRemoveMutation entityRemoveMutation = entityMutation instanceof EntityRemoveMutation erm ? erm : null;
 
 		final ContainerizedLocalMutationExecutor changeCollector = new ContainerizedLocalMutationExecutor(
@@ -1405,8 +1435,6 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 			entityMutation.getEntityPrimaryKey(),
 			entityMutation.expects(),
 			this::getInternalSchema,
-			otherEntitySchemaAccessor,
-			entityIndexCreator,
 			entityRemoveMutation != null
 		);
 
@@ -1416,7 +1444,9 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 			this.entityIndexCreator,
 			this.getCatalog().getCatalogIndexMaintainer(),
 			this::getInternalSchema,
-			otherEntitySchemaAccessor
+			entityType -> this.catalogAccessor.get()
+				.getCollectionForEntityOrThrowException(entityType).getInternalSchema(),
+			undoOnError
 		);
 
 		final Collection<? extends LocalMutation<?, ?>> localMutations = entityRemoveMutation != null ?

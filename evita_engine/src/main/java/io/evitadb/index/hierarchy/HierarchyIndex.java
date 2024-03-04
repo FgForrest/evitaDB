@@ -216,13 +216,14 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 	}
 
 	@Override
-	public void removeNode(int entityPrimaryKey) {
+	public Integer removeNode(int entityPrimaryKey) {
 		final HierarchyNode removedNode = internalRemoveHierarchy(entityPrimaryKey);
 		Assert.notNull(removedNode, "No hierarchy was set for entity with primary key " + entityPrimaryKey + "!");
 		this.dirty.setToTrue();
 		if (!isTransactionAvailable()) {
 			resetMemoizedValues();
 		}
+		return removedNode.parentEntityPrimaryKey();
 	}
 
 	@Override

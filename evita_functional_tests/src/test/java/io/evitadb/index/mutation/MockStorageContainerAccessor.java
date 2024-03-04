@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -34,13 +34,16 @@ import io.evitadb.store.entity.model.entity.ReferencesStoragePart;
 import io.evitadb.store.entity.model.entity.price.MinimalPriceInternalIdContainer;
 import io.evitadb.store.entity.model.entity.price.PriceInternalIdContainer;
 import io.evitadb.store.spi.model.storageParts.accessor.WritableEntityStorageContainerAccessor;
+import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * This mock object is used in tests to provide container object without necessity to load them from persistent data
@@ -56,6 +59,8 @@ class MockStorageContainerAccessor implements WritableEntityStorageContainerAcce
 	private ReferencesStoragePart referencesStorageContainer;
 	private PricesStoragePart pricesStorageContainer;
 	private Map<PriceKey, Integer> assignedInternalPriceIdIndex;
+	@Getter private Set<Locale> addedLocales = new HashSet<>();
+	@Getter private Set<Locale> removedLocales = new HashSet<>();
 
 	@Override
 	public void registerAssignedPriceId(@Nonnull String entityType, int entityPrimaryKey, @Nonnull PriceKey priceKey, @Nullable Integer innerRecordId, @Nonnull PriceInternalIdContainer priceId) {
