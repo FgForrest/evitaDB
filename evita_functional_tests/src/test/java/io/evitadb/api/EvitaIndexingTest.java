@@ -964,6 +964,60 @@ class EvitaIndexingTest implements EvitaTestSupport {
 	}
 
 	@Test
+	void shouldDifferentClientsSeeSchemaUnchangedUntilCommitted() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session
+					.defineEntitySchema(Entities.PRODUCT)
+					.withGeneratedPrimaryKey()
+					.updateVia(session);
+				// switch to transactional mode
+				session.goLiveAndClose();
+			}
+		);
+		// change schema by upserting first entity
+		try (final EvitaSessionContract session = evita.createReadWriteSession(TEST_CATALOG)) {
+			// now implicitly update the schema
+			session
+				.createNewEntity(Entities.PRODUCT, 1)
+				.setAttribute(ATTRIBUTE_DESCRIPTION, Locale.ENGLISH, "A")
+				.upsertVia(session);
+
+			// try to read the schema in different session
+			final Thread asyncThread = new Thread(() -> {
+				evita.queryCatalog(
+					TEST_CATALOG,
+					differentSession -> {
+						final SealedEntitySchema theSchema = differentSession.getEntitySchema(Entities.PRODUCT).orElseThrow();
+						assertTrue(theSchema.isWithGeneratedPrimaryKey());
+						assertTrue(theSchema.getAttributes().isEmpty());
+						assertNull(differentSession.getEntity(Entities.PRODUCT, 1).orElse(null));
+					}
+				);
+			});
+			asyncThread.start();
+			int i = 0;
+			do {
+				Thread.onSpinWait();
+				i++;
+			} while (asyncThread.isAlive() && i < 1_000_000);
+		}
+
+		// try to read the schema in different session when changes has been committed
+		final Thread asyncThread = new Thread(() -> {
+			evita.queryCatalog(
+				TEST_CATALOG,
+				differentSession -> {
+					final SealedEntitySchema theSchema = differentSession.getEntitySchema(Entities.PRODUCT).orElseThrow();
+					assertFalse(theSchema.isWithGeneratedPrimaryKey());
+					assertFalse(theSchema.getAttributes().isEmpty());
+				}
+			);
+		});
+	}
+
+	@Test
 	void shouldAcceptNullForNonNullableLocalizedAttributeWhenEntityLocaleIsMissing() {
 		evita.updateCatalog(
 			TEST_CATALOG,
