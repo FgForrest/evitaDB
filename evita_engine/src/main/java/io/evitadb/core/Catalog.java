@@ -539,7 +539,7 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 			queryPlan = QueryPlanner.planQuery(queryContext);
 		}
 		return tracingContext.executeWithinBlock(
-			"query",
+			"query - " + queryPlan.getDescription(),
 			(Supplier<T>) queryPlan::execute,
 			queryPlan::getSpanAttributes
 		);
