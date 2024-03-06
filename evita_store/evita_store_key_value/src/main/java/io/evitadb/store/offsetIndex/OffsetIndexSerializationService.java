@@ -48,8 +48,6 @@ import javax.annotation.concurrent.ThreadSafe;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.RandomAccessFile;
-import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -117,6 +115,7 @@ public class OffsetIndexSerializationService {
 		long prevTransactionId = 0;
 		boolean firstTransaction = true;
 		boolean transactionCleared = true;
+		int accumulatedRecordLength = 0;
 		do {
 			recCount++;
 			final int finalRecCount = recCount;
@@ -130,10 +129,10 @@ public class OffsetIndexSerializationService {
 				final long finalStartPosition = startPosition;
 
 				// verify that transactional id is monotonically increasing
-				if (!firstTransaction && !(transactionCleared ? catalogVersion > prevTransactionId : catalogVersion >= prevTransactionId)) {
+				if (!firstTransaction && !(catalogVersion >= prevTransactionId)) {
 					throw new CorruptedRecordException(
 						"Transaction id record monotonic row is violated in record no. " + finalRecCount + " file position: [" + finalStartPosition + ", length " + recordLength + "B], previous transaction id is " + prevTransactionId + ", current is " + catalogVersion,
-						prevTransactionId + 1, catalogVersion
+						prevTransactionId, catalogVersion
 					);
 				}
 				// verify that transaction id stays the same within transaction block
@@ -180,8 +179,11 @@ public class OffsetIndexSerializationService {
 				if (transactionCleared && catalogVersion > 0L) {
 					firstTransaction = false;
 				}
-				result.registerRecord(recordLength);
-
+				accumulatedRecordLength += recordLength;
+				if (!BitUtils.isBitSet(control, StorageRecord.CONTINUATION_BIT)) {
+					result.registerRecord(accumulatedRecordLength);
+					accumulatedRecordLength = 0;
+				}
 			} catch (KryoException ex) {
 				throw new CorruptedRecordException(
 					"Record no. " + finalRecCount + " cannot be read!", ex
@@ -195,71 +197,70 @@ public class OffsetIndexSerializationService {
 	/**
 	 * Copies a snapshot of an offset index to a new file.
 	 *
-	 * @param offsetIndex   The original offset index to copy.
-	 * @param inputStream   The input stream containing the offset index file.
-	 * @param transactionId The transaction ID of the snapshot.
-	 * @param newFilePath       The file to copy the snapshot to.
-	 *
+	 * @param offsetIndex    The original offset index to copy.
+	 * @param inputStream    The input stream containing the offset index file.
+	 * @param catalogVersion The transaction ID of the snapshot.
+	 * @param newFilePath    The file to copy the snapshot to.
 	 * @return The length of the copied snapshot.
 	 */
 	public static FileLocation copySnapshotTo(
 		@Nonnull OffsetIndex offsetIndex,
 		@Nonnull ObservableInput<RandomAccessFileInputStream> inputStream,
-		long transactionId,
+		long catalogVersion,
 		@Nonnull Path newFilePath
 	) {
 		// this file won't be closed so that we don't damage the original input stream (read-handle)
-		final RandomAccessFile sourceFile = inputStream.getInputStream().getRandomAccessFile();
 		final File newFile = newFilePath.toFile();
 		try (
-			final FileChannel sourceChannel = sourceFile.getChannel();
-			final RandomAccessFile destFile = new RandomAccessFile(newFile, "rw");
-			final FileChannel destChannel = destFile.getChannel();
+			final FileOutputStream fileOutputStream = new FileOutputStream(newFile);
+			final ObservableOutput<FileOutputStream> output = new ObservableOutput<>(
+				fileOutputStream,
+				offsetIndex.getStorageOptions().outputBufferSize(),
+				offsetIndex.getStorageOptions().outputBufferSize(),
+				0
+			)
 		) {
+			if (offsetIndex.getStorageOptions().computeCRC32C()) {
+				output.computeCRC32();
+			}
 			final Collection<Entry<RecordKey, FileLocation>> entries = offsetIndex.getEntries();
 			final Collection<VersionedValue> nonFlushedValues = new ArrayList<>(entries.size());
-			long position = 0;
-			for (Entry<RecordKey, FileLocation> entry : entries) {
+			final Iterator<Entry<RecordKey, FileLocation>> it = entries.iterator();
+			while (it.hasNext()) {
+				final Entry<RecordKey, FileLocation> entry = it.next();
 				final FileLocation fileLocation = entry.getValue();
-				final long written = sourceChannel.transferTo(
-					fileLocation.startingPosition(),
-					fileLocation.recordLength(),
-					destChannel
+
+				final StorageRecord<byte[]> theRecord = StorageRecord.read(
+					inputStream,
+					fileLocation,
+					(stream, recordLength) -> stream.readBytes(recordLength - StorageRecord.OVERHEAD_SIZE)
 				);
 
-				Assert.isPremiseValid(
-					written == fileLocation.recordLength(),
-					"Written length does not match the expected length!"
+				final StorageRecord<byte[]> storageRecord = new StorageRecord<>(
+					output, catalogVersion, !it.hasNext(),
+					theOutput -> {
+						theOutput.write(theRecord.payload());
+						return theRecord.payload();
+					}
 				);
 
 				// finally, register non-flushed value
 				final RecordKey key = entry.getKey();
 				nonFlushedValues.add(
 					new VersionedValue(
-						key.primaryKey(), key.recordType(),
-						new FileLocation(position, Math.toIntExact(written))
+						key.primaryKey(), key.recordType(), storageRecord.fileLocation()
 					)
 				);
-
-				position += written;
 			}
 
 			// now serialize the information about the values to the final record of the file and return its location
-			try (
-				final ObservableOutput<FileOutputStream> observableOutput = new ObservableOutput<>(
-					new FileOutputStream(newFile, true),
-					offsetIndex.getStorageOptions().outputBufferSize(),
-					newFile.length()
-				)
-			) {
-				return serialize(
-					observableOutput,
-					transactionId,
-					nonFlushedValues,
-					null,
-					offsetIndex.getStorageOptions()
-				);
-			}
+			return serialize(
+				output,
+				catalogVersion,
+				nonFlushedValues,
+				null,
+				offsetIndex.getStorageOptions()
+			);
 		} catch (IOException e) {
 			throw new UnexpectedIOException(
 				"Error occurred while copying the snapshot to the new file: " + e.getMessage(),
@@ -394,13 +395,13 @@ public class OffsetIndexSerializationService {
 			if (head) {
 				Assert.isTrue(
 					readRecord.closesTransaction(),
-					"Head OffsetIndex must have transaction finalization flag set, but it has not!"
+					"Head OffsetIndex must have a transaction finalization flag set, but it has not!"
 				);
 				head = false;
 			} else {
 				Assert.isTrue(
-					readRecord.transactionId() < transactionId || readRecord.transactionId() == 0L && transactionId == 0L,
-					"Transaction ids must compose a monotonic row - but they don't:  `" + transactionId + "` vs `" + readRecord.transactionId() + "`!"
+					readRecord.transactionId() <= transactionId,
+					"Transaction ids must compose a monotonic row - but they don't: `" + transactionId + "` vs `" + readRecord.transactionId() + "`!"
 				);
 			}
 			transactionId = readRecord.transactionId();

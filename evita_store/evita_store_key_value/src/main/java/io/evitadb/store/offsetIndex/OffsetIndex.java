@@ -74,6 +74,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
+import static io.evitadb.store.offsetIndex.OffsetIndexSerializationService.MEM_TABLE_RECORD_SIZE;
 import static io.evitadb.store.offsetIndex.OffsetIndexSerializationService.deserialize;
 import static io.evitadb.store.offsetIndex.OffsetIndexSerializationService.serialize;
 import static io.evitadb.store.offsetIndex.OffsetIndexSerializationService.verify;
@@ -730,7 +731,7 @@ public class OffsetIndex {
 	 * @return the total size
 	 */
 	public long getTotalSize() {
-		return this.totalSize.get();
+		return this.totalSize.get() + (long)this.keyToLocations.size() * (long)MEM_TABLE_RECORD_SIZE;
 	}
 
 	/**
@@ -739,6 +740,20 @@ public class OffsetIndex {
 	 */
 	public void forgetVolatileData() {
 		this.volatileValues.forgetNonFlushedValues();
+	}
+
+	/**
+	 * Creates new file that contains only records directly reachable from {@link #keyToLocations} index. While
+	 * compacting, the original offset index is locked for writing (but reading is still possible).
+	 *
+	 * Original file remains unchanged and must be removed later manually when the history is no longer needed.
+	 *
+	 * @param newFilePath new file location
+	 * @return new file location
+	 */
+	@Nonnull
+	public OffsetIndexDescriptor compact(@Nonnull Path newFilePath) {
+		return copySnapshotTo(newFilePath, this.keyCatalogVersion);
 	}
 
 	/**
@@ -909,6 +924,7 @@ public class OffsetIndex {
 
 		long workingMaxRecordSize = this.maxRecordSize.get();
 		long recordLength = this.totalSize.get();
+
 		final Map<Byte, Integer> histogramDiff = CollectionUtils.createHashMap(this.histogram.size());
 		for (NonFlushedValueSet volatileValues : nonFlushedValueSets) {
 			for (Entry<RecordKey, VersionedValue> entry : volatileValues.entrySet()) {
@@ -921,23 +937,24 @@ public class OffsetIndex {
 					// location might not exist when value was created and immediately removed
 					if (removedLocation != null) {
 						count = -1;
-						recordLength = -removedLocation.recordLength();
+						recordLength -= removedLocation.recordLength();
 					} else {
 						count = 0;
 						recordLength = 0;
 					}
 				} else if (volatileValues.wasAdded(recordKey)) {
 					final FileLocation recordLocation = nonFlushedValue.fileLocation();
-					recordLength = recordLocation.recordLength();
-					if (recordLength > workingMaxRecordSize) {
-						workingMaxRecordSize = recordLength;
+					final int currentRecordLength = recordLocation.recordLength();
+					recordLength += currentRecordLength;
+					if (currentRecordLength > workingMaxRecordSize) {
+						workingMaxRecordSize = currentRecordLength;
 					}
 					newKeyToLocations.put(recordKey, recordLocation);
 					count = 1;
 				} else {
 					final FileLocation existingRecordLocation = newKeyToLocations.get(recordKey);
 					final FileLocation newRecordLocation = nonFlushedValue.fileLocation();
-					recordLength = newRecordLocation.recordLength() - existingRecordLocation.recordLength();
+					recordLength += newRecordLocation.recordLength() - existingRecordLocation.recordLength();
 					if (newRecordLocation.recordLength() > workingMaxRecordSize) {
 						workingMaxRecordSize = newRecordLocation.recordLength();
 					}
@@ -1096,6 +1113,11 @@ public class OffsetIndex {
 			return (double) livingRecordSize / (double) totalSize;
 		}
 
+		/**
+		 * Registers a record with the specified length in the statistics of the OffsetIndex file.
+		 *
+		 * @param length The length of the record to be registered.
+		 */
 		void registerRecord(int length) {
 			this.recordCount++;
 			this.totalSize += length;

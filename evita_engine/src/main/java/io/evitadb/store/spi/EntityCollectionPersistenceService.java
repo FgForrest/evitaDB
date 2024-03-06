@@ -65,7 +65,7 @@ public non-sealed interface EntityCollectionPersistenceService extends Persisten
 	/**
 	 * Returns current instance of {@link EntityCollectionHeader}. The header is initialized in the instance constructor
 	 * and (because it's immutable) is exchanged with each {@link #flush(long, HeaderInfoSupplier)} or
-	 * {@link #flushTrappedUpdates(DataStoreIndexChanges)} method call.
+	 * {@link #flushTrappedUpdates(long, DataStoreIndexChanges)} method call.
 	 */
 	@Nonnull
 	EntityCollectionHeader getCatalogEntityHeader();
@@ -183,7 +183,7 @@ public non-sealed interface EntityCollectionPersistenceService extends Persisten
 
 	/**
 	 * Closes the entity collection persistent storage. If you don't call {@link #flush(long, HeaderInfoSupplier)}
-	 * or {@link #flushTrappedUpdates(DataStoreIndexChanges)} you'll lose the data in the buffers.
+	 * or {@link #flushTrappedUpdates(long, DataStoreIndexChanges)}  you'll lose the data in the buffers.
 	 */
 	@Override
 	void close();
