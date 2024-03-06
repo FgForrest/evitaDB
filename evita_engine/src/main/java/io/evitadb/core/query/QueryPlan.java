@@ -301,10 +301,9 @@ public class QueryPlan {
 		final EvitaRequest evitaRequest = this.queryContext.getEvitaRequest();
 		final int offset = evitaRequest.getFirstRecordOffset();
 		final int limit = evitaRequest.getLimit();
-		result.append("query ")
+		result.append("offset ")
 			.append(offset)
-			.append(" to ")
-			.append(offset)
+			.append(" limit ")
 			.append(limit)
 			.append(" `")
 			.append(this.queryContext.getSchema().getName())
@@ -327,7 +326,6 @@ public class QueryPlan {
 	@Nonnull
 	public SpanAttribute[] getSpanAttributes() {
 		return new SpanAttribute[] {
-			new SpanAttribute("queryPlan", getDescription()),
 			new SpanAttribute("prefetch", this.prefetched),
 			new SpanAttribute("scannedRecords", this.filter.getEstimatedCardinality()),
 			new SpanAttribute("totalRecordCount", this.totalRecordCount),
