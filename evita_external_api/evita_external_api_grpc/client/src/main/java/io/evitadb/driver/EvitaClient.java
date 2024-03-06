@@ -170,22 +170,22 @@ public class EvitaClient implements EvitaContract {
 			.intercept(new ClientSessionInterceptor(configuration));
 
 		final ClientTracingContext context = ClientTracingContextProvider.getContext();
-		final String tracingEndpointUrl = configuration.traceEndpointUrl();
-		if (tracingEndpointUrl != null && context instanceof DefaultClientTracingContext) {
+		final Object openTelemetryInstance = configuration.openTelemetryInstance();
+		if (openTelemetryInstance != null && context instanceof DefaultClientTracingContext) {
 			throw new EvitaInvalidUsageException(
-				"Tracing endpoint URL is set, but tracing context is not configured!"
+				"OpenTelemetry instance is set, but tracing context is not configured!"
 			);
 		}
-		if (tracingEndpointUrl == null && !(context instanceof DefaultClientTracingContext)) {
+		if (openTelemetryInstance == null && !(context instanceof DefaultClientTracingContext)) {
 			throw new EvitaInvalidUsageException(
-				"When tracing context is configured, tracing endpoint URL must be set!"
+				"When tracing context is configured, OpenTelemetry instance must be set!"
 			);
 		}
-		if (tracingEndpointUrl != null) {
-			context.setTracingEndpointUrlAndProtocol(tracingEndpointUrl, configuration.traceEndpointProtocol());
-			final ClientInterceptor clientInterceptor = context.getClientInterceptor();
-			nettyChannelBuilder = nettyChannelBuilder.intercept(clientInterceptor);
+		if (configuration.openTelemetryInstance() != null) {
+			context.setOpenTelemetry(configuration.openTelemetryInstance());
 		}
+		//final ClientInterceptor clientInterceptor = context.getClientInterceptor();
+		//nettyChannelBuilder = nettyChannelBuilder.intercept(clientInterceptor);
 
 		final NettyChannelBuilder finalNettyChannelBuilder = nettyChannelBuilder;
 		ofNullable(grpcConfigurator)

@@ -25,6 +25,7 @@ package io.evitadb.driver.observability.trace;
 
 import io.evitadb.driver.trace.ClientTracingContext;
 import io.grpc.ClientInterceptor;
+import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry;
 
 import javax.annotation.Nonnull;
@@ -60,5 +61,15 @@ public class DriverTracingContext implements ClientTracingContext {
 	@Override
 	public void setTracingEndpointUrlAndProtocol(@Nonnull String tracingEndpointUrl, @Nonnull String tracingEndpointProtocol) {
 		OpenTelemetryClientTracerSetup.setTracingEndpointUrlAndProtocol(tracingEndpointUrl, tracingEndpointProtocol);
+	}
+
+	@Override
+	public void setOpenTelemetry(@Nonnull Object openTelemetryInstance) {
+		if (openTelemetryInstance instanceof OpenTelemetry openTelemetry) {
+			OpenTelemetryClientTracerSetup.setOpenTelemetry(openTelemetry);
+		}
+		else {
+			throw new IllegalArgumentException("The provided parameter is not an instance of a type `OpenTelemetry`.");
+		}
 	}
 }

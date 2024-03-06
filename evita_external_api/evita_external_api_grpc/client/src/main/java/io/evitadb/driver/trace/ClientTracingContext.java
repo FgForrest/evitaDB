@@ -48,4 +48,8 @@ public interface ClientTracingContext {
 	default void setTracingEndpointUrlAndProtocol(@Nonnull String tracingEndpointUrl, @Nonnull String tracingEndpointProtocol) {
 		// do nothing
 	}
+
+	default void setOpenTelemetry(@Nonnull Object openTelemetryInstance) {
+		// do nothing
+	}
 }

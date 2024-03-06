@@ -114,8 +114,13 @@ public class OpenTelemetryClientTracerSetup {
 	@Nonnull
 	public static OpenTelemetry getOpenTelemetry() {
 		if (OPEN_TELEMETRY == null) {
-			OPEN_TELEMETRY = initializeOpenTelemetry();
+			//OPEN_TELEMETRY = initializeOpenTelemetry();
+			throw new IllegalArgumentException("OpenTelemetry instance is not initialized properly! You have to always call `setOpenTelemetry` method to pass your OpenTelemetry instance.");
 		}
 		return OPEN_TELEMETRY;
+	}
+
+	public static void setOpenTelemetry(@Nonnull OpenTelemetry openTelemetry) {
+		OPEN_TELEMETRY = openTelemetry;
 	}
 }

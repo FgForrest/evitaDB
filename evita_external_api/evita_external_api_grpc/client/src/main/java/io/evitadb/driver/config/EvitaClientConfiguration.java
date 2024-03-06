@@ -78,9 +78,10 @@ public record EvitaClientConfiguration(
 	long waitForClose,
 	@Nonnull TimeUnit waitForCloseUnit,
 	@Nullable String traceEndpointUrl,
-	@Nullable String traceEndpointProtocol
+	@Nullable String traceEndpointProtocol,
+	@Nullable Object openTelemetryInstance
 ) {
-
+	// TODO tpz: remove tracing URL and PROTOCOL and its usage from tracing API
 	private static final int DEFAULT_GRPC_API_PORT = 5555;
 	private static final int DEFAULT_SYSTEM_API_PORT = 5557;
 
@@ -114,6 +115,7 @@ public record EvitaClientConfiguration(
 		private ReflectionCachingBehaviour reflectionCachingBehaviour = ReflectionCachingBehaviour.CACHE;
 		private String traceEndpointUrl = null;
 		private String traceEndpointProtocol = null;
+		private Object openTelemetryInstance = null;
 
 		Builder() {
 			try {
@@ -210,6 +212,11 @@ public record EvitaClientConfiguration(
 			return this;
 		}
 
+		public EvitaClientConfiguration.Builder openTelemetryInstance(@Nullable Object openTelemetryInstance) {
+			this.openTelemetryInstance = openTelemetryInstance;
+			return this;
+		}
+
 		public EvitaClientConfiguration build() {
 			return new EvitaClientConfiguration(
 				clientId,
@@ -229,7 +236,8 @@ public record EvitaClientConfiguration(
 				waitForClose,
 				TimeUnit.SECONDS,
 				traceEndpointUrl,
-				traceEndpointProtocol
+				traceEndpointProtocol,
+				openTelemetryInstance
 			);
 		}
 
