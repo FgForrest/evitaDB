@@ -35,20 +35,21 @@ import io.evitadb.externalApi.graphql.exception.GraphQLInvalidArgumentException;
 import javax.annotation.Nonnull;
 import java.time.OffsetDateTime;
 import java.util.Currency;
+import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 
 /**
- * Finds price for sale either by price predicate on fetched {@link EntityDecorator} or by explicitly set arguments.
+ * Finds all prices for sale either by price predicate on fetched {@link EntityDecorator} or by explicitly set arguments.
  * If not explicit arguments are present, the ones from query are used otherwise these argument have higher priority.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public class PriceForSaleDataFetcher implements DataFetcher<DataFetcherResult<PriceContract>> {
+public class AllPricesForSaleDataFetcher implements DataFetcher<DataFetcherResult<List<PriceContract>>> {
 
     @Nonnull
     @Override
-    public DataFetcherResult<PriceContract> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
+    public DataFetcherResult<List<PriceContract>> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
         final EntityDecorator entity = environment.getSource();
         final EntityQueryContext context = environment.getLocalContext();
 
@@ -57,9 +58,9 @@ public class PriceForSaleDataFetcher implements DataFetcher<DataFetcherResult<Pr
             environment.getArguments().containsKey(PriceForSaleFieldHeaderDescriptor.VALID_IN.name()) ||
             environment.getArguments().containsKey(PriceForSaleFieldHeaderDescriptor.VALID_NOW.name());
 
-        final Optional<PriceContract> priceForSale;
+        final List<PriceContract> allPricesForSale;
         if (!customPriceForSaleDesired) {
-            priceForSale = entity.getPriceForSale();
+            allPricesForSale = entity.getAllPricesForSale();
         } else {
             final String[] priceLists = Optional.ofNullable((String) environment.getArgument(PriceForSaleFieldHeaderDescriptor.PRICE_LIST.name()))
                 .map(priceList -> new String[] { priceList })
@@ -78,7 +79,7 @@ public class PriceForSaleDataFetcher implements DataFetcher<DataFetcherResult<Pr
                     .map(validNow -> validNow ? entity.getAlignedNow() : null))
                 .orElse(null);
 
-            priceForSale = entity.getPriceForSale(currency, validIn, priceLists);
+            allPricesForSale = entity.getAllPricesForSale(currency, validIn, priceLists);
         }
 
         final Locale customLocale = environment.getArgument(PriceForSaleFieldHeaderDescriptor.LOCALE.name());
@@ -86,8 +87,8 @@ public class PriceForSaleDataFetcher implements DataFetcher<DataFetcherResult<Pr
             .desiredLocale(customLocale != null ? customLocale : context.getDesiredLocale())
             .build();
 
-        return DataFetcherResult.<PriceContract>newResult()
-            .data(priceForSale.orElse(null))
+        return DataFetcherResult.<List<PriceContract>>newResult()
+            .data(allPricesForSale)
             .localContext(newContext)
             .build();
     }
