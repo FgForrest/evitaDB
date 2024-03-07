@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,6 +24,8 @@
 package io.evitadb.externalApi.rest.api.catalog.dataApi;
 
 import io.evitadb.api.requestResponse.data.EntityClassifier;
+import io.evitadb.api.requestResponse.data.PriceContract;
+import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.core.Evita;
@@ -41,6 +43,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Random;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
@@ -427,7 +431,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 				filterBy(
 					hierarchyWithin(
 						Entities.CATEGORY,
-						entityPrimaryKeyInSet(16)
+						entityPrimaryKeyInSet(26)
 					)
 				),
 				require(
@@ -465,7 +469,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 					"filterBy": {
 						"hierarchyCategoryWithin": {
 							"ofParent": {
-								"entityPrimaryKeyInSet": [16]
+								"entityPrimaryKeyInSet": [26]
 							}
 						}
 					},
@@ -499,7 +503,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 				filterBy(
 					hierarchyWithin(
 						Entities.CATEGORY,
-						entityPrimaryKeyInSet(16)
+						entityPrimaryKeyInSet(26)
 					)
 				),
 				require(
@@ -541,7 +545,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 					"filterBy": {
 						"hierarchyCategoryWithin": {
 							"ofParent": {
-								"entityPrimaryKeyInSet": [16]
+								"entityPrimaryKeyInSet": [26]
 							}
 						}
 					},
@@ -690,6 +694,74 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 					}
 					""",
 				Arrays.toString(pks))
+			.executeAndThen()
+			.statusCode(200)
+			.body("", equalTo(createEntityDtos(entities)));
+	}
+
+	@Test
+	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@DisplayName("Should return all prices for sale for master products")
+	void shouldReturnAllPricesForSaleForMasterProducts(Evita evita, RestTester tester, List<SealedEntity> originalProductEntities) {
+		final var pks = findEntityPks(
+			originalProductEntities,
+			it -> !it.getPriceInnerRecordHandling().equals(PriceInnerRecordHandling.NONE) &&
+				it.getPrices(CURRENCY_CZK)
+					.stream()
+					.filter(PriceContract::sellable)
+					.map(PriceContract::innerRecordId)
+					.distinct()
+					.count() > 1
+		);
+
+		final Set<Integer> pksSet = Arrays.stream(pks).collect(Collectors.toSet());
+		final List<String> priceLists = originalProductEntities.stream()
+			.filter(it -> pksSet.contains(it.getPrimaryKey()))
+			.flatMap(it -> it.getPrices(CURRENCY_CZK).stream().map(PriceContract::priceList))
+			.distinct()
+			.toList();
+		assertTrue(priceLists.size() > 1);
+
+		final List<EntityClassifier> entities = getEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					entityPrimaryKeyInSet(pks),
+					priceInCurrency(CURRENCY_CZK),
+					priceInPriceLists(priceLists.toArray(String[]::new))
+				),
+				require(
+					entityFetch(
+						priceContentRespectingFilter()
+					)
+				)
+			)
+		);
+
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/PRODUCT/list")
+			.httpMethod(Request.METHOD_POST)
+			.requestBody(
+				"""
+                    {
+						"filterBy": {
+						    "entityPrimaryKeyInSet": %s,
+						    "priceInCurrency": "CZK",
+						    "priceInPriceLists": %s
+						},
+						"require": {
+						    "entityFetch": {
+						        "priceContent": {
+						            "contentMode": "RESPECTING_FILTER"
+					            }
+						    }
+						}
+					}
+					""",
+				serializeIntArrayToQueryString(pks),
+				serializeStringArrayToQueryString(priceLists)
+			)
 			.executeAndThen()
 			.statusCode(200)
 			.body("", equalTo(createEntityDtos(entities)));

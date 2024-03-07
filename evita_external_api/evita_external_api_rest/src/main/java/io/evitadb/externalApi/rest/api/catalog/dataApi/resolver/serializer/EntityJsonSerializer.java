@@ -331,8 +331,14 @@ public class EntityJsonSerializer {
 				pricesNode.add(objectJsonSerializer.serializeObject(price));
 			}
 
-			entity.getPriceForSaleIfAvailable()
-				.ifPresent(it -> rootNode.putIfAbsent(RestEntityDescriptor.PRICE_FOR_SALE.name(), objectJsonSerializer.serializeObject(it)));
+			entity.getPriceForSaleIfAvailable().ifPresent(it -> {
+				rootNode.putIfAbsent(RestEntityDescriptor.PRICE_FOR_SALE.name(), objectJsonSerializer.serializeObject(it));
+
+				if (!entity.getPriceInnerRecordHandling().equals(PriceInnerRecordHandling.NONE)) {
+					final boolean multiplePricesForSale = entity.getAllPricesForSale().size() > 1;
+					rootNode.putIfAbsent(RestEntityDescriptor.MULTIPLE_PRICES_FOR_SALE_AVAILABLE.name(), objectJsonSerializer.serializeObject(multiplePricesForSale));
+				}
+			});
 		}
 	}
 
