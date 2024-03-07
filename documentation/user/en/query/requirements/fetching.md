@@ -942,6 +942,14 @@ specifying the price list names as string arguments to the `priceContent` requir
 fetch non-indexed prices of the entity that cannot (and are not intended to) be used to filter the entities, but you
 still want to fetch them to display in the UI for the user.
 
+<LS to="r">
+
+For entities that have either `FIRST_OCCURENCE` or `SUM` inner record handling with prices
+for multiple referenced entities grouped by the `innerRecordId`, the `multiplePricesForSaleAvailable` field will be returned
+indicating whether there are multiple prices for sale available or just one.
+
+</LS>
+
 To get an entity with prices that you filter by, use the following query:
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
@@ -1080,8 +1088,9 @@ As you can see, all prices of the entity are returned in all available currencie
 </LS>
 <LS to="g">
 
-To fetch price information for an entity, there are several different fields available within an entity: `priceForSale`, `price` and `prices`.
-Each has a different purpose and returns different prices.
+To fetch price information for an entity, there are several different fields available within an entity: `priceForSale`, 
+`allPricesForSale`, `multiplePricesForSaleAvailable`, `price` and `prices`.
+Each has a different purpose and returns different information.
 
 The price object returns various data that can be formatted by the server for you to display to the user. Specifically,
 the actual price numbers within the price object can be retrieved formatted according to the specified locale and can even
@@ -1090,7 +1099,7 @@ The locale is either resolved from the context of the query
 (either from a localized unique attribute in the filter or from the `entityLocaleEquals` constraint in the filter) or can be specified
 directly on the parent price field by the `locale` argument.
 
-### Price for sale
+### Prices for sale
 
 The `priceForSale` field returns a single price object representing the price for sale of the entity.
 By default, this price is [computed based on input filter constraints](../filtering/price.md), more specifically:
@@ -1140,6 +1149,35 @@ The query returns the following price for sale of the `Product` entity:
 <MDInclude sourceVariable="data.queryProduct.recordPage">[The result of an entity fetched with its price for sale](/documentation/user/en/query/requirements/examples/fetching/priceForSaleFieldWithArguments.graphql.json.md)</MDInclude>
 
 As you can see, the price for sale matching the custom arguments is returned.
+
+</Note>
+
+Similarly, you can use `allPricesForSale`, which is almost the same as `priceForSale`, but returns all prices for the 
+sale of the entity. This makes sense if an entity has either `FIRST_OCCURENCE` or `SUM` inner record handling with prices
+for multiple referenced entities grouped by the `innerRecordId`. In the case of the `priceForSale` field, only the lowest 
+price for sale would be returned, but this may not be sufficient if you want to display more complex pricing for the entity.
+You can use the `allPricesForSale` field to get all these prices and display more complex information. You can also
+use the simpler `multiplePricesForSaleAvailable` field to simply check if there are multiple prices for sale available or
+just one without fetching the actual price objects.
+
+<SourceCodeTabs langSpecificTabOnly>
+
+[Getting entity with all prices for sale](/documentation/user/en/query/requirements/examples/fetching/allPricesForSaleField.graphql)
+</SourceCodeTabs>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### The result of an entity fetched with all of its prices for sale based on filter constraints
+</NoteTitle>
+
+The query returns the following prices for sale of the `Product` entity:
+
+<MDInclude sourceVariable="data.queryProduct.recordPage">[The result of an entity fetched with all of its prices for sale](/documentation/user/en/query/requirements/examples/fetching/allPricesForSaleField.graphql.json.md)</MDInclude>
+
+As you can see, the price for sale matching the filter constraints is returned, as well as all other prices for sale and
+flag indicating that there are multiple prices for sale available.
 
 </Note>
 
