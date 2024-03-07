@@ -40,6 +40,7 @@ import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -48,6 +49,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.BinaryOperator;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -324,10 +327,22 @@ public interface PricesContract extends Versioned, Serializable {
 			.filter(it -> pLists.isEmpty() || pLists.containsKey(it.priceList()));
 		if (pLists.isEmpty()) {
 			return priceStream.toList();
-		} else {
+		} else if (getPriceInnerRecordHandling() == PriceInnerRecordHandling.NONE) {
 			return priceStream
-				.sorted(Comparator.comparingInt(o -> pLists.get(o.priceList())))
-				.toList();
+				.min(Comparator.comparing(o -> pLists.get(o.priceList())))
+				.map(List::of)
+				.orElse(Collections.emptyList());
+		} else {
+			return new ArrayList<>(
+				priceStream
+					.collect(
+						Collectors.toMap(
+							price -> ofNullable(price.innerRecordId()).orElse(Integer.MIN_VALUE),
+							Function.identity(),
+							BinaryOperator.minBy(Comparator.comparingInt(o -> pLists.get(o.priceList())))
+						)
+					).values()
+			);
 		}
 	}
 

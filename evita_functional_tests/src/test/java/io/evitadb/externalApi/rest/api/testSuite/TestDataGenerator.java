@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@ package io.evitadb.externalApi.rest.api.testSuite;
 import com.github.javafaker.Faker;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.order.OrderDirection;
+import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.Cardinality;
@@ -105,7 +106,16 @@ public class TestDataGenerator {
 				.withAttribute(ATTRIBUTE_RELATIVE_URL, String.class, whichIs -> whichIs.localized().uniqueGloballyWithinLocale().nullable())
 				.updateVia(session);
 
-			final DataGenerator dataGenerator = new DataGenerator();
+			final DataGenerator dataGenerator = new DataGenerator(faker -> {
+				final int rndPIRH = faker.random().nextInt(10);
+				if (rndPIRH < 6) {
+					return PriceInnerRecordHandling.NONE;
+				} else if (rndPIRH < 8) {
+					return PriceInnerRecordHandling.FIRST_OCCURRENCE;
+				} else {
+					return PriceInnerRecordHandling.SUM;
+				}
+			});
 			final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> {
 				final int entityCount = session.getEntityCollectionSize(entityType);
 				final int primaryKey = entityCount == 0 ? 0 : faker.random().nextInt(1, entityCount);

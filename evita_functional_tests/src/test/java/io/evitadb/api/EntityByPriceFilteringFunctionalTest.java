@@ -200,11 +200,12 @@ public class EntityByPriceFilteringFunctionalTest {
 	/**
 	 * Verifies that result contains only prices in specified price lists.
 	 */
-	protected static void assertResultContainOnlyPricesFrom(@Nonnull List<SealedEntity> recordData, @Nonnull String... priceLists) {
+	protected void assertResultContainOnlyPricesFrom(@Nonnull List<SealedEntity> recordData, @Nonnull Currency currency, @Nonnull String... priceLists) {
 		final Set<String> allowedPriceLists = Arrays.stream(priceLists).collect(Collectors.toSet());
 		for (SealedEntity entity : recordData) {
 			assertTrue(
-				entity.getPrices().stream().allMatch(price -> allowedPriceLists.contains(price.priceList()))
+				entity.getPrices().stream()
+					.allMatch(price -> allowedPriceLists.contains(price.priceList()) && currency.equals(price.currency()))
 			);
 		}
 	}
@@ -336,7 +337,7 @@ public class EntityByPriceFilteringFunctionalTest {
 						filterBy(
 							and(
 								priceInCurrency(CURRENCY_CZK),
-								priceInPriceLists(PRICE_LIST_VIP, PRICE_LIST_BASIC)
+								priceInPriceLists(PRICE_LIST_VIP, PRICE_LIST_SELLOUT, PRICE_LIST_INTRODUCTION, PRICE_LIST_BASIC)
 							)
 						),
 						require(
@@ -353,16 +354,19 @@ public class EntityByPriceFilteringFunctionalTest {
 				assertResultIs(
 					originalProductEntities,
 					sealedEntity -> hasAnySellablePrice(sealedEntity, CURRENCY_CZK, PRICE_LIST_VIP) ||
+						hasAnySellablePrice(sealedEntity, CURRENCY_CZK, PRICE_LIST_SELLOUT) ||
+						hasAnySellablePrice(sealedEntity, CURRENCY_CZK, PRICE_LIST_INTRODUCTION) ||
 						hasAnySellablePrice(sealedEntity, CURRENCY_CZK, PRICE_LIST_BASIC),
 					result.getRecordData(),
 					PriceContentMode.RESPECTING_FILTER,
 					CURRENCY_CZK,
 					null,
-					PRICE_LIST_VIP, PRICE_LIST_BASIC
+					PRICE_LIST_VIP, PRICE_LIST_SELLOUT, PRICE_LIST_INTRODUCTION, PRICE_LIST_BASIC
 				);
 				assertResultContainOnlyPricesFrom(
 					result.getRecordData(),
-					PRICE_LIST_VIP, PRICE_LIST_BASIC
+					CURRENCY_CZK,
+					PRICE_LIST_VIP, PRICE_LIST_SELLOUT, PRICE_LIST_INTRODUCTION, PRICE_LIST_BASIC
 				);
 
 				return null;

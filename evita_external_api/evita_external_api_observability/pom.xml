@@ -32,7 +32,7 @@
 	<parent>
 		<groupId>io.evitadb</groupId>
 		<artifactId>evita_external_api</artifactId>
-		<version>10.1-SNAPSHOT</version>
+		<version>2024.3-SNAPSHOT</version>
 	</parent>
 
 	<dependencies>
