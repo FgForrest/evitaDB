@@ -326,7 +326,7 @@ public interface PricesContract extends Versioned, Serializable {
 			.filter(it -> ofNullable(atTheMoment).map(mmt -> it.validity() == null || it.validity().isValidFor(mmt)).orElse(true))
 			.filter(it -> pLists.isEmpty() || pLists.containsKey(it.priceList()));
 		if (pLists.isEmpty()) {
-			return priceStream.toList();
+			return priceStream.collect(Collectors.toCollection(ArrayList::new));
 		} else if (getPriceInnerRecordHandling() == PriceInnerRecordHandling.NONE) {
 			return priceStream
 				.min(Comparator.comparing(o -> pLists.get(o.priceList())))

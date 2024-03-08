@@ -1053,7 +1053,16 @@ public class EntityDecorator implements SealedEntity {
 	@Override
 	public List<PriceContract> getAllPricesForSale(@Nullable Currency currency, @Nullable OffsetDateTime atTheMoment, @Nullable String... priceListPriority) throws ContextMissingException {
 		pricePredicate.checkFetched(currency, priceListPriority);
-		return SealedEntity.super.getAllPricesForSale(currency, atTheMoment, priceListPriority);
+		final List<PriceContract> allPricesForSale = SealedEntity.super.getAllPricesForSale(currency, atTheMoment, priceListPriority);
+		if (allPricesForSale.size() > 1) {
+			allPricesForSale.sort(
+				Comparator.comparing(
+					pricePredicate.getQueryPriceMode() == QueryPriceMode.WITH_TAX ?
+						PriceContract::priceWithTax : PriceContract::priceWithoutTax
+				)
+			);
+		}
+		return allPricesForSale;
 	}
 
 	@Nonnull
