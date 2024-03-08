@@ -14,6 +14,7 @@
               "priceWithTax": "€59.00",
               "taxRate": "21.0"
             },
+            "reference": null,
             "stocks": [
               {
                 "referencedPrimaryKey": 119334,
@@ -33,6 +34,7 @@
               "priceWithTax": "€59.00",
               "taxRate": "21.0"
             },
+            "reference": null,
             "stocks": [
               {
                 "referencedPrimaryKey": 119334,
@@ -52,6 +54,7 @@
               "priceWithTax": "€59.00",
               "taxRate": "21.0"
             },
+            "reference": null,
             "stocks": [
               {
                 "referencedPrimaryKey": 119334,
@@ -71,6 +74,7 @@
               "priceWithTax": "€59.00",
               "taxRate": "21.0"
             },
+            "reference": null,
             "stocks": [
               {
                 "referencedPrimaryKey": 119334,
@@ -90,6 +94,7 @@
               "priceWithTax": "€69.00",
               "taxRate": "21.0"
             },
+            "reference": null,
             "stocks": [
               {
                 "referencedPrimaryKey": 119334,
@@ -109,6 +114,7 @@
               "priceWithTax": "€69.00",
               "taxRate": "21.0"
             },
+            "reference": null,
             "stocks": [
               {
                 "referencedPrimaryKey": 119334,
@@ -128,6 +134,7 @@
               "priceWithTax": "€69.00",
               "taxRate": "21.0"
             },
+            "reference": null,
             "stocks": [
               {
                 "referencedPrimaryKey": 119334,
@@ -147,6 +154,7 @@
               "priceWithTax": "€69.00",
               "taxRate": "21.0"
             },
+            "reference": null,
             "stocks": [
               {
                 "referencedPrimaryKey": 119334,
@@ -166,6 +174,7 @@
               "priceWithTax": "€69.00",
               "taxRate": "21.0"
             },
+            "reference": null,
             "stocks": [
               {
                 "referencedPrimaryKey": 119334,
@@ -185,6 +194,7 @@
               "priceWithTax": "€69.00",
               "taxRate": "21.0"
             },
+            "reference": null,
             "stocks": [
               {
                 "referencedPrimaryKey": 119334,
@@ -204,6 +214,7 @@
               "priceWithTax": "€69.00",
               "taxRate": "21.0"
             },
+            "reference": null,
             "stocks": [
               {
                 "referencedPrimaryKey": 119334,
@@ -223,6 +234,7 @@
               "priceWithTax": "€69.00",
               "taxRate": "21.0"
             },
+            "reference": null,
             "stocks": [
               {
                 "referencedPrimaryKey": 119334,
@@ -242,6 +254,7 @@
               "priceWithTax": "€69.00",
               "taxRate": "21.0"
             },
+            "reference": null,
             "stocks": [
               {
                 "referencedPrimaryKey": 119334,
@@ -261,6 +274,7 @@
               "priceWithTax": "€49.00",
               "taxRate": "21.0"
             },
+            "reference": null,
             "stocks": [
               {
                 "referencedPrimaryKey": 119334,
@@ -280,6 +294,7 @@
               "priceWithTax": "€49.00",
               "taxRate": "21.0"
             },
+            "reference": null,
             "stocks": [
               {
                 "referencedPrimaryKey": 119334,
@@ -299,6 +314,7 @@
               "priceWithTax": "€49.00",
               "taxRate": "21.0"
             },
+            "reference": null,
             "stocks": [
               {
                 "referencedPrimaryKey": 119334,

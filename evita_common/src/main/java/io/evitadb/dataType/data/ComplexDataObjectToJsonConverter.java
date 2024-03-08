@@ -258,7 +258,7 @@ public class ComplexDataObjectToJsonConverter implements DataItemVisitor {
 	/**
 	 * This factory is used in tests to get always the same output for comparison.
 	 */
-	static class SortingNodeFactory extends JsonNodeFactory {
+	public static class SortingNodeFactory extends JsonNodeFactory {
 		@Serial private static final long serialVersionUID = -840940331957056894L;
 
 		@Override

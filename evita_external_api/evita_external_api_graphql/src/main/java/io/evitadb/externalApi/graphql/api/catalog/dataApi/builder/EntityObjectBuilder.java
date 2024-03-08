@@ -195,6 +195,16 @@ public class EntityObjectBuilder {
 				entityObjectBuilder,
 				buildEntityPriceForSaleField()
 			);
+			buildingContext.registerFieldToObject(
+				objectName,
+				entityObjectBuilder,
+				buildEntityMultiplePricesForSaleAvailableField()
+			);
+			buildingContext.registerFieldToObject(
+				objectName,
+				entityObjectBuilder,
+				buildEntityAllPricesForSaleField()
+			);
 
 			buildingContext.registerFieldToObject(
 				objectName,
@@ -329,6 +339,37 @@ public class EntityObjectBuilder {
 			.build();
 
 		return new BuiltFieldDescriptor(field, new PriceForSaleDataFetcher());
+	}
+
+	@Nonnull
+	private BuiltFieldDescriptor buildEntityMultiplePricesForSaleAvailableField() {
+		return new BuiltFieldDescriptor(
+			GraphQLEntityDescriptor.MULTIPLE_PRICES_FOR_SALE_AVAILABLE
+				.to(fieldBuilderTransformer)
+				.build(),
+			new MultiplePricesForSaleAvailableDataFetcher()
+		);
+	}
+
+	@Nonnull
+	private BuiltFieldDescriptor buildEntityAllPricesForSaleField() {
+		final GraphQLFieldDefinition field = GraphQLEntityDescriptor.ALL_PRICES_FOR_SALE
+			.to(fieldBuilderTransformer)
+			.argument(PriceForSaleFieldHeaderDescriptor.PRICE_LIST
+				.to(argumentBuilderTransformer))
+			.argument(PriceForSaleFieldHeaderDescriptor.CURRENCY
+				.to(argumentBuilderTransformer)
+				.type(typeRef(CURRENCY_ENUM.name())))
+			.argument(PriceForSaleFieldHeaderDescriptor.VALID_IN
+				.to(argumentBuilderTransformer))
+			.argument(PriceForSaleFieldHeaderDescriptor.VALID_NOW
+				.to(argumentBuilderTransformer))
+			.argument(PriceForSaleFieldHeaderDescriptor.LOCALE
+				.to(argumentBuilderTransformer)
+				.type(typeRef(LOCALE_ENUM.name())))
+			.build();
+
+		return new BuiltFieldDescriptor(field, new AllPricesForSaleDataFetcher());
 	}
 
 	@Nonnull

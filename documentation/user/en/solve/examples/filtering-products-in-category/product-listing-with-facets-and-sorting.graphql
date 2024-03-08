@@ -68,6 +68,17 @@
           )
           taxRate
         }
+        reference: price(priceList: "reference") {
+          priceWithoutTax(
+            formatted: true
+            withCurrency: true
+          )
+          priceWithTax(
+            formatted: true
+            withCurrency: true
+          )
+          taxRate
+        }
         stocks {
           referencedPrimaryKey
           attributes {
