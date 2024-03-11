@@ -944,9 +944,13 @@ still want to fetch them to display in the UI for the user.
 
 <LS to="r">
 
-For entities that have either `FIRST_OCCURENCE` or `SUM` inner record handling with prices
-for multiple referenced entities grouped by the `innerRecordId`, the `multiplePricesForSaleAvailable` field will be returned
-indicating whether there are multiple prices for sale available or just one.
+For entities that have either `FIRST_OCCURENCE` or `SUM` inner record handling, the `multiplePricesForSaleAvailable` 
+property is returned, indicating whether there are multiple _unique_ prices for sale (grouped by the `innerRecordId`). 
+It is important to note that it doesn't simply return the count of all prices for sale.
+Instead, it uses the [`priceType`](../requirements/price.md#price-type) constraint to determine the uniqueness of each
+price value. This means that even if there are, say, 3 prices for sale, but they all have the same value, this property
+will return `false`. This is especially useful for the
+UI to determine whether to display a price range or just a single price without having to fetch all prices for sale.
 
 </LS>
 
@@ -1152,13 +1156,22 @@ As you can see, the price for sale matching the custom arguments is returned.
 
 </Note>
 
-Similarly, you can use `allPricesForSale`, which is almost the same as `priceForSale`, but returns all prices for the 
-sale of the entity. This makes sense if an entity has either `FIRST_OCCURENCE` or `SUM` inner record handling with prices
-for multiple referenced entities grouped by the `innerRecordId`. In the case of the `priceForSale` field, only the lowest 
-price for sale would be returned, but this may not be sufficient if you want to display more complex pricing for the entity.
-You can use the `allPricesForSale` field to get all these prices and display more complex information. You can also
-use the simpler `multiplePricesForSaleAvailable` field to simply check if there are multiple prices for sale available or
-just one without fetching the actual price objects.
+Similarly, you can use `allPricesForSale`, which is almost the same as `priceForSale`, but returns all prices for sale
+of the entity grouped by the `innerRecordId`. This usually only makes sense for master products with variants 
+(i.e. `FIRST_OCCURENCE` inner record handling) where the master product has prices for all of its variants, where you may 
+want to know (and display) prices for sale for each variant (or some kind of range). For the `NONE` inner record handling,
+this will always return at most the actual single price for sale. For the `SUM` inner record handling, this will return prices for sale
+for each `innerRecordId` in the same way as for the `FIRST_OCCURNCE`, but the use cases are limited.
+
+The returned list of prices is sorted by the price value from the lowest to the highest depending on the [`priceType`](../requirements/price.md#price-type)
+constraint used.
+
+There is also the simpler `multiplePricesForSaleAvailable` field, which returns a boolean indicating whether there are 
+multiple _unique_ prices for sale. It is important to note that it doesn't simply return the count of `allPricesForSale`. 
+Instead, it uses the [`priceType`](../requirements/price.md#price-type) constraint to determine the uniqueness of each 
+price value. This means that even if there are, say, 3 prices for sale, but they all have the same value, this field 
+will return `false` (as opposed to `allPricesForSale`, which would return all prices). This is especially useful for the 
+UI to determine whether to display a price range or just a single price without having to fetch all prices for sale.
 
 <SourceCodeTabs langSpecificTabOnly>
 
