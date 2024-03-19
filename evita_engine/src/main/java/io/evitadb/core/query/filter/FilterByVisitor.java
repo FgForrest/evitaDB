@@ -398,14 +398,6 @@ public class FilterByVisitor implements ConstraintVisitor {
 	}
 
 	/**
-	 * Returns attribute values from current scope.
-	 */
-	@Nonnull
-	public Stream<Optional<AttributeValue>> getAttributeValueStream(@Nonnull EntityContract entity, @Nonnull String attributeName, @Nonnull Locale locale) {
-		return getProcessingScope().getAttributeValueStream(entity, attributeName, locale);
-	}
-
-	/**
 	 * Method returns true if any of the siblings of the currently examined query matches any of the passed types.
 	 */
 	@SuppressWarnings("unchecked")

@@ -131,8 +131,11 @@ public class AttributeBitmapFilter implements EntityToBitmapFilter {
 					filter = filterFactory.apply(attributeSchema);
 				}
 				// and filter by predicate
-				if (filter != null && filter.test(attributeValueAccessor.apply(entity, attributeName))) {
-					result.add(filterByVisitor.translateEntity(entity));
+				if (filter != null) {
+					final Stream<Optional<AttributeValue>> valueStream = attributeValueAccessor.apply(entity, attributeName);
+					if (valueStream != null && filter.test(valueStream)) {
+						result.add(filterByVisitor.translateEntity(entity));
+					}
 				}
 			}
 			return result;
