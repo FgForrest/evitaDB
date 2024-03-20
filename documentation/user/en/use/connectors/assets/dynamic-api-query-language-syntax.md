@@ -118,9 +118,14 @@ and they can look like this:
 ```
 
 Unfortunately, this means that you can define multiple constraints in one go in such a container, and we need to somehow define
-relational logic between these child constraints. We chose to have all these <Term name="implicit container">implicit containers</Term>
-define logical [`AND`](https://en.wikipedia.org/wiki/Logical_conjunction)
-between passed child constraints, ultimately resulting in the `and` constraint under the hood.
+relational logic between these child constraints. In filter containers, we chose to have all these 
+<Term name="implicit container">implicit containers</Term> define logical [`AND`](https://en.wikipedia.org/wiki/Logical_conjunction) between passed child constraints, 
+ultimately resulting in the `and` constraint under the hood. In order containers, the children behaves the same as they would 
+if they were passed separately as an array of <Term name="implicit container">implicit containers</Term>, however,
+if multiple constraints are passed into a single container, there is no guarantee that the order of the constraints will 
+be preserved. This is a "limitation" JSON objects, which don't have a defined order of properties. Therefore, you should 
+_always_ wrap each order constraint into a separate <Term name="implicit container">implicit container</Term> and pass 
+them like array to the parent order constraint.
 
 Unfortunately, there is another small drawback if you need to define the same constraint multiple times in a single list
 with different arguments.
