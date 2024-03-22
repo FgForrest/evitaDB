@@ -180,6 +180,12 @@ $1package io.evitadb.externalApi.grpc.generated;
 		</dependency>
 		<dependency>
 			<groupId>io.grpc</groupId>
+			<artifactId>grpc-services</artifactId>
+			<version>${grpc.version}</version>
+		</dependency>
+
+		<dependency>
+			<groupId>io.grpc</groupId>
 			<artifactId>grpc-netty</artifactId>
 			<version>${grpc.version}</version>
 		</dependency>

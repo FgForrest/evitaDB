@@ -58,14 +58,15 @@ module evita.external.api.grpc {
 	requires evita.external.api.core;
 	requires evita.external.api.grpc.shared;
 	requires undertow.core;
-	requires armeria.grpc;
-	requires armeria.grpc.protocol;
-	requires armeria.protobuf;
-	requires armeria;
 
 	requires io.netty.handler;
 	requires io.grpc.services;
 	requires io.grpc;
 	requires io.grpc.protobuf;
 	requires io.grpc.stub;
+
+	requires com.linecorp.armeria;
+	requires com.linecorp.armeria.grpc;
+	requires com.linecorp.armeria.grpc.protocol;
+	requires com.linecorp.armeria.protobuf;
 }
