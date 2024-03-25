@@ -24,6 +24,7 @@
 package io.evitadb.store.offsetIndex.io;
 
 import io.evitadb.api.configuration.StorageOptions;
+import io.evitadb.scheduling.Scheduler;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.utils.UUIDUtil;
@@ -32,7 +33,6 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 import java.nio.file.Path;
-import java.util.concurrent.ScheduledExecutorService;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -45,7 +45,7 @@ class WriteOnlyOffHeapWithFileBackupHandleTest implements EvitaTestSupport {
 	private final Path targetDirectory = getPathInTargetDirectory("WriteOnlyOffHeapWithFileBackupHandle");
 	private final ObservableOutputKeeper outputKeeper = new ObservableOutputKeeper(
 		StorageOptions.builder().storageDirectory(targetDirectory).computeCRC32(true).build(),
-		Mockito.mock(ScheduledExecutorService.class)
+		Mockito.mock(Scheduler.class)
 	);
 
 	@AfterEach

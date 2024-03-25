@@ -28,6 +28,7 @@ import com.esotericsoftware.kryo.util.Pool;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
+import io.evitadb.scheduling.Scheduler;
 import io.evitadb.store.exception.WriteAheadLogCorruptedException;
 import io.evitadb.store.service.KryoFactory;
 import io.evitadb.store.spi.OffHeapWithFileBackupReference;
@@ -43,7 +44,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
-import java.util.concurrent.ScheduledExecutorService;
 
 import static io.evitadb.store.spi.CatalogPersistenceService.getWalFileName;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
@@ -70,7 +70,7 @@ class CatalogWriteAheadLogTest {
 		catalogKryoPool,
 		StorageOptions.builder().build(),
 		TransactionOptions.builder().build(),
-		Mockito.mock(ScheduledExecutorService.class)
+		Mockito.mock(Scheduler.class)
 	);
 	private final Path walFilePath = walDirectory.resolve(getWalFileName(TEST_CATALOG, walFileReference.fileIndex()));
 	private final int[] txSizes = new int[] {55, 152, 199, 46};

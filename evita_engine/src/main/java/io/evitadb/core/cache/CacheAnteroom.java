@@ -38,9 +38,9 @@ import io.evitadb.core.query.algebra.price.termination.PriceTerminationFormula;
 import io.evitadb.core.query.extraResult.CacheableEvitaResponseExtraResultComputer;
 import io.evitadb.core.query.extraResult.EvitaResponseExtraResultComputer;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
-import io.evitadb.core.query.response.TransactionalDataRelatedStructure.CalculationContext;
 import io.evitadb.core.query.sort.CacheableSorter;
 import io.evitadb.core.query.sort.Sorter;
+import io.evitadb.scheduling.Scheduler;
 import io.evitadb.utils.CollectionUtils;
 import lombok.extern.slf4j.Slf4j;
 import net.openhft.hashing.LongHashFunction;
@@ -54,7 +54,6 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
@@ -71,7 +70,7 @@ import java.util.function.UnaryOperator;
  * - {@link #register(EvitaSessionContract, String, Formula, FormulaCacheVisitor)}
  * - {@link #register(EvitaSessionContract, String, CacheableSorter)}
  * - {@link #register(EvitaSessionContract, String, CacheableEvitaResponseExtraResultComputer)}
- * - {@link #register(EvitaSessionContract, CalculationContext, int, Serializable, EntityFetch, Supplier)}
+ * - {@link #register(EvitaSessionContract, int, Serializable, EntityFetch, Supplier)}
  * - {@link #evaluateAssociates(boolean)}
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
@@ -97,7 +96,7 @@ public class CacheAnteroom {
 	/**
 	 * Contains reference to the asynchronous task executor.
 	 */
-	private final ScheduledExecutorService scheduler;
+	private final Scheduler scheduler;
 	/**
 	 * Contains a hash map that collects adepts for the caching. In other terms the expensive data structures that were
 	 * recently computed and might be worth caching. The map is cleared each time {@link #evaluateAssociates(boolean)}
@@ -105,7 +104,7 @@ public class CacheAnteroom {
 	 */
 	private final AtomicReference<ConcurrentHashMap<Long, CacheRecordAdept>> cacheAdepts;
 
-	public CacheAnteroom(int maxRecordCount, long minimalComplexityThreshold, @Nonnull CacheEden cacheEden, @Nonnull ScheduledExecutorService scheduler) {
+	public CacheAnteroom(int maxRecordCount, long minimalComplexityThreshold, @Nonnull CacheEden cacheEden, @Nonnull Scheduler scheduler) {
 		this.cacheAdepts = new AtomicReference<>(CollectionUtils.createConcurrentHashMap((int) (maxRecordCount * 1.1)));
 		this.cacheEden = cacheEden;
 		this.maxRecordCount = maxRecordCount;

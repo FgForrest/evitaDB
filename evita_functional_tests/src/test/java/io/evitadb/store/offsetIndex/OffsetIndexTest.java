@@ -28,6 +28,7 @@ import com.github.javafaker.Faker;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataKey;
 import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.scheduling.Scheduler;
 import io.evitadb.store.entity.EntityStoragePartConfigurer;
 import io.evitadb.store.entity.model.entity.EntityBodyStoragePart;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
@@ -59,7 +60,6 @@ import java.io.File;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.Map.Entry;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.IntFunction;
@@ -83,7 +83,7 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 	private final Path targetFile = Path.of(System.getProperty("java.io.tmpdir") + File.separator + "fileOffsetIndex.kryo");
 	private final OffsetIndexRecordTypeRegistry fileOffsetIndexRecordTypeRegistry = new OffsetIndexRecordTypeRegistry();
 	private final StorageOptions options = StorageOptions.temporary();
-	private final ObservableOutputKeeper observableOutputKeeper = new ObservableOutputKeeper(options, Mockito.mock(ScheduledExecutorService.class));
+	private final ObservableOutputKeeper observableOutputKeeper = new ObservableOutputKeeper(options, Mockito.mock(Scheduler.class));
 
 	private static EntityBodyStoragePart getNonExisting(Set<Integer> recordIds, Set<Integer> touchedInThisRound, Random random) {
 		int recPrimaryKey;
@@ -187,7 +187,8 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 			insertionOutput.catalogVersion(),
 			new OffsetIndexDescriptor(
 				fileOffsetIndexDescriptor.fileLocation(),
-				fileOffsetIndexDescriptor
+				fileOffsetIndexDescriptor,
+				1.0
 			),
 			limitedBufferOptions,
 			fileOffsetIndexRecordTypeRegistry,
@@ -206,7 +207,8 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 			nextCatalogVersion,
 			new OffsetIndexDescriptor(
 				updatedOffsetIndexDescriptor.fileLocation(),
-				updatedOffsetIndexDescriptor
+				updatedOffsetIndexDescriptor,
+				1.0
 			),
 			limitedBufferOptions,
 			fileOffsetIndexRecordTypeRegistry,
@@ -258,7 +260,8 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 			0L,
 			new OffsetIndexDescriptor(
 				fileOffsetIndexInfo.fileLocation(),
-				fileOffsetIndexInfo
+				fileOffsetIndexInfo,
+				1.0
 			),
 			options,
 			fileOffsetIndexRecordTypeRegistry,
@@ -299,7 +302,8 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 			0L,
 			new OffsetIndexDescriptor(
 				fileOffsetIndexDescriptor.fileLocation(),
-				fileOffsetIndexDescriptor
+				fileOffsetIndexDescriptor,
+				1.0
 			),
 			options,
 			fileOffsetIndexRecordTypeRegistry,
@@ -336,8 +340,9 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 		final OffsetIndex fileOffsetIndex = new OffsetIndex(
 			0L,
 			new OffsetIndexDescriptor(
-				new EntityCollectionHeader(ENTITY_TYPE, 1),
-				createKryo()
+				new EntityCollectionHeader(ENTITY_TYPE, 1, 0),
+				createKryo(),
+				1.0
 			),
 			options,
 			fileOffsetIndexRecordTypeRegistry,
@@ -363,8 +368,9 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 			new OffsetIndex(
 				0L,
 				new OffsetIndexDescriptor(
-					new EntityCollectionHeader(ENTITY_TYPE, 1),
-					createKryo()
+					new EntityCollectionHeader(ENTITY_TYPE, 1, 0),
+					createKryo(),
+					1.0
 				),
 				buildOptionsWithLimitedBuffer(),
 				fileOffsetIndexRecordTypeRegistry,
@@ -435,7 +441,8 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 					transactionId,
 					new OffsetIndexDescriptor(
 						fileOffsetIndexDescriptor.fileLocation(),
-						fileOffsetIndexDescriptor
+						fileOffsetIndexDescriptor,
+						1.0
 					),
 					options,
 					fileOffsetIndexRecordTypeRegistry,
@@ -507,7 +514,7 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 						" living recs. / " + stats.getRecordCount() + " total recs.)"
 				);
 
-				if (stats.getLivingObjectShare() < 0.5) {
+				if (stats.getActiveRecordShare() < 0.5) {
 					System.out.println("Living object share is below 50%! Compacting ...");
 					final long compactionStart = System.currentTimeMillis();
 
@@ -520,14 +527,15 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 						transactionId,
 						new OffsetIndexDescriptor(
 							compactedDescriptor.fileLocation(),
-							compactedDescriptor
+							compactedDescriptor,
+							1.0
 						),
 						options,
 						fileOffsetIndexRecordTypeRegistry,
 						new WriteOnlyFileHandle(newPath, observableOutputKeeper)
 					);
 					final FileOffsetIndexStatistics newStats = newOffsetIndex.verifyContents();
-					assertTrue(newStats.getLivingObjectShare() > 0.5);
+					assertTrue(newStats.getActiveRecordShare() > 0.5);
 					fileOffsetIndex.set(newOffsetIndex);
 
 					System.out.println(
@@ -559,8 +567,9 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 		final OffsetIndex fileOffsetIndex = new OffsetIndex(
 			0L,
 			new OffsetIndexDescriptor(
-				new EntityCollectionHeader(ENTITY_TYPE, 1),
-				createKryo()
+				new EntityCollectionHeader(ENTITY_TYPE, 1, 0),
+				createKryo(),
+				1.0
 			),
 			storageOptions,
 			fileOffsetIndexRecordTypeRegistry,
@@ -579,7 +588,8 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 			0L,
 			new OffsetIndexDescriptor(
 				fileOffsetIndexDescriptor.fileLocation(),
-				fileOffsetIndexDescriptor
+				fileOffsetIndexDescriptor,
+				1.0
 			),
 			storageOptions,
 			fileOffsetIndexRecordTypeRegistry,
@@ -618,8 +628,9 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 		final OffsetIndex fileOffsetIndex = new OffsetIndex(
 			0L,
 			new OffsetIndexDescriptor(
-				new EntityCollectionHeader(ENTITY_TYPE, 1),
-				createKryo()
+				new EntityCollectionHeader(ENTITY_TYPE, 1, 0),
+				createKryo(),
+				1.0
 			),
 			options,
 			fileOffsetIndexRecordTypeRegistry,

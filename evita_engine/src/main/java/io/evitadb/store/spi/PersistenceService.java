@@ -26,7 +26,6 @@ package io.evitadb.store.spi;
 import io.evitadb.core.buffer.DataStoreIndexChanges;
 import io.evitadb.index.Index;
 import io.evitadb.index.IndexKey;
-import io.evitadb.store.model.StoragePart;
 
 import javax.annotation.Nonnull;
 import java.io.Closeable;
@@ -44,14 +43,6 @@ sealed interface PersistenceService<IK extends IndexKey, I extends Index<IK>>
 	 * Returns true if underlying file was not yet created.
 	 */
 	boolean isNew();
-
-	/**
-	 * Returns underlying {@link StoragePartPersistenceService} which this instance uses for {@link StoragePart}
-	 * persistence.
-	 * @return underlying {@link StoragePartPersistenceService}
-	 */
-	@Nonnull
-	StoragePartPersistenceService getStoragePartPersistenceService();
 
 	/**
 	 * Flushes all trapped memory data to the persistent storage.

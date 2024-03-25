@@ -26,12 +26,12 @@ package io.evitadb.store.catalog;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TransactionOptions;
+import io.evitadb.scheduling.Scheduler;
 import io.evitadb.store.spi.CatalogPersistenceService;
 import io.evitadb.store.spi.CatalogPersistenceServiceFactory;
 
 import javax.annotation.Nonnull;
 import java.nio.file.Path;
-import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * This implementation is the single and only implementation of {@link CatalogPersistenceServiceFactory}. Instance is
@@ -49,10 +49,10 @@ public class DefaultCatalogPersistenceServiceFactory implements CatalogPersisten
 		@Nonnull String catalogName,
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull TransactionOptions transactionOptions,
-		@Nonnull ScheduledExecutorService executorService
+		@Nonnull Scheduler scheduler
 	) {
 		return new DefaultCatalogPersistenceService(
-			catalogName, storageOptions, transactionOptions, executorService
+			catalogName, storageOptions, transactionOptions, scheduler
 		);
 	}
 
@@ -64,10 +64,10 @@ public class DefaultCatalogPersistenceServiceFactory implements CatalogPersisten
 		@Nonnull Path catalogStoragePath,
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull TransactionOptions transactionOptions,
-		@Nonnull ScheduledExecutorService executorService
+		@Nonnull Scheduler scheduler
 	) {
 		return new DefaultCatalogPersistenceService(
-			catalogInstance, catalogName, catalogStoragePath, storageOptions, transactionOptions, executorService
+			catalogInstance, catalogName, catalogStoragePath, storageOptions, transactionOptions, scheduler
 		);
 	}
 

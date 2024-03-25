@@ -91,8 +91,8 @@ import io.evitadb.core.sequence.SequenceType;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
-import io.evitadb.core.transaction.stage.TrunkIncorporationTransactionStage.VerifiedEntityRemoveMutation;
-import io.evitadb.core.transaction.stage.TrunkIncorporationTransactionStage.VerifiedEntityUpsertMutation;
+import io.evitadb.core.transaction.stage.mutation.VerifiedEntityRemoveMutation;
+import io.evitadb.core.transaction.stage.mutation.VerifiedEntityUpsertMutation;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.EntityIndex;
@@ -161,6 +161,10 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	/**
 	 * Contains a unique identifier of the entity type that is assigned on entity collection creation and never changes.
+	 */
+	@Getter private final String entityType;
+	/**
+	 * Contains a unique identifier of the entity type that is assigned on entity collection creation and never changes.
 	 * The primary key can be used interchangeably to {@link EntitySchema#getName() String entity type}.
 	 */
 	@Getter private final int entityTypePrimaryKey;
@@ -227,14 +231,14 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 	 **/
 	private final TracingContext tracingContext;
 	/**
-	 * Service containing I/O related methods.
-	 */
-	private final EntityCollectionPersistenceService persistenceService;
-	/**
 	 * Inner class that provides information for the {@link EntityCollectionHeader} when it's created in the persistence
 	 * layer.
 	 */
 	private final HeaderInfoSupplier headerInfoSupplier = new EntityCollectionHeaderInfoSupplier();
+	/**
+	 * Service containing I/O related methods.
+	 */
+	private EntityCollectionPersistenceService persistenceService;
 
 	/**
 	 * Retrieves the primary key of the given entity or throws an unified exception.
@@ -298,6 +302,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 	}
 
 	public EntityCollection(
+		long catalogVersion,
 		@Nonnull Catalog catalog,
 		int entityTypePrimaryKey,
 		@Nonnull String entityType,
@@ -307,12 +312,15 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 		@Nonnull TracingContext tracingContext
 	) {
 		this.tracingContext = tracingContext;
+		this.entityType = entityType;
 		this.entityTypePrimaryKey = entityTypePrimaryKey;
 		this.catalogPersistenceService = catalogPersistenceService;
-		this.persistenceService = catalogPersistenceService.createEntityCollectionPersistenceService(entityType, entityTypePrimaryKey);
+		this.persistenceService = catalogPersistenceService.createEntityCollectionPersistenceService(
+			catalogVersion, entityType, entityTypePrimaryKey
+		);
 		this.cacheSupervisor = cacheSupervisor;
 
-		final EntityCollectionHeader entityHeader = this.persistenceService.getCatalogEntityHeader();
+		final EntityCollectionHeader entityHeader = this.persistenceService.getEntityCollectionHeader();
 		this.pkSequence = sequenceService.getOrCreateSequence(
 			catalog.getName(), SequenceType.ENTITY, entityType, entityHeader.lastPrimaryKey()
 		);
@@ -374,6 +382,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 		@Nonnull TracingContext tracingContext
 	) {
 		this.tracingContext = tracingContext;
+		this.entityType = entitySchema.getName();
 		this.entityTypePrimaryKey = entityTypePrimaryKey;
 		this.schema = new TransactionalReference<>(new EntitySchemaDecorator(() -> getCatalog().getSchema(), entitySchema));
 		this.catalogAccessor = new AtomicReference<>(catalog);
@@ -506,12 +515,6 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 			// propagate original date time
 			((EntityDecorator) entity).getAlignedNow()
 		);
-	}
-
-	@Override
-	@Nonnull
-	public String getEntityType() {
-		return schema.get().getName();
 	}
 
 	@Nonnull
@@ -775,7 +778,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 
 	@Override
 	public long getVersion() {
-		return this.persistenceService.getCatalogEntityHeader().version();
+		return this.persistenceService.getEntityCollectionHeader().version();
 	}
 
 	@Override
@@ -986,7 +989,12 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 	@Nonnull
 	public EntityCollectionHeader flush() {
 		this.persistenceService.flushTrappedUpdates(0L, this.dataStoreBuffer.getTrappedIndexChanges());
-		return this.persistenceService.flush(0L, headerInfoSupplier);
+		this.persistenceService = this.catalogPersistenceService.flush(
+			0L,
+			this.headerInfoSupplier,
+			this.persistenceService.getEntityCollectionHeader()
+		);
+		return this.persistenceService.getEntityCollectionHeader();
 	}
 
 	/**
@@ -1150,13 +1158,25 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 	}
 
 	/**
+	 * Retrieves the entity collection header from the persistence service.
+	 *
+	 * @return the entity collection header
+	 */
+	EntityCollectionHeader getEntityCollectionHeader() {
+		return this.persistenceService.getEntityCollectionHeader();
+	}
+
+	/**
 	 * This method writes all changed storage parts into the persistent storage of this {@link EntityCollection} and
 	 * then returns updated {@link EntityCollectionHeader}.
 	 */
 	@Nonnull
 	EntityCollectionHeader flush(long catalogVersion) {
 		this.persistenceService.flushTrappedUpdates(catalogVersion, this.dataStoreBuffer.getTrappedIndexChanges());
-		return this.persistenceService.flush(catalogVersion, headerInfoSupplier);
+		this.persistenceService = this.catalogPersistenceService.flush(
+			catalogVersion, this.headerInfoSupplier, this.persistenceService.getEntityCollectionHeader()
+		);
+		return this.persistenceService.getEntityCollectionHeader();
 	}
 
 	/*

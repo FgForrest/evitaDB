@@ -26,10 +26,10 @@ package io.evitadb.store.spi;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TransactionOptions;
+import io.evitadb.scheduling.Scheduler;
 
 import javax.annotation.Nonnull;
 import java.nio.file.Path;
-import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * This interface and layer of abstraction was introduced because we want to split data storage / serialization and
@@ -65,7 +65,7 @@ public interface CatalogPersistenceServiceFactory {
 		@Nonnull String catalogName,
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull TransactionOptions transactionOptions,
-		@Nonnull ScheduledExecutorService executorService
+		@Nonnull Scheduler scheduler
 	);
 
 	/**
@@ -79,7 +79,7 @@ public interface CatalogPersistenceServiceFactory {
 		@Nonnull Path catalogStoragePath,
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull TransactionOptions transactionOptions,
-		@Nonnull ScheduledExecutorService executorService
+		@Nonnull Scheduler scheduler
 	);
 
 }

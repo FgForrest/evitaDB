@@ -104,11 +104,11 @@ public class TransactionTrunkFinalizer implements TransactionHandler {
 		Assert.isPremiseValid(committedCatalog == null, "Catalog was already committed!");
 		Assert.isPremiseValid(lastProcessedTransaction != null, "Information about last processed transaction must be provided!");
 		// now let's flush the catalog on the disk
-		catalogToUpdate.flush(catalogVersion, lastProcessedTransaction);
+		this.catalogToUpdate.flush(catalogVersion, lastProcessedTransaction);
 		// init new catalog with the same collections as the previous one
-		final Catalog newCatalog = this.lastTransactionLayer.getStateCopyWithCommittedChanges(catalogToUpdate);
+		final Catalog newCatalog = this.lastTransactionLayer.getStateCopyWithCommittedChanges(this.catalogToUpdate);
 		// verify everything was processed
-		lastTransactionLayer.verifyLayerWasFullySwept();
+		this.lastTransactionLayer.verifyLayerWasFullySwept();
 		// assign committed catalog
 		this.committedCatalog = newCatalog;
 		// and return created catalog

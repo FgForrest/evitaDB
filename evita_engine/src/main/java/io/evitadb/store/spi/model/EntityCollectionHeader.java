@@ -87,10 +87,10 @@ public record EntityCollectionHeader(
 ) implements PersistentStorageDescriptor, StoragePart, Serializable {
 	@Serial private static final long serialVersionUID = 1079906797886901404L;
 
-	public EntityCollectionHeader(@Nonnull String entityType, int entityTypePrimaryKey) {
+	public EntityCollectionHeader(@Nonnull String entityType, int entityTypePrimaryKey, int entityTypeFileIndex) {
 		this(
 			entityType, entityTypePrimaryKey,
-			0, 0, 0, 0,
+			entityTypeFileIndex, 0, 0, 0,
 			null, null, Collections.emptyList()
 		);
 	}

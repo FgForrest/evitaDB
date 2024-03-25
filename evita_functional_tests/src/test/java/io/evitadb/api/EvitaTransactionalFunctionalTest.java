@@ -51,6 +51,7 @@ import io.evitadb.core.EvitaSession;
 import io.evitadb.core.Transaction;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.function.TriFunction;
+import io.evitadb.scheduling.Scheduler;
 import io.evitadb.store.catalog.DefaultIsolatedWalService;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.offsetIndex.io.OffHeapMemoryManager;
@@ -93,7 +94,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
@@ -136,7 +136,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 	};
 	private final ObservableOutputKeeper observableOutputKeeper = new ObservableOutputKeeper(
 		StorageOptions.builder().build(),
-		Mockito.mock(ScheduledExecutorService.class)
+		Mockito.mock(Scheduler.class)
 	);
 	private final OffHeapMemoryManager offHeapMemoryManager = new OffHeapMemoryManager(10_000_000, 128);
 
@@ -284,7 +284,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 			catalogKryoPool,
 			StorageOptions.builder().build(),
 			TransactionOptions.builder().build(),
-			Mockito.mock(ScheduledExecutorService.class)
+			Mockito.mock(Scheduler.class)
 		);
 
 		// create WAL file with a few contents first
@@ -335,7 +335,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 			catalogKryoPool,
 			StorageOptions.builder().build(),
 			TransactionOptions.builder().build(),
-			Mockito.mock(ScheduledExecutorService.class)
+			Mockito.mock(Scheduler.class)
 		);
 
 		// create WAL file multiple times, start Catalog to crunch the history and close evitaDB again

@@ -52,6 +52,8 @@ import java.util.Optional;
  * @param maxOpenedReadHandles        Maximum number of simultaneously opened {@link java.io.InputStream} to file offset index file.
  * @param computeCRC32C               Contains setting that determined whether CRC32C checksums will be computed for written
  *                                    records and also whether the CRC32C checksum will be checked on record read.
+ * @param minimalActiveRecordShare    Minimal share of active records in the file. If the share is lower, the file will
+ *                                    be compacted.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -62,7 +64,8 @@ public record StorageOptions(
 	long waitOnCloseSeconds,
 	int outputBufferSize,
 	int maxOpenedReadHandles,
-	boolean computeCRC32C
+	boolean computeCRC32C,
+	double minimalActiveRecordShare
 ) {
 
 	public static final int DEFAULT_OUTPUT_BUFFER_SIZE = 2_097_152;
@@ -71,6 +74,7 @@ public record StorageOptions(
 	public static final int DEFAULT_WAIT_ON_CLOSE_SECONDS = 5;
 	public static final int DEFAULT_MAX_OPENED_READ_HANDLES = Runtime.getRuntime().availableProcessors();
 	public static final boolean DEFAULT_COMPUTE_CRC = true;
+	public static final double DEFAULT_MINIMAL_ACTIVE_RECORD_SHARE = 0.5;
 
 	/**
 	 * Builder method is planned to be used only in tests.
@@ -80,7 +84,8 @@ public record StorageOptions(
 			Path.of(System.getProperty("java.io.tmpdir"), "evita/data"),
 			5, 5, DEFAULT_OUTPUT_BUFFER_SIZE,
 			Runtime.getRuntime().availableProcessors(),
-			true
+			true,
+			DEFAULT_MINIMAL_ACTIVE_RECORD_SHARE
 		);
 	}
 
@@ -105,7 +110,8 @@ public record StorageOptions(
 			DEFAULT_WAIT_ON_CLOSE_SECONDS,
 			DEFAULT_OUTPUT_BUFFER_SIZE,
 			DEFAULT_MAX_OPENED_READ_HANDLES,
-			DEFAULT_COMPUTE_CRC
+			DEFAULT_COMPUTE_CRC,
+			DEFAULT_MINIMAL_ACTIVE_RECORD_SHARE
 		);
 	}
 
@@ -115,7 +121,8 @@ public record StorageOptions(
 		long waitOnCloseSeconds,
 		int outputBufferSize,
 		int maxOpenedReadHandles,
-		boolean computeCRC32C
+		boolean computeCRC32C,
+		double minimalActiveRecordShare
 	) {
 		this.storageDirectory = Optional.ofNullable(storageDirectory).orElse(DEFAULT_DIRECTORY);
 		this.lockTimeoutSeconds = lockTimeoutSeconds;
@@ -123,6 +130,7 @@ public record StorageOptions(
 		this.outputBufferSize = outputBufferSize;
 		this.maxOpenedReadHandles = maxOpenedReadHandles;
 		this.computeCRC32C = computeCRC32C;
+		this.minimalActiveRecordShare = minimalActiveRecordShare;
 	}
 
 	/**
@@ -145,6 +153,7 @@ public record StorageOptions(
 		private int outputBufferSize = DEFAULT_OUTPUT_BUFFER_SIZE;
 		private int maxOpenedReadHandles = DEFAULT_MAX_OPENED_READ_HANDLES;
 		private boolean computeCRC32C = DEFAULT_COMPUTE_CRC;
+		private double minimalActiveRecordShare = DEFAULT_MINIMAL_ACTIVE_RECORD_SHARE;
 
 		Builder() {
 		}
@@ -156,6 +165,7 @@ public record StorageOptions(
 			this.outputBufferSize = storageOptions.outputBufferSize;
 			this.maxOpenedReadHandles = storageOptions.maxOpenedReadHandles;
 			this.computeCRC32C = storageOptions.computeCRC32C;
+			this.minimalActiveRecordShare = storageOptions.minimalActiveRecordShare;
 		}
 
 		@Nonnull
@@ -195,6 +205,12 @@ public record StorageOptions(
 		}
 
 		@Nonnull
+		public Builder minimalActiveRecordShare(double minimalActiveRecordShare) {
+			this.minimalActiveRecordShare = minimalActiveRecordShare;
+			return this;
+		}
+
+		@Nonnull
 		public StorageOptions build() {
 			return new StorageOptions(
 				storageDirectory,
@@ -202,7 +218,8 @@ public record StorageOptions(
 				waitOnCloseSeconds,
 				outputBufferSize,
 				maxOpenedReadHandles,
-				computeCRC32C
+				computeCRC32C,
+				minimalActiveRecordShare
 			);
 		}
 

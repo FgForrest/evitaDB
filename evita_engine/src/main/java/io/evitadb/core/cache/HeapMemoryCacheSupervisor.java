@@ -33,12 +33,12 @@ import io.evitadb.core.query.extraResult.CacheableEvitaResponseExtraResultComput
 import io.evitadb.core.query.extraResult.EvitaResponseExtraResultComputer;
 import io.evitadb.core.query.sort.CacheableSorter;
 import io.evitadb.core.query.sort.Sorter;
+import io.evitadb.scheduling.Scheduler;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.time.OffsetDateTime;
 import java.util.Optional;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
@@ -59,7 +59,7 @@ public class HeapMemoryCacheSupervisor implements CacheSupervisor {
 	private final CacheAnteroom cacheAnteroom;
 	private final CacheEden cacheEden;
 
-	public HeapMemoryCacheSupervisor(@Nonnull CacheOptions cacheOptions, @Nonnull ScheduledExecutorService scheduler) {
+	public HeapMemoryCacheSupervisor(@Nonnull CacheOptions cacheOptions, @Nonnull Scheduler scheduler) {
 		this.cacheEden = new CacheEden(
 			cacheOptions.cacheSizeInBytes(),
 			cacheOptions.minimalUsageThreshold(),

@@ -88,16 +88,22 @@ public class OffsetIndexDescriptor implements PersistentStorageDescriptor {
 	 * the key changes in {@link VersionedKryoKeyInputs}.
 	 */
 	@Getter @Nonnull private final Function<Long, VersionedKryo> readKryoFactory;
+	/**
+	 * Contains information about the share of the living records compared to total size of all the records in the file.
+	 */
+	@Getter private final double activeRecordShare;
 
 	public OffsetIndexDescriptor(
 		@Nonnull PersistentStorageDescriptor offsetIndexHeader,
-		@Nonnull Function<VersionedKryoKeyInputs, VersionedKryo> kryoFactory
+		@Nonnull Function<VersionedKryoKeyInputs, VersionedKryo> kryoFactory,
+		double activeRecordShare
 	) {
 		this(
 			offsetIndexHeader.version(),
 			offsetIndexHeader.fileLocation(),
 			offsetIndexHeader.compressedKeys(),
-			kryoFactory
+			kryoFactory,
+			activeRecordShare
 		);
 	}
 
@@ -105,7 +111,8 @@ public class OffsetIndexDescriptor implements PersistentStorageDescriptor {
 		long version,
 		@Nullable FileLocation fileLocation,
 		@Nonnull Map<Integer, Object> compressedKeys,
-		@Nonnull Function<VersionedKryoKeyInputs, VersionedKryo> kryoFactory
+		@Nonnull Function<VersionedKryoKeyInputs, VersionedKryo> kryoFactory,
+		double activeRecordShare
 	) {
 		this.version = version;
 		this.fileLocation = fileLocation;
@@ -118,11 +125,13 @@ public class OffsetIndexDescriptor implements PersistentStorageDescriptor {
 		this.readKryoFactory = updatedVersion -> kryoFactory.apply(
 			new VersionedKryoKeyInputs(readOnlyKeyCompressor, updatedVersion)
 		);
+		this.activeRecordShare = activeRecordShare;
 	}
 
 	public OffsetIndexDescriptor(
 		@Nullable FileLocation fileLocation,
-		@Nonnull OffsetIndexDescriptor fileOffsetIndexDescriptor
+		@Nonnull OffsetIndexDescriptor fileOffsetIndexDescriptor,
+		double activeRecordShare
 	) {
 		this.version = fileOffsetIndexDescriptor.version() + 1;
 		this.fileLocation = fileLocation;
@@ -138,6 +147,7 @@ public class OffsetIndexDescriptor implements PersistentStorageDescriptor {
 				updatedVersion
 			)
 		);
+		this.activeRecordShare = activeRecordShare;
 	}
 
 	/**

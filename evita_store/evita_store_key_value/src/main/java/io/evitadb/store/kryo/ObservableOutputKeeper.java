@@ -25,6 +25,8 @@ package io.evitadb.store.kryo;
 
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.StorageOptions;
+import io.evitadb.scheduling.DelayedAsyncTask;
+import io.evitadb.scheduling.Scheduler;
 import io.evitadb.store.offsetIndex.io.WriteOnlyFileHandle;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
@@ -36,15 +38,14 @@ import javax.annotation.Nonnull;
 import java.io.Closeable;
 import java.io.FileOutputStream;
 import java.nio.file.Path;
+import java.time.temporal.ChronoUnit;
 import java.util.Iterator;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static java.util.Optional.ofNullable;
-import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 /**
  * This instance keeps references to the {@link ObservableOutput} instances that internally keep large buffers in
@@ -72,7 +73,7 @@ public class ObservableOutputKeeper implements AutoCloseable {
 	 * Contains reference to the asynchronous task executor that clears the cached file pointers after some
 	 * time of inactivity.
 	 */
-	private final ScheduledExecutorService scheduledExecutorService;
+	private final DelayedAsyncTask cutTask;
 	/**
 	 * Cache containing the cached outputs for target files.
 	 * The cached outputs are stored as a ConcurrentHashMap with the target file path as the key and the corresponding
@@ -80,11 +81,6 @@ public class ObservableOutputKeeper implements AutoCloseable {
 	 * improve performance by avoiding repeated creation and closing of streams.
 	 */
 	private final ConcurrentHashMap<Path, OpenedOutputToFile> cachedOutputToFiles = CollectionUtils.createConcurrentHashMap(512);
-	/**
-	 * The next planned cache cut time - if there is scheduled action planned in the current scheduled executor service,
-	 * the time is stored here to avoid scheduling the same action multiple times.
-	 */
-	private volatile long nextPlannedCacheCut = -1L;
 
 	/**
 	 * Method allowing to access {@link StorageOptions} internal settings so that we can pass only {@link ObservableOutputKeeper}
@@ -92,6 +88,14 @@ public class ObservableOutputKeeper implements AutoCloseable {
 	 */
 	public long getLockTimeoutSeconds() {
 		return options.lockTimeoutSeconds();
+	}
+
+	public ObservableOutputKeeper(@Nonnull StorageOptions options, @Nonnull Scheduler scheduler) {
+		this.options = options;
+		this.cutTask = new DelayedAsyncTask(
+			scheduler, this::cutOutputCache,
+			CUT_OUTPUTS_AFTER_INACTIVITY_MS, ChronoUnit.MILLIS
+		);
 	}
 
 	/**
@@ -189,11 +193,7 @@ public class ObservableOutputKeeper implements AutoCloseable {
 		@Nonnull Path targetFile,
 		@Nonnull BiFunction<Path, StorageOptions, ObservableOutput<FileOutputStream>> createFct
 	) {
-		if (this.nextPlannedCacheCut == -1L && !this.scheduledExecutorService.isShutdown()) {
-			this.scheduledExecutorService.schedule(
-				this::cutOutputCache, CUT_OUTPUTS_AFTER_INACTIVITY_MS, MILLISECONDS
-			);
-		}
+		this.cutTask.schedule();
 		return cachedOutputToFiles
 			.computeIfAbsent(targetFile, path -> new OpenedOutputToFile(createFct.apply(path, options)));
 	}
@@ -202,7 +202,7 @@ public class ObservableOutputKeeper implements AutoCloseable {
 	 * Check the cached output entries whether they should be cut because of long inactivity or left intact.
 	 * This method also re-plans the next cache cut if the cache is not empty.
 	 */
-	private void cutOutputCache() {
+	private long cutOutputCache() {
 		final long now = System.currentTimeMillis();
 		long oldestNotCutEntryTouchTime = -1L;
 		final Iterator<OpenedOutputToFile> iterator = cachedOutputToFiles.values().iterator();
@@ -220,17 +220,8 @@ public class ObservableOutputKeeper implements AutoCloseable {
 				oldestNotCutEntryTouchTime = outputToFile.getLastReadTime();
 			}
 		}
-		if (oldestNotCutEntryTouchTime > -1L) {
-			this.nextPlannedCacheCut = CUT_OUTPUTS_AFTER_INACTIVITY_MS - (now - oldestNotCutEntryTouchTime) + 1;
-			// re-plan the scheduled cut to the moment when the next entry should be cut down
-			this.scheduledExecutorService.schedule(
-				this::cutOutputCache,
-				this.nextPlannedCacheCut,
-				MILLISECONDS
-			);
-		} else {
-			this.nextPlannedCacheCut = -1L;
-		}
+		// re-plan the scheduled cut to the moment when the next entry should be cut down
+		return oldestNotCutEntryTouchTime > -1L ? (now - oldestNotCutEntryTouchTime) + 1 : -1L;
 	}
 
 	@RequiredArgsConstructor

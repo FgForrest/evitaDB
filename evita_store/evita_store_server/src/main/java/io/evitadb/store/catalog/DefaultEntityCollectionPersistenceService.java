@@ -46,12 +46,12 @@ import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceContract
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.core.Catalog;
+import io.evitadb.core.CatalogVersionBeyondTheHorizonListener;
 import io.evitadb.core.EntityCollection;
 import io.evitadb.core.buffer.DataStoreChanges;
 import io.evitadb.core.buffer.DataStoreIndexChanges;
 import io.evitadb.core.buffer.DataStoreMemoryBuffer;
 import io.evitadb.exception.EvitaInternalError;
-import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
@@ -129,7 +129,7 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @Slf4j
-public class DefaultEntityCollectionPersistenceService implements EntityCollectionPersistenceService {
+public class DefaultEntityCollectionPersistenceService implements EntityCollectionPersistenceService, CatalogVersionBeyondTheHorizonListener {
 	public static final byte[][] BYTE_TWO_DIMENSIONAL_ARRAY = new byte[0][];
 	/**
 	 * Factory function that configures new instance of the versioned kryo factory.
@@ -168,17 +168,21 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	@Nonnull @Getter
 	private final ObservableOutputKeeper observableOutputKeeper;
 	/**
+	 * The storage part persistence service implementation.
+	 */
+	@Nonnull @Getter
+	private final OffsetIndexStoragePartPersistenceService storagePartPersistenceService;
+	/**
+	 * Obsolete file maintainer takes care of deleting files that are no longer referenced by any of the sessions.
+	 */
+	private final ObsoleteFileMaintainer obsoleteFileMaintainer;
+	/**
 	 * Contains reference to the catalog entity header collecting all crucial information about a single entity collection.
 	 * The catalog entity header is loaded in the constructor, and because it's immutable it needs to be replaced with
 	 * each {@link #flush(long, HeaderInfoSupplier)}  call.
 	 */
 	@Nonnull @Getter
-	private EntityCollectionHeader catalogEntityHeader;
-	/**
-	 * The storage part persistence service implementation.
-	 */
-	@Nonnull @Getter
-	private final StoragePartPersistenceService storagePartPersistenceService;
+	private EntityCollectionHeader entityCollectionHeader;
 
 	@Nonnull
 	private static Entity toEntity(
@@ -628,7 +632,8 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		@Nonnull TransactionOptions transactionOptions,
 		@Nonnull OffHeapMemoryManager offHeapMemoryManager,
 		@Nonnull ObservableOutputKeeper observableOutputKeeper,
-		@Nonnull OffsetIndexRecordTypeRegistry offsetIndexRecordTypeRegistry
+		@Nonnull OffsetIndexRecordTypeRegistry offsetIndexRecordTypeRegistry,
+		@Nonnull ObsoleteFileMaintainer obsoleteFileMaintainer
 	) {
 		this.entityCollectionFileReference = new CollectionFileReference(
 			entityTypeHeader.entityType(),
@@ -637,8 +642,8 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 			entityTypeHeader.fileLocation()
 		);
 		this.entityCollectionFile = entityCollectionFileReference.toFilePath(catalogStoragePath);
-
-		this.catalogEntityHeader = entityTypeHeader;
+		this.obsoleteFileMaintainer = obsoleteFileMaintainer;
+		this.entityCollectionHeader = entityTypeHeader;
 		this.offsetIndexRecordTypeRegistry = offsetIndexRecordTypeRegistry;
 		this.observableOutputKeeper = observableOutputKeeper;
 		this.storagePartPersistenceService = new OffsetIndexStoragePartPersistenceService(
@@ -649,7 +654,9 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 				catalogVersion,
 				new OffsetIndexDescriptor(
 					entityTypeHeader,
-					this.createTypeKryoInstance()
+					this.createTypeKryoInstance(),
+					// we don't know here yet - this will be recomputed on first flush
+					1.0
 				),
 				storageOptions,
 				offsetIndexRecordTypeRegistry,
@@ -664,6 +671,14 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	@Override
 	public boolean isNew() {
 		return this.storagePartPersistenceService.isNew();
+	}
+
+	@Override
+	public void catalogVersionBeyondTheHorizon(long catalogVersion, boolean activeSessionsToOlderVersions) {
+		if (!activeSessionsToOlderVersions) {
+			this.storagePartPersistenceService.purgeHistoryEqualAndLaterThan(catalogVersion);
+			this.obsoleteFileMaintainer.catalogVersionBeyondTheHorizon(catalogVersion, activeSessionsToOlderVersions);
+		}
 	}
 
 	@Override
@@ -817,16 +832,27 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		});
 	}
 
+	/**
+	 * Returns count of entities of certain type in the target storage.
+	 *
+	 * <strong>Note:</strong> the count may not be accurate - it counts only already persisted containers to the
+	 * {@link OffsetIndex} and doesn't take transactional memory into an account.
+	 */
+	@Override
+	public int countEntities(long catalogVersion) {
+		return getStoragePartPersistenceService().countStorageParts(catalogVersion, EntityBodyStoragePart.class);
+	}
+
 	@Nonnull
 	@Override
-	public BinaryEntity enrichEntity(long catalogVersion,@Nonnull EntitySchema entitySchema, @Nonnull BinaryEntity entity, @Nonnull EvitaRequest evitaRequest, @Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex, DataStoreChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer) throws EntityAlreadyRemovedException {
+	public BinaryEntity enrichEntity(long catalogVersion, @Nonnull EntitySchema entitySchema, @Nonnull BinaryEntity entity, @Nonnull EvitaRequest evitaRequest, @Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex, DataStoreChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer) throws EntityAlreadyRemovedException {
 		/* TOBEDONE https://github.com/FgForrest/evitaDB/issues/13 */
 		return entity;
 	}
 
 	@Override
-	public EntityIndex readEntityIndex(long catalogVersion,int entityIndexId, @Nonnull Supplier<EntitySchema> schemaSupplier, @Nonnull Supplier<PriceSuperIndex> temporalIndexAccessor, @Nonnull Supplier<PriceSuperIndex> superIndexAccessor) {
-		final EntityIndexStoragePart entityIndexCnt = storagePartPersistenceService.getStoragePart(catalogVersion, entityIndexId, EntityIndexStoragePart.class);
+	public EntityIndex readEntityIndex(long catalogVersion, int entityIndexId, @Nonnull Supplier<EntitySchema> schemaSupplier, @Nonnull Supplier<PriceSuperIndex> temporalIndexAccessor, @Nonnull Supplier<PriceSuperIndex> superIndexAccessor) {
+		final EntityIndexStoragePart entityIndexCnt = this.storagePartPersistenceService.getStoragePart(catalogVersion, entityIndexId, EntityIndexStoragePart.class);
 		isPremiseValid(
 			entityIndexCnt != null,
 			"Entity index with PK `" + entityIndexId + "` was unexpectedly not found in the mem table!"
@@ -919,45 +945,29 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		}
 	}
 
-	/**
-	 * Returns count of entities of certain type in the target storage.
-	 *
-	 * <strong>Note:</strong> the count may not be accurate - it counts only already persisted containers to the
-	 * {@link OffsetIndex} and doesn't take transactional memory into an account.
-	 */
-	@Override
-	public int countEntities(long catalogVersion) {
-		return getStoragePartPersistenceService().countStorageParts(catalogVersion, EntityBodyStoragePart.class);
+	@Nonnull
+	public OffsetIndexDescriptor flush(long newCatalogVersion, @Nonnull HeaderInfoSupplier headerInfoSupplier) {
+		final long previousVersion = this.storagePartPersistenceService.getVersion();
+		final OffsetIndexDescriptor newDescriptor = this.storagePartPersistenceService.flush(newCatalogVersion);
+		// when versions are equal - nothing has changed, and we can reuse old header
+		if (newDescriptor.version() > previousVersion) {
+			this.entityCollectionHeader = createEntityCollectionHeader(newCatalogVersion, newDescriptor, headerInfoSupplier, this.entityCollectionFileReference);
+		}
+		return newDescriptor;
+	}
+
+	@Nonnull
+	public EntityCollectionHeader compact(long catalogVersion, @Nonnull HeaderInfoSupplier headerInfoSupplier) {
+		final CollectionFileReference newReference = this.entityCollectionFileReference.incrementAndGet();
+		final Path newFilePath = newReference.toFilePath(this.entityCollectionFile.getParent());
+		final OffsetIndexDescriptor offsetIndexDescriptor = this.storagePartPersistenceService.copySnapshotTo(newFilePath, catalogVersion);
+		return createEntityCollectionHeader(catalogVersion, offsetIndexDescriptor, headerInfoSupplier, newReference);
 	}
 
 	@Nonnull
 	@Override
 	public PersistentStorageDescriptor copySnapshotTo(@Nonnull Path newFilePath, long catalogVersion) {
 		return getStoragePartPersistenceService().copySnapshotTo(newFilePath, catalogVersion);
-	}
-
-	@Nonnull
-	@Override
-	public EntityCollectionHeader flush(long newCatalogVersion, @Nonnull HeaderInfoSupplier headerInfoSupplier) {
-		final long previousVersion = this.storagePartPersistenceService.getVersion();
-		final PersistentStorageDescriptor newDescriptor = this.storagePartPersistenceService.flush(newCatalogVersion);
-		// when versions are equal - nothing has changed, and we can reuse old header
-		if (newDescriptor.version() > previousVersion) {
-			this.catalogEntityHeader = createEntityCollectionHeader(newCatalogVersion, newDescriptor, headerInfoSupplier);
-		}
-
-		return this.catalogEntityHeader;
-	}
-
-	@Override
-	public void delete() {
-		close();
-		if (!this.entityCollectionFile.toFile().delete()) {
-			throw new UnexpectedIOException(
-				"Failed to delete file: " + this.entityCollectionFile,
-				"Failed to delete file!"
-			);
-		}
 	}
 
 	@Override
@@ -983,11 +993,16 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	 * entity collection instance we need to keep and propagate to next immutable catalog entity header object.
 	 */
 	@Nonnull
-	private EntityCollectionHeader createEntityCollectionHeader(long catalogVersion, @Nonnull PersistentStorageDescriptor newDescriptor, @Nonnull HeaderInfoSupplier headerInfoSupplier) {
+	private EntityCollectionHeader createEntityCollectionHeader(
+		long catalogVersion,
+		@Nonnull PersistentStorageDescriptor newDescriptor,
+		@Nonnull HeaderInfoSupplier headerInfoSupplier,
+		@Nonnull CollectionFileReference collectionFileReference
+	) {
 		return new EntityCollectionHeader(
-			this.entityCollectionFileReference.entityType(),
-			this.entityCollectionFileReference.entityTypePrimaryKey(),
-			this.entityCollectionFileReference.fileIndex(),
+			collectionFileReference.entityType(),
+			collectionFileReference.entityTypePrimaryKey(),
+			collectionFileReference.fileIndex(),
 			this.countEntities(catalogVersion),
 			headerInfoSupplier.getLastAssignedPrimaryKey(),
 			headerInfoSupplier.getLastAssignedIndexKey(),
@@ -1001,11 +1016,11 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	/**
 	 * Converts the given entity and its associated data, attributes, prices, and references into a BinaryEntity object.
 	 *
-	 * @param entityStorageContainer The entity storage container.
-	 * @param evitaRequest The Evita request.
-	 * @param session The Evita session.
+	 * @param entityStorageContainer  The entity storage container.
+	 * @param evitaRequest            The Evita request.
+	 * @param session                 The Evita session.
 	 * @param entityCollectionFetcher The function used to fetch entity collections.
-	 * @param storageContainerBuffer The buffer for storing the storage containers.
+	 * @param storageContainerBuffer  The buffer for storing the storage containers.
 	 * @return The BinaryEntity object representing the converted entity.
 	 */
 	@Nonnull

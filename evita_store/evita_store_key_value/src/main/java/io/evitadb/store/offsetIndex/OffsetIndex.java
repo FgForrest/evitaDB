@@ -637,7 +637,8 @@ public class OffsetIndex {
 								this.fileOffsetDescriptor.version() + 1,
 								fileLocation,
 								this.getCompressedKeys(),
-								this.fileOffsetDescriptor.getKryoFactory()
+								this.fileOffsetDescriptor.getKryoFactory(),
+								getActiveRecordShare()
 							);
 						}
 					)
@@ -731,7 +732,7 @@ public class OffsetIndex {
 	 * @return the total size
 	 */
 	public long getTotalSize() {
-		return this.totalSize.get() + (long)this.keyToLocations.size() * (long)MEM_TABLE_RECORD_SIZE;
+		return this.totalSize.get() + (long) this.keyToLocations.size() * (long) MEM_TABLE_RECORD_SIZE;
 	}
 
 	/**
@@ -772,16 +773,27 @@ public class OffsetIndex {
 		return Collections.unmodifiableCollection(keyToLocations.values());
 	}
 
-	/*
-		PRIVATE METHODS
-	 */
-
 	/**
 	 * Just for testing purposes - verifies whether the OffsetIndex contents equals the other OffsetIndex contents.
 	 */
 	boolean fileOffsetIndexEquals(@Nonnull OffsetIndex o) {
 		if (this == o) return true;
 		return keyToLocations.equals(o.keyToLocations);
+	}
+
+	/*
+		PRIVATE METHODS
+	 */
+
+	/**
+	 * Calculates the living object share.
+	 * The living object share is calculated as the ratio of the total size of the object and the size of the file
+	 * that is being written to.
+	 *
+	 * @return the living object share as a double value
+	 */
+	private double getActiveRecordShare() {
+		return (double) this.totalSize.get() / (double) writeHandle.getLastWrittenPosition();
 	}
 
 	/**
@@ -864,7 +876,8 @@ public class OffsetIndex {
 					// create new OffsetIndexDescriptor with updated version
 					return new OffsetIndexDescriptor(
 						nonFlushedValuesWithFileLocation.fileLocation(),
-						fileOffsetIndexDescriptor
+						fileOffsetIndexDescriptor,
+						getActiveRecordShare()
 					);
 				}
 			);
@@ -898,7 +911,8 @@ public class OffsetIndex {
 					if (fileOffsetDescriptor.resetDirty()) {
 						this.fileOffsetDescriptor = new OffsetIndexDescriptor(
 							fileOffsetDescriptor.fileLocation(),
-							fileOffsetDescriptor
+							fileOffsetDescriptor,
+							getActiveRecordShare()
 						);
 						this.readKryoPool.expireAllPreviouslyCreated();
 					}
@@ -1109,7 +1123,7 @@ public class OffsetIndex {
 		private long totalSize;
 		private int maxRecordSize;
 
-		public double getLivingObjectShare() {
+		public double getActiveRecordShare() {
 			return (double) livingRecordSize / (double) totalSize;
 		}
 
@@ -1577,13 +1591,13 @@ public class OffsetIndex {
 				if (this.historicalVersions != null) {
 					final long[] versionsToPurge = this.historicalVersions;
 					int index = Arrays.binarySearch(versionsToPurge, versionToPurge);
+					final int startIndex = index >= 0 ? index : -index - 2;
 					if (index != -1) {
-						final int startIndex = index >= 0 ? index : -index - 2;
 						for (int ix = startIndex; ix >= 0; ix--) {
 							this.volatileValues.remove(versionsToPurge[ix]);
 						}
 					}
-					this.historicalVersions = Arrays.copyOfRange(versionsToPurge, index + 1, versionsToPurge.length);
+					this.historicalVersions = Arrays.copyOfRange(versionsToPurge, startIndex + 1, versionsToPurge.length);
 				}
 			}
 			for (NonFlushedValueSet valuesToPromote : nonFlushedValueSetsToPromote) {

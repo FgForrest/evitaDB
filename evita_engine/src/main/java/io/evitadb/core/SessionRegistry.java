@@ -40,12 +40,10 @@ import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -61,6 +59,10 @@ import static java.util.Optional.ofNullable;
 @Slf4j
 final class SessionRegistry {
 	/**
+	 * Reference to {@link Catalog} this instance is bound to.
+	 */
+	private final Catalog catalog;
+	/**
 	 * Keeps information about currently active sessions.
 	 */
 	private final Map<UUID, EvitaSessionTuple> activeSessions = new ConcurrentHashMap<>(64);
@@ -74,11 +76,10 @@ final class SessionRegistry {
 	 * tied to them indexed by catalog names.
 	 */
 	private final ConcurrentHashMap<String, VersionConsumingSessions> catalogConsumedVersions = CollectionUtils.createConcurrentHashMap(32);
-	/**
-	 * This variable represents a list of listeners that are registered to be notified when a catalog version
-	 * is no longer used by any of the active sessions.
-	 */
-	private final List<CatalogVersionBeyondTheHorizonListener> catalogVersionBeyondTheHorizonListeners = new CopyOnWriteArrayList<>();
+
+	public SessionRegistry(@Nonnull Catalog catalog) {
+		this.catalog = catalog;
+	}
 
 	/**
 	 * Returns set of all active (currently open) sessions.
@@ -148,18 +149,15 @@ final class SessionRegistry {
 	 */
 	public void removeSession(@Nonnull EvitaSessionContract session) {
 		if (activeSessions.remove(session.getId()) != null) {
-			activeSessionsCounter.decrementAndGet();
+			this.activeSessionsCounter.decrementAndGet();
 			final SessionFinalizationResult finalizationResult = catalogConsumedVersions.get(session.getCatalogName())
 				.unregisterSessionConsumingCatalogInVersion(session.getCatalogVersion());
 			if (finalizationResult.lastReader()) {
 				// notify listeners that the catalog version is no longer used
-				for (CatalogVersionBeyondTheHorizonListener listener : catalogVersionBeyondTheHorizonListeners) {
-					listener.catalogVersionBeyondTheHorizon(
-						session.getCatalogName(),
-						session.getCatalogVersion(),
-						finalizationResult.activeSessionsToOlderVersions()
-					);
-				}
+				this.catalog.catalogVersionBeyondTheHorizon(
+					session.getCatalogVersion(),
+					finalizationResult.activeSessionsToOlderVersions()
+				);
 			}
 		}
 	}

@@ -35,6 +35,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuil
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.core.EvitaSession;
+import io.evitadb.scheduling.Scheduler;
 import io.evitadb.store.catalog.DefaultIsolatedWalService;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.model.FileLocation;
@@ -69,7 +70,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 
 import static io.evitadb.test.TestConstants.LONG_RUNNING_TEST;
@@ -95,7 +95,7 @@ class CatalogWriteAheadLogIntegrationTest {
 	private final Path isolatedWalFilePath = walDirectory.resolve("isolatedWal.tmp");
 	private final ObservableOutputKeeper observableOutputKeeper = new ObservableOutputKeeper(
 		StorageOptions.builder().build(),
-		Mockito.mock(ScheduledExecutorService.class)
+		Mockito.mock(Scheduler.class)
 	);
 	private final OffHeapMemoryManager noOffHeapMemoryManager = new OffHeapMemoryManager(0, 0);
 	private final OffHeapMemoryManager bigOffHeapMemoryManager = new OffHeapMemoryManager(10_000_000, 128);
@@ -213,7 +213,7 @@ class CatalogWriteAheadLogIntegrationTest {
 				.walFileCountKept(5)
 				.walFileSizeBytes(16_384)
 				.build(),
-			Mockito.mock(ScheduledExecutorService.class)
+			Mockito.mock(Scheduler.class)
 		);
 	}
 
@@ -225,7 +225,7 @@ class CatalogWriteAheadLogIntegrationTest {
 			catalogKryoPool,
 			StorageOptions.builder().build(),
 			TransactionOptions.builder().walFileSizeBytes(Long.MAX_VALUE).build(),
-			Mockito.mock(ScheduledExecutorService.class)
+			Mockito.mock(Scheduler.class)
 		);
 	}
 

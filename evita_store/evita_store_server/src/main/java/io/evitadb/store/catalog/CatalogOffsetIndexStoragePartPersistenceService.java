@@ -152,7 +152,9 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 					0L,
 					fileLocation,
 					Map.of(),
-					kryoFactory
+					kryoFactory,
+					// we don't know here yet - this will be recomputed on first flush
+					1.0
 				),
 				storageOptions,
 				recordRegistry,
@@ -189,7 +191,9 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 						theCatalogHeader.version(),
 						fileLocation,
 						theCatalogHeader.compressedKeys(),
-						kryoFactory
+						kryoFactory,
+						// we don't know here yet - this will be recomputed on first flush
+						1.0
 					);
 				}
 			);

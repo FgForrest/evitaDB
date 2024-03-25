@@ -95,7 +95,9 @@ public class TransactionalStoragePartPersistenceService implements StoragePartPe
 			catalogVersion + 1,
 			new OffsetIndexDescriptor(
 				new PersistentStorageHeader(1L, null, this.delegate.getReadOnlyKeyCompressor().getKeys()),
-				kryoFactory
+				kryoFactory,
+				// we don't care here
+				1.0
 			),
 			storageOptions,
 			offsetIndexRecordTypeRegistry,

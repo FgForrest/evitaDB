@@ -27,7 +27,6 @@ import io.evitadb.store.model.FileLocation;
 import io.evitadb.store.spi.CatalogPersistenceService;
 import io.evitadb.store.spi.model.CatalogVariableContentFileReference;
 import io.evitadb.store.spi.model.EntityCollectionHeader;
-import io.evitadb.utils.StringUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -53,9 +52,7 @@ public record CollectionFileReference(
 	@Nonnull
 	public Path toFilePath(@Nonnull Path catalogFolder) {
 		return catalogFolder.resolve(
-			CatalogPersistenceService.getEntityCollectionDataStoreFileName(
-				StringUtils.toCamelCase(entityType), fileIndex
-			)
+			CatalogPersistenceService.getEntityCollectionDataStoreFileName(entityType, fileIndex)
 		);
 	}
 

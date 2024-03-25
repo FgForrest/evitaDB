@@ -56,6 +56,7 @@ import io.evitadb.core.sequence.SequenceService;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.exception.InvalidClassifierFormatException;
 import io.evitadb.index.EntityIndexKey;
+import io.evitadb.scheduling.Scheduler;
 import io.evitadb.store.entity.model.schema.CatalogSchemaStoragePart;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.offsetIndex.exception.UnexpectedCatalogContentsException;
@@ -97,12 +98,15 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ScheduledExecutorService;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.store.catalog.DefaultIsolatedWalServiceTest.DATA_MUTATION_EXAMPLE;
 import static io.evitadb.store.catalog.DefaultIsolatedWalServiceTest.SCHEMA_MUTATION_EXAMPLE;
+import static io.evitadb.store.spi.CatalogPersistenceService.CATALOG_FILE_SUFFIX;
+import static io.evitadb.store.spi.CatalogPersistenceService.getCatalogDataStoreFileNamePattern;
 import static io.evitadb.test.Assertions.assertExactlyEquals;
 import static java.util.Optional.of;
 import static org.junit.jupiter.api.Assertions.*;
@@ -116,12 +120,11 @@ import static org.mockito.Mockito.when;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
-	private static final String RENAMED_CATALOG = "somethingElse";
 	public static final CatalogSchema CATALOG_SCHEMA = CatalogSchema._internalBuild(TEST_CATALOG, NamingConvention.generate(TestConstants.TEST_CATALOG), EnumSet.allOf(CatalogEvolutionMode.class), EmptyEntitySchemaAccessor.INSTANCE);
-	private static final SealedCatalogSchema SEALED_CATALOG_SCHEMA = new CatalogSchemaDecorator(CATALOG_SCHEMA);
 	public static final String DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST = "defaultCatalogPersistenceServiceTest";
 	public static final String TX_DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST = "txDefaultCatalogPersistenceServiceTest";
-
+	private static final String RENAMED_CATALOG = "somethingElse";
+	private static final SealedCatalogSchema SEALED_CATALOG_SCHEMA = new CatalogSchemaDecorator(CATALOG_SCHEMA);
 	private final DataGenerator dataGenerator = new DataGenerator();
 	private final SequenceService sequenceService = new SequenceService();
 
@@ -130,7 +133,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 	private final Kryo kryo = KryoFactory.createKryo(WalKryoConfigurer.INSTANCE);
 	private final ObservableOutputKeeper observableOutputKeeper = new ObservableOutputKeeper(
 		StorageOptions.builder().build(),
-		Mockito.mock(ScheduledExecutorService.class)
+		Mockito.mock(Scheduler.class)
 	);
 	private final WriteOnlyOffHeapWithFileBackupHandle writeHandle = new WriteOnlyOffHeapWithFileBackupHandle(
 		getTestDirectory().resolve(transactionId.toString()),
@@ -142,6 +145,21 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		kryo,
 		writeHandle
 	);
+
+	private static int countFiles(@Nonnull Path catalogDirectory) throws IOException {
+		try (var paths = Files.list(catalogDirectory)) {
+			return (int) paths.count();
+		}
+	}
+
+	@Nonnull
+	private static Catalog getMockCatalog(SealedCatalogSchema catalogSchema, @Nonnull SealedEntitySchema schema) {
+		final Catalog mockCatalog = mock(Catalog.class);
+		when(mockCatalog.getSchema()).thenReturn(catalogSchema);
+		when(mockCatalog.getEntitySchema(schema.getName())).thenReturn(of(schema));
+		when(mockCatalog.getEntityIndexIfExists(Mockito.eq(schema.getName()), any(EntityIndexKey.class))).thenReturn(null);
+		return mockCatalog;
+	}
 
 	@BeforeEach
 	public void setUp() throws IOException {
@@ -160,38 +178,16 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		cleanTestSubDirectory(DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST);
 	}
 
-	@Nonnull
-	private StorageOptions getStorageOptions() {
-		return new StorageOptions(
-			getTestDirectory().resolve(DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST),
-			60, 60,
-			StorageOptions.DEFAULT_OUTPUT_BUFFER_SIZE, 1, true
-		);
-	}
-
-	@Nonnull
-	private TransactionOptions getTransactionOptions() {
-		return new TransactionOptions(
-			getTestDirectory().resolve(TX_DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST),
-			TransactionOptions.DEFAULT_TRANSACTION_MEMORY_BUFFER_LIMIT_SIZE,
-			TransactionOptions.DEFAULT_TRANSACTION_MEMORY_REGION_COUNT,
-			TransactionOptions.DEFAULT_WAL_SIZE_BYTES,
-			TransactionOptions.DEFAULT_WAL_FILE_COUNT_KEPT,
-			TransactionOptions.DEFAULT_MAX_QUEUE_SIZE,
-			TransactionOptions.DEFAULT_FLUSH_FREQUENCY
-		);
-	}
-
 	@Test
 	void shouldSerializeAndDeserializeCatalogHeader() {
 		final CatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
 			SEALED_CATALOG_SCHEMA.getName(),
 			getStorageOptions(),
 			getTransactionOptions(),
-			Mockito.mock(ScheduledExecutorService.class)
+			Mockito.mock(Scheduler.class)
 		);
 
-		ioService.getStoragePartPersistenceService()
+		ioService.getStoragePartPersistenceService(0L)
 			.putStoragePart(0L, new CatalogSchemaStoragePart(CATALOG_SCHEMA));
 
 		final EvitaSession mockSession = mock(EvitaSession.class);
@@ -216,27 +212,27 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		ioService.storeHeader(CatalogState.WARMING_UP, 0, 0, null, entityHeaders);
 
 		// try to deserialize again
-		final CatalogHeader catalogHeader = ioService.getCatalogHeader();
+		final CatalogHeader catalogHeader = ioService.getCatalogHeader(0L);
 
 		assertNotNull(catalogHeader);
 		final Map<String, CollectionFileReference> entityTypesIndex = catalogHeader.collectionFileIndex();
 		assertEquals(3, entityTypesIndex.size());
 
-		assertEntityCollectionsHaveIdenticalContent(ioService, SEALED_CATALOG_SCHEMA, brandCollection, ioService.getEntityCollectionHeader(entityTypesIndex.get(Entities.BRAND)));
-		assertEntityCollectionsHaveIdenticalContent(ioService, SEALED_CATALOG_SCHEMA, storeCollection, ioService.getEntityCollectionHeader(entityTypesIndex.get(Entities.STORE)));
-		assertEntityCollectionsHaveIdenticalContent(ioService, SEALED_CATALOG_SCHEMA, productCollection, ioService.getEntityCollectionHeader(entityTypesIndex.get(Entities.PRODUCT)));
+		assertEntityCollectionsHaveIdenticalContent(ioService, SEALED_CATALOG_SCHEMA, brandCollection, ioService.getEntityCollectionHeader(0L, entityTypesIndex.get(Entities.BRAND).entityTypePrimaryKey()));
+		assertEntityCollectionsHaveIdenticalContent(ioService, SEALED_CATALOG_SCHEMA, storeCollection, ioService.getEntityCollectionHeader(0L, entityTypesIndex.get(Entities.STORE).entityTypePrimaryKey()));
+		assertEntityCollectionsHaveIdenticalContent(ioService, SEALED_CATALOG_SCHEMA, productCollection, ioService.getEntityCollectionHeader(0L, entityTypesIndex.get(Entities.PRODUCT).entityTypePrimaryKey()));
 	}
 
 	@Test
 	void shouldDetectInvalidCatalogContents() {
-		final CatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
+		final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
 			SEALED_CATALOG_SCHEMA.getName(),
 			getStorageOptions(),
 			getTransactionOptions(),
-			Mockito.mock(ScheduledExecutorService.class)
+			Mockito.mock(Scheduler.class)
 		);
 
-		ioService.getStoragePartPersistenceService()
+		ioService.getStoragePartPersistenceService(0L)
 			.putStoragePart(0L, new CatalogSchemaStoragePart(CATALOG_SCHEMA));
 
 		final EvitaSession mockSession = mock(EvitaSession.class);
@@ -255,7 +251,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		// try to serialize
 		ioService.storeHeader(
 			CatalogState.WARMING_UP,
-			0, 0, null,
+			0L, 0, null,
 			Arrays.asList(
 				productCollection.flush(),
 				brandCollection.flush(),
@@ -269,11 +265,21 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 				final Path dataDirectory = getTestDirectory().resolve(DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST);
 				final Path catalogPath = dataDirectory.resolve(TEST_CATALOG);
 				final Path renamedCatalogPath = dataDirectory.resolve(RENAMED_CATALOG);
+				// rename catalog bootstrap file
 				assertTrue(catalogPath.resolve(CatalogPersistenceService.getCatalogBootstrapFileName(TEST_CATALOG)).toFile()
 					.renameTo(catalogPath.resolve(CatalogPersistenceService.getCatalogBootstrapFileName(RENAMED_CATALOG)).toFile()));
-				assertTrue(catalogPath.resolve(CatalogPersistenceService.getCatalogDataStoreFileName(TEST_CATALOG, 0)).toFile()
-					.renameTo(catalogPath.resolve(CatalogPersistenceService.getCatalogDataStoreFileName(RENAMED_CATALOG, 0)).toFile()));
+
+				// rename all catalog indexes
+				int index = findFirstExistingFileIndex(TEST_CATALOG);
+				do {
+					assertTrue(catalogPath.resolve(CatalogPersistenceService.getCatalogDataStoreFileName(TEST_CATALOG, index)).toFile()
+						.renameTo(catalogPath.resolve(CatalogPersistenceService.getCatalogDataStoreFileName(RENAMED_CATALOG, index)).toFile()));
+					index++;
+				} while (catalogPath.resolve(CatalogPersistenceService.getCatalogDataStoreFileName(TEST_CATALOG, index)).toFile().exists());
+
+				// finally rename folder
 				assertTrue(catalogPath.toFile().renameTo(renamedCatalogPath.toFile()));
+
 				//noinspection EmptyTryBlock
 				try (var ignored = new DefaultCatalogPersistenceService(
 					Mockito.mock(CatalogContract.class),
@@ -281,7 +287,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 					renamedCatalogPath,
 					getStorageOptions(),
 					getTransactionOptions(),
-					Mockito.mock(ScheduledExecutorService.class)
+					Mockito.mock(Scheduler.class)
 				)) {
 					// do nothing
 				}
@@ -298,7 +304,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 					SEALED_CATALOG_SCHEMA.getName(),
 					getStorageOptions(),
 					getTransactionOptions(),
-					Mockito.mock(ScheduledExecutorService.class)
+					Mockito.mock(Scheduler.class)
 				)) {
 					cps.verifyEntityType(
 						Collections.emptyList(),
@@ -318,7 +324,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 					SEALED_CATALOG_SCHEMA.getName(),
 					getStorageOptions(),
 					getTransactionOptions(),
-					Mockito.mock(ScheduledExecutorService.class)
+					Mockito.mock(Scheduler.class)
 				)) {
 					final EntityCollection mockCollection = mock(EntityCollection.class);
 					when(mockCollection.getEntityType()).thenReturn("a");
@@ -339,7 +345,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			SEALED_CATALOG_SCHEMA.getName(),
 			getStorageOptions(),
 			getTransactionOptions(),
-			Mockito.mock(ScheduledExecutorService.class)
+			Mockito.mock(Scheduler.class)
 		)) {
 		}
 
@@ -351,7 +357,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 					CATALOG_SCHEMA.getName(),
 					getStorageOptions(),
 					getTransactionOptions(),
-					Mockito.mock(ScheduledExecutorService.class)
+					Mockito.mock(Scheduler.class)
 				)) {
 				}
 			}
@@ -369,10 +375,10 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			catalogDirectory,
 			getStorageOptions(),
 			getTransactionOptions(),
-			Mockito.mock(ScheduledExecutorService.class)
+			Mockito.mock(Scheduler.class)
 		)) {
 			assertTrue(catalogDirectory.toFile().exists());
-			assertEquals(5, countFiles(catalogDirectory));
+			assertTrue(countFiles(catalogDirectory) > 0);
 			cps.delete();
 			assertFalse(catalogDirectory.toFile().exists());
 		}
@@ -384,9 +390,9 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			SEALED_CATALOG_SCHEMA.getName(),
 			getStorageOptions(),
 			getTransactionOptions(),
-			Mockito.mock(ScheduledExecutorService.class)
+			Mockito.mock(Scheduler.class)
 		)) {
-			final CatalogHeader header = cps.getCatalogHeader();
+			final CatalogHeader header = cps.getCatalogHeader(0L);
 			assertNotNull(header);
 			assertEquals(CatalogState.WARMING_UP, header.catalogState());
 			assertEquals(TEST_CATALOG, header.catalogName());
@@ -407,9 +413,9 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			catalogName,
 			getStorageOptions(),
 			getTransactionOptions(),
-			Mockito.mock(ScheduledExecutorService.class)
+			Mockito.mock(Scheduler.class)
 		)) {
-			cps.getStoragePartPersistenceService()
+			cps.getStoragePartPersistenceService(0L)
 				.putStoragePart(0L, new CatalogSchemaStoragePart(CATALOG_SCHEMA));
 			cps.storeHeader(
 				CatalogState.ALIVE,
@@ -431,9 +437,10 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			getStorageOptions().storageDirectory().resolve(catalogName),
 			getStorageOptions(),
 			getTransactionOptions(),
-			Mockito.mock(ScheduledExecutorService.class)
+			Mockito.mock(Scheduler.class)
 		)) {
 			cps.appendWalAndDiscard(
+				2L,
 				writtenTransactionMutation,
 				walReference
 			);
@@ -469,7 +476,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			catalogName,
 			getStorageOptions(),
 			getTransactionOptions(),
-			Mockito.mock(ScheduledExecutorService.class)
+			Mockito.mock(Scheduler.class)
 		);
 
 		for (int i = 0; i < 12; i++) {
@@ -501,7 +508,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			catalogName,
 			getStorageOptions(),
 			getTransactionOptions(),
-			Mockito.mock(ScheduledExecutorService.class)
+			Mockito.mock(Scheduler.class)
 		);
 
 		for (int i = 0; i < 12; i++) {
@@ -530,10 +537,27 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		PRIVATE METHODS
 	 */
 
-	private static int countFiles(@Nonnull Path catalogDirectory) throws IOException {
-		try (var paths = Files.list(catalogDirectory)) {
-			return (int) paths.count();
-		}
+	@Nonnull
+	private StorageOptions getStorageOptions() {
+		return new StorageOptions(
+			getTestDirectory().resolve(DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST),
+			60, 60,
+			StorageOptions.DEFAULT_OUTPUT_BUFFER_SIZE, 1,
+			true, 1.0
+		);
+	}
+
+	@Nonnull
+	private TransactionOptions getTransactionOptions() {
+		return new TransactionOptions(
+			getTestDirectory().resolve(TX_DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST),
+			TransactionOptions.DEFAULT_TRANSACTION_MEMORY_BUFFER_LIMIT_SIZE,
+			TransactionOptions.DEFAULT_TRANSACTION_MEMORY_REGION_COUNT,
+			TransactionOptions.DEFAULT_WAL_SIZE_BYTES,
+			TransactionOptions.DEFAULT_WAL_FILE_COUNT_KEPT,
+			TransactionOptions.DEFAULT_MAX_QUEUE_SIZE,
+			TransactionOptions.DEFAULT_FLUSH_FREQUENCY
+		);
 	}
 
 	@Nonnull
@@ -541,6 +565,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		final Catalog mockCatalog = getMockCatalog(catalogSchema, entitySchema);
 		final CatalogSchemaContract catalogSchemaContract = Mockito.mock(CatalogSchemaContract.class);
 		final EntityCollection entityCollection = new EntityCollection(
+			0L,
 			mockCatalog,
 			entityTypePrimaryKey,
 			entitySchema.getName(),
@@ -582,11 +607,12 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		assertEquals(entityCollection.size(), collectionHeader.recordCount());
 		final ObservableOutputKeeper outputKeeper = new ObservableOutputKeeper(
 			getStorageOptions(),
-			Mockito.mock(ScheduledExecutorService.class)
+			Mockito.mock(Scheduler.class)
 		);
 
 		final SealedEntitySchema schema = entityCollection.getSchema();
 		final EntityCollection collection = new EntityCollection(
+			0L,
 			getMockCatalog(catalogSchema, schema),
 			entityCollection.getEntityTypePrimaryKey(),
 			schema.getName(),
@@ -617,13 +643,36 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		outputKeeper.close();
 	}
 
-	@Nonnull
-	private static Catalog getMockCatalog(SealedCatalogSchema catalogSchema, @Nonnull SealedEntitySchema schema) {
-		final Catalog mockCatalog = mock(Catalog.class);
-		when(mockCatalog.getSchema()).thenReturn(catalogSchema);
-		when(mockCatalog.getEntitySchema(schema.getName())).thenReturn(of(schema));
-		when(mockCatalog.getEntityIndexIfExists(Mockito.eq(schema.getName()), any(EntityIndexKey.class))).thenReturn(null);
-		return mockCatalog;
+	/**
+	 * Finds the index of the first existing file for a given catalog name.
+	 *
+	 * @param catalogName the name of the catalog
+	 * @return the index of the first existing file, or 0 if no files exist
+	 */
+	private int findFirstExistingFileIndex(@Nonnull String catalogName) {
+		final Pattern pattern = getCatalogDataStoreFileNamePattern(catalogName);
+		final File[] catalogFiles = getTestDirectory().resolve(DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST)
+			.resolve(catalogName)
+			.toFile()
+			.listFiles(
+				(dir, name) -> name.endsWith(CATALOG_FILE_SUFFIX)
+			);
+		if (catalogFiles.length == 0) {
+			return 0;
+		} else {
+			int maxIndex = Integer.MAX_VALUE;
+			for (File catalogFile : catalogFiles) {
+				final String name = catalogFile.getName();
+				final Matcher matcher = pattern.matcher(name);
+				if (matcher.matches()) {
+					final int index = Integer.parseInt(matcher.group(1));
+					if (maxIndex > index) {
+						maxIndex = index;
+					}
+				}
+			}
+			return maxIndex == Integer.MAX_VALUE ? 0 : maxIndex;
+		}
 	}
 
 }

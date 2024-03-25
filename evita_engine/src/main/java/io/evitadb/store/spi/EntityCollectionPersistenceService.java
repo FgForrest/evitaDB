@@ -44,6 +44,7 @@ import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.price.PriceSuperIndex;
 import io.evitadb.store.model.PersistentStorageDescriptor;
+import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.spi.model.EntityCollectionHeader;
 
 import javax.annotation.Nonnull;
@@ -63,12 +64,20 @@ import java.util.function.Supplier;
 public non-sealed interface EntityCollectionPersistenceService extends PersistenceService<EntityIndexKey, EntityIndex> {
 
 	/**
+	 * Returns underlying {@link StoragePartPersistenceService} which this instance uses for {@link StoragePart}
+	 * persistence.
+	 * @return underlying {@link StoragePartPersistenceService}
+	 */
+	@Nonnull
+	StoragePartPersistenceService getStoragePartPersistenceService();
+
+	/**
 	 * Returns current instance of {@link EntityCollectionHeader}. The header is initialized in the instance constructor
 	 * and (because it's immutable) is exchanged with each {@link #flush(long, HeaderInfoSupplier)} or
 	 * {@link #flushTrappedUpdates(long, DataStoreIndexChanges)} method call.
 	 */
 	@Nonnull
-	EntityCollectionHeader getCatalogEntityHeader();
+	EntityCollectionHeader getEntityCollectionHeader();
 
 	/**
 	 * Reads entity from persistent storage by its primary key.
@@ -158,15 +167,6 @@ public non-sealed interface EntityCollectionPersistenceService extends Persisten
 	);
 
 	/**
-	 * Flushes changes in transactional memory to the persistent storage including the transactional id key.
-	 *
-	 * @param newCatalogVersion  new catalog version
-	 * @param headerInfoSupplier provides wrapping entity collection information for the header
-	 */
-	@Nonnull
-	EntityCollectionHeader flush(long newCatalogVersion, @Nonnull HeaderInfoSupplier headerInfoSupplier);
-
-	/**
 	 * Flushes entire living data set to the target file. The file must exist and must be prepared for re-writing.
 	 * File must not be used by any other process.
 	 *
@@ -177,12 +177,7 @@ public non-sealed interface EntityCollectionPersistenceService extends Persisten
 	PersistentStorageDescriptor copySnapshotTo(@Nonnull Path newFilePath, long catalogVersion);
 
 	/**
-	 * Method deletes entire entity collection persistent storage.
-	 */
-	void delete();
-
-	/**
-	 * Closes the entity collection persistent storage. If you don't call {@link #flush(long, HeaderInfoSupplier)}
+	 * Closes the entity collection persistent storage. If you don't call {@link #flushTrappedUpdates(long, DataStoreIndexChanges)}
 	 * or {@link #flushTrappedUpdates(long, DataStoreIndexChanges)}  you'll lose the data in the buffers.
 	 */
 	@Override

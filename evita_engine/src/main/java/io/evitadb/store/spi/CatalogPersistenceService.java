@@ -45,8 +45,8 @@ import io.evitadb.store.exception.InvalidStoragePathException;
 import io.evitadb.store.spi.exception.DirectoryNotEmptyException;
 import io.evitadb.store.spi.model.CatalogHeader;
 import io.evitadb.store.spi.model.EntityCollectionHeader;
-import io.evitadb.store.spi.model.reference.CollectionFileReference;
 import io.evitadb.utils.NamingConvention;
+import io.evitadb.utils.StringUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -56,6 +56,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 /**
@@ -97,11 +98,33 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	}
 
 	/**
+	 * Returns the pattern used to match the data store file names for a specific catalog.
+	 *
+	 * @param catalogName the name of the catalog to get the file name pattern for
+	 * @return the pattern used to match the data store file names
+	 */
+	@Nonnull
+	static Pattern getCatalogDataStoreFileNamePattern(@Nonnull String catalogName) {
+		return Pattern.compile(catalogName + "_(\\d+)" + CATALOG_FILE_SUFFIX);
+	}
+
+	/**
 	 * Returns name of the entity collection data file that contains entity schema, entity indexes and entity bodies.
 	 */
 	@Nonnull
 	static String getEntityCollectionDataStoreFileName(@Nonnull String entityType, int fileIndex) {
-		return entityType + '_' + fileIndex + ENTITY_COLLECTION_FILE_SUFFIX;
+		return StringUtils.toCamelCase(entityType) + '_' + fileIndex + ENTITY_COLLECTION_FILE_SUFFIX;
+	}
+
+	/**
+	 * Returns the file name pattern for the entity collection data store file matching the given entity type.
+	 *
+	 * @param entityType the type of the entity
+	 * @return the compiled pattern for the file name matching the entity collection data store file
+	 */
+	@Nonnull
+	static Pattern getEntityCollectionDataStoreFileNamePattern(@Nonnull String entityType) {
+		return Pattern.compile(StringUtils.toCamelCase(entityType) + "_(\\d+)" + ENTITY_COLLECTION_FILE_SUFFIX);
 	}
 
 	/**
@@ -133,18 +156,28 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	/**
 	 * Retrieves the {@link CatalogStoragePartPersistenceService} associated with this {@link CatalogPersistenceService}.
 	 *
+	 * @param catalogVersion the version of the catalog
 	 * @return the {@link CatalogStoragePartPersistenceService} associated with this {@link CatalogPersistenceService}
 	 */
-	@Override
 	@Nonnull
-	CatalogStoragePartPersistenceService getStoragePartPersistenceService();
+	CatalogStoragePartPersistenceService getStoragePartPersistenceService(long catalogVersion);
+
+	/**
+	 * Returns the last catalog version that was written to the persistent storage.
+	 *
+	 * @return the last catalog version that was written to the persistent storage
+	 */
+	long getLastCatalogVersion();
 
 	/**
 	 * Returns {@link CatalogHeader} that is used for this service. The header is initialized in the instance constructor
 	 * and (because it's immutable) is exchanged with each {@link #storeHeader(CatalogState, long, int, TransactionMutation, List)}  method call.
+	 *
+	 * @param catalogVersion the version of the catalog
+	 * @return the header of the catalog
 	 */
 	@Nonnull
-	CatalogHeader getCatalogHeader();
+	CatalogHeader getCatalogHeader(long catalogVersion);
 
 	/**
 	 * Verifies if passed entity type name is valid and unique among other entity types after file name normalization.
@@ -183,21 +216,44 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 
 	/**
 	 * Method creates the service allowing access to the persisted contents of particular {@link EntityCollection}.
+	 *
+	 * @param catalogVersion       the version of the catalog
+	 * @param entityType           the type of the entity
+	 * @param entityTypePrimaryKey the primary key of the entity type
 	 */
 	@Nonnull
 	EntityCollectionPersistenceService createEntityCollectionPersistenceService(
+		long catalogVersion,
 		@Nonnull String entityType,
 		int entityTypePrimaryKey
 	);
 
 	/**
+	 * Flushes changes in transactional memory to the persistent storage including the transactional id key.
+	 *
+	 * @param catalogVersion       new catalog version
+	 * @param headerInfoSupplier   provides wrapping entity collection information for the header
+	 * @param entityCollectionHeader the header of the entity collection
+	 */
+	@Nonnull
+	EntityCollectionPersistenceService flush(
+		long catalogVersion,
+		@Nonnull HeaderInfoSupplier headerInfoSupplier,
+		@Nonnull EntityCollectionHeader entityCollectionHeader
+	);
+
+	/**
 	 * Method reads the header of the {@link EntityCollection} from the persistent storage.
 	 *
-	 * @param collectionFileReference reference to the collection type
+	 * @param catalogVersion       version of the catalog
+	 * @param entityTypePrimaryKey primary key of the entity type
 	 * @return header of the entity collection
 	 */
 	@Nonnull
-	EntityCollectionHeader getEntityCollectionHeader(@Nonnull CollectionFileReference collectionFileReference);
+	EntityCollectionHeader getEntityCollectionHeader(
+		long catalogVersion,
+		int entityTypePrimaryKey
+	);
 
 	/**
 	 * Method creates the service allowing to store and read Write-Ahead-Log entries.
@@ -214,10 +270,12 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	 * Appends the given transaction mutation to the write-ahead log (WAL) and appends its mutation chain taken from
 	 * offHeapWithFileBackupReference. After that it discards the specified off-heap data with file backup reference.
 	 *
+	 * @param catalogVersion      current version of the catalog
 	 * @param transactionMutation The transaction mutation to append to the WAL.
 	 * @param walReference        The off-heap data with file backup reference to discard.
 	 */
 	void appendWalAndDiscard(
+		long catalogVersion,
 		@Nonnull TransactionMutation transactionMutation,
 		@Nonnull OffHeapWithFileBackupReference walReference
 	);
@@ -225,16 +283,25 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	/**
 	 * Retrieves the first non-processed transaction in the WAL.
 	 *
+	 * @param catalogVersion version of the catalog
 	 * @return the first non-processed transaction in the WAL
 	 */
 	@Nonnull
-	Optional<TransactionMutation> getFirstNonProcessedTransactionInWal();
+	Optional<TransactionMutation> getFirstNonProcessedTransactionInWal(
+		long catalogVersion
+	);
 
 	/**
 	 * Replaces folder of the `catalogNameToBeReplaced` with contents of this catalog.
+	 *
+	 * @param catalogVersion                    version of the catalog
+	 * @param catalogNameToBeReplaced           name of the catalog to be replaced by this catalog
+	 * @param catalogNameVariationsToBeReplaced variations of the catalog name to be replaced by this catalog
+	 * @param catalogSchema                     the schema of the catalog
 	 */
 	@Nonnull
 	CatalogPersistenceService replaceWith(
+		long catalogVersion,
 		@Nonnull String catalogNameToBeReplaced,
 		@Nonnull Map<NamingConvention, String> catalogNameVariationsToBeReplaced,
 		@Nonnull CatalogSchema catalogSchema
@@ -246,18 +313,22 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	 */
 	@Nonnull
 	EntityCollectionPersistenceService replaceCollectionWith(
+		long catalogVersion,
 		@Nonnull String entityType,
 		int entityTypePrimaryKey,
-		@Nonnull String newEntityType,
-		long catalogVersion
+		@Nonnull String newEntityType
 	);
 
 	/**
 	 * Method deletes entity collection persistent storage and removes collection from the schema.
 	 *
-	 * TODO JNO - this method should be called only when there is no session working with it
+	 * @param catalogVersion version of the catalog in which the collection should be considered removed
+	 * @param entityCollectionHeader entity collection header
 	 */
-	void deleteEntityCollection(@Nonnull String entityType);
+	void deleteEntityCollection(
+		long catalogVersion,
+		@Nonnull EntityCollectionHeader entityCollectionHeader
+	);
 
 	/**
 	 * Retrieves a stream of committed mutations starting with a {@link TransactionMutation} that will transition
@@ -303,7 +374,7 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 
 	/**
 	 * We need to forget all volatile data when the data written to catalog aren't going to be committed (incorporated
-	 * in the final state). Usually the data written by {@link #getStoragePartPersistenceService()} are immediately
+	 * in the final state). Usually the data written by {@link #getStoragePartPersistenceService(long)}  are immediately
 	 * written to the disk and are volatile until {@link #storeHeader(CatalogState, long, int, TransactionMutation, List)}
 	 * is called. But those data can be read within particular transaction from the volatile storage and we need to
 	 * forget them when the transaction is rolled back.
@@ -336,13 +407,18 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	Stream<CatalogVersionDescriptor> getCatalogVersionDescriptors(long... catalogVersion);
 
 	/**
+	 * Method deletes all files in catalog folder which are not mentioned in the catalog header of currently used
+	 * bootstrap record.
+	 */
+	void purgeAllObsoleteFiles();
+
+	/**
 	 * Method closes this persistence service and also all {@link EntityCollectionPersistenceService} that were created
-	 * via. {@link #createEntityCollectionPersistenceService(String, int)}.
+	 * via. {@link #createEntityCollectionPersistenceService(long, String, int)}.
 	 *
 	 * You need to call {@link #storeHeader(CatalogState, long, int, TransactionMutation, List)}  or {@link #flushTrappedUpdates(long, DataStoreIndexChanges)}
 	 * before this method is called, or you will lose your data in memory buffers.
 	 */
 	@Override
 	void close();
-
 }

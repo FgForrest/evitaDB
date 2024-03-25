@@ -39,6 +39,8 @@ import io.evitadb.api.requestResponse.system.CatalogVersionDescriptor.EntityColl
 import io.evitadb.api.requestResponse.system.CatalogVersionDescriptor.TransactionChanges;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.exception.UnexpectedIOException;
+import io.evitadb.scheduling.DelayedAsyncTask;
+import io.evitadb.scheduling.Scheduler;
 import io.evitadb.store.exception.WriteAheadLogCorruptedException;
 import io.evitadb.store.kryo.ObservableInput;
 import io.evitadb.store.kryo.ObservableOutput;
@@ -71,6 +73,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.time.OffsetDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -79,7 +82,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 
@@ -89,7 +91,6 @@ import static io.evitadb.store.spi.CatalogPersistenceService.getWalFileName;
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
-import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 /**
  * CatalogWriteAheadLog is a class for managing a Write-Ahead Log (WAL) file for a catalog.
@@ -158,7 +159,7 @@ public class CatalogWriteAheadLog implements Closeable {
 	 * Contains reference to the asynchronous task executor that clears the cached WAL pointers after some
 	 * time of inactivity.
 	 */
-	private final ScheduledExecutorService scheduledExecutorService;
+	private final DelayedAsyncTask cutWalCacheTask;
 	/**
 	 * Cache of already scanned WAL files. The locations might not be complete, but they will be always cover the start
 	 * of the particular WAL file, but they may be later appended with new records that are not yet scanned or gradually
@@ -464,10 +465,13 @@ public class CatalogWriteAheadLog implements Closeable {
 		@Nonnull Pool<Kryo> catalogKryoPool,
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull TransactionOptions transactionOptions,
-		@Nonnull ScheduledExecutorService scheduledExecutorService
+		@Nonnull Scheduler scheduler
 	) {
 		this.walFileIndex = getLastWalFileIndex(catalogStoragePath, catalogName);
-		this.scheduledExecutorService = scheduledExecutorService;
+		this.cutWalCacheTask = new DelayedAsyncTask(
+			scheduler, this::cutWalCache,
+			CUT_WAL_CACHE_AFTER_INACTIVITY_MS, ChronoUnit.MILLIS
+		);
 		this.maxWalFileSizeBytes = transactionOptions.walFileSizeBytes();
 		this.walFileCountKept = transactionOptions.walFileCountKept();
 		this.catalogStoragePath = catalogStoragePath;
@@ -708,11 +712,7 @@ public class CatalogWriteAheadLog implements Closeable {
 					this.catalogKryoPool, this.transactionLocationsCache
 				);
 			}
-			if (this.nextPlannedCacheCut == -1L && !this.scheduledExecutorService.isShutdown()) {
-				this.scheduledExecutorService.schedule(
-					this::cutWalCache, CUT_WAL_CACHE_AFTER_INACTIVITY_MS, MILLISECONDS
-				);
-			}
+			this.cutWalCacheTask.schedule();
 			return Stream.generate(supplier)
 				.takeWhile(Objects::nonNull)
 				.onClose(supplier::close);
@@ -1065,11 +1065,7 @@ public class CatalogWriteAheadLog implements Closeable {
 			return Stream.empty();
 		} else {
 			final MutationSupplier supplier = createSupplier(catalogVersion, avoidPartiallyFilledBuffer);
-			if (this.nextPlannedCacheCut == -1L && !this.scheduledExecutorService.isShutdown()) {
-				this.scheduledExecutorService.schedule(
-					this::cutWalCache, CUT_WAL_CACHE_AFTER_INACTIVITY_MS, MILLISECONDS
-				);
-			}
+			this.cutWalCacheTask.schedule();
 			return Stream.generate(supplier)
 				.takeWhile(Objects::nonNull)
 				.onClose(supplier::close);
@@ -1080,7 +1076,7 @@ public class CatalogWriteAheadLog implements Closeable {
 	 * Check the cached WAL entries whether they should be cut because of long inactivity or left intact. This method
 	 * also re-plans the next cache cut if the cache is not empty.
 	 */
-	private void cutWalCache() {
+	private long cutWalCache() {
 		final long now = System.currentTimeMillis();
 		long oldestNotCutEntryTouchTime = -1L;
 		for (TransactionLocations locations : transactionLocationsCache.values()) {
@@ -1100,17 +1096,8 @@ public class CatalogWriteAheadLog implements Closeable {
 				oldestNotCutEntryTouchTime = locations.getLastReadTime();
 			}
 		}
-		if (oldestNotCutEntryTouchTime > -1L) {
-			this.nextPlannedCacheCut = CUT_WAL_CACHE_AFTER_INACTIVITY_MS - (now - oldestNotCutEntryTouchTime) + 1;
-			// re-plan the scheduled cut to the moment when the next entry should be cut down
-			this.scheduledExecutorService.schedule(
-				this::cutWalCache,
-				this.nextPlannedCacheCut,
-				MILLISECONDS
-			);
-		} else {
-			this.nextPlannedCacheCut = -1L;
-		}
+		// re-plan the scheduled cut to the moment when the next entry should be cut down
+		return oldestNotCutEntryTouchTime > -1L ? (now - oldestNotCutEntryTouchTime) + 1 : -1L;
 	}
 
 	/**

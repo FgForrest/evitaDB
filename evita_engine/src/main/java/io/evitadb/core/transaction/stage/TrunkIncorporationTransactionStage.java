@@ -27,15 +27,14 @@ import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.requestResponse.data.mutation.EntityRemoveMutation;
 import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
-import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
-import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
-import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.Transaction;
 import io.evitadb.core.transaction.TransactionTrunkFinalizer;
 import io.evitadb.core.transaction.stage.TrunkIncorporationTransactionStage.TrunkIncorporationTransactionTask;
 import io.evitadb.core.transaction.stage.TrunkIncorporationTransactionStage.UpdatedCatalogTransactionTask;
+import io.evitadb.core.transaction.stage.mutation.VerifiedEntityRemoveMutation;
+import io.evitadb.core.transaction.stage.mutation.VerifiedEntityUpsertMutation;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
@@ -44,9 +43,7 @@ import lombok.extern.slf4j.Slf4j;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
-import java.io.Serial;
 import java.util.Iterator;
-import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -400,63 +397,6 @@ public final class TrunkIncorporationTransactionStage
 		@Override
 		public long catalogVersion() {
 			return catalog.getVersion();
-		}
-	}
-
-	/**
-	 * Represents a verified entity upsert mutation. This is used to mark the entity upsert mutation as verified
-	 * and thus it can be propagated to the "live view" of the evitaDB engine without primary key assignment
-	 * verifications and undo support.
-	 */
-	public static class VerifiedEntityUpsertMutation extends EntityUpsertMutation {
-		@Serial private static final long serialVersionUID = -5775248516292883577L;
-
-		public VerifiedEntityUpsertMutation(@Nonnull EntityUpsertMutation entityUpsertMutation) {
-			super(
-				entityUpsertMutation.getEntityType(),
-				entityUpsertMutation.getEntityPrimaryKey(),
-				entityUpsertMutation.expects(),
-				entityUpsertMutation.getLocalMutations()
-			);
-		}
-
-		@Nonnull
-		@Override
-		public Optional<EntitySchemaMutation[]> verifyOrEvolveSchema(
-			@Nonnull SealedCatalogSchema catalogSchema,
-			@Nonnull SealedEntitySchema entitySchema,
-			boolean entityCollectionEmpty
-		) {
-			// this has already happened in the transactional memory layer
-			// and all schema mutations have been already recorded
-			return Optional.empty();
-		}
-	}
-
-	/**
-	 * Represents a verified entity remove mutation. This is used to mark the entity remove mutation as verified
-	 * and thus it can be propagated to the "live view" of the evitaDB engine without undo support.
-	 */
-	public static class VerifiedEntityRemoveMutation extends EntityRemoveMutation {
-		@Serial private static final long serialVersionUID = 2860854495453490511L;
-
-		public VerifiedEntityRemoveMutation(@Nonnull EntityRemoveMutation entityRemoveMutation) {
-			super(
-				entityRemoveMutation.getEntityType(),
-				entityRemoveMutation.getEntityPrimaryKey()
-			);
-		}
-
-		@Nonnull
-		@Override
-		public Optional<EntitySchemaMutation[]> verifyOrEvolveSchema(
-			@Nonnull SealedCatalogSchema catalogSchema,
-			@Nonnull SealedEntitySchema entitySchema,
-			boolean entityCollectionEmpty
-		) {
-			// this has already happened in the transactional memory layer
-			// and all schema mutations have been already recorded
-			return Optional.empty();
 		}
 	}
 

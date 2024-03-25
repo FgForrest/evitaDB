@@ -59,8 +59,9 @@ import io.evitadb.core.cache.NoCacheSupervisor;
 import io.evitadb.core.exception.CatalogCorruptedException;
 import io.evitadb.core.maintenance.SessionKiller;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.scheduling.RejectingExecutor;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.scheduling.RejectingExecutor;
+import io.evitadb.scheduling.Scheduler;
 import io.evitadb.thread.TimeoutableThread;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -162,6 +163,10 @@ public final class Evita implements EvitaContract {
 	@Getter
 	private final EnhancedQueueExecutor executor;
 	/**
+	 * Scheduler service for executing asynchronous tasks.
+	 */
+	private final Scheduler scheduler;
+	/**
 	 * Kills threads that are marked as timeoutable and their time is up.
 	 */
 	@SuppressWarnings({"FieldCanBeLocal", "unused"})
@@ -212,12 +217,13 @@ public final class Evita implements EvitaContract {
 		} else {
 			this.timeoutThreadKiller = null;
 		}
+		this.scheduler = new Scheduler(this.executor);
 		this.sessionKiller = of(configuration.server().closeSessionsAfterSecondsOfInactivity())
 			.filter(it -> it > 0)
-			.map(it -> new SessionKiller(it, this, this.executor))
+			.map(it -> new SessionKiller(it, this, this.scheduler))
 			.orElse(null);
 		this.cacheSupervisor = configuration.cache().enabled() ?
-			new HeapMemoryCacheSupervisor(configuration.cache(), this.executor) : NoCacheSupervisor.INSTANCE;
+			new HeapMemoryCacheSupervisor(configuration.cache(), this.scheduler) : NoCacheSupervisor.INSTANCE;
 		this.reflectionLookup = new ReflectionLookup(configuration.cache().reflection());
 		this.structuralChangeObservers = ServiceLoader.load(CatalogStructuralChangeObserver.class)
 			.stream()
@@ -244,7 +250,7 @@ public final class Evita implements EvitaContract {
 						this.configuration.storage(),
 						this.configuration.transaction(),
 						this.reflectionLookup,
-						this.executor,
+						this.scheduler,
 						this::replaceCatalogReference,
 						this.tracingContext
 					);
@@ -252,9 +258,7 @@ public final class Evita implements EvitaContract {
 					// this will be one day used in more clever way, when entire catalog loading will be split into
 					// multiple smaller tasks and done asynchronously after the startup (along with catalog loading / unloading feature)
 					catalog.processWriteAheadLog(
-						updatedCatalog -> {
-							this.catalogs.put(catalogName, updatedCatalog);
-						}
+						updatedCatalog -> this.catalogs.put(catalogName, updatedCatalog)
 					);
 				} catch (Throwable ex) {
 					log.error("Catalog {} is corrupted!", catalogName);
@@ -644,7 +648,7 @@ public final class Evita implements EvitaContract {
 						configuration.storage(),
 						configuration.transaction(),
 						reflectionLookup,
-						executor,
+						scheduler,
 						this::replaceCatalogReference,
 						tracingContext
 					);
@@ -827,7 +831,7 @@ public final class Evita implements EvitaContract {
 
 		final SessionRegistry sessionRegistry = activeSessions.computeIfAbsent(
 			sessionTraits.catalogName(),
-			theCatalogName -> new SessionRegistry()
+			theCatalogName -> new SessionRegistry(catalog)
 		);
 
 		final NonTransactionalCatalogDescriptor nonTransactionalCatalogDescriptor =

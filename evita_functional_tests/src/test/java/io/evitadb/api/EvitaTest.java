@@ -695,6 +695,7 @@ class EvitaTest implements EvitaTestSupport {
 		});
 
 		// the file needs to remain on disk for other transactions to be able to read it
+		// TODO JNO - check this exists when there is another reader, but gets deleted when the reader closes
 		assertTrue(theCollectionFile.exists());
 	}
 
@@ -740,6 +741,7 @@ class EvitaTest implements EvitaTestSupport {
 		});
 
 		// the file needs to remain present for other transactions to read it
+		// TODO JNO - check this exists when there is another reader, but gets deleted when the reader closes
 		assertTrue(theCollectionFile.exists());
 	}
 

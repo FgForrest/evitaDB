@@ -31,6 +31,7 @@ import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.OrFormula;
 import io.evitadb.core.query.algebra.facet.UserFilterFormula;
 import io.evitadb.index.bitmap.TransactionalBitmap;
+import io.evitadb.scheduling.Scheduler;
 import net.openhft.hashing.LongHashFunction;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -65,7 +66,7 @@ class FormulaCacheVisitorTest {
 		this.cacheAnteroom = new CacheAnteroom(
 			10_000, 30L,
 			cacheEden,
-			new ScheduledThreadPoolExecutor(4)
+			new Scheduler(new ScheduledThreadPoolExecutor(4))
 		);
 	}
 

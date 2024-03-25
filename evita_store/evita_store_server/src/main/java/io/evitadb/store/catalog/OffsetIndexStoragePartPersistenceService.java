@@ -30,9 +30,9 @@ import io.evitadb.store.kryo.ObservableOutput;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.kryo.VersionedKryo;
 import io.evitadb.store.kryo.VersionedKryoKeyInputs;
-import io.evitadb.store.model.PersistentStorageDescriptor;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.offsetIndex.OffsetIndex;
+import io.evitadb.store.offsetIndex.OffsetIndexDescriptor;
 import io.evitadb.store.offsetIndex.io.OffHeapMemoryManager;
 import io.evitadb.store.service.KeyCompressor;
 import io.evitadb.store.spi.StoragePartPersistenceService;
@@ -244,7 +244,7 @@ public class OffsetIndexStoragePartPersistenceService implements StoragePartPers
 
 	@Nonnull
 	@Override
-	public PersistentStorageDescriptor flush(long catalogVersion) {
+	public OffsetIndexDescriptor flush(long catalogVersion) {
 		if (offsetIndex.isOperative()) {
 			return this.offsetIndex.flush(catalogVersion);
 		} else {
@@ -254,7 +254,7 @@ public class OffsetIndexStoragePartPersistenceService implements StoragePartPers
 
 	@Nonnull
 	@Override
-	public PersistentStorageDescriptor copySnapshotTo(@Nonnull Path newFilePath, long catalogVersion) {
+	public OffsetIndexDescriptor copySnapshotTo(@Nonnull Path newFilePath, long catalogVersion) {
 		if (offsetIndex.isOperative()) {
 			return this.offsetIndex.copySnapshotTo(newFilePath, catalogVersion);
 		} else {

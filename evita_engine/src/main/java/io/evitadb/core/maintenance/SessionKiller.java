@@ -25,10 +25,10 @@ package io.evitadb.core.maintenance;
 
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.core.Evita;
+import io.evitadb.scheduling.Scheduler;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -43,7 +43,7 @@ public class SessionKiller implements Runnable {
 	private final long allowedInactivityInSeconds;
 	private final Evita evita;
 
-	public SessionKiller(int allowedInactivityInSeconds, @Nonnull Evita evita, @Nonnull ScheduledExecutorService scheduler) {
+	public SessionKiller(int allowedInactivityInSeconds, @Nonnull Evita evita, @Nonnull Scheduler scheduler) {
 		this.allowedInactivityInSeconds = allowedInactivityInSeconds;
 		this.evita = evita;
 		scheduler.scheduleAtFixedRate(this, Math.min(60, allowedInactivityInSeconds), Math.min(60, allowedInactivityInSeconds), TimeUnit.SECONDS);
