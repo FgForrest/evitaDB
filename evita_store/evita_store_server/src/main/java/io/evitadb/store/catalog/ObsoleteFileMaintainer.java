@@ -56,6 +56,11 @@ public class ObsoleteFileMaintainer implements CatalogVersionBeyondTheHorizonLis
 	 */
 	private final List<MaintainedFile> maintainedFiles = new CopyOnWriteArrayList<>();
 	/**
+	 * The first catalog version whose file was added to the maintained files. This variable optimizes the number of
+	 * purge task executions.
+	 */
+	private final AtomicLong firstCatalogVersion = new AtomicLong(0L);
+	/**
 	 * The last catalog version whose file was added to the maintained files. This variable guards the monotonicity of
 	 * the maintained files list.
 	 */
@@ -107,6 +112,8 @@ public class ObsoleteFileMaintainer implements CatalogVersionBeyondTheHorizonLis
 			// version 0L represents catalog in WARM-UP (non-transactional) state where we apply all changes immediately
 			purgeFile(fileToMaintain);
 		} else {
+			// if the first catalog version is not set, set it to the current catalog version
+			this.firstCatalogVersion.compareAndExchange(0, catalogVersion);
 			this.lastCatalogVersion.accumulateAndGet(
 				catalogVersion,
 				(previous, updatedValue) -> {
@@ -128,7 +135,7 @@ public class ObsoleteFileMaintainer implements CatalogVersionBeyondTheHorizonLis
 	 */
 	@Override
 	public void catalogVersionBeyondTheHorizon(long catalogVersion, boolean activeSessionsToOlderVersions) {
-		if (!activeSessionsToOlderVersions) {
+		if (!activeSessionsToOlderVersions && catalogVersion > 0 && this.firstCatalogVersion.get() >= catalogVersion) {
 			this.noLongerUsedCatalogVersion.accumulateAndGet(
 				catalogVersion,
 				Math::max
@@ -147,16 +154,19 @@ public class ObsoleteFileMaintainer implements CatalogVersionBeyondTheHorizonLis
 	private long purgeObsoleteFiles() {
 		final long noLongerUsed = this.noLongerUsedCatalogVersion.get();
 		final List<MaintainedFile> itemsToRemove = new LinkedList<>();
+		long newFirstCatalogVersion = 0L;
 		for (MaintainedFile maintainedFile : this.maintainedFiles) {
 			if (maintainedFile.catalogVersion() <= noLongerUsed) {
 				purgeFile(maintainedFile);
 				itemsToRemove.add(maintainedFile);
 			} else {
+				newFirstCatalogVersion = maintainedFile.catalogVersion();
 				// the list is sorted by the catalog version, so we can break the loop
 				break;
 			}
 		}
 		this.maintainedFiles.removeAll(itemsToRemove);
+		this.firstCatalogVersion.set(newFirstCatalogVersion);
 		return -1L;
 	}
 

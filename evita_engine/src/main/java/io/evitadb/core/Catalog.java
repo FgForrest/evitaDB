@@ -945,7 +945,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 				final String newEntityType = updatedKey.getKey();
 				if (removedEntityType != null) {
 					final EntityCollectionPersistenceService newPersistenceService = this.persistenceService.replaceCollectionWith(
-						newCatalogVersionId, removedEntityType,
+						newCatalogVersionId - 1, removedEntityType,
 						updatedCollection.getEntityTypePrimaryKey(),
 						newEntityType
 					);

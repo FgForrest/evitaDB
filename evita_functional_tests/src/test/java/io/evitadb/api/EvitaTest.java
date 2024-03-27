@@ -694,9 +694,8 @@ class EvitaTest implements EvitaTestSupport {
 			return null;
 		});
 
-		// the file needs to remain on disk for other transactions to be able to read it
-		// TODO JNO - check this exists when there is another reader, but gets deleted when the reader closes
-		assertTrue(theCollectionFile.exists());
+		// the original file was immediately removed from the file system (we're in warm-up mode)
+		assertFalse(theCollectionFile.exists());
 	}
 
 	@Test
@@ -740,9 +739,8 @@ class EvitaTest implements EvitaTestSupport {
 			return null;
 		});
 
-		// the file needs to remain present for other transactions to read it
-		// TODO JNO - check this exists when there is another reader, but gets deleted when the reader closes
-		assertTrue(theCollectionFile.exists());
+		// the original file was immediately removed from the file system (we're in warm-up mode)
+		assertFalse(theCollectionFile.exists());
 	}
 
 	@Test
@@ -753,22 +751,49 @@ class EvitaTest implements EvitaTestSupport {
 			session.goLiveAndClose();
 		});
 
+		final File theCollectionFile = getEvitaTestDirectory()
+			.resolve(TEST_CATALOG + File.separator + Entities.PRODUCT.toLowerCase() + "_0" + ENTITY_COLLECTION_FILE_SUFFIX)
+			.toFile();
+		assertTrue(theCollectionFile.exists());
+
 		MockCatalogStructuralChangeObserver.reset(evitaInstanceId);
 
-		evita.updateCatalog(TEST_CATALOG, session -> {
-			session.renameCollection(Entities.PRODUCT, Entities.STORE);
-			assertEquals(Entities.STORE, session.getEntitySchemaOrThrow(Entities.STORE).getName());
-		});
+		try (final EvitaSessionContract oldSession = evita.createReadOnlySession(TEST_CATALOG)) {
+			log.info("Old session catalog version: " + oldSession.getCatalogVersion());
 
-		assertEquals(1, MockCatalogStructuralChangeObserver.getEntityCollectionCreated(evitaInstanceId, TEST_CATALOG, Entities.STORE));
-		assertEquals(1, MockCatalogStructuralChangeObserver.getEntityCollectionDeleted(evitaInstanceId, TEST_CATALOG, Entities.PRODUCT));
+			evita.updateCatalog(TEST_CATALOG, session -> {
+				session.renameCollection(Entities.PRODUCT, Entities.STORE);
+				assertEquals(Entities.STORE, session.getEntitySchemaOrThrow(Entities.STORE).getName());
+			});
 
-		evita.queryCatalog(TEST_CATALOG, session -> {
-			assertThrows(CollectionNotFoundException.class, () -> session.getEntityCollectionSize(Entities.PRODUCT));
-			assertEquals(1, session.getEntityCollectionSize(Entities.STORE));
-			assertEquals(2, session.getEntityCollectionSize(Entities.CATEGORY));
-			return null;
-		});
+			assertEquals(1, MockCatalogStructuralChangeObserver.getEntityCollectionCreated(evitaInstanceId, TEST_CATALOG, Entities.STORE));
+			assertEquals(1, MockCatalogStructuralChangeObserver.getEntityCollectionDeleted(evitaInstanceId, TEST_CATALOG, Entities.PRODUCT));
+
+			evita.queryCatalog(TEST_CATALOG, session -> {
+				assertThrows(CollectionNotFoundException.class, () -> session.getEntityCollectionSize(Entities.PRODUCT));
+				assertEquals(1, session.getEntityCollectionSize(Entities.STORE));
+				assertEquals(2, session.getEntityCollectionSize(Entities.CATEGORY));
+				log.info("New session catalog version: " + session.getCatalogVersion());
+				return null;
+			});
+
+			// the file needs to remain on disk for the old session to be able to read it
+			assertTrue(theCollectionFile.exists());
+
+			// we can still read data from old session (and old entity collection)
+			assertThrows(CollectionNotFoundException.class, () -> oldSession.getEntityCollectionSize(Entities.STORE));
+			assertEquals(1, oldSession.getEntityCollectionSize(Entities.PRODUCT));
+			assertEquals(2, oldSession.getEntityCollectionSize(Entities.CATEGORY));
+		}
+
+		// give async process some time to finish
+		final long start = System.currentTimeMillis();
+		do {
+			Thread.onSpinWait();
+		} while (theCollectionFile.exists() && System.currentTimeMillis() - start < 2000);
+
+		// the original file is removed when old session is terminated - there is no other reader
+		assertFalse(theCollectionFile.exists());
 	}
 
 	@Test

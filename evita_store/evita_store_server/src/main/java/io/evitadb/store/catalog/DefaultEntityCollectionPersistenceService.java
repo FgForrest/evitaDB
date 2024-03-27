@@ -677,7 +677,6 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	public void catalogVersionBeyondTheHorizon(long catalogVersion, boolean activeSessionsToOlderVersions) {
 		if (!activeSessionsToOlderVersions) {
 			this.storagePartPersistenceService.purgeHistoryEqualAndLaterThan(catalogVersion);
-			this.obsoleteFileMaintainer.catalogVersionBeyondTheHorizon(catalogVersion, activeSessionsToOlderVersions);
 		}
 	}
 

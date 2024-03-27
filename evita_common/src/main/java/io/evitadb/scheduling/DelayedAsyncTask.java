@@ -91,11 +91,16 @@ public class DelayedAsyncTask {
 	 * The task is scheduled using the scheduler's schedule method.
 	 */
 	public void schedule() {
-		final OffsetDateTime newOffsetTime = OffsetDateTime.now().plus(this.delay, this.delayUnits);
-		if (this.nextPlannedExecution.compareAndExchange(OffsetDateTime.MIN, newOffsetTime) == OffsetDateTime.MIN) {
+		final OffsetDateTime now = OffsetDateTime.now();
+		final OffsetDateTime nextTick = now.plus(this.delay, this.delayUnits);
+		if (this.nextPlannedExecution.compareAndExchange(OffsetDateTime.MIN, nextTick) == OffsetDateTime.MIN) {
+			final long computedDelay = Math.max(
+				nextTick.toInstant().toEpochMilli() - now.toInstant().toEpochMilli(),
+				0
+			);
 			this.scheduler.schedule(
 				this.task,
-				newOffsetTime.toInstant().toEpochMilli(),
+				computedDelay,
 				TimeUnit.MILLISECONDS
 			);
 		}
@@ -119,9 +124,14 @@ public class DelayedAsyncTask {
 			offsetDateTime -> offsetDateTime.plus(Math.min(this.delay - shorterBy, 1L), this.delayUnits)
 		);
 		// re-plan the scheduled cut to the moment when the next entry should be cut down
+		final OffsetDateTime now = OffsetDateTime.now();
+		final long computedDelay = Math.max(
+			nextTick.toInstant().toEpochMilli() - now.toInstant().toEpochMilli(),
+			0
+		);
 		this.scheduler.schedule(
 			this.task,
-			nextTick.toInstant().toEpochMilli(),
+			computedDelay,
 			TimeUnit.MILLISECONDS
 		);
 	}
