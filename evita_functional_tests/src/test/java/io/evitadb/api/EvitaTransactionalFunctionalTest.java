@@ -284,7 +284,8 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 			catalogKryoPool,
 			StorageOptions.builder().build(),
 			TransactionOptions.builder().build(),
-			Mockito.mock(Scheduler.class)
+			Mockito.mock(Scheduler.class),
+			timestamp -> {}
 		);
 
 		// create WAL file with a few contents first
@@ -335,7 +336,8 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 			catalogKryoPool,
 			StorageOptions.builder().build(),
 			TransactionOptions.builder().build(),
-			Mockito.mock(Scheduler.class)
+			Mockito.mock(Scheduler.class),
+			timestamp -> {}
 		);
 
 		// create WAL file multiple times, start Catalog to crunch the history and close evitaDB again

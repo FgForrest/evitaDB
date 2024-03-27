@@ -29,9 +29,11 @@ import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 import java.io.IOException;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -45,6 +47,7 @@ import java.util.stream.StreamSupport;
  */
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class FileUtils {
+	private static final Path[] EMPTY_PATHS = new Path[0];
 
 	/**
 	 * Returns list of folders in Evita directory. Each folder is considered to be Evita catalog - name of the folder
@@ -62,7 +65,7 @@ public class FileUtils {
 				);
 			}
 		} else {
-			return new Path[0];
+			return EMPTY_PATHS;
 		}
 	}
 
@@ -116,4 +119,44 @@ public class FileUtils {
 			);
 		}
 	}
+
+	/**
+	 * Moves a source file to a target file, replacing the target file if it already exists.
+	 * This method ensures atomic move if supported by the underlying file system.
+	 *
+	 * @param sourceFile the path of the source file to be moved
+	 * @param targetFile the path of the target file where the source file should be moved to
+	 * @throws UnexpectedIOException if an unexpected I/O error occurs during the file movement
+	 */
+	public static void rewriteTargetFileAtomically(
+		@Nonnull Path sourceFile,
+		@Nonnull Path targetFile
+	) {
+		try {
+			Files.move(
+				sourceFile, targetFile,
+				StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE
+			);
+		} catch (AtomicMoveNotSupportedException e) {
+			try {
+				Files.move(
+					sourceFile, targetFile,
+					StandardCopyOption.REPLACE_EXISTING
+				);
+			} catch (Exception fallbackException) {
+				throw new UnexpectedIOException(
+					"Failed to move temporary bootstrap file to the original location!",
+					"Failed to move temporary bootstrap file!",
+					fallbackException
+				);
+			}
+		} catch (Exception e) {
+			throw new UnexpectedIOException(
+				"Failed to move temporary bootstrap file to the original location!",
+				"Failed to move temporary bootstrap file!",
+				e
+			);
+		}
+	}
+
 }

@@ -533,6 +533,48 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		}
 	}
 
+	@Test
+	void shouldTrimBootstrapRecords() {
+		final String catalogName = SEALED_CATALOG_SCHEMA.getName();
+		final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
+			catalogName,
+			getStorageOptions(),
+			getTransactionOptions(),
+			Mockito.mock(Scheduler.class)
+		);
+
+		final OffsetDateTime timestamp = OffsetDateTime.now();
+		for (int i = 0; i < 12; i++) {
+			ioService.recordBootstrap(
+				i + 1, catalogName, 0,
+				timestamp.plusMinutes(i).toInstant().toEpochMilli()
+			);
+		}
+
+		final PaginatedList<CatalogVersion> catalogVersions0 = ioService.getCatalogVersions(TimeFlow.FROM_OLDEST_TO_NEWEST, 1, 20);
+		assertEquals(0, catalogVersions0.getData().get(0).version());
+		assertEquals(13, catalogVersions0.getTotalRecordCount());
+
+		trimAndCheck(ioService, timestamp.plusMinutes(3).plusSeconds(1), 4, 9);
+		trimAndCheck(ioService, timestamp.plusMinutes(6), 7, 6);
+		trimAndCheck(ioService, timestamp.plusMinutes(8).minusSeconds(1), 8, 5);
+	}
+
+	private static void trimAndCheck(
+		@Nonnull DefaultCatalogPersistenceService ioService,
+		@Nonnull OffsetDateTime toTimestamp,
+		int expectedVersion,
+		int expectedCount
+	) {
+		ioService.trimBootstrapFile(toTimestamp);
+
+		final PaginatedList<CatalogVersion> catalogVersions = ioService.getCatalogVersions(TimeFlow.FROM_OLDEST_TO_NEWEST, 1, 20);
+		final CatalogVersion firstRecord = catalogVersions.getData().get(0);
+		assertTrue(toTimestamp.isAfter(firstRecord.timestamp()));
+		assertEquals(expectedVersion, firstRecord.version());
+		assertEquals(expectedCount, catalogVersions.getTotalRecordCount());
+	}
+
 	/*
 		PRIVATE METHODS
 	 */

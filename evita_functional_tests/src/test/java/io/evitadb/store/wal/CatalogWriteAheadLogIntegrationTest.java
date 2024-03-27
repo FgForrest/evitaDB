@@ -53,6 +53,7 @@ import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.FileUtils;
 import io.evitadb.utils.NamingConvention;
 import io.evitadb.utils.UUIDUtil;
+import lombok.Getter;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
@@ -60,9 +61,11 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
+import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -70,6 +73,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static io.evitadb.test.TestConstants.LONG_RUNNING_TEST;
@@ -100,6 +104,7 @@ class CatalogWriteAheadLogIntegrationTest {
 	private final OffHeapMemoryManager noOffHeapMemoryManager = new OffHeapMemoryManager(0, 0);
 	private final OffHeapMemoryManager bigOffHeapMemoryManager = new OffHeapMemoryManager(10_000_000, 128);
 	private final int[] txSizes = new int[]{2000, 3000, 4000, 5000, 7000, 9000, 1_000};
+	private final MockOffsetConsumer offsetConsumer = new MockOffsetConsumer();
 	private CatalogWriteAheadLog wal;
 
 	@BeforeEach
@@ -202,6 +207,22 @@ class CatalogWriteAheadLogIntegrationTest {
 		readAndVerifyWal(txInMutations, txSizes, 0);
 	}
 
+	@Test
+	void shouldCorrectlyReportFirstAvailableTimestamp() {
+		wal = createCatalogWriteAheadLogOfSmallSize();
+
+		final int justEnoughSize = 20;
+		final int[] transactionSizes = new int[7];
+		Arrays.fill(transactionSizes, justEnoughSize);
+
+		final OffsetDateTime initialTimestamp = OffsetDateTime.now();
+		writeWal(bigOffHeapMemoryManager, transactionSizes, initialTimestamp);
+
+		assertEquals(2, offsetConsumer.getOffsets().size());
+		assertEquals(initialTimestamp.plusMinutes(1), offsetConsumer.getOffsets().get(0));
+		assertEquals(initialTimestamp.plusMinutes(2), offsetConsumer.getOffsets().get(1));
+	}
+
 	@Nonnull
 	private CatalogWriteAheadLog createCatalogWriteAheadLogOfSmallSize() {
 		return new CatalogWriteAheadLog(
@@ -213,7 +234,8 @@ class CatalogWriteAheadLogIntegrationTest {
 				.walFileCountKept(5)
 				.walFileSizeBytes(16_384)
 				.build(),
-			Mockito.mock(Scheduler.class)
+			Mockito.mock(Scheduler.class),
+			offsetConsumer
 		);
 	}
 
@@ -225,7 +247,8 @@ class CatalogWriteAheadLogIntegrationTest {
 			catalogKryoPool,
 			StorageOptions.builder().build(),
 			TransactionOptions.builder().walFileSizeBytes(Long.MAX_VALUE).build(),
-			Mockito.mock(Scheduler.class)
+			Mockito.mock(Scheduler.class),
+			offsetConsumer
 		);
 	}
 
@@ -244,6 +267,18 @@ class CatalogWriteAheadLogIntegrationTest {
 	 */
 	@Nonnull
 	private Map<Long, List<Mutation>> writeWal(@Nonnull OffHeapMemoryManager offHeapMemoryManager, int[] transactionSizes) {
+		return writeWal(offHeapMemoryManager, transactionSizes, null);
+	}
+
+	/**
+	 * Writes the Write-Ahead Log (WAL) using the provided off-heap memory manager.
+	 *
+	 * @param offHeapMemoryManager the off-heap memory manager to use
+	 * @param transactionSizes     an array of transaction sizes
+	 * @return a map of catalog versions to corresponding mutations
+	 */
+	@Nonnull
+	private Map<Long, List<Mutation>> writeWal(@Nonnull OffHeapMemoryManager offHeapMemoryManager, int[] transactionSizes, @Nullable OffsetDateTime initialTimestamp) {
 		final DataGenerator dataGenerator = new DataGenerator();
 		final CatalogSchema catalogSchema = CatalogSchema._internalBuild(
 			TestConstants.TEST_CATALOG,
@@ -262,6 +297,7 @@ class CatalogWriteAheadLogIntegrationTest {
 			)
 		);
 
+		OffsetDateTime timestamp = initialTimestamp == null ? OffsetDateTime.now() : initialTimestamp;
 		final Map<Long, List<Mutation>> txInMutations = CollectionUtils.createHashMap(transactionSizes.length);
 		for (int i = 0; i < transactionSizes.length; i++) {
 			int txSize = transactionSizes[i];
@@ -275,7 +311,7 @@ class CatalogWriteAheadLogIntegrationTest {
 				)
 				.limit(txSize)
 				.map(EntityBuilder::toMutation)
-				.map(Optional::get)
+				.flatMap(Optional::stream)
 				.collect(Collectors.toCollection(LinkedList::new));
 
 			final long catalogVersion = i + 1;
@@ -289,7 +325,7 @@ class CatalogWriteAheadLogIntegrationTest {
 				catalogVersion,
 				mutations.size(),
 				walReference.getContentLength(),
-				OffsetDateTime.now()
+				timestamp
 			);
 
 			final long start = this.wal.getWalFilePath().toFile().length();
@@ -306,6 +342,8 @@ class CatalogWriteAheadLogIntegrationTest {
 				)
 			);
 			txInMutations.put(catalogVersion, mutations);
+
+			timestamp = timestamp.plusMinutes(1);
 		}
 		return txInMutations;
 	}
@@ -375,6 +413,15 @@ class CatalogWriteAheadLogIntegrationTest {
 
 		assertEquals(transactionSizes.length, firstCatalogVersion);
 		assertEquals(transactionSizes.length - (transactionSizes.length - startIndex) + 1, txRead);
+	}
+
+	private static class MockOffsetConsumer implements Consumer<OffsetDateTime> {
+		@Getter private final List<OffsetDateTime> offsets = new LinkedList<>();
+
+		@Override
+		public void accept(OffsetDateTime offsetDateTime) {
+			offsets.add(offsetDateTime);
+		}
 	}
 
 }

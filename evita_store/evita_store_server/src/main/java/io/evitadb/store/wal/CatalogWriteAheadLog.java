@@ -83,6 +83,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 import static io.evitadb.store.spi.CatalogPersistenceService.WAL_FILE_SUFFIX;
@@ -182,10 +183,9 @@ public class CatalogWriteAheadLog implements Closeable {
 	 */
 	private final boolean computeCRC32C;
 	/**
-	 * The next planned cache cut time - if there is scheduled action planned in the current scheduled executor service,
-	 * the time is stored here to avoid scheduling the same action multiple times.
+	 * This lambda allows trimming the bootstrap file to the given date.
 	 */
-	private volatile long nextPlannedCacheCut = -1L;
+	private final Consumer<OffsetDateTime> bootstrapFileTrimmer;
 	/**
 	 * The index of the WAL file incremented each time the WAL file is rotated.
 	 */
@@ -465,7 +465,8 @@ public class CatalogWriteAheadLog implements Closeable {
 		@Nonnull Pool<Kryo> catalogKryoPool,
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull TransactionOptions transactionOptions,
-		@Nonnull Scheduler scheduler
+		@Nonnull Scheduler scheduler,
+		@Nonnull Consumer<OffsetDateTime> bootstrapFileTrimmer
 	) {
 		this.walFileIndex = getLastWalFileIndex(catalogStoragePath, catalogName);
 		this.cutWalCacheTask = new DelayedAsyncTask(
@@ -476,6 +477,7 @@ public class CatalogWriteAheadLog implements Closeable {
 		this.walFileCountKept = transactionOptions.walFileCountKept();
 		this.catalogStoragePath = catalogStoragePath;
 		this.computeCRC32C = storageOptions.computeCRC32C();
+		this.bootstrapFileTrimmer = bootstrapFileTrimmer;
 		try {
 			final Path walFilePath = catalogStoragePath.resolve(getWalFileName(catalogName, this.walFileIndex));
 			final FirstAndLastCatalogVersions versions = checkAndTruncate(walFilePath, catalogKryoPool, storageOptions.computeCRC32C());
@@ -1031,6 +1033,13 @@ public class CatalogWriteAheadLog implements Closeable {
 					walFiles,
 					Comparator.comparingInt(f -> getIndexFromWalFileName(catalogName, f.getName()))
 				);
+
+				// assert that at least one file remains
+				Assert.isPremiseValid(
+					walFiles.length > this.walFileCountKept,
+					"Failed to rotate WAL file! At least one WAL file should remain!"
+				);
+
 				// then delete all files except the last `walFileCountKept` files
 				for (int i = 0; i < walFiles.length - this.walFileCountKept; i++) {
 					final File walFile = walFiles[i];
@@ -1039,6 +1048,13 @@ public class CatalogWriteAheadLog implements Closeable {
 						log.error("Failed to delete WAL file `" + walFile + "`!");
 					}
 				}
+
+				// now check the date and time of the leading transaction of the oldest WAL file
+				final TransactionMutation firstMutation = getFirstTransactionMutationFromWalFile(
+					walFiles[walFiles.length - this.walFileCountKept]
+				);
+				final OffsetDateTime firstCommitTimestamp = firstMutation.getCommitTimestamp();
+				this.bootstrapFileTrimmer.accept(firstCommitTimestamp);
 			}
 
 		} catch (IOException e) {
@@ -1047,6 +1063,39 @@ public class CatalogWriteAheadLog implements Closeable {
 				"Failed to open WAL file!",
 				e
 			);
+		}
+	}
+
+	/**
+	 * Returns the first transaction mutation from the given WAL file.
+	 *
+	 * @param walFile the WAL file to read from
+	 * @return the first transaction mutation found in the WAL file
+	 * @throws IllegalArgumentException if the given WAL file is invalid
+	 * @throws WriteAheadLogCorruptedException if failed to read the first transaction from the WAL file
+	 */
+	@Nonnull
+	private TransactionMutation getFirstTransactionMutationFromWalFile(@Nonnull File walFile) {
+		Assert.isPremiseValid(
+			walFile.exists() && walFile.length() > 4,
+			"Invalid WAL file `" + walFile + "`!"
+		);
+		try (
+			final MutationSupplier mutationSupplier = new MutationSupplier(
+				0L, this.catalogName, this.catalogStoragePath,
+				getIndexFromWalFileName(this.catalogName, walFile.getName()),
+				this.catalogKryoPool, this.transactionLocationsCache, false
+			)
+		) {
+			final Mutation mutation = mutationSupplier.get();
+			if (mutation instanceof TransactionMutation transactionMutation) {
+				return transactionMutation;
+			} else {
+				throw new WriteAheadLogCorruptedException(
+					"Failed to read the first transaction from WAL file `" + walFile + "`!",
+					"Failed to read the first transaction from WAL file!"
+				);
+			}
 		}
 	}
 

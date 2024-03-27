@@ -116,7 +116,7 @@ public final class MutationSupplier extends AbstractMutationSupplier {
 	 * @return The mutation read from the input stream. Returns null if no mutation is found.
 	 */
 	@Nullable
-	protected Mutation readMutation() {
+	private Mutation readMutation() {
 		final StorageRecord<Mutation> storageRecord = StorageRecord.read(
 			this.observableInput, (stream, length) -> (Mutation) kryo.readClassAndObject(stream)
 		);

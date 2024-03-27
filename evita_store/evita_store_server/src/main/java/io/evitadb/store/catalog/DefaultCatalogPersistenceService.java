@@ -72,7 +72,6 @@ import io.evitadb.store.offsetIndex.exception.UnexpectedCatalogContentsException
 import io.evitadb.store.offsetIndex.io.OffHeapMemoryManager;
 import io.evitadb.store.offsetIndex.io.ReadOnlyFileHandle;
 import io.evitadb.store.offsetIndex.io.WriteOnlyFileHandle;
-import io.evitadb.store.offsetIndex.io.WriteOnlyHandle;
 import io.evitadb.store.offsetIndex.io.WriteOnlyOffHeapWithFileBackupHandle;
 import io.evitadb.store.offsetIndex.model.OffsetIndexRecordTypeRegistry;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
@@ -109,6 +108,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.time.Instant;
@@ -124,6 +124,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -203,11 +205,9 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	private final ConcurrentHashMap<CollectionFileReference, DefaultEntityCollectionPersistenceService> entityCollectionPersistenceServices;
 	/**
 	 * This variable is used to handle write operations in the Bootstrap class and synchronize the access to it.
-	 *
-	 * TODO JNO - this should be rewritten once a while completely
 	 */
 	@Nonnull
-	private final WriteOnlyHandle bootstrapWriteHandle;
+	private final AtomicReference<WriteOnlyFileHandle> bootstrapWriteHandle;
 	/**
 	 * Scheduled executor service is used for planning maintenance tasks on the data level.
 	 */
@@ -390,8 +390,9 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		@Nonnull Pool<Kryo> catalogKryoPool,
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull TransactionOptions transactionOptions,
-		@Nonnull Scheduler scheduler
-	) {
+		@Nonnull Scheduler scheduler,
+		@Nonnull Consumer<OffsetDateTime> bootstrapFileTrimFunction
+		) {
 		WalFileReference currentWalFileRef = catalogHeader.walFileReference();
 		if (catalogHeader.catalogState() == CatalogState.ALIVE && currentWalFileRef == null) {
 			// set up new empty WAL file
@@ -424,7 +425,8 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			.map(
 				walFileReference -> new CatalogWriteAheadLog(
 					catalogName, catalogStoragePath, catalogKryoPool,
-					storageOptions, transactionOptions, scheduler
+					storageOptions, transactionOptions, scheduler,
+					bootstrapFileTrimFunction
 				)
 			)
 			.orElse(null);
@@ -447,6 +449,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull TransactionOptions transactionOptions,
 		@Nonnull Scheduler scheduler,
+		@Nonnull Consumer<OffsetDateTime> bootstrapFileTrimFunction,
 		@Nonnull Path catalogFilePath,
 		@Nonnull Pool<Kryo> kryoPool
 	) {
@@ -457,7 +460,8 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			null :
 			new CatalogWriteAheadLog(
 				catalogName, catalogFilePath, kryoPool,
-				storageOptions, transactionOptions, scheduler
+				storageOptions, transactionOptions, scheduler,
+				bootstrapFileTrimFunction
 			);
 	}
 
@@ -515,12 +519,15 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		final CatalogBootstrap lastCatalogBootstrap = getLastCatalogBootstrap(
 			this.catalogStoragePath, verifiedCatalogName, storageOptions
 		);
-		this.bootstrapWriteHandle = new WriteOnlyFileHandle(
-			this.catalogStoragePath.resolve(getCatalogBootstrapFileName(catalogName)),
-			this.observableOutputKeeper
+		this.bootstrapWriteHandle = new AtomicReference<>(
+			new WriteOnlyFileHandle(
+				this.catalogStoragePath.resolve(getCatalogBootstrapFileName(catalogName)),
+				this.observableOutputKeeper
+			)
 		);
 		this.catalogWal = createWalIfAnyWalFilePresent(
 			catalogName, storageOptions, transactionOptions, scheduler,
+			this::trimBootstrapFile,
 			this.catalogStoragePath, this.catalogKryoPool
 		);
 
@@ -579,9 +586,11 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		this.bootstrapUsed = getLastCatalogBootstrap(
 			catalogStoragePath, verifiedCatalogName, storageOptions
 		);
-		this.bootstrapWriteHandle = new WriteOnlyFileHandle(
-			this.catalogStoragePath.resolve(getCatalogBootstrapFileName(catalogName)),
-			this.observableOutputKeeper
+		this.bootstrapWriteHandle = new AtomicReference<>(
+			new WriteOnlyFileHandle(
+				this.catalogStoragePath.resolve(getCatalogBootstrapFileName(catalogName)),
+				this.observableOutputKeeper
+			)
 		);
 
 		final String catalogFileName = getCatalogDataStoreFileName(catalogName, this.bootstrapUsed.catalogFileIndex());
@@ -589,6 +598,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 
 		this.catalogWal = createWalIfAnyWalFilePresent(
 			catalogName, storageOptions, transactionOptions, scheduler,
+			this::trimBootstrapFile,
 			this.catalogStoragePath, this.catalogKryoPool
 		);
 
@@ -627,7 +637,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		@Nonnull String catalogName,
 		@Nonnull Path catalogStoragePath,
 		@Nonnull CatalogBootstrap bootstrapUsed,
-		@Nonnull WriteOnlyHandle bootstrapWriteHandle,
+		@Nonnull WriteOnlyFileHandle bootstrapWriteHandle,
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull TransactionOptions transactionOptions,
 		@Nonnull Scheduler scheduler,
@@ -640,7 +650,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		this.offHeapMemoryManager = offHeapMemoryManager;
 		this.catalogName = catalogName;
 		this.catalogStoragePath = catalogStoragePath;
-		this.bootstrapWriteHandle = bootstrapWriteHandle;
+		this.bootstrapWriteHandle = new AtomicReference<>(bootstrapWriteHandle);
 		this.storageOptions = storageOptions;
 		this.transactionOptions = transactionOptions;
 		this.scheduler = scheduler;
@@ -951,7 +961,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			final CatalogHeader catalogHeader = getCatalogHeader(catalogVersion);
 			this.catalogWal = getCatalogWriteAheadLog(
 				this.catalogName, this.catalogStoragePath, catalogHeader, this.catalogKryoPool,
-				this.storageOptions, this.transactionOptions, this.scheduler
+				this.storageOptions, this.transactionOptions, this.scheduler, this::trimBootstrapFile
 			);
 		}
 		Assert.isPremiseValid(
@@ -1446,8 +1456,21 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	 */
 	@Nonnull
 	CatalogBootstrap recordBootstrap(long catalogVersion, @Nonnull String newCatalogName, int catalogFileIndex) {
-		final long now = System.currentTimeMillis();
-		final OffsetDateTime bootstrapWriteTime = Instant.ofEpochMilli(now).atZone(ZoneId.systemDefault()).toOffsetDateTime();
+		return recordBootstrap(catalogVersion, newCatalogName, catalogFileIndex, System.currentTimeMillis());
+	}
+
+	/**
+	 * Records a bootstrap in the catalog.
+	 *
+	 * @param catalogVersion   the version of the catalog
+	 * @param newCatalogName   the name of the new catalog
+	 * @param catalogFileIndex the index of the catalog file
+	 * @param timestamp the timestamp of the boot record
+	 * @return the recorded CatalogBootstrap object
+	 */
+	@Nonnull
+	CatalogBootstrap recordBootstrap(long catalogVersion, @Nonnull String newCatalogName, int catalogFileIndex, long timestamp) {
+		final OffsetDateTime bootstrapWriteTime = Instant.ofEpochMilli(timestamp).atZone(ZoneId.systemDefault()).toOffsetDateTime();
 		final CatalogOffsetIndexStoragePartPersistenceService storagePartPersistenceService = getStoragePartPersistenceService(catalogVersion);
 		final OffsetIndexDescriptor flushedDescriptor = storagePartPersistenceService.flush(catalogVersion);
 		final CatalogBootstrap bootstrapRecord;
@@ -1493,7 +1516,13 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		}
 		final Kryo kryo = this.catalogKryoPool.obtain();
 		try {
-			return this.bootstrapWriteHandle.checkAndExecuteAndSync(
+			final WriteOnlyFileHandle originalBootstrapHandle = this.bootstrapWriteHandle.get();
+			final WriteOnlyFileHandle bootstrapHandle = getOrCreateNewBootstrapTempWriteHandle(
+				catalogVersion, newCatalogName, originalBootstrapHandle
+			);
+
+			// append to the existing file (we will compact it when the WAL files are purged)
+			bootstrapHandle.checkAndExecuteAndSync(
 				"store bootstrap record",
 				() -> {
 				},
@@ -1502,7 +1531,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 					theOutput -> {
 						theOutput.writeLong(bootstrapRecord.catalogVersion());
 						theOutput.writeInt(bootstrapRecord.catalogFileIndex());
-						theOutput.writeLong(now);
+						theOutput.writeLong(timestamp);
 						theOutput.writeLong(bootstrapRecord.fileLocation().startingPosition());
 						theOutput.writeInt(bootstrapRecord.fileLocation().recordLength());
 						return bootstrapRecord;
@@ -1510,9 +1539,202 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				).payload(),
 				(output, catalogBootstrap) -> catalogBootstrap
 			);
+
+			// replace the original handle with new one
+			if (bootstrapHandle != originalBootstrapHandle) {
+				originalBootstrapHandle.close();
+				bootstrapHandle.close();
+				// try to atomically rewrite original bootstrap file
+				FileUtils.rewriteTargetFileAtomically(bootstrapHandle.getTargetFile(), originalBootstrapHandle.getTargetFile());
+				// we should be the only writer here, so this should always pass
+				Assert.isPremiseValid(
+					this.bootstrapWriteHandle.compareAndSet(
+						originalBootstrapHandle,
+						new WriteOnlyFileHandle(
+							originalBootstrapHandle.getTargetFile(),
+							this.observableOutputKeeper
+						)
+					),
+					() -> new EvitaInternalError("Failed to replace the bootstrap write handle in a critical section!")
+				);
+			}
+
+			return bootstrapRecord;
 		} finally {
 			this.catalogKryoPool.free(kryo);
 			log.debug("Catalog `{}` stored to `{}`.", newCatalogName, catalogStoragePath);
+		}
+	}
+
+	/**
+	 * Trims the bootstrap file so that it contains only records starting with the bootstrap record precedes the given
+	 * timestamp and all the records following it.
+	 *
+	 * @param toTimestamp the timestamp to trim the bootstrap from (including a single record before the timestamp)
+	 */
+	void trimBootstrapFile(@Nonnull OffsetDateTime toTimestamp) {
+		final WriteOnlyFileHandle originalBootstrapHandle = this.bootstrapWriteHandle.get();
+		final WriteOnlyFileHandle newBootstrapHandle = createNewBootstrapTempWriteHandle(this.catalogName);
+
+		// copy all bootstrap records since the timestamp to the new file
+		copyAllNecessaryBootstrapRecords(toTimestamp, originalBootstrapHandle.getTargetFile(), newBootstrapHandle);
+
+		// now close both handles
+		originalBootstrapHandle.close();
+		newBootstrapHandle.close();
+		// try to atomically rewrite original bootstrap file
+		FileUtils.rewriteTargetFileAtomically(newBootstrapHandle.getTargetFile(), originalBootstrapHandle.getTargetFile());
+		// we should be the only writer here, so this should always pass
+		Assert.isPremiseValid(
+			this.bootstrapWriteHandle.compareAndSet(
+				originalBootstrapHandle,
+				new WriteOnlyFileHandle(
+					originalBootstrapHandle.getTargetFile(),
+					this.observableOutputKeeper
+				)
+			),
+			() -> new EvitaInternalError("Failed to replace the bootstrap write handle in a critical section!")
+		);
+	}
+
+	/**
+	 * Copy all necessary bootstrap records to the target bootstrap file from the input file starting from the given
+	 * timestamp.
+	 *
+	 * @param toTimestamp           The timestamp to start copying bootstrap records from.
+	 * @param fromFile              The input file containing the bootstrap records.
+	 * @param targetBootstrapHandle The handle of the target bootstrap file to copy the records to.
+	 */
+	private void copyAllNecessaryBootstrapRecords(
+		@Nonnull OffsetDateTime toTimestamp,
+		@Nonnull Path fromFile,
+		@Nonnull WriteOnlyFileHandle targetBootstrapHandle
+	) {
+		final int recordCount = CatalogBootstrap.getRecordCount(
+			fromFile.toFile().length()
+		);
+		final ReadOnlyFileHandle readHandle = new ReadOnlyFileHandle(
+			fromFile,
+			storageOptions.computeCRC32C()
+		);
+		try {
+			boolean inValidRange = false;
+			CatalogBootstrap previousBootstrapRecord = null;
+			CatalogBootstrap bootstrapRecord = null;
+			for (int i = 0; i < recordCount; i++) {
+				final long startPosition = CatalogBootstrap.getPositionForRecord(i);
+				bootstrapRecord = readHandle.execute(
+					input -> StorageRecord.read(
+						input,
+						new FileLocation(startPosition, CatalogBootstrap.BOOTSTRAP_RECORD_SIZE),
+						(theInput, recordLength) -> new CatalogBootstrap(
+							theInput.readLong(),
+							theInput.readInt(),
+							Instant.ofEpochMilli(theInput.readLong()).atZone(ZoneId.systemDefault()).toOffsetDateTime(),
+							new FileLocation(
+								theInput.readLong(),
+								theInput.readInt()
+							)
+						)
+					)
+				).payload();
+
+				if (inValidRange) {
+					// append to the new file
+					copyBootstrapRecord(targetBootstrapHandle, bootstrapRecord);
+				} else if (toTimestamp.isBefore(bootstrapRecord.timestamp())) {
+					// write the record preceding the valid range and mark the range as valid
+					if (previousBootstrapRecord != null) {
+						copyBootstrapRecord(targetBootstrapHandle, previousBootstrapRecord);
+					}
+					copyBootstrapRecord(targetBootstrapHandle, bootstrapRecord);
+					inValidRange = true;
+				} else {
+					previousBootstrapRecord = bootstrapRecord;
+				}
+			}
+		} catch (Exception e) {
+			throw new UnexpectedIOException(
+				"Failed to open catalog bootstrap file `" + fromFile + "`!",
+				"Failed to open catalog bootstrap file!",
+				e
+			);
+		} finally {
+			readHandle.forceClose();
+		}
+	}
+
+	/**
+	 * Copies the bootstrap record to the specified file handle.
+	 *
+	 * @param newBootstrapHandle The handle to the file where the bootstrap record will be copied.
+	 * @param bootstrapRecord The bootstrap record to be copied.
+	 */
+	private static void copyBootstrapRecord(
+		@Nonnull WriteOnlyFileHandle newBootstrapHandle,
+		@Nonnull CatalogBootstrap bootstrapRecord
+	) {
+		newBootstrapHandle.checkAndExecute(
+			"copy bootstrap record",
+			() -> {},
+			output -> new StorageRecord<>(
+				output, bootstrapRecord.catalogVersion(), true,
+				theOutput -> {
+					theOutput.writeLong(bootstrapRecord.catalogVersion());
+					theOutput.writeInt(bootstrapRecord.catalogFileIndex());
+					theOutput.writeLong(bootstrapRecord.timestamp().toInstant().toEpochMilli());
+					theOutput.writeLong(bootstrapRecord.fileLocation().startingPosition());
+					theOutput.writeInt(bootstrapRecord.fileLocation().recordLength());
+					return bootstrapRecord;
+				}
+			).payload()
+		);
+	}
+
+	/**
+	 * Retrieves or creates a new write handle for catalog persistence. If the catalog version is 0,
+	 * a new file handle is created and returned. Otherwise, the original bootstrap handle is returned.
+	 *
+	 * @param catalogVersion          The version of the catalog.
+	 * @param newCatalogName          The name of the new catalog.
+	 * @param originalBootstrapHandle The original bootstrap handle.
+	 * @return The write handle for catalog persistence.
+	 * @throws UnexpectedIOException If an error occurs while creating the temporary bootstrap file.
+	 */
+	@Nonnull
+	private WriteOnlyFileHandle getOrCreateNewBootstrapTempWriteHandle(
+		long catalogVersion,
+		@Nonnull String newCatalogName,
+		@Nonnull WriteOnlyFileHandle originalBootstrapHandle
+	) {
+		if (catalogVersion == 0) {
+			return createNewBootstrapTempWriteHandle(newCatalogName);
+		} else {
+			return originalBootstrapHandle;
+		}
+	}
+
+	/**
+	 * Creates a new temporary file handle for writing bootstrap data.
+	 *
+	 * @param newCatalogName the name of the new catalog
+	 * @return a WriteOnlyFileHandle object representing the new temporary file
+	 * @throws UnexpectedIOException if an error occurs while creating the temporary file
+	 */
+	@Nonnull
+	private WriteOnlyFileHandle createNewBootstrapTempWriteHandle(@Nonnull String newCatalogName) {
+		try {
+			// create new file and replace the former one with it
+			return new WriteOnlyFileHandle(
+				Files.createTempFile(CatalogPersistenceService.getCatalogBootstrapFileName(newCatalogName), ".tmp"),
+				this.observableOutputKeeper
+			);
+		} catch (IOException e) {
+			throw new UnexpectedIOException(
+				"Failed to create temporary bootstrap file for catalog `" + newCatalogName + "`!",
+				"Failed to create temporary bootstrap file!",
+				e
+			);
 		}
 	}
 

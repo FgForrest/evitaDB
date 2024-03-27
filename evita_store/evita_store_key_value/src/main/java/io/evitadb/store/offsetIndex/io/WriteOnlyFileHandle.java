@@ -30,6 +30,7 @@ import io.evitadb.store.kryo.ObservableOutput;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.offsetIndex.exception.SyncFailedException;
 import io.evitadb.utils.Assert;
+import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import java.io.File;
@@ -86,7 +87,7 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 	 * The path to the target file that this handle is associated with.
 	 * This handle provides write-only access to the file at this path.
 	 */
-	private final Path targetFile;
+	@Getter private final Path targetFile;
 	/**
 	 * The variable `observableOutputKeeper` is an instance of the class `ObservableOutputKeeper`. It is used to keep
 	 * references to `ObservableOutput` instances that internally maintain large buffers for serialization. The need for
