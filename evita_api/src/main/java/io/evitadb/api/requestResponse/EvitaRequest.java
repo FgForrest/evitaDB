@@ -769,6 +769,16 @@ public class EvitaRequest {
 
 	/**
 	 * Returns requested record offset of the records required in the result.
+	 */
+	public int getFirstRecordOffset() {
+		if (firstRecordOffset == null) {
+			initPagination();
+		}
+		return firstRecordOffset;
+	}
+
+	/**
+	 * Returns requested record offset of the records required in the result.
 	 * Offset is automatically reset to zero if requested offset exceeds the total available record count.
 	 */
 	public int getFirstRecordOffset(int totalRecordCount) {

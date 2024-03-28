@@ -23,10 +23,7 @@
 
 package io.evitadb.driver.trace;
 
-import io.grpc.ClientInterceptor;
-
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 /**
  * Client contexts interface that defines all necessary resources for proper tracing.
@@ -34,18 +31,7 @@ import javax.annotation.Nullable;
  * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
  */
 public interface ClientTracingContext {
-	/**
-	 * Marker default method that should in its implementation provide an implementation of a gRPC ClientInterceptor.
-	 */
-	@Nullable
-	default ClientInterceptor getClientInterceptor() {
-		return null;
-	}
-
-	/**
-	 * Marker default method that should in its implementation set the tracing endpoint URL and protocol.
-	 */
-	default void setTracingEndpointUrlAndProtocol(@Nonnull String tracingEndpointUrl, @Nonnull String tracingEndpointProtocol) {
+	default void setOpenTelemetry(@Nonnull Object openTelemetryInstance) {
 		// do nothing
 	}
 }

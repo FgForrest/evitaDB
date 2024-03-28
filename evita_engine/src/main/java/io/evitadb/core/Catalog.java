@@ -56,6 +56,7 @@ import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateEntitySchema
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaNameMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.RemoveEntitySchemaMutation;
+import io.evitadb.api.trace.TracingContext;
 import io.evitadb.core.Transaction.CommitUpdateInstructionSet;
 import io.evitadb.core.buffer.DataStoreTxMemoryBuffer;
 import io.evitadb.core.cache.CacheSupervisor;
@@ -111,6 +112,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static io.evitadb.utils.CollectionUtils.MAX_POWER_OF_TWO;
@@ -206,6 +208,10 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 	 */
 	@Getter private final CatalogEntitySchemaAccessor entitySchemaAccessor = new CatalogEntitySchemaAccessor();
 	/**
+	 * Provides the tracing context for tracking the execution flow in the application.
+	 **/
+	private final TracingContext tracingContext;
+	/**
 	 * Contains id of the transaction ({@link Transaction#getId()}) that was successfully committed to the disk.
 	 */
 	@Getter long lastCommittedTransactionId;
@@ -214,8 +220,10 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 		@Nonnull CatalogSchemaContract catalogSchema,
 		@Nonnull CacheSupervisor cacheSupervisor,
 		@Nonnull StorageOptions storageOptions,
-		@Nonnull ReflectionLookup reflectionLookup
+		@Nonnull ReflectionLookup reflectionLookup,
+		@Nonnull TracingContext tracingContext
 	) {
+		this.tracingContext = tracingContext;
 		final CatalogSchema internalCatalogSchema = CatalogSchema._internalBuild(
 			catalogSchema.getName(), catalogSchema.getNameVariants(), catalogSchema.getCatalogEvolutionMode(),
 			getEntitySchemaAccessor()
@@ -262,8 +270,10 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 		@Nonnull Path catalogPath,
 		@Nonnull CacheSupervisor cacheSupervisor,
 		@Nonnull StorageOptions storageOptions,
-		@Nonnull ReflectionLookup reflectionLookup
+		@Nonnull ReflectionLookup reflectionLookup,
+		@Nonnull TracingContext tracingContext
 	) {
+		this.tracingContext = tracingContext;
 		this.ioService = ServiceLoader.load(CatalogPersistenceServiceFactory.class)
 			.findFirst()
 			.map(it -> it.load(catalogName, catalogPath, storageOptions))
@@ -294,7 +304,7 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 			final String entityType = entityCollectionHeader.getEntityType();
 			final int entityTypePrimaryKey = entityCollectionHeader.getEntityTypePrimaryKey();
 			final EntityCollection collection = new EntityCollection(
-				this, entityTypePrimaryKey, entityType, ioService, cacheSupervisor, sequenceService
+				this, entityTypePrimaryKey, entityType, ioService, cacheSupervisor, sequenceService, tracingContext
 			);
 			collections.put(entityType, collection);
 			collectionIndex.put(MAX_POWER_OF_TWO, collection);
@@ -342,8 +352,10 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 		long lastCommittedTransactionId,
 		@Nonnull AtomicInteger entityTypeSequence,
 		@Nonnull Map<String, EntityCollection> entityCollections,
-		@Nonnull ProxyFactory proxyFactory
+		@Nonnull ProxyFactory proxyFactory,
+		@Nonnull TracingContext tracingContext
 	) {
+		this.tracingContext = tracingContext;
 		this.state = new AtomicReference<>(catalogState);
 		this.catalogIndex = catalogIndex;
 		catalogIndex.updateReferencesTo(this);
@@ -433,7 +445,7 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 				);
 				final EntityCollection newCollection = new EntityCollection(
 					this, this.entityTypeSequence.incrementAndGet(), createEntitySchemaMutation.getName(),
-					ioService, cacheSupervisor, sequenceService
+					ioService, cacheSupervisor, sequenceService, tracingContext
 				);
 				this.entityCollectionsByPrimaryKey.put(newCollection.getEntityTypePrimaryKey(), newCollection);
 				this.entityCollections.put(newCollection.getEntityType(), newCollection);
@@ -526,7 +538,11 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 		try (final QueryContext queryContext = createQueryContext(evitaRequest, session)) {
 			queryPlan = QueryPlanner.planQuery(queryContext);
 		}
-		return queryPlan.execute();
+		return tracingContext.executeWithinBlock(
+			"query - " + queryPlan.getDescription(),
+			(Supplier<T>) queryPlan::execute,
+			queryPlan::getSpanAttributes
+		);
 	}
 
 	@Nonnull
@@ -635,7 +651,7 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 						EntityCollection::getEntityType,
 						it -> new EntityCollection(
 							this, it.getEntityTypePrimaryKey(), it.getEntityType(),
-							newIoService, cacheSupervisor, sequenceService
+							newIoService, cacheSupervisor, sequenceService, tracingContext
 						)
 					)
 				);
@@ -650,7 +666,8 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 				id,
 				entityTypeSequence,
 				newCollections,
-				proxyFactory
+				proxyFactory,
+				tracingContext
 			);
 			newCollections.values().forEach(it -> it.updateReferenceToCatalog(catalogAfterRename));
 			return catalogAfterRename;
@@ -863,7 +880,8 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 				id,
 				entityTypeSequence,
 				possiblyUpdatedCollections,
-				proxyFactory
+				proxyFactory,
+				tracingContext
 			);
 		} else {
 			if (possiblyUpdatedCatalogIndex != catalogIndex ||
@@ -882,7 +900,8 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 					id,
 					entityTypeSequence,
 					possiblyUpdatedCollections,
-					proxyFactory
+					proxyFactory,
+					tracingContext
 				);
 			} else {
 				// no changes present we can return self

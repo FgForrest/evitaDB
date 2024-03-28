@@ -40,6 +40,7 @@ import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.api.trace.DefaultTracingContext;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.EntityCollection;
 import io.evitadb.core.EvitaSession;
@@ -334,7 +335,8 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			entitySchema.getName(),
 			ioService,
 			NoCacheSupervisor.INSTANCE,
-			sequenceService
+			sequenceService,
+			DefaultTracingContext.INSTANCE
 		);
 
 		dataGenerator.generateEntities(
@@ -357,7 +359,8 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		final EntityCollection collection = new EntityCollection(
 			getMockCatalog(catalogSchema, schema),
 			entityCollection.getEntityTypePrimaryKey(),
-			schema.getName(), ioService, NoCacheSupervisor.INSTANCE, sequenceService
+			schema.getName(), ioService, NoCacheSupervisor.INSTANCE, sequenceService,
+			DefaultTracingContext.INSTANCE
 		);
 
 		final Iterator<Entity> it = entityCollection.entityIterator();

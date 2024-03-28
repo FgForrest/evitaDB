@@ -128,6 +128,20 @@ public class HierarchyStatisticsProducer implements ExtraResultProducer {
 		);
 	}
 
+	@Nonnull
+	@Override
+	public String getDescription() {
+		if (selfHierarchyRequest == null && hierarchyRequests.isEmpty()) {
+			return "empty hierarchy";
+		} else if (selfHierarchyRequest != null && hierarchyRequests.isEmpty()) {
+			return "self hierarchy";
+		} else if (selfHierarchyRequest == null) {
+			return "referenced entity " + hierarchyRequests.keySet().stream().map(it -> '`' + it + '`').collect(Collectors.joining(" ,")) + " hierarchies";
+		} else {
+			return "referenced entity " + hierarchyRequests.keySet().stream().map(it -> '`' + it + '`').collect(Collectors.joining(" ,")) + " hierarchies and self";
+		}
+	}
+
 	/**
 	 * Registers new {@link LevelInfo} collection computation request for passed `referenceSchema`.
 	 *

@@ -15,16 +15,8 @@ module evita.java.driver.observability {
 	requires evita.api;
 	requires evita.java.driver;
 
-	requires io.opentelemetry.sdk.trace;
-	requires io.opentelemetry.sdk;
 	requires io.opentelemetry.context;
 	requires io.opentelemetry.api;
-	requires io.opentelemetry.sdk.common;
-	requires io.opentelemetry.semconv;
-	requires io.opentelemetry.exporter.logging;
-	requires io.opentelemetry.exporter.otlp;
-	requires io.opentelemetry.sdk.autoconfigure;
-	requires io.opentelemetry.instrumentation.grpc_1_6;
 
 	exports io.evitadb.driver.observability.trace;
 }

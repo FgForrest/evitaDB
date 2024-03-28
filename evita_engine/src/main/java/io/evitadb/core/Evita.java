@@ -49,6 +49,8 @@ import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchem
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaNameMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.RemoveCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.system.SystemStatus;
+import io.evitadb.api.trace.TracingContext;
+import io.evitadb.api.trace.TracingContextProvider;
 import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.cache.HeapMemoryCacheSupervisor;
 import io.evitadb.core.cache.NoCacheSupervisor;
@@ -172,6 +174,11 @@ public final class Evita implements EvitaContract {
 	 */
 	private final ThreadLocal<CatalogContract> removedCatalog = new ThreadLocal<>();
 	/**
+	 * Provides the tracing context for tracking the execution flow in the application.
+	 **/
+	@Getter
+	private final TracingContext tracingContext;
+	/**
 	 * Flag that is se to TRUE when Evita. is ready to serve application calls.
 	 * Aim of this flag is to refuse any calls after {@link #close()} method has been called.
 	 */
@@ -226,6 +233,7 @@ public final class Evita implements EvitaContract {
 				)
 			);
 
+		this.tracingContext = TracingContextProvider.getContext();
 		final Path[] directories = FileUtils.listDirectories(configuration.storage().storageDirectoryOrDefault());
 		this.catalogs = CollectionUtils.createConcurrentHashMap(directories.length);
 		final CountDownLatch startUpLatch = new CountDownLatch(directories.length);
@@ -235,7 +243,7 @@ public final class Evita implements EvitaContract {
 				CatalogContract catalog;
 				try {
 					final long start = System.nanoTime();
-					catalog = new Catalog(catalogName, directory, cacheSupervisor, configuration.storage(), reflectionLookup);
+					catalog = new Catalog(catalogName, directory, cacheSupervisor, configuration.storage(), reflectionLookup, tracingContext);
 					log.info("Catalog {} fully loaded in: {}", catalogName, StringUtils.formatNano(System.nanoTime() - start));
 				} catch (Throwable ex) {
 					log.error("Catalog {} is corrupted!", catalogName);
@@ -570,7 +578,8 @@ public final class Evita implements EvitaContract {
 						catalogSchema,
 						cacheSupervisor,
 						configuration.storage(),
-						reflectionLookup
+						reflectionLookup,
+						tracingContext
 					);
 				} else {
 					throw new CatalogAlreadyPresentException(catalogName, existingCatalog.getName());

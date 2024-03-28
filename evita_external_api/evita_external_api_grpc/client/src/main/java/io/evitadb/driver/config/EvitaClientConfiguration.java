@@ -77,10 +77,8 @@ public record EvitaClientConfiguration(
 	@Nonnull ReflectionCachingBehaviour reflectionLookupBehaviour,
 	long waitForClose,
 	@Nonnull TimeUnit waitForCloseUnit,
-	@Nullable String traceEndpointUrl,
-	@Nullable String traceEndpointProtocol
+	@Nullable Object openTelemetryInstance
 ) {
-
 	private static final int DEFAULT_GRPC_API_PORT = 5555;
 	private static final int DEFAULT_SYSTEM_API_PORT = 5557;
 
@@ -112,8 +110,7 @@ public record EvitaClientConfiguration(
 		private Path certificateFolderPath = ClientCertificateManager.getDefaultClientCertificateFolderPath();
 		private String trustStorePassword = "trustStorePassword";
 		private ReflectionCachingBehaviour reflectionCachingBehaviour = ReflectionCachingBehaviour.CACHE;
-		private String traceEndpointUrl = null;
-		private String traceEndpointProtocol = null;
+		private Object openTelemetryInstance = null;
 
 		Builder() {
 			try {
@@ -200,13 +197,8 @@ public record EvitaClientConfiguration(
 			return this;
 		}
 
-		public EvitaClientConfiguration.Builder traceEndpointUrl(@Nullable String traceEndpointUrl) {
-			this.traceEndpointUrl = traceEndpointUrl;
-			return this;
-		}
-
-		public EvitaClientConfiguration.Builder traceEndpointProtocol(@Nullable String traceEndpointProtocol) {
-			this.traceEndpointProtocol = traceEndpointProtocol;
+		public EvitaClientConfiguration.Builder openTelemetryInstance(@Nullable Object openTelemetryInstance) {
+			this.openTelemetryInstance = openTelemetryInstance;
 			return this;
 		}
 
@@ -228,8 +220,7 @@ public record EvitaClientConfiguration(
 				reflectionCachingBehaviour,
 				waitForClose,
 				TimeUnit.SECONDS,
-				traceEndpointUrl,
-				traceEndpointProtocol
+				openTelemetryInstance
 			);
 		}
 

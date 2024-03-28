@@ -23,10 +23,49 @@
 
 package io.evitadb.api.trace;
 
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
+
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.util.function.Supplier;
+
 /**
  * Default NOOP implementation of {@link TracingContext}.
  *
  * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class DefaultTracingContext implements TracingContext {
+	public static final TracingContext INSTANCE = new DefaultTracingContext();
+
+	@Override
+	public void executeWithinBlock(@Nonnull String taskName, @Nonnull Runnable runnable, @Nullable SpanAttribute... attributes) {
+		runnable.run();
+	}
+
+	@Override
+	public <T> T executeWithinBlock(@Nonnull String taskName, @Nonnull Supplier<T> lambda, @Nullable SpanAttribute... attributes) {
+		return lambda.get();
+	}
+
+	@Override
+	public void executeWithinBlock(@Nonnull String taskName, @Nonnull Runnable runnable, @Nullable Supplier<SpanAttribute[]> attributes) {
+		runnable.run();
+	}
+
+	@Override
+	public <T> T executeWithinBlock(@Nonnull String taskName, @Nonnull Supplier<T> lambda, @Nullable Supplier<SpanAttribute[]> attributes) {
+		return lambda.get();
+	}
+
+	@Override
+	public void executeWithinBlock(@Nonnull String taskName, @Nonnull Runnable runnable) {
+		runnable.run();
+	}
+
+	@Override
+	public <T> T executeWithinBlock(@Nonnull String taskName, @Nonnull Supplier<T> lambda) {
+		return lambda.get();
+	}
 }
