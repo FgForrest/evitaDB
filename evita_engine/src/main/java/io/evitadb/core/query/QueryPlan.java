@@ -304,12 +304,13 @@ public class QueryPlan {
 		final EvitaRequest evitaRequest = this.queryContext.getEvitaRequest();
 		final int offset = evitaRequest.getFirstRecordOffset();
 		final int limit = evitaRequest.getLimit();
+		final String entityType = ofNullable(evitaRequest.getEntityType()).orElse("<ANY TYPE>");
 		result.append("offset ")
 			.append(offset)
 			.append(" limit ")
 			.append(limit)
 			.append(" `")
-			.append(this.queryContext.getSchema().getName())
+			.append(entityType)
 			.append("` entities using ")
 			.append(description);
 		if (queryContext.isRequiresBinaryForm()) {
