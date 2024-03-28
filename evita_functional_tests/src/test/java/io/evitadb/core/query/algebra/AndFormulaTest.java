@@ -56,14 +56,14 @@ class AndFormulaTest {
 
 	@Test
 	void shouldApplyBooleanAndWithFormula() {
+		final AndFormula andFormula = new AndFormula(
+			new ConstantFormula(new ArrayBitmap(new CompositeIntArray(1, 3, 4, 5, 8))),
+			new ConstantFormula(new ArrayBitmap(new CompositeIntArray(1, 2, 4, 8))),
+			new ConstantFormula(new ArrayBitmap(new CompositeIntArray(1, 2, 3, 4, 5)))
+		);
 		assertArrayEquals(
 			new int[]{1, 4},
-			new AndFormula(
-				new ConstantFormula(new ArrayBitmap(new CompositeIntArray(1, 3, 4, 5, 8))),
-				new ConstantFormula(new ArrayBitmap(new CompositeIntArray(1, 2, 4, 8))),
-				new ConstantFormula(new ArrayBitmap(new CompositeIntArray(1, 2, 3, 4, 5)))
-			)
-				.compute().getArray()
+			andFormula.compute().getArray()
 		);
 	}
 

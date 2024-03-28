@@ -44,7 +44,7 @@ import io.evitadb.core.query.algebra.base.AndFormula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.OrFormula;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
-import io.evitadb.core.query.sort.Sorter;
+import io.evitadb.core.query.sort.NestedContextSorter;
 import io.evitadb.core.query.sort.utils.SortUtils;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.index.bitmap.BaseBitmap;
@@ -160,14 +160,14 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 	/**
 	 * Registers default settings for facet summary in terms of entity richness (both group and facet) and also
 	 * a default type of statistics depth. These settings will be used for all facet references that are not explicitly
-	 * configured by {@link #requireReferenceFacetSummary(ReferenceSchemaContract, FacetStatisticsDepth, IntPredicate, IntPredicate, Sorter, Sorter, EntityFetch, EntityGroupFetch)}.
+	 * configured by {@link #requireReferenceFacetSummary(ReferenceSchemaContract, FacetStatisticsDepth, IntPredicate, IntPredicate, NestedContextSorter, NestedContextSorter, EntityFetch, EntityGroupFetch)}.
 	 */
 	public void requireDefaultFacetSummary(
 		@Nonnull FacetStatisticsDepth facetStatisticsDepth,
 		@Nullable Function<ReferenceSchemaContract, IntPredicate> facetPredicate,
 		@Nullable Function<ReferenceSchemaContract, IntPredicate> groupPredicate,
-		@Nullable Function<ReferenceSchemaContract, Sorter> facetSorter,
-		@Nullable Function<ReferenceSchemaContract, Sorter> groupSorter,
+		@Nullable Function<ReferenceSchemaContract, NestedContextSorter> facetSorter,
+		@Nullable Function<ReferenceSchemaContract, NestedContextSorter> groupSorter,
 		@Nullable EntityFetch facetEntityRequirement,
 		@Nullable EntityGroupFetch groupEntityRequirement
 	) {
@@ -191,8 +191,8 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 		@Nonnull FacetStatisticsDepth facetStatisticsDepth,
 		@Nullable IntPredicate facetPredicate,
 		@Nullable IntPredicate groupPredicate,
-		@Nullable Sorter facetSorter,
-		@Nullable Sorter groupSorter,
+		@Nullable NestedContextSorter facetSorter,
+		@Nullable NestedContextSorter groupSorter,
 		@Nullable EntityFetch facetEntityRequirement,
 		@Nullable EntityGroupFetch groupEntityRequirement
 	) {
@@ -235,7 +235,6 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 						Collectors.mapping(
 							Function.identity(),
 							new FacetGroupStatisticsCollector(
-								queryContext,
 								// translates Facet#type to EntitySchema#reference#groupType
 								referenceName -> queryContext.getSchema().getReferenceOrThrowException(referenceName),
 								referenceSchema -> ofNullable(facetSummaryRequests.get(referenceSchema.getName()))
@@ -323,10 +322,6 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 	 */
 	@RequiredArgsConstructor
 	private static class FacetGroupStatisticsCollector implements Collector<FacetReferenceIndex, LinkedHashMap<Integer, GroupAccumulator>, Collection<FacetGroupStatistics>> {
-		/**
-		 * The query context used for querying the entities.
-		 */
-		private final QueryContext queryContext;
 		/**
 		 * Translates {@link FacetHaving#getReferenceName()} to {@link EntitySchema#getReference(String)}.
 		 */
@@ -504,6 +499,80 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 		}
 
 		/**
+		 * This method takes a map of facet statistics and a nested context sorter, and returns an array of sorted facet primary keys.
+		 *
+		 * @param theFacetStatistics map of facet statistics, where the key is the facet primary key and the value is the facet accumulator
+		 * @param sorter             nested context sorter used for sorting the facets
+		 * @return array of sorted facet primary keys
+		 */
+		@Nonnull
+		private static int[] getSortedFacets(@Nonnull Map<Integer, FacetAccumulator> theFacetStatistics, @Nonnull NestedContextSorter sorter) {
+			// if the sorter is defined, sort them
+			final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
+			// collect all entity primary keys
+			theFacetStatistics.keySet().forEach(writer::add);
+			// create sorted array using the sorter
+			final ConstantFormula unsortedIds = new ConstantFormula(new BaseBitmap(writer.get()));
+			final Bitmap recordsToSort = unsortedIds.compute();
+			final int count = recordsToSort.size();
+			final int[] result = new int[count];
+			final int peak = sorter.sortAndSlice(unsortedIds, 0, count, result, 0);
+			return SortUtils.asResult(result, peak);
+		}
+
+		/**
+		 * Compares two {@link GroupAccumulator} objects based on their facet group summaries.
+		 * The comparison logic is as follows:
+		 * 1. If the reference schema of o1 and o2 are different, compare based on the order of their facet summary requests.
+		 * 2. If the facet summary request of o1 has a group sorter defined, the facet group summaries are sorted using the sorter.
+		 * The sorted group summaries are then used to determine the order of o1 and o2 based on their group ids.
+		 * 3. If the facet summary request of o2 has a group sorter defined, the facet group summaries are sorted using the sorter.
+		 * The sorted group summaries are then used to determine the order of o1 and o2 based on their group ids.
+		 * 4. If neither o1 or o2 have a group sorter defined and o1's group id is null, o1 is considered greater than o2.
+		 * 5. If neither o1 or o2 have a group sorter defined and o2's group id is null, o1 is considered less than o2.
+		 * 6. If neither o1 or o2 have a group sorter defined and both o1 and o2 have group ids, compare based on their group ids.
+		 *
+		 * @param groupIdIndex   the index of facet groups by reference name
+		 * @param sortedGroupIds the sorted group ids by reference name
+		 * @param o1             the first GroupAccumulator object to compare
+		 * @param o2             the second GroupAccumulator object to compare
+		 * @return a negative integer, zero, or a positive integer as o1 is less than, equal to, or greater than o2
+		 */
+		private static int compareFacetGroupSummaries(@Nonnull Map<String, Bitmap> groupIdIndex, @Nonnull Map<String, int[]> sortedGroupIds, @Nonnull GroupAccumulator o1, @Nonnull GroupAccumulator o2) {
+			if (o1.getReferenceSchema() != o2.getReferenceSchema()) {
+				return Integer.compare(o1.getFacetSummaryRequest().order(), o2.getFacetSummaryRequest().order());
+			} else if (o1.getFacetSummaryRequest().groupSorter() != null) {
+				final NestedContextSorter sorter = o1.getFacetSummaryRequest().groupSorter();
+				// create sorted array using the sorter
+				final String referenceName = o1.getFacetSummaryRequest().referenceSchema().getName();
+				final int[] sortedEntities = sortedGroupIds.computeIfAbsent(
+					referenceName,
+					theReferenceName -> {
+						final ConstantFormula unsortedIds = new ConstantFormula(groupIdIndex.get(theReferenceName));
+						final Bitmap unsortedIdsBitmap = unsortedIds.compute();
+						final int[] result = new int[unsortedIdsBitmap.size()];
+						final int peak = sorter.sortAndSlice(
+							unsortedIds, 0, unsortedIdsBitmap.size(), result, 0
+						);
+						return SortUtils.asResult(result, peak);
+					}
+				);
+				return Integer.compare(
+					ArrayUtils.indexOf(o1.getGroupId(), sortedEntities),
+					ArrayUtils.indexOf(o2.getGroupId(), sortedEntities)
+				);
+			} else {
+				if (o1.getGroupId() == null) {
+					return 1;
+				} else if (o2.getGroupId() == null) {
+					return -1;
+				} else {
+					return Integer.compare(o1.getGroupId(), o2.getGroupId());
+				}
+			}
+		}
+
+		/**
 		 * Returns TRUE if facet with `facetId` of specified `referenceName` was requested by the user.
 		 */
 		public boolean isRequested(@Nonnull String referenceName, int facetId) {
@@ -666,58 +735,6 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 		public Set<Characteristics> characteristics() {
 			return Set.of(Characteristics.UNORDERED);
 		}
-
-		@Nonnull
-		private int[] getSortedFacets(Map<Integer, FacetAccumulator> theFacetStatistics, Sorter sorter) {
-			// if the sorter is defined, sort them
-			final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
-			// collect all entity primary keys
-			theFacetStatistics.keySet().forEach(writer::add);
-			// create sorted array using the sorter
-			final ConstantFormula unsortedIds = new ConstantFormula(new BaseBitmap(writer.get()));
-			final Bitmap recordsToSort = unsortedIds.compute();
-			final int count = recordsToSort.size();
-			final int[] result = new int[count];
-			final int peak = sorter.sortAndSlice(
-				queryContext, unsortedIds, 0, count, result, 0
-			);
-			return SortUtils.asResult(result, peak);
-		}
-
-		private int compareFacetGroupSummaries(Map<String, Bitmap> groupIdIndex, Map<String, int[]> sortedGroupIds, GroupAccumulator o1, GroupAccumulator o2) {
-			if (o1.getReferenceSchema() != o2.getReferenceSchema()) {
-				return Integer.compare(o1.getFacetSummaryRequest().order(), o2.getFacetSummaryRequest().order());
-			} else if (o1.getFacetSummaryRequest().groupSorter() != null) {
-				final Sorter sorter = o1.getFacetSummaryRequest().groupSorter();
-				// create sorted array using the sorter
-				final String referenceName = o1.getFacetSummaryRequest().referenceSchema().getName();
-				final int[] sortedEntities = sortedGroupIds.computeIfAbsent(
-					referenceName,
-					theReferenceName -> {
-						final ConstantFormula unsortedIds = new ConstantFormula(groupIdIndex.get(theReferenceName));
-						final Bitmap unsortedIdsBitmap = unsortedIds.compute();
-						final int[] result = new int[unsortedIdsBitmap.size()];
-						final int peak = sorter.sortAndSlice(
-							queryContext, unsortedIds, 0, unsortedIdsBitmap.size(), result, 0
-						);
-						return SortUtils.asResult(result, peak);
-					}
-				);
-				return Integer.compare(
-					ArrayUtils.indexOf(o1.getGroupId(), sortedEntities),
-					ArrayUtils.indexOf(o2.getGroupId(), sortedEntities)
-				);
-			} else {
-				if (o1.getGroupId() == null) {
-					return 1;
-				} else if (o2.getGroupId() == null) {
-					return -1;
-				} else {
-					return Integer.compare(o1.getGroupId(), o2.getGroupId());
-				}
-			}
-		}
-
 	}
 
 	/**
@@ -927,8 +944,8 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nullable IntPredicate facetPredicate,
 		@Nullable IntPredicate groupPredicate,
-		@Nullable Sorter facetSorter,
-		@Nullable Sorter groupSorter,
+		@Nullable NestedContextSorter facetSorter,
+		@Nullable NestedContextSorter groupSorter,
 		@Nullable EntityFetch facetEntityRequirement,
 		@Nullable EntityGroupFetch groupEntityRequirement,
 		@Nonnull BiFunction<String, int[], EntityClassifier[]> facetEntityFetcher,
@@ -964,8 +981,8 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 	private record DefaultFacetSummaryRequest(
 		@Nullable Function<ReferenceSchemaContract, IntPredicate> facetPredicate,
 		@Nullable Function<ReferenceSchemaContract, IntPredicate> groupPredicate,
-		@Nullable Function<ReferenceSchemaContract, Sorter> facetSorter,
-		@Nullable Function<ReferenceSchemaContract, Sorter> groupSorter,
+		@Nullable Function<ReferenceSchemaContract, NestedContextSorter> facetSorter,
+		@Nullable Function<ReferenceSchemaContract, NestedContextSorter> groupSorter,
 		@Nullable EntityFetch facetEntityRequirement,
 		@Nullable EntityGroupFetch groupEntityRequirement,
 		@Nonnull FacetStatisticsDepth facetStatisticsDepth

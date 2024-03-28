@@ -34,7 +34,9 @@ import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRec
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords.PriceRecordLookup;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords.SortingForm;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.ResolvedFilteredPriceRecords;
-import io.evitadb.core.query.algebra.price.innerRecordHandling.PriceHandlingContainerFormula;
+import io.evitadb.core.query.algebra.price.predicate.PriceAmountPredicate;
+import io.evitadb.core.query.algebra.price.predicate.PricePredicate;
+import io.evitadb.core.query.algebra.price.predicate.PriceRecordPredicate;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder.LookUp;
 import io.evitadb.core.query.extraResult.translator.histogram.producer.PriceHistogramProducer;
@@ -56,12 +58,10 @@ import org.roaringbitmap.RoaringBitmapWriter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Objects;
 import java.util.function.Consumer;
-import java.util.function.Predicate;
 
 /**
  * PlainPriceTerminationFormulaWithPriceFilter translates price ids produced by delegate formula to entity ids. It may
@@ -84,7 +84,7 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 	/**
 	 * Price filter is used to filter out entities which price doesn't match the predicate.
 	 */
-	@Getter private final PricePredicate pricePredicate;
+	@Getter private final PriceRecordPredicate pricePredicate;
 	/**
 	 * Contains array of price records that links to the price ids produced by {@link #compute()} method. This array
 	 * is available once the {@link #compute()} method has been called.
@@ -98,19 +98,34 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 	 */
 	@Getter private Bitmap recordsFilteredOutByPredicate;
 
-	public PlainPriceTerminationFormulaWithPriceFilter(@Nonnull PriceHandlingContainerFormula containerFormula, @Nonnull PriceEvaluationContext priceEvaluationContext, @Nonnull PricePredicate pricePredicate) {
+	public PlainPriceTerminationFormulaWithPriceFilter(
+		@Nonnull Formula containerFormula,
+		@Nonnull PriceEvaluationContext priceEvaluationContext,
+		@Nonnull PriceRecordPredicate pricePredicate
+	) {
 		super(null, containerFormula);
 		this.priceEvaluationContext = priceEvaluationContext;
 		this.pricePredicate = pricePredicate;
 	}
 
-	private PlainPriceTerminationFormulaWithPriceFilter(@Nullable Consumer<CacheableFormula> computationCallback, @Nonnull PriceHandlingContainerFormula containerFormula, @Nonnull PriceEvaluationContext priceEvaluationContext, @Nonnull PricePredicate pricePredicate) {
+	private PlainPriceTerminationFormulaWithPriceFilter(
+		@Nullable Consumer<CacheableFormula> computationCallback,
+		@Nonnull Formula containerFormula,
+		@Nonnull PriceEvaluationContext priceEvaluationContext,
+		@Nonnull PriceRecordPredicate pricePredicate
+	) {
 		super(computationCallback, containerFormula);
 		this.pricePredicate = pricePredicate;
 		this.priceEvaluationContext = priceEvaluationContext;
 	}
 
-	private PlainPriceTerminationFormulaWithPriceFilter(@Nullable Consumer<CacheableFormula> computationCallback, @Nonnull PriceHandlingContainerFormula containerFormula, @Nonnull PriceEvaluationContext priceEvaluationContext, @Nonnull PricePredicate pricePredicate, @Nonnull Bitmap recordsFilteredOutByPredicate) {
+	private PlainPriceTerminationFormulaWithPriceFilter(
+		@Nullable Consumer<CacheableFormula> computationCallback,
+		@Nonnull Formula containerFormula,
+		@Nonnull PriceEvaluationContext priceEvaluationContext,
+		@Nonnull PriceRecordPredicate pricePredicate,
+		@Nonnull Bitmap recordsFilteredOutByPredicate
+	) {
 		super(recordsFilteredOutByPredicate, computationCallback, containerFormula);
 		this.pricePredicate = pricePredicate;
 		this.priceEvaluationContext = priceEvaluationContext;
@@ -119,7 +134,7 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 
 	@Nullable
 	@Override
-	public Predicate<BigDecimal> getRequestedPredicate() {
+	public PriceAmountPredicate getRequestedPredicate() {
 		return pricePredicate.getRequestedPredicate();
 	}
 
@@ -127,7 +142,13 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 	 * Returns delegate formula of this container.
 	 */
 	public Formula getDelegate() {
-		return ((PriceHandlingContainerFormula) this.innerFormulas[0]).getDelegate();
+		return this.innerFormulas[0];
+	}
+
+	@Override
+	public void initialize(@Nonnull CalculationContext calculationContext) {
+		getDelegate().initialize(calculationContext);
+		super.initialize(calculationContext);
 	}
 
 	@Nonnull
@@ -135,7 +156,7 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 	public Formula getCloneWithInnerFormulas(@Nonnull Formula... innerFormulas) {
 		Assert.isPremiseValid(innerFormulas.length == 1, "Expected exactly single delegate inner formula!");
 		return new PlainPriceTerminationFormulaWithPriceFilter(
-			computationCallback, (PriceHandlingContainerFormula) innerFormulas[0], priceEvaluationContext, pricePredicate
+			computationCallback, innerFormulas[0], priceEvaluationContext, pricePredicate
 		);
 	}
 
@@ -149,9 +170,9 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 	public Formula getCloneWithPricePredicateFilteredOutResults() {
 		return new PlainPriceTerminationFormulaWithPriceFilter(
 			computationCallback,
-			(PriceHandlingContainerFormula) innerFormulas[0],
+			innerFormulas[0],
 			priceEvaluationContext,
-			PricePredicate.NO_FILTER,
+			PricePredicate.ALL_RECORD_FILTER,
 			recordsFilteredOutByPredicate
 		);
 	}
@@ -162,7 +183,7 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 		Assert.isPremiseValid(innerFormulas.length == 1, "Expected exactly single delegate inner formula!");
 		return new PlainPriceTerminationFormulaWithPriceFilter(
 			selfOperator,
-			(PriceHandlingContainerFormula) innerFormulas[0],
+			innerFormulas[0],
 			priceEvaluationContext, pricePredicate
 		);
 	}
@@ -183,7 +204,7 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 	public FlattenedFormula toSerializableFormula(long formulaHash, @Nonnull LongHashFunction hashFunction) {
 		return new FlattenedFormulaWithFilteredPricesAndFilteredOutRecords(
 			formulaHash,
-			computeTransactionalIdHash(hashFunction),
+			getTransactionalIdHash(),
 			Arrays.stream(gatherTransactionalIds())
 				.distinct()
 				.sorted()
@@ -192,8 +213,10 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 			getFilteredPriceRecords(),
 			Objects.requireNonNull(getRecordsFilteredOutByPredicate()),
 			getPriceEvaluationContext(),
+			pricePredicate.getQueryPriceMode(),
 			pricePredicate.getFrom(),
-			pricePredicate.getTo()
+			pricePredicate.getTo(),
+			pricePredicate.getIndexedPricePlaces()
 		);
 	}
 

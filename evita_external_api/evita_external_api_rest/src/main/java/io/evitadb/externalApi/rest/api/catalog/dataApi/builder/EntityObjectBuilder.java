@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -127,6 +127,7 @@ public class EntityObjectBuilder {
 		if (!entitySchema.getCurrencies().isEmpty()) {
 			entityObject.property(RestEntityDescriptor.PRICE_INNER_RECORD_HANDLING.to(propertyBuilderTransformer));
 			entityObject.property(RestEntityDescriptor.PRICE_FOR_SALE.to(propertyBuilderTransformer));
+			entityObject.property(RestEntityDescriptor.MULTIPLE_PRICES_FOR_SALE_AVAILABLE.to(propertyBuilderTransformer));
 			entityObject.property(RestEntityDescriptor.PRICES.to(propertyBuilderTransformer));
 		}
 

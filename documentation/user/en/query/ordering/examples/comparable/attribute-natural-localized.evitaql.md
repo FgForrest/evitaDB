@@ -21,4 +21,4 @@
 | 103988           | 'Apple iPad 9'         |
 | 105715           | 'Apple iPad 9'         |
 
-###### **Page** 1/2 **(Total number of results: 40)**
+###### **Page** 1/3 **(Total number of results: 42)**

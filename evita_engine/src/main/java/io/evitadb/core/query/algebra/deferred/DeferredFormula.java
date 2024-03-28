@@ -54,6 +54,12 @@ public class DeferredFormula extends AbstractFormula {
 	}
 
 	@Override
+	public void initialize(@Nonnull CalculationContext calculationContext) {
+		retrieveLambda.initialize(calculationContext);
+		super.initialize(calculationContext);
+	}
+
+	@Override
 	protected long getEstimatedCostInternal() {
 		return retrieveLambda.getEstimatedCost();
 	}
@@ -95,7 +101,7 @@ public class DeferredFormula extends AbstractFormula {
 		return hashFunction.hashLongs(
 			new long[] {
 				CLASS_ID,
-				retrieveLambda.computeHash(hashFunction)
+				retrieveLambda.getHash()
 			}
 		);
 	}
@@ -105,4 +111,8 @@ public class DeferredFormula extends AbstractFormula {
 		return CLASS_ID;
 	}
 
+	@Override
+	public String toString() {
+		return "DEFERRED CALCULATION: " + retrieveLambda.toString();
+	}
 }

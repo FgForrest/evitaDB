@@ -1,0 +1,27 @@
+{
+  queryCategory(
+    filterBy: {
+      attributeUrlEquals: "/en/smartwatches",
+      entityLocaleEquals: en
+    }
+  ) {
+    recordPage {
+      data {
+        primaryKey
+        parentPrimaryKey
+        parents {
+          primaryKey
+          attributes {
+            code
+            name
+            level
+          }
+        }
+        attributes {
+          code
+          name
+        }
+      }
+    }
+  }
+}

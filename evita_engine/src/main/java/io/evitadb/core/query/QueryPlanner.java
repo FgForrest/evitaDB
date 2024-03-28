@@ -47,6 +47,8 @@ import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.indexSelection.IndexSelectionResult;
 import io.evitadb.core.query.indexSelection.IndexSelectionVisitor;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
+import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
+import io.evitadb.core.query.response.TransactionalDataRelatedStructure.CalculationContext;
 import io.evitadb.core.query.sort.CacheableSorter;
 import io.evitadb.core.query.sort.ConditionalSorter;
 import io.evitadb.core.query.sort.NoSorter;
@@ -261,7 +263,7 @@ public class QueryPlanner {
 						indexSelectionResult.targetIndexQueriedByOtherConstraints()
 					);
 
-					final PrefetchFormulaVisitor prefetchFormulaVisitor = createPrefetchFormulaVisitor(targetIndex);
+					final PrefetchFormulaVisitor prefetchFormulaVisitor = createPrefetchFormulaVisitor(targetIndex, queryContext);
 					ofNullable(prefetchFormulaVisitor)
 						.ifPresent(it -> filterByVisitor.registerFormulaPostProcessorIfNotPresent(PrefetchFormulaVisitor.class, () -> it));
 					ofNullable(queryContext.getFilterBy()).ifPresent(filterByVisitor::visit);
@@ -275,9 +277,9 @@ public class QueryPlanner {
 						queryContext, adeptFormula, targetIndex, prefetchFormulaVisitor
 					);
 					if (result.isEmpty() || adeptFormula.getEstimatedCost() < result.get(0).getEstimatedCost()) {
-						result.addFirst(queryPlanBuilder);
-					} else {
 						result.addLast(queryPlanBuilder);
+					} else {
+						result.addFirst(queryPlanBuilder);
 					}
 				} finally {
 					if (adeptFormula == null) {
@@ -308,7 +310,10 @@ public class QueryPlanner {
 	 * to the {@link CachePayloadHeader} counterparts and adds them to `result` list. The method is used for debugging
 	 * purposes to verify that the {@link QueryPlan} for all of them produce exactly same results.
 	 */
-	private static void generateCacheableVariantTrees(@Nonnull QueryContext queryContext, @Nonnull LinkedList<QueryPlanBuilder> result) {
+	private static void generateCacheableVariantTrees(
+		@Nonnull QueryContext queryContext,
+		@Nonnull LinkedList<QueryPlanBuilder> result
+	) {
 		// when entity type is not known and the query hits global index, the query evaluation relies on prefetch
 		// which is not yet don at this moment - so for these queries we need to skip the check
 		if (queryContext.getEvitaRequest().isEntityTypeRequested()) {
@@ -319,8 +324,9 @@ public class QueryPlanner {
 				// and generate variants with various part of the filtering formula tree converted cacheable counterparts
 				final CacheableVariantsGeneratingVisitor variantsGeneratingVisitor = new CacheableVariantsGeneratingVisitor();
 				queryPlanBuilder.getFilterFormula().accept(variantsGeneratingVisitor);
-				// for each variant  create separate query plan
+				// for each variant create separate query plan
 				for (Formula formulaVariant : variantsGeneratingVisitor.getFormulaVariants()) {
+					formulaVariant.initializeAgain(new CalculationContext());
 					// create and add copy for the formula with cached variant result
 					result.add(
 						new QueryPlanBuilder(
@@ -352,11 +358,12 @@ public class QueryPlanner {
 			Sorter nextSorter = sorter;
 			do {
 				if (nextSorter instanceof final CacheableSorter cacheableSorter) {
+					cacheableSorter.initialize(CalculationContext.NO_CACHING_INSTANCE);
 					if (cacheableSorter instanceof ConditionalSorter conditionalSorter) {
 						if (conditionalSorter.shouldApply(queryContext)) {
 							sorters.add(
 								cacheableSorter.toSerializableResult(
-									cacheableSorter.computeHash(hashFunction),
+									cacheableSorter.getHash(),
 									hashFunction
 								)
 							);
@@ -367,7 +374,7 @@ public class QueryPlanner {
 					} else {
 						sorters.add(
 							cacheableSorter.toSerializableResult(
-								cacheableSorter.computeHash(hashFunction),
+								cacheableSorter.getHash(),
 								hashFunction
 							)
 						);
@@ -401,7 +408,10 @@ public class QueryPlanner {
 	 * {@link SelectionFormula} which would also limit its performance boost to a large extent.
 	 */
 	@Nullable
-	private static PrefetchFormulaVisitor createPrefetchFormulaVisitor(@Nonnull TargetIndexes<?> targetIndex) {
+	private static PrefetchFormulaVisitor createPrefetchFormulaVisitor(
+		@Nonnull TargetIndexes<?> targetIndex,
+		@Nonnull QueryContext queryContext
+	) {
 		if (targetIndex.isGlobalIndex() || targetIndex.isCatalogIndex()) {
 			return new PrefetchFormulaVisitor();
 		} else {
@@ -455,7 +465,8 @@ public class QueryPlanner {
 							return Stream.of(
 								builder,
 								new QueryPlanBuilder(
-									queryContext, builder.getFilterFormula(),
+									queryContext,
+									builder.getFilterFormula(),
 									builder.getTargetIndexes(),
 									builder.getPrefetchFormulaVisitor(),
 									replaceNoSorterIfNecessary(queryContext, replacedSorter)
@@ -490,6 +501,9 @@ public class QueryPlanner {
 		if (sorter instanceof NoSorter && !queryContext.isEntityTypeKnown()) {
 			return TranslatedPrimaryKeySorter.INSTANCE;
 		} else {
+			if (sorter instanceof TransactionalDataRelatedStructure tdrs) {
+				tdrs.initialize(CalculationContext.NO_CACHING_INSTANCE);
+			}
 			return sorter;
 		}
 	}

@@ -153,7 +153,7 @@ public class CacheEden {
 		if (cachedRecord != null) {
 			if (cachedRecord.isInitialized()) {
 				// check whether cached formula is valid for current transaction id
-				if (cachedRecord.getTransactionalIdHash() == computationalObject.computeTransactionalIdHash(hashFunction)) {
+				if (cachedRecord.getTransactionalIdHash() == computationalObject.getTransactionalIdHash()) {
 					// track hit
 					hits.incrementAndGet();
 					if (computationalObject instanceof final EntityComputationalObjectAdapter entityWrapper) {
@@ -388,7 +388,7 @@ public class CacheEden {
 						cachedRecord.getCostToPerformanceRatio(),
 						cachedRecord.getTimesUsed(),
 						cachedRecord.getSizeInBytes(),
-						inputFormula.computeTransactionalIdHash(hashFunction),
+						inputFormula.getTransactionalIdHash(),
 						payload
 					)
 				);
@@ -415,7 +415,7 @@ public class CacheEden {
 						cachedRecord.getCostToPerformanceRatio(),
 						cachedRecord.getTimesUsed(),
 						cachedRecord.getSizeInBytes(),
-						inputComputer.computeTransactionalIdHash(hashFunction),
+						inputComputer.getTransactionalIdHash(),
 						payload
 					)
 				);
@@ -441,7 +441,7 @@ public class CacheEden {
 						cachedRecord.getCostToPerformanceRatio(),
 						cachedRecord.getTimesUsed(),
 						cachedRecord.getSizeInBytes(),
-						sorter.computeTransactionalIdHash(hashFunction),
+						sorter.getTransactionalIdHash(),
 						payload
 					)
 				);
@@ -463,7 +463,7 @@ public class CacheEden {
 					cachedRecord.getCostToPerformanceRatio(),
 					cachedRecord.getTimesUsed(),
 					cachedRecord.getSizeInBytes(),
-					entityWrapper.computeTransactionalIdHash(hashFunction),
+					entityWrapper.getTransactionalIdHash(),
 					new EntityPayload(
 						entityToCache.getDelegate(),
 						entityToCache.getLocalePredicate(),

@@ -38,6 +38,13 @@
             "attributes": {
               "code": "prepared-products"
             }
+          },
+          {
+            "primaryKey": 347154,
+            "parentPrimaryKey": null,
+            "attributes": {
+              "code": "bargain-bundles"
+            }
           }
         ]
       }

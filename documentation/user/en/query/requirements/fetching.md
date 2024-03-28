@@ -942,6 +942,18 @@ specifying the price list names as string arguments to the `priceContent` requir
 fetch non-indexed prices of the entity that cannot (and are not intended to) be used to filter the entities, but you
 still want to fetch them to display in the UI for the user.
 
+<LS to="r">
+
+For entities that have either `FIRST_OCCURENCE` or `SUM` inner record handling, the `multiplePricesForSaleAvailable` 
+property is returned, indicating whether there are multiple _unique_ prices for sale (grouped by the `innerRecordId`). 
+It is important to note that it doesn't simply return the count of all prices for sale.
+Instead, it uses the [`priceType`](../requirements/price.md#price-type) constraint to determine the uniqueness of each
+price value. This means that even if there are, say, 3 prices for sale, but they all have the same value, this property
+will return `false`. This is especially useful for the
+UI to determine whether to display a price range or just a single price without having to fetch all prices for sale.
+
+</LS>
+
 To get an entity with prices that you filter by, use the following query:
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
@@ -1080,8 +1092,9 @@ As you can see, all prices of the entity are returned in all available currencie
 </LS>
 <LS to="g">
 
-To fetch price information for an entity, there are several different fields available within an entity: `priceForSale`, `price` and `prices`.
-Each has a different purpose and returns different prices.
+To fetch price information for an entity, there are several different fields available within an entity: `priceForSale`, 
+`allPricesForSale`, `multiplePricesForSaleAvailable`, `price` and `prices`.
+Each has a different purpose and returns different information.
 
 The price object returns various data that can be formatted by the server for you to display to the user. Specifically,
 the actual price numbers within the price object can be retrieved formatted according to the specified locale and can even
@@ -1090,7 +1103,7 @@ The locale is either resolved from the context of the query
 (either from a localized unique attribute in the filter or from the `entityLocaleEquals` constraint in the filter) or can be specified
 directly on the parent price field by the `locale` argument.
 
-### Price for sale
+### Prices for sale
 
 The `priceForSale` field returns a single price object representing the price for sale of the entity.
 By default, this price is [computed based on input filter constraints](../filtering/price.md), more specifically:
@@ -1140,6 +1153,44 @@ The query returns the following price for sale of the `Product` entity:
 <MDInclude sourceVariable="data.queryProduct.recordPage">[The result of an entity fetched with its price for sale](/documentation/user/en/query/requirements/examples/fetching/priceForSaleFieldWithArguments.graphql.json.md)</MDInclude>
 
 As you can see, the price for sale matching the custom arguments is returned.
+
+</Note>
+
+Similarly, you can use `allPricesForSale`, which is almost the same as `priceForSale`, but returns all prices for sale
+of the entity grouped by the `innerRecordId`. This usually only makes sense for master products with variants 
+(i.e. `FIRST_OCCURENCE` inner record handling) where the master product has prices for all of its variants, where you may 
+want to know (and display) prices for sale for each variant (or some kind of range). For the `NONE` inner record handling,
+this will always return at most the actual single price for sale. For the `SUM` inner record handling, this will return prices for sale
+for each `innerRecordId` in the same way as for the `FIRST_OCCURNCE`, but the use cases are limited.
+
+The returned list of prices is sorted by the price value from the lowest to the highest depending on the [`priceType`](../requirements/price.md#price-type)
+constraint used.
+
+There is also the simpler `multiplePricesForSaleAvailable` field, which returns a boolean indicating whether there are 
+multiple _unique_ prices for sale. It is important to note that it doesn't simply return the count of `allPricesForSale`. 
+Instead, it uses the [`priceType`](../requirements/price.md#price-type) constraint to determine the uniqueness of each 
+price value. This means that even if there are, say, 3 prices for sale, but they all have the same value, this field 
+will return `false` (as opposed to `allPricesForSale`, which would return all prices). This is especially useful for the 
+UI to determine whether to display a price range or just a single price without having to fetch all prices for sale.
+
+<SourceCodeTabs langSpecificTabOnly>
+
+[Getting entity with all prices for sale](/documentation/user/en/query/requirements/examples/fetching/allPricesForSaleField.graphql)
+</SourceCodeTabs>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### The result of an entity fetched with all of its prices for sale based on filter constraints
+</NoteTitle>
+
+The query returns the following prices for sale of the `Product` entity:
+
+<MDInclude sourceVariable="data.queryProduct.recordPage">[The result of an entity fetched with all of its prices for sale](/documentation/user/en/query/requirements/examples/fetching/allPricesForSaleField.graphql.json.md)</MDInclude>
+
+As you can see, the price for sale matching the filter constraints is returned, as well as all other prices for sale and
+flag indicating that there are multiple prices for sale available.
 
 </Note>
 

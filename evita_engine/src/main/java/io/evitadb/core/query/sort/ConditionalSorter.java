@@ -50,7 +50,7 @@ public interface ConditionalSorter extends Sorter {
 	}
 
 	/**
-	 * Method must return TRUE in case the sorter {@link #sortAndSlice(QueryContext, Formula, int, int)} should be
+	 * Method must return TRUE in case the sorter {@link #sortAndSlice(QueryContext, Formula, int, int, int[], int)}  should be
 	 * applied on the query result.
 	 */
 	boolean shouldApply(@Nonnull QueryContext queryContext);

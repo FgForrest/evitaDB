@@ -64,9 +64,9 @@ import lombok.experimental.Delegate;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.Iterator;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -127,11 +127,11 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	/**
 	 * Contemporary stack for auxiliary data resolved for each level of the query.
 	 */
-	private final Deque<ProcessingScope> scope = new LinkedList<>();
+	private final Deque<ProcessingScope> scope = new ArrayDeque<>(16);
 	/**
 	 * Contains the created sorter from the ordering query source tree.
 	 */
-	private final LinkedList<Sorter> sorters = new LinkedList<>();
+	private final Deque<Sorter> sorters = new ArrayDeque<>(16);
 
 	public OrderByVisitor(
 		@Nonnull QueryContext queryContext,

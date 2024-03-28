@@ -1,0 +1,13 @@
+query(
+  collection("Category"),
+  filterBy(
+    entityLocaleEquals("en"),
+    attributeEquals("url", "/en/smartwatches")
+  ),
+  require(
+    entityFetch(
+      attributeContent("name", "description", "descriptionShort"),
+      associatedDataContent("localization")
+    )
+  )
+)

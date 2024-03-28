@@ -5,6 +5,20 @@
       "recordPage": {
         "data": [
           {
+            "primaryKey": 347156,
+            "attributes": {
+              "code": "samsung-kit-22",
+              "orderedQuantity": "0.00000"
+            }
+          },
+          {
+            "primaryKey": 347155,
+            "attributes": {
+              "code": "apple-kit-22",
+              "orderedQuantity": "0.00000"
+            }
+          },
+          {
             "primaryKey": 113891,
             "attributes": {
               "code": "vip-voucher-10-000-for-notebooks",
@@ -127,20 +141,6 @@
             "primaryKey": 113842,
             "attributes": {
               "code": "genius-slimstar-m200",
-              "orderedQuantity": "0.00000"
-            }
-          },
-          {
-            "primaryKey": 113838,
-            "attributes": {
-              "code": "genius-slimstar-7230",
-              "orderedQuantity": "0.00000"
-            }
-          },
-          {
-            "primaryKey": 113834,
-            "attributes": {
-              "code": "trust-primo",
               "orderedQuantity": "0.00000"
             }
           }

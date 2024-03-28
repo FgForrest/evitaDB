@@ -1,0 +1,19 @@
+query(
+  collection("Product"),
+  filterBy(
+    entityLocaleEquals("en"),
+    hierarchyWithin(
+      "categories",
+      attributeEquals("url", "/en/smartwatches")
+    ),
+    priceInPriceLists("basic"),
+    priceInCurrency("EUR"),
+    priceValidInNow(),
+    userFilter(
+      priceBetween(50, 400)
+    )
+  ),
+  require(
+    priceHistogram(10)
+  )
+)

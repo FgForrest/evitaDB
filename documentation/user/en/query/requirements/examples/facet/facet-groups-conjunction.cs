@@ -19,9 +19,6 @@ EvitaResponse<ISealedEntity> entities = evita.QueryCatalog(
         			Impact,
         			EntityFetch(
         				AttributeContent("code")
-        			),
-        			EntityGroupFetch(
-        				AttributeContent("code")
         			)
         		),
         		FacetGroupsConjunction("groups")

@@ -38,8 +38,8 @@ import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.util.ArrayDeque;
 import java.util.Deque;
-import java.util.LinkedList;
 import java.util.Locale;
 import java.util.TreeMap;
 
@@ -66,11 +66,11 @@ public class ComplexDataObjectToJsonConverter implements DataItemVisitor {
 	/**
 	 * Builds a stack that holds property names visited in {@link ComplexDataObject} {@link DataItem} tree.
 	 */
-	private final Deque<String> propertyNameStack = new LinkedList<>();
+	private final Deque<String> propertyNameStack = new ArrayDeque<>(16);
 	/**
 	 * Builds a stack of output JSON nodes - these nodes are used as parents for newly created nodes within the tree.
 	 */
-	private final Deque<JsonNode> stack = new LinkedList<>();
+	private final Deque<JsonNode> stack = new ArrayDeque<>(16);
 	/**
 	 * Contains reference to the tree node.
 	 */
@@ -258,7 +258,7 @@ public class ComplexDataObjectToJsonConverter implements DataItemVisitor {
 	/**
 	 * This factory is used in tests to get always the same output for comparison.
 	 */
-	static class SortingNodeFactory extends JsonNodeFactory {
+	public static class SortingNodeFactory extends JsonNodeFactory {
 		@Serial private static final long serialVersionUID = -840940331957056894L;
 
 		@Override

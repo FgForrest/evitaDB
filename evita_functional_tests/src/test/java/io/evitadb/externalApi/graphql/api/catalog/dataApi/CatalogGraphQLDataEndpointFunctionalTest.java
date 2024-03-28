@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -195,8 +195,48 @@ public abstract class CatalogGraphQLDataEndpointFunctionalTest extends GraphQLEn
 				.e(TYPENAME_FIELD, PriceDescriptor.THIS.name())
 				.e(PriceDescriptor.CURRENCY.name(), CURRENCY_CZK.toString())
 				.e(PriceDescriptor.PRICE_LIST.name(), PRICE_LIST_BASIC)
-				.e(PriceDescriptor.PRICE_WITH_TAX.name(), entity.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).iterator().next().priceWithTax().toString())
+				.e(PriceDescriptor.PRICE_WITH_TAX.name(), entity.getPriceForSale(CURRENCY_CZK, null, PRICE_LIST_BASIC)
+					.orElseThrow()
+					.priceWithTax()
+					.toString())
 				.build())
+			.build();
+	}
+
+	@Nonnull
+	protected Map<String, Object> createEntityDtoWithOnlyOnePriceForSale(@Nonnull SealedEntity entity) {
+		return map()
+			.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
+			.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
+			.e(EntityDescriptor.PRICE_FOR_SALE.name(), map()
+				.e(TYPENAME_FIELD, PriceDescriptor.THIS.name())
+				.e(PriceDescriptor.CURRENCY.name(), CURRENCY_CZK.toString())
+				.e(PriceDescriptor.PRICE_LIST.name(), PRICE_LIST_BASIC)
+				.e(PriceDescriptor.PRICE_WITH_TAX.name(), entity.getPriceForSale(CURRENCY_CZK, null, PRICE_LIST_BASIC)
+					.orElseThrow()
+					.priceWithTax()
+					.toString())
+				.build())
+			.e(GraphQLEntityDescriptor.MULTIPLE_PRICES_FOR_SALE_AVAILABLE.name(), false)
+			.build();
+	}
+
+	@Nonnull
+	protected Map<String, Object> createEntityDtoWithAllPricesForSale(@Nonnull SealedEntity entity, @Nonnull String... priceLists) {
+		return map()
+			.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
+			.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
+			.e(GraphQLEntityDescriptor.MULTIPLE_PRICES_FOR_SALE_AVAILABLE.name(), true)
+			.e(GraphQLEntityDescriptor.ALL_PRICES_FOR_SALE.name(), entity.getAllPricesForSale(CURRENCY_CZK, null, priceLists)
+				.stream()
+				.map(price -> map()
+					.e(TYPENAME_FIELD, PriceDescriptor.THIS.name())
+					.e(PriceDescriptor.CURRENCY.name(), CURRENCY_CZK.toString())
+					.e(PriceDescriptor.PRICE_LIST.name(), price.priceList())
+					.e(PriceDescriptor.PRICE_WITH_TAX.name(), price.priceWithTax().toString())
+					.e(PriceDescriptor.INNER_RECORD_ID.name(), price.innerRecordId())
+					.build())
+				.toList())
 			.build();
 	}
 

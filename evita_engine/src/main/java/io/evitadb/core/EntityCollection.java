@@ -746,6 +746,12 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 				final Entity internalEntity = getEntityById(primaryKey, evitaRequest);
 				if (internalEntity == null) {
 					return null;
+				} else if (
+					!ofNullable(evitaRequest.getRequiredOrImplicitLocale())
+					.map(it -> internalEntity.getLocales().contains(it))
+					.orElse(true)
+				) {
+					return null;
 				} else {
 					return wrapToDecorator(evitaRequest, internalEntity, ReferenceFetcher.NO_IMPLEMENTATION);
 				}

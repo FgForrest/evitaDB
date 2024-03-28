@@ -52,9 +52,15 @@ public class HierarchyRootsDownBitmapSupplier extends AbstractHierarchyBitmapSup
 	}
 
 	@Override
+	public void initialize(@Nonnull CalculationContext calculationContext) {
+		excludedNodeTrees.initialize(calculationContext);
+		super.initialize(calculationContext);
+	}
+
+	@Override
 	public long computeHash(@Nonnull LongHashFunction hashFunction) {
 		return hashFunction.hashLongs(
-			new long[]{CLASS_ID, excludedNodeTrees.computeHash(hashFunction)}
+			new long[]{CLASS_ID, excludedNodeTrees.getHash()}
 		);
 	}
 
@@ -67,4 +73,10 @@ public class HierarchyRootsDownBitmapSupplier extends AbstractHierarchyBitmapSup
 	public int getEstimatedCardinality() {
 		return hierarchyIndex.getHierarchyNodeCountFromRootDownTo(Integer.MAX_VALUE, excludedNodeTrees);
 	}
+
+	@Override
+	public String toString() {
+		return "HIERARCHY FOR ROOTS " + excludedNodeTrees + " DOWN";
+	}
+
 }

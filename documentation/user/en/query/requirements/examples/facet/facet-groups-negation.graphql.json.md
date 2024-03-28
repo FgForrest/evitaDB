@@ -12,10 +12,10 @@
       "facetStatistics": [
         {
           "requested": false,
-          "count": 4212,
+          "count": 4214,
           "impact": {
             "difference": 0,
-            "matchCount": 4223,
+            "matchCount": 4225,
             "hasSense": true
           },
           "facetEntity": {
@@ -27,10 +27,10 @@
         },
         {
           "requested": false,
-          "count": 4116,
+          "count": 4118,
           "impact": {
             "difference": 0,
-            "matchCount": 4223,
+            "matchCount": 4225,
             "hasSense": true
           },
           "facetEntity": {
@@ -42,10 +42,10 @@
         },
         {
           "requested": false,
-          "count": 3818,
+          "count": 3820,
           "impact": {
             "difference": 0,
-            "matchCount": 4223,
+            "matchCount": 4225,
             "hasSense": true
           },
           "facetEntity": {
@@ -57,10 +57,10 @@
         },
         {
           "requested": false,
-          "count": 4221,
+          "count": 4223,
           "impact": {
             "difference": 0,
-            "matchCount": 4223,
+            "matchCount": 4225,
             "hasSense": true
           },
           "facetEntity": {
@@ -86,7 +86,7 @@
           "count": 267,
           "impact": {
             "difference": 0,
-            "matchCount": 4223,
+            "matchCount": 4225,
             "hasSense": true
           },
           "facetEntity": {
@@ -101,7 +101,7 @@
           "count": 83,
           "impact": {
             "difference": 0,
-            "matchCount": 4223,
+            "matchCount": 4225,
             "hasSense": true
           },
           "facetEntity": {
@@ -116,7 +116,7 @@
           "count": 6,
           "impact": {
             "difference": 0,
-            "matchCount": 4223,
+            "matchCount": 4225,
             "hasSense": true
           },
           "facetEntity": {
@@ -131,7 +131,7 @@
           "count": 912,
           "impact": {
             "difference": 0,
-            "matchCount": 4223,
+            "matchCount": 4225,
             "hasSense": true
           },
           "facetEntity": {
@@ -146,7 +146,7 @@
           "count": 20,
           "impact": {
             "difference": 0,
-            "matchCount": 4223,
+            "matchCount": 4225,
             "hasSense": true
           },
           "facetEntity": {
@@ -161,7 +161,7 @@
           "count": 365,
           "impact": {
             "difference": 0,
-            "matchCount": 4223,
+            "matchCount": 4225,
             "hasSense": true
           },
           "facetEntity": {

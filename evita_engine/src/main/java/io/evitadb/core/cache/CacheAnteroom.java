@@ -38,6 +38,7 @@ import io.evitadb.core.query.algebra.price.termination.PriceTerminationFormula;
 import io.evitadb.core.query.extraResult.CacheableEvitaResponseExtraResultComputer;
 import io.evitadb.core.query.extraResult.EvitaResponseExtraResultComputer;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
+import io.evitadb.core.query.response.TransactionalDataRelatedStructure.CalculationContext;
 import io.evitadb.core.query.sort.CacheableSorter;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.core.scheduling.Scheduler;
@@ -67,9 +68,10 @@ import java.util.function.UnaryOperator;
  *
  * The key entry-points of this class are:
  *
- * - {@link #register(EvitaSessionContract, String, String, Formula, FormulaCacheVisitor)}
- * - {@link #register(EvitaSessionContract, String, String, CacheableEvitaResponseExtraResultComputer)}
- * - {@link #register(EvitaSessionContract, int, String, String, OffsetDateTime, EntityFetch, Supplier, UnaryOperator)}
+ * - {@link #register(EvitaSessionContract, String, Formula, FormulaCacheVisitor)}
+ * - {@link #register(EvitaSessionContract, String, CacheableSorter)}
+ * - {@link #register(EvitaSessionContract, String, CacheableEvitaResponseExtraResultComputer)}
+ * - {@link #register(EvitaSessionContract, CalculationContext, int, Serializable, EntityFetch, Supplier)}
  * - {@link #evaluateAssociates(boolean)}
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
@@ -366,7 +368,7 @@ public class CacheAnteroom {
 
 	/**
 	 * Method returns {@link CacheRecordAdept} for passed `dataStructure`.
-	 * The key is the {@link TransactionalDataRelatedStructure#computeHash(LongHashFunction)}.
+	 * The key is the {@link TransactionalDataRelatedStructure#getHash()}.
 	 */
 	@Nullable
 	CacheRecordAdept getCacheAdept(
@@ -390,7 +392,7 @@ public class CacheAnteroom {
 			new long[]{
 				hashFunction.hashChars(catalogName),
 				hashFunction.hashChars(entityType.toString()),
-				dataStructure.computeHash(hashFunction)
+				dataStructure.getHash()
 			}
 		);
 	}

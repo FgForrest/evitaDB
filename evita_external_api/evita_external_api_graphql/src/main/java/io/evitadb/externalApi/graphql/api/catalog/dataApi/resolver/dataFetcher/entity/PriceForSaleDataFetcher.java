@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -52,24 +52,34 @@ public class PriceForSaleDataFetcher implements DataFetcher<DataFetcherResult<Pr
         final EntityDecorator entity = environment.getSource();
         final EntityQueryContext context = environment.getLocalContext();
 
-        final String[] priceLists = Optional.ofNullable((String) environment.getArgument(PriceForSaleFieldHeaderDescriptor.PRICE_LIST.name()))
-            .map(priceList -> new String[] { priceList })
-            .or(() -> Optional.ofNullable(context.getDesiredPriceInPriceLists()))
-            .orElseThrow(() -> new GraphQLInvalidArgumentException("Missing `priceList` argument. You can use `" + PriceForSaleFieldHeaderDescriptor.PRICE_LIST.name() + "` parameter for specifying custom price list."));
+        final boolean customPriceForSaleDesired = environment.getArguments().containsKey(PriceForSaleFieldHeaderDescriptor.PRICE_LIST.name()) ||
+            environment.getArguments().containsKey(PriceForSaleFieldHeaderDescriptor.CURRENCY.name()) ||
+            environment.getArguments().containsKey(PriceForSaleFieldHeaderDescriptor.VALID_IN.name()) ||
+            environment.getArguments().containsKey(PriceForSaleFieldHeaderDescriptor.VALID_NOW.name());
 
-        final Currency currency = Optional.ofNullable((Currency) environment.getArgument(PriceForSaleFieldHeaderDescriptor.CURRENCY.name()))
-            .or(() -> Optional.ofNullable(context.getDesiredPriceInCurrency()))
-            .orElseThrow(() -> new GraphQLInvalidArgumentException("Missing `currency` argument. You can use `" + PriceForSaleFieldHeaderDescriptor.CURRENCY.name() + "` parameter for specifying custom currency."));
+        final Optional<PriceContract> priceForSale;
+        if (!customPriceForSaleDesired) {
+            priceForSale = entity.getPriceForSale();
+        } else {
+            final String[] priceLists = Optional.ofNullable((String) environment.getArgument(PriceForSaleFieldHeaderDescriptor.PRICE_LIST.name()))
+                .map(priceList -> new String[] { priceList })
+                .or(() -> Optional.ofNullable(context.getDesiredPriceInPriceLists()))
+                .orElseThrow(() -> new GraphQLInvalidArgumentException("Missing `priceList` argument. You can use `" + PriceForSaleFieldHeaderDescriptor.PRICE_LIST.name() + "` parameter for specifying custom price list."));
 
-        final OffsetDateTime validIn = Optional.ofNullable((OffsetDateTime) environment.getArgument(PriceForSaleFieldHeaderDescriptor.VALID_IN.name()))
-            .or(() -> Optional.ofNullable((Boolean) environment.getArgument(PriceForSaleFieldHeaderDescriptor.VALID_NOW.name()))
-                .map(validNow -> validNow ? entity.getAlignedNow() : null))
-            .or(() -> Optional.ofNullable(context.getDesiredPriceValidIn()))
-            .or(() -> Optional.of(context.isDesiredPriceValidInNow())
-                .map(validNow -> validNow ? entity.getAlignedNow() : null))
-            .orElse(null);
+            final Currency currency = Optional.ofNullable((Currency) environment.getArgument(PriceForSaleFieldHeaderDescriptor.CURRENCY.name()))
+                .or(() -> Optional.ofNullable(context.getDesiredPriceInCurrency()))
+                .orElseThrow(() -> new GraphQLInvalidArgumentException("Missing `currency` argument. You can use `" + PriceForSaleFieldHeaderDescriptor.CURRENCY.name() + "` parameter for specifying custom currency."));
 
-        final Optional<PriceContract> priceForSale = entity.getPriceForSale(currency, validIn, priceLists);
+            final OffsetDateTime validIn = Optional.ofNullable((OffsetDateTime) environment.getArgument(PriceForSaleFieldHeaderDescriptor.VALID_IN.name()))
+                .or(() -> Optional.ofNullable((Boolean) environment.getArgument(PriceForSaleFieldHeaderDescriptor.VALID_NOW.name()))
+                    .map(validNow -> validNow ? entity.getAlignedNow() : null))
+                .or(() -> Optional.ofNullable(context.getDesiredPriceValidIn()))
+                .or(() -> Optional.of(context.isDesiredPriceValidInNow())
+                    .map(validNow -> validNow ? entity.getAlignedNow() : null))
+                .orElse(null);
+
+            priceForSale = entity.getPriceForSale(currency, validIn, priceLists);
+        }
 
         final Locale customLocale = environment.getArgument(PriceForSaleFieldHeaderDescriptor.LOCALE.name());
         final EntityQueryContext newContext = context.toBuilder()

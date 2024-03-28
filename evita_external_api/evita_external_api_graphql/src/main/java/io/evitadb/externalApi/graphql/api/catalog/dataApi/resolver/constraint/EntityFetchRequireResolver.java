@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -77,6 +77,15 @@ import static io.evitadb.utils.CollectionUtils.createHashSet;
  */
 @RequiredArgsConstructor
 public class EntityFetchRequireResolver {
+
+	private static final Set<String> PRICE_FOR_SALE_FIELDS = Set.of(
+		GraphQLEntityDescriptor.PRICE_FOR_SALE.name(),
+		GraphQLEntityDescriptor.ALL_PRICES_FOR_SALE.name()
+	);
+	private static final Set<String> CUSTOM_PRICE_FIELDS = Set.of(
+		GraphQLEntityDescriptor.PRICE.name(),
+		GraphQLEntityDescriptor.PRICES.name()
+	);
 
 	@Nonnull private final Function<String, EntitySchemaContract> entitySchemaFetcher;
 	@Nonnull private final FilterConstraintResolver filterConstraintResolver;
@@ -204,7 +213,9 @@ public class EntityFetchRequireResolver {
 	}
 
 	private boolean needsPrices(@Nonnull SelectionSetAggregator selectionSetAggregator) {
-		return selectionSetAggregator.containsImmediate(GraphQLEntityDescriptor.PRICE.name() + "*");
+		return selectionSetAggregator.containsImmediate(GraphQLEntityDescriptor.PRICE.name() + "*") ||
+			selectionSetAggregator.containsImmediate(GraphQLEntityDescriptor.MULTIPLE_PRICES_FOR_SALE_AVAILABLE.name()) ||
+			selectionSetAggregator.containsImmediate(GraphQLEntityDescriptor.ALL_PRICES_FOR_SALE.name());
 	}
 
 	private boolean needsReferences(@Nonnull SelectionSetAggregator selectionSetAggregator, @Nonnull EntitySchemaContract currentEntitySchema) {
@@ -307,43 +318,13 @@ public class EntityFetchRequireResolver {
 			return Optional.empty();
 		}
 
-		if (selectionSetAggregator.getImmediateFields(GraphQLEntityDescriptor.PRICES.name())
+		if (!selectionSetAggregator.getImmediateFields(CUSTOM_PRICE_FIELDS).isEmpty() ||
+			selectionSetAggregator.getImmediateFields(PRICE_FOR_SALE_FIELDS)
 				.stream()
-				.anyMatch(f -> f.getArguments().get(PricesFieldHeaderDescriptor.PRICE_LISTS.name()) == null || f.getArguments().get(PricesFieldHeaderDescriptor.CURRENCY.name()) != null) ||
-			selectionSetAggregator.getImmediateFields(GraphQLEntityDescriptor.PRICE.name())
-				.stream()
-				.anyMatch(f -> f.getArguments().get(PriceFieldHeaderDescriptor.CURRENCY.name()) != null)) {
+				.anyMatch(f -> !f.getArguments().isEmpty())) {
 			return Optional.of(priceContentAll());
 		} else {
-			final Set<String> neededPriceLists = createHashSet(10);
-
-			// check price for sale fields
-			neededPriceLists.addAll(
-				selectionSetAggregator.getImmediateFields(GraphQLEntityDescriptor.PRICE_FOR_SALE.name())
-					.stream()
-					.map(f -> (String) f.getArguments().get(PriceForSaleFieldHeaderDescriptor.PRICE_LIST.name()))
-					.filter(Objects::nonNull)
-					.collect(Collectors.toSet())
-			);
-
-			// check price fields
-			neededPriceLists.addAll(
-				selectionSetAggregator.getImmediateFields(GraphQLEntityDescriptor.PRICE.name())
-					.stream()
-					.map(f -> (String) f.getArguments().get(PriceFieldHeaderDescriptor.PRICE_LIST.name()))
-					.collect(Collectors.toSet())
-			);
-
-			// check prices fields
-			//noinspection unchecked
-			neededPriceLists.addAll(
-				selectionSetAggregator.getImmediateFields(GraphQLEntityDescriptor.PRICES.name())
-					.stream()
-					.flatMap(f -> ((List<String>) f.getArguments().get(PricesFieldHeaderDescriptor.PRICE_LISTS.name())).stream())
-					.collect(Collectors.toSet())
-			);
-
-			return Optional.of(priceContent(PriceContentMode.RESPECTING_FILTER, neededPriceLists.toArray(String[]::new)));
+			return Optional.of(priceContent(PriceContentMode.RESPECTING_FILTER));
 		}
 	}
 

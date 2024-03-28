@@ -47,10 +47,12 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.Associate
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.AttributesFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.ParentsFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PriceBigDecimalFieldHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PriceFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PricesFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.ReferenceFieldHeaderDescriptor;
 import io.evitadb.test.client.query.graphql.GraphQLOutputFieldsBuilder.Argument;
 import io.evitadb.test.client.query.graphql.GraphQLOutputFieldsBuilder.ArgumentSupplier;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.StringUtils;
 
 import javax.annotation.Nonnull;
@@ -319,8 +321,9 @@ public class EntityFetchConverter extends RequireConverter {
 			} else if (fetchMode == PriceContentMode.RESPECTING_FILTER) {
 				final PriceInPriceLists priceInPriceLists = QueryUtils.findFilter(query, PriceInPriceLists.class);
 				final PriceInCurrency priceInCurrency = QueryUtils.findFilter(query, PriceInCurrency.class);
-				final boolean isEligibleForPriceForSale = priceInPriceLists != null && priceInCurrency != null;
+				final String[] additionalPriceLists = priceContent.getAdditionalPriceListsToFetch();
 
+				final boolean isEligibleForPriceForSale = priceInPriceLists != null && priceInCurrency != null;
 				if (isEligibleForPriceForSale) {
 					entityFieldsBuilder.addObjectField(
 						EntityDescriptor.PRICE_FOR_SALE,
@@ -330,18 +333,56 @@ public class EntityFetchConverter extends RequireConverter {
 							priceForSaleBuilder.addPrimitiveField(PriceDescriptor.TAX_RATE);
 						}
 					);
+
+					// fetch additional prices if requested
+					for (final String additionalPriceList : additionalPriceLists) {
+						final List<ArgumentSupplier> argumentSuppliers = new ArrayList<>(1);
+						argumentSuppliers.add(
+							(offset, multipleArguments) -> new Argument(
+								PriceFieldHeaderDescriptor.PRICE_LIST,
+								offset,
+								multipleArguments,
+								additionalPriceList
+							)
+						);
+
+						entityFieldsBuilder.addObjectField(
+							StringUtils.toCamelCase(additionalPriceList),
+							EntityDescriptor.PRICE,
+							pricesBuilder -> {
+								pricesBuilder.addPrimitiveField(PriceDescriptor.PRICE_WITHOUT_TAX, getPriceValueFieldArguments(locale));
+								pricesBuilder.addPrimitiveField(PriceDescriptor.PRICE_WITH_TAX, getPriceValueFieldArguments(locale));
+								pricesBuilder.addPrimitiveField(PriceDescriptor.TAX_RATE);
+							},
+							argumentSuppliers.toArray(ArgumentSupplier[]::new)
+						);
+					}
 				} else {
 					final List<ArgumentSupplier> argumentSuppliers = new ArrayList<>(2);
+
 					if (priceInPriceLists != null) {
 						argumentSuppliers.add(
 							(offset, multipleArguments) -> new Argument(
 								PricesFieldHeaderDescriptor.PRICE_LISTS,
 								offset,
 								multipleArguments,
-								priceInPriceLists.getPriceLists()
+								ArrayUtils.mergeArrays(
+									priceInPriceLists.getPriceLists(),
+									additionalPriceLists
+								)
+							)
+						);
+					} else if (additionalPriceLists.length > 0) {
+						argumentSuppliers.add(
+							(offset, multipleArguments) -> new Argument(
+								PricesFieldHeaderDescriptor.PRICE_LISTS,
+								offset,
+								multipleArguments,
+								additionalPriceLists
 							)
 						);
 					}
+
 					if (priceInCurrency != null) {
 						argumentSuppliers.add(
 							(offset, multipleArguments) -> new Argument(

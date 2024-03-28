@@ -62,11 +62,17 @@ public class HierarchyByParentDownToLevelBitmapSupplier extends AbstractHierarch
 	}
 
 	@Override
+	public void initialize(@Nonnull CalculationContext calculationContext) {
+		excludedNodeTrees.initialize(calculationContext);
+		super.initialize(calculationContext);
+	}
+
+	@Override
 	public long computeHash(@Nonnull LongHashFunction hashFunction) {
 		return hashFunction.hashLongs(
 			new long[]{
 				hashFunction.hashInts(new int[]{CLASS_ID, parentNode, levels}),
-				excludedNodeTrees.computeHash(hashFunction)
+				excludedNodeTrees.getHash()
 			}
 		);
 	}
@@ -80,4 +86,10 @@ public class HierarchyByParentDownToLevelBitmapSupplier extends AbstractHierarch
 	public int getEstimatedCardinality() {
 		return hierarchyIndex.getHierarchyNodeCountFromParentDownTo(parentNode, levels, excludedNodeTrees);
 	}
+
+	@Override
+	public String toString() {
+		return "HIERARCHY FROM PARENT: " + parentNode + " " + excludedNodeTrees + " DOWN TO " + levels;
+	}
+
 }

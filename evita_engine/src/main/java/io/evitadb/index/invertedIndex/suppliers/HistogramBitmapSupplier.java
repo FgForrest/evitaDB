@@ -30,8 +30,8 @@ import io.evitadb.index.bitmap.ArrayBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.invertedIndex.InvertedIndex;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
+import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
-import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import java.util.Arrays;
@@ -49,15 +49,123 @@ import java.util.stream.Stream;
 public class HistogramBitmapSupplier<T extends Comparable<T>> implements BitmapSupplier {
 	private static final long CLASS_ID = 516692463222738021L;
 	private final ValueToRecordBitmap<T>[] histogramBuckets;
+	/**
+	 * Contains memoized result once {@link #get()} is invoked for the first time. Additional calls of
+	 * {@link #get()} will return this memoized result without paying the computational costs
+	 */
+	protected Bitmap memoizedResult;
+	/**
+	 * Contains memoized value of {@link #getEstimatedCost()}  of this formula.
+	 */
+	private Long estimatedCost;
+	/**
+	 * Contains memoized value of {@link #getCost()}  of this formula.
+	 */
+	private Long cost;
+	/**
+	 * Contains memoized value of {@link #getCostToPerformanceRatio()} of this formula.
+	 */
+	private Long costToPerformance;
+	/**
+	 * Contains memoized value of {@link #getEstimatedCardinality()} of this formula.
+	 */
+	private Integer estimatedCardinality;
+	/**
+	 * Contains memoized value of {@link #getHash()} method.
+	 */
+	private Long hash;
+	/**
+	 * Contains memoized value of {@link #gatherTransactionalIds()} method.
+	 */
+	private long[] transactionalIds;
+	/**
+	 * Contains memoized value of {@link #gatherTransactionalIds()} computed hash.
+	 */
+	private Long transactionalIdHash;
+
+	@Override
+	public void initialize(@Nonnull CalculationContext calculationContext) {
+		if (this.hash == null) {
+			this.hash = calculationContext.getHashFunction().hashLongs(
+				Stream.of(
+						LongStream.of(CLASS_ID),
+						Arrays.stream(histogramBuckets).mapToLong(it -> it.getRecordIds().getId()).sorted()
+					)
+					.flatMapToLong(it -> it)
+					.toArray()
+			);
+		}
+		if (this.estimatedCardinality == null) {
+			this.estimatedCardinality = Arrays.stream(histogramBuckets)
+				.mapToInt(it -> it.getRecordIds().size())
+				.sum();
+			if (calculationContext.visit(CalculationType.ESTIMATED_COST, this)) {
+				this.estimatedCost = this.estimatedCardinality * getOperationCost();
+			} else {
+				this.estimatedCost = 0L;
+			}
+		}
+		if (this.cost == null) {
+			if (calculationContext.visit(CalculationType.COST, this)) {
+				this.cost = this.estimatedCost;
+			} else {
+				this.cost = 0L;
+			}
+			this.costToPerformance = getCost() / (get().size() * getOperationCost());
+		}
+		if (this.transactionalIds == null) {
+			this.transactionalIds = Arrays.stream(histogramBuckets)
+				.mapToLong(it -> it.getRecordIds().getId())
+				.toArray();
+			this.transactionalIdHash = calculationContext.getHashFunction().hashLongs(
+				Arrays.stream(this.transactionalIds)
+					.distinct()
+					.sorted()
+					.toArray()
+			);
+		}
+	}
+
+	@Override
+	public long getHash() {
+		if (this.hash == null) {
+			initialize(CalculationContext.NO_CACHING_INSTANCE);
+		}
+		return this.hash;
+	}
+
+	@Override
+	public long getTransactionalIdHash() {
+		if (this.transactionalIdHash == null) {
+			initialize(CalculationContext.NO_CACHING_INSTANCE);
+		}
+		return this.transactionalIdHash;
+	}
+
+	@Nonnull
+	@Override
+	public long[] gatherTransactionalIds() {
+		if (this.transactionalIds == null) {
+			initialize(CalculationContext.NO_CACHING_INSTANCE);
+		}
+		return this.transactionalIds;
+	}
 
 	@Override
 	public long getEstimatedCost() {
-		return getEstimatedCardinality() * getOperationCost();
+		if (this.estimatedCost == null) {
+			initialize(CalculationContext.NO_CACHING_INSTANCE);
+		}
+		return this.estimatedCost;
 	}
 
 	@Override
 	public long getCost() {
-		return getEstimatedCost();
+		if (this.cost == null) {
+			initialize(CalculationContext.NO_CACHING_INSTANCE);
+			Assert.isPremiseValid(this.cost != null, "Formula results haven't been computed!");
+		}
+		return this.cost;
 	}
 
 	@Override
@@ -66,54 +174,32 @@ public class HistogramBitmapSupplier<T extends Comparable<T>> implements BitmapS
 	}
 
 	@Override
-	public int getEstimatedCardinality() {
-		return Arrays.stream(histogramBuckets)
-			.mapToInt(it -> it.getRecordIds().size())
-			.sum();
-	}
-
-	@Override
 	public long getCostToPerformanceRatio() {
-		return getCost() / (get().size() * getOperationCost());
+		if (this.costToPerformance == null) {
+			initialize(CalculationContext.NO_CACHING_INSTANCE);
+			Assert.isPremiseValid(this.costToPerformance != null, "Formula results haven't been computed!");
+		}
+		return this.costToPerformance;
 	}
 
 	@Override
-	public long computeHash(@Nonnull LongHashFunction hashFunction) {
-		return hashFunction.hashLongs(
-			Stream.of(
-					LongStream.of(CLASS_ID),
-					Arrays.stream(histogramBuckets).mapToLong(it -> it.getRecordIds().getId()).sorted()
-				)
-				.flatMapToLong(it -> it)
-				.toArray()
-		);
-	}
-
-	@Override
-	public long computeTransactionalIdHash(@Nonnull LongHashFunction hashFunction) {
-		return hashFunction.hashLongs(
-			Arrays.stream(gatherTransactionalIds())
-				.distinct()
-				.sorted()
-				.toArray()
-		);
-	}
-
-	@Nonnull
-	@Override
-	public long[] gatherTransactionalIds() {
-		return Arrays.stream(histogramBuckets)
-			.mapToLong(it -> it.getRecordIds().getId())
-			.toArray();
+	public int getEstimatedCardinality() {
+		if (this.estimatedCardinality == null) {
+			initialize(CalculationContext.NO_CACHING_INSTANCE);
+		}
+		return this.estimatedCardinality;
 	}
 
 	@Override
 	public Bitmap get() {
-		final CompositeIntArray result = new CompositeIntArray();
-		Arrays.stream(histogramBuckets)
-			.map(ValueToRecordBitmap::getRecordIds)
-			.map(Bitmap::getArray)
-			.forEach(it -> result.addAll(it, 0, it.length));
-		return new ArrayBitmap(result);
+		if (this.memoizedResult == null) {
+			final CompositeIntArray result = new CompositeIntArray();
+			Arrays.stream(histogramBuckets)
+				.map(ValueToRecordBitmap::getRecordIds)
+				.map(Bitmap::getArray)
+				.forEach(it -> result.addAll(it, 0, it.length));
+			this.memoizedResult = new ArrayBitmap(result);
+		}
+		return this.memoizedResult;
 	}
 }

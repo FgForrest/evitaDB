@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,13 +25,12 @@ package io.evitadb.externalApi.lab.api.resolver.serializer;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
-import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
+import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.externalApi.lab.api.model.entity.GenericEntityDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer.EntityJsonSerializer;
-import io.evitadb.externalApi.rest.io.RestHandlingContext;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer.EntitySerializationContext;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -51,9 +50,9 @@ public class GenericEntityJsonSerializer extends EntityJsonSerializer {
 	}
 
 	@Override
-	protected void serializeReferences(@Nonnull ObjectNode rootNode,
-	                                   @Nonnull EntityContract entity,
-	                                   @Nonnull CatalogSchemaContract catalogSchema,
+	protected void serializeReferences(@Nonnull EntitySerializationContext ctx,
+	                                   @Nonnull ObjectNode rootNode,
+	                                   @Nonnull EntityDecorator entity,
 	                                   @Nonnull EntitySchemaContract entitySchema) {
 		if (entity.referencesAvailable() && !entity.getReferences().isEmpty()) {
 			final ObjectNode referencesObject = objectJsonSerializer.objectNode();
@@ -62,7 +61,7 @@ public class GenericEntityJsonSerializer extends EntityJsonSerializer {
 				.stream()
 				.map(ReferenceContract::getReferenceName)
 				.collect(Collectors.toCollection(TreeSet::new))
-				.forEach(it -> serializeReferencesWithSameName(referencesObject, entity, it, catalogSchema, entitySchema));
+				.forEach(it -> serializeReferencesWithSameName(ctx, referencesObject, entity, it, entitySchema));
 
 			rootNode.putIfAbsent(GenericEntityDescriptor.REFERENCES.name(), referencesObject);
 		}
