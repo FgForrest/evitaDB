@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -394,7 +394,6 @@ public class ClassSchemaAnalyzer {
 		final Class<?> theType = extractReturnType(modelClass, getter);
 		if (theType.isEnum()) {
 			// the enums are represented by their full name
-			// TOBEDONE JNO - this could be changed to compressed key to save space
 			return String.class;
 		} else {
 			return theType;

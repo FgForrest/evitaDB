@@ -75,7 +75,7 @@ public class FacetReferenceIndex implements TransactionalLayerProducer<FacetEnti
 	@Getter private final String referenceName;
 	/**
 	 * Represents index of facet to group relation - if none exists facet is either unknown or not assigned to any group.
-	 * TOBEDONE JNO - add consistency check that at the end of transaction, there is simple 1:1 relation in this sub index
+	 * TOBEDONE JNO #501 - add consistency check that at the end of transaction, there is simple 1:1 relation in this sub index
 	 */
 	private final TransactionalMap<Integer, int[]> facetToGroupIndex;
 	/**

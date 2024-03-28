@@ -295,7 +295,7 @@ public class CacheEden {
 								});
 						}
 
-						// TOBEDONE JNO - replace this with metrics
+						// TOBEDONE JNO #18 - replace this with metrics
 						log.debug(
 							"Cache re-evaluation: " +
 								"count " + theCache.size() +

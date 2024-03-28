@@ -77,9 +77,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.function.Supplier;
-import java.util.function.Consumer;
-import java.util.function.Function;
 
 import static io.evitadb.api.query.QueryConstraints.entityFetch;
 import static io.evitadb.api.query.QueryConstraints.require;
@@ -872,8 +869,6 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * Shorthand method for {@link #upsertEntity(EntityMutation)} that accepts {@link EntityBuilder} that can produce
 	 * mutation.
 	 *
-	 * TOBEDONE #43 - support new variants for the model class
-	 *
 	 * @param entityBuilder that contains changed entity state
 	 * @return modified entity fetched according to `require` definition
 	 */
@@ -882,8 +877,6 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 
 	/**
 	 * Method inserts to or updates entity in collection according to passed set of mutations.
-	 *
-	 * TOBEDONE #43 - support new variants for the model class
 	 *
 	 * @param entityMutation list of mutation snippets that alter or form the entity
 	 * @return modified entity fetched according to `require` definition

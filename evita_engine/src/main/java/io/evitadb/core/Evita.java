@@ -397,7 +397,7 @@ public final class Evita implements EvitaContract {
 		if (readOnly) {
 			throw new ReadOnlyException();
 		}
-		// TODO JNO - we have to have a special WAL for the evitaDB server instance as well
+		// TOBEDONE JNO #502 - we have to have a special WAL for the evitaDB server instance as well
 		for (CatalogSchemaMutation catalogMutation : catalogMutations) {
 			if (catalogMutation instanceof CreateCatalogSchemaMutation createCatalogSchema) {
 				createCatalogInternal(createCatalogSchema);

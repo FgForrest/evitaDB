@@ -747,7 +747,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 			Assert.isPremiseValid(updatedSchema != null, "Entity collection cannot be dropped by updating schema!");
 			Assert.isPremiseValid(updatedSchema instanceof EntitySchema, "Mutation is expected to produce EntitySchema instance!");
 			if (updatedSchema.version() > originalSchema.version()) {
-				/* TODO JNO - apply this just before commit happens in case validations are enabled */
+				/* TOBEDONE JNO (#501) - apply this just before commit happens in case validations are enabled */
 				// assertAllReferencedEntitiesExist(newSchema);
 				// assertReferences(newSchema);
 				final EntitySchema updatedInternalSchema = (EntitySchema) updatedSchema;
