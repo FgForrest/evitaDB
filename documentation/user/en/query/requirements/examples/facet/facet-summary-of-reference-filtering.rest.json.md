@@ -8,6 +8,7 @@
         "type": "Parameter",
         "version": 1,
         "allLocales": [
+          "cs",
           "en"
         ],
         "attributes": {

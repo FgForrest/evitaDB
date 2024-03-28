@@ -130,6 +130,9 @@ public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProces
 		return PREFETCH_COST_ESTIMATOR.apply(prefetchedEntityCount, requirements.getRequirements().length);
 	}
 
+	public PrefetchFormulaVisitor() {
+	}
+
 	/**
 	 * We don't alter the input formula - just analyze it.
 	 */

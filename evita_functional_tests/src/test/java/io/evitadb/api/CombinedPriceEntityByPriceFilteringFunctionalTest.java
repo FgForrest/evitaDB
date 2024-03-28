@@ -271,4 +271,28 @@ public class CombinedPriceEntityByPriceFilteringFunctionalTest extends EntityByP
 	void shouldReturnPriceHistogramWithoutBeingAffectedByPriceFilter(Evita evita, List<SealedEntity> originalProductEntities) {
 		super.shouldReturnPriceHistogramWithoutBeingAffectedByPriceFilter(evita, originalProductEntities);
 	}
+
+	@DisplayName("Should return price histogram for returned products excluding price between query (and validity)")
+	@UseDataSet(HUNDRED_PRODUCTS_WITH_COMBINED_PRICES)
+	@Test
+	@Override
+	void shouldReturnPriceHistogramWithoutBeingAffectedByPriceFilterAndValidity(Evita evita, List<SealedEntity> originalProductEntities) {
+		super.shouldReturnPriceHistogramWithoutBeingAffectedByPriceFilterAndValidity(evita, originalProductEntities);
+	}
+
+	@DisplayName("Should return price histogram for returned products excluding price between query")
+	@UseDataSet(HUNDRED_PRODUCTS_WITH_COMBINED_PRICES)
+	@Test
+	@Override
+	void shouldReturnPriceHistogramWithoutBeingAffectedByPriceFilterUsingPrefetch(Evita evita, List<SealedEntity> originalProductEntities) {
+		super.shouldReturnPriceHistogramWithoutBeingAffectedByPriceFilterUsingPrefetch(evita, originalProductEntities);
+	}
+
+	@DisplayName("Should return products with price in price list and currency within interval (with tax) ordered by price asc without explicit AND")
+	@UseDataSet(HUNDRED_PRODUCTS_WITH_COMBINED_PRICES)
+	@Test
+	@Override
+	void shouldReturnProductsHavingPriceInCurrencyAndPriceListInIntervalWithTaxOrderByPriceAscendingWithoutExplicitAnd(Evita evita, List<SealedEntity> originalProductEntities) {
+		super.shouldReturnProductsHavingPriceInCurrencyAndPriceListInIntervalWithTaxOrderByPriceAscendingWithoutExplicitAnd(evita, originalProductEntities);
+	}
 }

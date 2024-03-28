@@ -24,11 +24,10 @@
 package io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer;
 
 import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
-import io.evitadb.core.query.QueryContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
-import io.evitadb.core.query.sort.Sorter;
+import io.evitadb.core.query.sort.NestedContextSorter;
 import io.evitadb.core.query.sort.utils.SortUtils;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
@@ -57,10 +56,6 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class HierarchySet {
 	/**
-	 * Reference to the query context that allows to access entity bodies.
-	 */
-	private final QueryContext queryContext;
-	/**
 	 * The list contains all registered hierarchy computers along with the string key their output will be indexed.
 	 */
 	private final List<NamedComputer> computers = new LinkedList<>();
@@ -69,7 +64,7 @@ public class HierarchySet {
 	 * by its primary key in ascending order.
 	 */
 	@Nullable
-	private Sorter sorter;
+	private NestedContextSorter sorter;
 
 	/**
 	 * Adds all {@link LevelInfo#entity()} primary keys to the `writer` traversing them recursively so that all entities
@@ -114,7 +109,7 @@ public class HierarchySet {
 	/**
 	 * Initializes the {@link #sorter} field.
 	 */
-	public void setSorter(@Nullable Sorter sorter) {
+	public void setSorter(@Nullable NestedContextSorter sorter) {
 		this.sorter = sorter;
 	}
 
@@ -150,7 +145,7 @@ public class HierarchySet {
 			final Formula levelIdFormula = bitmap.isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(new BaseBitmap(bitmap));
 			final int[] sortedEntities = new int[levelIdFormula.compute().size()];
 			final int sortedEntitiesPeak = sorter.sortAndSlice(
-				queryContext, levelIdFormula, 0, levelIdFormula.compute().size(), sortedEntities, 0
+				levelIdFormula, 0, levelIdFormula.compute().size(), sortedEntities, 0
 			);
 			// replace the output with the sorted one
 			final int[] normalizedSortedResult = SortUtils.asResult(sortedEntities, sortedEntitiesPeak);

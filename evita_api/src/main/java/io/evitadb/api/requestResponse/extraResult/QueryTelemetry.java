@@ -94,7 +94,8 @@ public class QueryTelemetry implements EvitaResponseExtraResult {
 	/**
 	 * Finalizes current step of the query telemetry and stores the time spent.
 	 */
-	public QueryTelemetry finish(String... arguments) {
+	@Nonnull
+	public QueryTelemetry finish(@Nonnull String... arguments) {
 		this.spentTime += (System.nanoTime() - start);
 		Assert.isTrue(ArrayUtils.isEmpty(this.arguments), "Arguments have been already set!");
 		this.arguments = arguments;
@@ -104,7 +105,8 @@ public class QueryTelemetry implements EvitaResponseExtraResult {
 	/**
 	 * Adds internal step of query processing in current phase.
 	 */
-	public QueryTelemetry addStep(QueryPhase operation, String... arguments) {
+	@Nonnull
+	public QueryTelemetry addStep(@Nonnull QueryPhase operation, @Nonnull String... arguments) {
 		final QueryTelemetry step = new QueryTelemetry(operation, arguments);
 		this.steps.add(step);
 		return step;
@@ -120,6 +122,7 @@ public class QueryTelemetry implements EvitaResponseExtraResult {
 	/**
 	 * Finalizes current step of the query telemetry and stores the time spent.
 	 */
+	@Nonnull
 	public QueryTelemetry finish() {
 		this.spentTime += (System.nanoTime() - start);
 		return this;
@@ -130,6 +133,12 @@ public class QueryTelemetry implements EvitaResponseExtraResult {
 		return toString(0);
 	}
 
+	/**
+	 * Returns a string representation of the QueryTelemetry object with an indentation level.
+	 *
+	 * @param indent the number of spaces to indent the string
+	 * @return a string representation of the QueryTelemetry object
+	 */
 	public String toString(int indent) {
 		final StringBuilder sb = new StringBuilder(" ".repeat(indent));
 		sb.append(operation);

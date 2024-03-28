@@ -280,6 +280,28 @@ public class SumPriceEntityByPriceFilteringFunctionalTest extends EntityByPriceF
 		super.shouldReturnPriceHistogramWithoutBeingAffectedByPriceFilter(evita, originalProductEntities);
 	}
 
+	@DisplayName("Should return price histogram for returned products excluding price between query (and validity)")
+	@UseDataSet(HUNDRED_PRODUCTS_WITH_SUM_PRICES)
+	@Test
+	@Override
+	void shouldReturnPriceHistogramWithoutBeingAffectedByPriceFilterAndValidity(Evita evita, List<SealedEntity> originalProductEntities) {
+		super.shouldReturnPriceHistogramWithoutBeingAffectedByPriceFilterAndValidity(evita, originalProductEntities);
+	}
+
+	@DisplayName("Should return price histogram for returned products excluding price between query")
+	@UseDataSet(HUNDRED_PRODUCTS_WITH_SUM_PRICES)
+	@Override
+	void shouldReturnPriceHistogramWithoutBeingAffectedByPriceFilterUsingPrefetch(Evita evita, List<SealedEntity> originalProductEntities) {
+		super.shouldReturnPriceHistogramWithoutBeingAffectedByPriceFilterUsingPrefetch(evita, originalProductEntities);
+	}
+
+	@DisplayName("Should return products with price in price list and currency within interval (with tax) ordered by price asc without explicit AND")
+	@UseDataSet(HUNDRED_PRODUCTS_WITH_SUM_PRICES)
+	@Override
+	void shouldReturnProductsHavingPriceInCurrencyAndPriceListInIntervalWithTaxOrderByPriceAscendingWithoutExplicitAnd(Evita evita, List<SealedEntity> originalProductEntities) {
+		super.shouldReturnProductsHavingPriceInCurrencyAndPriceListInIntervalWithTaxOrderByPriceAscendingWithoutExplicitAnd(evita, originalProductEntities);
+	}
+
 	@Override
 	protected void assertPricesForSaleAreAsExpected(@Nonnull List<SealedEntity> resultToVerify, @Nonnull PriceContentMode priceContentMode, @Nonnull Currency currency, @Nullable OffsetDateTime validIn, @Nonnull String[] priceLists) {
 		final Set<String> priceListsSet = Arrays.stream(priceLists).collect(Collectors.toSet());

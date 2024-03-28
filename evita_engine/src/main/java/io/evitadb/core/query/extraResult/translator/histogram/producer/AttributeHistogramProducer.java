@@ -156,8 +156,12 @@ public class AttributeHistogramProducer implements CacheableExtraResultProducer 
 		}
 
 		// prepare filtering bitmap
-		final RoaringBitmap filteredRecordIds = filteringFormula == null ?
-			null : RoaringBitmapBackedBitmap.getRoaringBitmap(filteringFormula.compute());
+		final RoaringBitmap filteredRecordIds;
+		if (filteringFormula == null) {
+			filteredRecordIds = null;
+		} else {
+			filteredRecordIds = RoaringBitmapBackedBitmap.getRoaringBitmap(filteringFormula.compute());
+		}
 		// prepare output elastic array
 		@SuppressWarnings("rawtypes") final CompositeObjectArray<ValueToRecordBitmap> finalBuckets = new CompositeObjectArray<>(ValueToRecordBitmap.class, false);
 
@@ -355,6 +359,7 @@ public class AttributeHistogramProducer implements CacheableExtraResultProducer 
 	public <T extends Serializable> EvitaResponseExtraResult fabricate(@Nonnull List<T> entities) {
 		// create optimized formula that offers best memoized intermediate results reuse
 		final Formula optimizedFormula = FilterFormulaAttributeOptimizeVisitor.optimize(filterFormula, histogramRequests.keySet());
+
 		// create clone of the optimized formula without user filter contents
 		final Map<String, Predicate<BigDecimal>> userFilterFormulaPredicates = new HashMap<>();
 		final Formula baseFormulaWithoutUserFilter = FormulaCloner.clone(
@@ -382,12 +387,13 @@ public class AttributeHistogramProducer implements CacheableExtraResultProducer 
 				.filter(entry -> hasSenseWithMandatoryFilter(baseFormulaWithoutUserFilter, entry.getValue()))
 				.map(entry -> {
 					final AttributeHistogramRequest histogramRequest = entry.getValue();
+					final AttributeHistogramComputer computer = new AttributeHistogramComputer(
+						histogramRequest.getAttributeName(),
+						optimizedFormula, bucketCount, behavior, histogramRequest
+					);
 					final CacheableHistogramContract optimalHistogram = extraResultCacheAccessor.analyse(
 						entityType,
-						new AttributeHistogramComputer(
-							histogramRequest.getAttributeName(),
-							optimizedFormula, bucketCount, behavior, histogramRequest
-						)
+						computer
 					).compute();
 					if (optimalHistogram == CacheableHistogramContract.EMPTY) {
 						return null;
@@ -460,10 +466,11 @@ public class AttributeHistogramProducer implements CacheableExtraResultProducer 
 				.toArray();
 			histogramBitmapsFormula = new OrFormula(indexTransactionIds, histogramBitmaps);
 		}
-		return !new AndFormula(
+		final AndFormula finalFormula = new AndFormula(
 			histogramBitmapsFormula,
 			filteringFormula
-		)
+		);
+		return !finalFormula
 			.compute()
 			.isEmpty();
 	}

@@ -392,6 +392,8 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 				.argument(GetEntityHeaderDescriptor.PRICE_VALID_IN
 					.to(argumentBuilderTransformer))
 				.argument(GetEntityHeaderDescriptor.PRICE_VALID_NOW
+					.to(argumentBuilderTransformer))
+				.argument(GetEntityHeaderDescriptor.PRICE_TYPE
 					.to(argumentBuilderTransformer));
 		}
 

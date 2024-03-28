@@ -76,6 +76,7 @@ import io.evitadb.core.query.filter.translator.price.PriceValidInTranslator;
 import io.evitadb.core.query.filter.translator.reference.EntityHavingTranslator;
 import io.evitadb.core.query.filter.translator.reference.ReferenceHavingTranslator;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
+import io.evitadb.core.query.response.TransactionalDataRelatedStructure.CalculationContext;
 import io.evitadb.core.query.sort.attribute.translator.EntityNestedQueryComparator;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.function.TriFunction;
@@ -180,12 +181,12 @@ public class FilterByVisitor implements ConstraintVisitor {
 	/**
 	 * Contemporary stack for keeping results resolved for each level of the query.
 	 */
-	private final Deque<List<Formula>> stack = new LinkedList<>();
+	private final Deque<List<Formula>> stack = new ArrayDeque<>(16);
 	/**
 	 * Contemporary stack for keeping results resolved for each level of the query.
 	 */
 	@Getter(AccessLevel.PROTECTED)
-	private final Deque<ProcessingScope<? extends Index<?>>> scope = new LinkedList<>();
+	private final Deque<ProcessingScope<? extends Index<?>>> scope = new ArrayDeque<>(16);
 	/**
 	 * Contains list of registered post processors. Formula post processor is used to transform final {@link Formula}
 	 * tree constructed in {@link FilterByVisitor} before computing the result. Post processors should analyze created
@@ -394,14 +395,6 @@ public class FilterByVisitor implements ConstraintVisitor {
 	@Nonnull
 	public AttributeSchemaContract getAttributeSchema(@Nonnull EntitySchemaContract entitySchema, @Nonnull String attributeName, @Nonnull AttributeTrait... requiredTrait) {
 		return getProcessingScope().getAttributeSchemaAccessor().getAttributeSchema(entitySchema, attributeName, requiredTrait);
-	}
-
-	/**
-	 * Returns attribute values from current scope.
-	 */
-	@Nonnull
-	public Stream<Optional<AttributeValue>> getAttributeValueStream(@Nonnull EntityContract entity, @Nonnull String attributeName, @Nonnull Locale locale) {
-		return getProcessingScope().getAttributeValueStream(entity, attributeName, locale);
 	}
 
 	/**
@@ -616,8 +609,12 @@ public class FilterByVisitor implements ConstraintVisitor {
 	@Nonnull
 	public Stream<EntityIndex> getEntityIndexStream() {
 		final Deque<ProcessingScope<? extends Index<?>>> scope = getScope();
-		//noinspection unchecked
-		return scope.isEmpty() ? Stream.empty() : scope.peek().getIndexStream().filter(EntityIndex.class::isInstance).map(EntityIndex.class::cast);
+		return scope.isEmpty() ?
+			Stream.empty() :
+			scope.peek()
+				.getIndexStream()
+				.filter(EntityIndex.class::isInstance)
+				.map(EntityIndex.class::cast);
 	}
 
 	/**
@@ -834,12 +831,13 @@ public class FilterByVisitor implements ConstraintVisitor {
 		@Nonnull GlobalAttributeSchemaContract attributeDefinition,
 		@Nonnull Function<GlobalUniqueIndex, Formula> formulaFunction
 	) {
-		final Optional<CatalogIndex> catalogIndex = getIndex(CatalogIndexKey.INSTANCE);
+		final Optional<Index<CatalogIndexKey>> catalogIndex = getIndex(CatalogIndexKey.INSTANCE);
 		final String attributeName = attributeDefinition.getName();
 		if (catalogIndex.isEmpty()) {
 			throw new EntityCollectionRequiredException("filter by attribute `" + attributeName + "`");
 		} else {
-			final GlobalUniqueIndex globalUniqueIndex = catalogIndex.get().getGlobalUniqueIndex(attributeDefinition, getLocale());
+			final CatalogIndex catalogIndexKeyIndex = (CatalogIndex) catalogIndex.get();
+			final GlobalUniqueIndex globalUniqueIndex = catalogIndexKeyIndex.getGlobalUniqueIndex(attributeDefinition, getLocale());
 			if (globalUniqueIndex == null) {
 				return EmptyFormula.INSTANCE;
 			}
@@ -971,6 +969,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 	@Nonnull
 	private Formula constructFinalFormula(@Nonnull Formula constraintFormula) {
 		Formula finalFormula = constraintFormula;
+		final CalculationContext calculationContext = new CalculationContext();
 		if (!postProcessors.isEmpty()) {
 			final Set<FormulaPostProcessor> executedProcessors = CollectionUtils.createHashSet(postProcessors.size());
 			for (FormulaPostProcessor postProcessor : postProcessors.values()) {
@@ -981,7 +980,13 @@ public class FilterByVisitor implements ConstraintVisitor {
 				}
 			}
 		}
-		return finalFormula;
+		final FormulaDeduplicator deduplicator = new FormulaDeduplicator(
+			finalFormula,
+			result -> result.initialize(calculationContext),
+			result -> result.initializeAgain(calculationContext)
+		);
+		deduplicator.visit(constraintFormula);
+		return deduplicator.getPostProcessedFormula();
 	}
 
 	/**
@@ -1023,7 +1028,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 		 * This stack contains parent chain of the current query.
 		 */
 		@Nonnull
-		private final Deque<FilterConstraint> processedConstraints = new LinkedList<>();
+		private final Deque<FilterConstraint> processedConstraints = new ArrayDeque<>(16);
 		/**
 		 * Contains requirements to be passed for entity prefetch (if available).
 		 */

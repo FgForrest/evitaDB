@@ -251,6 +251,18 @@
     "requested": false,
     "queriedEntityCount": 92,
     "childrenCount": 0
+  },
+  {
+    "level": 1,
+    "entity": {
+      "primaryKey": 347154,
+      "attributes": {
+        "code": "bargain-bundles"
+      }
+    },
+    "requested": false,
+    "queriedEntityCount": 2,
+    "childrenCount": 0
   }
 ]
 ```

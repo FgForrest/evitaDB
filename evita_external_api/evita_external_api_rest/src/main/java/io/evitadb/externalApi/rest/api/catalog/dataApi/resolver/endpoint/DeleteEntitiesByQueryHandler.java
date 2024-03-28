@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -33,6 +33,7 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.externalApi.http.EndpointResponse;
 import io.evitadb.externalApi.http.SuccessEndpointResponse;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer.EntityJsonSerializer;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer.EntitySerializationContext;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.externalApi.rest.io.RestEndpointExchange;
 import io.evitadb.utils.ArrayUtils;
@@ -104,6 +105,9 @@ public class DeleteEntitiesByQueryHandler extends QueryOrientedEntitiesHandler {
 			deletedEntities instanceof SealedEntity[],
 			() -> new RestInternalError("Expected SealedEntity[], but got `" + deletedEntities.getClass().getName() + "`.")
 		);
-		return entityJsonSerializer.serialize((SealedEntity[]) deletedEntities, restHandlingContext.getCatalogSchema());
+		return entityJsonSerializer.serialize(
+			new EntitySerializationContext(restHandlingContext.getCatalogSchema()),
+			(SealedEntity[]) deletedEntities
+		);
 	}
 }

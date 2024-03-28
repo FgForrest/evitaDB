@@ -27,6 +27,7 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
+import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.core.cache.payload.FlattenedFormulaWithFilteredOutRecords;
 import io.evitadb.core.query.algebra.price.termination.PriceEvaluationContext;
 import io.evitadb.index.bitmap.Bitmap;
@@ -44,8 +45,10 @@ public class FlattenedFormulaWithFilteredOutRecordsSerializer extends AbstractFl
 	public void write(Kryo kryo, Output output, FlattenedFormulaWithFilteredOutRecords object) {
 		output.writeLong(object.getRecordHash());
 		output.writeLong(object.getTransactionalIdHash());
+		kryo.writeObjectOrNull(output, object.getQueryPriceMode(), QueryPriceMode.class);
 		kryo.writeObjectOrNull(output, object.getFrom(), BigDecimal.class);
 		kryo.writeObjectOrNull(output, object.getTo(), BigDecimal.class);
+		output.writeVarInt(object.getIndexedPricePlaces(), true);
 		writeBitmapIds(output, object.getTransactionalDataIds());
 		writeIntegerBitmap(output, object.compute());
 		writeIntegerBitmap(output, object.getRecordsFilteredOutByPredicate());
@@ -56,8 +59,10 @@ public class FlattenedFormulaWithFilteredOutRecordsSerializer extends AbstractFl
 	public FlattenedFormulaWithFilteredOutRecords read(Kryo kryo, Input input, Class<? extends FlattenedFormulaWithFilteredOutRecords> type) {
 		final long originalHash = input.readLong();
 		final long transactionalIdHash = input.readLong();
+		final QueryPriceMode queryPriceMode = kryo.readObjectOrNull(input, QueryPriceMode.class);
 		final BigDecimal from = kryo.readObjectOrNull(input, BigDecimal.class);
 		final BigDecimal to = kryo.readObjectOrNull(input, BigDecimal.class);
+		final int indexedPricePlaces = input.readVarInt(true);
 		final long[] bitmapIds = readBitmapIds(input);
 		final Bitmap computedResult = readIntegerBitmap(input);
 		final Bitmap recordsFilteredOutByPredicate = readIntegerBitmap(input);
@@ -65,7 +70,8 @@ public class FlattenedFormulaWithFilteredOutRecordsSerializer extends AbstractFl
 
 		return new FlattenedFormulaWithFilteredOutRecords(
 			originalHash, transactionalIdHash, bitmapIds, computedResult,
-			recordsFilteredOutByPredicate, priceEvaluationContext, from, to
+			recordsFilteredOutByPredicate, priceEvaluationContext,
+			queryPriceMode, from, to, indexedPricePlaces
 		);
 	}
 

@@ -26,7 +26,6 @@ package io.evitadb.core.query.algebra.deferred;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.index.bitmap.Bitmap;
 import lombok.RequiredArgsConstructor;
-import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import java.util.function.Function;
@@ -45,18 +44,23 @@ public class FormulaWrapper implements BitmapSupplier {
 	private Bitmap computed;
 
 	@Override
+	public void initialize(@Nonnull CalculationContext calculationContext) {
+		this.formula.initialize(calculationContext);
+	}
+
+	@Override
 	public int getEstimatedCardinality() {
 		return formula.getEstimatedCardinality();
 	}
 
 	@Override
-	public long computeHash(@Nonnull LongHashFunction hashFunction) {
-		return formula.computeHash(hashFunction);
+	public long getHash() {
+		return formula.getHash();
 	}
 
 	@Override
-	public long computeTransactionalIdHash(@Nonnull LongHashFunction hashFunction) {
-		return formula.computeTransactionalIdHash(hashFunction);
+	public long getTransactionalIdHash() {
+		return formula.getTransactionalIdHash();
 	}
 
 	@Nonnull
@@ -91,5 +95,10 @@ public class FormulaWrapper implements BitmapSupplier {
 			computed = firstInvocation.apply(formula);
 		}
 		return computed;
+	}
+
+	@Override
+	public String toString() {
+		return formula.toString();
 	}
 }

@@ -1,0 +1,29 @@
+{
+  queryProduct(
+    filterBy: {
+      entityLocaleEquals: en,
+      hierarchyCategoriesWithin: {
+        ofParent: {
+          attributeUrlEquals: "/en/smartwatches"
+        }
+      }
+    },
+    orderBy: [
+      {
+        attributeOrderedQuantityNatural: DESC
+      }
+    ]
+  ) {
+    recordPage(
+      number: 1
+      size: 5
+    ) {
+      data {
+        primaryKey
+        attributes {
+          name
+        }
+      }
+    }
+  }
+}

@@ -43,10 +43,10 @@ class PriceValidInTest {
 	void shouldCreateMomentViaFactoryClassWorkAsExpected() {
 		final OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
 		final PriceValidIn priceValidIn = priceValidIn(now);
-		assertEquals(now, priceValidIn.getTheMoment());
+		assertEquals(now, priceValidIn.getTheMoment(() -> null));
 
 		final PriceValidIn priceValidInNow = priceValidInNow();
-		assertNull(priceValidInNow.getTheMoment());
+		assertNull(priceValidInNow.getTheMoment(() -> null));
 	}
 
 	@Test

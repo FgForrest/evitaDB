@@ -14,6 +14,8 @@
         }
       },
       "allLocales": [
+        "cs",
+        "de",
         "en"
       ]
     }

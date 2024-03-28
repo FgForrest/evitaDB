@@ -30,10 +30,10 @@ import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.ArrayDeque;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Deque;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -72,7 +72,7 @@ import java.util.function.Function;
 public class TransactionalMemory {
 	@Getter private final long transactionId;
 	private final TransactionalLayerMaintainer transactionalLayer;
-	private final Deque<ObjectIdentityHashSet<TransactionalLayerCreator<?>>> suppressedCreatorStack = new LinkedList<>();
+	private final Deque<ObjectIdentityHashSet<TransactionalLayerCreator<?>>> suppressedCreatorStack = new ArrayDeque<>(64);
 
 	/**
 	 * Propagates changes in states made in transactional layer down to real "state" in {@link TransactionalLayerCreator}

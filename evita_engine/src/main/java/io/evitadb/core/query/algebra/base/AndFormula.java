@@ -68,6 +68,7 @@ public class AndFormula extends AbstractCacheableFormula {
 	private static final Bitmap[] EMPTY_BITMAP_ARRAY = new Bitmap[0];
 	private final Bitmap[] bitmaps;
 	private final long[] indexTransactionId;
+	private List<Formula> sortedFormulasByComplexity;
 
 	AndFormula(@Nonnull Consumer<CacheableFormula> computationCallback, @Nonnull Formula[] innerFormulas, long[] indexTransactionId, @Nullable Bitmap[] bitmaps) {
 		super(computationCallback, innerFormulas);
@@ -189,10 +190,52 @@ public class AndFormula extends AbstractCacheableFormula {
 	}
 
 	@Override
+	protected long getCostToPerformanceInternal() {
+		return ofNullable(this.bitmaps)
+			.map(it -> getCost() / Math.max(1, compute().size()))
+			.orElseGet(() -> {
+				long costToPerformance = 0L;
+				if (this.sortedFormulasByComplexity == null) {
+		initialize(CalculationContext.NO_CACHING_INSTANCE);
+}
+				for (Formula innerFormula : this.sortedFormulasByComplexity) {
+					final Bitmap innerResult = innerFormula.compute();
+					if (innerResult == EmptyBitmap.INSTANCE) {
+						break;
+					}
+					costToPerformance += innerFormula.getCostToPerformanceRatio();
+				}
+				return costToPerformance + getCost() / Math.max(1, compute().size());
+			});
+	}
+
+	@Override
 	protected long getCostInternal() {
 		return ofNullable(this.bitmaps)
-			.map(it -> Arrays.stream(it).mapToLong(Bitmap::size).sum())
-			.orElseGet(super::getCostInternal);
+			.map(it -> {
+				long cost = 0L;
+				for (Bitmap bitmap : bitmaps) {
+					if (bitmap == EmptyBitmap.INSTANCE) {
+						break;
+					}
+					cost += bitmap.size() * getOperationCost();
+				}
+				return cost;
+			})
+			.orElseGet(() -> {
+				long cost = 0L;
+				if (this.sortedFormulasByComplexity == null) {
+		initialize(CalculationContext.NO_CACHING_INSTANCE);
+}
+				for (Formula innerFormula : this.sortedFormulasByComplexity) {
+					final Bitmap innerResult = innerFormula.compute();
+					cost += innerFormula.getCost() + innerResult.size() * getOperationCost();
+					if (innerResult == EmptyBitmap.INSTANCE) {
+						break;
+					}
+				}
+				return cost;
+			});
 	}
 
 	@Override
@@ -223,6 +266,7 @@ public class AndFormula extends AbstractCacheableFormula {
 		PRIVATE METHODS
 	 */
 
+	@Nonnull
 	private RoaringBitmap[] getRoaringBitmaps() {
 		return ofNullable(this.bitmaps)
 			.map(it -> Arrays
@@ -232,13 +276,15 @@ public class AndFormula extends AbstractCacheableFormula {
 			)
 			.orElseGet(
 				() -> {
-					final List<Formula> formulasFromEasiestToHardest = Arrays.stream(getInnerFormulas())
-						.sorted(Comparator.comparingLong(TransactionalDataRelatedStructure::getEstimatedCost))
-						.toList();
-					final RoaringBitmap[] theBitmaps = new RoaringBitmap[formulasFromEasiestToHardest.size()];
+					if (this.sortedFormulasByComplexity == null) {
+						this.sortedFormulasByComplexity = Arrays.stream(getInnerFormulas())
+							.sorted(Comparator.comparingLong(TransactionalDataRelatedStructure::getEstimatedCost))
+							.toList();
+					}
+					final RoaringBitmap[] theBitmaps = new RoaringBitmap[this.sortedFormulasByComplexity.size()];
 					// go from the cheapest formula to the more expensive and compute one by one
-					for (int i = 0; i < formulasFromEasiestToHardest.size(); i++) {
-						final Formula formula = formulasFromEasiestToHardest.get(i);
+					for (int i = 0; i < this.sortedFormulasByComplexity.size(); i++) {
+						final Formula formula = this.sortedFormulasByComplexity.get(i);
 						final Bitmap computedBitmap = formula.compute();
 						// if you encounter formula that returns nothing immediately return nothing - hence AND
 						if (computedBitmap.isEmpty()) {

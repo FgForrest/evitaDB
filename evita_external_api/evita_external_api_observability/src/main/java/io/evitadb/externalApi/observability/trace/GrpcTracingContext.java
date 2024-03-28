@@ -35,6 +35,8 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.function.Supplier;
 
+import static java.util.Optional.ofNullable;
+
 /**
  * Implementation of {@link ExternalApiTracingContext} for gRPC API.
  *
@@ -175,8 +177,9 @@ public class GrpcTracingContext implements ExternalApiTracingContext<Metadata> {
 			@Override
 			public String get(@Nullable Metadata metadata, @Nonnull String s) {
 				final Metadata.Key<String> clientMetadata = Metadata.Key.of(s, Metadata.ASCII_STRING_MARSHALLER);
-				assert metadata != null;
-				return metadata.get(clientMetadata);
+				return ofNullable(metadata)
+					.map(it -> it.get(clientMetadata))
+					.orElse(null);
 			}
 
 			@Override

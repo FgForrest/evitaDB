@@ -29,11 +29,11 @@ import io.evitadb.core.query.algebra.base.NotFormula;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
+import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.Deque;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashSet;
-import java.util.LinkedList;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
@@ -63,11 +63,11 @@ public class FormulaCloner implements FormulaVisitor {
 	/**
 	 * This stack contains list of parents for currently examined formula.
 	 */
-	protected final Deque<Formula> parents = new LinkedList<>();
+	protected final Deque<Formula> parents = new ArrayDeque<>(32);
 	/**
 	 * Stacks serves internally to collect the cloned tree of formulas.
 	 */
-	protected final Deque<SubTree> treeStack = new LinkedList<>();
+	protected final Deque<SubTree> treeStack = new ArrayDeque<>(32);
 	/**
 	 * Result set of the clone operation.
 	 */
@@ -189,7 +189,7 @@ public class FormulaCloner implements FormulaVisitor {
 		PRIVATE METHODS
 	 */
 
-	private void storeFormula(Formula formula) {
+	private void storeFormula(@Nonnull Formula formula) {
 		// store updated formula
 		if (treeStack.isEmpty()) {
 			this.resultClone = formula;

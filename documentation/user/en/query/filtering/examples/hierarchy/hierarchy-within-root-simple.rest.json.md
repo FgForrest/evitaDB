@@ -33,6 +33,8 @@
         "type": "Category",
         "version": 1,
         "allLocales": [
+          "cs",
+          "de",
           "en"
         ],
         "attributes": {
@@ -254,6 +256,8 @@
         "type": "Category",
         "version": 1,
         "allLocales": [
+          "cs",
+          "de",
           "en"
         ],
         "attributes": {
@@ -274,7 +278,7 @@
     "pageNumber": 1,
     "pageSize": 20,
     "singlePage": false,
-    "totalRecordCount": 36,
+    "totalRecordCount": 37,
     "type": "PAGE"
   }
 }

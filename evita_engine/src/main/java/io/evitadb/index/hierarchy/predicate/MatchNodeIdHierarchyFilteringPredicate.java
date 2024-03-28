@@ -23,7 +23,7 @@
 
 package io.evitadb.index.hierarchy.predicate;
 
-import net.openhft.hashing.LongHashFunction;
+import io.evitadb.core.query.response.TransactionalDataRelatedStructure.CalculationContext;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -38,20 +38,33 @@ public class MatchNodeIdHierarchyFilteringPredicate implements HierarchyFilterin
 	@Serial private static final long serialVersionUID = -785434923550857430L;
 	private static final int CLASS_ID = -550857430;
 	private final int matchNodeId;
+	private Long hash;
 
 	public MatchNodeIdHierarchyFilteringPredicate(int matchNodeId) {
 		this.matchNodeId = matchNodeId;
 	}
 
 	@Override
-	public long computeHash(@Nonnull LongHashFunction hashFunction) {
-		return hashFunction.hashInts(
-			new int[]{CLASS_ID, matchNodeId}
-		);
+	public void initialize(@Nonnull CalculationContext calculationContext) {
+		if (this.hash == null) {
+			this.hash = calculationContext.getHashFunction().hashInts(
+				new int[]{CLASS_ID, matchNodeId}
+			);
+		}
+	}
+
+	@Override
+	public long getHash() {
+		return hash;
 	}
 
 	@Override
 	public boolean test(int nodeId) {
 		return nodeId == matchNodeId;
+	}
+
+	@Override
+	public String toString() {
+		return "MATCH NODE " + matchNodeId;
 	}
 }

@@ -27,6 +27,7 @@ import org.roaringbitmap.PeekableIntIterator;
 import org.roaringbitmap.RoaringBitmap;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serial;
 import java.util.NoSuchElementException;
@@ -50,7 +51,7 @@ public class BaseBitmap implements RoaringBitmapBackedBitmap {
 		this.memoizedCardinality = 0;
 	}
 
-	public BaseBitmap(int... recordIds) {
+	public BaseBitmap(@Nullable int... recordIds) {
 		final RoaringBitmap theRoaringBitmap = new RoaringBitmap();
 		theRoaringBitmap.add(recordIds);
 		this.roaringBitmap = theRoaringBitmap;

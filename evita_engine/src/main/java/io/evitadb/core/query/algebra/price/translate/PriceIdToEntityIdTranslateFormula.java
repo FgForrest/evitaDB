@@ -114,7 +114,8 @@ public class PriceIdToEntityIdTranslateFormula extends AbstractCacheableFormula 
 	@Override
 	public FlattenedFormula toSerializableFormula(long formulaHash, @Nonnull LongHashFunction hashFunction) {
 		return new FlattenedFormulaWithFilteredPrices(
-			formulaHash, computeTransactionalIdHash(hashFunction),
+			formulaHash,
+			getTransactionalIdHash(),
 			Arrays.stream(gatherTransactionalIds())
 				.distinct()
 				.sorted()

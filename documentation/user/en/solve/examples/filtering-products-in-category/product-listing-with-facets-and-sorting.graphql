@@ -1,0 +1,168 @@
+{
+  queryProduct(
+    filterBy: {
+      entityLocaleEquals: en,
+      hierarchyCategoriesWithin: {
+        ofParent: {
+          attributeUrlEquals: "/en/smartwatches"
+        }
+      },
+      attributeStatusEquals: "ACTIVE",
+      or: [
+        {
+          attributeValidityInRangeNow: true
+        },
+        {
+          attributeValidityIs: NULL
+        }
+      ],
+      referenceStocksHaving: [
+        {
+          attributeQuantityOnStockGreaterThan: "0"
+        }
+      ],
+      priceInCurrency: EUR,
+      priceInPriceLists: [
+        "basic"
+      ],
+      priceValidInNow: true,
+      userFilter: [
+        {
+          facetBrandHaving: [
+            {
+              entityPrimaryKeyInSet: [
+                66465
+              ]
+            }
+          ],
+          priceBetween: [
+            "50",
+            "400"
+          ]
+        }
+      ]
+    },
+    orderBy: [
+      {
+        attributeOrderNatural: ASC
+      }
+    ]
+  ) {
+    recordPage(
+      number: 1
+      size: 16
+    ) {
+      data {
+        primaryKey
+        attributes {
+          name
+        }
+        priceForSale {
+          priceWithoutTax(
+            formatted: true
+            withCurrency: true
+          )
+          priceWithTax(
+            formatted: true
+            withCurrency: true
+          )
+          taxRate
+        }
+        reference: price(priceList: "reference") {
+          priceWithoutTax(
+            formatted: true
+            withCurrency: true
+          )
+          priceWithTax(
+            formatted: true
+            withCurrency: true
+          )
+          taxRate
+        }
+        stocks {
+          referencedPrimaryKey
+          attributes {
+            quantityOnStock
+          }
+        }
+      }
+    }
+    extraResults {
+      facetSummary {
+        brand {
+          count
+          facetStatistics(
+            orderBy: [
+              {
+                attributeNameNatural: ASC
+              }
+            ]
+          ) {
+            requested
+            count
+            impact {
+              difference
+              matchCount
+              hasSense
+            }
+            facetEntity {
+              primaryKey
+              attributes {
+                name
+              }
+            }
+          }
+        }
+        parameterValues(
+          filterGroupBy: {
+            attributeIsVisibleInFilterEquals: true
+          }
+          orderGroupBy: [
+            {
+              attributeOrderNatural: ASC
+            }
+          ]
+        ) {
+          count
+          groupEntity {
+            primaryKey
+            attributes {
+              name
+            }
+          }
+          facetStatistics(
+            orderBy: [
+              {
+                attributeOrderNatural: ASC
+              }
+            ]
+          ) {
+            requested
+            count
+            impact {
+              difference
+              matchCount
+              hasSense
+            }
+            facetEntity {
+              primaryKey
+              attributes {
+                name
+              }
+            }
+          }
+        }
+      }
+      priceHistogram {
+        min
+        max
+        overallCount
+        buckets(requestedCount: 10) {
+          threshold
+          occurrences
+          requested
+        }
+      }
+    }
+  }
+}

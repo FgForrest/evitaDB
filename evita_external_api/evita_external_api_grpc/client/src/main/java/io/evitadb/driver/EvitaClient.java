@@ -220,12 +220,22 @@ public class EvitaClient implements EvitaContract {
 					serverVersion
 				);
 			} else if (comparisonResult > 0) {
-				throw new IncompatibleClientException(
-					"Client version `" + clientVersion + "` is higher than server version `" + serverVersion +  "`. " +
-						"This situation will probably lead to  compatibility issues. Please update the server to " +
-						"the latest version.",
-					"Incompatible client version!"
-				);
+				if (clientVersion.snapshot() || serverVersion.snapshot()) {
+					log.warn(
+						"Client version `{}` is higher than server version `{}`. " +
+							"This situation might lead to compatibility issues, but there is SNAPSHOT version involved " +
+							"and some kind of testing is probably happening.",
+						clientVersion,
+						serverVersion
+					);
+				} else {
+					throw new IncompatibleClientException(
+						"Client version `" + clientVersion + "` is higher than server version `" + serverVersion + "`. " +
+							"This situation will probably lead to compatibility issues. Please update the server to " +
+							"the latest version.",
+						"Incompatible client version!"
+					);
+				}
 			}
 		} catch (IncompatibleClientException ex) {
 			throw ex;

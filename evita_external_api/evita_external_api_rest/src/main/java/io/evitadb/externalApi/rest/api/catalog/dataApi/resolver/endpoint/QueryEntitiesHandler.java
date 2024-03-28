@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -37,6 +37,7 @@ import io.evitadb.externalApi.rest.api.catalog.dataApi.dto.QueryResponse;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.dto.QueryResponse.QueryResponseBuilder;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.dto.StripListDto;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer.EntityJsonSerializer;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer.EntitySerializationContext;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer.ExtraResultsJsonSerializer;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.externalApi.rest.io.RestEndpointExchange;
@@ -108,15 +109,16 @@ public class QueryEntitiesHandler extends QueryOrientedEntitiesHandler {
 	private DataChunkDto serializeRecordPage(@Nonnull EvitaResponse<EntityClassifier> response) {
 		final DataChunk<EntityClassifier> recordPage = response.getRecordPage();
 
+		final EntitySerializationContext serializationContext = new EntitySerializationContext(restHandlingContext.getCatalogSchema());
 		if (recordPage instanceof PaginatedList<EntityClassifier> paginatedList) {
 			return new PaginatedListDto(
 				paginatedList,
-				entityJsonSerializer.serialize(paginatedList.getData(), restHandlingContext.getCatalogSchema())
+				entityJsonSerializer.serialize(serializationContext, paginatedList.getData())
 			);
 		} else if (recordPage instanceof StripList<EntityClassifier> stripList) {
 			return new StripListDto(
 				stripList,
-				entityJsonSerializer.serialize(stripList.getData(), restHandlingContext.getCatalogSchema())
+				entityJsonSerializer.serialize(serializationContext, stripList.getData())
 			);
 		} else {
 			throw new RestInternalError("Unsupported data chunk type `" + recordPage.getClass().getName() + "`.");

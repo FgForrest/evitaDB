@@ -1,0 +1,50 @@
+POST /rest/evita/Product/query
+
+{
+  "filterBy" : {
+    "entityLocaleEquals" : "en",
+    "hierarchyCategoriesWithin" : {
+      "ofParent" : {
+        "attributeUrlEquals" : "/en/smartwatches"
+      }
+    },
+    "attributeStatusEquals" : "ACTIVE",
+    "or" : [
+      {
+        "attributeValidityInRangeNow" : true
+      },
+      {
+        "attributeValidityIs" : "NULL"
+      }
+    ],
+    "referenceStocksHaving" : [
+      {
+        "attributeQuantityOnStockGreaterThan" : "0"
+      }
+    ],
+    "priceInCurrency" : "EUR",
+    "priceInPriceLists" : [
+      "basic"
+    ],
+    "priceValidInNow" : true
+  },
+  "require" : {
+    "entityFetch" : {
+      "attributeContent" : [
+        "name"
+      ],
+      "referenceStocksContentWithAttributes" : {
+        "attributeContent" : [
+          "quantityOnStock"
+        ]
+      },
+      "priceContentRespectingFilter" : [
+        "reference"
+      ]
+    },
+    "page" : {
+      "number" : 1,
+      "size" : 16
+    }
+  }
+}

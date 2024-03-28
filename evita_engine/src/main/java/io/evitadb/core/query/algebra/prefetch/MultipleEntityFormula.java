@@ -30,7 +30,6 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.index.bitmap.Bitmap;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
@@ -46,10 +45,15 @@ import javax.annotation.Nonnull;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-@RequiredArgsConstructor
 public class MultipleEntityFormula extends AbstractFormula {
 	private static final long CLASS_ID = 7381005856920907843L;
 	@Getter private final Bitmap directEntityReferences;
+	private final long[] transactionalIds;
+
+	public MultipleEntityFormula(@Nonnull long[] transactionalIds, @Nonnull Bitmap directEntityReferences) {
+		this.transactionalIds = transactionalIds;
+		this.directEntityReferences = directEntityReferences;
+	}
 
 	@Override
 	protected long getClassId() {
@@ -58,7 +62,7 @@ public class MultipleEntityFormula extends AbstractFormula {
 
 	@Override
 	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		return 0;
+		return hashFunction.hashInts(directEntityReferences.getArray());
 	}
 
 	@Nonnull
@@ -82,4 +86,16 @@ public class MultipleEntityFormula extends AbstractFormula {
 	public long getOperationCost() {
 		return 0;
 	}
+
+	@Nonnull
+	@Override
+	protected long[] gatherBitmapIdsInternal() {
+		return transactionalIds;
+	}
+
+	@Override
+	public String toString() {
+		return "PREFEFETCH: " + directEntityReferences;
+	}
+
 }

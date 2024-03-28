@@ -40,9 +40,9 @@ import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.EnumSet;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.IntFunction;
@@ -118,7 +118,7 @@ public class ChildrenStatisticsHierarchyVisitor implements HierarchyVisitor {
 		this.requestedPredicate = requestedPredicate;
 		this.scopePredicate = scopePredicate;
 		this.filterPredicate = filterPredicate;
-		this.accumulator = new LinkedList<>();
+		this.accumulator = new ArrayDeque<>(16);
 
 		// accumulator is used to gather information about its children gradually
 		this.rootAccumulator = new Accumulator(false, null, () -> EmptyFormula.INSTANCE);

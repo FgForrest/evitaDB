@@ -9,6 +9,8 @@
         "en"
       ],
       "allLocales": [
+        "cs",
+        "de",
         "en"
       ],
       "attributes": {
