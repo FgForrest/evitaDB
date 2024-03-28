@@ -159,6 +159,7 @@ public class ObservabilityTracingContext implements TracingContext {
 		final Span span = OpenTelemetryTracerSetup.getTracer()
 			.spanBuilder(taskName)
 			.setSpanKind(SpanKind.SERVER)
+			.setParent(context.with(Span.current()))
 			.startSpan();
 
 		final String clientId = context.get(OpenTelemetryTracerSetup.CONTEXT_KEY);

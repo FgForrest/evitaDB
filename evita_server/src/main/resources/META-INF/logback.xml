@@ -48,15 +48,6 @@
 		</encoder>
 	</appender>
 
-	<appender name="FILE" class="ch.qos.logback.core.FileAppender">
-		<filter class="io.evitadb.server.log.AppLogFilter" />
-			<file>/tmp/evita-temp/evita_server.log</file>
-
-		<encoder class="ch.qos.logback.core.encoder.LayoutWrappingEncoder">
-			<layout class="io.evitadb.server.log.AppLogJsonLayout" />
-		</encoder>
-	</appender>
-
 	<root level="INFO">
 		<appender-ref ref="STDOUT" />
 		<appender-ref ref="FILE" />

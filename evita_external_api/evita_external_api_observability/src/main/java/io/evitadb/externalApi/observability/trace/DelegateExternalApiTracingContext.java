@@ -138,20 +138,4 @@ public class DelegateExternalApiTracingContext implements ExternalApiTracingCont
 			throw new EvitaInvalidUsageException("Invalid object type sent as a External API tracing context!");
 		}
 	}
-
-	/**
-	 * Get the server interceptor of the specified type from the tracing context.
-	 *
-	 * @param type The class representing the type of the server interceptor.
-	 * @param <T>  The type of the server interceptor.
-	 * @return The server interceptor of the specified type, or null if not found.
-	 */
-	@Override
-	public <T> T getInstrumentation(@Nonnull Class<T> type) {
-		if (type.equals(ServerInterceptor.class) && grpcApiTracingContext != null) {
-			//noinspection unchecked
-			return (T) grpcApiTracingContext.getInstrumentation();
-		}
-		return null;
-	}
 }

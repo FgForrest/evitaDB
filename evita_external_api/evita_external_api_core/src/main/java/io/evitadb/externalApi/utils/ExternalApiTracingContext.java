@@ -115,14 +115,6 @@ public interface ExternalApiTracingContext<C> {
 	<T> T executeWithinBlock(@Nonnull String protocolName, @Nonnull C context, @Nonnull Supplier<T> lambda);
 
 	/**
-	 * Returns server interceptor for the given type. Expected usage is from gRPC Server.
-	 */
-	@Nullable
-	default <T> T getInstrumentation(@Nonnull Class<T> type) {
-		return null;
-	}
-
-	/**
 	 * Converts client-sent ID to internal client ID.
 	 *
 	 * @param clientIdFromClient client-sent client ID

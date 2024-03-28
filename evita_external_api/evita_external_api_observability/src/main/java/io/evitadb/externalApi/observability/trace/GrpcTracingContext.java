@@ -27,11 +27,9 @@ import io.evitadb.api.trace.TracingContext;
 import io.evitadb.api.trace.TracingContext.SpanAttribute;
 import io.evitadb.externalApi.utils.ExternalApiTracingContext;
 import io.grpc.Metadata;
-import io.grpc.ServerInterceptor;
 import io.opentelemetry.context.Context;
 import io.opentelemetry.context.Scope;
 import io.opentelemetry.context.propagation.TextMapGetter;
-import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -152,20 +150,6 @@ public class GrpcTracingContext implements ExternalApiTracingContext<Metadata> {
 				lambda
 			);
 		}
-	}
-
-	/**
-	 * Retrieves the server interceptor for tracing.
-	 *
-	 * @return The server interceptor for tracing, or null if tracing is not enabled.
-	 */
-	@Nullable
-	public ServerInterceptor getInstrumentation() {
-		// todo lho validate type
-		if (!OpenTelemetryTracerSetup.isTracingEnabled()) {
-			return null;
-		}
-		return GrpcTelemetry.create(OpenTelemetryTracerSetup.getOpenTelemetry()).newServerInterceptor();
 	}
 
 	/**

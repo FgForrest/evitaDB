@@ -169,23 +169,10 @@ public class EvitaClient implements EvitaContract {
 			.defaultLoadBalancingPolicy("round_robin")
 			.intercept(new ClientSessionInterceptor(configuration));
 
-		final ClientTracingContext context = ClientTracingContextProvider.getContext();
-		final Object openTelemetryInstance = configuration.openTelemetryInstance();
-		if (openTelemetryInstance != null && context instanceof DefaultClientTracingContext) {
-			throw new EvitaInvalidUsageException(
-				"OpenTelemetry instance is set, but tracing context is not configured!"
-			);
-		}
-		if (openTelemetryInstance == null && !(context instanceof DefaultClientTracingContext)) {
-			throw new EvitaInvalidUsageException(
-				"When tracing context is configured, OpenTelemetry instance must be set!"
-			);
-		}
+		final ClientTracingContext context = getClientTracingContext(configuration);
 		if (configuration.openTelemetryInstance() != null) {
 			context.setOpenTelemetry(configuration.openTelemetryInstance());
 		}
-		//final ClientInterceptor clientInterceptor = context.getClientInterceptor();
-		//nettyChannelBuilder = nettyChannelBuilder.intercept(clientInterceptor);
 
 		final NettyChannelBuilder finalNettyChannelBuilder = nettyChannelBuilder;
 		ofNullable(grpcConfigurator)
@@ -245,6 +232,23 @@ public class EvitaClient implements EvitaContract {
 		} catch (Exception ex) {
 			log.error("Failed to connect to evitaDB server. Please check the connection settings.", ex);
 		}
+	}
+
+	@Nonnull
+	private static ClientTracingContext getClientTracingContext(@Nonnull EvitaClientConfiguration configuration) {
+		final ClientTracingContext context = ClientTracingContextProvider.getContext();
+		final Object openTelemetryInstance = configuration.openTelemetryInstance();
+		if (openTelemetryInstance != null && context instanceof DefaultClientTracingContext) {
+			throw new EvitaInvalidUsageException(
+				"OpenTelemetry instance is set, but tracing context is not configured!"
+			);
+		}
+		if (openTelemetryInstance == null && !(context instanceof DefaultClientTracingContext)) {
+			throw new EvitaInvalidUsageException(
+				"When tracing context is configured, OpenTelemetry instance must be set!"
+			);
+		}
+		return context;
 	}
 
 	/**

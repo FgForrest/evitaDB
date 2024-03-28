@@ -36,12 +36,10 @@ import io.evitadb.externalApi.grpc.services.EvitaSessionService;
 import io.evitadb.externalApi.grpc.services.interceptors.AccessLogInterceptor;
 import io.evitadb.externalApi.grpc.services.interceptors.GlobalExceptionHandlerInterceptor;
 import io.evitadb.externalApi.grpc.services.interceptors.ServerSessionInterceptor;
-import io.evitadb.externalApi.trace.ExternalApiTracingContextProvider;
 import io.evitadb.utils.CertificateUtils;
 import io.grpc.ManagedChannel;
 import io.grpc.Server;
 import io.grpc.ServerCredentials;
-import io.grpc.ServerInterceptor;
 import io.grpc.TlsServerCredentials;
 import io.grpc.netty.NettyServerBuilder;
 import lombok.Getter;
@@ -132,10 +130,6 @@ public class GrpcServer {
 		if (apiOptions.accessLog()) {
 			serverBuilder.intercept(new AccessLogInterceptor());
 		}
-		//final ServerInterceptor serverInterceptor = ExternalApiTracingContextProvider.getContext().getInstrumentation(ServerInterceptor.class);
-		//if (serverInterceptor != null) {
-		//	serverBuilder.intercept(serverInterceptor);
-		//}
 		server = serverBuilder.build();
 	}
 }
