@@ -23,7 +23,12 @@
 
 package io.evitadb.externalApi.trace;
 
+import io.evitadb.api.trace.TracingContext.SpanAttribute;
 import io.evitadb.externalApi.utils.ExternalApiTracingContext;
+
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.util.function.Supplier;
 
 /**
  * Default NOOP implementation of {@link ExternalApiTracingContext}.
@@ -31,4 +36,35 @@ import io.evitadb.externalApi.utils.ExternalApiTracingContext;
  * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
  */
 public class DefaultExternalApiTracingContext implements ExternalApiTracingContext<Object> {
+
+	@Override
+	public void executeWithinBlock(@Nonnull String protocolName, @Nonnull Object context, @Nonnull Runnable runnable, @Nullable SpanAttribute... attributes) {
+		runnable.run();
+	}
+
+	@Override
+	public <T> T executeWithinBlock(@Nonnull String protocolName, @Nonnull Object context, @Nonnull Supplier<T> lambda, @Nullable SpanAttribute... attributes) {
+		return lambda.get();
+	}
+
+	@Override
+	public void executeWithinBlock(@Nonnull String protocolName, @Nonnull Object context, @Nonnull Runnable runnable, @Nullable Supplier<SpanAttribute[]> attributes) {
+		runnable.run();
+	}
+
+	@Override
+	public <T> T executeWithinBlock(@Nonnull String protocolName, @Nonnull Object context, @Nonnull Supplier<T> lambda, @Nullable Supplier<SpanAttribute[]> attributes) {
+		return lambda.get();
+	}
+
+	@Override
+	public void executeWithinBlock(@Nonnull String protocolName, @Nonnull Object context, @Nonnull Runnable runnable) {
+		runnable.run();
+	}
+
+	@Nullable
+	@Override
+	public <T> T executeWithinBlock(@Nonnull String protocolName, @Nonnull Object context, @Nonnull Supplier<T> lambda) {
+		return lambda.get();
+	}
 }

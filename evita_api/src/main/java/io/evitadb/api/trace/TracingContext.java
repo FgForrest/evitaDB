@@ -49,17 +49,13 @@ public interface TracingContext {
 	 * Sets the passed task name and attributes to the trace BEFORE the lambda is executed. Within the method,
 	 * the lambda with passed logic will be traced and properly executed.
 	 */
-	default void executeWithinBlock(@Nonnull String taskName, @Nonnull Runnable runnable, @Nullable SpanAttribute... attributes) {
-		runnable.run();
-	}
+	void executeWithinBlock(@Nonnull String taskName, @Nonnull Runnable runnable, @Nullable SpanAttribute... attributes);
 
 	/**
 	 * Sets the passed task name and attributes to the trace BEFORE the lambda is executed. Within the method,
 	 * the lambda with passed logic will be traced and properly executed.
 	 */
-	default <T> T executeWithinBlock(@Nonnull String taskName, @Nonnull Supplier<T> lambda, @Nullable SpanAttribute... attributes) {
-		return lambda.get();
-	}
+	<T> T executeWithinBlock(@Nonnull String taskName, @Nonnull Supplier<T> lambda, @Nullable SpanAttribute... attributes);
 
 	/**
 	 * Sets the passed task name and attributes to the trace AFTER the lambda is executed. Within the method,
@@ -67,9 +63,7 @@ public interface TracingContext {
 	 * the attributes will be set to the trace. The attributes may take advantage of the data computed in the lambda
 	 * itself.
 	 */
-	default void executeWithinBlock(@Nonnull String taskName, @Nonnull Runnable runnable, @Nullable Supplier<SpanAttribute[]> attributes) {
-		runnable.run();
-	}
+	void executeWithinBlock(@Nonnull String taskName, @Nonnull Runnable runnable, @Nullable Supplier<SpanAttribute[]> attributes);
 
 	/**
 	 * Sets the passed task name and attributes to the trace AFTER the lambda is executed. Within the method,
@@ -77,17 +71,13 @@ public interface TracingContext {
 	 * the attributes will be set to the trace. The attributes may take advantage of the data computed in the lambda
 	 * itself.
 	 */
-	default <T> T executeWithinBlock(@Nonnull String taskName, @Nonnull Supplier<T> lambda, @Nullable Supplier<SpanAttribute[]> attributes) {
-		return lambda.get();
-	}
+	<T> T executeWithinBlock(@Nonnull String taskName, @Nonnull Supplier<T> lambda, @Nullable Supplier<SpanAttribute[]> attributes);
 
 	/**
 	 * Sets the passed task name to the trace. Within the method, the lambda with passed logic will be
 	 * traced and properly executed.
 	 */
-	default void executeWithinBlock(@Nonnull String taskName, @Nonnull Runnable runnable) {
-		runnable.run();
-	}
+	void executeWithinBlock(@Nonnull String taskName, @Nonnull Runnable runnable);
 
 	/**
 	 * Sets the passed task name to the trace. Within the method, the lambda with passed logic will be

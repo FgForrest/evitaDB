@@ -116,19 +116,26 @@ public class DelegateExternalApiTracingContext implements ExternalApiTracingCont
 		}
 	}
 
-	/**
-	 * Get the server interceptor of the specified type from the tracing context.
-	 *
-	 * @param type The class representing the type of the server interceptor.
-	 * @param <T>  The type of the server interceptor.
-	 * @return The server interceptor of the specified type, or null if not found.
-	 */
 	@Override
-	public <T> T getServerInterceptor(@Nonnull Class<T> type) {
-		if (type.equals(ServerInterceptor.class) && grpcApiTracingContext != null) {
-			//noinspection unchecked
-			return (T) grpcApiTracingContext.getServerInterceptor();
+	public void executeWithinBlock(@Nonnull String protocolName, @Nonnull Object context, @Nonnull Runnable runnable) {
+		if (context instanceof HttpServerExchange httpServerExchange) {
+			jsonApiTracingContext.executeWithinBlock(protocolName, httpServerExchange, runnable);
+		} else if (context instanceof Metadata metadata) {
+			grpcApiTracingContext.executeWithinBlock(protocolName, metadata, runnable);
+		} else {
+			throw new EvitaInvalidUsageException("Invalid object type sent as a External API tracing context!");
 		}
-		return null;
+	}
+
+	@Nullable
+	@Override
+	public <T> T executeWithinBlock(@Nonnull String protocolName, @Nonnull Object context, @Nonnull Supplier<T> lambda) {
+		if (context instanceof HttpServerExchange httpServerExchange) {
+			return jsonApiTracingContext.executeWithinBlock(protocolName, httpServerExchange, lambda);
+		} else if (context instanceof Metadata metadata) {
+			return grpcApiTracingContext.executeWithinBlock(protocolName, metadata, lambda);
+		} else {
+			throw new EvitaInvalidUsageException("Invalid object type sent as a External API tracing context!");
+		}
 	}
 }

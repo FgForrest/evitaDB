@@ -75,17 +75,13 @@ public interface ExternalApiTracingContext<C> {
 	 * Sets the passed task name and attributes to the trace BEFORE the lambda is executed. Within the method,
 	 * the lambda with passed logic will be traced and properly executed.
 	 */
-	default void executeWithinBlock(@Nonnull String protocolName, @Nonnull C context, @Nonnull Runnable runnable, @Nullable SpanAttribute... attributes) {
-		runnable.run();
-	}
+	void executeWithinBlock(@Nonnull String protocolName, @Nonnull C context, @Nonnull Runnable runnable, @Nullable SpanAttribute... attributes);
 
 	/**
 	 * Sets the passed task name and attributes to the trace BEFORE the lambda is executed. Within the method,
 	 * the lambda with passed logic will be traced and properly executed.
 	 */
-	default <T> T executeWithinBlock(@Nonnull String protocolName, @Nonnull C context, @Nonnull Supplier<T> lambda, @Nullable SpanAttribute... attributes) {
-		return lambda.get();
-	}
+	<T> T executeWithinBlock(@Nonnull String protocolName, @Nonnull C context, @Nonnull Supplier<T> lambda, @Nullable SpanAttribute... attributes);
 
 	/**
 	 * Sets the passed task name and attributes to the trace AFTER the lambda is executed. Within the method,
@@ -93,9 +89,7 @@ public interface ExternalApiTracingContext<C> {
 	 * the attributes will be set to the trace. The attributes may take advantage of the data computed in the lambda
 	 * itself.
 	 */
-	default void executeWithinBlock(@Nonnull String protocolName, @Nonnull C context, @Nonnull Runnable runnable, @Nullable Supplier<SpanAttribute[]> attributes) {
-		runnable.run();
-	}
+	void executeWithinBlock(@Nonnull String protocolName, @Nonnull C context, @Nonnull Runnable runnable, @Nullable Supplier<SpanAttribute[]> attributes);
 
 	/**
 	 * Sets the passed task name and attributes to the trace AFTER the lambda is executed. Within the method,
@@ -103,18 +97,14 @@ public interface ExternalApiTracingContext<C> {
 	 * the attributes will be set to the trace. The attributes may take advantage of the data computed in the lambda
 	 * itself.
 	 */
-	default <T> T executeWithinBlock(@Nonnull String protocolName, @Nonnull C context, @Nonnull Supplier<T> lambda, @Nullable Supplier<SpanAttribute[]> attributes) {
-		return lambda.get();
-	}
+	<T> T executeWithinBlock(@Nonnull String protocolName, @Nonnull C context, @Nonnull Supplier<T> lambda, @Nullable Supplier<SpanAttribute[]> attributes);
 
 	/**
 	 * Executes the given lambda within the tracing block. It requires the client ID to be provided by the client and his
 	 * network address as well for the proper client identification formatting. Passed context is used as a decider for
 	 * the target implementation to use, whether the request originates from a JSON based API or a gRPC one.
 	 */
-	default void executeWithinBlock(@Nonnull String protocolName, @Nonnull C context, @Nonnull Runnable runnable) {
-		runnable.run();
-	}
+	void executeWithinBlock(@Nonnull String protocolName, @Nonnull C context, @Nonnull Runnable runnable);
 
 	/**
 	 * Executes the given lambda within the tracing block. It requires the client ID to be provided by the client and his
@@ -122,17 +112,7 @@ public interface ExternalApiTracingContext<C> {
 	 * the target implementation to use, whether the request originates from a JSON based API or a gRPC one.
 	 */
 	@Nullable
-	default <T> T executeWithinBlock(@Nonnull String protocolName, @Nonnull C context, @Nonnull Supplier<T> lambda) {
-		return lambda.get();
-	}
-
-	/**
-	 * Returns server interceptor for the given type. Expected usage is from gRPC Server.
-	 */
-	@Nullable
-	default <T> T getServerInterceptor(@Nonnull Class<T> type) {
-		return null;
-	}
+	<T> T executeWithinBlock(@Nonnull String protocolName, @Nonnull C context, @Nonnull Supplier<T> lambda);
 
 	/**
 	 * Converts client-sent ID to internal client ID.

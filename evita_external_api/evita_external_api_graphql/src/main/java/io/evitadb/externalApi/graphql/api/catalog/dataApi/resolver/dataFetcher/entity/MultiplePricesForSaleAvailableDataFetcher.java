@@ -23,29 +23,63 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.entity;
 
-import graphql.execution.DataFetcherResult;
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
+import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.data.PriceContract;
+import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.EntityQueryContext;
+import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 
 import javax.annotation.Nonnull;
 import java.util.List;
 
 /**
- * Finds out whether there are multiple prices which the entity could be sold for.
+ * Finds out whether there are multiple unique prices which the entity could be sold for.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public class MultiplePricesForSaleAvailableDataFetcher implements DataFetcher<DataFetcherResult<Boolean>> {
+public class MultiplePricesForSaleAvailableDataFetcher implements DataFetcher<Boolean> {
 
     @Nonnull
     @Override
-    public DataFetcherResult<Boolean> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
+    public Boolean get(@Nonnull DataFetchingEnvironment environment) throws Exception {
         final EntityDecorator entity = environment.getSource();
+        final EntityQueryContext context = environment.getLocalContext();
+
         final List<PriceContract> allPricesForSale = entity.getAllPricesForSale();
-        return DataFetcherResult.<Boolean>newResult()
-            .data(allPricesForSale.size() > 1)
-            .build();
+        if (allPricesForSale.size() <= 1) {
+            return false;
+        }
+
+        final boolean hasMultiplePricesForSale;
+        final PriceInnerRecordHandling priceInnerRecordHandling = entity.getPriceInnerRecordHandling();
+        if (priceInnerRecordHandling.equals(PriceInnerRecordHandling.FIRST_OCCURRENCE)) {
+            if (allPricesForSale.size() <= 1) {
+                return false;
+            }
+
+            final QueryPriceMode desiredPriceType = entity.getPricePredicate().getQueryPriceMode();
+            final long uniquePriceValuesCount = allPricesForSale.stream()
+                .map(price -> {
+                    if (desiredPriceType.equals(QueryPriceMode.WITH_TAX)) {
+                        return price.priceWithTax();
+                    } else if (desiredPriceType.equals(QueryPriceMode.WITHOUT_TAX)) {
+                        return price.priceWithoutTax();
+                    } else {
+                        throw new GraphQLInternalError("Unsupported price type `" + desiredPriceType + "`");
+                    }
+                })
+                .distinct()
+                .count();
+            hasMultiplePricesForSale = uniquePriceValuesCount > 1;
+        } else if (priceInnerRecordHandling.equals(PriceInnerRecordHandling.SUM)) {
+            hasMultiplePricesForSale = allPricesForSale.size() > 1;
+        } else {
+            hasMultiplePricesForSale = false;
+        }
+
+        return hasMultiplePricesForSale;
     }
 }

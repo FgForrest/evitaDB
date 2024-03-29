@@ -27,11 +27,9 @@ import io.evitadb.api.trace.TracingContext;
 import io.evitadb.api.trace.TracingContext.SpanAttribute;
 import io.evitadb.externalApi.utils.ExternalApiTracingContext;
 import io.grpc.Metadata;
-import io.grpc.ServerInterceptor;
 import io.opentelemetry.context.Context;
 import io.opentelemetry.context.Scope;
 import io.opentelemetry.context.propagation.TextMapGetter;
-import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -129,17 +127,31 @@ public class GrpcTracingContext implements ExternalApiTracingContext<Metadata> {
 		}
 	}
 
-	/**
-	 * Retrieves the server interceptor for tracing.
-	 *
-	 * @return The server interceptor for tracing, or null if tracing is not enabled.
-	 */
-	@Nullable
-	public ServerInterceptor getServerInterceptor() {
+	@Override
+	public void executeWithinBlock(@Nonnull String protocolName, @Nonnull Metadata context, @Nonnull Runnable runnable) {
 		if (!OpenTelemetryTracerSetup.isTracingEnabled()) {
-			return null;
+			runnable.run();
 		}
-		return GrpcTelemetry.create(OpenTelemetryTracerSetup.getOpenTelemetry()).newServerInterceptor();
+		try (Scope ignored = extractContextFromHeaders(protocolName, context).makeCurrent()) {
+			tracingContext.executeWithinBlock(
+				protocolName,
+				runnable
+			);
+		}
+	}
+
+	@Nullable
+	@Override
+	public <T> T executeWithinBlock(@Nonnull String protocolName, @Nonnull Metadata context, @Nonnull Supplier<T> lambda) {
+		if (!OpenTelemetryTracerSetup.isTracingEnabled()) {
+			return lambda.get();
+		}
+		try (Scope ignored = extractContextFromHeaders(protocolName, context).makeCurrent()) {
+			return tracingContext.executeWithinBlock(
+				protocolName,
+				lambda
+			);
+		}
 	}
 
 	/**

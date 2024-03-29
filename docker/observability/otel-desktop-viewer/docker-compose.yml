@@ -1,0 +1,12 @@
+version: "3.7"
+
+services:
+  otel-desktop-viewer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+      - "8888:8888"
+      - "4317:4317"
+      - "4318:4318"

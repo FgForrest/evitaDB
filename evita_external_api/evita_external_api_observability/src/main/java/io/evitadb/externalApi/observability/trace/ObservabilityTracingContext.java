@@ -107,6 +107,29 @@ public class ObservabilityTracingContext implements TracingContext {
 		return executeWithinBlock(taskName, lambda, null, attributes);
 	}
 
+	@Override
+	public void executeWithinBlock(@Nonnull String taskName, @Nonnull Runnable runnable) {
+		executeWithinBlock(
+			taskName,
+			() -> {
+				runnable.run();
+				return null;
+			},
+			null,
+			null
+		);
+	}
+
+	@Override
+	public <T> T executeWithinBlock(@Nonnull String taskName, @Nonnull Supplier<T> lambda) {
+		return executeWithinBlock(
+			taskName,
+			lambda,
+			null,
+			null
+		);
+	}
+
 	/**
 	 * Executes the given lambda function within a block.
 	 * If tracing is enabled, it creates and manages a span for the execution of the lambda.
@@ -136,6 +159,7 @@ public class ObservabilityTracingContext implements TracingContext {
 		final Span span = OpenTelemetryTracerSetup.getTracer()
 			.spanBuilder(taskName)
 			.setSpanKind(SpanKind.SERVER)
+			.setParent(context.with(Span.current()))
 			.startSpan();
 
 		final String clientId = context.get(OpenTelemetryTracerSetup.CONTEXT_KEY);
@@ -189,6 +213,8 @@ public class ObservabilityTracingContext implements TracingContext {
 				span.setAttribute(attribute.key(), doubleValue);
 			} else if (attribute.value() instanceof Boolean booleanValue) {
 				span.setAttribute(attribute.key(), booleanValue);
+			} else {
+				span.setAttribute(attribute.key(), attribute.value().toString());
 			}
 		}
 	}

@@ -118,7 +118,7 @@ class InitialPricesBuilderTest extends AbstractBuilderTest {
 	}
 
 	@Test
-	void shouldCorrectlyComputeAllPricesForSaleForFirstOccurenceStrategy() {
+	void shouldCorrectlyComputeAllPricesForSaleForFirstOccurrenceStrategy() {
 		final PricesContract prices = builder
 			.setPriceInnerRecordHandling(PriceInnerRecordHandling.FIRST_OCCURRENCE)
 			.setPrice(1, "basic", CZK, 1, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)

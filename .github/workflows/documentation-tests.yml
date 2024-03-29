@@ -1,5 +1,5 @@
-# Nightly job, that should execute all tests (including long-running ones) when something was committed.
-name: All tests including long-running
+# Nightly job, that should execute documentation tests when something was committed.
+name: Documentation tests
 
 on:
   workflow_dispatch: # allows manual triggering
@@ -30,9 +30,9 @@ jobs:
            java-version: '17'
            cache: 'maven'
 
-      - name: Long running tests   # this run Maven tests but only if something was committed this day
+      - name: Documentation tests   # this run Maven tests but only if something was committed this day
         if: ${{ env.NEW_COMMIT_COUNT > 0 }}
-        run: mvn -T 1C -B package -P longRunning -V --fail-at-end -Dmaven.test.skip=false --file pom.xml
+        run: mvn -T 1C -B package -P documentation -Dsurefire.reportNameSuffix=documentation -V --fail-at-end -Dmaven.test.skip=false --file pom.xml
 
       - name: Upload test results  # this upload test results but only if something was committed this day
         uses: actions/upload-artifact@v2
@@ -40,7 +40,3 @@ jobs:
         with:
           name: test-results
           path: 'evita*/**/target/surefire-reports/TEST-*.xml'
-
-      - name: Upload coverage to Codecov  # this upload test coverage but only if something was committed this day
-        uses: codecov/codecov-action@v3
-        if: ${{ env.NEW_COMMIT_COUNT > 0 }}

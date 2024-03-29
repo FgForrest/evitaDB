@@ -21,27 +21,24 @@
  *   limitations under the License.
  */
 
-package io.evitadb.driver.observability.trace;
+package io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer;
 
-import io.evitadb.driver.trace.ClientTracingContext;
-import io.opentelemetry.api.OpenTelemetry;
+import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
+import lombok.Builder;
+import lombok.Data;
+import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 
 /**
- * Implementation of {@link ClientTracingContext} for the driver.
- * It enables setting up the OpenTelemetry instance on which the tracing is based and individual spans exported.
+ * Context holding shared information for entity serialization.
  *
- * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
  */
-public class DriverTracingContext implements ClientTracingContext {
-	@Override
-	public void setOpenTelemetry(@Nonnull Object openTelemetryInstance) {
-		if (openTelemetryInstance instanceof OpenTelemetry openTelemetry) {
-			OpenTelemetryClientTracerSetup.setOpenTelemetry(openTelemetry);
-		}
-		else {
-			throw new IllegalArgumentException("The provided parameter is not an instance of a type `OpenTelemetry`.");
-		}
-	}
+@Builder(toBuilder = true)
+@Data
+@RequiredArgsConstructor
+public class EntitySerializationContext {
+
+	@Nonnull private final CatalogSchemaContract catalogSchema;
 }
