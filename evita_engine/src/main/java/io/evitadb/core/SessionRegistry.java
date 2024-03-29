@@ -240,9 +240,9 @@ final class SessionRegistry {
 							}
 							return index < spanAttributes.length ?
 								Arrays.copyOfRange(spanAttributes, 0, index) : spanAttributes;
-						},
-						evitaSession.isRootLevelExecution()
-					)
+						}
+					),
+					evitaSession.isRootLevelExecution()
 				);
 			} finally {
 				evitaSession.decreaseNestLevel();
@@ -291,8 +291,9 @@ final class SessionRegistry {
 		 * Unregisters a session that is consuming a catalog in the specified version.
 		 *
 		 * @param version the version of the catalog
-		 * @return true if the session was the last session using particular version of the catalog
+		 * @return the result of the finalization of the session
 		 */
+		@Nonnull
 		SessionFinalizationResult unregisterSessionConsumingCatalogInVersion(long version) {
 			final Integer readerCount = versionConsumingSessions.compute(
 				version,

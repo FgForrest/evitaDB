@@ -67,7 +67,6 @@ import io.evitadb.externalApi.grpc.services.interceptors.ServerSessionIntercepto
 import io.evitadb.externalApi.grpc.utils.QueryUtil;
 import io.evitadb.externalApi.trace.ExternalApiTracingContextProvider;
 import io.evitadb.utils.ArrayUtils;
-import io.grpc.Contexts;
 import io.grpc.Metadata;
 import io.grpc.stub.StreamObserver;
 import lombok.RequiredArgsConstructor;
@@ -751,7 +750,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	 * @param responseObserver observer on which errors might be thrown and result returned
 	 */
 	@Override
-	public void close(Empty request, StreamObserver<Empty> responseObserver) {
+	public void close(GrpcCloseRequest request, StreamObserver<GrpcCloseResponse> responseObserver) {
 		executeWithClientContext(session -> {
 			if (session != null) {
 				final CompletableFuture<Long> future = session.closeNow(toCommitBehavior(request.getCommitBehaviour()));

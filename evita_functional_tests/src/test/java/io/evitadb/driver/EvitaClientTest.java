@@ -922,7 +922,6 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 		);
 	}
 
-	@DisplayName("Update catalog with another product - synchronously.")
 	@UseDataSet(value = EVITA_CLIENT_DATA_SET, destroyAfterTest = true)
 	@Test
 	void shouldUpdateCatalogWithAnotherProduct(EvitaContract evita, SealedEntitySchema productSchema) {
