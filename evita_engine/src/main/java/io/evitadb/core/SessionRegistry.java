@@ -26,6 +26,9 @@ package io.evitadb.core;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.ConcurrentInitializationException;
+import io.evitadb.api.trace.TracingContext;
+import io.evitadb.api.trace.TracingContext.SpanAttribute;
+import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.Assert;
@@ -37,7 +40,9 @@ import javax.annotation.Nullable;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.lang.reflect.Parameter;
 import java.lang.reflect.Proxy;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.UUID;
@@ -55,7 +60,12 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @Slf4j
+@RequiredArgsConstructor
 final class SessionRegistry {
+	/**
+	 * Provides the tracing context for tracking the execution flow in the application.
+	 **/
+	private final TracingContext tracingContext;
 	/**
 	 * Keeps information about currently active sessions.
 	 */
@@ -123,7 +133,7 @@ final class SessionRegistry {
 		final EvitaInternalSessionContract newSessionProxy = (EvitaInternalSessionContract) Proxy.newProxyInstance(
 			EvitaInternalSessionContract.class.getClassLoader(),
 			new Class[]{EvitaInternalSessionContract.class},
-			new EvitaSessionProxy(newSession)
+			new EvitaSessionProxy(newSession, tracingContext)
 		);
 		activeSessions.put(newSession.getId(), new EvitaSessionTuple(newSession, newSessionProxy));
 		return newSessionProxy;
@@ -161,45 +171,63 @@ final class SessionRegistry {
 	@RequiredArgsConstructor
 	private static class EvitaSessionProxy implements InvocationHandler {
 		private final EvitaSession evitaSession;
+		private final TracingContext tracingContext;
 
 		@Override
 		public Object invoke(Object proxy, Method method, Object[] args) {
 			// invoke original method on delegate
 			return Transaction.executeInTransactionIfProvided(
 				evitaSession.getOpenedTransaction().orElse(null),
-				() -> {
-					try {
-						return method.invoke(evitaSession, args);
-					} catch (InvocationTargetException ex) {
-						// handle the error
-						final Throwable targetException = ex.getTargetException();
-						if (targetException instanceof EvitaInvalidUsageException evitaInvalidUsageException) {
-							// just unwrap and rethrow
-							throw evitaInvalidUsageException;
-						} else if (targetException instanceof EvitaInternalError evitaInternalError) {
-							log.error(
-								"Internal Evita error occurred in " + evitaInternalError.getErrorCode() + ": " + evitaInternalError.getPrivateMessage(),
-								targetException
-							);
-							// unwrap and rethrow
-							throw evitaInternalError;
-						} else {
-							log.error("Unexpected internal Evita error occurred: " + ex.getCause().getMessage(), targetException);
+				() -> tracingContext.executeWithinBlock(
+					"session call - " + method.getName(),
+					() -> {
+						try {
+							return method.invoke(evitaSession, args);
+						} catch (InvocationTargetException ex) {
+							// handle the error
+							final Throwable targetException = ex.getTargetException();
+							if (targetException instanceof EvitaInvalidUsageException evitaInvalidUsageException) {
+								// just unwrap and rethrow
+								throw evitaInvalidUsageException;
+							} else if (targetException instanceof EvitaInternalError evitaInternalError) {
+								log.error(
+									"Internal Evita error occurred in " + evitaInternalError.getErrorCode() + ": " + evitaInternalError.getPrivateMessage(),
+									targetException
+								);
+								// unwrap and rethrow
+								throw evitaInternalError;
+							} else {
+								log.error("Unexpected internal Evita error occurred: " + ex.getCause().getMessage(), targetException);
+								throw new EvitaInternalError(
+									"Unexpected internal Evita error occurred: " + ex.getCause().getMessage(),
+									"Unexpected internal Evita error occurred.",
+									targetException
+								);
+							}
+						} catch (Throwable ex) {
+							log.error("Unexpected system error occurred: " + ex.getMessage(), ex);
 							throw new EvitaInternalError(
-								"Unexpected internal Evita error occurred: " + ex.getCause().getMessage(),
-								"Unexpected internal Evita error occurred.",
-								targetException
+								"Unexpected system error occurred: " + ex.getMessage(),
+								"Unexpected system error occurred.",
+								ex
 							);
 						}
-					} catch (Throwable ex) {
-						log.error("Unexpected system error occurred: " + ex.getMessage(), ex);
-						throw new EvitaInternalError(
-							"Unexpected system error occurred: " + ex.getMessage(),
-							"Unexpected system error occurred.",
-							ex
-						);
+					},
+					() -> {
+						final Parameter[] parameters = method.getParameters();
+						final SpanAttribute[] spanAttributes = new SpanAttribute[1 + parameters.length];
+						spanAttributes[0] = new SpanAttribute("session.id", evitaSession.getId().toString());
+						int index = 1;
+						for (int i = 0; i < args.length; i++) {
+							final Object arg = args[i];
+							if (EvitaDataTypes.isSupportedType(parameters[i].getType()) && arg != null) {
+								spanAttributes[index++] = new SpanAttribute(parameters[i].getName(), arg);
+							}
+						}
+						return index < spanAttributes.length ?
+							Arrays.copyOfRange(spanAttributes, 0, index) : spanAttributes;
 					}
-				}
+				)
 			);
 		}
 	}

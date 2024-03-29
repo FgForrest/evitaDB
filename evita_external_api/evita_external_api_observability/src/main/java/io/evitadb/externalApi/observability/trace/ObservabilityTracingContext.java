@@ -213,6 +213,8 @@ public class ObservabilityTracingContext implements TracingContext {
 				span.setAttribute(attribute.key(), doubleValue);
 			} else if (attribute.value() instanceof Boolean booleanValue) {
 				span.setAttribute(attribute.key(), booleanValue);
+			} else {
+				span.setAttribute(attribute.key(), attribute.value().toString());
 			}
 		}
 	}
