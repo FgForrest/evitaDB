@@ -46,6 +46,10 @@ import java.util.function.Supplier;
  * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
  */
 public class ObservabilityTracingContext implements TracingContext {
+	/**
+	 * Contains TRUE only if the context was already opened by `executeWithinBlock` like methods.
+	 */
+	private final ThreadLocal<Boolean> parentContextAvailable = new ThreadLocal<>();
 
 	/**
 	 * Initializes MDC with the given client ID and trace ID. It is used for logging purposes.
@@ -63,13 +67,40 @@ public class ObservabilityTracingContext implements TracingContext {
 		MDC.remove(MDC_TRACE_ID_PROPERTY);
 	}
 
+	/**
+	 * Sets the specified attributes in the given span.
+	 *
+	 * @param span       the span to set the attributes in
+	 * @param attributes an array of SpanAttribute objects representing the attributes to set in the span
+	 */
+	private static void setAttributes(
+		@Nonnull Span span,
+		@Nonnull SpanAttribute[] attributes
+	) {
+		for (SpanAttribute attribute : attributes) {
+			if (attribute.value() instanceof String string) {
+				span.setAttribute(attribute.key(), string);
+			} else if (attribute.value() instanceof Integer integer) {
+				span.setAttribute(attribute.key(), integer);
+			} else if (attribute.value() instanceof Long longValue) {
+				span.setAttribute(attribute.key(), longValue);
+			} else if (attribute.value() instanceof Double doubleValue) {
+				span.setAttribute(attribute.key(), doubleValue);
+			} else if (attribute.value() instanceof Boolean booleanValue) {
+				span.setAttribute(attribute.key(), booleanValue);
+			} else {
+				span.setAttribute(attribute.key(), attribute.value().toString());
+			}
+		}
+	}
+
 	@Override
 	public void executeWithinBlock(
 		@Nonnull String taskName,
 		@Nonnull Runnable runnable,
 		@Nullable SpanAttribute... attributes
 	) {
-		executeWithinBlock(
+		executeWithinBlockOpeningParentContext(
 			taskName,
 			() -> {
 				runnable.run();
@@ -86,12 +117,12 @@ public class ObservabilityTracingContext implements TracingContext {
 		@Nonnull Supplier<T> lambda,
 		@Nullable SpanAttribute... attributes
 	) {
-		return executeWithinBlock(taskName, lambda, attributes, null);
+		return executeWithinBlockOpeningParentContext(taskName, lambda, attributes, null);
 	}
 
 	@Override
 	public void executeWithinBlock(@Nonnull String taskName, @Nonnull Runnable runnable, @Nullable Supplier<SpanAttribute[]> attributes) {
-		executeWithinBlock(
+		executeWithinBlockOpeningParentContext(
 			taskName,
 			() -> {
 				runnable.run();
@@ -104,12 +135,12 @@ public class ObservabilityTracingContext implements TracingContext {
 
 	@Override
 	public <T> T executeWithinBlock(@Nonnull String taskName, @Nonnull Supplier<T> lambda, @Nullable Supplier<SpanAttribute[]> attributes) {
-		return executeWithinBlock(taskName, lambda, null, attributes);
+		return executeWithinBlockOpeningParentContext(taskName, lambda, null, attributes);
 	}
 
 	@Override
 	public void executeWithinBlock(@Nonnull String taskName, @Nonnull Runnable runnable) {
-		executeWithinBlock(
+		executeWithinBlockOpeningParentContext(
 			taskName,
 			() -> {
 				runnable.run();
@@ -122,7 +153,66 @@ public class ObservabilityTracingContext implements TracingContext {
 
 	@Override
 	public <T> T executeWithinBlock(@Nonnull String taskName, @Nonnull Supplier<T> lambda) {
-		return executeWithinBlock(
+		return executeWithinBlockOpeningParentContext(
+			taskName,
+			lambda,
+			null,
+			null
+		);
+	}
+
+	@Override
+	public void executeWithinBlockIfParentContextAvailable(@Nonnull String taskName, @Nonnull Runnable runnable, @Nullable SpanAttribute... attributes) {
+		executeWithinBlockInternal(
+			taskName,
+			() -> {
+				runnable.run();
+				return null;
+			},
+			attributes,
+			null
+		);
+	}
+
+	@Override
+	public <T> T executeWithinBlockIfParentContextAvailable(@Nonnull String taskName, @Nonnull Supplier<T> lambda, @Nullable SpanAttribute... attributes) {
+		return executeWithinBlockInternal(taskName, lambda, attributes, null);
+	}
+
+	@Override
+	public void executeWithinBlockIfParentContextAvailable(@Nonnull String taskName, @Nonnull Runnable runnable, @Nullable Supplier<SpanAttribute[]> attributes) {
+		executeWithinBlockInternal(
+			taskName,
+			() -> {
+				runnable.run();
+				return null;
+			},
+			null,
+			attributes
+		);
+	}
+
+	@Override
+	public <T> T executeWithinBlockIfParentContextAvailable(@Nonnull String taskName, @Nonnull Supplier<T> lambda, @Nullable Supplier<SpanAttribute[]> attributes) {
+		return executeWithinBlockInternal(taskName, lambda, null, attributes);
+	}
+
+	@Override
+	public void executeWithinBlockIfParentContextAvailable(@Nonnull String taskName, @Nonnull Runnable runnable) {
+		executeWithinBlockInternal(
+			taskName,
+			() -> {
+				runnable.run();
+				return null;
+			},
+			null,
+			null
+		);
+	}
+
+	@Override
+	public <T> T executeWithinBlockIfParentContextAvailable(@Nonnull String taskName, @Nonnull Supplier<T> lambda) {
+		return executeWithinBlockInternal(
 			taskName,
 			lambda,
 			null,
@@ -131,23 +221,62 @@ public class ObservabilityTracingContext implements TracingContext {
 	}
 
 	/**
-	 * Executes the given lambda function within a block.
+	 * Executes the given lambda function within a block and opens parent context block.
 	 * If tracing is enabled, it creates and manages a span for the execution of the lambda.
 	 *
-	 * @param taskName the name of the task or operation
-	 * @param lambda the lambda function to execute
-	 * @param attributes an array of SpanAttribute objects representing the attributes to set in the span (optional)
-	 * @param attributeSupplier a supplier function that provides an array of SpanAttribute objects representing additional attributes to set in the span (optional)
-	 * @param <T> the return type of the lambda function
+	 * @param taskName          the name of the task or operation
+	 * @param lambda            the lambda function to execute
+	 * @param attributes        an array of SpanAttribute objects representing the attributes to set in the span (optional)
+	 * @param attributeSupplier a supplier function that provides an array of SpanAttribute objects representing
+	 *                          additional attributes to set in the span (optional)
+	 * @param <T>               the return type of the lambda function
 	 * @return the result of the lambda function
 	 */
-	private static <T> T executeWithinBlock(
+	private <T> T executeWithinBlockOpeningParentContext(
 		@Nonnull String taskName,
 		@Nonnull Supplier<T> lambda,
 		@Nullable SpanAttribute[] attributes,
 		@Nullable Supplier<SpanAttribute[]> attributeSupplier
 	) {
-		if (!OpenTelemetryTracerSetup.isTracingEnabled()) {
+		boolean clear = false;
+		try {
+			final Boolean originalValue = parentContextAvailable.get();
+			if (!Boolean.TRUE.equals(originalValue)) {
+				parentContextAvailable.set(true);
+				clear = true;
+			}
+			return executeWithinBlockInternal(
+				taskName,
+				lambda,
+				attributes,
+				attributeSupplier
+			);
+		} finally {
+			if (clear) {
+				parentContextAvailable.set(false);
+			}
+		}
+	}
+
+	/**
+	 * Executes the given lambda function within a block. It records a span only when somebody already called
+	 * the {@link #executeWithinBlockOpeningParentContext(String, Supplier, SpanAttribute[], Supplier)} method.
+	 * If tracing is enabled, it creates and manages a span for the execution of the lambda.
+	 *
+	 * @param taskName          the name of the task or operation
+	 * @param lambda            the lambda function to execute
+	 * @param attributes        an array of SpanAttribute objects representing the attributes to set in the span (optional)
+	 * @param attributeSupplier a supplier function that provides an array of SpanAttribute objects representing additional attributes to set in the span (optional)
+	 * @param <T>               the return type of the lambda function
+	 * @return the result of the lambda function
+	 */
+	private <T> T executeWithinBlockInternal(
+		@Nonnull String taskName,
+		@Nonnull Supplier<T> lambda,
+		@Nullable SpanAttribute[] attributes,
+		@Nullable Supplier<SpanAttribute[]> attributeSupplier
+	) {
+		if (!OpenTelemetryTracerSetup.isTracingEnabled() || !Boolean.TRUE.equals(parentContextAvailable.get())) {
 			return lambda.get();
 		}
 
@@ -159,7 +288,7 @@ public class ObservabilityTracingContext implements TracingContext {
 		final Span span = OpenTelemetryTracerSetup.getTracer()
 			.spanBuilder(taskName)
 			.setSpanKind(SpanKind.SERVER)
-			.setParent(context.with(Span.current()))
+			.setParent(context)
 			.startSpan();
 
 		final String clientId = context.get(OpenTelemetryTracerSetup.CONTEXT_KEY);
@@ -189,33 +318,6 @@ public class ObservabilityTracingContext implements TracingContext {
 
 			span.end();
 			clearMdc();
-		}
-	}
-
-	/**
-	 * Sets the specified attributes in the given span.
-	 *
-	 * @param span       the span to set the attributes in
-	 * @param attributes an array of SpanAttribute objects representing the attributes to set in the span
-	 */
-	private static void setAttributes(
-		@Nonnull Span span,
-		@Nonnull SpanAttribute[] attributes
-	) {
-		for (SpanAttribute attribute : attributes) {
-			if (attribute.value() instanceof String string) {
-				span.setAttribute(attribute.key(), string);
-			} else if (attribute.value() instanceof Integer integer) {
-				span.setAttribute(attribute.key(), integer);
-			} else if (attribute.value() instanceof Long longValue) {
-				span.setAttribute(attribute.key(), longValue);
-			} else if (attribute.value() instanceof Double doubleValue) {
-				span.setAttribute(attribute.key(), doubleValue);
-			} else if (attribute.value() instanceof Boolean booleanValue) {
-				span.setAttribute(attribute.key(), booleanValue);
-			} else {
-				span.setAttribute(attribute.key(), attribute.value().toString());
-			}
 		}
 	}
 }

@@ -88,6 +88,48 @@ public interface TracingContext {
 	}
 
 	/**
+	 * Sets the passed task name and attributes to the trace BEFORE the lambda is executed. Within the method,
+	 * the lambda with passed logic will be traced and properly executed.
+	 */
+	void executeWithinBlockIfParentContextAvailable(@Nonnull String taskName, @Nonnull Runnable runnable, @Nullable SpanAttribute... attributes);
+
+	/**
+	 * Sets the passed task name and attributes to the trace BEFORE the lambda is executed. Within the method,
+	 * the lambda with passed logic will be traced and properly executed.
+	 */
+	<T> T executeWithinBlockIfParentContextAvailable(@Nonnull String taskName, @Nonnull Supplier<T> lambda, @Nullable SpanAttribute... attributes);
+
+	/**
+	 * Sets the passed task name and attributes to the trace AFTER the lambda is executed. Within the method,
+	 * the lambda with passed logic will be traced and properly executed. After the method successfully finishes,
+	 * the attributes will be set to the trace. The attributes may take advantage of the data computed in the lambda
+	 * itself.
+	 */
+	void executeWithinBlockIfParentContextAvailable(@Nonnull String taskName, @Nonnull Runnable runnable, @Nullable Supplier<SpanAttribute[]> attributes);
+
+	/**
+	 * Sets the passed task name and attributes to the trace AFTER the lambda is executed. Within the method,
+	 * the lambda with passed logic will be traced and properly executed. After the method successfully finishes,
+	 * the attributes will be set to the trace. The attributes may take advantage of the data computed in the lambda
+	 * itself.
+	 */
+	<T> T executeWithinBlockIfParentContextAvailable(@Nonnull String taskName, @Nonnull Supplier<T> lambda, @Nullable Supplier<SpanAttribute[]> attributes);
+
+	/**
+	 * Sets the passed task name to the trace. Within the method, the lambda with passed logic will be
+	 * traced and properly executed.
+	 */
+	void executeWithinBlockIfParentContextAvailable(@Nonnull String taskName, @Nonnull Runnable runnable);
+
+	/**
+	 * Sets the passed task name to the trace. Within the method, the lambda with passed logic will be
+	 * traced and properly executed.
+	 */
+	default <T> T executeWithinBlockIfParentContextAvailable(@Nonnull String taskName, @Nonnull Supplier<T> lambda) {
+		return lambda.get();
+	}
+
+	/**
 	 * Represents a key-value pair of an attribute in a span.
 	 *
 	 * @param key   the key of the attribute
