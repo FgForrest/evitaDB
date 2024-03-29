@@ -406,7 +406,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 		try (final QueryContext queryContext = createQueryContext(evitaRequest, session)) {
 			queryPlan = QueryPlanner.planQuery(queryContext);
 		}
-		return tracingContext.executeWithinBlock(
+		return tracingContext.executeWithinBlockIfParentContextAvailable(
 			"query - " + queryPlan.getDescription(),
 			(Supplier<T>) queryPlan::execute,
 			queryPlan::getSpanAttributes
@@ -645,7 +645,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 		try (final QueryContext queryContext = createQueryContext(evitaRequest, session)) {
 			queryPlan = QueryPlanner.planQuery(queryContext);
 		}
-		final EvitaEntityReferenceResponse result = tracingContext.executeWithinBlock(
+		final EvitaEntityReferenceResponse result = tracingContext.executeWithinBlockIfParentContextAvailable(
 			"delete - " + queryPlan.getDescription(),
 			(Supplier<EvitaEntityReferenceResponse>) queryPlan::execute,
 			queryPlan::getSpanAttributes
@@ -666,7 +666,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 		try (final QueryContext queryContext = createQueryContext(evitaRequest, session)) {
 			queryPlan = QueryPlanner.planQuery(queryContext);
 		}
-		final EvitaResponse<? extends Serializable> result = tracingContext.executeWithinBlock(
+		final EvitaResponse<? extends Serializable> result = tracingContext.executeWithinBlockIfParentContextAvailable(
 			"delete - " + queryPlan.getDescription(),
 			() -> queryPlan.execute(),
 			queryPlan::getSpanAttributes

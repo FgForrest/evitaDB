@@ -607,7 +607,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		try (final QueryContext queryContext = createQueryContext(evitaRequest, session)) {
 			queryPlan = QueryPlanner.planQuery(queryContext);
 		}
-		return tracingContext.executeWithinBlock(
+		return tracingContext.executeWithinBlockIfParentContextAvailable(
 			"query - " + queryPlan.getDescription(),
 			(Supplier<T>) queryPlan::execute,
 			queryPlan::getSpanAttributes

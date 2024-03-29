@@ -188,7 +188,7 @@ final class SessionRegistry {
 				// invoke original method on delegate
 				return Transaction.executeInTransactionIfProvided(
 					evitaSession.getOpenedTransaction().orElse(null),
-					() -> tracingContext.executeWithinBlock(
+					() -> tracingContext.executeWithinBlockIfParentContextAvailable(
 						"session call - " + method.getName(),
 						() -> {
 							try {
