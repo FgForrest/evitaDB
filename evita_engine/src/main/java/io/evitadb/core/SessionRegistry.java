@@ -217,15 +217,19 @@ final class SessionRegistry {
 						final Parameter[] parameters = method.getParameters();
 						final SpanAttribute[] spanAttributes = new SpanAttribute[1 + parameters.length];
 						spanAttributes[0] = new SpanAttribute("session.id", evitaSession.getId().toString());
-						int index = 1;
-						for (int i = 0; i < args.length; i++) {
-							final Object arg = args[i];
-							if (EvitaDataTypes.isSupportedType(parameters[i].getType()) && arg != null) {
-								spanAttributes[index++] = new SpanAttribute(parameters[i].getName(), arg);
+						if (args == null) {
+							return spanAttributes;
+						} else {
+							int index = 1;
+							for (int i = 0; i < args.length; i++) {
+								final Object arg = args[i];
+								if (EvitaDataTypes.isSupportedType(parameters[i].getType()) && arg != null) {
+									spanAttributes[index++] = new SpanAttribute(parameters[i].getName(), arg);
+								}
 							}
+							return index < spanAttributes.length ?
+								Arrays.copyOfRange(spanAttributes, 0, index) : spanAttributes;
 						}
-						return index < spanAttributes.length ?
-							Arrays.copyOfRange(spanAttributes, 0, index) : spanAttributes;
 					}
 				)
 			);
