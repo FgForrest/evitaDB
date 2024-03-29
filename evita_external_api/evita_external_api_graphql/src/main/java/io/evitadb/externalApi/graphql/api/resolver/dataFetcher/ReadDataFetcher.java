@@ -69,7 +69,7 @@ public class ReadDataFetcher implements DataFetcher<Object> {
 
 		return CompletableFuture.supplyAsync(
 			new ShortRunningSupplier<>(() -> tracingContext.executeWithinBlock(
-				null,
+				"GraphQL fetch",
 				() -> {
 					try {
 						return delegate.get(environment);
