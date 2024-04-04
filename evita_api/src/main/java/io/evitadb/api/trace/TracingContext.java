@@ -46,6 +46,12 @@ public interface TracingContext {
 	String MDC_TRACE_ID_PROPERTY = "traceId";
 
 	/**
+	 * Returns a reference to currently active underlying context implementation.
+	 * Mainly to pass the context to detached function call (usually in different thread).
+	 */
+	TracingContextReference<?> getCurrentContext();
+
+	/**
 	 * Sets the passed task name and attributes to the trace BEFORE the lambda is executed. Within the method,
 	 * the lambda with passed logic will be traced and properly executed.
 	 */
@@ -84,6 +90,48 @@ public interface TracingContext {
 	 * traced and properly executed.
 	 */
 	default <T> T executeWithinBlock(@Nonnull String taskName, @Nonnull Supplier<T> lambda) {
+		return lambda.get();
+	}
+
+	/**
+	 * Sets the passed task name and attributes to the trace BEFORE the lambda is executed. Within the method,
+	 * the lambda with passed logic will be traced and properly executed.
+	 */
+	void executeWithinBlockWithParentContext(@Nonnull TracingContextReference<?> contextHolderToUse, @Nonnull String taskName, @Nonnull Runnable runnable, @Nullable SpanAttribute... attributes);
+
+	/**
+	 * Sets the passed task name and attributes to the trace BEFORE the lambda is executed. Within the method,
+	 * the lambda with passed logic will be traced and properly executed.
+	 */
+	<T> T executeWithinBlockWithParentContext(@Nonnull TracingContextReference<?> contextHolderToUse, @Nonnull String taskName, @Nonnull Supplier<T> lambda, @Nullable SpanAttribute... attributes);
+
+	/**
+	 * Sets the passed task name and attributes to the trace AFTER the lambda is executed. Within the method,
+	 * the lambda with passed logic will be traced and properly executed. After the method successfully finishes,
+	 * the attributes will be set to the trace. The attributes may take advantage of the data computed in the lambda
+	 * itself.
+	 */
+	void executeWithinBlockWithParentContext(@Nonnull TracingContextReference<?> contextHolderToUse, @Nonnull String taskName, @Nonnull Runnable runnable, @Nullable Supplier<SpanAttribute[]> attributes);
+
+	/**
+	 * Sets the passed task name and attributes to the trace AFTER the lambda is executed. Within the method,
+	 * the lambda with passed logic will be traced and properly executed. After the method successfully finishes,
+	 * the attributes will be set to the trace. The attributes may take advantage of the data computed in the lambda
+	 * itself.
+	 */
+	<T> T executeWithinBlockWithParentContext(@Nonnull TracingContextReference<?> contextHolderToUse, @Nonnull String taskName, @Nonnull Supplier<T> lambda, @Nullable Supplier<SpanAttribute[]> attributes);
+
+	/**
+	 * Sets the passed task name to the trace. Within the method, the lambda with passed logic will be
+	 * traced and properly executed.
+	 */
+	void executeWithinBlockWithParentContext(@Nonnull TracingContextReference<?> contextHolderToUse, @Nonnull String taskName, @Nonnull Runnable runnable);
+
+	/**
+	 * Sets the passed task name to the trace. Within the method, the lambda with passed logic will be
+	 * traced and properly executed.
+	 */
+	default <T> T executeWithinBlockWithParentContext(@Nonnull TracingContextReference<?> contextHolderToUse, @Nonnull String taskName, @Nonnull Supplier<T> lambda) {
 		return lambda.get();
 	}
 

@@ -38,6 +38,13 @@ import java.util.function.Supplier;
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class DefaultTracingContext implements TracingContext {
 	public static final TracingContext INSTANCE = new DefaultTracingContext();
+	private static final TracingContextReference<?> EMPTY_CONTEXT_HOLDER = new DefaultTracingContextReference();
+
+	@Override
+	public TracingContextReference<?> getCurrentContext() {
+		// this is dummy implementation, it doesn't do anything
+		return EMPTY_CONTEXT_HOLDER;
+	}
 
 	@Override
 	public void executeWithinBlock(@Nonnull String taskName, @Nonnull Runnable runnable, @Nullable SpanAttribute... attributes) {
@@ -67,6 +74,36 @@ public class DefaultTracingContext implements TracingContext {
 	@Override
 	public <T> T executeWithinBlock(@Nonnull String taskName, @Nonnull Supplier<T> lambda) {
 		return lambda.get();
+	}
+
+	@Override
+	public void executeWithinBlockWithParentContext(@Nonnull TracingContextReference<?> contextReference, @Nonnull String taskName, @Nonnull Runnable runnable, @Nullable SpanAttribute... attributes) {
+		executeWithinBlock(taskName, runnable, attributes);
+	}
+
+	@Override
+	public <T> T executeWithinBlockWithParentContext(@Nonnull TracingContextReference<?> contextReference, @Nonnull String taskName, @Nonnull Supplier<T> lambda, @Nullable SpanAttribute... attributes) {
+		return executeWithinBlock(taskName, lambda, attributes);
+	}
+
+	@Override
+	public void executeWithinBlockWithParentContext(@Nonnull TracingContextReference<?> contextReference, @Nonnull String taskName, @Nonnull Runnable runnable, @Nullable Supplier<SpanAttribute[]> attributes) {
+		executeWithinBlock(taskName, runnable, attributes);
+	}
+
+	@Override
+	public <T> T executeWithinBlockWithParentContext(@Nonnull TracingContextReference<?> contextReference, @Nonnull String taskName, @Nonnull Supplier<T> lambda, @Nullable Supplier<SpanAttribute[]> attributes) {
+		return executeWithinBlock(taskName, lambda, attributes);
+	}
+
+	@Override
+	public void executeWithinBlockWithParentContext(@Nonnull TracingContextReference<?> contextReference, @Nonnull String taskName, @Nonnull Runnable runnable) {
+		executeWithinBlock(taskName, runnable);
+	}
+
+	@Override
+	public <T> T executeWithinBlockWithParentContext(@Nonnull TracingContextReference<?> contextReference, @Nonnull String taskName, @Nonnull Supplier<T> lambda) {
+		return executeWithinBlock(taskName, lambda);
 	}
 
 	@Override
