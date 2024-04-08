@@ -37,6 +37,26 @@ import java.util.ServiceLoader.Provider;
  */
 public class TracingContextProvider {
 	/**
+	 * Singleton instance of the {@link TracingContext} implementation.
+	 */
+	private static final TracingContext TRACING_CONTEXT;
+
+	static {
+		final List<TracingContext> collectedContexts = ServiceLoader.load(TracingContext.class)
+			.stream()
+			.map(Provider::get)
+			.toList();
+		if (collectedContexts.size() > 1) {
+			throw new EvitaInternalError("There are multiple registered implementations of TracingContext.");
+		}
+		if (collectedContexts.size() == 1) {
+			TRACING_CONTEXT = collectedContexts.stream().findFirst().get();
+		} else {
+			TRACING_CONTEXT = DefaultTracingContext.INSTANCE;
+		}
+	}
+
+	/**
 	 * Fetches and caches the {@link TracingContext} implementation.
 	 */
 	@Nonnull
@@ -55,16 +75,6 @@ public class TracingContextProvider {
 	 */
 	@Nonnull
 	private static TracingContext loadContext() {
-		final List<TracingContext> collectedContexts = ServiceLoader.load(TracingContext.class)
-			.stream()
-			.map(Provider::get)
-			.toList();
-		if (collectedContexts.size() > 1) {
-			throw new EvitaInternalError("There are multiple registered implementations of TracingContext.");
-		}
-		if (collectedContexts.size() == 1) {
-			return collectedContexts.stream().findFirst().get();
-		}
-		return DefaultTracingContext.INSTANCE;
+		return TRACING_CONTEXT;
 	}
 }
