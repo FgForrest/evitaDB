@@ -693,12 +693,12 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 
 	@Override
 	public boolean isEmpty() {
-		return size() == 0;
+		return this.persistenceService.isEmpty(getCatalog().getVersion(), dataStoreBuffer);
 	}
 
 	@Override
 	public int size() {
-		return this.persistenceService.countEntities(getCatalog().getVersion());
+		return this.persistenceService.countEntities(getCatalog().getVersion(), dataStoreBuffer);
 	}
 
 	@Override
@@ -1174,7 +1174,9 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 	EntityCollectionHeader flush(long catalogVersion) {
 		this.persistenceService.flushTrappedUpdates(catalogVersion, this.dataStoreBuffer.getTrappedIndexChanges());
 		this.persistenceService = this.catalogPersistenceService.flush(
-			catalogVersion, this.headerInfoSupplier, this.persistenceService.getEntityCollectionHeader()
+			catalogVersion,
+			this.headerInfoSupplier,
+			this.persistenceService.getEntityCollectionHeader()
 		);
 		return this.persistenceService.getEntityCollectionHeader();
 	}
@@ -1283,7 +1285,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 	 */
 	@Nullable
 	private Entity getEntityById(int primaryKey, @Nonnull EvitaRequest evitaRequest) {
-		return persistenceService.readEntity(
+		return this.persistenceService.readEntity(
 			getCatalog().getVersion(),
 			primaryKey,
 			evitaRequest,

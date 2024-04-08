@@ -49,7 +49,7 @@ public record VersionedValue(
 	/**
 	 * Returns true if this non-flushed value represents removal of the record.
 	 */
-	public boolean isRemoval() {
+	public boolean removed() {
 		return recordType < 0;
 	}
 

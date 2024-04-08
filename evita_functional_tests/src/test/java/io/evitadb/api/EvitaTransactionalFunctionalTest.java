@@ -117,7 +117,6 @@ import static org.junit.jupiter.api.Assertions.*;
 @ExtendWith(EvitaParameterResolver.class)
 @Slf4j
 public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
-	public static final ThreadLocal<Boolean> FETCH_CONTEXT = new ThreadLocal<>();
 	private static final String TRANSACTIONAL_DATA_SET = "transactionalDataSet";
 	private static final int SEED = 42;
 	private static final TriFunction<String, EvitaSessionContract, Faker, Integer> RANDOM_ENTITY_PICKER = (entityType, session, faker) -> {
@@ -836,22 +835,19 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 										createdReference.set(session.upsertEntity(it));
 
 										// verify that no entity with older transaction id is visible - i.e. SNAPSHOT isolation level
-										try {
-											for (PkWithCatalogVersion existingPk : primaryKeysWithTxIds) {
-												if (existingPk.catalogVersion() <= currentCatalogVersion) {
-													assertNotNull(
-														session.getEntity(existingPk.getType(), existingPk.getPrimaryKey()).orElse(null),
-														"Entity with catalogVersion " + existingPk.catalogVersion() + " is missing in catalog version `" + currentCatalogVersion + "`!"
-													);
-												} else {
-													assertNull(
-														session.getEntity(existingPk.getType(), existingPk.getPrimaryKey()).orElse(null),
-														"Entity with catalogVersion `" + existingPk.catalogVersion() + "` is present in catalog version `" + currentCatalogVersion + "`!"
-													);
-												}
+										for (PkWithCatalogVersion existingPk : primaryKeysWithTxIds) {
+											final SealedEntity fetchedEntity = session.getEntity(existingPk.getType(), existingPk.getPrimaryKey()).orElse(null);
+											if (existingPk.catalogVersion() <= currentCatalogVersion) {
+												assertNotNull(
+													fetchedEntity,
+													"Entity with catalogVersion " + existingPk.catalogVersion() + " is missing in catalog version `" + currentCatalogVersion + "`!"
+												);
+											} else {
+												assertNull(
+													fetchedEntity,
+													"Entity with catalogVersion `" + existingPk.catalogVersion() + "` is present in catalog version `" + currentCatalogVersion + "`!"
+												);
 											}
-										} finally {
-											FETCH_CONTEXT.set(false);
 										}
 									}, CommitBehavior.WAIT_FOR_WAL_PERSISTENCE, SessionFlags.READ_WRITE
 								);
@@ -889,10 +885,10 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 		}
 
 		// wait until Evita reaches the last version of the catalog
-		long watitingStart = System.currentTimeMillis();
+		long waitingStart = System.currentTimeMillis();
 		while (
 			// cap to one minute
-			System.currentTimeMillis() - watitingStart < 120_000 &&
+			System.currentTimeMillis() - waitingStart < 120_000 &&
 				// and finish when the last transaction is visible
 				evita.queryCatalog(TEST_CATALOG, session -> {
 					return session.getCatalogVersion();

@@ -73,8 +73,8 @@ public non-sealed interface EntityCollectionPersistenceService extends Persisten
 
 	/**
 	 * Returns current instance of {@link EntityCollectionHeader}. The header is initialized in the instance constructor
-	 * and (because it's immutable) is exchanged with each {@link #flush(long, HeaderInfoSupplier)} or
-	 * {@link #flushTrappedUpdates(long, DataStoreIndexChanges)} method call.
+	 * and (because it's immutable) is exchanged with each {@link #flushTrappedUpdates(long, DataStoreIndexChanges)}
+	 * method call.
 	 */
 	@Nonnull
 	EntityCollectionHeader getEntityCollectionHeader();
@@ -135,7 +135,18 @@ public non-sealed interface EntityCollectionPersistenceService extends Persisten
 	 * <strong>Note:</strong> the count may not be accurate - it counts only already persisted containers to the
 	 * persistent storage and doesn't take transactional memory into an account.
 	 */
-	int countEntities(long catalogVersion);
+	int countEntities(
+		long catalogVersion,
+		@Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex, DataStoreChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer
+	);
+
+	/**
+	 * Returns TRUE if the storage file is effectively entity - having no active data in it.
+	 */
+	boolean isEmpty(
+		long catalogVersion,
+		@Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex, DataStoreChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer
+	);
 
 	/**
 	 * Loads additional data to existing entity according to requirements of type {@link EntityContentRequire}

@@ -855,8 +855,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				this.transactionOptions,
 				this.offHeapMemoryManager,
 				this.observableOutputKeeper,
-				this.recordTypeRegistry,
-				this.obsoleteFileMaintainer
+				this.recordTypeRegistry
 			)
 		);
 	}
@@ -897,8 +896,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 					this.transactionOptions,
 					this.offHeapMemoryManager,
 					this.observableOutputKeeper,
-					this.recordTypeRegistry,
-					this.obsoleteFileMaintainer
+					this.recordTypeRegistry
 				)
 			);
 			this.obsoleteFileMaintainer.removeFileWhenNotUsed(
@@ -1191,8 +1189,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 					this.transactionOptions,
 					this.offHeapMemoryManager,
 					this.observableOutputKeeper,
-					this.recordTypeRegistry,
-					this.obsoleteFileMaintainer
+					this.recordTypeRegistry
 				);
 			}
 		);
@@ -1482,7 +1479,8 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				catalogVersion
 			);
 			bootstrapRecord = new CatalogBootstrap(
-				catalogVersion, newCatalogFileIndex,
+				catalogVersion,
+				newCatalogFileIndex,
 				bootstrapWriteTime,
 				compactedDescriptor.fileLocation()
 			);
@@ -1509,7 +1507,8 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			this.catalogPersistenceServiceVersions = ArrayUtils.insertLongIntoOrderedArray(catalogVersion, this.catalogPersistenceServiceVersions);
 		} else {
 			bootstrapRecord = new CatalogBootstrap(
-				catalogVersion, catalogFileIndex,
+				catalogVersion,
+				catalogFileIndex,
 				bootstrapWriteTime,
 				flushedDescriptor.fileLocation()
 			);
@@ -1791,7 +1790,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				(cv, maximalCatalogVersion) -> Long.compare(cv.version(), maximalCatalogVersion)
 			);
 			// iterate over records between those versions
-			final int normalizedMinCvIndex = Math.max(0, minCvIndex < 0 ? -minCvIndex - 1 : minCvIndex) - 1;
+			final int normalizedMinCvIndex = Math.max(0, minCvIndex < 0 ? -minCvIndex - 2 : minCvIndex - 1);
 			final int normalizedMaxCvIndex = Math.min(recordCount, maxCvIndex < 0 ? -maxCvIndex - 1 : maxCvIndex);
 			final Map<Long, CatalogVersion> catalogVersionPreviousVersions = CollectionUtils.createHashMap(
 				normalizedMaxCvIndex - normalizedMinCvIndex + 1

@@ -173,10 +173,6 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	@Nonnull @Getter
 	private final OffsetIndexStoragePartPersistenceService storagePartPersistenceService;
 	/**
-	 * Obsolete file maintainer takes care of deleting files that are no longer referenced by any of the sessions.
-	 */
-	private final ObsoleteFileMaintainer obsoleteFileMaintainer;
-	/**
 	 * Contains reference to the catalog entity header collecting all crucial information about a single entity collection.
 	 * The catalog entity header is loaded in the constructor, and because it's immutable it needs to be replaced with
 	 * each {@link #flush(long, HeaderInfoSupplier)}  call.
@@ -632,8 +628,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		@Nonnull TransactionOptions transactionOptions,
 		@Nonnull OffHeapMemoryManager offHeapMemoryManager,
 		@Nonnull ObservableOutputKeeper observableOutputKeeper,
-		@Nonnull OffsetIndexRecordTypeRegistry offsetIndexRecordTypeRegistry,
-		@Nonnull ObsoleteFileMaintainer obsoleteFileMaintainer
+		@Nonnull OffsetIndexRecordTypeRegistry offsetIndexRecordTypeRegistry
 	) {
 		this.entityCollectionFileReference = new CollectionFileReference(
 			entityTypeHeader.entityType(),
@@ -642,7 +637,6 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 			entityTypeHeader.fileLocation()
 		);
 		this.entityCollectionFile = entityCollectionFileReference.toFilePath(catalogStoragePath);
-		this.obsoleteFileMaintainer = obsoleteFileMaintainer;
 		this.entityCollectionHeader = entityTypeHeader;
 		this.offsetIndexRecordTypeRegistry = offsetIndexRecordTypeRegistry;
 		this.observableOutputKeeper = observableOutputKeeper;
@@ -831,15 +825,24 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		});
 	}
 
-	/**
-	 * Returns count of entities of certain type in the target storage.
-	 *
-	 * <strong>Note:</strong> the count may not be accurate - it counts only already persisted containers to the
-	 * {@link OffsetIndex} and doesn't take transactional memory into an account.
-	 */
 	@Override
-	public int countEntities(long catalogVersion) {
-		return getStoragePartPersistenceService().countStorageParts(catalogVersion, EntityBodyStoragePart.class);
+	public int countEntities(
+		long catalogVersion,
+		@Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex, DataStoreChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer
+	) {
+		return storageContainerBuffer.countStorageParts(
+			catalogVersion, EntityBodyStoragePart.class
+		);
+	}
+
+	@Override
+	public boolean isEmpty(
+		long catalogVersion,
+		@Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex, DataStoreChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer
+	) {
+		return storageContainerBuffer.countStorageParts(
+			catalogVersion, EntityBodyStoragePart.class
+		) == 0;
 	}
 
 	@Nonnull
@@ -1002,7 +1005,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 			collectionFileReference.entityType(),
 			collectionFileReference.entityTypePrimaryKey(),
 			collectionFileReference.fileIndex(),
-			this.countEntities(catalogVersion),
+			getStoragePartPersistenceService().countStorageParts(catalogVersion, EntityBodyStoragePart.class),
 			headerInfoSupplier.getLastAssignedPrimaryKey(),
 			headerInfoSupplier.getLastAssignedIndexKey(),
 			newDescriptor,

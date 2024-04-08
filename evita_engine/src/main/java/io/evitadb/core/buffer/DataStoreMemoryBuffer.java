@@ -119,6 +119,22 @@ public class DataStoreMemoryBuffer<IK extends IndexKey, I extends Index<IK>, DSC
 	}
 
 	/**
+	 * Counts the number of storage parts of the specified container type.
+	 *
+	 * @param catalogVersion   the version of the catalog the value is read from
+	 * @param containerType    the type of the storage part containers
+	 * @return the number of storage parts of the specified container type
+	 */
+	public int countStorageParts(long catalogVersion, @Nonnull Class<? extends StoragePart> containerType) {
+		final DataStoreChanges<IK, I> layer = getTransactionalMemoryLayerIfExists(transactionalMemoryDataSource);
+		if (layer == null) {
+			return persistenceService.countStorageParts(catalogVersion, containerType);
+		} else {
+			return layer.countStorageParts(catalogVersion, containerType);
+		}
+	}
+
+	/**
 	 * Reads container primarily from transactional memory and when the container is not present there (or transaction
 	 * is not opened) reads it from the target {@link CatalogPersistenceService}.
 	 */
@@ -234,4 +250,5 @@ public class DataStoreMemoryBuffer<IK extends IndexKey, I extends Index<IK>, DSC
 		// or fallback to shared memory buffer with trapped updates
 		return Objects.requireNonNullElse(layer, this.dataStoreIndexChanges);
 	}
+
 }

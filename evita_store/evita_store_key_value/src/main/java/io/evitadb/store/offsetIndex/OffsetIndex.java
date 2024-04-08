@@ -374,7 +374,7 @@ public class OffsetIndex {
 		final Optional<VersionedValue> nonFlushedValueRef = this.volatileValues.getNonFlushedValueIfVersionMatches(catalogVersion, key);
 		if (nonFlushedValueRef.isPresent()) {
 			final VersionedValue nonFlushedValue = nonFlushedValueRef.get();
-			if (nonFlushedValue.isRemoval()) {
+			if (nonFlushedValue.removed()) {
 				return null;
 			} else {
 				try {
@@ -391,12 +391,13 @@ public class OffsetIndex {
 		}
 
 		if (catalogVersion < this.keyCatalogVersion) {
-			final Optional<VersionedValue> rewrittenValueRef = this.volatileValues.getPreviousValue(catalogVersion, key);
-			if (rewrittenValueRef.isPresent()) {
-				final VersionedValue rewrittenValue = rewrittenValueRef.get();
-				if (rewrittenValue.isRemoval()) {
+			final Optional<VolatileValueInformation> volatileValueRef = this.volatileValues.getVolatileValueInformation(catalogVersion, key);
+			if (volatileValueRef.isPresent()) {
+				final VolatileValueInformation volatileValue = volatileValueRef.get();
+				if (volatileValue.removed() || volatileValue.addedInFuture()) {
 					return null;
 				} else {
+					final VersionedValue rewrittenValue = volatileValue.versionedValue();
 					//noinspection unchecked
 					return (T) get(rewrittenValue.fileLocation(), recordTypeRegistry.typeFor(rewrittenValue.recordType()));
 				}
@@ -437,7 +438,7 @@ public class OffsetIndex {
 		final Optional<VersionedValue> nonFlushedValueRef = this.volatileValues.getNonFlushedValueIfVersionMatches(catalogVersion, key);
 		if (nonFlushedValueRef.isPresent()) {
 			final VersionedValue nonFlushedValue = nonFlushedValueRef.get();
-			if (nonFlushedValue.isRemoval()) {
+			if (nonFlushedValue.removed()) {
 				return null;
 			} else {
 				try {
@@ -453,12 +454,13 @@ public class OffsetIndex {
 		}
 
 		if (catalogVersion < this.keyCatalogVersion) {
-			final Optional<VersionedValue> rewrittenValueRef = this.volatileValues.getPreviousValue(catalogVersion, key);
-			if (rewrittenValueRef.isPresent()) {
-				final VersionedValue rewrittenValue = rewrittenValueRef.get();
-				if (rewrittenValue.isRemoval()) {
+			final Optional<VolatileValueInformation> volatileValueRef = this.volatileValues.getVolatileValueInformation(catalogVersion, key);
+			if (volatileValueRef.isPresent()) {
+				final VolatileValueInformation volatileValue = volatileValueRef.get();
+				if (volatileValue.removed() || volatileValue.addedInFuture()) {
 					return null;
 				} else {
+					final VersionedValue rewrittenValue = volatileValue.versionedValue();
 					return getBinary(rewrittenValue.fileLocation(), recordTypeRegistry.typeFor(rewrittenValue.recordType()));
 				}
 			}
@@ -499,14 +501,14 @@ public class OffsetIndex {
 		final Optional<VersionedValue> nonFlushedValueRef = this.volatileValues.getNonFlushedValueIfVersionMatches(catalogVersion, key);
 		if (nonFlushedValueRef.isPresent()) {
 			final VersionedValue nonFlushedValue = nonFlushedValueRef.get();
-			return !nonFlushedValue.isRemoval();
+			return !nonFlushedValue.removed();
 		}
 
 		if (catalogVersion < this.keyCatalogVersion) {
-			final Optional<VersionedValue> rewrittenValueRef = this.volatileValues.getPreviousValue(catalogVersion, key);
-			if (rewrittenValueRef.isPresent()) {
-				final VersionedValue rewrittenValue = rewrittenValueRef.get();
-				return !rewrittenValue.isRemoval();
+			final Optional<VolatileValueInformation> volatileValueRef = this.volatileValues.getVolatileValueInformation(catalogVersion, key);
+			if (volatileValueRef.isPresent()) {
+				final VolatileValueInformation volatileValue = volatileValueRef.get();
+				return !(volatileValue.removed() || volatileValue.addedInFuture());
 			}
 		}
 
@@ -793,7 +795,9 @@ public class OffsetIndex {
 	 * @return the living object share as a double value
 	 */
 	private double getActiveRecordShare() {
-		return (double) this.totalSize.get() / (double) writeHandle.getLastWrittenPosition();
+		final double activeRecordShare = (double) this.totalSize.get() / (double) writeHandle.getLastWrittenPosition();
+		Assert.isPremiseValid(activeRecordShare >= 0, "Active record share must be non-negative!");
+		return activeRecordShare;
 	}
 
 	/**
@@ -801,7 +805,7 @@ public class OffsetIndex {
 	 */
 	private void assertOperative() {
 		isPremiseValid(
-			operative || Boolean.TRUE.equals(shutdownDownProcedureActive.get()),
+			this.operative || Boolean.TRUE.equals(this.shutdownDownProcedureActive.get()),
 			"OffsetIndex has been already closed!"
 		);
 	}
@@ -937,7 +941,7 @@ public class OffsetIndex {
 		newKeyToLocations.putAll(this.keyToLocations);
 
 		long workingMaxRecordSize = this.maxRecordSize.get();
-		long recordLength = this.totalSize.get();
+		long recordLength = 0;
 
 		final Map<Byte, Integer> histogramDiff = CollectionUtils.createHashMap(this.histogram.size());
 		for (NonFlushedValueSet volatileValues : nonFlushedValueSets) {
@@ -946,7 +950,7 @@ public class OffsetIndex {
 				final VersionedValue nonFlushedValue = entry.getValue();
 
 				final int count;
-				if (nonFlushedValue.isRemoval()) {
+				if (nonFlushedValue.removed()) {
 					final FileLocation removedLocation = newKeyToLocations.remove(recordKey);
 					// location might not exist when value was created and immediately removed
 					if (removedLocation != null) {
@@ -1028,7 +1032,7 @@ public class OffsetIndex {
 		final Optional<VersionedValue> nonFlushedValueRef = this.volatileValues.getNonFlushedValueIfVersionMatches(catalogVersion, key);
 		if (nonFlushedValueRef.isPresent()) {
 			final VersionedValue nonFlushedValue = nonFlushedValueRef.get();
-			if (nonFlushedValue.isRemoval()) {
+			if (nonFlushedValue.removed()) {
 				return false;
 			} else {
 				this.volatileValues.removeValue(catalogVersion, key, nonFlushedValue.fileLocation());
@@ -1037,10 +1041,10 @@ public class OffsetIndex {
 		}
 
 		if (catalogVersion < this.keyCatalogVersion) {
-			final Optional<VersionedValue> rewrittenValueRef = this.volatileValues.getPreviousValue(catalogVersion, key);
-			if (rewrittenValueRef.isPresent()) {
-				final VersionedValue rewrittenValue = rewrittenValueRef.get();
-				if (rewrittenValue.isRemoval()) {
+			final Optional<VolatileValueInformation> volatileValueRef = this.volatileValues.getVolatileValueInformation(catalogVersion, key);
+			if (volatileValueRef.isPresent()) {
+				final VolatileValueInformation volatileValue = volatileValueRef.get();
+				if (volatileValue.removed() || volatileValue.addedInFuture()) {
 					return false;
 				}
 			}
@@ -1355,9 +1359,9 @@ public class OffsetIndex {
 			final ConcurrentHashMap<Long, NonFlushedValueSet> nvValues = this.nonFlushedValues;
 			final long[] nv = this.nonFlushedVersions;
 			if (nv != null) {
-				int index = Arrays.binarySearch(nv, catalogVersion + 1);
+				int index = Arrays.binarySearch(nv, catalogVersion);
 				if (index != -1) {
-					final int startIndex = index >= 0 ? index - 1 : -index - 2;
+					final int startIndex = index >= 0 ? index : -index - 1;
 					for (int ix = nv.length - 1; ix >= startIndex && ix >= 0; ix--) {
 						final NonFlushedValueSet nonFlushedValueSet = nvValues.get(nv[ix]);
 						diff += nonFlushedValueSet.getAddedKeys().size() - nonFlushedValueSet.getRemovedKeys().size();
@@ -1369,9 +1373,9 @@ public class OffsetIndex {
 			final ConcurrentHashMap<Long, PastMemory> hvValues = this.volatileValues;
 			final long[] hv = this.historicalVersions;
 			if (hv != null) {
-				int index = Arrays.binarySearch(hv, catalogVersion + 1);
+				int index = Arrays.binarySearch(hv, catalogVersion);
 				if (index != -1) {
-					final int startIndex = index >= 0 ? index - 1 : -index - 2;
+					final int startIndex = index >= 0 ? index : -index - 1;
 					for (int ix = hv.length - 1; ix > startIndex && ix >= 0; ix--) {
 						final PastMemory differenceSet = hvValues.get(hv[ix]);
 						diff -= differenceSet.getAddedKeys().size() - differenceSet.getRemovedKeys().size();
@@ -1396,9 +1400,9 @@ public class OffsetIndex {
 			final ConcurrentHashMap<Long, NonFlushedValueSet> nvValues = this.nonFlushedValues;
 			final long[] nv = this.nonFlushedVersions;
 			if (nv != null) {
-				int index = Arrays.binarySearch(nv, catalogVersion + 1);
+				int index = Arrays.binarySearch(nv, catalogVersion);
 				if (index != -1) {
-					final int startIndex = index >= 0 ? index - 1 : -index - 2;
+					final int startIndex = index >= 0 ? index : -index - 1;
 					for (int ix = nv.length - 1; ix >= startIndex && ix >= 0; ix--) {
 						final NonFlushedValueSet nonFlushedValueSet = nvValues.get(nv[ix]);
 						for (RecordKey addedKey : nonFlushedValueSet.getAddedKeys()) {
@@ -1419,9 +1423,9 @@ public class OffsetIndex {
 			final ConcurrentHashMap<Long, PastMemory> hvValues = this.volatileValues;
 			final long[] hv = this.historicalVersions;
 			if (hv != null) {
-				int index = Arrays.binarySearch(hv, catalogVersion + 1);
+				int index = Arrays.binarySearch(hv, catalogVersion);
 				if (index != -1) {
-					final int startIndex = index >= 0 ? index - 1 : -index - 2;
+					final int startIndex = index >= 0 ? index : -index - 1;
 					for (int ix = hv.length - 1; ix > startIndex && ix >= 0; ix--) {
 						final PastMemory differenceSet = hvValues.get(hv[ix]);
 						for (RecordKey addedKey : differenceSet.getAddedKeys()) {
@@ -1499,18 +1503,26 @@ public class OffsetIndex {
 		 * @return the VersionedValue location if it exists, empty otherwise
 		 */
 		@Nonnull
-		public Optional<VersionedValue> getPreviousValue(long catalogVersion, @Nonnull RecordKey key) {
+		public Optional<VolatileValueInformation> getVolatileValueInformation(long catalogVersion, @Nonnull RecordKey key) {
 			// scan also all previous versions we still keep in memory
 			if (this.historicalVersions != null) {
 				int index = Arrays.binarySearch(this.historicalVersions, catalogVersion);
-				if (index != -1) {
-					final int startIndex = index >= 0 ? index : -index - 1;
-					for (int ix = startIndex; ix < this.volatileValues.size(); ix++) {
-						final PastMemory pastMemory = this.volatileValues.get(this.historicalVersions[ix]);
-						final VersionedValue previousValue = pastMemory.getPreviousValue(key);
-						if (previousValue != null) {
-							return of(previousValue);
-						}
+				final int startIndex = index >= 0 ? index : -index - 1;
+				boolean addedInFuture = false;
+				for (int ix = startIndex; ix < this.volatileValues.size(); ix++) {
+					final long examinedVersion = this.historicalVersions[ix];
+					final PastMemory pastMemory = this.volatileValues.get(examinedVersion);
+					if (pastMemory.getRemovedKeys().contains(key)) {
+						addedInFuture = false;
+					}
+					if (pastMemory.getAddedKeys().contains(key) && examinedVersion != catalogVersion) {
+						addedInFuture = true;
+					}
+					final VersionedValue previousValue = pastMemory.getPreviousValue(key);
+					if (previousValue != null) {
+						return of(new VolatileValueInformation(previousValue, previousValue.removed(), addedInFuture));
+					} else if (addedInFuture) {
+						return of(new VolatileValueInformation(null, false, addedInFuture));
 					}
 				}
 			}
@@ -1830,6 +1842,21 @@ public class OffsetIndex {
 		@Nonnull Collection<NonFlushedValueSet> nonFlushedValueSets,
 		int valueCount,
 		@Nonnull FileLocation fileLocation
+	) {
+	}
+
+	/**
+	 * Contains information about volatile value and its location in the file. Contains information if the value was
+	 * removed in the past or added in the future versions.
+	 *
+	 * @param versionedValue the versioned value pointer
+	 * @param removed        true if the value was removed in the past
+	 * @param addedInFuture  true if the value was added in future versions
+	 */
+	private record VolatileValueInformation(
+		@Nonnull VersionedValue versionedValue,
+		boolean removed,
+		boolean addedInFuture
 	) {
 	}
 
