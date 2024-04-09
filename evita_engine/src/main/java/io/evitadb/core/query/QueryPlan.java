@@ -24,6 +24,7 @@
 package io.evitadb.core.query;
 
 import io.evitadb.api.query.OrderConstraint;
+import io.evitadb.api.query.Query;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.requestResponse.EvitaBinaryEntityResponse;
 import io.evitadb.api.requestResponse.EvitaEntityReferenceResponse;
@@ -329,8 +330,13 @@ public class QueryPlan {
 	 */
 	@Nonnull
 	public SpanAttribute[] getSpanAttributes() {
+		final Query query = this.getEvitaRequest().getQuery();
 		return new SpanAttribute[] {
 			new SpanAttribute("prefetch", this.prefetched),
+			new SpanAttribute("collection", query.getCollection() == null ? "<NONE>" : query.getCollection().toString()),
+			new SpanAttribute("filter", query.getFilterBy() == null ? "<NONE>" : query.getFilterBy().toString()),
+			new SpanAttribute("order", query.getOrderBy() == null ? "<NONE>" : query.getOrderBy().toString()),
+			new SpanAttribute("require", query.getRequire() == null ? "<NONE>" : query.getRequire().toString()),
 			new SpanAttribute("scannedRecords", this.filter.getEstimatedCardinality()),
 			new SpanAttribute("totalRecordCount", this.totalRecordCount),
 			new SpanAttribute("returnedRecordCount", this.primaryKeys.length)
