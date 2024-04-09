@@ -60,6 +60,7 @@ public class GrpcTracingContext implements ExternalApiTracingContext<Metadata> {
 	) {
 		if (!OpenTelemetryTracerSetup.isTracingEnabled()) {
 			runnable.run();
+			return;
 		}
 		try (Scope ignored = extractContextFromHeaders(protocolName, context).makeCurrent()) {
 			tracingContext.executeWithinBlock(
@@ -98,6 +99,7 @@ public class GrpcTracingContext implements ExternalApiTracingContext<Metadata> {
 	) {
 		if (!OpenTelemetryTracerSetup.isTracingEnabled()) {
 			runnable.run();
+			return;
 		}
 		try (Scope ignored = extractContextFromHeaders(protocolName, context).makeCurrent()) {
 			tracingContext.executeWithinBlock(
@@ -131,6 +133,7 @@ public class GrpcTracingContext implements ExternalApiTracingContext<Metadata> {
 	public void executeWithinBlock(@Nonnull String protocolName, @Nonnull Metadata context, @Nonnull Runnable runnable) {
 		if (!OpenTelemetryTracerSetup.isTracingEnabled()) {
 			runnable.run();
+			return;
 		}
 		try (Scope ignored = extractContextFromHeaders(protocolName, context).makeCurrent()) {
 			tracingContext.executeWithinBlock(

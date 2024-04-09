@@ -83,6 +83,7 @@ public class JsonApiTracingContext implements ExternalApiTracingContext<HttpServ
 	) {
 		if (!OpenTelemetryTracerSetup.isTracingEnabled()) {
 			runnable.run();
+			return;
 		}
 		try (Scope ignored = extractContextFromHeaders(protocolName, context).makeCurrent()) {
 			tracingContext.executeWithinBlock(
@@ -121,6 +122,7 @@ public class JsonApiTracingContext implements ExternalApiTracingContext<HttpServ
 	) {
 		if (!OpenTelemetryTracerSetup.isTracingEnabled()) {
 			runnable.run();
+			return;
 		}
 		try (Scope ignored = extractContextFromHeaders(protocolName, context).makeCurrent()) {
 			tracingContext.executeWithinBlock(
@@ -154,6 +156,7 @@ public class JsonApiTracingContext implements ExternalApiTracingContext<HttpServ
 	public void executeWithinBlock(@Nonnull String protocolName, @Nonnull HttpServerExchange context, @Nonnull Runnable runnable) {
 		if (!OpenTelemetryTracerSetup.isTracingEnabled()) {
 			runnable.run();
+			return;
 		}
 		try (Scope ignored = extractContextFromHeaders(protocolName, context).makeCurrent()) {
 			tracingContext.executeWithinBlock(
