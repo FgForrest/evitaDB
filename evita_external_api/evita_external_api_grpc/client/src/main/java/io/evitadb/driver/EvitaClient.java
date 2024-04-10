@@ -256,11 +256,6 @@ public class EvitaClient implements EvitaContract {
 				"OpenTelemetry instance is set, but tracing context is not configured!"
 			);
 		}
-		if (openTelemetryInstance == null && !(context instanceof DefaultClientTracingContext)) {
-			throw new EvitaInvalidUsageException(
-				"When tracing context is configured, OpenTelemetry instance must be set!"
-			);
-		}
 		return context;
 	}
 
