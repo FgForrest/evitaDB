@@ -55,6 +55,7 @@ import io.evitadb.store.wal.supplier.TransactionMutationWithLocation;
 import io.evitadb.store.wal.transaction.TransactionMutationSerializer;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
+import io.evitadb.utils.FileUtils;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -620,6 +621,11 @@ public class CatalogWriteAheadLog implements Closeable {
 			}
 			this.lastWrittenCatalogVersion.set(transactionMutation.getCatalogVersion());
 			this.currentWalFileSize += 4 + writtenHead + writtenContent;
+
+			// clean up the folder if empty
+			walReference.getFilePath()
+				.map(Path::getParent)
+				.ifPresent(FileUtils::deleteFolderIfEmpty);
 
 		} catch (IOException e) {
 			throw new UnexpectedIOException(

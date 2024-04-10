@@ -941,7 +941,9 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			transactionId,
 			this.catalogKryoPool.obtain(),
 			new WriteOnlyOffHeapWithFileBackupHandle(
-				this.transactionOptions.transactionWorkDirectory().resolve(transactionId + ".wal"),
+				this.transactionOptions.transactionWorkDirectory()
+					.resolve(transactionId.toString())
+					.resolve(transactionId + ".wal"),
 				this.observableOutputKeeper,
 				this.offHeapMemoryManager
 			)

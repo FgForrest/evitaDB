@@ -42,10 +42,12 @@ import io.evitadb.store.offsetIndex.model.RecordKey;
 import io.evitadb.store.service.KeyCompressor;
 import io.evitadb.store.spi.StoragePartPersistenceService;
 import io.evitadb.store.spi.model.PersistentStorageHeader;
-import io.evitadb.utils.Assert;
+import io.evitadb.utils.FileUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.Objects;
@@ -261,12 +263,15 @@ public class TransactionalStoragePartPersistenceService implements StoragePartPe
 	public void close() {
 		// when this service is closed the file is deleted
 		this.offsetIndex.close();
-		if (this.targetFile.toFile().exists()) {
-			Assert.isPremiseValid(
-				this.targetFile.toFile().delete(),
-				"Cannot delete temporary file: " + this.targetFile
-			);
+		try {
+			if (this.targetFile.toFile().exists()) {
+				Files.delete(this.targetFile);
+			}
+		} catch (IOException e) {
+			throw new IllegalStateException("Cannot delete temporary file (or its parent directory if empty): " + this.targetFile, e);
 		}
+
+		FileUtils.deleteFolderIfEmpty(this.targetFile.getParent());
 	}
 
 	@Override

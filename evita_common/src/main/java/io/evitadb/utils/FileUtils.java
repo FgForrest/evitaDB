@@ -159,4 +159,27 @@ public class FileUtils {
 		}
 	}
 
+	/**
+	 * Deletes the specified folder if it is empty.
+	 *
+	 * @param parentDirectory The path to the parent directory.
+	 * @throws UnexpectedIOException If the empty folder cannot be deleted.
+	 */
+	public static void deleteFolderIfEmpty(@Nonnull Path parentDirectory) {
+		try {
+			if (parentDirectory.toFile().exists()) {
+				try (final Stream<Path> fileStream = Files.list(parentDirectory)) {
+					if (fileStream.findFirst().isEmpty()) {
+						Files.delete(parentDirectory);
+					}
+				}
+			}
+		} catch (IOException e) {
+			throw new UnexpectedIOException(
+				"Cannot delete empty folder: " + parentDirectory,
+				"Cannot delete empty folder!",
+				e
+			);
+		}
+	}
 }
