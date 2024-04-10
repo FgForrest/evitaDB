@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -40,6 +40,8 @@ import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.test.Entities;
 import org.junit.jupiter.api.Test;
 
+import java.util.function.Consumer;
+
 import static io.evitadb.index.mutation.ReferenceIndexMutator.attributeUpdate;
 import static io.evitadb.index.mutation.ReferenceIndexMutator.referenceInsert;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -55,6 +57,8 @@ class ReferenceIndexMutatorTest extends AbstractMutatorTestBase {
 	private static final String ATTRIBUTE_BRAND_EAN = "brandEan";
 	private static final String ATTRIBUTE_VARIANT_COUNT = "variantCount";
 	private static final String ATTRIBUTE_CHAR_ARRAY = "charArray";
+	public static final Consumer<Runnable> DO_NOTHING_CONSUMER = runnable -> {
+	};
 	private final EntityIndex entityIndex = new GlobalEntityIndex(1, new EntityIndexKey(EntityIndexType.GLOBAL), () -> productSchema);
 	private final ReferencedTypeEntityIndex referenceTypesIndex = new ReferencedTypeEntityIndex(1, new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, Entities.BRAND), () -> productSchema);
 
@@ -82,7 +86,7 @@ class ReferenceIndexMutatorTest extends AbstractMutatorTestBase {
 		final ReferenceKey referenceKey = new ReferenceKey(Entities.BRAND, 10);
 		final EntityIndex referenceIndex = new GlobalEntityIndex(2, new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY, referenceKey), () -> productSchema);
 		referenceInsert(
-			1, ENTITY_NAME, executor, entityIndex, referenceTypesIndex, referenceIndex, referenceKey
+			1, ENTITY_NAME, executor, entityIndex, referenceTypesIndex, referenceIndex, referenceKey, DO_NOTHING_CONSUMER
 		);
 		assertArrayEquals(new int[]{10}, referenceTypesIndex.getAllPrimaryKeys().getArray());
 		assertArrayEquals(new int[]{1}, referenceIndex.getAllPrimaryKeys().getArray());
@@ -93,7 +97,7 @@ class ReferenceIndexMutatorTest extends AbstractMutatorTestBase {
 		final ReferenceKey referenceKey = new ReferenceKey(Entities.BRAND, 10);
 		final EntityIndex referenceIndex = new GlobalEntityIndex(2, new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY, referenceKey), () -> productSchema);
 		referenceInsert(
-			1, ENTITY_NAME, executor, entityIndex, referenceTypesIndex, referenceIndex, referenceKey
+			1, ENTITY_NAME, executor, entityIndex, referenceTypesIndex, referenceIndex, referenceKey, DO_NOTHING_CONSUMER
 		);
 		final ReferenceAttributeMutation referenceMutation = new ReferenceAttributeMutation(referenceKey, new UpsertAttributeMutation(new AttributeKey(ATTRIBUTE_VARIANT_COUNT), 55));
 		attributeUpdate(

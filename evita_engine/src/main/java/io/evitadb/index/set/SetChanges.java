@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,13 +23,11 @@
 
 package io.evitadb.index.set;
 
-import io.evitadb.core.Transaction;
-import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
-import io.evitadb.index.transactionalMemory.TransactionalLayerProducer;
+import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
+import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
@@ -174,7 +172,7 @@ public class SetChanges<K> implements Serializable {
 	 * Computes the new set originating from {@link #setDelegate} with applied all changes from this diff layer.
 	 */
 	@SuppressWarnings("unchecked")
-	public Set<K> createMergedSet(@Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Transaction transaction) {
+	public Set<K> createMergedSet(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		// create new hash set of requested size
 		final HashSet<K> copy = new HashSet<>(setDelegate.size());
 		// iterate original map and copy all values from it
@@ -182,7 +180,7 @@ public class SetChanges<K> implements Serializable {
 			// we need to always create copy - something in the referenced object might have changed
 			// even the removed values need to be evaluated (in order to discard them from transactional memory set)
 			if (key instanceof TransactionalLayerProducer) {
-				key = (K) transactionalLayer.getStateCopyWithCommittedChanges((TransactionalLayerProducer<?, ?>) key, transaction);
+				key = (K) transactionalLayer.getStateCopyWithCommittedChanges((TransactionalLayerProducer<?, ?>) key);
 			}
 			// except those that were removed
 			if (!containsRemoved(key)) {
@@ -194,7 +192,7 @@ public class SetChanges<K> implements Serializable {
 		for (K key : getCreatedKeys()) {
 			// we need to always create copy - something in the referenced object might have changed
 			if (key instanceof TransactionalLayerProducer) {
-				key = (K) transactionalLayer.getStateCopyWithCommittedChanges((TransactionalLayerProducer<?, ?>) key, transaction);
+				key = (K) transactionalLayer.getStateCopyWithCommittedChanges((TransactionalLayerProducer<?, ?>) key);
 			}
 			// update the value
 			copy.add(key);

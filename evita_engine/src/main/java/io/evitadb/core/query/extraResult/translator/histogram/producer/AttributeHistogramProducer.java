@@ -44,7 +44,7 @@ import io.evitadb.core.query.extraResult.ExtraResultCacheAccessor;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.extraResult.translator.histogram.FilterFormulaAttributeOptimizeVisitor;
 import io.evitadb.core.query.extraResult.translator.histogram.cache.CacheableHistogramContract;
-import io.evitadb.index.array.CompositeObjectArray;
+import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
@@ -416,6 +416,16 @@ public class AttributeHistogramProducer implements CacheableExtraResultProducer 
 					)
 				)
 		);
+	}
+
+	@Nonnull
+	@Override
+	public String getDescription() {
+		if (histogramRequests.size() == 1) {
+			return "attribute `" + histogramRequests.keySet().iterator().next() +"` histogram";
+		} else {
+			return "attributes " + histogramRequests.keySet().stream().map(it -> '`' + it + '`').collect(Collectors.joining(" ,")) +" histogram";
+		}
 	}
 
 	@Nonnull

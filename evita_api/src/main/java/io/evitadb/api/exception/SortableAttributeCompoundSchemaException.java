@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -34,7 +34,7 @@ import java.io.Serial;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public class SortableAttributeCompoundSchemaException extends InvalidSchemaMutationException {
+public class SortableAttributeCompoundSchemaException extends SchemaAlteringException {
 	@Serial private static final long serialVersionUID = 3314676345576059184L;
 	@Getter private final SortableAttributeCompoundSchemaContract sortableAttributeCompoundSchema;
 

@@ -24,6 +24,7 @@
 package io.evitadb.core.query;
 
 import io.evitadb.api.query.OrderConstraint;
+import io.evitadb.api.query.Query;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.requestResponse.EvitaBinaryEntityResponse;
 import io.evitadb.api.requestResponse.EvitaEntityReferenceResponse;
@@ -35,6 +36,7 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.BinaryEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
+import io.evitadb.api.trace.TracingContext.SpanAttribute;
 import io.evitadb.core.metric.event.QueryPlanStepExecutedEvent;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.prefetch.PrefetchFormulaVisitor;
@@ -75,7 +77,7 @@ public class QueryPlan {
 	/**
 	 * Source index description of this query plan.
 	 */
-	@Getter @Nonnull
+	@Nonnull
 	private final String description;
 	/**
 	 * Filtering formula tree.
@@ -101,6 +103,46 @@ public class QueryPlan {
 	 * to {@link RequireConstraint} that are part of the input {@link EvitaRequest}.
 	 */
 	private final Collection<ExtraResultProducer> extraResultProducers;
+	/**
+	 * Contains the total count of entities found when the query plan was executed.
+	 */
+	@Getter
+	private int totalRecordCount = -1;
+	/**
+	 * Contains the primary keys of the entities that were really returned when the query plan was executed.
+	 */
+	@Getter
+	private int[] primaryKeys;
+	/**
+	 * Contains TRUE if the entities were prefetched when the query plan was executed.
+	 */
+	@Getter
+	private boolean prefetched;
+
+	/**
+	 * Creates slice of entity primary keys that respect filtering query, specified sorting and is sliced according
+	 * to requested offset and limit.
+	 */
+	@Nonnull
+	private static int[] sortAndSliceResult(
+		@Nonnull QueryContext queryContext,
+		int totalRecordCount,
+		@Nonnull Formula filteringFormula,
+		@Nonnull Sorter sorter
+	) {
+		final EvitaRequest evitaRequest = queryContext.getEvitaRequest();
+		final int firstRecordOffset = evitaRequest.getFirstRecordOffset(totalRecordCount);
+		sorter = ConditionalSorter.getFirstApplicableSorter(sorter, queryContext);
+		final int[] result = new int[Math.min(totalRecordCount, evitaRequest.getLimit())];
+		final int peak = sorter.sortAndSlice(
+			queryContext, filteringFormula,
+			Math.max(0, firstRecordOffset),
+			firstRecordOffset + evitaRequest.getLimit(),
+			result,
+			0
+		);
+		return SortUtils.asResult(result, peak);
+	}
 
 	/**
 	 * This method will {@link Formula#compute()} the filtered result, applies ordering and cuts out the requested page.
@@ -122,6 +164,7 @@ public class QueryPlan {
 					if (prefetchLambda != null) {
 						queryContext.pushStep(QueryPhase.EXECUTION_PREFETCH);
 						try {
+							prefetched = true;
 							prefetchLambda.run();
 						} finally {
 							queryContext.popStep();
@@ -129,7 +172,6 @@ public class QueryPlan {
 					}
 				});
 
-			final int totalRecordCount;
 			queryContext.pushStep(QueryPhase.EXECUTION_FILTER);
 			try {
 				// this call triggers the filtering computation and cause memoization of results
@@ -138,7 +180,6 @@ public class QueryPlan {
 				queryContext.popStep();
 			}
 
-			final int[] primaryKeys;
 			queryContext.pushStep(QueryPhase.EXECUTION_SORT_AND_SLICE);
 			try {
 				primaryKeys = sortAndSliceResult(queryContext, totalRecordCount, filter, sorter);
@@ -253,28 +294,52 @@ public class QueryPlan {
 	}
 
 	/**
-	 * Creates slice of entity primary keys that respect filtering query, specified sorting and is sliced according
-	 * to requested offset and limit.
+	 * Returns human-readable description of the plan which doesn't reveal any sensitive data. The description may be
+	 * logged or inserted into traces.
+	 *
+	 * @return human-readable description of the plan
 	 */
 	@Nonnull
-	private static int[] sortAndSliceResult(
-		@Nonnull QueryContext queryContext,
-		int totalRecordCount,
-		@Nonnull Formula filteringFormula,
-		@Nonnull Sorter sorter
-	) {
-		final EvitaRequest evitaRequest = queryContext.getEvitaRequest();
-		final int firstRecordOffset = evitaRequest.getFirstRecordOffset(totalRecordCount);
-		sorter = ConditionalSorter.getFirstApplicableSorter(sorter, queryContext);
-		final int[] result = new int[Math.min(totalRecordCount, evitaRequest.getLimit())];
-		final int peak = sorter.sortAndSlice(
-			queryContext, filteringFormula,
-			Math.max(0, firstRecordOffset),
-			firstRecordOffset + evitaRequest.getLimit(),
-			result,
-			0
-		);
-		return SortUtils.asResult(result, peak);
+	public String getDescription() {
+		final StringBuilder result = new StringBuilder(512);
+		final EvitaRequest evitaRequest = this.queryContext.getEvitaRequest();
+		final int offset = evitaRequest.getFirstRecordOffset();
+		final int limit = evitaRequest.getLimit();
+		final String entityType = ofNullable(evitaRequest.getEntityType()).orElse("<ANY TYPE>");
+		result.append("offset ")
+			.append(offset)
+			.append(" limit ")
+			.append(limit)
+			.append(" `")
+			.append(entityType)
+			.append("` entities using ")
+			.append(description);
+		if (queryContext.isRequiresBinaryForm()) {
+			result.append(" (in binary form)");
+		}
+		for (ExtraResultProducer extraResultProducer : extraResultProducers) {
+			result.append(" + ").append(extraResultProducer.getDescription());
+		}
+		return result.toString();
 	}
 
+	/**
+	 * Returns the list of SpanAttributes associated with the Span.
+	 *
+	 * @return an array of SpanAttribute objects representing the attributes of the Span
+	 */
+	@Nonnull
+	public SpanAttribute[] getSpanAttributes() {
+		final Query query = this.getEvitaRequest().getQuery();
+		return new SpanAttribute[] {
+			new SpanAttribute("prefetch", this.prefetched),
+			new SpanAttribute("collection", query.getCollection() == null ? "<NONE>" : query.getCollection().toString()),
+			new SpanAttribute("filter", query.getFilterBy() == null ? "<NONE>" : query.getFilterBy().toString()),
+			new SpanAttribute("order", query.getOrderBy() == null ? "<NONE>" : query.getOrderBy().toString()),
+			new SpanAttribute("require", query.getRequire() == null ? "<NONE>" : query.getRequire().toString()),
+			new SpanAttribute("scannedRecords", this.filter.getEstimatedCardinality()),
+			new SpanAttribute("totalRecordCount", this.totalRecordCount),
+			new SpanAttribute("returnedRecordCount", this.primaryKeys.length)
+		};
+	}
 }

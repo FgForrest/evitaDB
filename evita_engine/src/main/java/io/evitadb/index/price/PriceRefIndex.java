@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,6 +27,9 @@ import io.evitadb.api.query.order.PriceNatural;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.core.EntityCollection;
 import io.evitadb.core.Transaction;
+import io.evitadb.core.transaction.memory.TransactionalContainerChanges;
+import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
+import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.index.price.PriceRefIndex.PriceIndexChanges;
@@ -34,9 +37,6 @@ import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.index.price.model.entityPrices.EntityPrices;
 import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
-import io.evitadb.index.transactionalMemory.TransactionalContainerChanges;
-import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
-import io.evitadb.index.transactionalMemory.TransactionalLayerProducer;
 import io.evitadb.store.entity.model.entity.price.MinimalPriceInternalIdContainer;
 import io.evitadb.store.entity.model.entity.price.PriceInternalIdContainer;
 import lombok.Getter;
@@ -50,7 +50,6 @@ import java.util.Objects;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-import static io.evitadb.core.Transaction.getTransactionalMemoryLayer;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -116,9 +115,9 @@ public class PriceRefIndex extends AbstractPriceIndex<PriceListAndCurrencyPriceR
 
 	@Nonnull
 	@Override
-	public PriceRefIndex createCopyWithMergedTransactionalMemory(@Nullable PriceIndexChanges layer, @Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Transaction transaction) {
+	public PriceRefIndex createCopyWithMergedTransactionalMemory(@Nullable PriceIndexChanges layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		final PriceRefIndex priceIndex = new PriceRefIndex(
-			transactionalLayer.getStateCopyWithCommittedChanges(this.priceIndexes, transaction),
+			transactionalLayer.getStateCopyWithCommittedChanges(this.priceIndexes),
 			this.superIndexAccessor
 		);
 		ofNullable(layer).ifPresent(it -> it.clean(transactionalLayer));
@@ -141,7 +140,7 @@ public class PriceRefIndex extends AbstractPriceIndex<PriceListAndCurrencyPriceR
 		final PriceListAndCurrencyPriceRefIndex newPriceListIndex = new PriceListAndCurrencyPriceRefIndex(
 			lookupKey, priceIndexKey -> this.superIndexAccessor.get().getPriceIndex(priceIndexKey)
 		);
-		ofNullable(getTransactionalMemoryLayer(this))
+		ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
 			.ifPresent(it -> it.addCreatedItem(newPriceListIndex));
 		return newPriceListIndex;
 	}
@@ -149,7 +148,7 @@ public class PriceRefIndex extends AbstractPriceIndex<PriceListAndCurrencyPriceR
 	@Override
 	protected void removeExistingIndex(@Nonnull PriceIndexKey lookupKey, @Nonnull PriceListAndCurrencyPriceRefIndex priceListIndex) {
 		super.removeExistingIndex(lookupKey, priceListIndex);
-		ofNullable(getTransactionalMemoryLayer(this))
+		ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
 			.ifPresent(it -> it.addRemovedItem(priceListIndex));
 	}
 

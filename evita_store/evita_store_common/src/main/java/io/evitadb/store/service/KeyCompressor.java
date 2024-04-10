@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -78,4 +78,14 @@ public interface KeyCompressor extends Serializable {
 	 */
 	@Nonnull
 	<T extends Comparable<T>> T getKeyForId(int id);
+
+	/**
+	 * Returns original `key` that is linked to passed integer id that was acquired during deserialization from Kryo.
+	 * This is used to minimize size of the serialized data by limiting size of keys that are massively duplicated
+	 * thorough the data base. Keys are usually {@link AttributesContract.AttributeKey},
+	 * {@link AssociatedDataKey} or {@link Price.PriceKey}
+	 */
+	@Nullable
+	<T extends Comparable<T>> T getKeyForIdIfExists(int id);
+
 }

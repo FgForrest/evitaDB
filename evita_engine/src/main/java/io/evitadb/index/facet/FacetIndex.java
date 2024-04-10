@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,6 +29,10 @@ import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.core.Transaction;
 import io.evitadb.core.query.algebra.facet.FacetGroupFormula;
+import io.evitadb.core.transaction.memory.TransactionalContainerChanges;
+import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
+import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
+import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.function.TriFunction;
 import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.bitmap.Bitmap;
@@ -36,10 +40,6 @@ import io.evitadb.index.facet.FacetIndex.FacetIndexChanges;
 import io.evitadb.index.facet.FacetReferenceIndex.FacetEntityTypeIndexChanges;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.index.set.TransactionalSet;
-import io.evitadb.index.transactionalMemory.TransactionalContainerChanges;
-import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
-import io.evitadb.index.transactionalMemory.TransactionalLayerProducer;
-import io.evitadb.index.transactionalMemory.TransactionalObjectVersion;
 import io.evitadb.store.spi.model.storageParts.index.FacetIndexStoragePart;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
@@ -60,7 +60,6 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static io.evitadb.core.Transaction.getTransactionalMemoryLayer;
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 import static java.util.Optional.ofNullable;
 
@@ -84,7 +83,7 @@ public class FacetIndex implements FacetIndexContract, TransactionalLayerProduce
 	/**
 	 * This simple set structure contains set of {@link EntityReference#getType()} that contain any changes in its index.
 	 * This is required because {@link FacetIndexStoragePart} stores only index for single {@link EntityReference#getType()}.
-	 * All flags gets cleared on transaction commit - i.e. when {@link #createCopyWithMergedTransactionalMemory(FacetIndexChanges, TransactionalLayerMaintainer, Transaction)}
+	 * All flags gets cleared on transaction commit - i.e. when {@link TransactionalLayerProducer#createCopyWithMergedTransactionalMemory(Object, TransactionalLayerMaintainer)}
 	 * is called.
 	 */
 	private final TransactionalSet<Serializable> dirtyIndexes;
@@ -142,7 +141,7 @@ public class FacetIndex implements FacetIndexContract, TransactionalLayerProduce
 	@Override
 	public void addFacet(@Nonnull ReferenceKey referenceKey, @Nullable Integer groupId, int entityPrimaryKey) {
 		// we need to keep track of created internal transactional memory related data structures
-		final FacetIndexChanges txLayer = getTransactionalMemoryLayer(this);
+		final FacetIndexChanges txLayer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		// fetch or create index for referenced entity type
 		final FacetReferenceIndex facetEntityTypeIndex = this.facetingEntities.computeIfAbsent(
 			referenceKey.referenceName(),
@@ -168,7 +167,7 @@ public class FacetIndex implements FacetIndexContract, TransactionalLayerProduce
 		// if facet was removed check whether there are any data left
 		if (removed && facetEntityTypeIndex.isEmpty()) {
 			// we need to keep track of removed internal transactional memory related data structures
-			final FacetIndexChanges txLayer = getTransactionalMemoryLayer(this);
+			final FacetIndexChanges txLayer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 			// remove the index entirely
 			this.facetingEntities.remove(referenceKey.referenceName());
 			ofNullable(txLayer).ifPresent(it -> it.addRemovedItem(facetEntityTypeIndex));
@@ -268,12 +267,12 @@ public class FacetIndex implements FacetIndexContract, TransactionalLayerProduce
 	@Nonnull
 	@SuppressWarnings({"unchecked", "rawtypes"})
 	@Override
-	public FacetIndex createCopyWithMergedTransactionalMemory(@Nullable FacetIndexChanges layer, @Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Transaction transaction) {
+	public FacetIndex createCopyWithMergedTransactionalMemory(@Nullable FacetIndexChanges layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		// we can safely throw away dirty flag now
 		transactionalLayer.removeTransactionalMemoryLayerIfExists(this.dirtyIndexes);
 		final FacetIndex facetIndex = new FacetIndex(
 			// this is a HACK - facetingEntities id indexes produce NonTransactionalCopy instead of type than generics would suggest
-			(Map) transactionalLayer.getStateCopyWithCommittedChanges(this.facetingEntities, transaction)
+			(Map) transactionalLayer.getStateCopyWithCommittedChanges(this.facetingEntities)
 		);
 		ofNullable(layer).ifPresent(it -> it.clean(transactionalLayer));
 		return facetIndex;

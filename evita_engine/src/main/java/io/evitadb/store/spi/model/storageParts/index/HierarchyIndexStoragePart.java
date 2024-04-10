@@ -87,7 +87,7 @@ public class HierarchyIndexStoragePart implements StoragePart {
 
 	@Nullable
 	@Override
-	public Long getUniquePartId() {
+	public Long getStoragePartPK() {
 		return (long) entityIndexPrimaryKey;
 	}
 

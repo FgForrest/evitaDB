@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,7 +26,7 @@ package io.evitadb.api.requestResponse.schema.builder;
 import io.evitadb.api.exception.AssociatedDataAlreadyPresentInEntitySchemaException;
 import io.evitadb.api.exception.AttributeAlreadyPresentInCatalogSchemaException;
 import io.evitadb.api.exception.AttributeAlreadyPresentInEntitySchemaException;
-import io.evitadb.api.exception.InvalidSchemaMutationException;
+import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.ReferenceAlreadyPresentInEntitySchemaException;
 import io.evitadb.api.exception.SortableAttributeCompoundSchemaException;
 import io.evitadb.api.requestResponse.schema.*;
@@ -333,7 +333,7 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 			.map(it -> {
 				isTrue(
 					toBeAssignedType.equals(it.getType()),
-					() -> new InvalidSchemaMutationException(
+					() -> new InvalidMutationException(
 						"Associated data " + dataName + " has already assigned type " + it.getType() +
 							", cannot change this type to: " + ofType + "!"
 					)

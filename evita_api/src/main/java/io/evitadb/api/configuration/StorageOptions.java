@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -35,22 +35,29 @@ import java.util.Optional;
 /**
  * Configuration options related to the key-value storage.
  *
- * @param storageDirectory     Directory on local disk where Evita files are stored.
- *                             By default, temporary directory is used - but it is highly recommended setting your own
- *                             directory if you don't want to lose the data.
- * @param lockTimeoutSeconds   This timeout represents a time in seconds that is tolerated to wait for lock acquiring.
- *                             Locks are used to get handle to open file. Set of open handles is limited to
- *                             {@link #maxOpenedReadHandles} for read operations and single write handle for write
- *                             operations (only single thread is expected to append to a file).
- * @param waitOnCloseSeconds   This timeout represents a time that will file offset index wait for processes to release their
- *                             read handles to file. After this timeout files will be closed by force and processes may
- *                             experience an exception.
- * @param outputBufferSize     The output buffer size determines how large a buffer is kept in memory for output
- *                             purposes. The size of the buffer limits the maximum size of an individual record in the
- *                             key/value data store.
- * @param maxOpenedReadHandles Maximum number of simultaneously opened {@link java.io.InputStream} to file offset index file.
- * @param computeCRC32C        Contains setting that determined whether CRC32C checksums will be computed for written
- *                             records and also whether the CRC32C checksum will be checked on record read.
+ * @param storageDirectory                 Directory on local disk where Evita files are stored.
+ *                                         By default, temporary directory is used - but it is highly recommended setting your own
+ *                                         directory if you don't want to lose the data.
+ *                                         recommended setting your own directory with dedicated disk space.
+ * @param lockTimeoutSeconds               This timeout represents a time in seconds that is tolerated to wait for lock acquiring.
+ *                                         Locks are used to get handle to open file. Set of open handles is limited to
+ *                                         {@link #maxOpenedReadHandles} for read operations and single write handle for write
+ *                                         operations (only single thread is expected to append to a file).
+ * @param waitOnCloseSeconds               This timeout represents a time that will file offset index wait for processes to release their
+ *                                         read handles to file. After this timeout files will be closed by force and processes may
+ *                                         experience an exception.
+ * @param outputBufferSize                 The output buffer size determines how large a buffer is kept in memory for output
+ *                                         purposes. The size of the buffer limits the maximum size of an individual record in the
+ *                                         key/value data store.
+ * @param maxOpenedReadHandles             Maximum number of simultaneously opened {@link java.io.InputStream} to file offset index file.
+ * @param computeCRC32C                    Contains setting that determined whether CRC32C checksums will be computed for written
+ *                                         records and also whether the CRC32C checksum will be checked on record read.
+ * @param minimalActiveRecordShare         Minimal share of active records in the file. If the share is lower, the file will
+ *                                         be compacted.
+ * @param fileSizeCompactionThresholdBytes Minimal file size threshold for compaction. If the file size is lower,
+ *                                         the file will not be compacted even if the share of active records is lower
+ *                                         than the minimal share.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @Builder
@@ -60,7 +67,9 @@ public record StorageOptions(
 	long waitOnCloseSeconds,
 	int outputBufferSize,
 	int maxOpenedReadHandles,
-	boolean computeCRC32C
+	boolean computeCRC32C,
+	double minimalActiveRecordShare,
+	long fileSizeCompactionThresholdBytes
 ) {
 
 	public static final int DEFAULT_OUTPUT_BUFFER_SIZE = 2_097_152;
@@ -69,16 +78,20 @@ public record StorageOptions(
 	public static final int DEFAULT_WAIT_ON_CLOSE_SECONDS = 5;
 	public static final int DEFAULT_MAX_OPENED_READ_HANDLES = Runtime.getRuntime().availableProcessors();
 	public static final boolean DEFAULT_COMPUTE_CRC = true;
+	public static final double DEFAULT_MINIMAL_ACTIVE_RECORD_SHARE = 0.5;
+	public static final long DEFAULT_MINIMAL_FILE_SIZE_COMPACTION_THRESHOLD = 104_857_600L;
 
 	/**
 	 * Builder method is planned to be used only in tests.
 	 */
 	public static StorageOptions temporary() {
 		return new StorageOptions(
-			Path.of(System.getProperty("java.io.tmpdir"), "evita"),
+			Path.of(System.getProperty("java.io.tmpdir"), "evita/data"),
 			5, 5, DEFAULT_OUTPUT_BUFFER_SIZE,
 			Runtime.getRuntime().availableProcessors(),
-			true
+			true,
+			DEFAULT_MINIMAL_ACTIVE_RECORD_SHARE,
+			DEFAULT_MINIMAL_FILE_SIZE_COMPACTION_THRESHOLD
 		);
 	}
 
@@ -92,7 +105,7 @@ public record StorageOptions(
 	/**
 	 * Builder for the storage options. Recommended to use to avoid binary compatibility problems in the future.
 	 */
-	public static StorageOptions.Builder builder(StorageOptions storageOptions) {
+	public static StorageOptions.Builder builder(@Nonnull StorageOptions storageOptions) {
 		return new StorageOptions.Builder(storageOptions);
 	}
 
@@ -103,17 +116,30 @@ public record StorageOptions(
 			DEFAULT_WAIT_ON_CLOSE_SECONDS,
 			DEFAULT_OUTPUT_BUFFER_SIZE,
 			DEFAULT_MAX_OPENED_READ_HANDLES,
-			DEFAULT_COMPUTE_CRC
+			DEFAULT_COMPUTE_CRC,
+			DEFAULT_MINIMAL_ACTIVE_RECORD_SHARE,
+			DEFAULT_MINIMAL_FILE_SIZE_COMPACTION_THRESHOLD
 		);
 	}
 
-	public StorageOptions(@Nullable Path storageDirectory, long lockTimeoutSeconds, long waitOnCloseSeconds, int outputBufferSize, int maxOpenedReadHandles, boolean computeCRC32C) {
+	public StorageOptions(
+		@Nullable Path storageDirectory,
+		long lockTimeoutSeconds,
+		long waitOnCloseSeconds,
+		int outputBufferSize,
+		int maxOpenedReadHandles,
+		boolean computeCRC32C,
+		double minimalActiveRecordShare,
+		long fileSizeCompactionThresholdBytes
+	) {
 		this.storageDirectory = Optional.ofNullable(storageDirectory).orElse(DEFAULT_DIRECTORY);
 		this.lockTimeoutSeconds = lockTimeoutSeconds;
 		this.waitOnCloseSeconds = waitOnCloseSeconds;
 		this.outputBufferSize = outputBufferSize;
 		this.maxOpenedReadHandles = maxOpenedReadHandles;
 		this.computeCRC32C = computeCRC32C;
+		this.minimalActiveRecordShare = minimalActiveRecordShare;
+		this.fileSizeCompactionThresholdBytes = fileSizeCompactionThresholdBytes;
 	}
 
 	/**
@@ -136,6 +162,8 @@ public record StorageOptions(
 		private int outputBufferSize = DEFAULT_OUTPUT_BUFFER_SIZE;
 		private int maxOpenedReadHandles = DEFAULT_MAX_OPENED_READ_HANDLES;
 		private boolean computeCRC32C = DEFAULT_COMPUTE_CRC;
+		private double minimalActiveRecordShare = DEFAULT_MINIMAL_ACTIVE_RECORD_SHARE;
+		private long fileSizeCompactionThresholdBytes = DEFAULT_MINIMAL_FILE_SIZE_COMPACTION_THRESHOLD;
 
 		Builder() {
 		}
@@ -147,38 +175,59 @@ public record StorageOptions(
 			this.outputBufferSize = storageOptions.outputBufferSize;
 			this.maxOpenedReadHandles = storageOptions.maxOpenedReadHandles;
 			this.computeCRC32C = storageOptions.computeCRC32C;
+			this.minimalActiveRecordShare = storageOptions.minimalActiveRecordShare;
+			this.fileSizeCompactionThresholdBytes = storageOptions.fileSizeCompactionThresholdBytes;
 		}
 
-		public Builder storageDirectory(Path storageDirectory) {
+		@Nonnull
+		public Builder storageDirectory(@Nonnull Path storageDirectory) {
 			this.storageDirectory = storageDirectory;
 			return this;
 		}
 
+		@Nonnull
 		public Builder lockTimeoutSeconds(long lockTimeoutSeconds) {
 			this.lockTimeoutSeconds = lockTimeoutSeconds;
 			return this;
 		}
 
+		@Nonnull
 		public Builder waitOnCloseSeconds(long waitOnCloseSeconds) {
 			this.waitOnCloseSeconds = waitOnCloseSeconds;
 			return this;
 		}
 
+		@Nonnull
 		public Builder outputBufferSize(int outputBufferSize) {
 			this.outputBufferSize = outputBufferSize;
 			return this;
 		}
 
+		@Nonnull
 		public Builder maxOpenedReadHandles(int maxOpenedReadHandles) {
 			this.maxOpenedReadHandles = maxOpenedReadHandles;
 			return this;
 		}
 
+		@Nonnull
 		public Builder computeCRC32(boolean computeCRC32) {
 			this.computeCRC32C = computeCRC32;
 			return this;
 		}
 
+		@Nonnull
+		public Builder minimalActiveRecordShare(double minimalActiveRecordShare) {
+			this.minimalActiveRecordShare = minimalActiveRecordShare;
+			return this;
+		}
+
+		@Nonnull
+		public Builder fileSizeCompactionThresholdBytes(long fileSizeCompactionThresholdBytes) {
+			this.fileSizeCompactionThresholdBytes = fileSizeCompactionThresholdBytes;
+			return this;
+		}
+
+		@Nonnull
 		public StorageOptions build() {
 			return new StorageOptions(
 				storageDirectory,
@@ -186,7 +235,9 @@ public record StorageOptions(
 				waitOnCloseSeconds,
 				outputBufferSize,
 				maxOpenedReadHandles,
-				computeCRC32C
+				computeCRC32C,
+				minimalActiveRecordShare,
+				fileSizeCompactionThresholdBytes
 			);
 		}
 

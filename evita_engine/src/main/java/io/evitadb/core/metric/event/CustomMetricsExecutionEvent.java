@@ -30,7 +30,7 @@ import jdk.jfr.Event;
  *
  * All custom events has to inherit from this class!
  *
- * Event classes and all fields that should be compatible with above-mentioned mechanisms have to be  annotated with
+ * Event classes and all fields that should be compatible with above-mentioned mechanisms have to be annotated with
  * {@link jdk.jfr.Name} and {@link jdk.jfr.Label}. For Prometheus metrics, fields have to be additionally be decorated
  * with {@link io.evitadb.core.metric.annotation.UsedMetric} annotation.
  *

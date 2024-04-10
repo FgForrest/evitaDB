@@ -24,11 +24,11 @@
 package io.evitadb.core.sequence;
 
 import io.evitadb.api.requestResponse.data.structure.Entity;
+import io.evitadb.core.Catalog;
 import io.evitadb.core.EntityCollection;
-import io.evitadb.core.Transaction;
 
 /**
- * This enum represents various type of sequences used in {@link EntityCollection}.
+ * This enum represents various type of sequences used in {@link Catalog} and {@link EntityCollection}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -44,9 +44,5 @@ public enum SequenceType {
 	/**
 	 * {@link io.evitadb.index.EntityIndex} type.
 	 */
-	INDEX,
-	/**
-	 * {@link Transaction} type.
-	 */
-	TRANSACTION
+	INDEX
 }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -53,6 +53,7 @@ import io.evitadb.store.entity.model.entity.PricesStoragePart;
 import io.evitadb.store.entity.model.entity.ReferencesStoragePart;
 import io.evitadb.store.entity.model.entity.price.PriceWithInternalIds;
 import io.evitadb.store.spi.model.storageParts.accessor.EntityStoragePartAccessor;
+import io.evitadb.store.spi.model.storageParts.accessor.WritableEntityStorageContainerAccessor;
 import io.evitadb.utils.Assert;
 import lombok.Data;
 
@@ -176,21 +177,38 @@ public interface ReferenceIndexMutator {
 		@Nonnull EntityIndex entityIndex,
 		@Nonnull ReferencedTypeEntityIndex referenceTypeIndex,
 		@Nullable EntityIndex referenceIndex,
-		@Nonnull ReferenceKey referenceKey
+		@Nonnull ReferenceKey referenceKey,
+		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
 		// we need to index referenced entity primary key into the reference type index
-		referenceTypeIndex.insertPrimaryKeyIfMissing(referenceKey.primaryKey(), executor.getContainerAccessor());
+		final WritableEntityStorageContainerAccessor containerAccessor = executor.getContainerAccessor();
+		if (referenceTypeIndex.insertPrimaryKeyIfMissing(referenceKey.primaryKey()) && undoActionConsumer != null) {
+			undoActionConsumer.accept(() -> referenceTypeIndex.removePrimaryKey(referenceKey.primaryKey()));
+		}
 
 		// add facet to global index
-		addFacetToIndex(entityIndex, referenceKey, null, executor, entityPrimaryKey);
+		addFacetToIndex(entityIndex, referenceKey, null, executor, entityPrimaryKey, undoActionConsumer);
 
 		if (referenceIndex != null) {
 			// we need to index entity primary key into the referenced entity index
-			referenceIndex.insertPrimaryKeyIfMissing(entityPrimaryKey, executor.getContainerAccessor());
-			addFacetToIndex(referenceIndex, referenceKey, null, executor, entityPrimaryKey);
+			if (referenceIndex.insertPrimaryKeyIfMissing(entityPrimaryKey)) {
+				if (undoActionConsumer != null) {
+					undoActionConsumer.accept(() -> referenceIndex.removePrimaryKey(entityPrimaryKey));
+				}
+				AttributeIndexMutator.insertInitialSuiteOfSortableAttributeCompounds(
+					referenceIndex,
+					null,
+					entityPrimaryKey,
+					executor.getEntitySchema(),
+					referenceKey,
+					containerAccessor,
+					undoActionConsumer
+				);
+			}
+			addFacetToIndex(referenceIndex, referenceKey, null, executor, entityPrimaryKey, undoActionConsumer);
 
 			// we need to index all previously added global entity attributes and prices
-			indexAllExistingData(executor, referenceIndex, entityType, entityPrimaryKey);
+			indexAllExistingData(executor, referenceIndex, entityType, entityPrimaryKey, undoActionConsumer);
 		}
 	}
 
@@ -204,19 +222,36 @@ public interface ReferenceIndexMutator {
 		@Nonnull EntityIndex entityIndex,
 		@Nonnull ReferencedTypeEntityIndex referenceTypeIndex,
 		@Nonnull EntityIndex referenceIndex,
-		@Nonnull ReferenceKey referenceKey
+		@Nonnull ReferenceKey referenceKey,
+		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
 		// we need to remove referenced entity primary key from the reference type index
-		referenceTypeIndex.removePrimaryKey(referenceKey.primaryKey(), executor.getContainerAccessor());
+		final WritableEntityStorageContainerAccessor containerAccessor = executor.getContainerAccessor();
+		if (referenceTypeIndex.removePrimaryKey(referenceKey.primaryKey()) && undoActionConsumer != null) {
+			undoActionConsumer.accept(() -> referenceTypeIndex.insertPrimaryKeyIfMissing(referenceKey.primaryKey()));
+		}
 
 		// remove facet from global and index
-		removeFacetInIndex(entityIndex, referenceKey, executor, entityType, entityPrimaryKey);
+		removeFacetInIndex(entityIndex, referenceKey, executor, entityType, entityPrimaryKey, undoActionConsumer);
 
 		// we need to remove entity primary key from the referenced entity index
-		referenceIndex.removePrimaryKey(entityPrimaryKey, executor.getContainerAccessor());
+		if (referenceIndex.removePrimaryKey(entityPrimaryKey)) {
+			if (undoActionConsumer != null) {
+				undoActionConsumer.accept(() -> referenceIndex.insertPrimaryKeyIfMissing(entityPrimaryKey));
+			}
+			AttributeIndexMutator.removeEntireSuiteOfSortableAttributeCompounds(
+				referenceIndex,
+				null,
+				entityPrimaryKey,
+				executor.getEntitySchema(),
+				referenceKey,
+				containerAccessor,
+				undoActionConsumer
+			);
+		}
 
 		// remove all attributes that are present on the reference relation
-		final ReferencesStoragePart referencesStorageContainer = executor.getContainerAccessor().getReferencesStoragePart(entityType, entityPrimaryKey);
+		final ReferencesStoragePart referencesStorageContainer = containerAccessor.getReferencesStoragePart(entityType, entityPrimaryKey);
 		Assert.notNull(referencesStorageContainer, "References storage container for entity " + entityPrimaryKey + " was unexpectedly not found!");
 		final ReferenceContract theReference = Arrays.stream(referencesStorageContainer.getReferences())
 			.filter(Droppable::exists)
@@ -239,7 +274,7 @@ public interface ReferenceIndexMutator {
 		}
 
 		// remove all global entity attributes and prices
-		removeAllExistingData(executor, referenceIndex, entityType, entityPrimaryKey);
+		removeAllExistingData(executor, referenceIndex, entityType, entityPrimaryKey, undoActionConsumer);
 	}
 
 	/**
@@ -249,20 +284,28 @@ public interface ReferenceIndexMutator {
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull EntityIndex targetIndex,
 		@Nonnull String entityType,
-		int entityPrimaryKey
+		int entityPrimaryKey,
+		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
-		indexAllFacets(executor, targetIndex, entityType, entityPrimaryKey);
+		indexAllFacets(executor, targetIndex, entityType, entityPrimaryKey, undoActionConsumer);
 
 		final EntityStoragePartAccessor containerAccessor = executor.getContainerAccessor();
 		final EntityBodyStoragePart entityCnt = containerAccessor.getEntityStoragePart(entityType, entityPrimaryKey, EntityExistence.MUST_EXIST);
 
 		for (Locale locale : entityCnt.getLocales()) {
-			targetIndex.upsertLanguage(locale, entityPrimaryKey, containerAccessor);
+			final boolean added = executor.upsertEntityLanguageInTargetIndex(entityPrimaryKey, locale, targetIndex, undoActionConsumer);
+			if (added && undoActionConsumer != null) {
+				undoActionConsumer.accept(
+					() -> executor.removeEntityLanguageInTargetIndex(
+						entityPrimaryKey, locale, targetIndex, null
+					)
+				);
+			}
 		}
 
-		indexAllCompounds(executor, targetIndex, entityPrimaryKey);
-		indexAllAttributes(executor, targetIndex, entityType, entityPrimaryKey, entityCnt);
-		indexAllPrices(executor, targetIndex, entityType, entityPrimaryKey);
+		indexAllCompounds(executor, targetIndex, entityPrimaryKey, undoActionConsumer);
+		indexAllAttributes(executor, targetIndex, entityType, entityPrimaryKey, entityCnt, undoActionConsumer);
+		indexAllPrices(executor, targetIndex, entityType, entityPrimaryKey, undoActionConsumer);
 	}
 
 	/**
@@ -272,7 +315,8 @@ public interface ReferenceIndexMutator {
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull EntityIndex targetIndex,
 		@Nonnull String entityType,
-		int entityPrimaryKey
+		int entityPrimaryKey,
+		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
 		final EntityStoragePartAccessor containerAccessor = executor.getContainerAccessor();
 		final ReferencesStoragePart referencesStorageContainer = containerAccessor.getReferencesStoragePart(entityType, entityPrimaryKey);
@@ -281,14 +325,16 @@ public interface ReferenceIndexMutator {
 			final ReferenceKey referenceKey = reference.getReferenceKey();
 			final Optional<GroupEntityReference> groupReference = reference.getGroup();
 			if (reference.exists() && isFacetedReference(referenceKey, executor)) {
-				targetIndex.addFacet(
-					referenceKey,
-					groupReference
-						.filter(Droppable::exists)
-						.map(GroupEntityReference::getPrimaryKey)
-						.orElse(null),
-					entityPrimaryKey
-				);
+				final Integer groupId = groupReference
+					.filter(Droppable::exists)
+					.map(GroupEntityReference::getPrimaryKey)
+					.orElse(null);
+				targetIndex.addFacet(referenceKey, groupId, entityPrimaryKey);
+				if (undoActionConsumer != null) {
+					undoActionConsumer.accept(
+						() -> targetIndex.removeFacet(referenceKey, groupId, entityPrimaryKey)
+					);
+				}
 			}
 		}
 	}
@@ -300,7 +346,8 @@ public interface ReferenceIndexMutator {
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull EntityIndex targetIndex,
 		@Nonnull String entityType,
-		int entityPrimaryKey
+		int entityPrimaryKey,
+		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
 		final EntityStoragePartAccessor containerAccessor = executor.getContainerAccessor();
 		final PricesStoragePart priceContainer = containerAccessor.getPriceStoragePart(entityType, entityPrimaryKey);
@@ -316,7 +363,8 @@ public interface ReferenceIndexMutator {
 					price.sellable(),
 					null,
 					priceContainer.getPriceInnerRecordHandling(),
-					PriceIndexMutator.createPriceProvider(price)
+					PriceIndexMutator.createPriceProvider(price),
+					undoActionConsumer
 				);
 			}
 		}
@@ -328,14 +376,24 @@ public interface ReferenceIndexMutator {
 	private static void indexAllCompounds(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull EntityIndex targetIndex,
-		int entityPrimaryKey
+		int entityPrimaryKey,
+		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
 		final EntitySchema entitySchema = executor.getEntitySchema();
 		final EntityStoragePartAccessor containerAccessor = executor.getContainerAccessor();
 
 		AttributeIndexMutator.insertInitialSuiteOfSortableAttributeCompounds(
-			targetIndex, null, entityPrimaryKey, entitySchema, null, containerAccessor
+			targetIndex, null, entityPrimaryKey,
+			entitySchema, null, containerAccessor, undoActionConsumer
 		);
+		if (undoActionConsumer != null) {
+			undoActionConsumer.accept(
+				() -> AttributeIndexMutator.removeEntireSuiteOfSortableAttributeCompounds(
+					targetIndex, null, entityPrimaryKey,
+					entitySchema, null, containerAccessor, undoActionConsumer
+				)
+			);
+		}
 	}
 
 	/**
@@ -346,7 +404,8 @@ public interface ReferenceIndexMutator {
 		@Nonnull EntityIndex targetIndex,
 		@Nonnull String entityType,
 		int entityPrimaryKey,
-		@Nonnull EntityBodyStoragePart entityCnt
+		@Nonnull EntityBodyStoragePart entityCnt,
+		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
 		final EntitySchema entitySchema = executor.getEntitySchema();
 		final EntityStoragePartAccessor containerAccessor = executor.getContainerAccessor();
@@ -366,7 +425,8 @@ public interface ReferenceIndexMutator {
 					targetIndex,
 					attribute.key(), Objects.requireNonNull(attribute.value()),
 					false,
-					false
+					false,
+					undoActionConsumer
 				);
 			}
 		}
@@ -382,7 +442,8 @@ public interface ReferenceIndexMutator {
 						targetIndex,
 						attribute.key(), Objects.requireNonNull(attribute.value()),
 						false,
-						false
+						false,
+						undoActionConsumer
 					);
 				}
 			}
@@ -396,20 +457,26 @@ public interface ReferenceIndexMutator {
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull EntityIndex targetIndex,
 		@Nonnull String entityType,
-		int entityPrimaryKey
+		int entityPrimaryKey,
+		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
-		removeAllFacets(executor, targetIndex, entityType, entityPrimaryKey);
+		removeAllFacets(executor, targetIndex, entityType, entityPrimaryKey, undoActionConsumer);
 
 		final EntityStoragePartAccessor containerAccessor = executor.getContainerAccessor();
 		final EntityBodyStoragePart entityCnt = containerAccessor.getEntityStoragePart(entityType, entityPrimaryKey, EntityExistence.MUST_EXIST);
 
 		for (Locale locale : entityCnt.getLocales()) {
-			targetIndex.removeLanguage(locale, entityPrimaryKey, executor.getContainerAccessor());
+			final boolean removed = executor.removeEntityLanguageInTargetIndex(
+				entityPrimaryKey, locale, targetIndex, undoActionConsumer
+			);
+			if (removed && undoActionConsumer != null) {
+				undoActionConsumer.accept(() -> executor.upsertEntityLanguageInTargetIndex(entityPrimaryKey, locale, targetIndex, null));
+			}
 		}
 
-		removeAllAttributes(executor, targetIndex, entityType, entityPrimaryKey);
-		removeAllPrices(executor, targetIndex, entityType, entityPrimaryKey);
-		removeAllCompounds(executor, targetIndex, entityPrimaryKey);
+		removeAllAttributes(executor, targetIndex, entityType, entityPrimaryKey, undoActionConsumer);
+		removeAllPrices(executor, targetIndex, entityType, entityPrimaryKey, undoActionConsumer);
+		removeAllCompounds(executor, targetIndex, entityPrimaryKey, undoActionConsumer);
 
 		// if target index is empty, remove it completely
 		if (targetIndex.isEmpty()) {
@@ -424,7 +491,8 @@ public interface ReferenceIndexMutator {
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull EntityIndex targetIndex,
 		@Nonnull String entityType,
-		int entityPrimaryKey
+		int entityPrimaryKey,
+		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
 		final EntityStoragePartAccessor containerAccessor = executor.getContainerAccessor();
 		final ReferencesStoragePart referencesStorageContainer = containerAccessor.getReferencesStoragePart(entityType, entityPrimaryKey);
@@ -437,6 +505,11 @@ public interface ReferenceIndexMutator {
 					.map(EntityReferenceContract::getPrimaryKey)
 					.orElse(null);
 				targetIndex.removeFacet(referenceKey, groupId, entityPrimaryKey);
+				if (undoActionConsumer != null) {
+					undoActionConsumer.accept(
+						() -> targetIndex.addFacet(referenceKey, groupId, entityPrimaryKey)
+					);
+				}
 			}
 		}
 	}
@@ -448,7 +521,8 @@ public interface ReferenceIndexMutator {
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull EntityIndex targetIndex,
 		@Nonnull String entityType,
-		int entityPrimaryKey
+		int entityPrimaryKey,
+		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
 		final EntityAttributeValueSupplier attributeValueSupplier = new EntityAttributeValueSupplier(executor.getContainerAccessor(), entityType, entityPrimaryKey);
 		final Function<String, AttributeSchema> attributeSchemaProvider =
@@ -466,7 +540,8 @@ public interface ReferenceIndexMutator {
 					targetIndex,
 					attribute.key(),
 					false,
-					false
+					false,
+					undoActionConsumer
 				));
 
 		for (Locale locale : attributeValueSupplier.getEntityAttributeLocales()) {
@@ -480,7 +555,8 @@ public interface ReferenceIndexMutator {
 						targetIndex,
 						attribute.key(),
 						false,
-						false
+						false,
+						undoActionConsumer
 					));
 		}
 	}
@@ -492,7 +568,8 @@ public interface ReferenceIndexMutator {
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull EntityIndex targetIndex,
 		@Nonnull String entityType,
-		int entityPrimaryKey
+		int entityPrimaryKey,
+		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
 		final EntityStoragePartAccessor containerAccessor = executor.getContainerAccessor();
 		final PricesStoragePart priceContainer = containerAccessor.getPriceStoragePart(entityType, entityPrimaryKey);
@@ -500,7 +577,8 @@ public interface ReferenceIndexMutator {
 			if (price.exists()) {
 				PriceIndexMutator.priceRemove(
 					entityType, executor, targetIndex,
-					price.priceKey()
+					price.priceKey(),
+					undoActionConsumer
 				);
 			}
 		}
@@ -512,13 +590,15 @@ public interface ReferenceIndexMutator {
 	private static void removeAllCompounds(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull EntityIndex targetIndex,
-		int entityPrimaryKey
+		int entityPrimaryKey,
+		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
 		final EntitySchema entitySchema = executor.getEntitySchema();
 		final EntityStoragePartAccessor containerAccessor = executor.getContainerAccessor();
 
 		AttributeIndexMutator.removeEntireSuiteOfSortableAttributeCompounds(
-			targetIndex, null, entityPrimaryKey, entitySchema, null, containerAccessor
+			targetIndex, null, entityPrimaryKey, entitySchema,
+			null, containerAccessor, undoActionConsumer
 		);
 	}
 
@@ -602,14 +682,14 @@ public interface ReferenceIndexMutator {
 		@Nonnull ReferenceKey referenceKey,
 		@Nullable Integer groupId,
 		@Nonnull EntityIndexLocalMutationExecutor executor,
-		int entityPrimaryKey
+		int entityPrimaryKey,
+		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
 		if (isFacetedReference(referenceKey, executor)) {
-			index.addFacet(
-				referenceKey,
-				groupId,
-				entityPrimaryKey
-			);
+			index.addFacet(referenceKey, groupId, entityPrimaryKey);
+			if (undoActionConsumer != null) {
+				undoActionConsumer.accept(() -> index.removeFacet(referenceKey, groupId, entityPrimaryKey));
+			}
 		}
 	}
 
@@ -654,20 +734,21 @@ public interface ReferenceIndexMutator {
 		@Nonnull ReferenceKey referenceKey,
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull String entityType,
-		int entityPrimaryKey
+		int entityPrimaryKey,
+		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
 		if (isFacetedReference(referenceKey, executor)) {
 			final ReferenceContract existingReference = executor.getContainerAccessor().getReferencesStoragePart(entityType, entityPrimaryKey)
 				.findReferenceOrThrowException(referenceKey);
 
-			index.removeFacet(
-				referenceKey,
-				existingReference.getGroup()
-					.filter(Droppable::exists)
-					.map(EntityReferenceContract::getPrimaryKey)
-					.orElse(null),
-				entityPrimaryKey
-			);
+			final Integer groupId = existingReference.getGroup()
+				.filter(Droppable::exists)
+				.map(EntityReferenceContract::getPrimaryKey)
+				.orElse(null);
+			index.removeFacet(referenceKey, groupId, entityPrimaryKey);
+			if (undoActionConsumer != null) {
+				undoActionConsumer.accept(() -> index.addFacet(referenceKey, groupId, entityPrimaryKey));
+			}
 			if (index.isEmpty()) {
 				// if the result index is empty, we should drop track of it in global entity index
 				// it was probably registered before, and it has been emptied by the consumer lambda just now

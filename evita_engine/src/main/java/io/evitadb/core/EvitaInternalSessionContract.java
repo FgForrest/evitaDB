@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,7 +25,9 @@ package io.evitadb.core;
 
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.exception.InstanceTerminatedException;
+import io.evitadb.api.exception.TransactionException;
 import io.evitadb.api.exception.UnexpectedResultCountException;
 import io.evitadb.api.exception.UnexpectedResultException;
 import io.evitadb.api.query.Query;
@@ -33,9 +35,13 @@ import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaResponse;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.function.Consumer;
+import java.util.function.Function;
 
 /**
  * This interface extends the public interface and adds a few methods that are targeted for internal use of EvitaDB
@@ -97,4 +103,47 @@ public interface EvitaInternalSessionContract extends EvitaSessionContract {
 	@Nonnull
 	<S extends Serializable, T extends EvitaResponse<S>> T query(@Nonnull EvitaRequest evitaRequest)
 		throws UnexpectedResultException, InstanceTerminatedException;
+
+	/**
+	 * If {@link CatalogContract} supports transactions (see {@link CatalogContract#supportsTransaction()}) method
+	 * executes application `logic` in current session and commits the transaction at the end. Transaction is
+	 * automatically roll-backed when exception is thrown from the `logic` scope. Changes made by the updating logic are
+	 * visible only within update function. Other threads outside the logic function work with non-changed data until
+	 * transaction is committed to the index.
+	 *
+	 * When catalog doesn't support transactions application `logic` is immediately applied to the index data and logic
+	 * operates in a <a href="https://en.wikipedia.org/wiki/Isolation_(database_systems)#Read_uncommitted">read
+	 * uncommitted</a> mode. Application `logic` can only append new entities in non-transactional mode.
+	 *
+	 * @throws TransactionException when lambda function throws exception causing the transaction to be rolled back
+	 */
+	@Nullable
+	<T> T execute(@Nonnull Function<EvitaSessionContract, T> logic) throws TransactionException;
+
+	/**
+	 * If {@link CatalogContract} supports transactions (see {@link CatalogContract#supportsTransaction()}) method
+	 * executes application `logic` in current session and commits the transaction at the end. Transaction is
+	 * automatically roll-backed when exception is thrown from the `logic` scope. Changes made by the updating logic are
+	 * visible only within update function. Other threads outside the logic function work with non-changed data until
+	 * transaction is committed to the index.
+	 *
+	 * When catalog doesn't support transactions application `logic` is immediately applied to the index data and logic
+	 * operates in a <a href="https://en.wikipedia.org/wiki/Isolation_(database_systems)#Read_uncommitted">read
+	 * uncommitted</a> mode. Application `logic` can only append new entities in non-transactional mode.
+	 *
+	 * @throws TransactionException when lambda function throws exception causing the transaction to be rolled back
+	 */
+	void execute(@Nonnull Consumer<EvitaSessionContract> logic) throws TransactionException;
+
+	/**
+	 * Retrieves the CompletableFuture representing the finalization of the transaction that conforms to
+	 * requested {@link CommitBehavior} bound to the current transaction.
+	 *
+	 * @return An Optional that contains a CompletableFuture of type Long if the transaction finalization
+	 *         is in progress, or an empty Optional if no transaction is currently in progress (session is read-only
+	 *         for exmple).
+	 */
+	@Nonnull
+	Optional<CompletableFuture<Long>> getTransactionFinalizationFuture();
+
 }

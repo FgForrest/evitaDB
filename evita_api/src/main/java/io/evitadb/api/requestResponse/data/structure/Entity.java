@@ -57,7 +57,7 @@ import io.evitadb.api.requestResponse.data.Versioned;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.associatedData.AssociatedDataMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.AttributeMutation;
-import io.evitadb.api.requestResponse.data.mutation.entity.ParentMutation;
+import io.evitadb.api.requestResponse.data.mutation.parent.ParentMutation;
 import io.evitadb.api.requestResponse.data.mutation.price.PriceMutation;
 import io.evitadb.api.requestResponse.data.mutation.price.SetPriceInnerRecordHandlingMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;

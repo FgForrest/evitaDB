@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,87 +23,36 @@
 
 package io.evitadb.store.spi;
 
-import io.evitadb.exception.EvitaInternalError;
-import io.evitadb.store.model.StoragePart;
-import io.evitadb.store.service.KeyCompressor;
-import io.evitadb.utils.Assert;
+import io.evitadb.core.buffer.DataStoreIndexChanges;
+import io.evitadb.index.Index;
+import io.evitadb.index.IndexKey;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.io.Closeable;
-import java.util.List;
 
 /**
- * Persistent service defines shared contract for services that allow to work with persistent data storage based on
- * file offset index object. There is usually single file for one key EvitaDB object (catalog, entity-collection).
+ * This interface defines shared methods for permited set of persistence services.
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public interface PersistenceService extends Closeable {
+sealed interface PersistenceService<IK extends IndexKey, I extends Index<IK>>
+	extends Closeable
+	permits CatalogPersistenceService, EntityCollectionPersistenceService {
 
 	/**
-	 * Reads container primarily from transactional memory and when the container is not present there (or transaction
-	 * is not opened) reads it from the target {@link CatalogPersistenceService}.
+	 * Returns true if underlying file was not yet created.
 	 */
-	@Nullable
-	<T extends StoragePart> T getStoragePart(long primaryKey, @Nonnull Class<T> containerType);
+	boolean isNew();
 
 	/**
-	 * Reads container primarily from transactional memory and when the container is not present there (or transaction
-	 * is not opened) reads it from the target {@link CatalogPersistenceService}.
+	 * Flushes all trapped memory data to the persistent storage.
+	 * This method doesn't take transactional memory into an account but only flushes changes for trapped updates.
 	 */
-	@Nullable
-	<T extends StoragePart> byte[] getStoragePartAsBinary(long primaryKey, @Nonnull Class<T> containerType);
+	void flushTrappedUpdates(long catalogVersion, @Nonnull DataStoreIndexChanges<IK, I> dataStoreIndexChanges);
 
 	/**
-	 * Reads container primarily from transactional memory and when the container is not present there (or transaction
-	 * is not opened) reads it from the target {@link CatalogPersistenceService}.
-	 *
-	 * @return already or newly assigned {@link StoragePart#getUniquePartId()} - primary key of the storage part
-	 */
-	<T extends StoragePart> long putStoragePart(long transactionId, @Nonnull T container);
-
-	/**
-	 * Removes container from the transactional memory. This method should be used only for container, that has
-	 * no uniqueId assigned so far (e.g. they haven't been stored yet).
-	 */
-	<T extends StoragePart> boolean removeStoragePart(long primaryKey, @Nonnull Class<T> containerType);
-
-	/**
-	 * Returns true if persistent storage contains non-removed storage part of particular primary key and container
-	 * type.
-	 */
-	<T extends StoragePart> boolean containsStoragePart(long primaryKey, @Nonnull Class<T> containerType);
-
-	/**
-	 * Method applies all deferredOperations from the passed list on current data storage.
-	 */
-	default void applyUpdates(@Nonnull String owner, long transactionId, @Nonnull List<DeferredStorageOperation<?>> deferredOperations) {
-		for (final DeferredStorageOperation<?> deferredOperation : deferredOperations) {
-			Assert.isPremiseValid(
-				deferredOperation.getRequiredPersistenceServiceType().isInstance(this),
-				() -> new EvitaInternalError("Incompatible deferred operation!")
-			);
-			//noinspection unchecked,rawtypes
-			((DeferredStorageOperation)deferredOperation).execute(owner, transactionId, this);
-		}
-	}
-
-	/**
-	 * Returns a key compressor that contains indexes of keys assigned to a key comparable objects that are expensive
-	 * to be stored duplicated during serialization.
-	 */
-	@Nonnull
-	KeyCompressor getReadOnlyKeyCompressor();
-
-	/**
-	 * Returns true if the persistence service was closed.
+	 * Returns true if the persistence service is closed.
+	 * @return true if the persistence service is closed
 	 */
 	boolean isClosed();
-
-	/**
-	 * Closes the entity collection persistent storage.
-	 */
-	@Override
-	void close();
 }

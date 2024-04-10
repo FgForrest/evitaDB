@@ -47,7 +47,7 @@ public class PriceListAndCurrencyRefIndexStoragePartSerializer extends Serialize
 	@Override
 	public void write(Kryo kryo, Output output, PriceListAndCurrencyRefIndexStoragePart priceIndex) {
 		output.writeInt(priceIndex.getEntityIndexPrimaryKey());
-		final Long uniquePartId = priceIndex.getUniquePartId();
+		final Long uniquePartId = priceIndex.getStoragePartPK();
 		Assert.notNull(uniquePartId, "Unique part id should have been computed by now!");
 		output.writeVarLong(uniquePartId, true);
 		output.writeVarInt(keyCompressor.getId(priceIndex.getPriceIndexKey()), true);

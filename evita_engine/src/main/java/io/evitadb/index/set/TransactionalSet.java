@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,15 +24,14 @@
 package io.evitadb.index.set;
 
 import io.evitadb.core.Transaction;
+import io.evitadb.core.transaction.memory.TransactionalLayerCreator;
+import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
+import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
+import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.exception.EvitaInternalError;
-import io.evitadb.index.transactionalMemory.TransactionalLayerCreator;
-import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
-import io.evitadb.index.transactionalMemory.TransactionalLayerProducer;
-import io.evitadb.index.transactionalMemory.TransactionalObjectVersion;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
@@ -46,7 +45,6 @@ import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Set;
 
-import static io.evitadb.core.Transaction.getTransactionalMemoryLayer;
 import static io.evitadb.core.Transaction.getTransactionalMemoryLayerIfExists;
 
 /**
@@ -87,10 +85,10 @@ public class TransactionalSet<K> implements Set<K>,
 
 	@Nonnull
 	@Override
-	public Set<K> createCopyWithMergedTransactionalMemory(SetChanges<K> layer, @Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Transaction transaction) {
+	public Set<K> createCopyWithMergedTransactionalMemory(SetChanges<K> layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		// iterate over inserted or updated keys
 		if (layer != null) {
-			return layer.createMergedSet(transactionalLayer, transaction);
+			return layer.createMergedSet(transactionalLayer);
 		} else {
 			// iterate original map and copy all values from it
 			List<K> modifiedEntries = null;
@@ -100,7 +98,7 @@ public class TransactionalSet<K> implements Set<K>,
 				final K transformedEntry;
 				if (entry instanceof TransactionalLayerProducer) {
 					//noinspection unchecked
-					transformedEntry = (K) transactionalLayer.getStateCopyWithCommittedChanges((TransactionalLayerProducer<?, ?>) entry, transaction);
+					transformedEntry = (K) transactionalLayer.getStateCopyWithCommittedChanges((TransactionalLayerProducer<?, ?>) entry);
 				} else {
 					transformedEntry = entry;
 				}
@@ -194,7 +192,7 @@ public class TransactionalSet<K> implements Set<K>,
 
 	@Override
 	public boolean add(K key) {
-		final SetChanges<K> layer = getTransactionalMemoryLayer(this);
+		final SetChanges<K> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
 			return this.setDelegate.add(key);
 		} else {
@@ -204,7 +202,7 @@ public class TransactionalSet<K> implements Set<K>,
 
 	@Override
 	public boolean remove(Object key) {
-		final SetChanges<K> layer = getTransactionalMemoryLayer(this);
+		final SetChanges<K> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
 			return this.setDelegate.remove(key);
 		} else {
@@ -224,7 +222,7 @@ public class TransactionalSet<K> implements Set<K>,
 
 	@Override
 	public boolean addAll(@Nonnull Collection<? extends K> c) {
-		final SetChanges<K> layer = getTransactionalMemoryLayer(this);
+		final SetChanges<K> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
 			return this.setDelegate.addAll(c);
 		} else {
@@ -238,7 +236,7 @@ public class TransactionalSet<K> implements Set<K>,
 
 	@Override
 	public boolean retainAll(@Nonnull Collection<?> c) {
-		final SetChanges<K> layer = getTransactionalMemoryLayer(this);
+		final SetChanges<K> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
 			return this.setDelegate.retainAll(c);
 		} else {
@@ -257,7 +255,7 @@ public class TransactionalSet<K> implements Set<K>,
 
 	@Override
 	public boolean removeAll(@Nonnull Collection<?> c) {
-		final SetChanges<K> layer = getTransactionalMemoryLayer(this);
+		final SetChanges<K> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
 			return this.setDelegate.removeAll(c);
 		} else {
@@ -276,7 +274,7 @@ public class TransactionalSet<K> implements Set<K>,
 
 	@Override
 	public void clear() {
-		final SetChanges<K> layer = getTransactionalMemoryLayer(this);
+		final SetChanges<K> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
 			this.setDelegate.clear();
 		} else {
@@ -319,7 +317,7 @@ public class TransactionalSet<K> implements Set<K>,
 		@SuppressWarnings("unchecked") final TransactionalSet<K> clone = (TransactionalSet<K>) super.clone();
 		final SetChanges<K> layer = getTransactionalMemoryLayerIfExists(this);
 		if (layer != null) {
-			final SetChanges<K> clonedLayer = getTransactionalMemoryLayer(clone);
+			final SetChanges<K> clonedLayer = Transaction.getOrCreateTransactionalMemoryLayer(clone);
 			if (clonedLayer != null) {
 				clonedLayer.copyState(layer);
 			}

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,10 +24,10 @@
 package io.evitadb.index.array;
 
 import io.evitadb.core.Transaction;
-import io.evitadb.index.iterator.ConstantObjIterator;
-import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
-import io.evitadb.index.transactionalMemory.TransactionalLayerProducer;
-import io.evitadb.index.transactionalMemory.TransactionalObjectVersion;
+import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
+import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
+import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
+import io.evitadb.dataType.iterator.ConstantObjIterator;
 import io.evitadb.utils.ArrayUtils;
 import lombok.Getter;
 
@@ -40,7 +40,6 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Iterator;
 
-import static io.evitadb.core.Transaction.getTransactionalMemoryLayer;
 import static io.evitadb.core.Transaction.getTransactionalMemoryLayerIfExists;
 import static io.evitadb.core.Transaction.isTransactionAvailable;
 
@@ -99,7 +98,7 @@ public class TransactionalObjArray<T extends Comparable<T>> implements Transacti
 	 * Method adds new record to the array.
 	 */
 	public void add(@Nonnull T recordId) {
-		final ObjArrayChanges<T> layer = getTransactionalMemoryLayer(this);
+		final ObjArrayChanges<T> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
 			this.delegate = ArrayUtils.insertRecordIntoOrderedArray(recordId, this.delegate, comparator);
 		} else {
@@ -120,7 +119,7 @@ public class TransactionalObjArray<T extends Comparable<T>> implements Transacti
 	 * Method removes record id from the array.
 	 */
 	public void remove(@Nonnull T recordId) {
-		final ObjArrayChanges<T> layer = getTransactionalMemoryLayer(this);
+		final ObjArrayChanges<T> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
 			this.delegate = ArrayUtils.removeRecordFromOrderedArray(recordId, this.delegate, comparator);
 		} else {
@@ -228,7 +227,7 @@ public class TransactionalObjArray<T extends Comparable<T>> implements Transacti
 
 	@Nonnull
 	@Override
-	public T[] createCopyWithMergedTransactionalMemory(@Nullable ObjArrayChanges<T> layer, @Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Transaction transaction) {
+	public T[] createCopyWithMergedTransactionalMemory(@Nullable ObjArrayChanges<T> layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		if (layer == null) {
 			return this.delegate;
 		} else {

@@ -52,8 +52,6 @@ import java.util.stream.Stream;
  * or negative mutation {@link AllowCurrencyInEntitySchemaMutation} if those mutation are present in the mutation pipeline
  * multiple times.
  *
- * TOBEDONE JNO - write tests
- *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @ThreadSafe
@@ -96,8 +94,8 @@ public class DisallowLocaleInEntitySchemaMutation implements CombinableEntitySch
 				.collect(Collectors.toSet());
 
 			return new MutationCombinationResult<>(
-				localesToAdd.length == 0 ? null : new AllowLocaleInEntitySchemaMutation(localesToAdd),
-				localesToRemove.size() == locales.size() ? existingMutation : (localesToRemove.isEmpty() ? null : new DisallowLocaleInEntitySchemaMutation(localesToRemove))
+				localesToAdd.length == 0 ? null : (localesToAdd.length == ((AllowLocaleInEntitySchemaMutation) existingMutation).getLocales().length ? existingMutation : new AllowLocaleInEntitySchemaMutation(localesToAdd)),
+				localesToRemove.size() == locales.size() ? this : (localesToRemove.isEmpty() ? null : new DisallowLocaleInEntitySchemaMutation(localesToRemove))
 			);
 		} else {
 			return null;

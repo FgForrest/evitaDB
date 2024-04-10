@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,28 +26,27 @@ package io.evitadb.index.price;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.core.Catalog;
-import io.evitadb.core.Transaction;
+import io.evitadb.core.exception.PriceAlreadyAssignedToEntityException;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.price.priceIndex.PriceIdContainerFormula;
 import io.evitadb.core.query.algebra.price.priceIndex.PriceIndexContainerFormula;
+import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
+import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
+import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.array.TransactionalObjArray;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.bool.TransactionalBoolean;
-import io.evitadb.index.exception.PriceAlreadyAssignedToEntityException;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.index.price.model.entityPrices.EntityPrices;
 import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
 import io.evitadb.index.range.RangeIndex;
-import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
-import io.evitadb.index.transactionalMemory.TransactionalObjectVersion;
-import io.evitadb.index.transactionalMemory.VoidTransactionMemoryProducer;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.spi.model.storageParts.index.PriceListAndCurrencySuperIndexStoragePart;
 import io.evitadb.utils.Assert;
@@ -352,16 +351,16 @@ public class PriceListAndCurrencyPriceSuperIndex implements VoidTransactionMemor
 
 	@Nonnull
 	@Override
-	public PriceListAndCurrencyPriceSuperIndex createCopyWithMergedTransactionalMemory(@Nullable Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Transaction transaction) {
+	public PriceListAndCurrencyPriceSuperIndex createCopyWithMergedTransactionalMemory(@Nullable Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		// we can safely throw away dirty flag now
-		transactionalLayer.getStateCopyWithCommittedChanges(this.dirty, transaction);
-		final PriceRecordContract[] newTriples = transactionalLayer.getStateCopyWithCommittedChanges(this.priceRecords, transaction);
+		transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
+		final PriceRecordContract[] newTriples = transactionalLayer.getStateCopyWithCommittedChanges(this.priceRecords);
 		return new PriceListAndCurrencyPriceSuperIndex(
 			priceIndexKey,
-			transactionalLayer.getStateCopyWithCommittedChanges(this.indexedPriceEntityIds, transaction),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.indexedPriceIds, transaction),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.entityPrices, transaction),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.validityIndex, transaction),
+			transactionalLayer.getStateCopyWithCommittedChanges(this.indexedPriceEntityIds),
+			transactionalLayer.getStateCopyWithCommittedChanges(this.indexedPriceIds),
+			transactionalLayer.getStateCopyWithCommittedChanges(this.entityPrices),
+			transactionalLayer.getStateCopyWithCommittedChanges(this.validityIndex),
 			newTriples
 		);
 	}

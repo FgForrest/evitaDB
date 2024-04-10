@@ -49,7 +49,7 @@ public class AttributesStoragePartSerializer extends Serializer<AttributesStorag
 
 	@Override
 	public void write(Kryo kryo, Output output, AttributesStoragePart object) {
-		final long uniqueId = ofNullable(object.getUniquePartId()).orElseGet(() -> object.computeUniquePartIdAndSet(keyCompressor));
+		final long uniqueId = ofNullable(object.getStoragePartPK()).orElseGet(() -> object.computeUniquePartIdAndSet(keyCompressor));
 		output.writeLong(uniqueId);
 		output.writeInt(object.getEntityPrimaryKey());
 		kryo.writeObjectOrNull(output, object.getLocale(), Locale.class);

@@ -37,7 +37,7 @@ public class RemovedStoragePart implements StoragePart {
 	@Serial private static final long serialVersionUID = 2485318464734970542L;
 
 	@Override
-	public Long getUniquePartId() {
+	public Long getStoragePartPK() {
 		throw new UnsupportedOperationException();
 	}
 

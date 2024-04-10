@@ -48,7 +48,7 @@ public class FilterIndexStoragePartSerializer extends Serializer<FilterIndexStor
 	@Override
 	public void write(Kryo kryo, Output output, FilterIndexStoragePart filterIndex) {
 		output.writeInt(filterIndex.getEntityIndexPrimaryKey());
-		final Long uniquePartId = filterIndex.getUniquePartId();
+		final Long uniquePartId = filterIndex.getStoragePartPK();
 		Assert.notNull(uniquePartId, "Unique part id should have been computed by now!");
 		output.writeVarLong(uniquePartId, true);
 		output.writeVarInt(keyCompressor.getId(filterIndex.getAttributeKey()), true);

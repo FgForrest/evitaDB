@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -37,8 +37,6 @@ import io.evitadb.store.entity.model.entity.AttributesStoragePart.AttributesSetK
 import io.evitadb.store.entity.model.entity.EntityBodyStoragePart;
 import io.evitadb.store.entity.model.entity.PricesStoragePart;
 import io.evitadb.store.entity.model.entity.ReferencesStoragePart;
-import io.evitadb.store.entity.model.schema.CatalogSchemaStoragePart;
-import io.evitadb.store.entity.model.schema.EntitySchemaStoragePart;
 import io.evitadb.store.entity.serializer.*;
 import io.evitadb.store.model.EntityStoragePart;
 import io.evitadb.store.service.KeyCompressor;
@@ -61,8 +59,6 @@ public class EntityStoragePartConfigurer implements Consumer<Kryo> {
 	@Override
 	public void accept(Kryo kryo) {
 		int index = ENTITY_BASE;
-		kryo.register(CatalogSchemaStoragePart.class, new SerialVersionBasedSerializer<>(new CatalogSchemaStoragePartSerializer(), CatalogSchemaStoragePart.class), index++);
-		kryo.register(EntitySchemaStoragePart.class, new SerialVersionBasedSerializer<>(new EntitySchemaPartSerializer(), EntitySchemaStoragePart.class), index++);
 
 		kryo.register(EntityBodyStoragePart.class, new SerialVersionBasedSerializer<>(new EntityBodyStoragePartSerializer(keyCompressor), EntityBodyStoragePart.class), index++);
 		kryo.register(PricesStoragePart.class, new SerialVersionBasedSerializer<>(new PricesStoragePartSerializer(), PricesStoragePart.class), index++);

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,8 +26,9 @@ package io.evitadb.index;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.EntityCollection;
-import io.evitadb.core.Transaction;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
+import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
 import io.evitadb.index.attribute.AttributeIndex;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
@@ -36,8 +37,6 @@ import io.evitadb.index.hierarchy.HierarchyIndex;
 import io.evitadb.index.price.PriceIndexContract;
 import io.evitadb.index.price.PriceRefIndex;
 import io.evitadb.index.price.PriceSuperIndex;
-import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
-import io.evitadb.index.transactionalMemory.VoidTransactionMemoryProducer;
 import io.evitadb.store.model.StoragePart;
 import lombok.Getter;
 import lombok.experimental.Delegate;
@@ -131,17 +130,17 @@ public class ReducedEntityIndex extends EntityIndex
 
 	@Nonnull
 	@Override
-	public ReducedEntityIndex createCopyWithMergedTransactionalMemory(@Nullable Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Transaction transaction) {
+	public ReducedEntityIndex createCopyWithMergedTransactionalMemory(@Nullable Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		// we can safely throw away dirty flag now
-		final Boolean wasDirty = transactionalLayer.getStateCopyWithCommittedChanges(this.dirty, transaction);
+		final Boolean wasDirty = transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
 		return new ReducedEntityIndex(
 			primaryKey, indexKey, version + (wasDirty ? 1 : 0), schemaAccessor,
-			transactionalLayer.getStateCopyWithCommittedChanges(this.entityIds, transaction),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.entityIdsByLanguage, transaction),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.attributeIndex, transaction),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.priceIndex, transaction),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.hierarchyIndex, transaction),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.facetIndex, transaction)
+			transactionalLayer.getStateCopyWithCommittedChanges(this.entityIds),
+			transactionalLayer.getStateCopyWithCommittedChanges(this.entityIdsByLanguage),
+			transactionalLayer.getStateCopyWithCommittedChanges(this.attributeIndex),
+			transactionalLayer.getStateCopyWithCommittedChanges(this.priceIndex),
+			transactionalLayer.getStateCopyWithCommittedChanges(this.hierarchyIndex),
+			transactionalLayer.getStateCopyWithCommittedChanges(this.facetIndex)
 		);
 	}
 

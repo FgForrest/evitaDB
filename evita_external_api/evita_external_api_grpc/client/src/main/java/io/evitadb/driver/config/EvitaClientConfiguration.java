@@ -55,9 +55,10 @@ import java.util.concurrent.TimeUnit;
  * @param reflectionLookupBehaviour The behaviour of {@link ReflectionLookup} class analyzing classes
  *                                  for reflective information. Controls whether the once analyzed reflection
  *                                  information should be cached or freshly (and costly) retrieved each time asked.
- * @param waitForClose              Number of {@link EvitaClientConfiguration#waitForCloseUnit time units} client should
- *                                  wait for opened connection to terminate gracefully before killing them by force.
- * @param waitForCloseUnit          Time unit for {@link EvitaClientConfiguration#waitForClose property}.
+ * @param timeout                   Number of {@link EvitaClientConfiguration#timeoutUnit time units} client should
+ *                                  wait for server to respond before throwing an exception or closing connection
+ *                                  forcefully.
+ * @param timeoutUnit               Time unit for {@link EvitaClientConfiguration#timeout property}.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public record EvitaClientConfiguration(
@@ -75,12 +76,10 @@ public record EvitaClientConfiguration(
 	@Nullable Path certificateFolderPath,
 	@Nullable String trustStorePassword,
 	@Nonnull ReflectionCachingBehaviour reflectionLookupBehaviour,
-	long waitForClose,
-	@Nonnull TimeUnit waitForCloseUnit,
-	@Nullable String traceEndpointUrl,
-	@Nullable String traceEndpointProtocol
+	long timeout,
+	@Nonnull TimeUnit timeoutUnit,
+	@Nullable Object openTelemetryInstance
 ) {
-
 	private static final int DEFAULT_GRPC_API_PORT = 5555;
 	private static final int DEFAULT_SYSTEM_API_PORT = 5557;
 
@@ -107,13 +106,12 @@ public record EvitaClientConfiguration(
 		private Path certificatePath = null;
 		private Path certificateKeyPath = null;
 		private String certificateKeyPassword = null;
-		private long waitForClose = 5;
-		private TimeUnit waitForCloseUnit = TimeUnit.SECONDS;
+		private long timeout = 5;
+		private TimeUnit timeoutUnit = TimeUnit.SECONDS;
 		private Path certificateFolderPath = ClientCertificateManager.getDefaultClientCertificateFolderPath();
 		private String trustStorePassword = "trustStorePassword";
 		private ReflectionCachingBehaviour reflectionCachingBehaviour = ReflectionCachingBehaviour.CACHE;
-		private String traceEndpointUrl = null;
-		private String traceEndpointProtocol = null;
+		private Object openTelemetryInstance = null;
 
 		Builder() {
 			try {
@@ -169,9 +167,9 @@ public record EvitaClientConfiguration(
 			return this;
 		}
 
-		public EvitaClientConfiguration.Builder waitForClose(long waitForClose, @Nonnull TimeUnit unit) {
-			this.waitForClose = waitForClose;
-			this.waitForCloseUnit = unit;
+		public EvitaClientConfiguration.Builder timeoutUnit(long timeout, @Nonnull TimeUnit unit) {
+			this.timeout = timeout;
+			this.timeoutUnit = unit;
 			return this;
 		}
 
@@ -200,13 +198,8 @@ public record EvitaClientConfiguration(
 			return this;
 		}
 
-		public EvitaClientConfiguration.Builder traceEndpointUrl(@Nullable String traceEndpointUrl) {
-			this.traceEndpointUrl = traceEndpointUrl;
-			return this;
-		}
-
-		public EvitaClientConfiguration.Builder traceEndpointProtocol(@Nullable String traceEndpointProtocol) {
-			this.traceEndpointProtocol = traceEndpointProtocol;
+		public EvitaClientConfiguration.Builder openTelemetryInstance(@Nullable Object openTelemetryInstance) {
+			this.openTelemetryInstance = openTelemetryInstance;
 			return this;
 		}
 
@@ -226,10 +219,9 @@ public record EvitaClientConfiguration(
 				certificateFolderPath,
 				trustStorePassword,
 				reflectionCachingBehaviour,
-				waitForClose,
+				timeout,
 				TimeUnit.SECONDS,
-				traceEndpointUrl,
-				traceEndpointProtocol
+				openTelemetryInstance
 			);
 		}
 

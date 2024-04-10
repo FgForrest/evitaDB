@@ -24,17 +24,15 @@
 package io.evitadb.externalApi.observability.trace;
 
 import io.evitadb.api.trace.TracingContext;
+import io.evitadb.api.trace.TracingContext.SpanAttribute;
 import io.evitadb.externalApi.utils.ExternalApiTracingContext;
 import io.grpc.Metadata;
-import io.grpc.ServerInterceptor;
 import io.opentelemetry.context.Context;
 import io.opentelemetry.context.Scope;
 import io.opentelemetry.context.propagation.TextMapGetter;
-import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.Map;
 import java.util.function.Supplier;
 
 import static java.util.Optional.ofNullable;
@@ -53,43 +51,32 @@ public class GrpcTracingContext implements ExternalApiTracingContext<Metadata> {
 		this.tracingContext = tracingContext;
 	}
 
-	/**
-	 * Executes the given {@link Runnable} within a tracing block.
-	 *
-	 * @param protocolName the name of the protocol
-	 * @param context the metadata context
-	 * @param attributes the map of attributes
-	 * @param runnable the runnable to be executed
-	 */
 	@Override
 	public void executeWithinBlock(
 		@Nonnull String protocolName,
 		@Nonnull Metadata context,
-		@Nullable Map<String, Object> attributes,
-		@Nonnull Runnable runnable
+		@Nonnull Runnable runnable,
+		@Nullable SpanAttribute... attributes
 	) {
-		executeWithinBlock(protocolName, context, attributes, () -> {
+		if (!OpenTelemetryTracerSetup.isTracingEnabled()) {
 			runnable.run();
-			return null;
-		});
+			return;
+		}
+		try (Scope ignored = extractContextFromHeaders(protocolName, context).makeCurrent()) {
+			tracingContext.executeWithinBlock(
+				protocolName,
+				runnable,
+				attributes
+			);
+		}
 	}
 
-	/**
-	 * Executes the given logic within a tracing block. If tracing is disabled, the logic is executed immediately without tracing.
-	 *
-	 * @param protocolName the name of the protocol
-	 * @param context the metadata context
-	 * @param attributes the map of attributes
-	 * @param lambda the logic to be executed
-	 * @param <T> the type of the result
-	 * @return the result of executing the logic
-	 */
 	@Override
 	public <T> T executeWithinBlock(
 		@Nonnull String protocolName,
 		@Nonnull Metadata context,
-		@Nullable Map<String, Object> attributes,
-		@Nonnull Supplier<T> lambda
+		@Nonnull Supplier<T> lambda,
+		@Nullable SpanAttribute... attributes
 	) {
 		if (!OpenTelemetryTracerSetup.isTracingEnabled()) {
 			return lambda.get();
@@ -97,23 +84,77 @@ public class GrpcTracingContext implements ExternalApiTracingContext<Metadata> {
 		try (Scope ignored = extractContextFromHeaders(protocolName, context).makeCurrent()) {
 			return tracingContext.executeWithinBlock(
 				protocolName,
-				attributes,
-				lambda
+				lambda,
+				attributes
 			);
 		}
 	}
 
-	/**
-	 * Retrieves the server interceptor for tracing.
-	 *
-	 * @return The server interceptor for tracing, or null if tracing is not enabled.
-	 */
-	@Nullable
-	public ServerInterceptor getServerInterceptor() {
+	@Override
+	public void executeWithinBlock(
+		@Nonnull String protocolName,
+		@Nonnull Metadata context,
+		@Nonnull Runnable runnable,
+		@Nullable Supplier<SpanAttribute[]> attributes
+	) {
 		if (!OpenTelemetryTracerSetup.isTracingEnabled()) {
-			return null;
+			runnable.run();
+			return;
 		}
-		return GrpcTelemetry.create(OpenTelemetryTracerSetup.getOpenTelemetry()).newServerInterceptor();
+		try (Scope ignored = extractContextFromHeaders(protocolName, context).makeCurrent()) {
+			tracingContext.executeWithinBlock(
+				protocolName,
+				runnable,
+				attributes
+			);
+		}
+	}
+
+	@Override
+	public <T> T executeWithinBlock(
+		@Nonnull String protocolName,
+		@Nonnull Metadata context,
+		@Nonnull Supplier<T> lambda,
+		@Nullable Supplier<SpanAttribute[]> attributes
+	) {
+		if (!OpenTelemetryTracerSetup.isTracingEnabled()) {
+			return lambda.get();
+		}
+		try (Scope ignored = extractContextFromHeaders(protocolName, context).makeCurrent()) {
+			return tracingContext.executeWithinBlock(
+				protocolName,
+				lambda,
+				attributes
+			);
+		}
+	}
+
+	@Override
+	public void executeWithinBlock(@Nonnull String protocolName, @Nonnull Metadata context, @Nonnull Runnable runnable) {
+		if (!OpenTelemetryTracerSetup.isTracingEnabled()) {
+			runnable.run();
+			return;
+		}
+		try (Scope ignored = extractContextFromHeaders(protocolName, context).makeCurrent()) {
+			tracingContext.executeWithinBlock(
+				protocolName,
+				runnable
+			);
+		}
+	}
+
+	@Nullable
+	@Override
+	public <T> T executeWithinBlock(@Nonnull String protocolName, @Nonnull Metadata context, @Nonnull Supplier<T> lambda) {
+		if (!OpenTelemetryTracerSetup.isTracingEnabled()) {
+			return lambda.get();
+		}
+		try (Scope ignored = extractContextFromHeaders(protocolName, context).makeCurrent()) {
+			return tracingContext.executeWithinBlock(
+				protocolName,
+				lambda
+			);
+		}
 	}
 
 	/**

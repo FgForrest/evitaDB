@@ -69,6 +69,6 @@ public class ExternalApiTracingContextProvider {
 		if (collectedContexts.size() == 1) {
 			return collectedContexts.stream().findFirst().get();
 		}
-		return new DefaultExternalApiTracingContext();
+		return DefaultExternalApiTracingContext.INSTANCE;
 	}
 }

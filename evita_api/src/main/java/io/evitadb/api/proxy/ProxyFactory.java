@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,9 +25,12 @@ package io.evitadb.api.proxy;
 
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.EntityClassInvalidException;
+import io.evitadb.api.proxy.impl.UnsatisfiedDependencyFactory;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.utils.ClassUtils;
+import io.evitadb.utils.ReflectionLookup;
 
 import javax.annotation.Nonnull;
 import java.util.Map;
@@ -39,6 +42,21 @@ import java.util.Map;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public interface ProxyFactory {
+
+	/**
+	 * Creates proxy factory instance that uses ByteBuddy library to generate proxy classes if present on classpath.
+	 * @param reflectionLookup reflection lookup to use
+	 * @return proxy factory instance
+	 */
+	@Nonnull
+	static ProxyFactory createInstance(@Nonnull ReflectionLookup reflectionLookup) {
+		return ClassUtils.whenPresentOnClasspath(
+			"one.edee.oss.proxycian.bytebuddy.ByteBuddyProxyGenerator",
+			() -> (ProxyFactory) Class.forName("io.evitadb.api.proxy.impl.ProxycianFactory")
+				.getConstructor(ReflectionLookup.class)
+				.newInstance(reflectionLookup)
+		).orElse(UnsatisfiedDependencyFactory.INSTANCE);
+	}
 
 	/**
 	 * Creates proxy instance of sealed entity that implements `expectedType` contract. Entity proxy respects

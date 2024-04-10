@@ -23,7 +23,7 @@
 
 package io.evitadb.externalApi.api.catalog.dataApi.model.mutation.entity;
 
-import io.evitadb.api.requestResponse.data.mutation.entity.RemoveParentMutation;
+import io.evitadb.api.requestResponse.data.mutation.parent.RemoveParentMutation;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 
 /**

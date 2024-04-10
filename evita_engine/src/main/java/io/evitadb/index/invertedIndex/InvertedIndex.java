@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,20 +23,19 @@
 
 package io.evitadb.index.invertedIndex;
 
-import io.evitadb.core.Transaction;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.base.OrFormula;
 import io.evitadb.core.query.algebra.deferred.DeferredFormula;
-import io.evitadb.index.array.CompositeObjectArray;
+import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
+import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
+import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.index.array.TransactionalComplexObjArray;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.invertedIndex.suppliers.HistogramBitmapSupplier;
-import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
-import io.evitadb.index.transactionalMemory.VoidTransactionMemoryProducer;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
@@ -55,21 +54,21 @@ import java.util.function.BiFunction;
  * Histogram index is based on <a href="https://en.wikipedia.org/wiki/Histogram">Histogram data structure</a>. It's
  * organized as a set of "buckets" ordered from minimal to maximal {@link Comparable} value. Each bucket has assigned
  * bitmap (ordered distinct set of primitive integer values) that are assigned to bucket {@link ValueToRecordBitmap#getValue()}.
- * 
+ *
  * Search in histogram is possible via. binary search with O(log n) complexity due its sorted nature. Set of records
  * are easily available as the set assigned to that value. Range look-ups are also available as boolean OR of all bitmaps
  * from / to looked up value threshold.
- * 
+ *
  * Histogram MUST NOT contain same record id in multiple buckets. This prerequisite is not checked internally by this
  * data structure and client code must this ensure by its internal logic! If this prerequisite is not met, histogram
  * may return confusing results.
- * 
+ *
  * Thread safety:
- * 
+ *
  * Histogram supports transaction memory. This means, that the histogram can be updated by multiple writers and also
  * multiple readers can read from it's original array without spotting the changes made in transactional access. Each
  * transaction is bound to the same thread and different threads doesn't see changes in another threads.
- * 
+ *
  * If no transaction is opened, changes are applied directly to the delegate array. In such case the class is not thread
  * safe for multiple writers!
  *
@@ -234,12 +233,12 @@ public class InvertedIndex<T extends Comparable<T>> implements VoidTransactionMe
 	 * Returns entire content of this histogram as "subset" that allows easy access to the record ids inside.
 	 * Records returned by this {@link InvertedIndexSubSet} are sorted by the order of the bucket
 	 * {@link ValueToRecordBitmap#getValue()}.
-	 * 
+	 *
 	 * This histogram:
 	 * A: [1, 4]
 	 * B: [2, 9]
 	 * C: [3]
-	 * 
+	 *
 	 * Will return subset providing record ids bitmap in form of: [3, 2, 9, 1, 4]
 	 */
 	@Nonnull
@@ -262,12 +261,12 @@ public class InvertedIndex<T extends Comparable<T>> implements VoidTransactionMe
 	/**
 	 * Returns entire content of this histogram as "subset" that allows easy access to the record ids inside.
 	 * Records returned by this {@link InvertedIndexSubSet} are sorted by record id value.
-	 * 
+	 *
 	 * This histogram:
 	 * A: [1, 4]
 	 * B: [2, 9]
 	 * C: [3]
-	 * 
+	 *
 	 * Will return subset providing record ids bitmap in form of: [1, 2, 3, 4, 9]
 	 */
 	@Nonnull
@@ -350,8 +349,8 @@ public class InvertedIndex<T extends Comparable<T>> implements VoidTransactionMe
 
 	@Nonnull
 	@Override
-	public InvertedIndex<T> createCopyWithMergedTransactionalMemory(Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Transaction transaction) {
-		return new InvertedIndex<>(transactionalLayer.getStateCopyWithCommittedChanges(this.valueToRecordBitmap, transaction));
+	public InvertedIndex<T> createCopyWithMergedTransactionalMemory(Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
+		return new InvertedIndex<>(transactionalLayer.getStateCopyWithCommittedChanges(this.valueToRecordBitmap));
 	}
 
 	@Override

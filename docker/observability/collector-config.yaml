@@ -15,7 +15,7 @@ receivers:
 
 exporters:
   otlp:
-    endpoint: tempo:4317
+    endpoint: host.docker.internal:4317
     tls:
       insecure: true
   logging:

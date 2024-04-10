@@ -69,7 +69,7 @@ abstract class PriceListAndCurrencyIndexStoragePart implements StoragePart, Reco
 	/**
 	 * Id used for lookups in persistent data storage for this particular container.
 	 */
-	@Getter @Setter private Long uniquePartId;
+	@Getter @Setter private Long storagePartPK;
 
 	protected PriceListAndCurrencyIndexStoragePart(int entityIndexPrimaryKey, @Nonnull PriceIndexKey priceIndexKey, @Nonnull RangeIndex validityIndex) {
 		this.entityIndexPrimaryKey = entityIndexPrimaryKey;
@@ -77,11 +77,11 @@ abstract class PriceListAndCurrencyIndexStoragePart implements StoragePart, Reco
 		this.validityIndex = validityIndex;
 	}
 
-	protected PriceListAndCurrencyIndexStoragePart(int entityIndexPrimaryKey, @Nonnull PriceIndexKey priceIndexKey, @Nonnull RangeIndex validityIndex, @Nonnull Long uniquePartId) {
+	protected PriceListAndCurrencyIndexStoragePart(int entityIndexPrimaryKey, @Nonnull PriceIndexKey priceIndexKey, @Nonnull RangeIndex validityIndex, @Nonnull Long storagePartPK) {
 		this.entityIndexPrimaryKey = entityIndexPrimaryKey;
 		this.priceIndexKey = priceIndexKey;
 		this.validityIndex = validityIndex;
-		this.uniquePartId = uniquePartId;
+		this.storagePartPK = storagePartPK;
 	}
 
 	/**
@@ -95,9 +95,9 @@ abstract class PriceListAndCurrencyIndexStoragePart implements StoragePart, Reco
 	@Override
 	public long computeUniquePartIdAndSet(@Nonnull KeyCompressor keyCompressor) {
 		final long computedUniquePartId = computeUniquePartId(getEntityIndexPrimaryKey(), getPriceIndexKey(), keyCompressor);
-		final Long theUniquePartId = getUniquePartId();
+		final Long theUniquePartId = getStoragePartPK();
 		if (theUniquePartId == null) {
-			setUniquePartId(computedUniquePartId);
+			setStoragePartPK(computedUniquePartId);
 		} else {
 			Assert.isTrue(theUniquePartId == computedUniquePartId, "Unique part ids must never differ!");
 		}

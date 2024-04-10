@@ -472,3 +472,31 @@ enum GrpcEntityExistence {
   // Entity must exist.
   MUST_EXIST = 2;
 }
+
+enum GrpcCommitBehavior {
+
+  // Changes performed in the transaction are passed to evitaDB server, checked for conflicts and if no conflict
+  // is found the transaction is marked as completed and commit is finished. This behaviour is fastest, but does
+  // not guarantee that the changes are persisted on disk and durable. If the server crashes before the changes
+  // are written to disk, the changes are lost.
+  WAIT_FOR_CONFLICT_RESOLUTION = 0;
+
+  // Changes performed in the transaction are passed to evitaDB server, checked for conflicts and if no conflict
+  // is found, they are written to Write Ahead Log (WAL) and transaction waits until the WAL is persisted on disk
+  // (fsynced). After that the transaction is marked as completed and commit is finished. This behaviour is
+  // slower than {@link #NO_WAIT} but guarantees that the changes are persisted on disk and durable. The server
+  // may decide to fsync changes from multiple transactions at once, so the transaction may wait longer than
+  // necessary. This behaviour still does not guarantee that the changes will be visible immediately after
+  // the commit - because they still need to be propagated to indexes in order new data can be found by queries.
+  //
+  // This behaviour is default.
+  WAIT_FOR_LOG_PERSISTENCE = 1;
+
+  // Changes performed in the transaction are passed to evitaDB server, checked for conflicts and if no conflict
+  // is found, they are written to Write Ahead Log (WAL). Then the WAL is processed and all changes are propagated
+  // to indexes. After that the transaction is marked as completed and commit is finished. This behaviour is
+  // slowest but guarantees that the changes are persisted on disk and durable and that they are visible
+  // immediately after the commit is marked as completed.
+  WAIT_FOR_INDEX_PROPAGATION = 2;
+
+}

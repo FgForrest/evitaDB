@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -84,6 +84,10 @@ class EvitaEntitySchemaCache {
 	@Getter @Nonnull
 	private final String catalogName;
 	/**
+	 * Contains the last known catalog version on the server side.
+	 */
+	private final AtomicReference<Long> lastKnownCatalogVersion = new AtomicReference<>(0L);
+	/**
 	 * Contains the references to entity schemas indexed by their {@link EntitySchema#getName()}.
 	 */
 	private final Map<SchemaCacheKey, SchemaWrapper> cachedSchemas = new ConcurrentHashMap<>(64);
@@ -108,6 +112,24 @@ class EvitaEntitySchemaCache {
 				.getConstructor(ReflectionLookup.class)
 				.newInstance(reflectionLookup)
 		).orElse(UnsatisfiedDependencyFactory.INSTANCE);
+	}
+
+	/**
+	 * Updates the last known catalog version with the specified version.
+	 *
+	 * @param version the version to set as the last known catalog version
+	 */
+	public void updateLastKnownCatalogVersion(long version) {
+		this.lastKnownCatalogVersion.set(version);
+	}
+
+	/**
+	 * Returns the last known catalog version.
+	 *
+	 * @return the last known catalog version
+	 */
+	public long getLastKnownCatalogVersion() {
+		return this.lastKnownCatalogVersion.get();
 	}
 
 	/**

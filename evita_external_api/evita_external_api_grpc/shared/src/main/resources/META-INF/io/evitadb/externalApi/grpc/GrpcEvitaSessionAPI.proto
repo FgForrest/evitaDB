@@ -207,10 +207,24 @@ message GrpcEntityCollectionSizeResponse {
   int32 size = 1;
 }
 
+// Response for Close request that commits or rollbacks the changes in the session.
+message GrpcCloseRequest {
+  // Contains the requested commit behaviour
+  GrpcCommitBehavior commitBehaviour = 1;
+}
+
+// Response for Close request that commits or rollbacks the changes in the session.
+message GrpcCloseResponse {
+  // Contains next catalog version
+  int64 catalogVersion = 1;
+}
+
 // Response for GoLiveAndClose request that switches the catalog to ALIVE state and closes the session.
 message GrpcGoLiveAndCloseResponse {
   // True, if the catalog was switched to ALIVE state.
   bool success = 1;
+  // Contains next catalog version
+  int64 catalogVersion = 2;
 }
 
 // Request for acquiring the list of all entity types.
@@ -333,17 +347,11 @@ message GrpcDeleteEntitiesResponse {
 }
 
 // Request for opening a transaction.
-message GrpcOpenTransactionResponse {
-  // True, if the transaction was opened before corresponding request.
-  bool alreadyOpenedBefore = 1;
+message GrpcTransactionResponse {
+  // The current version of the catalog the transaction is bound to.
+  int64 catalogVersion = 1;
   // The id of the opened transaction.
-  int64 transactionId = 2;
-}
-
-// Request for closing a transaction.
-message GrpcCloseTransactionRequest {
-  // If true, tha changes made by the transaction will be omitted and rollbacked.
-  bool rollback = 1;
+  GrpcUuid transactionId = 2;
 }
 
 // Structure that supports storing all possible parameters that could be used within query.
@@ -456,7 +464,7 @@ service EvitaSessionService {
   // Procedure that changes the state of the catalog to ALIVE and closes the session.
   rpc GoLiveAndClose(google.protobuf.Empty) returns (GrpcGoLiveAndCloseResponse);
   // Procedure that closes the session.
-  rpc Close(google.protobuf.Empty) returns (google.protobuf.Empty);
+  rpc Close(GrpcCloseRequest) returns (GrpcCloseResponse);
 
   // Procedure that executes passed parametrised query and returns zero or one entity.
   rpc QueryOne(GrpcQueryRequest) returns (GrpcQueryOneResponse);
@@ -497,7 +505,5 @@ service EvitaSessionService {
   rpc DeleteEntities(GrpcDeleteEntitiesRequest) returns (GrpcDeleteEntitiesResponse);
 
   // Procedure that opens a transaction.
-  rpc OpenTransaction(google.protobuf.Empty) returns (GrpcOpenTransactionResponse);
-  // Procedure that closes a transaction.
-  rpc CloseTransaction(GrpcCloseTransactionRequest) returns (google.protobuf.Empty);
+  rpc GetTransactionId(google.protobuf.Empty) returns (GrpcTransactionResponse);
 }

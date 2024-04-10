@@ -30,7 +30,7 @@ import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.mutation.associatedData.RemoveAssociatedDataMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.RemoveAttributeMutation;
-import io.evitadb.api.requestResponse.data.mutation.entity.RemoveParentMutation;
+import io.evitadb.api.requestResponse.data.mutation.parent.RemoveParentMutation;
 import io.evitadb.api.requestResponse.data.mutation.price.RemovePriceMutation;
 import io.evitadb.api.requestResponse.data.mutation.price.SetPriceInnerRecordHandlingMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceAttributeMutation;
@@ -40,7 +40,6 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
-import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
 
@@ -93,11 +92,6 @@ public class EntityRemoveMutation implements EntityMutation {
 	@Override
 	public Integer getEntityPrimaryKey() {
 		return entityPrimaryKey;
-	}
-
-	@Override
-	public void setEntityPrimaryKey(@Nonnull Integer primaryKey) {
-		throw new EvitaInvalidUsageException("Updating primary key when entity is being removed is not possible!");
 	}
 
 	@Nonnull

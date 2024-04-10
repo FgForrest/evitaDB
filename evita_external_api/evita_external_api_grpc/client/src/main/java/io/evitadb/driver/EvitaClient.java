@@ -28,7 +28,9 @@ import io.evitadb.api.EvitaContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.SessionTraits;
 import io.evitadb.api.SessionTraits.SessionFlags;
+import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.exception.InstanceTerminatedException;
+import io.evitadb.api.exception.TransactionException;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
@@ -36,7 +38,7 @@ import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateCatalogSchem
 import io.evitadb.api.requestResponse.system.SystemStatus;
 import io.evitadb.driver.certificate.ClientCertificateManager;
 import io.evitadb.driver.config.EvitaClientConfiguration;
-import io.evitadb.driver.exception.EvitaClientNotTerminatedInTimeException;
+import io.evitadb.driver.exception.EvitaClientTimedOutException;
 import io.evitadb.driver.exception.IncompatibleClientException;
 import io.evitadb.driver.interceptor.ClientSessionInterceptor;
 import io.evitadb.driver.pooling.ChannelPool;
@@ -48,7 +50,7 @@ import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.InvalidEvitaVersionException;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.*;
-import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc.EvitaServiceBlockingStub;
+import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc.EvitaServiceFutureStub;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingTopLevelCatalogSchemaMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.SchemaMutationConverter;
@@ -79,6 +81,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -169,22 +172,9 @@ public class EvitaClient implements EvitaContract {
 			.defaultLoadBalancingPolicy("round_robin")
 			.intercept(new ClientSessionInterceptor(configuration));
 
-		final ClientTracingContext context = ClientTracingContextProvider.getContext();
-		final String tracingEndpointUrl = configuration.traceEndpointUrl();
-		if (tracingEndpointUrl != null && context instanceof DefaultClientTracingContext) {
-			throw new EvitaInvalidUsageException(
-				"Tracing endpoint URL is set, but tracing context is not configured!"
-			);
-		}
-		if (tracingEndpointUrl == null && !(context instanceof DefaultClientTracingContext)) {
-			throw new EvitaInvalidUsageException(
-				"When tracing context is configured, tracing endpoint URL must be set!"
-			);
-		}
-		if (tracingEndpointUrl != null) {
-			context.setTracingEndpointUrlAndProtocol(tracingEndpointUrl, configuration.traceEndpointProtocol());
-			final ClientInterceptor clientInterceptor = context.getClientInterceptor();
-			nettyChannelBuilder = nettyChannelBuilder.intercept(clientInterceptor);
+		final ClientTracingContext context = getClientTracingContext(configuration);
+		if (configuration.openTelemetryInstance() != null) {
+			context.setOpenTelemetry(configuration.openTelemetryInstance());
 		}
 
 		final NettyChannelBuilder finalNettyChannelBuilder = nettyChannelBuilder;
@@ -195,8 +185,8 @@ public class EvitaClient implements EvitaContract {
 		this.terminationCallback = () -> {
 			try {
 				Assert.isTrue(
-					this.channelPool.awaitTermination(configuration.waitForClose(), configuration.waitForCloseUnit()),
-					() -> new EvitaClientNotTerminatedInTimeException(configuration.waitForClose(), configuration.waitForCloseUnit())
+					this.channelPool.awaitTermination(configuration.timeout(), configuration.timeoutUnit()),
+					() -> new EvitaClientTimedOutException(configuration.timeout(), configuration.timeoutUnit())
 				);
 			} catch (InterruptedException e) {
 				// terminated
@@ -226,7 +216,7 @@ public class EvitaClient implements EvitaContract {
 			final int comparisonResult = SemVer.compare(clientVersion, serverVersion);
 			if (comparisonResult < 0) {
 				log.warn(
-					"Client version {} is lower than server version {}. " +
+					"Client version {} is lower than the server version {}. " +
 						"It may not represent a compatibility issue, but it is recommended to update " +
 						"the client to the latest version.",
 					clientVersion,
@@ -257,6 +247,18 @@ public class EvitaClient implements EvitaContract {
 		}
 	}
 
+	@Nonnull
+	private static ClientTracingContext getClientTracingContext(@Nonnull EvitaClientConfiguration configuration) {
+		final ClientTracingContext context = ClientTracingContextProvider.getContext();
+		final Object openTelemetryInstance = configuration.openTelemetryInstance();
+		if (openTelemetryInstance != null && context instanceof DefaultClientTracingContext) {
+			throw new EvitaInvalidUsageException(
+				"OpenTelemetry instance is set, but tracing context is not configured!"
+			);
+		}
+		return context;
+	}
+
 	/**
 	 * Retrieves the version number of the evitaDB client.
 	 *
@@ -269,23 +271,7 @@ public class EvitaClient implements EvitaContract {
 
 	@Nonnull
 	@Override
-	public EvitaSessionContract createReadOnlySession(@Nonnull String catalogName) {
-		return createSession(
-			new SessionTraits(catalogName)
-		);
-	}
-
-	@Nonnull
-	@Override
-	public EvitaSessionContract createReadWriteSession(@Nonnull String catalogName) {
-		return createSession(
-			new SessionTraits(catalogName, SessionFlags.READ_WRITE)
-		);
-	}
-
-	@Nonnull
-	@Override
-	public EvitaSessionContract createSession(@Nonnull SessionTraits traits) {
+	public EvitaClientSession createSession(@Nonnull SessionTraits traits) {
 		assertActive();
 		final GrpcEvitaSessionResponse grpcResponse;
 
@@ -295,18 +281,20 @@ public class EvitaClient implements EvitaContract {
 					evitaService.createBinaryReadWriteSession(
 						GrpcEvitaSessionRequest.newBuilder()
 							.setCatalogName(traits.catalogName())
+							.setCommitBehavior(EvitaEnumConverter.toGrpcCommitBehavior(traits.commitBehaviour()))
 							.setDryRun(traits.isDryRun())
 							.build()
-					)
+					).get(configuration.timeout(), configuration.timeoutUnit())
 				);
 			} else {
 				grpcResponse = executeWithEvitaService(evitaService ->
 					evitaService.createReadWriteSession(
 						GrpcEvitaSessionRequest.newBuilder()
 							.setCatalogName(traits.catalogName())
+							.setCommitBehavior(EvitaEnumConverter.toGrpcCommitBehavior(traits.commitBehaviour()))
 							.setDryRun(traits.isDryRun())
 							.build()
-					)
+					).get(configuration.timeout(), configuration.timeoutUnit())
 				);
 			}
 		} else {
@@ -317,7 +305,7 @@ public class EvitaClient implements EvitaContract {
 							.setCatalogName(traits.catalogName())
 							.setDryRun(traits.isDryRun())
 							.build()
-					)
+					).get(configuration.timeout(), configuration.timeoutUnit())
 				);
 			} else {
 				grpcResponse = executeWithEvitaService(evitaService ->
@@ -326,7 +314,7 @@ public class EvitaClient implements EvitaContract {
 							.setCatalogName(traits.catalogName())
 							.setDryRun(traits.isDryRun())
 							.build()
-					)
+					).get(configuration.timeout(), configuration.timeoutUnit())
 				);
 			}
 		}
@@ -340,6 +328,7 @@ public class EvitaClient implements EvitaContract {
 			traits.catalogName(),
 			EvitaEnumConverter.toCatalogState(grpcResponse.getCatalogState()),
 			UUIDUtil.uuid(grpcResponse.getSessionId()),
+			EvitaEnumConverter.toCommitBehavior(grpcResponse.getCommitBehaviour()),
 			traits,
 			evitaSession -> {
 				this.activeSessions.remove(evitaSession.getId());
@@ -375,7 +364,10 @@ public class EvitaClient implements EvitaContract {
 	@Override
 	public Set<String> getCatalogNames() {
 		assertActive();
-		final GrpcCatalogNamesResponse grpcResponse = executeWithEvitaService(evitaService -> evitaService.getCatalogNames(Empty.newBuilder().build()));
+		final GrpcCatalogNamesResponse grpcResponse = executeWithEvitaService(
+			evitaService -> evitaService.getCatalogNames(Empty.newBuilder().build())
+				.get(configuration.timeout(), configuration.timeoutUnit())
+		);
 		return new LinkedHashSet<>(
 			grpcResponse.getCatalogNamesList()
 		);
@@ -403,7 +395,10 @@ public class EvitaClient implements EvitaContract {
 			.setCatalogName(catalogName)
 			.setNewCatalogName(newCatalogName)
 			.build();
-		final GrpcRenameCatalogResponse grpcResponse = executeWithEvitaService(evitaService -> evitaService.renameCatalog(request));
+		final GrpcRenameCatalogResponse grpcResponse = executeWithEvitaService(
+			evitaService -> evitaService.renameCatalog(request)
+				.get(configuration.timeout(), configuration.timeoutUnit())
+		);
 		final boolean success = grpcResponse.getSuccess();
 		if (success) {
 			this.entitySchemaCache.remove(catalogName);
@@ -418,7 +413,10 @@ public class EvitaClient implements EvitaContract {
 			.setCatalogNameToBeReplacedWith(catalogNameToBeReplacedWith)
 			.setCatalogNameToBeReplaced(catalogNameToBeReplaced)
 			.build();
-		final GrpcReplaceCatalogResponse grpcResponse = executeWithEvitaService(evitaService -> evitaService.replaceCatalog(request));
+		final GrpcReplaceCatalogResponse grpcResponse = executeWithEvitaService(
+			evitaService -> evitaService.replaceCatalog(request)
+				.get(configuration.timeout(), configuration.timeoutUnit())
+		);
 		final boolean success = grpcResponse.getSuccess();
 		if (success) {
 			this.entitySchemaCache.remove(catalogNameToBeReplaced);
@@ -433,7 +431,10 @@ public class EvitaClient implements EvitaContract {
 		final GrpcDeleteCatalogIfExistsRequest request = GrpcDeleteCatalogIfExistsRequest.newBuilder()
 			.setCatalogName(catalogName)
 			.build();
-		final GrpcDeleteCatalogIfExistsResponse grpcResponse = executeWithEvitaService(evitaService -> evitaService.deleteCatalogIfExists(request));
+		final GrpcDeleteCatalogIfExistsResponse grpcResponse = executeWithEvitaService(
+			evitaService -> evitaService.deleteCatalogIfExists(request)
+				.get(configuration.timeout(), configuration.timeoutUnit())
+		);
 		final boolean success = grpcResponse.getSuccess();
 		if (success) {
 			this.entitySchemaCache.remove(catalogName);
@@ -452,7 +453,10 @@ public class EvitaClient implements EvitaContract {
 		final GrpcUpdateEvitaRequest request = GrpcUpdateEvitaRequest.newBuilder()
 			.addAllSchemaMutations(grpcSchemaMutations)
 			.build();
-		executeWithEvitaService(evitaService -> evitaService.update(request));
+		executeWithEvitaService(
+			evitaService -> evitaService.update(request)
+				.get(configuration.timeout(), configuration.timeoutUnit())
+		);
 	}
 
 	@Override
@@ -473,32 +477,100 @@ public class EvitaClient implements EvitaContract {
 	}
 
 	@Override
-	public <T> T
-	updateCatalog(@Nonnull String catalogName, @Nonnull Function<EvitaSessionContract, T> updater, @Nullable SessionFlags...
-		flags) {
+	public <T> T updateCatalog(
+		@Nonnull String catalogName,
+		@Nonnull Function<EvitaSessionContract, T> updater,
+		@Nonnull CommitBehavior commitBehaviour,
+		@Nullable SessionFlags... flags
+	) {
 		assertActive();
 		final SessionTraits traits = new SessionTraits(
 			catalogName,
+			commitBehaviour,
 			flags == null ?
 				new SessionFlags[]{SessionFlags.READ_WRITE} :
 				ArrayUtils.insertRecordIntoArray(SessionFlags.READ_WRITE, flags, flags.length)
 		);
 		try (final EvitaSessionContract session = this.createSession(traits)) {
-			return session.execute(updater);
+			return updater.apply(session);
 		}
 	}
 
 	@Override
-	public void updateCatalog(@Nonnull String
-		                          catalogName, @Nonnull Consumer<EvitaSessionContract> updater, @Nullable SessionFlags... flags) {
-		updateCatalog(
+	public <T> CompletableFuture<T> updateCatalogAsync(
+		@Nonnull String catalogName,
+		@Nonnull Function<EvitaSessionContract, T> updater,
+		@Nonnull CommitBehavior commitBehaviour,
+		@Nullable SessionFlags... flags
+	) {
+		assertActive();
+		final SessionTraits traits = new SessionTraits(
 			catalogName,
-			session -> {
-				updater.accept(session);
-				return null;
-			},
-			flags
+			commitBehaviour,
+			flags == null ?
+				new SessionFlags[]{SessionFlags.READ_WRITE} :
+				ArrayUtils.insertRecordIntoArray(SessionFlags.READ_WRITE, flags, flags.length)
 		);
+		final EvitaSessionContract session = this.createSession(traits);
+		final CompletableFuture<Long> closeFuture;
+		final T resultValue;
+		try {
+			resultValue = updater.apply(session);
+		} finally {
+			closeFuture = session.closeNow(commitBehaviour);
+		}
+
+		// join the transaction future and return
+		final CompletableFuture<T> result = new CompletableFuture<>();
+		closeFuture.whenComplete((txId, ex) -> {
+			if (ex != null) {
+				result.completeExceptionally(ex);
+			} else {
+				result.complete(resultValue);
+			}
+		});
+		return result;
+	}
+
+	@Override
+	public void updateCatalog(@Nonnull String catalogName, @Nonnull Consumer<EvitaSessionContract> updater, @Nonnull CommitBehavior commitBehaviour, @Nullable SessionFlags... flags) {
+		assertActive();
+		final SessionTraits traits = new SessionTraits(
+			catalogName,
+			commitBehaviour,
+			flags == null ?
+				new SessionFlags[]{SessionFlags.READ_WRITE} :
+				ArrayUtils.insertRecordIntoArray(SessionFlags.READ_WRITE, flags, flags.length)
+		);
+		try (final EvitaSessionContract session = this.createSession(traits)) {
+			updater.accept(session);
+		}
+	}
+
+	@Override
+	public CompletableFuture<Long> updateCatalogAsync(
+		@Nonnull String catalogName,
+		@Nonnull Consumer<EvitaSessionContract> updater,
+		@Nonnull CommitBehavior commitBehaviour,
+		@Nullable SessionFlags... flags
+	) throws TransactionException {
+		assertActive();
+		final SessionTraits traits = new SessionTraits(
+			catalogName,
+			commitBehaviour,
+			flags == null ?
+				new SessionFlags[]{SessionFlags.READ_WRITE} :
+				ArrayUtils.insertRecordIntoArray(SessionFlags.READ_WRITE, flags, flags.length)
+		);
+		final EvitaSessionContract session = this.createSession(traits);
+		final CompletableFuture<Long> closeFuture;
+		try {
+			updater.accept(session);
+		} finally {
+			closeFuture = session.closeNow(commitBehaviour);
+		}
+
+		return closeFuture;
 	}
 
 	@Nonnull
@@ -508,7 +580,8 @@ public class EvitaClient implements EvitaContract {
 
 		return executeWithEvitaService(
 			evitaService -> {
-				final GrpcEvitaServerStatusResponse response = evitaService.serverStatus(Empty.newBuilder().build());
+				final GrpcEvitaServerStatusResponse response = evitaService.serverStatus(Empty.newBuilder().build())
+					.get(configuration.timeout(), configuration.timeoutUnit());
 				return new SystemStatus(
 					response.getVersion(),
 					EvitaDataTypesConverter.toOffsetDateTime(response.getStartedAt()),
@@ -548,10 +621,10 @@ public class EvitaClient implements EvitaContract {
 	 * @param <T>                      return type of the function
 	 * @return result of the applied function
 	 */
-	private <T> T executeWithEvitaService(@Nonnull Function<EvitaServiceBlockingStub, T> evitaServiceBlockingStub) {
+	private <T> T executeWithEvitaService(@Nonnull AsyncCallFunction<EvitaServiceFutureStub, T> evitaServiceBlockingStub) {
 		final ManagedChannel managedChannel = this.channelPool.getChannel();
 		try {
-			return evitaServiceBlockingStub.apply(EvitaServiceGrpc.newBlockingStub(managedChannel));
+			return evitaServiceBlockingStub.apply(EvitaServiceGrpc.newFutureStub(managedChannel));
 		} catch (StatusRuntimeException statusRuntimeException) {
 			final Code statusCode = statusRuntimeException.getStatus().getCode();
 			final String description = ofNullable(statusRuntimeException.getStatus().getDescription())

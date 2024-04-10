@@ -27,7 +27,6 @@ import org.slf4j.MDC;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.Map;
 import java.util.function.Supplier;
 
 /**
@@ -45,35 +44,100 @@ public interface TracingContext {
 	 * Name of property representing the trace identifier in the {@link MDC}.
 	 */
 	String MDC_TRACE_ID_PROPERTY = "traceId";
-	/**
-	 * Sets the passed task name and attributes to the trace. Within its creation, the lambda with passed logic will be
-	 * traced and properly executed.
-	 */
-	default void executeWithinBlock(@Nonnull String taskName, @Nullable Map<String, Object> attributes, @Nonnull Runnable runnable) {
-		runnable.run();
-	}
 
 	/**
-	 * Sets the passed task name and attributes to the trace. Within its creation, the lambda with passed logic will be
+	 * Sets the passed task name and attributes to the trace BEFORE the lambda is executed. Within the method,
+	 * the lambda with passed logic will be traced and properly executed.
+	 */
+	void executeWithinBlock(@Nonnull String taskName, @Nonnull Runnable runnable, @Nullable SpanAttribute... attributes);
+
+	/**
+	 * Sets the passed task name and attributes to the trace BEFORE the lambda is executed. Within the method,
+	 * the lambda with passed logic will be traced and properly executed.
+	 */
+	<T> T executeWithinBlock(@Nonnull String taskName, @Nonnull Supplier<T> lambda, @Nullable SpanAttribute... attributes);
+
+	/**
+	 * Sets the passed task name and attributes to the trace AFTER the lambda is executed. Within the method,
+	 * the lambda with passed logic will be traced and properly executed. After the method successfully finishes,
+	 * the attributes will be set to the trace. The attributes may take advantage of the data computed in the lambda
+	 * itself.
+	 */
+	void executeWithinBlock(@Nonnull String taskName, @Nonnull Runnable runnable, @Nullable Supplier<SpanAttribute[]> attributes);
+
+	/**
+	 * Sets the passed task name and attributes to the trace AFTER the lambda is executed. Within the method,
+	 * the lambda with passed logic will be traced and properly executed. After the method successfully finishes,
+	 * the attributes will be set to the trace. The attributes may take advantage of the data computed in the lambda
+	 * itself.
+	 */
+	<T> T executeWithinBlock(@Nonnull String taskName, @Nonnull Supplier<T> lambda, @Nullable Supplier<SpanAttribute[]> attributes);
+
+	/**
+	 * Sets the passed task name to the trace. Within the method, the lambda with passed logic will be
 	 * traced and properly executed.
 	 */
-	default <T> T executeWithinBlock(@Nonnull String taskName, @Nullable Map<String, Object> attributes, @Nonnull Supplier<T> lambda) {
+	void executeWithinBlock(@Nonnull String taskName, @Nonnull Runnable runnable);
+
+	/**
+	 * Sets the passed task name to the trace. Within the method, the lambda with passed logic will be
+	 * traced and properly executed.
+	 */
+	default <T> T executeWithinBlock(@Nonnull String taskName, @Nonnull Supplier<T> lambda) {
 		return lambda.get();
 	}
 
 	/**
-	 * Sets the passed task name to the trace. Within its creation, the lambda with passed logic will be
+	 * Sets the passed task name and attributes to the trace BEFORE the lambda is executed. Within the method,
+	 * the lambda with passed logic will be traced and properly executed.
+	 */
+	void executeWithinBlockIfParentContextAvailable(@Nonnull String taskName, @Nonnull Runnable runnable, @Nullable SpanAttribute... attributes);
+
+	/**
+	 * Sets the passed task name and attributes to the trace BEFORE the lambda is executed. Within the method,
+	 * the lambda with passed logic will be traced and properly executed.
+	 */
+	<T> T executeWithinBlockIfParentContextAvailable(@Nonnull String taskName, @Nonnull Supplier<T> lambda, @Nullable SpanAttribute... attributes);
+
+	/**
+	 * Sets the passed task name and attributes to the trace AFTER the lambda is executed. Within the method,
+	 * the lambda with passed logic will be traced and properly executed. After the method successfully finishes,
+	 * the attributes will be set to the trace. The attributes may take advantage of the data computed in the lambda
+	 * itself.
+	 */
+	void executeWithinBlockIfParentContextAvailable(@Nonnull String taskName, @Nonnull Runnable runnable, @Nullable Supplier<SpanAttribute[]> attributes);
+
+	/**
+	 * Sets the passed task name and attributes to the trace AFTER the lambda is executed. Within the method,
+	 * the lambda with passed logic will be traced and properly executed. After the method successfully finishes,
+	 * the attributes will be set to the trace. The attributes may take advantage of the data computed in the lambda
+	 * itself.
+	 */
+	<T> T executeWithinBlockIfParentContextAvailable(@Nonnull String taskName, @Nonnull Supplier<T> lambda, @Nullable Supplier<SpanAttribute[]> attributes);
+
+	/**
+	 * Sets the passed task name to the trace. Within the method, the lambda with passed logic will be
 	 * traced and properly executed.
 	 */
-	default void executeWithinBlock(@Nonnull String taskName, @Nonnull Runnable runnable) {
-		executeWithinBlock(taskName, null, runnable);
+	void executeWithinBlockIfParentContextAvailable(@Nonnull String taskName, @Nonnull Runnable runnable);
+
+	/**
+	 * Sets the passed task name to the trace. Within the method, the lambda with passed logic will be
+	 * traced and properly executed.
+	 */
+	default <T> T executeWithinBlockIfParentContextAvailable(@Nonnull String taskName, @Nonnull Supplier<T> lambda) {
+		return lambda.get();
 	}
 
 	/**
-	 * Sets the passed task name to the trace. Within its creation, the lambda with passed logic will be
-	 * traced and properly executed.
+	 * Represents a key-value pair of an attribute in a span.
+	 *
+	 * @param key   the key of the attribute
+	 * @param value the value of the attribute (only primitive types and Strings are allowed)
 	 */
-	default <T> T executeWithinBlock(@Nonnull String taskName, @Nonnull Supplier<T> lambda) {
-		return executeWithinBlock(taskName, null, lambda);
-	}
+	record SpanAttribute(
+		@Nonnull String key,
+		@Nonnull Object value
+	) {}
+
 }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,6 +28,8 @@ import io.evitadb.store.entity.model.entity.price.PriceInternalIdContainer;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Locale;
+import java.util.Set;
 
 /**
  * This interface is an extension to {@link EntityStoragePartAccessor} that allows accepting and maintaining
@@ -60,5 +62,19 @@ public interface WritableEntityStorageContainerAccessor extends EntityStoragePar
 		@Nonnull PriceKey priceKey,
 		@Nullable Integer innerRecordId
 	);
+
+	/**
+	 * Returns set of added locales that enriched the existing list of entity locales.
+	 * @return set of added locales or empty set if no locales were added
+	 */
+	@Nonnull
+	Set<Locale> getAddedLocales();
+
+	/**
+	 * Returns set of removed locales that were removed from the existing list of entity locales.
+	 * @return set of removed locales or empty set if no locales were removed
+	 */
+	@Nonnull
+	Set<Locale> getRemovedLocales();
 
 }

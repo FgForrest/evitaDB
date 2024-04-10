@@ -48,8 +48,6 @@ import java.util.Optional;
  * Mutation implements {@link CombinableEntitySchemaMutation} allowing to resolve conflicts with the same mutation
  * if the mutation is placed twice in the mutation pipeline.
  *
- * TOBEDONE JNO - write tests
- *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @ThreadSafe
@@ -72,7 +70,7 @@ public class ModifyAssociatedDataSchemaNameMutation
 	@Override
 	public MutationCombinationResult<EntitySchemaMutation> combineWith(@Nonnull CatalogSchemaContract currentCatalogSchema, @Nonnull EntitySchemaContract currentEntitySchema, @Nonnull EntitySchemaMutation existingMutation) {
 		if (existingMutation instanceof ModifyAssociatedDataSchemaNameMutation theExistingMutation && name.equals(theExistingMutation.getName())) {
-			return new MutationCombinationResult<>(null, existingMutation);
+			return new MutationCombinationResult<>(null, this);
 		} else {
 			return null;
 		}

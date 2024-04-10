@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -55,11 +55,11 @@ public class CachedRecord extends CacheRecordAdept {
 	private final AtomicInteger cooling = new AtomicInteger();
 	/**
 	 * Contains hash of all transactional ids computed by
-	 * {@link TransactionalDataRelatedStructure#computeTransactionalIdHash(LongHashFunction)}. This is hash of all
+	 * {@link TransactionalDataRelatedStructure#getTransactionalIdHash()}. This is hash of all
 	 * ids of transactional data structures that this cached values relates to. The hash must exactly match the hash
 	 * of the input computational object if the cached result can be used.
 	 *
-	 * TOBEDONE JNO - this is unnecessary for extra result computers and formulas, but necessary for entities. This should
+	 * TOBEDONE JNO #37 - this is unnecessary for extra result computers and formulas, but necessary for entities. This should
 	 * be moved to payload of those entities and validated somehow there, also we need to add integration tests for
 	 * the cache!!!
 	 **/

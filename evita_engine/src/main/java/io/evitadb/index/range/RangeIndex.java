@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,7 +23,6 @@
 
 package io.evitadb.index.range;
 
-import io.evitadb.core.Transaction;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.AndFormula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
@@ -32,19 +31,18 @@ import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.base.JoinFormula;
 import io.evitadb.core.query.algebra.base.OrFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
+import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
+import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.index.array.TransactionalComplexObjArray;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
-import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
-import io.evitadb.index.transactionalMemory.VoidTransactionMemoryProducer;
 import io.evitadb.utils.Assert;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Arrays;
@@ -432,8 +430,8 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 
 	@Nonnull
 	@Override
-	public RangeIndex createCopyWithMergedTransactionalMemory(Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Transaction transaction) {
-		return new RangeIndex(transactionalLayer.getStateCopyWithCommittedChanges(this.ranges, transaction));
+	public RangeIndex createCopyWithMergedTransactionalMemory(Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
+		return new RangeIndex(transactionalLayer.getStateCopyWithCommittedChanges(this.ranges));
 	}
 
 	@Override

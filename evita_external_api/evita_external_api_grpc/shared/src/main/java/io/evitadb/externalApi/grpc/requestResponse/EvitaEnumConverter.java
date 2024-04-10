@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.grpc.requestResponse;
 
 import io.evitadb.api.CatalogState;
+import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.query.filter.AttributeSpecialValue;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.EmptyHierarchicalEntityBehaviour;
@@ -729,4 +730,36 @@ public class EvitaEnumConverter {
 		};
 	}
 
+	/**
+	 * Converts the given CommitBehavior to GrpcCommitBehaviour.
+	 *
+	 * @param commitBehavior the CommitBehavior to convert
+	 * @return the corresponding GrpcCommitBehaviour
+	 */
+	@Nonnull
+	public static GrpcCommitBehavior toGrpcCommitBehavior(@Nonnull CommitBehavior commitBehavior) {
+		return switch (commitBehavior) {
+			case WAIT_FOR_CONFLICT_RESOLUTION -> GrpcCommitBehavior.WAIT_FOR_CONFLICT_RESOLUTION;
+			case WAIT_FOR_WAL_PERSISTENCE -> GrpcCommitBehavior.WAIT_FOR_LOG_PERSISTENCE;
+			case WAIT_FOR_INDEX_PROPAGATION -> GrpcCommitBehavior.WAIT_FOR_INDEX_PROPAGATION;
+		};
+	}
+
+	/**
+	 * Converts a GrpcCommitBehaviour to a CommitBehavior.
+	 *
+	 * @param commitBehaviour The GrpcCommitBehavior to convert.
+	 * @return The converted CommitBehavior.
+	 * @throws EvitaInternalError if the given commitBehaviour is unrecognized.
+	 */
+	@Nonnull
+	public static CommitBehavior toCommitBehavior(@Nonnull GrpcCommitBehavior commitBehaviour) {
+		return switch (commitBehaviour) {
+			case WAIT_FOR_CONFLICT_RESOLUTION -> CommitBehavior.WAIT_FOR_CONFLICT_RESOLUTION;
+			case WAIT_FOR_LOG_PERSISTENCE -> CommitBehavior.WAIT_FOR_WAL_PERSISTENCE;
+			case WAIT_FOR_INDEX_PROPAGATION -> CommitBehavior.WAIT_FOR_INDEX_PROPAGATION;
+			default ->
+				throw new EvitaInternalError("Unrecognized remote commit behavior: " + commitBehaviour);
+		};
+	}
 }

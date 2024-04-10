@@ -56,8 +56,6 @@ import java.util.stream.Collectors;
  * Mutation implements {@link CombinableEntitySchemaMutation} allowing to resolve conflicts with
  * {@link CreateSortableAttributeCompoundSchemaMutation} mutation (if such is found in mutation pipeline).
  *
- * TOBEDONE JNO - write tests
- *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 @ThreadSafe

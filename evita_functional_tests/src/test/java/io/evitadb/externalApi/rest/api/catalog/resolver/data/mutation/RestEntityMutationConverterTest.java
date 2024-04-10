@@ -34,8 +34,8 @@ import io.evitadb.api.requestResponse.data.mutation.associatedData.UpsertAssocia
 import io.evitadb.api.requestResponse.data.mutation.attribute.ApplyDeltaAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.RemoveAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
-import io.evitadb.api.requestResponse.data.mutation.entity.RemoveParentMutation;
-import io.evitadb.api.requestResponse.data.mutation.entity.SetParentMutation;
+import io.evitadb.api.requestResponse.data.mutation.parent.RemoveParentMutation;
+import io.evitadb.api.requestResponse.data.mutation.parent.SetParentMutation;
 import io.evitadb.api.requestResponse.data.mutation.price.RemovePriceMutation;
 import io.evitadb.api.requestResponse.data.mutation.price.SetPriceInnerRecordHandlingMutation;
 import io.evitadb.api.requestResponse.data.mutation.price.UpsertPriceMutation;

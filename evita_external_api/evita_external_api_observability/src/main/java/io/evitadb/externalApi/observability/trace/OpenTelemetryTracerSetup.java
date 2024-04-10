@@ -26,6 +26,7 @@ package io.evitadb.externalApi.observability.trace;
 import io.evitadb.externalApi.observability.configuration.ObservabilityConfig;
 import io.evitadb.externalApi.observability.configuration.TracingConfig;
 import io.evitadb.externalApi.utils.ExternalApiTracingContext;
+import io.evitadb.utils.StringUtils;
 import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.baggage.propagation.W3CBaggagePropagator;
 import io.opentelemetry.api.trace.Tracer;
@@ -166,6 +167,13 @@ public class OpenTelemetryTracerSetup {
 	 * @return true if tracing is enabled, false otherwise
 	 */
 	private static boolean isTracingEnabled(@Nullable TracingConfig tracingConfig) {
-		return tracingConfig != null && tracingConfig.getEndpoint() != null;
+		if (tracingConfig == null) {
+			return false;
+		}
+		final String endpoint = tracingConfig.getEndpoint();
+		if (endpoint == null) {
+			return false;
+		}
+		return !endpoint.trim().isEmpty();
 	}
 }
