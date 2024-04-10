@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -111,7 +111,7 @@ class PriceSuperIndexTest implements TimeBoundedTestSupport {
 	}
 
 	@Test
-	void shouldAddFirstOccurrencePrice() {
+	void shouldAddLowestPricePrice() {
 		priceIndex.addPrice(1, 1, new PriceKey(10, PRICE_LIST, CURRENCY_CZK), PriceInnerRecordHandling.LOWEST_PRICE, 20, null, 1000, 1210);
 		priceIndex.addPrice(1, 2, new PriceKey(11, PRICE_LIST, CURRENCY_CZK), PriceInnerRecordHandling.LOWEST_PRICE, 21, null, 999, 2000);
 		final PriceListAndCurrencyPriceSuperIndex priceAndCurrencyIndex = priceIndex.getPriceIndex(PRICE_LIST, CURRENCY_CZK, PriceInnerRecordHandling.LOWEST_PRICE);
@@ -184,7 +184,7 @@ class PriceSuperIndexTest implements TimeBoundedTestSupport {
 
 	@Test
 	void shouldRemoveFirstOccurrencePrice() {
-		shouldAddFirstOccurrencePrice();
+		shouldAddLowestPricePrice();
 
 		priceIndex.priceRemove(1, 1, new PriceKey(10, PRICE_LIST, CURRENCY_CZK), PriceInnerRecordHandling.LOWEST_PRICE, 1, null, 1000, 1210);
 
