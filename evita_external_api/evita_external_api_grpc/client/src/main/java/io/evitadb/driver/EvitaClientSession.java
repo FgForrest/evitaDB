@@ -339,7 +339,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 		);
 		final boolean success = grpcResponse.getSuccess();
 		if (success) {
-			closeInternally();
+			closeInternally().complete(grpcResponse.getCatalogVersion());
 		}
 		return success;
 	}

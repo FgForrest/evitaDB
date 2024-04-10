@@ -944,7 +944,7 @@ still want to fetch them to display in the UI for the user.
 
 <LS to="r">
 
-For entities that have either `FIRST_OCCURENCE` or `SUM` inner record handling, the `multiplePricesForSaleAvailable` 
+For entities that have either `LOWEST_PRICE` or `SUM` inner record handling, the `multiplePricesForSaleAvailable` 
 property is returned, indicating whether there are multiple _unique_ prices for sale (grouped by the `innerRecordId`). 
 It is important to note that it doesn't simply return the count of all prices for sale.
 Instead, it uses the [`priceType`](../requirements/price.md#price-type) constraint to determine the uniqueness of each
@@ -1158,7 +1158,7 @@ As you can see, the price for sale matching the custom arguments is returned.
 
 Similarly, you can use `allPricesForSale`, which is almost the same as `priceForSale`, but returns all prices for sale
 of the entity grouped by the `innerRecordId`. This usually only makes sense for master products with variants 
-(i.e. `FIRST_OCCURENCE` inner record handling) where the master product has prices for all of its variants, where you may 
+(i.e. `LOWEST_PRICE` inner record handling) where the master product has prices for all of its variants, where you may 
 want to know (and display) prices for sale for each variant (or some kind of range). For the `NONE` inner record handling,
 this will always return at most the actual single price for sale. For the `SUM` inner record handling, this will return prices for sale
 for each `innerRecordId` in the same way as for the `FIRST_OCCURNCE`, but the use cases are limited.

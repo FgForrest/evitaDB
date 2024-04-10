@@ -41,10 +41,10 @@ public enum PriceInnerRecordHandling {
 	 */
 	NONE,
 	/**
-	 * Prices with same inner entity id will be sorted descending by priority value and first one
-	 * (i.e. the one with the biggest priority) will be used (others won't be considered at all)
+	 * Prices with same inner entity id will be sorted by price and the one with the lowest price will be used as
+	 * the final price.
 	 */
-	FIRST_OCCURRENCE,
+	LOWEST_PRICE,
 	/**
 	 * Prices with same inner entity id will be added up to a new computed aggregated price, prices must share same
 	 * tax rate percentage, currency and price list id in order to be added up

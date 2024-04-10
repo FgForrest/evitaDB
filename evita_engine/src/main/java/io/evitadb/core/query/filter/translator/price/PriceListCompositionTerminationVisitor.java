@@ -177,7 +177,7 @@ class PriceListCompositionTerminationVisitor implements FormulaVisitor {
 				case NONE -> priceFilter == null ?
 					new PlainPriceTerminationFormula(containerFormula, priceEvaluationContext) :
 					new PlainPriceTerminationFormulaWithPriceFilter(containerFormula, priceEvaluationContext, priceFilter);
-				case FIRST_OCCURRENCE -> new FirstVariantPriceTerminationFormula(
+				case LOWEST_PRICE -> new FirstVariantPriceTerminationFormula(
 					containerFormula, priceEvaluationContext, queryPriceMode,
 					ofNullable(priceFilter).orElse(PricePredicate.ALL_RECORD_FILTER)
 				);
