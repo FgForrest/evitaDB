@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -120,7 +120,7 @@ class InitialPricesBuilderTest extends AbstractBuilderTest {
 	@Test
 	void shouldCorrectlyComputeAllPricesForSaleForFirstOccurrenceStrategy() {
 		final PricesContract prices = builder
-			.setPriceInnerRecordHandling(PriceInnerRecordHandling.FIRST_OCCURRENCE)
+			.setPriceInnerRecordHandling(PriceInnerRecordHandling.LOWEST_PRICE)
 			.setPrice(1, "basic", CZK, 1, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)
 			.setPrice(2, "vip", CZK, 1, BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.TEN, true)
 			.setPrice(3, "basic", CZK, 2, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)

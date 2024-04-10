@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -39,7 +39,7 @@ public final class GrpcEnums {
   }
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcEvitaAssociatedDataDataType_descriptor;
-  static final 
+  static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcEvitaAssociatedDataDataType_fieldAccessorTable;
 
@@ -149,8 +149,11 @@ public final class GrpcEnums {
       "ATION\020\021\022\014\n\010FETCHING\020\022\022\027\n\023FETCHING_REFERE" +
       "NCES\020\023\022\024\n\020FETCHING_PARENTS\020\024*H\n\023GrpcEnti" +
       "tyExistence\022\r\n\tMAY_EXIST\020\000\022\022\n\016MUST_NOT_E" +
-      "XIST\020\001\022\016\n\nMUST_EXIST\020\002B\014P\001\252\002\007EvitaDBb\006pr" +
-      "oto3"
+      "XIST\020\001\022\016\n\nMUST_EXIST\020\002*t\n\022GrpcCommitBeha" +
+      "vior\022 \n\034WAIT_FOR_CONFLICT_RESOLUTION\020\000\022\034" +
+      "\n\030WAIT_FOR_LOG_PERSISTENCE\020\001\022\036\n\032WAIT_FOR" +
+      "_INDEX_PROPAGATION\020\002B\014P\001\252\002\007EvitaDBb\006prot" +
+      "o3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,
