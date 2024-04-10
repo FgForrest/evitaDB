@@ -52,7 +52,7 @@ import java.util.Optional;
  * @param maxQueueSize                          Size of the catalog queue for parallel transaction. If there are more
  *                                              transaction than the number of free threads in the pool, the transaction
  *                                              are queued. If the queue is full, the transaction is rejected.
- * @param flushFrequencyInMillis                The frequency of flushing the transactional data to the disk when they
+ * @param flushFrequencyInMillis                        The frequency of flushing the transactional data to the disk when they
  *                                              are sequentially processed. If database process the (small) transaction
  *                                              very quickly, it may decide to process next transaction before flushing
  *                                              changes to the disk. If the client waits for {@link CommitBehavior#WAIT_FOR_INDEX_PROPAGATION}

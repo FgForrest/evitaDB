@@ -356,7 +356,7 @@ public class EntityJsonSerializer {
 
 		final boolean hasMultiplePricesForSale;
 		final PriceInnerRecordHandling priceInnerRecordHandling = entity.getPriceInnerRecordHandling();
-		if (priceInnerRecordHandling.equals(PriceInnerRecordHandling.LOWEST_PRICE)) {
+		if (priceInnerRecordHandling.equals(PriceInnerRecordHandling.FIRST_OCCURRENCE)) {
 			if (allPricesForSale.size() <= 1) {
 				return false;
 			}
