@@ -96,7 +96,7 @@ import static java.util.Optional.ofNullable;
  */
 @SuppressWarnings("ALL")
 public class DataGenerator {
-	private final Serializable GENERIC = Long.MAX_VALUE;
+	static final Serializable GENERIC = Long.MAX_VALUE;
 	public static final Locale CZECH_LOCALE = new Locale("cs", "CZ");
 	public static final String ATTRIBUTE_NAME = "name";
 	public static final String ATTRIBUTE_CODE = "code";
@@ -1454,7 +1454,7 @@ public class DataGenerator {
 			final EntitySchemaContract schema = existingEntity.getSchema();
 			final Set<Locale> allLocales = schema.getLocales();
 			final Map<Object, Integer> globalUniqueSequencer = this.uniqueSequencer.computeIfAbsent(
-				null,
+				DataGenerator.GENERIC,
 				serializable -> new ConcurrentHashMap<>()
 			);
 			final Map<Object, Integer> uniqueSequencer = this.uniqueSequencer.computeIfAbsent(

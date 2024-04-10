@@ -825,7 +825,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 	public void terminate() {
 		try {
 			final List<EntityCollectionHeader> entityHeaders;
-			boolean changeOccurred = lastPersistedSchemaVersion != schema.get().version();
+			boolean changeOccurred = this.lastPersistedSchemaVersion != schema.get().version();
 			final boolean warmingUpState = getCatalogState() == CatalogState.WARMING_UP;
 			entityHeaders = new ArrayList<>(this.entityCollections.size());
 			for (EntityCollection entityCollection : entityCollections.values()) {
@@ -929,7 +929,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		/* the version is incremented via. {@link #setVersion} method */
 		final long newCatalogVersionId = transactionalLayer.getStateCopyWithCommittedChanges(this.versionId).orElseThrow();
 		final CatalogSchemaDecorator newSchema = transactionalLayer.getStateCopyWithCommittedChanges(this.schema).orElseThrow();
-		final DataStoreChanges<CatalogIndexKey, CatalogIndex> transactionalChanges = transactionalLayer.getTransactionalMemoryLayer(this);
+		final DataStoreChanges<CatalogIndexKey, CatalogIndex> transactionalChanges = transactionalLayer.getTransactionalMemoryLayerIfExists(this);
 
 		final MapChanges<String, EntityCollection> collectionChanges = transactionalLayer.getTransactionalMemoryLayerIfExists(this.entityCollections);
 		Map<String, EntityCollectionPersistenceService> updatedServiceCollections = null;
@@ -945,7 +945,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 				final String newEntityType = updatedKey.getKey();
 				if (removedEntityType != null) {
 					final EntityCollectionPersistenceService newPersistenceService = this.persistenceService.replaceCollectionWith(
-						newCatalogVersionId - 1, removedEntityType,
+						newCatalogVersionId, removedEntityType,
 						updatedCollection.getEntityTypePrimaryKey(),
 						newEntityType
 					);
@@ -1087,7 +1087,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 	 */
 	public void flush(long catalogVersion, @Nonnull TransactionMutation lastProcessedTransaction) {
 		Assert.isPremiseValid(getCatalogState() == CatalogState.ALIVE, "Catalog is not in ALIVE state!");
-		boolean changeOccurred = schema.get().version() != lastPersistedSchemaVersion;
+		boolean changeOccurred = this.schema.get().version() != this.lastPersistedSchemaVersion;
 		final List<EntityCollectionHeader> entityHeaders = new ArrayList<>(this.entityCollections.size());
 		for (EntityCollection entityCollection : this.entityCollections.values()) {
 			final long lastSeenVersion = entityCollection.getVersion();
@@ -1168,9 +1168,9 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 	}
 
 	@Override
-	public void catalogVersionBeyondTheHorizon(long catalogVersion, boolean activeSessionsToOlderVersions) {
+	public void catalogVersionBeyondTheHorizon(@Nullable Long minimalActiveCatalogVersion) {
 		if (this.persistenceService instanceof CatalogVersionBeyondTheHorizonListener cvbthl) {
-			cvbthl.catalogVersionBeyondTheHorizon(catalogVersion, activeSessionsToOlderVersions);
+			cvbthl.catalogVersionBeyondTheHorizon(minimalActiveCatalogVersion);
 		}
 	}
 
@@ -1182,14 +1182,14 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 	 */
 	void flush() {
 		// if we're going live start with TRUE (force flush), otherwise start with false
-		boolean changeOccurred = goingLive.get() || schema.get().version() != lastPersistedSchemaVersion;
+		boolean changeOccurred = this.goingLive.get() || this.schema.get().version() != this.lastPersistedSchemaVersion;
 		Assert.isPremiseValid(
 			getCatalogState() == CatalogState.WARMING_UP,
 			"Cannot flush catalog in transactional mode. Any changes could occur only in transaction!"
 		);
 
 		final List<EntityCollectionHeader> entityHeaders = new ArrayList<>(this.entityCollections.size());
-		for (EntityCollection entityCollection : entityCollections.values()) {
+		for (EntityCollection entityCollection : this.entityCollections.values()) {
 			final long lastSeenVersion = entityCollection.getVersion();
 			entityHeaders.add(entityCollection.flush());
 			changeOccurred = changeOccurred || entityCollection.getVersion() != lastSeenVersion;

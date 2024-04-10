@@ -88,6 +88,19 @@ public class OffsetIndexSerializationService {
 	public static final int MEM_TABLE_RECORD_SIZE = 8 + 1 + 8 + 4;
 
 	/**
+	 * Estimates the size of the offset index file record based on the number of records.
+	 * @param recordCount The number of records.
+	 * @return The estimated size of the offset index file record.
+	 */
+	public static long countFileOffsetTableSize(
+		int recordCount,
+		@Nonnull StorageOptions storageOptions
+	) {
+		final long estimatedSize = (long) recordCount * (MEM_TABLE_RECORD_SIZE);
+		return estimatedSize + (long) StorageRecord.getOverheadSize() * (PREVIOUS_MEM_TABLE_FRAGMENT_POINTER_SIZE + computeExpectedRecordCount(storageOptions, recordCount).getFragments());
+	}
+
+	/**
 	 * Verifies the integrity of the offset index file by calculating CRC32 checksum on each record content (if enabled)
 	 * and performing control byte checks.
 	 *

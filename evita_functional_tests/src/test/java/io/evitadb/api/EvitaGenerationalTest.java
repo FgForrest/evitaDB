@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -282,12 +282,17 @@ class EvitaGenerationalTest implements EvitaTestSupport, TimeBoundedTestSupport 
 						} while (removedEntities.containsKey(primaryKey));
 
 						if (random.nextInt(10) == 0 && removedEntities.size() < maximumAmountOfRemovedEntities) {
+							int productId = primaryKey;
 							removedEntities.put(
-								primaryKey, session.getEntity(
+								primaryKey,
+								session.getEntity(
 									Entities.PRODUCT,
 									primaryKey,
 									entityFetchAllContent()
-								).orElseThrow()
+								)
+									.orElseThrow(
+										() -> new IllegalStateException("Product with primary key " + productId + " was not found.")
+									)
 							);
 							operation = "removal of " + primaryKey;
 							session.deleteEntity(Entities.PRODUCT, primaryKey);
@@ -297,6 +302,13 @@ class EvitaGenerationalTest implements EvitaTestSupport, TimeBoundedTestSupport 
 							operation = "restoring of " + entityToRestore.getPrimaryKey();
 							session.upsertEntity(
 								new CopyExistingEntityBuilder(entityToRestore)
+							);
+							assertNotNull(
+								session.getEntity(
+									Entities.PRODUCT,
+									entityToRestore.getPrimaryKey(),
+									entityFetchAllContent()
+								)
 							);
 						} else {
 							operation = "modification of " + primaryKey;
@@ -353,7 +365,7 @@ class EvitaGenerationalTest implements EvitaTestSupport, TimeBoundedTestSupport 
 	 */
 	@Nonnull
 	private static <T> T pickRandom(@Nonnull Random random, @Nonnull Collection<T> theSet) {
-		Assert.isTrue(theSet.size() >= 1, "There are no values to choose from!");
+		Assert.isTrue(!theSet.isEmpty(), "There are no values to choose from!");
 		final int index = theSet.size() == 1 ? 0 : random.nextInt(theSet.size() - 1) + 1;
 		final Iterator<T> it = theSet.iterator();
 		for (int i = 0; i < index; i++) {

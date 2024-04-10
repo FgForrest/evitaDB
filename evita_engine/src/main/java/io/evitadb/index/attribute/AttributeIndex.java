@@ -28,6 +28,7 @@ import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
+import io.evitadb.core.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalContainerChanges;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
@@ -61,7 +62,6 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static io.evitadb.core.Transaction.getTransactionalMemoryLayer;
 import static io.evitadb.core.Transaction.isTransactionAvailable;
 import static io.evitadb.utils.Assert.isTrue;
 import static io.evitadb.utils.Assert.notNull;
@@ -71,13 +71,13 @@ import static java.util.Optional.ofNullable;
 /**
  * Attribute index maintains search look-up indexes for {@link Entity#getAttributeValues()} - i.e. unique, filter
  * and sort index. {@link AttributeIndex} handles all attribute indexes for the {@link Entity#getType()}.
- * 
+ *
  * Thread safety:
- * 
+ *
  * Histogram supports transaction memory. This means, that the histogram can be updated by multiple writers and also
  * multiple readers can read from its original array without spotting the changes made in transactional access. Each
  * transaction is bound to the same thread and different threads doesn't see changes in another threads.
- * 
+ *
  * If no transaction is opened, changes are applied directly to the delegate array. In such case the class is not thread
  * safe for multiple writers!
  *
@@ -222,7 +222,7 @@ public class AttributeIndex implements AttributeIndexContract,
 					lookupKey,
 					attributeSchema.getType()
 				);
-				ofNullable(getTransactionalMemoryLayer(this))
+				ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
 					.ifPresent(it -> it.addCreatedItem(newUniqueIndex));
 				return newUniqueIndex;
 			}
@@ -245,7 +245,7 @@ public class AttributeIndex implements AttributeIndexContract,
 
 		if (theUniqueIndex.isEmpty()) {
 			this.uniqueIndex.remove(lookupKey);
-			ofNullable(getTransactionalMemoryLayer(this))
+			ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
 				.ifPresent(it -> it.addRemovedItem(theUniqueIndex));
 		}
 	}
@@ -262,7 +262,7 @@ public class AttributeIndex implements AttributeIndexContract,
 			createAttributeKey(attributeSchema, allowedLocales, locale, value),
 			lookupKey -> {
 				final FilterIndex newFilterIndex = new FilterIndex(lookupKey, attributeSchema.getPlainType());
-				ofNullable(getTransactionalMemoryLayer(this))
+				ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
 					.ifPresent(it -> it.addCreatedItem(newFilterIndex));
 				return newFilterIndex;
 			}
@@ -285,7 +285,7 @@ public class AttributeIndex implements AttributeIndexContract,
 
 		if (theFilterIndex.isEmpty()) {
 			this.filterIndex.remove(lookupKey);
-			ofNullable(getTransactionalMemoryLayer(this))
+			ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
 				.ifPresent(it -> it.addRemovedItem(theFilterIndex));
 		}
 	}
@@ -302,7 +302,7 @@ public class AttributeIndex implements AttributeIndexContract,
 			createAttributeKey(attributeSchema, allowedLocales, locale, value),
 			lookupKey -> {
 				final FilterIndex newFilterIndex = new FilterIndex(lookupKey, attributeSchema.getPlainType());
-				ofNullable(getTransactionalMemoryLayer(this))
+				ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
 					.ifPresent(it -> it.addCreatedItem(newFilterIndex));
 				return newFilterIndex;
 			}
@@ -325,7 +325,7 @@ public class AttributeIndex implements AttributeIndexContract,
 
 		if (theFilterIndex.isEmpty()) {
 			this.filterIndex.remove(lookupKey);
-			ofNullable(getTransactionalMemoryLayer(this))
+			ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
 				.ifPresent(it -> it.addRemovedItem(theFilterIndex));
 		}
 	}
@@ -344,7 +344,7 @@ public class AttributeIndex implements AttributeIndexContract,
 				attributeKey,
 				lookupKey -> {
 					final ChainIndex newSortIndex = new ChainIndex(lookupKey);
-					ofNullable(getTransactionalMemoryLayer(this))
+					ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
 						.ifPresent(it -> it.addCreatedItem(newSortIndex));
 					return newSortIndex;
 				}
@@ -355,7 +355,7 @@ public class AttributeIndex implements AttributeIndexContract,
 				attributeKey,
 				lookupKey -> {
 					final SortIndex newSortIndex = new SortIndex(attributeSchema.getPlainType(), lookupKey);
-					ofNullable(getTransactionalMemoryLayer(this))
+					ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
 						.ifPresent(it -> it.addCreatedItem(newSortIndex));
 					return newSortIndex;
 				}
@@ -367,7 +367,7 @@ public class AttributeIndex implements AttributeIndexContract,
 	@Override
 	public void removeSortAttribute(@Nonnull AttributeSchemaContract attributeSchema, @Nonnull Set<Locale> allowedLocales, @Nullable Locale locale, @Nonnull Object value, int recordId) {
 		final AttributeKey lookupKey = createAttributeKey(attributeSchema, allowedLocales, locale, value);
-		
+
 		if (Predecessor.class.equals(attributeSchema.getType())) {
 			final ChainIndex theChainIndex = this.chainIndex.get(lookupKey);
 			notNull(theChainIndex, "Chain index for attribute `" + attributeSchema.getName() + "` not found!");
@@ -375,7 +375,7 @@ public class AttributeIndex implements AttributeIndexContract,
 
 			if (theChainIndex.isEmpty()) {
 				this.chainIndex.remove(lookupKey);
-				ofNullable(getTransactionalMemoryLayer(this))
+				ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
 					.ifPresent(it -> it.addRemovedItem(theChainIndex));
 			}
 		} else {
@@ -385,7 +385,7 @@ public class AttributeIndex implements AttributeIndexContract,
 
 			if (theSortIndex.isEmpty()) {
 				this.sortIndex.remove(lookupKey);
-				ofNullable(getTransactionalMemoryLayer(this))
+				ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
 					.ifPresent(it -> it.addRemovedItem(theSortIndex));
 			}
 		}
@@ -416,7 +416,7 @@ public class AttributeIndex implements AttributeIndexContract,
 						.toArray(ComparatorSource[]::new),
 					lookupKey
 				);
-				ofNullable(getTransactionalMemoryLayer(this))
+				ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
 					.ifPresent(it -> it.addCreatedItem(newSortIndex));
 				return newSortIndex;
 			}
@@ -441,7 +441,7 @@ public class AttributeIndex implements AttributeIndexContract,
 
 		if (theSortIndex.isEmpty()) {
 			this.sortIndex.remove(lookupKey);
-			ofNullable(getTransactionalMemoryLayer(this))
+			ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
 				.ifPresent(it -> it.addRemovedItem(theSortIndex));
 		}
 	}

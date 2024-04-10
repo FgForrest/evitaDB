@@ -31,6 +31,7 @@ import io.evitadb.comparator.LocalizedStringComparator;
 import io.evitadb.comparator.NullsFirstComparatorWrapper;
 import io.evitadb.comparator.NullsLastComparatorWrapper;
 import io.evitadb.core.Catalog;
+import io.evitadb.core.Transaction;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
@@ -65,7 +66,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.UnaryOperator;
 
-import static io.evitadb.core.Transaction.getTransactionalMemoryLayer;
 import static io.evitadb.utils.Assert.isTrue;
 import static java.util.Optional.ofNullable;
 
@@ -632,7 +632,7 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 	 */
 	@Nonnull
 	private SortIndexChanges getOrCreateSortIndexChanges() {
-		final SortIndexChanges layer = getTransactionalMemoryLayer(this);
+		final SortIndexChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
 			return ofNullable(this.sortIndexChanges).orElseGet(() -> {
 				this.sortIndexChanges = new SortIndexChanges(this);

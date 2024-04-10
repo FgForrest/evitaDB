@@ -650,7 +650,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 					entityTypeHeader,
 					this.createTypeKryoInstance(),
 					// we don't know here yet - this will be recomputed on first flush
-					1.0
+					1.0, 0L
 				),
 				storageOptions,
 				offsetIndexRecordTypeRegistry,
@@ -668,10 +668,8 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	}
 
 	@Override
-	public void catalogVersionBeyondTheHorizon(long catalogVersion, boolean activeSessionsToOlderVersions) {
-		if (!activeSessionsToOlderVersions) {
-			this.storagePartPersistenceService.purgeHistoryEqualAndLaterThan(catalogVersion);
-		}
+	public void catalogVersionBeyondTheHorizon(@Nullable Long minimalActiveCatalogVersion) {
+		this.storagePartPersistenceService.purgeHistoryEqualAndLaterThan(minimalActiveCatalogVersion);
 	}
 
 	@Override

@@ -149,7 +149,7 @@ public interface PriceIndexMutator {
 				undoActionConsumer.accept(
 					() -> entityIndex.priceRemove(
 						entityPrimaryKey,
-						internalPriceId,
+						priceId.getInternalPriceId(),
 						priceKey, innerRecordHandling, innerRecordId,
 						validity,
 						priceWithoutTaxAsInt,

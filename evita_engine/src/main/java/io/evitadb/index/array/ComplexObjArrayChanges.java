@@ -37,7 +37,7 @@ import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
 import java.util.function.Predicate;
 
-import static io.evitadb.core.Transaction.getTransactionalMemoryLayer;
+import static io.evitadb.core.Transaction.getTransactionalLayerMaintainer;
 import static io.evitadb.core.Transaction.suppressTransactionalMemoryLayerFor;
 import static io.evitadb.core.Transaction.suppressTransactionalMemoryLayerForWithResult;
 import static java.util.Optional.ofNullable;
@@ -146,7 +146,7 @@ class ComplexObjArrayChanges<T extends TransactionalObject<T, ?> & Comparable<T>
 			boolean reduced = false;
 			if (this.removals.length > removalsPeek && this.removals[removalsPeek] == i) {
 				// get record that is removed on that position
-				final T removedValue = getRemovalOnPositionWithoutDiscardingState(getTransactionalMemoryLayer(), i);
+				final T removedValue = getRemovalOnPositionWithoutDiscardingState(getTransactionalLayerMaintainer(), i);
 				// if reducer is present
 				if (reducer != null) {
 					// and the removed value doesn't happen on position of item in original array

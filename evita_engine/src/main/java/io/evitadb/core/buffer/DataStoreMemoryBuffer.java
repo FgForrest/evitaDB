@@ -24,6 +24,7 @@
 package io.evitadb.core.buffer;
 
 import io.evitadb.core.EntityCollection;
+import io.evitadb.core.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerCreator;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.Index;
@@ -40,7 +41,6 @@ import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
-import static io.evitadb.core.Transaction.getTransactionalMemoryLayer;
 import static io.evitadb.core.Transaction.getTransactionalMemoryLayerIfExists;
 
 /**
@@ -84,7 +84,7 @@ public class DataStoreMemoryBuffer<IK extends IndexKey, I extends Index<IK>, DSC
 	 * created for the first time and the transaction were not yet enabled on it.
 	 */
 	public I getOrCreateIndexForModification(@Nonnull IK entityIndexKey, @Nonnull Function<IK, I> accessorWhenMissing) {
-		final DataStoreChanges<IK, I> layer = getTransactionalMemoryLayer(transactionalMemoryDataSource);
+		final DataStoreChanges<IK, I> layer = Transaction.getOrCreateTransactionalMemoryLayer(transactionalMemoryDataSource);
 		if (layer == null) {
 			return dataStoreIndexChanges.getOrCreateIndexForModification(entityIndexKey, accessorWhenMissing);
 		} else {
@@ -219,7 +219,7 @@ public class DataStoreMemoryBuffer<IK extends IndexKey, I extends Index<IK>, DSC
 	 * doesn't really remove it.
 	 */
 	public <T extends StoragePart> boolean removeByPrimaryKey(long catalogVersion, long primaryKey, @Nonnull Class<T> entityClass) {
-		final DataStoreChanges<IK, I> layer = getTransactionalMemoryLayer(transactionalMemoryDataSource);
+		final DataStoreChanges<IK, I> layer = Transaction.getOrCreateTransactionalMemoryLayer(transactionalMemoryDataSource);
 		if (layer == null) {
 			return this.persistenceService.removeStoragePart(catalogVersion, primaryKey, entityClass);
 		} else {
@@ -233,7 +233,7 @@ public class DataStoreMemoryBuffer<IK extends IndexKey, I extends Index<IK>, DSC
 	 * when transaction is committed.
 	 */
 	public <T extends StoragePart> void update(long catalogVersion, @Nonnull T value) {
-		final DataStoreChanges<IK, I> layer = getTransactionalMemoryLayer(transactionalMemoryDataSource);
+		final DataStoreChanges<IK, I> layer = Transaction.getOrCreateTransactionalMemoryLayer(transactionalMemoryDataSource);
 		if (layer == null) {
 			this.persistenceService.putStoragePart(catalogVersion, value);
 		} else {
@@ -245,7 +245,7 @@ public class DataStoreMemoryBuffer<IK extends IndexKey, I extends Index<IK>, DSC
 	 * Method returns current buffer with trapped changes.
 	 */
 	public DataStoreIndexChanges<IK, I> getTrappedIndexChanges() {
-		final DataStoreChanges<IK, I> layer = getTransactionalMemoryLayer(transactionalMemoryDataSource);
+		final DataStoreChanges<IK, I> layer = Transaction.getTransactionalMemoryLayerIfExists(transactionalMemoryDataSource);
 		// return current transactional layer that contains trapped updates
 		// or fallback to shared memory buffer with trapped updates
 		return Objects.requireNonNullElse(layer, this.dataStoreIndexChanges);

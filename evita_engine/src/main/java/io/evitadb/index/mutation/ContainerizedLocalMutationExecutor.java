@@ -284,8 +284,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 		Integer internalPriceId = assignedInternalPriceIdIndex == null ? null : assignedInternalPriceIdIndex.get(priceKey);
 		if (internalPriceId == null) {
 			final PricesStoragePart priceStorageContainer = getPriceStoragePart(entityType, entityPrimaryKey);
-			final PriceInternalIdContainer existingInternalIds = priceStorageContainer.findExistingInternalIds(priceKey);
-			return new MinimalPriceInternalIdContainer(existingInternalIds.getInternalPriceId());
+			return priceStorageContainer.findExistingInternalIds(priceKey);
 		} else {
 			return new MinimalPriceInternalIdContainer(internalPriceId);
 		}

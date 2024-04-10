@@ -23,6 +23,7 @@
 
 package io.evitadb.index.set;
 
+import io.evitadb.core.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerCreator;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
@@ -44,7 +45,6 @@ import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Set;
 
-import static io.evitadb.core.Transaction.getTransactionalMemoryLayer;
 import static io.evitadb.core.Transaction.getTransactionalMemoryLayerIfExists;
 
 /**
@@ -192,7 +192,7 @@ public class TransactionalSet<K> implements Set<K>,
 
 	@Override
 	public boolean add(K key) {
-		final SetChanges<K> layer = getTransactionalMemoryLayer(this);
+		final SetChanges<K> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
 			return this.setDelegate.add(key);
 		} else {
@@ -202,7 +202,7 @@ public class TransactionalSet<K> implements Set<K>,
 
 	@Override
 	public boolean remove(Object key) {
-		final SetChanges<K> layer = getTransactionalMemoryLayer(this);
+		final SetChanges<K> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
 			return this.setDelegate.remove(key);
 		} else {
@@ -222,7 +222,7 @@ public class TransactionalSet<K> implements Set<K>,
 
 	@Override
 	public boolean addAll(@Nonnull Collection<? extends K> c) {
-		final SetChanges<K> layer = getTransactionalMemoryLayer(this);
+		final SetChanges<K> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
 			return this.setDelegate.addAll(c);
 		} else {
@@ -236,7 +236,7 @@ public class TransactionalSet<K> implements Set<K>,
 
 	@Override
 	public boolean retainAll(@Nonnull Collection<?> c) {
-		final SetChanges<K> layer = getTransactionalMemoryLayer(this);
+		final SetChanges<K> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
 			return this.setDelegate.retainAll(c);
 		} else {
@@ -255,7 +255,7 @@ public class TransactionalSet<K> implements Set<K>,
 
 	@Override
 	public boolean removeAll(@Nonnull Collection<?> c) {
-		final SetChanges<K> layer = getTransactionalMemoryLayer(this);
+		final SetChanges<K> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
 			return this.setDelegate.removeAll(c);
 		} else {
@@ -274,7 +274,7 @@ public class TransactionalSet<K> implements Set<K>,
 
 	@Override
 	public void clear() {
-		final SetChanges<K> layer = getTransactionalMemoryLayer(this);
+		final SetChanges<K> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
 			this.setDelegate.clear();
 		} else {
@@ -317,7 +317,7 @@ public class TransactionalSet<K> implements Set<K>,
 		@SuppressWarnings("unchecked") final TransactionalSet<K> clone = (TransactionalSet<K>) super.clone();
 		final SetChanges<K> layer = getTransactionalMemoryLayerIfExists(this);
 		if (layer != null) {
-			final SetChanges<K> clonedLayer = getTransactionalMemoryLayer(clone);
+			final SetChanges<K> clonedLayer = Transaction.getOrCreateTransactionalMemoryLayer(clone);
 			if (clonedLayer != null) {
 				clonedLayer.copyState(layer);
 			}

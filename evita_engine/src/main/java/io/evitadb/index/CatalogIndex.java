@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.core.Catalog;
+import io.evitadb.core.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalContainerChanges;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
@@ -57,7 +58,6 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.function.Function;
 
-import static io.evitadb.core.Transaction.getTransactionalMemoryLayer;
 import static io.evitadb.core.Transaction.isTransactionAvailable;
 import static io.evitadb.index.attribute.AttributeIndex.verifyLocalizedAttribute;
 import static io.evitadb.utils.Assert.notNull;
@@ -154,7 +154,7 @@ public class CatalogIndex implements Index<CatalogIndexKey>, TransactionalLayerP
 			createAttributeKey(attributeSchema, allowedLocales, locale, value),
 			lookupKey -> {
 				final GlobalUniqueIndex newUniqueIndex = new GlobalUniqueIndex(lookupKey, attributeSchema.getType(), catalog);
-				ofNullable(getTransactionalMemoryLayer(this))
+				ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
 					.ifPresent(it -> it.addCreatedItem(newUniqueIndex));
 				this.dirty.setToTrue();
 				return newUniqueIndex;
@@ -183,7 +183,7 @@ public class CatalogIndex implements Index<CatalogIndexKey>, TransactionalLayerP
 
 		if (theUniqueIndex.isEmpty()) {
 			this.uniqueIndex.remove(lookupKey);
-			ofNullable(getTransactionalMemoryLayer(this))
+			ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
 				.ifPresent(it -> it.addRemovedItem(theUniqueIndex));
 			this.dirty.setToTrue();
 		}

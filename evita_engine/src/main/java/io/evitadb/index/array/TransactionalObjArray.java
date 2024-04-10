@@ -23,6 +23,7 @@
 
 package io.evitadb.index.array;
 
+import io.evitadb.core.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
@@ -39,7 +40,6 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Iterator;
 
-import static io.evitadb.core.Transaction.getTransactionalMemoryLayer;
 import static io.evitadb.core.Transaction.getTransactionalMemoryLayerIfExists;
 import static io.evitadb.core.Transaction.isTransactionAvailable;
 
@@ -98,7 +98,7 @@ public class TransactionalObjArray<T extends Comparable<T>> implements Transacti
 	 * Method adds new record to the array.
 	 */
 	public void add(@Nonnull T recordId) {
-		final ObjArrayChanges<T> layer = getTransactionalMemoryLayer(this);
+		final ObjArrayChanges<T> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
 			this.delegate = ArrayUtils.insertRecordIntoOrderedArray(recordId, this.delegate, comparator);
 		} else {
@@ -119,7 +119,7 @@ public class TransactionalObjArray<T extends Comparable<T>> implements Transacti
 	 * Method removes record id from the array.
 	 */
 	public void remove(@Nonnull T recordId) {
-		final ObjArrayChanges<T> layer = getTransactionalMemoryLayer(this);
+		final ObjArrayChanges<T> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
 			this.delegate = ArrayUtils.removeRecordFromOrderedArray(recordId, this.delegate, comparator);
 		} else {

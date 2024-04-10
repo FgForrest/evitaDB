@@ -23,6 +23,7 @@
 
 package io.evitadb.index.array;
 
+import io.evitadb.core.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
@@ -40,7 +41,6 @@ import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
 import java.util.function.Predicate;
 
-import static io.evitadb.core.Transaction.getTransactionalMemoryLayer;
 import static io.evitadb.core.Transaction.getTransactionalMemoryLayerIfExists;
 import static io.evitadb.core.Transaction.isTransactionAvailable;
 import static java.util.Optional.ofNullable;
@@ -123,7 +123,7 @@ public class TransactionalComplexObjArray<T extends TransactionalObject<T, ?> & 
 			return;
 		}
 
-		final ComplexObjArrayChanges<T> layer = getTransactionalMemoryLayer(this);
+		final ComplexObjArrayChanges<T> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		final InsertionPosition position = ArrayUtils.computeInsertPositionOfObjInOrderedArray(recordId, this.delegate);
 		if (layer == null) {
 			if (position.alreadyPresent()) {
@@ -149,7 +149,7 @@ public class TransactionalComplexObjArray<T extends TransactionalObject<T, ?> & 
 			return -1;
 		}
 
-		final ComplexObjArrayChanges<T> layer = getTransactionalMemoryLayer(this);
+		final ComplexObjArrayChanges<T> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		final InsertionPosition position = ArrayUtils.computeInsertPositionOfObjInOrderedArray(recordId, this.delegate);
 		if (layer == null) {
 			if (position.alreadyPresent()) {
@@ -185,7 +185,7 @@ public class TransactionalComplexObjArray<T extends TransactionalObject<T, ?> & 
 			return -1;
 		}
 
-		final ComplexObjArrayChanges<T> layer = getTransactionalMemoryLayer(this);
+		final ComplexObjArrayChanges<T> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		final InsertionPosition position = ArrayUtils.computeInsertPositionOfObjInOrderedArray(recordId, this.delegate);
 		if (layer == null) {
 			if (position.alreadyPresent()) {

@@ -25,6 +25,7 @@ package io.evitadb.index.attribute;
 
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.core.Catalog;
+import io.evitadb.core.Transaction;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
@@ -55,7 +56,6 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static io.evitadb.core.Transaction.getTransactionalMemoryLayer;
 import static io.evitadb.utils.Assert.isPremiseValid;
 import static io.evitadb.utils.Assert.isTrue;
 import static java.util.Optional.ofNullable;
@@ -322,7 +322,7 @@ public class ChainIndex implements SortedRecordsSupplierFactory, TransactionalLa
 	 */
 	@Nonnull
 	private ChainIndexChanges getOrCreateChainIndexChanges() {
-		final ChainIndexChanges layer = getTransactionalMemoryLayer(this);
+		final ChainIndexChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
 			return ofNullable(this.chainIndexChanges).orElseGet(() -> {
 				this.chainIndexChanges = new ChainIndexChanges(this);

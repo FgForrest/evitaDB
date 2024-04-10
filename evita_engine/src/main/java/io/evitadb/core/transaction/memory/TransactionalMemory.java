@@ -66,11 +66,11 @@ import java.util.function.Function;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2017
  */
 public class TransactionalMemory {
-	private final TransactionalLayerMaintainer transactionalLayer;
+	private final TransactionalLayerMaintainer transactionalLayerMaintainer;
 	private final Deque<ObjectIdentityHashSet<TransactionalLayerCreator<?>>> suppressedCreatorStack = new ArrayDeque<>(64);
 
 	public TransactionalMemory(@Nonnull TransactionalLayerMaintainerFinalizer finalizer) {
-		this.transactionalLayer = new TransactionalLayerMaintainer(finalizer);
+		this.transactionalLayerMaintainer = new TransactionalLayerMaintainer(finalizer);
 	}
 
 	/**
@@ -82,7 +82,7 @@ public class TransactionalMemory {
 	 */
 	@Nonnull
 	public TransactionalLayerMaintainerFinalizer getFinalizer() {
-		return transactionalLayer.getFinalizer();
+		return transactionalLayerMaintainer.getFinalizer();
 	}
 
 	/**
@@ -92,7 +92,7 @@ public class TransactionalMemory {
 	public void commit() {
 		// execute commit - all transactional object can still access their transactional memories during
 		// entire commit phase
-		transactionalLayer.commit();
+		transactionalLayerMaintainer.commit();
 	}
 
 	/**
@@ -100,24 +100,24 @@ public class TransactionalMemory {
 	 */
 	public void rollback(@Nullable Throwable cause) {
 		// execute rollback - some transactional objects may want to react and clean-up resources
-		transactionalLayer.rollback(cause);
+		transactionalLayerMaintainer.rollback(cause);
 	}
 
 	/**
 	 * Returns transactional layer for states, that is isolated for this thread.
 	 */
 	@Nullable
-	public TransactionalLayerMaintainer getTransactionalMemoryLayer() {
-		return this.transactionalLayer;
+	public TransactionalLayerMaintainer getTransactionalLayerMaintainer() {
+		return this.transactionalLayerMaintainer;
 	}
 
 	/**
 	 * Returns transactional states for passed layer creator object, that is isolated for this thread.
 	 */
-	public <T> T getTransactionalMemoryLayer(TransactionalLayerCreator<T> layerCreator) {
+	public <T> T getOrCreateTransactionalMemoryLayer(TransactionalLayerCreator<T> layerCreator) {
 		final Deque<ObjectIdentityHashSet<TransactionalLayerCreator<?>>> suppressedObjects = this.suppressedCreatorStack;
 		if (suppressedObjects.isEmpty() || !suppressedObjects.peek().contains(layerCreator)) {
-			return transactionalLayer.getTransactionalMemoryLayer(layerCreator);
+			return this.transactionalLayerMaintainer.getOrCreateTransactionalMemoryLayer(layerCreator);
 		} else {
 			return null;
 		}
@@ -129,7 +129,7 @@ public class TransactionalMemory {
 	public <T> T getTransactionalMemoryLayerIfExists(TransactionalLayerCreator<T> layerCreator) {
 		final Deque<ObjectIdentityHashSet<TransactionalLayerCreator<?>>> suppressedObjects = this.suppressedCreatorStack;
 		if (suppressedObjects.isEmpty() || !suppressedObjects.peek().contains(layerCreator)) {
-			return transactionalLayer.getTransactionalMemoryLayerIfExists(layerCreator);
+			return this.transactionalLayerMaintainer.getTransactionalMemoryLayerIfExists(layerCreator);
 		} else {
 			return null;
 		}
@@ -140,7 +140,7 @@ public class TransactionalMemory {
 	 */
 	@Nonnull
 	public TransactionalLayerMaintainerFinalizer getTransactionalLayerMaintainerFinalizer() {
-		return transactionalLayer.getFinalizer();
+		return transactionalLayerMaintainer.getFinalizer();
 	}
 
 	/**
@@ -185,7 +185,14 @@ public class TransactionalMemory {
 	 */
 	@Nullable
 	public <T> T removeTransactionalMemoryLayerIfExists(@Nonnull TransactionalLayerCreator<T> layerCreator) {
-		return this.transactionalLayer.removeTransactionalMemoryLayerIfExists(layerCreator);
+		return this.transactionalLayerMaintainer.removeTransactionalMemoryLayerIfExists(layerCreator);
 	}
 
+	/**
+	 * This method allows to continue with memory of already committed or rolled back transaction. It's used when
+	 * the system replays more than single transaction in a row.
+	 */
+	public void extendTransaction() {
+		this.transactionalLayerMaintainer.extendTransaction();
+	}
 }

@@ -46,6 +46,7 @@ import java.lang.reflect.Parameter;
 import java.lang.reflect.Proxy;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.OptionalLong;
 import java.util.UUID;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
@@ -161,8 +162,7 @@ final class SessionRegistry {
 			if (finalizationResult.lastReader()) {
 				// notify listeners that the catalog version is no longer used
 				this.catalog.catalogVersionBeyondTheHorizon(
-					session.getCatalogVersion(),
-					finalizationResult.activeSessionsToOlderVersions()
+					finalizationResult.minimalActiveCatalogVersion()
 				);
 			}
 		}
@@ -303,20 +303,25 @@ final class SessionRegistry {
 				version,
 				(k, v) -> v == 1 ? null : v - 1
 			);
-			return readerCount == null ?
-				new SessionFinalizationResult(version, true, this.versionConsumingSessions.keySet().stream().anyMatch(it -> it < version)) :
-				new SessionFinalizationResult(version, false, false);
+			if (readerCount == null) {
+				final OptionalLong minimalVersion = this.versionConsumingSessions.keySet().stream().mapToLong(Long::longValue).min();
+				return new SessionFinalizationResult(minimalVersion.isEmpty() ? null : minimalVersion.getAsLong(), true);
+			} else {
+				return new SessionFinalizationResult(version, false);
+			}
 		}
 
 	}
 
 	/**
+	 * The result of the finalization of the session.
 	 *
+	 * @param minimalActiveCatalogVersion the minimal active catalog version used by another session now
+	 * @param lastReader                  TRUE when the session was the last reader
 	 */
 	public record SessionFinalizationResult(
-		long version,
-		boolean lastReader,
-		boolean activeSessionsToOlderVersions
+		@Nullable Long minimalActiveCatalogVersion,
+		boolean lastReader
 	) {
 	}
 

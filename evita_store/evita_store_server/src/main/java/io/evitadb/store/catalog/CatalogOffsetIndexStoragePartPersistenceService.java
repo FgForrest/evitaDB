@@ -154,7 +154,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 					Map.of(),
 					kryoFactory,
 					// we don't know here yet - this will be recomputed on first flush
-					1.0
+					1.0, 0L
 				),
 				storageOptions,
 				recordRegistry,
@@ -193,7 +193,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 						theCatalogHeader.compressedKeys(),
 						kryoFactory,
 						// we don't know here yet - this will be recomputed on first flush
-						1.0
+						1.0, 0L
 					);
 				}
 			);
@@ -256,8 +256,10 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 	}
 
 	@Override
-	public void purgeHistoryEqualAndLaterThan(long catalogVersion) {
-		this.offsetIndex.purge(catalogVersion);
+	public void purgeHistoryEqualAndLaterThan(@Nullable Long minimalActiveCatalogVersion) {
+		if (this.offsetIndex.isOperative()) {
+			this.offsetIndex.purge(minimalActiveCatalogVersion);
+		}
 	}
 
 }

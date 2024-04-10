@@ -585,7 +585,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			getTestDirectory().resolve(DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST),
 			60, 60,
 			StorageOptions.DEFAULT_OUTPUT_BUFFER_SIZE, 1,
-			true, 1.0
+			true, 1.0, 0L
 		);
 	}
 

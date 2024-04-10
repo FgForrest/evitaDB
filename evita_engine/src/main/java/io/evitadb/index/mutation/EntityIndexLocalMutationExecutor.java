@@ -71,6 +71,7 @@ import io.evitadb.store.entity.model.entity.PricesStoragePart;
 import io.evitadb.store.entity.model.entity.ReferencesStoragePart;
 import io.evitadb.store.entity.model.entity.price.PriceWithInternalIds;
 import io.evitadb.store.spi.model.storageParts.accessor.WritableEntityStorageContainerAccessor;
+import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -135,7 +136,14 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * List of all undo actions that must be executed in case of (semi) rollback.
 	 */
 	private final LinkedList<Runnable> undoActions;
+	/**
+	 * Consumer that collects lambdas allowing to execute undo actions.
+	 */
 	private final Consumer<Runnable> undoActionsAppender;
+	/**
+	 * Set of keys of indexes that were created in this particular entity upsert.
+	 */
+	private Set<ReferenceKey> createdReferences;
 
 	public EntityIndexLocalMutationExecutor(
 		@Nonnull WritableEntityStorageContainerAccessor containerAccessor,
@@ -270,10 +278,14 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 
 	@Override
 	public void commit() {
-		final Set<Locale> addedLocales = containerAccessor.getAddedLocales();
-		final Set<Locale> removedLocales = containerAccessor.getRemovedLocales();
+		final Set<Locale> addedLocales = this.containerAccessor.getAddedLocales();
+		final Set<Locale> removedLocales = this.containerAccessor.getRemovedLocales();
 		if (!(addedLocales.isEmpty() && removedLocales.isEmpty())) {
-			final EntityBodyStoragePart entityStoragePart = containerAccessor.getEntityStoragePart(entityType, getPrimaryKeyToIndex(IndexType.ENTITY_INDEX), EntityExistence.MUST_EXIST);
+			final EntityBodyStoragePart entityStoragePart = this.containerAccessor.getEntityStoragePart(
+				this.entityType,
+				getPrimaryKeyToIndex(IndexType.ENTITY_INDEX),
+				EntityExistence.MUST_EXIST
+			);
 			for (Locale locale : addedLocales) {
 				upsertEntityLanguage(entityStoragePart, locale);
 			}
@@ -354,8 +366,9 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	/**
 	 * Method returns existing index or creates new and adds it to the changed set of indexes that needs persisting.
 	 */
+	@Nonnull
 	EntityIndex getOrCreateIndex(@Nonnull EntityIndexKey entityIndexKey) {
-		return entityIndexCreatingAccessor.getOrCreateIndex(entityIndexKey);
+		return this.entityIndexCreatingAccessor.getOrCreateIndex(entityIndexKey);
 	}
 
 	/**
@@ -483,6 +496,10 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				entityIndex, referenceTypeIndex, referenceIndex, referenceKey,
 				undoActionsAppender
 			);
+			if (this.createdReferences == null) {
+				this.createdReferences = CollectionUtils.createHashSet(16);
+			}
+			this.createdReferences.add(referenceKey);
 		} else if (referenceMutation instanceof RemoveReferenceMutation) {
 			final EntityIndexKey referencedTypeIndexKey = new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, referenceKey.referenceName());
 			final ReferencedTypeEntityIndex referenceTypeIndex = (ReferencedTypeEntityIndex) getOrCreateIndex(referencedTypeIndexKey);
@@ -533,17 +550,21 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			final int epk = getPrimaryKeyToIndex(IndexType.ENTITY_INDEX);
 			final EntityIndex globalIndex = this.entityIndexCreatingAccessor.getOrCreateIndex(new EntityIndexKey(EntityIndexType.GLOBAL));
 			final boolean removed = removeEntityLanguageInTargetIndex(epk, locale, globalIndex, undoActionsAppender);
-			if (removed && undoActions != null) {
-				undoActions.add(() -> upsertEntityLanguageInTargetIndex(epk, locale, globalIndex, null));
+			if (removed && this.undoActions != null) {
+				this.undoActions.add(() -> upsertEntityLanguageInTargetIndex(epk, locale, globalIndex, null));
 			}
 			applyOnReducedIndexes(
 				epk,
 				index -> {
-					final boolean removedInTargetIndex = removeEntityLanguageInTargetIndex(
-						epk, locale, index, undoActionsAppender
-					);
-					if (removedInTargetIndex && undoActions != null) {
-						undoActions.add(() -> upsertEntityLanguageInTargetIndex(epk, locale, index, null));
+					// removal mutations happen before indexes are created and thus the created indexes will not have
+					// the language set (entity already lacks the language) - so we cannot remove it for those indexes
+					if (this.createdReferences == null || !this.createdReferences.contains((ReferenceKey) index.getIndexKey().getDiscriminator())) {
+						final boolean removedInTargetIndex = removeEntityLanguageInTargetIndex(
+							epk, locale, index, this.undoActionsAppender
+						);
+						if (removedInTargetIndex && this.undoActions != null) {
+							this.undoActions.add(() -> upsertEntityLanguageInTargetIndex(epk, locale, index, null));
+						}
 					}
 				}
 			);

@@ -23,6 +23,7 @@
 
 package io.evitadb.index.bitmap;
 
+import io.evitadb.core.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
@@ -39,7 +40,6 @@ import java.util.Arrays;
 import java.util.Objects;
 import java.util.PrimitiveIterator.OfInt;
 
-import static io.evitadb.core.Transaction.getTransactionalMemoryLayer;
 import static io.evitadb.core.Transaction.getTransactionalMemoryLayerIfExists;
 
 /**
@@ -114,7 +114,7 @@ public class TransactionalBitmap implements RoaringBitmapBackedBitmap, Transacti
 
 	@Override
 	public boolean add(int recordId) {
-		final BitmapChanges layer = getTransactionalMemoryLayer(this);
+		final BitmapChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
 			final boolean added = this.roaringBitmap.checkedAdd(recordId);
 			this.memoizedCardinality = added ? -1 : this.memoizedCardinality;
@@ -126,7 +126,7 @@ public class TransactionalBitmap implements RoaringBitmapBackedBitmap, Transacti
 
 	@Override
 	public void addAll(int... recordId) {
-		final BitmapChanges layer = getTransactionalMemoryLayer(this);
+		final BitmapChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
 			this.roaringBitmap.add(recordId);
 			this.memoizedCardinality = -1;
@@ -139,7 +139,7 @@ public class TransactionalBitmap implements RoaringBitmapBackedBitmap, Transacti
 
 	@Override
 	public void addAll(@Nonnull Bitmap recordIds) {
-		final BitmapChanges layer = getTransactionalMemoryLayer(this);
+		final BitmapChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
 			this.roaringBitmap.add(recordIds.getArray());
 			this.memoizedCardinality = -1;
@@ -152,7 +152,7 @@ public class TransactionalBitmap implements RoaringBitmapBackedBitmap, Transacti
 
 	@Override
 	public boolean remove(int recordId) {
-		final BitmapChanges layer = getTransactionalMemoryLayer(this);
+		final BitmapChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
 			final boolean removed = this.roaringBitmap.checkedRemove(recordId);
 			this.memoizedCardinality = removed ? -1 : this.memoizedCardinality;
@@ -164,7 +164,7 @@ public class TransactionalBitmap implements RoaringBitmapBackedBitmap, Transacti
 
 	@Override
 	public void removeAll(int... recordId) {
-		final BitmapChanges layer = getTransactionalMemoryLayer(this);
+		final BitmapChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
 			for (int recId : recordId) {
 				this.roaringBitmap.remove(recId);
@@ -179,7 +179,7 @@ public class TransactionalBitmap implements RoaringBitmapBackedBitmap, Transacti
 
 	@Override
 	public void removeAll(@Nonnull Bitmap recordIds) {
-		final BitmapChanges layer = getTransactionalMemoryLayer(this);
+		final BitmapChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
 			if (recordIds instanceof RoaringBitmapBackedBitmap) {
 				this.roaringBitmap.andNot(((RoaringBitmapBackedBitmap) recordIds).getRoaringBitmap());

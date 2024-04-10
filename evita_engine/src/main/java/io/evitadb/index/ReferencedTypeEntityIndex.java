@@ -28,6 +28,7 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.core.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalContainerChanges;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
@@ -64,7 +65,6 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
-import static io.evitadb.core.Transaction.getTransactionalMemoryLayer;
 import static io.evitadb.core.Transaction.isTransactionAvailable;
 import static io.evitadb.index.attribute.AttributeIndex.createAttributeKey;
 import static java.util.Optional.ofNullable;
@@ -252,7 +252,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 			createAttributeKey(attributeSchema, allowedLocales, locale, value),
 			lookupKey -> {
 				final CardinalityIndex newCardinalityIndex = new CardinalityIndex(attributeSchema.getPlainType());
-				ofNullable(getTransactionalMemoryLayer(this))
+				ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
 					.ifPresent(it -> it.addCreatedItem(newCardinalityIndex));
 				return newCardinalityIndex;
 			}
@@ -295,7 +295,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 			createAttributeKey(attributeSchema, allowedLocales, locale, value),
 			lookupKey -> {
 				final CardinalityIndex newCardinalityIndex = new CardinalityIndex(attributeSchema.getPlainType());
-				ofNullable(getTransactionalMemoryLayer(this))
+				ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
 					.ifPresent(it -> it.addCreatedItem(newCardinalityIndex));
 				return newCardinalityIndex;
 			}

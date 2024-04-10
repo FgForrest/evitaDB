@@ -284,7 +284,8 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 			StorageOptions.builder().build(),
 			TransactionOptions.builder().build(),
 			Mockito.mock(Scheduler.class),
-			timestamp -> {}
+			timestamp -> {
+			}
 		);
 
 		// create WAL file with a few contents first
@@ -336,7 +337,8 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 			StorageOptions.builder().build(),
 			TransactionOptions.builder().build(),
 			Mockito.mock(Scheduler.class),
-			timestamp -> {}
+			timestamp -> {
+			}
 		);
 
 		// create WAL file multiple times, start Catalog to crunch the history and close evitaDB again
@@ -804,7 +806,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 	@Tag(LONG_RUNNING_TEST)
 	@Test
 	void shouldAutomaticallyGenerateEntitiesInParallel(EvitaContract evita, SealedEntitySchema productSchema) throws Exception {
-		final int numberOfThreads = 10;
+		final int numberOfThreads = 30;
 		final int iterations = 100;
 		final ExecutorService service = Executors.newFixedThreadPool(numberOfThreads);
 		final CountDownLatch latch = new CountDownLatch(numberOfThreads);
@@ -812,73 +814,75 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 
 		final long initialStart = System.currentTimeMillis();
 		final AtomicReference<Exception> thrownException = new AtomicReference<>();
-		try (EvitaSessionContract readOnlySession = evita.createReadOnlySession(TEST_CATALOG)) {
-			final DataGenerator dataGenerator = new DataGenerator();
-			for (int i = 0; i < numberOfThreads; i++) {
-				final int threadSeed = SEED + i;
-				service.execute(() -> {
-					try {
-						// primary keys should be automatically generated in monotonic fashion
-						dataGenerator.generateEntities(
-								productSchema,
-								(entityType, faker) -> RANDOM_ENTITY_PICKER.apply(entityType, readOnlySession, faker),
-								threadSeed
-							)
-							.limit(iterations)
-							.map(it -> {
-								assertFalse(Transaction.getTransaction().isPresent());
-								final AtomicReference<EntityReference> createdReference = new AtomicReference<>();
-								final CompletableFuture<Long> targetCatalogVersion = evita.updateCatalogAsync(
-									TEST_CATALOG,
-									session -> {
-										final long currentCatalogVersion = session.getCatalogVersion();
-										createdReference.set(session.upsertEntity(it));
-
-										// verify that no entity with older transaction id is visible - i.e. SNAPSHOT isolation level
-										for (PkWithCatalogVersion existingPk : primaryKeysWithTxIds) {
-											final SealedEntity fetchedEntity = session.getEntity(existingPk.getType(), existingPk.getPrimaryKey()).orElse(null);
-											if (existingPk.catalogVersion() <= currentCatalogVersion) {
-												assertNotNull(
-													fetchedEntity,
-													"Entity with catalogVersion " + existingPk.catalogVersion() + " is missing in catalog version `" + currentCatalogVersion + "`!"
-												);
-											} else {
-												assertNull(
-													fetchedEntity,
-													"Entity with catalogVersion `" + existingPk.catalogVersion() + "` is present in catalog version `" + currentCatalogVersion + "`!"
-												);
-											}
-										}
-									}, CommitBehavior.WAIT_FOR_WAL_PERSISTENCE, SessionFlags.READ_WRITE
-								);
-								try {
-									final Long catalogVersion = targetCatalogVersion.get();
-									final PkWithCatalogVersion pkWithCatalogVersion = new PkWithCatalogVersion(createdReference.get(), catalogVersion);
-									primaryKeysWithTxIds.add(pkWithCatalogVersion);
-									return pkWithCatalogVersion;
-								} catch (ExecutionException | InterruptedException e) {
-									// fail the test
-									throw new RuntimeException(e);
+		final DataGenerator dataGenerator = new DataGenerator();
+		for (int i = 0; i < numberOfThreads; i++) {
+			final int threadSeed = SEED + i;
+			service.execute(() -> {
+				try {
+					// primary keys should be automatically generated in monotonic fashion
+					dataGenerator.generateEntities(
+							productSchema,
+							(entityType, faker) -> {
+								try (EvitaSessionContract readOnlySession = evita.createReadOnlySession(TEST_CATALOG)) {
+									return RANDOM_ENTITY_PICKER.apply(entityType, readOnlySession, faker);
 								}
-							})
-							.forEach(it -> {
-								// verify the entity is present in another transaction
-								evita.queryCatalog(
-									TEST_CATALOG,
-									session -> {
-										assertNotNull(session.getEntity(it.getType(), it.getPrimaryKey()));
+							},
+							threadSeed
+						)
+						.limit(iterations)
+						.map(it -> {
+							assertFalse(Transaction.getTransaction().isPresent());
+							final AtomicReference<EntityReference> createdReference = new AtomicReference<>();
+							final CompletableFuture<Long> targetCatalogVersion = evita.updateCatalogAsync(
+								TEST_CATALOG,
+								session -> {
+									final long currentCatalogVersion = session.getCatalogVersion();
+									createdReference.set(session.upsertEntity(it));
+
+									// verify that no entity with older transaction id is visible - i.e. SNAPSHOT isolation level
+									for (PkWithCatalogVersion existingPk : primaryKeysWithTxIds) {
+										final SealedEntity fetchedEntity = session.getEntity(existingPk.getType(), existingPk.getPrimaryKey()).orElse(null);
+										if (existingPk.catalogVersion() <= currentCatalogVersion) {
+											assertNotNull(
+												fetchedEntity,
+												"Entity with catalogVersion " + existingPk.catalogVersion() + " is missing in catalog version `" + currentCatalogVersion + "`!"
+											);
+										} else {
+											assertNull(
+												fetchedEntity,
+												"Entity with catalogVersion `" + existingPk.catalogVersion() + "` is present in catalog version `" + currentCatalogVersion + "`!"
+											);
+										}
 									}
-								);
-							});
-					} catch (Exception ex) {
-						thrownException.set(ex);
-					} finally {
-						latch.countDown();
-					}
-				});
-			}
-			assertTrue(latch.await(300, TimeUnit.SECONDS), "Timeouted!");
+								}, CommitBehavior.WAIT_FOR_WAL_PERSISTENCE, SessionFlags.READ_WRITE
+							);
+							try {
+								final Long catalogVersion = targetCatalogVersion.get();
+								final PkWithCatalogVersion pkWithCatalogVersion = new PkWithCatalogVersion(createdReference.get(), catalogVersion);
+								primaryKeysWithTxIds.add(pkWithCatalogVersion);
+								return pkWithCatalogVersion;
+							} catch (ExecutionException | InterruptedException e) {
+								// fail the test
+								throw new RuntimeException(e);
+							}
+						})
+						.forEach(it -> {
+							// verify the entity is present in another transaction
+							evita.queryCatalog(
+								TEST_CATALOG,
+								session -> {
+									assertNotNull(session.getEntity(it.getType(), it.getPrimaryKey()));
+								}
+							);
+						});
+				} catch (Exception ex) {
+					thrownException.set(ex);
+				} finally {
+					latch.countDown();
+				}
+			});
 		}
+		assertTrue(latch.await(300, TimeUnit.SECONDS), "Timeouted!");
 
 		if (thrownException.get() != null) {
 			throw thrownException.get();
@@ -890,9 +894,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 			// cap to one minute
 			System.currentTimeMillis() - waitingStart < 120_000 &&
 				// and finish when the last transaction is visible
-				evita.queryCatalog(TEST_CATALOG, session -> {
-					return session.getCatalogVersion();
-				}) < numberOfThreads * iterations + 1
+				evita.queryCatalog(TEST_CATALOG, EvitaSessionContract::getCatalogVersion) < numberOfThreads * iterations + 1
 		) {
 			Thread.onSpinWait();
 		}

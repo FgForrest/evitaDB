@@ -74,10 +74,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
-import static io.evitadb.store.offsetIndex.OffsetIndexSerializationService.MEM_TABLE_RECORD_SIZE;
-import static io.evitadb.store.offsetIndex.OffsetIndexSerializationService.deserialize;
-import static io.evitadb.store.offsetIndex.OffsetIndexSerializationService.serialize;
-import static io.evitadb.store.offsetIndex.OffsetIndexSerializationService.verify;
+import static io.evitadb.store.offsetIndex.OffsetIndexSerializationService.*;
 import static io.evitadb.utils.Assert.isPremiseValid;
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 import static java.util.Optional.empty;
@@ -597,10 +594,10 @@ public class OffsetIndex {
 	 * Purges the catalog for the given catalog version. This method should be called when there is no client using
 	 * a particular version of the catalog.
 	 *
-	 * @param catalogVersion the version of the catalog to be purged
+	 * @param catalogVersion the version of the catalog to be purged, NULL if entire history should be purged
 	 * @throws IllegalStateException if the catalog is not in an operative state
 	 */
-	public void purge(long catalogVersion) {
+	public void purge(@Nullable Long catalogVersion) {
 		assertOperative();
 		this.volatileValues.purge(catalogVersion);
 	}
@@ -635,12 +632,14 @@ public class OffsetIndex {
 								catalogVersion,
 								newFilePath
 							);
+							final long fileSize = newFilePath.toFile().length();
 							return new OffsetIndexDescriptor(
 								this.fileOffsetDescriptor.version() + 1,
 								fileLocation,
 								this.getCompressedKeys(),
 								this.fileOffsetDescriptor.getKryoFactory(),
-								getActiveRecordShare()
+								getActiveRecordShare(fileSize),
+								fileSize
 							);
 						}
 					)
@@ -794,10 +793,19 @@ public class OffsetIndex {
 	 *
 	 * @return the living object share as a double value
 	 */
-	private double getActiveRecordShare() {
-		final double activeRecordShare = (double) this.totalSize.get() / (double) writeHandle.getLastWrittenPosition();
+	private double getActiveRecordShare(long fileSize) {
+		final double activeRecordShare = (double) getTotalActiveSize() / (double) fileSize;
 		Assert.isPremiseValid(activeRecordShare >= 0, "Active record share must be non-negative!");
 		return activeRecordShare;
+	}
+
+	/**
+	 * Calculates estimated total active size.
+	 *
+	 * @return The total active size.
+	 */
+	private long getTotalActiveSize() {
+		return this.totalSize.get() + countFileOffsetTableSize(this.keyToLocations.size(), storageOptions);
 	}
 
 	/**
@@ -878,10 +886,12 @@ public class OffsetIndex {
 						this.readKryoPool.expireAllPreviouslyCreated();
 					}
 					// create new OffsetIndexDescriptor with updated version
+					final long fileSize = writeHandle.getLastWrittenPosition();
 					return new OffsetIndexDescriptor(
 						nonFlushedValuesWithFileLocation.fileLocation(),
 						fileOffsetIndexDescriptor,
-						getActiveRecordShare()
+						getActiveRecordShare(writeHandle.getLastWrittenPosition()),
+						fileSize
 					);
 				}
 			);
@@ -916,7 +926,8 @@ public class OffsetIndex {
 						this.fileOffsetDescriptor = new OffsetIndexDescriptor(
 							fileOffsetDescriptor.fileLocation(),
 							fileOffsetDescriptor,
-							getActiveRecordShare()
+							getActiveRecordShare(this.lastSyncedPosition),
+							this.lastSyncedPosition
 						);
 						this.readKryoPool.expireAllPreviouslyCreated();
 					}
@@ -941,7 +952,8 @@ public class OffsetIndex {
 		newKeyToLocations.putAll(this.keyToLocations);
 
 		long workingMaxRecordSize = this.maxRecordSize.get();
-		long recordLength = 0;
+		long recordLengthDelta = 0;
+		long recordCountDelta = 0;
 
 		final Map<Byte, Integer> histogramDiff = CollectionUtils.createHashMap(this.histogram.size());
 		for (NonFlushedValueSet volatileValues : nonFlushedValueSets) {
@@ -955,45 +967,48 @@ public class OffsetIndex {
 					// location might not exist when value was created and immediately removed
 					if (removedLocation != null) {
 						count = -1;
-						recordLength -= removedLocation.recordLength();
+						recordLengthDelta -= removedLocation.recordLength();
 					} else {
 						count = 0;
-						recordLength = 0;
 					}
 				} else if (volatileValues.wasAdded(recordKey)) {
 					final FileLocation recordLocation = nonFlushedValue.fileLocation();
 					final int currentRecordLength = recordLocation.recordLength();
-					recordLength += currentRecordLength;
+					recordLengthDelta += currentRecordLength;
 					if (currentRecordLength > workingMaxRecordSize) {
 						workingMaxRecordSize = currentRecordLength;
 					}
-					newKeyToLocations.put(recordKey, recordLocation);
+					Assert.isPremiseValid(
+						newKeyToLocations.put(recordKey, recordLocation) == null,
+						"Record was already present!"
+					);
 					count = 1;
 				} else {
-					final FileLocation existingRecordLocation = newKeyToLocations.get(recordKey);
 					final FileLocation newRecordLocation = nonFlushedValue.fileLocation();
-					recordLength += newRecordLocation.recordLength() - existingRecordLocation.recordLength();
+					final FileLocation existingRecordLocation = newKeyToLocations.put(recordKey, newRecordLocation);
+					Assert.isPremiseValid(existingRecordLocation != null, "Record was not present!");
+					recordLengthDelta += newRecordLocation.recordLength() - existingRecordLocation.recordLength();
 					if (newRecordLocation.recordLength() > workingMaxRecordSize) {
 						workingMaxRecordSize = newRecordLocation.recordLength();
 					}
-					newKeyToLocations.put(recordKey, newRecordLocation);
 					count = 0;
 				}
 
 				histogramDiff.merge(
 					recordKey.recordType(), count, Integer::sum
 				);
+				recordCountDelta += count;
 			}
-
-			// update statistics
-			this.totalSize.addAndGet(recordLength);
-			this.maxRecordSize.set(workingMaxRecordSize);
-			for (Entry<Byte, Integer> entry : histogramDiff.entrySet()) {
-				this.histogram.merge(entry.getKey(), entry.getValue(), Integer::sum);
-			}
-			// and the locations finally
-			this.keyToLocations = newKeyToLocations;
 		}
+
+		// update statistics
+		this.totalSize.addAndGet(recordLengthDelta);
+		this.maxRecordSize.set(workingMaxRecordSize);
+		for (Entry<Byte, Integer> entry : histogramDiff.entrySet()) {
+			this.histogram.merge(entry.getKey(), entry.getValue(), Integer::sum);
+		}
+		// and the locations finally
+		this.keyToLocations = newKeyToLocations;
 	}
 
 	/**
@@ -1505,7 +1520,7 @@ public class OffsetIndex {
 		@Nonnull
 		public Optional<VolatileValueInformation> getVolatileValueInformation(long catalogVersion, @Nonnull RecordKey key) {
 			// scan also all previous versions we still keep in memory
-			if (this.historicalVersions != null) {
+			if (this.historicalVersions != null && this.volatileValues != null) {
 				int index = Arrays.binarySearch(this.historicalVersions, catalogVersion);
 				final int startIndex = index >= 0 ? index : -index - 1;
 				boolean addedInFuture = false;
@@ -1639,13 +1654,16 @@ public class OffsetIndex {
 		 * Removes all versions of volatile record backup that are lower than the given catalog version.
 		 * There will never be another client asking for those values.
 		 *
-		 * @param catalogVersion the catalog version to compare against
+		 * @param catalogVersion the catalog version to compare against, NULL if all versions should be removed
 		 */
-		public void purge(long catalogVersion) {
-			purgeOlderThan.accumulateAndGet(
-				catalogVersion,
-				(prev, next) -> prev > -1 ? Math.min(prev, next) : next
-			);
+		public void purge(@Nullable Long catalogVersion) {
+			final long[] theHistoricalVersions = this.historicalVersions;
+			if (theHistoricalVersions != null && theHistoricalVersions.length > 0) {
+				this.purgeOlderThan.accumulateAndGet(
+					catalogVersion == null ? theHistoricalVersions[theHistoricalVersions.length - 1] : catalogVersion,
+					(prev, next) -> prev > -1 ? Math.min(prev, next) : next
+				);
+			}
 		}
 
 		/**
@@ -1711,9 +1729,16 @@ public class OffsetIndex {
 		 * @param fileLocation The file location associated with the record key.
 		 */
 		public void register(@Nonnull RecordKey recordKey, @Nonnull FileLocation fileLocation) {
-			this.builtIndex.put(recordKey, fileLocation);
-			this.histogram.merge(recordKey.recordType(), 1, Integer::sum);
-			this.totalSize += fileLocation.recordLength();
+			final FileLocation previousValue = this.builtIndex.put(recordKey, fileLocation);
+			if (previousValue == null) {
+				this.histogram.merge(recordKey.recordType(), 1, Integer::sum);
+				this.totalSize += fileLocation.recordLength();
+			} else if (recordKey.recordType() < 0) {
+				this.histogram.merge(recordKey.recordType(), -1, Integer::sum);
+				this.totalSize -= fileLocation.recordLength();
+			} else {
+				this.totalSize += fileLocation.recordLength() - previousValue.recordLength();
+			}
 			if (this.maxSize < fileLocation.recordLength()) {
 				this.maxSize = fileLocation.recordLength();
 			}

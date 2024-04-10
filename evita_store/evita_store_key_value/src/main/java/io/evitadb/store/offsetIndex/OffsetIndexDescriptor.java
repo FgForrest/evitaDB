@@ -92,18 +92,24 @@ public class OffsetIndexDescriptor implements PersistentStorageDescriptor {
 	 * Contains information about the share of the living records compared to total size of all the records in the file.
 	 */
 	@Getter private final double activeRecordShare;
+	/**
+	 * Contains the current size of the file.
+	 */
+	@Getter private final long fileSize;
 
 	public OffsetIndexDescriptor(
 		@Nonnull PersistentStorageDescriptor offsetIndexHeader,
 		@Nonnull Function<VersionedKryoKeyInputs, VersionedKryo> kryoFactory,
-		double activeRecordShare
+		double activeRecordShare,
+		long fileSize
 	) {
 		this(
 			offsetIndexHeader.version(),
 			offsetIndexHeader.fileLocation(),
 			offsetIndexHeader.compressedKeys(),
 			kryoFactory,
-			activeRecordShare
+			activeRecordShare,
+			fileSize
 		);
 	}
 
@@ -112,7 +118,8 @@ public class OffsetIndexDescriptor implements PersistentStorageDescriptor {
 		@Nullable FileLocation fileLocation,
 		@Nonnull Map<Integer, Object> compressedKeys,
 		@Nonnull Function<VersionedKryoKeyInputs, VersionedKryo> kryoFactory,
-		double activeRecordShare
+		double activeRecordShare,
+		long fileSize
 	) {
 		this.version = version;
 		this.fileLocation = fileLocation;
@@ -126,12 +133,14 @@ public class OffsetIndexDescriptor implements PersistentStorageDescriptor {
 			new VersionedKryoKeyInputs(readOnlyKeyCompressor, updatedVersion)
 		);
 		this.activeRecordShare = activeRecordShare;
+		this.fileSize = fileSize;
 	}
 
 	public OffsetIndexDescriptor(
 		@Nullable FileLocation fileLocation,
 		@Nonnull OffsetIndexDescriptor fileOffsetIndexDescriptor,
-		double activeRecordShare
+		double activeRecordShare,
+		long fileSize
 	) {
 		this.version = fileOffsetIndexDescriptor.version() + 1;
 		this.fileLocation = fileLocation;
@@ -148,6 +157,7 @@ public class OffsetIndexDescriptor implements PersistentStorageDescriptor {
 			)
 		);
 		this.activeRecordShare = activeRecordShare;
+		this.fileSize = fileSize;
 	}
 
 	/**

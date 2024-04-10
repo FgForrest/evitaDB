@@ -201,9 +201,10 @@ public interface StoragePartPersistenceService extends Closeable {
 	 * The caller also ensures there is no other reader reading the later (lower) catalog versions and thus that
 	 * the entire history for this and previous versions can be purged from memory.
 	 *
-	 * @param catalogVersion the catalog version that was read by the last reader
+	 * @param minimalActiveCatalogVersion minimal catalog version that is still being used, NULL when there is no
+	 *                                    active session
 	 */
-	void purgeHistoryEqualAndLaterThan(long catalogVersion);
+	void purgeHistoryEqualAndLaterThan(@Nullable Long minimalActiveCatalogVersion);
 
 	/**
 	 * Checks whether the persistence storage is already present and filled with data.

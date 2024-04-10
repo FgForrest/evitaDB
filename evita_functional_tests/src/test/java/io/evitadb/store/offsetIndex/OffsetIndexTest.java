@@ -188,7 +188,7 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 			new OffsetIndexDescriptor(
 				fileOffsetIndexDescriptor.fileLocation(),
 				fileOffsetIndexDescriptor,
-				1.0
+				1.0, 0L
 			),
 			limitedBufferOptions,
 			fileOffsetIndexRecordTypeRegistry,
@@ -208,7 +208,7 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 			new OffsetIndexDescriptor(
 				updatedOffsetIndexDescriptor.fileLocation(),
 				updatedOffsetIndexDescriptor,
-				1.0
+				1.0, 0L
 			),
 			limitedBufferOptions,
 			fileOffsetIndexRecordTypeRegistry,
@@ -261,7 +261,7 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 			new OffsetIndexDescriptor(
 				fileOffsetIndexInfo.fileLocation(),
 				fileOffsetIndexInfo,
-				1.0
+				1.0, 0L
 			),
 			options,
 			fileOffsetIndexRecordTypeRegistry,
@@ -303,7 +303,7 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 			new OffsetIndexDescriptor(
 				fileOffsetIndexDescriptor.fileLocation(),
 				fileOffsetIndexDescriptor,
-				1.0
+				1.0, 0L
 			),
 			options,
 			fileOffsetIndexRecordTypeRegistry,
@@ -342,7 +342,7 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 			new OffsetIndexDescriptor(
 				new EntityCollectionHeader(ENTITY_TYPE, 1, 0),
 				createKryo(),
-				1.0
+				1.0, 0L
 			),
 			options,
 			fileOffsetIndexRecordTypeRegistry,
@@ -370,7 +370,7 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 				new OffsetIndexDescriptor(
 					new EntityCollectionHeader(ENTITY_TYPE, 1, 0),
 					createKryo(),
-					1.0
+					1.0, 0L
 				),
 				buildOptionsWithLimitedBuffer(),
 				fileOffsetIndexRecordTypeRegistry,
@@ -384,7 +384,7 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 		final Map<Long, Map<Integer, EntityBodyStoragePart>> recordIdsHistory = CollectionUtils.createHashMap(historySize);
 
 		runFor(
-			new GenerationalTestInput(10, 42),
+			input,
 			1L,
 			(random, transactionId) -> {
 				final Map<Integer, EntityBodyStoragePart> currentSnapshot = ofNullable(recordIdsHistory.get(transactionId - 1))
@@ -442,7 +442,7 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 					new OffsetIndexDescriptor(
 						fileOffsetIndexDescriptor.fileLocation(),
 						fileOffsetIndexDescriptor,
-						1.0
+						1.0, 0L
 					),
 					options,
 					fileOffsetIndexRecordTypeRegistry,
@@ -528,7 +528,7 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 						new OffsetIndexDescriptor(
 							compactedDescriptor.fileLocation(),
 							compactedDescriptor,
-							1.0
+							1.0, 0L
 						),
 						options,
 						fileOffsetIndexRecordTypeRegistry,
@@ -569,7 +569,7 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 			new OffsetIndexDescriptor(
 				new EntityCollectionHeader(ENTITY_TYPE, 1, 0),
 				createKryo(),
-				1.0
+				1.0, 0L
 			),
 			storageOptions,
 			fileOffsetIndexRecordTypeRegistry,
@@ -589,7 +589,7 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 			new OffsetIndexDescriptor(
 				fileOffsetIndexDescriptor.fileLocation(),
 				fileOffsetIndexDescriptor,
-				1.0
+				1.0, 0L
 			),
 			storageOptions,
 			fileOffsetIndexRecordTypeRegistry,
@@ -630,7 +630,7 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 			new OffsetIndexDescriptor(
 				new EntityCollectionHeader(ENTITY_TYPE, 1, 0),
 				createKryo(),
-				1.0
+				1.0, 0L
 			),
 			options,
 			fileOffsetIndexRecordTypeRegistry,

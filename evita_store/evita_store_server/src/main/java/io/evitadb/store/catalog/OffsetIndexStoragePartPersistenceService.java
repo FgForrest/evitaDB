@@ -272,7 +272,7 @@ public class OffsetIndexStoragePartPersistenceService implements StoragePartPers
 	}
 
 	@Override
-	public void purgeHistoryEqualAndLaterThan(long catalogVersion) {
+	public void purgeHistoryEqualAndLaterThan(@Nullable Long minimalActiveCatalogVersion) {
 		if (offsetIndex.isOperative()) {
 			this.offsetIndex.purge(catalogVersion);
 		}

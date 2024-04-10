@@ -26,6 +26,7 @@ package io.evitadb.index.price;
 import io.evitadb.api.query.order.PriceNatural;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.core.EntityCollection;
+import io.evitadb.core.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalContainerChanges;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
@@ -49,7 +50,6 @@ import java.util.Objects;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-import static io.evitadb.core.Transaction.getTransactionalMemoryLayer;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -140,7 +140,7 @@ public class PriceRefIndex extends AbstractPriceIndex<PriceListAndCurrencyPriceR
 		final PriceListAndCurrencyPriceRefIndex newPriceListIndex = new PriceListAndCurrencyPriceRefIndex(
 			lookupKey, priceIndexKey -> this.superIndexAccessor.get().getPriceIndex(priceIndexKey)
 		);
-		ofNullable(getTransactionalMemoryLayer(this))
+		ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
 			.ifPresent(it -> it.addCreatedItem(newPriceListIndex));
 		return newPriceListIndex;
 	}
@@ -148,7 +148,7 @@ public class PriceRefIndex extends AbstractPriceIndex<PriceListAndCurrencyPriceR
 	@Override
 	protected void removeExistingIndex(@Nonnull PriceIndexKey lookupKey, @Nonnull PriceListAndCurrencyPriceRefIndex priceListIndex) {
 		super.removeExistingIndex(lookupKey, priceListIndex);
-		ofNullable(getTransactionalMemoryLayer(this))
+		ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
 			.ifPresent(it -> it.addRemovedItem(priceListIndex));
 	}
 

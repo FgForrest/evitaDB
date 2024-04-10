@@ -23,6 +23,8 @@
 
 package io.evitadb.core;
 
+import javax.annotation.Nullable;
+
 /**
  * This interface represents a listener called by {@link SessionRegistry} when last active session using particular
  * catalog version is closed.
@@ -34,11 +36,8 @@ public interface CatalogVersionBeyondTheHorizonListener {
 	/**
 	 * Notifies listener that any active session no longer uses the catalog version.
 	 *
-	 * @param catalogVersion                The new catalog version that is no longer used by any active session
-	 * @param activeSessionsToOlderVersions true if there are still active sessions using older versions
+	 * @param minimalActiveCatalogVersion minimal catalog version that is still being used, NULL when there is no
+	 *                                    active session
 	 */
-	void catalogVersionBeyondTheHorizon(
-		long catalogVersion,
-		boolean activeSessionsToOlderVersions
-	);
+	void catalogVersionBeyondTheHorizon(@Nullable Long minimalActiveCatalogVersion);
 }

@@ -23,6 +23,7 @@
 
 package io.evitadb.index.array;
 
+import io.evitadb.core.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
@@ -43,7 +44,6 @@ import java.util.Spliterators;
 import java.util.stream.IntStream;
 import java.util.stream.StreamSupport;
 
-import static io.evitadb.core.Transaction.getTransactionalMemoryLayer;
 import static io.evitadb.core.Transaction.getTransactionalMemoryLayerIfExists;
 import static io.evitadb.core.Transaction.isTransactionAvailable;
 
@@ -102,7 +102,7 @@ public class TransactionalIntArray implements TransactionalLayerProducer<IntArra
 	 * Method adds new record to the array.
 	 */
 	public void add(int recordId) {
-		final IntArrayChanges layer = getTransactionalMemoryLayer(this);
+		final IntArrayChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
 			this.delegate = ArrayUtils.insertIntIntoOrderedArray(recordId, this.delegate);
 		} else {
@@ -114,7 +114,7 @@ public class TransactionalIntArray implements TransactionalLayerProducer<IntArra
 	 * Method adds new record to the array and returns the index where record was placed.
 	 */
 	public int addReturningIndex(int recordId) {
-		final IntArrayChanges layer = getTransactionalMemoryLayer(this);
+		final IntArrayChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
 			final InsertionPosition insertionPosition = ArrayUtils.computeInsertPositionOfIntInOrderedArray(recordId, this.delegate);
 			if (!insertionPosition.alreadyPresent()) {
@@ -140,7 +140,7 @@ public class TransactionalIntArray implements TransactionalLayerProducer<IntArra
 	 * Method removes record id from the array.
 	 */
 	public void remove(int recordId) {
-		final IntArrayChanges layer = getTransactionalMemoryLayer(this);
+		final IntArrayChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
 			this.delegate = ArrayUtils.removeIntFromOrderedArray(recordId, this.delegate);
 		} else {

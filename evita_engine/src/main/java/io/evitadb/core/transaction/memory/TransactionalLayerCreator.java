@@ -25,7 +25,7 @@ package io.evitadb.core.transaction.memory;
 
 import javax.annotation.Nonnull;
 
-import static io.evitadb.core.Transaction.getTransactionalMemoryLayer;
+import static io.evitadb.core.Transaction.getTransactionalLayerMaintainer;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -75,7 +75,7 @@ public interface TransactionalLayerCreator<T> {
 	 * objects, their memory must be removed as well.
 	 */
 	default void removeLayer() {
-		ofNullable(getTransactionalMemoryLayer())
+		ofNullable(getTransactionalLayerMaintainer())
 			.ifPresent(this::removeLayer);
 	}
 

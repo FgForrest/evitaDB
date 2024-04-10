@@ -23,6 +23,7 @@
 
 package io.evitadb.index.map;
 
+import io.evitadb.core.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerCreator;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
@@ -39,7 +40,7 @@ import java.io.Serializable;
 import java.util.*;
 import java.util.function.Function;
 
-import static io.evitadb.core.Transaction.getTransactionalMemoryLayer;
+import static io.evitadb.core.Transaction.getTransactionalLayerMaintainer;
 import static io.evitadb.core.Transaction.getTransactionalMemoryLayerIfExists;
 import static java.util.Optional.ofNullable;
 
@@ -225,7 +226,7 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 
 	@Override
 	public V put(K key, V value) {
-		final MapChanges<K, V> layer = getTransactionalMemoryLayer(this);
+		final MapChanges<K, V> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
 			return this.mapDelegate.put(key, value);
 		} else {
@@ -235,7 +236,7 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 
 	@Override
 	public V remove(Object key) {
-		final MapChanges<K, V> layer = getTransactionalMemoryLayer(this);
+		final MapChanges<K, V> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
 			return this.mapDelegate.remove(key);
 		} else {
@@ -245,7 +246,7 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 
 	@Override
 	public void putAll(@Nonnull Map<? extends K, ? extends V> t) {
-		final MapChanges<K, V> layer = getTransactionalMemoryLayer(this);
+		final MapChanges<K, V> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
 			this.mapDelegate.putAll(t);
 		} else {
@@ -257,12 +258,12 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 
 	@Override
 	public void clear() {
-		final MapChanges<K, V> layer = getTransactionalMemoryLayer(this);
+		final MapChanges<K, V> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
 			this.mapDelegate.clear();
 		} else {
 			layer.cleanAll(
-				ofNullable(getTransactionalMemoryLayer())
+				ofNullable(getTransactionalLayerMaintainer())
 					.orElseThrow(() -> new IllegalStateException("Transactional layer must be present!"))
 			);
 		}
@@ -275,7 +276,7 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 		if (layer == null) {
 			return this.mapDelegate.keySet();
 		} else {
-			return new TransactionalMemoryKeySet<>(layer, getTransactionalMemoryLayer());
+			return new TransactionalMemoryKeySet<>(layer, getTransactionalLayerMaintainer());
 		}
 	}
 
@@ -286,7 +287,7 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 		if (layer == null) {
 			return this.mapDelegate.values();
 		} else {
-			return new TransactionalMemoryValues<>(layer, getTransactionalMemoryLayer());
+			return new TransactionalMemoryValues<>(layer, getTransactionalLayerMaintainer());
 		}
 	}
 
@@ -342,7 +343,7 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 		@SuppressWarnings("unchecked") final TransactionalMap<K, V> clone = (TransactionalMap<K, V>) super.clone();
 		final MapChanges<K, V> layer = getTransactionalMemoryLayerIfExists(this);
 		if (layer != null) {
-			final MapChanges<K, V> clonedLayer = getTransactionalMemoryLayer(clone);
+			final MapChanges<K, V> clonedLayer = Transaction.getOrCreateTransactionalMemoryLayer(clone);
 			if (clonedLayer != null) {
 				clonedLayer.copyState(layer);
 			}

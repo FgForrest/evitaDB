@@ -23,6 +23,7 @@
 
 package io.evitadb.index.reference;
 
+import io.evitadb.core.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
@@ -36,7 +37,6 @@ import java.io.Serializable;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static io.evitadb.core.Transaction.getTransactionalMemoryLayer;
 import static io.evitadb.core.Transaction.getTransactionalMemoryLayerIfExists;
 
 /**
@@ -64,7 +64,7 @@ public class TransactionalReference<T> implements TransactionalLayerProducer<Ref
 	 * Sets the value to `value` in a transactional safe way (if transaction is available).
 	 */
 	public void set(T value) {
-		final ReferenceChanges<T> layer = getTransactionalMemoryLayer(this);
+		final ReferenceChanges<T> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
 			this.value.set(value);
 		} else {
@@ -79,7 +79,7 @@ public class TransactionalReference<T> implements TransactionalLayerProducer<Ref
 	 * @return the witness value, which will be the same as the expected value if successful
 	 */
 	public T compareAndExchange(T currentValue, T newValue) {
-		final ReferenceChanges<T> layer = getTransactionalMemoryLayer(this);
+		final ReferenceChanges<T> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
 			return this.value.compareAndExchange(currentValue, newValue);
 		} else {

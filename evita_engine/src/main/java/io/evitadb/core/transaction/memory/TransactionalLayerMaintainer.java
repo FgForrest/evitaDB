@@ -109,7 +109,7 @@ public class TransactionalLayerMaintainer {
 	@Nonnull
 	public <T> T removeTransactionalMemoryLayer(@Nonnull TransactionalLayerCreator<T> layerCreator) {
 		final TransactionalLayerCreatorKey key = new TransactionalLayerCreatorKey(layerCreator);
-		@SuppressWarnings("unchecked") final TransactionalLayerWrapper<T> removedValue = (TransactionalLayerWrapper<T>) transactionalLayer.remove(key);
+		@SuppressWarnings("unchecked") final TransactionalLayerWrapper<T> removedValue = (TransactionalLayerWrapper<T>) this.transactionalLayer.remove(key);
 		Assert.notNull(removedValue, "Value should have been removed but was not!");
 		return removedValue.getItem();
 	}
@@ -121,7 +121,7 @@ public class TransactionalLayerMaintainer {
 	public <T> T removeTransactionalMemoryLayerIfExists(@Nonnull TransactionalLayerCreator<T> layerCreator) {
 		final TransactionalLayerCreatorKey key = new TransactionalLayerCreatorKey(layerCreator);
 		//noinspection unchecked
-		return (T) ofNullable(transactionalLayer.remove(key))
+		return (T) ofNullable(this.transactionalLayer.remove(key))
 			.map(TransactionalLayerWrapper::getItem)
 			.orElse(null);
 	}
@@ -134,24 +134,25 @@ public class TransactionalLayerMaintainer {
 	 * @return NULL value only when {@link TransactionalLayerCreator} produces Void as its layer
 	 */
 	@Nullable
-	public <T> T getTransactionalMemoryLayer(@Nonnull TransactionalLayerCreator<T> layerCreator) {
+	public <T> T getOrCreateTransactionalMemoryLayer(@Nonnull TransactionalLayerCreator<T> layerCreator) {
 		final TransactionalLayerCreatorKey key = new TransactionalLayerCreatorKey(layerCreator);
-		@SuppressWarnings("unchecked") final TransactionalLayerWrapper<T> transactionalMemoryWrapper = (TransactionalLayerWrapper<T>) transactionalLayer.get(key);
+		@SuppressWarnings("unchecked") final TransactionalLayerWrapper<T> transactionalMemoryWrapper = (TransactionalLayerWrapper<T>) this.transactionalLayer.get(key);
 		if (transactionalMemoryWrapper != null) {
 			return transactionalMemoryWrapper.getItem();
 		}
-		if (parent != null) {
-			return parent.getTransactionalMemoryLayerIfExists(layerCreator);
+		if (this.parent != null) {
+			return this.parent.getTransactionalMemoryLayerIfExists(layerCreator);
 		}
 
 		final T transactionalMemory;
-		if (allowTransactionalLayerCreation) {
-			transactionalMemory = layerCreator.createLayer();
-			if (transactionalMemory != null) {
-				transactionalLayer.put(key, new TransactionalLayerWrapper<>(transactionalMemory));
-			}
-		} else {
-			transactionalMemory = null;
+		Assert.isPremiseValid(
+			this.allowTransactionalLayerCreation,
+			"Transaction is already committed / rolled back, no new transactional memory layer may be created at this time!"
+		);
+
+		transactionalMemory = layerCreator.createLayer();
+		if (transactionalMemory != null) {
+			this.transactionalLayer.put(key, new TransactionalLayerWrapper<>(transactionalMemory));
 		}
 
 		return transactionalMemory;
@@ -166,9 +167,9 @@ public class TransactionalLayerMaintainer {
 	@Nullable
 	public <T> T getTransactionalMemoryLayerIfExists(@Nonnull TransactionalLayerCreator<T> layerProvider) {
 		final TransactionalLayerCreatorKey key = new TransactionalLayerCreatorKey(layerProvider);
-		@SuppressWarnings("unchecked") final TransactionalLayerWrapper<T> transactionalMemory = (TransactionalLayerWrapper<T>) transactionalLayer.get(key);
-		if (transactionalMemory == null && parent != null) {
-			return parent.getTransactionalMemoryLayerIfExists(layerProvider);
+		@SuppressWarnings("unchecked") final TransactionalLayerWrapper<T> transactionalMemory = (TransactionalLayerWrapper<T>) this.transactionalLayer.get(key);
+		if (transactionalMemory == null && this.parent != null) {
+			return this.parent.getTransactionalMemoryLayerIfExists(layerProvider);
 		}
 		return transactionalMemory == null ? null : transactionalMemory.getItem();
 	}
@@ -186,12 +187,12 @@ public class TransactionalLayerMaintainer {
 	) {
 		try {
 			Assert.isTrue(
-				avoidDiscardingState.compareAndSet(false, true),
+				this.avoidDiscardingState.compareAndSet(false, true),
 				"Calling getStateCopyWithCommittedChangesWithoutDiscardingState in nested way is not allowed (we don't maintain stack)!"
 			);
 			return getStateCopyWithCommittedChanges(transactionalLayerProducer);
 		} finally {
-			avoidDiscardingState.set(false);
+			this.avoidDiscardingState.set(false);
 		}
 	}
 
@@ -209,7 +210,7 @@ public class TransactionalLayerMaintainer {
 				.orElse(null),
 			this
 		);
-		if (!avoidDiscardingState.get() && transactionalLayerForItem != null) {
+		if (!this.avoidDiscardingState.get() && transactionalLayerForItem != null) {
 			transactionalLayerForItem.discard();
 		}
 		return copyWithCommittedChanges;
@@ -240,6 +241,14 @@ public class TransactionalLayerMaintainer {
 	}
 
 	/**
+	 * This method allows to continue with memory of already committed or rolled back transaction. It's used when
+	 * the system replays more than single transaction in a row.
+	 */
+	public void extendTransaction() {
+		this.allowTransactionalLayerCreation = true;
+	}
+
+	/**
 	 * Method uses {@link #finalizer} to collect new objects that combine original state and diff in transactional
 	 * memory. Method doesn't handle propagation of newly created object to the `currently used state`.
 	 * Consumers should build up new internal state and then `old state` should be swapped with `new state` in single
@@ -250,11 +259,11 @@ public class TransactionalLayerMaintainer {
 	 */
 	void commit() {
 		// no new transactional memories may happen
-		allowTransactionalLayerCreation = false;
+		this.allowTransactionalLayerCreation = false;
 
 		// let's process all the transactional memory consumers - it's their responsibility to process all transactional
 		// memory containers and if finalizer returns true, check that entire transactional memory was cleaned up
-		finalizer.commit(this);
+		this.finalizer.commit(this);
 	}
 
 	/**
@@ -264,11 +273,11 @@ public class TransactionalLayerMaintainer {
 	 */
 	void rollback(@Nullable Throwable exception) {
 		// no new transactional memories may happen
-		allowTransactionalLayerCreation = false;
+		this.allowTransactionalLayerCreation = false;
 
 		// let's process all the transactional memory consumers - it's their responsibility to process all transactional
 		// memory containers
-		finalizer.rollback(this, exception);
+		this.finalizer.rollback(this, exception);
 	}
 
 	/**
@@ -281,8 +290,8 @@ public class TransactionalLayerMaintainer {
 	private <T> TransactionalLayerWrapper<T> getTransactionalMemoryLayerItemWrapperIfExists(@Nonnull TransactionalLayerCreator<T> layerProvider) {
 		final TransactionalLayerCreatorKey key = new TransactionalLayerCreatorKey(layerProvider);
 		@SuppressWarnings("unchecked") final TransactionalLayerWrapper<T> transactionalMemory = (TransactionalLayerWrapper<T>) transactionalLayer.get(key);
-		if (transactionalMemory == null && parent != null) {
-			return parent.getTransactionalMemoryLayerItemWrapperIfExists(layerProvider);
+		if (transactionalMemory == null && this.parent != null) {
+			return this.parent.getTransactionalMemoryLayerItemWrapperIfExists(layerProvider);
 		}
 		return transactionalMemory;
 	}
@@ -307,14 +316,14 @@ public class TransactionalLayerMaintainer {
 
 			TransactionalLayerCreatorKey that = (TransactionalLayerCreatorKey) o;
 
-			return transactionalLayerProviderId == that.transactionalLayerProviderId &&
-				transactionalLayerCreator.getClass().equals(that.transactionalLayerCreator.getClass());
+			return this.transactionalLayerProviderId == that.transactionalLayerProviderId &&
+				this.transactionalLayerCreator.getClass().equals(that.transactionalLayerCreator.getClass());
 		}
 
 		@Override
 		public int hashCode() {
-			int result = transactionalLayerCreator.getClass().hashCode();
-			result = 31 * result + Long.hashCode(transactionalLayerProviderId);
+			int result = this.transactionalLayerCreator.getClass().hashCode();
+			result = 31 * result + Long.hashCode(this.transactionalLayerProviderId);
 			return result;
 		}
 

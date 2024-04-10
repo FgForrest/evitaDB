@@ -30,6 +30,7 @@ import io.evitadb.utils.Assert;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.nio.file.Path;
 import java.time.temporal.ChronoUnit;
 import java.util.LinkedList;
@@ -129,15 +130,20 @@ public class ObsoleteFileMaintainer implements CatalogVersionBeyondTheHorizonLis
 	 * Updates the catalog version that is no longer used by any active session and plans the purge task for
 	 * asynchronous file removal.
 	 *
-	 * @param catalogVersion                The new catalog version that is no longer used by any active session
-	 * @param activeSessionsToOlderVersions Set to true if there are still active sessions using older versions,
-	 *                                      set to false otherwise
+	 * @param minimalActiveCatalogVersion the minimal catalog version that is still being used, NULL when there is no
+	 *                                    active session
 	 */
 	@Override
-	public void catalogVersionBeyondTheHorizon(long catalogVersion, boolean activeSessionsToOlderVersions) {
-		if (!activeSessionsToOlderVersions && catalogVersion > 0 && this.firstCatalogVersion.get() >= catalogVersion) {
+	public void catalogVersionBeyondTheHorizon(@Nullable Long minimalActiveCatalogVersion) {
+		if (minimalActiveCatalogVersion == null && this.lastCatalogVersion.get() > 0L) {
 			this.noLongerUsedCatalogVersion.accumulateAndGet(
-				catalogVersion,
+				this.lastCatalogVersion.get(),
+				Math::max
+			);
+			this.purgeTask.schedule();
+		} else if (minimalActiveCatalogVersion != null && minimalActiveCatalogVersion > 0L && this.firstCatalogVersion.get() <= minimalActiveCatalogVersion) {
+			this.noLongerUsedCatalogVersion.accumulateAndGet(
+				minimalActiveCatalogVersion,
 				Math::max
 			);
 			this.purgeTask.schedule();

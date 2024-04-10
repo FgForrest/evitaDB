@@ -175,12 +175,12 @@ public final class Transaction implements TransactionContract {
 	 * Returns transactional states for passed layer creator object, that is isolated for this thread.
 	 */
 	@Nullable
-	public static TransactionalLayerMaintainer getTransactionalMemoryLayer() {
+	public static TransactionalLayerMaintainer getTransactionalLayerMaintainer() {
 		// we may safely do this because transactionalLayer is stored in ThreadLocal and
 		// thus won't be accessed by multiple threads at once
 		final Transaction transaction = CURRENT_TRANSACTION.get();
 		if (transaction != null) {
-			return transaction.transactionalMemory.getTransactionalMemoryLayer();
+			return transaction.transactionalMemory.getTransactionalLayerMaintainer();
 		} else {
 			return null;
 		}
@@ -205,12 +205,12 @@ public final class Transaction implements TransactionContract {
 	 * Returns transactional states for passed layer creator object, that is isolated for this thread.
 	 */
 	@Nullable
-	public static <T> T getTransactionalMemoryLayer(@Nonnull TransactionalLayerCreator<T> layerCreator) {
+	public static <T> T getOrCreateTransactionalMemoryLayer(@Nonnull TransactionalLayerCreator<T> layerCreator) {
 		// we may safely do this because transactionalLayer is stored in ThreadLocal and
 		// thus won't be accessed by multiple threads at once
 		final Transaction transaction = CURRENT_TRANSACTION.get();
 		if (transaction != null) {
-			return transaction.transactionalMemory.getTransactionalMemoryLayer(layerCreator);
+			return transaction.transactionalMemory.getOrCreateTransactionalMemoryLayer(layerCreator);
 		} else {
 			return null;
 		}
@@ -343,6 +343,7 @@ public final class Transaction implements TransactionContract {
 		this.transactionId = transactionId;
 		this.transactionHandler = transactionHandler;
 		this.transactionalMemory = transactionalMemory;
+		this.transactionalMemory.extendTransaction();
 		this.replay = replay;
 	}
 

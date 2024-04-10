@@ -97,7 +97,7 @@ public class TransactionalStoragePartPersistenceService implements StoragePartPe
 				new PersistentStorageHeader(1L, null, this.delegate.getReadOnlyKeyCompressor().getKeys()),
 				kryoFactory,
 				// we don't care here
-				1.0
+				1.0, 0L
 			),
 			storageOptions,
 			offsetIndexRecordTypeRegistry,
@@ -137,12 +137,13 @@ public class TransactionalStoragePartPersistenceService implements StoragePartPe
 
 	@Override
 	public <T extends StoragePart> long putStoragePart(long catalogVersion, @Nonnull T container) {
+		// put into tx offset index
+		final long storagePartPk = this.offsetIndex.put(catalogVersion, container);
 		// delete from removed keys (if present)
 		this.removedStoragePartKeys.remove(
-			new RecordKey(this.offsetIndex.getIdForRecordType(container.getClass()), catalogVersion)
+			new RecordKey(this.offsetIndex.getIdForRecordType(container.getClass()), storagePartPk)
 		);
-		// put into tx offset index
-		return this.offsetIndex.put(catalogVersion, container);
+		return storagePartPk;
 	}
 
 	@Override
@@ -242,7 +243,7 @@ public class TransactionalStoragePartPersistenceService implements StoragePartPe
 	}
 
 	@Override
-	public void purgeHistoryEqualAndLaterThan(long catalogVersion) {
+	public void purgeHistoryEqualAndLaterThan(@Nullable Long minimalActiveCatalogVersion) {
 		// do nothing, transactional storage has always single reader
 	}
 

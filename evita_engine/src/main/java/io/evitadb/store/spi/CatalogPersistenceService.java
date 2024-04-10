@@ -222,7 +222,7 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	 * @param entityTypePrimaryKey the primary key of the entity type
 	 */
 	@Nonnull
-	EntityCollectionPersistenceService createEntityCollectionPersistenceService(
+	EntityCollectionPersistenceService getOrCreateEntityCollectionPersistenceService(
 		long catalogVersion,
 		@Nonnull String entityType,
 		int entityTypePrimaryKey
@@ -236,7 +236,7 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	 * @param entityCollectionHeader the header of the entity collection
 	 */
 	@Nonnull
-	EntityCollectionPersistenceService flush(
+	Optional<EntityCollectionPersistenceService> flush(
 		long catalogVersion,
 		@Nonnull HeaderInfoSupplier headerInfoSupplier,
 		@Nonnull EntityCollectionHeader entityCollectionHeader
@@ -414,7 +414,7 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 
 	/**
 	 * Method closes this persistence service and also all {@link EntityCollectionPersistenceService} that were created
-	 * via. {@link #createEntityCollectionPersistenceService(long, String, int)}.
+	 * via. {@link #getOrCreateEntityCollectionPersistenceService(long, String, int)}.
 	 *
 	 * You need to call {@link #storeHeader(CatalogState, long, int, TransactionMutation, List)}  or {@link #flushTrappedUpdates(long, DataStoreIndexChanges)}
 	 * before this method is called, or you will lose your data in memory buffers.

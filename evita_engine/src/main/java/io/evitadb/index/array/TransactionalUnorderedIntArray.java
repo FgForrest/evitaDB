@@ -23,6 +23,7 @@
 
 package io.evitadb.index.array;
 
+import io.evitadb.core.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
@@ -39,7 +40,6 @@ import java.io.Serializable;
 import java.util.Arrays;
 import java.util.PrimitiveIterator.OfInt;
 
-import static io.evitadb.core.Transaction.getTransactionalMemoryLayer;
 import static io.evitadb.core.Transaction.getTransactionalMemoryLayerIfExists;
 import static io.evitadb.core.Transaction.isTransactionAvailable;
 
@@ -144,7 +144,7 @@ public class TransactionalUnorderedIntArray implements TransactionalLayerProduce
 	 * Method adds new record to the array, just after the record specified as `previousRecordId`.
 	 */
 	public void add(int previousRecordId, int recordId) {
-		final UnorderedIntArrayChanges layer = getTransactionalMemoryLayer(this);
+		final UnorderedIntArrayChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
 			this.lookup.addRecord(previousRecordId, recordId);
 		} else {
@@ -156,7 +156,7 @@ public class TransactionalUnorderedIntArray implements TransactionalLayerProduce
 	 * Method adds new record to the array on specified index.
 	 */
 	public void addOnIndex(int index, int recordId) {
-		final UnorderedIntArrayChanges layer = getTransactionalMemoryLayer(this);
+		final UnorderedIntArrayChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
 			this.lookup.addRecordOnIndex(index, recordId);
 		} else {
@@ -168,7 +168,7 @@ public class TransactionalUnorderedIntArray implements TransactionalLayerProduce
 	 * Method adds multiple record ids to the array.
 	 */
 	public void addAll(int previousRecordId, int... recordIds) {
-		final UnorderedIntArrayChanges layer = getTransactionalMemoryLayer(this);
+		final UnorderedIntArrayChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
 			int currentPrevRecId = previousRecordId;
 			for (int recordId : recordIds) {
@@ -190,7 +190,7 @@ public class TransactionalUnorderedIntArray implements TransactionalLayerProduce
 	 * @param recordIds record ids to add
 	 */
 	public void appendAll(int... recordIds) {
-		final UnorderedIntArrayChanges layer = getTransactionalMemoryLayer(this);
+		final UnorderedIntArrayChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
 			this.lookup.appendRecords(recordIds);
 		} else {
@@ -202,7 +202,7 @@ public class TransactionalUnorderedIntArray implements TransactionalLayerProduce
 	 * Method removes record id from the array.
 	 */
 	public void remove(int recordId) {
-		final UnorderedIntArrayChanges layer = getTransactionalMemoryLayer(this);
+		final UnorderedIntArrayChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
 			this.lookup.removeRecord(recordId);
 		} else {
@@ -214,7 +214,7 @@ public class TransactionalUnorderedIntArray implements TransactionalLayerProduce
 	 * Method removes multiple record ids from the array.
 	 */
 	public void removeAll(int... recordIds) {
-		final UnorderedIntArrayChanges layer = getTransactionalMemoryLayer(this);
+		final UnorderedIntArrayChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
 			for (int recordId : recordIds) {
 				this.lookup.removeRecord(recordId);
@@ -234,7 +234,7 @@ public class TransactionalUnorderedIntArray implements TransactionalLayerProduce
 	 * @return removed records
 	 */
 	public int[] removeRange(int startIndex, int endIndex) {
-		final UnorderedIntArrayChanges layer = getTransactionalMemoryLayer(this);
+		final UnorderedIntArrayChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
 			return this.lookup.removeRange(startIndex, endIndex);
 		} else {

@@ -133,6 +133,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static io.evitadb.store.spi.CatalogPersistenceService.*;
+import static java.util.Optional.empty;
+import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -822,7 +824,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 
 	@Nonnull
 	@Override
-	public EntityCollectionPersistenceService createEntityCollectionPersistenceService(
+	public EntityCollectionPersistenceService getOrCreateEntityCollectionPersistenceService(
 		long catalogVersion,
 		@Nonnull String entityType,
 		int entityTypePrimaryKey
@@ -862,7 +864,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 
 	@Nonnull
 	@Override
-	public EntityCollectionPersistenceService flush(
+	public Optional<EntityCollectionPersistenceService> flush(
 		long catalogVersion,
 		@Nonnull HeaderInfoSupplier headerInfoSupplier,
 		@Nonnull EntityCollectionHeader entityCollectionHeader
@@ -874,45 +876,47 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				entityCollectionHeader.entityTypeFileIndex(),
 				entityCollectionHeader.fileLocation()
 			);
-		final DefaultEntityCollectionPersistenceService entityCollectionPersistenceService = Objects.requireNonNull(
-			this.entityCollectionPersistenceServices.get(collectionFileReference),
-			() -> "Failed to find entity collection persistence service for `" + collectionFileReference + "`!"
-		);
-		final OffsetIndexDescriptor newDescriptor = entityCollectionPersistenceService.flush(catalogVersion, headerInfoSupplier);
-		if (newDescriptor.getActiveRecordShare() < this.storageOptions.minimalActiveRecordShare()) {
-			final EntityCollectionHeader compactedHeader = entityCollectionPersistenceService.compact(catalogVersion, headerInfoSupplier);
-			final DefaultEntityCollectionPersistenceService newPersistenceService = this.entityCollectionPersistenceServices.computeIfAbsent(
-				new CollectionFileReference(
-					entityCollectionHeader.entityType(),
-					entityCollectionHeader.entityTypePrimaryKey(),
-					compactedHeader.entityTypeFileIndex(),
-					compactedHeader.fileLocation()
-				),
-				eType -> new DefaultEntityCollectionPersistenceService(
-					catalogVersion,
-					this.catalogStoragePath,
-					compactedHeader,
-					this.storageOptions,
-					this.transactionOptions,
-					this.offHeapMemoryManager,
-					this.observableOutputKeeper,
-					this.recordTypeRegistry
-				)
-			);
-			this.obsoleteFileMaintainer.removeFileWhenNotUsed(
-				catalogVersion,
-				this.catalogStoragePath.resolve(
-					getEntityCollectionDataStoreFileName(entityCollectionHeader.entityType(), entityCollectionHeader.entityTypeFileIndex())
-				),
-				() -> this.entityCollectionPersistenceServices.remove(collectionFileReference)
-			);
-			Assert.isPremiseValid(
-				newPersistenceService.getEntityCollectionHeader().equals(compactedHeader),
-				() -> new EvitaInternalError("Unexpected header mismatch!")
-			);
-			return newPersistenceService;
+		final DefaultEntityCollectionPersistenceService entityCollectionPersistenceService = this.entityCollectionPersistenceServices.get(collectionFileReference);
+		if (entityCollectionPersistenceService == null) {
+			return empty();
 		} else {
-			return entityCollectionPersistenceService;
+			final OffsetIndexDescriptor newDescriptor = entityCollectionPersistenceService.flush(catalogVersion, headerInfoSupplier);
+			if (newDescriptor.getActiveRecordShare() < this.storageOptions.minimalActiveRecordShare() &&
+				newDescriptor.getFileSize() > this.storageOptions.fileSizeCompactionThresholdBytes()) {
+				final EntityCollectionHeader compactedHeader = entityCollectionPersistenceService.compact(catalogVersion, headerInfoSupplier);
+				final DefaultEntityCollectionPersistenceService newPersistenceService = this.entityCollectionPersistenceServices.computeIfAbsent(
+					new CollectionFileReference(
+						entityCollectionHeader.entityType(),
+						entityCollectionHeader.entityTypePrimaryKey(),
+						compactedHeader.entityTypeFileIndex(),
+						compactedHeader.fileLocation()
+					),
+					eType -> new DefaultEntityCollectionPersistenceService(
+						catalogVersion,
+						this.catalogStoragePath,
+						compactedHeader,
+						this.storageOptions,
+						this.transactionOptions,
+						this.offHeapMemoryManager,
+						this.observableOutputKeeper,
+						this.recordTypeRegistry
+					)
+				);
+				this.obsoleteFileMaintainer.removeFileWhenNotUsed(
+					catalogVersion,
+					this.catalogStoragePath.resolve(
+						getEntityCollectionDataStoreFileName(entityCollectionHeader.entityType(), entityCollectionHeader.entityTypeFileIndex())
+					),
+					() -> this.entityCollectionPersistenceServices.remove(collectionFileReference)
+				);
+				Assert.isPremiseValid(
+					newPersistenceService.getEntityCollectionHeader().equals(compactedHeader),
+					() -> new EvitaInternalError("Unexpected header mismatch!")
+				);
+				return of(newPersistenceService);
+			} else {
+				return of(entityCollectionPersistenceService);
+			}
 		}
 	}
 
@@ -1414,13 +1418,11 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	}
 
 	@Override
-	public void catalogVersionBeyondTheHorizon(long catalogVersion, boolean activeSessionsToOlderVersions) {
-		if (!activeSessionsToOlderVersions) {
-			this.catalogStoragePartPersistenceService.values().forEach(it -> it.purgeHistoryEqualAndLaterThan(catalogVersion));
-			this.obsoleteFileMaintainer.catalogVersionBeyondTheHorizon(catalogVersion, activeSessionsToOlderVersions);
-			this.entityCollectionPersistenceServices.values()
-				.forEach(it -> it.catalogVersionBeyondTheHorizon(catalogVersion, activeSessionsToOlderVersions));
-		}
+	public void catalogVersionBeyondTheHorizon(@Nullable Long minimalActiveCatalogVersion) {
+		this.catalogStoragePartPersistenceService.values().forEach(it -> it.purgeHistoryEqualAndLaterThan(minimalActiveCatalogVersion));
+		this.obsoleteFileMaintainer.catalogVersionBeyondTheHorizon(minimalActiveCatalogVersion);
+		this.entityCollectionPersistenceServices.values()
+			.forEach(it -> it.catalogVersionBeyondTheHorizon(minimalActiveCatalogVersion));
 	}
 
 	@Override
@@ -1471,7 +1473,8 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		final CatalogOffsetIndexStoragePartPersistenceService storagePartPersistenceService = getStoragePartPersistenceService(catalogVersion);
 		final OffsetIndexDescriptor flushedDescriptor = storagePartPersistenceService.flush(catalogVersion);
 		final CatalogBootstrap bootstrapRecord;
-		if (flushedDescriptor.getActiveRecordShare() < this.storageOptions.minimalActiveRecordShare()) {
+		if (flushedDescriptor.getActiveRecordShare() < this.storageOptions.minimalActiveRecordShare() &&
+			flushedDescriptor.getFileSize() > this.storageOptions.fileSizeCompactionThresholdBytes()) {
 			final int newCatalogFileIndex = catalogFileIndex + 1;
 			final String compactedFileName = getCatalogDataStoreFileName(newCatalogName, newCatalogFileIndex);
 			final OffsetIndexDescriptor compactedDescriptor = storagePartPersistenceService.copySnapshotTo(
