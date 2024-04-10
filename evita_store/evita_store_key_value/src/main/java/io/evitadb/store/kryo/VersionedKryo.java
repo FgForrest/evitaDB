@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,7 +26,7 @@ package io.evitadb.store.kryo;
 import com.esotericsoftware.kryo.ClassResolver;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.ReferenceResolver;
-import io.evitadb.store.fileOffsetIndex.FileOffsetIndex.FileOffsetIndexKryoPool;
+import io.evitadb.store.offsetIndex.OffsetIndex.FileOffsetIndexKryoPool;
 import lombok.Getter;
 
 /**
@@ -38,10 +38,6 @@ import lombok.Getter;
  */
 public class VersionedKryo extends Kryo {
 	@Getter private final long version;
-
-	static {
-		System.setProperty("kryo.unsafe", "false");
-	}
 
 	public VersionedKryo(long version) {
 		this.version = version;

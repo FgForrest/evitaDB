@@ -23,7 +23,6 @@
 
 package io.evitadb.externalApi.rest.io;
 
-import io.evitadb.api.CatalogContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
@@ -128,13 +127,7 @@ public abstract class RestEndpointHandler<CTX extends RestHandlingContext> exten
         final Evita evita = restHandlingContext.getEvita();
         final String catalogName = catalogRestHandlingContext.getCatalogSchema().getName();
         if (modifiesData()) {
-            final EvitaSessionContract session = evita.createReadWriteSession(catalogName);
-            final CatalogContract catalog = evita.getCatalogInstance(catalogName)
-                .orElseThrow(() -> new RestInternalError("Catalog `" + catalogName + "` could not be found."));
-            if (catalog.supportsTransaction()) {
-                session.openTransaction();
-            }
-            return Optional.of(session);
+            return Optional.of(evita.createReadWriteSession(catalogName));
         } else {
             return Optional.of(evita.createReadOnlySession(catalogName));
         }

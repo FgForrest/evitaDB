@@ -19,6 +19,15 @@ storage:
   maxOpenedReadHandles: ${storage.maxOpenedReadHandles:12}
   computeCRC32C: ${storage.computeCRC32C:true}
 
+transaction:
+  transactionWorkDirectory: ${transaction.workDirectory:null}
+  transactionMemoryBufferLimitSizeBytes: ${transaction.memoryBufferLimitSize:16M}
+  transactionMemoryRegionCount: ${transaction.memoryRegionCount:256}
+  walFileSizeBytes: ${transaction.walFilSize:16M}
+  walFileCountKept: ${transaction.walFileCountKept:8}
+  maxQueueSize: ${transaction.maxQueueSize:1024}
+  flushFrequencyInMillis: ${transaction.flushFrequencyInMillis:1000}
+
 cache:
   enabled: ${cache.enabled:true}
   reflection: ${cache.reflection:CACHE}

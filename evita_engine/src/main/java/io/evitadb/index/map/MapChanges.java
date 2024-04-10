@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,10 +23,9 @@
 
 package io.evitadb.index.map;
 
-import io.evitadb.core.Transaction;
-import io.evitadb.index.transactionalMemory.TransactionalLayerCreator;
-import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
-import io.evitadb.index.transactionalMemory.TransactionalLayerProducer;
+import io.evitadb.core.transaction.memory.TransactionalLayerCreator;
+import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
+import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 
@@ -74,7 +73,7 @@ public class MapChanges<K, V> implements Serializable {
 	 */
 	private int createdKeyCount;
 	/**
-	 * Function used to wrap result of {@link TransactionalLayerProducer#createCopyWithMergedTransactionalMemory(Object, TransactionalLayerMaintainer, Transaction)}
+	 * Function used to wrap result of {@link TransactionalLayerProducer#createCopyWithMergedTransactionalMemory(Object, TransactionalLayerMaintainer)}
 	 * to a {@link TransactionalLayerProducer} instance.
 	 */
 	private final Function<Object, V> transactionalLayerWrapper;
@@ -87,7 +86,7 @@ public class MapChanges<K, V> implements Serializable {
 	/**
 	 * Use this constructor if V implements TransactionalLayerProducer itself.
 	 * @param mapDelegate original map
-	 * @param transactionalLayerWrapper the function that wraps result of {@link TransactionalLayerProducer#createCopyWithMergedTransactionalMemory(Object, TransactionalLayerMaintainer, Transaction)} into a V type
+	 * @param transactionalLayerWrapper the function that wraps result of {@link TransactionalLayerProducer#createCopyWithMergedTransactionalMemory(Object, TransactionalLayerMaintainer)} into a V type
 	 */
 	public <S, T extends TransactionalLayerProducer<?, S>> MapChanges(
 		@Nonnull Map<K, V> mapDelegate,
@@ -240,9 +239,8 @@ public class MapChanges<K, V> implements Serializable {
 	/**
 	 * Computes the new map originating from {@link #mapDelegate} with applied all changes from this diff layer.
 	 */
-	@SuppressWarnings("unchecked")
 	@Nonnull
-	HashMap<K, V> createMergedMap(@Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Transaction transaction) {
+	HashMap<K, V> createMergedMap(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		// create new hash map of requested size
 		final HashMap<K, V> copy = createHashMap(mapDelegate.size());
 		// iterate original map and copy all values from it
@@ -262,7 +260,7 @@ public class MapChanges<K, V> implements Serializable {
 						transactionalLayerProducer.removeLayer(transactionalLayer);
 					} else if (!wasRemoved) {
 						value = transactionalLayerWrapper.apply(
-							transactionalLayer.getStateCopyWithCommittedChanges(transactionalLayerProducer, transaction)
+							transactionalLayer.getStateCopyWithCommittedChanges(transactionalLayerProducer)
 						);
 					}
 				}
@@ -282,7 +280,7 @@ public class MapChanges<K, V> implements Serializable {
 			V value = entry.getValue();
 			if (value instanceof TransactionalLayerProducer) {
 				value = transactionalLayerWrapper.apply(
-					transactionalLayer.getStateCopyWithCommittedChanges((TransactionalLayerProducer<?, ?>) value, transaction)
+					transactionalLayer.getStateCopyWithCommittedChanges((TransactionalLayerProducer<?, ?>) value)
 				);
 			}
 			// update the value

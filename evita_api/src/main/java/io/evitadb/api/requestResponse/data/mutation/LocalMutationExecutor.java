@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -42,10 +42,23 @@ public interface LocalMutationExecutor {
 	void applyMutation(@Nonnull LocalMutation<?, ?> localMutation);
 
 	/**
+	 * Method returns and clears list of implicit mutations that needs to be executed to keep entity consistent.
+	 * These implicit mutations usually represent initialization of default values on entity creation.
+	 *
+	 * @return list of implicit mutations
+	 */
+	@Nonnull
+	List<LocalMutation<?, ?>> popImplicitMutations();
+
+	/**
 	 * Method allows to apply all changes that has been recorded by this executor during multiple execution of
 	 * {@link #applyMutation(LocalMutation)}. The method is called only once after all mutations has been applied.
 	 */
-	@Nonnull
-	List<LocalMutation<?, ?>> applyChanges();
+	void commit();
 
+	/**
+	 * Rolls back all changes that has been recorded by this executor during multiple execution of
+	 * {@link #applyMutation(LocalMutation)}. The method is called only once before the executor is thrown out.
+	 */
+	void rollback();
 }

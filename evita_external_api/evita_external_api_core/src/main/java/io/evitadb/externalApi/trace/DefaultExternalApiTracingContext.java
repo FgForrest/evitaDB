@@ -25,6 +25,7 @@ package io.evitadb.externalApi.trace;
 
 import io.evitadb.api.trace.TracingContext.SpanAttribute;
 import io.evitadb.externalApi.utils.ExternalApiTracingContext;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -35,7 +36,9 @@ import java.util.function.Supplier;
  *
  * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
  */
+@NoArgsConstructor(access = lombok.AccessLevel.PRIVATE)
 public class DefaultExternalApiTracingContext implements ExternalApiTracingContext<Object> {
+	public final static DefaultExternalApiTracingContext INSTANCE = new DefaultExternalApiTracingContext();
 
 	@Override
 	public void executeWithinBlock(@Nonnull String protocolName, @Nonnull Object context, @Nonnull Runnable runnable, @Nullable SpanAttribute... attributes) {

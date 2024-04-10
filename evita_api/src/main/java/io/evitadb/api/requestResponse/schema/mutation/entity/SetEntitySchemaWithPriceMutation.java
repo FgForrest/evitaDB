@@ -46,8 +46,6 @@ import java.io.Serial;
  * Mutation implements {@link CombinableEntitySchemaMutation} allowing to resolve conflicts with the same mutation
  * if it's present in the mutation pipeline.
  *
- * TOBEDONE JNO - write tests
- *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @ThreadSafe
@@ -86,7 +84,7 @@ public class SetEntitySchemaWithPriceMutation implements CombinableEntitySchemaM
 				entitySchema.isWithGeneratedPrimaryKey(),
 				entitySchema.isWithHierarchy(),
 				withPrice,
-				entitySchema.getIndexedPricePlaces(),
+				indexedPricePlaces,
 				entitySchema.getLocales(),
 				entitySchema.getCurrencies(),
 				entitySchema.getAttributes(),

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -199,29 +199,29 @@ public final class EvitaSessionServiceGrpc {
     return getGoLiveAndCloseMethod;
   }
 
-  private static volatile io.grpc.MethodDescriptor<com.google.protobuf.Empty,
-      com.google.protobuf.Empty> getCloseMethod;
+  private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcCloseRequest,
+      io.evitadb.externalApi.grpc.generated.GrpcCloseResponse> getCloseMethod;
 
   @io.grpc.stub.annotations.RpcMethod(
       fullMethodName = SERVICE_NAME + '/' + "Close",
-      requestType = com.google.protobuf.Empty.class,
-      responseType = com.google.protobuf.Empty.class,
+      requestType = io.evitadb.externalApi.grpc.generated.GrpcCloseRequest.class,
+      responseType = io.evitadb.externalApi.grpc.generated.GrpcCloseResponse.class,
       methodType = io.grpc.MethodDescriptor.MethodType.UNARY)
-  public static io.grpc.MethodDescriptor<com.google.protobuf.Empty,
-      com.google.protobuf.Empty> getCloseMethod() {
-    io.grpc.MethodDescriptor<com.google.protobuf.Empty, com.google.protobuf.Empty> getCloseMethod;
+  public static io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcCloseRequest,
+      io.evitadb.externalApi.grpc.generated.GrpcCloseResponse> getCloseMethod() {
+    io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcCloseRequest, io.evitadb.externalApi.grpc.generated.GrpcCloseResponse> getCloseMethod;
     if ((getCloseMethod = EvitaSessionServiceGrpc.getCloseMethod) == null) {
       synchronized (EvitaSessionServiceGrpc.class) {
         if ((getCloseMethod = EvitaSessionServiceGrpc.getCloseMethod) == null) {
           EvitaSessionServiceGrpc.getCloseMethod = getCloseMethod =
-              io.grpc.MethodDescriptor.<com.google.protobuf.Empty, com.google.protobuf.Empty>newBuilder()
+              io.grpc.MethodDescriptor.<io.evitadb.externalApi.grpc.generated.GrpcCloseRequest, io.evitadb.externalApi.grpc.generated.GrpcCloseResponse>newBuilder()
               .setType(io.grpc.MethodDescriptor.MethodType.UNARY)
               .setFullMethodName(generateFullMethodName(SERVICE_NAME, "Close"))
               .setSampledToLocalTracing(true)
               .setRequestMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
-                  com.google.protobuf.Empty.getDefaultInstance()))
+                  io.evitadb.externalApi.grpc.generated.GrpcCloseRequest.getDefaultInstance()))
               .setResponseMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
-                  com.google.protobuf.Empty.getDefaultInstance()))
+                  io.evitadb.externalApi.grpc.generated.GrpcCloseResponse.getDefaultInstance()))
               .setSchemaDescriptor(new EvitaSessionServiceMethodDescriptorSupplier("Close"))
               .build();
         }
@@ -758,65 +758,34 @@ public final class EvitaSessionServiceGrpc {
   }
 
   private static volatile io.grpc.MethodDescriptor<com.google.protobuf.Empty,
-      io.evitadb.externalApi.grpc.generated.GrpcOpenTransactionResponse> getOpenTransactionMethod;
+      io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse> getGetTransactionIdMethod;
 
   @io.grpc.stub.annotations.RpcMethod(
-      fullMethodName = SERVICE_NAME + '/' + "OpenTransaction",
+      fullMethodName = SERVICE_NAME + '/' + "GetTransactionId",
       requestType = com.google.protobuf.Empty.class,
-      responseType = io.evitadb.externalApi.grpc.generated.GrpcOpenTransactionResponse.class,
+      responseType = io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse.class,
       methodType = io.grpc.MethodDescriptor.MethodType.UNARY)
   public static io.grpc.MethodDescriptor<com.google.protobuf.Empty,
-      io.evitadb.externalApi.grpc.generated.GrpcOpenTransactionResponse> getOpenTransactionMethod() {
-    io.grpc.MethodDescriptor<com.google.protobuf.Empty, io.evitadb.externalApi.grpc.generated.GrpcOpenTransactionResponse> getOpenTransactionMethod;
-    if ((getOpenTransactionMethod = EvitaSessionServiceGrpc.getOpenTransactionMethod) == null) {
+      io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse> getGetTransactionIdMethod() {
+    io.grpc.MethodDescriptor<com.google.protobuf.Empty, io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse> getGetTransactionIdMethod;
+    if ((getGetTransactionIdMethod = EvitaSessionServiceGrpc.getGetTransactionIdMethod) == null) {
       synchronized (EvitaSessionServiceGrpc.class) {
-        if ((getOpenTransactionMethod = EvitaSessionServiceGrpc.getOpenTransactionMethod) == null) {
-          EvitaSessionServiceGrpc.getOpenTransactionMethod = getOpenTransactionMethod =
-              io.grpc.MethodDescriptor.<com.google.protobuf.Empty, io.evitadb.externalApi.grpc.generated.GrpcOpenTransactionResponse>newBuilder()
+        if ((getGetTransactionIdMethod = EvitaSessionServiceGrpc.getGetTransactionIdMethod) == null) {
+          EvitaSessionServiceGrpc.getGetTransactionIdMethod = getGetTransactionIdMethod =
+              io.grpc.MethodDescriptor.<com.google.protobuf.Empty, io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse>newBuilder()
               .setType(io.grpc.MethodDescriptor.MethodType.UNARY)
-              .setFullMethodName(generateFullMethodName(SERVICE_NAME, "OpenTransaction"))
+              .setFullMethodName(generateFullMethodName(SERVICE_NAME, "GetTransactionId"))
               .setSampledToLocalTracing(true)
               .setRequestMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
                   com.google.protobuf.Empty.getDefaultInstance()))
               .setResponseMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
-                  io.evitadb.externalApi.grpc.generated.GrpcOpenTransactionResponse.getDefaultInstance()))
-              .setSchemaDescriptor(new EvitaSessionServiceMethodDescriptorSupplier("OpenTransaction"))
+                  io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse.getDefaultInstance()))
+              .setSchemaDescriptor(new EvitaSessionServiceMethodDescriptorSupplier("GetTransactionId"))
               .build();
         }
       }
     }
-    return getOpenTransactionMethod;
-  }
-
-  private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcCloseTransactionRequest,
-      com.google.protobuf.Empty> getCloseTransactionMethod;
-
-  @io.grpc.stub.annotations.RpcMethod(
-      fullMethodName = SERVICE_NAME + '/' + "CloseTransaction",
-      requestType = io.evitadb.externalApi.grpc.generated.GrpcCloseTransactionRequest.class,
-      responseType = com.google.protobuf.Empty.class,
-      methodType = io.grpc.MethodDescriptor.MethodType.UNARY)
-  public static io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcCloseTransactionRequest,
-      com.google.protobuf.Empty> getCloseTransactionMethod() {
-    io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcCloseTransactionRequest, com.google.protobuf.Empty> getCloseTransactionMethod;
-    if ((getCloseTransactionMethod = EvitaSessionServiceGrpc.getCloseTransactionMethod) == null) {
-      synchronized (EvitaSessionServiceGrpc.class) {
-        if ((getCloseTransactionMethod = EvitaSessionServiceGrpc.getCloseTransactionMethod) == null) {
-          EvitaSessionServiceGrpc.getCloseTransactionMethod = getCloseTransactionMethod =
-              io.grpc.MethodDescriptor.<io.evitadb.externalApi.grpc.generated.GrpcCloseTransactionRequest, com.google.protobuf.Empty>newBuilder()
-              .setType(io.grpc.MethodDescriptor.MethodType.UNARY)
-              .setFullMethodName(generateFullMethodName(SERVICE_NAME, "CloseTransaction"))
-              .setSampledToLocalTracing(true)
-              .setRequestMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
-                  io.evitadb.externalApi.grpc.generated.GrpcCloseTransactionRequest.getDefaultInstance()))
-              .setResponseMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
-                  com.google.protobuf.Empty.getDefaultInstance()))
-              .setSchemaDescriptor(new EvitaSessionServiceMethodDescriptorSupplier("CloseTransaction"))
-              .build();
-        }
-      }
-    }
-    return getCloseTransactionMethod;
+    return getGetTransactionIdMethod;
   }
 
   /**
@@ -930,8 +899,8 @@ public final class EvitaSessionServiceGrpc {
      * Procedure that closes the session.
      * </pre>
      */
-    public void close(com.google.protobuf.Empty request,
-        io.grpc.stub.StreamObserver<com.google.protobuf.Empty> responseObserver) {
+    public void close(io.evitadb.externalApi.grpc.generated.GrpcCloseRequest request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcCloseResponse> responseObserver) {
       io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getCloseMethod(), responseObserver);
     }
 
@@ -1110,19 +1079,9 @@ public final class EvitaSessionServiceGrpc {
      * Procedure that opens a transaction.
      * </pre>
      */
-    public void openTransaction(com.google.protobuf.Empty request,
-        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcOpenTransactionResponse> responseObserver) {
-      io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getOpenTransactionMethod(), responseObserver);
-    }
-
-    /**
-     * <pre>
-     * Procedure that closes a transaction.
-     * </pre>
-     */
-    public void closeTransaction(io.evitadb.externalApi.grpc.generated.GrpcCloseTransactionRequest request,
-        io.grpc.stub.StreamObserver<com.google.protobuf.Empty> responseObserver) {
-      io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getCloseTransactionMethod(), responseObserver);
+    public void getTransactionId(com.google.protobuf.Empty request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse> responseObserver) {
+      io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getGetTransactionIdMethod(), responseObserver);
     }
 
     @java.lang.Override public final io.grpc.ServerServiceDefinition bindService() {
@@ -1166,8 +1125,8 @@ public final class EvitaSessionServiceGrpc {
             getCloseMethod(),
             io.grpc.stub.ServerCalls.asyncUnaryCall(
               new MethodHandlers<
-                com.google.protobuf.Empty,
-                com.google.protobuf.Empty>(
+                io.evitadb.externalApi.grpc.generated.GrpcCloseRequest,
+                io.evitadb.externalApi.grpc.generated.GrpcCloseResponse>(
                   this, METHODID_CLOSE)))
           .addMethod(
             getQueryOneMethod(),
@@ -1289,19 +1248,12 @@ public final class EvitaSessionServiceGrpc {
                 io.evitadb.externalApi.grpc.generated.GrpcDeleteEntitiesResponse>(
                   this, METHODID_DELETE_ENTITIES)))
           .addMethod(
-            getOpenTransactionMethod(),
+            getGetTransactionIdMethod(),
             io.grpc.stub.ServerCalls.asyncUnaryCall(
               new MethodHandlers<
                 com.google.protobuf.Empty,
-                io.evitadb.externalApi.grpc.generated.GrpcOpenTransactionResponse>(
-                  this, METHODID_OPEN_TRANSACTION)))
-          .addMethod(
-            getCloseTransactionMethod(),
-            io.grpc.stub.ServerCalls.asyncUnaryCall(
-              new MethodHandlers<
-                io.evitadb.externalApi.grpc.generated.GrpcCloseTransactionRequest,
-                com.google.protobuf.Empty>(
-                  this, METHODID_CLOSE_TRANSACTION)))
+                io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse>(
+                  this, METHODID_GET_TRANSACTION_ID)))
           .build();
     }
   }
@@ -1388,8 +1340,8 @@ public final class EvitaSessionServiceGrpc {
      * Procedure that closes the session.
      * </pre>
      */
-    public void close(com.google.protobuf.Empty request,
-        io.grpc.stub.StreamObserver<com.google.protobuf.Empty> responseObserver) {
+    public void close(io.evitadb.externalApi.grpc.generated.GrpcCloseRequest request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcCloseResponse> responseObserver) {
       io.grpc.stub.ClientCalls.asyncUnaryCall(
           getChannel().newCall(getCloseMethod(), getCallOptions()), request, responseObserver);
     }
@@ -1586,21 +1538,10 @@ public final class EvitaSessionServiceGrpc {
      * Procedure that opens a transaction.
      * </pre>
      */
-    public void openTransaction(com.google.protobuf.Empty request,
-        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcOpenTransactionResponse> responseObserver) {
+    public void getTransactionId(com.google.protobuf.Empty request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse> responseObserver) {
       io.grpc.stub.ClientCalls.asyncUnaryCall(
-          getChannel().newCall(getOpenTransactionMethod(), getCallOptions()), request, responseObserver);
-    }
-
-    /**
-     * <pre>
-     * Procedure that closes a transaction.
-     * </pre>
-     */
-    public void closeTransaction(io.evitadb.externalApi.grpc.generated.GrpcCloseTransactionRequest request,
-        io.grpc.stub.StreamObserver<com.google.protobuf.Empty> responseObserver) {
-      io.grpc.stub.ClientCalls.asyncUnaryCall(
-          getChannel().newCall(getCloseTransactionMethod(), getCallOptions()), request, responseObserver);
+          getChannel().newCall(getGetTransactionIdMethod(), getCallOptions()), request, responseObserver);
     }
   }
 
@@ -1681,7 +1622,7 @@ public final class EvitaSessionServiceGrpc {
      * Procedure that closes the session.
      * </pre>
      */
-    public com.google.protobuf.Empty close(com.google.protobuf.Empty request) {
+    public io.evitadb.externalApi.grpc.generated.GrpcCloseResponse close(io.evitadb.externalApi.grpc.generated.GrpcCloseRequest request) {
       return io.grpc.stub.ClientCalls.blockingUnaryCall(
           getChannel(), getCloseMethod(), getCallOptions(), request);
     }
@@ -1861,19 +1802,9 @@ public final class EvitaSessionServiceGrpc {
      * Procedure that opens a transaction.
      * </pre>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcOpenTransactionResponse openTransaction(com.google.protobuf.Empty request) {
+    public io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse getTransactionId(com.google.protobuf.Empty request) {
       return io.grpc.stub.ClientCalls.blockingUnaryCall(
-          getChannel(), getOpenTransactionMethod(), getCallOptions(), request);
-    }
-
-    /**
-     * <pre>
-     * Procedure that closes a transaction.
-     * </pre>
-     */
-    public com.google.protobuf.Empty closeTransaction(io.evitadb.externalApi.grpc.generated.GrpcCloseTransactionRequest request) {
-      return io.grpc.stub.ClientCalls.blockingUnaryCall(
-          getChannel(), getCloseTransactionMethod(), getCallOptions(), request);
+          getChannel(), getGetTransactionIdMethod(), getCallOptions(), request);
     }
   }
 
@@ -1959,8 +1890,8 @@ public final class EvitaSessionServiceGrpc {
      * Procedure that closes the session.
      * </pre>
      */
-    public com.google.common.util.concurrent.ListenableFuture<com.google.protobuf.Empty> close(
-        com.google.protobuf.Empty request) {
+    public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcCloseResponse> close(
+        io.evitadb.externalApi.grpc.generated.GrpcCloseRequest request) {
       return io.grpc.stub.ClientCalls.futureUnaryCall(
           getChannel().newCall(getCloseMethod(), getCallOptions()), request);
     }
@@ -2157,21 +2088,10 @@ public final class EvitaSessionServiceGrpc {
      * Procedure that opens a transaction.
      * </pre>
      */
-    public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcOpenTransactionResponse> openTransaction(
+    public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse> getTransactionId(
         com.google.protobuf.Empty request) {
       return io.grpc.stub.ClientCalls.futureUnaryCall(
-          getChannel().newCall(getOpenTransactionMethod(), getCallOptions()), request);
-    }
-
-    /**
-     * <pre>
-     * Procedure that closes a transaction.
-     * </pre>
-     */
-    public com.google.common.util.concurrent.ListenableFuture<com.google.protobuf.Empty> closeTransaction(
-        io.evitadb.externalApi.grpc.generated.GrpcCloseTransactionRequest request) {
-      return io.grpc.stub.ClientCalls.futureUnaryCall(
-          getChannel().newCall(getCloseTransactionMethod(), getCallOptions()), request);
+          getChannel().newCall(getGetTransactionIdMethod(), getCallOptions()), request);
     }
   }
 
@@ -2198,8 +2118,7 @@ public final class EvitaSessionServiceGrpc {
   private static final int METHODID_DELETE_ENTITY = 20;
   private static final int METHODID_DELETE_ENTITY_AND_ITS_HIERARCHY = 21;
   private static final int METHODID_DELETE_ENTITIES = 22;
-  private static final int METHODID_OPEN_TRANSACTION = 23;
-  private static final int METHODID_CLOSE_TRANSACTION = 24;
+  private static final int METHODID_GET_TRANSACTION_ID = 23;
 
   private static final class MethodHandlers<Req, Resp> implements
       io.grpc.stub.ServerCalls.UnaryMethod<Req, Resp>,
@@ -2239,8 +2158,8 @@ public final class EvitaSessionServiceGrpc {
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseResponse>) responseObserver);
           break;
         case METHODID_CLOSE:
-          serviceImpl.close((com.google.protobuf.Empty) request,
-              (io.grpc.stub.StreamObserver<com.google.protobuf.Empty>) responseObserver);
+          serviceImpl.close((io.evitadb.externalApi.grpc.generated.GrpcCloseRequest) request,
+              (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcCloseResponse>) responseObserver);
           break;
         case METHODID_QUERY_ONE:
           serviceImpl.queryOne((io.evitadb.externalApi.grpc.generated.GrpcQueryRequest) request,
@@ -2310,13 +2229,9 @@ public final class EvitaSessionServiceGrpc {
           serviceImpl.deleteEntities((io.evitadb.externalApi.grpc.generated.GrpcDeleteEntitiesRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcDeleteEntitiesResponse>) responseObserver);
           break;
-        case METHODID_OPEN_TRANSACTION:
-          serviceImpl.openTransaction((com.google.protobuf.Empty) request,
-              (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcOpenTransactionResponse>) responseObserver);
-          break;
-        case METHODID_CLOSE_TRANSACTION:
-          serviceImpl.closeTransaction((io.evitadb.externalApi.grpc.generated.GrpcCloseTransactionRequest) request,
-              (io.grpc.stub.StreamObserver<com.google.protobuf.Empty>) responseObserver);
+        case METHODID_GET_TRANSACTION_ID:
+          serviceImpl.getTransactionId((com.google.protobuf.Empty) request,
+              (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse>) responseObserver);
           break;
         default:
           throw new AssertionError();
@@ -2402,8 +2317,7 @@ public final class EvitaSessionServiceGrpc {
               .addMethod(getDeleteEntityMethod())
               .addMethod(getDeleteEntityAndItsHierarchyMethod())
               .addMethod(getDeleteEntitiesMethod())
-              .addMethod(getOpenTransactionMethod())
-              .addMethod(getCloseTransactionMethod())
+              .addMethod(getGetTransactionIdMethod())
               .build();
         }
       }

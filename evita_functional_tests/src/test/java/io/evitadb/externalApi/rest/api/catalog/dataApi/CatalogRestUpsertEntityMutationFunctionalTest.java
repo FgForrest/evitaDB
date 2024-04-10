@@ -156,14 +156,14 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 
 	@Test
 	@UseDataSet(value = REST_THOUSAND_PRODUCTS_FOR_UPDATE, destroyAfterTest = true)
-	@DisplayName("Should return error when missing mutations for product update")
-	void shouldReturnErrorWhenMissingMutationsForProductUpdate(RestTester tester) {
+	@DisplayName("Should return error when missing mutations for product insert")
+	void shouldReturnErrorWhenMissingMutationsForProductInsert(RestTester tester) {
 		tester.test(TEST_CATALOG)
-			.httpMethod(Request.METHOD_PUT)
-			.urlPathSuffix("/PRODUCT/100")
+			.httpMethod(Request.METHOD_POST)
+			.urlPathSuffix("/PRODUCT/")
 			.requestBody("""
                     {
-                        "entityExistence": "MUST_EXIST"
+                        "entityExistence": "MUST_NOT_EXIST"
                     }
                     """)
 			.executeAndThen()

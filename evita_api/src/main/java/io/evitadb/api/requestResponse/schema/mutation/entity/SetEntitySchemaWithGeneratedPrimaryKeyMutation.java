@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -32,7 +32,6 @@ import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -46,17 +45,18 @@ import java.io.Serial;
  * Mutation implements {@link CombinableEntitySchemaMutation} allowing to resolve conflicts with the same mutation
  * if it's present in the mutation pipeline.
  *
- * TOBEDONE JNO - write tests
- *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @ThreadSafe
 @Immutable
 @EqualsAndHashCode
-@RequiredArgsConstructor
 public class SetEntitySchemaWithGeneratedPrimaryKeyMutation implements CombinableEntitySchemaMutation {
 	@Serial private static final long serialVersionUID = -1233789832547473632L;
 	@Getter private final boolean withGeneratedPrimaryKey;
+
+	public SetEntitySchemaWithGeneratedPrimaryKeyMutation(boolean withGeneratedPrimaryKey) {
+		this.withGeneratedPrimaryKey = withGeneratedPrimaryKey;
+	}
 
 	@Nullable
 	@Override

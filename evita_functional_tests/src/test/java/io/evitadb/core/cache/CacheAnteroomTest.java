@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,7 +28,7 @@ import io.evitadb.core.cache.payload.FlattenedFormula;
 import io.evitadb.core.query.algebra.CacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.AndFormula;
-import io.evitadb.core.scheduling.Scheduler;
+import io.evitadb.scheduling.Scheduler;
 import io.evitadb.test.TestConstants;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -54,9 +54,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class CacheAnteroomTest {
 	public static final String SOME_ENTITY = "SomeEntity";
+	public static final long MINIMAL_COMPLEXITY_THRESHOLD = 1L;
 	private static final int MAX_RECORD_COUNT = 10;
 	private static final Random RANDOM = new Random(52);
-	public static final long MINIMAL_COMPLEXITY_THRESHOLD = 1L;
 	private CacheAnteroom cacheAnteroom;
 	private CacheEden cacheEden;
 	private CacheableFormula[] inputFormulas;
@@ -75,12 +75,14 @@ class CacheAnteroomTest {
 		this.cacheAnteroom = new CacheAnteroom(
 			MAX_RECORD_COUNT, MINIMAL_COMPLEXITY_THRESHOLD,
 			cacheEden,
-			new Scheduler(new ScheduledThreadPoolExecutor(4)) {
-				@Override
-				public void execute(@Nonnull Runnable runnable) {
-					runnable.run();
+			new Scheduler(
+				new ScheduledThreadPoolExecutor(4) {
+					@Override
+					public void execute(@Nonnull Runnable runnable) {
+						runnable.run();
+					}
 				}
-			}
+			)
 		);
 		this.inputFormulas = new CacheableFormula[MAX_RECORD_COUNT + 2];
 		for (int i = 0; i < MAX_RECORD_COUNT + 2; i++) {

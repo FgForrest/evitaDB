@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,15 +23,13 @@
 
 package io.evitadb.index.array;
 
-import io.evitadb.core.Transaction;
-import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
-import io.evitadb.index.transactionalMemory.VoidTransactionMemoryProducer;
+import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
+import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
 import io.evitadb.utils.Assert;
 import lombok.Data;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -423,7 +421,7 @@ class TransactionalComplexObjArrayNoTransactionTest {
 		implements TransactionalObject<TransactionalInteger, Void>, VoidTransactionMemoryProducer<TransactionalInteger>, Comparable<TransactionalInteger> {
 		@Nonnull
 		@Override
-		public TransactionalInteger createCopyWithMergedTransactionalMemory(Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Transaction transaction) {
+		public TransactionalInteger createCopyWithMergedTransactionalMemory(Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
 			return this;
 		}
 
@@ -456,7 +454,7 @@ class TransactionalComplexObjArrayNoTransactionTest {
 
 		@Nonnull
 		@Override
-		public DistinctValueHolder createCopyWithMergedTransactionalMemory(Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Transaction transaction) {
+		public DistinctValueHolder createCopyWithMergedTransactionalMemory(Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
 			return this;
 		}
 

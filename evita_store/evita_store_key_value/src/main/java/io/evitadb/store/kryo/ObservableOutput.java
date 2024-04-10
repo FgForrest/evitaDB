@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,12 +27,15 @@ import com.esotericsoftware.kryo.KryoException;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.store.exception.StorageException;
 import io.evitadb.store.model.FileLocation;
+import io.evitadb.store.offsetIndex.model.StorageRecord;
+import io.evitadb.utils.BitUtils;
 import lombok.Getter;
 
 import javax.annotation.concurrent.NotThreadSafe;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Arrays;
+import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.zip.CRC32C;
@@ -178,11 +181,15 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 	 */
 	public FileLocation markEnd(byte controlByte) {
 		try {
-			writingTail = true;
+			this.writingTail = true;
+			final Optional<CRC32C> crc32Ref = ofNullable(crc32C);
+			final byte alteredControlByte = crc32Ref.isPresent() ?
+				BitUtils.setBit(controlByte, StorageRecord.CRC32_BIT, true) : controlByte;
 			// compute CRC32 checksum if requested
-			final long crc = ofNullable(crc32C)
+			final long crc = crc32Ref
 				.map(it -> {
 					it.update(buffer, payloadStartPosition, position - payloadStartPosition);
+					it.update(alteredControlByte);
 					return it.getValue();
 				})
 				.orElse(NULL_CRC);
@@ -193,7 +200,7 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 			final int length = position - startPosition;
 			// seek backwards to the place of record length and write it
 			writeIntWithoutTouchingPosition(this.recordLengthPosition, length);
-			writeByteWithoutTouchingPosition(this.recordLengthPosition + 4, controlByte);
+			writeByteWithoutTouchingPosition(this.recordLengthPosition + 4, alteredControlByte);
 			// restore position to the EOF
 			super.position = savedPosition;
 			// compute file coordinates before resetting positions

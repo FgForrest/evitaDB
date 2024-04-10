@@ -63,7 +63,7 @@ public class CatalogIndexStoragePart implements StoragePart {
 
 	@Nullable
 	@Override
-	public Long getUniquePartId() {
+	public Long getStoragePartPK() {
 		return 1L;
 	}
 

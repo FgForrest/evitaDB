@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
 
 package io.evitadb.index.bitmap;
 
-import io.evitadb.index.iterator.EmptyIntIterator;
+import io.evitadb.dataType.iterator.EmptyIntIterator;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
@@ -132,5 +132,5 @@ public class EmptyBitmap implements Bitmap {
 	public String toString() {
 		return "EMPTY";
 	}
-	
+
 }

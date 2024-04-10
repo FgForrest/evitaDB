@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -37,19 +37,19 @@ import io.evitadb.api.requestResponse.data.structure.predicate.PriceContractSeri
 import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceContractSerializablePredicate;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.EntityCollection;
-import io.evitadb.core.buffer.BufferedChangeSet;
-import io.evitadb.core.buffer.DataStoreTxMemoryBuffer;
+import io.evitadb.core.buffer.DataStoreChanges;
+import io.evitadb.core.buffer.DataStoreIndexChanges;
+import io.evitadb.core.buffer.DataStoreMemoryBuffer;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.price.PriceSuperIndex;
-import io.evitadb.index.transactionalMemory.diff.DataSourceChanges;
 import io.evitadb.store.model.PersistentStorageDescriptor;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.spi.model.EntityCollectionHeader;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.Iterator;
+import java.nio.file.Path;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -61,20 +61,23 @@ import java.util.function.Supplier;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public interface EntityCollectionPersistenceService extends PersistenceService {
+public non-sealed interface EntityCollectionPersistenceService extends PersistenceService<EntityIndexKey, EntityIndex> {
 
 	/**
-	 * Returns true if underlying file was not yet created.
+	 * Returns underlying {@link StoragePartPersistenceService} which this instance uses for {@link StoragePart}
+	 * persistence.
+	 * @return underlying {@link StoragePartPersistenceService}
 	 */
-	boolean isNew();
+	@Nonnull
+	StoragePartPersistenceService getStoragePartPersistenceService();
 
 	/**
 	 * Returns current instance of {@link EntityCollectionHeader}. The header is initialized in the instance constructor
-	 * and (because it's immutable) is exchanged with each {@link #flush(long, Function)} or
-	 * {@link #flushTrappedUpdates(BufferedChangeSet)} method call.
+	 * and (because it's immutable) is exchanged with each {@link #flushTrappedUpdates(long, DataStoreIndexChanges)}
+	 * method call.
 	 */
 	@Nonnull
-	EntityCollectionHeader getCatalogEntityHeader();
+	EntityCollectionHeader getEntityCollectionHeader();
 
 	/**
 	 * Reads entity from persistent storage by its primary key.
@@ -83,10 +86,11 @@ public interface EntityCollectionPersistenceService extends PersistenceService {
 	 */
 	@Nullable
 	Entity readEntity(
+		long catalogVersion,
 		int entityPrimaryKey,
 		@Nonnull EvitaRequest evitaRequest,
 		@Nonnull EntitySchema entitySchema,
-		@Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex, DataSourceChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer
+		@Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex, DataStoreChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer
 	);
 
 	/**
@@ -96,11 +100,12 @@ public interface EntityCollectionPersistenceService extends PersistenceService {
 	 */
 	@Nullable
 	BinaryEntity readBinaryEntity(
+		long catalogVersion,
 		int entityPrimaryKey,
 		@Nonnull EvitaRequest evitaRequest,
 		@Nonnull EvitaSessionContract session,
 		@Nonnull Function<String, EntityCollection> entityCollectionFetcher,
-		@Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex, DataSourceChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer
+		@Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex, DataStoreChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer
 	);
 
 	/**
@@ -113,6 +118,7 @@ public interface EntityCollectionPersistenceService extends PersistenceService {
 	 */
 	@Nonnull
 	Entity enrichEntity(
+		long catalogVersion,
 		@Nonnull EntitySchema entitySchema,
 		@Nonnull EntityDecorator entityDecorator,
 		@Nonnull HierarchySerializablePredicate newHierarchyPredicate,
@@ -120,8 +126,27 @@ public interface EntityCollectionPersistenceService extends PersistenceService {
 		@Nonnull AssociatedDataValueSerializablePredicate newAssociatedDataPredicate,
 		@Nonnull ReferenceContractSerializablePredicate newReferenceContractPredicate,
 		@Nonnull PriceContractSerializablePredicate newPricePredicate,
-		@Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex, DataSourceChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer
+		@Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex, DataStoreChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer
 	) throws EntityAlreadyRemovedException;
+
+	/**
+	 * Returns count of entities of certain type in the target storage.
+	 *
+	 * <strong>Note:</strong> the count may not be accurate - it counts only already persisted containers to the
+	 * persistent storage and doesn't take transactional memory into an account.
+	 */
+	int countEntities(
+		long catalogVersion,
+		@Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex, DataStoreChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer
+	);
+
+	/**
+	 * Returns TRUE if the storage file is effectively entity - having no active data in it.
+	 */
+	boolean isEmpty(
+		long catalogVersion,
+		@Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex, DataStoreChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer
+	);
 
 	/**
 	 * Loads additional data to existing entity according to requirements of type {@link EntityContentRequire}
@@ -133,10 +158,11 @@ public interface EntityCollectionPersistenceService extends PersistenceService {
 	 */
 	@Nonnull
 	BinaryEntity enrichEntity(
+		long catalogVersion,
 		@Nonnull EntitySchema entitySchema,
 		@Nonnull BinaryEntity entity,
 		@Nonnull EvitaRequest evitaRequest,
-		@Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex, DataSourceChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer
+		@Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex, DataStoreChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer
 	) throws EntityAlreadyRemovedException;
 
 	/**
@@ -144,6 +170,7 @@ public interface EntityCollectionPersistenceService extends PersistenceService {
 	 */
 	@Nullable
 	EntityIndex readEntityIndex(
+		long catalogVersion,
 		int entityIndexId,
 		@Nonnull Supplier<EntitySchema> schemaSupplier,
 		@Nonnull Supplier<PriceSuperIndex> temporalIndexAccessor,
@@ -151,50 +178,19 @@ public interface EntityCollectionPersistenceService extends PersistenceService {
 	);
 
 	/**
-	 * Returns count of entities of certain type in the target storage.
+	 * Flushes entire living data set to the target file. The file must exist and must be prepared for re-writing.
+	 * File must not be used by any other process.
 	 *
-	 * <strong>Note:</strong> the count may not be accurate - it counts only already persisted containers to the
-	 * persistent storage and doesn't take transactional memory into an account.
-	 */
-	<T extends StoragePart> int count(@Nonnull Class<T> containerClass);
-
-	/**
-	 * Returns iterator that goes through all containers of certain type in the target storage.
-	 *
-	 * <strong>Note:</strong> the list may not be accurate - it only goes through already persisted containers to the
-	 * persistent storage and doesn't take transactional memory into an account.
+	 * @param newFilePath    target file
+	 * @param catalogVersion new catalog version
 	 */
 	@Nonnull
-	Iterator<Entity> entityIterator(
-		@Nonnull EntitySchema entitySchema,
-		@Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex, DataSourceChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer
-	);
+	PersistentStorageDescriptor copySnapshotTo(@Nonnull Path newFilePath, long catalogVersion);
 
 	/**
-	 * Flushes changes in transactional memory to the persistent storage including the transactional id key.
-	 */
-	@Nonnull
-	EntityCollectionHeader flush(
-		long transactionId,
-		@Nonnull Function<PersistentStorageDescriptor, EntityCollectionHeader> catalogEntityHeaderFactory
-	);
-
-	/**
-	 * Flushes all trapped memory data to the persistent storage.
-	 * This method doesn't take transactional memory into an account but only flushes changes for trapped updates.
-	 */
-	void flushTrappedUpdates(@Nonnull BufferedChangeSet<EntityIndexKey, EntityIndex> bufferedChangeSet);
-
-	/**
-	 * Method deletes entire entity collection persistent storage.
-	 */
-	void delete();
-
-	/**
-	 * Closes the entity collection persistent storage. If you don't call {@link #flush(long, Function)}
-	 * or {@link #flushTrappedUpdates(BufferedChangeSet)} you'll lose the data in the buffers.
+	 * Closes the entity collection persistent storage. If you don't call {@link #flushTrappedUpdates(long, DataStoreIndexChanges)}
+	 * or {@link #flushTrappedUpdates(long, DataStoreIndexChanges)}  you'll lose the data in the buffers.
 	 */
 	@Override
 	void close();
-
 }

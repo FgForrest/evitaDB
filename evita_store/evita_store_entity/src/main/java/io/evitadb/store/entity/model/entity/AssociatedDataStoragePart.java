@@ -67,7 +67,7 @@ public class AssociatedDataStoragePart implements EntityStoragePart, RecordWithC
 	/**
 	 * Id used for lookups in persistent storage for this particular container.
 	 */
-	@Getter private Long uniquePartId;
+	@Getter private Long storagePartPK;
 	/**
 	 * See {@link AssociatedDataValue#value()}.
 	 */
@@ -78,13 +78,13 @@ public class AssociatedDataStoragePart implements EntityStoragePart, RecordWithC
 	@Getter private boolean dirty;
 
 	public AssociatedDataStoragePart(int entityPrimaryKey, @Nonnull AssociatedDataKey associatedDataKey) {
-		this.uniquePartId = null;
+		this.storagePartPK = null;
 		this.entityPrimaryKey = entityPrimaryKey;
 		this.associatedDataKey = new EntityAssociatedDataKey(entityPrimaryKey, associatedDataKey.associatedDataName(), associatedDataKey.locale());
 	}
 
-	public AssociatedDataStoragePart(long uniquePartId, int entityPrimaryKey, @Nonnull AssociatedDataValue associatedDataValue) {
-		this.uniquePartId = uniquePartId;
+	public AssociatedDataStoragePart(long storagePartPK, int entityPrimaryKey, @Nonnull AssociatedDataValue associatedDataValue) {
+		this.storagePartPK = storagePartPK;
 		this.entityPrimaryKey = entityPrimaryKey;
 		this.associatedDataKey = new EntityAssociatedDataKey(entityPrimaryKey, associatedDataValue.key().associatedDataName(), associatedDataValue.key().locale());
 		this.value = associatedDataValue;
@@ -113,10 +113,10 @@ public class AssociatedDataStoragePart implements EntityStoragePart, RecordWithC
 
 	@Override
 	public long computeUniquePartIdAndSet(@Nonnull KeyCompressor keyCompressor) {
-		Assert.isTrue(this.uniquePartId == null, "Unique part id is already known!");
+		Assert.isTrue(this.storagePartPK == null, "Unique part id is already known!");
 		Assert.notNull(entityPrimaryKey, "Entity primary key must be non-null!");
-		this.uniquePartId = AssociatedDataStoragePart.computeUniquePartId(keyCompressor, associatedDataKey);
-		return this.uniquePartId;
+		this.storagePartPK = AssociatedDataStoragePart.computeUniquePartId(keyCompressor, associatedDataKey);
+		return this.storagePartPK;
 	}
 
 	@Override

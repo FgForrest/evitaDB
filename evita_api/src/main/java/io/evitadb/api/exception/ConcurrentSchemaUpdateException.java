@@ -41,7 +41,7 @@ public class ConcurrentSchemaUpdateException extends SchemaAlteringException {
 	public ConcurrentSchemaUpdateException(@Nonnull CatalogSchemaContract currentSchema, @Nonnull CatalogSchemaContract newSchema) {
 		super(
 			"Cannot update catalog schema `" + currentSchema.getName() + "` - someone else altered the schema in the meanwhile (current version is " +
-				currentSchema.getVersion() + ", yours is " + newSchema.getVersion() + ")."
+				currentSchema.version() + ", yours is " + newSchema.version() + ")."
 		);
 	}
 

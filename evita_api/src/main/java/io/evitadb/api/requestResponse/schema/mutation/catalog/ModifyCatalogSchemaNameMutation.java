@@ -45,8 +45,6 @@ import java.io.Serial;
  * Mutation implements {@link CombinableCatalogSchemaMutation} allowing to resolve conflicts with the same mutation
  * if the mutation is placed twice in the mutation pipeline.
  *
- * TOBEDONE JNO - write tests
- *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @ThreadSafe
@@ -72,7 +70,7 @@ public class ModifyCatalogSchemaNameMutation implements TopLevelCatalogSchemaMut
 		} else {
 			return new CatalogSchemaWithImpactOnEntitySchemas(
 				CatalogSchema._internalBuild(
-					catalogSchema.getVersion() + 1,
+					catalogSchema.version() + 1,
 					newCatalogName,
 					NamingConvention.generate(newCatalogName),
 					catalogSchema.getDescription(),

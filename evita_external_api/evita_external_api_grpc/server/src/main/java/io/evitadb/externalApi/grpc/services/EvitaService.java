@@ -66,10 +66,10 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	@Nonnull private final Evita evita;
 
 	/**
-	 * Builds array of {@link SessionFlags} based on session type and rollback transactions flag.
+	 * Builds array of {@link SessionFlags} based on session type and rollback transaction flag.
 	 *
 	 * @param sessionType          type of the session
-	 * @param rollbackTransactions if true, all transactions will be rolled back on session close
+	 * @param rollbackTransactions if true, all transaction will be rolled back on session close
 	 * @return built array of {@link SessionFlags}
 	 */
 	@Nullable
@@ -288,7 +288,7 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	 * @param responseObserver     observer on which errors might be thrown and result returned
 	 * @param catalogName          name of the catalog on which should be session created
 	 * @param sessionType          type of the session
-	 * @param rollbackTransactions if true, all transactions will be rolled back on session close
+	 * @param rollbackTransactions if true, all transaction will be rolled back on session close
 	 */
 	private void createSessionAndBuildResponse(@Nonnull StreamObserver<GrpcEvitaSessionResponse> responseObserver, @Nonnull String catalogName, @Nonnull GrpcSessionType sessionType, boolean rollbackTransactions) {
 		executeWithClientContext(() -> {

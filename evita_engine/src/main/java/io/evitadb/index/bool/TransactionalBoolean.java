@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,9 +24,9 @@
 package io.evitadb.index.bool;
 
 import io.evitadb.core.Transaction;
-import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
-import io.evitadb.index.transactionalMemory.TransactionalLayerProducer;
-import io.evitadb.index.transactionalMemory.TransactionalObjectVersion;
+import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
+import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
+import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -35,7 +35,6 @@ import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
 
-import static io.evitadb.core.Transaction.getTransactionalMemoryLayer;
 import static io.evitadb.core.Transaction.getTransactionalMemoryLayerIfExists;
 
 /**
@@ -72,7 +71,7 @@ public class TransactionalBoolean implements TransactionalLayerProducer<BooleanC
 	 * Sets the value to TRUE in a transactional safe way (if transaction is available).
 	 */
 	public void setToTrue() {
-		final BooleanChanges layer = getTransactionalMemoryLayer(this);
+		final BooleanChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
 			value = true;
 		} else {
@@ -84,7 +83,7 @@ public class TransactionalBoolean implements TransactionalLayerProducer<BooleanC
 	 * Sets the value to FALSE in a transactional safe way (if transaction is available).
 	 */
 	public void setToFalse() {
-		final BooleanChanges layer = getTransactionalMemoryLayer(this);
+		final BooleanChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
 			value = false;
 		} else {
@@ -108,7 +107,7 @@ public class TransactionalBoolean implements TransactionalLayerProducer<BooleanC
 	 * Method resets the local value to FALSE.
 	 */
 	public void reset() {
-		final BooleanChanges layer = getTransactionalMemoryLayer(this);
+		final BooleanChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
 			value = false;
 		} else {
@@ -122,7 +121,7 @@ public class TransactionalBoolean implements TransactionalLayerProducer<BooleanC
 
 	@Nonnull
 	@Override
-	public Boolean createCopyWithMergedTransactionalMemory(@Nullable BooleanChanges layer, @Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Transaction transaction) {
+	public Boolean createCopyWithMergedTransactionalMemory(@Nullable BooleanChanges layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		return layer == null ? value : layer.isTrue();
 	}
 

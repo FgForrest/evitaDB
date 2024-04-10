@@ -109,6 +109,13 @@
 			<artifactId>evita_server</artifactId>
 			<version>${project.parent.version}</version>
 			<scope>test</scope>
+			<!-- we don't want to test observability -->
+			<exclusions>
+				<exclusion>
+					<groupId>${project.parent.groupId}</groupId>
+					<artifactId>evita_external_api_observability</artifactId>
+				</exclusion>
+			</exclusions>
 		</dependency>
 		<dependency>
 			<groupId>${project.parent.groupId}</groupId>

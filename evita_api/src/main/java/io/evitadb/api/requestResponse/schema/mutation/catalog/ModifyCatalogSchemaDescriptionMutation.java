@@ -83,7 +83,7 @@ public class ModifyCatalogSchemaDescriptionMutation implements CombinableCatalog
 		} else {
 			return new CatalogSchemaWithImpactOnEntitySchemas(
 				CatalogSchema._internalBuild(
-					catalogSchema.getVersion() + 1,
+					catalogSchema.version() + 1,
 					catalogSchema.getName(),
 					catalogSchema.getNameVariants(),
 					description,

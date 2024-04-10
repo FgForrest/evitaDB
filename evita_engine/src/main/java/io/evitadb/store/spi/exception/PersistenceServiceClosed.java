@@ -24,13 +24,13 @@
 package io.evitadb.store.spi.exception;
 
 import io.evitadb.exception.EvitaInternalError;
-import io.evitadb.store.spi.PersistenceService;
+import io.evitadb.store.spi.StoragePartPersistenceService;
 
 import java.io.Serial;
 
 /**
- * Exception is thrown when the {@link PersistenceService} is called but it was previously
- * {@link PersistenceService#close() closed}.
+ * Exception is thrown when the {@link StoragePartPersistenceService} is called but it was previously
+ * {@link StoragePartPersistenceService#close() closed}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */

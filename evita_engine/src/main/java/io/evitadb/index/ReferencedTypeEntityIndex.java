@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,6 +29,9 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.Transaction;
+import io.evitadb.core.transaction.memory.TransactionalContainerChanges;
+import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
+import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.index.ReferencedTypeEntityIndex.ReferencedTypeEntityIndexChanges;
 import io.evitadb.index.attribute.AttributeIndex;
 import io.evitadb.index.attribute.FilterIndex;
@@ -41,11 +44,7 @@ import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.index.price.PriceIndexContract;
 import io.evitadb.index.price.VoidPriceIndex;
 import io.evitadb.index.price.model.PriceIndexKey;
-import io.evitadb.index.transactionalMemory.TransactionalContainerChanges;
-import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
-import io.evitadb.index.transactionalMemory.TransactionalLayerProducer;
 import io.evitadb.store.model.StoragePart;
-import io.evitadb.store.spi.model.storageParts.accessor.EntityStoragePartAccessor;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStorageKey;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
 import io.evitadb.store.spi.model.storageParts.index.EntityIndexStoragePart;
@@ -66,7 +65,6 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
-import static io.evitadb.core.Transaction.getTransactionalMemoryLayer;
 import static io.evitadb.core.Transaction.isTransactionAvailable;
 import static io.evitadb.index.attribute.AttributeIndex.createAttributeKey;
 import static java.util.Optional.ofNullable;
@@ -202,32 +200,32 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 	}
 
 	/**
-	 * This method delegates call to {@link #insertPrimaryKeyIfMissing(int, EntityStoragePartAccessor)} but tracks
-	 * the cardinality of the referenced primary key in {@link #primaryKeyCardinality}.
+	 * This method delegates call to {@link super#insertPrimaryKeyIfMissing(int)}
+	 * but tracks the cardinality of the referenced primary key in {@link #primaryKeyCardinality}.
 	 *
 	 * @see #primaryKeyCardinality
 	 */
 	@Override
-	public boolean insertPrimaryKeyIfMissing(int entityPrimaryKey, @Nonnull EntityStoragePartAccessor entityStoragePartAccessor) {
+	public boolean insertPrimaryKeyIfMissing(int entityPrimaryKey) {
 		this.dirty.setToTrue();
 		if (this.primaryKeyCardinality.addRecord(entityPrimaryKey, entityPrimaryKey)) {
-			return super.insertPrimaryKeyIfMissing(entityPrimaryKey, entityStoragePartAccessor);
+			return super.insertPrimaryKeyIfMissing(entityPrimaryKey);
 		}
 		return false;
 	}
 
 	/**
-	 * This method delegates call to {@link #removePrimaryKey(int, EntityStoragePartAccessor)} but tracks the cardinality
-	 * of the referenced primary key in {@link #primaryKeyCardinality} and removes the referenced primary key from
-	 * {@link #entityIds} only when the cardinality reaches 0.
+	 * This method delegates call to {@link super#removePrimaryKey(int)} but tracks
+	 * the cardinality of the referenced primary key in {@link #primaryKeyCardinality} and removes the referenced
+	 * primary key from {@link #entityIds} only when the cardinality reaches 0.
 	 *
 	 * @see #primaryKeyCardinality
 	 */
 	@Override
-	public boolean removePrimaryKey(int entityPrimaryKey, @Nonnull EntityStoragePartAccessor entityStoragePartAccessor) {
+	public boolean removePrimaryKey(int entityPrimaryKey) {
 		this.dirty.setToTrue();
 		if (this.primaryKeyCardinality.removeRecord(entityPrimaryKey, entityPrimaryKey)) {
-			return super.removePrimaryKey(entityPrimaryKey, entityStoragePartAccessor);
+			return super.removePrimaryKey(entityPrimaryKey);
 		}
 		return false;
 	}
@@ -254,7 +252,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 			createAttributeKey(attributeSchema, allowedLocales, locale, value),
 			lookupKey -> {
 				final CardinalityIndex newCardinalityIndex = new CardinalityIndex(attributeSchema.getPlainType());
-				ofNullable(getTransactionalMemoryLayer(this))
+				ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
 					.ifPresent(it -> it.addCreatedItem(newCardinalityIndex));
 				return newCardinalityIndex;
 			}
@@ -297,7 +295,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 			createAttributeKey(attributeSchema, allowedLocales, locale, value),
 			lookupKey -> {
 				final CardinalityIndex newCardinalityIndex = new CardinalityIndex(attributeSchema.getPlainType());
-				ofNullable(getTransactionalMemoryLayer(this))
+				ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
 					.ifPresent(it -> it.addCreatedItem(newCardinalityIndex));
 				return newCardinalityIndex;
 			}
@@ -363,18 +361,18 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 
 	@Nonnull
 	@Override
-	public ReferencedTypeEntityIndex createCopyWithMergedTransactionalMemory(ReferencedTypeEntityIndexChanges layer, @Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Transaction transaction) {
+	public ReferencedTypeEntityIndex createCopyWithMergedTransactionalMemory(ReferencedTypeEntityIndexChanges layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		// we can safely throw away dirty flag now
-		final Boolean wasDirty = transactionalLayer.getStateCopyWithCommittedChanges(this.dirty, transaction);
+		final Boolean wasDirty = transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
 		final ReferencedTypeEntityIndex referencedTypeEntityIndex = new ReferencedTypeEntityIndex(
 			primaryKey, indexKey, version + (wasDirty ? 1 : 0), schemaAccessor,
-			transactionalLayer.getStateCopyWithCommittedChanges(this.entityIds, transaction),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.entityIdsByLanguage, transaction),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.attributeIndex, transaction),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.hierarchyIndex, transaction),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.facetIndex, transaction),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.primaryKeyCardinality, transaction),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.cardinalityIndexes, transaction)
+			transactionalLayer.getStateCopyWithCommittedChanges(this.entityIds),
+			transactionalLayer.getStateCopyWithCommittedChanges(this.entityIdsByLanguage),
+			transactionalLayer.getStateCopyWithCommittedChanges(this.attributeIndex),
+			transactionalLayer.getStateCopyWithCommittedChanges(this.hierarchyIndex),
+			transactionalLayer.getStateCopyWithCommittedChanges(this.facetIndex),
+			transactionalLayer.getStateCopyWithCommittedChanges(this.primaryKeyCardinality),
+			transactionalLayer.getStateCopyWithCommittedChanges(this.cardinalityIndexes)
 		);
 
 		ofNullable(layer).ifPresent(it -> it.clean(transactionalLayer));

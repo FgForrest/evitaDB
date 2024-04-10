@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
 
 package io.evitadb.index.bitmap;
 
-import io.evitadb.index.array.CompositeIntArray;
+import io.evitadb.dataType.array.CompositeIntArray;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -33,7 +33,7 @@ import java.util.Objects;
 import java.util.PrimitiveIterator.OfInt;
 
 /**
- * This class bridges {@link ArrayBitmap} interface over {@link io.evitadb.index.array.CompositeIntArray} delegate.
+ * This class bridges {@link ArrayBitmap} interface over {@link CompositeIntArray} delegate.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

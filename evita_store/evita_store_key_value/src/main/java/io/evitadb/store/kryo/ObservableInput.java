@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,12 +25,16 @@ package io.evitadb.store.kryo;
 
 import com.esotericsoftware.kryo.KryoException;
 import com.esotericsoftware.kryo.io.Input;
-import io.evitadb.store.fileOffsetIndex.exception.CorruptedRecordException;
-import io.evitadb.store.fileOffsetIndex.exception.KryoSerializationException;
-import io.evitadb.store.fileOffsetIndex.stream.RandomAccessFileInputStream;
 import io.evitadb.store.model.FileLocation;
+import io.evitadb.store.offsetIndex.exception.CorruptedRecordException;
+import io.evitadb.store.offsetIndex.exception.KryoSerializationException;
+import io.evitadb.store.offsetIndex.model.StorageRecord;
+import io.evitadb.store.offsetIndex.stream.AbstractRandomAccessInputStream;
+import io.evitadb.store.offsetIndex.stream.RandomAccessFileInputStream;
+import io.evitadb.utils.BitUtils;
 import lombok.Getter;
 
+import javax.annotation.Nonnull;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.io.InputStream;
 import java.util.function.Consumer;
@@ -92,11 +96,11 @@ public class ObservableInput<T extends InputStream> extends Input {
 	private boolean overflowing;
 	/**
 	 * Internal flag that is set to true only when {@link #markPayloadStart(int)} method was called and method
-	 * {@link #markEnd()} was not yet called. When this flag is true we read payload.
+	 * {@link #markEnd(byte)}  was not yet called. When this flag is true we read payload.
 	 */
 	private boolean readingPayload;
 	/**
-	 * Internal flag that is set to true only when {@link #markEnd()} method is running - which means that space
+	 * Internal flag that is set to true only when {@link #markEnd(byte)}  method is running - which means that space
 	 * for the tail no longer needs to be kept in reserve.
 	 */
 	private boolean readingTail;
@@ -129,7 +133,7 @@ public class ObservableInput<T extends InputStream> extends Input {
 	 * @implNote <a href="https://codecapsule.com/2014/02/12/coding-for-ssds-part-6-a-summary-what-every-programmer-should-know-about-solid-state-drives/">Source</a>
 	 */
 	public ObservableInput(T inputStream) {
-		super(inputStream, 16_384);
+		this(inputStream, 16_384);
 	}
 
 	public ObservableInput(T inputStream, int bufferSize) {
@@ -142,6 +146,73 @@ public class ObservableInput<T extends InputStream> extends Input {
 		return (T) super.getInputStream();
 	}
 
+	/**
+	 * This method allows reading a single int from the buffer outside of {@link #markStart()} and {@link #markEnd(byte)}
+	 * method calls. It's used when there is numeric information between consecutive {@link StorageRecord}. We can't
+	 * simply call {@link #readInt()} on observable input because it would trigger {@link #require(int)} method that
+	 * interoperates with internal counters expecting a {@link StorageRecord} lifecycle. This method will set and clears
+	 * all the internal counters so that the single integer can be read "off the record".
+	 *
+	 * @return int read from the buffer
+	 */
+	public int simpleIntRead() {
+		this.startPosition = super.position;
+		this.expectedLength = 4;
+		this.accumulatedLength = 0;
+		this.payloadStartPosition = this.position;
+		this.payloadPrefixLength = computeReadLengthUpTo(this.payloadStartPosition);
+		this.actualLimit = this.limit > 0 ? this.limit : -1;
+		this.limit = Math.min(this.buffer.length, constraintLimitWithRecordLength(0) + this.payloadPrefixLength);
+		this.readingTail = true;
+		try {
+			return readInt();
+		} finally {
+			this.limit = this.actualLimit >= 0 ? this.actualLimit : this.limit;
+			this.actualLimit = -1;
+			this.startPosition = -1;
+			this.expectedLength = -1;
+			this.accumulatedLength = 0;
+			this.payloadStartPosition = -1;
+			this.payloadPrefixLength = 0;
+			this.readingTail = false;
+		}
+	}
+
+	/**
+	 * This method allows reading a single long from the buffer outside of {@link #markStart()} and {@link #markEnd(byte)}
+	 * method calls. It's used when there is numeric information between consecutive {@link StorageRecord}. We can't
+	 * simply call {@link #readLong()} on observable input because it would trigger {@link #require(int)} method that
+	 * interoperates with internal counters expecting a {@link StorageRecord} lifecycle. This method will set and clears
+	 * all the internal counters so that the single long can be read "off the record".
+	 *
+	 * @return long read from the buffer
+	 */
+	public long simpleLongRead() {
+		this.startPosition = super.position;
+		this.expectedLength = 8;
+		this.accumulatedLength = 0;
+		this.payloadStartPosition = this.position;
+		this.payloadPrefixLength = computeReadLengthUpTo(this.payloadStartPosition);
+		this.actualLimit = this.limit > 0 ? this.limit : -1;
+		this.limit = Math.min(this.buffer.length, constraintLimitWithRecordLength(0) + this.payloadPrefixLength);
+		this.readingTail = true;
+		try {
+			return readLong();
+		} finally {
+			this.limit = this.actualLimit >= 0 ? this.actualLimit : this.limit;
+			this.actualLimit = -1;
+			this.startPosition = -1;
+			this.expectedLength = -1;
+			this.accumulatedLength = 0;
+			this.payloadStartPosition = -1;
+			this.payloadPrefixLength = 0;
+			this.readingTail = false;
+		}
+	}
+
+	/**
+	 * This method overrides original implementation and clears also all the internal counters.
+	 */
 	@Override
 	public void reset() {
 		super.reset();
@@ -234,7 +305,8 @@ public class ObservableInput<T extends InputStream> extends Input {
 		}
 
 		/* EXTENSION */
-		updateLostBuffer(remaining, capacity - remaining);
+		final int attemptedToRead = capacity - remaining;
+		updateLostBuffer(remaining, attemptedToRead);
 		/* END OF EXTENSION */
 
 		// Was not enough, compact and try again.
@@ -243,7 +315,7 @@ public class ObservableInput<T extends InputStream> extends Input {
 		position = 0;
 
 		while (true) {
-			count = fill(buffer, remaining, capacity - remaining);
+			count = fill(buffer, remaining, attemptedToRead);
 			if (count == -1) {
 				if (remaining >= required) break;
 				throw new KryoException("Buffer underflow.");
@@ -257,14 +329,6 @@ public class ObservableInput<T extends InputStream> extends Input {
 		this.limit = constraintLimitWithRecordLength();
 		/* END OF EXTENSION */
 		return limit;
-	}
-
-	/**
-	 * Method computes total record length read from {@link #markStart()} up to current {@link #position}.
-	 */
-	private int computeTotalReadLength() {
-		final int readLength = computeReadLengthUpTo(this.position);
-		return readLength + this.accumulatedLength;
 	}
 
 	/**
@@ -306,7 +370,8 @@ public class ObservableInput<T extends InputStream> extends Input {
 		}
 
 		/* EXTENSION */
-		updateLostBuffer(remaining, capacity - remaining);
+		final int attemptedToRead = capacity - remaining;
+		updateLostBuffer(remaining, attemptedToRead);
 		/* END OF EXTENSION */
 
 		// Was not enough, compact and try again.
@@ -315,7 +380,7 @@ public class ObservableInput<T extends InputStream> extends Input {
 		position = 0;
 
 		while (true) {
-			count = fill(buffer, remaining, capacity - remaining);
+			count = fill(buffer, remaining, attemptedToRead);
 			if (count == -1) break;
 			remaining += count;
 			if (remaining >= optional) break; // Enough has been read.
@@ -326,6 +391,14 @@ public class ObservableInput<T extends InputStream> extends Input {
 		this.limit = constraintLimitWithRecordLength();
 		return limit == 0 ? -1 : Math.min(limit, optional);
 		/* END OF EXTENSION */
+	}
+
+	/**
+	 * Method computes total record length read from {@link #markStart()} up to current {@link #position}.
+	 */
+	private int computeTotalReadLength() {
+		final int readLength = computeReadLengthUpTo(this.position);
+		return readLength + this.accumulatedLength;
 	}
 
 	/**
@@ -423,24 +496,24 @@ public class ObservableInput<T extends InputStream> extends Input {
 	 * Expected and read record size is verified at all times.
 	 * Method resets all record related flags and another record can be read afterwards.
 	 */
-	public void markEnd() {
+	public void markEnd(byte controlByte) {
 		try {
 			this.readingPayload = false;
 			this.readingTail = true;
 			// enlarge limit to original value - we're already finishing record
 			this.limit = this.actualLimit >= 0 ? this.actualLimit : this.limit;
-			this.actualLimit = -1;
 
 			if (payloadStartPosition != -1) {
 				// compute the final part of the payload that hasn't been added to accumulated length and CRC32 checksum
 				final int payloadLength = super.position - this.payloadStartPosition;
 				final int totalLength = super.position - this.startPosition;
-				if (crc32C == null) {
+				if (crc32C == null || !BitUtils.isBitSet(controlByte, StorageRecord.CRC32_BIT)) {
 					// skip CRC32 checksum - it will not be verified
 					super.skip(8);
 				} else {
 					// update CRC32 checksum with the final payload part
 					crc32C.update(super.buffer, this.payloadStartPosition, payloadLength);
+					crc32C.update(BitUtils.setBit(controlByte, StorageRecord.CRC32_BIT, true));
 					// verify checksum
 					final long computedChecksum = crc32C.getValue();
 					final long loadedChecksum = readLong();
@@ -448,7 +521,7 @@ public class ObservableInput<T extends InputStream> extends Input {
 						computedChecksum == loadedChecksum,
 						() -> new CorruptedRecordException(
 							"Invalid checksum - data probably corrupted " +
-								"(record should have CRC32C " + loadedChecksum + ", but was " + computedChecksum + ").",
+								"(record should have got CRC32C " + loadedChecksum + ", but was " + computedChecksum + ").",
 							loadedChecksum, computedChecksum
 						)
 					);
@@ -464,13 +537,14 @@ public class ObservableInput<T extends InputStream> extends Input {
 					)
 				);
 			}
+		} finally {
 			// reset counters
 			this.startPosition = -1;
+			this.actualLimit = -1;
 			this.payloadStartPosition = -1;
 			this.payloadPrefixLength = 0;
 			this.expectedLength = -1;
 			this.accumulatedLength = 0;
-		} finally {
 			this.readingTail = false;
 		}
 	}
@@ -491,6 +565,7 @@ public class ObservableInput<T extends InputStream> extends Input {
 	public long markStart() {
 		this.startPosition = super.position;
 		this.expectedLength = -1;
+		this.accumulatedLength = 0;
 		return total();
 	}
 
@@ -507,7 +582,7 @@ public class ObservableInput<T extends InputStream> extends Input {
 	}
 
 	/**
-	 * Method requires {@link RandomAccessFileInputStream} as an inner stream of this instance. If different stream
+	 * Method requires {@link AbstractRandomAccessInputStream} as an inner stream of this instance. If different stream
 	 * is present ClassCastException is thrown.
 	 *
 	 * Method will position location in the file to the desired location, resets all internal flags and settings to
@@ -517,9 +592,23 @@ public class ObservableInput<T extends InputStream> extends Input {
 	 *
 	 * @throws ClassCastException when internal stream is not {@link RandomAccessFileInputStream}
 	 */
-	public void seek(FileLocation location) {
-		/* TOBEDONE JNO - this should support also fetching bigger chunks for multiple file locations that will be read in the same moment?! Needs perf test if it provides better results */
-		((RandomAccessFileInputStream) this.inputStream).seek(location.startingPosition());
+	public void seekWithUnknownLength(long startingPosition) throws ClassCastException {
+		seek(new FileLocation(startingPosition, this.buffer.length));
+	}
+
+	/**
+	 * Method requires {@link AbstractRandomAccessInputStream} as an inner stream of this instance. If different stream
+	 * is present ClassCastException is thrown.
+	 *
+	 * Method will position location in the file to the desired location, resets all internal flags and settings to
+	 * the initial state and initializes capacity of the buffer to the record length. This speeds reading process
+	 * because only necessary amount of data is read, even if ObservableInput is initialized with much bigger
+	 * buffer.
+	 *
+	 * @throws ClassCastException when internal stream is not {@link RandomAccessFileInputStream}
+	 */
+	public void seek(@Nonnull FileLocation location) throws ClassCastException {
+		((AbstractRandomAccessInputStream) this.inputStream).seek(location.startingPosition());
 		this.limit = 0;
 		this.actualLimit = -1;
 		this.position = 0;
@@ -536,16 +625,25 @@ public class ObservableInput<T extends InputStream> extends Input {
 	}
 
 	/**
-	 * Method requires {@link RandomAccessFileInputStream} as an inner stream of this instance. If different stream
+	 * Method requires {@link AbstractRandomAccessInputStream} as an inner stream of this instance. If different stream
 	 * is present ClassCastException is thrown.
 	 *
 	 * Method will position location in the file to the desired location, resets all internal flags and settings to
 	 * the initial state.
 	 */
 	public void resetToPosition(long location) {
-		((RandomAccessFileInputStream) this.inputStream).seek(location);
+		((AbstractRandomAccessInputStream) this.inputStream).seek(location);
 		this.limit = 0;
 		this.reset();
+	}
+
+	/**
+	 * Variant of the method that counts with the CRC32C checksum at the end of the record.
+	 *
+	 * @see #constraintLimitWithRecordLength(int)
+	 */
+	private int constraintLimitWithRecordLength() {
+		return constraintLimitWithRecordLength(TAIL_MANDATORY_SPACE);
 	}
 
 	/**
@@ -560,11 +658,11 @@ public class ObservableInput<T extends InputStream> extends Input {
 	 * of the current record so that we can apply {@link #overflowing} logic and check checksum and read header
 	 * of the next record.
 	 */
-	private int constraintLimitWithRecordLength() {
+	private int constraintLimitWithRecordLength(int mandatorySpaceLength) {
 		if (!readingTail && this.expectedLength > 0 && this.expectedLength < this.accumulatedLength + this.limit - this.lastOffset) {
 			// remember but cap the limit
 			this.actualLimit = this.limit;
-			return this.startPosition + this.expectedLength - TAIL_MANDATORY_SPACE - this.accumulatedLength;
+			return this.startPosition + this.expectedLength - mandatorySpaceLength - this.accumulatedLength;
 		} else {
 			// leave limit unchanged
 			return this.limit;
@@ -596,7 +694,7 @@ public class ObservableInput<T extends InputStream> extends Input {
 			// recompute accumulated length since the start of the record
 			if (this.lastCount != -1) {
 				if (!this.readingTail) {
-					this.accumulatedLength += (this.lastCount - (this.startPosition - this.lastOffset));
+					this.accumulatedLength += this.position - (this.startPosition - offset);
 					// update payload start positions - we're going to rewrite the buffer so the sensible payload start changes
 					this.startPosition = offset;
 				}

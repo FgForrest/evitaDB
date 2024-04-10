@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,15 +28,21 @@ import io.evitadb.api.CatalogState;
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.CollectionNotFoundException;
+import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.SchemaAlteringException;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaResponse;
+import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.system.CatalogVersion;
+import io.evitadb.api.requestResponse.system.CatalogVersionDescriptor;
+import io.evitadb.api.requestResponse.system.TimeFlow;
 import io.evitadb.core.exception.CatalogCorruptedException;
+import io.evitadb.dataType.PaginatedList;
 import io.evitadb.utils.FileUtils;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -47,6 +53,8 @@ import java.nio.file.Path;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Consumer;
+import java.util.stream.Stream;
 
 /**
  * This implementation of {@link CatalogContract} represents a catalog instance that cannot be loaded into a memory due
@@ -68,7 +76,7 @@ public final class CorruptedCatalog implements CatalogContract {
 	}
 
 	@Override
-	public @Nonnull CatalogSchemaContract updateSchema(@Nonnull EvitaSessionContract session, @Nonnull LocalCatalogSchemaMutation... schemaMutation) throws SchemaAlteringException {
+	public @Nonnull CatalogSchemaContract updateSchema(@Nonnull LocalCatalogSchemaMutation... schemaMutation) throws SchemaAlteringException {
 		throw new CatalogCorruptedException(this);
 	}
 
@@ -171,6 +179,40 @@ public final class CorruptedCatalog implements CatalogContract {
 	@Nonnull
 	@Override
 	public Optional<SealedEntitySchema> getEntitySchema(@Nonnull String entityType) {
+		throw new CatalogCorruptedException(this);
+	}
+
+	@Override
+	public void applyMutation(@Nonnull Mutation mutation) throws InvalidMutationException {
+		throw new CatalogCorruptedException(this);
+	}
+
+	@Override
+	public void processWriteAheadLog(@Nonnull Consumer<CatalogContract> updatedCatalog) {
+		throw new CatalogCorruptedException(this);
+	}
+
+	@Nonnull
+	@Override
+	public PaginatedList<CatalogVersion> getCatalogVersions(@Nonnull TimeFlow timeFlow, int page, int pageSize) {
+		throw new CatalogCorruptedException(this);
+	}
+
+	@Nonnull
+	@Override
+	public Stream<CatalogVersionDescriptor> getCatalogVersionDescriptors(long... catalogVersion) {
+		throw new CatalogCorruptedException(this);
+	}
+
+	@Nonnull
+	@Override
+	public Stream<Mutation> getCommittedMutationStream(long catalogVersion) {
+		throw new CatalogCorruptedException(this);
+	}
+
+	@Nonnull
+	@Override
+	public Stream<Mutation> getReversedCommittedMutationStream(long catalogVersion) {
 		throw new CatalogCorruptedException(this);
 	}
 

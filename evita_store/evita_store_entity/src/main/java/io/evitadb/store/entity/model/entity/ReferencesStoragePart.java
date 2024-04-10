@@ -88,7 +88,7 @@ public class ReferencesStoragePart implements EntityStoragePart {
 
 	@Nullable
 	@Override
-	public Long getUniquePartId() {
+	public Long getStoragePartPK() {
 		return (long) entityPrimaryKey;
 	}
 

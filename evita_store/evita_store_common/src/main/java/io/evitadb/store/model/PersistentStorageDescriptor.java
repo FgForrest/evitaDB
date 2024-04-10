@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -33,8 +33,8 @@ import java.util.Map;
  * serialized records. The descriptor is a key for understanding the contents of the binary file. Without descriptor
  * the file is unreadable.
  *
- * Descriptor contains crucial information for setting up the Kryo instance (see {@link #getCompressedKeys()} as well as
- * the location of its final fragment {@link #getFileLocation()} that allows back-reading of all previous descriptors.
+ * Descriptor contains crucial information for setting up the Kryo instance (see {@link #compressedKeys()} as well as
+ * the location of its final fragment {@link #fileLocation()} that allows back-reading of all previous descriptors.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -44,18 +44,18 @@ public interface PersistentStorageDescriptor {
 	 * Descriptor version is incremented with each update. Version is not stored on the disk, it serves only to distinguish
 	 * whether there is any change made in the header and whether it needs to be persisted on disk.
 	 */
-	long getVersion();
+	long version();
 
 	/**
 	 * Returns actual contents of the {@link KeyCompressor} used during write.
 	 */
 	@Nonnull
-	Map<Integer, Object> getCompressedKeys();
+	Map<Integer, Object> compressedKeys();
 
 	/**
 	 * Contains location of the last file offset index fragment for this version of the header / collection.
 	 */
 	@Nonnull
-	FileLocation getFileLocation();
+	FileLocation fileLocation();
 
 }

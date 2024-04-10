@@ -46,7 +46,7 @@ public class CardinalityIndexStoragePartSerializer extends Serializer<Cardinalit
 	@Override
 	public void write(Kryo kryo, Output output, CardinalityIndexStoragePart filterIndex) {
 		output.writeInt(filterIndex.getEntityIndexPrimaryKey());
-		final Long uniquePartId = filterIndex.getUniquePartId();
+		final Long uniquePartId = filterIndex.getStoragePartPK();
 		Assert.notNull(uniquePartId, "Unique part id should have been computed by now!");
 		output.writeVarLong(uniquePartId, true);
 		output.writeVarInt(keyCompressor.getId(filterIndex.getAttributeKey()), true);

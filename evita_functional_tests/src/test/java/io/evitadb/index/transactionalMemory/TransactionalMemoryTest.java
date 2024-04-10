@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,25 +23,20 @@
 
 package io.evitadb.index.transactionalMemory;
 
-import io.evitadb.core.Transaction;
+import io.evitadb.core.exception.StaleTransactionMemoryException;
+import io.evitadb.core.transaction.memory.TransactionalMemory;
 import io.evitadb.index.map.TransactionalMap;
-import io.evitadb.index.transactionalMemory.exception.StaleTransactionMemoryException;
-import lombok.Getter;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * This class verifies {@link TransactionalMemory} contract.
@@ -57,7 +52,6 @@ class TransactionalMemoryTest {
 	private TransactionalMap<String, Integer> tested1;
 	private TransactionalMap<String, Integer> tested2;
 	private TransactionalMap<String, TransactionalMap<String, Integer>> tested3;
-	private Transaction transaction;
 
 	@BeforeEach
 	void setUp() {
@@ -84,152 +78,95 @@ class TransactionalMemoryTest {
 		for (Entry<String, Map<String, Integer>> entry : underlyingData3.entrySet()) {
 			tested3.put(entry.getKey(), new TransactionalMap<>(entry.getValue()));
 		}
-
-		transaction = Transaction.createMockTransactionForTests();
-	}
-
-	@AfterEach
-	void tearDown() {
-		transaction.setRollbackOnly();
-		transaction.close();
 	}
 
 	@Test
 	void shouldControlCommitAtomicity() {
-		final TestTransactionalLayerConsumer consumer = new TestTransactionalLayerConsumer();
-		Transaction.executeInTransactionIfProvided(
-			transaction,
-			() -> {
-				tested1.put("c", 3);
-				tested2.put("c", 4);
+		assertStateAfterCommit(
+			List.of(tested1, tested2),
+			(original) -> {
+				original.get(0).put("c", 3);
+				original.get(1).put("c", 4);
+			},
+			(original, committed) -> {
+				assertNull(tested1.get("c"));
+				assertNull(underlyingData1.get("c"));
+				assertEquals(3, committed.get(0).get("c"));
 
-				transaction.addTransactionCommitHandler(consumer);
+				assertNull(tested2.get("c"));
+				assertNull(underlyingData2.get("c"));
+				assertEquals(4, committed.get(1).get("c"));
 			}
 		);
-
-		transaction.close();
-
-		assertNull(tested1.get("c"));
-		assertNull(underlyingData1.get("c"));
-		assertEquals(Integer.valueOf(3), consumer.getCommited1().get("c"));
-
-		assertNull(tested2.get("c"));
-		assertNull(underlyingData2.get("c"));
-		assertEquals(Integer.valueOf(4), consumer.getCommited2().get("c"));
 	}
 
 	@Test
 	void shouldControlCommitAtomicityDeepWise() {
-		final TestTransactionalLayerConsumer consumer = new TestTransactionalLayerConsumer();
-		Transaction.executeInTransactionIfProvided(
-			transaction,
-			() -> {
-				tested3.get("a").put("a", 1);
-				tested3.get("b").put("b", 2);
+		assertStateAfterCommit(
+			tested3,
+			original -> {
+				original.get("a").put("a", 1);
+				original.get("b").put("b", 2);
+			},
+			(original, committed) -> {
+				assertNull(tested3.get("a").get("a"));
+				assertNull(underlyingData3A.get("a"));
+				final Map<String, Integer> committed3A = committed.get("a");
+				assertInstanceOf(TransactionalMap.class, committed3A);
+				assertEquals(Integer.valueOf(1), committed3A.get("a"));
+				assertEquals(Integer.valueOf(3), committed3A.get("c"));
 
-				transaction.addTransactionCommitHandler(consumer);
+				assertNull(tested3.get("b").get("b"));
+				assertNull(underlyingData3B.get("b"));
+				final Map<String, Integer> committed3B = committed.get("b");
+				assertInstanceOf(TransactionalMap.class, committed3B);
+				assertEquals(Integer.valueOf(2), committed3B.get("b"));
+				assertEquals(Integer.valueOf(4), committed3B.get("d"));
 			}
 		);
-
-		transaction.close();
-
-		assertNull(tested3.get("a").get("a"));
-		assertNull(underlyingData3A.get("a"));
-		final Map<String, Integer> committed3A = consumer.getCommited3().get("a");
-		assertTrue(committed3A instanceof TransactionalMap);
-		assertEquals(Integer.valueOf(1), committed3A.get("a"));
-		assertEquals(Integer.valueOf(3), committed3A.get("c"));
-
-		assertNull(tested3.get("b").get("b"));
-		assertNull(underlyingData3B.get("b"));
-		final Map<String, Integer> committed3B = consumer.getCommited3().get("b");
-		assertTrue(committed3B instanceof TransactionalMap);
-		assertEquals(Integer.valueOf(2), committed3B.get("b"));
-		assertEquals(Integer.valueOf(4), committed3B.get("d"));
 	}
 
 	@Test
 	void shouldControlCommitAtomicityDeepWiseWithChangesToPrimaryMap() {
-		final TestTransactionalLayerConsumer consumer = new TestTransactionalLayerConsumer();
-		Transaction.executeInTransactionIfProvided(
-			transaction,
-			() -> {
+		assertStateAfterCommit(
+			tested3,
+			original -> {
 				final TransactionalMap<String, Integer> newMap = new TransactionalMap<>(new HashMap<>());
-				tested3.put("a", newMap);
+				original.put("a", newMap);
 				newMap.put("a", 99);
-				tested3.remove("b");
+				original.remove("b");
+			},
+			(original, committed) -> {
+				assertNull(tested3.get("a").get("a"));
+				assertNull(underlyingData3A.get("a"));
+				final Map<String, Integer> committed3A = committed.get("a");
+				assertInstanceOf(TransactionalMap.class, committed3A);
+				assertEquals(Integer.valueOf(99), committed3A.get("a"));
 
-				transaction.addTransactionCommitHandler(consumer);
+				assertNull(tested3.get("b").get("b"));
+				assertNull(underlyingData3B.get("b"));
+				final Map<String, Integer> committed3B = committed.get("b");
+				assertNull(committed3B);
 			}
 		);
-
-		transaction.close();
-
-		assertNull(tested3.get("a").get("a"));
-		assertNull(underlyingData3A.get("a"));
-		final Map<String, Integer> committed3A = consumer.getCommited3().get("a");
-		assertTrue(committed3A instanceof TransactionalMap);
-		assertEquals(Integer.valueOf(99), committed3A.get("a"));
-
-		assertNull(tested3.get("b").get("b"));
-		assertNull(underlyingData3B.get("b"));
-		final Map<String, Integer> committed3B = consumer.getCommited3().get("b");
-		assertNull(committed3B);
 	}
 
 	@Test
 	void shouldCheckStaleItems() {
-		Transaction.executeInTransactionIfProvided(
-			transaction,
-			() -> {
-				final TestTransactionalMemoryProducer testProducer = new TestTransactionalMemoryProducer();
-				testProducer.changeState();
-			}
-		);
-
-		assertThrows(StaleTransactionMemoryException.class, () -> transaction.close());
-	}
-
-	private static class TestTransactionalMemoryProducer implements TransactionalLayerProducer<FakeLayer, TestTransactionalMemoryProducer> {
-		@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
-
-		@Nonnull
-		@Override
-		public TestTransactionalMemoryProducer createCopyWithMergedTransactionalMemory(FakeLayer layer, @Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Transaction transaction) {
-			return new TestTransactionalMemoryProducer();
-		}
-
-		@Override
-		public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
-
-		}
-
-		@Override
-		public FakeLayer createLayer() {
-			return new FakeLayer();
-		}
-
-		public void changeState() {
-			Transaction.getTransactionalMemoryLayer(this);
-		}
-	}
-
-	private static class FakeLayer {
-
-	}
-
-	private class TestTransactionalLayerConsumer implements TransactionalLayerConsumer {
-		@Getter private Map<String, Integer> commited1;
-		@Getter private Map<String, Integer> commited2;
-		@Getter private Map<String, TransactionalMap<String, Integer>> commited3;
-
-		@Override
-		public void collectTransactionalChanges(TransactionalLayerMaintainer transactionalLayer) {
-			this.commited1 = transactionalLayer.getStateCopyWithCommittedChanges(tested1, null);
-			this.commited2 = transactionalLayer.getStateCopyWithCommittedChanges(tested2, null);
-			this.commited3 = transactionalLayer.getStateCopyWithCommittedChanges(tested3, null);
-		}
-
+		assertThrows(StaleTransactionMemoryException.class, () -> {
+			assertStateAfterCommit(
+				tested1,
+				original -> {
+					original.put("c", 3);
+					// this should make stale transaction memory exception since it made transactional changes
+					// which are not tracked (tested2 was not passed in the first argument of assertStateAfterCommit)
+					tested2.put("c", 4);
+				},
+				(original, committed) -> {
+					fail("Should not be committed");
+				}
+			);
+		});
 	}
 
 }

@@ -45,7 +45,7 @@ public class AssociatedDataStoragePartSerializer extends Serializer<AssociatedDa
 
 	@Override
 	public void write(Kryo kryo, Output output, AssociatedDataStoragePart object) {
-		final long uniqueId = ofNullable(object.getUniquePartId()).orElseGet(() -> object.computeUniquePartIdAndSet(keyCompressor));
+		final long uniqueId = ofNullable(object.getStoragePartPK()).orElseGet(() -> object.computeUniquePartIdAndSet(keyCompressor));
 		output.writeLong(uniqueId);
 		output.writeInt(object.getEntityPrimaryKey());
 		kryo.writeObject(output, object.getValue());

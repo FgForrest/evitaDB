@@ -51,7 +51,6 @@ public class EmptyDataSetAlternativeTest implements EvitaTestSupport {
 		assertTrue(session.isActive());
 		assertFalse(session.isReadOnly());
 		assertTrue(session.isDryRun());
-		session.openTransaction();
 		assertTrue(session.isRollbackOnly());
 	}
 

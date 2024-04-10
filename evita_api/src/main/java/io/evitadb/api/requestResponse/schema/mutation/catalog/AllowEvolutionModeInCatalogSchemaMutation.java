@@ -47,8 +47,6 @@ import java.util.stream.Stream;
  * Mutation is responsible for adding one or more evolution modes to a {@link CatalogSchemaContract#getCatalogEvolutionMode()}
  * in {@link CatalogSchemaContract}.
  *
- * TOBEDONE JNO - write tests
- *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @ThreadSafe
@@ -72,7 +70,7 @@ public class AllowEvolutionModeInCatalogSchemaMutation implements LocalCatalogSc
 		} else {
 			return new CatalogSchemaWithImpactOnEntitySchemas(
 				CatalogSchema._internalBuild(
-					catalogSchema.getVersion() + 1,
+					catalogSchema.version() + 1,
 					catalogSchema.getName(),
 					catalogSchema.getNameVariants(),
 					catalogSchema.getDescription(),

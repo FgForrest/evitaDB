@@ -80,7 +80,7 @@ class CatalogTest implements EvitaTestSupport {
 				evitaSession -> {
 					final SealedCatalogSchema catalogSchema = evitaSession.getCatalogSchema();
 
-					assertEquals(9, catalogSchema.getVersion());
+					assertEquals(9, catalogSchema.version());
 					final AttributeSchemaContract code = catalogSchema.getAttribute("code").orElseThrow();
 					final AttributeSchemaContract name = catalogSchema.getAttribute("name").orElseThrow();
 

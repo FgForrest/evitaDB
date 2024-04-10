@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,15 +25,15 @@ package io.evitadb.index.facet;
 
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.core.Transaction;
+import io.evitadb.core.transaction.memory.TransactionalContainerChanges;
+import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
+import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
+import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.facet.FacetGroupIndex.FacetGroupIndexChanges;
 import io.evitadb.index.map.TransactionalMap;
-import io.evitadb.index.transactionalMemory.TransactionalContainerChanges;
-import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
-import io.evitadb.index.transactionalMemory.TransactionalLayerProducer;
-import io.evitadb.index.transactionalMemory.TransactionalObjectVersion;
 import io.evitadb.utils.Assert;
 import lombok.Data;
 import lombok.Getter;
@@ -48,7 +48,6 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-import static io.evitadb.core.Transaction.getTransactionalMemoryLayer;
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 import static java.util.Optional.ofNullable;
 
@@ -110,7 +109,7 @@ public class FacetGroupIndex implements TransactionalLayerProducer<FacetGroupInd
 	 * @return true if entity id was really added
 	 */
 	public boolean addFacet(int facetPrimaryKey, int entityPrimaryKey) {
-		final FacetGroupIndexChanges txLayer = getTransactionalMemoryLayer(this);
+		final FacetGroupIndexChanges txLayer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		// fetch or create index for referenced entity id (inside correct type)
 		final FacetIdIndex facetIdIndex = this.facetIdIndexes.computeIfAbsent(
 			facetPrimaryKey,
@@ -136,7 +135,7 @@ public class FacetGroupIndex implements TransactionalLayerProducer<FacetGroupInd
 		// if facet was removed check whether there are any data left
 		if (removed && facetIdIndex.isEmpty()) {
 			// we need to keep track of removed internal transactional memory related data structures
-			final FacetGroupIndexChanges txLayer = getTransactionalMemoryLayer(this);
+			final FacetGroupIndexChanges txLayer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 			// remove the index entirely
 			this.facetIdIndexes.remove(facetPrimaryKey);
 			ofNullable(txLayer).ifPresent(it -> it.addRemovedItem(facetIdIndex));
@@ -225,8 +224,8 @@ public class FacetGroupIndex implements TransactionalLayerProducer<FacetGroupInd
 
 	@Nonnull
 	@Override
-	public FacetGroupIndex createCopyWithMergedTransactionalMemory(@Nullable FacetGroupIndexChanges layer, @Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Transaction transaction) {
-		final Map<Integer, FacetIdIndex> stateCopy = transactionalLayer.getStateCopyWithCommittedChanges(facetIdIndexes, transaction);
+	public FacetGroupIndex createCopyWithMergedTransactionalMemory(@Nullable FacetGroupIndexChanges layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
+		final Map<Integer, FacetIdIndex> stateCopy = transactionalLayer.getStateCopyWithCommittedChanges(facetIdIndexes);
 		ofNullable(layer).ifPresent(it -> it.clean(transactionalLayer));
 		return new FacetGroupIndex(groupId, stateCopy);
 	}

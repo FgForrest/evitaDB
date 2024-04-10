@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -30,12 +30,10 @@ import graphql.execution.instrumentation.InstrumentationState;
 import graphql.execution.instrumentation.SimplePerformantInstrumentation;
 import graphql.execution.instrumentation.parameters.InstrumentationExecutionParameters;
 import graphql.language.OperationDefinition;
-import io.evitadb.api.CatalogContract;
-import io.evitadb.api.CatalogState;
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.exception.RollbackException;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
-import io.evitadb.externalApi.graphql.exception.GraphQLSchemaBuildingError;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -72,11 +70,6 @@ public class EvitaSessionManagingInstrumentation extends SimplePerformantInstrum
             evitaSession = evita.createReadOnlySession(catalogName);
         } else if (operation == OperationDefinition.Operation.MUTATION) {
             evitaSession = evita.createReadWriteSession(catalogName);
-            final CatalogContract catalog = evita.getCatalogInstance(catalogName)
-                .orElseThrow(() -> new GraphQLInternalError("Catalog `" + catalogName + "` could not be found."));
-            if (catalog.supportsTransaction()) {
-                evitaSession.openTransaction();
-            }
         } else {
             throw new GraphQLInternalError("Operation `" + operation + "` is currently not supported by evitaDB GraphQL API.");
         }
@@ -92,12 +85,12 @@ public class EvitaSessionManagingInstrumentation extends SimplePerformantInstrum
                                                                         @Nonnull InstrumentationState state) {
         final EvitaSessionContract evitaSession = parameters.getGraphQLContext().get(GraphQLContextKey.EVITA_SESSION);
         if (evitaSession != null) {
-            // there may not be any session if there was some error in GraphQL query parsing before the session creation
-            // or the catalog is in WARMING_UP state
-            if (evitaSession.isTransactionOpen()) {
-                evitaSession.closeTransaction();
+            try {
+                evitaSession.close();
+            } catch (RollbackException ex) {
+                // we can ignore the rollback exception here,
+                // because the exception has been already handled by exception handler
             }
-            evitaSession.close();
         }
 
         return CompletableFuture.completedFuture(executionResult);

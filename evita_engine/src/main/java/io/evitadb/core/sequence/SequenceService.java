@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -37,14 +37,14 @@ import static java.util.Optional.ofNullable;
 /**
  * Sequence service is a "singleton" service that provide access to the "current sequences" for assigning new primary
  * keys. Sequences must shared among all instances of {@link EntityCollection} that may exist in parallel (for example
- * there are two simultaneous transactions that alter data of the same collection - either of them can commit or rollback
+ * there are two simultaneous transaction that alter data of the same collection - either of them can commit or rollback
  * but the primary keys might be already returned to the client).
  *
  * Primary keys returned from sequences don't comply to isolation in ACID sense - and this is same even for standard
  * relational databases - see <a href="https://www.postgresql.org/docs/current/functions-sequence.html">PostgreSQL</a>
  * or <a href="https://stackoverflow.com/questions/2095917/sequences-not-affected-by-transactions">StackOverflow</a>.
  *
- * Sequences are always monotonic and there may be gaps in them when transactions that requested certain primary keys
+ * Sequences are always monotonic and there may be gaps in them when transaction that requested certain primary keys
  * were rolled back.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021

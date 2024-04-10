@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,15 +23,17 @@
 
 package io.evitadb.core;
 
-import io.evitadb.api.CatalogContract;
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.exception.ConcurrentInitializationException;
+import io.evitadb.api.exception.TransactionException;
 import io.evitadb.api.trace.TracingContext;
 import io.evitadb.api.trace.TracingContext.SpanAttribute;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.CollectionUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -43,9 +45,10 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.lang.reflect.Proxy;
 import java.util.Arrays;
-import java.util.Iterator;
 import java.util.Map;
+import java.util.OptionalLong;
 import java.util.UUID;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
@@ -67,6 +70,10 @@ final class SessionRegistry {
 	 **/
 	private final TracingContext tracingContext;
 	/**
+	 * Reference to {@link Catalog} this instance is bound to.
+	 */
+	private final Catalog catalog;
+	/**
 	 * Keeps information about currently active sessions.
 	 */
 	private final Map<UUID, EvitaSessionTuple> activeSessions = new ConcurrentHashMap<>(64);
@@ -75,6 +82,11 @@ final class SessionRegistry {
 	 * limits in parallel execution.
 	 */
 	private final AtomicInteger activeSessionsCounter = new AtomicInteger();
+	/**
+	 * The catalogConsumedVersions variable is used to keep track of consumed versions along with number of sessions
+	 * tied to them indexed by catalog names.
+	 */
+	private final ConcurrentHashMap<String, VersionConsumingSessions> catalogConsumedVersions = CollectionUtils.createConcurrentHashMap(32);
 
 	/**
 	 * Returns set of all active (currently open) sessions.
@@ -87,7 +99,7 @@ final class SessionRegistry {
 	 * Method returns active session by its unique id or NULL if such session is not found.
 	 */
 	@Nullable
-	public EvitaInternalSessionContract getActiveSessionById(UUID sessionId) {
+	public EvitaInternalSessionContract getActiveSessionById(@Nonnull UUID sessionId) {
 		return ofNullable(activeSessions.get(sessionId))
 			.map(EvitaSessionTuple::proxySession)
 			.orElse(null);
@@ -98,18 +110,15 @@ final class SessionRegistry {
 	 * All changes are rolled back.
 	 */
 	public void closeAllActiveSessions() {
-		final Iterator<EvitaSessionTuple> sessionIt = activeSessions.values().iterator();
-		while (sessionIt.hasNext()) {
-			final EvitaSessionTuple sessionTuple = sessionIt.next();
+		for (EvitaSessionTuple sessionTuple : activeSessions.values()) {
 			final EvitaSession activeSession = sessionTuple.plainSession();
 			if (activeSession.isActive()) {
 				if (activeSession.isTransactionOpen()) {
 					activeSession.setRollbackOnly();
 				}
-				activeSession.close();
+				activeSession.closeNow(CommitBehavior.WAIT_FOR_WAL_PERSISTENCE);
 				log.info("There is still active session {} - terminating.", activeSession.getId());
 			}
-			sessionIt.remove();
 		}
 		Assert.isPremiseValid(
 			activeSessionsCounter.get() == 0,
@@ -122,7 +131,7 @@ final class SessionRegistry {
 	 * Method checks that there is only a single active session when catalog is in warm-up mode.
 	 */
 	@Nonnull
-	public EvitaInternalSessionContract addSession(boolean warmUp, Supplier<EvitaSession> sessionSupplier) {
+	public EvitaInternalSessionContract addSession(boolean warmUp, @Nonnull Supplier<EvitaSession> sessionSupplier) {
 		if (warmUp) {
 			activeSessionsCounter.incrementAndGet();
 		} else if (!activeSessionsCounter.compareAndSet(0, 1)) {
@@ -136,6 +145,9 @@ final class SessionRegistry {
 			new EvitaSessionProxy(newSession, tracingContext)
 		);
 		activeSessions.put(newSession.getId(), new EvitaSessionTuple(newSession, newSessionProxy));
+		final long catalogVersion = newSession.getCatalogVersion();
+		catalogConsumedVersions.computeIfAbsent(newSession.getCatalogName(), k -> new VersionConsumingSessions())
+			.registerSessionConsumingCatalogInVersion(catalogVersion);
 		return newSessionProxy;
 	}
 
@@ -144,20 +156,16 @@ final class SessionRegistry {
 	 */
 	public void removeSession(@Nonnull EvitaSessionContract session) {
 		if (activeSessions.remove(session.getId()) != null) {
-			activeSessionsCounter.decrementAndGet();
+			this.activeSessionsCounter.decrementAndGet();
+			final SessionFinalizationResult finalizationResult = catalogConsumedVersions.get(session.getCatalogName())
+				.unregisterSessionConsumingCatalogInVersion(session.getCatalogVersion());
+			if (finalizationResult.lastReader()) {
+				// notify listeners that the catalog version is no longer used
+				this.catalog.catalogVersionBeyondTheHorizon(
+					finalizationResult.minimalActiveCatalogVersion()
+				);
+			}
 		}
-	}
-
-	/**
-	 * Method updates reference to the catalog in all active session it keeps track of.
-	 */
-	public void updateCatalogReference(@Nonnull CatalogContract catalog) {
-		activeSessions.values()
-			.stream()
-			.map(EvitaSessionTuple::plainSession)
-			// except those with active transaction which are protected by SNAPSHOT isolation
-			.filter(it -> !it.isTransactionOpen())
-			.forEach(it -> it.updateCatalogReference(catalog));
 	}
 
 	/**
@@ -175,64 +183,74 @@ final class SessionRegistry {
 
 		@Override
 		public Object invoke(Object proxy, Method method, Object[] args) {
-			// invoke original method on delegate
-			return Transaction.executeInTransactionIfProvided(
-				evitaSession.getOpenedTransaction().orElse(null),
-				() -> tracingContext.executeWithinBlockIfParentContextAvailable(
-					"session call - " + method.getName(),
-					() -> {
-						try {
-							return method.invoke(evitaSession, args);
-						} catch (InvocationTargetException ex) {
-							// handle the error
-							final Throwable targetException = ex.getTargetException();
-							if (targetException instanceof EvitaInvalidUsageException evitaInvalidUsageException) {
-								// just unwrap and rethrow
-								throw evitaInvalidUsageException;
-							} else if (targetException instanceof EvitaInternalError evitaInternalError) {
-								log.error(
-									"Internal Evita error occurred in " + evitaInternalError.getErrorCode() + ": " + evitaInternalError.getPrivateMessage(),
-									targetException
-								);
-								// unwrap and rethrow
-								throw evitaInternalError;
-							} else {
-								log.error("Unexpected internal Evita error occurred: " + ex.getCause().getMessage(), targetException);
-								throw new EvitaInternalError(
-									"Unexpected internal Evita error occurred: " + ex.getCause().getMessage(),
-									"Unexpected internal Evita error occurred.",
-									targetException
-								);
-							}
-						} catch (Throwable ex) {
-							log.error("Unexpected system error occurred: " + ex.getMessage(), ex);
-							throw new EvitaInternalError(
-								"Unexpected system error occurred: " + ex.getMessage(),
-								"Unexpected system error occurred.",
-								ex
-							);
-						}
-					},
-					() -> {
-						final Parameter[] parameters = method.getParameters();
-						final SpanAttribute[] spanAttributes = new SpanAttribute[1 + parameters.length];
-						spanAttributes[0] = new SpanAttribute("session.id", evitaSession.getId().toString());
-						if (args == null) {
-							return spanAttributes;
-						} else {
-							int index = 1;
-							for (int i = 0; i < args.length; i++) {
-								final Object arg = args[i];
-								if (EvitaDataTypes.isSupportedType(parameters[i].getType()) && arg != null) {
-									spanAttributes[index++] = new SpanAttribute(parameters[i].getName(), arg);
+			try {
+				evitaSession.increaseNestLevel();
+				// invoke original method on delegate
+				return Transaction.executeInTransactionIfProvided(
+					evitaSession.getOpenedTransaction().orElse(null),
+					() -> tracingContext.executeWithinBlockIfParentContextAvailable(
+						"session call - " + method.getName(),
+						() -> {
+							try {
+								return method.invoke(evitaSession, args);
+							} catch (InvocationTargetException ex) {
+								// handle the error
+								final Throwable targetException = ex.getTargetException() instanceof CompletionException completionException ?
+									completionException.getCause() : ex.getTargetException();
+								if (targetException instanceof TransactionException transactionException) {
+									// just unwrap and rethrow
+									throw transactionException;
+								} else if (targetException instanceof EvitaInvalidUsageException evitaInvalidUsageException) {
+									// just unwrap and rethrow
+									throw evitaInvalidUsageException;
+								} else if (targetException instanceof EvitaInternalError evitaInternalError) {
+									log.error(
+										"Internal Evita error occurred in " + evitaInternalError.getErrorCode() + ": " + evitaInternalError.getPrivateMessage(),
+										targetException
+									);
+									// unwrap and rethrow
+									throw evitaInternalError;
+								} else {
+									log.error("Unexpected internal Evita error occurred: " + ex.getCause().getMessage(), targetException);
+									throw new EvitaInternalError(
+										"Unexpected internal Evita error occurred: " + ex.getCause().getMessage(),
+										"Unexpected internal Evita error occurred.",
+										targetException
+									);
 								}
+							} catch (Throwable ex) {
+								log.error("Unexpected system error occurred: " + ex.getMessage(), ex);
+								throw new EvitaInternalError(
+									"Unexpected system error occurred: " + ex.getMessage(),
+									"Unexpected system error occurred.",
+									ex
+								);
 							}
-							return index < spanAttributes.length ?
-								Arrays.copyOfRange(spanAttributes, 0, index) : spanAttributes;
+						},
+						() -> {
+							final Parameter[] parameters = method.getParameters();
+							final SpanAttribute[] spanAttributes = new SpanAttribute[1 + parameters.length];
+							spanAttributes[0] = new SpanAttribute("session.id", evitaSession.getId().toString());
+							if (args == null) {
+								return spanAttributes;
+							} else {
+								int index = 1;
+								for (int i = 0; i < args.length; i++) {
+									final Object arg = args[i];
+									if (EvitaDataTypes.isSupportedType(parameters[i].getType()) && arg != null) {
+										spanAttributes[index++] = new SpanAttribute(parameters[i].getName(), arg);
+									}
+								}
+								return index < spanAttributes.length ?
+									Arrays.copyOfRange(spanAttributes, 0, index) : spanAttributes;
+							}
 						}
-					}
-				)
-			);
+					),
+					evitaSession.isRootLevelExecution()
+				);
+			} finally {
+				evitaSession.decreaseNestLevel();
+			}
 		}
 	}
 
@@ -248,6 +266,63 @@ final class SessionRegistry {
 		@Nonnull EvitaInternalSessionContract proxySession
 	) {
 
+	}
+
+	/**
+	 * This class represents a collection of sessions that are consuming catalogs in different versions.
+	 */
+	private static class VersionConsumingSessions {
+		/**
+		 * ConcurrentHashMap representing a collection of sessions that are consuming catalogs in different versions.
+		 * The keys of the map are the versions of the catalogs, and the values are the number of sessions consuming
+		 * catalogs in that version.
+		 */
+		private final ConcurrentHashMap<Long, Integer> versionConsumingSessions = CollectionUtils.createConcurrentHashMap(32);
+
+		/**
+		 * Registers a session consuming catalog in the specified version.
+		 *
+		 * @param version the version of the catalog
+		 */
+		void registerSessionConsumingCatalogInVersion(@Nonnull Long version) {
+			versionConsumingSessions.compute(
+				version,
+				(k, v) -> v == null ? 1 : v + 1
+			);
+		}
+
+		/**
+		 * Unregisters a session that is consuming a catalog in the specified version.
+		 *
+		 * @param version the version of the catalog
+		 * @return the result of the finalization of the session
+		 */
+		@Nonnull
+		SessionFinalizationResult unregisterSessionConsumingCatalogInVersion(long version) {
+			final Integer readerCount = versionConsumingSessions.compute(
+				version,
+				(k, v) -> v == 1 ? null : v - 1
+			);
+			if (readerCount == null) {
+				final OptionalLong minimalVersion = this.versionConsumingSessions.keySet().stream().mapToLong(Long::longValue).min();
+				return new SessionFinalizationResult(minimalVersion.isEmpty() ? null : minimalVersion.getAsLong(), true);
+			} else {
+				return new SessionFinalizationResult(version, false);
+			}
+		}
+
+	}
+
+	/**
+	 * The result of the finalization of the session.
+	 *
+	 * @param minimalActiveCatalogVersion the minimal active catalog version used by another session now
+	 * @param lastReader                  TRUE when the session was the last reader
+	 */
+	public record SessionFinalizationResult(
+		@Nullable Long minimalActiveCatalogVersion,
+		boolean lastReader
+	) {
 	}
 
 }

@@ -65,7 +65,7 @@ public class CatalogSchemaConverter {
 	public static GrpcCatalogSchema convert(@Nonnull CatalogSchemaContract catalogSchema) {
 		final GrpcCatalogSchema.Builder builder = GrpcCatalogSchema.newBuilder()
 			.setName(catalogSchema.getName())
-			.setVersion(catalogSchema.getVersion())
+			.setVersion(catalogSchema.version())
 			.putAllAttributes(toGrpcGlobalAttributeSchemas(catalogSchema.getAttributes()));
 
 		if (catalogSchema.getDescription() != null) {

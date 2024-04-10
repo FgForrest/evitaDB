@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -167,7 +167,6 @@ public abstract class ClientTransactionalWriteState extends ClientDataState {
 	 */
 	@Setup(Level.Invocation)
 	public void prepareCall() {
-		this.session.openTransaction();
 		// there is 50% on update instead of insert
 		if (random.nextBoolean()) {
 			final List<Integer> existingProductIds = generatedEntities.get(PRODUCT_ENTITY_TYPE);
@@ -213,7 +212,7 @@ public abstract class ClientTransactionalWriteState extends ClientDataState {
 
 	@TearDown(Level.Invocation)
 	public void finishCall() {
-		this.session.closeTransaction();
+		this.session.close();
 	}
 
 	private void addToGeneratedEntities(EntitySchemaContract productSchema, Integer primaryKey) {
