@@ -172,8 +172,8 @@ public class ObservableOutputKeeper implements AutoCloseable {
 			}
 			Thread.onSpinWait();
 		} while (
-			!cachedOutputToFiles.isEmpty() ||
-				System.currentTimeMillis() - start > options.waitOnCloseSeconds() * 1000L
+			!cachedOutputToFiles.isEmpty() &&
+				System.currentTimeMillis() - start < options.waitOnCloseSeconds() * 1000L
 		);
 
 		if (!cachedOutputToFiles.isEmpty()) {
