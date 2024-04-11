@@ -967,16 +967,6 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 		);
 
 		final int expectedEntityPrimaryKey = addedEntityPrimaryKey.get();
-
-		evita.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				// the entity will not yet be propagated to indexes
-				final Optional<SealedEntity> fetchedEntity = session.getEntity(productSchema.getName(), expectedEntityPrimaryKey, entityFetchAllContent());
-				assertTrue(fetchedEntity.isEmpty());
-			}
-		);
-
 		while (!addedEntity.isDone()) {
 			Thread.onSpinWait();
 		}

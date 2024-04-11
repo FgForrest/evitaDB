@@ -247,9 +247,11 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 	 * This method closes the file output stream, frees the observable output for the target file, and deletes the temporary file.
 	 */
 	private void releaseTemporaryFile() {
-		this.fileOutput.close();
-		this.observableOutputKeeper.close(this.targetFile);
-		Assert.isPremiseValid(getTargetFile(this.targetFile).delete(), "Failed to delete temporary file `" + this.targetFile + "`!");
+		if (this.fileOutput != null) {
+			this.fileOutput.close();
+			this.observableOutputKeeper.close(this.targetFile);
+			Assert.isPremiseValid(getTargetFile(this.targetFile).delete(), "Failed to delete temporary file `" + this.targetFile + "`!");
+		}
 		this.fileOutput = null;
 	}
 

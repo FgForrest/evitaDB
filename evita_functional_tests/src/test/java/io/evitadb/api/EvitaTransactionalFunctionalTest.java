@@ -757,18 +757,20 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 			CommitBehavior.WAIT_FOR_CONFLICT_RESOLUTION
 		);
 
-		while (!nextCatalogVersion.isDone()) {
-			Thread.onSpinWait();
-		}
-
 		final Integer addedEntityPrimaryKey = addedEntity.get().getPrimaryKey();
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				System.out.println(session.getCatalogVersion());
-				// the entity will not yet be propagated to indexes
-				final Optional<SealedEntity> fetchedEntity = session.getEntity(productSchema.getName(), addedEntityPrimaryKey);
-				assertTrue(fetchedEntity.isEmpty());
+				final long catalogVersion = session.getCatalogVersion();
+				if (nextCatalogVersion.isDone() && nextCatalogVersion.getNow(Long.MIN_VALUE) == catalogVersion) {
+					// the entity is already propagated to indexes
+					final Optional<SealedEntity> fetchedEntity = session.getEntity(productSchema.getName(), addedEntityPrimaryKey);
+					assertTrue(fetchedEntity.isEmpty());
+				} else {
+					// the entity will not yet be propagated to indexes
+					final Optional<SealedEntity> fetchedEntity = session.getEntity(productSchema.getName(), addedEntityPrimaryKey);
+					assertTrue(fetchedEntity.isEmpty());
+				}
 			}
 		);
 
