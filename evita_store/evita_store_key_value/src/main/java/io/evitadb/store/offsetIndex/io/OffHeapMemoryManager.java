@@ -113,7 +113,7 @@ public class OffHeapMemoryManager implements Closeable {
 	 * @param regionIndex the index of the region whose stream is to be released
 	 */
 	public void releaseRegionStream(int regionIndex) {
-		final OffHeapMemoryOutputStream stream = usedRegions.get(regionIndex);
+		final OffHeapMemoryOutputStream stream = this.usedRegions.get(regionIndex);
 		Assert.isPremiseValid(stream != null, "Stream at index " + regionIndex + " is already released!");
 		stream.close();
 	}
@@ -121,10 +121,10 @@ public class OffHeapMemoryManager implements Closeable {
 	@Override
 	public void close() {
 		// get rid of memory block - this should effectively stop acquiring new streams
-		memoryBlock.set(null);
+		this.memoryBlock.set(null);
 		// now free the output streams that were not released
-		for (int i = 0; i < usedRegions.length(); i++) {
-			final OffHeapMemoryOutputStream nonReleasedStream = usedRegions.getAndSet(i, null);
+		for (int i = 0; i < this.usedRegions.length(); i++) {
+			final OffHeapMemoryOutputStream nonReleasedStream = this.usedRegions.getAndSet(i, null);
 			if (nonReleasedStream != null) {
 				nonReleasedStream.close();
 			}

@@ -777,7 +777,7 @@ public final class Evita implements EvitaContract {
 	 * `catalogName`.
 	 */
 	private void closeAllActiveSessionsTo(@Nonnull String catalogName) {
-		ofNullable(activeSessions.get(catalogName))
+		ofNullable(this.activeSessions.remove(catalogName))
 			.ifPresent(SessionRegistry::closeAllActiveSessions);
 	}
 

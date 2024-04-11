@@ -1401,6 +1401,8 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			if (this.catalogWal != null) {
 				this.catalogWal.close();
 			}
+			// close off heap manager
+			this.offHeapMemoryManager.close();
 			// purge obsolete files
 			this.obsoleteFileMaintainer.close();
 			// close all services
