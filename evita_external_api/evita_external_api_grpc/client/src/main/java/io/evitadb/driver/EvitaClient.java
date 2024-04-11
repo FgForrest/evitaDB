@@ -61,7 +61,6 @@ import io.evitadb.utils.ReflectionLookup;
 import io.evitadb.utils.UUIDUtil;
 import io.evitadb.utils.VersionUtils;
 import io.evitadb.utils.VersionUtils.SemVer;
-import io.grpc.ClientInterceptor;
 import io.grpc.ManagedChannel;
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
@@ -257,6 +256,11 @@ public class EvitaClient implements EvitaContract {
 			);
 		}
 		return context;
+	}
+
+	@Override
+	public boolean isActive() {
+		return active.get();
 	}
 
 	/**

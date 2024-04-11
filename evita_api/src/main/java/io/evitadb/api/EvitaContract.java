@@ -63,6 +63,14 @@ import java.util.function.Function;
 public interface EvitaContract extends AutoCloseable {
 
 	/**
+	 * Returns true if the Evita instance is active and ready to serve requests - i.e. method {@link #close()} has not
+	 * been called yet.
+	 *
+	 * @return true if the Evita instance is active
+	 */
+	boolean isActive();
+
+	/**
 	 * Creates {@link EvitaSessionContract} for querying the database.
 	 *
 	 * Remember to {@link #close()} or {@link #terminateSession(EvitaSessionContract)} when your work with Evita is finished.
