@@ -47,7 +47,6 @@ import java.util.Iterator;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * This stage of transaction processing reads the changes recorded in the WAL and applies them to the last snapshot
@@ -63,11 +62,6 @@ import java.util.concurrent.atomic.AtomicReference;
 @NotThreadSafe
 public final class TrunkIncorporationTransactionStage
 	extends AbstractTransactionStage<TrunkIncorporationTransactionTask, UpdatedCatalogTransactionTask> {
-	/**
-	 * Represents reference to the currently active catalog version in the "live view" of the evitaDB engine.
-	 * It may be a little older reference than in {@link #catalog}.
-	 */
-	private final AtomicReference<Catalog> liveCatalog;
 	/**
 	 * The timeout in nanoseconds determining the maximum time the task is allowed to consume multiple transaction.
 	 * It might be exceeded if the single transaction processing takes too long, but if the single transaction is very
@@ -124,9 +118,8 @@ public final class TrunkIncorporationTransactionStage
 		@Nonnull Catalog catalog,
 		long timeoutInMillis
 	) {
-		super(executor, maxBufferCapacity, catalog.getName());
+		super(executor, maxBufferCapacity, catalog);
 		this.catalog = catalog;
-		this.liveCatalog = new AtomicReference<>(catalog);
 		this.timeout = timeoutInMillis * 1_000_000;
 		this.lastFinalizedCatalogVersion = catalog.getVersion();
 	}
@@ -262,8 +255,19 @@ public final class TrunkIncorporationTransactionStage
 	}
 
 	@Override
+	public void advanceVersion(long catalogVersion) {
+		Assert.isPremiseValid(
+			this.lastFinalizedCatalogVersion <= catalogVersion,
+			"Unexpected catalog version " + catalogVersion + " vs. " + this.lastFinalizedCatalogVersion + "!"
+		);
+		if (this.lastFinalizedCatalogVersion < catalogVersion) {
+			this.lastFinalizedCatalogVersion = catalogVersion;
+		}
+	}
+
+	@Override
 	public void updateCatalogReference(@Nonnull Catalog catalog) {
-		this.liveCatalog.set(catalog);
+		super.updateCatalogReference(catalog);
 		if (catalog.getVersion() > this.catalog.getVersion()) {
 			this.catalog = catalog;
 			// at this moment, the catalog transitions from non-transactional to transactional state

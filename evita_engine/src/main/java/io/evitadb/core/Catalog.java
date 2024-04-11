@@ -263,7 +263,6 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 	 * - trunk incorporation (applying transaction from shared WAL in order to the shared catalog view)
 	 * - catalog snapshot propagation (propagating new catalog version to the "live view" of the evitaDB engine)
 	 *
-	 * @param catalogName               the name of the catalog
 	 * @param catalog                   the catalog instance
 	 * @param transactionOptions        the options for the transaction
 	 * @param scheduler           the executor service for async processing
@@ -272,7 +271,6 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 	 */
 	@Nonnull
 	private static SubmissionPublisher<ConflictResolutionTransactionTask> createTransactionPipeline(
-		@Nonnull String catalogName,
 		@Nonnull Catalog catalog,
 		@Nonnull TransactionOptions transactionOptions,
 		@Nonnull Scheduler scheduler,
@@ -282,7 +280,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		final ConflictResolutionTransactionStage stage1 = new ConflictResolutionTransactionStage(scheduler, transactionOptions.maxQueueSize(), catalog);
 		final WalAppendingTransactionStage stage2 = new WalAppendingTransactionStage(scheduler, transactionOptions.maxQueueSize(), catalog);
 		final TrunkIncorporationTransactionStage stage3 = new TrunkIncorporationTransactionStage(scheduler, transactionOptions.maxQueueSize(), catalog, transactionOptions.flushFrequencyInMillis());
-		final CatalogSnapshotPropagationTransactionStage stage4 = new CatalogSnapshotPropagationTransactionStage(catalogName, newCatalogVersionConsumer);
+		final CatalogSnapshotPropagationTransactionStage stage4 = new CatalogSnapshotPropagationTransactionStage(newCatalogVersionConsumer);
 
 		txPublisher.subscribe(stage1);
 		stage1.subscribe(stage2);
@@ -341,7 +339,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		this.scheduler = scheduler;
 		this.newCatalogVersionConsumer = newCatalogVersionConsumer;
 		this.lastPersistedSchemaVersion = this.schema.get().version();
-		this.transactionalPipeline = createTransactionPipeline(catalogName, this, transactionOptions, scheduler, newCatalogVersionConsumer);
+		this.transactionalPipeline = createTransactionPipeline(this, transactionOptions, scheduler, newCatalogVersionConsumer);
 	}
 
 	public Catalog(
@@ -433,7 +431,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		this.scheduler = scheduler;
 		this.newCatalogVersionConsumer = newCatalogVersionConsumer;
 		this.lastPersistedSchemaVersion = this.schema.get().version();
-		this.transactionalPipeline = createTransactionPipeline(catalogName, this, transactionOptions, scheduler, newCatalogVersionConsumer);
+		this.transactionalPipeline = createTransactionPipeline(this, transactionOptions, scheduler, newCatalogVersionConsumer);
 	}
 
 	Catalog(
@@ -726,6 +724,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 				)
 			);
 
+		advanceVersion(catalogVersionAfterRename);
 		final Catalog catalogAfterRename = new Catalog(
 			catalogVersionAfterRename,
 			getCatalogState(),
@@ -1149,6 +1148,27 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 			for (Subscriber<?> subscriber : subscribers) {
 				if (subscriber instanceof AbstractTransactionStage<?, ?> stage) {
 					stage.updateCatalogReference(this);
+					current = stage;
+				} else {
+					current = null;
+				}
+			}
+		}
+	}
+
+	/**
+	 * Informs transactional pipeline jobs that the catalog version has advanced due to external reasons (such as
+	 * catalog renaming).
+	 */
+	private void advanceVersion(long catalogVersion) {
+		SubmissionPublisher<?> current = this.transactionalPipeline;
+		while (current != null) {
+			//noinspection unchecked
+			final List<Subscriber<?>> subscribers = (List<Subscriber<?>>) current.getSubscribers();
+			Assert.isPremiseValid(subscribers.size() == 1, "Only one subscriber is expected!");
+			for (Subscriber<?> subscriber : subscribers) {
+				if (subscriber instanceof AbstractTransactionStage<?, ?> stage) {
+					stage.advanceVersion(catalogVersion);
 					current = stage;
 				} else {
 					current = null;

@@ -707,6 +707,9 @@ public final class Evita implements EvitaContract {
 			// now rewrite the original catalog with renamed contents so that the observers could access it
 			final CatalogContract previousCatalog = this.catalogs.put(catalogNameToBeReplaced, replacedCatalog);
 
+			// notify callback that it's now a live snapshot
+			((Catalog)replacedCatalog).notifyCatalogPresentInLiveView();
+
 			structuralChangeObservers.forEach(it -> it.onCatalogDelete(catalogNameToBeReplacedWith));
 			if (previousCatalog == null) {
 				structuralChangeObservers.forEach(it -> it.onCatalogCreate(catalogNameToBeReplaced));

@@ -31,7 +31,6 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
-import java.util.Objects;
 import java.util.concurrent.Flow;
 import java.util.concurrent.Flow.Subscription;
 import java.util.function.Consumer;
@@ -50,7 +49,7 @@ public class CatalogSnapshotPropagationTransactionStage implements Flow.Subscrib
 	/**
 	 * The name of the catalog the processor is bound to. Each catalog has its own transaction processor.
 	 */
-	private final String catalogName;
+	private String catalogName;
 	/**
 	 * The subscription variable represents a subscription to a reactive stream.
 	 * It is used to manage the flow of data from the publisher to the subscriber.
@@ -69,10 +68,8 @@ public class CatalogSnapshotPropagationTransactionStage implements Flow.Subscrib
 	@Getter private boolean completed;
 
 	public CatalogSnapshotPropagationTransactionStage(
-		@Nonnull String catalogName,
 		@Nonnull Consumer<Catalog> newCatalogVersionConsumer
 	) {
-		this.catalogName = catalogName;
 		this.newCatalogVersionConsumer = newCatalogVersionConsumer;
 	}
 
@@ -85,10 +82,7 @@ public class CatalogSnapshotPropagationTransactionStage implements Flow.Subscrib
 	@Override
 	public final void onNext(UpdatedCatalogTransactionTask task) {
 		try {
-			Assert.isPremiseValid(
-				Objects.equals(catalogName, task.catalogName()),
-				"Catalog name mismatch!"
-			);
+			this.catalogName = task.catalogName();
 			this.newCatalogVersionConsumer.accept(task.catalog());
 			if (task.future() != null) {
 				log.debug("Snapshot propagating task for catalog `" + catalogName + "` completed (" + task.catalog().getEntityTypes() + ")!");

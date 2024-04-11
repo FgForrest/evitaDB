@@ -36,6 +36,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.Flow;
 import java.util.concurrent.Flow.Subscription;
 import java.util.concurrent.SubmissionPublisher;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiPredicate;
 
 /**
@@ -54,9 +55,9 @@ public sealed abstract class AbstractTransactionStage<T extends TransactionTask,
 	permits ConflictResolutionTransactionStage, WalAppendingTransactionStage, TrunkIncorporationTransactionStage {
 
 	/**
-	 * The name of the catalog the processor is bound to. Each catalog has its own transaction processor.
+	 * Represents reference to the currently active catalog version in the "live view" of the evitaDB engine.
 	 */
-	private final String catalogName;
+	protected final AtomicReference<Catalog> liveCatalog;
 	/**
 	 * The subscription variable represents a subscription to a reactive stream.
 	 * It is used to manage the flow of data from the publisher to the subscriber.
@@ -75,9 +76,9 @@ public sealed abstract class AbstractTransactionStage<T extends TransactionTask,
 	 */
 	@Getter private boolean completed;
 
-	protected AbstractTransactionStage(@Nonnull Executor executor, int maxBufferCapacity, @Nonnull String catalogName) {
+	protected AbstractTransactionStage(@Nonnull Executor executor, int maxBufferCapacity, @Nonnull Catalog catalog) {
 		super(executor, maxBufferCapacity);
-		this.catalogName = catalogName;
+		this.liveCatalog = new AtomicReference<>(catalog);
 	}
 
 	@Override
@@ -90,13 +91,13 @@ public sealed abstract class AbstractTransactionStage<T extends TransactionTask,
 	public final void onNext(T task) {
 		try {
 			Assert.isPremiseValid(
-				Objects.equals(catalogName, task.catalogName()),
+				Objects.equals(this.liveCatalog.get().getName(), task.catalogName()),
 				"Catalog name mismatch!"
 			);
 			// delegate handling logic to the concrete implementation
 			handleNext(task);
 		} catch (Throwable ex) {
-			log.error("Error while processing " + getName() + " task for catalog `" + catalogName + "`!", ex);
+			log.error("Error while processing " + getName() + " task for catalog `" + task.catalogName() + "`!", ex);
 			final CompletableFuture<Long> future = task.future();
 			if (future != null) {
 				future.completeExceptionally(ex);
@@ -108,7 +109,7 @@ public sealed abstract class AbstractTransactionStage<T extends TransactionTask,
 	@Override
 	public final void onError(Throwable throwable) {
 		log.error(
-			"Fatal error! Error propagated outside catalog `" + catalogName + "` conflict resolution transaction stage! " +
+			"Fatal error! Error propagated outside catalog `" + this.liveCatalog.get().getName() + "` conflict resolution transaction stage! " +
 				"This is unexpected and effectively stops transaction processing!",
 			throwable
 		);
@@ -116,7 +117,7 @@ public sealed abstract class AbstractTransactionStage<T extends TransactionTask,
 
 	@Override
 	public final void onComplete() {
-		log.debug("Conflict resolution transaction stage completed for catalog `" + catalogName + "`!");
+		log.debug("Transaction stage  completed for catalog `" + this.liveCatalog.get().getName() + "`!");
 		this.completed = true;
 	}
 
@@ -136,10 +137,21 @@ public sealed abstract class AbstractTransactionStage<T extends TransactionTask,
 	protected abstract void handleNext(@Nonnull T task);
 
 	/**
-	 * Method is called when new catalog version is propagated to the "live view" in evitaDB engine.
-	 * @param catalog
+	 * Informs transactional pipeline jobs that the catalog version has advanced due to external reasons (such as
+	 * catalog renaming).
 	 */
-	public abstract void updateCatalogReference(@Nonnull Catalog catalog);
+	public void advanceVersion(long catalogVersion) {
+		// do nothing
+	}
+
+	/**
+	 * Method is called when new catalog version is propagated to the "live view" in evitaDB engine.
+	 *
+	 * @param catalog The new catalog version.
+	 */
+	public void updateCatalogReference(@Nonnull Catalog catalog) {
+		this.liveCatalog.set(catalog);
+	}
 
 	/**
 	 * Pushes a target task to the next transaction stage.

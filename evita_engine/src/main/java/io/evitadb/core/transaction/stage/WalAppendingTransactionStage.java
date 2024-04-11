@@ -37,7 +37,6 @@ import java.time.OffsetDateTime;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Represents a stage in a catalog processing pipeline that appends isolated write-ahead log (WAL) entries to a shared
@@ -49,19 +48,12 @@ import java.util.concurrent.atomic.AtomicReference;
 public final class WalAppendingTransactionStage
 	extends AbstractTransactionStage<WalAppendingTransactionTask, TrunkIncorporationTransactionTask> {
 
-	/**
-	 * Contains current version of the catalog that should be responsible for appending WAL entries to the shared
-	 * WAL.
-	 */
-	private final AtomicReference<Catalog> catalog;
-
 	public WalAppendingTransactionStage(
 		@Nonnull Executor executor,
 		int maxBufferCapacity,
 		@Nonnull Catalog catalog
 	) {
-		super(executor, maxBufferCapacity, catalog.getName());
-		this.catalog = new AtomicReference<>(catalog);
+		super(executor, maxBufferCapacity, catalog);
 	}
 
 	@Override
@@ -72,7 +64,7 @@ public final class WalAppendingTransactionStage
 	@Override
 	protected void handleNext(@Nonnull WalAppendingTransactionTask task) {
 		// append WAL and discard the contents of the isolated WAL
-		catalog.get().appendWalAndDiscard(
+		this.liveCatalog.get().appendWalAndDiscard(
 			new TransactionMutation(
 				task.transactionId(),
 				task.catalogVersion(),
@@ -93,11 +85,6 @@ public final class WalAppendingTransactionStage
 				task.commitBehaviour() != CommitBehavior.WAIT_FOR_WAL_PERSISTENCE ? task.future() : null
 			)
 		);
-	}
-
-	@Override
-	public void updateCatalogReference(@Nonnull Catalog catalog) {
-		this.catalog.set(catalog);
 	}
 
 	/**

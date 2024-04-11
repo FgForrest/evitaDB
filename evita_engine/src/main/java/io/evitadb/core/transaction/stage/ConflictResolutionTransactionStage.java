@@ -63,7 +63,7 @@ public final class ConflictResolutionTransactionStage
 		int maxBufferCapacity,
 		@Nonnull Catalog catalog
 	) {
-		super(executor, maxBufferCapacity, catalog.getName());
+		super(executor, maxBufferCapacity, catalog);
 		this.catalogVersion = catalog.getVersion();
 	}
 
@@ -97,7 +97,18 @@ public final class ConflictResolutionTransactionStage
 	}
 
 	@Override
+	public void advanceVersion(long catalogVersion) {
+		// we need to advance the version to the latest committed version
+		Assert.isPremiseValid(
+			this.catalogVersion <= catalogVersion,
+			"Unexpected catalog version " + catalogVersion + " vs. " + this.catalogVersion + "!"
+		);
+		this.catalogVersion = catalogVersion;
+	}
+
+	@Override
 	public void updateCatalogReference(@Nonnull Catalog catalog) {
+		super.updateCatalogReference(catalog);
 		if (this.catalogVersion == 0) {
 			// at this moment, the catalog transitions from non-transactional to transactional state
 			this.catalogVersion = catalog.getVersion();
