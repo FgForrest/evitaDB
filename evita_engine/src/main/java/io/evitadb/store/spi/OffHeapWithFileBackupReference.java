@@ -28,7 +28,6 @@ import lombok.Getter;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Closeable;
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.Objects;
@@ -111,7 +110,7 @@ public final class OffHeapWithFileBackupReference implements Closeable {
 	}
 
 	@Override
-	public void close() throws IOException {
+	public void close() {
 		// finalize resources
 		onClose.run();
 	}

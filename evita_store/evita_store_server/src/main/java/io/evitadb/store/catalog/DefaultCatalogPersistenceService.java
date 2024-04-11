@@ -961,19 +961,21 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		@Nonnull TransactionMutation transactionMutation,
 		@Nonnull OffHeapWithFileBackupReference walReference
 	) {
-		if (this.catalogWal == null) {
-			final CatalogHeader catalogHeader = getCatalogHeader(catalogVersion);
-			this.catalogWal = getCatalogWriteAheadLog(
-				this.catalogName, this.catalogStoragePath, catalogHeader, this.catalogKryoPool,
-				this.storageOptions, this.transactionOptions, this.scheduler, this::trimBootstrapFile
+		try (walReference) {
+			if (this.catalogWal == null) {
+				final CatalogHeader catalogHeader = getCatalogHeader(catalogVersion);
+				this.catalogWal = getCatalogWriteAheadLog(
+					this.catalogName, this.catalogStoragePath, catalogHeader, this.catalogKryoPool,
+					this.storageOptions, this.transactionOptions, this.scheduler, this::trimBootstrapFile
+				);
+			}
+			Assert.isPremiseValid(
+				walReference.getBuffer().isPresent() || walReference.getFilePath().isPresent(),
+				"Unexpected WAL reference - neither off-heap buffer nor file reference present!"
 			);
-		}
-		Assert.isPremiseValid(
-			walReference.getBuffer().isPresent() || walReference.getFilePath().isPresent(),
-			"Unexpected WAL reference - neither off-heap buffer nor file reference present!"
-		);
 
-		this.catalogWal.append(transactionMutation, walReference);
+			this.catalogWal.append(transactionMutation, walReference);
+		}
 	}
 
 	@Nonnull
