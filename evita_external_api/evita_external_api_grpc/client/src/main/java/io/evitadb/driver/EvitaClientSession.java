@@ -112,18 +112,11 @@ import javax.annotation.Nonnull;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serializable;
 import java.time.OffsetDateTime;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -173,10 +166,6 @@ public class EvitaClientSession implements EvitaSessionContract {
 	 * Configuration of the evitaDB client.
 	 */
 	private final EvitaClientConfiguration configuration;
-	/**
-	 * Identification of the client from the configuration.
-	 */
-	private final String clientId;
 	/**
 	 * Reflection lookup is used to speed up reflection operation by memoizing the results for examined classes.
 	 */
@@ -238,6 +227,10 @@ public class EvitaClientSession implements EvitaSessionContract {
 	 * Timestamp of the last session activity (call).
 	 */
 	private long lastCall;
+	/**
+	 * Current timeout for the session.
+	 */
+	private final LinkedList<Timeout> callTimeout = new LinkedList<>();
 
 	private static <S extends Serializable> Query assertRequestMakesSenseAndEntityTypeIsPresent(@Nonnull Query query, @Nonnull Class<S> expectedType, @Nonnull ReflectionLookup reflectionLookup) {
 		if (EntityContract.class.isAssignableFrom(expectedType) &&
@@ -279,7 +272,6 @@ public class EvitaClientSession implements EvitaSessionContract {
 	) {
 		this.evita = evita;
 		this.configuration = evita.getConfiguration();
-		this.clientId = this.configuration.clientId();
 		this.reflectionLookup = evita.getReflectionLookup();
 		this.proxyFactory = schemaCache.getProxyFactory();
 		this.schemaCache = schemaCache;
@@ -290,6 +282,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 		this.sessionId = sessionId;
 		this.sessionTraits = sessionTraits;
 		this.onTerminationCallback = onTerminationCallback;
+		this.callTimeout.add(new Timeout(configuration.timeout(), configuration.timeoutUnit()));
 	}
 
 	@Nonnull
@@ -1360,6 +1353,42 @@ public class EvitaClientSession implements EvitaSessionContract {
 	}
 
 	/**
+	 * Method executes lambda using specified timeout for the call ignoring the defaults specified
+	 * in {@link EvitaClientConfiguration#timeout()}.
+	 *
+	 * @param lambda logic to be executed
+	 * @param timeout timeout value
+	 * @param unit   time unit of the timeout
+	 */
+	public void executeWithExtendedTimeout(@Nonnull Runnable lambda, long timeout, @Nonnull TimeUnit unit) {
+		try {
+			this.callTimeout.push(new Timeout(timeout, unit));
+			lambda.run();
+		} finally {
+			this.callTimeout.pop();
+		}
+	}
+
+	/**
+	 * Method executes lambda using specified timeout for the call ignoring the defaults specified
+	 * in {@link EvitaClientConfiguration#timeout()}.
+	 *
+	 * @param lambda logic to be executed
+	 * @param timeout timeout value
+	 * @param unit   time unit of the timeout
+	 * @return result of the lambda
+	 * @param <T> type of the result
+	 */
+	public <T> T executeWithExtendedTimeout(@Nonnull Supplier<T> lambda, long timeout, @Nonnull TimeUnit unit) {
+		try {
+			this.callTimeout.push(new Timeout(timeout, unit));
+			return lambda.get();
+		} finally {
+			this.callTimeout.pop();
+		}
+	}
+
+	/**
 	 * Delegates call to internal {@link #proxyFactory#createEntityProxy(Class, SealedEntity, Map)}.
 	 *
 	 * @param contract     contract of the entity to be created
@@ -1492,10 +1521,11 @@ public class EvitaClientSession implements EvitaSessionContract {
 		@Nonnull AsyncCallFunction<EvitaSessionServiceFutureStub, ListenableFuture<T>> lambda
 	) {
 		try {
+			final Timeout timeout = callTimeout.getLast();
 			return executeWithEvitaSessionService(
 				lambda,
 				EvitaSessionServiceGrpc::newFutureStub
-			).get(configuration.timeout(), configuration.timeoutUnit());
+			).get(timeout.timeout(), timeout.timeoutUnit());
 		} catch (ExecutionException e) {
 			if (e.getCause() instanceof EvitaInvalidUsageException invalidUsageException) {
 				throw invalidUsageException;
