@@ -75,6 +75,7 @@ import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -83,9 +84,11 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -143,6 +146,10 @@ public class EvitaClient implements EvitaContract {
 	 * and closes them along with their gRPC channels.
 	 */
 	private final Runnable terminationCallback;
+	/**
+	 * Client call timeout.
+	 */
+	private final ThreadLocal<LinkedList<Timeout>> timeout;
 
 	public EvitaClient(@Nonnull EvitaClientConfiguration configuration) {
 		this(configuration, null);
@@ -192,6 +199,11 @@ public class EvitaClient implements EvitaContract {
 				Thread.currentThread().interrupt();
 			}
 		};
+		this.timeout = ThreadLocal.withInitial(() -> {
+			final LinkedList<Timeout> timeouts = new LinkedList<>();
+			timeouts.add(new Timeout(configuration.timeout(), configuration.timeoutUnit()));
+			return timeouts;
+		});
 		this.active.set(true);
 
 		try {
@@ -281,45 +293,49 @@ public class EvitaClient implements EvitaContract {
 
 		if (traits.isReadWrite()) {
 			if (traits.isBinary()) {
-				grpcResponse = executeWithEvitaService(evitaService ->
-					evitaService.createBinaryReadWriteSession(
+				grpcResponse = executeWithEvitaService(evitaService -> {
+					final Timeout timeoutToUse = this.timeout.get().peek();
+					return evitaService.createBinaryReadWriteSession(
 						GrpcEvitaSessionRequest.newBuilder()
 							.setCatalogName(traits.catalogName())
 							.setCommitBehavior(EvitaEnumConverter.toGrpcCommitBehavior(traits.commitBehaviour()))
 							.setDryRun(traits.isDryRun())
 							.build()
-					).get(configuration.timeout(), configuration.timeoutUnit())
-				);
+					).get(timeoutToUse.timeout(), timeoutToUse.timeoutUnit());
+				});
 			} else {
-				grpcResponse = executeWithEvitaService(evitaService ->
-					evitaService.createReadWriteSession(
+				grpcResponse = executeWithEvitaService(evitaService -> {
+					final Timeout timeoutToUse = this.timeout.get().peek();
+					return evitaService.createReadWriteSession(
 						GrpcEvitaSessionRequest.newBuilder()
 							.setCatalogName(traits.catalogName())
 							.setCommitBehavior(EvitaEnumConverter.toGrpcCommitBehavior(traits.commitBehaviour()))
 							.setDryRun(traits.isDryRun())
 							.build()
-					).get(configuration.timeout(), configuration.timeoutUnit())
-				);
+					).get(timeoutToUse.timeout(), timeoutToUse.timeoutUnit());
+				});
 			}
 		} else {
 			if (traits.isBinary()) {
-				grpcResponse = executeWithEvitaService(evitaService ->
-					evitaService.createBinaryReadOnlySession(
+				grpcResponse = executeWithEvitaService(evitaService -> {
+					final Timeout timeoutToUse = this.timeout.get().peek();
+					return evitaService.createBinaryReadOnlySession(
 						GrpcEvitaSessionRequest.newBuilder()
 							.setCatalogName(traits.catalogName())
 							.setDryRun(traits.isDryRun())
 							.build()
-					).get(configuration.timeout(), configuration.timeoutUnit())
-				);
+					).get(timeoutToUse.timeout(), timeoutToUse.timeoutUnit());
+				});
 			} else {
-				grpcResponse = executeWithEvitaService(evitaService ->
-					evitaService.createReadOnlySession(
+				grpcResponse = executeWithEvitaService(evitaService -> {
+					final Timeout timeoutToUse = this.timeout.get().peek();
+					return evitaService.createReadOnlySession(
 						GrpcEvitaSessionRequest.newBuilder()
 							.setCatalogName(traits.catalogName())
 							.setDryRun(traits.isDryRun())
 							.build()
-					).get(configuration.timeout(), configuration.timeoutUnit())
-				);
+					).get(timeoutToUse.timeout(), timeoutToUse.timeoutUnit());
+				});
 			}
 		}
 		final EvitaClientSession evitaClientSession = new EvitaClientSession(
@@ -338,7 +354,8 @@ public class EvitaClient implements EvitaContract {
 				this.activeSessions.remove(evitaSession.getId());
 				ofNullable(traits.onTermination())
 					.ifPresent(it -> it.onTermination(evitaSession));
-			}
+			},
+			this.timeout.get().peek()
 		);
 
 		this.activeSessions.put(evitaClientSession.getId(), evitaClientSession);
@@ -369,8 +386,11 @@ public class EvitaClient implements EvitaContract {
 	public Set<String> getCatalogNames() {
 		assertActive();
 		final GrpcCatalogNamesResponse grpcResponse = executeWithEvitaService(
-			evitaService -> evitaService.getCatalogNames(Empty.newBuilder().build())
-				.get(configuration.timeout(), configuration.timeoutUnit())
+			evitaService -> {
+				final Timeout timeoutToUse = this.timeout.get().peek();
+				return evitaService.getCatalogNames(Empty.newBuilder().build())
+					.get(timeoutToUse.timeout(), timeoutToUse.timeoutUnit());
+			}
 		);
 		return new LinkedHashSet<>(
 			grpcResponse.getCatalogNamesList()
@@ -400,8 +420,11 @@ public class EvitaClient implements EvitaContract {
 			.setNewCatalogName(newCatalogName)
 			.build();
 		final GrpcRenameCatalogResponse grpcResponse = executeWithEvitaService(
-			evitaService -> evitaService.renameCatalog(request)
-				.get(configuration.timeout(), configuration.timeoutUnit())
+			evitaService -> {
+				final Timeout timeoutToUse = this.timeout.get().peek();
+				return evitaService.renameCatalog(request)
+					.get(timeoutToUse.timeout(), timeoutToUse.timeoutUnit());
+			}
 		);
 		final boolean success = grpcResponse.getSuccess();
 		if (success) {
@@ -417,9 +440,13 @@ public class EvitaClient implements EvitaContract {
 			.setCatalogNameToBeReplacedWith(catalogNameToBeReplacedWith)
 			.setCatalogNameToBeReplaced(catalogNameToBeReplaced)
 			.build();
+
 		final GrpcReplaceCatalogResponse grpcResponse = executeWithEvitaService(
-			evitaService -> evitaService.replaceCatalog(request)
-				.get(configuration.timeout(), configuration.timeoutUnit())
+			evitaService -> {
+				final Timeout timeoutToUse = this.timeout.get().peek();
+				return evitaService.replaceCatalog(request)
+					.get(timeoutToUse.timeout(), timeoutToUse.timeoutUnit());
+			}
 		);
 		final boolean success = grpcResponse.getSuccess();
 		if (success) {
@@ -435,9 +462,13 @@ public class EvitaClient implements EvitaContract {
 		final GrpcDeleteCatalogIfExistsRequest request = GrpcDeleteCatalogIfExistsRequest.newBuilder()
 			.setCatalogName(catalogName)
 			.build();
+
 		final GrpcDeleteCatalogIfExistsResponse grpcResponse = executeWithEvitaService(
-			evitaService -> evitaService.deleteCatalogIfExists(request)
-				.get(configuration.timeout(), configuration.timeoutUnit())
+			evitaService -> {
+				final Timeout timeoutToUse = this.timeout.get().peek();
+				return evitaService.deleteCatalogIfExists(request)
+					.get(timeoutToUse.timeout(), timeoutToUse.timeoutUnit());
+			}
 		);
 		final boolean success = grpcResponse.getSuccess();
 		if (success) {
@@ -457,9 +488,13 @@ public class EvitaClient implements EvitaContract {
 		final GrpcUpdateEvitaRequest request = GrpcUpdateEvitaRequest.newBuilder()
 			.addAllSchemaMutations(grpcSchemaMutations)
 			.build();
+
 		executeWithEvitaService(
-			evitaService -> evitaService.update(request)
-				.get(configuration.timeout(), configuration.timeoutUnit())
+			evitaService -> {
+				final Timeout timeoutToUse = this.timeout.get().peek();
+				return evitaService.update(request)
+					.get(timeoutToUse.timeout(), timeoutToUse.timeoutUnit());
+			}
 		);
 	}
 
@@ -584,8 +619,9 @@ public class EvitaClient implements EvitaContract {
 
 		return executeWithEvitaService(
 			evitaService -> {
+				final Timeout timeoutToUse = this.timeout.get().peek();
 				final GrpcEvitaServerStatusResponse response = evitaService.serverStatus(Empty.newBuilder().build())
-					.get(configuration.timeout(), configuration.timeoutUnit());
+					.get(timeoutToUse.timeout(), timeoutToUse.timeoutUnit());
 				return new SystemStatus(
 					response.getVersion(),
 					EvitaDataTypesConverter.toOffsetDateTime(response.getStartedAt()),
@@ -605,6 +641,42 @@ public class EvitaClient implements EvitaContract {
 			this.activeSessions.clear();
 			this.channelPool.shutdown();
 			this.terminationCallback.run();
+		}
+	}
+
+	/**
+	 * Method executes lambda using specified timeout for the call ignoring the defaults specified
+	 * in {@link EvitaClientConfiguration#timeout()}.
+	 *
+	 * @param lambda logic to be executed
+	 * @param timeout timeout value
+	 * @param unit   time unit of the timeout
+	 */
+	public void executeWithExtendedTimeout(@Nonnull Runnable lambda, long timeout, @Nonnull TimeUnit unit) {
+		try {
+			this.timeout.get().push(new Timeout(timeout, unit));
+			lambda.run();
+		} finally {
+			this.timeout.get().pop();
+		}
+	}
+
+	/**
+	 * Method executes lambda using specified timeout for the call ignoring the defaults specified
+	 * in {@link EvitaClientConfiguration#timeout()}.
+	 *
+	 * @param lambda logic to be executed
+	 * @param timeout timeout value
+	 * @param unit   time unit of the timeout
+	 * @return result of the lambda
+	 * @param <T> type of the result
+	 */
+	public <T> T executeWithExtendedTimeout(@Nonnull Supplier<T> lambda, long timeout, @Nonnull TimeUnit unit) {
+		try {
+			this.timeout.get().push(new Timeout(timeout, unit));
+			return lambda.get();
+		} finally {
+			this.timeout.get().pop();
 		}
 	}
 

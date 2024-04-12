@@ -163,10 +163,6 @@ public class EvitaClientSession implements EvitaSessionContract {
 	 */
 	@Getter private final EvitaClient evita;
 	/**
-	 * Configuration of the evitaDB client.
-	 */
-	private final EvitaClientConfiguration configuration;
-	/**
 	 * Reflection lookup is used to speed up reflection operation by memoizing the results for examined classes.
 	 */
 	private final ReflectionLookup reflectionLookup;
@@ -268,10 +264,10 @@ public class EvitaClientSession implements EvitaSessionContract {
 		@Nonnull UUID sessionId,
 		@Nonnull CommitBehavior commitBehaviour,
 		@Nonnull SessionTraits sessionTraits,
-		@Nonnull Consumer<EvitaClientSession> onTerminationCallback
-	) {
+		@Nonnull Consumer<EvitaClientSession> onTerminationCallback,
+		@Nonnull Timeout timeout
+		) {
 		this.evita = evita;
-		this.configuration = evita.getConfiguration();
 		this.reflectionLookup = evita.getReflectionLookup();
 		this.proxyFactory = schemaCache.getProxyFactory();
 		this.schemaCache = schemaCache;
@@ -282,7 +278,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 		this.sessionId = sessionId;
 		this.sessionTraits = sessionTraits;
 		this.onTerminationCallback = onTerminationCallback;
-		this.callTimeout.add(new Timeout(configuration.timeout(), configuration.timeoutUnit()));
+		this.callTimeout.add(timeout);
 	}
 
 	@Nonnull
@@ -1520,8 +1516,8 @@ public class EvitaClientSession implements EvitaSessionContract {
 	private <T> T executeWithBlockingEvitaSessionService(
 		@Nonnull AsyncCallFunction<EvitaSessionServiceFutureStub, ListenableFuture<T>> lambda
 	) {
+		final Timeout timeout = callTimeout.peek();
 		try {
-			final Timeout timeout = callTimeout.getLast();
 			return executeWithEvitaSessionService(
 				lambda,
 				EvitaSessionServiceGrpc::newFutureStub
@@ -1541,7 +1537,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 			throw new EvitaClientServerCallException("Server call interrupted.", e);
 		} catch (TimeoutException e) {
 			throw new EvitaClientTimedOutException(
-				configuration.timeout(), configuration.timeoutUnit()
+				timeout.timeout(), timeout.timeoutUnit()
 			);
 		}
 	}
