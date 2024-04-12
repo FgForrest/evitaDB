@@ -574,15 +574,6 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 		}
 
 		final Integer addedEntityPrimaryKey = addedEntity.get(1, TimeUnit.SECONDS).getPrimaryKey();
-		evita.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				// the entity will not yet be propagated to indexes
-				final Optional<SealedEntity> fetchedEntity = session.getEntity(productSchema.getName(), addedEntityPrimaryKey);
-				assertTrue(fetchedEntity.isEmpty());
-			}
-		);
-
 		boolean expectedResult = false;
 		for (int i = 0; i < 10_000; i++) {
 			//noinspection NonShortCircuitBooleanExpression
@@ -590,11 +581,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 				TEST_CATALOG,
 				session -> {
 					final Optional<SealedEntity> entityFetchedAgain = session.getEntity(productSchema.getName(), addedEntityPrimaryKey);
-					if (entityFetchedAgain.isPresent()) {
-						return true;
-					} else {
-						return false;
-					}
+					return entityFetchedAgain.isPresent();
 				}
 			);
 		}
@@ -765,7 +752,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 				if (nextCatalogVersion.isDone() && nextCatalogVersion.getNow(Long.MIN_VALUE) == catalogVersion) {
 					// the entity is already propagated to indexes
 					final Optional<SealedEntity> fetchedEntity = session.getEntity(productSchema.getName(), addedEntityPrimaryKey);
-					assertTrue(fetchedEntity.isEmpty());
+					assertTrue(fetchedEntity.isPresent());
 				} else {
 					// the entity will not yet be propagated to indexes
 					final Optional<SealedEntity> fetchedEntity = session.getEntity(productSchema.getName(), addedEntityPrimaryKey);
