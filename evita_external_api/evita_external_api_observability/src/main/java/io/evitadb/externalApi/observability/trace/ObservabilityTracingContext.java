@@ -24,6 +24,8 @@
 package io.evitadb.externalApi.observability.trace;
 
 import io.evitadb.api.trace.TracingContext;
+import io.evitadb.api.trace.TracingContextReference;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.utils.ExternalApiTracingContext;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.SpanKind;
@@ -95,6 +97,11 @@ public class ObservabilityTracingContext implements TracingContext {
 	}
 
 	@Override
+	public TracingContextReference<?> getCurrentContext() {
+		return new ObservabilityTracingContextReference(Context.current());
+	}
+
+	@Override
 	public void executeWithinBlock(
 		@Nonnull String taskName,
 		@Nonnull Runnable runnable,
@@ -162,7 +169,96 @@ public class ObservabilityTracingContext implements TracingContext {
 	}
 
 	@Override
-	public void executeWithinBlockIfParentContextAvailable(@Nonnull String taskName, @Nonnull Runnable runnable, @Nullable SpanAttribute... attributes) {
+	public void executeWithinBlockWithParentContext(
+		@Nonnull TracingContextReference<?> contextReference,
+		@Nonnull String taskName,
+		@Nonnull Runnable runnable,
+		@Nullable SpanAttribute... attributes
+	) {
+		executeWithinBlockUsingCustomParentContext(
+			contextReference,
+			taskName,
+			() -> {
+				runnable.run();
+				return null;
+			},
+			attributes,
+			null
+		);
+	}
+
+	@Override
+	public <T> T executeWithinBlockWithParentContext(
+		@Nonnull TracingContextReference<?> contextReference,
+		@Nonnull String taskName,
+		@Nonnull Supplier<T> lambda,
+		@Nullable SpanAttribute... attributes
+	) {
+		return executeWithinBlockUsingCustomParentContext(
+			contextReference,
+			taskName,
+			lambda,
+			attributes,
+			null
+		);
+	}
+
+	@Override
+	public void executeWithinBlockWithParentContext(@Nonnull TracingContextReference<?> contextReference, @Nonnull String taskName, @Nonnull Runnable runnable, @Nullable Supplier<SpanAttribute[]> attributes) {
+		executeWithinBlockUsingCustomParentContext(
+			contextReference,
+			taskName,
+			() -> {
+				runnable.run();
+				return null;
+			},
+			null,
+			attributes
+		);
+	}
+
+	@Override
+	public <T> T executeWithinBlockWithParentContext(@Nonnull TracingContextReference<?> contextReference, @Nonnull String taskName, @Nonnull Supplier<T> lambda, @Nullable Supplier<SpanAttribute[]> attributes) {
+		return executeWithinBlockUsingCustomParentContext(
+			contextReference,
+			taskName,
+			lambda,
+			null,
+			attributes
+		);
+	}
+
+	@Override
+	public void executeWithinBlockWithParentContext(@Nonnull TracingContextReference<?> contextReference, @Nonnull String taskName, @Nonnull Runnable runnable) {
+		executeWithinBlockUsingCustomParentContext(
+			contextReference,
+			taskName,
+			() -> {
+				runnable.run();
+				return null;
+			},
+			null,
+			null
+		);
+	}
+
+	@Override
+	public <T> T executeWithinBlockWithParentContext(@Nonnull TracingContextReference<?> contextReference, @Nonnull String taskName, @Nonnull Supplier<T> lambda) {
+		return executeWithinBlockUsingCustomParentContext(
+			contextReference,
+			taskName,
+			lambda,
+			null,
+			null
+		);
+	}
+
+	@Override
+	public void executeWithinBlockIfParentContextAvailable(
+		@Nonnull String taskName,
+		@Nonnull Runnable runnable,
+		@Nullable SpanAttribute... attributes
+	) {
 		executeWithinBlockInternal(
 			taskName,
 			() -> {
@@ -251,6 +347,52 @@ public class ObservabilityTracingContext implements TracingContext {
 				attributes,
 				attributeSupplier
 			);
+		} finally {
+			if (clear) {
+				parentContextAvailable.set(false);
+			}
+		}
+	}
+
+	/**
+	 * Executes the given lambda function within a block within passed parent context. It records a span only when somebody already called
+	 * the {@link #executeWithinBlockOpeningParentContext(String, Supplier, SpanAttribute[], Supplier)} method.
+	 * If tracing is enabled, it creates and manages a span for the execution of the lambda.
+	 *
+	 * @parem contextReference  the parent context reference
+	 * @param taskName          the name of the task or operation
+	 * @param lambda            the lambda function to execute
+	 * @param attributes        an array of SpanAttribute objects representing the attributes to set in the span (optional)
+	 * @param attributeSupplier a supplier function that provides an array of SpanAttribute objects representing additional attributes to set in the span (optional)
+	 * @param <T>               the return type of the lambda function
+	 * @return the result of the lambda function
+	 */
+	private <T> T executeWithinBlockUsingCustomParentContext(
+		@Nonnull TracingContextReference<?> contextReference,
+		@Nonnull String taskName,
+		@Nonnull Supplier<T> lambda,
+		@Nullable SpanAttribute[] attributes,
+		@Nullable Supplier<SpanAttribute[]> attributeSupplier
+	) {
+		if (!(contextReference instanceof ObservabilityTracingContextReference)) {
+			throw new EvitaInvalidUsageException("Unsupported context type `" + contextReference.getType().getName() + "`");
+		}
+
+		boolean clear = false;
+		try {
+			final Boolean originalValue = parentContextAvailable.get();
+			if (!Boolean.TRUE.equals(originalValue)) {
+				parentContextAvailable.set(true);
+				clear = true;
+			}
+			try (Scope ignored = ((ObservabilityTracingContextReference) contextReference).getContext().makeCurrent()) {
+				return executeWithinBlockInternal(
+					taskName,
+					lambda,
+					attributes,
+					attributeSupplier
+				);
+			}
 		} finally {
 			if (clear) {
 				parentContextAvailable.set(false);
