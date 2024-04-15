@@ -124,8 +124,10 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 		final int primaryKey = entityCount == 0 ? 0 : faker.random().nextInt(1, entityCount);
 		return primaryKey == 0 ? null : primaryKey;
 	};
-	private static final Pattern DATE_TIME_PATTERN = Pattern.compile("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d+\\+\\d{2}:\\d{2}");
+	private static final Pattern DATE_TIME_PATTERN_1 = Pattern.compile("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d+\\+\\d{2}:\\d{2}");
+	private static final Pattern DATE_TIME_PATTERN_2 = Pattern.compile("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$");
 	private static final Pattern LAG_PATTERN = Pattern.compile("lag \\d*m?s");
+	public static final String REPLACED_OFFSET_DATE_TIME = "REPLACED_OFFSET_DATE_TIME";
 	private final DataGenerator dataGenerator = new DataGenerator();
 	private final Pool<Kryo> catalogKryoPool = new Pool<>(false, false, 1) {
 		@Override
@@ -191,7 +193,9 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 	@Nonnull
 	private static String replaceTimeStamps(@Nonnull String textWithTimestamps) {
 		// the pattern is in the form of 2024-02-26T14:48:54.984+01:00
-		return DATE_TIME_PATTERN.matcher(textWithTimestamps).replaceAll("REPLACED_OFFSET_DATE_TIME");
+		return DATE_TIME_PATTERN_2.matcher(
+			DATE_TIME_PATTERN_1.matcher(textWithTimestamps).replaceAll(REPLACED_OFFSET_DATE_TIME)
+		).replaceAll(REPLACED_OFFSET_DATE_TIME);
 	}
 
 	/**
