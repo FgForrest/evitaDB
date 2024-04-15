@@ -64,6 +64,7 @@ jobs:
         export CURRENT_VERSION="${{ steps.release_version.outputs.version }}"
         export NEW_VERSION="$( echo ${CURRENT_VERSION} | sed 's/^v//')"
         echo $NEW_VERSION > version.txt
+        echo "Version: $(cat version.txt)"
         mvn versions:set -DnewVersion=$NEW_VERSION
         mvn -T 1C -B -P release-sign-artifacts -Dmaven.test.skip=true deploy --file pom.xml
       env:
