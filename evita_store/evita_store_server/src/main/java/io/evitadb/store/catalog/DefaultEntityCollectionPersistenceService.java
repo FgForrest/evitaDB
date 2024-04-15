@@ -662,6 +662,58 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		);
 	}
 
+	/**
+	 * This is a special constructor used only when catalog is renamed. It builds on previous instance of the service
+	 * and reuses all data present in memory. Except the placement on disk nothing else is actually changed.
+	 */
+	public DefaultEntityCollectionPersistenceService(
+		long catalogVersion,
+		@Nonnull Path catalogStoragePath,
+		@Nonnull DefaultEntityCollectionPersistenceService previous,
+		@Nonnull StorageOptions storageOptions,
+		@Nonnull OffsetIndexRecordTypeRegistry recordRegistry
+	) {
+		final EntityCollectionHeader entityTypeHeader = previous.getEntityCollectionHeader();
+		this.entityCollectionFileReference = new CollectionFileReference(
+			entityTypeHeader.entityType(),
+			entityTypeHeader.entityTypePrimaryKey(),
+			entityTypeHeader.entityTypeFileIndex(),
+			entityTypeHeader.fileLocation()
+		);
+		this.entityCollectionFile = entityCollectionFileReference.toFilePath(catalogStoragePath);
+		this.entityCollectionHeader = entityTypeHeader;
+		this.offsetIndexRecordTypeRegistry = previous.offsetIndexRecordTypeRegistry;
+		this.observableOutputKeeper = previous.observableOutputKeeper;
+
+		final OffsetIndexStoragePartPersistenceService previousStoragePartService = previous.storagePartPersistenceService;
+		final OffsetIndex previousOffsetIndex = previousStoragePartService.offsetIndex;
+		final long totalSize = previousOffsetIndex.getTotalSize();
+		this.storagePartPersistenceService = new OffsetIndexStoragePartPersistenceService(
+			catalogVersion,
+			this.entityCollectionFile.toFile().getName(),
+			previousStoragePartService.transactionOptions,
+			new OffsetIndex(
+				catalogVersion,
+				this.entityCollectionFile,
+				storageOptions,
+				recordRegistry,
+				new WriteOnlyFileHandle(this.entityCollectionFile, observableOutputKeeper),
+				previousOffsetIndex,
+				new OffsetIndexDescriptor(
+					previousOffsetIndex.getVersion(),
+					previousOffsetIndex.getFileOffsetIndexLocation(),
+					entityTypeHeader.compressedKeys(),
+					VERSIONED_KRYO_FACTORY,
+					previousOffsetIndex.getActiveRecordShare(totalSize),
+					totalSize
+				)
+			),
+			previousStoragePartService.offHeapMemoryManager,
+			observableOutputKeeper,
+			VERSIONED_KRYO_FACTORY
+		);
+	}
+
 	@Override
 	public boolean isNew() {
 		return this.storagePartPersistenceService.isNew();

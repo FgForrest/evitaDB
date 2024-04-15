@@ -120,6 +120,58 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 	}
 
 	/**
+	 * This is a special constructor used only when catalog is renamed. It builds on previous instance of the service
+	 * and reuses all data present in memory. Except the placement on disk nothing else is actually changed.
+	 *
+	 * @return a new instance of the service with the same data as the previous one but different file placement
+	 */
+	@Nonnull
+	public static CatalogOffsetIndexStoragePartPersistenceService create(
+		long catalogVersion,
+		@Nonnull String catalogFileName,
+		@Nonnull Path catalogFilePath,
+		@Nonnull StorageOptions storageOptions,
+		@Nonnull TransactionOptions transactionOptions,
+		@Nonnull CatalogBootstrap lastCatalogBootstrap,
+		@Nonnull OffsetIndexRecordTypeRegistry recordRegistry,
+		@Nonnull OffHeapMemoryManager offHeapMemoryManager,
+		@Nonnull ObservableOutputKeeper observableOutputKeeper,
+		@Nonnull Function<VersionedKryoKeyInputs, VersionedKryo> kryoFactory,
+		@Nonnull CatalogOffsetIndexStoragePartPersistenceService previous
+	) {
+		final CatalogHeader catalogHeader = previous.getCatalogHeader(catalogVersion);
+		final OffsetIndex previousOffsetIndex = previous.offsetIndex;
+		final long totalSize = previousOffsetIndex.getTotalSize();
+		final OffsetIndexDescriptor offsetIndexDescriptor = new OffsetIndexDescriptor(
+			previousOffsetIndex.getVersion(),
+			previousOffsetIndex.getFileOffsetIndexLocation(),
+			catalogHeader.compressedKeys(),
+			kryoFactory,
+			previousOffsetIndex.getActiveRecordShare(totalSize),
+			totalSize
+		);
+
+		final OffsetIndex offsetIndex = new OffsetIndex(
+			lastCatalogBootstrap.catalogVersion(),
+			catalogFilePath,
+			storageOptions,
+			recordRegistry,
+			new WriteOnlyFileHandle(catalogFilePath, observableOutputKeeper),
+			previousOffsetIndex,
+			offsetIndexDescriptor
+		);
+		return new CatalogOffsetIndexStoragePartPersistenceService(
+			lastCatalogBootstrap.catalogVersion(),
+			catalogFileName,
+			catalogHeader,
+			transactionOptions,
+			offsetIndex,
+			offHeapMemoryManager, observableOutputKeeper,
+			kryoFactory
+		);
+	}
+
+	/**
 	 * Loads an offset index based on the given parameters.
 	 *
 	 * @param catalogName            The name of the catalog.

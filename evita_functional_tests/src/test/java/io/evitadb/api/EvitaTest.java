@@ -1774,13 +1774,25 @@ class EvitaTest implements EvitaTestSupport {
 		assertFalse(evita.getCatalogNames().contains(temporaryCatalogName));
 		assertTrue(evita.getCatalogNames().contains(TEST_CATALOG));
 
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.upsertEntity(session.createNewEntity(Entities.PRODUCT, 3));
+			}
+		);
+
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
 				assertEquals(TEST_CATALOG, session.getCatalogSchema().getName());
 				assertThrows(CollectionNotFoundException.class, () -> session.getEntityCollectionSize(Entities.BRAND));
-				assertEquals(2, session.getEntityCollectionSize(Entities.PRODUCT));
+				assertEquals(3, session.getEntityCollectionSize(Entities.PRODUCT));
 				assertEquals(versionBeforeRename.get() + 1, session.getCatalogSchema().version());
+
+				for (int i = 1; i <= 3; i++) {
+					assertNotNull(session.getEntity(Entities.PRODUCT, i));
+				}
+
 				return null;
 			}
 		);
@@ -1791,12 +1803,24 @@ class EvitaTest implements EvitaTestSupport {
 			getEvitaConfiguration()
 		);
 
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.upsertEntity(session.createNewEntity(Entities.PRODUCT, 4));
+			}
+		);
+
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
 				assertEquals(TEST_CATALOG, session.getCatalogSchema().getName());
 				assertThrows(CollectionNotFoundException.class, () -> session.getEntityCollectionSize(Entities.BRAND));
-				assertEquals(2, session.getEntityCollectionSize(Entities.PRODUCT));
+				assertEquals(4, session.getEntityCollectionSize(Entities.PRODUCT));
+
+				for (int i = 1; i <= 4; i++) {
+					assertNotNull(session.getEntity(Entities.PRODUCT, i));
+				}
+
 				return null;
 			}
 		);

@@ -114,15 +114,7 @@ import java.nio.file.Path;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -633,46 +625,43 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	}
 
 	private DefaultCatalogPersistenceService(
-		@Nonnull OffsetIndexRecordTypeRegistry fileOffsetIndexRecordTypeRegistry,
-		@Nonnull ObservableOutputKeeper observableOutputKeeper,
-		@Nonnull OffHeapMemoryManager offHeapMemoryManager,
+		@Nonnull DefaultCatalogPersistenceService previous,
+		@Nonnull CatalogOffsetIndexStoragePartPersistenceService previousCatalogStoragePartPersistenceService,
 		@Nonnull String catalogName,
 		@Nonnull Path catalogStoragePath,
 		@Nonnull CatalogBootstrap bootstrapUsed,
 		@Nonnull WriteOnlyFileHandle bootstrapWriteHandle,
-		@Nonnull StorageOptions storageOptions,
-		@Nonnull TransactionOptions transactionOptions,
-		@Nonnull Scheduler scheduler,
-		@Nonnull ObsoleteFileMaintainer obsoleteFileMaintainer,
-		@Nullable CatalogWriteAheadLog catalogWal
+		@Nonnull Map<CollectionFileReference, DefaultEntityCollectionPersistenceService> previousEntityCollectionPersistenceServices
 	) {
 		this.bootstrapUsed = bootstrapUsed;
-		this.recordTypeRegistry = fileOffsetIndexRecordTypeRegistry;
-		this.observableOutputKeeper = observableOutputKeeper;
-		this.offHeapMemoryManager = offHeapMemoryManager;
+		this.recordTypeRegistry = previous.recordTypeRegistry;
+		this.observableOutputKeeper = previous.observableOutputKeeper;
+		this.offHeapMemoryManager = previous.offHeapMemoryManager;
 		this.catalogName = catalogName;
 		this.catalogStoragePath = catalogStoragePath;
 		this.bootstrapWriteHandle = new AtomicReference<>(bootstrapWriteHandle);
-		this.storageOptions = storageOptions;
-		this.transactionOptions = transactionOptions;
-		this.scheduler = scheduler;
-		this.obsoleteFileMaintainer = obsoleteFileMaintainer;
-		this.catalogWal = catalogWal;
+		this.storageOptions = previous.storageOptions;
+		this.transactionOptions = previous.transactionOptions;
+		this.scheduler = previous.scheduler;
+		this.obsoleteFileMaintainer = previous.obsoleteFileMaintainer;
+		this.catalogWal = previous.catalogWal;
 
 		final String catalogFileName = getCatalogDataStoreFileName(catalogName, this.bootstrapUsed.catalogFileIndex());
 		final Path catalogFilePath = this.catalogStoragePath.resolve(catalogFileName);
 		final long catalogVersion = this.bootstrapUsed.catalogVersion();
 
 		final CatalogOffsetIndexStoragePartPersistenceService catalogStoragePartPersistenceService = CatalogOffsetIndexStoragePartPersistenceService.create(
-			catalogName,
+			catalogVersion,
 			catalogFileName,
 			catalogFilePath,
-			storageOptions,
-			transactionOptions,
+			this.storageOptions,
+			this.transactionOptions,
 			this.bootstrapUsed,
 			this.recordTypeRegistry,
-			offHeapMemoryManager, observableOutputKeeper,
-			VERSIONED_KRYO_FACTORY
+			this.offHeapMemoryManager,
+			this.observableOutputKeeper,
+			VERSIONED_KRYO_FACTORY,
+			previousCatalogStoragePartPersistenceService
 		);
 		this.catalogStoragePartPersistenceService = CollectionUtils.createConcurrentHashMap(16);
 		this.catalogStoragePartPersistenceService.put(
@@ -680,9 +669,33 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			catalogStoragePartPersistenceService
 		);
 		this.catalogPersistenceServiceVersions = new long[]{catalogVersion};
+
+		final CatalogHeader catalogHeader = catalogStoragePartPersistenceService.getCatalogHeader(catalogVersion);
 		this.entityCollectionPersistenceServices = CollectionUtils.createConcurrentHashMap(
-			catalogStoragePartPersistenceService.getCatalogHeader(catalogVersion).getEntityTypeFileIndexes().size()
+			catalogHeader.getEntityTypeFileIndexes().size()
 		);
+
+		// we rebuild the storage services for all entity collections building upon previous versions
+		for (CollectionFileReference entityTypeFileIndex : catalogHeader.getEntityTypeFileIndexes()) {
+			final CollectionFileReference reference = new CollectionFileReference(
+				entityTypeFileIndex.entityType(),
+				entityTypeFileIndex.entityTypePrimaryKey(),
+				entityTypeFileIndex.fileIndex(),
+				entityTypeFileIndex.fileLocation()
+			);
+
+			final DefaultEntityCollectionPersistenceService previousService = previousEntityCollectionPersistenceServices.get(reference);
+			this.entityCollectionPersistenceServices.put(
+				reference,
+				new DefaultEntityCollectionPersistenceService(
+					this.bootstrapUsed.catalogVersion(),
+					this.catalogStoragePath,
+					previousService,
+					this.storageOptions,
+					this.recordTypeRegistry
+				)
+			);
+		}
 	}
 
 	@Nonnull
@@ -1007,7 +1020,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		}
 
 		// store the catalog that replaces the original header
-		final CatalogStoragePartPersistenceService storagePartPersistenceService = getStoragePartPersistenceService(catalogVersion);
+		final CatalogOffsetIndexStoragePartPersistenceService storagePartPersistenceService = getStoragePartPersistenceService(catalogVersion);
 		final CatalogHeader catalogHeader = getCatalogHeader(catalogVersion);
 		final long newCatalogVersion = catalogHeader.catalogState() == CatalogState.WARMING_UP ?
 			0L : catalogHeader.version() + 1;
@@ -1038,6 +1051,10 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			newCatalogVersion,
 			catalogNameToBeReplaced,
 			catalogIndex
+		);
+
+		final HashMap<CollectionFileReference, DefaultEntityCollectionPersistenceService> previousEntityCollectionServices = new HashMap<>(
+			this.entityCollectionPersistenceServices
 		);
 
 		// close the catalog
@@ -1093,9 +1110,8 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				.ifPresent(FileUtils::deleteDirectory);
 
 			return new DefaultCatalogPersistenceService(
-				this.recordTypeRegistry,
-				this.observableOutputKeeper,
-				this.offHeapMemoryManager,
+				this,
+				storagePartPersistenceService,
 				catalogNameToBeReplaced,
 				newPath,
 				newCatalogBootstrap,
@@ -1103,11 +1119,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 					newPath.resolve(getCatalogBootstrapFileName(catalogNameToBeReplaced)),
 					this.observableOutputKeeper
 				),
-				this.storageOptions,
-				this.transactionOptions,
-				this.scheduler,
-				this.obsoleteFileMaintainer,
-				this.catalogWal
+				previousEntityCollectionServices
 			);
 		} catch (RuntimeException ex) {
 			// rename original directory back

@@ -302,6 +302,41 @@ public class OffsetIndex {
 		}
 	}
 
+	public OffsetIndex(
+		long catalogVersion,
+		@Nonnull Path filePath,
+		@Nonnull StorageOptions storageOptions,
+		@Nonnull OffsetIndexRecordTypeRegistry recordTypeRegistry,
+		@Nonnull WriteOnlyHandle writeHandle,
+		@Nonnull OffsetIndex previousOffsetIndex,
+		@Nonnull OffsetIndexDescriptor fileOffsetIndexDescriptor
+	) {
+		this.storageOptions = storageOptions;
+		this.recordTypeRegistry = recordTypeRegistry;
+
+		this.readOnlyOpenedHandles = new CopyOnWriteArrayList<>();
+		this.writeHandle = writeHandle;
+		this.lastSyncedPosition = writeHandle.getLastWrittenPosition();
+		if (this.lastSyncedPosition == 0) {
+			throw new UnexpectedIOException(
+				"Cannot create OffsetIndex from empty file: `" + filePath + "`!",
+				"Cannot create OffsetIndex from empty file!"
+			);
+		}
+
+		this.keyToLocations = previousOffsetIndex.keyToLocations;
+		this.histogram = previousOffsetIndex.histogram;
+		this.totalSize.set(previousOffsetIndex.totalSize.get());
+		this.maxRecordSize.set(previousOffsetIndex.maxRecordSize.get());
+		this.fileOffsetDescriptor = fileOffsetIndexDescriptor;
+		this.keyCatalogVersion = catalogVersion;
+		this.readKryoPool = new FileOffsetIndexKryoPool(
+			storageOptions.maxOpenedReadHandles(),
+			version -> this.fileOffsetDescriptor.getReadKryoFactory().apply(version)
+		);
+		this.writeKryo = fileOffsetDescriptor.getWriteKryo();
+	}
+
 	/**
 	 * Returns version of the current OffsetIndexDescriptor instance. This version can be used to recognize, whether
 	 * there was any real change made before and after {@link #flush(long)} or {@link #close()} operations.
@@ -737,6 +772,19 @@ public class OffsetIndex {
 	}
 
 	/**
+	 * Calculates the living object share.
+	 * The living object share is calculated as the ratio of the total size of the object and the size of the file
+	 * that is being written to.
+	 *
+	 * @return the living object share as a double value
+	 */
+	public double getActiveRecordShare(long fileSize) {
+		final double activeRecordShare = (double) getTotalActiveSize() / (double) fileSize;
+		Assert.isPremiseValid(activeRecordShare >= 0, "Active record share must be non-negative!");
+		return activeRecordShare;
+	}
+
+	/**
 	 * Forgets all non-flushed values. This method is used when it's known those data will never be promoted to
 	 * the shared state.
 	 */
@@ -785,19 +833,6 @@ public class OffsetIndex {
 	/*
 		PRIVATE METHODS
 	 */
-
-	/**
-	 * Calculates the living object share.
-	 * The living object share is calculated as the ratio of the total size of the object and the size of the file
-	 * that is being written to.
-	 *
-	 * @return the living object share as a double value
-	 */
-	private double getActiveRecordShare(long fileSize) {
-		final double activeRecordShare = (double) getTotalActiveSize() / (double) fileSize;
-		Assert.isPremiseValid(activeRecordShare >= 0, "Active record share must be non-negative!");
-		return activeRecordShare;
-	}
 
 	/**
 	 * Calculates estimated total active size.
@@ -953,7 +988,6 @@ public class OffsetIndex {
 
 		long workingMaxRecordSize = this.maxRecordSize.get();
 		long recordLengthDelta = 0;
-		long recordCountDelta = 0;
 
 		final Map<Byte, Integer> histogramDiff = CollectionUtils.createHashMap(this.histogram.size());
 		for (NonFlushedValueSet volatileValues : nonFlushedValueSets) {
@@ -997,7 +1031,6 @@ public class OffsetIndex {
 				histogramDiff.merge(
 					recordKey.recordType(), count, Integer::sum
 				);
-				recordCountDelta += count;
 			}
 		}
 
