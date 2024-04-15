@@ -1578,9 +1578,6 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
 					{
-						"filterBy": {
-							"attributeAliasIs": "NOT_NULL"
-						},
 						"require": {
 							"page": {
 								"number": 1,
@@ -1626,9 +1623,6 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
 					{
-						"filterBy": {
-							"attributeAliasIs": "NOT_NULL"
-						},
 						"require": {
 							"page": {
 								"number": 1,
@@ -1679,7 +1673,6 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.requestBody("""
 					{
 						"filterBy": {
-							"attributeAliasIs": "NOT_NULL",
 							"userFilter": [{
 								"attributeQuantityBetween": ["100", "900"]
 							}]
@@ -1715,9 +1708,6 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
 					{
-						"filterBy": {
-							"attributeAliasIs": "NOT_NULL"
-						},
 						"require": {
 							"page": {
 								"number": 1,
