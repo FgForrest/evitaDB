@@ -15,7 +15,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3        # checkout from Git
         with:
-          ref: master  # Always checks out the master branch
+          ref: master  # Always checks out the master branch (due to config file)
 
       - name: Download a JAR file to deploy # download `evita-server.jar` artifact if the workflow we react to was successful
         uses: dawidd6/action-download-artifact@v2
