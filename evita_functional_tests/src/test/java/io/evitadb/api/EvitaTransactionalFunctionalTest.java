@@ -125,7 +125,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 		return primaryKey == 0 ? null : primaryKey;
 	};
 	private static final Pattern DATE_TIME_PATTERN_1 = Pattern.compile("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d+\\+\\d{2}:\\d{2}");
-	private static final Pattern DATE_TIME_PATTERN_2 = Pattern.compile("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$");
+	private static final Pattern DATE_TIME_PATTERN_2 = Pattern.compile("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d+Z");
 	private static final Pattern LAG_PATTERN = Pattern.compile("lag \\d*m?s");
 	public static final String REPLACED_OFFSET_DATE_TIME = "REPLACED_OFFSET_DATE_TIME";
 	private final DataGenerator dataGenerator = new DataGenerator();
