@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -30,7 +30,6 @@ import io.evitadb.api.query.require.HierarchyLevel;
 import io.evitadb.api.query.require.HierarchyNode;
 import io.evitadb.api.query.require.HierarchyStopAt;
 import io.evitadb.api.query.require.HierarchyStopAtRequireConstraint;
-import io.evitadb.api.requestResponse.data.AttributesContract;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
@@ -60,6 +59,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Optional.ofNullable;
 
@@ -180,7 +180,7 @@ public abstract class AbstractHierarchyTranslator {
 					null,
 					null,
 					attributeSchemaAccessor,
-					AttributesContract::getAttribute,
+					(entityContract, attributeName, locale) -> Stream.of(entityContract.getAttributeValue(attributeName, locale)),
 					() -> {
 						filterBy.accept(theFilterByVisitor);
 						// get the result and clear the visitor internal structures

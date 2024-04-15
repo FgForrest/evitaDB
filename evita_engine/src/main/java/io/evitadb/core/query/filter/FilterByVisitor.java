@@ -34,7 +34,6 @@ import io.evitadb.api.query.filter.*;
 import io.evitadb.api.query.require.AttributeContent;
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.ReferenceContent;
-import io.evitadb.api.requestResponse.data.AttributesContract;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
@@ -279,7 +278,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 							null,
 							null,
 							new AttributeSchemaAccessor(queryContext.getCatalogSchema(), queryContext.getSchema(entityType)),
-							AttributesContract::getAttribute,
+							(entityContract, attributeName, locale) -> Stream.of(entityContract.getAttributeValue(attributeName, locale)),
 							() -> {
 								filterBy.accept(theFilterByVisitor);
 								// get the result and clear the visitor internal structures
