@@ -85,6 +85,7 @@ public class ClientCatalogSchemaDecorator extends CatalogSchemaDecorator {
 		);
 	}
 
+	@Nonnull
 	@Override
 	public Collection<EntitySchemaContract> getEntitySchemas() {
 		return entitySchemaAccessor.getEntitySchemas();

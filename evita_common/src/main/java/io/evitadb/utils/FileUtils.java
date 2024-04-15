@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,9 +29,11 @@ import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 import java.io.IOException;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -45,6 +47,7 @@ import java.util.stream.StreamSupport;
  */
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class FileUtils {
+	private static final Path[] EMPTY_PATHS = new Path[0];
 
 	/**
 	 * Returns list of folders in Evita directory. Each folder is considered to be Evita catalog - name of the folder
@@ -62,7 +65,7 @@ public class FileUtils {
 				);
 			}
 		} else {
-			return new Path[0];
+			return EMPTY_PATHS;
 		}
 	}
 
@@ -97,6 +100,86 @@ public class FileUtils {
 					"Failed to delete directory!", ex
 				);
 			}
+		}
+	}
+
+	/**
+	 * Checks whether the directory is empty or contains any file.
+	 *
+	 * @param path Path to directory
+	 * @return True if directory is empty, false otherwise
+	 */
+	public static boolean isDirectoryEmpty(@Nonnull Path path) {
+		try (final DirectoryStream<Path> dirStream = Files.newDirectoryStream(path, entry -> entry.toFile().isFile())) {
+			return !dirStream.iterator().hasNext();
+		} catch (IOException ex) {
+			throw new UnexpectedIOException(
+				"Failed to read directory: " + path,
+				"Failed to read directory!", ex
+			);
+		}
+	}
+
+	/**
+	 * Moves a source file to a target file, replacing the target file if it already exists.
+	 * This method ensures atomic move if supported by the underlying file system.
+	 *
+	 * @param sourceFile the path of the source file to be moved
+	 * @param targetFile the path of the target file where the source file should be moved to
+	 * @throws UnexpectedIOException if an unexpected I/O error occurs during the file movement
+	 */
+	public static void rewriteTargetFileAtomically(
+		@Nonnull Path sourceFile,
+		@Nonnull Path targetFile
+	) {
+		try {
+			Files.move(
+				sourceFile, targetFile,
+				StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE
+			);
+		} catch (AtomicMoveNotSupportedException e) {
+			try {
+				Files.move(
+					sourceFile, targetFile,
+					StandardCopyOption.REPLACE_EXISTING
+				);
+			} catch (Exception fallbackException) {
+				throw new UnexpectedIOException(
+					"Failed to move temporary bootstrap file to the original location!",
+					"Failed to move temporary bootstrap file!",
+					fallbackException
+				);
+			}
+		} catch (Exception e) {
+			throw new UnexpectedIOException(
+				"Failed to move temporary bootstrap file to the original location!",
+				"Failed to move temporary bootstrap file!",
+				e
+			);
+		}
+	}
+
+	/**
+	 * Deletes the specified folder if it is empty.
+	 *
+	 * @param parentDirectory The path to the parent directory.
+	 * @throws UnexpectedIOException If the empty folder cannot be deleted.
+	 */
+	public static void deleteFolderIfEmpty(@Nonnull Path parentDirectory) {
+		try {
+			if (parentDirectory.toFile().exists()) {
+				try (final Stream<Path> fileStream = Files.list(parentDirectory)) {
+					if (fileStream.findFirst().isEmpty()) {
+						Files.delete(parentDirectory);
+					}
+				}
+			}
+		} catch (IOException e) {
+			throw new UnexpectedIOException(
+				"Cannot delete empty folder: " + parentDirectory,
+				"Cannot delete empty folder!",
+				e
+			);
 		}
 	}
 }

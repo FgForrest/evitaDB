@@ -49,8 +49,6 @@ import java.util.stream.Collectors;
  * Mutation is a holder for a set of {@link EntitySchemaMutation} that affect a single entity schema within
  * the {@link CatalogSchemaContract}.
  *
- * TOBEDONE JNO - write tests
- *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @ThreadSafe

@@ -23,7 +23,7 @@
 
 package io.evitadb.externalApi.grpc.requestResponse.data.mutation.entity;
 
-import io.evitadb.api.requestResponse.data.mutation.entity.SetParentMutation;
+import io.evitadb.api.requestResponse.data.mutation.parent.SetParentMutation;
 import io.evitadb.externalApi.grpc.generated.GrpcSetParentMutation;
 import io.evitadb.externalApi.grpc.requestResponse.data.mutation.LocalMutationConverter;
 

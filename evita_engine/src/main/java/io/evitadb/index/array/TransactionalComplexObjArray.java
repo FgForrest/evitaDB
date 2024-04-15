@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,10 +24,10 @@
 package io.evitadb.index.array;
 
 import io.evitadb.core.Transaction;
-import io.evitadb.index.iterator.ConstantObjIterator;
-import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
-import io.evitadb.index.transactionalMemory.TransactionalLayerProducer;
-import io.evitadb.index.transactionalMemory.TransactionalObjectVersion;
+import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
+import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
+import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
+import io.evitadb.dataType.iterator.ConstantObjIterator;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.ArrayUtils.InsertionPosition;
 import lombok.Getter;
@@ -41,7 +41,6 @@ import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
 import java.util.function.Predicate;
 
-import static io.evitadb.core.Transaction.getTransactionalMemoryLayer;
 import static io.evitadb.core.Transaction.getTransactionalMemoryLayerIfExists;
 import static io.evitadb.core.Transaction.isTransactionAvailable;
 import static java.util.Optional.ofNullable;
@@ -124,7 +123,7 @@ public class TransactionalComplexObjArray<T extends TransactionalObject<T, ?> & 
 			return;
 		}
 
-		final ComplexObjArrayChanges<T> layer = getTransactionalMemoryLayer(this);
+		final ComplexObjArrayChanges<T> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		final InsertionPosition position = ArrayUtils.computeInsertPositionOfObjInOrderedArray(recordId, this.delegate);
 		if (layer == null) {
 			if (position.alreadyPresent()) {
@@ -150,7 +149,7 @@ public class TransactionalComplexObjArray<T extends TransactionalObject<T, ?> & 
 			return -1;
 		}
 
-		final ComplexObjArrayChanges<T> layer = getTransactionalMemoryLayer(this);
+		final ComplexObjArrayChanges<T> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		final InsertionPosition position = ArrayUtils.computeInsertPositionOfObjInOrderedArray(recordId, this.delegate);
 		if (layer == null) {
 			if (position.alreadyPresent()) {
@@ -186,7 +185,7 @@ public class TransactionalComplexObjArray<T extends TransactionalObject<T, ?> & 
 			return -1;
 		}
 
-		final ComplexObjArrayChanges<T> layer = getTransactionalMemoryLayer(this);
+		final ComplexObjArrayChanges<T> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		final InsertionPosition position = ArrayUtils.computeInsertPositionOfObjInOrderedArray(recordId, this.delegate);
 		if (layer == null) {
 			if (position.alreadyPresent()) {
@@ -303,7 +302,7 @@ public class TransactionalComplexObjArray<T extends TransactionalObject<T, ?> & 
 
 	@Nonnull
 	@Override
-	public T[] createCopyWithMergedTransactionalMemory(@Nullable ComplexObjArrayChanges<T> layer, @Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Transaction transaction) {
+	public T[] createCopyWithMergedTransactionalMemory(@Nullable ComplexObjArrayChanges<T> layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		if (layer == null) {
 			@SuppressWarnings("unchecked") final T[] copy = (T[]) Array.newInstance(objectType, delegate.length);
 			for (int i = 0; i < delegate.length; i++) {
@@ -312,7 +311,7 @@ public class TransactionalComplexObjArray<T extends TransactionalObject<T, ?> & 
 					@SuppressWarnings("unchecked") final TransactionalLayerProducer<ComplexObjArrayChanges<T>, ?> theProducer = (TransactionalLayerProducer<ComplexObjArrayChanges<T>, ?>) item;
 					//noinspection unchecked
 					item = (T) theProducer.createCopyWithMergedTransactionalMemory(
-						null, transactionalLayer, transaction
+						null, transactionalLayer
 					);
 				}
 				copy[i] = item;

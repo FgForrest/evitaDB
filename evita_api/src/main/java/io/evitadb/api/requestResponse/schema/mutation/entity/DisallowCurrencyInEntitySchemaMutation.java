@@ -52,8 +52,6 @@ import java.util.stream.Stream;
  * or negative mutation {@link AllowCurrencyInEntitySchemaMutation} if those mutation are present in the mutation pipeline
  * multiple times.
  *
- * TOBEDONE JNO - write tests
- *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @ThreadSafe
@@ -95,8 +93,8 @@ public class DisallowCurrencyInEntitySchemaMutation implements CombinableEntityS
 				.collect(Collectors.toSet());
 
 			return new MutationCombinationResult<>(
-				currenciesToAdd.length == 0 ? null : new AllowCurrencyInEntitySchemaMutation(currenciesToAdd),
-				currenciesToRemove.size() == currencies.size() ? existingMutation : (currenciesToRemove.isEmpty() ? null : new DisallowCurrencyInEntitySchemaMutation(currenciesToRemove))
+				currenciesToAdd.length == 0 ? null : (currenciesToAdd.length == ((AllowCurrencyInEntitySchemaMutation) existingMutation).getCurrencies().length ? existingMutation : new AllowCurrencyInEntitySchemaMutation(currenciesToAdd)),
+				currenciesToRemove.size() == currencies.size() ? this : (currenciesToRemove.isEmpty() ? null : new DisallowCurrencyInEntitySchemaMutation(currenciesToRemove))
 			);
 		} else {
 			return null;

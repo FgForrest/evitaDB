@@ -170,7 +170,7 @@ public class MetricHandler {
 								final UsedMetric usedMetricAnnotation = usedMetric.get();
 								final Label labelAnnotation = label.get();
 
-								final String metricName = StringUtils.toSnakeCase(eventClass.getName() + fieldAnnotationsEntry.getKey().getName().toUpperCase() + usedMetricAnnotation.metricType());
+								final String metricName = StringUtils.toSnakeCase(eventClass.getName() + fieldAnnotationsEntry.getKey().getName().toUpperCase());
 								final Metric metric = buildAndRegisterMetric(new LoggedMetric(metricName, labelAnnotation.value(), usedMetricAnnotation.metricType()));
 								if (oldValue == null) {
 									oldValue = updateMetricValue(usedMetricAnnotation.metricType(), metric, fieldAnnotationsEntry.getKey().getName());

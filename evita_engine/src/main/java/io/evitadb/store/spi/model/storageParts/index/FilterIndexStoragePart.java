@@ -77,7 +77,7 @@ public class FilterIndexStoragePart implements AttributeIndexStoragePart, Record
 	/**
 	 * Id used for lookups in file offset index for this particular container.
 	 */
-	@Getter @Setter private Long uniquePartId;
+	@Getter @Setter private Long storagePartPK;
 
 	@Override
 	public AttributeIndexType getIndexType() {

@@ -24,41 +24,24 @@
 package io.evitadb.driver.observability.trace;
 
 import io.evitadb.driver.trace.ClientTracingContext;
-import io.grpc.ClientInterceptor;
-import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry;
+import io.opentelemetry.api.OpenTelemetry;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 /**
- * Implementation of {@link ClientTracingContext} for the driver. It depends on a gRPC library and as such, it returns
- * all necessary gRPC related objects.
+ * Implementation of {@link ClientTracingContext} for the driver.
+ * It enables setting up the OpenTelemetry instance on which the tracing is based and individual spans exported.
  *
  * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
  */
 public class DriverTracingContext implements ClientTracingContext {
-
-	/**
-	 * Retrieves the client interceptor for tracing.
-	 *
-	 * @return the client interceptor for tracing
-	 */
 	@Override
-	@Nullable
-	public ClientInterceptor getClientInterceptor() {
-		return GrpcTelemetry.create(OpenTelemetryClientTracerSetup.getOpenTelemetry()).newClientInterceptor();
-	}
-
-	/**
-	 * Set the tracing endpoint URL and protocol for the OpenTelemetryClientTracerSetup.
-	 * The tracing endpoint URL and protocol are used to configure the export of traces to the specified endpoint.
-	 *
-	 * @param tracingEndpointUrl        The URL of the tracing endpoint.
-	 * @param tracingEndpointProtocol   The protocol to be used for exporting traces (e.g., HTTP, GRPC).
-	 * @throws NullPointerException     If either tracingEndpointUrl or tracingEndpointProtocol is null.
-	 */
-	@Override
-	public void setTracingEndpointUrlAndProtocol(@Nonnull String tracingEndpointUrl, @Nonnull String tracingEndpointProtocol) {
-		OpenTelemetryClientTracerSetup.setTracingEndpointUrlAndProtocol(tracingEndpointUrl, tracingEndpointProtocol);
+	public void setOpenTelemetry(@Nonnull Object openTelemetryInstance) {
+		if (openTelemetryInstance instanceof OpenTelemetry openTelemetry) {
+			OpenTelemetryClientTracerSetup.setOpenTelemetry(openTelemetry);
+		}
+		else {
+			throw new IllegalArgumentException("The provided parameter is not an instance of a type `OpenTelemetry`.");
+		}
 	}
 }

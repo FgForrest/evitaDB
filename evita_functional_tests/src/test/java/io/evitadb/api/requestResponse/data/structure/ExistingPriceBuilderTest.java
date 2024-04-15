@@ -54,7 +54,7 @@ class ExistingPriceBuilderTest extends AbstractBuilderTest {
 	@BeforeEach
 	void setUp() {
 		initialPrices = new InitialPricesBuilder(PRODUCT_SCHEMA)
-				.setPriceInnerRecordHandling(PriceInnerRecordHandling.FIRST_OCCURRENCE)
+				.setPriceInnerRecordHandling(PriceInnerRecordHandling.LOWEST_PRICE)
 				.setPrice(1, "basic", CZK, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)
 				.setPrice(2, "reference", CZK, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, false)
 				.setPrice(3, "basic", EUR, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)
@@ -78,7 +78,7 @@ class ExistingPriceBuilderTest extends AbstractBuilderTest {
 			.setPrice(1, "basic", CZK, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)
 			.setPrice(2, "reference", CZK, BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.ONE, true)
 			.setPrice(2, "reference", CZK, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, false)
-			.setPriceInnerRecordHandling(PriceInnerRecordHandling.FIRST_OCCURRENCE);
+			.setPriceInnerRecordHandling(PriceInnerRecordHandling.LOWEST_PRICE);
 
 		assertEquals(0, builder.buildChangeSet().count());
 	}
@@ -132,7 +132,7 @@ class ExistingPriceBuilderTest extends AbstractBuilderTest {
 
 	@Test
 	void shouldReturnOriginalPriceInstanceWhenNothingHasChanged() {
-		builder.setPriceInnerRecordHandling(PriceInnerRecordHandling.FIRST_OCCURRENCE)
+		builder.setPriceInnerRecordHandling(PriceInnerRecordHandling.LOWEST_PRICE)
 				.setPrice(1, "basic", CZK, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)
 				.setPrice(2, "reference", CZK, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, false)
 				.setPrice(3, "basic", EUR, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)

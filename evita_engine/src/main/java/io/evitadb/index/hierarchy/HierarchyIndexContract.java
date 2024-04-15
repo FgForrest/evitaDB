@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -66,8 +66,11 @@ public interface HierarchyIndexContract {
 	/**
 	 * Method removes information about `entityPrimaryKey` placement from the index. It doesn't matter whether the key
 	 * is inside {@link #getOrphanHierarchyNodes()} or places in the living tree {@link #getRootHierarchyNodes()}.
+	 *
+	 * @return primary key of the parent node of the removed node (if any)
 	 */
-	void removeNode(int entityPrimaryKey);
+	 @Nullable
+	Integer removeNode(int entityPrimaryKey);
 
 	/**
 	 * Method returns result of {@link #listHierarchyNodesFromRoot(HierarchyFilteringPredicate)}  wrapped as lazy lambda

@@ -62,7 +62,7 @@ public class FindFirstPriceEntityByPriceFilteringFunctionalTest extends EntityBy
 	private static final String HUNDRED_PRODUCTS_WITH_FIND_FIRST_PRICES = "HundredProductsWithFindFirstPrices";
 
 	private static final int SEED = 40;
-	private final DataGenerator dataGenerator = new DataGenerator(faker -> PriceInnerRecordHandling.FIRST_OCCURRENCE);
+	private final DataGenerator dataGenerator = new DataGenerator(faker -> PriceInnerRecordHandling.LOWEST_PRICE);
 
 	@DataSet(value = HUNDRED_PRODUCTS_WITH_FIND_FIRST_PRICES, destroyAfterClass = true)
 	List<SealedEntity> setUp(Evita evita) {

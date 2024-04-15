@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.data.mutation;
 
 import io.evitadb.api.requestResponse.data.EntityContract;
+import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 
@@ -34,7 +35,7 @@ import javax.annotation.concurrent.ThreadSafe;
 
 /**
  * Entity {@link Mutation} allows to execute mutation operations on {@link EntityContract} object itself. Each change
- * increments {@link HierarchicalPlacement#getVersion()} by one, data removal only sets
+ * increments {@link Entity#version()} by one, data removal only sets
  * tombstone flag on a specific data and doesn't really remove it. Possible removal will be taken care of during
  * compaction process, leaving data in place allows to see last assigned value to the attribute and also consult
  * last version of the attribute.
@@ -50,7 +51,7 @@ import javax.annotation.concurrent.ThreadSafe;
  */
 @Immutable
 @ThreadSafe
-public interface LocalMutation<T, S extends Comparable<S>> extends Mutation, Comparable<LocalMutation<T, S>> {
+public non-sealed interface LocalMutation<T, S extends Comparable<S>> extends Mutation, Comparable<LocalMutation<T, S>> {
 	long PRIORITY_REMOVAL = 10L;
 	long PRIORITY_UPSERT = 0L;
 

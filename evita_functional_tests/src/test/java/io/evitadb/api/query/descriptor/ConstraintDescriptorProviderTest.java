@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -157,7 +157,8 @@ class ConstraintDescriptorProviderTest {
 			ConstraintPropertyType.ATTRIBUTE,
 			ConstraintDomain.ENTITY,
 			String.class,
-			false
+			false,
+			true
 		);
 		assertEquals(
 			List.of(
@@ -185,6 +186,7 @@ class ConstraintDescriptorProviderTest {
 				ConstraintPropertyType.ATTRIBUTE,
 				ConstraintDomain.HIERARCHY,
 				String.class,
+				false,
 				false
 			).isEmpty()
 		);
@@ -194,6 +196,7 @@ class ConstraintDescriptorProviderTest {
 			ConstraintPropertyType.ATTRIBUTE,
 			ConstraintDomain.ENTITY,
 			String.class,
+			false,
 			false
 		);
 		assertEquals(
@@ -214,7 +217,8 @@ class ConstraintDescriptorProviderTest {
 				ConstraintPropertyType.ATTRIBUTE,
 				ConstraintDomain.ENTITY,
 				String.class,
-				true
+				true,
+				false
 			).isEmpty()
 		);
 	}

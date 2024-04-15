@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -43,7 +43,7 @@ import io.evitadb.api.requestResponse.data.mutation.attribute.ApplyDeltaAttribut
 import io.evitadb.api.requestResponse.data.mutation.attribute.AttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.RemoveAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
-import io.evitadb.api.requestResponse.data.mutation.entity.ParentMutation;
+import io.evitadb.api.requestResponse.data.mutation.parent.ParentMutation;
 import io.evitadb.api.requestResponse.data.mutation.price.PriceMutation;
 import io.evitadb.api.requestResponse.data.mutation.price.SetPriceInnerRecordHandlingMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceAttributeMutation;
@@ -53,30 +53,24 @@ import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.api.requestResponse.data.structure.Prices;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.AssociatedDataSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
-import io.evitadb.core.buffer.DataStoreTxMemoryBuffer;
+import io.evitadb.core.buffer.DataStoreChanges;
+import io.evitadb.core.buffer.DataStoreMemoryBuffer;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
-import io.evitadb.index.EntityIndexType;
-import io.evitadb.index.IndexMaintainer;
-import io.evitadb.index.transactionalMemory.diff.DataSourceChanges;
 import io.evitadb.store.entity.model.entity.AssociatedDataStoragePart;
 import io.evitadb.store.entity.model.entity.AttributesStoragePart;
 import io.evitadb.store.entity.model.entity.EntityBodyStoragePart;
-import io.evitadb.store.entity.model.entity.EntityBodyStoragePart.OperationResult;
 import io.evitadb.store.entity.model.entity.PricesStoragePart;
 import io.evitadb.store.entity.model.entity.ReferencesStoragePart;
 import io.evitadb.store.entity.model.entity.price.MinimalPriceInternalIdContainer;
 import io.evitadb.store.entity.model.entity.price.PriceInternalIdContainer;
 import io.evitadb.store.model.EntityStoragePart;
-import io.evitadb.store.model.RecordWithCompressedId;
 import io.evitadb.store.spi.model.storageParts.accessor.AbstractEntityStorageContainerAccessor;
-import io.evitadb.store.spi.model.storageParts.accessor.EntityStoragePartAccessor;
 import io.evitadb.store.spi.model.storageParts.accessor.WritableEntityStorageContainerAccessor;
 import io.evitadb.utils.Assert;
 
@@ -87,7 +81,6 @@ import java.io.Serializable;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -114,7 +107,8 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @NotThreadSafe
-public final class ContainerizedLocalMutationExecutor extends AbstractEntityStorageContainerAccessor implements LocalMutationExecutor, WritableEntityStorageContainerAccessor {
+public final class ContainerizedLocalMutationExecutor extends AbstractEntityStorageContainerAccessor
+	implements LocalMutationExecutor, WritableEntityStorageContainerAccessor {
 	public static final String ERROR_SAME_KEY_EXPECTED = "Expected same primary key here!";
 	private static final AttributeValue[] EMPTY_ATTRIBUTES = new AttributeValue[0];
 	@Nonnull
@@ -124,10 +118,6 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	private final String entityType;
 	@Nonnull
 	private final Supplier<EntitySchema> schemaAccessor;
-	@Nonnull
-	private final Function<String, EntitySchema> otherEntitiesSchemaAccessor;
-	@Nonnull
-	private final IndexMaintainer<EntityIndexKey, EntityIndex> entityIndexCreatingAccessor;
 	private final boolean removeOnly;
 	private EntityBodyStoragePart entityContainer;
 	private PricesStoragePart pricesContainer;
@@ -136,28 +126,39 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	private Map<Locale, AttributesStoragePart> languageSpecificAttributesContainer;
 	private Map<AssociatedDataKey, AssociatedDataStoragePart> associatedDataContainers;
 	private Map<PriceKey, Integer> assignedInternalPriceIdIndex;
+	private Set<Locale> addedLocales;
+	private Set<Locale> removedLocales;
 
 	public ContainerizedLocalMutationExecutor(
-		@Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex, DataSourceChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer,
+		@Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex, DataStoreChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer,
+		long catalogVersion,
 		int entityPrimaryKey,
 		@Nonnull EntityExistence requiresExisting,
 		@Nonnull Supplier<EntitySchema> schemaAccessor,
-		@Nonnull Function<String, EntitySchema> otherEntitiesSchemaAccessor,
-		@Nonnull IndexMaintainer<EntityIndexKey, EntityIndex> entityIndexCreatingAccessor,
 		boolean removeOnly
 	) {
-		super(storageContainerBuffer, schemaAccessor);
+		super(catalogVersion, storageContainerBuffer, schemaAccessor);
 		this.schemaAccessor = schemaAccessor;
 		this.entityPrimaryKey = entityPrimaryKey;
 		this.entityType = schemaAccessor.get().getName();
-		this.otherEntitiesSchemaAccessor = otherEntitiesSchemaAccessor;
 		this.entityContainer = getEntityStoragePart(entityType, entityPrimaryKey, requiresExisting);
 		this.requiresExisting = requiresExisting;
-		this.entityIndexCreatingAccessor = entityIndexCreatingAccessor;
 		this.removeOnly = removeOnly;
 		if (this.removeOnly) {
 			this.entityContainer.markForRemoval();
 		}
+	}
+
+	@Nonnull
+	@Override
+	public Set<Locale> getAddedLocales() {
+		return addedLocales == null ? Collections.emptySet() : addedLocales;
+	}
+
+	@Nonnull
+	@Override
+	public Set<Locale> getRemovedLocales() {
+		return removedLocales == null ? Collections.emptySet() : removedLocales;
 	}
 
 	@Override
@@ -183,49 +184,76 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 
 	@Nonnull
 	@Override
-	public List<LocalMutation<?, ?>> applyChanges() {
-		// check consistency
-		final List<LocalMutation<?, ?>> requestedChanges = verifyConsistency();
+	public List<LocalMutation<?, ?>> popImplicitMutations() {
+		// apply entity consistency checks and returns list of mutations that needs to be also applied in order
+		// maintain entity consistent (i.e. init default values).
+		final EntityBodyStoragePart entityStorageContainer = this.getEntityStorageContainer();
+		final List<LocalMutation<?, ?>> requestedChanges;
+		if (entityStorageContainer.isNew() && !entityStorageContainer.isValidated() && !entityContainer.isMarkedForRemoval()) {
+			// we need to check entire entity
+			final List<Object> missingMandatedAttributes = new LinkedList<>();
+			requestedChanges = verifyMandatoryAttributes(entityStorageContainer, missingMandatedAttributes, true, true);
+			requestedChanges.addAll(verifyReferenceMandatoryAttributes(entityContainer, referencesStorageContainer, missingMandatedAttributes));
+
+			if (!missingMandatedAttributes.isEmpty()) {
+				throw new MandatoryAttributesNotProvidedException(schemaAccessor.get().getName(), missingMandatedAttributes);
+			}
+
+			verifyMandatoryAssociatedData(entityStorageContainer);
+			verifyReferenceCardinalities(referencesStorageContainer);
+			entityStorageContainer.setValidated(true);
+		} else if (entityStorageContainer.isMarkedForRemoval()) {
+			requestedChanges = Collections.emptyList();
+		} else {
+			final List<Object> missingMandatedAttributes = new LinkedList<>();
+			// we need to check only changed parts
+			requestedChanges = verifyMandatoryAttributes(
+				entityStorageContainer,
+				missingMandatedAttributes,
+				ofNullable(this.globalAttributesStorageContainer).map(AttributesStoragePart::isDirty).orElse(false),
+				ofNullable(this.languageSpecificAttributesContainer).map(it -> it.values().stream().anyMatch(AttributesStoragePart::isDirty)).orElse(false)
+			);
+			if (referencesStorageContainer != null && referencesStorageContainer.isDirty()) {
+				requestedChanges.addAll(verifyReferenceMandatoryAttributes(entityContainer, referencesStorageContainer, missingMandatedAttributes));
+			}
+
+			if (!missingMandatedAttributes.isEmpty()) {
+				throw new MandatoryAttributesNotProvidedException(schemaAccessor.get().getName(), missingMandatedAttributes);
+			}
+
+			verifyRemovedMandatoryAssociatedData();
+
+			ofNullable(this.referencesStorageContainer)
+				.filter(ReferencesStoragePart::isDirty)
+				.ifPresent(this::verifyReferenceCardinalities);
+		}
+		return requestedChanges;
+	}
+
+	@Override
+	public void commit() {
 		// now store all dirty containers
 		getChangedEntityStorageParts()
 			.forEach(part -> {
 				if (part.isEmpty()) {
-					if (part.getUniquePartId() == null) {
-						Assert.isPremiseValid(
-							part instanceof RecordWithCompressedId,
-							"Removed container must have already its unique part id assigned or must be unsaved RecordWithCompressedId!"
-						);
-						Assert.isPremiseValid(
-							this.storageContainerBuffer.removeByOriginalKey(
-								((RecordWithCompressedId<?>) part).getStoragePartSourceKey(),
-								part.getClass()
-							),
-							"Removed container was expected to be in transactional memory but was not!"
-						);
-					} else {
-						if (part instanceof RecordWithCompressedId<?> recordWithCompressedId) {
-							this.storageContainerBuffer.removeByPrimaryAndOriginalKey(
-								part.getUniquePartId(),
-								recordWithCompressedId.getStoragePartSourceKey(),
-								part.getClass()
-							);
-						} else {
-							this.storageContainerBuffer.removeByPrimaryKey(
-								part.getUniquePartId(),
-								part.getClass()
-							);
-						}
-					}
+					this.storageContainerBuffer.removeByPrimaryKey(
+						catalogVersion,
+						part.getStoragePartPK(),
+						part.getClass()
+					);
 				} else {
 					Assert.isPremiseValid(
 						!removeOnly,
 						"Only removal operations are expected to happen!"
 					);
-					this.storageContainerBuffer.update(part);
+					this.storageContainerBuffer.update(catalogVersion, part);
 				}
 			});
+	}
 
-		return requestedChanges;
+	@Override
+	public void rollback() {
+		// do nothing all containers will be discarded along with this instance
 	}
 
 	@Override
@@ -256,8 +284,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 		Integer internalPriceId = assignedInternalPriceIdIndex == null ? null : assignedInternalPriceIdIndex.get(priceKey);
 		if (internalPriceId == null) {
 			final PricesStoragePart priceStorageContainer = getPriceStoragePart(entityType, entityPrimaryKey);
-			final PriceInternalIdContainer existingInternalIds = priceStorageContainer.findExistingInternalIds(priceKey);
-			return new MinimalPriceInternalIdContainer(existingInternalIds.getInternalPriceId());
+			return priceStorageContainer.findExistingInternalIds(priceKey);
 		} else {
 			return new MinimalPriceInternalIdContainer(internalPriceId);
 		}
@@ -366,9 +393,8 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 			ofNullable(affectedAttribute.locale())
 				.ifPresent(locale -> {
 					final EntityBodyStoragePart entityStoragePart = getEntityStoragePart(entityType, entityPrimaryKey, EntityExistence.MUST_EXIST);
-					final OperationResult operationResult = entityStoragePart.addAttributeLocale(locale);
-					if (operationResult.operationChangedSetOfLocales()) {
-						upsertEntityLanguage(entityStoragePart, this, locale);
+					if (entityStoragePart.addAttributeLocale(locale)) {
+						registerAddedLocale(locale);
 					}
 				});
 		} else if (attributeMutation instanceof RemoveAttributeMutation) {
@@ -379,9 +405,8 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 
 					if (attributeStoragePart.isEmpty() && !referencesStoragePart.isLocalePresent(locale)) {
 						final EntityBodyStoragePart entityStoragePart = getEntityStoragePart(entityType, entityPrimaryKey, EntityExistence.MUST_EXIST);
-						final OperationResult operationResult = entityStoragePart.removeAttributeLocale(locale);
-						if (operationResult.operationChangedSetOfLocales()) {
-							removeEntityLanguage(entityStoragePart, this, locale);
+						if (entityStoragePart.removeAttributeLocale(locale)) {
+							registerRemovedLocale(locale);
 						}
 					}
 				});
@@ -673,7 +698,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	 * Retrieves all attribute keys specified in the passed {@link AttributesStoragePart}.
 	 */
 	@Nonnull
-	private Set<AttributeKey> collectAttributeKeys(@Nullable AttributesStoragePart storagePart) {
+	private static Set<AttributeKey> collectAttributeKeys(@Nullable AttributesStoragePart storagePart) {
 		return Arrays.stream(
 				ofNullable(storagePart)
 					.map(AttributesStoragePart::getAttributes)
@@ -688,7 +713,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	 * Retrieves all attribute keys specified in the passed {@link ReferenceContract}.
 	 */
 	@Nonnull
-	private Set<AttributeKey> collectAttributeKeys(@Nonnull ReferenceContract referenceContract) {
+	private static Set<AttributeKey> collectAttributeKeys(@Nonnull ReferenceContract referenceContract) {
 		return referenceContract.getAttributeValues()
 			.stream()
 			.filter(Droppable::exists)
@@ -766,11 +791,11 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 		final AssociatedDataStoragePart associatedDataStorageContainer = getAssociatedDataStoragePart(entityType, entityPrimaryKey, associatedDataKey);
 		final AssociatedDataValue mutatedValue = localMutation.mutateLocal(entitySchema, associatedDataStorageContainer.getValue());
 		// add associated data key to entity set to allow lazy fetching by the key
-		final OperationResult operationResult;
+		final boolean localesChanged;
 		if (mutatedValue.exists()) {
-			operationResult = this.entityContainer.addAssociatedDataKey(associatedDataKey);
+			localesChanged = this.entityContainer.addAssociatedDataKey(associatedDataKey);
 		} else {
-			operationResult = this.entityContainer.removeAssociatedDataKey(associatedDataKey);
+			localesChanged = this.entityContainer.removeAssociatedDataKey(associatedDataKey);
 		}
 		// now replace the associated data in the container
 		associatedDataStorageContainer.replaceAssociatedData(mutatedValue);
@@ -781,17 +806,13 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 		}
 
 		// recompute entity languages (this affect the related index)
-		if (mutatedValue.exists()) {
-			final EntityBodyStoragePart entityStoragePart = getEntityStoragePart(entityType, entityPrimaryKey, EntityExistence.MUST_EXIST);
-			if (operationResult.operationChangedSetOfLocales()) {
+		if (localesChanged) {
+			if (mutatedValue.exists()) {
 				Assert.isPremiseValid(associatedDataKey.locale() != null, "Locale must not be null!");
-				upsertEntityLanguage(entityStoragePart, this, associatedDataKey.locale());
-			}
-		} else {
-			final EntityBodyStoragePart entityStoragePart = getEntityStoragePart(entityType, entityPrimaryKey, EntityExistence.MUST_EXIST);
-			if (operationResult.operationChangedSetOfLocales()) {
+				registerAddedLocale(associatedDataKey.locale());
+			} else {
 				Assert.isPremiseValid(associatedDataKey.locale() != null, "Locale must not be null!");
-				removeEntityLanguage(entityStoragePart, this, associatedDataKey.locale());
+				registerRemovedLocale(associatedDataKey.locale());
 			}
 		}
 	}
@@ -895,67 +916,37 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 			final AttributesStoragePart attributeStoragePart = getAttributeStoragePart(entityType, entityPrimaryKey, locale);
 			if (attributeStoragePart.isEmpty() && !referencesStoragePart.isLocalePresent(locale)) {
 				final EntityBodyStoragePart entityStoragePart = getEntityStoragePart(entityType, entityPrimaryKey, EntityExistence.MUST_EXIST);
-				final OperationResult operationResult = entityStoragePart.removeAttributeLocale(locale);
-				if (operationResult.operationChangedSetOfLocales()) {
-					removeEntityLanguage(entityStoragePart, this, locale);
+				if (entityStoragePart.removeAttributeLocale(locale)) {
+					registerRemovedLocale(locale);
 				}
 			}
 		});
 	}
 
 	/**
-	 * Method inserts language for entity if entity lacks information about used language.
+	 * Registers the added locale in the set of added locales.
+	 * If the addedLocales set is null, it initializes it as a new HashSet.
+	 *
+	 * @param locale the locale to be registered as added
 	 */
-	private void upsertEntityLanguage(
-		@Nonnull EntityBodyStoragePart entityStoragePart,
-		@Nonnull EntityStoragePartAccessor entityStoragePartAccessor,
-		@Nonnull Locale locale
-	) {
-		if (entityStoragePart.getLocales().contains(locale)) {
-			this.entityIndexCreatingAccessor.getOrCreateIndex(new EntityIndexKey(EntityIndexType.GLOBAL))
-				.upsertLanguage(locale, entityPrimaryKey, entityStoragePartAccessor);
-			applyOnReducedIndexes(index -> index.upsertLanguage(locale, entityPrimaryKey, entityStoragePartAccessor));
+	private void registerAddedLocale(@Nonnull Locale locale) {
+		if (addedLocales == null) {
+			addedLocales = new HashSet<>();
 		}
+		addedLocales.add(locale);
 	}
 
 	/**
-	 * Method removes language for entity.
+	 * Registers the removed locale in the set of removed locales.
+	 * If the removedLocales set is null, it initializes it as a new HashSet.
+	 *
+	 * @param locale the locale to be registered as removed
 	 */
-	private void removeEntityLanguage(
-		@Nonnull EntityBodyStoragePart entityStoragePart,
-		@Nonnull EntityStoragePartAccessor entityStoragePartAccessor,
-		@Nonnull Locale locale
-	) {
-		if (!entityStoragePart.getLocales().contains(locale)) {
-			// locale was removed entirely - remove the information from index
-			this.entityIndexCreatingAccessor.getOrCreateIndex(new EntityIndexKey(EntityIndexType.GLOBAL))
-				.removeLanguage(locale, entityPrimaryKey, entityStoragePartAccessor);
-			applyOnReducedIndexes(index -> index.removeLanguage(locale, entityPrimaryKey, entityStoragePartAccessor));
+	private void registerRemovedLocale(@Nonnull Locale locale) {
+		if (removedLocales == null) {
+			removedLocales = new HashSet<>();
 		}
-	}
-
-	/**
-	 * Applies passed consumer function on all {@link io.evitadb.index.ReducedEntityIndex} related to currently existing
-	 * {@link ReferenceContract} of the entity.
-	 */
-	private void applyOnReducedIndexes(@Nonnull Consumer<EntityIndex> entityIndexConsumer) {
-		final ReferencesStoragePart referencesStoragePart = getReferencesStoragePart(entityType, entityPrimaryKey);
-		referencesStoragePart
-			.getReferencesAsCollection()
-			.stream()
-			.filter(Droppable::exists)
-			.map(it -> {
-				final ReferenceSchemaContract referenceSchema = schemaAccessor.get().getReferenceOrThrowException(it.getReferenceName());
-				if (referenceSchema.isReferencedEntityTypeManaged()) {
-					final EntitySchemaContract referencedEntity = otherEntitiesSchemaAccessor.apply(referenceSchema.getReferencedEntityType());
-					if (referencedEntity.isWithHierarchy()) {
-						return this.entityIndexCreatingAccessor.getIndexIfExists(new EntityIndexKey(EntityIndexType.REFERENCED_HIERARCHY_NODE, it.getReferenceKey()));
-					}
-				}
-				return this.entityIndexCreatingAccessor.getIndexIfExists(new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY, it.getReferenceKey()));
-			})
-			.filter(Objects::nonNull)
-			.forEach(entityIndexConsumer);
+		removedLocales.add(locale);
 	}
 
 }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -78,6 +78,7 @@ import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -95,6 +96,7 @@ import static java.util.Optional.ofNullable;
  */
 @SuppressWarnings("ALL")
 public class DataGenerator {
+	static final Serializable GENERIC = Long.MAX_VALUE;
 	public static final Locale CZECH_LOCALE = new Locale("cs", "CZ");
 	public static final String ATTRIBUTE_NAME = "name";
 	public static final String ATTRIBUTE_CODE = "code";
@@ -145,9 +147,9 @@ public class DataGenerator {
 	/**
 	 * Holds information about number of unique values.
 	 */
-	final Map<Serializable, Map<Object, Integer>> uniqueSequencer = new HashMap<>();
-	final Map<Serializable, SortableAttributesChecker> sortableAttributesChecker = new HashMap<>();
-	final Map<String, Map<Integer, Integer>> parameterIndex = new HashMap<>();
+	final Map<Serializable, Map<Object, Integer>> uniqueSequencer = new ConcurrentHashMap<>();
+	final Map<Serializable, SortableAttributesChecker> sortableAttributesChecker = new ConcurrentHashMap<>();
+	final Map<String, Map<Integer, Integer>> parameterIndex = new ConcurrentHashMap<>();
 	/**
 	 * Holds function that is used for generating price inner record handling strategy.
 	 */
@@ -155,7 +157,7 @@ public class DataGenerator {
 	/**
 	 * Holds custom generators for specific entity attributes.
 	 */
-	private final Map<EntityAttribute, Function<Faker, Object>> valueGenerators = new HashMap<>();
+	private final Map<EntityAttribute, Function<Faker, Object>> valueGenerators = new ConcurrentHashMap<>();
 	/**
 	 * Holds information about created hierarchies for generated / modified entities indexed by their type.
 	 */
@@ -216,8 +218,8 @@ public class DataGenerator {
 		if (hierarchy != null) {
 			try {
 				// when there are very few root items, force to create some by making next other one as root
-				final Integer parentKey = hierarchy.getRootItems().size() < 5 && genericFaker.random().nextBoolean() ?
-					null : referencedEntityResolver.apply(schema.getName(), genericFaker);
+				final boolean generateRoot = hierarchy.getRootItems().size() < 5 && genericFaker.random().nextBoolean();
+				final Integer parentKey = generateRoot ? null : referencedEntityResolver.apply(schema.getName(), genericFaker);
 				if (parentKey == null) {
 					hierarchy.createRootItem(Objects.requireNonNull(detachedBuilder.getPrimaryKey()).toString());
 				} else {
@@ -459,7 +461,7 @@ public class DataGenerator {
 								thatIs.setGroup(
 									referenceSchema.getReferencedGroupType(),
 									parameterGroupIndex.computeIfAbsent(
-										referencedType, __ -> new HashMap<>()
+										referencedType, __ -> new ConcurrentHashMap<>()
 									).computeIfAbsent(
 										referencedEntity,
 										parameterId -> referencedEntityResolver.apply(referenceSchema.getReferencedGroupType(), genericFaker)
@@ -871,18 +873,18 @@ public class DataGenerator {
 		long seed
 	) {
 		final Map<Object, Integer> globalUniqueSequencer = this.uniqueSequencer.computeIfAbsent(
-			null,
-			serializable -> new HashMap<>()
+			GENERIC,
+			serializable -> new ConcurrentHashMap<>()
 		);
 		final Map<Object, Integer> uniqueSequencer = this.uniqueSequencer.computeIfAbsent(
 			schema.getName(),
-			serializable -> new HashMap<>()
+			serializable -> new ConcurrentHashMap<>()
 		);
 		final SortableAttributesChecker sortableAttributesHolder = this.sortableAttributesChecker.computeIfAbsent(
 			schema.getName(),
 			serializable -> new SortableAttributesChecker()
 		);
-		final Map<Locale, Faker> localeFaker = new HashMap<>();
+		final Map<Locale, Faker> localeFaker = new ConcurrentHashMap<>();
 		final Function<Locale, Faker> localizedFakerFetcher = locale -> localeFaker.computeIfAbsent(locale, theLocale -> new Faker(new Random(seed)));
 		final Faker genericFaker = new Faker(new Random(seed));
 		final Set<Locale> allLocales = schema.getLocales();
@@ -925,7 +927,7 @@ public class DataGenerator {
 		@Nonnull BiFunction<String, Faker, Integer> referencedEntityResolver,
 		@Nonnull Random random
 	) {
-		final Map<Locale, Faker> localeFaker = new HashMap<>();
+		final Map<Locale, Faker> localeFaker = new ConcurrentHashMap<>();
 		final Function<Locale, Faker> localizedFakerFetcher = locale -> localeFaker.computeIfAbsent(locale, theLocale -> new Faker(random));
 		final Faker genericFaker = new Faker(random);
 		final HashSet<Currency> allCurrencies = new LinkedHashSet<>(Arrays.asList(CURRENCIES));
@@ -1368,11 +1370,11 @@ public class DataGenerator {
 	}
 
 	private static class SortableAttributesChecker {
-		private final Map<String, Map<Object, Integer>> sortableAttributes = new HashMap<>();
+		private final Map<String, Map<Object, Integer>> sortableAttributes = new ConcurrentHashMap<>();
 		private Predicate<Set<Object>> canAddAttribute;
 
 		public Object getUniqueAttribute(@Nonnull String attributeName, @Nonnull Object value) {
-			final Map<Object, Integer> uniqueValueMap = sortableAttributes.computeIfAbsent(attributeName, an -> new HashMap<>());
+			final Map<Object, Integer> uniqueValueMap = sortableAttributes.computeIfAbsent(attributeName, an -> new ConcurrentHashMap<>());
 			final Integer count = uniqueValueMap.get(value);
 			if (count != null) {
 				if (value instanceof String) {
@@ -1388,8 +1390,8 @@ public class DataGenerator {
 			return value;
 		}
 
-		public void executeWithPredicate(@Nonnull Predicate<Set<Object>> canAddAttribute, @Nonnull Runnable runnable) {
-			Assert.isTrue(this.canAddAttribute == null, "Cannot nest predicated!");
+		public synchronized void executeWithPredicate(@Nonnull Predicate<Set<Object>> canAddAttribute, @Nonnull Runnable runnable) {
+			Assert.isTrue(this.canAddAttribute == null, "Cannot nest predicate!");
 			try {
 				this.canAddAttribute = canAddAttribute;
 				runnable.run();
@@ -1452,12 +1454,12 @@ public class DataGenerator {
 			final EntitySchemaContract schema = existingEntity.getSchema();
 			final Set<Locale> allLocales = schema.getLocales();
 			final Map<Object, Integer> globalUniqueSequencer = this.uniqueSequencer.computeIfAbsent(
-				null,
-				serializable -> new HashMap<>()
+				DataGenerator.GENERIC,
+				serializable -> new ConcurrentHashMap<>()
 			);
 			final Map<Object, Integer> uniqueSequencer = this.uniqueSequencer.computeIfAbsent(
 				schema.getName(),
-				serializable -> new HashMap<>()
+				serializable -> new ConcurrentHashMap<>()
 			);
 			final SortableAttributesChecker sortableAttributesHolder = this.sortableAttributesChecker.computeIfAbsent(
 				schema.getName(),

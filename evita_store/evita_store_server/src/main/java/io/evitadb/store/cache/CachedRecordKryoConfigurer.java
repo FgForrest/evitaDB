@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -48,11 +48,12 @@ import java.util.function.Supplier;
  */
 @RequiredArgsConstructor
 class CachedRecordKryoConfigurer implements Consumer<Kryo> {
+	private static final int CACHE_BASE = 200;
 	private final Supplier<GlobalEntityIndex> globalEntityIndexAccessor;
 
 	@Override
 	public void accept(Kryo kryo) {
-		kryo.register(FlattenedFormula.class, new SerialVersionBasedSerializer<>(new FlattenedFormulaSerializer(), FlattenedFormula.class), 200);
+		kryo.register(FlattenedFormula.class, new SerialVersionBasedSerializer<>(new FlattenedFormulaSerializer(), FlattenedFormula.class), CACHE_BASE);
 		kryo.register(FlattenedFormulaWithFilteredOutRecords.class, new SerialVersionBasedSerializer<>(new FlattenedFormulaWithFilteredOutRecordsSerializer(), FlattenedFormulaWithFilteredOutRecords.class), 201);
 		kryo.register(FlattenedFormulaWithFilteredPrices.class, new SerialVersionBasedSerializer<>(new FlattenedFormulaWithFilteredPricesSerializer(globalEntityIndexAccessor), FlattenedFormulaWithFilteredPrices.class), 202);
 		kryo.register(FlattenedFormulaWithFilteredPricesAndFilteredOutRecords.class, new SerialVersionBasedSerializer<>(new FlattenedFormulaWithFilteredPricesAndFilteredOutRecordsSerializer(globalEntityIndexAccessor), FlattenedFormulaWithFilteredPricesAndFilteredOutRecords.class), 203);

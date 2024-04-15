@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -33,6 +33,9 @@ import io.evitadb.comparator.NullsLastComparatorWrapper;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.Transaction;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory;
+import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
+import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
+import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.array.TransactionalObjArray;
@@ -42,9 +45,6 @@ import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.map.TransactionalMap;
-import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
-import io.evitadb.index.transactionalMemory.TransactionalLayerProducer;
-import io.evitadb.index.transactionalMemory.TransactionalObjectVersion;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.spi.model.storageParts.index.SortIndexStoragePart;
 import io.evitadb.utils.ArrayUtils;
@@ -66,7 +66,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.UnaryOperator;
 
-import static io.evitadb.core.Transaction.getTransactionalMemoryLayer;
 import static io.evitadb.utils.Assert.isTrue;
 import static java.util.Optional.ofNullable;
 
@@ -131,7 +130,7 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 	private final Comparator<?> comparator;
 	/**
 	 * Temporary data structure that should be NULL and should exist only when {@link Catalog} is in
-	 * bulk insertion or read only state where transactions are not used.
+	 * bulk insertion or read only state where transaction are not used.
 	 */
 	private SortIndexChanges sortIndexChanges;
 
@@ -611,15 +610,15 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 
 	@Nonnull
 	@Override
-	public SortIndex createCopyWithMergedTransactionalMemory(@Nullable SortIndexChanges layer, @Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Transaction transaction) {
+	public SortIndex createCopyWithMergedTransactionalMemory(@Nullable SortIndexChanges layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		// we can safely throw away dirty flag now
-		transactionalLayer.getStateCopyWithCommittedChanges(this.dirty, transaction);
+		transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
 		return new SortIndex(
 			this.comparatorBase,
 			this.attributeKey,
-			transactionalLayer.getStateCopyWithCommittedChanges(this.sortedRecords, transaction),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.sortedRecordsValues, transaction),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.valueCardinalities, transaction)
+			transactionalLayer.getStateCopyWithCommittedChanges(this.sortedRecords),
+			transactionalLayer.getStateCopyWithCommittedChanges(this.sortedRecordsValues),
+			transactionalLayer.getStateCopyWithCommittedChanges(this.valueCardinalities)
 		);
 	}
 
@@ -633,7 +632,7 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 	 */
 	@Nonnull
 	private SortIndexChanges getOrCreateSortIndexChanges() {
-		final SortIndexChanges layer = getTransactionalMemoryLayer(this);
+		final SortIndexChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
 			return ofNullable(this.sortIndexChanges).orElseGet(() -> {
 				this.sortIndexChanges = new SortIndexChanges(this);

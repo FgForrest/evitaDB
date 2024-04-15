@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -80,6 +80,7 @@ import java.io.IOException;
 import java.io.Reader;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Constructor;
+import java.lang.reflect.Executable;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
@@ -87,6 +88,8 @@ import java.net.URL;
 import java.nio.channels.Channels;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
@@ -206,6 +209,7 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 					// to avoid closing sessions when you stop at breakpoint
 					ServerOptions.builder()
 						.closeSessionsAfterSecondsOfInactivity(-1)
+						.queueSize(Integer.MAX_VALUE)
 						.build()
 				)
 				.storage(
@@ -505,7 +509,14 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 		final EvitaSessionContract sessionContract = (EvitaSessionContract) context
 			.getStore(createTestMethodLocalNamespace(context))
 			.get(EvitaSessionContract.class);
-		ofNullable(sessionContract).ifPresent(EvitaSessionContract::close);
+		ofNullable(sessionContract).ifPresent(session -> {
+			try {
+				log.info("Closing session {} after test {}...", session, context.getRequiredTestMethod().getName());
+				session.close();
+			} catch (Exception ex) {
+				log.warn("The session was rolled back due to exception: " + ex.getMessage());
+			}
+		});
 
 		final Map<String, DataSetInfo> dataSetIndex = getDataSetIndex(context);
 		final Iterator<Entry<String, DataSetInfo>> it = dataSetIndex.entrySet().iterator();
@@ -532,7 +543,7 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 		);
 		final Map<String, DataSetInfo> dataSetIndex = getDataSetIndex(extensionContext);
 		final UseDataSet useDataSet = ofNullable(methodUseDataSet).orElse(parameterUseDataSet);
-		final DataSetInfo dataSetInfo = getInitializedDataSetInfo(useDataSet, dataSetIndex, extensionContext);
+		final DataSetInfo dataSetInfo = getInitializedDataSetInfo(useDataSet, dataSetIndex, parameterContext, extensionContext);
 
 		return EvitaContract.class.isAssignableFrom(parameterContext.getParameter().getType()) ||
 			EvitaSessionContract.class.isAssignableFrom(parameterContext.getParameter().getType()) ||
@@ -567,7 +578,7 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 			"UseDataSet annotation can be specified on parameter OR method level, but not both!"
 		);
 		final UseDataSet useDataSet = ofNullable(methodUseDataSet).orElse(parameterUseDataSet);
-		final DataSetInfo dataSetInfo = getInitializedDataSetInfo(useDataSet, dataSetIndex, extensionContext);
+		final DataSetInfo dataSetInfo = getInitializedDataSetInfo(useDataSet, dataSetIndex, parameterContext, extensionContext);
 
 		// prefer the data created by the test itself
 		final DataCarrier dataCarrier = dataSetInfo.dataCarrier();
@@ -697,17 +708,28 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 	}
 
 	@Nonnull
-	public DataSetInfo getInitializedDataSetInfo(@Nullable UseDataSet useDataSet, @Nonnull Map<String, DataSetInfo> dataSetIndex, @Nonnull ExtensionContext extensionContext) {
+	public DataSetInfo getInitializedDataSetInfo(
+		@Nullable UseDataSet useDataSet,
+		@Nonnull Map<String, DataSetInfo> dataSetIndex,
+		@Nonnull ParameterContext parameterContext,
+		@Nonnull ExtensionContext extensionContext
+	) {
 		if (useDataSet == null) {
-			final DataSetInfo alreadyExistingAnonymousInstance = dataSetIndex.get(EVITA_ANONYMOUS_EVITA);
+			final Executable declaringExecutable = parameterContext.getDeclaringExecutable();
+			final String evitaInstanceId = getUniqueHash(
+				declaringExecutable.getDeclaringClass().getName(),
+				declaringExecutable.toGenericString()
+			);
+			final String anonymousEvita = EVITA_ANONYMOUS_EVITA + "_" + evitaInstanceId;
+
+			final DataSetInfo alreadyExistingAnonymousInstance = dataSetIndex.get(anonymousEvita);
 			if (alreadyExistingAnonymousInstance == null) {
+
 				// method doesn't use data set - so it needs to start with empty db
-				final String randomFolderName = Long.toHexString(RANDOM.nextLong());
-				final Evita evita = createEvita(TestConstants.TEST_CATALOG, randomFolderName);
+				final Evita evita = createEvita(TestConstants.TEST_CATALOG, evitaInstanceId);
 				evita.updateCatalog(TestConstants.TEST_CATALOG, session -> {
 					session.goLiveAndClose();
 				});
-				final String anonymousEvita = EVITA_ANONYMOUS_EVITA + "_" + randomFolderName;
 				final DataSetInfo dataSetInfo = new DataSetInfo(
 					anonymousEvita,
 					TestConstants.TEST_CATALOG,
@@ -734,7 +756,10 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 					dataSetInfo
 				);
 				CREATED_EVITA_INSTANCES.incrementAndGet();
-				PEAK_EVITA_INSTANCES.set((int) Math.max(PEAK_EVITA_INSTANCES.get(), dataSetIndex.values().stream().filter(it -> it.evitaInstance() != null).count()));
+				PEAK_EVITA_INSTANCES.set(
+					(int) Math.max(PEAK_EVITA_INSTANCES.get(),
+						dataSetIndex.values().stream().filter(it -> it.evitaInstance() != null).count())
+				);
 				return dataSetInfo;
 			} else {
 				return alreadyExistingAnonymousInstance;
@@ -799,6 +824,7 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 								}
 								for (Object argument : arguments) {
 									if (argument instanceof EvitaSessionContract session) {
+										log.info("Closing session {} data set initialization {}...", session, extensionContext.getRequiredTestMethod().getName());
 										session.close();
 									}
 								}
@@ -857,6 +883,35 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 					);
 				}
 			}
+		}
+	}
+
+	/**
+	 * Generates a unique hash by concatenating and hashing the provided strings using the SHA-256 algorithm.
+	 *
+	 * @param strings The strings to be concatenated and hashed.
+	 * @return The generated unique hash as a hexadecimal string.
+	 * @throws RuntimeException if the SHA-256 algorithm is not found.
+	 */
+	@Nonnull
+	public String getUniqueHash(@Nonnull String... strings) {
+		try {
+			final MessageDigest digest = MessageDigest.getInstance("SHA-256");
+			for (String string : strings) {
+				digest.update(string.getBytes(StandardCharsets.UTF_8));
+			}
+			final byte[] encodedhash = digest.digest();
+			final StringBuilder hexString = new StringBuilder(2 * encodedhash.length);
+			for (byte b : encodedhash) {
+				final String hex = Integer.toHexString(0xff & b);
+				if (hex.length() == 1) {
+					hexString.append('0');
+				}
+				hexString.append(hex);
+			}
+			return hexString.toString();
+		} catch (NoSuchAlgorithmException e) {
+			throw new RuntimeException("SHA-256 algorithm not found.", e);
 		}
 	}
 
@@ -1117,6 +1172,7 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 			final Path storageDirectory = evitaInstance.getConfiguration().storage().storageDirectory();
 
 			// close evita and clear data
+			log.info("Closing Evita instance for data set `{}`", dataSetName);
 			evitaInstance.close();
 
 			// close the server instance and free ports
@@ -1135,6 +1191,7 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 					.filter(it -> it instanceof Closeable)
 					.forEach(it -> {
 						try {
+							log.info("Closing resource `{}`", it);
 							((Closeable) it).close();
 						} catch (IOException e) {
 							log.error("Failed to close `" + it.getClass() + "` at the data set finalization!", e);

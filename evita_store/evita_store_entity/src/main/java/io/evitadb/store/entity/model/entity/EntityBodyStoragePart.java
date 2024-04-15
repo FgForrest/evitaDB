@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -36,6 +36,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serial;
+import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Objects;
@@ -62,7 +63,7 @@ public class EntityBodyStoragePart implements EntityStoragePart {
 	/**
 	 * See {@link Entity#getAttributeLocales()}.
 	 */
-	@Getter @Nonnull private final Set<Locale> attributeLocales;
+	@Nonnull private final Set<Locale> attributeLocales;
 	/**
 	 * Contains TRUE if the container was not stored yet.
 	 */
@@ -82,7 +83,7 @@ public class EntityBodyStoragePart implements EntityStoragePart {
 	/**
 	 * See {@link Entity#getLocales()}.
 	 */
-	@Getter @Nonnull private Set<Locale> locales;
+	@Nonnull private Set<Locale> locales;
 	/**
 	 * Contains true if anything changed in this container.
 	 */
@@ -110,7 +111,7 @@ public class EntityBodyStoragePart implements EntityStoragePart {
 	public EntityBodyStoragePart(
 		int version,
 		@Nonnull Integer primaryKey,
-		@Nonnull Integer parent,
+		@Nullable Integer parent,
 		@Nonnull Set<Locale> locales,
 		@Nonnull Set<Locale> attributeLocales,
 		@Nonnull Set<AssociatedDataKey> associatedDataKeys
@@ -126,7 +127,7 @@ public class EntityBodyStoragePart implements EntityStoragePart {
 
 	@Nullable
 	@Override
-	public Long getUniquePartId() {
+	public Long getStoragePartPK() {
 		return (long) primaryKey;
 	}
 
@@ -163,17 +164,37 @@ public class EntityBodyStoragePart implements EntityStoragePart {
 	}
 
 	/**
+	 * Returns the set of locales used in the entity.
+	 *
+	 * @return the set of locales
+	 */
+	@Nonnull
+	public Set<Locale> getLocales() {
+		return Collections.unmodifiableSet(locales);
+	}
+
+	/**
+	 * Retrieves the set of locales used in attributes.
+	 *
+	 * @return the set of locales used in attributes
+	 */
+	@Nonnull
+	public Set<Locale> getAttributeLocales() {
+		return Collections.unmodifiableSet(attributeLocales);
+	}
+
+	/**
 	 * Method registers new {@link Locale} used in attributes.
 	 *
 	 * @param locale to be added
-	 * @return TRUE if information is actually added
+	 * @return TRUE if the locales of the entity have been changed
 	 */
-	public OperationResult addAttributeLocale(@Nonnull Locale locale) {
+	public boolean addAttributeLocale(@Nonnull Locale locale) {
 		if (this.attributeLocales.add(locale)) {
 			this.dirty = true;
-			return new OperationResult(true, this.recomputeLocales());
+			return this.recomputeLocales();
 		} else {
-			return new OperationResult(false, false);
+			return false;
 		}
 	}
 
@@ -181,50 +202,48 @@ public class EntityBodyStoragePart implements EntityStoragePart {
 	 * Method removes information about certain {@link Locale} to be used in attributes.
 	 *
 	 * @param locale to be removed
-	 * @return TRUE if information is actually removed
+	 * @return TRUE if the locales of the entity have been changed
 	 */
-	public OperationResult removeAttributeLocale(@Nonnull Locale locale) {
+	public boolean removeAttributeLocale(@Nonnull Locale locale) {
 		if (this.attributeLocales.remove(locale)) {
 			this.dirty = true;
-			return new OperationResult(true, this.recomputeLocales());
+			return this.recomputeLocales();
 		} else {
-			return new OperationResult(false, false);
+			return false;
 		}
 	}
 
 	/**
 	 * Method registers new {@link AssociatedDataKey} referenced by this entity.
 	 *
-	 * @return TRUE if the key was added
+	 * @return TRUE if the locales of the entity have been changed
 	 */
-	public OperationResult addAssociatedDataKey(@Nonnull AssociatedDataKey associatedDataKey) {
+	public boolean addAssociatedDataKey(@Nonnull AssociatedDataKey associatedDataKey) {
 		if (this.associatedDataKeys.add(associatedDataKey)) {
 			// if associated data is localized - enrich the set of entity locales
-			final boolean localesChanged = ofNullable(associatedDataKey.locale())
+			this.dirty = true;
+			return ofNullable(associatedDataKey.locale())
 				.map(it -> this.recomputeLocales())
 				.orElse(false);
-			this.dirty = true;
-			return new OperationResult(true, localesChanged);
 		} else {
-			return new OperationResult(false, false);
+			return false;
 		}
 	}
 
 	/**
 	 * Method unregisters {@link AssociatedDataKey} as being referenced by this entity.
 	 *
-	 * @return TRUE if the key was removed
+	 * @return TRUE if the locales of the entity have been changed
 	 */
-	public OperationResult removeAssociatedDataKey(@Nonnull AssociatedDataKey associatedDataKey) {
+	public boolean removeAssociatedDataKey(@Nonnull AssociatedDataKey associatedDataKey) {
 		if (this.associatedDataKeys.remove(associatedDataKey)) {
 			// if associated data is localized - recompute the set of entity locales
-			final boolean localesChanged = ofNullable(associatedDataKey.locale())
+			this.dirty = true;
+			return ofNullable(associatedDataKey.locale())
 				.map(it -> this.recomputeLocales())
 				.orElse(false);
-			this.dirty = true;
-			return new OperationResult(true, localesChanged);
 		} else {
-			return new OperationResult(false, false);
+			return false;
 		}
 	}
 
@@ -256,17 +275,4 @@ public class EntityBodyStoragePart implements EntityStoragePart {
 		}
 	}
 
-	/**
-	 * Tuple containing the result of the operation.
-	 *
-	 * @param operationChangedData         TRUE if the internal data has been affected
-	 * @param operationChangedSetOfLocales TRUE if the operation also recomputed the set of entity languages
-	 */
-	public record OperationResult(
-		boolean operationChangedData,
-		boolean operationChangedSetOfLocales
-	) {
-	}
-
-	;
 }

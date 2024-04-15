@@ -74,11 +74,7 @@ public abstract class CatalogSchemaHandler extends JsonRestHandler<LabApiHandlin
 			.orElseThrow(() -> new RestInvalidArgumentException("Catalog `" + catalogName + "` does not exist."));
 
 		if (modifiesData()) {
-			final EvitaSessionContract session = restHandlingContext.getEvita().createReadWriteSession(catalog.getName());
-			if (catalog.supportsTransaction()) {
-				session.openTransaction();
-			}
-			return Optional.of(session);
+			return Optional.of(restHandlingContext.getEvita().createReadWriteSession(catalog.getName()));
 		} else {
 			return Optional.of(restHandlingContext.getEvita().createReadOnlySession(catalog.getName()));
 		}

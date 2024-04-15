@@ -23,7 +23,7 @@
 
 package io.evitadb.externalApi.grpc.requestResponse.data.mutation.entity;
 
-import io.evitadb.api.requestResponse.data.mutation.entity.RemoveParentMutation;
+import io.evitadb.api.requestResponse.data.mutation.parent.RemoveParentMutation;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 

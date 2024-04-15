@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,21 +23,19 @@
 
 package io.evitadb.index.invertedIndex;
 
-import io.evitadb.core.Transaction;
+import io.evitadb.core.transaction.memory.TransactionalCreatorMaintainer;
+import io.evitadb.core.transaction.memory.TransactionalLayerCreator;
+import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
+import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
+import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
 import io.evitadb.index.array.TransactionalObject;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
-import io.evitadb.index.transactionalMemory.TransactionalCreatorMaintainer;
-import io.evitadb.index.transactionalMemory.TransactionalLayerCreator;
-import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
-import io.evitadb.index.transactionalMemory.TransactionalLayerProducer;
-import io.evitadb.index.transactionalMemory.VoidTransactionMemoryProducer;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Collection;
@@ -188,10 +186,10 @@ public class ValueToRecordBitmap<T extends Comparable<T>> implements Transaction
 
 	@Nonnull
 	@Override
-	public ValueToRecordBitmap<T> createCopyWithMergedTransactionalMemory(Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Transaction transaction) {
+	public ValueToRecordBitmap<T> createCopyWithMergedTransactionalMemory(Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		return new ValueToRecordBitmap<>(
 			value,
-			transactionalLayer.getStateCopyWithCommittedChanges(recordIds, transaction)
+			transactionalLayer.getStateCopyWithCommittedChanges(recordIds)
 		);
 	}
 

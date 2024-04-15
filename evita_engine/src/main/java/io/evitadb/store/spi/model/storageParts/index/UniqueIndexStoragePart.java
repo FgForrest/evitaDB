@@ -77,7 +77,7 @@ public class UniqueIndexStoragePart implements AttributeIndexStoragePart, Record
 	/**
 	 * Id used for lookups in data storage for this particular container.
 	 */
-	@Getter @Setter private Long uniquePartId;
+	@Getter @Setter private Long storagePartPK;
 
 	@Override
 	public AttributeIndexType getIndexType() {

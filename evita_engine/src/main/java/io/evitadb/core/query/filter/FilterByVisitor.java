@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -51,10 +51,12 @@ import io.evitadb.core.query.QueryContext;
 import io.evitadb.core.query.ReferencedEntityFetcher;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.FormulaPostProcessor;
+import io.evitadb.core.query.algebra.attribute.AttributeFormula;
 import io.evitadb.core.query.algebra.base.AndFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.facet.UserFilterFormula;
 import io.evitadb.core.query.algebra.infra.SkipFormula;
+import io.evitadb.core.query.algebra.prefetch.SelectionFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.filter.translator.FilterByTranslator;
@@ -171,6 +173,8 @@ public class FilterByVisitor implements ConstraintVisitor {
 		CONJUNCTIVE_FORMULAS = new HashSet<>();
 		CONJUNCTIVE_FORMULAS.add(AndFormula.class);
 		CONJUNCTIVE_FORMULAS.add(UserFilterFormula.class);
+		CONJUNCTIVE_FORMULAS.add(SelectionFormula.class);
+		CONJUNCTIVE_FORMULAS.add(AttributeFormula.class);
 
 		CONJUNCTIVE_CONSTRAINTS = new HashSet<>();
 		CONJUNCTIVE_CONSTRAINTS.add(And.class);

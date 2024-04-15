@@ -94,7 +94,7 @@ public class CatalogGraphQLCatalogSchemaQueryFunctionalTest extends CatalogGraph
 				equalTo(
 					map()
 						.e(TYPENAME_FIELD, CatalogSchemaDescriptor.THIS.name())
-						.e(VersionedDescriptor.VERSION.name(), catalogSchema.getVersion())
+						.e(VersionedDescriptor.VERSION.name(), catalogSchema.version())
 						.e(NamedSchemaDescriptor.NAME.name(), catalogSchema.getName())
 						.e(NamedSchemaDescriptor.NAME_VARIANTS.name(), map()
 							.e(TYPENAME_FIELD, NameVariantsDescriptor.THIS.name())

@@ -36,7 +36,10 @@ import javax.annotation.Nullable;
  */
 public class TracingConfig {
 	/**
-	 * Tracing endpoint. Should look like this: `http://localhost:4317/v1/traces`
+	 * Tracing endpoint. Should look like this:
+	 *
+	 * gRPC: `http://localhost:4317`
+	 * HTTP: `http://localhost:4318/v1/traces`
 	 */
 
 	@Getter private final String endpoint;

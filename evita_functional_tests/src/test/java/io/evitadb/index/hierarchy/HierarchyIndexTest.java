@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,8 +24,8 @@
 package io.evitadb.index.hierarchy;
 
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.exception.EvitaInvalidUsageException;
-import io.evitadb.index.array.CompositeIntArray;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.hierarchy.predicate.MatchNodeIdHierarchyFilteringPredicate;
 import io.evitadb.test.duration.TimeArgumentProvider;

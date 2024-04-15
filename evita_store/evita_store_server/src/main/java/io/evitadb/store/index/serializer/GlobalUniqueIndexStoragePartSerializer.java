@@ -52,7 +52,7 @@ public class GlobalUniqueIndexStoragePartSerializer extends Serializer<GlobalUni
 
 	@Override
 	public void write(Kryo kryo, Output output, GlobalUniqueIndexStoragePart uniqueIndex) {
-		final Long uniquePartId = uniqueIndex.getUniquePartId();
+		final Long uniquePartId = uniqueIndex.getStoragePartPK();
 		Assert.notNull(uniquePartId, "Unique part id should have been computed by now!");
 		output.writeVarLong(uniquePartId, true);
 		output.writeVarInt(keyCompressor.getId(uniqueIndex.getAttributeKey()), true);

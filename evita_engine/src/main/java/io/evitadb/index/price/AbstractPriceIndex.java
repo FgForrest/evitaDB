@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,10 +27,10 @@ import io.evitadb.api.query.order.PriceNatural;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
+import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.price.model.PriceIndexKey;
-import io.evitadb.index.transactionalMemory.TransactionalObjectVersion;
 import io.evitadb.store.entity.model.entity.price.PriceInternalIdContainer;
 import io.evitadb.store.model.StoragePart;
 import lombok.Getter;

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,8 +23,6 @@
 
 package io.evitadb.api.exception;
 
-import io.evitadb.exception.EvitaInvalidUsageException;
-
 import javax.annotation.Nonnull;
 import java.io.Serial;
 
@@ -33,7 +31,7 @@ import java.io.Serial;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public abstract class SchemaAlteringException extends EvitaInvalidUsageException {
+public abstract class SchemaAlteringException extends InvalidMutationException {
 	@Serial private static final long serialVersionUID = 4307756062648183906L;
 
 	protected SchemaAlteringException(@Nonnull String message) {

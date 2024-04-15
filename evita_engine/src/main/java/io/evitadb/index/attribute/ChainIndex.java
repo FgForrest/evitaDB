@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,6 +27,9 @@ import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.Transaction;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory;
+import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
+import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
+import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.IndexDataStructure;
@@ -34,9 +37,6 @@ import io.evitadb.index.array.TransactionalUnorderedIntArray;
 import io.evitadb.index.array.UnorderedLookup;
 import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.map.TransactionalMap;
-import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
-import io.evitadb.index.transactionalMemory.TransactionalLayerProducer;
-import io.evitadb.index.transactionalMemory.TransactionalObjectVersion;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.spi.model.storageParts.index.ChainIndexStoragePart;
 import io.evitadb.utils.Assert;
@@ -56,7 +56,6 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static io.evitadb.core.Transaction.getTransactionalMemoryLayer;
 import static io.evitadb.utils.Assert.isPremiseValid;
 import static io.evitadb.utils.Assert.isTrue;
 import static java.util.Optional.ofNullable;
@@ -109,7 +108,7 @@ public class ChainIndex implements SortedRecordsSupplierFactory, TransactionalLa
 	final TransactionalMap<Integer, TransactionalUnorderedIntArray> chains;
 	/**
 	 * Temporary data structure that should be NULL and should exist only when {@link Catalog} is in
-	 * bulk insertion or read only state where transactions are not used.
+	 * bulk insertion or read only state where transaction are not used.
 	 */
 	private ChainIndexChanges chainIndexChanges;
 
@@ -300,14 +299,13 @@ public class ChainIndex implements SortedRecordsSupplierFactory, TransactionalLa
 	@Override
 	public ChainIndex createCopyWithMergedTransactionalMemory(
 		@Nullable ChainIndexChanges layer,
-		@Nonnull TransactionalLayerMaintainer transactionalLayer,
-		@Nullable Transaction transaction
+		@Nonnull TransactionalLayerMaintainer transactionalLayer
 	) {
-		transactionalLayer.getStateCopyWithCommittedChanges(this.dirty, transaction);
+		transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
 		return new ChainIndex(
 			attributeKey,
-			transactionalLayer.getStateCopyWithCommittedChanges(this.chains, transaction),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.elementStates, transaction)
+			transactionalLayer.getStateCopyWithCommittedChanges(this.chains),
+			transactionalLayer.getStateCopyWithCommittedChanges(this.elementStates)
 		);
 	}
 
@@ -324,7 +322,7 @@ public class ChainIndex implements SortedRecordsSupplierFactory, TransactionalLa
 	 */
 	@Nonnull
 	private ChainIndexChanges getOrCreateChainIndexChanges() {
-		final ChainIndexChanges layer = getTransactionalMemoryLayer(this);
+		final ChainIndexChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
 			return ofNullable(this.chainIndexChanges).orElseGet(() -> {
 				this.chainIndexChanges = new ChainIndexChanges(this);

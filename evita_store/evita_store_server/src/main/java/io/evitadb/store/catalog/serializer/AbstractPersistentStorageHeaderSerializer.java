@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -43,7 +43,7 @@ import java.util.Map.Entry;
 abstract class AbstractPersistentStorageHeaderSerializer<T> extends Serializer<T> {
 
 	/**
-	 * Method is targeted to serialize compressed keys from {@link PersistentStorageHeader#getCompressedKeys()}.
+	 * Method is targeted to serialize compressed keys from {@link PersistentStorageHeader#compressedKeys()}.
 	 */
 	protected void serializeKeys(@Nonnull Map<Integer, Object> keys, @Nonnull Output output, @Nonnull Kryo kryo) {
 		output.writeVarInt(keys.size(), true);
@@ -54,7 +54,7 @@ abstract class AbstractPersistentStorageHeaderSerializer<T> extends Serializer<T
 	}
 
 	/**
-	 * Method is targeted to deserialize compressed keys to {@link PersistentStorageHeader#getCompressedKeys()}.
+	 * Method is targeted to deserialize compressed keys to {@link PersistentStorageHeader#compressedKeys()}.
 	 */
 	protected Map<Integer, Object> deserializeKeys(@Nonnull Input input, @Nonnull Kryo kryo) {
 		final Map<Integer, Object> keys = new HashMap<>();

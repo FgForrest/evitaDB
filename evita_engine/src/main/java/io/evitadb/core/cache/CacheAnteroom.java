@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -38,10 +38,9 @@ import io.evitadb.core.query.algebra.price.termination.PriceTerminationFormula;
 import io.evitadb.core.query.extraResult.CacheableEvitaResponseExtraResultComputer;
 import io.evitadb.core.query.extraResult.EvitaResponseExtraResultComputer;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
-import io.evitadb.core.query.response.TransactionalDataRelatedStructure.CalculationContext;
 import io.evitadb.core.query.sort.CacheableSorter;
 import io.evitadb.core.query.sort.Sorter;
-import io.evitadb.core.scheduling.Scheduler;
+import io.evitadb.scheduling.Scheduler;
 import io.evitadb.utils.CollectionUtils;
 import lombok.extern.slf4j.Slf4j;
 import net.openhft.hashing.LongHashFunction;
@@ -71,7 +70,7 @@ import java.util.function.UnaryOperator;
  * - {@link #register(EvitaSessionContract, String, Formula, FormulaCacheVisitor)}
  * - {@link #register(EvitaSessionContract, String, CacheableSorter)}
  * - {@link #register(EvitaSessionContract, String, CacheableEvitaResponseExtraResultComputer)}
- * - {@link #register(EvitaSessionContract, CalculationContext, int, Serializable, EntityFetch, Supplier)}
+ * - {@link #register(EvitaSessionContract, int, Serializable, EntityFetch, Supplier)}
  * - {@link #evaluateAssociates(boolean)}
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022

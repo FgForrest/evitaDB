@@ -21,7 +21,7 @@
     <patterns>
       <pattern testClass=".*" />
     </patterns>
-    <tag value="!integration&amp;!longRunning&amp;!documentation" />
+    <tag value="!documentation" />
     <method v="2">
       <option name="Make" enabled="true" />
     </method>

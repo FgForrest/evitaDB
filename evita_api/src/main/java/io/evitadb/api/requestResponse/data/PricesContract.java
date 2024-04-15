@@ -97,7 +97,7 @@ public interface PricesContract extends Versioned, Serializable {
 					.min(Comparator.comparing(o -> pLists.get(o.priceList())))
 					.filter(filterPredicate);
 			}
-			case FIRST_OCCURRENCE -> {
+			case LOWEST_PRICE -> {
 				final Map<Integer, List<PriceContract>> pricesByInnerId = pricesStream
 					.collect(Collectors.groupingBy(it -> ofNullable(it.innerRecordId()).orElse(0)));
 				return pricesByInnerId
@@ -389,7 +389,7 @@ public interface PricesContract extends Versioned, Serializable {
 					.map(it -> from.compareTo(it) <= 0 && to.compareTo(it) >= 0)
 					.orElse(false);
 			}
-			case FIRST_OCCURRENCE -> {
+			case LOWEST_PRICE -> {
 				final Map<Serializable, Integer> pLists = createHashMap(priceListPriority.length);
 				for (int i = 0; i < priceListPriority.length; i++) {
 					final Serializable pList = priceListPriority[i];

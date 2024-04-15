@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -45,6 +45,7 @@ import io.evitadb.index.IndexType;
 import io.evitadb.index.mutation.ReferenceIndexMutator.ReferenceAttributeValueSupplier;
 import io.evitadb.store.entity.model.entity.AttributesStoragePart;
 import io.evitadb.store.spi.model.storageParts.accessor.EntityStoragePartAccessor;
+import io.evitadb.store.spi.model.storageParts.accessor.WritableEntityStorageContainerAccessor;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.NumberUtils;
 import lombok.RequiredArgsConstructor;
@@ -54,11 +55,13 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serializable;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -86,7 +89,8 @@ public interface AttributeIndexMutator {
 		@Nonnull AttributeKey attributeKey,
 		@Nonnull Serializable attributeValue,
 		boolean updateGlobalIndex,
-		boolean updateCompounds
+		boolean updateCompounds,
+		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
 		final AttributeSchemaContract attributeDefinition = attributeSchemaProvider.apply(attributeKey.attributeName());
 		Assert.notNull(attributeDefinition, "Attribute `" + attributeKey.attributeName() + "` not defined in schema!");
@@ -105,15 +109,27 @@ public interface AttributeIndexMutator {
 				final Optional<AttributeValue> existingValue = existingValueSupplier.getAttributeValue(attributeKey);
 				existingValue.ifPresent(theValue -> {
 					entityIndex.removeUniqueAttribute(attributeDefinition, allowedLocales, locale, theValue.value(), entityPrimaryKey);
+					if (undoActionConsumer != null) {
+						undoActionConsumer.accept(() -> entityIndex.insertUniqueAttribute(attributeDefinition, allowedLocales, locale, theValue.value(), entityPrimaryKey));
+					}
 					if (String.class.equals(attributeDefinition.getType()) && !attributeDefinition.isFilterable()) {
 						// TOBEDONE JNO this should be replaced with RadixTree
 						entityIndex.removeFilterAttribute(attributeDefinition, allowedLocales, locale, theValue.value(), entityPrimaryKey);
+						if (undoActionConsumer != null) {
+							undoActionConsumer.accept(() -> entityIndex.insertFilterAttribute(attributeDefinition, allowedLocales, locale, theValue.value(), entityPrimaryKey));
+						}
 					}
 				});
 				entityIndex.insertUniqueAttribute(attributeDefinition, allowedLocales, locale, valueToInsert, entityPrimaryKey);
+				if (undoActionConsumer != null) {
+					undoActionConsumer.accept(() -> entityIndex.removeUniqueAttribute(attributeDefinition, allowedLocales, locale, valueToInsert, entityPrimaryKey));
+				}
 				if (String.class.equals(attributeDefinition.getType()) && !attributeDefinition.isFilterable()) {
 					// TOBEDONE JNO this should be replaced with RadixTree
 					entityIndex.insertFilterAttribute(attributeDefinition, allowedLocales, locale, valueToInsert, entityPrimaryKey);
+					if (undoActionConsumer != null) {
+						undoActionConsumer.accept(() -> entityIndex.removeFilterAttribute(attributeDefinition, allowedLocales, locale, valueToInsert, entityPrimaryKey));
+					}
 				}
 			}
 			if (attributeDefinition.isFilterable()) {
@@ -121,16 +137,28 @@ public interface AttributeIndexMutator {
 				final Optional<AttributeValue> existingValue = existingValueSupplier.getAttributeValue(attributeKey);
 				existingValue.ifPresent(theValue -> {
 					entityIndex.removeFilterAttribute(attributeDefinition, allowedLocales, locale, theValue.value(), entityPrimaryKey);
+					if (undoActionConsumer != null) {
+						undoActionConsumer.accept(() -> entityIndex.insertFilterAttribute(attributeDefinition, allowedLocales, locale, theValue.value(), entityPrimaryKey));
+					}
 				});
 				entityIndex.insertFilterAttribute(attributeDefinition, allowedLocales, locale, valueToInsert, entityPrimaryKey);
+				if (undoActionConsumer != null) {
+					undoActionConsumer.accept(() -> entityIndex.removeFilterAttribute(attributeDefinition, allowedLocales, locale, valueToInsert, entityPrimaryKey));
+				}
 			}
 			if (attributeDefinition.isSortable()) {
 				final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_SORT_INDEX);
 				final Optional<AttributeValue> existingValue = existingValueSupplier.getAttributeValue(attributeKey);
 				existingValue.ifPresent(theValue -> {
 					entityIndex.removeSortAttribute(attributeDefinition, allowedLocales, locale, theValue.value(), entityPrimaryKey);
+					if (undoActionConsumer != null) {
+						undoActionConsumer.accept(() -> entityIndex.insertSortAttribute(attributeDefinition, allowedLocales, locale, theValue.value(), entityPrimaryKey));
+					}
 				});
 				entityIndex.insertSortAttribute(attributeDefinition, allowedLocales, locale, valueToInsert, entityPrimaryKey);
+				if (undoActionConsumer != null) {
+					undoActionConsumer.accept(() -> entityIndex.removeSortAttribute(attributeDefinition, allowedLocales, locale, valueToInsert, entityPrimaryKey));
+				}
 			}
 
 			if (updateGlobalIndex && attributeDefinition instanceof GlobalAttributeSchema globalAttributeSchema &&
@@ -139,12 +167,30 @@ public interface AttributeIndexMutator {
 				final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_UNIQUE_INDEX);
 
 				final Optional<AttributeValue> existingValue = existingValueSupplier.getAttributeValue(attributeKey);
-				existingValue.ifPresent(theValue -> catalogIndex.removeUniqueAttribute(
-					executor.getEntitySchema(), globalAttributeSchema, allowedLocales, locale, Objects.requireNonNull(theValue.value()), entityPrimaryKey
-				));
+				existingValue.ifPresent(theValue -> {
+					final Serializable value = Objects.requireNonNull(theValue.value());
+					catalogIndex.removeUniqueAttribute(
+						entitySchema, globalAttributeSchema, allowedLocales, locale,
+						value, entityPrimaryKey
+					);
+					if (undoActionConsumer != null) {
+						undoActionConsumer.accept(
+							() -> catalogIndex.insertUniqueAttribute(
+								entitySchema, globalAttributeSchema, allowedLocales, locale, value, entityPrimaryKey
+							)
+						);
+					}
+				});
 				catalogIndex.insertUniqueAttribute(
-					executor.getEntitySchema(), globalAttributeSchema, allowedLocales, locale, valueToInsert, entityPrimaryKey
+					entitySchema, globalAttributeSchema, allowedLocales, locale, valueToInsert, entityPrimaryKey
 				);
+				if (undoActionConsumer != null) {
+					undoActionConsumer.accept(
+						() -> catalogIndex.removeUniqueAttribute(
+							entitySchema, globalAttributeSchema, allowedLocales, locale, valueToInsert, entityPrimaryKey
+						)
+					);
+				}
 			}
 		}
 
@@ -152,7 +198,8 @@ public interface AttributeIndexMutator {
 		if (updateCompounds) {
 			updateSortableAttributeCompounds(
 				executor, attributeSchemaProvider, compoundsSchemaProvider, existingValueSupplier,
-				entityIndex, valueToInsert, attributeKey.locale(), attributeDefinition.getName()
+				entityIndex, valueToInsert, attributeKey.locale(), attributeDefinition.getName(),
+				undoActionConsumer
 			);
 		}
 	}
@@ -169,7 +216,8 @@ public interface AttributeIndexMutator {
 		@Nonnull EntityIndex entityIndex,
 		@Nonnull AttributeKey attributeKey,
 		boolean updateGlobalIndex,
-		boolean updateCompounds
+		boolean updateCompounds,
+		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
 		final EntitySchema entitySchema = executor.getEntitySchema();
 		final String attributeName = attributeKey.attributeName();
@@ -197,12 +245,28 @@ public interface AttributeIndexMutator {
 					attributeDefinition, allowedLocales, locale, valueToRemoveSupplier.get(),
 					executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_UNIQUE_INDEX)
 				);
+				if (undoActionConsumer != null) {
+					undoActionConsumer.accept(
+						() -> entityIndex.insertUniqueAttribute(
+							attributeDefinition, allowedLocales, locale, valueToRemoveSupplier.get(),
+							executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_UNIQUE_INDEX)
+						)
+					);
+				}
 				if (String.class.equals(attributeDefinition.getType()) && !attributeDefinition.isFilterable()) {
 					// TOBEDONE JNO this should be replaced with RadixTree
 					entityIndex.removeFilterAttribute(
 						attributeDefinition, allowedLocales, locale, valueToRemoveSupplier.get(),
 						executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_FILTER_INDEX)
 					);
+					if (undoActionConsumer != null) {
+						undoActionConsumer.accept(
+							() -> entityIndex.insertFilterAttribute(
+								attributeDefinition, allowedLocales, locale, valueToRemoveSupplier.get(),
+								executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_FILTER_INDEX)
+							)
+						);
+					}
 				}
 
 				if (updateGlobalIndex && attributeDefinition instanceof GlobalAttributeSchema globalAttributeSchema &&
@@ -210,9 +274,17 @@ public interface AttributeIndexMutator {
 				) {
 					final CatalogIndex catalogIndex = executor.getCatalogIndex();
 					catalogIndex.removeUniqueAttribute(
-						executor.getEntitySchema(), globalAttributeSchema, allowedLocales, locale, valueToRemoveSupplier.get(),
+						entitySchema, globalAttributeSchema, allowedLocales, locale, valueToRemoveSupplier.get(),
 						executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_UNIQUE_INDEX)
 					);
+					if (undoActionConsumer != null) {
+						undoActionConsumer.accept(
+							() -> catalogIndex.insertUniqueAttribute(
+								entitySchema, globalAttributeSchema, allowedLocales, locale, valueToRemoveSupplier.get(),
+								executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_UNIQUE_INDEX)
+							)
+						);
+					}
 				}
 			}
 			if (attributeDefinition.isFilterable()) {
@@ -220,12 +292,28 @@ public interface AttributeIndexMutator {
 					attributeDefinition, allowedLocales, locale, valueToRemoveSupplier.get(),
 					executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_FILTER_INDEX)
 				);
+				if (undoActionConsumer != null) {
+					undoActionConsumer.accept(
+						() -> entityIndex.insertFilterAttribute(
+							attributeDefinition, allowedLocales, locale, valueToRemoveSupplier.get(),
+							executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_FILTER_INDEX)
+						)
+					);
+				}
 			}
 			if (attributeDefinition.isSortable()) {
 				entityIndex.removeSortAttribute(
 					attributeDefinition, allowedLocales, locale, valueToRemoveSupplier.get(),
 					executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_SORT_INDEX)
 				);
+				if (undoActionConsumer != null) {
+					undoActionConsumer.accept(
+						() -> entityIndex.insertSortAttribute(
+							attributeDefinition, allowedLocales, locale, valueToRemoveSupplier.get(),
+							executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_SORT_INDEX)
+						)
+					);
+				}
 			}
 		}
 
@@ -233,7 +321,7 @@ public interface AttributeIndexMutator {
 		if (updateCompounds) {
 			updateSortableAttributeCompounds(
 				executor, attributeSchemaProvider, compoundsSchemaProvider, existingValueSupplier,
-				entityIndex, null, locale, attributeName
+				entityIndex, null, locale, attributeName, undoActionConsumer
 			);
 		}
 	}
@@ -249,7 +337,8 @@ public interface AttributeIndexMutator {
 		@Nonnull ExistingAttributeValueSupplier existingValueSupplier,
 		@Nonnull EntityIndex entityIndex,
 		@Nonnull AttributeKey attributeKey,
-		@Nonnull Number delta
+		@Nonnull Number delta,
+		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
 		final EntitySchema entitySchema = executor.getEntitySchema();
 		final String attributeName = attributeKey.attributeName();
@@ -296,21 +385,33 @@ public interface AttributeIndexMutator {
 			final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_UNIQUE_INDEX);
 			entityIndex.removeUniqueAttribute(attributeDefinition, allowedLocales, locale, valueToRemoveSupplier.get(), entityPrimaryKey);
 			entityIndex.insertUniqueAttribute(attributeDefinition, allowedLocales, locale, valueToUpdateSupplier.get(), entityPrimaryKey);
+			if (undoActionConsumer != null) {
+				undoActionConsumer.accept(() -> entityIndex.insertUniqueAttribute(attributeDefinition, allowedLocales, locale, valueToRemoveSupplier.get(), entityPrimaryKey));
+				undoActionConsumer.accept(() -> entityIndex.removeUniqueAttribute(attributeDefinition, allowedLocales, locale, valueToUpdateSupplier.get(), entityPrimaryKey));
+			}
 		}
 		if (attributeDefinition.isFilterable()) {
 			final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_FILTER_INDEX);
 			entityIndex.removeFilterAttribute(attributeDefinition, allowedLocales, locale, valueToRemoveSupplier.get(), entityPrimaryKey);
 			entityIndex.insertFilterAttribute(attributeDefinition, allowedLocales, locale, valueToUpdateSupplier.get(), entityPrimaryKey);
+			if (undoActionConsumer != null) {
+				undoActionConsumer.accept(() -> entityIndex.insertFilterAttribute(attributeDefinition, allowedLocales, locale, valueToRemoveSupplier.get(), entityPrimaryKey));
+				undoActionConsumer.accept(() -> entityIndex.removeFilterAttribute(attributeDefinition, allowedLocales, locale, valueToUpdateSupplier.get(), entityPrimaryKey));
+			}
 		}
 		if (attributeDefinition.isSortable()) {
 			final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_SORT_INDEX);
 			entityIndex.removeSortAttribute(attributeDefinition, allowedLocales, locale, valueToRemoveSupplier.get(), entityPrimaryKey);
 			entityIndex.insertSortAttribute(attributeDefinition, allowedLocales, locale, valueToUpdateSupplier.get(), entityPrimaryKey);
+			if (undoActionConsumer != null) {
+				undoActionConsumer.accept(() -> entityIndex.insertSortAttribute(attributeDefinition, allowedLocales, locale, valueToRemoveSupplier.get(), entityPrimaryKey));
+				undoActionConsumer.accept(() -> entityIndex.removeSortAttribute(attributeDefinition, allowedLocales, locale, valueToUpdateSupplier.get(), entityPrimaryKey));
+			}
 		}
 		// now update the compounds
 		updateSortableAttributeCompounds(
 			executor, attributeSchemaProvider, compoundsSchemaProvider, existingValueSupplier,
-			entityIndex, valueToUpdateSupplier.get(), locale, attributeName
+			entityIndex, valueToUpdateSupplier.get(), locale, attributeName, undoActionConsumer
 		);
 	}
 
@@ -328,7 +429,8 @@ public interface AttributeIndexMutator {
 		int entityPrimaryKey,
 		@Nonnull EntitySchema entitySchema,
 		@Nullable ReferenceKey referenceKey,
-		@Nonnull EntityStoragePartAccessor entityStoragePartAccessor
+		@Nonnull EntityStoragePartAccessor entityStoragePartAccessor,
+		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
 		final SortableAttributeCompoundSchemaProvider<?> compoundProvider = getSortableAttributeCompoundSchemaProvider(entitySchema, referenceKey);
 		final Function<String, AttributeSchema> attributeSchemaProvider = attributeName -> compoundProvider.getAttribute(attributeName)
@@ -360,7 +462,8 @@ public interface AttributeIndexMutator {
 					attributeSchemaProvider,
 					attributeKey -> entityAttributeValueSupplier.getAttributeValue(attributeKey).orElse(null),
 					locale
-				)
+				),
+				undoActionConsumer
 			)
 		);
 	}
@@ -379,7 +482,8 @@ public interface AttributeIndexMutator {
 		int entityPrimaryKey,
 		@Nonnull EntitySchema entitySchema,
 		@Nullable ReferenceKey referenceKey,
-		@Nonnull EntityStoragePartAccessor entityStoragePartAccessor
+		@Nonnull EntityStoragePartAccessor entityStoragePartAccessor,
+		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
 		final SortableAttributeCompoundSchemaProvider<?> compoundProvider = getSortableAttributeCompoundSchemaProvider(entitySchema, referenceKey);
 		final Function<String, AttributeSchema> attributeSchemaProvider = attributeName -> compoundProvider.getAttribute(attributeName)
@@ -412,11 +516,13 @@ public interface AttributeIndexMutator {
 			it -> removeOldCompound(
 				entityPrimaryKey, entityIndex, it,
 				locale,
+				attributeSchemaProvider,
 				createAttributeElementToAttributeValueProvider(
 					attributeSchemaProvider,
 					attributeKey -> entityAttributeValueSupplier.getAttributeValue(attributeKey).orElse(null),
 					locale
-				)
+				),
+				undoActionConsumer
 			)
 		);
 	}
@@ -452,7 +558,8 @@ public interface AttributeIndexMutator {
 		@Nonnull EntityIndex entityIndex,
 		@Nullable Object valueToUpdate,
 		@Nullable Locale locale,
-		@Nonnull String updatedAttributeName
+		@Nonnull String updatedAttributeName,
+		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
 		compoundsSchemaProvider.apply(updatedAttributeName)
 			.forEach(
@@ -462,24 +569,30 @@ public interface AttributeIndexMutator {
 						it -> existingValueSupplier.getAttributeValue(it).orElse(null);
 
 					boolean isCompoundLocalized = compound.isLocalized(attributeSchemaProvider);
+					final Set<Locale> entityAttributeLocales = existingValueSupplier.getEntityAttributeLocales();
 					if (isCompoundLocalized && locale == null) {
 						// if the compound is localized and the locale is null, it means the global attribute is updated
 						// and we need to update all localized compounds using that global attribute
-						existingValueSupplier
-							.getEntityAttributeLocales()
+						entityAttributeLocales
 							.forEach(
 								attributeLocale -> updateCompound(
 									entityIndex, compound,
-									existingValueSupplier.getEntityAttributeLocales(), attributeLocale, updatedAttributeName, valueToUpdate, entityPrimaryKey, attributeSchemaProvider,
-									existingAttributeValueProvider
+									entityAttributeLocales, attributeLocale,
+									updatedAttributeName, valueToUpdate,
+									entityPrimaryKey, attributeSchemaProvider,
+									existingAttributeValueProvider,
+									undoActionConsumer
 								)
 							);
 					} else {
 						// otherwise we just update the compound with particular locale or global if locale is null
 						updateCompound(
 							entityIndex, compound,
-							existingValueSupplier.getEntityAttributeLocales(), locale, updatedAttributeName, valueToUpdate, entityPrimaryKey, attributeSchemaProvider,
-							existingAttributeValueProvider
+							entityAttributeLocales, locale,
+							updatedAttributeName, valueToUpdate,
+							entityPrimaryKey, attributeSchemaProvider,
+							existingAttributeValueProvider,
+							undoActionConsumer
 						);
 					}
 				}
@@ -500,7 +613,8 @@ public interface AttributeIndexMutator {
 		@Nullable Object valueToUpdate,
 		int entityPrimaryKey,
 		@Nonnull Function<String, AttributeSchema> attributeSchemaProvider,
-		@Nonnull Function<AttributeKey, AttributeValue> existingAttributeValueProvider
+		@Nonnull Function<AttributeKey, AttributeValue> existingAttributeValueProvider,
+		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
 		final Function<AttributeElement, AttributeValue> attributeElementValueProvider = createAttributeElementToAttributeValueProvider(
 			attributeSchemaProvider, existingAttributeValueProvider, locale
@@ -509,12 +623,12 @@ public interface AttributeIndexMutator {
 		if (locale == null || availableAttributeLocales.contains(locale)) {
 			removeOldCompound(
 				entityPrimaryKey, entityIndex, compound, locale,
-				attributeElementValueProvider
+				attributeSchemaProvider, attributeElementValueProvider, undoActionConsumer
 			);
 
 			insertNewCompound(
 				entityPrimaryKey, entityIndex, compound, updatedAttributeName, valueToUpdate, locale,
-				attributeSchemaProvider, attributeElementValueProvider
+				attributeSchemaProvider, attributeElementValueProvider, undoActionConsumer
 			);
 		}
 	}
@@ -530,7 +644,8 @@ public interface AttributeIndexMutator {
 		@Nullable Object valueToUpdate,
 		@Nullable Locale locale,
 		@Nonnull Function<String, AttributeSchema> attributeSchemaProvider,
-		@Nonnull Function<AttributeElement, AttributeValue> attributeElementValueProvider
+		@Nonnull Function<AttributeElement, AttributeValue> attributeElementValueProvider,
+		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
 		final Object[] newCompoundValues = compound.getAttributeElements()
 			.stream()
@@ -549,6 +664,13 @@ public interface AttributeIndexMutator {
 			locale,
 			newCompoundValues, entityPrimaryKey
 		);
+		if (undoActionConsumer != null) {
+			undoActionConsumer.accept(
+				() -> entityIndex.removeSortAttributeCompound(
+					compound, locale, newCompoundValues, entityPrimaryKey
+				)
+			);
+		}
 	}
 
 	/**
@@ -559,7 +681,9 @@ public interface AttributeIndexMutator {
 		@Nonnull EntityIndex entityIndex,
 		@Nonnull SortableAttributeCompoundSchema compound,
 		@Nullable Locale locale,
-		@Nonnull Function<AttributeElement, AttributeValue> attributeElementValueProvider
+		@Nonnull Function<String, AttributeSchema> attributeSchemaProvider,
+		@Nonnull Function<AttributeElement, AttributeValue> attributeElementValueProvider,
+		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
 		final Object[] oldCompoundValues = compound.getAttributeElements()
 			.stream()
@@ -573,6 +697,16 @@ public interface AttributeIndexMutator {
 		entityIndex.removeSortAttributeCompound(
 			compound, locale, oldCompoundValues, entityPrimaryKey
 		);
+		if (undoActionConsumer != null) {
+			undoActionConsumer.accept(
+				() -> entityIndex.insertSortAttributeCompound(
+					compound,
+					theAttributeName -> attributeSchemaProvider.apply(theAttributeName).getPlainType(),
+					locale,
+					oldCompoundValues, entityPrimaryKey
+				)
+			);
+		}
 	}
 
 	/**
@@ -634,9 +768,22 @@ public interface AttributeIndexMutator {
 		@Override
 		public Set<Locale> getEntityAttributeLocales() {
 			if (memoizedLocales == null) {
-				this.memoizedLocales = containerAccessor.getEntityStoragePart(
-					entityType, entityPrimaryKey, EntityExistence.MUST_EXIST
-				).getAttributeLocales();
+				final Set<Locale> attributeLocales;
+				if (containerAccessor instanceof WritableEntityStorageContainerAccessor writableEntityStorageContainerAccessor
+					&& !(writableEntityStorageContainerAccessor.getAddedLocales().isEmpty() && writableEntityStorageContainerAccessor.getRemovedLocales().isEmpty())) {
+					attributeLocales = new HashSet<>(
+						containerAccessor.getEntityStoragePart(
+							entityType, entityPrimaryKey, EntityExistence.MUST_EXIST
+						).getAttributeLocales()
+					);
+					attributeLocales.removeAll(writableEntityStorageContainerAccessor.getAddedLocales());
+					attributeLocales.addAll(writableEntityStorageContainerAccessor.getRemovedLocales());
+				} else {
+					attributeLocales = containerAccessor.getEntityStoragePart(
+						entityType, entityPrimaryKey, EntityExistence.MUST_EXIST
+					).getAttributeLocales();
+				}
+				this.memoizedLocales = attributeLocales;
 			}
 			return memoizedLocales;
 		}

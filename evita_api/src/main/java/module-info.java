@@ -18,7 +18,7 @@ module evita.api {
 	exports io.evitadb.api.requestResponse.data.mutation;
 	exports io.evitadb.api.requestResponse.data.mutation.associatedData;
 	exports io.evitadb.api.requestResponse.data.mutation.attribute;
-	exports io.evitadb.api.requestResponse.data.mutation.entity;
+	exports io.evitadb.api.requestResponse.data.mutation.parent;
 	exports io.evitadb.api.requestResponse.data.mutation.price;
 	exports io.evitadb.api.requestResponse.data.mutation.reference;
 	exports io.evitadb.api.requestResponse.data.structure.predicate;
@@ -37,6 +37,7 @@ module evita.api {
 	exports io.evitadb.api.requestResponse.mutation;
 	exports io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound;
 	exports io.evitadb.api.requestResponse.data.annotation;
+	exports io.evitadb.api.requestResponse.transaction;
 	exports io.evitadb.api.configuration.metric;
 	exports io.evitadb.api.trace;
 

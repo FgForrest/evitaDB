@@ -92,7 +92,7 @@ public class CombinedEntityFilteringFunctionalTest {
 		if (rndPIRH < 6) {
 			return PriceInnerRecordHandling.NONE;
 		} else if (rndPIRH < 8) {
-			return PriceInnerRecordHandling.FIRST_OCCURRENCE;
+			return PriceInnerRecordHandling.LOWEST_PRICE;
 		} else {
 			return PriceInnerRecordHandling.SUM;
 		}
