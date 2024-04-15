@@ -40,17 +40,24 @@ jobs:
           username: ${{ vars.CI_REGISTRY_USER }}
           password: ${{ secrets.CI_REGISTRY_PASSWORD }}
 
+      - name: Extract major version
+        id: major_version
+        run: echo "::set-output name=version::$(echo '${{ steps.release_version.outputs.version }}' | cut -d'.' -f1,2)"
+
       - name: Build and push Docker image
         env:
           RELEASE_IMAGE: "evitadb:latest"
           EVITA_JAR_NAME: evita-server.jar
+          MAJOR_VERSION: ${{ steps.major_version.outputs.version }}
         uses: docker/build-push-action@v3
         with:
           context: ./docker
           file: ./docker/Dockerfile
           pull: true
           push: true
-          tags: ${{ vars.CI_REGISTRY_USER }}/${{ env.RELEASE_IMAGE }}
+          tags: |
+            ${{ vars.CI_REGISTRY_USER }}/${{ env.RELEASE_IMAGE }}
+            ${{ vars.CI_REGISTRY_USER }}/evitadb:${{ env.MAJOR_VERSION }}
           platforms: linux/amd64,linux/arm64/v8
           build-args: |
             EVITA_JAR_NAME=${{ env.EVITA_JAR_NAME }}
