@@ -14,6 +14,8 @@ jobs:
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
       - uses: actions/checkout@v3        # checkout from Git
+        with:
+          ref: master  # Always checks out the master branch
 
       - name: Download a JAR file to deploy # download `evita-server.jar` artifact if the workflow we react to was successful
         uses: dawidd6/action-download-artifact@v2
