@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -47,6 +47,7 @@ import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.Arrays;
 import java.util.Optional;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
@@ -154,8 +155,13 @@ public class AttributeInRangeTranslator implements FilteringConstraintTranslator
 				if (attr.isEmpty()) {
 					return false;
 				} else {
+					final Predicate<DateTimeRange> predicate = attrValue -> attrValue != null && attrValue.isValidFor(theMoment);
 					final Serializable attrValue = attr.get().value();
-					return attrValue != null && ((DateTimeRange) attrValue).isValidFor(theMoment);
+					if (attrValue.getClass().isArray()) {
+						return Arrays.stream((Object[])attrValue).map(DateTimeRange.class::cast).anyMatch(predicate);
+					} else {
+						return predicate.test((DateTimeRange) attrValue);
+					}
 				}
 			}
 		);
@@ -168,8 +174,13 @@ public class AttributeInRangeTranslator implements FilteringConstraintTranslator
 				if (attr.isEmpty()) {
 					return false;
 				} else {
+					final Predicate<BigDecimalNumberRange> predicate = attrValue -> attrValue != null && attrValue.isWithin(theValue);
 					final Serializable attrValue = attr.get().value();
-					return attrValue != null && ((BigDecimalNumberRange) attrValue).isWithin(theValue);
+					if (attrValue.getClass().isArray()) {
+						return Arrays.stream((Object[])attrValue).map(BigDecimalNumberRange.class::cast).anyMatch(predicate);
+					} else {
+						return predicate.test((BigDecimalNumberRange) attrValue);
+					}
 				}
 			}
 		);
@@ -183,8 +194,13 @@ public class AttributeInRangeTranslator implements FilteringConstraintTranslator
 				if (attr.isEmpty()) {
 					return false;
 				} else {
+					final Predicate<NumberRange> predicate = attrValue -> attrValue != null && attrValue.isWithin(theValue);
 					final Serializable attrValue = attr.get().value();
-					return attrValue != null && ((NumberRange) attrValue).isWithin(theValue);
+					if (attrValue.getClass().isArray()) {
+						return Arrays.stream((Object[])attrValue).map(NumberRange.class::cast).anyMatch(predicate);
+					} else {
+						return predicate.test((NumberRange) attrValue);
+					}
 				}
 			}
 		);

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -50,6 +50,7 @@ import javax.annotation.Nonnull;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
@@ -59,11 +60,16 @@ import static io.evitadb.api.EntityByAttributeFilteringFunctionalTest.assertSort
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.query.order.OrderDirection.DESC;
+import static io.evitadb.core.query.algebra.prefetch.PrefetchFormulaVisitor.doWithCustomPrefetchCostEstimator;
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.extension.DataCarrier.tuple;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CATEGORY_PRIORITY;
+import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_NAME;
+import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_URL;
+import static io.evitadb.test.generator.DataGenerator.CURRENCY_EUR;
 import static java.util.Optional.ofNullable;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * This test verifies whether entities can be filtered by attributes.
@@ -217,7 +223,7 @@ public class EntityByReferenceAttributeOrderingFunctionalTest {
 									whichIs ->
 										/* we can specify special attributes on relation */
 										whichIs.indexed()
-											.withAttribute(ATTRIBUTE_STORE_PRIORITY, Long.class, thatIs -> thatIs.sortable())
+											.withAttribute(ATTRIBUTE_STORE_PRIORITY, Long.class, thatIs -> thatIs.filterable().sortable())
 								);
 						}
 					),
@@ -469,6 +475,65 @@ public class EntityByReferenceAttributeOrderingFunctionalTest {
 						.anyMatch(it -> categoryIds.contains(it.getReferencedPrimaryKey())),
 					createCategoryReferenceComparator(depthFirstOrder, categoryIds)
 				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should allow filtering on non-fetched references")
+	@UseDataSet(HUNDRED_PRODUCTS_WITH_REFERENCES)
+	@Test
+	void shouldFilterOnNonFetchedReferences(Evita evita, List<SealedEntity> originalProductEntities) {
+		final SealedEntity entity = originalProductEntities
+			.stream()
+			.filter(it -> it.getLocales().contains(Locale.ENGLISH) && !it.getPrices(CURRENCY_EUR, "basic").isEmpty())
+			.filter(it -> it.getReferences(Entities.STORE).stream().anyMatch(it2 -> it2.getAttribute(ATTRIBUTE_STORE_PRIORITY, Long.class) != null))
+			.findFirst()
+			.orElseThrow();
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> result = doWithCustomPrefetchCostEstimator(
+					() -> session.query(
+							query(
+								collection(Entities.PRODUCT),
+								filterBy(
+									and(
+										entityLocaleEquals(Locale.ENGLISH),
+										attributeEquals(ATTRIBUTE_URL, entity.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH)),
+										priceInPriceLists("basic"),
+										priceInCurrency(CURRENCY_EUR)
+									)
+								),
+								require(
+									entityFetch(
+										referenceContentWithAttributes(
+											Entities.STORE,
+											filterBy(
+												attributeGreaterThanEquals(
+													ATTRIBUTE_STORE_PRIORITY,
+													entity.getReferences(Entities.STORE)
+														.stream()
+														.map(it -> it.getAttribute(ATTRIBUTE_STORE_PRIORITY, Long.class))
+														.findFirst()
+														.orElseThrow()
+												)
+											),
+											attributeContent(ATTRIBUTE_STORE_PRIORITY),
+											entityFetch(
+												attributeContent(ATTRIBUTE_NAME),
+												dataInLocales(Locale.ENGLISH)
+											)
+										)
+									)
+								)
+							),
+							SealedEntity.class
+						),
+					(prefetchedEntityCount, requirementCount) -> Long.MIN_VALUE
+				);
+				assertEquals(1, result.getRecordData().size());
 				return null;
 			}
 		);
