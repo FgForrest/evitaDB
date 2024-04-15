@@ -12,10 +12,6 @@ on:
       - evita*/**/dist/**.*
       - docker/**.*
       - .github/**.*
-  workflow_call:
-    outputs:
-      release_id: ${{ steps.create_release.outputs.id }}
-      released_version: ${{ steps.release_version.outputs.version }}
 
 concurrency:
   group: ${{ github.ref_name }}   # for the same branch
