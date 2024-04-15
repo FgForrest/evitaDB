@@ -2768,11 +2768,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.document(
 				"""
 		            query {
-		                queryProduct(
-		                    filterBy: {
-		                        attributeAliasIs: NOT_NULL
-		                    }
-		                ) {
+		                queryProduct {
 		                    recordPage(size: %d) {
 		                        data {
 		                            primaryKey
@@ -2847,11 +2843,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.document(
 				"""
 		            query {
-		                queryProduct(
-		                    filterBy: {
-		                        attributeAliasIs: NOT_NULL
-		                    }
-		                ) {
+		                queryProduct {
 		                    recordPage(size: %d) {
 		                        data {
 		                            primaryKey
@@ -2931,7 +2923,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		            query {
 		                queryProduct(
 		                    filterBy: {
-		                        attributeAliasIs: NOT_NULL,
 		                        userFilter: {
 		                            attributeQuantityBetween: ["100", "900"]
 	                            }
@@ -3012,11 +3003,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.document(
 				"""
 		            query {
-		                queryProduct(
-		                    filterBy: {
-		                        attributeAliasIs: NOT_NULL
-		                    }
-		                ) {
+		                queryProduct {
 		                    recordPage(size: %d) {
 		                        data {
 		                            primaryKey
@@ -3082,9 +3069,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				return session.query(
 					query(
 						collection(Entities.PRODUCT),
-						filterBy(
-							attributeIsNotNull(ATTRIBUTE_ALIAS)
-						),
 						require(
 							page(1, Integer.MAX_VALUE),
 							attributeHistogram(20, ATTRIBUTE_QUANTITY)
@@ -3101,11 +3085,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.document(
 				"""
 		            query {
-		                queryProduct(
-		                    filterBy: {
-		                        attributeAliasIs: NOT_NULL
-		                    }
-		                ) {
+		                queryProduct {
 		                    recordPage(size: %d) {
 		                        data {
 		                            primaryKey

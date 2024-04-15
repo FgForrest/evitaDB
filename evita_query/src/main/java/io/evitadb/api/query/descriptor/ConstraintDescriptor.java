@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -239,8 +239,10 @@ public class ConstraintDescriptor implements Comparable<ConstraintDescriptor> {
 	 *
 	 * @param dataTypes set of value data types of target data this query can operate on
 	 * @param supportsArrays if target data can be an array of supported data types
+	 * @param nullability whether the constraint supports only nullable data or only nonnull data or both and so on.
 	 */
 	public record SupportedValues(@Nonnull Set<Class<?>> dataTypes,
-	                              boolean supportsArrays) {}
+	                              boolean supportsArrays,
+	                              @Nonnull ConstraintNullabilitySupport nullability) {}
 
 }

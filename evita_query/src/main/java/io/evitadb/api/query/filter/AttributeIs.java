@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.Classifier;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.ConstraintSupportedValues;
+import io.evitadb.api.query.descriptor.ConstraintNullabilitySupport;
 import io.evitadb.api.query.descriptor.annotation.Creator;
 
 import javax.annotation.Nonnull;
@@ -51,7 +52,7 @@ import java.io.Serializable;
  * </pre>
  *
  * Function supports attribute arrays in the same way as plain values.
- * 
+ *
  * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#attribute-is">Visit detailed user documentation</a></p>
  *
  * @see AttributeSpecialValue
@@ -62,7 +63,11 @@ import java.io.Serializable;
 	shortDescription = "The constraint if value of the attribute is same as passed special value.",
 	userDocsLink = "/documentation/query/filtering/comparable#attribute-is",
 	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE },
-	supportedValues = @ConstraintSupportedValues(allTypesSupported = true, arraysSupported = true)
+	supportedValues = @ConstraintSupportedValues(
+		allTypesSupported = true,
+		arraysSupported = true,
+		nullability = ConstraintNullabilitySupport.ONLY_NULLABLE
+	)
 )
 public class AttributeIs extends AbstractAttributeFilterConstraintLeaf implements IndexUsingConstraint {
 	@Serial private static final long serialVersionUID = 6615086027607982158L;
