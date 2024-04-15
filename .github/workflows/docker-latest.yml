@@ -65,6 +65,7 @@ jobs:
           file: ./docker/Dockerfile
           pull: true
           push: true
+          # push the image with two tags: latest and the version from the version.txt file
           tags: |
             ${{ vars.CI_REGISTRY_USER }}/${{ env.RELEASE_IMAGE }}
             ${{ vars.CI_REGISTRY_USER }}/evitadb:${{ env.version }}
