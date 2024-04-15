@@ -378,13 +378,25 @@ public class ObservabilityTracingContext implements TracingContext {
 			throw new EvitaInvalidUsageException("Unsupported context type `" + contextReference.getType().getName() + "`");
 		}
 
-		try (Scope ignored = ((ObservabilityTracingContextReference) contextReference).getContext().makeCurrent()) {
-			return executeWithinBlockInternal(
-				taskName,
-				lambda,
-				attributes,
-				attributeSupplier
-			);
+		boolean clear = false;
+		try {
+			final Boolean originalValue = parentContextAvailable.get();
+			if (!Boolean.TRUE.equals(originalValue)) {
+				parentContextAvailable.set(true);
+				clear = true;
+			}
+			try (Scope ignored = ((ObservabilityTracingContextReference) contextReference).getContext().makeCurrent()) {
+				return executeWithinBlockInternal(
+					taskName,
+					lambda,
+					attributes,
+					attributeSupplier
+				);
+			}
+		} finally {
+			if (clear) {
+				parentContextAvailable.set(false);
+			}
 		}
 	}
 
