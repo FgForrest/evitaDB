@@ -46,7 +46,7 @@
       "allLocales": [
         "en"
       ],
-      "priceInnerRecordHandling": "FIRST_OCCURRENCE",
+      "priceInnerRecordHandling": "LOWEST_PRICE",
       "attributes": {
         "global": {
           "code": "alcatel-3"
@@ -86,7 +86,8 @@
         "priceWithTax": "80.0",
         "taxRate": "21.0",
         "validity": null
-      }
+      },
+      "multiplePricesForSaleAvailable": true
     },
     {
       "primaryKey": 106106,

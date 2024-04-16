@@ -3,7 +3,7 @@
   "data": [
     {
       "primaryKey": 107891,
-      "priceInnerRecordHandling": "FIRST_OCCURRENCE",
+      "priceInnerRecordHandling": "LOWEST_PRICE",
       "attributes": {
         "name:en": "Amazfit Bip 3"
       },
@@ -139,7 +139,7 @@
     },
     {
       "primaryKey": 107899,
-      "priceInnerRecordHandling": "FIRST_OCCURRENCE",
+      "priceInnerRecordHandling": "LOWEST_PRICE",
       "attributes": {
         "name:en": "Amazfit Bip 3 Pro"
       },
@@ -275,7 +275,7 @@
     },
     {
       "primaryKey": 107911,
-      "priceInnerRecordHandling": "FIRST_OCCURRENCE",
+      "priceInnerRecordHandling": "LOWEST_PRICE",
       "attributes": {
         "name:en": "Amazfit Bip S"
       },
@@ -448,7 +448,7 @@
     },
     {
       "primaryKey": 107923,
-      "priceInnerRecordHandling": "FIRST_OCCURRENCE",
+      "priceInnerRecordHandling": "LOWEST_PRICE",
       "attributes": {
         "name:en": "Amazfit Bip S Lite"
       },

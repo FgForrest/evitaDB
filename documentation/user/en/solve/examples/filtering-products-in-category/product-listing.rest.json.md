@@ -12,7 +12,7 @@
         "allLocales": [
           "en"
         ],
-        "priceInnerRecordHandling": "FIRST_OCCURRENCE",
+        "priceInnerRecordHandling": "LOWEST_PRICE",
         "attributes": {
           "localized": {
             "en": {
@@ -66,6 +66,7 @@
           "taxRate": "21.0",
           "validity": null
         },
+        "multiplePricesForSaleAvailable": false,
         "stocks": [
           {
             "referencedPrimaryKey": 119334,
@@ -246,7 +247,7 @@
         "allLocales": [
           "en"
         ],
-        "priceInnerRecordHandling": "FIRST_OCCURRENCE",
+        "priceInnerRecordHandling": "LOWEST_PRICE",
         "attributes": {
           "localized": {
             "en": {
@@ -300,6 +301,7 @@
           "taxRate": "21.0",
           "validity": null
         },
+        "multiplePricesForSaleAvailable": false,
         "stocks": [
           {
             "referencedPrimaryKey": 119334,
@@ -480,7 +482,7 @@
         "allLocales": [
           "en"
         ],
-        "priceInnerRecordHandling": "FIRST_OCCURRENCE",
+        "priceInnerRecordHandling": "LOWEST_PRICE",
         "attributes": {
           "localized": {
             "en": {
@@ -545,6 +547,7 @@
           "taxRate": "21.0",
           "validity": null
         },
+        "multiplePricesForSaleAvailable": false,
         "stocks": [
           {
             "referencedPrimaryKey": 119334,
@@ -778,7 +781,7 @@
         "allLocales": [
           "en"
         ],
-        "priceInnerRecordHandling": "FIRST_OCCURRENCE",
+        "priceInnerRecordHandling": "LOWEST_PRICE",
         "attributes": {
           "localized": {
             "en": {
@@ -832,6 +835,7 @@
           "taxRate": "21.0",
           "validity": null
         },
+        "multiplePricesForSaleAvailable": false,
         "stocks": [
           {
             "referencedPrimaryKey": 119334,
