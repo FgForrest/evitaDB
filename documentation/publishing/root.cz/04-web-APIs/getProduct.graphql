@@ -1,0 +1,59 @@
+query {
+  getProduct(
+    url: "/en/alcatel-3t-10-2020",
+    locale: en,
+    priceInCurrency: EUR,
+    priceInPriceLists: "basic"
+  ) {
+    version
+    locales
+    allLocales
+    attributes {
+      code
+      name
+      descriptionShort
+    }
+    associatedData {
+      localization
+    }
+    priceForSale {
+      priceWithTax
+      currency
+    }
+    priceInCzk: price(currency: CZK, priceList: "basic") {
+      priceWithTax
+      currency
+    }
+    brand {
+      referencedEntity {
+        attributes {
+          name
+        }
+      }
+    }
+    categories {
+      referencedEntity {
+        attributes {
+          name
+        }
+      }
+    }
+    stocks(filterBy: { attributeQuantityOnStockGreaterThan: "0" }) {
+      attributes {
+        quantityOnStock
+      }
+      referencedEntity {
+        attributes {
+          name
+        }
+      }
+    }
+    parameterValues(orderBy: {entityProperty: { attributeNameNatural: DESC }}) {
+      referencedEntity {
+        attributes {
+          name
+        }
+      }
+    }
+  }
+}
