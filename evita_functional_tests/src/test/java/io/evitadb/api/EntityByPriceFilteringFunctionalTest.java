@@ -1612,6 +1612,56 @@ public class EntityByPriceFilteringFunctionalTest {
 		);
 	}
 
+	@DisplayName("Should correctly traverse through all pages or results")
+	@UseDataSet(HUNDRED_PRODUCTS_WITH_PRICES)
+	@Test
+	void shouldReturnCorrectlyTraverseThroughAllPagesOfResults(Evita evita, List<SealedEntity> originalProductEntities) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				int currentPage = 1;
+				int lastPage;
+				do {
+					final EvitaResponse<SealedEntity> result = session.query(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(
+								priceInCurrency(CURRENCY_CZK),
+								priceInPriceLists(PRICE_LIST_BASIC)
+							),
+							orderBy(
+								priceNatural()
+							),
+							require(
+								page(currentPage, 3),
+								entityFetch(
+									priceContent(PriceContentMode.RESPECTING_FILTER)
+								)
+							)
+						),
+						SealedEntity.class
+					);
+
+					lastPage = ((PaginatedList<SealedEntity>)result.getRecordPage()).getLastPageNumber();
+
+					assertSortedResultIs(
+						originalProductEntities,
+						sealedEntity -> true,
+						result.getRecordData(),
+						Comparator.comparing(PriceContract::priceWithTax),
+						page(currentPage, 3),
+						PriceContentMode.RESPECTING_FILTER,
+						CURRENCY_CZK,
+						null,
+						PRICE_LIST_BASIC
+					);
+				} while (++currentPage <= lastPage);
+
+				return null;
+			}
+		);
+	}
+
 	void assertPricesForSaleAreAsExpected(@Nonnull List<SealedEntity> resultToVerify, @Nonnull PriceContentMode priceContentMode, @Nonnull Currency currency, @Nullable OffsetDateTime validIn, @Nonnull String[] priceLists) {
 		final Set<String> priceListsSet = Arrays.stream(priceLists).collect(Collectors.toSet());
 

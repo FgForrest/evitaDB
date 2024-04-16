@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -154,13 +154,13 @@ public class FilteredPricesSorter implements Sorter {
 		// slice the output and cut appropriate page from it
 		final int pageSize = Math.min(endIndex - startIndex, translatedResult.length - startIndex);
 		int written = 0;
-		for (int i = startIndex; i < pageSize; i++) {
+		for (int i = startIndex; i < startIndex + pageSize; i++) {
 			result[peak + written++] = translatedResult[i].entityPrimaryKey();
 		}
 
 		// if the output is not complete, and we have not found entity PKs
 		final int[] notFoundEntities = priceRecordsLookupResult.getNotFoundEntities();
-		if (translatedResult.length < endIndex && (notFoundEntities == null || notFoundEntities.length > 0)) {
+		if (translatedResult.length < endIndex && (notFoundEntities != null && notFoundEntities.length > 0)) {
 			// pass them to another sorter
 			final int recomputedStartIndex = Math.max(0, startIndex - written);
 			final int recomputedEndIndex = Math.max(0, endIndex - written);
