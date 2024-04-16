@@ -230,7 +230,7 @@ The communication with the evitaDB instance always takes place via the
 Session is a single-threaded communication channel identified by a unique
 [random UUID](https://en.wikipedia.org/wiki/Universally_unique_identifier).
 
-In the web environment it's a good idea to have one session per request, in batch processing it's recommended to keep
+In the web environment, it's a good idea to have one session per request, in batch processing it's recommended to keep
 a single session for an entire batch.
 
 <Note type="warning">
@@ -284,13 +284,6 @@ API request results in any kind of error, the transaction is automatically rolle
 </LS>
 
 <LS to="j,g,r,c">
-
-<Note type="warning">
-Parallel transaction handling hasn't been finalized yet, and is scheduled to be finalized in
-[issue #16](https://github.com/FgForrest/evitaDB/issues/16). Until this issue is resolved, you must ensure that only
-a single client is writing to the catalog in parallel. Other clients may have been reading in parallel using read-only
-sessions, but the writer must be only one.
-</Note>
 
 ### Read-only vs. Read-Write sessions
 
@@ -349,6 +342,11 @@ talk to the master node.
 We recommend to open sessions using <LS to="j">`queryCatalog` / `updateCatalog`</LS>
 <LS to="c">`QueryCatalog` / `UpdateCatalog`</LS> methods that accept a lambda function to execute
 your business logic. This way evitaDB can safely handle the lifecycle management of *sessions* & *transactions*.
+When `updateCatalog` method is used the transaction is automatically opened at the session start and closed at the end
+of the lambda function. If an exception occurs during the lambda execution and is not caught within the lambda itself
+(i.e. it's rethrown out of the lambda scope), the transaction is automatically rolled back. When lambda finishes 
+successfully, the transaction is automatically committed.
+
 This approach is not always acceptable - for example, if your application needs to be integrated into an existing
 framework that only provides a lifecycle callback methods, there is no way to "wrap" the entire business logic in
 the lambda function.
@@ -361,7 +359,7 @@ That's why there is an alternative - not so secure - approach to handling sessio
 </SourceCodeTabs>
 
 <Note type="warning">
-If you use manual *session / transaction* handling, you must ensure that for every scope opening there is
+If you use manual *session* handling, you must ensure that for every scope opening there is
 a corresponding closing (even if an exception occurs during your business logic call).
 </Note>
 

@@ -439,7 +439,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	Stream<DynamicTest> testSingleFileDocumentation() {
 		return this.createTests(
 			Environment.DEMO_SERVER,
-			getRootDirectory().resolve("documentation/user/en/query/requirements/histogram.md"),
+			getRootDirectory().resolve("documentation/user/en/query/requirements/facet.md"),
 			ExampleFilter.values()
 		).stream();
 	}

@@ -60,4 +60,5 @@ jobs:
         fail_on_failure: true
         summary: true
         job_summary: true
-        annotate_notice: true
+        annotate_notice: false
+        update_check: true
