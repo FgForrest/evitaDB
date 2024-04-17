@@ -462,7 +462,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 			(FilteringConstraintTranslator<FilterConstraint>) TRANSLATORS.get(filterConstraint.getClass());
 		isPremiseValid(
 			translator != null,
-			"No translator found for query `" + filterConstraint.getClass() + "`!"
+			"No translator found for constraint `" + filterConstraint.getClass() + "`!"
 		);
 
 		final ProcessingScope<?> theScope = getProcessingScope();

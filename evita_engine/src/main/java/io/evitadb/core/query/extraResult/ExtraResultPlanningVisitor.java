@@ -461,7 +461,7 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 				(RequireConstraintTranslator<RequireConstraint>) TRANSLATORS.get(requireConstraint.getClass());
 			isPremiseValid(
 				translator != null,
-				"No translator found for query `" + requireConstraint.getClass() + "`!"
+				"No translator found for constraint `" + requireConstraint.getClass() + "`!"
 			);
 
 			// if query is a container query

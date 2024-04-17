@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -263,7 +263,7 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 			(OrderingConstraintTranslator<OrderConstraint>) TRANSLATORS.get(orderConstraint.getClass());
 		isPremiseValid(
 			translator != null,
-			"No translator found for query `" + orderConstraint.getClass() + "`!"
+			"No translator found for constraint `" + orderConstraint.getClass() + "`!"
 		);
 
 		// if query is a container query
