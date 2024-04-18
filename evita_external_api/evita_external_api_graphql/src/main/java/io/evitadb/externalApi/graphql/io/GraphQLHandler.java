@@ -118,14 +118,26 @@ public class GraphQLHandler extends EndpointHandler<GraphQLEndpointExchange> {
     }
 
     @Override
+    public void handleRequest(HttpServerExchange serverExchange) {
+        handleRequestWithTracingContext(serverExchange);
+    }
+
+    /**
+     * Process every request with tracing context, so we can classify it in evitaDB.
+     */
+    private void handleRequestWithTracingContext(@Nonnull HttpServerExchange serverExchange) {
+        this.tracingContext.executeWithinBlock(
+            "GraphQL",
+            serverExchange,
+            () -> super.handleRequest(serverExchange)
+        );
+    }
+
+    @Override
     @Nonnull
     protected EndpointResponse doHandleRequest(@Nonnull GraphQLEndpointExchange exchange) {
         final GraphQLRequest graphQLRequest = parseRequestBody(exchange, GraphQLRequest.class);
-        final GraphQLResponse<?> graphQLResponse = tracingContext.executeWithinBlock(
-            "GraphQL",
-            exchange.serverExchange(),
-            () -> executeRequest(graphQLRequest)
-        );
+        final GraphQLResponse<?> graphQLResponse = executeRequest(graphQLRequest);
         return new SuccessEndpointResponse(graphQLResponse);
     }
 
