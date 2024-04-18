@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,6 +24,8 @@
 package io.evitadb.core.query.sort.attribute.translator;
 
 import io.evitadb.api.query.OrderConstraint;
+import io.evitadb.api.query.order.EntityPrimaryKeyNatural;
+import io.evitadb.api.query.order.EntityProperty;
 import io.evitadb.api.query.order.ReferenceProperty;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -39,6 +41,7 @@ import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.GlobalEntityIndex;
+import io.evitadb.index.Index;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.utils.ArrayUtils;
 
@@ -75,7 +78,7 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 		boolean referencedEntityHierarchical
 	) {
 		final EntityIndexKey entityIndexKey = new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, referenceName);
-		final Optional<ReferencedTypeEntityIndex> referencedEntityTypeIndex = orderByVisitor.getIndex(entityIndexKey);
+		final Optional<Index<EntityIndexKey>> referencedEntityTypeIndex = orderByVisitor.getIndex(entityIndexKey);
 
 		final Comparator<EntityIndex> indexComparator = referencedEntityHierarchical ?
 			orderByVisitor.getGlobalEntityIndexIfExists(referenceSchema.getReferencedEntityType())
@@ -83,7 +86,7 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 				.orElse(DEFAULT_COMPARATOR) : DEFAULT_COMPARATOR;
 
 		return referencedEntityTypeIndex.map(
-				it -> it.getAllPrimaryKeys()
+				it -> ((ReferencedTypeEntityIndex)it).getAllPrimaryKeys()
 					.stream()
 					.mapToObj(
 						refPk -> orderByVisitor.getIndex(
@@ -165,12 +168,21 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 
 		orderByVisitor.executeInContext(
 			referenceIndexes,
-			referenceSchema.getReferencedEntityType(),
+			referenceSchema,
 			null,
 			orderByVisitor.getProcessingScope().withReferenceSchemaAccessor(referenceName),
 			new EntityReferenceAttributeExtractor(referenceName),
 			() -> {
 				for (OrderConstraint innerConstraint : orderConstraint.getChildren()) {
+					// explicit support for `entityProperty(entityPrimaryKeyNatural())` - other variants
+					// of `entityProperty` doesn't make sense in this context
+					if (innerConstraint instanceof EntityProperty entityProperty) {
+						final OrderConstraint[] childrenConstraints = entityProperty.getChildren();
+						if (childrenConstraints.length == 1 && childrenConstraints[0] instanceof EntityPrimaryKeyNatural primaryKeyNatural) {
+							primaryKeyNatural.accept(orderByVisitor);
+							continue;
+						}
+					}
 					innerConstraint.accept(orderByVisitor);
 				}
 				return null;
