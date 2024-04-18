@@ -45,7 +45,7 @@ public class RestHandlingContext {
 	@Nonnull @Getter protected final ObjectMapper objectMapper;
 
 	@Nonnull @Getter protected final Evita evita;
-	@Nonnull @Getter protected final ExternalApiTracingContext<Object> clientContext;
+	@Nonnull @Getter protected final ExternalApiTracingContext<Object> tracingContext;
 
 	@Nonnull @Getter private final OpenAPI openApi;
 	@Nonnull @Getter private final Map<String, Class<? extends Enum<?>>> enumMapping;
@@ -61,7 +61,7 @@ public class RestHandlingContext {
 	                           boolean localized) {
 		this.objectMapper = objectMapper;
 		this.evita = evita;
-		this.clientContext = ExternalApiTracingContextProvider.getContext();
+		this.tracingContext = ExternalApiTracingContextProvider.getContext();
 		this.openApi = openApi;
 		this.enumMapping = enumMapping;
 		this.endpointOperation = endpointOperation;

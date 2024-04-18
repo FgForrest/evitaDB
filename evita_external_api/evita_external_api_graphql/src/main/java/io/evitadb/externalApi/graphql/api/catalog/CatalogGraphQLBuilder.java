@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.graphql.api.catalog;
 
 import graphql.GraphQL;
+import graphql.execution.instrumentation.ChainedInstrumentation;
 import graphql.execution.instrumentation.Instrumentation;
 import graphql.schema.GraphQLSchema;
 import io.evitadb.api.CatalogContract;
@@ -52,7 +53,10 @@ public class CatalogGraphQLBuilder implements GraphQLBuilder {
 
     @Override
     public GraphQL build(@Nonnull GraphQLConfig config) {
-        final Instrumentation instrumentation = new EvitaSessionManagingInstrumentation(evita, catalog.getName());
+        final Instrumentation instrumentation = new ChainedInstrumentation(
+            new OperationTracingInstrumentation(),
+            new EvitaSessionManagingInstrumentation(evita, catalog.getName())
+        );
         final EvitaDataFetcherExceptionHandler dataFetcherExceptionHandler = new EvitaDataFetcherExceptionHandler();
 
         return GraphQL.newGraphQL(graphQLSchema)

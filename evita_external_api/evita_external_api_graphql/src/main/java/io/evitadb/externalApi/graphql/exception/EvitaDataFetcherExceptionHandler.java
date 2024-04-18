@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,7 +26,9 @@ package io.evitadb.externalApi.graphql.exception;
 import graphql.execution.DataFetcherExceptionHandler;
 import graphql.execution.DataFetcherExceptionHandlerParameters;
 import graphql.execution.DataFetcherExceptionHandlerResult;
+import io.evitadb.api.trace.TracingBlockReference;
 import io.evitadb.exception.EvitaError;
+import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -68,6 +70,12 @@ public class EvitaDataFetcherExceptionHandler implements DataFetcherExceptionHan
 				graphQLInternalError
 			);
 		}
+
+		final TracingBlockReference operationBlockReference = handlerParameters
+			.getDataFetchingEnvironment()
+			.getGraphQlContext()
+			.get(GraphQLContextKey.OPERATION_TRACING_BLOCK);
+		operationBlockReference.setError((Throwable) evitaError);
 
 		final EvitaGraphQLError error = new EvitaGraphQLError(
 			evitaError.getPublicMessage(),
