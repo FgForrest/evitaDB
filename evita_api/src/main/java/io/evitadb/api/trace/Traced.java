@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,25 +21,22 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.api.catalog;
+package io.evitadb.api.trace;
 
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
-
-import javax.annotation.Nonnull;
+import java.lang.annotation.Documented;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 
 /**
- * List of possible keys (for possible values) for GraphQL query execution context.
+ * Methods annotated with this annotation MIGHT be traced by an observability measures. It doesn't automatically mean
+ * that the method will be traced, but it is a hint for the observability system to consider tracing this method.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@Getter
-@RequiredArgsConstructor
-public enum GraphQLContextKey {
-
-    EVITA_SESSION("evitaSession"),
-    OPERATION_TRACING_BLOCK("operationTracingBlock");
-
-    @Nonnull
-    private final String key;
+@Documented
+@Retention(RetentionPolicy.RUNTIME)
+@Target({ElementType.METHOD})
+public @interface Traced {
 }

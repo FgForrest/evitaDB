@@ -52,6 +52,35 @@ public interface TracingContext {
 	TracingContextReference<?> getCurrentContext();
 
 	/**
+	 * Sets the passed task name and attributes to the trace block and activates it. The block is then returned and
+	 * client must handle its closing after client code is executed.
+	 */
+	@Nonnull
+	default TracingBlockReference createAndActivateBlock(@Nonnull String taskName, @Nullable SpanAttribute... attributes) {
+		return new DefaultTracingBlockReference();
+	}
+
+	/**
+	 * Sets the passed task name and attributes to the trace block and activates it. The block is then returned and
+	 * client must handle its closing after client code is executed. When the block is closed,
+	 * the attributes will be set to the trace. The attributes may take advantage of the data computed in the lambda
+	 * itself.
+	 */
+	@Nonnull
+	default TracingBlockReference createAndActivateBlock(@Nonnull String taskName, @Nullable Supplier<SpanAttribute[]> attributes) {
+		return new DefaultTracingBlockReference();
+	}
+
+	/**
+	 * Sets the passed task name to the trace block and activates it. The block is then returned and
+	 * client must handle its closing after client code is executed.
+	 */
+	@Nonnull
+	default TracingBlockReference createAndActivateBlock(@Nonnull String taskName) {
+		return new DefaultTracingBlockReference();
+	}
+
+	/**
 	 * Sets the passed task name and attributes to the trace BEFORE the lambda is executed. Within the method,
 	 * the lambda with passed logic will be traced and properly executed.
 	 */
@@ -94,6 +123,35 @@ public interface TracingContext {
 	}
 
 	/**
+	 * Sets the passed task name and attributes to the trace block and activates it. The block is then returned and
+	 * client must handle its closing after client code is executed.
+	 */
+	@Nonnull
+	default TracingBlockReference createAndActivateBlockWithParentContext(@Nonnull TracingContextReference<?> contextHolderToUse, @Nonnull String taskName, @Nullable SpanAttribute... attributes) {
+		return new DefaultTracingBlockReference();
+	}
+
+	/**
+	 * Sets the passed task name and attributes to the trace block and activates it. The block is then returned and
+	 * client must handle its closing after client code is executed. When the block is closed,
+	 * the attributes will be set to the trace. The attributes may take advantage of the data computed in the lambda
+	 * itself.
+	 */
+	@Nonnull
+	default TracingBlockReference createAndActivateBlockWithParentContext(@Nonnull TracingContextReference<?> contextHolderToUse, @Nonnull String taskName, @Nullable Supplier<SpanAttribute[]> attributes) {
+		return new DefaultTracingBlockReference();
+	}
+
+	/**
+	 * Sets the passed task name and attributes to the trace block and activates it. The block is then returned and
+	 * client must handle its closing after client code is executed.
+	 */
+	@Nonnull
+	default TracingBlockReference createAndActivateBlockWithParentContext(@Nonnull TracingContextReference<?> contextHolderToUse, @Nonnull String taskName) {
+		return new DefaultTracingBlockReference();
+	}
+
+	/**
 	 * Sets the passed task name and attributes to the trace BEFORE the lambda is executed. Within the method,
 	 * the lambda with passed logic will be traced and properly executed.
 	 */
@@ -133,6 +191,35 @@ public interface TracingContext {
 	 */
 	default <T> T executeWithinBlockWithParentContext(@Nonnull TracingContextReference<?> contextHolderToUse, @Nonnull String taskName, @Nonnull Supplier<T> lambda) {
 		return lambda.get();
+	}
+
+	/**
+	 * Sets the passed task name and attributes to the trace block and activates it. The block is then returned and
+	 * client must handle its closing after client code is executed.
+	 */
+	@Nullable
+	default TracingBlockReference createAndActivateBlockIfParentContextAvailable(@Nonnull String taskName, @Nullable SpanAttribute... attributes) {
+		return null;
+	}
+
+	/**
+	 * Sets the passed task name and attributes to the trace block and activates it. The block is then returned and
+	 * client must handle its closing after client code is executed. When the block is closed,
+	 * the attributes will be set to the trace. The attributes may take advantage of the data computed in the lambda
+	 * itself.
+	 */
+	@Nullable
+	default TracingBlockReference createAndActivateBlockIfParentContextAvailable(@Nonnull String taskName, @Nullable Supplier<SpanAttribute[]> attributes) {
+		return null;
+	}
+
+	/**
+	 * Sets the passed task name and attributes to the trace block and activates it. The block is then returned and
+	 * client must handle its closing after client code is executed.
+	 */
+	@Nullable
+	default TracingBlockReference createAndActivateBlockIfParentContextAvailable(@Nonnull String taskName) {
+		return null;
 	}
 
 	/**

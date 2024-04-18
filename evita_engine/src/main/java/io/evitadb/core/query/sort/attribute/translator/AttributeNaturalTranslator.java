@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -132,14 +132,10 @@ public class AttributeNaturalTranslator
 		// if prefetch happens we need to prefetch attributes so that the attribute comparator can work
 		orderByVisitor.addRequirementToPrefetch(attributeSchemaEntityAccessor.getRequirements());
 
-		final PreSortedRecordsSorter preSortedRecordsSorter = new PreSortedRecordsSorter(
-			processingScope.entityType(), sortedRecordsSupplier
-		);
-
 		return Stream.of(
-				new PrefetchedRecordsSorter(entityComparator),
-				preSortedRecordsSorter
-			);
+			new PrefetchedRecordsSorter(entityComparator),
+			new PreSortedRecordsSorter(sortedRecordsSupplier)
+		);
 	}
 
 	@Override

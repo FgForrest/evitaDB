@@ -48,7 +48,7 @@
         "cs",
         "en"
       ],
-      "priceInnerRecordHandling": "FIRST_OCCURRENCE",
+      "priceInnerRecordHandling": "LOWEST_PRICE",
       "attributes": {
         "global": {
           "code": "apple-ipad-10-2-10th-generation-2022"
@@ -242,7 +242,8 @@
         "priceWithTax": "499.0",
         "taxRate": "21.0",
         "validity": null
-      }
+      },
+      "multiplePricesForSaleAvailable": true
     },
     {
       "primaryKey": 103988,
@@ -252,7 +253,7 @@
         "cs",
         "en"
       ],
-      "priceInnerRecordHandling": "FIRST_OCCURRENCE",
+      "priceInnerRecordHandling": "LOWEST_PRICE",
       "attributes": {
         "global": {
           "code": "apple-ipad-10-2-9th-generation-2021"
@@ -292,7 +293,8 @@
         "priceWithTax": "462.0",
         "taxRate": "21.0",
         "validity": null
-      }
+      },
+      "multiplePricesForSaleAvailable": true
     },
     {
       "primaryKey": 104008,
@@ -301,7 +303,7 @@
       "allLocales": [
         "en"
       ],
-      "priceInnerRecordHandling": "FIRST_OCCURRENCE",
+      "priceInnerRecordHandling": "LOWEST_PRICE",
       "attributes": {
         "global": {
           "code": "apple-ipad-air-5g-5th-generation-2022"
@@ -539,7 +541,8 @@
         "priceWithTax": "760.0",
         "taxRate": "21.0",
         "validity": null
-      }
+      },
+      "multiplePricesForSaleAvailable": true
     },
     {
       "primaryKey": 104084,
@@ -548,7 +551,7 @@
       "allLocales": [
         "en"
       ],
-      "priceInnerRecordHandling": "FIRST_OCCURRENCE",
+      "priceInnerRecordHandling": "LOWEST_PRICE",
       "attributes": {
         "global": {
           "code": "apple-ipad-mini-6th-generation-2021"
@@ -742,7 +745,8 @@
         "priceWithTax": "650.0",
         "taxRate": "21.0",
         "validity": null
-      }
+      },
+      "multiplePricesForSaleAvailable": true
     },
     {
       "primaryKey": 104171,
@@ -751,7 +755,7 @@
       "allLocales": [
         "en"
       ],
-      "priceInnerRecordHandling": "FIRST_OCCURRENCE",
+      "priceInnerRecordHandling": "LOWEST_PRICE",
       "attributes": {
         "global": {
           "code": "apple-ipad-pro-11-4th-generation-2022"
@@ -989,7 +993,8 @@
         "priceWithTax": "750.0",
         "taxRate": "21.0",
         "validity": null
-      }
+      },
+      "multiplePricesForSaleAvailable": true
     },
     {
       "primaryKey": 104227,
@@ -998,7 +1003,7 @@
       "allLocales": [
         "en"
       ],
-      "priceInnerRecordHandling": "FIRST_OCCURRENCE",
+      "priceInnerRecordHandling": "LOWEST_PRICE",
       "attributes": {
         "global": {
           "code": "apple-ipad-pro-12-9-6th-generation-2022"
@@ -1236,7 +1241,8 @@
         "priceWithTax": "1025.0",
         "taxRate": "21.0",
         "validity": null
-      }
+      },
+      "multiplePricesForSaleAvailable": true
     },
     {
       "primaryKey": 104305,
@@ -1245,7 +1251,7 @@
       "allLocales": [
         "en"
       ],
-      "priceInnerRecordHandling": "FIRST_OCCURRENCE",
+      "priceInnerRecordHandling": "LOWEST_PRICE",
       "attributes": {
         "global": {
           "code": "apple-ipad-pro-5g-12-9-5th-generation-2021"
@@ -1483,7 +1489,8 @@
         "priceWithTax": "650.0",
         "taxRate": "21.0",
         "validity": null
-      }
+      },
+      "multiplePricesForSaleAvailable": true
     },
     {
       "primaryKey": 104368,
@@ -1492,7 +1499,7 @@
       "allLocales": [
         "en"
       ],
-      "priceInnerRecordHandling": "FIRST_OCCURRENCE",
+      "priceInnerRecordHandling": "LOWEST_PRICE",
       "attributes": {
         "global": {
           "code": "apple-ipad-pro-11-2nd-generation-2020"
@@ -1598,7 +1605,8 @@
         "priceWithTax": "670.0",
         "taxRate": "21.0",
         "validity": null
-      }
+      },
+      "multiplePricesForSaleAvailable": true
     },
     {
       "primaryKey": 104392,
@@ -1607,7 +1615,7 @@
       "allLocales": [
         "en"
       ],
-      "priceInnerRecordHandling": "FIRST_OCCURRENCE",
+      "priceInnerRecordHandling": "LOWEST_PRICE",
       "attributes": {
         "global": {
           "code": "apple-ipad-pro-11-3rd-generation-2021"
@@ -1845,7 +1853,8 @@
         "priceWithTax": "940.0",
         "taxRate": "21.0",
         "validity": null
-      }
+      },
+      "multiplePricesForSaleAvailable": true
     },
     {
       "primaryKey": 104423,
@@ -1854,7 +1863,7 @@
       "allLocales": [
         "en"
       ],
-      "priceInnerRecordHandling": "FIRST_OCCURRENCE",
+      "priceInnerRecordHandling": "LOWEST_PRICE",
       "attributes": {
         "global": {
           "code": "apple-ipad-pro-12-9-4th-generation-2020"
@@ -1916,7 +1925,8 @@
         "priceWithTax": "739.0",
         "taxRate": "21.0",
         "validity": null
-      }
+      },
+      "multiplePricesForSaleAvailable": true
     },
     {
       "primaryKey": 104435,
@@ -2229,7 +2239,7 @@
       "allLocales": [
         "en"
       ],
-      "priceInnerRecordHandling": "FIRST_OCCURRENCE",
+      "priceInnerRecordHandling": "LOWEST_PRICE",
       "attributes": {
         "global": {
           "code": "huawei-honor-pad-6-10-1"
@@ -2269,7 +2279,8 @@
         "priceWithTax": "385.0",
         "taxRate": "21.0",
         "validity": null
-      }
+      },
+      "multiplePricesForSaleAvailable": true
     }
   ],
   "empty": false,

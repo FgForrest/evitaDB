@@ -471,7 +471,7 @@
         "allLocales": [
           "en"
         ],
-        "priceInnerRecordHandling": "FIRST_OCCURRENCE",
+        "priceInnerRecordHandling": "LOWEST_PRICE",
         "prices": [
           {
             "priceId": 7683,
@@ -605,7 +605,8 @@
           "priceWithTax": "4539.0",
           "taxRate": "21.0",
           "validity": null
-        }
+        },
+        "multiplePricesForSaleAvailable": true
       },
       {
         "primaryKey": 111157,

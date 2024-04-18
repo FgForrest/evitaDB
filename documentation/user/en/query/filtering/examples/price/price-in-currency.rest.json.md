@@ -150,7 +150,7 @@
         "cs",
         "en"
       ],
-      "priceInnerRecordHandling": "FIRST_OCCURRENCE",
+      "priceInnerRecordHandling": "LOWEST_PRICE",
       "attributes": {
         "global": {
           "code": "apple-ipad-10-2-10th-generation-2022"
@@ -1999,7 +1999,7 @@
         "cs",
         "en"
       ],
-      "priceInnerRecordHandling": "FIRST_OCCURRENCE",
+      "priceInnerRecordHandling": "LOWEST_PRICE",
       "attributes": {
         "global": {
           "code": "apple-ipad-10-2-9th-generation-2021"
@@ -2208,7 +2208,7 @@
       "allLocales": [
         "en"
       ],
-      "priceInnerRecordHandling": "FIRST_OCCURRENCE",
+      "priceInnerRecordHandling": "LOWEST_PRICE",
       "attributes": {
         "global": {
           "code": "apple-ipad-air-5g-5th-generation-2022"
@@ -4505,7 +4505,7 @@
       "allLocales": [
         "en"
       ],
-      "priceInnerRecordHandling": "FIRST_OCCURRENCE",
+      "priceInnerRecordHandling": "LOWEST_PRICE",
       "attributes": {
         "global": {
           "code": "apple-ipad-mini-6th-generation-2021"
@@ -6405,7 +6405,7 @@
       "allLocales": [
         "en"
       ],
-      "priceInnerRecordHandling": "FIRST_OCCURRENCE",
+      "priceInnerRecordHandling": "LOWEST_PRICE",
       "attributes": {
         "global": {
           "code": "apple-ipad-pro-11-4th-generation-2022"
@@ -8567,7 +8567,7 @@
       "allLocales": [
         "en"
       ],
-      "priceInnerRecordHandling": "FIRST_OCCURRENCE",
+      "priceInnerRecordHandling": "LOWEST_PRICE",
       "attributes": {
         "global": {
           "code": "apple-ipad-pro-12-9-6th-generation-2022"
@@ -10724,7 +10724,7 @@
       "allLocales": [
         "en"
       ],
-      "priceInnerRecordHandling": "FIRST_OCCURRENCE",
+      "priceInnerRecordHandling": "LOWEST_PRICE",
       "attributes": {
         "global": {
           "code": "apple-ipad-pro-5g-12-9-5th-generation-2021"
@@ -13035,7 +13035,7 @@
       "allLocales": [
         "en"
       ],
-      "priceInnerRecordHandling": "FIRST_OCCURRENCE",
+      "priceInnerRecordHandling": "LOWEST_PRICE",
       "attributes": {
         "global": {
           "code": "apple-ipad-pro-11-2nd-generation-2020"
@@ -13999,7 +13999,7 @@
       "allLocales": [
         "en"
       ],
-      "priceInnerRecordHandling": "FIRST_OCCURRENCE",
+      "priceInnerRecordHandling": "LOWEST_PRICE",
       "attributes": {
         "global": {
           "code": "apple-ipad-pro-11-3rd-generation-2021"
@@ -16172,7 +16172,7 @@
       "allLocales": [
         "en"
       ],
-      "priceInnerRecordHandling": "FIRST_OCCURRENCE",
+      "priceInnerRecordHandling": "LOWEST_PRICE",
       "attributes": {
         "global": {
           "code": "apple-ipad-pro-12-9-4th-generation-2020"
@@ -17644,7 +17644,7 @@
       "allLocales": [
         "en"
       ],
-      "priceInnerRecordHandling": "FIRST_OCCURRENCE",
+      "priceInnerRecordHandling": "LOWEST_PRICE",
       "attributes": {
         "global": {
           "code": "huawei-honor-pad-6-10-1"

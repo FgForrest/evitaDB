@@ -80,12 +80,9 @@
 		Databáze otevírá standardně všechny typy webových API na těchto adresách a portech:
 	</p>
 	<ul>
-
-		<li>GraphQL: <a href="https://host:5555/gql/">https://host:5555/gql/</a>
-
-		<li>REST: <a href="https://host:5555/rest/">https://host:5555/rest/</a>
-
-		<li>gRPC: <a href="https://host:5556/">https://host:5556/</a>
+		<li>GraphQL: <em>https://host:5555/gql/</em></li>
+		<li>REST: <em>https://host:5555/rest/</em></li>
+		<li>gRPC: <em>https://host:5556/</em></li>
 		</li>
 	</ul>
 	<p>
@@ -150,7 +147,7 @@
 	</p>
 	<p>
 		<strong><em>Poznámka: fungování GraphQL API můžete snadno vyzkoušet přes náš <a
-				href="https://demo.evitadb.io/lab?demoSnippetRequest=eyJicmFuY2giOiJkZXYiLCJwYXRoIjoiZG9jdW1lbnRhdGlvbi91c2VyL2VuL3NvbHZlL2V4YW1wbGVzL3JvdXRpbmcvZ2V0LWJ5LWdsb2JhbGx5LXVuaXF1ZS1hdHRyaWJ1dGUuZ3JhcGhxbCJ9">evitaLab</a>
+				href="https://demo.evitadb.io/lab?demoSnippetRequest=eyJicmFuY2giOiJkZXYiLCJwYXRoIjoiZG9jdW1lbnRhdGlvbi91c2VyL2VuL3NvbHZlL2V4YW1wbGVzL3JvdXRpbmcvZ2V0LWJ5LWdsb2JhbGx5LXVuaXF1ZS1sb2NhbGUtc3BlY2lmaWMtYXR0cmlidXRlLmdyYXBocWwifQ==">evitaLab</a>
 			nebo libovolnou instalaci <a href="https://graphql-web-client.vercel.app/">GraphQL klienta</a> na webu s
 			použitím URL na naši demo instanci: <a href="https://demo.evitadb.io:5555/gql/evita/">https://demo.evitadb.io:5555/gql/evita/</a>
 			a dalších výše zmíněných URL.</em></strong>
@@ -355,6 +352,10 @@
 }
 </pre>
 
+	<p>
+		<em><a href="https://demo.evitadb.io/lab?demoSnippetRequest=eyJicmFuY2giOiJkZXYiLCJwYXRoIjoiZG9jdW1lbnRhdGlvbi9wdWJsaXNoaW5nL3Jvb3QuY3ovMDQtd2ViLUFQSXMvZ2V0UHJvZHVjdC5ncmFwaHFsIn0=">Vyzkoušejte
+			si dotaz v evitaLab</a></em>
+	</p>
 
 	<p>
 		V příkladu je naznačen přístup k většině součástí produktové entity v našem demonstračním datasetu.
@@ -468,7 +469,7 @@
 
 	<pre class="prettyprint">mutation {
   upsertProduct(
-    primaryKey: 1
+    primaryKey: 1000000
     entityExistence: MUST_NOT_EXIST
     mutations: [
       {
@@ -529,6 +530,10 @@
 }
 </pre>
 
+	<p>
+		<em>Tento dotaz si ve sdíleném evitaLab prostředí nevyzkoušíte, protože je nastaveno do režimu pouze pro čtení.
+		Můete si jej však vyzkoušet, pokud si zprovozníte evitaDB lokálně s naším testovací datovou sadou.</em>
+	</p>
 
 	<p>
 		Pomocí pole `entityExistence` je možné specifikovat, zda klient očekává, že entita bude existovat na straně

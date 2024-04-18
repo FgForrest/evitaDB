@@ -90,6 +90,26 @@ public class EntityByReferenceAttributeOrderingFunctionalTest {
 	private static final int SEED = 40;
 
 	@Nonnull
+	private static Comparator<SealedEntity> createBrandReferencePrimaryKeyComparator() {
+		return (sealedEntityA, sealedEntityB) -> {
+			final ReferenceContract o1 = sealedEntityA.getReferences(Entities.BRAND).stream()
+				.findFirst()
+				.orElse(null);
+			final ReferenceContract o2 = sealedEntityB.getReferences(Entities.BRAND).stream()
+				.findFirst()
+				.orElse(null);
+			if (o1 == null && o2 != null) {
+				return 1;
+			} else if (o2 == null && o1 != null) {
+				return -1;
+			} else if (o1 == null) {
+				return Integer.compare(sealedEntityA.getPrimaryKey(), sealedEntityB.getPrimaryKey());
+			} else {
+				return Integer.compare(o2.getReferencedPrimaryKey(), o1.getReferencedPrimaryKey());
+			}
+		};
+	}
+
 	private static Comparator<SealedEntity> createBrandReferenceComparator() {
 		return (sealedEntityA, sealedEntityB) -> {
 			final ReferenceContract o1 = sealedEntityA.getReferences(Entities.BRAND).stream()
@@ -243,6 +263,78 @@ public class EntityByReferenceAttributeOrderingFunctionalTest {
 				tuple("categoryHierarchy", dataGenerator.getHierarchy(Entities.CATEGORY))
 			);
 		});
+	}
+
+	@DisplayName("Should return entities sorted by primary key of referenced entity")
+	@UseDataSet(HUNDRED_PRODUCTS_WITH_REFERENCES)
+	@Test
+	void shouldSortEntitiesAccordingToPrimaryKeyOnReferencedEntity(Evita evita, List<SealedEntity> originalProductEntities) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> resultA = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						orderBy(
+							referenceProperty(
+								Entities.BRAND,
+								entityProperty(
+									entityPrimaryKeyNatural(DESC)
+								)
+							)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+
+				assertSortedResultIs(
+					originalProductEntities,
+					resultA.getRecordData(),
+					sealedEntity -> true,
+					createBrandReferencePrimaryKeyComparator()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return entities sorted by primary key of referenced entity (directly)")
+	@UseDataSet(HUNDRED_PRODUCTS_WITH_REFERENCES)
+	@Test
+	void shouldSortEntitiesAccordingToPrimaryKeyOnReferencedEntityDirectly(Evita evita, List<SealedEntity> originalProductEntities) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> resultA = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						orderBy(
+							referenceProperty(
+								Entities.BRAND,
+								entityPrimaryKeyNatural(DESC)
+							)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+
+				assertSortedResultIs(
+					originalProductEntities,
+					resultA.getRecordData(),
+					sealedEntity -> true,
+					createBrandReferencePrimaryKeyComparator()
+				);
+				return null;
+			}
+		);
 	}
 
 	@DisplayName("Should return entities sorted by attribute defined on referenced entity")

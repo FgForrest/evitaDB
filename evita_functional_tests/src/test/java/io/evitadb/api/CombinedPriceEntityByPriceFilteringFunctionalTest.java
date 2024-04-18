@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -294,5 +294,13 @@ public class CombinedPriceEntityByPriceFilteringFunctionalTest extends EntityByP
 	@Override
 	void shouldReturnProductsHavingPriceInCurrencyAndPriceListInIntervalWithTaxOrderByPriceAscendingWithoutExplicitAnd(Evita evita, List<SealedEntity> originalProductEntities) {
 		super.shouldReturnProductsHavingPriceInCurrencyAndPriceListInIntervalWithTaxOrderByPriceAscendingWithoutExplicitAnd(evita, originalProductEntities);
+	}
+
+	@DisplayName("Should correctly traverse through all pages or results")
+	@UseDataSet(HUNDRED_PRODUCTS_WITH_COMBINED_PRICES)
+	@Test
+	@Override
+	void shouldReturnCorrectlyTraverseThroughAllPagesOfResults(Evita evita, List<SealedEntity> originalProductEntities) {
+		super.shouldReturnCorrectlyTraverseThroughAllPagesOfResults(evita, originalProductEntities);
 	}
 }

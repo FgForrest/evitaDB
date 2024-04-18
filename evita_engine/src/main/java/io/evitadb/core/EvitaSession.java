@@ -73,6 +73,7 @@ import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
+import io.evitadb.api.trace.Traced;
 import io.evitadb.core.exception.CatalogCorruptedException;
 import io.evitadb.core.transaction.TransactionWalFinalizer;
 import io.evitadb.exception.EvitaInternalError;
@@ -279,6 +280,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		return id;
 	}
 
+	@Traced
 	@Nonnull
 	@Override
 	public SealedCatalogSchema getCatalogSchema() {
@@ -304,6 +306,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		return closedFuture == null || beingClosed;
 	}
 
+	@Traced
 	@Override
 	public boolean goLiveAndClose() {
 		final CatalogContract theCatalog = getCatalog();
@@ -371,6 +374,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		return this.closedFuture;
 	}
 
+	@Traced
 	@Nonnull
 	@Override
 	public EntitySchemaBuilder defineEntitySchema(@Nonnull String entityType) {
@@ -386,6 +390,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		);
 	}
 
+	@Traced
 	@Nonnull
 	@Override
 	public SealedEntitySchema defineEntitySchemaFromModelClass(@Nonnull Class<?> modelClass) {
@@ -398,6 +403,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		});
 	}
 
+	@Traced
 	@Nonnull
 	@Override
 	public SealedEntitySchema defineEntitySchemaFromModelClass(@Nonnull Class<?> modelClass, @Nonnull SchemaPostProcessor postProcessor) {
@@ -413,6 +419,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		});
 	}
 
+	@Traced
 	@Override
 	@Nonnull
 	public Optional<SealedEntitySchema> getEntitySchema(@Nonnull String entityType) {
@@ -421,6 +428,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		return collection.map(EntityCollectionContract::getSchema);
 	}
 
+	@Traced
 	@Nonnull
 	@Override
 	public Optional<SealedEntitySchema> getEntitySchema(@Nonnull Class<?> modelClass) throws EntityClassInvalidException {
@@ -430,6 +438,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		);
 	}
 
+	@Traced
 	@Nonnull
 	@Override
 	public SealedEntitySchema getEntitySchemaOrThrow(@Nonnull String entityType) {
@@ -437,6 +446,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		return getCatalog().getCollectionForEntityOrThrowException(entityType).getSchema();
 	}
 
+	@Traced
 	@Nonnull
 	@Override
 	public SealedEntitySchema getEntitySchemaOrThrow(@Nonnull Class<?> modelClass) throws CollectionNotFoundException, EntityClassInvalidException {
@@ -487,6 +497,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		return query(request);
 	}
 
+	@Traced
 	@Nonnull
 	@Override
 	public Optional<SealedEntity> getEntity(@Nonnull String entityType, int primaryKey, EntityContentRequire... require) {
@@ -511,6 +522,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		);
 	}
 
+	@Traced
 	@Nonnull
 	@Override
 	public <T extends Serializable> Optional<T> getEntity(@Nonnull Class<T> expectedType, int primaryKey, EntityContentRequire... require) {
@@ -537,6 +549,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		).map(it -> this.createEntityProxy(expectedType, it));
 	}
 
+	@Traced
 	@Nonnull
 	@Override
 	public <T extends Serializable> T enrichEntity(@Nonnull T partiallyLoadedEntity, EntityContentRequire... require) {
@@ -577,6 +590,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		}
 	}
 
+	@Traced
 	@Nonnull
 	@Override
 	public <T extends Serializable> T enrichOrLimitEntity(@Nonnull T partiallyLoadedEntity, EntityContentRequire... require) {
@@ -621,6 +635,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		}
 	}
 
+	@Traced
 	@Override
 	public int updateCatalogSchema(@Nonnull LocalCatalogSchemaMutation... schemaMutation) throws SchemaAlteringException {
 		assertActive();
@@ -640,6 +655,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		});
 	}
 
+	@Traced
 	@Nonnull
 	@Override
 	public SealedCatalogSchema updateAndFetchCatalogSchema(@Nonnull LocalCatalogSchemaMutation... schemaMutation) throws SchemaAlteringException {
@@ -653,11 +669,13 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		});
 	}
 
+	@Traced
 	@Override
 	public int updateEntitySchema(@Nonnull ModifyEntitySchemaMutation schemaMutation) throws SchemaAlteringException {
 		return updateAndFetchEntitySchema(schemaMutation).version();
 	}
 
+	@Traced
 	@Nonnull
 	@Override
 	public SealedEntitySchema updateAndFetchEntitySchema(@Nonnull ModifyEntitySchemaMutation schemaMutation) throws SchemaAlteringException {
@@ -668,12 +686,14 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		});
 	}
 
+	@Traced
 	@Override
 	public boolean deleteCollection(@Nonnull String entityType) {
 		assertActive();
 		return executeInTransactionIfPossible(session -> getCatalog().deleteCollectionOfEntity(entityType, session));
 	}
 
+	@Traced
 	@Override
 	public boolean deleteCollection(@Nonnull Class<?> modelClass) throws EntityClassInvalidException {
 		return deleteCollection(
@@ -682,18 +702,21 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		);
 	}
 
+	@Traced
 	@Override
 	public boolean renameCollection(@Nonnull String entityType, @Nonnull String newName) {
 		assertActive();
 		return executeInTransactionIfPossible(session -> getCatalog().renameCollectionOfEntity(entityType, newName, session));
 	}
 
+	@Traced
 	@Override
 	public boolean replaceCollection(@Nonnull String entityTypeToBeReplaced, @Nonnull String entityTypeToBeReplacedWith) {
 		assertActive();
 		return executeInTransactionIfPossible(session -> getCatalog().replaceCollectionOfEntity(entityTypeToBeReplaced, entityTypeToBeReplacedWith, session));
 	}
 
+	@Traced
 	@Override
 	public int getEntityCollectionSize(@Nonnull String entityType) {
 		assertActive();
@@ -747,6 +770,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		);
 	}
 
+	@Traced
 	@Nonnull
 	@Override
 	public <S extends Serializable> EntityReference upsertEntity(@Nonnull S customEntity) {
@@ -781,6 +805,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		}
 	}
 
+	@Traced
 	@Nonnull
 	@Override
 	public <S extends Serializable> List<EntityReference> upsertEntityDeeply(@Nonnull S customEntity) {
@@ -839,6 +864,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		}
 	}
 
+	@Traced
 	@Nonnull
 	@Override
 	public EntityReference upsertEntity(@Nonnull EntityMutation entityMutation) {
@@ -849,6 +875,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		});
 	}
 
+	@Traced
 	@Nonnull
 	@Override
 	public SealedEntity upsertAndFetchEntity(@Nonnull EntityBuilder entityBuilder, EntityContentRequire... require) {
@@ -860,6 +887,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 			);
 	}
 
+	@Traced
 	@Nonnull
 	@Override
 	public SealedEntity upsertAndFetchEntity(@Nonnull EntityMutation entityMutation, EntityContentRequire... require) {
@@ -888,6 +916,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		});
 	}
 
+	@Traced
 	@Override
 	public boolean deleteEntity(@Nonnull String entityType, int primaryKey) {
 		assertActive();
@@ -897,6 +926,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		});
 	}
 
+	@Traced
 	@Override
 	public boolean deleteEntity(@Nonnull Class<?> modelClass, int primaryKey) throws EntityClassInvalidException {
 		return deleteEntity(
@@ -906,12 +936,14 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		);
 	}
 
+	@Traced
 	@Nonnull
 	@Override
 	public Optional<SealedEntity> deleteEntity(@Nonnull String entityType, int primaryKey, EntityContentRequire... require) {
 		return deleteEntityInternal(entityType, SealedEntity.class, primaryKey, require);
 	}
 
+	@Traced
 	@Nonnull
 	@Override
 	public <T extends Serializable> Optional<T> deleteEntity(@Nonnull Class<T> modelClass, int primaryKey, EntityContentRequire... require) throws EntityClassInvalidException {
@@ -922,6 +954,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		);
 	}
 
+	@Traced
 	@Override
 	public int deleteEntityAndItsHierarchy(@Nonnull String entityType, int primaryKey) {
 		assertActive();
@@ -935,12 +968,14 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		});
 	}
 
+	@Traced
 	@Nonnull
 	@Override
 	public DeletedHierarchy<SealedEntity> deleteEntityAndItsHierarchy(@Nonnull String entityType, int primaryKey, EntityContentRequire... require) {
 		return deleteEntityAndItsHierarchyInternal(entityType, SealedEntity.class, primaryKey, require);
 	}
 
+	@Traced
 	@Nonnull
 	@Override
 	public <T extends Serializable> DeletedHierarchy<T> deleteEntityAndItsHierarchy(@Nonnull Class<T> modelClass, int primaryKey, EntityContentRequire... require) throws EvitaInvalidUsageException, EntityClassInvalidException {
@@ -1104,11 +1139,13 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 			.filter(it -> !it.isClosed());
 	}
 
+	@Traced
 	@Override
 	public <T> T execute(@Nonnull Function<EvitaSessionContract, T> logic) {
 		return executeInTransactionIfPossible(logic);
 	}
 
+	@Traced
 	@Override
 	public void execute(@Nonnull Consumer<EvitaSessionContract> logic) {
 		executeInTransactionIfPossible(
