@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -120,7 +120,6 @@ class PreSortedRecordsSorterTest {
 		Mockito.doNothing().when(bitmapQueryContext).returnBuffer(any());
 		bitmapSorter = new PreSortedRecordsSorterWithContext(
 			new PreSortedRecordsSorter(
-				ENTITY_TYPE,
 				() -> new SortedRecordsProvider[]{new MockSortedRecordsSupplier(7, 2, 4, 1, 3, 8, 5, 9, 6)}
 			),
 			bitmapQueryContext
@@ -156,7 +155,6 @@ class PreSortedRecordsSorterTest {
 	void shouldReturnSortedResultEvenForMissingDataWithAdditionalSorter() {
 		final Sorter updatedSorter = bitmapSorter.sorter().andThen(
 			new PreSortedRecordsSorter(
-				ENTITY_TYPE,
 				() -> new SortedRecordsProvider[]{new MockSortedRecordsSupplier(13, 0, 12)}
 			)
 		);
@@ -179,7 +177,6 @@ class PreSortedRecordsSorterTest {
 		);
 
 		final PreSortedRecordsSorter sorter = new PreSortedRecordsSorter(
-			ENTITY_TYPE,
 			() -> new SortedRecordsProvider[]{sortedRecordsSupplier}
 		);
 		final QueryContext queryContext = Mockito.mock(QueryContext.class);

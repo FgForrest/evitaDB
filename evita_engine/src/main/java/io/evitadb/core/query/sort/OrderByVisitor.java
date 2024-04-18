@@ -33,6 +33,7 @@ import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.query.AttributeSchemaAccessor;
 import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
@@ -163,6 +164,7 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 				this.queryContext.isEntityTypeKnown() ?
 					this.queryContext.getSchema().getName() : null,
 				null,
+				null,
 				attributeSchemaAccessor,
 				EntityAttributeExtractor.INSTANCE
 			)
@@ -214,6 +216,35 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 				new ProcessingScope(
 					entityIndex,
 					entityType,
+					null,
+					locale,
+					attributeSchemaAccessor,
+					attributeSchemaEntityAccessor
+				)
+			);
+			return lambda.get();
+		} finally {
+			this.scope.pop();
+		}
+	}
+
+	/**
+	 * Sets different {@link EntityIndex} to be used in scope of lambda.
+	 */
+	public final <T> T executeInContext(
+		@Nonnull EntityIndex[] entityIndex,
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nullable Locale locale,
+		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor,
+		@Nonnull AttributeExtractor attributeSchemaEntityAccessor,
+		@Nonnull Supplier<T> lambda
+	) {
+		try {
+			this.scope.push(
+				new ProcessingScope(
+					entityIndex,
+					referenceSchema.getReferencedEntityType(),
+					referenceSchema,
 					locale,
 					attributeSchemaAccessor,
 					attributeSchemaEntityAccessor
@@ -296,6 +327,7 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	 *
 	 * @param entityIndex             contains index, that should be used for accessing {@link SortIndex}.
 	 * @param entityType              contains entity type the context refers to
+	 * @param referenceSchema         contains reference schema the scope relates to
 	 * @param locale                  contains locale the context refers to
 	 * @param attributeSchemaAccessor consumer verifies prerequisites in attribute schema via {@link AttributeSchemaContract}
 	 * @param attributeEntityAccessor function provides access to the attribute content via {@link EntityContract}
@@ -303,6 +335,7 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	public record ProcessingScope(
 		@Nonnull EntityIndex[] entityIndex,
 		@Nullable String entityType,
+		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nullable Locale locale,
 		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor,
 		@Nonnull AttributeExtractor attributeEntityAccessor
