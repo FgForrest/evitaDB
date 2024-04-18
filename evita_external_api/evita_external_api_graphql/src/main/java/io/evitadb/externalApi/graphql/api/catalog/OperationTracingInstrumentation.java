@@ -66,7 +66,9 @@ public class OperationTracingInstrumentation extends SimplePerformantInstrumenta
             new SpanAttribute("operation", operation.name()),
             new SpanAttribute("operationName", operationName)
         );
-        executionContext.getGraphQLContext().put(GraphQLContextKey.OPERATION_TRACING_BLOCK, blockReference);
+        if (blockReference != null) {
+            executionContext.getGraphQLContext().put(GraphQLContextKey.OPERATION_TRACING_BLOCK, blockReference);
+        }
 
         return executionContext;
     }
