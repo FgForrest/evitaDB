@@ -23,6 +23,8 @@
 
 package io.evitadb.externalApi.observability.trace;
 
+import io.evitadb.api.trace.DefaultTracingBlockReference;
+import io.evitadb.api.trace.TracingBlockReference;
 import io.evitadb.api.trace.TracingContext;
 import io.evitadb.api.trace.TracingContextReference;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -64,7 +66,7 @@ public class ObservabilityTracingContext implements TracingContext {
 		MDC.put(MDC_TRACE_ID_PROPERTY, traceId);
 	}
 
-	private static void clearMdc() {
+	protected static void clearMdc() {
 		MDC.remove(MDC_CLIENT_ID_PROPERTY);
 		MDC.remove(MDC_TRACE_ID_PROPERTY);
 	}
@@ -75,7 +77,7 @@ public class ObservabilityTracingContext implements TracingContext {
 	 * @param span       the span to set the attributes in
 	 * @param attributes an array of SpanAttribute objects representing the attributes to set in the span
 	 */
-	private static void setAttributes(
+	protected static void setAttributes(
 		@Nonnull Span span,
 		@Nonnull SpanAttribute[] attributes
 	) {
@@ -99,6 +101,24 @@ public class ObservabilityTracingContext implements TracingContext {
 	@Override
 	public TracingContextReference<?> getCurrentContext() {
 		return new ObservabilityTracingContextReference(Context.current());
+	}
+
+	@Nonnull
+	@Override
+	public TracingBlockReference createAndActivateBlock(@Nonnull String taskName, @Nullable SpanAttribute... attributes) {
+		return createAndActivateBlockOpeningParentContext(taskName, attributes, null);
+	}
+
+	@Nonnull
+	@Override
+	public TracingBlockReference createAndActivateBlock(@Nonnull String taskName, @Nullable Supplier<SpanAttribute[]> attributes) {
+		return createAndActivateBlockOpeningParentContext(taskName, null, attributes);
+	}
+
+	@Nonnull
+	@Override
+	public TracingBlockReference createAndActivateBlock(@Nonnull String taskName) {
+		return createAndActivateBlockOpeningParentContext(taskName, null, null);
 	}
 
 	@Override
@@ -166,6 +186,24 @@ public class ObservabilityTracingContext implements TracingContext {
 			null,
 			null
 		);
+	}
+
+	@Nonnull
+	@Override
+	public TracingBlockReference createAndActivateBlockWithParentContext(@Nonnull TracingContextReference<?> contextReference, @Nonnull String taskName, @Nullable SpanAttribute... attributes) {
+		return createAndActivateBlockUsingCustomParentContext(contextReference, taskName, attributes, null);
+	}
+
+	@Nonnull
+	@Override
+	public TracingBlockReference createAndActivateBlockWithParentContext(@Nonnull TracingContextReference<?> contextReference, @Nonnull String taskName, @Nullable Supplier<SpanAttribute[]> attributes) {
+		return createAndActivateBlockUsingCustomParentContext(contextReference, taskName, null, attributes);
+	}
+
+	@Nonnull
+	@Override
+	public TracingBlockReference createAndActivateBlockWithParentContext(@Nonnull TracingContextReference<?> contextReference, @Nonnull String taskName) {
+		return createAndActivateBlockUsingCustomParentContext(contextReference, taskName, null, null);
 	}
 
 	@Override
@@ -251,6 +289,24 @@ public class ObservabilityTracingContext implements TracingContext {
 			null,
 			null
 		);
+	}
+
+	@Nullable
+	@Override
+	public TracingBlockReference createAndActivateBlockIfParentContextAvailable(@Nonnull String taskName, @Nullable SpanAttribute... attributes) {
+		return createAndActivateBlockInternal(taskName, attributes, null, null);
+	}
+
+	@Nullable
+	@Override
+	public TracingBlockReference createAndActivateBlockIfParentContextAvailable(@Nonnull String taskName, @Nullable Supplier<SpanAttribute[]> attributes) {
+		return createAndActivateBlockInternal(taskName, null, attributes, null);
+	}
+
+	@Nullable
+	@Override
+	public TracingBlockReference createAndActivateBlockIfParentContextAvailable(@Nonnull String taskName) {
+		return createAndActivateBlockInternal(taskName, null, null, null);
 	}
 
 	@Override
@@ -356,7 +412,8 @@ public class ObservabilityTracingContext implements TracingContext {
 
 	/**
 	 * Executes the given lambda function within a block within passed parent context. It records a span only when somebody already called
-	 * the {@link #executeWithinBlockOpeningParentContext(String, Supplier, SpanAttribute[], Supplier)} method.
+	 * the {@link #executeWithinBlockOpeningParentContext(String, Supplier, SpanAttribute[], Supplier)} or
+	 * {@link #createAndActivateBlockOpeningParentContext(String, SpanAttribute[], Supplier)} method.
 	 * If tracing is enabled, it creates and manages a span for the execution of the lambda.
 	 *
 	 * @parem contextReference  the parent context reference
@@ -402,7 +459,8 @@ public class ObservabilityTracingContext implements TracingContext {
 
 	/**
 	 * Executes the given lambda function within a block. It records a span only when somebody already called
-	 * the {@link #executeWithinBlockOpeningParentContext(String, Supplier, SpanAttribute[], Supplier)} method.
+	 * the {@link #executeWithinBlockOpeningParentContext(String, Supplier, SpanAttribute[], Supplier)} or
+	 * {@link #createAndActivateBlockOpeningParentContext(String, SpanAttribute[], Supplier)} method.
 	 * If tracing is enabled, it creates and manages a span for the execution of the lambda.
 	 *
 	 * @param taskName          the name of the task or operation
@@ -461,5 +519,131 @@ public class ObservabilityTracingContext implements TracingContext {
 			span.end();
 			clearMdc();
 		}
+	}
+
+	/**
+	 * Creates and activates a block and opens parent context block.
+	 * If tracing is enabled, it creates and manages a span for the execution of the lambda.
+	 *
+	 * @param taskName          the name of the task or operation
+	 * @param attributes        an array of SpanAttribute objects representing the attributes to set in the span (optional)
+	 * @param attributeSupplier a supplier function that provides an array of SpanAttribute objects representing
+	 *                          additional attributes to set in the span (optional)
+	 * @return the new block, must be manually closed after all client is executed
+	 */
+	@Nonnull
+	private TracingBlockReference createAndActivateBlockOpeningParentContext(
+		@Nonnull String taskName,
+		@Nullable SpanAttribute[] attributes,
+		@Nullable Supplier<SpanAttribute[]> attributeSupplier
+	) {
+		boolean clear = false;
+		final Boolean originalValue = parentContextAvailable.get();
+		if (!Boolean.TRUE.equals(originalValue)) {
+			parentContextAvailable.set(true);
+			clear = true;
+		}
+
+		final boolean finalClear = clear;
+		return createAndActivateBlockInternal(
+			taskName,
+			attributes,
+			attributeSupplier,
+			() -> {
+				if (finalClear) {
+					parentContextAvailable.set(false);
+				}
+			}
+		);
+	}
+
+	/**
+	 * Creates and activates block within passed parent context. It records a span only when somebody already called
+	 * the {@link #executeWithinBlockOpeningParentContext(String, Supplier, SpanAttribute[], Supplier)} or
+	 * {@link #createAndActivateBlockOpeningParentContext(String, SpanAttribute[], Supplier)} method.
+	 * If tracing is enabled, it creates and manages a span for the execution of the lambda.
+	 *
+	 * @parem contextReference  the parent context reference
+	 * @param taskName          the name of the task or operation
+	 * @param attributes        an array of SpanAttribute objects representing the attributes to set in the span (optional)
+	 * @param attributeSupplier a supplier function that provides an array of SpanAttribute objects representing additional attributes to set in the span (optional)
+	 * @return the new block, must be manually closed after all client is executed
+	 */
+	@Nonnull
+	private TracingBlockReference createAndActivateBlockUsingCustomParentContext(
+		@Nonnull TracingContextReference<?> contextReference,
+		@Nonnull String taskName,
+		@Nullable SpanAttribute[] attributes,
+		@Nullable Supplier<SpanAttribute[]> attributeSupplier
+	) {
+		if (!(contextReference instanceof ObservabilityTracingContextReference observabilityContextReference)) {
+			throw new EvitaInvalidUsageException("Unsupported context type `" + contextReference.getType().getName() + "`");
+		}
+
+		boolean clear = false;
+		final Boolean originalValue = parentContextAvailable.get();
+		if (!Boolean.TRUE.equals(originalValue)) {
+			parentContextAvailable.set(true);
+			clear = true;
+		}
+
+		final boolean finalClear = clear;
+		final Scope parentScope = observabilityContextReference.getContext().makeCurrent();
+		return createAndActivateBlockInternal(
+			taskName,
+			attributes,
+			attributeSupplier,
+			() -> {
+				parentScope.close();
+				if (finalClear) {
+					parentContextAvailable.set(false);
+				}
+			}
+		);
+	}
+
+	/**
+	 * Creates and activates block. It records a span only when somebody already called
+	 * the {@link #executeWithinBlockOpeningParentContext(String, Supplier, SpanAttribute[], Supplier)} or
+	 * {@link #createAndActivateBlockOpeningParentContext(String, SpanAttribute[], Supplier)} method.
+	 * If tracing is enabled, it creates and manages a span for the execution of the lambda.
+	 *
+	 * @param taskName          the name of the task or operation
+	 * @param attributes        an array of SpanAttribute objects representing the attributes to set in the span (optional)
+	 * @param attributeSupplier a supplier function that provides an array of SpanAttribute objects representing additional attributes to set in the span (optional)
+	 * @return the new block, must be manually closed after all client is executed
+	 */
+	@Nullable
+	private TracingBlockReference createAndActivateBlockInternal(@Nonnull String taskName,
+	                                                             @Nullable SpanAttribute[] attributes,
+	                                                             @Nullable Supplier<SpanAttribute[]> attributeSupplier,
+	                                                             @Nullable Runnable closeCallback) {
+		if (!OpenTelemetryTracerSetup.isTracingEnabled() || !Boolean.TRUE.equals(parentContextAvailable.get())) {
+			return new DefaultTracingBlockReference();
+		}
+
+		// the context will contain `traceId` provided by the client, if the propagation has been orchestrated on his side
+		final Context context = Context.current();
+		// the additional scope is needed to make sure that the span is not closed before the lambda is executed
+		// docs: https://opentelemetry.io/docs/languages/java/instrumentation/#context-propagation
+
+		final Span span = OpenTelemetryTracerSetup.getTracer()
+			.spanBuilder(taskName)
+			.setSpanKind(SpanKind.SERVER)
+			.setParent(context)
+			.startSpan();
+
+		final String clientId = context.get(OpenTelemetryTracerSetup.CONTEXT_KEY);
+
+		if (attributes != null) {
+			setAttributes(span, attributes);
+		}
+
+		span.setAttribute(ExternalApiTracingContext.CLIENT_ID_CONTEXT_KEY_NAME, clientId);
+
+		final Scope scope = span.makeCurrent();
+		initMdc(clientId, span.getSpanContext().getTraceId());
+
+		return new ObservabilityTracingBlockReference(span, scope, attributeSupplier, closeCallback);
 	}
 }

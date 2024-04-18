@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,25 +21,24 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.api.catalog;
-
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
+package io.evitadb.api.trace;
 
 import javax.annotation.Nonnull;
 
 /**
- * List of possible keys (for possible values) for GraphQL query execution context.
+ * Dummy block reference when no tracing implementation is present. This does nothing.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
+ * @author Lukáš Hornych, FG Forres a.s. (c) 2024
  */
-@Getter
-@RequiredArgsConstructor
-public enum GraphQLContextKey {
+public class DefaultTracingBlockReference implements TracingBlockReference {
 
-    EVITA_SESSION("evitaSession"),
-    OPERATION_TRACING_BLOCK("operationTracingBlock");
+	@Override
+	public void setError(@Nonnull Throwable error) {
+		// noop
+	}
 
-    @Nonnull
-    private final String key;
+	@Override
+	public void close() {
+		// noop
+	}
 }

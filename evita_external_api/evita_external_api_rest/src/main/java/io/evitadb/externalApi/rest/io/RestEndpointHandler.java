@@ -74,14 +74,14 @@ public abstract class RestEndpointHandler<CTX extends RestHandlingContext> exten
 
     @Override
     public void handleRequest(HttpServerExchange serverExchange) {
-        handleRequestWithClientContext(serverExchange);
+        handleRequestWithTracingContext(serverExchange);
     }
 
     /**
-     * Process every request with client context, so we can classify it in evitaDB.
+     * Process every request with tracing context, so we can classify it in evitaDB.
      */
-    private void handleRequestWithClientContext(@Nonnull HttpServerExchange serverExchange) {
-        restHandlingContext.getClientContext().executeWithinBlock(
+    private void handleRequestWithTracingContext(@Nonnull HttpServerExchange serverExchange) {
+        restHandlingContext.getTracingContext().executeWithinBlock(
             "REST",
             serverExchange,
             () -> super.handleRequest(serverExchange)
