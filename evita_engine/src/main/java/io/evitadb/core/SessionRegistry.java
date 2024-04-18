@@ -27,6 +27,7 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.exception.ConcurrentInitializationException;
 import io.evitadb.api.exception.TransactionException;
+import io.evitadb.api.trace.Traced;
 import io.evitadb.api.trace.TracingContext;
 import io.evitadb.api.trace.TracingContext.SpanAttribute;
 import io.evitadb.dataType.EvitaDataTypes;
@@ -188,9 +189,8 @@ final class SessionRegistry {
 				// invoke original method on delegate
 				return Transaction.executeInTransactionIfProvided(
 					evitaSession.getOpenedTransaction().orElse(null),
-					() -> tracingContext.executeWithinBlockIfParentContextAvailable(
-						"session call - " + method.getName(),
-						() -> {
+					() -> {
+						final Supplier<Object> invocation = () -> {
 							try {
 								return method.invoke(evitaSession, args);
 							} catch (InvocationTargetException ex) {
@@ -226,26 +226,34 @@ final class SessionRegistry {
 									ex
 								);
 							}
-						},
-						() -> {
-							final Parameter[] parameters = method.getParameters();
-							final SpanAttribute[] spanAttributes = new SpanAttribute[1 + parameters.length];
-							spanAttributes[0] = new SpanAttribute("session.id", evitaSession.getId().toString());
-							if (args == null) {
-								return spanAttributes;
-							} else {
-								int index = 1;
-								for (int i = 0; i < args.length; i++) {
-									final Object arg = args[i];
-									if (EvitaDataTypes.isSupportedType(parameters[i].getType()) && arg != null) {
-										spanAttributes[index++] = new SpanAttribute(parameters[i].getName(), arg);
+						};
+						if (method.isAnnotationPresent(Traced.class)) {
+							return tracingContext.executeWithinBlockIfParentContextAvailable(
+								"session call - " + method.getName(),
+								invocation::get,
+								() -> {
+									final Parameter[] parameters = method.getParameters();
+									final SpanAttribute[] spanAttributes = new SpanAttribute[1 + parameters.length];
+									spanAttributes[0] = new SpanAttribute("session.id", evitaSession.getId().toString());
+									if (args == null) {
+										return spanAttributes;
+									} else {
+										int index = 1;
+										for (int i = 0; i < args.length; i++) {
+											final Object arg = args[i];
+											if (EvitaDataTypes.isSupportedType(parameters[i].getType()) && arg != null) {
+												spanAttributes[index++] = new SpanAttribute(parameters[i].getName(), arg);
+											}
+										}
+										return index < spanAttributes.length ?
+											Arrays.copyOfRange(spanAttributes, 0, index) : spanAttributes;
 									}
 								}
-								return index < spanAttributes.length ?
-									Arrays.copyOfRange(spanAttributes, 0, index) : spanAttributes;
-							}
+							);
+						} else {
+							return invocation.get();
 						}
-					),
+					},
 					evitaSession.isRootLevelExecution()
 				);
 			} finally {
