@@ -18,6 +18,8 @@ storage:
   outputBufferSize: ${storage.outputBufferSize:4MB}
   maxOpenedReadHandles: ${storage.maxOpenedReadHandles:12}
   computeCRC32C: ${storage.computeCRC32C:true}
+  minimalActiveRecordShare: ${storage.minimalActiveRecordShare:0.5}
+  fileSizeCompactionThresholdBytes: ${storage.fileSizeCompactionThresholdBytes:100M}
 
 transaction:
   transactionWorkDirectory: ${transaction.workDirectory:null}
@@ -82,3 +84,15 @@ api:
       allowedOrigins: ${api.endpoints.lab.allowedOrigins:null}
       gui:
         enabled: false
+        readOnly: ${api.endpoints.lab.gui.readOnly:false}
+        preconfiguredConnections: !include ${api.endpoints.lab.gui.preconfiguredConnections:null}
+    observability:
+      enabled: false
+      host: ${api.endpoints.observability.host:localhost:5557}
+      exposedHost: ${api.endpoints.observability.exposedHost:null}
+      tlsEnabled: ${api.endpoints.observability.tlsEnabled:false}
+      allowedOrigins: ${api.endpoints.observability.allowedOrigins:null}
+      tracing:
+        endpoint: ${api.endpoints.observability.tracing.endpoint:null}
+        protocol: ${api.endpoints.observability.tracing.protocol:grpc}
+      allowedEvents: !include ${api.endpoints.observability.allowedEvents:null}

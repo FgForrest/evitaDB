@@ -203,13 +203,13 @@ public class ObservableOutputKeeper implements AutoCloseable {
 	 * This method also re-plans the next cache cut if the cache is not empty.
 	 */
 	private long cutOutputCache() {
-		final long now = System.currentTimeMillis();
+		final long threshold = System.currentTimeMillis() - CUT_OUTPUTS_AFTER_INACTIVITY_MS;
 		long oldestNotCutEntryTouchTime = -1L;
 		final Iterator<OpenedOutputToFile> iterator = cachedOutputToFiles.values().iterator();
 		while (iterator.hasNext()) {
 			final OpenedOutputToFile outputToFile = iterator.next();
 			final boolean oldestRecord = oldestNotCutEntryTouchTime == -1L || outputToFile.getLastReadTime() < oldestNotCutEntryTouchTime;
-			if (outputToFile.getLastReadTime() - CUT_OUTPUTS_AFTER_INACTIVITY_MS > now) {
+			if (outputToFile.getLastReadTime() < threshold) {
 				if (outputToFile.isLeased()) {
 					oldestNotCutEntryTouchTime = outputToFile.getLastReadTime();
 				} else {
@@ -221,7 +221,7 @@ public class ObservableOutputKeeper implements AutoCloseable {
 			}
 		}
 		// re-plan the scheduled cut to the moment when the next entry should be cut down
-		return oldestNotCutEntryTouchTime > -1L ? (now - oldestNotCutEntryTouchTime) + 1 : -1L;
+		return oldestNotCutEntryTouchTime > -1L ? (oldestNotCutEntryTouchTime - threshold) + 1 : -1L;
 	}
 
 	@RequiredArgsConstructor

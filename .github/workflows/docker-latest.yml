@@ -53,7 +53,8 @@ jobs:
         id: major_version
         # create a new output variable with the major version (like 2024.4)
         run: |        
-          echo "$(cat version.txt)"
+          echo "fullVersion=$(cat version.txt)"
+          echo "fullVersion=$(cat version.txt)" >> $GITHUB_ENV
           echo "version=$(cat version.txt | cut -d'.' -f1,2)"
           echo "version=$(cat version.txt | cut -d'.' -f1,2)" >> $GITHUB_ENV    
 
@@ -71,6 +72,8 @@ jobs:
           tags: |
             ${{ vars.CI_REGISTRY_USER }}/${{ env.RELEASE_IMAGE }}
             ${{ vars.CI_REGISTRY_USER }}/evitadb:${{ env.version }}
+            ${{ vars.CI_REGISTRY_USER }}/evitadb:${{ env.fullVersion }}
           platforms: linux/amd64,linux/arm64/v8
           build-args: |
             EVITA_JAR_NAME=${{ env.EVITA_JAR_NAME }}
+            VERSION=${{ env.fullVersion }}
