@@ -18,6 +18,8 @@ storage:
   outputBufferSize: ${storage.outputBufferSize:4MB}
   maxOpenedReadHandles: ${storage.maxOpenedReadHandles:12}
   computeCRC32C: ${storage.computeCRC32C:true}
+  minimalActiveRecordShare: ${storage.minimalActiveRecordShare:0.5}
+  fileSizeCompactionThresholdBytes: ${storage.fileSizeCompactionThresholdBytes:100M}
 
 transaction:
   transactionWorkDirectory: ${transaction.workDirectory:null}
