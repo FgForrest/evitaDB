@@ -23,6 +23,8 @@
 
 package io.evitadb.server.log;
 
+import ch.qos.logback.classic.pattern.MessageConverter;
+import ch.qos.logback.classic.pattern.ThrowableProxyConverter;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.CoreConstants;
 import ch.qos.logback.core.LayoutBase;
@@ -46,8 +48,17 @@ public class AppLogJsonLayout extends LayoutBase<ILoggingEvent> {
 	private static final String[] REPLACEMENTS_FOR_ESCAPED_CHARS = new String[] { "\\r\\n", "\\n", "\\r", "\\f", "\\b", "\\\\", "\\\"" };
 
 	private final CachingDateFormatter cachingDateFormatter = new CachingDateFormatter("yyyy-MM-dd'T'HH:mm:ss.SSSZ", null);
+	private final MessageConverter messageConverter = new MessageConverter();
+	private final ThrowableProxyConverter throwableProxyConverter = new ThrowableProxyConverter();
 
 	@Setter private boolean logTimestamp = true;
+
+	@Override
+	public void start() {
+		messageConverter.start();
+		throwableProxyConverter.start();
+		super.start();
+	}
 
 	@Override
 	public String doLayout(ILoggingEvent event) {
@@ -70,7 +81,13 @@ public class AppLogJsonLayout extends LayoutBase<ILoggingEvent> {
 		buf.append(",");
 
 		buf.append("\"message\":\"");
-		buf.append(escapeMessage(event.getFormattedMessage()));
+		buf.append(escapeMessage(messageConverter.convert(event)));
+		buf.append("\"");
+
+		buf.append(",");
+
+		buf.append("\"throwableProxy\":\"");
+		buf.append(escapeMessage(throwableProxyConverter.convert(event)));
 		buf.append("\"");
 
 		buf.append(",");
