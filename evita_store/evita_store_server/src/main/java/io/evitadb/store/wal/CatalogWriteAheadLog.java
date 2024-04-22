@@ -1132,14 +1132,14 @@ public class CatalogWriteAheadLog implements Closeable {
 	 * also re-plans the next cache cut if the cache is not empty.
 	 */
 	private long cutWalCache() {
-		final long now = System.currentTimeMillis();
+		final long threshold = System.currentTimeMillis() - CUT_WAL_CACHE_AFTER_INACTIVITY_MS;
 		long oldestNotCutEntryTouchTime = -1L;
 		for (TransactionLocations locations : transactionLocationsCache.values()) {
 			// if the entry was not cut already (contains more than single / last read record)
 			final int size = locations.size();
 			final boolean oldestRecord = oldestNotCutEntryTouchTime == -1L || locations.getLastReadTime() < oldestNotCutEntryTouchTime;
 			if (size > 1) {
-				if (locations.getLastReadTime() - CUT_WAL_CACHE_AFTER_INACTIVITY_MS > now) {
+				if (locations.getLastReadTime() < threshold) {
 					if (!locations.cut() && oldestRecord) {
 						oldestNotCutEntryTouchTime = locations.getLastReadTime();
 					}
@@ -1152,7 +1152,7 @@ public class CatalogWriteAheadLog implements Closeable {
 			}
 		}
 		// re-plan the scheduled cut to the moment when the next entry should be cut down
-		return oldestNotCutEntryTouchTime > -1L ? (now - oldestNotCutEntryTouchTime) + 1 : -1L;
+		return oldestNotCutEntryTouchTime > -1L ? (oldestNotCutEntryTouchTime - threshold) + 1 : -1L;
 	}
 
 	/**
