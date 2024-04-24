@@ -57,12 +57,12 @@ public class OperationTracingInstrumentation extends SimplePerformantInstrumenta
                                                        @Nonnull InstrumentationExecutionParameters parameters,
                                                        @Nonnull InstrumentationState state) {
         final OperationDefinition.Operation operation = executionContext.getOperationDefinition().getOperation();
-        final String operationName = executionContext.getOperationDefinition().getName();
+        final String operationName = executionContext.getOperationDefinition().getName() != null ? executionContext.getOperationDefinition().getName() : "<unnamed>";
 
         // this block is closed in GraphQLHandler because instrumentation doesn't provide way of executing code
         // in same thread as this callback (if parallel query execution is used), which is needed by the tracing tooling
         final TracingBlockReference blockReference = tracingContext.createAndActivateBlockIfParentContextAvailable(
-            "GraphQL " + operation.name().toLowerCase() + " - " + (operationName != null ? operationName : "<unnamed>"),
+            "GraphQL " + operation.name().toLowerCase() + " - " + operationName,
             new SpanAttribute("operation", operation.name()),
             new SpanAttribute("operationName", operationName)
         );
