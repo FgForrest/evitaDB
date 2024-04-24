@@ -201,9 +201,6 @@ public class GraphQLHandler extends EndpointHandler<GraphQLEndpointExchange> {
 
     @Nonnull
     private GraphQLResponse<?> executeRequest(@Nonnull GraphQLRequest graphQLRequest) {
-        if (true) {
-            throw new GraphQLInternalError("error!!!");
-        }
         try {
             final ExecutionInput executionInput = graphQLRequest.toExecutionInput();
             final ExecutionResult result = graphQL.get()
