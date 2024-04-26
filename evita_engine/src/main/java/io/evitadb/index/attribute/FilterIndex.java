@@ -247,8 +247,16 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 		this.rangeIndex = rangeIndex;
 		this.comparator = getComparator(attributeKey, attributeType);
 		this.normalizer = getNormalizer(attributeType);
-		if (updateSortedValues && this.comparator != DEFAULT_COMPARATOR) {
-			ArrayUtils.sortArray((o1, o2) -> ((Comparator<T>)this.comparator).compare(o1.getValue(), o2.getValue()), valueToRecords);
+		if (updateSortedValues) {
+			if (this.normalizer != NO_NORMALIZATION) {
+				for (int i = 0; i < valueToRecords.length; i++) {
+					final ValueToRecordBitmap<T> valueToRecord = valueToRecords[i];
+					valueToRecords[i] = new ValueToRecordBitmap<>(this.normalizer.apply(valueToRecord.getValue()), valueToRecord.getRecordIds());
+				}
+			}
+			if (this.comparator != DEFAULT_COMPARATOR) {
+				ArrayUtils.sortArray((o1, o2) -> ((Comparator<T>) this.comparator).compare(o1.getValue(), o2.getValue()), valueToRecords);
+			}
 		}
 		this.invertedIndex = new InvertedIndex<>(valueToRecords, (Comparator<T>) this.comparator);
 	}

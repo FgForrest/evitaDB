@@ -91,7 +91,7 @@ public class TransactionalBitmap implements RoaringBitmapBackedBitmap, Transacti
 	@Override
 	public RoaringBitmapBackedBitmap createCopyWithMergedTransactionalMemory(@Nullable BitmapChanges layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		if (layer == null) {
-			return new BaseBitmap(roaringBitmap);
+			return this;
 		} else {
 			return new BaseBitmap(layer.getMergedBitmap());
 		}
