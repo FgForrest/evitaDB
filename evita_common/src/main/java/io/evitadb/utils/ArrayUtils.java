@@ -870,6 +870,15 @@ public class ArrayUtils {
 	}
 
 	/**
+	 * Sorts array by the Comparator passed in first argument. Contents of the array are changed.
+	 */
+	public static <T> void sortArray(@Nonnull Comparator<T> comparator, @Nonnull T[] array) {
+		// now sort positions according to recordId value - this will change ordered positions to unordered ones
+		final ArrayWrapper<T> wrapper = new ArrayWrapper<>(array);
+		wrapper.sort(comparator);
+	}
+
+	/**
 	 * This method will merge all passed arrays into one. All values from all arrays will be combined one after another.
 	 * Result array is not sorted.
 	 */
@@ -1148,6 +1157,51 @@ public class ArrayUtils {
 			if (!super.equals(o)) return false;
 			IntArrayWrapper integers = (IntArrayWrapper) o;
 			return Arrays.equals(elements, integers.elements);
+		}
+
+		@Override
+		public int hashCode() {
+			int result = super.hashCode();
+			result = 31 * result + Arrays.hashCode(elements);
+			return result;
+		}
+
+		@Override
+		public int size() {
+			return elements.length;
+		}
+
+	}
+
+	/**
+	 * Internal helper class that is used to sort array A by comparator that uses array B. This cannot be easily done
+	 * by other way than mimicking list to get advantage of {@link java.util.AbstractList#sort(Comparator)} function
+	 * that accepts external comparator.
+	 */
+	@RequiredArgsConstructor
+	private static class ArrayWrapper<T> extends AbstractList<T> {
+		@Getter private final T[] elements;
+
+		@Override
+		public T get(int index) {
+			return elements[index];
+		}
+
+		@Override
+		public T set(int index, T element) {
+			T v = elements[index];
+			elements[index] = element;
+			return v;
+		}
+
+		@Override
+		public boolean equals(Object o) {
+			if (this == o) return true;
+			if (o == null || getClass() != o.getClass()) return false;
+			if (!super.equals(o)) return false;
+			//noinspection unchecked
+			ArrayWrapper<T> otherElements = (ArrayWrapper<T>) o;
+			return Arrays.equals(elements, otherElements.elements);
 		}
 
 		@Override

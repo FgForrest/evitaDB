@@ -26,6 +26,8 @@ package io.evitadb.dataType;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -58,8 +60,9 @@ public sealed interface Range<T> permits DateTimeRange, NumberRange {
 	 *
 	 * Because other ranges overlap one another.
 	 */
+	@Nonnull
 	@SuppressWarnings("unchecked")
-	static <S, T extends Range<S>> T[] consolidateRange(T[] ranges) {
+	static <S, T extends Range<S>> T[] consolidateRange(@Nonnull T[] ranges) {
 		if (ArrayUtils.isEmpty(ranges)) {
 			return ranges;
 		}
@@ -100,30 +103,33 @@ public sealed interface Range<T> permits DateTimeRange, NumberRange {
 	/**
 	 * Returns original from value used when range was created without any loss of precision.
 	 */
+	@Nullable
 	T getPreciseFrom();
 
 	/**
 	 * Returns original to value used when range was created without any loss of precision.
 	 */
+	@Nullable
 	T getPreciseTo();
 
 	/**
 	 * Returns TRUE when value to check is withing the current range (inclusive).
 	 */
-	boolean isWithin(T valueToCheck);
+	boolean isWithin(@Nonnull T valueToCheck);
 
 	/**
 	 * Creates new range of the same type with changed from and to boundaries.
 	 * This method is used from {@link #consolidateRange(Range[])}
 	 */
-	Range<T> cloneWithDifferentBounds(T from, T to);
+	@Nonnull
+	Range<T> cloneWithDifferentBounds(@Nonnull T from, @Nonnull T to);
 
 	/**
 	 * Returns true if two ranges overlap one another (using inclusive boundaries).
 	 *
 	 * @throws IllegalArgumentException when ranges are not of the same type
 	 */
-	default boolean overlaps(Range<T> otherRange) {
+	default boolean overlaps(@Nonnull Range<T> otherRange) {
 		Assert.isTrue(
 			this.getClass().equals(otherRange.getClass()),
 			"Ranges `" + this.getClass().getName() + "` and `" + otherRange.getClass().getName() + "` are not comparable!"

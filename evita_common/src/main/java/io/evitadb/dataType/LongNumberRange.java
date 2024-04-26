@@ -128,6 +128,7 @@ public final class LongNumberRange extends NumberRange<Long> {
 		assertNotFloatingPointType(to, "to");
 	}
 
+	@Nonnull
 	@Override
 	public Range<Long> cloneWithDifferentBounds(@Nullable Long from, @Nullable Long to) {
 		return new LongNumberRange(from, to);

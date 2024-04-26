@@ -128,6 +128,7 @@ public final class ByteNumberRange extends NumberRange<Byte> {
 		assertNotFloatingPointType(to, "to");
 	}
 
+	@Nonnull
 	@Override
 	public Range<Byte> cloneWithDifferentBounds(@Nullable Byte from, @Nullable Byte to) {
 		return new ByteNumberRange(from, to);

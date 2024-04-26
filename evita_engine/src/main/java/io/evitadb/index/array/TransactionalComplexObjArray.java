@@ -36,6 +36,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.lang.reflect.Array;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
@@ -65,11 +66,16 @@ public class TransactionalComplexObjArray<T extends TransactionalObject<T, ?> & 
 	private final boolean transactionalLayerProducer;
 	private final BiConsumer<T, T> producer;
 	private final BiConsumer<T, T> reducer;
+	private final Comparator<T> comparator;
 	private final BiPredicate<T, T> deepComparator;
 	private final Predicate<T> obsoleteChecker;
 	private T[] delegate;
 
 	public TransactionalComplexObjArray(@Nonnull T[] delegate) {
+		this(delegate, Comparator.naturalOrder());
+	}
+
+	public TransactionalComplexObjArray(@Nonnull T[] delegate, @Nonnull Comparator<T> comparator) {
 		//noinspection unchecked
 		this.objectType = (Class<T>) delegate.getClass().getComponentType();
 		this.transactionalLayerProducer = TransactionalLayerProducer.class.isAssignableFrom(objectType);
@@ -77,10 +83,32 @@ public class TransactionalComplexObjArray<T extends TransactionalObject<T, ?> & 
 		this.producer = null;
 		this.reducer = null;
 		this.obsoleteChecker = null;
+		this.comparator = comparator;
 		this.deepComparator = null;
 	}
 
-	public TransactionalComplexObjArray(@Nonnull T[] delegate, @Nonnull BiConsumer<T, T> producer, @Nonnull BiConsumer<T, T> reducer, @Nonnull Predicate<T> obsoleteChecker, @Nonnull BiPredicate<T, T> deepComparator) {
+	public TransactionalComplexObjArray(
+		@Nonnull T[] delegate,
+		@Nonnull BiConsumer<T, T> producer,
+		@Nonnull BiConsumer<T, T> reducer,
+		@Nonnull Predicate<T> obsoleteChecker,
+		@Nonnull BiPredicate<T, T> deepComparator
+	) {
+		this(
+			delegate,
+			producer, reducer, obsoleteChecker,
+			Comparator.naturalOrder(), deepComparator
+		);
+	}
+
+	public TransactionalComplexObjArray(
+		@Nonnull T[] delegate,
+		@Nonnull BiConsumer<T, T> producer,
+		@Nonnull BiConsumer<T, T> reducer,
+		@Nonnull Predicate<T> obsoleteChecker,
+		@Nonnull Comparator<T> comparator,
+		@Nonnull BiPredicate<T, T> deepComparator
+	) {
 		//noinspection unchecked
 		this.objectType = (Class<T>) delegate.getClass().getComponentType();
 		this.transactionalLayerProducer = TransactionalLayerProducer.class.isAssignableFrom(objectType);
@@ -88,6 +116,7 @@ public class TransactionalComplexObjArray<T extends TransactionalObject<T, ?> & 
 		this.producer = producer;
 		this.reducer = reducer;
 		this.obsoleteChecker = obsoleteChecker;
+		this.comparator = comparator;
 		this.deepComparator = deepComparator;
 	}
 
@@ -124,7 +153,7 @@ public class TransactionalComplexObjArray<T extends TransactionalObject<T, ?> & 
 		}
 
 		final ComplexObjArrayChanges<T> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
-		final InsertionPosition position = ArrayUtils.computeInsertPositionOfObjInOrderedArray(recordId, this.delegate);
+		final InsertionPosition position = ArrayUtils.computeInsertPositionOfObjInOrderedArray(recordId, this.delegate, this.comparator);
 		if (layer == null) {
 			if (position.alreadyPresent()) {
 				if (producer != null) {
@@ -150,7 +179,7 @@ public class TransactionalComplexObjArray<T extends TransactionalObject<T, ?> & 
 		}
 
 		final ComplexObjArrayChanges<T> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
-		final InsertionPosition position = ArrayUtils.computeInsertPositionOfObjInOrderedArray(recordId, this.delegate);
+		final InsertionPosition position = ArrayUtils.computeInsertPositionOfObjInOrderedArray(recordId, this.delegate, this.comparator);
 		if (layer == null) {
 			if (position.alreadyPresent()) {
 				if (producer != null) {
@@ -186,7 +215,7 @@ public class TransactionalComplexObjArray<T extends TransactionalObject<T, ?> & 
 		}
 
 		final ComplexObjArrayChanges<T> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
-		final InsertionPosition position = ArrayUtils.computeInsertPositionOfObjInOrderedArray(recordId, this.delegate);
+		final InsertionPosition position = ArrayUtils.computeInsertPositionOfObjInOrderedArray(recordId, this.delegate, this.comparator);
 		if (layer == null) {
 			if (position.alreadyPresent()) {
 				T original = this.delegate[position.position()];
@@ -195,10 +224,10 @@ public class TransactionalComplexObjArray<T extends TransactionalObject<T, ?> & 
 				}
 				if (obsoleteChecker != null) {
 					if (obsoleteChecker.test(original)) {
-						this.delegate = ArrayUtils.removeRecordFromOrderedArray(recordId, this.delegate);
+						this.delegate = ArrayUtils.removeRecordFromArrayOnIndex(this.delegate, position.position());
 					}
 				} else {
-					this.delegate = ArrayUtils.removeRecordFromOrderedArray(recordId, this.delegate);
+					this.delegate = ArrayUtils.removeRecordFromArrayOnIndex(this.delegate, position.position());
 				}
 				return position.position();
 			}

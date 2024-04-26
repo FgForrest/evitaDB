@@ -28,7 +28,6 @@ import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import com.esotericsoftware.kryo.serializers.ImmutableSerializer;
-import io.evitadb.dataType.DateTimeRange;
 
 import javax.annotation.Nonnull;
 import java.time.LocalDate;
@@ -37,7 +36,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 
 /**
- * This {@link Serializer} implementation reads/writes {@link DateTimeRange} from/to binary format.
+ * This {@link Serializer} implementation reads/writes {@link OffsetDateTime} from/to binary format.
  * The {@link OffsetDateTime} deserialization logic was taken out from the Kryo library so that we can replace the ZoneId
  * deserialization logic where we cache previously deserialized ZoneOffsets to avoid expensive lookups in Java itself.
  *

@@ -57,7 +57,6 @@ import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
 import java.lang.reflect.Array;
-import java.text.Collator;
 import java.text.Normalizer;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -188,10 +187,7 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 	private static Comparator createComparatorFor(@Nullable Locale locale, @Nonnull ComparatorSource comparatorSource) {
 		final Comparator nextComparator = String.class.isAssignableFrom(comparatorSource.type()) ?
 			ofNullable(locale)
-				.map(it -> {
-					final Collator collator = Collator.getInstance(it);
-					return (Comparator) new LocalizedStringComparator(collator);
-				})
+				.map(it -> (Comparator) new LocalizedStringComparator(it))
 				.orElse(Comparator.naturalOrder()) :
 			Comparator.naturalOrder();
 
