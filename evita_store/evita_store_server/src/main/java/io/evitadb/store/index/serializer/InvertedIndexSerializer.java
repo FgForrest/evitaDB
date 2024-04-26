@@ -30,11 +30,14 @@ import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.index.invertedIndex.InvertedIndex;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 
+import java.util.Comparator;
+
 /**
  * Class handles Kryo (de)serialization of {@link InvertedIndex} instances.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
+@Deprecated
 @SuppressWarnings("rawtypes")
 public class InvertedIndexSerializer extends Serializer<InvertedIndex> {
 
@@ -55,7 +58,7 @@ public class InvertedIndexSerializer extends Serializer<InvertedIndex> {
 			points[i] = kryo.readObject(input, ValueToRecordBitmap.class);
 		}
 		//noinspection unchecked
-		return new InvertedIndex(points);
+		return new InvertedIndex(points, Comparator.naturalOrder());
 	}
 
 }

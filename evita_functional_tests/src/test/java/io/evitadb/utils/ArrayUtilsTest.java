@@ -188,13 +188,23 @@ class ArrayUtilsTest {
 	}
 
 	@Test
-	void shouldSortedArrayByComparator() {
+	void shouldSortArrayOfIntegersByComparator() {
 		final String[] external = {"F", "B", "D", "A", "E", "I"};
 		final int[] theSortedArray = {0, 1, 2, 3, 4, 5};
 		ArrayUtils.sortArray((o1, o2) -> String.CASE_INSENSITIVE_ORDER.compare(external[o1], external[o2]), theSortedArray);
 		assertArrayEquals(
 			new int[]{3, 1, 2, 4, 0, 5},
 			theSortedArray
+		);
+	}
+
+	@Test
+	void shouldSortArrayByComparator() {
+		final String[] external = {"F", "B", "D", "A", "E", "I"};
+		ArrayUtils.sortArray(String.CASE_INSENSITIVE_ORDER, external);
+		assertArrayEquals(
+			new String[] {"A", "B", "D", "E", "F", "I"},
+			external
 		);
 	}
 

@@ -1,13 +1,13 @@
 /*
  *
- *                         _ _        ____  ____  
- *               _____   _(_) |_ __ _|  _ \| __ ) 
- *              / _ \ \ / / | __/ _` | | | |  _ \ 
+ *                         _ _        ____  ____
+ *               _____   _(_) |_ __ _|  _ \| __ )
+ *              / _ \ \ / / | __/ _` | | | |  _ \
  *             |  __/\ V /| | || (_| | |_| | |_) |
- *              \___| \_/ |_|\__\__,_|____/|____/ 
- *            
+ *              \___| \_/ |_|\__\__,_|____/|____/
+ *
  *   Copyright (c) 2023
- *  
+ *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
@@ -55,7 +55,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
 class InvertedIndexTest implements TimeBoundedTestSupport {
-	private final InvertedIndex<Integer> tested = new InvertedIndex<>();
+	private final InvertedIndex<Integer> tested = new InvertedIndex<>((Comparator<Integer>) Comparator.naturalOrder());
 
 	@BeforeEach
 	void setUp() {
@@ -243,7 +243,7 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 	@Test
 	void shouldAddAndRemoveItemsInTransaction() {
 		assertStateAfterCommit(
-			new InvertedIndex<Integer>(),
+			new InvertedIndex<Integer>(Comparator.naturalOrder()),
 			original -> {
 				original.addRecord(5, 7);
 				original.addRecord(12, 18);
@@ -447,7 +447,7 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 
 	@Test
 	void shouldGenerationalTestPass() {
-		final InvertedIndex<Long> histogram = new InvertedIndex<>();
+		final InvertedIndex<Long> histogram = new InvertedIndex<>((Comparator<Long>) Comparator.naturalOrder());
 		histogram.addRecord(64L, 36, 47);
 		histogram.addRecord(0L, 10);
 		histogram.addRecord(65L, 90);
@@ -620,7 +620,7 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 					)
 					.append("\nOps:\n");
 
-				final InvertedIndex<Long> histogram = new InvertedIndex<>();
+				final InvertedIndex<Long> histogram = new InvertedIndex<>((Comparator<Long>) Comparator.naturalOrder());
 				for (Entry<Long, List<Integer>> entry : mapToCompare.entrySet()) {
 					histogram.addRecord(
 						entry.getKey(),

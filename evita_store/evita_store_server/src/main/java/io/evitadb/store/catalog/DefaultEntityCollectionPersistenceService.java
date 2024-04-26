@@ -27,6 +27,7 @@ import com.esotericsoftware.kryo.Kryo;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TransactionOptions;
+import io.evitadb.api.exception.AttributeNotFoundException;
 import io.evitadb.api.exception.EntityAlreadyRemovedException;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.EntityGroupFetch;
@@ -35,6 +36,7 @@ import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaRequest.RequirementContext;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
+import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.BinaryEntity;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
@@ -43,6 +45,7 @@ import io.evitadb.api.requestResponse.data.structure.predicate.AttributeValueSer
 import io.evitadb.api.requestResponse.data.structure.predicate.HierarchySerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.PriceContractSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceContractSerializablePredicate;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.core.Catalog;
@@ -366,7 +369,8 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		int entityIndexId,
 		@Nonnull StoragePartPersistenceService persistenceService,
 		@Nonnull Map<AttributeKey, FilterIndex> filterIndexes,
-		@Nonnull AttributeIndexStorageKey attributeIndexKey
+		@Nonnull AttributeIndexStorageKey attributeIndexKey,
+		@Nonnull Function<AttributeKey, Class> attributeTypeSupplier
 	) {
 		final long primaryKey = AttributeIndexStoragePart.computeUniquePartId(entityIndexId, AttributeIndexType.FILTER, attributeIndexKey.attribute(), persistenceService.getReadOnlyKeyCompressor());
 		final FilterIndexStoragePart filterIndexCnt = persistenceService.getStoragePart(catalogVersion, primaryKey, FilterIndexStoragePart.class);
@@ -375,12 +379,17 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 			"Filter index with id " + entityIndexId + " with key " + attributeIndexKey.attribute() + " was not found in mem table!"
 		);
 		final AttributeKey attributeKey = filterIndexCnt.getAttributeKey();
+		/* TOBEDONE #538 - remove with new versions */
+		final Class<?> attributeType = ofNullable(filterIndexCnt.getAttributeType())
+			.orElseGet(() -> attributeTypeSupplier.apply(attributeKey));
 		filterIndexes.put(
 			attributeKey,
 			new FilterIndex(
 				filterIndexCnt.getAttributeKey(),
-				filterIndexCnt.getHistogram(),
-				filterIndexCnt.getRangeIndex()
+				filterIndexCnt.getHistogramPoints(),
+				filterIndexCnt.getRangeIndex(),
+				attributeType,
+				filterIndexCnt.getAttributeType() == null
 			)
 		);
 	}
@@ -915,12 +924,34 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		final Map<AttributeKey, SortIndex> sortIndexes = new HashMap<>();
 		final Map<AttributeKey, ChainIndex> chainIndexes = new HashMap<>();
 		final Map<AttributeKey, CardinalityIndex> cardinalityIndexes = new HashMap<>();
+
+		/* TOBEDONE #538 - REMOVE IN FUTURE VERSIONS */
+		final EntitySchema entitySchema = schemaSupplier.get();
+		final Function<AttributeKey, Class> attributeTypeFetcher;
+		final EntityIndexKey entityIndexKey = entityIndexCnt.getEntityIndexKey();
+		if (entityIndexKey.getType() == EntityIndexType.GLOBAL) {
+			attributeTypeFetcher = attributeKey -> entitySchema
+				.getAttribute(attributeKey.attributeName())
+				.map(AttributeSchemaContract::getType)
+				.orElseThrow(() -> new AttributeNotFoundException(attributeKey.attributeName(), entitySchema));
+		} else {
+			final String referenceName = entityIndexKey.getType() == EntityIndexType.REFERENCED_ENTITY_TYPE ?
+				(String) entityIndexKey.getDiscriminator() : ((ReferenceKey) entityIndexKey.getDiscriminator()).referenceName();
+			final ReferenceSchema referenceSchema = entitySchema
+				.getReferenceOrThrowException(referenceName);
+			attributeTypeFetcher = attributeKey -> referenceSchema
+				.getAttribute(attributeKey.attributeName())
+				.or(() -> entitySchema.getAttribute(attributeKey.attributeName()))
+				.map(AttributeSchemaContract::getType)
+				.orElseThrow(() -> new AttributeNotFoundException(attributeKey.attributeName(), referenceSchema, entitySchema));
+		}
+
 		for (AttributeIndexStorageKey attributeIndexKey : entityIndexCnt.getAttributeIndexes()) {
 			switch (attributeIndexKey.indexType()) {
 				case UNIQUE ->
-					fetchUniqueIndex(catalogVersion, entityIndexId, schemaSupplier.get().getName(), storagePartPersistenceService, uniqueIndexes, attributeIndexKey);
+					fetchUniqueIndex(catalogVersion, entityIndexId, entitySchema.getName(), storagePartPersistenceService, uniqueIndexes, attributeIndexKey);
 				case FILTER ->
-					fetchFilterIndex(catalogVersion, entityIndexId, storagePartPersistenceService, filterIndexes, attributeIndexKey);
+					fetchFilterIndex(catalogVersion, entityIndexId, storagePartPersistenceService, filterIndexes, attributeIndexKey, attributeTypeFetcher);
 				case SORT ->
 					fetchSortIndex(catalogVersion, entityIndexId, storagePartPersistenceService, sortIndexes, attributeIndexKey);
 				case CHAIN ->
@@ -935,7 +966,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		final HierarchyIndex hierarchyIndex = fetchHierarchyIndex(catalogVersion, entityIndexId, storagePartPersistenceService, entityIndexCnt);
 		final FacetIndex facetIndex = fetchFacetIndex(catalogVersion, entityIndexId, storagePartPersistenceService, entityIndexCnt);
 
-		final EntityIndexType entityIndexType = entityIndexCnt.getEntityIndexKey().getType();
+		final EntityIndexType entityIndexType = entityIndexKey.getType();
 		// base on entity index type we either create GlobalEntityIndex or ReducedEntityIndex
 		if (entityIndexType == EntityIndexType.GLOBAL) {
 			final Map<PriceIndexKey, PriceListAndCurrencyPriceSuperIndex> priceIndexes = fetchPriceSuperIndexes(
@@ -943,13 +974,13 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 			);
 			return new GlobalEntityIndex(
 				entityIndexCnt.getPrimaryKey(),
-				entityIndexCnt.getEntityIndexKey(),
+				entityIndexKey,
 				entityIndexCnt.getVersion(),
 				schemaSupplier,
 				entityIndexCnt.getEntityIds(),
 				entityIndexCnt.getEntityIdsByLanguage(),
 				new AttributeIndex(
-					schemaSupplier.get().getName(),
+					entitySchema.getName(),
 					uniqueIndexes, filterIndexes, sortIndexes, chainIndexes
 				),
 				new PriceSuperIndex(
@@ -962,13 +993,13 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		} else if (entityIndexType == EntityIndexType.REFERENCED_ENTITY_TYPE) {
 			return new ReferencedTypeEntityIndex(
 				entityIndexCnt.getPrimaryKey(),
-				entityIndexCnt.getEntityIndexKey(),
+				entityIndexKey,
 				entityIndexCnt.getVersion(),
 				schemaSupplier,
 				entityIndexCnt.getEntityIds(),
 				entityIndexCnt.getEntityIdsByLanguage(),
 				new AttributeIndex(
-					schemaSupplier.get().getName(),
+					entitySchema.getName(),
 					uniqueIndexes, filterIndexes, sortIndexes, chainIndexes
 				),
 				hierarchyIndex,
@@ -982,13 +1013,13 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 			);
 			return new ReducedEntityIndex(
 				entityIndexCnt.getPrimaryKey(),
-				entityIndexCnt.getEntityIndexKey(),
+				entityIndexKey,
 				entityIndexCnt.getVersion(),
 				schemaSupplier,
 				entityIndexCnt.getEntityIds(),
 				entityIndexCnt.getEntityIdsByLanguage(),
 				new AttributeIndex(
-					schemaSupplier.get().getName(), uniqueIndexes, filterIndexes, sortIndexes, chainIndexes
+					entitySchema.getName(), uniqueIndexes, filterIndexes, sortIndexes, chainIndexes
 				),
 				new PriceRefIndex(priceIndexes, superIndexAccessor),
 				hierarchyIndex,

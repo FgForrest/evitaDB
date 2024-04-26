@@ -33,6 +33,7 @@ import com.esotericsoftware.kryo.serializers.DefaultArraySerializers.ShortArrayS
 import com.esotericsoftware.kryo.serializers.DefaultArraySerializers.StringArraySerializer;
 import com.esotericsoftware.kryo.serializers.DefaultSerializers.EnumSetSerializer;
 import com.esotericsoftware.kryo.serializers.DefaultSerializers.*;
+import com.esotericsoftware.kryo.serializers.TimeSerializers.InstantSerializer;
 import com.esotericsoftware.kryo.serializers.TimeSerializers.LocalDateSerializer;
 import com.esotericsoftware.kryo.serializers.TimeSerializers.LocalDateTimeSerializer;
 import com.esotericsoftware.kryo.serializers.TimeSerializers.LocalTimeSerializer;
@@ -63,6 +64,7 @@ import io.evitadb.utils.Assert;
 import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -198,6 +200,7 @@ public class KryoFactory {
 		kryoInstance.register(Collections.unmodifiableMap(Collections.EMPTY_MAP).getClass(), new MapSerializer<>(count -> Collections.unmodifiableMap(new HashMap<>((int) Math.ceil(count / .75f), .75f))), index++);
 		kryoInstance.register(Collections.emptySet().getClass(), new CollectionsEmptySetSerializer(), index++);
 		kryoInstance.register(Collections.unmodifiableSet(Collections.EMPTY_SET).getClass(), new SetSerializer<>(count -> Collections.unmodifiableSet(new HashSet<>((int) Math.ceil(count / .75f), .75f))), index++);
+		kryoInstance.register(Instant.class, new InstantSerializer(), index++);
 		Assert.isPremiseValid(index < 200, "Index count overflow.");
 		return kryoInstance;
 	}

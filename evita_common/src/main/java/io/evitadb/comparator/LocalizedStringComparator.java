@@ -30,6 +30,7 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.text.Collator;
 import java.util.Comparator;
+import java.util.Locale;
 
 /**
  * This comparator compares two string with respect to a national characters.
@@ -40,6 +41,10 @@ import java.util.Comparator;
 public class LocalizedStringComparator implements Comparator<String>, Serializable {
 	@Serial private static final long serialVersionUID = 8102561596057708303L;
 	@Nonnull private final Collator collator;
+
+	public LocalizedStringComparator(@Nonnull Locale locale) {
+		this.collator = Collator.getInstance(locale);
+	}
 
 	@Override
 	public int compare(String o1, String o2) {

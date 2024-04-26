@@ -128,6 +128,7 @@ public final class IntegerNumberRange extends NumberRange<Integer> {
 		assertNotFloatingPointType(to, "to");
 	}
 
+	@Nonnull
 	@Override
 	public Range<Integer> cloneWithDifferentBounds(@Nullable Integer from, @Nullable Integer to) {
 		return new IntegerNumberRange(from, to);
