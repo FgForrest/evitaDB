@@ -269,13 +269,17 @@ public class FacetIndex implements FacetIndexContract, TransactionalLayerProduce
 	@Override
 	public FacetIndex createCopyWithMergedTransactionalMemory(@Nullable FacetIndexChanges layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		// we can safely throw away dirty flag now
-		transactionalLayer.removeTransactionalMemoryLayerIfExists(this.dirtyIndexes);
-		final FacetIndex facetIndex = new FacetIndex(
-			// this is a HACK - facetingEntities id indexes produce NonTransactionalCopy instead of type than generics would suggest
-			(Map) transactionalLayer.getStateCopyWithCommittedChanges(this.facetingEntities)
-		);
-		ofNullable(layer).ifPresent(it -> it.clean(transactionalLayer));
-		return facetIndex;
+		final Set<Serializable> setOfDirtyIndexes = transactionalLayer.getStateCopyWithCommittedChanges(this.dirtyIndexes);
+		if (setOfDirtyIndexes.isEmpty()) {
+			return this;
+		} else {
+			final FacetIndex facetIndex = new FacetIndex(
+				// this is a HACK - facetingEntities id indexes produce NonTransactionalCopy instead of type than generics would suggest
+				(Map) transactionalLayer.getStateCopyWithCommittedChanges(this.facetingEntities)
+			);
+			ofNullable(layer).ifPresent(it -> it.clean(transactionalLayer));
+			return facetIndex;
+		}
 	}
 
 	@Override

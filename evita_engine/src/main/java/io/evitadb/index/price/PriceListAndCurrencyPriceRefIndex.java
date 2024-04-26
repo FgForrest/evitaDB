@@ -342,15 +342,19 @@ public class PriceListAndCurrencyPriceRefIndex implements VoidTransactionMemoryP
 	@Override
 	public PriceListAndCurrencyPriceRefIndex createCopyWithMergedTransactionalMemory(@Nullable Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		// we can safely throw away dirty flag now
-		transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
-		transactionalLayer.removeTransactionalMemoryLayerIfExists(this.priceRecords);
-		return new PriceListAndCurrencyPriceRefIndex(
-			priceIndexKey,
-			transactionalLayer.getStateCopyWithCommittedChanges(this.indexedPriceEntityIds),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.indexedPriceIds),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.validityIndex),
-			this.superIndexAccessor
-		);
+		final Boolean isDirty = transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
+		if (isDirty) {
+			transactionalLayer.removeTransactionalMemoryLayerIfExists(this.priceRecords);
+			return new PriceListAndCurrencyPriceRefIndex(
+				priceIndexKey,
+				transactionalLayer.getStateCopyWithCommittedChanges(this.indexedPriceEntityIds),
+				transactionalLayer.getStateCopyWithCommittedChanges(this.indexedPriceIds),
+				transactionalLayer.getStateCopyWithCommittedChanges(this.validityIndex),
+				this.superIndexAccessor
+			);
+		} else {
+			return this;
+		}
 	}
 
 	@Override

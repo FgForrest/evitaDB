@@ -179,11 +179,15 @@ public class CardinalityIndex implements VoidTransactionMemoryProducer<Cardinali
 	@Override
 	public CardinalityIndex createCopyWithMergedTransactionalMemory(@Nullable Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		// we can safely throw away dirty flag now
-		transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
-		return new CardinalityIndex(
-			valueType,
-			transactionalLayer.getStateCopyWithCommittedChanges(this.cardinalities)
-		);
+		final Boolean isDirty = transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
+		if (isDirty) {
+			return new CardinalityIndex(
+				valueType,
+				transactionalLayer.getStateCopyWithCommittedChanges(this.cardinalities)
+			);
+		} else {
+			return this;
+		}
 	}
 
 	/**

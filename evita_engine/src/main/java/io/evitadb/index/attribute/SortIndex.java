@@ -608,14 +608,18 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 	@Override
 	public SortIndex createCopyWithMergedTransactionalMemory(@Nullable SortIndexChanges layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		// we can safely throw away dirty flag now
-		transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
-		return new SortIndex(
-			this.comparatorBase,
-			this.attributeKey,
-			transactionalLayer.getStateCopyWithCommittedChanges(this.sortedRecords),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.sortedRecordsValues),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.valueCardinalities)
-		);
+		final Boolean isDirty = transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
+		if (isDirty) {
+			return new SortIndex(
+				this.comparatorBase,
+				this.attributeKey,
+				transactionalLayer.getStateCopyWithCommittedChanges(this.sortedRecords),
+				transactionalLayer.getStateCopyWithCommittedChanges(this.sortedRecordsValues),
+				transactionalLayer.getStateCopyWithCommittedChanges(this.valueCardinalities)
+			);
+		} else {
+			return this;
+		}
 	}
 
 	/*

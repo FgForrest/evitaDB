@@ -130,7 +130,7 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 		// iterate over inserted or updated keys
 		if (layer != null) {
 			return layer.createMergedMap(transactionalLayer);
-		} else {
+		} else if (valueType == null || TransactionalLayerProducer.class.isAssignableFrom(valueType)) {
 			// iterate original map and copy all values from it
 			List<Tuple<K, V>> modifiedEntries = null;
 			for (Entry<K, V> entry : mapDelegate.entrySet()) {
@@ -161,6 +161,8 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 				modifiedEntries.forEach(it -> copy.put(it.key(), it.value()));
 				return copy;
 			}
+		} else {
+			return mapDelegate;
 		}
 	}
 

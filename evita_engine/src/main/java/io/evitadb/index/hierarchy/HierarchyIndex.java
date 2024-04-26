@@ -711,13 +711,17 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 	@Override
 	public HierarchyIndex createCopyWithMergedTransactionalMemory(@Nullable Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		// we can safely throw away dirty flag now
-		transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
-		return new HierarchyIndex(
-			transactionalLayer.getStateCopyWithCommittedChanges(this.roots),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.levelIndex),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.itemIndex),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.orphans)
-		);
+		final Boolean isDirty = transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
+		if (isDirty) {
+			return new HierarchyIndex(
+				transactionalLayer.getStateCopyWithCommittedChanges(this.roots),
+				transactionalLayer.getStateCopyWithCommittedChanges(this.levelIndex),
+				transactionalLayer.getStateCopyWithCommittedChanges(this.itemIndex),
+				transactionalLayer.getStateCopyWithCommittedChanges(this.orphans)
+			);
+		} else {
+			return this;
+		}
 	}
 
 	@Override

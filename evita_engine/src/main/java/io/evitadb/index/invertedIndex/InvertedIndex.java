@@ -35,6 +35,7 @@ import io.evitadb.index.array.TransactionalComplexObjArray;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
+import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.invertedIndex.suppliers.HistogramBitmapSupplier;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -76,9 +77,13 @@ import java.util.function.BiFunction;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
 @ThreadSafe
-@EqualsAndHashCode
+@EqualsAndHashCode(exclude = {"dirty", "comparator"})
 public class InvertedIndex<T extends Comparable<T>> implements VoidTransactionMemoryProducer<InvertedIndex<T>>, Serializable {
 	@Serial private static final long serialVersionUID = 3019703951858227807L;
+	/**
+	 * This is internal flag that tracks whether the index contents became dirty and needs to be persisted.
+	 */
+	private final TransactionalBoolean dirty;
 	/**
 	 * The buckets contain ordered comparable values with bitmaps of all records with such value.
 	 */
@@ -140,11 +145,18 @@ public class InvertedIndex<T extends Comparable<T>> implements VoidTransactionMe
 			ValueToRecordBitmap::deepEquals
 		);
 		this.comparator = comparator;
+		this.dirty = new TransactionalBoolean(false);
 	}
 
 	public InvertedIndex(@Nonnull ValueToRecordBitmap<T>[] buckets, @Nonnull Comparator<T> comparator) {
+		this(buckets, comparator, false);
+	}
+
+	private InvertedIndex(@Nonnull ValueToRecordBitmap<T>[] buckets, @Nonnull Comparator<T> comparator, boolean internal) {
 		// contract check
-		assertValueIsMonotonic(buckets, comparator);
+		if (!internal) {
+			assertValueIsMonotonic(buckets, comparator);
+		}
 		this.valueToRecordBitmap = new TransactionalComplexObjArray<>(
 			buckets,
 			ValueToRecordBitmap::add,
@@ -154,6 +166,7 @@ public class InvertedIndex<T extends Comparable<T>> implements VoidTransactionMe
 			ValueToRecordBitmap::deepEquals
 		);
 		this.comparator = comparator;
+		this.dirty = new TransactionalBoolean(false);
 	}
 
 	/**
@@ -165,6 +178,7 @@ public class InvertedIndex<T extends Comparable<T>> implements VoidTransactionMe
 	public int addRecord(@Nonnull T value, int recordId) {
 		final ValueToRecordBitmap<T> bucket = new ValueToRecordBitmap<>(value, EmptyBitmap.INSTANCE);
 		bucket.addRecord(recordId);
+		this.dirty.setToTrue();
 		return valueToRecordBitmap.addReturningIndex(bucket);
 	}
 
@@ -176,6 +190,7 @@ public class InvertedIndex<T extends Comparable<T>> implements VoidTransactionMe
 		Assert.isTrue(!ArrayUtils.isEmpty(recordId), "Record ids must be not null and non empty!");
 		final ValueToRecordBitmap<T> bucket = new ValueToRecordBitmap<>(value, EmptyBitmap.INSTANCE);
 		bucket.addRecord(recordId);
+		this.dirty.setToTrue();
 		valueToRecordBitmap.add(bucket);
 	}
 
@@ -188,6 +203,7 @@ public class InvertedIndex<T extends Comparable<T>> implements VoidTransactionMe
 	 */
 	public int removeRecord(@Nonnull T value, int... recordId) {
 		Assert.isTrue(!ArrayUtils.isEmpty(recordId), "Record ids must be not null and non-empty!");
+		this.dirty.setToTrue();
 		return valueToRecordBitmap.remove(new ValueToRecordBitmap<>(value, new BaseBitmap(recordId)));
 	}
 
@@ -359,14 +375,21 @@ public class InvertedIndex<T extends Comparable<T>> implements VoidTransactionMe
 	@Nonnull
 	@Override
 	public InvertedIndex<T> createCopyWithMergedTransactionalMemory(Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
-		return new InvertedIndex<>(
-			transactionalLayer.getStateCopyWithCommittedChanges(this.valueToRecordBitmap),
-			this.comparator
-		);
+		final Boolean isDirty = transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
+		if (isDirty) {
+			return new InvertedIndex<>(
+				transactionalLayer.getStateCopyWithCommittedChanges(this.valueToRecordBitmap),
+				this.comparator,
+				true
+			);
+		} else {
+			return this;
+		}
 	}
 
 	@Override
 	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
+		transactionalLayer.removeTransactionalMemoryLayerIfExists(this.dirty);
 		transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
 		this.valueToRecordBitmap.removeLayer(transactionalLayer);
 	}
