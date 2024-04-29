@@ -27,6 +27,7 @@ import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.StringUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -106,7 +107,7 @@ public class UpsertAttributeMutation extends AttributeSchemaEvolvingMutation {
 
 	@Override
 	public String toString() {
-		return "upsert attribute `" + attributeKey + "` with value: " + value;
+		return "upsert attribute `" + attributeKey + "` with value: " + StringUtils.toString(value);
 	}
 
 }

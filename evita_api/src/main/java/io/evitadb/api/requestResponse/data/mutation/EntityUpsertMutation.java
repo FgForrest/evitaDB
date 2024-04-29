@@ -188,8 +188,8 @@ public class EntityUpsertMutation implements EntityMutation {
 
 	@Override
 	public String toString() {
-		return "entity `" + entityType + "` upsert (" + entityType + "):" + entityPrimaryKey +
-			"[" + localMutations.stream().map(Object::toString).collect(Collectors.joining(", ")) + "]";
+		return "entity `" + entityType + "` upsert (" + entityType + "): " + entityPrimaryKey +
+			" and mutations: [" + localMutations.stream().map(Object::toString).collect(Collectors.joining(", ")) + "]";
 	}
 
 	@Override

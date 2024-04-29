@@ -43,6 +43,8 @@ import java.util.regex.MatchResult;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import static java.lang.reflect.Array.*;
+
 /**
  * String utils contains shared utility methods for working with Strings.
  * We know some of these functions are available in Apache Commons, but we try to keep our transitive dependencies as low as
@@ -559,6 +561,33 @@ public class StringUtils {
 		}
 
 		return sb.toString().trim();
+	}
+
+	/**
+	 * Renders value as String taking into account NULL values and arrays.
+	 *
+	 * @param value value to render
+	 * @return rendered value
+	 */
+	@Nonnull
+	public static String toString(@Nullable Object value) {
+		if (value == null) {
+			return "NULL";
+		} else if (value.getClass().isArray()) {
+			final StringBuilder sb = new StringBuilder(256);
+			sb.append('[');
+			for (int i = 0; i < getLength(value); i++) {
+				if (i > 0) {
+					sb.append(", ");
+				}
+				sb.append(toString(get(value, i)));
+
+			}
+			sb.append(']');
+			return sb.toString();
+		} else {
+			return value.toString();
+		}
 	}
 
 	/**
