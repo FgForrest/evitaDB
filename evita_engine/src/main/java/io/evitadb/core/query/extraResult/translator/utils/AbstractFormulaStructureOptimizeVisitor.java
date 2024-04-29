@@ -108,7 +108,7 @@ public abstract class AbstractFormulaStructureOptimizeVisitor implements Formula
 
 		// we found formula to optimize for - duplicate current container with separate sub container
 		// for all other formulas except the one we optimize for
-		if (optimizationSet.contains(formula) && !(formula instanceof NotFormula)) {
+		if (optimizationSet.contains(formula) && !(formula instanceof NotFormula) && updatedChildren.length > 2) {
 
 			final CompositeObjectArray<Formula> newDivertedFormulas = new CompositeObjectArray<>(Formula.class);
 			final CompositeObjectArray<Formula> matchingFormulas = new CompositeObjectArray<>(Formula.class);
@@ -178,8 +178,8 @@ public abstract class AbstractFormulaStructureOptimizeVisitor implements Formula
 		if (levelStack.isEmpty()) {
 			this.result = formula;
 		} else {
-			levelStack.peek().add(formula);
-			optimizationSet.add(formula);
+			this.levelStack.peek().add(formula);
+			this.optimizationSet.add(formula);
 		}
 	}
 

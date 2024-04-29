@@ -111,6 +111,20 @@ public class FacetGroupOrFormula extends AbstractFormula implements FacetGroupFo
 		final StringBuilder sb = new StringBuilder("FACET " + referenceName + " OR (" + ofNullable(facetGroupId).map(Object::toString).orElse("-") + " - " + facetIds.toString() + "): ");
 		for (int i = 0; i < bitmaps.length; i++) {
 			final Bitmap bitmap = bitmaps[i];
+			sb.append(" ↦ ").append(bitmap.size());
+			if (i + 1 < facetIds.size()) {
+				sb.append(", ");
+			}
+		}
+		return sb.append(" primary keys").toString();
+	}
+
+	@Nonnull
+	@Override
+	public String toStringVerbose() {
+		final StringBuilder sb = new StringBuilder("FACET " + referenceName + " OR (" + ofNullable(facetGroupId).map(Object::toString).orElse("-") + " - " + facetIds.toString() + "): ");
+		for (int i = 0; i < bitmaps.length; i++) {
+			final Bitmap bitmap = bitmaps[i];
 			sb.append(" ↦ ").append(bitmap.toString());
 			if (i + 1 < facetIds.size()) {
 				sb.append(", ");

@@ -102,7 +102,12 @@ public class ConstantFormula extends AbstractFormula {
 
 	@Override
 	public String toString() {
-		return delegate.toString();
+		return delegate.size() + " primary keys";
 	}
 
+	@Nonnull
+	@Override
+	public String toStringVerbose() {
+		return delegate.toString();
+	}
 }

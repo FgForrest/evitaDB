@@ -182,6 +182,12 @@ class MutableFormula implements Formula {
 		return getInnerFormula().toString();
 	}
 
+	@Nonnull
+	@Override
+	public String toStringVerbose() {
+		return getInnerFormula().toStringVerbose();
+	}
+
 	/**
 	 * Returns the inner formula. If the pivot is set, the result is merged with the pivot.
 	 * @return the inner formula

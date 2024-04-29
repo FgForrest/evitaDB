@@ -141,6 +141,12 @@ public class FlattenedFormula extends CachePayloadHeader implements Formula {
 
 	@Override
 	public String toString() {
+		return "FLATTENED: " +  memoizedResult.size() + " primary keys";
+	}
+
+	@Nonnull
+	@Override
+	public String toStringVerbose() {
 		return "FLATTENED: " +  memoizedResult.toString();
 	}
 

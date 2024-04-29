@@ -210,6 +210,16 @@ public class DisentangleFormula extends AbstractCacheableFormula implements Cach
 	@Override
 	public String toString() {
 		if (mainBitmap != null && controlBitmap != null) {
+			return "DISENTANGLE: main" + mainBitmap.size() + ", control: " + controlBitmap.size() + " primary keys";
+		} else {
+			return "DISENTANGLE";
+		}
+	}
+
+	@Nonnull
+	@Override
+	public String toStringVerbose() {
+		if (mainBitmap != null && controlBitmap != null) {
 			return "DISENTANGLE: " + Stream.of(mainBitmap, controlBitmap).map(Bitmap::toString).collect(Collectors.joining(", "));
 		} else {
 			return "DISENTANGLE";
@@ -241,7 +251,7 @@ public class DisentangleFormula extends AbstractCacheableFormula implements Cach
 		PRIVATE METHODS
 	 */
 
-	private int computeNextInt(OfInt mainIt, OfInt controlIt, AtomicInteger controlNumberRef) {
+	private static int computeNextInt(OfInt mainIt, OfInt controlIt, AtomicInteger controlNumberRef) {
 		if (mainIt.hasNext()) {
 			do {
 				final int nextNumberAdept = mainIt.next();

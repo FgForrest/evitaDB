@@ -87,4 +87,11 @@ public interface Formula extends TransactionalDataRelatedStructure, PrettyPrinta
 	 * Clears the memoized results and hashes of the formula.
 	 */
 	void clearMemory();
+
+	/**
+	 * Prints information about the formula in a user-friendly way in verbose mode.
+	 */
+	@Nonnull
+	String toStringVerbose();
+
 }
