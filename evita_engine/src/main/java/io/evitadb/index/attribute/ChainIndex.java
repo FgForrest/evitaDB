@@ -31,6 +31,7 @@ import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.dataType.Predecessor;
+import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.array.TransactionalUnorderedIntArray;
@@ -79,16 +80,6 @@ import static java.util.Optional.ofNullable;
  */
 public class ChainIndex implements SortedRecordsSupplierFactory, TransactionalLayerProducer<ChainIndexChanges, ChainIndex>, IndexDataStructure, Serializable {
 	@Serial private static final long serialVersionUID = 6633952268102524794L;
-
-	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
-	/**
-	 * This is internal flag that tracks whether the index contents became dirty and needs to be persisted.
-	 */
-	@Nonnull private final TransactionalBoolean dirty;
-	/**
-	 * Contains key identifying the attribute.
-	 */
-	@Getter private final AttributeKey attributeKey;
 	/**
 	 * Index contains tuples of entity primary key and its predecessor primary key. The conflicting primary key is
 	 * a value and the predecessor primary key is a key.
@@ -106,6 +97,15 @@ public class ChainIndex implements SortedRecordsSupplierFactory, TransactionalLa
 	 * but is part of different chain (inconsistent state).
 	 */
 	final TransactionalMap<Integer, TransactionalUnorderedIntArray> chains;
+	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
+	/**
+	 * This is internal flag that tracks whether the index contents became dirty and needs to be persisted.
+	 */
+	@Nonnull private final TransactionalBoolean dirty;
+	/**
+	 * Contains key identifying the attribute.
+	 */
+	@Getter private final AttributeKey attributeKey;
 	/**
 	 * Temporary data structure that should be NULL and should exist only when {@link Catalog} is in
 	 * bulk insertion or read only state where transaction are not used.
@@ -150,6 +150,8 @@ public class ChainIndex implements SortedRecordsSupplierFactory, TransactionalLa
 		this.dirty = new TransactionalBoolean();
 		this.chains = new TransactionalMap<>(chains, TransactionalUnorderedIntArray.class, TransactionalUnorderedIntArray::new);
 		this.elementStates = new TransactionalMap<>(elementStates);
+		// TOBEDONE #531 - REMOVE WHEN THE ISSUE GETS FIXED
+		checkForCorruption();
 	}
 
 	/**
@@ -211,19 +213,26 @@ public class ChainIndex implements SortedRecordsSupplierFactory, TransactionalLa
 	 * @param primaryKey  primary key of the element
 	 */
 	public void upsertPredecessor(@Nonnull Predecessor predecessor, int primaryKey) {
-		Assert.isTrue(
-			primaryKey != predecessor.predecessorId(),
-			"An entity that is its own predecessor doesn't have sense!"
-		);
-		final ChainElementState existingState = this.elementStates.get(primaryKey);
-		// if existing state is not found - we need to insert new one
-		if (existingState == null) {
-			insertPredecessor(primaryKey, predecessor);
-		} else {
-			updatePredecessor(primaryKey, predecessor, existingState);
+		try {
+			Assert.isTrue(
+				primaryKey != predecessor.predecessorId(),
+				"An entity that is its own predecessor doesn't have sense!"
+			);
+			final ChainElementState existingState = this.elementStates.get(primaryKey);
+			// if existing state is not found - we need to insert new one
+			if (existingState == null) {
+				insertPredecessor(primaryKey, predecessor);
+			} else {
+				updatePredecessor(primaryKey, predecessor, existingState);
+			}
+			this.dirty.setToTrue();
+			getOrCreateChainIndexChanges().reset();
+		} catch (RuntimeException ex) {
+			throw new ChainUpdateFailedException(
+				"State of the index: " + this.toString(),
+				ex
+			);
 		}
-		this.dirty.setToTrue();
-		getOrCreateChainIndexChanges().reset();
 	}
 
 	/**
@@ -232,15 +241,22 @@ public class ChainIndex implements SortedRecordsSupplierFactory, TransactionalLa
 	 * @param primaryKey primary key of the element
 	 */
 	public void removePredecessor(int primaryKey) {
-		final ChainElementState existingState = this.elementStates.remove(primaryKey);
-		isTrue(
-			existingState != null,
-			"Value `" + primaryKey + "` is not present in the chain element index!"
-		);
-		// if existing state is not found - we need to insert new one
-		removePredecessorFromChain(primaryKey, existingState);
-		this.dirty.setToTrue();
-		getOrCreateChainIndexChanges().reset();
+		try {
+			final ChainElementState existingState = this.elementStates.remove(primaryKey);
+			isTrue(
+				existingState != null,
+				"Value `" + primaryKey + "` is not present in the chain element index!"
+			);
+			// if existing state is not found - we need to insert new one
+			removePredecessorFromChain(primaryKey, existingState);
+			this.dirty.setToTrue();
+			getOrCreateChainIndexChanges().reset();
+		} catch (RuntimeException ex) {
+			throw new ChainUpdateFailedException(
+				"State of the index: " + this.toString(),
+				ex
+			);
+		}
 	}
 
 	/**
@@ -277,15 +293,15 @@ public class ChainIndex implements SortedRecordsSupplierFactory, TransactionalLa
 		this.dirty.reset();
 	}
 
-
-	/*
-		Implementation of TransactionalLayerProducer
-	 */
-
 	@Override
 	public ChainIndexChanges createLayer() {
 		return new ChainIndexChanges(this);
 	}
+
+
+	/*
+		Implementation of TransactionalLayerProducer
+	 */
 
 	@Override
 	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
@@ -314,6 +330,50 @@ public class ChainIndex implements SortedRecordsSupplierFactory, TransactionalLa
 		return "ChainIndex:\n" +
 			"   - chains:\n" + chains.values().stream().map(it -> "      - " + it.toString()).collect(Collectors.joining("\n")) + "\n" +
 			"   - elementStates:\n" + elementStates.entrySet().stream().map(it -> "      - " + it.getKey() + ": " + it.getValue()).collect(Collectors.joining("\n"));
+	}
+
+	@Nonnull
+	@Override
+	public SortedRecordsSupplier getAscendingOrderRecordsSupplier() {
+		return getOrCreateChainIndexChanges().getAscendingOrderRecordsSupplier();
+	}
+
+	@Nonnull
+	@Override
+	public SortedRecordsSupplier getDescendingOrderRecordsSupplier() {
+		return getOrCreateChainIndexChanges().getDescendingOrderRecordsSupplier();
+	}
+
+	/**
+	 * This method verifies internal consistency of the data-structure. It checks whether the chains are correctly
+	 * ordered and whether the element states are correctly set.
+	 */
+	private void checkForCorruption() {
+		int overallCount = 0;
+		for (Entry<Integer, TransactionalUnorderedIntArray> entry : chains.entrySet()) {
+			overallCount += entry.getValue().getLength();
+			final int[] unorderedList = entry.getValue().getArray();
+			Assert.isPremiseValid(unorderedList.length > 0, () -> new ChainIndexCorruptedException("Corruption detected! The chain with head `" + entry.getKey() + "` is empty!"));
+			int headElementId = unorderedList[0];
+			Assert.isPremiseValid(headElementId == entry.getKey(), () -> new ChainIndexCorruptedException("Corruption detected! The head of the chain `" + headElementId + "` doesn't match the chain head `" + entry.getKey() + "`!"));
+
+			int previousElementId = headElementId;
+			for (int i = 0; i < unorderedList.length; i++) {
+				int elementId = unorderedList[i];
+				final ChainElementState state = elementStates.get(elementId);
+				Assert.isPremiseValid(state != null, () -> new ChainIndexCorruptedException("Corruption detected! The element `" + elementId + "` is not present in the element states!"));
+				if (i > 0) {
+					Assert.isPremiseValid(state.state() != ElementState.HEAD, () -> new ChainIndexCorruptedException("Corruption detected! The element `" + elementId + "` must not be a head of the chain!"));
+					Assert.isPremiseValid(state.inChainOfHeadWithPrimaryKey() == headElementId, () -> new ChainIndexCorruptedException("Corruption detected! The element `" + elementId + "` is not in the chain with head `" + headElementId + "`!"));
+					Assert.isPremiseValid(state.predecessorPrimaryKey() == previousElementId, () -> new ChainIndexCorruptedException("Corruption detected! The predecessor of the element `" + elementId + "` doesn't match the previous element!"));
+				}
+				previousElementId = elementId;
+			}
+		}
+		Assert.isPremiseValid(
+			overallCount == elementStates.size(),
+			() -> new ChainIndexCorruptedException("Corruption detected! The number of elements in chains doesn't match the number of elements in element states!")
+		);
 	}
 
 	/**
@@ -386,7 +446,7 @@ public class ChainIndex implements SortedRecordsSupplierFactory, TransactionalLa
 	 * Method removes successor element of the existing chain. The chain is removed completely if the successor is the
 	 * only element in the chain. If the element is in the middle of the chain, the chain is split into two chains.
 	 *
-	 * @param primaryKey primary key of the element
+	 * @param primaryKey  primary key of the element
 	 * @param chainHeadPk primary key of the chain head to which the element belongs
 	 */
 	@Nonnull
@@ -455,18 +515,6 @@ public class ChainIndex implements SortedRecordsSupplierFactory, TransactionalLa
 		}
 		// collapse the chains that refer to the last element of created chain
 		collapseChainsIfPossible(primaryKey);
-	}
-
-	@Nonnull
-	@Override
-	public SortedRecordsSupplier getAscendingOrderRecordsSupplier() {
-		return getOrCreateChainIndexChanges().getAscendingOrderRecordsSupplier();
-	}
-
-	@Nonnull
-	@Override
-	public SortedRecordsSupplier getDescendingOrderRecordsSupplier() {
-		return getOrCreateChainIndexChanges().getDescendingOrderRecordsSupplier();
 	}
 
 	/**
@@ -890,6 +938,25 @@ public class ChainIndex implements SortedRecordsSupplierFactory, TransactionalLa
 				default -> throw new IllegalStateException("Unexpected value: " + state);
 			}
 		}
+	}
+
+	public static class ChainIndexCorruptedException extends EvitaInternalError {
+		@Serial private static final long serialVersionUID = 8701958569974008862L;
+
+		public ChainIndexCorruptedException(@Nonnull String publicMessage) {
+			super(publicMessage);
+		}
+
+	}
+
+	/* TOBEDONE #531 - remove when fixed */
+	public static class ChainUpdateFailedException extends EvitaInternalError {
+		@Serial private static final long serialVersionUID = 8701958569974008862L;
+
+		public ChainUpdateFailedException(@Nonnull String publicMessage, @Nonnull RuntimeException cause) {
+			super(publicMessage, cause);
+		}
+
 	}
 
 }
