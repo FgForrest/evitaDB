@@ -277,9 +277,9 @@ public class QueryPlanner {
 						queryContext, adeptFormula, targetIndex, prefetchFormulaVisitor
 					);
 					if (result.isEmpty() || adeptFormula.getEstimatedCost() < result.get(0).getEstimatedCost()) {
-						result.addLast(queryPlanBuilder);
-					} else {
 						result.addFirst(queryPlanBuilder);
+					} else {
+						result.addLast(queryPlanBuilder);
 					}
 				} finally {
 					if (adeptFormula == null) {

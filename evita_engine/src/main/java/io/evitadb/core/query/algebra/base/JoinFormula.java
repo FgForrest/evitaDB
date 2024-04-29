@@ -172,6 +172,12 @@ public class JoinFormula extends AbstractFormula {
 
 	@Override
 	public String toString() {
+		return "JOIN: " + Arrays.stream(bitmaps).map(it -> String.valueOf(it.size())).collect(Collectors.joining(", ")) + " primary keys";
+	}
+
+	@Nonnull
+	@Override
+	public String toStringVerbose() {
 		return "JOIN: " + Arrays.stream(bitmaps).map(Bitmap::toString).collect(Collectors.joining(", "));
 	}
 

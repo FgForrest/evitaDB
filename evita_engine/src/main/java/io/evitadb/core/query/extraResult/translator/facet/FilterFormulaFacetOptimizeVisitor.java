@@ -77,6 +77,6 @@ public class FilterFormulaFacetOptimizeVisitor extends AbstractFormulaStructureO
 		final FilterFormulaFacetOptimizeVisitor visitor = new FilterFormulaFacetOptimizeVisitor();
 		inputFormula.accept(visitor);
 		return visitor.userFormulaFound ?
-			visitor.getResult() : FormulaFactory.and(inputFormula, new UserFilterFormula());
+			visitor.getResult() : FormulaFactory.and(visitor.getResult(), new UserFilterFormula());
 	}
 }

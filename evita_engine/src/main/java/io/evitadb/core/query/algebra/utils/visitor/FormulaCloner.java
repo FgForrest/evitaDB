@@ -117,6 +117,13 @@ public class FormulaCloner implements FormulaVisitor {
 	}
 
 	/**
+	 * Returns true if all parents match the passed predicate.
+	 */
+	public boolean allParentsMatch(@Nonnull Predicate<Formula> formulaTester) {
+		return parents.stream().allMatch(formulaTester);
+	}
+
+	/**
 	 * Returns true if there is at least single parent formula of passed `formulaType` for currently visited formula.
 	 */
 	public boolean isWithin(@Nonnull Class<? extends Formula> formulaType) {

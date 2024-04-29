@@ -174,6 +174,12 @@ public abstract class AbstractFormula implements Formula {
 		return PrettyPrintingFormulaVisitor.toString(this);
 	}
 
+	@Nonnull
+	@Override
+	public String toStringVerbose() {
+		return toString();
+	}
+
 	/**
 	 * Method signalizes whether the {@link #innerFormulas} order is significant in this formula. Usually the order
 	 * is not significant, and we want to order the hashes by their value to avoid different hashes for formula

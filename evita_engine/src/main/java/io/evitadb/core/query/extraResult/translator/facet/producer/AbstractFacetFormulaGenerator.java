@@ -43,6 +43,7 @@ import io.evitadb.core.query.algebra.facet.FacetGroupOrFormula;
 import io.evitadb.core.query.algebra.facet.UserFilterFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaCloner;
+import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.facet.FacetHavingTranslator;
 import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.exception.EvitaInternalError;
@@ -329,31 +330,33 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 		// iterate over existing children
 		final AtomicBoolean childrenAltered = new AtomicBoolean();
 		for (int i = 0; i < children.length; i++) {
-			final Formula mutatedChild = FormulaCloner.clone(children[i], examinedFormula -> {
-				// and if existing AND formula is found
-				if (examinedFormula instanceof AndFormula) {
-					// simply add new facet group formula to the AND formula
-					return examinedFormula.getCloneWithInnerFormulas(
-						ArrayUtils.insertRecordIntoArray(
-							newFormula, examinedFormula.getInnerFormulas(), examinedFormula.getInnerFormulas().length
-						)
-					);
-				} else if (examinedFormula instanceof final CombinedFacetFormula combinedFacetFormula) {
-					// if combined facet formula is found - we know there is combination of AND and OR formulas inside
-					// take the AND part of the combined formula
-					final Formula andFormula = combinedFacetFormula.getAndFormula();
-					// and replace combined formula with OR part untouched and AND part enriched with new facet formula
-					return examinedFormula.getCloneWithInnerFormulas(
-						FormulaFactory.and(
-							andFormula,
-							newFormula
-						),
-						combinedFacetFormula.getOrFormula()
-					);
-				} else {
-					return examinedFormula;
-				}
-			});
+			final Formula mutatedChild = FormulaCloner.clone(
+				children[i],
+				(cloner, examinedFormula) -> {
+					// and if existing AND formula is found
+					if (examinedFormula instanceof AndFormula && cloner.allParentsMatch(formula -> FilterByVisitor.isConjunctiveFormula(formula.getClass()))) {
+						// simply add new facet group formula to the AND formula
+						return examinedFormula.getCloneWithInnerFormulas(
+							ArrayUtils.insertRecordIntoArray(
+								newFormula, examinedFormula.getInnerFormulas(), examinedFormula.getInnerFormulas().length
+							)
+						);
+					} else if (examinedFormula instanceof final CombinedFacetFormula combinedFacetFormula && cloner.allParentsMatch(formula -> FilterByVisitor.isConjunctiveFormula(formula.getClass()))) {
+						// if combined facet formula is found - we know there is combination of AND and OR formulas inside
+						// take the AND part of the combined formula
+						final Formula andFormula = combinedFacetFormula.getAndFormula();
+						// and replace combined formula with OR part untouched and AND part enriched with new facet formula
+						return examinedFormula.getCloneWithInnerFormulas(
+							FormulaFactory.and(
+								andFormula,
+								newFormula
+							),
+							combinedFacetFormula.getOrFormula()
+						);
+					} else {
+						return examinedFormula;
+					}
+				});
 
 			if (mutatedChild != children[i]) {
 				children[i] = mutatedChild;
@@ -642,7 +645,7 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 	/**
 	 * Method stores formula to the result of the visitor on current {@link #levelStack}.
 	 */
-	protected void storeFormula(Formula formula) {
+	protected void storeFormula(@Nonnull Formula formula) {
 		// store updated formula
 		if (levelStack.isEmpty()) {
 			this.result = formula;

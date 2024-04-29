@@ -76,7 +76,7 @@ class FilterFormulaFacetOptimizeVisitorTest {
 			         [#10] FACET BRAND OR (1 - [1]):  ↦ [1]
 			         [#11] FACET STORE OR (1 - [1]):  ↦ [2]
 			""",
-			PrettyPrintingFormulaVisitor.toString(optimizedFormula)
+			PrettyPrintingFormulaVisitor.toStringVerbose(optimizedFormula)
 		);
 	}
 
@@ -128,7 +128,7 @@ class FilterFormulaFacetOptimizeVisitorTest {
 			               [#17] FACET BRAND OR (1 - [2]):  ↦ [7]
 			               [#18] FACET STORE OR (1 - [3]):  ↦ [9]
 			""",
-			PrettyPrintingFormulaVisitor.toString(optimizedFormula)
+			PrettyPrintingFormulaVisitor.toStringVerbose(optimizedFormula)
 		);
 	}
 
