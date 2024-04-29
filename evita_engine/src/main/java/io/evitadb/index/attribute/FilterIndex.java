@@ -186,7 +186,7 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	@Nonnull
 	private static Function<Comparable, Comparable> getNormalizer(@Nonnull Class<?> attributeType) {
 		if (OffsetDateTime.class.isAssignableFrom(attributeType)) {
-			return comparable -> ((OffsetDateTime) comparable).toInstant();
+			return comparable -> comparable instanceof OffsetDateTime offsetDateTime ? offsetDateTime.toInstant() : comparable;
 		} else {
 			return NO_NORMALIZATION;
 		}
