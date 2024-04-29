@@ -49,4 +49,14 @@ public class LocaleFormula extends ConstantFormula {
 		return CLASS_ID;
 	}
 
+	@Override
+	public String toString() {
+		return "LOCALE: " + super.toString();
+	}
+
+	@Nonnull
+	@Override
+	public String toStringVerbose() {
+		return "LOCALE: " + super.toStringVerbose();
+	}
 }
