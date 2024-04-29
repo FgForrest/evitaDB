@@ -261,7 +261,7 @@ public final class Evita implements EvitaContract {
 						updatedCatalog -> this.catalogs.put(catalogName, updatedCatalog)
 					);
 				} catch (Throwable ex) {
-					log.error("Catalog {} is corrupted!", catalogName);
+					log.error("Catalog {} is corrupted!", catalogName, ex);
 					this.catalogs.put(catalogName, new CorruptedCatalog(catalogName, directory, ex));
 				} finally {
 					startUpLatch.countDown();

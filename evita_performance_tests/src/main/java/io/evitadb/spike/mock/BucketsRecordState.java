@@ -32,7 +32,6 @@ import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.ArrayBitmap;
 import io.evitadb.index.bitmap.Bitmap;
-import io.evitadb.index.invertedIndex.InvertedIndex;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.index.range.RangeIndex;
 import lombok.Getter;
@@ -70,11 +69,11 @@ public class BucketsRecordState {
 		request = new AttributeHistogramRequest(
 			AttributeSchema._internalBuild("whatever", Integer.class, false),
 			Arrays.asList(
-				new FilterIndex(new AttributeKey("whatever"), new InvertedIndex<>(generateBuckets(BUCKET_COUNT, VALUE_COUNT / 5)), new RangeIndex()),
-				new FilterIndex(new AttributeKey("whatever"), new InvertedIndex<>(generateBuckets(BUCKET_COUNT, VALUE_COUNT / 5)), new RangeIndex()),
-				new FilterIndex(new AttributeKey("whatever"), new InvertedIndex<>(generateBuckets(BUCKET_COUNT, VALUE_COUNT / 5)), new RangeIndex()),
-				new FilterIndex(new AttributeKey("whatever"), new InvertedIndex<>(generateBuckets(BUCKET_COUNT, VALUE_COUNT / 5)), new RangeIndex()),
-				new FilterIndex(new AttributeKey("whatever"), new InvertedIndex<>(generateBuckets(BUCKET_COUNT, VALUE_COUNT / 5)), new RangeIndex())
+				new FilterIndex(new AttributeKey("whatever"), generateBuckets(BUCKET_COUNT, VALUE_COUNT / 5), new RangeIndex(), Integer.class),
+				new FilterIndex(new AttributeKey("whatever"), generateBuckets(BUCKET_COUNT, VALUE_COUNT / 5), new RangeIndex(), Integer.class),
+				new FilterIndex(new AttributeKey("whatever"), generateBuckets(BUCKET_COUNT, VALUE_COUNT / 5), new RangeIndex(), Integer.class),
+				new FilterIndex(new AttributeKey("whatever"), generateBuckets(BUCKET_COUNT, VALUE_COUNT / 5), new RangeIndex(), Integer.class),
+				new FilterIndex(new AttributeKey("whatever"), generateBuckets(BUCKET_COUNT, VALUE_COUNT / 5), new RangeIndex(), Integer.class)
 			),
 			Collections.emptySet()
 		);

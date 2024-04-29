@@ -33,7 +33,7 @@
 	<parent>
 		<groupId>io.evitadb</groupId>
 		<artifactId>evita_root</artifactId>
-		<version>2024.4-SNAPSHOT</version>
+		<version>2024.5-SNAPSHOT</version>
 		<relativePath>../../../pom.xml</relativePath>
 	</parent>
 
@@ -53,7 +53,7 @@
 		<dependency>
 			<groupId>${project.parent.groupId}</groupId>
 			<artifactId>evita_api</artifactId>
-			<version>2024.4-SNAPSHOT</version>
+			<version>2024.5-SNAPSHOT</version>
 		</dependency>
 		<dependency>
 			<groupId>io.opentelemetry</groupId>
@@ -62,7 +62,7 @@
 		<dependency>
 			<groupId>io.evitadb</groupId>
 			<artifactId>evita_java_driver</artifactId>
-			<version>2024.4-SNAPSHOT</version>
+			<version>2024.5-SNAPSHOT</version>
 			<scope>compile</scope>
 		</dependency>
 	</dependencies>

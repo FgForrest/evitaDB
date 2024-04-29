@@ -35,6 +35,7 @@ import io.evitadb.index.array.TransactionalComplexObjArray;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
+import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.invertedIndex.suppliers.HistogramBitmapSupplier;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -47,6 +48,7 @@ import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.function.BiFunction;
 
@@ -75,13 +77,21 @@ import java.util.function.BiFunction;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
 @ThreadSafe
-@EqualsAndHashCode
+@EqualsAndHashCode(exclude = {"dirty", "comparator"})
 public class InvertedIndex<T extends Comparable<T>> implements VoidTransactionMemoryProducer<InvertedIndex<T>>, Serializable {
 	@Serial private static final long serialVersionUID = 3019703951858227807L;
+	/**
+	 * This is internal flag that tracks whether the index contents became dirty and needs to be persisted.
+	 */
+	private final TransactionalBoolean dirty;
 	/**
 	 * The buckets contain ordered comparable values with bitmaps of all records with such value.
 	 */
 	private final TransactionalComplexObjArray<ValueToRecordBitmap<T>> valueToRecordBitmap;
+	/**
+	 * Instance of comparator that should be used for values in {@link #valueToRecordBitmap}
+	 */
+	@Nonnull @Getter private final Comparator<T> comparator;
 
 	/**
 	 * This lambda lay out records by {@link ValueToRecordBitmap#getValue()} one after another.
@@ -113,38 +123,50 @@ public class InvertedIndex<T extends Comparable<T>> implements VoidTransactionMe
 	 * Method verifies that {@link ValueToRecordBitmap#getValue()}s in passed set are monotonically increasing and contain
 	 * no duplicities.
 	 */
-	private static <T extends Comparable<T>> void assertValueIsMonotonic(@Nonnull ValueToRecordBitmap<T>[] points) {
+	private static <T extends Comparable<T>> void assertValueIsMonotonic(@Nonnull ValueToRecordBitmap<T>[] points, @Nonnull Comparator<T> comparator) {
 		T previous = null;
 		for (ValueToRecordBitmap<T> bucket : points) {
 			Assert.isTrue(
-				previous == null || previous.compareTo(bucket.getValue()) < 0,
+				previous == null || comparator.compare(previous, bucket.getValue()) < 0,
 				"Histogram values are not monotonic - conflicting values: " + previous + ", " + bucket.getValue()
 			);
 			previous = bucket.getValue();
 		}
 	}
 
-	public InvertedIndex() {
+	public InvertedIndex(@Nonnull Comparator<T> comparator) {
 		//noinspection unchecked, rawtypes
-		valueToRecordBitmap = new TransactionalComplexObjArray<>(
+		this.valueToRecordBitmap = new TransactionalComplexObjArray<>(
 			new ValueToRecordBitmap[0],
 			ValueToRecordBitmap::add,
 			ValueToRecordBitmap::remove,
 			ValueToRecordBitmap::isEmpty,
+			(Comparator<ValueToRecordBitmap<T>>) (o1, o2) -> comparator.compare(o1.getValue(), o2.getValue()),
 			ValueToRecordBitmap::deepEquals
 		);
+		this.comparator = comparator;
+		this.dirty = new TransactionalBoolean(false);
 	}
 
-	public InvertedIndex(@Nonnull ValueToRecordBitmap<T>[] buckets) {
+	public InvertedIndex(@Nonnull ValueToRecordBitmap<T>[] buckets, @Nonnull Comparator<T> comparator) {
+		this(buckets, comparator, false);
+	}
+
+	private InvertedIndex(@Nonnull ValueToRecordBitmap<T>[] buckets, @Nonnull Comparator<T> comparator, boolean internal) {
 		// contract check
-		assertValueIsMonotonic(buckets);
+		if (!internal) {
+			assertValueIsMonotonic(buckets, comparator);
+		}
 		this.valueToRecordBitmap = new TransactionalComplexObjArray<>(
 			buckets,
 			ValueToRecordBitmap::add,
 			ValueToRecordBitmap::remove,
 			ValueToRecordBitmap::isEmpty,
+			(o1, o2) -> comparator.compare(o1.getValue(), o2.getValue()),
 			ValueToRecordBitmap::deepEquals
 		);
+		this.comparator = comparator;
+		this.dirty = new TransactionalBoolean(false);
 	}
 
 	/**
@@ -156,6 +178,7 @@ public class InvertedIndex<T extends Comparable<T>> implements VoidTransactionMe
 	public int addRecord(@Nonnull T value, int recordId) {
 		final ValueToRecordBitmap<T> bucket = new ValueToRecordBitmap<>(value, EmptyBitmap.INSTANCE);
 		bucket.addRecord(recordId);
+		this.dirty.setToTrue();
 		return valueToRecordBitmap.addReturningIndex(bucket);
 	}
 
@@ -167,6 +190,7 @@ public class InvertedIndex<T extends Comparable<T>> implements VoidTransactionMe
 		Assert.isTrue(!ArrayUtils.isEmpty(recordId), "Record ids must be not null and non empty!");
 		final ValueToRecordBitmap<T> bucket = new ValueToRecordBitmap<>(value, EmptyBitmap.INSTANCE);
 		bucket.addRecord(recordId);
+		this.dirty.setToTrue();
 		valueToRecordBitmap.add(bucket);
 	}
 
@@ -179,6 +203,7 @@ public class InvertedIndex<T extends Comparable<T>> implements VoidTransactionMe
 	 */
 	public int removeRecord(@Nonnull T value, int... recordId) {
 		Assert.isTrue(!ArrayUtils.isEmpty(recordId), "Record ids must be not null and non-empty!");
+		this.dirty.setToTrue();
 		return valueToRecordBitmap.remove(new ValueToRecordBitmap<>(value, new BaseBitmap(recordId)));
 	}
 
@@ -350,11 +375,21 @@ public class InvertedIndex<T extends Comparable<T>> implements VoidTransactionMe
 	@Nonnull
 	@Override
 	public InvertedIndex<T> createCopyWithMergedTransactionalMemory(Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
-		return new InvertedIndex<>(transactionalLayer.getStateCopyWithCommittedChanges(this.valueToRecordBitmap));
+		final Boolean isDirty = transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
+		if (isDirty) {
+			return new InvertedIndex<>(
+				transactionalLayer.getStateCopyWithCommittedChanges(this.valueToRecordBitmap),
+				this.comparator,
+				true
+			);
+		} else {
+			return this;
+		}
 	}
 
 	@Override
 	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
+		transactionalLayer.removeTransactionalMemoryLayerIfExists(this.dirty);
 		transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
 		this.valueToRecordBitmap.removeLayer(transactionalLayer);
 	}
@@ -396,10 +431,10 @@ public class InvertedIndex<T extends Comparable<T>> implements VoidTransactionMe
 	 */
 	@Nonnull
 	private ValueToRecordBitmap<T>[] getRecordsInternal(@Nullable T moreThanEq, @Nullable T lessThanEq, @Nonnull BoundsHandling boundsHandling) {
-		final HistogramBounds<T> histogramBounds = new HistogramBounds<>(valueToRecordBitmap.getArray(), moreThanEq, lessThanEq, boundsHandling);
+		final HistogramBounds<T> histogramBounds = new HistogramBounds<>(this.valueToRecordBitmap.getArray(), moreThanEq, lessThanEq, boundsHandling, this.comparator);
 		@SuppressWarnings("unchecked") final ValueToRecordBitmap<T>[] result = new ValueToRecordBitmap[histogramBounds.getNormalizedEndIndex() - histogramBounds.getNormalizedStartIndex()];
 		int index = -1;
-		final Iterator<ValueToRecordBitmap<T>> it = valueToRecordBitmap.iterator();
+		final Iterator<ValueToRecordBitmap<T>> it = this.valueToRecordBitmap.iterator();
 		while (it.hasNext()) {
 			final ValueToRecordBitmap<T> bucket = it.next();
 			index++;
@@ -435,14 +470,14 @@ public class InvertedIndex<T extends Comparable<T>> implements VoidTransactionMe
 		 */
 		@Getter private final int normalizedEndIndex;
 
-		HistogramBounds(@Nonnull ValueToRecordBitmap<T>[] points, @Nullable T moreThanEq, @Nullable T lessThanEq, @Nonnull BoundsHandling boundsHandling) {
+		HistogramBounds(@Nonnull ValueToRecordBitmap<T>[] points, @Nullable T moreThanEq, @Nullable T lessThanEq, @Nonnull BoundsHandling boundsHandling, @Nonnull Comparator<T> comparator) {
 			Assert.isTrue(
-				moreThanEq == null || lessThanEq == null || moreThanEq.compareTo(lessThanEq) <= 0,
+				moreThanEq == null || lessThanEq == null || comparator.compare(moreThanEq, lessThanEq) <= 0,
 				"From must be lower than to: " + moreThanEq + " vs. " + lessThanEq
 			);
 
 			if (moreThanEq != null) {
-				final int startIndex = Arrays.binarySearch(points, new ValueToRecordBitmap<>(moreThanEq));
+				final int startIndex = ArrayUtils.binarySearch(points, new ValueToRecordBitmap<>(moreThanEq), (b1, b2) -> comparator.compare(b1.getValue(), b2.getValue()));
 				if (boundsHandling == BoundsHandling.EXCLUSIVE) {
 					normalizedStartIndex = startIndex >= 0 ? startIndex + 1 : -1 * (startIndex) - 1;
 				} else {
@@ -453,7 +488,7 @@ public class InvertedIndex<T extends Comparable<T>> implements VoidTransactionMe
 			}
 
 			if (lessThanEq != null) {
-				final int endIndex = Arrays.binarySearch(points, new ValueToRecordBitmap<>(lessThanEq));
+				final int endIndex = ArrayUtils.binarySearch(points, new ValueToRecordBitmap<>(lessThanEq), (b1, b2) -> comparator.compare(b1.getValue(), b2.getValue()));
 				if (boundsHandling == BoundsHandling.EXCLUSIVE) {
 					normalizedEndIndex = endIndex >= 0 ? endIndex : (-1 * (endIndex) - 1);
 				} else {

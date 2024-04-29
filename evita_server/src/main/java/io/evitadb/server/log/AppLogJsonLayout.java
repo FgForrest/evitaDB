@@ -80,14 +80,12 @@ public class AppLogJsonLayout extends LayoutBase<ILoggingEvent> {
 
 		buf.append(",");
 
+		String completeMessage = messageConverter.convert(event);
+		if (event.getThrowableProxy() != null) {
+			completeMessage += "\n" + throwableProxyConverter.convert(event);
+		}
 		buf.append("\"message\":\"");
-		buf.append(escapeMessage(messageConverter.convert(event)));
-		buf.append("\"");
-
-		buf.append(",");
-
-		buf.append("\"throwableProxy\":\"");
-		buf.append(escapeMessage(throwableProxyConverter.convert(event)));
+		buf.append(escapeMessage(completeMessage));
 		buf.append("\"");
 
 		buf.append(",");

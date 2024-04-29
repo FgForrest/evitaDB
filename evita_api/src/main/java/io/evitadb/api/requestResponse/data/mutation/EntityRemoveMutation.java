@@ -176,4 +176,8 @@ public class EntityRemoveMutation implements EntityMutation {
 			.toList();
 	}
 
+	@Override
+	public String toString() {
+		return "entity `" + entityType + "` removal: " + entityPrimaryKey;
+	}
 }

@@ -235,15 +235,19 @@ public class UniqueIndex implements TransactionalLayerProducer<TransactionalCont
 	@Nonnull
 	@Override
 	public UniqueIndex createCopyWithMergedTransactionalMemory(@Nullable TransactionalContainerChanges<MapChanges<Serializable, Integer>, Map<Serializable, Integer>, TransactionalMap<Serializable, Integer>> layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
-		final UniqueIndex uniqueKeyIndex = new UniqueIndex(
-			entityType, attributeKey, type,
-			transactionalLayer.getStateCopyWithCommittedChanges(this.uniqueValueToRecordId),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.recordIds)
-		);
-		transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
-		// we can safely throw away dirty flag now
-		ofNullable(layer).ifPresent(it -> it.clean(transactionalLayer));
-		return uniqueKeyIndex;
+		final Boolean isDirty = transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
+		if (isDirty) {
+			final UniqueIndex uniqueKeyIndex = new UniqueIndex(
+				entityType, attributeKey, type,
+				transactionalLayer.getStateCopyWithCommittedChanges(this.uniqueValueToRecordId),
+				transactionalLayer.getStateCopyWithCommittedChanges(this.recordIds)
+			);
+			// we can safely throw away dirty flag now
+			ofNullable(layer).ifPresent(it -> it.clean(transactionalLayer));
+			return uniqueKeyIndex;
+		} else {
+			return this;
+		}
 	}
 
 	@Override

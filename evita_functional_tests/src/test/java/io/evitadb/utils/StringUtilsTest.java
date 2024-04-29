@@ -246,4 +246,40 @@ class StringUtilsTest {
 		assertEquals("0ms", formattedDuration);
 	}
 
+	@Test
+	void shouldReturnNullStringWhenValueIsNull() {
+		assertEquals("NULL", StringUtils.toString(null));
+	}
+
+	@Test
+	void shouldReturnStringValueWhenValueIsString() {
+		assertEquals("Hello", StringUtils.toString("Hello"));
+	}
+
+	@Test
+	void shouldReturnArrayRepresentationWhenValueIsArray() {
+		assertEquals("[1, 2, 3]", StringUtils.toString(new int[]{1, 2, 3}));
+	}
+
+	@Test
+	void shouldReturnEmptyArrayRepresentationWhenValueIsEmptyArray() {
+		assertEquals("[]", StringUtils.toString(new int[]{}));
+	}
+
+	@Test
+	void shouldReturnArrayRepresentationWhenValueIsMultiDimensionalArray() {
+		assertEquals("[[1, 2], [3, 4]]", StringUtils.toString(new int[][]{{1, 2}, {3, 4}}));
+	}
+
+	@Test
+	void shouldReturnObjectRepresentationWhenValueIsObject() {
+		Object obj = new Object() {
+			@Override
+			public String toString() {
+				return "Test Object";
+			}
+		};
+		assertEquals("Test Object", StringUtils.toString(obj));
+	}
+
 }

@@ -31,15 +31,12 @@ import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.attribute.AttributeFormula;
-import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.prefetch.EntityFilteringFormula;
 import io.evitadb.core.query.algebra.prefetch.SelectionFormula;
-import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.core.query.filter.translator.attribute.alternative.AttributeBitmapFilter;
-import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -70,16 +67,7 @@ public class AttributeContainsTranslator implements FilteringConstraintTranslato
 				attributeDefinition.isLocalized() ?
 					new AttributeKey(attributeName, filterByVisitor.getLocale()) : new AttributeKey(attributeName),
 				filterByVisitor.applyOnFilterIndexes(
-					attributeDefinition, index -> {
-						/* TOBEDONE JNO naive and slow - use RadixTree */
-						final Formula[] foundRecords = index.getValues()
-							.stream()
-							.filter(it -> ((String)it).contains(textToSearch))
-							.map(index::getRecordsEqualToFormula)
-							.toArray(Formula[]::new);
-						return ArrayUtils.isEmpty(foundRecords) ?
-							EmptyFormula.INSTANCE : FormulaFactory.or(foundRecords);
-					}
+					attributeDefinition, index -> index.getRecordsWhoseValuesContains(textToSearch)
 				)
 			);
 			if (filterByVisitor.isPrefetchPossible()) {

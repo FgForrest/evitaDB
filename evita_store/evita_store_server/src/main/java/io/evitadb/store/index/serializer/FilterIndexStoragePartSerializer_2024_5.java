@@ -29,7 +29,7 @@ import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.index.attribute.FilterIndex;
-import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
+import io.evitadb.index.invertedIndex.InvertedIndex;
 import io.evitadb.index.range.RangeIndex;
 import io.evitadb.store.service.KeyCompressor;
 import io.evitadb.store.spi.model.storageParts.index.FilterIndexStoragePart;
@@ -41,8 +41,9 @@ import lombok.RequiredArgsConstructor;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@Deprecated
 @RequiredArgsConstructor
-public class FilterIndexStoragePartSerializer extends Serializer<FilterIndexStoragePart> {
+public class FilterIndexStoragePartSerializer_2024_5 extends Serializer<FilterIndexStoragePart> {
 	private final KeyCompressor keyCompressor;
 
 	@Override
@@ -52,14 +53,8 @@ public class FilterIndexStoragePartSerializer extends Serializer<FilterIndexStor
 		Assert.notNull(uniquePartId, "Unique part id should have been computed by now!");
 		output.writeVarLong(uniquePartId, true);
 		output.writeVarInt(keyCompressor.getId(filterIndex.getAttributeKey()), true);
-		kryo.writeClass(output, filterIndex.getAttributeType());
 
-		final ValueToRecordBitmap[] points = filterIndex.getHistogramPoints();
-		output.writeInt(points.length);
-		for (ValueToRecordBitmap range : points) {
-			kryo.writeObject(output, range);
-		}
-
+		kryo.writeObject(output, new InvertedIndex<>(filterIndex.getHistogramPoints(), (o1, o2) -> ((Comparable)o1).compareTo(o2)));
 		final boolean rangeIndex = filterIndex.getRangeIndex() != null;
 		output.writeBoolean(rangeIndex);
 		if (rangeIndex) {
@@ -72,20 +67,14 @@ public class FilterIndexStoragePartSerializer extends Serializer<FilterIndexStor
 		final int entityIndexPrimaryKey = input.readInt();
 		final long uniquePartId = input.readVarLong(true);
 		final AttributeKey attributeKey = keyCompressor.getKeyForId(input.readVarInt(true));
-		final Class<?> attributeType = kryo.readClass(input).getType();
 
-		final int pointCount = input.readInt();
-		final ValueToRecordBitmap[] points = new ValueToRecordBitmap[pointCount];
-		for (int i = 0; i < pointCount; i++) {
-			points[i] = kryo.readObject(input, ValueToRecordBitmap.class);
-		}
-
+		final InvertedIndex<?> invertedIndex = kryo.readObject(input, InvertedIndex.class);
 		final boolean hasRangeIndex = input.readBoolean();
 		if (hasRangeIndex) {
 			final RangeIndex intRangeIndex = kryo.readObject(input, RangeIndex.class);
-			return new FilterIndexStoragePart(entityIndexPrimaryKey, attributeKey, attributeType, points, intRangeIndex, uniquePartId);
+			return new FilterIndexStoragePart(entityIndexPrimaryKey, attributeKey, null, invertedIndex.getValueToRecordBitmap(), intRangeIndex, uniquePartId);
 		} else {
-			return new FilterIndexStoragePart(entityIndexPrimaryKey, attributeKey, attributeType, points, null, uniquePartId);
+			return new FilterIndexStoragePart(entityIndexPrimaryKey, attributeKey, null, invertedIndex.getValueToRecordBitmap(), null, uniquePartId);
 		}
 	}
 

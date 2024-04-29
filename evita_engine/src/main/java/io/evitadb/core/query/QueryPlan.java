@@ -339,7 +339,7 @@ public class QueryPlan {
 			new SpanAttribute("require", query.getRequire() == null ? "<NONE>" : query.getRequire().toString()),
 			new SpanAttribute("scannedRecords", this.filter.getEstimatedCardinality()),
 			new SpanAttribute("totalRecordCount", this.totalRecordCount),
-			new SpanAttribute("returnedRecordCount", this.primaryKeys.length)
+			new SpanAttribute("returnedRecordCount", this.primaryKeys == null ? 0 : this.primaryKeys.length)
 		};
 	}
 }

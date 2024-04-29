@@ -3,13 +3,14 @@ FROM index.docker.io/azul/zulu-openjdk-alpine:17-latest
 ## not supposed to be overriden in container
 ARG EVITA_JAR_NAME
 ARG VERSION=not_set
+ARG RELEASE_DATE=not_set
 ENV EVITA_HOME="/evita"
 ENV EVITA_JAR_NAME="$EVITA_JAR_NAME"
 
 # Labels with dynamic information based on environment variables and current date
 LABEL vendor="FG Forrest, a.s." \
       io.evitadb.version="${VERSION}" \
-      io.evitadb.release-date="$(date +%Y-%m-%d)"
+      io.evitadb.release-date="${RELEASE_DATE}"
 
 USER root
 

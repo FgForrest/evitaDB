@@ -30,6 +30,7 @@ import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
 import io.evitadb.index.array.TransactionalObject;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
+import io.evitadb.index.bool.TransactionalBoolean;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 
@@ -57,24 +58,31 @@ import java.util.Objects;
 @EqualsAndHashCode(of = "threshold")
 public class TransactionalRangePoint implements TransactionalObject<TransactionalRangePoint, Void>, VoidTransactionMemoryProducer<TransactionalRangePoint>, RangePoint<TransactionalRangePoint>, TransactionalCreatorMaintainer, Serializable {
 	@Serial private static final long serialVersionUID = -7357845800177404940L;
+	/**
+	 * This is internal flag that tracks whether the index contents became dirty and needs to be persisted.
+	 */
+	private final TransactionalBoolean dirty;
 	@Getter private final long threshold;
 	@Getter private TransactionalBitmap starts = new TransactionalBitmap();
 	@Getter private TransactionalBitmap ends = new TransactionalBitmap();
 
 	public TransactionalRangePoint(long threshold) {
 		this.threshold = threshold;
+		this.dirty = new TransactionalBoolean();
 	}
 
 	public TransactionalRangePoint(long threshold, int[] starts, int[] ends) {
 		this.threshold = threshold;
 		this.starts = new TransactionalBitmap(starts);
 		this.ends = new TransactionalBitmap(ends);
+		this.dirty = new TransactionalBoolean();
 	}
 
 	public TransactionalRangePoint(long threshold, Bitmap starts, Bitmap ends) {
 		this.threshold = threshold;
 		this.starts = new TransactionalBitmap(starts);
 		this.ends = new TransactionalBitmap(ends);
+		this.dirty = new TransactionalBoolean();
 	}
 
 	/**
@@ -82,6 +90,7 @@ public class TransactionalRangePoint implements TransactionalObject<Transactiona
 	 */
 	public void addStart(int recordId) {
 		this.starts.add(recordId);
+		this.dirty.setToTrue();
 	}
 
 	/**
@@ -89,6 +98,7 @@ public class TransactionalRangePoint implements TransactionalObject<Transactiona
 	 */
 	public void addEnd(int recordId) {
 		this.ends.add(recordId);
+		this.dirty.setToTrue();
 	}
 
 	/**
@@ -96,6 +106,7 @@ public class TransactionalRangePoint implements TransactionalObject<Transactiona
 	 */
 	public void addStarts(int[] recordIds) {
 		this.starts.addAll(recordIds);
+		this.dirty.setToTrue();
 	}
 
 	/**
@@ -103,6 +114,7 @@ public class TransactionalRangePoint implements TransactionalObject<Transactiona
 	 */
 	public void addEnds(int[] recordIds) {
 		this.ends.addAll(recordIds);
+		this.dirty.setToTrue();
 	}
 
 	/**
@@ -110,6 +122,7 @@ public class TransactionalRangePoint implements TransactionalObject<Transactiona
 	 */
 	public void removeStarts(int[] recordIds) {
 		this.starts.removeAll(recordIds);
+		this.dirty.setToTrue();
 	}
 
 	/**
@@ -117,6 +130,7 @@ public class TransactionalRangePoint implements TransactionalObject<Transactiona
 	 */
 	public void removeEnds(int[] recordIds) {
 		this.ends.removeAll(recordIds);
+		this.dirty.setToTrue();
 	}
 
 	/**
@@ -146,23 +160,29 @@ public class TransactionalRangePoint implements TransactionalObject<Transactiona
 	@Override
 	public Collection<TransactionalLayerCreator<?>> getMaintainedTransactionalCreators() {
 		return Arrays.asList(
-			this.starts, this.ends
+			this.dirty, this.starts, this.ends
 		);
 	}
 
 	@Nonnull
 	@Override
 	public TransactionalRangePoint createCopyWithMergedTransactionalMemory(Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
-		return new TransactionalRangePoint(
-			threshold,
-			transactionalLayer.getStateCopyWithCommittedChanges(starts),
-			transactionalLayer.getStateCopyWithCommittedChanges(ends)
-		);
+		final Boolean isDirty = transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
+		if (isDirty) {
+			return new TransactionalRangePoint(
+				threshold,
+				transactionalLayer.getStateCopyWithCommittedChanges(starts),
+				transactionalLayer.getStateCopyWithCommittedChanges(ends)
+			);
+		} else {
+			return this;
+		}
 	}
 
 	@Override
 	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
+		this.dirty.removeLayer(transactionalLayer);
 		this.starts.removeLayer(transactionalLayer);
 		this.ends.removeLayer(transactionalLayer);
 	}

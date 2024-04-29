@@ -43,6 +43,7 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Optional.empty;
@@ -183,6 +184,12 @@ public class EntityUpsertMutation implements EntityMutation {
 	@Nonnull
 	public Collection<? extends LocalMutation<?, ?>> getLocalMutations() {
 		return localMutations;
+	}
+
+	@Override
+	public String toString() {
+		return "entity `" + entityType + "` upsert (" + entityType + "): " + entityPrimaryKey +
+			" and mutations: [" + localMutations.stream().map(Object::toString).collect(Collectors.joining(", ")) + "]";
 	}
 
 	@Override

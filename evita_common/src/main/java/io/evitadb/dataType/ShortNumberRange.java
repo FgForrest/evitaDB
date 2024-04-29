@@ -128,6 +128,7 @@ public final class ShortNumberRange extends NumberRange<Short> {
 		assertNotFloatingPointType(to, "to");
 	}
 
+	@Nonnull
 	@Override
 	public Range<Short> cloneWithDifferentBounds(@Nullable Short from, @Nullable Short to) {
 		return new ShortNumberRange(from, to);
