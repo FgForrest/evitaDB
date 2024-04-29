@@ -31,6 +31,7 @@ import io.evitadb.core.query.algebra.deferred.DeferredFormula;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
 import io.evitadb.dataType.array.CompositeObjectArray;
+import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.index.array.TransactionalComplexObjArray;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
@@ -126,9 +127,10 @@ public class InvertedIndex<T extends Comparable<T>> implements VoidTransactionMe
 	private static <T extends Comparable<T>> void assertValueIsMonotonic(@Nonnull ValueToRecordBitmap<T>[] points, @Nonnull Comparator<T> comparator) {
 		T previous = null;
 		for (ValueToRecordBitmap<T> bucket : points) {
-			Assert.isTrue(
+			T finalPrevious = previous;
+			Assert.isPremiseValid(
 				previous == null || comparator.compare(previous, bucket.getValue()) < 0,
-				"Histogram values are not monotonic - conflicting values: " + previous + ", " + bucket.getValue()
+				() -> new MonotonicRowCorruptedException("Histogram values are not monotonic - conflicting values: " + finalPrevious + ", " + bucket.getValue())
 			);
 			previous = bucket.getValue();
 		}
@@ -500,4 +502,14 @@ public class InvertedIndex<T extends Comparable<T>> implements VoidTransactionMe
 		}
 
 	}
+
+	/* TOBEDONE #538 - remove, the data should be correct by then */
+	public static class MonotonicRowCorruptedException extends EvitaInternalError {
+		@Serial private static final long serialVersionUID = -4632659049907667781L;
+
+		public MonotonicRowCorruptedException(@Nonnull String message) {
+			super(message);
+		}
+	}
+
 }
