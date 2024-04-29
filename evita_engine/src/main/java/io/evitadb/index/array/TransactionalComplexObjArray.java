@@ -323,9 +323,9 @@ public class TransactionalComplexObjArray<T extends TransactionalObject<T, ?> & 
 	@Override
 	public ComplexObjArrayChanges<T> createLayer() {
 		if (producer != null) {
-			return isTransactionAvailable() ? new ComplexObjArrayChanges<>(objectType, delegate, producer, reducer, obsoleteChecker, deepComparator) : null;
+			return isTransactionAvailable() ? new ComplexObjArrayChanges<>(objectType, comparator, delegate, producer, reducer, obsoleteChecker, deepComparator) : null;
 		} else {
-			return isTransactionAvailable() ? new ComplexObjArrayChanges<>(objectType, delegate) : null;
+			return isTransactionAvailable() ? new ComplexObjArrayChanges<>(objectType, comparator, delegate) : null;
 		}
 	}
 

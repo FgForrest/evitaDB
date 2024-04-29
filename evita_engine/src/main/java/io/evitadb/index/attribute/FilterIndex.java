@@ -40,6 +40,7 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.invertedIndex.InvertedIndex;
+import io.evitadb.index.invertedIndex.InvertedIndex.MonotonicRowCorruptedException;
 import io.evitadb.index.invertedIndex.InvertedIndexSubSet;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.index.range.RangeIndex;
@@ -258,7 +259,18 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 				ArrayUtils.sortArray((o1, o2) -> ((Comparator<T>) this.comparator).compare(o1.getValue(), o2.getValue()), valueToRecords);
 			}
 		}
-		this.invertedIndex = new InvertedIndex<>(valueToRecords, (Comparator<T>) this.comparator);
+		InvertedIndex<T> theInvertedIndex;
+		try {
+			theInvertedIndex = new InvertedIndex<>(valueToRecords, (Comparator<T>) this.comparator);
+		} catch (MonotonicRowCorruptedException ex) {
+			if (this.comparator != DEFAULT_COMPARATOR) {
+				ArrayUtils.sortArray((o1, o2) -> ((Comparator<T>) this.comparator).compare(o1.getValue(), o2.getValue()), valueToRecords);
+				theInvertedIndex = new InvertedIndex<>(valueToRecords, (Comparator<T>) this.comparator);
+			} else {
+				throw ex;
+			}
+		}
+		this.invertedIndex = theInvertedIndex;
 	}
 
 	private <T extends Comparable<T>> FilterIndex(
