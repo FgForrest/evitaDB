@@ -84,7 +84,7 @@ When this procedure is completed you should see the similar output in the consol
 |  __/\ V /| | || (_| | |_| | |_) |
  \___| \_/ |_|\__\__,_|____/|____/
 
-alpha build 0.8.ALPHA
+beta build 2024.5.4 (keep calm and report bugs 😉)
 Visit us at: https://evitadb.io
 
 19:45:37.088 INFO  i.e.s.c.DefaultCatalogPersistenceService - Catalog `evita` is being loaded and  it contains:

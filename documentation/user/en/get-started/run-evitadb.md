@@ -226,7 +226,7 @@ When you start the evitaDB server you should see the following information in th
 |  __/\ V /| | || (_| | |_| | |_) |
  \___| \_/ |_|\__\__,_|____/|____/
 
-alpha build 0.9-SNAPSHOT (keep calm and report bugs 😉)
+beta build 2024.5.4 (keep calm and report bugs 😉)
 Visit us at: https://evitadb.io
 
 Log config used: META-INF/logback.xml
