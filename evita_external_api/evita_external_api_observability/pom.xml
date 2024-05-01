@@ -61,6 +61,11 @@
 			<artifactId>evita_query</artifactId>
 			<version>${project.parent.version}</version>
 		</dependency>
+		<dependency>
+			<groupId>net.bytebuddy</groupId>
+			<artifactId>byte-buddy</artifactId>
+			<version>1.14.14</version>
+		</dependency>
 
 		<dependency>
 			<groupId>${project.parent.groupId}</groupId>

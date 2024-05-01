@@ -119,6 +119,20 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 			}
 		);
 
+		router.addExactPath(
+			"/oom",
+			exchange -> {
+				exchange.setStatusCode(StatusCodes.OK);
+				exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, "text/plain");
+				try {
+					final OutOfMemoryError oom = new OutOfMemoryError("XXX");
+					exchange.getResponseSender().send(String.valueOf(oom.getMessage()));
+				} finally {
+					//exchange.getResponseSender().send("!!! OOM !!!");
+				}
+			}
+		);
+
 		final ResourceHandler fileSystemHandler;
 		try (ResourceManager resourceManager = new FileResourceManager(file, 100)) {
 			fileSystemHandler = new ResourceHandler(
