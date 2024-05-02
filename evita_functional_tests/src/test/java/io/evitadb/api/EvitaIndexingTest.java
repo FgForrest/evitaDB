@@ -54,7 +54,6 @@ import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.core.EntityCollection;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.Predecessor;
-import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.function.TriConsumer;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
@@ -2235,7 +2234,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				final SortIndex sortIndex = globalIndex.getSortIndex(new AttributeKey(attributeCodeEan));
 				assertNotNull(sortIndex);
 
-				assertThrows(EvitaInvalidUsageException.class, () -> sortIndex.getRecordsEqualTo(new Comparable<?>[]{"ABC", "123"}));
+				assertTrue(sortIndex.getRecordsEqualTo(new Comparable<?>[]{"ABC", "123"}).isEmpty());
 				assertArrayEquals(new int[]{1}, sortIndex.getRecordsEqualTo(new Comparable<?>[]{"Whatever", "578"}).getArray());
 			}
 		);
@@ -2369,7 +2368,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				final SortIndex sortIndex = globalIndex.getSortIndex(new AttributeKey(attributeCodeEan, Locale.CANADA));
 				assertNotNull(sortIndex);
 
-				assertThrows(EvitaInvalidUsageException.class, () -> sortIndex.getRecordsEqualTo(new Comparable<?>[]{"ABC", "123"}));
+				assertTrue(sortIndex.getRecordsEqualTo(new Comparable<?>[]{"ABC", "123"}).isEmpty());
 				assertArrayEquals(new int[]{1}, sortIndex.getRecordsEqualTo(new Comparable<?>[]{"Whatever", "578"}).getArray());
 			}
 		);

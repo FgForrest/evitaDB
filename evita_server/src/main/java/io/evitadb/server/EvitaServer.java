@@ -262,7 +262,7 @@ public class EvitaServer {
 				 \\___| \\_/ |_|\\__\\__,_|____/|____/\s\n\n""",
 			ConsoleColor.DARK_GREEN
 		);
-		ConsoleWriter.write("alpha build %s (keep calm and report bugs 😉)", new Object[]{VersionUtils.readVersion()}, ConsoleColor.LIGHT_GRAY);
+		ConsoleWriter.write("beta build %s (keep calm and report bugs 😉)", new Object[]{VersionUtils.readVersion()}, ConsoleColor.LIGHT_GRAY);
 		ConsoleWriter.write("\n", ConsoleColor.WHITE);
 		ConsoleWriter.write("Visit us at: ");
 		ConsoleWriter.write("https://evitadb.io", ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);

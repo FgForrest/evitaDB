@@ -182,6 +182,7 @@ final class SessionRegistry {
 		private final EvitaSession evitaSession;
 		private final TracingContext tracingContext;
 
+		@Nullable
 		@Override
 		public Object invoke(Object proxy, Method method, Object[] args) {
 			try {
@@ -211,11 +212,14 @@ final class SessionRegistry {
 									// unwrap and rethrow
 									throw evitaInternalError;
 								} else {
-									log.error("Unexpected internal Evita error occurred: " + ex.getCause().getMessage(), targetException);
+									log.error(
+										"Unexpected internal Evita error occurred: " + ex.getCause().getMessage(),
+										targetException == null ? ex : targetException
+									);
 									throw new EvitaInternalError(
 										"Unexpected internal Evita error occurred: " + ex.getCause().getMessage(),
 										"Unexpected internal Evita error occurred.",
-										targetException
+										targetException == null ? ex : targetException
 									);
 								}
 							} catch (Throwable ex) {
