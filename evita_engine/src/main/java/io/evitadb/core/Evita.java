@@ -51,6 +51,7 @@ import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchem
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaNameMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.RemoveCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.system.SystemStatus;
+import io.evitadb.api.requestResponse.system.SystemStatus.HealthProblem;
 import io.evitadb.api.trace.TracingContext;
 import io.evitadb.api.trace.TracingContextProvider;
 import io.evitadb.core.cache.CacheSupervisor;
@@ -527,7 +528,8 @@ public final class Evita implements EvitaContract {
 			Duration.between(this.started, OffsetDateTime.now()),
 			this.configuration.name(),
 			corruptedCatalogs,
-			this.catalogs.size() - corruptedCatalogs
+			this.catalogs.size() - corruptedCatalogs,
+			EnumSet.noneOf(HealthProblem.class)
 		);
 	}
 

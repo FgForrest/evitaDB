@@ -23,6 +23,8 @@ message GrpcEvitaServerStatusResponse {
   int32 catalogsCorrupted = 5;
   // Number of catalogs that are ok
   int32 catalogsOk = 6;
+  // Set of all observed health problems
+  repeated GrpcHealthProblem healthProblems = 7;
 }
 
 // Request to create a session inside of a catalog.

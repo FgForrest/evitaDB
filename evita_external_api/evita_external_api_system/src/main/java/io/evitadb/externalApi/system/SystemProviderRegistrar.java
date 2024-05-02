@@ -59,6 +59,7 @@ import java.util.stream.Collectors;
 public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<SystemConfig> {
 	private static final String ENDPOINT_SERVER_NAME = "server-name";
 	private static final String ENDPOINT_SYSTEM_STATUS = "status";
+	private static final String ENDPOINT_SYSTEM_LIVENESS = "liveness";
 
 	@Nonnull
 	@Override
@@ -116,6 +117,27 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 						apiOptions
 					)
 				);
+			}
+		);
+
+		router.addExactPath(
+			"/" + ENDPOINT_SYSTEM_LIVENESS,
+			exchange -> {
+				exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, "application/json");
+				final SystemStatus systemStatus = evita.getSystemStatus();
+				if (systemStatus.healthProblems().isEmpty()) {
+					exchange.setStatusCode(StatusCodes.OK);
+					exchange.getResponseSender().send("{\"status\": \"healthy\"}");
+				} else {
+					exchange.setStatusCode(StatusCodes.INTERNAL_SERVER_ERROR);
+					exchange.getResponseSender().send(
+						"{\"status\": \"unhealthy\", \"problems\": [" +
+							systemStatus.healthProblems().stream()
+								.map(it -> "\"" + it.name() + "\"")
+								.collect(Collectors.joining(", ")) +
+							"]}"
+					);
+				}
 			}
 		);
 
@@ -182,7 +204,11 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 	 * @return the JSON string representing the server status
 	 */
 	@Nonnull
-	private static String renderStatus(@Nonnull String instanceId, @Nonnull SystemStatus systemStatus, ApiOptions apiOptions) {
+	private static String renderStatus(
+		@Nonnull String instanceId,
+		@Nonnull SystemStatus systemStatus,
+		@Nonnull ApiOptions apiOptions
+	) {
 		return String.format("""
 			{
 			   "serverName": "%s",
@@ -192,6 +218,7 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 			   "uptimeForHuman": "%s",
 			   "catalogsCorrupted": %d,
 			   "catalogsOk": %d,
+			   "healthProblems": [%s],
 			   "apis": [
 			%s
 			   ]
@@ -203,6 +230,9 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 			StringUtils.formatDuration(systemStatus.uptime()),
 			systemStatus.catalogsCorrupted(),
 			systemStatus.catalogsOk(),
+			systemStatus.healthProblems().stream()
+				.map(it -> "\"" + it.name() + "\"")
+				.collect(Collectors.joining(", ")),
 			apiOptions.endpoints().entrySet().stream()
 				.map(
 					entry -> "      {\n         \"" + entry.getKey() + "\": [\n" +

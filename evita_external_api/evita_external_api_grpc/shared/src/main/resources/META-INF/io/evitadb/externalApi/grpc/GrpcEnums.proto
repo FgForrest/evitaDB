@@ -500,3 +500,15 @@ enum GrpcCommitBehavior {
   WAIT_FOR_INDEX_PROPAGATION = 2;
 
 }
+
+// This enum represents all possible health problems that are monitored by evitaDB.
+enum GrpcHealthProblem {
+
+    // Signalized when the consumed memory never goes below 85% of the maximum heap size and the GC tries to free
+    // old generation multiple times consuming a log of CPU power.
+    MEMORY_SHORTAGE = 0;
+    // Signalized when the input queues are full and the server is not able to process incoming requests. This flag
+    // is cleared when the server is able to process incoming requests again.
+    INPUT_QUEUES_OVERLOADED = 1;
+
+}

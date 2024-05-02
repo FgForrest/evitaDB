@@ -146,6 +146,10 @@ public class MetricHandler {
 					final Set<String> classNames = eventClasses.getValue();
 					final Set<Class<? extends CustomMetricsExecutionEvent>> existingEventClasses = CustomEventProvider.getEventClasses();
 
+					// jvm_memory_used_bytes{area="heap"}
+					// jvm_memory_max_bytes{area="heap"}
+					// jvm_gc_collection_seconds_sum{gc="G1 Old Generation"}
+
 					for (Class<? extends CustomMetricsExecutionEvent> eventClass : existingEventClasses) {
 						// if event is enabled
 						if (classNames.contains(eventClass.getName())) {

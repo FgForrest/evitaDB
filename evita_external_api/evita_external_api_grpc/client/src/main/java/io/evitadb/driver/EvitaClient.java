@@ -91,6 +91,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import static java.util.Optional.ofNullable;
 
@@ -628,7 +629,11 @@ public class EvitaClient implements EvitaContract {
 					Duration.of(response.getUptime(), ChronoUnit.SECONDS),
 					response.getInstanceId(),
 					response.getCatalogsCorrupted(),
-					response.getCatalogsOk()
+					response.getCatalogsOk(),
+					response.getHealthProblemsList()
+						.stream()
+						.map(EvitaEnumConverter::toHealthProblem)
+						.collect(Collectors.toSet())
 				);
 			}
 		);
