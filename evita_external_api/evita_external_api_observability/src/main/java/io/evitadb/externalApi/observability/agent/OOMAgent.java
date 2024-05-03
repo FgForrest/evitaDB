@@ -23,20 +23,16 @@
 
 package io.evitadb.externalApi.observability.agent;
 
-import io.evitadb.exception.EvitaInternalError;
 import net.bytebuddy.agent.builder.AgentBuilder;
-import net.bytebuddy.implementation.MethodCall;
-import net.bytebuddy.implementation.SuperMethodCall;
+import net.bytebuddy.asm.Advice;
+import net.bytebuddy.asm.Advice.OnMethodEnter;
+import net.bytebuddy.dynamic.loading.ClassInjector;
 
-import java.io.File;
 import java.lang.instrument.Instrumentation;
-import java.lang.reflect.Method;
 
-import static net.bytebuddy.agent.builder.AgentBuilder.RedefinitionStrategy.REDEFINITION;
-import static net.bytebuddy.agent.builder.AgentBuilder.RedefinitionStrategy.RETRANSFORMATION;
-import static net.bytebuddy.matcher.ElementMatchers.any;
+import static net.bytebuddy.matcher.ElementMatchers.is;
+import static net.bytebuddy.matcher.ElementMatchers.isConstructor;
 import static net.bytebuddy.matcher.ElementMatchers.nameStartsWith;
-import static net.bytebuddy.matcher.ElementMatchers.named;
 import static net.bytebuddy.matcher.ElementMatchers.none;
 
 /**
@@ -45,50 +41,34 @@ import static net.bytebuddy.matcher.ElementMatchers.none;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public class OOMAgent {
-	private static final Method HANDLE_OOM;
-
-	static {
-		try {
-			HANDLE_OOM = OOMAgent.class.getDeclaredMethod("handleOOM");
-		} catch (NoSuchMethodException e) {
-			throw new EvitaInternalError("!!! OOMAgent initialization failed !!!", e);
-		}
-	}
 
 	public static void premain(String agentArgs, Instrumentation inst) {
-		if (HANDLE_OOM != null) {
-			new AgentBuilder.Default()
-				.disableClassFormatChanges()
-				.with(new AgentBuilder.InjectionStrategy.UsingInstrumentation(inst, new File("/www/oss/evitaDB-temporary/evita_external_api/evita_external_api_observability/target/evita_external_api_observability-2024.5-SNAPSHOT.jar")))
-				.with(REDEFINITION)
-				// Make sure we see helpful logs
-				.with(AgentBuilder.RedefinitionStrategy.Listener.StreamWriting.toSystemError())
-				.with(AgentBuilder.Listener.StreamWriting.toSystemError().withTransformationsOnly())
-				.with(AgentBuilder.InstallationListener.StreamWriting.toSystemError())
-				.ignore(none())
-				// Ignore Byte Buddy and JDK classes we are not interested in
-				.ignore(
-					nameStartsWith("net.bytebuddy.")
-						.or(nameStartsWith("jdk.internal.reflect."))
-						.or(nameStartsWith("java.lang.invoke."))
-						.or(nameStartsWith("com.sun.proxy."))
-				)
-				.disableClassFormatChanges()
-				.with(RETRANSFORMATION)
-				.with(AgentBuilder.InitializationStrategy.NoOp.INSTANCE)
-				.with(AgentBuilder.TypeStrategy.Default.REDEFINE)
-				.type(named("java.lang.OutOfMemoryError"))
-				.transform(
-					(builder, typeDescription, classLoader, javaModule, protectionDomain) -> builder
-						.constructor(any())
-						.intercept(SuperMethodCall.INSTANCE.andThen(MethodCall.invoke(HANDLE_OOM)))
-				)
-				.installOn(inst);
-		}
+		ClassInjector.UsingUnsafe.Factory factory = ClassInjector.UsingUnsafe.Factory.resolve(inst);
+		AgentBuilder agentBuilder = new AgentBuilder.Default();
+		agentBuilder = agentBuilder.with(new AgentBuilder.InjectionStrategy.UsingUnsafe.OfFactory(factory));
+
+
+		agentBuilder
+			.disableClassFormatChanges()
+			.with(AgentBuilder.RedefinitionStrategy.RETRANSFORMATION)
+			.ignore(none())
+			.ignore(nameStartsWith("net.bytebuddy."))
+			.type(is(OutOfMemoryError.class))
+			.transform((builder, typeDescription, classLoader, module, protectionDomain) -> builder
+				.visit(
+					Advice
+						.to(MyAdvice.class)
+						.on(isConstructor())
+				))
+			.installOn(inst);
 	}
 
-	public static void handleOOM() {
-		System.out.println("!!! OOM !!!");
+	public static class MyAdvice {
+		@OnMethodEnter
+		public static boolean before() {
+			System.out.println("!!! OOM !!!");
+			return true;
+		}
 	}
 
 }
