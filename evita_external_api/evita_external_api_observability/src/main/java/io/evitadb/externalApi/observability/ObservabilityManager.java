@@ -28,6 +28,7 @@ import io.evitadb.core.Evita;
 import io.evitadb.core.metric.event.CustomMetricsExecutionEvent;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.UnexpectedIOException;
+import io.evitadb.externalApi.api.system.model.HealthProblem;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.http.CorsFilter;
 import io.evitadb.externalApi.http.PathNormalizingHandler;
@@ -67,6 +68,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * This class is used as an orchestrator for all observability-related tasks. It is responsible for starting and stopping
@@ -82,10 +84,6 @@ public class ObservabilityManager {
 	public static final String METRICS_SUFFIX = "metrics";
 	public static final String METRICS_PATH = "/observability/" + METRICS_SUFFIX;
 	/**
-	 * JFR recording instance.
-	 */
-	private final Recording recording;
-	/**
 	 * Directory where JFR recording file is stored.
 	 */
 	private static final Path RECORDING_FILE_DIRECTORY_PATH = Path.of(System.getProperty("java.io.tmpdir"), "evita-recording");
@@ -93,6 +91,26 @@ public class ObservabilityManager {
 	 * Name of the JFR recording file.
 	 */
 	private static final String DUMP_FILE_NAME = "recording.jfr";
+	/**
+	 * Counter for Java errors.
+	 */
+	private static final AtomicLong JAVA_ERRORS = new AtomicLong();
+	/**
+	 * Counter for Java OutOfMemory errors.
+	 */
+	private static final AtomicLong JAVA_OOM_ERRORS = new AtomicLong();
+	/**
+	 * Counter for evitaDB errors.
+	 */
+	private static final AtomicLong EVITA_ERRORS = new AtomicLong();
+	/**
+	 * Name of the OutOfMemoryError class to detect the problems of OOM kind.
+	 */
+	private static final String OOM_NAME = OutOfMemoryError.class.getSimpleName();
+	/**
+	 * JFR recording instance.
+	 */
+	private final Recording recording;
 	/**
 	 * Router for observability endpoints.
 	 */
@@ -114,6 +132,46 @@ public class ObservabilityManager {
 	 */
 	@Nonnull @Getter private final ObjectMapper objectMapper = new ObjectMapper();
 
+	/**
+	 * Method increments the counter of Java errors in the Prometheus metrics.
+	 */
+	public static void javaErrorEvent(@Nonnull String simpleName) {
+		MetricHandler.JAVA_ERRORS_TOTAL.labelValues(simpleName).inc();
+		JAVA_ERRORS.incrementAndGet();
+	}
+
+	/**
+	 * Method increments the counter of evitaDB errors in the Prometheus metrics.
+	 */
+	public static void evitaErrorEvent(@Nonnull String simpleName) {
+		MetricHandler.EVITA_ERRORS_TOTAL.labelValues(simpleName).inc();
+		EVITA_ERRORS.incrementAndGet();
+		if (simpleName.equals(OOM_NAME)) {
+			JAVA_OOM_ERRORS.incrementAndGet();
+		}
+	}
+
+	/**
+	 * Registers specified events within {@link FlightRecorder}.
+	 */
+	private static void registerJfrEvents(@Nonnull String[] allowedEvents) {
+		for (String event : Arrays.stream(allowedEvents).filter(x -> !x.startsWith("jdk.")).toList()) {
+			if (event.endsWith(".*")) {
+				final Set<Class<? extends CustomMetricsExecutionEvent>> classes = CustomEventProvider.getEventClassesFromPackage(event);
+				for (Class<? extends CustomMetricsExecutionEvent> clazz : classes) {
+					if (!Modifier.isAbstract(clazz.getModifiers())) {
+						FlightRecorder.register(clazz);
+					}
+				}
+			} else {
+				final Class<? extends CustomMetricsExecutionEvent> clazz = CustomEventProvider.getEventClass(event);
+				if (!Modifier.isAbstract(clazz.getModifiers())) {
+					FlightRecorder.register(clazz);
+				}
+			}
+		}
+	}
+
 	public ObservabilityManager(ObservabilityConfig config, ApiOptions apiOptions, Evita evita) {
 		this.recording = new Recording();
 		this.config = config;
@@ -122,6 +180,49 @@ public class ObservabilityManager {
 		createAndRegisterPrometheusServlet();
 		registerJfrControlEndpoints();
 		registerRecordingFileResourceHandler();
+	}
+
+	/**
+	 * Returns the number of Java errors.
+	 *
+	 * @return the number of Java errors
+	 */
+	public long getJavaErrorCount() {
+		return JAVA_ERRORS.get();
+	}
+
+	/**
+	 * Returns the number of Java OutOfMemory errors.
+	 *
+	 * @return the number of Java OutOfMemory errors
+	 */
+	public long getJavaOutOfMemoryErrorCount() {
+		return JAVA_OOM_ERRORS.get();
+	}
+
+	/**
+	 * Returns the number of evitaDB errors.
+	 *
+	 * @return the number of evitaDB errors
+	 */
+	public long getEvitaErrorCount() {
+		return EVITA_ERRORS.get();
+	}
+
+	/**
+	 * Records health problem to the Prometheus metrics.
+	 * @param healthProblem the health problem to be recorded
+	 */
+	public void recordHealthProblem(@Nonnull HealthProblem healthProblem) {
+		MetricHandler.HEALTH_PROBLEMS.labelValues(healthProblem.name()).set(1);
+	}
+
+	/**
+	 * Clears health problem from the Prometheus metrics.
+	 * @param healthProblem the health problem to be cleared
+	 */
+	public void clearHealthProblem(@Nonnull HealthProblem healthProblem) {
+		MetricHandler.HEALTH_PROBLEMS.labelValues(healthProblem.name()).set(0);
 	}
 
 	/**
@@ -177,6 +278,14 @@ public class ObservabilityManager {
 	}
 
 	/**
+	 * Gets {@link HttpHandler} for observability endpoints.
+	 */
+	@Nonnull
+	public HttpHandler getObservabilityRouter() {
+		return new PathNormalizingHandler(observabilityRouter);
+	}
+
+	/**
 	 * Registers resource handler for file containing JFR recording.
 	 */
 	private void registerRecordingFileResourceHandler() {
@@ -203,14 +312,6 @@ public class ObservabilityManager {
 		} catch (IOException e) {
 			throw new EvitaInternalError(e.getMessage(), e);
 		}
-	}
-
-	/**
-	 * Gets {@link HttpHandler} for observability endpoints.
-	 */
-	@Nonnull
-	public HttpHandler getObservabilityRouter() {
-		return new PathNormalizingHandler(observabilityRouter);
 	}
 
 	/**
@@ -261,26 +362,5 @@ public class ObservabilityManager {
 				)
 			)
 		);
-	}
-
-	/**
-	 * Registers specified events within {@link FlightRecorder}.
-	 */
-	private static void registerJfrEvents(@Nonnull String[] allowedEvents) {
-		for (String event : Arrays.stream(allowedEvents).filter(x -> !x.startsWith("jdk.")).toList()) {
-			if (event.endsWith(".*")) {
-				final Set<Class<? extends CustomMetricsExecutionEvent>> classes = CustomEventProvider.getEventClassesFromPackage(event);
-				for (Class<? extends CustomMetricsExecutionEvent> clazz : classes) {
-					if (!Modifier.isAbstract(clazz.getModifiers())) {
-						FlightRecorder.register(clazz);
-					}
-				}
-			} else {
-				final Class<? extends CustomMetricsExecutionEvent> clazz = CustomEventProvider.getEventClass(event);
-				if (!Modifier.isAbstract(clazz.getModifiers())) {
-					FlightRecorder.register(clazz);
-				}
-			}
-		}
 	}
 }

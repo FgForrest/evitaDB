@@ -149,7 +149,7 @@
                             <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
                         </manifest>
                         <manifestEntries>
-                            <Premain-Class>io.evitadb.externalApi.observability.agent.OOMAgent</Premain-Class>
+                            <Premain-Class>io.evitadb.externalApi.observability.agent.ErrorMonitoringAgent</Premain-Class>
                             <Can-Redefine-Classes>true</Can-Redefine-Classes>
                             <Can-Retransform-Classes>true</Can-Retransform-Classes>
                         </manifestEntries>

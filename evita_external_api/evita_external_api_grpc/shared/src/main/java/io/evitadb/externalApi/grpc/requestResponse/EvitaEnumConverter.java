@@ -46,7 +46,6 @@ import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
-import io.evitadb.api.requestResponse.system.SystemStatus.HealthProblem;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.externalApi.grpc.generated.*;
 import lombok.AccessLevel;
@@ -749,19 +748,4 @@ public class EvitaEnumConverter {
 		};
 	}
 
-	/**
-	 * Converts a GrpcHealthProblem to a HealthProblem.
-	 *
-	 * @param grpcHealthProblem The GrpcHealthProblem to convert.
-	 * @return The converted HealthProblem.
-	 * @throws EvitaInternalError if the given grpcHealthProblem is unrecognized.
-	 */
-	@Nonnull
-	public static HealthProblem toHealthProblem(@Nonnull GrpcHealthProblem grpcHealthProblem) {
-		return switch (grpcHealthProblem.getNumber()) {
-			case 0 -> HealthProblem.MEMORY_SHORTAGE;
-			case 1 -> HealthProblem.INPUT_QUEUES_OVERLOADED;
-			default -> throw new EvitaInternalError("Unrecognized remote health problem: " + grpcHealthProblem);
-		};
-	}
 }

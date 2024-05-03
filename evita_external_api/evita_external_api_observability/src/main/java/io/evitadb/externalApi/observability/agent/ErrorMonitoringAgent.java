@@ -23,6 +23,8 @@
 
 package io.evitadb.externalApi.observability.agent;
 
+import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.externalApi.observability.ObservabilityManager;
 import net.bytebuddy.agent.builder.AgentBuilder;
 import net.bytebuddy.asm.Advice;
 import net.bytebuddy.asm.Advice.OnMethodEnter;
@@ -30,45 +32,69 @@ import net.bytebuddy.dynamic.loading.ClassInjector;
 
 import java.lang.instrument.Instrumentation;
 
-import static net.bytebuddy.matcher.ElementMatchers.is;
 import static net.bytebuddy.matcher.ElementMatchers.isConstructor;
+import static net.bytebuddy.matcher.ElementMatchers.isSubTypeOf;
 import static net.bytebuddy.matcher.ElementMatchers.nameStartsWith;
 import static net.bytebuddy.matcher.ElementMatchers.none;
 
 /**
- * TODO JNO - document me
+ * Agent that intercepts all Error constructors and sends a metric to the MetricHandler.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public class OOMAgent {
+public class ErrorMonitoringAgent {
 
 	public static void premain(String agentArgs, Instrumentation inst) {
 		ClassInjector.UsingUnsafe.Factory factory = ClassInjector.UsingUnsafe.Factory.resolve(inst);
 		AgentBuilder agentBuilder = new AgentBuilder.Default();
 		agentBuilder = agentBuilder.with(new AgentBuilder.InjectionStrategy.UsingUnsafe.OfFactory(factory));
 
-
 		agentBuilder
 			.disableClassFormatChanges()
 			.with(AgentBuilder.RedefinitionStrategy.RETRANSFORMATION)
 			.ignore(none())
 			.ignore(nameStartsWith("net.bytebuddy."))
-			.type(is(OutOfMemoryError.class))
+			.type(isSubTypeOf(Error.class))
 			.transform((builder, typeDescription, classLoader, module, protectionDomain) -> builder
 				.visit(
 					Advice
-						.to(MyAdvice.class)
+						.to(JavaErrorConstructorInterceptAdvice.class)
+						.on(isConstructor())
+				))
+			.type(isSubTypeOf(EvitaInternalError.class))
+			.transform((builder, typeDescription, classLoader, module, protectionDomain) -> builder
+				.visit(
+					Advice
+						.to(EvitaDbErrorConstructorInterceptAdvice.class)
 						.on(isConstructor())
 				))
 			.installOn(inst);
 	}
 
-	public static class MyAdvice {
+	/**
+	 * Advice that sends a metric to the MetricHandler when an Error is constructed.
+	 */
+	public static class JavaErrorConstructorInterceptAdvice {
+
 		@OnMethodEnter
-		public static boolean before() {
-			System.out.println("!!! OOM !!!");
+		public static boolean before(@Advice.This Object thiz) {
+			ObservabilityManager.javaErrorEvent(thiz.getClass().getSimpleName());
 			return true;
 		}
+
+	}
+
+	/**
+	 * Advice that sends a metric to the MetricHandler when an Error is constructed.
+	 */
+	public static class EvitaDbErrorConstructorInterceptAdvice {
+
+		@OnMethodEnter
+		public static boolean before(@Advice.This Object thiz) {
+			ObservabilityManager.evitaErrorEvent(thiz.getClass().getSimpleName());
+			return true;
+		}
+
 	}
 
 }

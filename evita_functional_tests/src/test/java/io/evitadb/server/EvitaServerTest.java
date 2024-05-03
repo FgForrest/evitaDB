@@ -167,26 +167,33 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 							property("cache.enabled", "false")
 						),
 						apis.stream()
-							.map(it -> property("api.endpoints." + it + ".host", "localhost:" + ports[index.getAndIncrement()]))
+							.flatMap(
+								it -> Stream.of(
+									property("api.endpoints." + it + ".host", "localhost:" + ports[index.getAndIncrement()]),
+									property("api.endpoints." + it + ".enabled", "true")
+								)
+							)
 					)
 					.toArray(Property[]::new)
 			)
 		);
 		try {
 			evitaServer.run();
+			final String[] baseUrls = evitaServer.getExternalApiServer().getExternalApiProviderByCode(SystemProvider.CODE)
+				.getConfiguration()
+				.getBaseUrls(null);
 
 			Optional<String> response;
 			final long start = System.currentTimeMillis();
 			do {
-				final String[] baseUrls = evitaServer.getExternalApiServer().getExternalApiProviderByCode(SystemProvider.CODE).getConfiguration().getBaseUrls(null);
 				response = NetworkUtils.fetchContent(
 					baseUrls[0] + "readiness",
 					"GET",
-					"text/plain",
+					"application/json",
 					null
 				);
 
-				if (response.isPresent() && response.get().contains("\"status\": \"ready\"")) {
+				if (response.isPresent() && response.get().contains("\"status\": \"READY\"")) {
 					break;
 				}
 
@@ -196,16 +203,30 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 			assertEquals(
 				"""
 				{
-					"status": "ready",
+					"status": "READY",
 					"apis": {
 						"rest": "ready",
 						"system": "ready",
 						"graphQL": "ready",
 						"lab": "ready",
+						"observability": "ready",
 						"gRPC": "ready"
 					}
 				}""",
 				response.get().trim()
+			);
+
+			final Optional<String> liveness = NetworkUtils.fetchContent(
+				baseUrls[0] + "liveness",
+				"GET",
+				"application/json",
+				null
+			);
+
+			assertTrue(liveness.isPresent());
+			assertEquals(
+				"{\"status\": \"healthy\"}",
+				liveness.get().trim()
 			);
 
 		} catch (Exception ex) {

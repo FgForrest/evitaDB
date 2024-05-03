@@ -27,7 +27,6 @@ import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.time.Duration;
 import java.time.OffsetDateTime;
-import java.util.Set;
 
 /**
  * Contains basic information about evitaDB server.
@@ -38,7 +37,6 @@ import java.util.Set;
  * @param instanceId unique identifier of the server instance
  * @param catalogsCorrupted number of corrupted catalogs
  * @param catalogsOk number of catalogs that are ok
- * @param healthProblems set of flags that indicate health problems of the server
  */
 public record SystemStatus(
 	@Nonnull String version,
@@ -46,23 +44,7 @@ public record SystemStatus(
 	@Nonnull Duration uptime,
 	@Nonnull String instanceId,
 	int catalogsCorrupted,
-	int catalogsOk,
-	@Nonnull Set<HealthProblem> healthProblems
+	int catalogsOk
 ) implements Serializable {
-
-	public enum HealthProblem {
-
-		/**
-		 * Signalized when the consumed memory never goes below 85% of the maximum heap size and the GC tries to free
-		 * old generation multiple times consuming a log of CPU power.
-		 */
-		MEMORY_SHORTAGE,
-		/**
-		 * Signalized when the input queues are full and the server is not able to process incoming requests. This flag
-		 * is cleared when the server is able to process incoming requests again.
-		 */
-		INPUT_QUEUES_OVERLOADED
-
-	}
 
 }

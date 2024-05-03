@@ -69,10 +69,21 @@ public class MetricHandler {
 
 	private static final Map<String, Runnable> DEFAULT_JVM_METRICS;
 	private static final String DEFAULT_JVM_METRICS_NAME = "AllMetrics";
-	// Define a Prometheus counter for OutOfMemoryError events
-	private static final Counter OUT_OF_MEMORY_ERRORS_TOTAL = Counter.builder()
-		.name("jvm_out_of_memory_errors_total")
-		.help("Total number of Out of Memory errors")
+	// define a Prometheus counter for errors
+	public static final Counter JAVA_ERRORS_TOTAL = Counter.builder()
+		.name("jvm_errors_total")
+		.labelNames("error_type")
+		.help("Total number of internal Java errors")
+		.register();
+	public static final Counter EVITA_ERRORS_TOTAL = Counter.builder()
+		.name("evita_errors_total")
+		.labelNames("error_type")
+		.help("Total number of internal evitaDB errors")
+		.register();
+	public static final Gauge HEALTH_PROBLEMS = Gauge.builder()
+		.name("evita_health_problem")
+		.labelNames("problem_type")
+		.help("Health problems detected in the system")
 		.register();
 
 	static {
@@ -92,13 +103,6 @@ public class MetricHandler {
 
 	public MetricHandler(@Nonnull ObservabilityConfig observabilityConfig) {
 		this.observabilityConfig = observabilityConfig;
-	}
-
-	/**
-	 * TODO JNO - document me
-	 */
-	public static void outOfMemoryErrorEvent() {
-		OUT_OF_MEMORY_ERRORS_TOTAL.inc();
 	}
 
 	/**

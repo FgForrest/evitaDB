@@ -72,7 +72,7 @@ public class ObservabilityProviderRegistrar implements ExternalApiProviderRegist
 		observabilityManager.registerPrometheusMetricHandler();
 		return new ObservabilityProvider(
 			observabilityConfig,
-			observabilityManager.getObservabilityRouter(),
+			observabilityManager,
 			Arrays.stream(observabilityConfig.getBaseUrls(apiOptions.exposedOn()))
 				.toArray(String[]::new)
 		);

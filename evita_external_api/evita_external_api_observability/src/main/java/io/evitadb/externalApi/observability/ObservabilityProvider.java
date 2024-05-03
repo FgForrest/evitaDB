@@ -51,7 +51,7 @@ public class ObservabilityProvider implements ExternalApiProvider<ObservabilityC
 
 	@Nonnull
 	@Getter
-	private final HttpHandler apiHandler;
+	private final ObservabilityManager observabilityManager;
 
 	@Nonnull
 	@Getter
@@ -61,6 +61,11 @@ public class ObservabilityProvider implements ExternalApiProvider<ObservabilityC
 	 * Contains url that was at least once found reachable.
 	 */
 	private String reachableUrl;
+
+	@Nonnull
+	public HttpHandler getApiHandler() {
+		return observabilityManager.getObservabilityRouter();
+	}
 
 	@Nonnull
 	@Override

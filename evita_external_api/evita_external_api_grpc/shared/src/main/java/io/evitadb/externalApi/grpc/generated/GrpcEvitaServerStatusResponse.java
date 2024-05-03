@@ -45,7 +45,6 @@ private static final long serialVersionUID = 0L;
   private GrpcEvitaServerStatusResponse() {
     version_ = "";
     instanceId_ = "";
-    healthProblems_ = java.util.Collections.emptyList();
   }
 
   @java.lang.Override
@@ -68,7 +67,6 @@ private static final long serialVersionUID = 0L;
     if (extensionRegistry == null) {
       throw new java.lang.NullPointerException();
     }
-    int mutable_bitField0_ = 0;
     com.google.protobuf.UnknownFieldSet.Builder unknownFields =
         com.google.protobuf.UnknownFieldSet.newBuilder();
     try {
@@ -119,29 +117,6 @@ private static final long serialVersionUID = 0L;
             catalogsOk_ = input.readInt32();
             break;
           }
-          case 56: {
-            int rawValue = input.readEnum();
-            if (!((mutable_bitField0_ & 0x00000001) != 0)) {
-              healthProblems_ = new java.util.ArrayList<java.lang.Integer>();
-              mutable_bitField0_ |= 0x00000001;
-            }
-            healthProblems_.add(rawValue);
-            break;
-          }
-          case 58: {
-            int length = input.readRawVarint32();
-            int oldLimit = input.pushLimit(length);
-            while(input.getBytesUntilLimit() > 0) {
-              int rawValue = input.readEnum();
-              if (!((mutable_bitField0_ & 0x00000001) != 0)) {
-                healthProblems_ = new java.util.ArrayList<java.lang.Integer>();
-                mutable_bitField0_ |= 0x00000001;
-              }
-              healthProblems_.add(rawValue);
-            }
-            input.popLimit(oldLimit);
-            break;
-          }
           default: {
             if (!parseUnknownField(
                 input, unknownFields, extensionRegistry, tag)) {
@@ -157,9 +132,6 @@ private static final long serialVersionUID = 0L;
       throw new com.google.protobuf.InvalidProtocolBufferException(
           e).setUnfinishedMessage(this);
     } finally {
-      if (((mutable_bitField0_ & 0x00000001) != 0)) {
-        healthProblems_ = java.util.Collections.unmodifiableList(healthProblems_);
-      }
       this.unknownFields = unknownFields.build();
       makeExtensionsImmutable();
     }
@@ -352,84 +324,6 @@ private static final long serialVersionUID = 0L;
     return catalogsOk_;
   }
 
-  public static final int HEALTHPROBLEMS_FIELD_NUMBER = 7;
-  private java.util.List<java.lang.Integer> healthProblems_;
-  private static final com.google.protobuf.Internal.ListAdapter.Converter<
-      java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcHealthProblem> healthProblems_converter_ =
-          new com.google.protobuf.Internal.ListAdapter.Converter<
-              java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcHealthProblem>() {
-            public io.evitadb.externalApi.grpc.generated.GrpcHealthProblem convert(java.lang.Integer from) {
-              @SuppressWarnings("deprecation")
-              io.evitadb.externalApi.grpc.generated.GrpcHealthProblem result = io.evitadb.externalApi.grpc.generated.GrpcHealthProblem.valueOf(from);
-              return result == null ? io.evitadb.externalApi.grpc.generated.GrpcHealthProblem.UNRECOGNIZED : result;
-            }
-          };
-  /**
-   * <pre>
-   * Set of all observed health problems
-   * </pre>
-   *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHealthProblem healthProblems = 7;</code>
-   * @return A list containing the healthProblems.
-   */
-  @java.lang.Override
-  public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcHealthProblem> getHealthProblemsList() {
-    return new com.google.protobuf.Internal.ListAdapter<
-        java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcHealthProblem>(healthProblems_, healthProblems_converter_);
-  }
-  /**
-   * <pre>
-   * Set of all observed health problems
-   * </pre>
-   *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHealthProblem healthProblems = 7;</code>
-   * @return The count of healthProblems.
-   */
-  @java.lang.Override
-  public int getHealthProblemsCount() {
-    return healthProblems_.size();
-  }
-  /**
-   * <pre>
-   * Set of all observed health problems
-   * </pre>
-   *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHealthProblem healthProblems = 7;</code>
-   * @param index The index of the element to return.
-   * @return The healthProblems at the given index.
-   */
-  @java.lang.Override
-  public io.evitadb.externalApi.grpc.generated.GrpcHealthProblem getHealthProblems(int index) {
-    return healthProblems_converter_.convert(healthProblems_.get(index));
-  }
-  /**
-   * <pre>
-   * Set of all observed health problems
-   * </pre>
-   *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHealthProblem healthProblems = 7;</code>
-   * @return A list containing the enum numeric values on the wire for healthProblems.
-   */
-  @java.lang.Override
-  public java.util.List<java.lang.Integer>
-  getHealthProblemsValueList() {
-    return healthProblems_;
-  }
-  /**
-   * <pre>
-   * Set of all observed health problems
-   * </pre>
-   *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHealthProblem healthProblems = 7;</code>
-   * @param index The index of the value to return.
-   * @return The enum numeric value on the wire of healthProblems at the given index.
-   */
-  @java.lang.Override
-  public int getHealthProblemsValue(int index) {
-    return healthProblems_.get(index);
-  }
-  private int healthProblemsMemoizedSerializedSize;
-
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -444,7 +338,6 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    getSerializedSize();
     if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(version_)) {
       com.google.protobuf.GeneratedMessageV3.writeString(output, 1, version_);
     }
@@ -462,13 +355,6 @@ private static final long serialVersionUID = 0L;
     }
     if (catalogsOk_ != 0) {
       output.writeInt32(6, catalogsOk_);
-    }
-    if (getHealthProblemsList().size() > 0) {
-      output.writeUInt32NoTag(58);
-      output.writeUInt32NoTag(healthProblemsMemoizedSerializedSize);
-    }
-    for (int i = 0; i < healthProblems_.size(); i++) {
-      output.writeEnumNoTag(healthProblems_.get(i));
     }
     unknownFields.writeTo(output);
   }
@@ -501,18 +387,6 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeInt32Size(6, catalogsOk_);
     }
-    {
-      int dataSize = 0;
-      for (int i = 0; i < healthProblems_.size(); i++) {
-        dataSize += com.google.protobuf.CodedOutputStream
-          .computeEnumSizeNoTag(healthProblems_.get(i));
-      }
-      size += dataSize;
-      if (!getHealthProblemsList().isEmpty()) {  size += 1;
-        size += com.google.protobuf.CodedOutputStream
-          .computeUInt32SizeNoTag(dataSize);
-      }healthProblemsMemoizedSerializedSize = dataSize;
-    }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
     return size;
@@ -543,7 +417,6 @@ private static final long serialVersionUID = 0L;
         != other.getCatalogsCorrupted()) return false;
     if (getCatalogsOk()
         != other.getCatalogsOk()) return false;
-    if (!healthProblems_.equals(other.healthProblems_)) return false;
     if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
@@ -570,10 +443,6 @@ private static final long serialVersionUID = 0L;
     hash = (53 * hash) + getCatalogsCorrupted();
     hash = (37 * hash) + CATALOGSOK_FIELD_NUMBER;
     hash = (53 * hash) + getCatalogsOk();
-    if (getHealthProblemsCount() > 0) {
-      hash = (37 * hash) + HEALTHPROBLEMS_FIELD_NUMBER;
-      hash = (53 * hash) + healthProblems_.hashCode();
-    }
     hash = (29 * hash) + unknownFields.hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -727,8 +596,6 @@ private static final long serialVersionUID = 0L;
 
       catalogsOk_ = 0;
 
-      healthProblems_ = java.util.Collections.emptyList();
-      bitField0_ = (bitField0_ & ~0x00000001);
       return this;
     }
 
@@ -755,7 +622,6 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcEvitaServerStatusResponse buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcEvitaServerStatusResponse result = new io.evitadb.externalApi.grpc.generated.GrpcEvitaServerStatusResponse(this);
-      int from_bitField0_ = bitField0_;
       result.version_ = version_;
       if (startedAtBuilder_ == null) {
         result.startedAt_ = startedAt_;
@@ -766,11 +632,6 @@ private static final long serialVersionUID = 0L;
       result.instanceId_ = instanceId_;
       result.catalogsCorrupted_ = catalogsCorrupted_;
       result.catalogsOk_ = catalogsOk_;
-      if (((bitField0_ & 0x00000001) != 0)) {
-        healthProblems_ = java.util.Collections.unmodifiableList(healthProblems_);
-        bitField0_ = (bitField0_ & ~0x00000001);
-      }
-      result.healthProblems_ = healthProblems_;
       onBuilt();
       return result;
     }
@@ -839,16 +700,6 @@ private static final long serialVersionUID = 0L;
       if (other.getCatalogsOk() != 0) {
         setCatalogsOk(other.getCatalogsOk());
       }
-      if (!other.healthProblems_.isEmpty()) {
-        if (healthProblems_.isEmpty()) {
-          healthProblems_ = other.healthProblems_;
-          bitField0_ = (bitField0_ & ~0x00000001);
-        } else {
-          ensureHealthProblemsIsMutable();
-          healthProblems_.addAll(other.healthProblems_);
-        }
-        onChanged();
-      }
       this.mergeUnknownFields(other.unknownFields);
       onChanged();
       return this;
@@ -877,7 +728,6 @@ private static final long serialVersionUID = 0L;
       }
       return this;
     }
-    private int bitField0_;
 
     private java.lang.Object version_ = "";
     /**
@@ -1351,194 +1201,6 @@ private static final long serialVersionUID = 0L;
     public Builder clearCatalogsOk() {
       
       catalogsOk_ = 0;
-      onChanged();
-      return this;
-    }
-
-    private java.util.List<java.lang.Integer> healthProblems_ =
-      java.util.Collections.emptyList();
-    private void ensureHealthProblemsIsMutable() {
-      if (!((bitField0_ & 0x00000001) != 0)) {
-        healthProblems_ = new java.util.ArrayList<java.lang.Integer>(healthProblems_);
-        bitField0_ |= 0x00000001;
-      }
-    }
-    /**
-     * <pre>
-     * Set of all observed health problems
-     * </pre>
-     *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHealthProblem healthProblems = 7;</code>
-     * @return A list containing the healthProblems.
-     */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcHealthProblem> getHealthProblemsList() {
-      return new com.google.protobuf.Internal.ListAdapter<
-          java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcHealthProblem>(healthProblems_, healthProblems_converter_);
-    }
-    /**
-     * <pre>
-     * Set of all observed health problems
-     * </pre>
-     *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHealthProblem healthProblems = 7;</code>
-     * @return The count of healthProblems.
-     */
-    public int getHealthProblemsCount() {
-      return healthProblems_.size();
-    }
-    /**
-     * <pre>
-     * Set of all observed health problems
-     * </pre>
-     *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHealthProblem healthProblems = 7;</code>
-     * @param index The index of the element to return.
-     * @return The healthProblems at the given index.
-     */
-    public io.evitadb.externalApi.grpc.generated.GrpcHealthProblem getHealthProblems(int index) {
-      return healthProblems_converter_.convert(healthProblems_.get(index));
-    }
-    /**
-     * <pre>
-     * Set of all observed health problems
-     * </pre>
-     *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHealthProblem healthProblems = 7;</code>
-     * @param index The index to set the value at.
-     * @param value The healthProblems to set.
-     * @return This builder for chaining.
-     */
-    public Builder setHealthProblems(
-        int index, io.evitadb.externalApi.grpc.generated.GrpcHealthProblem value) {
-      if (value == null) {
-        throw new NullPointerException();
-      }
-      ensureHealthProblemsIsMutable();
-      healthProblems_.set(index, value.getNumber());
-      onChanged();
-      return this;
-    }
-    /**
-     * <pre>
-     * Set of all observed health problems
-     * </pre>
-     *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHealthProblem healthProblems = 7;</code>
-     * @param value The healthProblems to add.
-     * @return This builder for chaining.
-     */
-    public Builder addHealthProblems(io.evitadb.externalApi.grpc.generated.GrpcHealthProblem value) {
-      if (value == null) {
-        throw new NullPointerException();
-      }
-      ensureHealthProblemsIsMutable();
-      healthProblems_.add(value.getNumber());
-      onChanged();
-      return this;
-    }
-    /**
-     * <pre>
-     * Set of all observed health problems
-     * </pre>
-     *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHealthProblem healthProblems = 7;</code>
-     * @param values The healthProblems to add.
-     * @return This builder for chaining.
-     */
-    public Builder addAllHealthProblems(
-        java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcHealthProblem> values) {
-      ensureHealthProblemsIsMutable();
-      for (io.evitadb.externalApi.grpc.generated.GrpcHealthProblem value : values) {
-        healthProblems_.add(value.getNumber());
-      }
-      onChanged();
-      return this;
-    }
-    /**
-     * <pre>
-     * Set of all observed health problems
-     * </pre>
-     *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHealthProblem healthProblems = 7;</code>
-     * @return This builder for chaining.
-     */
-    public Builder clearHealthProblems() {
-      healthProblems_ = java.util.Collections.emptyList();
-      bitField0_ = (bitField0_ & ~0x00000001);
-      onChanged();
-      return this;
-    }
-    /**
-     * <pre>
-     * Set of all observed health problems
-     * </pre>
-     *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHealthProblem healthProblems = 7;</code>
-     * @return A list containing the enum numeric values on the wire for healthProblems.
-     */
-    public java.util.List<java.lang.Integer>
-    getHealthProblemsValueList() {
-      return java.util.Collections.unmodifiableList(healthProblems_);
-    }
-    /**
-     * <pre>
-     * Set of all observed health problems
-     * </pre>
-     *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHealthProblem healthProblems = 7;</code>
-     * @param index The index of the value to return.
-     * @return The enum numeric value on the wire of healthProblems at the given index.
-     */
-    public int getHealthProblemsValue(int index) {
-      return healthProblems_.get(index);
-    }
-    /**
-     * <pre>
-     * Set of all observed health problems
-     * </pre>
-     *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHealthProblem healthProblems = 7;</code>
-     * @param index The index of the value to return.
-     * @return The enum numeric value on the wire of healthProblems at the given index.
-     * @return This builder for chaining.
-     */
-    public Builder setHealthProblemsValue(
-        int index, int value) {
-      ensureHealthProblemsIsMutable();
-      healthProblems_.set(index, value);
-      onChanged();
-      return this;
-    }
-    /**
-     * <pre>
-     * Set of all observed health problems
-     * </pre>
-     *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHealthProblem healthProblems = 7;</code>
-     * @param value The enum numeric value on the wire for healthProblems to add.
-     * @return This builder for chaining.
-     */
-    public Builder addHealthProblemsValue(int value) {
-      ensureHealthProblemsIsMutable();
-      healthProblems_.add(value);
-      onChanged();
-      return this;
-    }
-    /**
-     * <pre>
-     * Set of all observed health problems
-     * </pre>
-     *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHealthProblem healthProblems = 7;</code>
-     * @param values The enum numeric values on the wire for healthProblems to add.
-     * @return This builder for chaining.
-     */
-    public Builder addAllHealthProblemsValue(
-        java.lang.Iterable<java.lang.Integer> values) {
-      ensureHealthProblemsIsMutable();
-      for (int value : values) {
-        healthProblems_.add(value);
-      }
       onChanged();
       return this;
     }

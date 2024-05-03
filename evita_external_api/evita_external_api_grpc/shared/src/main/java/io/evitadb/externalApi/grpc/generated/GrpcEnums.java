@@ -152,9 +152,8 @@ public final class GrpcEnums {
       "XIST\020\001\022\016\n\nMUST_EXIST\020\002*t\n\022GrpcCommitBeha" +
       "vior\022 \n\034WAIT_FOR_CONFLICT_RESOLUTION\020\000\022\034" +
       "\n\030WAIT_FOR_LOG_PERSISTENCE\020\001\022\036\n\032WAIT_FOR" +
-      "_INDEX_PROPAGATION\020\002*E\n\021GrpcHealthProble" +
-      "m\022\023\n\017MEMORY_SHORTAGE\020\000\022\033\n\027INPUT_QUEUES_O" +
-      "VERLOADED\020\001B\014P\001\252\002\007EvitaDBb\006proto3"
+      "_INDEX_PROPAGATION\020\002B\014P\001\252\002\007EvitaDBb\006prot" +
+      "o3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,

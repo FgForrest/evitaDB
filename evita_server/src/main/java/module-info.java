@@ -21,6 +21,7 @@
  *   limitations under the License.
  */
 
+import io.evitadb.externalApi.api.system.ProbesProvider;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
 import io.evitadb.store.spi.CatalogPersistenceServiceFactory;
 
@@ -31,6 +32,7 @@ module evita.server {
 
 	uses CatalogPersistenceServiceFactory;
 	uses ExternalApiProviderRegistrar;
+	uses ProbesProvider;
 
 	opens io.evitadb.server.configuration to com.fasterxml.jackson.databind;
 	exports io.evitadb.server;

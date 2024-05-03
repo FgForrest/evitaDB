@@ -26,7 +26,10 @@ package io.evitadb.externalApi.system;
 import io.evitadb.api.requestResponse.system.SystemStatus;
 import io.evitadb.core.Evita;
 import io.evitadb.exception.EvitaInternalError;
-import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
+import io.evitadb.externalApi.api.system.ProbesProvider;
+import io.evitadb.externalApi.api.system.ProbesProvider.Readiness;
+import io.evitadb.externalApi.api.system.ProbesProvider.ReadinessState;
+import io.evitadb.externalApi.api.system.model.HealthProblem;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.configuration.CertificatePath;
 import io.evitadb.externalApi.configuration.CertificateSettings;
@@ -36,7 +39,6 @@ import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
 import io.evitadb.externalApi.http.ExternalApiServer;
 import io.evitadb.externalApi.system.configuration.SystemConfig;
 import io.evitadb.utils.CertificateUtils;
-import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.StringUtils;
 import io.undertow.Handlers;
 import io.undertow.server.HttpServerExchange;
@@ -53,9 +55,10 @@ import java.io.File;
 import java.io.IOException;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
-import java.util.Collection;
-import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.Map.Entry;
+import java.util.Optional;
+import java.util.ServiceLoader;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -68,26 +71,23 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 	private static final String ENDPOINT_SYSTEM_STATUS = "status";
 	private static final String ENDPOINT_SYSTEM_LIVENESS = "liveness";
 	private static final String ENDPOINT_SYSTEM_READINESS = "readiness";
-	private final AtomicBoolean seenReady = new AtomicBoolean();
 
 	/**
 	 * Prints the status of the APIs as a JSON string.
 	 *
 	 * @param exchange      the HTTP server exchange
 	 * @param readiness     the readiness of the APIs
-	 * @param overallStatus the overall status of the APIs
 	 */
 	private static void printApiStatus(
 		@Nonnull HttpServerExchange exchange,
-		@Nonnull Map<String, Boolean> readiness,
-		@Nonnull String overallStatus
+		@Nonnull Readiness readiness
 	) {
 		exchange.getResponseSender().send("{\n" +
-			"\t\"status\": \"" + overallStatus + "\",\n" +
+			"\t\"status\": \"" + readiness.state().name() + "\",\n" +
 			"\t\"apis\": {\n" +
-			readiness.entrySet().stream()
-				.map(entry -> "\t\t\"" + entry.getKey() + "\": \"" + (entry.getValue() ? "ready" : "not ready") + "\"")
-				.collect(Collectors.joining(",\n")) + "\n" +
+				Arrays.stream(readiness.apiStates())
+					.map(entry -> "\t\t\"" + entry.apiCode() + "\": \"" + (entry.isReady() ? "ready" : "not ready") + "\"")
+					.collect(Collectors.joining(",\n")) + "\n" +
 			"\t}\n" +
 			"}"
 		);
@@ -128,9 +128,6 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 			StringUtils.formatDuration(systemStatus.uptime()),
 			systemStatus.catalogsCorrupted(),
 			systemStatus.catalogsOk(),
-			systemStatus.healthProblems().stream()
-				.map(it -> "\"" + it.name() + "\"")
-				.collect(Collectors.joining(", ")),
 			apiOptions.endpoints().entrySet().stream()
 				.map(
 					entry -> "      {\n         \"" + entry.getKey() + "\": [\n" +
@@ -157,7 +154,12 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 
 	@Nonnull
 	@Override
-	public ExternalApiProvider<SystemConfig> register(@Nonnull Evita evita, @Nonnull ExternalApiServer externalApiServer, @Nonnull ApiOptions apiOptions, @Nonnull SystemConfig systemConfig) {
+	public ExternalApiProvider<SystemConfig> register(
+		@Nonnull Evita evita,
+		@Nonnull ExternalApiServer externalApiServer,
+		@Nonnull ApiOptions apiOptions,
+		@Nonnull SystemConfig systemConfig
+	) {
 		final File file;
 		final String fileName;
 		final CertificateSettings certificateSettings = apiOptions.certificate();
@@ -206,15 +208,20 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 			"/" + ENDPOINT_SYSTEM_LIVENESS,
 			exchange -> {
 				exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, "application/json");
-				final SystemStatus systemStatus = evita.getSystemStatus();
-				if (systemStatus.healthProblems().isEmpty()) {
+				final Set<HealthProblem> healthProblems = ServiceLoader.load(ProbesProvider.class)
+					.stream()
+					.flatMap(it -> it.get().getHealthProblems(evita, externalApiServer).stream())
+					.collect(Collectors.toSet());
+
+				if (healthProblems.isEmpty()) {
 					exchange.setStatusCode(StatusCodes.OK);
 					exchange.getResponseSender().send("{\"status\": \"healthy\"}");
 				} else {
 					exchange.setStatusCode(StatusCodes.SERVICE_UNAVAILABLE);
 					exchange.getResponseSender().send(
 						"{\"status\": \"unhealthy\", \"problems\": [" +
-							systemStatus.healthProblems().stream()
+							healthProblems.stream()
+								.sorted()
 								.map(it -> "\"" + it.name() + "\"")
 								.collect(Collectors.joining(", ")) +
 							"]}"
@@ -223,32 +230,37 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 			}
 		);
 
+		final String[] enabledEndPoints = apiOptions.endpoints()
+			.entrySet()
+			.stream()
+			.filter(entry -> entry.getValue() != null)
+			.filter(entry -> entry.getValue().isEnabled())
+			.map(Entry::getKey)
+			.toArray(String[]::new);
+
 		router.addExactPath(
 			"/" + ENDPOINT_SYSTEM_READINESS,
 			exchange -> {
 				exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, "application/json");
 				if (evita.isActive()) {
-					// check the end-points availability
-					final Collection<ExternalApiProviderRegistrar> availableExternalApis = ExternalApiServer.gatherExternalApiProviders();
-					final Map<String, Boolean> readiness = CollectionUtils.createHashMap(availableExternalApis.size());
-					for (ExternalApiProviderRegistrar<?> externalApi : availableExternalApis) {
-						final AbstractApiConfiguration apiConfiguration = apiOptions.getEndpointConfiguration(externalApi.getExternalApiCode());
-						if (apiConfiguration != null && apiConfiguration.isEnabled()) {
-							final ExternalApiProvider<?> apiProvider = externalApiServer.getExternalApiProviderByCode(externalApi.getExternalApiCode());
-							readiness.put(apiProvider.getCode(), apiProvider.isReady());
-						}
-					}
-					if (readiness.values().stream().allMatch(it -> it)) {
+					final Optional<Readiness> readiness = ServiceLoader.load(ProbesProvider.class)
+						.stream()
+						.map(it -> it.get().getReadiness(evita, externalApiServer, enabledEndPoints))
+						.findFirst();
+
+					if (readiness.map(it -> it.state() == ReadinessState.READY).orElse(false)) {
 						exchange.setStatusCode(StatusCodes.OK);
-						printApiStatus(exchange, readiness, "ready");
-						seenReady.set(true);
+						printApiStatus(exchange, readiness.get());
+					} else if (readiness.isPresent()) {
+						exchange.setStatusCode(StatusCodes.SERVICE_UNAVAILABLE);
+						printApiStatus(exchange, readiness.get());
 					} else {
 						exchange.setStatusCode(StatusCodes.SERVICE_UNAVAILABLE);
-						printApiStatus(exchange, readiness, seenReady.get() ? "starting" : "stalling");
+						exchange.getResponseSender().send("{\"status\": \"" + ReadinessState.UNKNOWN.name() + "\"}");
 					}
 				} else {
 					exchange.setStatusCode(StatusCodes.SERVICE_UNAVAILABLE);
-					exchange.getResponseSender().send("{\"status\": \"shut down\"}");
+					exchange.getResponseSender().send("{\"status\": \"" + ReadinessState.SHUT_DOWN.name() + "\"}");
 				}
 			}
 		);
