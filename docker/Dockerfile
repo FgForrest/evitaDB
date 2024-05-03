@@ -12,7 +12,7 @@ LABEL vendor="FG Forrest, a.s." \
       io.evitadb.version="${VERSION}" \
       io.evitadb.release-date="${RELEASE_DATE}"
 
-HEALTHCHECK --interval=10s --timeout=2s --retries=2 \
+HEALTHCHECK --interval=10s --timeout=2s --retries=3 \
     CMD curl -f http://localhost:5557/system/liveness || exit 1
 
 USER root

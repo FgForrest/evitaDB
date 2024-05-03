@@ -76,6 +76,8 @@ module evita.external.api.observability {
 	requires io.opentelemetry.exporter.logging;
 	requires io.opentelemetry.exporter.otlp;
 	requires io.opentelemetry.sdk.autoconfigure;
+	requires java.instrument;
+	requires net.bytebuddy;
 
 	exports io.evitadb.externalApi.observability.configuration;
 	exports io.evitadb.externalApi.observability.trace;

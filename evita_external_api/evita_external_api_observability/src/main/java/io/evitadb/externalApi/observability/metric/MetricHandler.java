@@ -69,6 +69,11 @@ public class MetricHandler {
 
 	private static final Map<String, Runnable> DEFAULT_JVM_METRICS;
 	private static final String DEFAULT_JVM_METRICS_NAME = "AllMetrics";
+	// Define a Prometheus counter for OutOfMemoryError events
+	private static final Counter OUT_OF_MEMORY_ERRORS_TOTAL = Counter.builder()
+		.name("jvm_out_of_memory_errors_total")
+		.help("Total number of Out of Memory errors")
+		.register();
 
 	static {
 		DEFAULT_JVM_METRICS = Map.of(
@@ -87,6 +92,13 @@ public class MetricHandler {
 
 	public MetricHandler(@Nonnull ObservabilityConfig observabilityConfig) {
 		this.observabilityConfig = observabilityConfig;
+	}
+
+	/**
+	 * TODO JNO - document me
+	 */
+	public static void outOfMemoryErrorEvent() {
+		OUT_OF_MEMORY_ERRORS_TOTAL.inc();
 	}
 
 	/**
