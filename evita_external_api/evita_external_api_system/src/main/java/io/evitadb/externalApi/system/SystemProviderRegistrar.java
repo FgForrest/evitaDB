@@ -26,16 +26,20 @@ package io.evitadb.externalApi.system;
 import io.evitadb.api.requestResponse.system.SystemStatus;
 import io.evitadb.core.Evita;
 import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.configuration.CertificatePath;
 import io.evitadb.externalApi.configuration.CertificateSettings;
 import io.evitadb.externalApi.http.CorsFilter;
 import io.evitadb.externalApi.http.ExternalApiProvider;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
+import io.evitadb.externalApi.http.ExternalApiServer;
 import io.evitadb.externalApi.system.configuration.SystemConfig;
 import io.evitadb.utils.CertificateUtils;
+import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.StringUtils;
 import io.undertow.Handlers;
+import io.undertow.server.HttpServerExchange;
 import io.undertow.server.handlers.BlockingHandler;
 import io.undertow.server.handlers.PathHandler;
 import io.undertow.server.handlers.resource.FileResourceManager;
@@ -49,6 +53,9 @@ import java.io.File;
 import java.io.IOException;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 /**
@@ -60,6 +67,81 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 	private static final String ENDPOINT_SERVER_NAME = "server-name";
 	private static final String ENDPOINT_SYSTEM_STATUS = "status";
 	private static final String ENDPOINT_SYSTEM_LIVENESS = "liveness";
+	private static final String ENDPOINT_SYSTEM_READINESS = "readiness";
+	private final AtomicBoolean seenReady = new AtomicBoolean();
+
+	/**
+	 * Prints the status of the APIs as a JSON string.
+	 *
+	 * @param exchange      the HTTP server exchange
+	 * @param readiness     the readiness of the APIs
+	 * @param overallStatus the overall status of the APIs
+	 */
+	private static void printApiStatus(
+		@Nonnull HttpServerExchange exchange,
+		@Nonnull Map<String, Boolean> readiness,
+		@Nonnull String overallStatus
+	) {
+		exchange.getResponseSender().send("{\n" +
+			"\t\"status\": \"" + overallStatus + "\",\n" +
+			"\t\"apis\": {\n" +
+			readiness.entrySet().stream()
+				.map(entry -> "\t\t\"" + entry.getKey() + "\": \"" + (entry.getValue() ? "ready" : "not ready") + "\"")
+				.collect(Collectors.joining(",\n")) + "\n" +
+			"\t}\n" +
+			"}"
+		);
+	}
+
+	/**
+	 * Renders the status of the evitaDB server as a JSON string.
+	 *
+	 * @param instanceId   the unique identifier of the server instance
+	 * @param systemStatus the SystemStatus object containing information about the server
+	 * @param apiOptions   the common settings shared among all the API endpoints
+	 * @return the JSON string representing the server status
+	 */
+	@Nonnull
+	private static String renderStatus(
+		@Nonnull String instanceId,
+		@Nonnull SystemStatus systemStatus,
+		@Nonnull ApiOptions apiOptions
+	) {
+		return String.format("""
+				{
+				   "serverName": "%s",
+				   "version": "%s",
+				   "startedAt": "%s",
+				   "uptime": %d,
+				   "uptimeForHuman": "%s",
+				   "catalogsCorrupted": %d,
+				   "catalogsOk": %d,
+				   "healthProblems": [%s],
+				   "apis": [
+				%s
+				   ]
+				}""",
+			instanceId,
+			systemStatus.version(),
+			DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(systemStatus.startedAt()),
+			systemStatus.uptime().toSeconds(),
+			StringUtils.formatDuration(systemStatus.uptime()),
+			systemStatus.catalogsCorrupted(),
+			systemStatus.catalogsOk(),
+			systemStatus.healthProblems().stream()
+				.map(it -> "\"" + it.name() + "\"")
+				.collect(Collectors.joining(", ")),
+			apiOptions.endpoints().entrySet().stream()
+				.map(
+					entry -> "      {\n         \"" + entry.getKey() + "\": [\n" +
+						Arrays.stream(entry.getValue().getBaseUrls(apiOptions.exposedOn()))
+							.map(it -> "            \"" + it + "\"")
+							.collect(Collectors.joining(",\n")) +
+						"\n         ]\n      }"
+				)
+				.collect(Collectors.joining(",\n"))
+		);
+	}
 
 	@Nonnull
 	@Override
@@ -75,7 +157,7 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 
 	@Nonnull
 	@Override
-	public ExternalApiProvider<SystemConfig> register(@Nonnull Evita evita, @Nonnull ApiOptions apiOptions, @Nonnull SystemConfig systemConfig) {
+	public ExternalApiProvider<SystemConfig> register(@Nonnull Evita evita, @Nonnull ExternalApiServer externalApiServer, @Nonnull ApiOptions apiOptions, @Nonnull SystemConfig systemConfig) {
 		final File file;
 		final String fileName;
 		final CertificateSettings certificateSettings = apiOptions.certificate();
@@ -129,7 +211,7 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 					exchange.setStatusCode(StatusCodes.OK);
 					exchange.getResponseSender().send("{\"status\": \"healthy\"}");
 				} else {
-					exchange.setStatusCode(StatusCodes.INTERNAL_SERVER_ERROR);
+					exchange.setStatusCode(StatusCodes.SERVICE_UNAVAILABLE);
 					exchange.getResponseSender().send(
 						"{\"status\": \"unhealthy\", \"problems\": [" +
 							systemStatus.healthProblems().stream()
@@ -137,6 +219,36 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 								.collect(Collectors.joining(", ")) +
 							"]}"
 					);
+				}
+			}
+		);
+
+		router.addExactPath(
+			"/" + ENDPOINT_SYSTEM_READINESS,
+			exchange -> {
+				exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, "application/json");
+				if (evita.isActive()) {
+					// check the end-points availability
+					final Collection<ExternalApiProviderRegistrar> availableExternalApis = ExternalApiServer.gatherExternalApiProviders();
+					final Map<String, Boolean> readiness = CollectionUtils.createHashMap(availableExternalApis.size());
+					for (ExternalApiProviderRegistrar<?> externalApi : availableExternalApis) {
+						final AbstractApiConfiguration apiConfiguration = apiOptions.getEndpointConfiguration(externalApi.getExternalApiCode());
+						if (apiConfiguration != null && apiConfiguration.isEnabled()) {
+							final ExternalApiProvider<?> apiProvider = externalApiServer.getExternalApiProviderByCode(externalApi.getExternalApiCode());
+							readiness.put(apiProvider.getCode(), apiProvider.isReady());
+						}
+					}
+					if (readiness.values().stream().allMatch(it -> it)) {
+						exchange.setStatusCode(StatusCodes.OK);
+						printApiStatus(exchange, readiness, "ready");
+						seenReady.set(true);
+					} else {
+						exchange.setStatusCode(StatusCodes.SERVICE_UNAVAILABLE);
+						printApiStatus(exchange, readiness, seenReady.get() ? "starting" : "stalling");
+					}
+				} else {
+					exchange.setStatusCode(StatusCodes.SERVICE_UNAVAILABLE);
+					exchange.getResponseSender().send("{\"status\": \"shut down\"}");
 				}
 			}
 		);
@@ -193,56 +305,6 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 		} catch (IOException e) {
 			throw new EvitaInternalError(e.getMessage(), e);
 		}
-	}
-
-	/**
-	 * Renders the status of the evitaDB server as a JSON string.
-	 *
-	 * @param instanceId    the unique identifier of the server instance
-	 * @param systemStatus  the SystemStatus object containing information about the server
-	 * @param apiOptions    the common settings shared among all the API endpoints
-	 * @return the JSON string representing the server status
-	 */
-	@Nonnull
-	private static String renderStatus(
-		@Nonnull String instanceId,
-		@Nonnull SystemStatus systemStatus,
-		@Nonnull ApiOptions apiOptions
-	) {
-		return String.format("""
-			{
-			   "serverName": "%s",
-			   "version": "%s",
-			   "startedAt": "%s",
-			   "uptime": %d,
-			   "uptimeForHuman": "%s",
-			   "catalogsCorrupted": %d,
-			   "catalogsOk": %d,
-			   "healthProblems": [%s],
-			   "apis": [
-			%s
-			   ]
-			}""",
-			instanceId,
-			systemStatus.version(),
-			DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(systemStatus.startedAt()),
-			systemStatus.uptime().toSeconds(),
-			StringUtils.formatDuration(systemStatus.uptime()),
-			systemStatus.catalogsCorrupted(),
-			systemStatus.catalogsOk(),
-			systemStatus.healthProblems().stream()
-				.map(it -> "\"" + it.name() + "\"")
-				.collect(Collectors.joining(", ")),
-			apiOptions.endpoints().entrySet().stream()
-				.map(
-					entry -> "      {\n         \"" + entry.getKey() + "\": [\n" +
-						Arrays.stream(entry.getValue().getBaseUrls(apiOptions.exposedOn()))
-							.map(it -> "            \"" + it + "\"")
-							.collect(Collectors.joining(",\n")) +
-						"\n         ]\n      }"
-				)
-				.collect(Collectors.joining(",\n"))
-		);
 	}
 
 }

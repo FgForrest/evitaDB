@@ -24,12 +24,16 @@
 package io.evitadb.externalApi.rest;
 
 import io.evitadb.externalApi.http.ExternalApiProvider;
+import io.evitadb.externalApi.rest.api.openApi.OpenApiSystemEndpoint;
+import io.evitadb.externalApi.rest.api.system.model.LivenessDescriptor;
 import io.evitadb.externalApi.rest.configuration.RestConfig;
+import io.evitadb.utils.NetworkUtils;
 import io.undertow.server.HttpHandler;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import java.util.function.Predicate;
 
 /**
  * Descriptor of external API provider that provides REST API.
@@ -49,9 +53,35 @@ public class RestProvider implements ExternalApiProvider<RestConfig> {
 	@Getter
 	private final HttpHandler apiHandler;
 
+	/**
+	 * Contains url that was at least once found reachable.
+	 */
+	private String reachableUrl;
+
 	@Nonnull
 	@Override
 	public String getCode() {
 		return CODE;
 	}
+
+	@Override
+	public boolean isReady() {
+		final Predicate<String> isReady = url -> NetworkUtils.fetchContent(url, "GET", "application/json", null)
+			.map(content -> content.contains("true"))
+			.orElse(false);
+		final String[] baseUrls = this.configuration.getBaseUrls(configuration.getExposedHost());
+		if (this.reachableUrl == null) {
+			for (String baseUrl : baseUrls) {
+				final String url = baseUrl + OpenApiSystemEndpoint.URL_PREFIX + "/" + LivenessDescriptor.LIVENESS_SUFFIX;
+				if (isReady.test(url)) {
+					this.reachableUrl = url;
+					return true;
+				}
+			}
+			return false;
+		} else {
+			return isReady.test(this.reachableUrl);
+		}
+	}
+
 }

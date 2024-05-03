@@ -79,6 +79,8 @@ import java.util.Set;
  * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
  */
 public class ObservabilityManager {
+	public static final String METRICS_SUFFIX = "metrics";
+	public static final String METRICS_PATH = "/observability/" + METRICS_SUFFIX;
 	/**
 	 * JFR recording instance.
 	 */
@@ -217,8 +219,8 @@ public class ObservabilityManager {
 	private void createAndRegisterPrometheusServlet() {
 		final DeploymentInfo servletBuilder = Servlets.deployment()
 			.setClassLoader(Undertow.class.getClassLoader())
-			.setDeploymentName("metrics-deployment")
-			.setContextPath("/observability/metrics")
+			.setDeploymentName(METRICS_SUFFIX + "-deployment")
+			.setContextPath(METRICS_PATH)
 			.addServlets(
 				Servlets.servlet("MetricsServlet", PrometheusMetricsServlet.class).addMapping("/*")
 			);
@@ -227,7 +229,7 @@ public class ObservabilityManager {
 		servletDeploymentManager.deploy();
 
 		try {
-			observabilityRouter.addPrefixPath("/metrics", servletDeploymentManager.start());
+			observabilityRouter.addPrefixPath("/" + METRICS_SUFFIX, servletDeploymentManager.start());
 		} catch (ServletException e) {
 			throw new EvitaInternalError("Unable to add routing to Prometheus scraping servlet.");
 		}

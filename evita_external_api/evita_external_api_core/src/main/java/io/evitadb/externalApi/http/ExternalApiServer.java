@@ -48,7 +48,6 @@ import io.undertow.server.HttpHandler;
 import io.undertow.server.handlers.PathHandler;
 import io.undertow.server.handlers.accesslog.AccessLogHandler;
 import io.undertow.server.handlers.accesslog.AccessLogReceiver;
-import io.undertow.server.handlers.accesslog.DefaultAccessLogReceiver;
 import io.undertow.server.handlers.encoding.ContentEncodingRepository;
 import io.undertow.server.handlers.encoding.DeflateEncodingProvider;
 import io.undertow.server.handlers.encoding.EncodingHandler;
@@ -283,9 +282,11 @@ public class ExternalApiServer implements AutoCloseable {
 	/**
 	 * Registers API providers based on configuration and returns its references.
 	 */
+	@Nonnull
 	@SuppressWarnings("unchecked")
 	private static Map<String, ExternalApiProvider<?>> registerApiProviders(
-		@Nonnull Evita evitaSystemDataProvider,
+		@Nonnull Evita evita,
+		@Nonnull ExternalApiServer externalApiServer,
 		@Nonnull ApiOptions apiOptions,
 		@SuppressWarnings("rawtypes") @Nonnull Collection<ExternalApiProviderRegistrar> externalApiProviders
 	) {
@@ -299,7 +300,7 @@ public class ExternalApiServer implements AutoCloseable {
 				}
 
 				//noinspection unchecked
-				return registrar.register(evitaSystemDataProvider, apiOptions, apiProviderConfiguration);
+				return registrar.register(evita, externalApiServer, apiOptions, apiProviderConfiguration);
 			})
 			.filter(Objects::nonNull)
 			.collect(
@@ -335,7 +336,7 @@ public class ExternalApiServer implements AutoCloseable {
 		final ServerCertificateManager serverCertificateManager = new ServerCertificateManager(apiOptions.certificate());
 		final CertificatePath certificatePath = initCertificate(apiOptions, serverCertificateManager);
 
-		this.registeredApiProviders = registerApiProviders(evita, apiOptions, externalApiProviders);
+		this.registeredApiProviders = registerApiProviders(evita, this, apiOptions, externalApiProviders);
 		if (this.registeredApiProviders.isEmpty()) {
 			log.info("No external API providers were registered. No server will be created.");
 			rootServer = null;

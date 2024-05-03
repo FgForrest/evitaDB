@@ -69,6 +69,7 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
 @Slf4j
 public class GraphQLManager {
 
+	public static final String SYSTEM_API_PREFIX = "system";
 	/**
 	 * Common object mapper for endpoints
 	 */
@@ -206,7 +207,7 @@ public class GraphQLManager {
 	 */
 	private void registerSystemApi() {
 		registerGraphQLEndpoint(new RegisteredGraphQLApi(
-			UriPath.of("/", "system"),
+			UriPath.of("/", SYSTEM_API_PREFIX),
 			new AtomicReference<>(new SystemGraphQLBuilder(evita).build(graphQLConfig))
 		));
 	}

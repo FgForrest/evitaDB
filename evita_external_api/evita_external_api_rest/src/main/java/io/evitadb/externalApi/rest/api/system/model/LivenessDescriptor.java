@@ -37,8 +37,10 @@ import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescript
  */
 public interface LivenessDescriptor {
 
+	String LIVENESS_SUFFIX = "liveness";
+
 	PropertyDescriptor LIVENESS = PropertyDescriptor.builder()
-		.name("liveness")
+		.name(LIVENESS_SUFFIX)
 		.description("""
 			Whether REST API is alive and can handle requests.
 			""")
