@@ -101,18 +101,20 @@ The layout is the `io.evitadb.server.log.AppLogJsonLayout` layout to log app log
 ## Readiness and liveness probes
 
 The evitaDB server provides endpoints for Kubernetes [readiness and liveness probes](https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/). The liveness probe is also c
-onfigured as [healthcheck](https://docs.docker.com/reference/dockerfile/#healthcheck) by default in our Docker image.
+onfigured as [healthcheck](https://docs.docker.com/reference/dockerfile/#healthcheck) by default in our Docker image. By default the health check waits `30s` before it
+starts checking the server health, for larger databases you may need to increase this value using environment variable 
+`HEALTHCHECK_START_DELAY` so that they have enough time to be loaded into memory.
 
 <Note type="warning">
 
 <NoteTitle toggles="false">
 
-##### Don't change the default system API port when using a Docker image.
+##### When you change system API port don't forget to set `SYSTEM_API_PORT` environment variable
 </NoteTitle>
 
 The healthcheck in the Docker image is configured to use the default system API port, which is `5557`. If you change 
 the port, the health check will immediately report an unhealthy container because it won't be able to reach the probe 
-endpoint.
+endpoint. You need to specify the new port using the `SYSTEM_API_PORT` environment variable of the Docker container.
 
 </Note>
 
@@ -152,7 +154,7 @@ The overall status may be one of the following constants:
     <dd>The server is ready to serve traffic.</dd>
     <dt>STALLING</dt>
     <dd>At least one API that was ready is not ready anymore.</dd>
-    <dt>SHUT_DOWN</dt>
+    <dt>SHUTDOWN</dt>
     <dd>Server is shutting down. None of the APIs are ready.</dd>
 </dl>
 
@@ -191,6 +193,9 @@ If the server is unhealthy, the response will list the problems.
     <dt>JAVA_INTERNAL_ERRORS</dt>
     <dd>Signaled when there are occurrences of Java internal errors. These errors are usually caused by the server
     itself and are not related to the client's requests. Java errors signal fatal problems inside the JVM.</dd>
+    <dt>EXTERNAL_API_UNAVAILABLE</dt>
+    <dd>Signalized when the readiness probe signals that at least one external API, that is configured to be enabled
+	doesn't respond to internal HTTP check call.</dd>
 </dl>
 
 ## Client and request identification

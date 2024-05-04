@@ -36,6 +36,7 @@ import io.evitadb.utils.CollectionUtils;
 import org.jboss.threads.EnhancedQueueExecutor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
 import java.util.Collection;
@@ -44,6 +45,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * This class is responsible for detecting health problems in the system. It monitors:
@@ -57,6 +61,7 @@ import java.util.Set;
  * 4. The number of Java OutOfMemory errors or Old generation garbage collections. If the current memory usage is above
  * 90% of the total available memory and the number of errors has increased since the last check, the system is considered
  * unhealthy.
+ * 5. The readiness of the external APIs. If at least one external API is not ready, the system is considered unhealthy.
  */
 public class ObservabilityProbesDetector implements ProbesProvider {
 	private static final Set<HealthProblem> NO_HEALTH_PROBLEMS = EnumSet.noneOf(HealthProblem.class);
@@ -69,74 +74,154 @@ public class ObservabilityProbesDetector implements ProbesProvider {
 		.toList();
 
 	private ObservabilityManager observabilityManager;
-	private long lastSeenRejectedTaskCount;
-	private long lastSeenSubmittedTaskCount;
-	private long lastSeenJavaErrorCount;
-	private long lastSeenJavaOOMErrorCount;
-	private long lastSeenEvitaErrorCount;
-	private long lastSeenJavaGarbageCollections;
-	private boolean seenReady;
+	private final AtomicLong lastSeenRejectedTaskCount = new AtomicLong(0L);
+	private final AtomicLong lastSeenSubmittedTaskCount = new AtomicLong(0L);
+	private final AtomicLong lastSeenJavaErrorCount = new AtomicLong(0L);
+	private final AtomicLong lastSeenJavaOOMErrorCount = new AtomicLong(0L);
+	private final AtomicLong lastSeenEvitaErrorCount = new AtomicLong(0L);
+	private final AtomicLong lastSeenJavaGarbageCollections = new AtomicLong(0L);
+	private final AtomicBoolean seenReady = new AtomicBoolean();
+	private final AtomicReference<Readiness> lastReadinessSeen = new AtomicReference<>();
 
 	@Nonnull
 	@Override
 	public Set<HealthProblem> getHealthProblems(@Nonnull EvitaContract evitaContract, @Nonnull ExternalApiServer externalApiServer) {
 		final EnumSet<HealthProblem> healthProblems = EnumSet.noneOf(HealthProblem.class);
-		final Optional<ObservabilityManager> theObservabilityManager = getObservabilityManager(externalApiServer);
+		final ObservabilityManager theObservabilityManager = getObservabilityManager(externalApiServer).orElse(null);
+
 		if (evitaContract instanceof Evita evita) {
-			final EnhancedQueueExecutor executor = evita.getExecutor();
-			final long rejectedTaskCount = executor.getRejectedTaskCount();
-			final long submittedTaskCount = executor.getSubmittedTaskCount();
-			// if the ratio of rejected task to submitted tasks is greater than 2, we could consider queues as overloaded
-			if ((rejectedTaskCount - lastSeenRejectedTaskCount) / (Math.max(submittedTaskCount - lastSeenSubmittedTaskCount, 1)) > 2) {
-				healthProblems.add(HealthProblem.INPUT_QUEUES_OVERLOADED);
-				theObservabilityManager.ifPresent(it -> it.recordHealthProblem(HealthProblem.INPUT_QUEUES_OVERLOADED.name()));
-			} else {
-				theObservabilityManager.ifPresent(it -> it.clearHealthProblem(HealthProblem.INPUT_QUEUES_OVERLOADED.name()));
+			recordResult(checkInputQueues(evita), healthProblems, theObservabilityManager);
+		}
+
+		if (theObservabilityManager != null) {
+			recordResult(checkEvitaErrors(theObservabilityManager), healthProblems, theObservabilityManager);
+			recordResult(checkMemoryShortage(theObservabilityManager), healthProblems, theObservabilityManager);
+			recordResult(checkJavaErrors(theObservabilityManager), healthProblems, theObservabilityManager);
+		}
+
+		recordResult(checkApiReadiness(), healthProblems, theObservabilityManager);
+
+		return healthProblems.isEmpty() ? NO_HEALTH_PROBLEMS : healthProblems;
+	}
+
+	/**
+	 * Records the result of the health problem check.
+	 * @param healthProblem the result of the health problem check
+	 * @param healthProblems the set of health problems
+	 * @param theObservabilityManager the observability manager for recording the health problem
+	 */
+	private static void recordResult(
+		@Nonnull HealthProblemCheckResult healthProblem,
+		@Nonnull Set<HealthProblem> healthProblems,
+		@Nullable ObservabilityManager theObservabilityManager
+	) {
+		if (healthProblem.present()) {
+			if (healthProblem.healthProblem() != null) {
+				healthProblems.add(healthProblem.healthProblem());
 			}
-			this.lastSeenRejectedTaskCount = rejectedTaskCount;
-			this.lastSeenSubmittedTaskCount = submittedTaskCount;
-		}
-
-		// if the number of errors has increased since the last check, we could consider the system as unhealthy
-		final long javaErrorCount = theObservabilityManager
-			.map(ObservabilityManager::getJavaErrorCount)
-			.orElse(0L);
-		if (javaErrorCount > this.lastSeenJavaErrorCount) {
-			healthProblems.add(HealthProblem.JAVA_INTERNAL_ERRORS);
-			theObservabilityManager.ifPresent(it -> it.recordHealthProblem(HealthProblem.JAVA_INTERNAL_ERRORS.name()));
+			if (theObservabilityManager != null) {
+				theObservabilityManager.recordHealthProblem(healthProblem.healthProblemName());
+			}
 		} else {
-			theObservabilityManager.ifPresent(it -> it.clearHealthProblem(HealthProblem.JAVA_INTERNAL_ERRORS.name()));
+			if (theObservabilityManager != null) {
+				theObservabilityManager.clearHealthProblem(healthProblem.healthProblemName());
+			}
 		}
-		this.lastSeenJavaErrorCount = javaErrorCount;
+	}
 
-		// if the number of errors has increased since the last check, we could consider the system as unhealthy
-		final long evitaErrorCount = theObservabilityManager
-			.map(ObservabilityManager::getEvitaErrorCount)
-			.orElse(0L);
-		if (evitaErrorCount > this.lastSeenEvitaErrorCount) {
-			theObservabilityManager.ifPresent(it -> it.recordHealthProblem("EVITA_DB_INTERNAL_ERRORS"));
-		} else {
-			theObservabilityManager.ifPresent(it -> it.clearHealthProblem("EVITA_DB_INTERNAL_ERRORS"));
-		}
-		this.lastSeenEvitaErrorCount = evitaErrorCount;
+	/**
+	 * Checks the readiness of the external APIs.
+	 * @return the result of the check
+	 */
+	@Nonnull
+	private HealthProblemCheckResult checkApiReadiness() {
+		final Readiness readiness = this.lastReadinessSeen.get();
+		return new HealthProblemCheckResult(
+			HealthProblem.EXTERNAL_API_UNAVAILABLE,
+			readiness.state() != ReadinessState.READY
+		);
+	}
 
+	/**
+	 * Checks the memory shortage. If the current memory usage is above 90% of the total available memory and the number
+	 * of errors has increased since the last check, the system is considered unhealthy.
+	 * @param theObservabilityManager the observability manager
+	 * @return the result of the check
+	 */
+	@Nonnull
+	private HealthProblemCheckResult checkMemoryShortage(@Nonnull ObservabilityManager theObservabilityManager) {
 		// if the number of errors has increased since the last check, we could consider the system as unhealthy
-		final long javaOOMErrorCount = theObservabilityManager
-			.map(ObservabilityManager::getJavaOutOfMemoryErrorCount)
-			.orElse(0L);
+		final long javaOOMErrorCount = theObservabilityManager.getJavaOutOfMemoryErrorCount();
 		// get used memory of the JVM
 		final float usedMemory = 1.0f - ((float) runtime.freeMemory() / (float) runtime.maxMemory());
 		final long oldGenerationCollectionCount = garbageCollectorMXBeans.stream().mapToLong(GarbageCollectorMXBean::getCollectionCount).sum();
-		if (usedMemory > 0.9f && (javaOOMErrorCount > this.lastSeenJavaOOMErrorCount || oldGenerationCollectionCount > this.lastSeenJavaGarbageCollections)) {
-			healthProblems.add(HealthProblem.MEMORY_SHORTAGE);
-			theObservabilityManager.ifPresent(it -> it.recordHealthProblem(HealthProblem.MEMORY_SHORTAGE.name()));
-		} else {
-			theObservabilityManager.ifPresent(it -> it.clearHealthProblem(HealthProblem.MEMORY_SHORTAGE.name()));
-		}
-		this.lastSeenJavaOOMErrorCount = javaOOMErrorCount;
-		this.lastSeenJavaGarbageCollections = oldGenerationCollectionCount;
+		final HealthProblemCheckResult result = new HealthProblemCheckResult(
+			HealthProblem.MEMORY_SHORTAGE,
+			usedMemory > 0.9f &&
+				(
+					javaOOMErrorCount > this.lastSeenJavaOOMErrorCount.get() ||
+					oldGenerationCollectionCount > this.lastSeenJavaGarbageCollections.get()
+				)
+		);
+		this.lastSeenJavaOOMErrorCount.set(javaOOMErrorCount);
+		this.lastSeenJavaGarbageCollections.set(oldGenerationCollectionCount);
+		return result;
+	}
 
-		return healthProblems.isEmpty() ? NO_HEALTH_PROBLEMS : healthProblems;
+	/**
+	 * Checks the number of Java internal errors.
+	 * @param theObservabilityManager the observability manager
+	 * @return the result of the check
+	 */
+	@Nonnull
+	private HealthProblemCheckResult checkJavaErrors(@Nonnull ObservabilityManager theObservabilityManager) {
+		// if the number of errors has increased since the last check, we could consider the system as unhealthy
+		final long javaErrorCount = theObservabilityManager.getJavaErrorCount();
+		final HealthProblemCheckResult result = new HealthProblemCheckResult(
+			HealthProblem.JAVA_INTERNAL_ERRORS,
+			javaErrorCount > this.lastSeenJavaErrorCount.get()
+		);
+		this.lastSeenJavaErrorCount.set(javaErrorCount);
+		return result;
+	}
+
+	/**
+	 * Checks the rejection / submission rate of the executor input queues.
+	 * @param evita the Evita instance
+	 * @return the result of the check
+	 */
+	@Nonnull
+	private HealthProblemCheckResult checkInputQueues(@Nonnull Evita evita) {
+		final EnhancedQueueExecutor executor = evita.getExecutor();
+		final long rejectedTaskCount = executor.getRejectedTaskCount();
+		final long submittedTaskCount = executor.getSubmittedTaskCount();
+		// if the ratio of rejected task to submitted tasks is greater than 2, we could consider queues as overloaded
+		final HealthProblemCheckResult result = new HealthProblemCheckResult(
+			HealthProblem.INPUT_QUEUES_OVERLOADED,
+			(rejectedTaskCount - this.lastSeenRejectedTaskCount.get()) / (Math.max(submittedTaskCount - this.lastSeenSubmittedTaskCount.get(), 1)) > 2
+		);
+		this.lastSeenRejectedTaskCount.set(rejectedTaskCount);
+		this.lastSeenSubmittedTaskCount.set(submittedTaskCount);
+		return result;
+	}
+
+	/**
+	 * Checks the number of database internal errors. This check doesn't affect the system health, but it's propagated
+	 * to metrics.
+	 *
+	 * @param theObservabilityManager the observability manager
+	 * @return the result of the check
+	 */
+	@Nonnull
+	private HealthProblemCheckResult checkEvitaErrors(@Nonnull ObservabilityManager theObservabilityManager) {
+		// if the number of errors has increased since the last check, we could consider the system as unhealthy
+		final long evitaErrorCount = theObservabilityManager.getEvitaErrorCount();
+		final HealthProblemCheckResult result = new HealthProblemCheckResult(
+			"EVITA_DB_INTERNAL_ERRORS",
+			evitaErrorCount > this.lastSeenEvitaErrorCount.get()
+		);
+		this.lastSeenEvitaErrorCount.set(evitaErrorCount);
+		return result;
 	}
 
 	@Nonnull
@@ -144,6 +229,7 @@ public class ObservabilityProbesDetector implements ProbesProvider {
 	public Readiness getReadiness(@Nonnull EvitaContract evitaContract, @Nonnull ExternalApiServer externalApiServer, @Nonnull String... apiCodes) {
 		final Optional<ObservabilityManager> theObservabilityManager = getObservabilityManager(externalApiServer);
 		// check the end-points availability
+		//noinspection rawtypes
 		final Collection<ExternalApiProviderRegistrar> availableExternalApis = ExternalApiServer.gatherExternalApiProviders();
 		final Map<String, Boolean> readiness = CollectionUtils.createHashMap(availableExternalApis.size());
 		for (String apiCode : apiCodes) {
@@ -153,16 +239,23 @@ public class ObservabilityProbesDetector implements ProbesProvider {
 		}
 		final boolean ready = readiness.values().stream().allMatch(Boolean::booleanValue);
 		if (ready) {
-			this.seenReady = true;
+			this.seenReady.set(true);
 		}
-		return new Readiness(
-			ready ? ReadinessState.READY : (this.seenReady ? ReadinessState.STALLING : ReadinessState.STARTING),
+		final Readiness currentReadiness = new Readiness(
+			ready ? ReadinessState.READY : (this.seenReady.get() ? ReadinessState.STALLING : ReadinessState.STARTING),
 			readiness.entrySet().stream()
 				.map(entry -> new ApiState(entry.getKey(), entry.getValue()))
 				.toArray(ApiState[]::new)
 		);
+		this.lastReadinessSeen.set(currentReadiness);
+		return currentReadiness;
 	}
 
+	/**
+	 * Returns the observability manager from the external API server.
+	 * @param externalApiServer the external API server
+	 * @return the observability manager or NULL if it is not available
+	 */
 	@Nonnull
 	private Optional<ObservabilityManager> getObservabilityManager(@Nonnull ExternalApiServer externalApiServer) {
 		if (this.observabilityManager == null) {
@@ -176,5 +269,25 @@ public class ObservabilityProbesDetector implements ProbesProvider {
 		return Optional.ofNullable(this.observabilityManager);
 	}
 
+	/**
+	 * This record represents the result of a health problem check.
+	 * @param healthProblem type of health problem
+	 * @param present true if the health problem is present, false otherwise
+	 */
+	private record HealthProblemCheckResult(
+		@Nullable HealthProblem healthProblem,
+		@Nonnull String healthProblemName,
+		boolean present
+	) {
+
+		public HealthProblemCheckResult(@Nullable HealthProblem healthProblem, boolean present) {
+			this(healthProblem, healthProblem.name(), present);
+		}
+
+		public HealthProblemCheckResult(@Nullable String healthProblem, boolean present) {
+			this(null, healthProblem, present);
+		}
+
+	}
 
 }

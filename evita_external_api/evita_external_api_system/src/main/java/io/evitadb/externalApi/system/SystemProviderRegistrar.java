@@ -270,7 +270,7 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 					}
 				} else {
 					exchange.setStatusCode(StatusCodes.SERVICE_UNAVAILABLE);
-					exchange.getResponseSender().send("{\"status\": \"" + ReadinessState.SHUT_DOWN.name() + "\"}");
+					exchange.getResponseSender().send("{\"status\": \"" + ReadinessState.SHUTDOWN.name() + "\"}");
 				}
 			}
 		);
