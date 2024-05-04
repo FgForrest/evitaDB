@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ package io.evitadb.externalApi.system;
 
 import io.evitadb.api.requestResponse.system.SystemStatus;
 import io.evitadb.core.Evita;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.api.system.ProbesProvider;
 import io.evitadb.externalApi.api.system.ProbesProvider.Readiness;
 import io.evitadb.externalApi.api.system.ProbesProvider.ReadinessState;
@@ -75,8 +75,8 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 	/**
 	 * Prints the status of the APIs as a JSON string.
 	 *
-	 * @param exchange      the HTTP server exchange
-	 * @param readiness     the readiness of the APIs
+	 * @param exchange  the HTTP server exchange
+	 * @param readiness the readiness of the APIs
 	 */
 	private static void printApiStatus(
 		@Nonnull HttpServerExchange exchange,
@@ -85,9 +85,9 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 		exchange.getResponseSender().send("{\n" +
 			"\t\"status\": \"" + readiness.state().name() + "\",\n" +
 			"\t\"apis\": {\n" +
-				Arrays.stream(readiness.apiStates())
-					.map(entry -> "\t\t\"" + entry.apiCode() + "\": \"" + (entry.isReady() ? "ready" : "not ready") + "\"")
-					.collect(Collectors.joining(",\n")) + "\n" +
+			Arrays.stream(readiness.apiStates())
+				.map(entry -> "\t\t\"" + entry.apiCode() + "\": \"" + (entry.isReady() ? "ready" : "not ready") + "\"")
+				.collect(Collectors.joining(",\n")) + "\n" +
 			"\t}\n" +
 			"}"
 		);
@@ -140,6 +140,23 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 		);
 	}
 
+	/**
+	 * Returns the enabled API endpoints.
+	 *
+	 * @param apiOptions the common settings shared among all the API endpoints
+	 * @return array of codes of the enabled API endpoints
+	 */
+	@Nonnull
+	private static String[] getEnabledApiEndpoints(@Nonnull ApiOptions apiOptions) {
+		return apiOptions.endpoints()
+			.entrySet()
+			.stream()
+			.filter(entry -> entry.getValue() != null)
+			.filter(entry -> entry.getValue().isEnabled())
+			.map(Entry::getKey)
+			.toArray(String[]::new);
+	}
+
 	@Nonnull
 	@Override
 	public String getExternalApiCode() {
@@ -171,7 +188,7 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 		} else {
 			final CertificatePath certificatePath = certificateSettings.custom();
 			if (certificatePath == null || certificatePath.certificate() == null || certificatePath.privateKey() == null) {
-				throw new EvitaInternalError("Certificate path is not properly set in the configuration file.");
+				throw new GenericEvitaInternalError("Certificate path is not properly set in the configuration file.");
 			}
 			final String certificate = certificatePath.certificate();
 			final int lastSeparatorIndex = certificatePath.certificate().lastIndexOf(File.separator);
@@ -230,14 +247,7 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 			}
 		);
 
-		final String[] enabledEndPoints = apiOptions.endpoints()
-			.entrySet()
-			.stream()
-			.filter(entry -> entry.getValue() != null)
-			.filter(entry -> entry.getValue().isEnabled())
-			.map(Entry::getKey)
-			.toArray(String[]::new);
-
+		final String[] enabledEndPoints = getEnabledApiEndpoints(apiOptions);
 		router.addExactPath(
 			"/" + ENDPOINT_SYSTEM_READINESS,
 			exchange -> {
@@ -315,7 +325,7 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 					new String[0]
 			);
 		} catch (IOException e) {
-			throw new EvitaInternalError(e.getMessage(), e);
+			throw new GenericEvitaInternalError(e.getMessage(), e);
 		}
 	}
 

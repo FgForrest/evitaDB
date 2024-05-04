@@ -35,7 +35,7 @@ import io.evitadb.api.query.parser.error.EvitaQLInvalidQueryError;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser.*;
 import io.evitadb.api.query.parser.grammar.EvitaQLVisitor;
 import io.evitadb.api.query.require.*;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -256,7 +256,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 					} else if (require instanceof final EntityGroupFetch entityGroupFetch) {
 						return new ReferenceContent(null, entityGroupFetch);
 					} else {
-						throw new EvitaInternalError("Should never happen!");
+						throw new GenericEvitaInternalError("Should never happen!");
 					}
 				} else {
 					return new ReferenceContent(
@@ -288,7 +288,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 				} else if (requirement instanceof final EntityGroupFetch entityGroupFetch) {
 					return new ReferenceContent(classifier, null, null, null, entityGroupFetch);
 				} else {
-					throw new EvitaInternalError("Should never happen!");
+					throw new GenericEvitaInternalError("Should never happen!");
 				}
 			}
 		);
@@ -333,7 +333,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 				} else if (requirement instanceof final EntityGroupFetch entityGroupFetch) {
 					return new ReferenceContent(classifier, filterBy, null, null, entityGroupFetch);
 				} else {
-					throw new EvitaInternalError("Should never happen!");
+					throw new GenericEvitaInternalError("Should never happen!");
 				}
 			}
 		);
@@ -380,7 +380,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 				} else if (requirement instanceof final EntityGroupFetch entityGroupFetch) {
 					return new ReferenceContent(classifier, null, orderBy, null, entityGroupFetch);
 				} else {
-					throw new EvitaInternalError("Should never happen!");
+					throw new GenericEvitaInternalError("Should never happen!");
 				}
 			}
 		);
@@ -429,7 +429,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 				} else if (requirement instanceof final EntityGroupFetch entityGroupFetch) {
 					return new ReferenceContent(classifier, filterBy, orderBy, null, entityGroupFetch);
 				} else {
-					throw new EvitaInternalError("Should never happen!");
+					throw new GenericEvitaInternalError("Should never happen!");
 				}
 			}
 		);
@@ -477,7 +477,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 				} else if (requirement instanceof final EntityGroupFetch entityGroupFetch) {
 					return new ReferenceContent((AttributeContent) null, null, entityGroupFetch);
 				} else {
-					throw new EvitaInternalError("Should never happen!");
+					throw new GenericEvitaInternalError("Should never happen!");
 				}
 			}
 		);
@@ -544,7 +544,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 				} else if (requirement instanceof final EntityGroupFetch entityGroupFetch) {
 					return new ReferenceContent(classifier, null, null, null, null, entityGroupFetch);
 				} else {
-					throw new EvitaInternalError("Should never happen!");
+					throw new GenericEvitaInternalError("Should never happen!");
 				}
 			}
 		);
@@ -621,7 +621,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 				} else if (requirement instanceof final EntityGroupFetch entityGroupFetch) {
 					return new ReferenceContent(classifier, filterBy, null, null, null, entityGroupFetch);
 				} else {
-					throw new EvitaInternalError("Should never happen!");
+					throw new GenericEvitaInternalError("Should never happen!");
 				}
 			}
 		);
@@ -702,7 +702,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 				} else if (requirement instanceof final EntityGroupFetch entityGroupFetch) {
 					return new ReferenceContent(classifier, null, orderBy, null, null, entityGroupFetch);
 				} else {
-					throw new EvitaInternalError("Should never happen!");
+					throw new GenericEvitaInternalError("Should never happen!");
 				}
 			}
 		);
@@ -784,7 +784,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 				} else if (requirement instanceof final EntityGroupFetch entityGroupFetch) {
 					return new ReferenceContent(classifier, filterBy, orderBy, null, null, entityGroupFetch);
 				} else {
-					throw new EvitaInternalError("Should never happen!");
+					throw new GenericEvitaInternalError("Should never happen!");
 				}
 			}
 		);
@@ -862,7 +862,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 					} else if (require instanceof final EntityGroupFetch entityGroupFetch) {
 						return new ReferenceContent(classifiers, null, entityGroupFetch);
 					} else {
-						throw new EvitaInternalError("Should never happen!");
+						throw new GenericEvitaInternalError("Should never happen!");
 					}
 				} else {
 					return new ReferenceContent(

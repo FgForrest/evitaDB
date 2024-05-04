@@ -42,7 +42,7 @@ import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder.LookUp;
 import io.evitadb.core.query.extraResult.translator.histogram.producer.PriceHistogramProducer;
 import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.dataType.iterator.BatchArrayIterator;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
@@ -290,7 +290,7 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 						}
 
 						if (noPriceFoundAtAll) {
-							throw new EvitaInternalError("No price found for entity with id " + entityId + "!");
+							throw new GenericEvitaInternalError("No price found for entity with id " + entityId + "!");
 						}
 					}
 				}

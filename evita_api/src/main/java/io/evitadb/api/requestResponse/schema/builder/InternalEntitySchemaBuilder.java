@@ -45,7 +45,7 @@ import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.
 import io.evitadb.dataType.ClassifierType;
 import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.dataType.EvitaDataTypes;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.ClassifierUtils;
 import io.evitadb.utils.NamingConvention;
 import lombok.experimental.Delegate;
@@ -736,7 +736,7 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 				final EntitySchemaMutation mutation = this.mutations.get(i);
 				currentSchema = mutation.mutate(catalogSchemaAccessor.get(), currentSchema);
 				if (currentSchema == null) {
-					throw new EvitaInternalError("Catalog schema unexpectedly removed from inside!");
+					throw new GenericEvitaInternalError("Catalog schema unexpectedly removed from inside!");
 				}
 			}
 			this.updatedSchema = currentSchema;

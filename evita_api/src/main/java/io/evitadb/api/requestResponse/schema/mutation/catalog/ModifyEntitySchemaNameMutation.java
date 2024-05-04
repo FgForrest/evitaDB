@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -33,7 +33,7 @@ import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.NamingConvention;
 import lombok.AllArgsConstructor;
@@ -73,7 +73,7 @@ public class ModifyEntitySchemaNameMutation implements LocalCatalogSchemaMutatio
 				.ifPresentOrElse(
 					it -> mutationEntitySchemaAccessor.replaceEntitySchema(name, it),
 					() -> {
-						throw new EvitaInternalError("Entity schema not found: " + name);
+						throw new GenericEvitaInternalError("Entity schema not found: " + name);
 					}
 				);
 		}

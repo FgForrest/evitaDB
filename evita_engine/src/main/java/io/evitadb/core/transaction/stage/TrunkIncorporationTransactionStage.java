@@ -35,7 +35,7 @@ import io.evitadb.core.transaction.stage.TrunkIncorporationTransactionStage.Trun
 import io.evitadb.core.transaction.stage.TrunkIncorporationTransactionStage.UpdatedCatalogTransactionTask;
 import io.evitadb.core.transaction.stage.mutation.VerifiedEntityRemoveMutation;
 import io.evitadb.core.transaction.stage.mutation.VerifiedEntityUpsertMutation;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -165,7 +165,7 @@ public final class TrunkIncorporationTransactionStage
 					Assert.isPremiseValid(
 						transactionMutation.getCatalogVersion() == this.lastFinalizedCatalogVersion + 1 ||
 							(lastTransaction != null && transactionMutation.getCatalogVersion() == lastTransaction.getCatalogVersion() + 1),
-						() -> new EvitaInternalError(
+						() -> new GenericEvitaInternalError(
 							"Unexpected catalog version! " +
 								"Transaction mutation catalog version: " + transactionMutation.getCatalogVersion() + ", " +
 								"last finalized catalog version: " + this.lastFinalizedCatalogVersion + "."

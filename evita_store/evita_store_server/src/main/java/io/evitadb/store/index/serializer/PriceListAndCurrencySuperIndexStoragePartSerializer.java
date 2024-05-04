@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
@@ -77,7 +77,7 @@ public class PriceListAndCurrencySuperIndexStoragePartSerializer extends Seriali
 				output.writeInt(priceRecord.priceWithTax(), true);
 				output.writeInt(priceRecord.priceWithoutTax(), true);
 			} else {
-				throw new EvitaInternalError("Unknown implementation `" + priceRecord.getClass() + "` of PriceRecordContract!");
+				throw new GenericEvitaInternalError("Unknown implementation `" + priceRecord.getClass() + "` of PriceRecordContract!");
 			}
 		}
 	}

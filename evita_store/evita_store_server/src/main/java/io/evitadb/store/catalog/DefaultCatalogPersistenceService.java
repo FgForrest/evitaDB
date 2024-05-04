@@ -47,8 +47,8 @@ import io.evitadb.core.EntityCollection;
 import io.evitadb.core.buffer.DataStoreIndexChanges;
 import io.evitadb.dataType.ClassifierType;
 import io.evitadb.dataType.PaginatedList;
-import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.InvalidClassifierFormatException;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.index.CatalogIndex;
@@ -705,7 +705,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		final int lookupIndex = index >= 0 ? index : (-index - 2);
 		Assert.isPremiseValid(
 			lookupIndex >= 0 && lookupIndex < this.catalogPersistenceServiceVersions.length,
-			() -> new EvitaInternalError("Catalog version " + catalogVersion + " not found in the catalog persistence service versions!")
+			() -> new GenericEvitaInternalError("Catalog version " + catalogVersion + " not found in the catalog persistence service versions!")
 		);
 		return this.catalogStoragePartPersistenceService.get(
 			this.catalogPersistenceServiceVersions[lookupIndex]
@@ -924,7 +924,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				);
 				Assert.isPremiseValid(
 					newPersistenceService.getEntityCollectionHeader().equals(compactedHeader),
-					() -> new EvitaInternalError("Unexpected header mismatch!")
+					() -> new GenericEvitaInternalError("Unexpected header mismatch!")
 				);
 				return of(newPersistenceService);
 			} else {
@@ -1081,7 +1081,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				final Path filePathForRename = filePath.getParent().resolve(fileNameToRename);
 				Assert.isPremiseValid(
 					it.renameTo(filePathForRename.toFile()),
-					() -> new EvitaInternalError(
+					() -> new GenericEvitaInternalError(
 						"Failed to rename `" + it.getAbsolutePath() + "` to `" + filePathForRename.toAbsolutePath() + "`!",
 						"Failed to rename one of the `" + this.catalogName + "` catalog files to target catalog name!"
 					)
@@ -1126,7 +1126,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			if (temporaryOriginal != null) {
 				Assert.isPremiseValid(
 					temporaryOriginal.toFile().renameTo(newPath.toFile()),
-					() -> new EvitaInternalError(
+					() -> new GenericEvitaInternalError(
 						"Failed to rename the original directory back to `" + newPath.toAbsolutePath() + "` the original catalog will not be available as well!",
 						"Failing to rename the original directory back to the original catalog will not be available as well!",
 						ex
@@ -1175,7 +1175,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			if (ex instanceof RuntimeException runtimeException) {
 				throw runtimeException;
 			} else {
-				throw new EvitaInternalError(
+				throw new GenericEvitaInternalError(
 					"Unexpected error during the entity collection renaming: " + ex.getMessage(),
 					"Unexpected error during the entity collection renaming!",
 					ex
@@ -1575,7 +1575,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 							this.observableOutputKeeper
 						)
 					),
-					() -> new EvitaInternalError("Failed to replace the bootstrap write handle in a critical section!")
+					() -> new GenericEvitaInternalError("Failed to replace the bootstrap write handle in a critical section!")
 				);
 			}
 
@@ -1613,7 +1613,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 					this.observableOutputKeeper
 				)
 			),
-			() -> new EvitaInternalError("Failed to replace the bootstrap write handle in a critical section!")
+			() -> new GenericEvitaInternalError("Failed to replace the bootstrap write handle in a critical section!")
 		);
 	}
 
@@ -1772,7 +1772,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		final int lookupIndex = index >= 0 ? index : (-index - 2);
 		Assert.isPremiseValid(
 			lookupIndex >= 0 && lookupIndex < this.catalogPersistenceServiceVersions.length,
-			() -> new EvitaInternalError("Catalog version " + catalogVersion + " not found in the catalog persistence service versions!")
+			() -> new GenericEvitaInternalError("Catalog version " + catalogVersion + " not found in the catalog persistence service versions!")
 		);
 		final long versionToRemove = this.catalogPersistenceServiceVersions[lookupIndex];
 		this.catalogPersistenceServiceVersions = ArrayUtils.removeLongFromArrayOnIndex(this.catalogPersistenceServiceVersions, lookupIndex);

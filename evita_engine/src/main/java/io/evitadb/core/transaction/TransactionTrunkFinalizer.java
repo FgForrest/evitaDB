@@ -27,7 +27,7 @@ import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -81,7 +81,7 @@ public class TransactionTrunkFinalizer implements TransactionHandler {
 
 	@Override
 	public void rollback(@Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Throwable cause) {
-		throw new EvitaInternalError("Rollback is not supported here!");
+		throw new GenericEvitaInternalError("Rollback is not supported here!");
 	}
 
 	/**

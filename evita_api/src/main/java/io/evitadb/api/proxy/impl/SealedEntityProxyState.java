@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -41,8 +41,8 @@ import io.evitadb.api.requestResponse.data.structure.ExistingReferenceBuilder;
 import io.evitadb.api.requestResponse.data.structure.InitialReferenceBuilder;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ReflectionLookup;
 import lombok.Setter;
@@ -156,9 +156,9 @@ public class SealedEntityProxyState
 		} else if (entity instanceof Entity theEntity) {
 			entityBuilder = new ExistingEntityBuilder(theEntity, mutations);
 		} else if (entity instanceof EntityBuilder) {
-			throw new EvitaInternalError("Entity builder already created!");
+			throw new GenericEvitaInternalError("Entity builder already created!");
 		} else {
-			throw new EvitaInternalError("Unexpected entity type: " + entity.getClass().getName());
+			throw new GenericEvitaInternalError("Unexpected entity type: " + entity.getClass().getName());
 		}
 		return entityBuilder;
 	}
@@ -173,7 +173,7 @@ public class SealedEntityProxyState
 			} else if (entity instanceof EntityBuilder theBuilder) {
 				entityBuilder = theBuilder;
 			} else {
-				throw new EvitaInternalError("Unexpected entity type: " + entity.getClass().getName());
+				throw new GenericEvitaInternalError("Unexpected entity type: " + entity.getClass().getName());
 			}
 		}
 		return entityBuilder;

@@ -49,7 +49,7 @@ import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.data.DataItem;
 import io.evitadb.dataType.data.DataItemMap;
 import io.evitadb.dataType.data.ReflectionCachingBehaviour;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.test.Entities;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ReflectionLookup;
@@ -566,7 +566,7 @@ public class DataGenerator {
 		} while (value == null && sanityCheck++ < 1000);
 
 		if (attribute.isSortable() && value == null) {
-			throw new EvitaInternalError("Cannot generate unique " + attributeName + " even in 1000 iterations!");
+			throw new GenericEvitaInternalError("Cannot generate unique " + attributeName + " even in 1000 iterations!");
 		}
 
 		generatedValueWriter.accept((T) value);
@@ -825,7 +825,7 @@ public class DataGenerator {
 					(T) defaultConstructor.newInstance(DataItemMap.EMPTY)
 				);
 			} catch (IllegalAccessException | InstantiationException | InvocationTargetException e) {
-				throw new EvitaInternalError("Test associated data class " + defaultConstructor.toGenericString() + " threw exception!", e);
+				throw new GenericEvitaInternalError("Test associated data class " + defaultConstructor.toGenericString() + " threw exception!", e);
 			}
 		}
 	}

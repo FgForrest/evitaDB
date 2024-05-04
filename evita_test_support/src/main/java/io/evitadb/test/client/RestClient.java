@@ -24,7 +24,7 @@
 package io.evitadb.test.client;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import okhttp3.MediaType;
 import okhttp3.Request;
@@ -64,12 +64,12 @@ public class RestClient extends ApiClient {
 			}
 			if (responseCode >= 400 && responseCode <= 499) {
 				final String errorResponseString = response.body() != null ? response.body().string() : "no response body";
-				throw new EvitaInternalError("Call to REST server `" + this.url + resource + "` ended with status " + responseCode + " and response: \n" + errorResponseString);
+				throw new GenericEvitaInternalError("Call to REST server `" + this.url + resource + "` ended with status " + responseCode + " and response: \n" + errorResponseString);
 			}
 
-			throw new EvitaInternalError("Call to REST server `" + this.url + resource + "` ended with status " + responseCode);
+			throw new GenericEvitaInternalError("Call to REST server `" + this.url + resource + "` ended with status " + responseCode);
 		} catch (IOException e) {
-			throw new EvitaInternalError("Unexpected error.", e);
+			throw new GenericEvitaInternalError("Unexpected error.", e);
 		}
 	}
 
@@ -84,7 +84,7 @@ public class RestClient extends ApiClient {
 
 	}
 
-	private void validateResponseBody(@Nonnull JsonNode responseBody) {
+	private static void validateResponseBody(@Nonnull JsonNode responseBody) {
 		Assert.isPremiseValid(
 			responseBody != null && !responseBody.isNull(),
 			"Call to REST server ended with empty data."

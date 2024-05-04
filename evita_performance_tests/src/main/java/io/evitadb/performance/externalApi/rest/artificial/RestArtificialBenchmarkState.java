@@ -23,7 +23,7 @@
 
 package io.evitadb.performance.externalApi.rest.artificial;
 
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.performance.artificial.AbstractArtificialBenchmarkState;
 import io.evitadb.test.client.RestClient;
 
@@ -46,7 +46,7 @@ public abstract class RestArtificialBenchmarkState extends AbstractArtificialBen
 			try {
 				return new RestClient("https://" + InetAddress.getByName("localhost").getHostAddress() + ":5555", false, true);
 			} catch (UnknownHostException e) {
-				throw new EvitaInternalError("Could not create REST API URL:", e);
+				throw new GenericEvitaInternalError("Could not create REST API URL:", e);
 			}
 		});
 	}

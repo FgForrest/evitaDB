@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -39,7 +39,7 @@ import io.evitadb.dataType.ClassifierType;
 import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.Predecessor;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ClassifierUtils;
 import lombok.EqualsAndHashCode;
@@ -106,7 +106,7 @@ public class CreateAssociatedDataSchemaMutation
 		if (existingMutation instanceof RemoveAssociatedDataSchemaMutation removeAssociatedDataSchema && Objects.equals(removeAssociatedDataSchema.getName(), name)) {
 			final AssociatedDataSchemaContract createdVersion = mutate(null);
 			final AssociatedDataSchemaContract existingVersion = currentEntitySchema.getAssociatedData(name)
-				.orElseThrow(() -> new EvitaInternalError("Sanity check!"));
+				.orElseThrow(() -> new GenericEvitaInternalError("Sanity check!"));
 
 			return new MutationCombinationResult<>(
 				null,

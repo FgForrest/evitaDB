@@ -24,8 +24,8 @@
 package io.evitadb.externalApi.http;
 
 import io.evitadb.core.Evita;
-import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.certificate.ServerCertificateManager;
 import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
 import io.evitadb.externalApi.configuration.ApiOptions;
@@ -132,7 +132,7 @@ public class ExternalApiServer implements AutoCloseable {
 	public static CertificatePath initCertificate(final @Nonnull ApiOptions apiOptions, final @Nonnull ServerCertificateManager serverCertificateManager) {
 		final CertificatePath certificatePath = ServerCertificateManager.getCertificatePath(apiOptions.certificate());
 		if (certificatePath.certificate() == null || certificatePath.privateKey() == null) {
-			throw new EvitaInternalError("Either certificate path or its private key path is not set");
+			throw new GenericEvitaInternalError("Either certificate path or its private key path is not set");
 		}
 		final File certificateFile = new File(certificatePath.certificate());
 		final File certificateKeyFile = new File(certificatePath.privateKey());
@@ -149,7 +149,7 @@ public class ExternalApiServer implements AutoCloseable {
 				try {
 					serverCertificateManager.generateSelfSignedCertificate();
 				} catch (Exception e) {
-					throw new EvitaInternalError(
+					throw new GenericEvitaInternalError(
 						"Failed to generate self-signed certificate: " + e.getMessage(),
 						"Failed to generate self-signed certificate",
 						e
@@ -162,7 +162,7 @@ public class ExternalApiServer implements AutoCloseable {
 			}
 		} else {
 			if (!certificateFile.exists() || !certificateKeyFile.exists()) {
-				throw new EvitaInternalError("Certificate or its private key file does not exist");
+				throw new GenericEvitaInternalError("Certificate or its private key file does not exist");
 			}
 		}
 		return certificatePath;
@@ -194,7 +194,7 @@ public class ExternalApiServer implements AutoCloseable {
 
 		} catch (NoSuchAlgorithmException | UnrecoverableKeyException | CertificateException | KeyStoreException |
 		         IOException | KeyManagementException e) {
-			throw new EvitaInternalError(
+			throw new GenericEvitaInternalError(
 				"Error while creating SSL context: " + e.getMessage(),
 				"Error while creating SSL context",
 				e
@@ -308,7 +308,7 @@ public class ExternalApiServer implements AutoCloseable {
 					it -> it.getCode().toLowerCase(),
 					Function.identity(),
 					(externalApiProvider, externalApiProvider2) -> {
-						throw new EvitaInternalError(
+						throw new GenericEvitaInternalError(
 							"Multiple implementations of `" + externalApiProvider.getCode() + "` found on classpath!"
 						);
 					},

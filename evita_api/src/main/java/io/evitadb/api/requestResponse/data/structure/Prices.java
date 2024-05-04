@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -38,7 +38,7 @@ import io.evitadb.api.requestResponse.data.PricesContract;
 import io.evitadb.api.requestResponse.data.Versioned;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -136,7 +136,7 @@ public class Prices implements PricesContract, Versioned, ContentComparator<Pric
 					Collectors.toMap(
 						PriceContract::priceKey, Function.identity(),
 						(oldValue, newValue) -> {
-							throw new EvitaInternalError("Duplicate price key " + oldValue.priceKey());
+							throw new GenericEvitaInternalError("Duplicate price key " + oldValue.priceKey());
 						},
 						() -> new LinkedHashMap<>(prices.size())
 					)
@@ -171,7 +171,7 @@ public class Prices implements PricesContract, Versioned, ContentComparator<Pric
 					Collectors.toMap(
 						PriceContract::priceKey, Function.identity(),
 						(oldValue, newValue) -> {
-							throw new EvitaInternalError("Duplicate price key " + oldValue.priceKey());
+							throw new GenericEvitaInternalError("Duplicate price key " + oldValue.priceKey());
 						},
 						() -> new LinkedHashMap<>(prices.size())
 					)

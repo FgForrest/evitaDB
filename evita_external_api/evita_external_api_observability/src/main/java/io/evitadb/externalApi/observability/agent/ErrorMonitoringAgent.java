@@ -24,18 +24,20 @@
 package io.evitadb.externalApi.observability.agent;
 
 import io.evitadb.exception.EvitaInternalError;
-import io.evitadb.externalApi.observability.ObservabilityManager;
 import net.bytebuddy.agent.builder.AgentBuilder;
 import net.bytebuddy.asm.Advice;
-import net.bytebuddy.asm.Advice.OnMethodEnter;
+import net.bytebuddy.asm.Advice.OnMethodExit;
+import net.bytebuddy.description.type.TypeDescription;
 import net.bytebuddy.dynamic.loading.ClassInjector;
 
+import javax.annotation.Nonnull;
+import java.io.IOException;
+import java.io.InputStream;
 import java.lang.instrument.Instrumentation;
+import java.util.HashMap;
+import java.util.Map;
 
-import static net.bytebuddy.matcher.ElementMatchers.isConstructor;
-import static net.bytebuddy.matcher.ElementMatchers.isSubTypeOf;
-import static net.bytebuddy.matcher.ElementMatchers.nameStartsWith;
-import static net.bytebuddy.matcher.ElementMatchers.none;
+import static net.bytebuddy.matcher.ElementMatchers.*;
 
 /**
  * Agent that intercepts all Error constructors and sends a metric to the MetricHandler.
@@ -54,14 +56,14 @@ public class ErrorMonitoringAgent {
 			.with(AgentBuilder.RedefinitionStrategy.RETRANSFORMATION)
 			.ignore(none())
 			.ignore(nameStartsWith("net.bytebuddy."))
-			.type(isSubTypeOf(Error.class))
+			.type(isSubTypeOf(VirtualMachineError.class).and(not(isAbstract())))
 			.transform((builder, typeDescription, classLoader, module, protectionDomain) -> builder
 				.visit(
 					Advice
 						.to(JavaErrorConstructorInterceptAdvice.class)
 						.on(isConstructor())
 				))
-			.type(isSubTypeOf(EvitaInternalError.class))
+			.type(isSubTypeOf(EvitaInternalError.class).and(not(isAbstract())))
 			.transform((builder, typeDescription, classLoader, module, protectionDomain) -> builder
 				.visit(
 					Advice
@@ -69,6 +71,38 @@ public class ErrorMonitoringAgent {
 						.on(isConstructor())
 				))
 			.installOn(inst);
+
+		// Inject ErrorMonitoring class into the bootstrap classloader
+		Map<TypeDescription, byte[]> types = new HashMap<>(8);
+		types.put(
+			new TypeDescription.ForLoadedType(ErrorMonitor.class),
+			getClassBytes(ErrorMonitor.class)
+		);
+		ClassInjector.UsingUnsafe.ofBootLoader().inject(types);
+	}
+
+	/**
+	 * Get the bytes of a particular class from classpath.
+	 * @param clazz Class to get bytes of.
+	 * @return Byte array of the class.
+	 */
+	@Nonnull
+	public static byte[] getClassBytes(@Nonnull Class<?> clazz) {
+		try {
+			final String classAsResource = clazz.getName().replace('.', '/') + ".class";
+			try (InputStream classStream = ErrorMonitoringAgent.class.getClassLoader().getResourceAsStream(classAsResource)) {
+				if (classStream == null) {
+					System.err.println("Class `" + clazz.getName() + "` not found in classpath and is required by ErrorMonitoringAgent.");
+					System.exit(1);
+					throw new IllegalStateException("Class `" + clazz.getName() + "` not found in classpath and is required by ErrorMonitoringAgent.");
+				}
+				return classStream.readAllBytes();
+			}
+		} catch (IOException e) {
+			System.err.println("Class `" + clazz.getName() + "` not found in classpath and is required by ErrorMonitoringAgent.");
+			System.exit(1);
+			throw new IllegalStateException("Class `" + clazz.getName() + "` not found in classpath and is required by ErrorMonitoringAgent.");
+		}
 	}
 
 	/**
@@ -76,9 +110,9 @@ public class ErrorMonitoringAgent {
 	 */
 	public static class JavaErrorConstructorInterceptAdvice {
 
-		@OnMethodEnter
-		public static boolean before(@Advice.This Object thiz) {
-			ObservabilityManager.javaErrorEvent(thiz.getClass().getSimpleName());
+		@OnMethodExit
+		public static boolean after(@Advice.This Object thiz) {
+			ErrorMonitor.registerJavaError(thiz.getClass().getSimpleName());
 			return true;
 		}
 
@@ -89,9 +123,9 @@ public class ErrorMonitoringAgent {
 	 */
 	public static class EvitaDbErrorConstructorInterceptAdvice {
 
-		@OnMethodEnter
-		public static boolean before(@Advice.This Object thiz) {
-			ObservabilityManager.evitaErrorEvent(thiz.getClass().getSimpleName());
+		@OnMethodExit
+		public static boolean after(@Advice.This Object thiz) {
+			ErrorMonitor.registerEvitaError(thiz.getClass().getSimpleName());
 			return true;
 		}
 

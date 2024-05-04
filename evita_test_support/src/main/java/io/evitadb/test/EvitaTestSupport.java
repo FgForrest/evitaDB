@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
 
 package io.evitadb.test;
 
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import org.apache.commons.io.FileUtils;
 import org.junit.jupiter.params.provider.Arguments;
@@ -122,7 +122,7 @@ public interface EvitaTestSupport extends TestConstants {
 		try {
 			cleanTestDirectory();
 		} catch (IOException e) {
-			throw new EvitaInternalError("Cannot empty target directory!", e);
+			throw new GenericEvitaInternalError("Cannot empty target directory!", e);
 		}
 	}
 
@@ -133,7 +133,7 @@ public interface EvitaTestSupport extends TestConstants {
 		try {
 			cleanTestSubDirectory(directory);
 		} catch (IOException e) {
-			throw new EvitaInternalError("Cannot empty target directory!", e);
+			throw new GenericEvitaInternalError("Cannot empty target directory!", e);
 		}
 	}
 
@@ -165,7 +165,7 @@ public interface EvitaTestSupport extends TestConstants {
 			dataPath = Path.of(externallyDefinedPath);
 		}
 		if (!dataPath.toFile().exists()) {
-			throw new EvitaInternalError("Data directory `" + dataPath + "` does not exist!");
+			throw new GenericEvitaInternalError("Data directory `" + dataPath + "` does not exist!");
 		}
 		return dataPath;
 	}

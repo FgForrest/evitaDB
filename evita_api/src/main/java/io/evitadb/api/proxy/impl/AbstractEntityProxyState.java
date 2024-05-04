@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -38,7 +38,7 @@ import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.InitialEntityBuilder;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ReflectionLookup;
 import lombok.EqualsAndHashCode;
@@ -604,7 +604,7 @@ abstract class AbstractEntityProxyState implements
 			final T proxy = newInstance.proxy(
 				classToImplement,
 				() -> {
-					throw new EvitaInternalError("Should not happen - the supplier should provide correct type!");
+					throw new GenericEvitaInternalError("Should not happen - the supplier should provide correct type!");
 				}
 			);
 			this.proxies.add(proxy);

@@ -83,6 +83,7 @@ import io.evitadb.driver.pooling.ChannelPool;
 import io.evitadb.driver.requestResponse.schema.ClientCatalogSchemaDecorator;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.EvitaSessionServiceGrpc.EvitaSessionServiceFutureStub;
 import io.evitadb.externalApi.grpc.generated.EvitaSessionServiceGrpc.EvitaSessionServiceStub;
@@ -1580,7 +1581,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 			throw evitaError;
 		} catch (Throwable e) {
 			log.error("Unexpected internal Evita error occurred: {}", e.getMessage(), e);
-			throw new EvitaInternalError(
+			throw new GenericEvitaInternalError(
 				"Unexpected internal Evita error occurred: " + e.getMessage(),
 				"Unexpected internal Evita error occurred.",
 				e
@@ -1618,11 +1619,11 @@ public class EvitaClientSession implements EvitaSessionContract {
 		} else {
 			final Matcher expectedFormat = ERROR_MESSAGE_PATTERN.matcher(description);
 			if (expectedFormat.matches()) {
-				return EvitaInternalError.createExceptionWithErrorCode(
+				return GenericEvitaInternalError.createExceptionWithErrorCode(
 					expectedFormat.group(2), expectedFormat.group(1)
 				);
 			} else {
-				return new EvitaInternalError(description);
+				return new GenericEvitaInternalError(description);
 			}
 		}
 	}

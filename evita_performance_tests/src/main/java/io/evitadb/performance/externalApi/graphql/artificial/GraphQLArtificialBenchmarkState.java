@@ -23,7 +23,7 @@
 
 package io.evitadb.performance.externalApi.graphql.artificial;
 
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.performance.artificial.AbstractArtificialBenchmarkState;
 import io.evitadb.test.client.GraphQLClient;
 
@@ -50,7 +50,7 @@ public abstract class GraphQLArtificialBenchmarkState extends AbstractArtificial
 					true
 				);
 			} catch (UnknownHostException e) {
-				throw new EvitaInternalError("Unknown host.", e);
+				throw new GenericEvitaInternalError("Unknown host.", e);
 			}
 		});
 	}

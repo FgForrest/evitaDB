@@ -33,7 +33,7 @@ import io.evitadb.core.query.algebra.base.OrFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.array.TransactionalComplexObjArray;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
@@ -349,7 +349,7 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 			} else if (leftFormula instanceof JoinFormula joinFormula) {
 				return joinFormula.getAsOrFormula();
 			} else {
-				throw new EvitaInternalError("Unexpected formula type: " + leftFormula.getClass().getSimpleName() + "!");
+				throw new GenericEvitaInternalError("Unexpected formula type: " + leftFormula.getClass().getSimpleName() + "!");
 			}
 		} else {
 			return new DisentangleFormula(leftFormula, rightFormula);

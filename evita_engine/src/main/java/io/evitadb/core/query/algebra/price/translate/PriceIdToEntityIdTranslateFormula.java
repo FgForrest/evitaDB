@@ -38,7 +38,7 @@ import io.evitadb.core.query.algebra.price.termination.PriceEvaluationContext;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder.LookUp;
 import io.evitadb.dataType.array.CompositeObjectArray;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
@@ -207,7 +207,7 @@ public class PriceIdToEntityIdTranslateFormula extends AbstractCacheableFormula 
 			}
 
 			if (!priceIdBitmap.isEmpty()) {
-				throw new EvitaInternalError(
+				throw new GenericEvitaInternalError(
 					"These prices weren't translated to entity id: " + Arrays.toString(priceIdBitmap.getArray())
 				);
 			}

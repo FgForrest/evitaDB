@@ -76,14 +76,19 @@ public class MetricHandler {
 		.help("Total number of internal Java errors")
 		.register();
 	public static final Counter EVITA_ERRORS_TOTAL = Counter.builder()
-		.name("evita_errors_total")
+		.name("io_evitadb_errors_total")
 		.labelNames("error_type")
 		.help("Total number of internal evitaDB errors")
 		.register();
 	public static final Gauge HEALTH_PROBLEMS = Gauge.builder()
-		.name("evita_health_problem")
+		.name("io_evitadb_probe_health_problem")
 		.labelNames("problem_type")
 		.help("Health problems detected in the system")
+		.register();
+	public static final Gauge API_READINESS = Gauge.builder()
+		.name("io_evitadb_probe_api_readiness")
+		.labelNames("api_type")
+		.help("Status of the API readiness (internal HTTP call check)")
 		.register();
 
 	static {

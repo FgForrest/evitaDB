@@ -66,7 +66,7 @@ import io.evitadb.core.query.extraResult.CacheSupervisorExtraResultAccessor;
 import io.evitadb.core.query.extraResult.ExtraResultCacheAccessor;
 import io.evitadb.core.query.extraResult.translator.facet.producer.FilteringFormulaPredicate;
 import io.evitadb.dataType.array.CompositeIntArray;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.TriFunction;
 import io.evitadb.index.CatalogIndexKey;
 import io.evitadb.index.EntityIndex;
@@ -322,7 +322,7 @@ public class QueryContext implements AutoCloseable, LocaleProvider {
 				os.writeObject(new Random());
 				this.frozenRandom = bos.toByteArray();
 			} catch (IOException e) {
-				throw new EvitaInternalError("Unexpected error during debug mode evaluation!", e);
+				throw new GenericEvitaInternalError("Unexpected error during debug mode evaluation!", e);
 			}
 			lambda.run();
 		} finally {
@@ -349,7 +349,7 @@ public class QueryContext implements AutoCloseable, LocaleProvider {
 				try (var is = new ObjectInputStream(new ByteArrayInputStream(it))) {
 					return (Random) is.readObject();
 				} catch (IOException | ClassNotFoundException e) {
-					throw new EvitaInternalError("Unexpected error during debug mode evaluation!", e);
+					throw new GenericEvitaInternalError("Unexpected error during debug mode evaluation!", e);
 				}
 			})
 			.orElseGet(ThreadLocalRandom::current);
@@ -805,7 +805,7 @@ public class QueryContext implements AutoCloseable, LocaleProvider {
 	public GlobalEntityIndex getGlobalEntityIndex() {
 		return getGlobalEntityIndexIfExists()
 			.map(GlobalEntityIndex.class::cast)
-			.orElseThrow(() -> new EvitaInternalError("Global index of entity unexpectedly not found!"));
+			.orElseThrow(() -> new GenericEvitaInternalError("Global index of entity unexpectedly not found!"));
 	}
 
 	/**

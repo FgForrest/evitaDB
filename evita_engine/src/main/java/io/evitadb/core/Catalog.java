@@ -88,7 +88,7 @@ import io.evitadb.core.transaction.stage.ConflictResolutionTransactionStage.Conf
 import io.evitadb.core.transaction.stage.TrunkIncorporationTransactionStage;
 import io.evitadb.core.transaction.stage.WalAppendingTransactionStage;
 import io.evitadb.dataType.PaginatedList;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.CatalogIndexKey;
 import io.evitadb.index.EntityIndex;
@@ -1257,7 +1257,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 				}
 			}
 		}
-		throw new EvitaInternalError(
+		throw new GenericEvitaInternalError(
 			"TrunkIncorporationTransactionStage is not present in the transactional pipeline!"
 		);
 	}
@@ -1583,7 +1583,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		 */
 		@Override
 		public void removeIndex(@Nonnull CatalogIndexKey entityIndexKey) {
-			throw new EvitaInternalError("Global catalog index is not expected to be removed!");
+			throw new GenericEvitaInternalError("Global catalog index is not expected to be removed!");
 		}
 
 	}

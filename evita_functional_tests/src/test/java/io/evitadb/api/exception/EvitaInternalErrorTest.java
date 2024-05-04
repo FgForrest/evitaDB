@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 package io.evitadb.api.exception;
 
 import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -37,7 +38,7 @@ class EvitaInternalErrorTest {
 
 	@Test
 	void shouldProduceCorrectErrorCode() {
-		final EvitaInternalError someError = new EvitaInternalError("Whatever");
-		assertEquals("84346f4d5323dd1aab59c301c22be909:c44f193800fc6962d8987aa7cd6ed71d:40", someError.getErrorCode());
+		final EvitaInternalError someError = new GenericEvitaInternalError("Whatever");
+		assertEquals("62663481f4e06623dca9964d207b9599:af7e03290249dcf135c6dd7ad7cd6bc9:84", someError.getErrorCode());
 	}
 }

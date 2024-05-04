@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,7 +26,7 @@ package io.evitadb.test.builder;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
@@ -82,7 +82,7 @@ public class JsonArrayBuilder {
 			} else if (item instanceof Currency value) {
 				builder.add(value);
 			} else {
-				throw new EvitaInternalError("Unsupported item type.");
+				throw new GenericEvitaInternalError("Unsupported item type.");
 			}
 		}
 		return builder.build();

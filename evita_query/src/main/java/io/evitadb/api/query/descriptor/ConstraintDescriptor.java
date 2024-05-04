@@ -96,7 +96,7 @@ public class ConstraintDescriptor implements Comparable<ConstraintDescriptor> {
 			"Constraint `" + fullName + "` is missing short description."
 		);
 		Assert.isPremiseValid(
-			!userDocsLink.isEmpty() && userDocsLink.startsWith("/"),
+			!userDocsLink.isEmpty() && userDocsLink.charAt(0) == '/',
 			"Constraint `" + fullName + "` is missing user documentation link or the link has incorrect format."
 		);
 
@@ -198,6 +198,21 @@ public class ConstraintDescriptor implements Comparable<ConstraintDescriptor> {
 	}
 
 	@Override
+	public String toString() {
+		return "ConstraintDescriptor{" +
+			"constraintClass=" + constraintClass +
+			", type=" + type +
+			", propertyType=" + propertyType +
+			", fullName='" + fullName + '\'' +
+			", shortDescription='" + shortDescription + '\'' +
+			", userDocsLink='" + userDocsLink + '\'' +
+			", supportedIn=" + supportedIn +
+			", supportedValues=" + supportedValues +
+			", creator=" + creator +
+			'}';
+	}
+
+	@Override
 	public int compareTo(@Nonnull ConstraintDescriptor o) {
 		int result = type().compareTo(o.type());
 		if (result == 0) {
@@ -229,7 +244,7 @@ public class ConstraintDescriptor implements Comparable<ConstraintDescriptor> {
 	}
 
 	@Nonnull
-	private String constructFullUserDocsLink(@Nonnull String relativeUserDocsLink) {
+	private static String constructFullUserDocsLink(@Nonnull String relativeUserDocsLink) {
 		return "https://evitadb.io" + relativeUserDocsLink;
 	}
 

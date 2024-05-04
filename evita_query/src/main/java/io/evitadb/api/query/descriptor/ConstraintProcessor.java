@@ -42,7 +42,7 @@ import io.evitadb.api.query.descriptor.annotation.ConstraintSupportedValues;
 import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.descriptor.annotation.Value;
 import io.evitadb.dataType.EvitaDataTypes;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.StringUtils;
 
@@ -112,10 +112,10 @@ class ConstraintProcessor {
 	 * Tries to find annotation defining passed constraint.
 	 */
 	@Nonnull
-	private ConstraintDefinition findConstraintDefAnnotation(@Nonnull Class<? extends Constraint<?>> constraintClass) {
+	private static ConstraintDefinition findConstraintDefAnnotation(@Nonnull Class<? extends Constraint<?>> constraintClass) {
 		final ConstraintDefinition constraintDefinition = constraintClass.getAnnotation(ConstraintDefinition.class);
 		if (constraintDefinition == null) {
-			throw new EvitaInternalError(
+			throw new GenericEvitaInternalError(
 				"Constraint `" + constraintClass.getName() + "` has been registered but there is no definition specified."
 			);
 		}
@@ -126,12 +126,12 @@ class ConstraintProcessor {
 	 * Resolves concrete constraint type enum from constraint class interfaces.
 	 */
 	@Nonnull
-	private ConstraintType resolveConstraintType(@Nonnull Class<?> constraintClass) {
+	private static ConstraintType resolveConstraintType(@Nonnull Class<?> constraintClass) {
 		return Arrays.stream(ConstraintType.values())
 			.filter(t -> t.getRepresentingInterface().isAssignableFrom(constraintClass))
 			.findFirst()
 			.orElseThrow(() ->
-				new EvitaInternalError("Constraint `" + constraintClass.getName() + "` has to have defined supported type.")
+				new GenericEvitaInternalError("Constraint `" + constraintClass.getName() + "` has to have defined supported type.")
 			);
 	}
 
@@ -139,12 +139,12 @@ class ConstraintProcessor {
 	 * Resolves concrete constraint property type enum from constraint class interfaces.
 	 */
 	@Nonnull
-	private ConstraintPropertyType resolveConstraintPropertyType(@Nonnull Class<? extends Constraint<?>> constraintClass) {
+	private static ConstraintPropertyType resolveConstraintPropertyType(@Nonnull Class<? extends Constraint<?>> constraintClass) {
 		return Arrays.stream(ConstraintPropertyType.values())
 			.filter(t -> t.getRepresentingInterface().isAssignableFrom(constraintClass))
 			.findFirst()
 			.orElseThrow(() ->
-				new EvitaInternalError("Constraint `" + constraintClass.getName() + "` has to have defined supported property type.")
+				new GenericEvitaInternalError("Constraint `" + constraintClass.getName() + "` has to have defined supported property type.")
 			);
 	}
 
@@ -152,7 +152,7 @@ class ConstraintProcessor {
 	 * Resolves supported values defining annotation to descriptor record.
 	 */
 	@Nullable
-	private SupportedValues resolveSupportedValues(@Nonnull ConstraintDefinition constraintDefinition) {
+	private static SupportedValues resolveSupportedValues(@Nonnull ConstraintDefinition constraintDefinition) {
 		final SupportedValues supportedValues;
 
 		final ConstraintSupportedValues constraintSupportedValues = constraintDefinition.supportedValues();
@@ -175,8 +175,8 @@ class ConstraintProcessor {
 	 * and associates them with full names.
 	 */
 	@Nonnull
-	private List<ConstraintCreator> resolveCreators(@Nonnull Class<? extends Constraint<?>> constraintClass,
-	                                                @Nonnull ConstraintType constraintType) {
+	private static List<ConstraintCreator> resolveCreators(@Nonnull Class<? extends Constraint<?>> constraintClass,
+	                                                       @Nonnull ConstraintType constraintType) {
 		return findCreators(constraintClass)
 			.stream()
 			.map(creatorTemplate -> {
@@ -193,7 +193,7 @@ class ConstraintProcessor {
 
 				final ImplicitClassifier implicitClassifier;
 				if (creatorDefinition.silentImplicitClassifier() && !creatorDefinition.implicitClassifier().isEmpty()) {
-					throw new EvitaInternalError(
+					throw new GenericEvitaInternalError(
 						"Constraint `" + constraintClass.getName() + "` has both implicit classifiers specified. Cannot decide which one to use. Please define only one of them."
 					);
 				} else if (creatorDefinition.silentImplicitClassifier()) {
@@ -218,7 +218,7 @@ class ConstraintProcessor {
 	 * Tries to find annotation creator constructor.
 	 */
 	@Nonnull
-	private Set<Executable> findCreators(@Nonnull Class<? extends Constraint<?>> constraintClass) {
+	private static Set<Executable> findCreators(@Nonnull Class<? extends Constraint<?>> constraintClass) {
 		final Stream<Executable> constructors = Arrays.stream(constraintClass.getDeclaredConstructors())
 			.filter(constructor -> constructor.getAnnotation(Creator.class) != null)
 			.map(it -> it);
@@ -244,10 +244,10 @@ class ConstraintProcessor {
 	 * Tries to find creator definition on constructor.
 	 */
 	@Nonnull
-	private Creator findCreatorAnnotation(@Nonnull Executable creator) {
+	private static Creator findCreatorAnnotation(@Nonnull Executable creator) {
 		final Creator creatorDef = creator.getAnnotation(Creator.class);
 		if (creatorDef == null) {
-			throw new EvitaInternalError(
+			throw new GenericEvitaInternalError(
 				"Constraint `" + creator.getDeclaringClass().getName() + "` has been registered, creator constructor found but there is no creator definition specified."
 			);
 		}
@@ -258,7 +258,7 @@ class ConstraintProcessor {
 	 * Transforms creator constructor Java parameters to its corresponding descriptors in same order.
 	 */
 	@Nonnull
-	private List<ParameterDescriptor> resolveCreatorParameters(@Nonnull Executable creator, @Nonnull ConstraintType constraintType) {
+	private static List<ParameterDescriptor> resolveCreatorParameters(@Nonnull Executable creator, @Nonnull ConstraintType constraintType) {
 		final List<ParameterDescriptor> parameterDescriptors = new LinkedList<>();
 
 		final Parameter[] creatorParameters = creator.getParameters();
@@ -298,7 +298,7 @@ class ConstraintProcessor {
 				continue;
 			}
 
-			throw new EvitaInternalError(
+			throw new GenericEvitaInternalError(
 				"Constraint `" + creator.getDeclaringClass().getName() + "` has creator parameter without supported annotation."
 			);
 		}
@@ -309,8 +309,8 @@ class ConstraintProcessor {
 	 * Tries to resolve constructor parameter as classifier parameter.
 	 */
 	@Nullable
-	private ClassifierParameterDescriptor resolveClassifierParameter(@Nonnull Parameter parameter,
-                                                                     @Nonnull Class<?> constraintClass) {
+	private static ClassifierParameterDescriptor resolveClassifierParameter(@Nonnull Parameter parameter,
+	                                                                        @Nonnull Class<?> constraintClass) {
 		final Classifier classifier = parameter.getAnnotation(Classifier.class);
 		if (classifier == null) {
 			return null;
@@ -331,7 +331,7 @@ class ConstraintProcessor {
 	 * Tries to resolve constructor parameter as value parameter.
 	 */
 	@Nonnull
-	private Optional<ValueParameterDescriptor> resolveValueParameter(@Nonnull Parameter parameter) {
+	private static Optional<ValueParameterDescriptor> resolveValueParameter(@Nonnull Parameter parameter) {
 		final Value definition = parameter.getAnnotation(Value.class);
 		//noinspection unchecked
 		final Class<? extends Serializable> parameterType = (Class<? extends Serializable>) parameter.getType();
@@ -367,9 +367,9 @@ class ConstraintProcessor {
 	 * Tries to resolve constructor parameter as direct child parameter.
 	 */
 	@Nonnull
-	private Optional<ChildParameterDescriptor> resolveChildParameter(@Nonnull Parameter parameter,
-	                                                                 @Nonnull Class<?> constraintClass,
-	                                                                 @Nonnull ConstraintType constraintType) {
+	private static Optional<ChildParameterDescriptor> resolveChildParameter(@Nonnull Parameter parameter,
+	                                                                        @Nonnull Class<?> constraintClass,
+	                                                                        @Nonnull ConstraintType constraintType) {
 		final Child definition = parameter.getAnnotation(Child.class);
 		final Class<?> parameterType = parameter.getType();
 		final Class<?> parameterItemType = parameterType.isArray() ? parameterType.getComponentType() : parameterType;
@@ -426,9 +426,9 @@ class ConstraintProcessor {
 	 * Tries to resolve constructor parameter as additional child parameter.
 	 */
 	@Nonnull
-	private Optional<AdditionalChildParameterDescriptor> resolveAdditionalChildParameter(@Nonnull Parameter parameter,
-	                                                                                     @Nonnull Class<?> constraintClass,
-	                                                                                     @Nonnull ConstraintType constraintType) {
+	private static Optional<AdditionalChildParameterDescriptor> resolveAdditionalChildParameter(@Nonnull Parameter parameter,
+	                                                                                            @Nonnull Class<?> constraintClass,
+	                                                                                            @Nonnull ConstraintType constraintType) {
 		final AdditionalChild definition = parameter.getAnnotation(AdditionalChild.class);
 		final Class<?> parameterType = parameter.getType();
 

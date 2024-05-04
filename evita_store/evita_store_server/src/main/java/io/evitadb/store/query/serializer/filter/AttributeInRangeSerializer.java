@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,7 +28,7 @@ import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.query.filter.AttributeInRange;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import lombok.RequiredArgsConstructor;
 
 import java.io.Serializable;
@@ -57,7 +57,7 @@ public class AttributeInRangeSerializer extends Serializer<AttributeInRange> {
 		} else if (theValue instanceof OffsetDateTime) {
 			return new AttributeInRange(attributeName, (OffsetDateTime) theValue);
 		} else {
-			throw new EvitaInternalError("Unsupported filter value: " + theValue);
+			throw new GenericEvitaInternalError("Unsupported filter value: " + theValue);
 		}
 	}
 

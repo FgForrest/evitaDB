@@ -54,7 +54,7 @@ import io.evitadb.core.EntityCollection;
 import io.evitadb.core.buffer.DataStoreChanges;
 import io.evitadb.core.buffer.DataStoreIndexChanges;
 import io.evitadb.core.buffer.DataStoreMemoryBuffer;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
@@ -959,7 +959,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 				case CARDINALITY ->
 					fetchCardinalityIndex(catalogVersion, entityIndexId, storagePartPersistenceService, cardinalityIndexes, attributeIndexKey);
 				default ->
-					throw new EvitaInternalError("Unknown attribute index type: " + attributeIndexKey.indexType());
+					throw new GenericEvitaInternalError("Unknown attribute index type: " + attributeIndexKey.indexType());
 			}
 		}
 

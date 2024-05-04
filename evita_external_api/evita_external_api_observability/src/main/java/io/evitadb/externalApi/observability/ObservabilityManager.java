@@ -26,12 +26,14 @@ package io.evitadb.externalApi.observability;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.evitadb.core.Evita;
 import io.evitadb.core.metric.event.CustomMetricsExecutionEvent;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.externalApi.api.system.model.HealthProblem;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.http.CorsFilter;
+import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
 import io.evitadb.externalApi.http.PathNormalizingHandler;
+import io.evitadb.externalApi.observability.agent.ErrorMonitor;
 import io.evitadb.externalApi.observability.configuration.ObservabilityConfig;
 import io.evitadb.externalApi.observability.exception.JfRException;
 import io.evitadb.externalApi.observability.io.ObservabilityExceptionHandler;
@@ -58,10 +60,13 @@ import jdk.jfr.FlightRecorder;
 import jdk.jfr.Recording;
 import jdk.jfr.RecordingState;
 import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import java.io.File;
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -69,6 +74,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 
 /**
  * This class is used as an orchestrator for all observability-related tasks. It is responsible for starting and stopping
@@ -80,6 +86,7 @@ import java.util.concurrent.atomic.AtomicLong;
  *
  * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
  */
+@Slf4j
 public class ObservabilityManager {
 	public static final String METRICS_SUFFIX = "metrics";
 	public static final String METRICS_PATH = "/observability/" + METRICS_SUFFIX;
@@ -131,6 +138,28 @@ public class ObservabilityManager {
 	 * Common object mapper for endpoints
 	 */
 	@Nonnull @Getter private final ObjectMapper objectMapper = new ObjectMapper();
+
+	static {
+		ClassLoader classLoader = null;
+		do {
+			if (classLoader == null) {
+				classLoader = MetricHandler.class.getClassLoader();
+			} else {
+				classLoader = classLoader.getParent();
+			}
+			try {
+				final Class<?> errorMonitorClass = classLoader.loadClass(ErrorMonitor.class.getName());
+				final Method setJavaErrorConsumer = errorMonitorClass.getDeclaredMethod("setJavaErrorConsumer", Consumer.class);
+				setJavaErrorConsumer.invoke(null, (Consumer<String>) ObservabilityManager::javaErrorEvent);
+				final Method setEvitaErrorConsumer = errorMonitorClass.getDeclaredMethod("setEvitaErrorConsumer", Consumer.class);
+				setEvitaErrorConsumer.invoke(null, (Consumer<String>) ObservabilityManager::evitaErrorEvent);
+			} catch (ClassNotFoundException | NoSuchMethodException | IllegalAccessException |
+			         InvocationTargetException e) {
+				// do nothing, the errors won't be monitored
+				log.error("ErrorMonitor class not found, the Java & evitaDB errors won't be present in metrics.");
+			}
+		} while (classLoader.getParent() != null);
+	}
 
 	/**
 	 * Method increments the counter of Java errors in the Prometheus metrics.
@@ -207,6 +236,15 @@ public class ObservabilityManager {
 	 */
 	public long getEvitaErrorCount() {
 		return EVITA_ERRORS.get();
+	}
+
+	/**
+	 * Records readiness of the API to the Prometheus metrics.
+	 * @param apiCode the code of the API taken from {@link ExternalApiProviderRegistrar#getExternalApiCode()}
+	 * @param ready true if the API is ready, false otherwise
+	 */
+	public void recordReadiness(@Nonnull String apiCode, boolean ready) {
+		MetricHandler.API_READINESS.labelValues(apiCode).set(ready ? 1 : 0);
 	}
 
 	/**
@@ -310,7 +348,7 @@ public class ObservabilityManager {
 			});
 			observabilityRouter.addPrefixPath("/", resourceHandler);
 		} catch (IOException e) {
-			throw new EvitaInternalError(e.getMessage(), e);
+			throw new GenericEvitaInternalError(e.getMessage(), e);
 		}
 	}
 
@@ -332,7 +370,7 @@ public class ObservabilityManager {
 		try {
 			observabilityRouter.addPrefixPath("/" + METRICS_SUFFIX, servletDeploymentManager.start());
 		} catch (ServletException e) {
-			throw new EvitaInternalError("Unable to add routing to Prometheus scraping servlet.");
+			throw new GenericEvitaInternalError("Unable to add routing to Prometheus scraping servlet.");
 		}
 	}
 

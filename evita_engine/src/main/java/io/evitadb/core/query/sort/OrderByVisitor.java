@@ -56,7 +56,7 @@ import io.evitadb.core.query.sort.primaryKey.translator.EntityPrimaryKeyNaturalT
 import io.evitadb.core.query.sort.random.translator.RandomTranslator;
 import io.evitadb.core.query.sort.translator.OrderByTranslator;
 import io.evitadb.core.query.sort.translator.OrderingConstraintTranslator;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.attribute.SortIndex;
 import io.evitadb.utils.CollectionUtils;
@@ -262,7 +262,7 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	@Nonnull
 	public ProcessingScope getProcessingScope() {
 		if (scope.isEmpty()) {
-			throw new EvitaInternalError("Scope should never be empty");
+			throw new GenericEvitaInternalError("Scope should never be empty");
 		} else {
 			return scope.peek();
 		}
@@ -314,7 +314,7 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 			currentSorters = translator.createSorter(orderConstraint, this);
 		} else {
 			// sanity check only
-			throw new EvitaInternalError("Should never happen");
+			throw new GenericEvitaInternalError("Should never happen");
 		}
 		// compose sorters one after another
 		currentSorters.forEach(this.sorters::add);

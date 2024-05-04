@@ -47,6 +47,7 @@ import io.evitadb.driver.trace.ClientTracingContextProvider;
 import io.evitadb.driver.trace.DefaultClientTracingContext;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.InvalidEvitaVersionException;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.*;
@@ -717,18 +718,18 @@ public class EvitaClient implements EvitaContract {
 			} else {
 				final Matcher expectedFormat = ERROR_MESSAGE_PATTERN.matcher(description);
 				if (expectedFormat.matches()) {
-					throw EvitaInternalError.createExceptionWithErrorCode(
+					throw GenericEvitaInternalError.createExceptionWithErrorCode(
 						expectedFormat.group(2), expectedFormat.group(1)
 					);
 				} else {
-					throw new EvitaInternalError(description);
+					throw new GenericEvitaInternalError(description);
 				}
 			}
 		} catch (EvitaInvalidUsageException | EvitaInternalError evitaError) {
 			throw evitaError;
 		} catch (Throwable e) {
 			log.error("Unexpected internal Evita error occurred: {}", e.getMessage(), e);
-			throw new EvitaInternalError(
+			throw new GenericEvitaInternalError(
 				"Unexpected internal Evita error occurred: " + e.getMessage(),
 				"Unexpected internal Evita error occurred.",
 				e

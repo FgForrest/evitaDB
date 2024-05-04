@@ -27,7 +27,7 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.KryoException;
 import com.esotericsoftware.kryo.util.Pool;
 import io.evitadb.api.configuration.StorageOptions;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.store.exception.StorageException;
 import io.evitadb.store.kryo.ObservableInput;
@@ -728,7 +728,7 @@ public class OffsetIndex {
 				);
 				return fileOffsetDescriptor.fileLocation();
 			} else {
-				throw new EvitaInternalError("OffsetIndex is already being closed!");
+				throw new GenericEvitaInternalError("OffsetIndex is already being closed!");
 			}
 		} finally {
 			shutdownDownProcedureActive.compareAndExchange(true, false);
@@ -1729,7 +1729,7 @@ public class OffsetIndex {
 						final long lastCatalogVersion = nv[nv.length - 1];
 						Assert.isPremiseValid(
 							lastCatalogVersion == -1 || lastCatalogVersion <= catalogVersion,
-							() -> new EvitaInternalError(
+							() -> new GenericEvitaInternalError(
 								"You're trying to write to an already completed version `" + catalogVersion + "`, current is `" + lastCatalogVersion + "`!",
 								"You're trying to write to an already completed version!"
 							)

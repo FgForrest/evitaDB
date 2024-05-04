@@ -46,7 +46,7 @@ import io.evitadb.dataType.LongNumberRange;
 import io.evitadb.dataType.NumberRange;
 import io.evitadb.dataType.Range;
 import io.evitadb.dataType.ShortNumberRange;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -109,7 +109,7 @@ public class AttributeBetweenTranslator implements FilteringConstraintTranslator
 					comparableTo = getOffsetDateTimeComparable(toTargetType(to, OffsetDateTime.class), Long.MAX_VALUE);
 					requestedPredicate = null;
 				} else {
-					throw new EvitaInternalError("Unexpected Range type!");
+					throw new GenericEvitaInternalError("Unexpected Range type!");
 				}
 				filteringFormula = new AttributeFormula(
 					attributeDefinition.isLocalized() ?
@@ -198,7 +198,7 @@ public class AttributeBetweenTranslator implements FilteringConstraintTranslator
 					} else if (DateTimeRange.class.isAssignableFrom(attributeSchema.getPlainType())) {
 						return getDateTimePredicate((OffsetDateTime) comparableFrom, (OffsetDateTime) comparableTo);
 					} else {
-						throw new EvitaInternalError("Unexpected type!");
+						throw new GenericEvitaInternalError("Unexpected type!");
 					}
 				} else {
 					return getComparablePredicate(comparableFrom, comparableTo);
@@ -242,7 +242,7 @@ public class AttributeBetweenTranslator implements FilteringConstraintTranslator
 						} else if (comparableValueTo != null) {
 							return ((DateTimeRange) theValue).overlaps(DateTimeRange.until(comparableValueTo));
 						} else {
-							throw new EvitaInternalError("Between query can never be created with both bounds null!");
+							throw new GenericEvitaInternalError("Between query can never be created with both bounds null!");
 						}
 					};
 					final Serializable theValue = attr.get().value();
@@ -279,7 +279,7 @@ public class AttributeBetweenTranslator implements FilteringConstraintTranslator
 							} else if (comparableValueFrom instanceof Byte || comparableValueTo instanceof Byte) {
 								return ((ByteNumberRange) theValue).overlaps(ByteNumberRange.between((Byte) comparableValueFrom, (Byte) comparableValueTo));
 							} else {
-								throw new EvitaInternalError("Unexpected input type: " + comparableValueFrom + ", " + comparableValueTo);
+								throw new GenericEvitaInternalError("Unexpected input type: " + comparableValueFrom + ", " + comparableValueTo);
 							}
 						} else if (comparableValueFrom != null) {
 							if (comparableValueFrom instanceof BigDecimal) {
@@ -293,7 +293,7 @@ public class AttributeBetweenTranslator implements FilteringConstraintTranslator
 							} else if (comparableValueFrom instanceof Byte) {
 								return ((ByteNumberRange) theValue).overlaps(ByteNumberRange.from((Byte) comparableValueFrom));
 							} else {
-								throw new EvitaInternalError("Unexpected input type: " + comparableValueFrom);
+								throw new GenericEvitaInternalError("Unexpected input type: " + comparableValueFrom);
 							}
 						} else if (comparableValueTo != null) {
 							if (comparableValueTo instanceof BigDecimal) {
@@ -307,10 +307,10 @@ public class AttributeBetweenTranslator implements FilteringConstraintTranslator
 							} else if (comparableValueTo instanceof Byte) {
 								return ((ByteNumberRange) theValue).overlaps(ByteNumberRange.to((Byte) comparableValueTo));
 							} else {
-								throw new EvitaInternalError("Unexpected input type: " + comparableValueTo);
+								throw new GenericEvitaInternalError("Unexpected input type: " + comparableValueTo);
 							}
 						} else {
-							throw new EvitaInternalError("Between query can never be created with both bounds null!");
+							throw new GenericEvitaInternalError("Between query can never be created with both bounds null!");
 						}
 					};
 					final Serializable theValue = attr.get().value();
@@ -342,7 +342,7 @@ public class AttributeBetweenTranslator implements FilteringConstraintTranslator
 						} else if (comparableTo != null) {
 							return theValue.compareTo(comparableTo) <= 0;
 						} else {
-							throw new EvitaInternalError("Between query can never be created with both bounds null!");
+							throw new GenericEvitaInternalError("Between query can never be created with both bounds null!");
 						}
 					};
 					final Serializable theValue = attr.get().value();
