@@ -196,12 +196,11 @@ public final class Evita implements EvitaContract {
 
 	public Evita(@Nonnull EvitaConfiguration configuration) {
 		this.configuration = configuration;
-		final RejectingExecutor handoffExecutor = new RejectingExecutor();
 		this.executor = new EnhancedQueueExecutor.Builder()
 			.setCorePoolSize(configuration.server().coreThreadCount())
 			.setMaximumPoolSize(configuration.server().maxThreadCount())
 			.setExceptionHandler((t, e) -> log.error("Uncaught error in thread `" + t.getName() + "`: " + e.getMessage(), e))
-			.setHandoffExecutor(handoffExecutor)
+			.setHandoffExecutor(RejectingExecutor.INSTANCE)
 			.setThreadFactory(new EvitaThreadFactory(configuration.server().threadPriority()))
 			.setMaximumQueueSize(configuration.server().queueSize())
 			.setRegisterMBean(false)

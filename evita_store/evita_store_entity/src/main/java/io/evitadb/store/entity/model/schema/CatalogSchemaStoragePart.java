@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ import io.evitadb.api.CatalogContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.service.KeyCompressor;
 import io.evitadb.utils.NamingConvention;
@@ -58,7 +58,7 @@ public record CatalogSchemaStoragePart(CatalogSchema catalogSchema) implements S
 	@Nonnull
 	public static CatalogContract getDeserializationContextCatalog() {
 		return ofNullable(CATALOG_ACCESSOR.get())
-			.orElseThrow(() -> new EvitaInternalError("Catalog should be already set via CatalogSchemaStoragePart.deserializeWithCatalog"));
+			.orElseThrow(() -> new GenericEvitaInternalError("Catalog should be already set via CatalogSchemaStoragePart.deserializeWithCatalog"));
 	}
 
 	/**

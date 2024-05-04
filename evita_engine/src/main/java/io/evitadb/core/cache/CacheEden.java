@@ -37,7 +37,7 @@ import io.evitadb.core.query.extraResult.CacheableEvitaResponseExtraResultComput
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
 import io.evitadb.core.query.sort.CacheableSorter;
 import io.evitadb.dataType.array.CompositeLongArray;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.StringUtils;
 import lombok.extern.slf4j.Slf4j;
 import net.openhft.hashing.LongHashFunction;
@@ -180,7 +180,7 @@ public class CacheEden {
 				} else if (computationalObject instanceof final EntityComputationalObjectAdapter entityWrapper) {
 					return fetchAndCacheEntity(recordHash, cachedRecord, hashFunction, entityWrapper);
 				} else {
-					throw new EvitaInternalError("Unexpected object in cache `" + computationalObject.getClass() + "`!");
+					throw new GenericEvitaInternalError("Unexpected object in cache `" + computationalObject.getClass() + "`!");
 				}
 			}
 		}

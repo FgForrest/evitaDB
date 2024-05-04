@@ -33,6 +33,7 @@ import io.evitadb.api.trace.TracingContext.SpanAttribute;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import lombok.RequiredArgsConstructor;
@@ -216,7 +217,7 @@ final class SessionRegistry {
 										"Unexpected internal Evita error occurred: " + ex.getCause().getMessage(),
 										targetException == null ? ex : targetException
 									);
-									throw new EvitaInternalError(
+									throw new GenericEvitaInternalError(
 										"Unexpected internal Evita error occurred: " + ex.getCause().getMessage(),
 										"Unexpected internal Evita error occurred.",
 										targetException == null ? ex : targetException
@@ -224,7 +225,7 @@ final class SessionRegistry {
 								}
 							} catch (Throwable ex) {
 								log.error("Unexpected system error occurred: " + ex.getMessage(), ex);
-								throw new EvitaInternalError(
+								throw new GenericEvitaInternalError(
 									"Unexpected system error occurred: " + ex.getMessage(),
 									"Unexpected system error occurred.",
 									ex

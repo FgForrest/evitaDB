@@ -42,7 +42,7 @@ import io.evitadb.core.query.sort.attribute.translator.EntityNestedQueryComparat
 import io.evitadb.core.query.sort.attribute.translator.EntityPropertyTranslator;
 import io.evitadb.core.query.sort.translator.OrderByTranslator;
 import io.evitadb.core.query.sort.translator.ReferenceOrderingConstraintTranslator;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.CollectionUtils;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -167,7 +167,7 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor {
 			translator.createComparator(orderConstraint, this);
 		} else {
 			// sanity check only
-			throw new EvitaInternalError("Should never happen");
+			throw new GenericEvitaInternalError("Should never happen");
 		}
 	}
 

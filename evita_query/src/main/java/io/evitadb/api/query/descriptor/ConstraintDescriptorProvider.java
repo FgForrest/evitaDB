@@ -28,7 +28,7 @@ import io.evitadb.api.query.descriptor.ConstraintCreator.FixedImplicitClassifier
 import io.evitadb.api.query.descriptor.ConstraintCreator.ImplicitClassifier;
 import io.evitadb.api.query.descriptor.ConstraintCreator.SilentImplicitClassifier;
 import io.evitadb.dataType.EvitaDataTypes;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
@@ -115,7 +115,7 @@ public class ConstraintDescriptorProvider {
 					} else if (implicitClassifier.get() instanceof final FixedImplicitClassifier fixedImplicitClassifier) {
 						return fixedImplicitClassifier.classifier().equals(classifier);
 					} else {
-						throw new EvitaInternalError("Unsupported implicit classifier class.");
+						throw new GenericEvitaInternalError("Unsupported implicit classifier class.");
 					}
 				}
 				if (creator.hasClassifierParameter()) {
@@ -151,7 +151,7 @@ public class ConstraintDescriptorProvider {
 			})
 			.findFirst()
 			.orElseThrow(() ->
-				new EvitaInternalError("Unknown constraint `" + constraintClass.getName() + "` with suffix `" + suffix + "`. Is it properly registered?"));
+				new GenericEvitaInternalError("Unknown constraint `" + constraintClass.getName() + "` with suffix `" + suffix + "`. Is it properly registered?"));
 	}
 
 	@Nonnull

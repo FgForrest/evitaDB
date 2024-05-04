@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -43,7 +43,7 @@ import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.utils.ArrayUtils;
 
@@ -157,7 +157,7 @@ public class FacetHavingTranslator implements FilteringConstraintTranslator<Face
 
 		if (notFormula == null) {
 			if (andFormula == null && orFormula == null) {
-				throw new EvitaInternalError("This should be not possible!");
+				throw new GenericEvitaInternalError("This should be not possible!");
 			} else if (andFormula == null) {
 				return orFormula;
 			} else if (orFormula == null) {

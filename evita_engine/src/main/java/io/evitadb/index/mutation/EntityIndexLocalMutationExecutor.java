@@ -55,7 +55,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.CatalogIndexKey;
 import io.evitadb.index.EntityIndex;
@@ -266,7 +266,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			// do nothing, associated data doesn't affect entity index directly
 		} else {
 			// SHOULD NOT EVER HAPPEN
-			throw new EvitaInternalError("Unknown mutation: " + localMutation.getClass());
+			throw new GenericEvitaInternalError("Unknown mutation: " + localMutation.getClass());
 		}
 	}
 
@@ -406,7 +406,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			);
 		} else {
 			// SHOULD NOT EVER HAPPEN
-			throw new EvitaInternalError("Unknown mutation: " + attributeMutation.getClass());
+			throw new GenericEvitaInternalError("Unknown mutation: " + attributeMutation.getClass());
 		}
 	}
 
@@ -511,7 +511,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			);
 		} else {
 			// SHOULD NOT EVER HAPPEN
-			throw new EvitaInternalError("Unknown mutation: " + referenceMutation.getClass());
+			throw new GenericEvitaInternalError("Unknown mutation: " + referenceMutation.getClass());
 		}
 	}
 
@@ -669,7 +669,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		} else if (targetIndexType == EntityIndexType.REFERENCED_ENTITY) {
 			theEntityPrimaryKey = getPrimaryKeyToIndex(IndexType.REFERENCE_INDEX);
 		} else {
-			throw new EvitaInternalError("Unexpected type of index: " + targetIndexType);
+			throw new GenericEvitaInternalError("Unexpected type of index: " + targetIndexType);
 		}
 		if (referenceMutation instanceof SetReferenceGroupMutation upsertReferenceGroupMutation) {
 			ReferenceIndexMutator.setFacetGroupInIndex(
@@ -708,7 +708,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			);
 		} else {
 			// SHOULD NOT EVER HAPPEN
-			throw new EvitaInternalError("Unknown mutation: " + referenceMutation.getClass());
+			throw new GenericEvitaInternalError("Unknown mutation: " + referenceMutation.getClass());
 		}
 	}
 
@@ -793,7 +793,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			);
 		} else {
 			// SHOULD NOT EVER HAPPEN
-			throw new EvitaInternalError("Unknown mutation: " + priceMutation.getClass());
+			throw new GenericEvitaInternalError("Unknown mutation: " + priceMutation.getClass());
 		}
 	}
 
@@ -817,7 +817,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			);
 		} else {
 			// SHOULD NOT EVER HAPPEN
-			throw new EvitaInternalError("Unknown mutation: " + parentMutation.getClass());
+			throw new GenericEvitaInternalError("Unknown mutation: " + parentMutation.getClass());
 		}
 	}
 

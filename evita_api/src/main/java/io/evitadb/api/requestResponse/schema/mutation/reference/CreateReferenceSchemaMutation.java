@@ -39,7 +39,7 @@ import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.RemoveAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.RemoveSortableAttributeCompoundSchemaMutation;
 import io.evitadb.dataType.ClassifierType;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ClassifierUtils;
 import lombok.EqualsAndHashCode;
@@ -115,7 +115,7 @@ public class CreateReferenceSchemaMutation implements ReferenceSchemaMutation, C
 		if (existingMutation instanceof RemoveReferenceSchemaMutation removeReferenceMutation && Objects.equals(removeReferenceMutation.getName(), name)) {
 			final ReferenceSchemaContract createdVersion = mutate(currentEntitySchema, null);
 			final ReferenceSchemaContract existingVersion = currentEntitySchema.getReference(name)
-				.orElseThrow(() -> new EvitaInternalError("Sanity check!"));
+				.orElseThrow(() -> new GenericEvitaInternalError("Sanity check!"));
 
 			return new MutationCombinationResult<>(
 				null,

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,7 +29,7 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.core.Evita;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.graphql.api.builder.GraphQLSchemaBuildingContext;
 import io.evitadb.externalApi.graphql.configuration.GraphQLConfig;
 import lombok.Getter;
@@ -69,7 +69,7 @@ public class CatalogGraphQLSchemaBuildingContext extends GraphQLSchemaBuildingCo
 			final Set<EntitySchemaContract> schemas = createHashSet(collections.size());
 			collections.forEach(c -> {
 				final SealedEntitySchema entitySchema = session.getEntitySchema(c)
-					.orElseThrow(() -> new EvitaInternalError("Entity `" + c + "` schema unexpectedly not found!"));
+					.orElseThrow(() -> new GenericEvitaInternalError("Entity `" + c + "` schema unexpectedly not found!"));
 				supportedLocales.addAll(entitySchema.getLocales());
 				supportedCurrencies.addAll(entitySchema.getCurrencies());
 				schemas.add(entitySchema);

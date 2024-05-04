@@ -93,8 +93,8 @@ import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.core.transaction.stage.mutation.VerifiedEntityRemoveMutation;
 import io.evitadb.core.transaction.stage.mutation.VerifiedEntityUpsertMutation;
-import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
@@ -1246,7 +1246,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 			entityHeader.globalEntityIndexId(),
 			this::getInternalSchema,
 			() -> {
-				throw new EvitaInternalError("Global index is currently loading!");
+				throw new GenericEvitaInternalError("Global index is currently loading!");
 			},
 			this::getPriceSuperIndex
 		);
@@ -1640,7 +1640,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 				entityIndexKey, EntityCollection.this.indexes::remove
 			);
 			if (removedIndex == null) {
-				throw new EvitaInternalError("Entity index for key " + entityIndexKey + " doesn't exists!");
+				throw new GenericEvitaInternalError("Entity index for key " + entityIndexKey + " doesn't exists!");
 			} else {
 				ofNullable(getTransactionalLayerMaintainer())
 					.ifPresent(removedIndex::removeTransactionalMemoryOfReferencedProducers);

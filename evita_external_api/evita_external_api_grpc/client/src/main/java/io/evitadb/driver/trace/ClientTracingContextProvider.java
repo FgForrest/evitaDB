@@ -23,7 +23,7 @@
 
 package io.evitadb.driver.trace;
 
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 
 import java.util.List;
 import java.util.ServiceLoader;
@@ -45,7 +45,7 @@ public class ClientTracingContextProvider {
 			.map(Provider::get)
 			.toList();
 		if (collectedContexts.size() > 1) {
-			throw new EvitaInternalError("There are multiple registered implementations of ExternalApiTracingContext.");
+			throw new GenericEvitaInternalError("There are multiple registered implementations of ExternalApiTracingContext.");
 		}
 		if (collectedContexts.size() == 1) {
 			return collectedContexts.stream().findFirst().get();

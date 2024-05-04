@@ -27,6 +27,7 @@ set -e
 if [ "$1" = "" ]; then
     set -x
     exec java \
+        -javaagent:${EVITA_HOME}/bin/${EVITA_JAR_NAME} \
         $EVITA_JAVA_OPTS \
         -jar "${EVITA_HOME}/bin/${EVITA_JAR_NAME}" \
         "-DconfigFile=$EVITA_CONFIG_FILE" \

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
 
 package io.evitadb.externalApi.certificate;
 
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
 import io.evitadb.externalApi.configuration.CertificatePath;
 import io.evitadb.externalApi.configuration.CertificateSettings;
@@ -114,7 +114,7 @@ public class ServerCertificateManager {
 		} else {
 			final CertificatePath certificatePath = certificateSettings.custom();
 			if (certificatePath == null || certificatePath.certificate() == null || certificatePath.privateKey() == null) {
-				throw new EvitaInternalError("Certificate path is not properly set in the configuration file.");
+				throw new GenericEvitaInternalError("Certificate path is not properly set in the configuration file.");
 			}
 			certPath = ofNullable(certificatePath.certificate()).map(Path::of).orElse(null);
 			certPrivateKeyPath = ofNullable(certificatePath.privateKey()).map(Path::of).orElse(null);

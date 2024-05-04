@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -41,7 +41,7 @@ import io.evitadb.core.query.algebra.price.termination.SumPriceTerminationFormul
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder.LookUp;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
@@ -185,7 +185,7 @@ class PriceListCompositionTerminationVisitor implements FormulaVisitor {
 					containerFormula, priceEvaluationContext, queryPriceMode,
 					ofNullable(priceFilter).orElse(PricePredicate.ALL_RECORD_FILTER)
 				);
-				case UNKNOWN -> throw new EvitaInternalError("Can't handle unknown price inner record handling!");
+				case UNKNOWN -> throw new GenericEvitaInternalError("Can't handle unknown price inner record handling!");
 			};
 		} else {
 			// otherwise, use the produced formula

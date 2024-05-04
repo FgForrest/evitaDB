@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,7 +26,7 @@ package io.evitadb.dataType;
 import io.evitadb.dataType.data.DataItem;
 import io.evitadb.dataType.exception.InconvertibleDataTypeException;
 import io.evitadb.dataType.exception.UnsupportedDataTypeException;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.MemoryMeasuringConstants;
 import io.evitadb.utils.NumberUtils;
@@ -706,7 +706,7 @@ public class EvitaDataTypes {
 		} else if (value instanceof Predecessor) {
 			return value.toString();
 		} else if (value == null) {
-			throw new EvitaInternalError(
+			throw new GenericEvitaInternalError(
 				"Null argument value should never ever happen. Null values are excluded in constructor of the class!"
 			);
 		}

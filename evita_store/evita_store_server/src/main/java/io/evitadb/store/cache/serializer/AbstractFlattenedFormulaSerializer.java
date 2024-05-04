@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -35,7 +35,7 @@ import io.evitadb.core.query.algebra.price.filteredPriceRecords.LazyEvaluatedEnt
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.NonResolvedFilteredPriceRecords;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.ResolvedFilteredPriceRecords;
 import io.evitadb.core.query.algebra.price.termination.PriceEvaluationContext;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
@@ -134,7 +134,7 @@ public abstract class AbstractFlattenedFormulaSerializer<T extends CachePayloadH
 			writeResolvedPriceRecords(output, combinedPriceRecords.getResolvedFilteredPriceRecords());
 			writeLazyEvaluatedPriceRecords(kryo, output, combinedPriceRecords.getLazyEvaluatedEntityPriceRecords());
 		} else {
-			throw new EvitaInternalError("Unknown type of FilteredPriceRecords " + filteredPriceRecords.getClass().getName());
+			throw new GenericEvitaInternalError("Unknown type of FilteredPriceRecords " + filteredPriceRecords.getClass().getName());
 		}
 
 
@@ -158,7 +158,7 @@ public abstract class AbstractFlattenedFormulaSerializer<T extends CachePayloadH
 			final LazyEvaluatedEntityPriceRecords lazyEvaluatedEntityPriceRecords = readLazyEvaluatedEntityPriceRecords(kryo, input, globalEntityIndexAccessor);
 			return new CombinedPriceRecords(nonResolvedFilteredPriceRecords, lazyEvaluatedEntityPriceRecords);
 		} else {
-			throw new EvitaInternalError("Unknown type of FilteredPriceRecords: `" + type + "`");
+			throw new GenericEvitaInternalError("Unknown type of FilteredPriceRecords: `" + type + "`");
 		}
 	}
 

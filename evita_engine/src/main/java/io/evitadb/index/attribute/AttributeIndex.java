@@ -34,7 +34,7 @@ import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.dataType.Predecessor;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.attribute.AttributeIndex.AttributeIndexChanges;
 import io.evitadb.index.attribute.SortIndex.ComparatorSource;
@@ -632,7 +632,7 @@ public class AttributeIndex implements AttributeIndexContract,
 			notNull(theChainIndex, "Chain index for attribute `" + attribute + "` was not found!");
 			return theChainIndex.createStoragePart(entityIndexPrimaryKey);
 		} else {
-			throw new EvitaInternalError("Cannot handle attribute storage part key of type `" + indexType + "`");
+			throw new GenericEvitaInternalError("Cannot handle attribute storage part key of type `" + indexType + "`");
 		}
 	}
 

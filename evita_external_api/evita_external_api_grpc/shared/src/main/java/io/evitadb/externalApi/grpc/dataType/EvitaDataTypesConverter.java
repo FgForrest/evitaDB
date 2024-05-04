@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,8 +28,8 @@ import com.google.protobuf.Int64Value;
 import com.google.protobuf.Timestamp;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataValue;
 import io.evitadb.dataType.*;
-import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue.ValueCase;
 import io.evitadb.utils.NumberUtils;
@@ -145,7 +145,7 @@ public class EvitaDataTypesConverter {
 			case UUID_ARRAY -> (T) toUuidArray(value.getUuidArrayValue());
 
 			default ->
-				throw new EvitaInternalError("Unsupported Evita data type in gRPC API `" + value.getValueCase() + "`.");
+				throw new GenericEvitaInternalError("Unsupported Evita data type in gRPC API `" + value.getValueCase() + "`.");
 		};
 	}
 
@@ -163,7 +163,7 @@ public class EvitaDataTypesConverter {
 		} else if (value.getValueCase() == ValueCase.JSONVALUE) {
 			return ComplexDataObjectConverter.convertJsonToComplexDataObject(value.getJsonValue());
 		} else {
-			throw new EvitaInternalError("Unknown value type.");
+			throw new GenericEvitaInternalError("Unknown value type.");
 		}
 	}
 
@@ -396,7 +396,7 @@ public class EvitaDataTypesConverter {
 			case CURRENCY_ARRAY -> Currency[].class;
 			case UUID_ARRAY -> UUID[].class;
 			default ->
-				throw new EvitaInternalError("Unsupported Evita data type in gRPC API `" + dataType.getValueDescriptor() + "`.");
+				throw new GenericEvitaInternalError("Unsupported Evita data type in gRPC API `" + dataType.getValueDescriptor() + "`.");
 		};
 	}
 
@@ -1371,5 +1371,5 @@ public class EvitaDataTypesConverter {
 				.build();
 		}
 	}
-	
+
 }

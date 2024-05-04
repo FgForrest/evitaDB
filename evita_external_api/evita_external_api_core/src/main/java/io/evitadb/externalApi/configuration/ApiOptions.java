@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@
 package io.evitadb.externalApi.configuration;
 
 import io.evitadb.api.exception.ApiNotFoundOnClasspath;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
 import io.evitadb.externalApi.http.ExternalApiServer;
 import io.evitadb.utils.Assert;
@@ -145,7 +145,7 @@ public record ApiOptions(
 			try {
 				cfg = (AbstractApiConfiguration) configurationClass.getDeclaredConstructor().newInstance();
 			} catch (Exception ex) {
-				throw new EvitaInternalError(
+				throw new GenericEvitaInternalError(
 					"Failed to instantiate default configuration of `" + apiCode + "` API: " + ex.getMessage(),
 					"Failed to instantiate default configuration of `" + apiCode + "` API!",
 					ex

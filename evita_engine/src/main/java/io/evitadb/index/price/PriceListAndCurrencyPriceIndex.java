@@ -29,7 +29,7 @@ import io.evitadb.core.query.algebra.price.priceIndex.PriceIdContainerFormula;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.dataType.iterator.BatchArrayIterator;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
@@ -83,7 +83,7 @@ public interface PriceListAndCurrencyPriceIndex<DIFF_PIECE, COPY> extends IndexD
 			priceRecordContract -> {
 			},
 			notFoundPriceId -> {
-				throw new EvitaInternalError("Price with id " + notFoundPriceId + " was not found in the same index!");
+				throw new GenericEvitaInternalError("Price with id " + notFoundPriceId + " was not found in the same index!");
 			}
 		);
 	}

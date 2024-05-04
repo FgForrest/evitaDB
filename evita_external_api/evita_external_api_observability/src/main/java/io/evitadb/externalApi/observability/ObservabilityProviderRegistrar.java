@@ -27,6 +27,7 @@ import io.evitadb.core.Evita;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.http.ExternalApiProvider;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
+import io.evitadb.externalApi.http.ExternalApiServer;
 import io.evitadb.externalApi.observability.configuration.ObservabilityConfig;
 import io.evitadb.externalApi.observability.configuration.TracingConfig;
 import io.evitadb.externalApi.observability.trace.OpenTelemetryTracerSetup;
@@ -62,7 +63,7 @@ public class ObservabilityProviderRegistrar implements ExternalApiProviderRegist
 
 	@Nonnull
 	@Override
-	public ExternalApiProvider<ObservabilityConfig> register(@Nonnull Evita evita, @Nonnull ApiOptions apiOptions, @Nonnull ObservabilityConfig observabilityConfig) {
+	public ExternalApiProvider<ObservabilityConfig> register(@Nonnull Evita evita, @Nonnull ExternalApiServer externalApiServer, @Nonnull ApiOptions apiOptions, @Nonnull ObservabilityConfig observabilityConfig) {
 		final ObservabilityManager observabilityManager = new ObservabilityManager(observabilityConfig, apiOptions, evita);
 		final TracingConfig tracingConfig = observabilityConfig.getTracing();
 		if (tracingConfig != null && tracingConfig.getEndpoint() != null) {
@@ -71,7 +72,7 @@ public class ObservabilityProviderRegistrar implements ExternalApiProviderRegist
 		observabilityManager.registerPrometheusMetricHandler();
 		return new ObservabilityProvider(
 			observabilityConfig,
-			observabilityManager.getObservabilityRouter(),
+			observabilityManager,
 			Arrays.stream(observabilityConfig.getBaseUrls(apiOptions.exposedOn()))
 				.toArray(String[]::new)
 		);

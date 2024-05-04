@@ -45,4 +45,6 @@ public record SystemStatus(
 	@Nonnull String instanceId,
 	int catalogsCorrupted,
 	int catalogsOk
-) implements Serializable { }
+) implements Serializable {
+
+}

@@ -36,7 +36,7 @@ import io.evitadb.core.query.sort.SortedRecordsSupplierFactory;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.array.TransactionalObjArray;
 import io.evitadb.index.array.TransactionalUnorderedIntArray;
@@ -448,7 +448,7 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 				// remove cardinality altogether - cardinality = 1 is not maintained to save memory
 				theValueCardinalities.remove(normalizedValue);
 			} else {
-				throw new EvitaInternalError("Unexpected cardinality: " + cardinality);
+				throw new GenericEvitaInternalError("Unexpected cardinality: " + cardinality);
 			}
 		} else {
 			// remove the entire value - there is no more record ids for it

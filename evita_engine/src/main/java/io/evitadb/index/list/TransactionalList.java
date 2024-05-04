@@ -28,7 +28,7 @@ import io.evitadb.core.transaction.memory.TransactionalLayerCreator;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -508,7 +508,7 @@ public class TransactionalList<V> implements List<V>, Serializable, Cloneable, T
 				currentPosition = previousPosition;
 				layer.remove(previousPosition);
 			} else {
-				throw new EvitaInternalError("Previous position unexpectedly: " + previousPosition);
+				throw new GenericEvitaInternalError("Previous position unexpectedly: " + previousPosition);
 			}
 		}
 
@@ -520,7 +520,7 @@ public class TransactionalList<V> implements List<V>, Serializable, Cloneable, T
 				final V result = layer.remove(index);
 				layer.add(index, v);
 			} else {
-				throw new EvitaInternalError("Current position unexpectedly: " + previousPosition);
+				throw new GenericEvitaInternalError("Current position unexpectedly: " + previousPosition);
 			}
 		}
 

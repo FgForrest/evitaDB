@@ -28,7 +28,7 @@ import io.evitadb.core.transaction.memory.TransactionalLayerCreator;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -387,7 +387,7 @@ public class TransactionalSet<K> implements Set<K>,
 		@Override
 		public void remove() {
 			if (currentValue == null) {
-				throw new EvitaInternalError("Value unexpectedly not found!");
+				throw new GenericEvitaInternalError("Value unexpectedly not found!");
 			}
 
 			final K key = currentValue;

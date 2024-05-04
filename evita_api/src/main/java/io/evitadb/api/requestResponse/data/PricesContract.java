@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -31,7 +31,7 @@ import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.Price;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
@@ -140,7 +140,7 @@ public interface PricesContract extends Versioned, Serializable {
 					return filterPredicate.test(resultPrice) ? of(resultPrice) : empty();
 				}
 			}
-			default -> throw new EvitaInternalError("Unknown price inner record handling mode: " + innerRecordHandling);
+			default -> throw new GenericEvitaInternalError("Unknown price inner record handling mode: " + innerRecordHandling);
 		}
 	}
 
@@ -413,7 +413,7 @@ public interface PricesContract extends Versioned, Serializable {
 						.orElse(null));
 			}
 			default ->
-				throw new EvitaInternalError("Unknown price inner record handling mode: " + getPriceInnerRecordHandling());
+				throw new GenericEvitaInternalError("Unknown price inner record handling mode: " + getPriceInnerRecordHandling());
 		}
 	}
 

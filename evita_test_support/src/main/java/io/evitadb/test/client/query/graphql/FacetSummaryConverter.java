@@ -30,7 +30,7 @@ import io.evitadb.api.query.require.FacetSummaryOfReference;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.api.ExternalApiNamingConventions;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResultsDescriptor;
@@ -122,7 +122,7 @@ public class FacetSummaryConverter extends RequireConverter {
 	                                                           @Nullable FacetSummaryOfReference facetSummaryRequest,
 	                                                           @Nullable FacetSummary defaultRequest) {
 		if (facetSummaryRequest == null && defaultRequest == null) {
-			throw new EvitaInternalError("Either facet summary request or default request must be present!");
+			throw new GenericEvitaInternalError("Either facet summary request or default request must be present!");
 		}
 		return ofNullable(facetSummaryRequest)
 			.map(referenceRequest -> {

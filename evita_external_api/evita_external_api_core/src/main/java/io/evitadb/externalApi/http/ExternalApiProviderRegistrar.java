@@ -31,7 +31,7 @@ import javax.annotation.Nonnull;
 
 /**
  * Configures and registers provider of particular external API to HTTP server ({@link ExternalApiServer}).
- * Each provider have to have unique code and have to implement {@link #register(Evita, ApiOptions, T)}
+ * Each provider have to have unique code and have to implement {@link #register(Evita, ExternalApiServer, ApiOptions, AbstractApiConfiguration)}
  * method which registers provider to the server to be later started by the server.
  *
  * It is based on {@link java.util.ServiceLoader} which requires appropriate registration of implementation of this interface.
@@ -40,35 +40,42 @@ import javax.annotation.Nonnull;
  */
 public interface ExternalApiProviderRegistrar<T extends AbstractApiConfiguration> {
 
-    /**
-     * Returns unique identification code of the API registrar.
-     *
-     * @return same code as linked {@link ExternalApiProvider#getCode()}
-     */
-    @Nonnull
-    String getExternalApiCode();
+	/**
+	 * Returns unique identification code of the API registrar.
+	 *
+	 * @return same code as linked {@link ExternalApiProvider#getCode()}
+	 */
+	@Nonnull
+	String getExternalApiCode();
 
-    /**
-     * Returns configuration initialized with default values for this external API.
-     *
-     * @return configuration object instance with sane default values
-     */
-    @Nonnull
-    Class<T> getConfigurationClass();
+	/**
+	 * Returns configuration initialized with default values for this external API.
+	 *
+	 * @return configuration object instance with sane default values
+	 */
+	@Nonnull
+	Class<T> getConfigurationClass();
 
-    /**
-     * @return order of the API provider. Providers with lower order are registered first.
-     */
-    default int getOrder() {
-        return 0;
-    }
+	/**
+	 * @return order of the API provider. Providers with lower order are registered first.
+	 */
+	default int getOrder() {
+		return 0;
+	}
 
-    /**
-     * Configures and registers this provider
-     *
-     * @param evita ready-to-use Evita with access to internal data structures
-     * @param externalApiConfiguration configuration parameters for this provider (structure is defined by provider itself)
-     */
-    @Nonnull
-    ExternalApiProvider<T> register(@Nonnull Evita evita, @Nonnull ApiOptions apiOptions, @Nonnull T externalApiConfiguration);
+	/**
+	 * Configures and registers this provider
+	 *
+	 * @param evita                    ready-to-use Evita with access to internal data structures
+	 * @param externalApiServer        the server the created provider will be registered to (not serving yet)
+	 * @param apiOptions               options for this provider
+	 * @param externalApiConfiguration configuration parameters for this provider (structure is defined by provider itself)
+	 */
+	@Nonnull
+	ExternalApiProvider<T> register(
+		@Nonnull Evita evita,
+		@Nonnull ExternalApiServer externalApiServer,
+		@Nonnull ApiOptions apiOptions,
+		@Nonnull T externalApiConfiguration
+	);
 }

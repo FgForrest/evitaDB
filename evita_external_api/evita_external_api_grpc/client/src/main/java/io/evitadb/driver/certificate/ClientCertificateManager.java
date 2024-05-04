@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,8 +23,8 @@
 
 package io.evitadb.driver.certificate;
 
-import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CertificateUtils;
 import io.netty.handler.ssl.ApplicationProtocolConfig;
@@ -312,7 +312,7 @@ public class ClientCertificateManager {
 				log.info("Client's certificate fingerprint: {}", CertificateUtils.getCertificateFingerprint(clientCert));
 			}
 		} catch (CertificateException | IOException | NoSuchAlgorithmException e) {
-			throw new EvitaInternalError(e.getMessage(), e);
+			throw new GenericEvitaInternalError(e.getMessage(), e);
 		}
 		return trustManagerTrustingProvidedRootCertificate;
 	}

@@ -46,7 +46,7 @@ import io.evitadb.core.query.algebra.utils.visitor.FormulaCloner;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.facet.FacetHavingTranslator;
 import io.evitadb.dataType.array.CompositeObjectArray;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
@@ -680,7 +680,7 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 			if (!targetFound) {
 				if (formula instanceof MutableFormula mutableFormula) {
 					if (targetFound) {
-						throw new EvitaInternalError("Expected single MutableFormula in the formula tree!");
+						throw new GenericEvitaInternalError("Expected single MutableFormula in the formula tree!");
 					} else {
 						targetFound = true;
 						mutableFormula.setDelegate(formulaToReplaceSupplier.get());

@@ -79,7 +79,7 @@ import io.evitadb.core.query.filter.translator.reference.ReferenceHavingTranslat
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure.CalculationContext;
 import io.evitadb.core.query.sort.attribute.translator.EntityNestedQueryComparator;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.TriFunction;
 import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.CatalogIndexKey;
@@ -493,7 +493,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 				constraintFormula = translator.translate(filterConstraint, this);
 			} else {
 				// sanity check only
-				throw new EvitaInternalError("Should never happen");
+				throw new GenericEvitaInternalError("Should never happen");
 			}
 
 			// if current query is FilterBy we know we're at the top of the filtering query tree
@@ -533,7 +533,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 	public ProcessingScope<? extends Index<?>> getProcessingScope() {
 		final ProcessingScope<? extends Index<?>> processingScope;
 		if (scope.isEmpty()) {
-			throw new EvitaInternalError("Scope should never be empty");
+			throw new GenericEvitaInternalError("Scope should never be empty");
 		} else {
 			processingScope = scope.peek();
 			isPremiseValid(processingScope != null, "Scope could never be null!");

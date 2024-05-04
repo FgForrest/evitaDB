@@ -51,7 +51,7 @@ import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.dataType.DataChunk;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.StripList;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket;
 import io.evitadb.externalApi.grpc.requestResponse.data.EntityConverter;
@@ -108,7 +108,7 @@ public class ResponseConverter {
 				converter.apply(grpcRecordPage)
 			);
 		} else {
-			throw new EvitaInternalError(
+			throw new GenericEvitaInternalError(
 				"Only PaginatedList or StripList expected, but got none!"
 			);
 		}
@@ -277,7 +277,7 @@ public class ResponseConverter {
 						it -> it.getFacetEntity().getPrimaryKey(),
 						Function.identity(),
 						(o, o2) -> {
-							throw new EvitaInternalError("Duplicate facet statistics for entity " + o.getFacetEntity().getPrimaryKey());
+							throw new GenericEvitaInternalError("Duplicate facet statistics for entity " + o.getFacetEntity().getPrimaryKey());
 						},
 						LinkedHashMap::new
 					)

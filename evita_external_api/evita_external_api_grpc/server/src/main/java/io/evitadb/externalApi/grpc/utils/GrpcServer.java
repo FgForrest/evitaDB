@@ -24,7 +24,7 @@
 package io.evitadb.externalApi.grpc.utils;
 
 import io.evitadb.core.Evita;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.certificate.ServerCertificateManager;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.configuration.CertificatePath;
@@ -86,7 +86,7 @@ public class GrpcServer {
 		final HostDefinition[] hosts = config.getHost();
 		final CertificatePath certificatePath = ServerCertificateManager.getCertificatePath(apiOptions.certificate());
 		if (certificatePath.certificate() == null || certificatePath.privateKey() == null) {
-			throw new EvitaInternalError("Certificate path is not set.");
+			throw new GenericEvitaInternalError("Certificate path is not set.");
 		}
 		final ServerCredentials tlsServerCredentials;
 		try {
@@ -114,7 +114,7 @@ public class GrpcServer {
 			}
 			tlsServerCredentials = tlsServerCredentialsBuilder.build();
 		} catch (Exception e) {
-			throw new EvitaInternalError(
+			throw new GenericEvitaInternalError(
 				"Failed to create gRPC server credentials with provided certificate and private key: " + e.getMessage(),
 				"Failed to create gRPC server credentials with provided certificate and private key.",
 				e

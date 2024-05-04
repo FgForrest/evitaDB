@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -36,20 +36,12 @@ import java.io.Serial;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class EvitaInternalError extends IllegalStateException implements EvitaError {
+public abstract class EvitaInternalError extends IllegalStateException implements EvitaError {
 	@Serial private static final long serialVersionUID = -1040832658535384105L;
 	@Getter private final String publicMessage;
 	@Getter private final String errorCode;
 
-	/**
-	 * Method is targeted to be used on the client.
-	 */
-	@Nonnull
-	public static EvitaInternalError createExceptionWithErrorCode(@Nonnull String publicMessage, @Nonnull String errorCode) {
-		return new EvitaInternalError(publicMessage, publicMessage, errorCode);
-	}
-
-	public EvitaInternalError(@Nonnull String privateMessage, @Nonnull String publicMessage) {
+	protected EvitaInternalError(@Nonnull String privateMessage, @Nonnull String publicMessage) {
 		super(privateMessage);
 		this.publicMessage = publicMessage;
 		final StackTraceElement stackTraceElement = getProperStackLine();
@@ -59,11 +51,11 @@ public class EvitaInternalError extends IllegalStateException implements EvitaEr
 			stackTraceElement.getLineNumber();
 	}
 
-	public EvitaInternalError(@Nonnull String publicMessage) {
+	protected EvitaInternalError(@Nonnull String publicMessage) {
 		this(publicMessage, publicMessage);
 	}
 
-	public EvitaInternalError(@Nonnull String privateMessage, @Nonnull String publicMessage, @Nonnull Throwable cause) {
+	protected EvitaInternalError(@Nonnull String privateMessage, @Nonnull String publicMessage, @Nonnull Throwable cause) {
 		super(privateMessage, cause);
 		this.publicMessage = publicMessage;
 		final StackTraceElement stackTraceElement = getProperStackLine();
@@ -72,11 +64,11 @@ public class EvitaInternalError extends IllegalStateException implements EvitaEr
 			stackTraceElement.getLineNumber();
 	}
 
-	public EvitaInternalError(@Nonnull String publicMessage, @Nonnull Throwable cause) {
+	protected EvitaInternalError(@Nonnull String publicMessage, @Nonnull Throwable cause) {
 		this(publicMessage, publicMessage, cause);
 	}
 
-	private EvitaInternalError(@Nonnull String privateMessage, @Nonnull String publicMessage, @Nonnull String errorCode) {
+	protected EvitaInternalError(@Nonnull String privateMessage, @Nonnull String publicMessage, @Nonnull String errorCode) {
 		super(privateMessage);
 		this.publicMessage = publicMessage;
 		this.errorCode = errorCode;
