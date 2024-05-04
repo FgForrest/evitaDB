@@ -324,8 +324,9 @@ you will also see the ports configuration here.
 
 ### Check statuses of the APIs
 
-To check the status of all enabled APIs, use the `curl` command and our readiness probe. This probe verifies that APIs 
-are ready to serve requests via internal HTTP calls and returns their status in a single response.
+To check the status of all enabled APIs, use the `curl` command and our [readiness probe](./monitor.md#readiness-probe).
+This probe verifies that APIs are ready to serve requests via internal HTTP calls and returns their status in a single 
+response.
 
 You can also check statuses of the GraphQL and the REST API manually by using the `curl` command.
 
