@@ -84,6 +84,7 @@ import io.evitadb.driver.requestResponse.schema.ClientCatalogSchemaDecorator;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.EvitaSessionServiceGrpc.EvitaSessionServiceFutureStub;
 import io.evitadb.externalApi.grpc.generated.EvitaSessionServiceGrpc.EvitaSessionServiceStub;
@@ -111,6 +112,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.NotThreadSafe;
+import java.io.OutputStream;
 import java.io.Serializable;
 import java.time.OffsetDateTime;
 import java.util.*;
@@ -1254,6 +1256,11 @@ public class EvitaClientSession implements EvitaSessionContract {
 				)
 				.toArray(SealedEntity[]::new);
 		});
+	}
+
+	@Override
+	public void backupCatalog(@Nonnull OutputStream outputStream) throws UnexpectedIOException {
+		/* TODO JNO - Implement me */
 	}
 
 	@Nonnull

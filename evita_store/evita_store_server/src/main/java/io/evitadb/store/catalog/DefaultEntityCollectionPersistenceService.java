@@ -55,6 +55,7 @@ import io.evitadb.core.buffer.DataStoreChanges;
 import io.evitadb.core.buffer.DataStoreIndexChanges;
 import io.evitadb.core.buffer.DataStoreMemoryBuffer;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
@@ -107,10 +108,14 @@ import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStoragePart.A
 import io.evitadb.store.wal.TransactionalStoragePartPersistenceService;
 import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
@@ -1043,14 +1048,44 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	public EntityCollectionHeader compact(long catalogVersion, @Nonnull HeaderInfoSupplier headerInfoSupplier) {
 		final CollectionFileReference newReference = this.entityCollectionFileReference.incrementAndGet();
 		final Path newFilePath = newReference.toFilePath(this.entityCollectionFile.getParent());
-		final OffsetIndexDescriptor offsetIndexDescriptor = this.storagePartPersistenceService.copySnapshotTo(newFilePath, catalogVersion);
+		final OffsetIndexDescriptor offsetIndexDescriptor;
+		try (final FileOutputStream fos = new FileOutputStream(newFilePath.toFile())) {
+			offsetIndexDescriptor = this.storagePartPersistenceService.copySnapshotTo(catalogVersion, fos);
+		} catch (IOException e) {
+			throw new UnexpectedIOException(
+				"Error occurred while compacting entity " + this.entityCollectionFile + " data file: " + e.getMessage(),
+				"Error occurred while compacting entity data file.",
+				e
+			);
+		}
 		return createEntityCollectionHeader(catalogVersion, offsetIndexDescriptor, headerInfoSupplier, newReference);
 	}
 
+	/**
+	 * Flushes entire living data set to the target output stream. If the output stream represents a file, the file must
+	 * exist and must be prepared for re-writing. File must not be used by any other process.
+	 *
+	 * @param outputStream output stream to write the data to
+	 * @param catalogVersion new catalog version
+	 */
 	@Nonnull
-	@Override
-	public PersistentStorageDescriptor copySnapshotTo(@Nonnull Path newFilePath, long catalogVersion) {
-		return getStoragePartPersistenceService().copySnapshotTo(newFilePath, catalogVersion);
+	public EntityCollectionHeader copySnapshotTo(
+		long catalogVersion,
+		@Nonnull CollectionFileReference fileReference,
+		@Nonnull OutputStream outputStream
+	) {
+		final OffsetIndexDescriptor offsetIndexDescriptor = getStoragePartPersistenceService().copySnapshotTo(catalogVersion, outputStream);
+		final EntityCollectionHeader currentHeader = getEntityCollectionHeader();
+		return createEntityCollectionHeader(
+			catalogVersion, offsetIndexDescriptor,
+			new CopyingHeaderInfoSupplier(currentHeader),
+			new CollectionFileReference(
+				fileReference.entityType(),
+				fileReference.entityTypePrimaryKey(),
+				fileReference.fileIndex(),
+				offsetIndexDescriptor.fileLocation()
+			)
+		);
 	}
 
 	@Override
@@ -1225,4 +1260,34 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		);
 	}
 
+	/**
+	 * Internal implementation of the {@link HeaderInfoSupplier} that copies information from the previous header.
+	 */
+	@RequiredArgsConstructor
+	private static class CopyingHeaderInfoSupplier implements HeaderInfoSupplier {
+		private final EntityCollectionHeader currentHeader;
+
+		@Override
+		public int getLastAssignedPrimaryKey() {
+			return currentHeader.lastPrimaryKey();
+		}
+
+		@Override
+		public int getLastAssignedIndexKey() {
+			return currentHeader.lastEntityIndexPrimaryKey();
+		}
+
+		@Nullable
+		@Override
+		public OptionalInt getGlobalIndexKey() {
+			return currentHeader.globalEntityIndexId() == null ?
+				OptionalInt.empty() : OptionalInt.of(currentHeader.globalEntityIndexId());
+		}
+
+		@Nonnull
+		@Override
+		public List<Integer> getIndexKeys() {
+			return currentHeader.usedEntityIndexIds();
+		}
+	}
 }

@@ -906,6 +906,11 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 		);
 	}
 
+	@Test
+	void shouldBackupAndRestoreCatalogDuringHeavyParallelIndexing() {
+		/* TODO JNO - Implement me */
+	}
+
 	/**
 	 * Writes the Write-Ahead Log (WAL) using the provided off-heap memory manager.
 	 *

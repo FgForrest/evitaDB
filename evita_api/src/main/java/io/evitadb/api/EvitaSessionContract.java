@@ -65,12 +65,14 @@ import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Closeable;
+import java.io.OutputStream;
 import java.io.Serializable;
 import java.util.List;
 import java.util.Optional;
@@ -983,6 +985,14 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 */
 	@Nonnull
 	SealedEntity[] deleteSealedEntitiesAndReturnBodies(@Nonnull Query query);
+
+	/**
+	 * Creates a backup of the specified catalog and returns an InputStream to read the binary data of the zip file.
+	 *
+	 * @param outputStream an OutputStream to write the binary data of the zip file
+	 * @throws UnexpectedIOException if an I/O error occurs during reading the catalog contents
+	 */
+	void backupCatalog(@Nonnull OutputStream outputStream) throws UnexpectedIOException;
 
 	/**
 	 * Default implementation uses ID for comparing two sessions (and to distinguish one session from another).

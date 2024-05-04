@@ -49,6 +49,7 @@ import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.InvalidEvitaVersionException;
+import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc.EvitaServiceFutureStub;
@@ -72,6 +73,8 @@ import lombok.extern.slf4j.Slf4j;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
@@ -611,6 +614,16 @@ public class EvitaClient implements EvitaContract {
 		}
 
 		return closeFuture;
+	}
+
+	@Override
+	public void backupCatalog(@Nonnull String catalogName, @Nonnull OutputStream outputStream) throws UnexpectedIOException {
+		/* TODO JNO - implement me */
+	}
+
+	@Override
+	public void restoreCatalog(@Nonnull String catalogName, @Nonnull InputStream inputStream) throws UnexpectedIOException {
+		/* TODO JNO - implement me */
 	}
 
 	@Nonnull

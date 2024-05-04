@@ -50,7 +50,7 @@ import io.evitadb.utils.StringUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.nio.file.Path;
+import java.io.OutputStream;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -79,6 +79,7 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	String CATALOG_FILE_SUFFIX = ".catalog";
 	String ENTITY_COLLECTION_FILE_SUFFIX = ".collection";
 	String WAL_FILE_SUFFIX = ".wal";
+	String RESTORE_FLAG = ".restored";
 
 	/**
 	 * Returns name of the bootstrap file that contains lead information to fetching the catalog header in fixed record
@@ -136,8 +137,8 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	 * @return name of the WAL file
 	 */
 	@Nonnull
-	static Path getWalFileName(@Nonnull String catalogName, int fileIndex) {
-		return Path.of(catalogName + '_' + fileIndex + WAL_FILE_SUFFIX);
+	static String getWalFileName(@Nonnull String catalogName, int fileIndex) {
+		return catalogName + '_' + fileIndex + WAL_FILE_SUFFIX;
 	}
 
 	/**
@@ -411,6 +412,14 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	 * bootstrap record.
 	 */
 	void purgeAllObsoleteFiles();
+
+	/**
+	 * Creates a backup of the specified catalog and returns an InputStream to read the binary data of the zip file.
+	 *
+	 * @param outputStream an OutputStream to write the binary data of the zip file
+	 * @throws UnexpectedIOException if an I/O error occurs during reading the catalog contents
+	 */
+	void backup(@Nonnull OutputStream outputStream) throws UnexpectedIOException;
 
 	/**
 	 * Method closes this persistence service and also all {@link EntityCollectionPersistenceService} that were created

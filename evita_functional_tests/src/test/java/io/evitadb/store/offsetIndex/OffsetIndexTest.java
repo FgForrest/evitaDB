@@ -54,9 +54,12 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ArgumentsSource;
 import org.mockito.Mockito;
+import org.opentest4j.AssertionFailedError;
 
 import javax.annotation.Nonnull;
 import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.Map.Entry;
@@ -219,7 +222,13 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 		final Path snapshotPath = Path.of(System.getProperty("java.io.tmpdir") + File.separator + "snapshot.kryo");
 		try {
 			final long finalCatalogVersion = nextCatalogVersion + 1;
-			final OffsetIndexDescriptor snapshotBootstrapDescriptor = purgedSourceOffsetIndex.copySnapshotTo(snapshotPath, finalCatalogVersion);
+			final OffsetIndexDescriptor snapshotBootstrapDescriptor;
+			try (final FileOutputStream fos = new FileOutputStream(snapshotPath.toFile())) {
+				snapshotBootstrapDescriptor = purgedSourceOffsetIndex.copySnapshotTo(fos, finalCatalogVersion);
+			} catch (IOException e) {
+				throw new AssertionFailedError("IO exception!", e);
+			}
+
 			final OffsetIndex loadedFileOffsetIndex = new OffsetIndex(
 				snapshotBootstrapDescriptor.version(),
 				snapshotBootstrapDescriptor,
@@ -610,7 +619,7 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 		assertTrue(fileOffsetIndex.fileOffsetIndexEquals(loadedFileOffsetIndex));
 		/* 600 records +1 record for the OffsetIndex itself */
 		assertEquals(
-			recordCount + computeExpectedRecordCount(storageOptions, recordCount).getFragments(),
+			recordCount + computeExpectedRecordCount(storageOptions, recordCount).fragments(),
 			fileOffsetIndex.verifyContents().getRecordCount()
 		);
 		log.info("Average reads: " + StringUtils.formatRequestsPerSec(recordCount, duration));

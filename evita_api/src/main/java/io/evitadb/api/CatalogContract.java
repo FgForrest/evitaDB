@@ -41,8 +41,10 @@ import io.evitadb.api.requestResponse.system.CatalogVersionDescriptor;
 import io.evitadb.api.requestResponse.system.TimeFlow;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.dataType.PaginatedList;
+import io.evitadb.exception.UnexpectedIOException;
 
 import javax.annotation.Nonnull;
+import java.io.OutputStream;
 import java.io.Serializable;
 import java.util.Map;
 import java.util.Optional;
@@ -301,10 +303,19 @@ public interface CatalogContract {
 	Stream<Mutation> getReversedCommittedMutationStream(long catalogVersion);
 
 	/**
+	 * Creates a backup of the specified catalog and returns an InputStream to read the binary data of the zip file.
+	 *
+	 * @param outputStream an OutputStream to write the binary data of the zip file
+	 * @throws UnexpectedIOException if an I/O error occurs during reading the catalog contents
+	 */
+	void backup(OutputStream outputStream) throws UnexpectedIOException;
+
+	/**
 	 * Terminates catalog instance and frees all claimed resources. Prepares catalog instance to be garbage collected.
 	 *
 	 * This method is idempotent and may be called multiple times. Only first call is really processed and others are
 	 * ignored.
 	 */
 	void terminate();
+
 }

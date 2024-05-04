@@ -161,6 +161,21 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		return mockCatalog;
 	}
 
+	private static void trimAndCheck(
+		@Nonnull DefaultCatalogPersistenceService ioService,
+		@Nonnull OffsetDateTime toTimestamp,
+		int expectedVersion,
+		int expectedCount
+	) {
+		ioService.trimBootstrapFile(toTimestamp);
+
+		final PaginatedList<CatalogVersion> catalogVersions = ioService.getCatalogVersions(TimeFlow.FROM_OLDEST_TO_NEWEST, 1, 20);
+		final CatalogVersion firstRecord = catalogVersions.getData().get(0);
+		assertTrue(toTimestamp.isAfter(firstRecord.timestamp()));
+		assertEquals(expectedVersion, firstRecord.version());
+		assertEquals(expectedCount, catalogVersions.getTotalRecordCount());
+	}
+
 	@BeforeEach
 	public void setUp() throws IOException {
 		final Path resolve = getTestDirectory().resolve(DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST);
@@ -225,66 +240,15 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 
 	@Test
 	void shouldDetectInvalidCatalogContents() {
-		final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
-			SEALED_CATALOG_SCHEMA.getName(),
-			getStorageOptions(),
-			getTransactionOptions(),
-			Mockito.mock(Scheduler.class)
-		);
-
-		ioService.getStoragePartPersistenceService(0L)
-			.putStoragePart(0L, new CatalogSchemaStoragePart(CATALOG_SCHEMA));
-
-		final EvitaSession mockSession = mock(EvitaSession.class);
-		when(mockSession.getCatalogSchema()).thenReturn(SEALED_CATALOG_SCHEMA);
-
-		final EntityCollection productCollection = constructEntityCollectionWithSomeEntities(
-			ioService, SEALED_CATALOG_SCHEMA, dataGenerator.getSampleProductSchema(mockSession, EntitySchemaBuilder::toInstance), 1
-		);
-		final EntityCollection brandCollection = constructEntityCollectionWithSomeEntities(
-			ioService, SEALED_CATALOG_SCHEMA, dataGenerator.getSampleBrandSchema(mockSession, EntitySchemaBuilder::toInstance), 2
-		);
-		final EntityCollection storeCollection = constructEntityCollectionWithSomeEntities(
-			ioService, SEALED_CATALOG_SCHEMA, dataGenerator.getSampleStoreSchema(mockSession, EntitySchemaBuilder::toInstance), 3
-		);
-
-		// try to serialize
-		ioService.storeHeader(
-			CatalogState.WARMING_UP,
-			0L, 0, null,
-			Arrays.asList(
-				productCollection.flush(),
-				brandCollection.flush(),
-				storeCollection.flush()
-			)
-		);
+		prepareInvalidCatalogContents();
 
 		assertThrows(
 			UnexpectedCatalogContentsException.class,
 			() -> {
-				final Path dataDirectory = getTestDirectory().resolve(DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST);
-				final Path catalogPath = dataDirectory.resolve(TEST_CATALOG);
-				final Path renamedCatalogPath = dataDirectory.resolve(RENAMED_CATALOG);
-				// rename catalog bootstrap file
-				assertTrue(catalogPath.resolve(CatalogPersistenceService.getCatalogBootstrapFileName(TEST_CATALOG)).toFile()
-					.renameTo(catalogPath.resolve(CatalogPersistenceService.getCatalogBootstrapFileName(RENAMED_CATALOG)).toFile()));
-
-				// rename all catalog indexes
-				int index = findFirstExistingFileIndex(TEST_CATALOG);
-				do {
-					assertTrue(catalogPath.resolve(CatalogPersistenceService.getCatalogDataStoreFileName(TEST_CATALOG, index)).toFile()
-						.renameTo(catalogPath.resolve(CatalogPersistenceService.getCatalogDataStoreFileName(RENAMED_CATALOG, index)).toFile()));
-					index++;
-				} while (catalogPath.resolve(CatalogPersistenceService.getCatalogDataStoreFileName(TEST_CATALOG, index)).toFile().exists());
-
-				// finally rename folder
-				assertTrue(catalogPath.toFile().renameTo(renamedCatalogPath.toFile()));
-
 				//noinspection EmptyTryBlock
 				try (var ignored = new DefaultCatalogPersistenceService(
 					Mockito.mock(CatalogContract.class),
 					RENAMED_CATALOG,
-					renamedCatalogPath,
 					getStorageOptions(),
 					getTransactionOptions(),
 					Mockito.mock(Scheduler.class)
@@ -293,6 +257,32 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 				}
 			}
 		);
+	}
+
+	@Test
+	void shouldDetectInvalidCatalogContentsAndAutomaticallyAdaptThem() throws IOException {
+		final Path renamedCatalogPath = prepareInvalidCatalogContents();
+		renamedCatalogPath.resolve(CatalogPersistenceService.RESTORE_FLAG).toFile().createNewFile();
+
+		try (var persistenceService = new DefaultCatalogPersistenceService(
+			Mockito.mock(CatalogContract.class),
+			RENAMED_CATALOG,
+			getStorageOptions(),
+			getTransactionOptions(),
+			Mockito.mock(Scheduler.class)
+		)) {
+			final long lastCatalogVersion = persistenceService.getLastCatalogVersion();
+			final CatalogHeader catalogHeader = persistenceService.getCatalogHeader(lastCatalogVersion);
+			assertNotNull(catalogHeader);
+			assertEquals(RENAMED_CATALOG, catalogHeader.catalogName());
+
+			CatalogSchemaStoragePart.deserializeWithCatalog(Mockito.mock(CatalogContract.class), () -> {
+				final CatalogSchemaStoragePart catalogSchema = persistenceService.getStoragePartPersistenceService(lastCatalogVersion)
+					.getStoragePart(lastCatalogVersion, 1, CatalogSchemaStoragePart.class);
+				assertEquals(catalogSchema.catalogSchema().getName(), RENAMED_CATALOG);
+				return null;
+			});
+		}
 	}
 
 	@Test
@@ -372,7 +362,6 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		try (var cps = new DefaultCatalogPersistenceService(
 			Mockito.mock(CatalogContract.class),
 			TEST_CATALOG,
-			catalogDirectory,
 			getStorageOptions(),
 			getTransactionOptions(),
 			Mockito.mock(Scheduler.class)
@@ -434,7 +423,6 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		try (var cps = new DefaultCatalogPersistenceService(
 			Mockito.mock(CatalogContract.class),
 			catalogName,
-			getStorageOptions().storageDirectory().resolve(catalogName),
 			getStorageOptions(),
 			getTransactionOptions(),
 			Mockito.mock(Scheduler.class)
@@ -560,19 +548,60 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		trimAndCheck(ioService, timestamp.plusMinutes(8).minusSeconds(1), 8, 5);
 	}
 
-	private static void trimAndCheck(
-		@Nonnull DefaultCatalogPersistenceService ioService,
-		@Nonnull OffsetDateTime toTimestamp,
-		int expectedVersion,
-		int expectedCount
-	) {
-		ioService.trimBootstrapFile(toTimestamp);
+	private Path prepareInvalidCatalogContents() {
+		final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
+			SEALED_CATALOG_SCHEMA.getName(),
+			getStorageOptions(),
+			getTransactionOptions(),
+			Mockito.mock(Scheduler.class)
+		);
 
-		final PaginatedList<CatalogVersion> catalogVersions = ioService.getCatalogVersions(TimeFlow.FROM_OLDEST_TO_NEWEST, 1, 20);
-		final CatalogVersion firstRecord = catalogVersions.getData().get(0);
-		assertTrue(toTimestamp.isAfter(firstRecord.timestamp()));
-		assertEquals(expectedVersion, firstRecord.version());
-		assertEquals(expectedCount, catalogVersions.getTotalRecordCount());
+		ioService.getStoragePartPersistenceService(0L)
+			.putStoragePart(0L, new CatalogSchemaStoragePart(CATALOG_SCHEMA));
+
+		final EvitaSession mockSession = mock(EvitaSession.class);
+		when(mockSession.getCatalogSchema()).thenReturn(SEALED_CATALOG_SCHEMA);
+
+		final EntityCollection productCollection = constructEntityCollectionWithSomeEntities(
+			ioService, SEALED_CATALOG_SCHEMA, dataGenerator.getSampleProductSchema(mockSession, EntitySchemaBuilder::toInstance), 1
+		);
+		final EntityCollection brandCollection = constructEntityCollectionWithSomeEntities(
+			ioService, SEALED_CATALOG_SCHEMA, dataGenerator.getSampleBrandSchema(mockSession, EntitySchemaBuilder::toInstance), 2
+		);
+		final EntityCollection storeCollection = constructEntityCollectionWithSomeEntities(
+			ioService, SEALED_CATALOG_SCHEMA, dataGenerator.getSampleStoreSchema(mockSession, EntitySchemaBuilder::toInstance), 3
+		);
+
+		// try to serialize
+		ioService.storeHeader(
+			CatalogState.WARMING_UP,
+			0L, 0, null,
+			Arrays.asList(
+				productCollection.flush(),
+				brandCollection.flush(),
+				storeCollection.flush()
+			)
+		);
+
+		final Path dataDirectory = getTestDirectory().resolve(DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST);
+		final Path catalogPath = dataDirectory.resolve(TEST_CATALOG);
+		final Path renamedCatalogPath = dataDirectory.resolve(RENAMED_CATALOG);
+		// rename catalog bootstrap file
+		assertTrue(catalogPath.resolve(CatalogPersistenceService.getCatalogBootstrapFileName(TEST_CATALOG)).toFile()
+			.renameTo(catalogPath.resolve(CatalogPersistenceService.getCatalogBootstrapFileName(RENAMED_CATALOG)).toFile()));
+
+		// rename all catalog indexes
+		int index = findFirstExistingFileIndex(TEST_CATALOG);
+		do {
+			assertTrue(catalogPath.resolve(CatalogPersistenceService.getCatalogDataStoreFileName(TEST_CATALOG, index)).toFile()
+				.renameTo(catalogPath.resolve(CatalogPersistenceService.getCatalogDataStoreFileName(RENAMED_CATALOG, index)).toFile()));
+			index++;
+		} while (catalogPath.resolve(CatalogPersistenceService.getCatalogDataStoreFileName(TEST_CATALOG, index)).toFile().exists());
+
+		// finally rename folder
+		assertTrue(catalogPath.toFile().renameTo(renamedCatalogPath.toFile()));
+
+		return renamedCatalogPath;
 	}
 
 	/*

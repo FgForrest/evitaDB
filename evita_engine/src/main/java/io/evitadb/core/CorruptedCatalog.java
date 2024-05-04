@@ -43,11 +43,13 @@ import io.evitadb.api.requestResponse.system.CatalogVersionDescriptor;
 import io.evitadb.api.requestResponse.system.TimeFlow;
 import io.evitadb.core.exception.CatalogCorruptedException;
 import io.evitadb.dataType.PaginatedList;
+import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.utils.FileUtils;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import java.io.OutputStream;
 import java.io.Serializable;
 import java.nio.file.Path;
 import java.util.Map;
@@ -218,6 +220,11 @@ public final class CorruptedCatalog implements CatalogContract {
 
 	@Override
 	public boolean goLive() {
+		throw new CatalogCorruptedException(this);
+	}
+
+	@Override
+	public void backup(OutputStream outputStream) throws UnexpectedIOException {
 		throw new CatalogCorruptedException(this);
 	}
 

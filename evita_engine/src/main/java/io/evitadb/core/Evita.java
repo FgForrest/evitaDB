@@ -60,6 +60,7 @@ import io.evitadb.core.exception.CatalogCorruptedException;
 import io.evitadb.core.maintenance.SessionKiller;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.scheduling.RejectingExecutor;
 import io.evitadb.scheduling.Scheduler;
 import io.evitadb.thread.TimeoutableThread;
@@ -80,6 +81,8 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Closeable;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.OffsetDateTime;
@@ -238,34 +241,15 @@ public final class Evita implements EvitaContract {
 		this.catalogs = CollectionUtils.createConcurrentHashMap(directories.length);
 		final CountDownLatch startUpLatch = new CountDownLatch(directories.length);
 		for (Path directory : directories) {
-			final String catalogName = directory.toFile().getName();
-			this.executor.execute(() -> {
-				try {
-					final long start = System.nanoTime();
-					final CatalogContract catalog = new Catalog(
-						catalogName,
-						directory,
-						this.cacheSupervisor,
-						this.configuration.storage(),
-						this.configuration.transaction(),
-						this.reflectionLookup,
-						this.scheduler,
-						this::replaceCatalogReference,
-						this.tracingContext
-					);
-					log.info("Catalog {} fully loaded in: {}", catalogName, StringUtils.formatNano(System.nanoTime() - start));
-					// this will be one day used in more clever way, when entire catalog loading will be split into
-					// multiple smaller tasks and done asynchronously after the startup (along with catalog loading / unloading feature)
-					catalog.processWriteAheadLog(
-						updatedCatalog -> this.catalogs.put(catalogName, updatedCatalog)
-					);
-				} catch (Throwable ex) {
-					log.error("Catalog {} is corrupted!", catalogName, ex);
-					this.catalogs.put(catalogName, new CorruptedCatalog(catalogName, directory, ex));
-				} finally {
-					startUpLatch.countDown();
+			this.executor.execute(
+				() -> {
+					try {
+						loadCatalog(directory.toFile().getName());
+					} finally {
+						startUpLatch.countDown();
+					}
 				}
-			});
+			);
 		}
 
 		try {
@@ -475,6 +459,22 @@ public final class Evita implements EvitaContract {
 	}
 
 	@Override
+	public void backupCatalog(@Nonnull String catalogName, @Nonnull OutputStream outputStream) throws UnexpectedIOException {
+		assertActive();
+		try (final EvitaSessionContract session = this.createSession(new SessionTraits(catalogName))) {
+			session.backupCatalog(outputStream);
+		}
+	}
+
+	@Override
+	public void restoreCatalog(@Nonnull String catalogName, @Nonnull InputStream inputStream) throws UnexpectedIOException {
+		assertActive();
+		Catalog.restoreCatalogTo(catalogName, this.configuration.storage(), inputStream);
+		// finally, try to load catalog from the disk
+		loadCatalog(catalogName);
+	}
+
+	@Override
 	public CompletableFuture<Long> updateCatalogAsync(
 		@Nonnull String catalogName,
 		@Nonnull Consumer<EvitaSessionContract> updater,
@@ -600,7 +600,39 @@ public final class Evita implements EvitaContract {
 
 	/*
 		PRIVATE METHODS
+	*/
+
+	/**
+	 * Loads catalog from the designated directory. If the catalog is corrupted, it will be marked as such, but it'll
+	 * still be added to the list of catalogs.
+	 *
+	 * @param catalogName name of the catalog
 	 */
+	private void loadCatalog(@Nonnull String catalogName) {
+		final Path directory = configuration.storage().storageDirectoryOrDefault().resolve(catalogName);
+		try {
+			final long start = System.nanoTime();
+			final CatalogContract catalog = new Catalog(
+				catalogName,
+				this.cacheSupervisor,
+				this.configuration.storage(),
+				this.configuration.transaction(),
+				this.reflectionLookup,
+				this.scheduler,
+				this::replaceCatalogReference,
+				this.tracingContext
+			);
+			log.info("Catalog {} fully loaded in: {}", catalogName, StringUtils.formatNano(System.nanoTime() - start));
+			// this will be one day used in more clever way, when entire catalog loading will be split into
+			// multiple smaller tasks and done asynchronously after the startup (along with catalog loading / unloading feature)
+			catalog.processWriteAheadLog(
+				updatedCatalog -> this.catalogs.put(catalogName, updatedCatalog)
+			);
+		} catch (Throwable ex) {
+			log.error("Catalog {} is corrupted!", catalogName);
+			this.catalogs.put(catalogName, new CorruptedCatalog(catalogName, directory, ex));
+		}
+	}
 
 	/**
 	 * Creates new catalog in the evitaDB.
@@ -707,7 +739,7 @@ public final class Evita implements EvitaContract {
 			final CatalogContract previousCatalog = this.catalogs.put(catalogNameToBeReplaced, replacedCatalog);
 
 			// notify callback that it's now a live snapshot
-			((Catalog)replacedCatalog).notifyCatalogPresentInLiveView();
+			((Catalog) replacedCatalog).notifyCatalogPresentInLiveView();
 
 			structuralChangeObservers.forEach(it -> it.onCatalogDelete(catalogNameToBeReplacedWith));
 			if (previousCatalog == null) {
@@ -1041,8 +1073,8 @@ public final class Evita implements EvitaContract {
 
 		public TimeoutThreadKiller(
 			int timeoutInSeconds,
-           int checkRateInSeconds,
-           @Nonnull EnhancedQueueExecutor executor
+			int checkRateInSeconds,
+			@Nonnull EnhancedQueueExecutor executor
 		) {
 			this.timeoutInSeconds = timeoutInSeconds;
 			this.executor = executor;
@@ -1103,7 +1135,7 @@ public final class Evita implements EvitaContract {
 	 * Represents a created session.
 	 * This class is a record that encapsulates a session and a future for closing the session.
 	 *
-	 * @param session reference to the created session itself
+	 * @param session     reference to the created session itself
 	 * @param closeFuture future that gets completed when session is closed
 	 */
 	private record CreatedSession(

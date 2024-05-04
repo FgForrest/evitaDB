@@ -43,13 +43,11 @@ import io.evitadb.core.buffer.DataStoreMemoryBuffer;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.price.PriceSuperIndex;
-import io.evitadb.store.model.PersistentStorageDescriptor;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.spi.model.EntityCollectionHeader;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.nio.file.Path;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -176,16 +174,6 @@ public non-sealed interface EntityCollectionPersistenceService extends Persisten
 		@Nonnull Supplier<PriceSuperIndex> temporalIndexAccessor,
 		@Nonnull Supplier<PriceSuperIndex> superIndexAccessor
 	);
-
-	/**
-	 * Flushes entire living data set to the target file. The file must exist and must be prepared for re-writing.
-	 * File must not be used by any other process.
-	 *
-	 * @param newFilePath    target file
-	 * @param catalogVersion new catalog version
-	 */
-	@Nonnull
-	PersistentStorageDescriptor copySnapshotTo(@Nonnull Path newFilePath, long catalogVersion);
 
 	/**
 	 * Closes the entity collection persistent storage. If you don't call {@link #flushTrappedUpdates(long, DataStoreIndexChanges)}

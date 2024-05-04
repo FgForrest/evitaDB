@@ -47,6 +47,7 @@ import io.evitadb.utils.FileUtils;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashSet;
@@ -233,7 +234,10 @@ public class TransactionalStoragePartPersistenceService implements StoragePartPe
 
 	@Nonnull
 	@Override
-	public PersistentStorageDescriptor copySnapshotTo(@Nonnull Path newFilePath, long catalogVersion) {
+	public PersistentStorageDescriptor copySnapshotTo(
+		long catalogVersion, @Nonnull OutputStream outputStream,
+		@Nullable StoragePart... updatedStorageParts
+	) {
 		throw new UnsupportedOperationException(
 			"Transactional storage part persistence service cannot copy snapshot to a new file!"
 		);

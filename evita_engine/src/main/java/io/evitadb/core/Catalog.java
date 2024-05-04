@@ -89,6 +89,7 @@ import io.evitadb.core.transaction.stage.TrunkIncorporationTransactionStage;
 import io.evitadb.core.transaction.stage.WalAppendingTransactionStage;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.CatalogIndexKey;
 import io.evitadb.index.EntityIndex;
@@ -122,6 +123,8 @@ import lombok.extern.slf4j.Slf4j;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.Serializable;
 import java.nio.file.Path;
 import java.util.*;
@@ -256,6 +259,23 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 	private long lastPersistedSchemaVersion;
 
 	/**
+	 * Verifies whether the catalog name could be used for a new catalog.
+	 *
+	 * @param catalogName the name of the catalog
+	 * @param storageOptions the storage options
+	 */
+	public static Path restoreCatalogTo(
+		@Nonnull String catalogName,
+		@Nonnull StorageOptions storageOptions,
+		@Nonnull InputStream inputStream
+		) {
+		return ServiceLoader.load(CatalogPersistenceServiceFactory.class)
+			.findFirst()
+			.map(it -> it.restoreCatalogTo(catalogName, storageOptions, inputStream))
+			.orElseThrow(() -> new IllegalStateException("IO service is unexpectedly not available!"));
+	}
+
+	/**
 	 * Creates a transaction pipeline for transaction processing consisting of 4 stages:
 	 *
 	 * - conflict resolution (and catalog version sequence number assignment)
@@ -344,7 +364,6 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 
 	public Catalog(
 		@Nonnull String catalogName,
-		@Nonnull Path catalogPath,
 		@Nonnull CacheSupervisor cacheSupervisor,
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull TransactionOptions transactionOptions,
@@ -356,7 +375,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		this.tracingContext = tracingContext;
 		this.persistenceService = ServiceLoader.load(CatalogPersistenceServiceFactory.class)
 			.findFirst()
-			.map(it -> it.load(this, catalogName, catalogPath, storageOptions, transactionOptions, scheduler))
+			.map(it -> it.load(this, catalogName, storageOptions, transactionOptions, scheduler))
 			.orElseThrow(() -> new IllegalStateException("IO service is unexpectedly not available!"));
 		final CatalogHeader catalogHeader = this.persistenceService.getCatalogHeader(
 			this.persistenceService.getLastCatalogVersion()
@@ -818,6 +837,11 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 	@Override
 	public Stream<Mutation> getReversedCommittedMutationStream(long catalogVersion) {
 		return this.persistenceService.getReversedCommittedMutationStream(catalogVersion);
+	}
+
+	@Override
+	public void backup(OutputStream outputStream) throws UnexpectedIOException {
+		this.persistenceService.backup(outputStream);
 	}
 
 	@Override

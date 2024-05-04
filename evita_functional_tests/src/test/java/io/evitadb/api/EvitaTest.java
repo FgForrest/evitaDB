@@ -82,6 +82,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
@@ -1666,6 +1668,84 @@ class EvitaTest implements EvitaTestSupport {
 				assertEquals(1, shortEntity.getReferences(Entities.PARAMETER).size());
 			}
 		);
+	}
+
+	@Test
+	void shouldCreateBackupAndRestoreCatalog() {
+		setupCatalogWithProductAndCategory();
+
+		final ByteArrayOutputStream baos = new ByteArrayOutputStream(64_000);
+		evita.backupCatalog(TEST_CATALOG, baos);
+
+		evita.restoreCatalog(TEST_CATALOG + "_restored", new ByteArrayInputStream(baos.toByteArray()));
+
+		evita.queryCatalog(TEST_CATALOG,
+			session -> {
+				// compare contents of both catalogs
+				evita.queryCatalog(TEST_CATALOG + "_restored",
+					session2 -> {
+						final Set<String> allEntityTypes1 = session.getAllEntityTypes();
+						final Set<String> allEntityTypes2 = session2.getAllEntityTypes();
+
+						assertEquals(allEntityTypes1, allEntityTypes2);
+
+						for (String entityType : allEntityTypes1) {
+							session.queryList(
+								query(
+									collection(entityType),
+									require(entityFetchAll(), page(1, 100))
+								),
+								SealedEntity.class
+							).forEach(entity -> {
+								final SealedEntity entity2 = session2.getEntity(
+									entityType, entity.getPrimaryKey(), entityFetchAllContent()
+								).orElseThrow();
+								assertEquals(entity, entity2);
+							});
+						}
+					});
+			});
+	}
+
+	@Test
+	void shouldCreateBackupAndRestoreTransactionalCatalog() {
+		setupCatalogWithProductAndCategory();
+
+		evita.queryCatalog(TEST_CATALOG, session -> {
+			session.goLiveAndClose();
+		});
+
+		final ByteArrayOutputStream baos = new ByteArrayOutputStream(64_000);
+		evita.backupCatalog(TEST_CATALOG, baos);
+
+		evita.restoreCatalog(TEST_CATALOG + "_restored", new ByteArrayInputStream(baos.toByteArray()));
+
+		evita.queryCatalog(TEST_CATALOG,
+			session -> {
+				// compare contents of both catalogs
+				evita.queryCatalog(TEST_CATALOG + "_restored",
+					session2 -> {
+						final Set<String> allEntityTypes1 = session.getAllEntityTypes();
+						final Set<String> allEntityTypes2 = session2.getAllEntityTypes();
+
+						assertEquals(allEntityTypes1, allEntityTypes2);
+
+						for (String entityType : allEntityTypes1) {
+							session.queryList(
+								query(
+									collection(entityType),
+									require(entityFetchAll(), page(1, 100))
+								),
+								SealedEntity.class
+							).forEach(entity -> {
+								final SealedEntity entity2 = session2.getEntity(
+									entityType, entity.getPrimaryKey(), entityFetchAllContent()
+								).orElseThrow();
+								assertEquals(entity, entity2);
+							});
+						}
+					});
+			});
 	}
 
 	private void doRenameCatalog(@Nonnull CatalogState catalogState) {

@@ -26,7 +26,6 @@ package io.evitadb.store.offsetIndex;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.KryoException;
 import io.evitadb.api.configuration.StorageOptions;
-import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.store.kryo.ObservableInput;
 import io.evitadb.store.kryo.ObservableOutput;
 import io.evitadb.store.model.FileLocation;
@@ -40,19 +39,16 @@ import io.evitadb.store.offsetIndex.model.VersionedValue;
 import io.evitadb.store.offsetIndex.stream.RandomAccessFileInputStream;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.BitUtils;
-import lombok.Data;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.nio.file.Path;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
@@ -89,6 +85,7 @@ public class OffsetIndexSerializationService {
 
 	/**
 	 * Estimates the size of the offset index file record based on the number of records.
+	 *
 	 * @param recordCount The number of records.
 	 * @return The estimated size of the offset index file record.
 	 */
@@ -97,7 +94,7 @@ public class OffsetIndexSerializationService {
 		@Nonnull StorageOptions storageOptions
 	) {
 		final long estimatedSize = (long) recordCount * (MEM_TABLE_RECORD_SIZE);
-		return estimatedSize + (long) StorageRecord.getOverheadSize() * (PREVIOUS_MEM_TABLE_FRAGMENT_POINTER_SIZE + computeExpectedRecordCount(storageOptions, recordCount).getFragments());
+		return estimatedSize + (long) StorageRecord.getOverheadSize() * (PREVIOUS_MEM_TABLE_FRAGMENT_POINTER_SIZE + computeExpectedRecordCount(storageOptions, recordCount).fragments());
 	}
 
 	/**
@@ -208,86 +205,80 @@ public class OffsetIndexSerializationService {
 	}
 
 	/**
-	 * Copies a snapshot of an offset index to a new file.
+	 * Copies a snapshot of an offset index to an output stream. The output stream is not closed by this method.
+	 * You are responsible for closing the output stream.
 	 *
 	 * @param offsetIndex    The original offset index to copy.
 	 * @param inputStream    The input stream containing the offset index file.
+	 * @param outputStream   The output stream to copy the snapshot to.
 	 * @param catalogVersion The transaction ID of the snapshot.
-	 * @param newFilePath    The file to copy the snapshot to.
 	 * @return The length of the copied snapshot.
 	 */
-	public static FileLocation copySnapshotTo(
+	@Nonnull
+	public static FileLocationAndWrittenBytes copySnapshotTo(
 		@Nonnull OffsetIndex offsetIndex,
 		@Nonnull ObservableInput<RandomAccessFileInputStream> inputStream,
+		@Nonnull OutputStream outputStream,
 		long catalogVersion,
-		@Nonnull Path newFilePath
+		@Nonnull Map<RecordKey, byte[]> valuesToOverride
 	) {
-		// this file won't be closed so that we don't damage the original input stream (read-handle)
-		final File newFile = newFilePath.toFile();
-		try (
-			final FileOutputStream fileOutputStream = new FileOutputStream(newFile);
-			final ObservableOutput<FileOutputStream> output = new ObservableOutput<>(
-				fileOutputStream,
-				offsetIndex.getStorageOptions().outputBufferSize(),
-				offsetIndex.getStorageOptions().outputBufferSize(),
-				0
-			)
-		) {
-			if (offsetIndex.getStorageOptions().computeCRC32C()) {
-				output.computeCRC32();
-			}
-			final Collection<Entry<RecordKey, FileLocation>> entries = offsetIndex.getEntries();
-			final Collection<VersionedValue> nonFlushedValues = new ArrayList<>(entries.size());
-			final Iterator<Entry<RecordKey, FileLocation>> it = entries.iterator();
-			while (it.hasNext()) {
-				final Entry<RecordKey, FileLocation> entry = it.next();
-				final FileLocation fileLocation = entry.getValue();
+		// we don't close neither input stream nor the output stream
+		// input stream is still used in callee and the output stream is managed by the callee
+		final ObservableOutput<OutputStream> output = new ObservableOutput<>(
+			outputStream,
+			offsetIndex.getStorageOptions().outputBufferSize(),
+			offsetIndex.getStorageOptions().outputBufferSize(),
+			0
+		);
+		if (offsetIndex.getStorageOptions().computeCRC32C()) {
+			output.computeCRC32();
+		}
+		final Collection<Entry<RecordKey, FileLocation>> entries = offsetIndex.getEntries();
+		final Collection<VersionedValue> nonFlushedValues = new ArrayList<>(entries.size());
+		final Iterator<Entry<RecordKey, FileLocation>> it = entries.iterator();
+		while (it.hasNext()) {
+			final Entry<RecordKey, FileLocation> entry = it.next();
+			final FileLocation fileLocation = entry.getValue();
 
-				final StorageRecord<byte[]> theRecord = StorageRecord.read(
-					inputStream,
-					fileLocation,
-					(stream, recordLength) -> stream.readBytes(recordLength - StorageRecord.OVERHEAD_SIZE)
-				);
-
-				final StorageRecord<byte[]> storageRecord = new StorageRecord<>(
-					output, catalogVersion, !it.hasNext(),
-					theOutput -> {
-						theOutput.write(theRecord.payload());
-						return theRecord.payload();
-					}
-				);
-
-				// finally, register non-flushed value
-				final RecordKey key = entry.getKey();
-				nonFlushedValues.add(
-					new VersionedValue(
-						key.primaryKey(), key.recordType(), storageRecord.fileLocation()
-					)
-				);
-			}
-
-			// now serialize the information about the values to the final record of the file and return its location
-			return serialize(
-				output,
-				catalogVersion,
-				nonFlushedValues,
-				null,
-				offsetIndex.getStorageOptions()
+			final StorageRecord<byte[]> theRecord = StorageRecord.read(
+				inputStream,
+				fileLocation,
+				(stream, recordLength) -> stream.readBytes(recordLength - StorageRecord.OVERHEAD_SIZE)
 			);
-		} catch (IOException e) {
-			throw new UnexpectedIOException(
-				"Error occurred while copying the snapshot to the new file: " + e.getMessage(),
-				"Error occurred while copying the snapshot to the new file.",
-				e
+
+			final StorageRecord<byte[]> storageRecord = new StorageRecord<>(
+				output, catalogVersion, !it.hasNext(),
+				theOutput -> {
+					final byte[] payload = valuesToOverride.getOrDefault(entry.getKey(), theRecord.payload());
+					theOutput.write(payload);
+					return payload;
+				}
+			);
+
+			// finally, register non-flushed value
+			final RecordKey key = entry.getKey();
+			nonFlushedValues.add(
+				new VersionedValue(
+					key.primaryKey(), key.recordType(), storageRecord.fileLocation()
+				)
 			);
 		}
+
+		// now serialize the information about the values to the final record of the file and return its location
+		return serialize(
+			output,
+			catalogVersion,
+			nonFlushedValues,
+			null,
+			offsetIndex.getStorageOptions()
+		);
 	}
 
 	/**
 	 * Serializes entire {@link OffsetIndex} to the file. Only active keys are stored to the data file.
 	 */
 	@Nonnull
-	public static FileLocation serialize(
+	public static FileLocationAndWrittenBytes serialize(
 		@Nonnull ObservableOutput<?> output,
 		long catalogVersion,
 		@Nonnull Collection<VersionedValue> nonFlushedEntries,
@@ -301,12 +292,12 @@ public class OffsetIndexSerializationService {
 		// this holds file location pointer to the last stored OffsetIndex fragment and is used to allow single direction pointing
 		final AtomicReference<FileLocation> lastStorageRecordLocation = new AtomicReference<>(lastFileOffsetIndexLocation);
 		final ExpectedCounts fileOffsetIndexRecordCount = computeExpectedRecordCount(storageOptions, nonFlushedEntries.size());
-		for (int i = 0; i < fileOffsetIndexRecordCount.getFragments(); i++) {
+		for (int i = 0; i < fileOffsetIndexRecordCount.fragments; i++) {
 			lastStorageRecordLocation.set(
 				new StorageRecord<>(
 					output,
 					catalogVersion,
-					i + 1 == fileOffsetIndexRecordCount.getFragments(),
+					i + 1 == fileOffsetIndexRecordCount.fragments(),
 					stream -> {
 						final FileLocation lsrl = lastStorageRecordLocation.get();
 						if (lsrl == null) {
@@ -321,7 +312,7 @@ public class OffsetIndexSerializationService {
 						// iterate over entries (iterator is global and continues where last fragment finished)
 						// we need to stop at the point when we know we would not be able to store any more records
 						int cnt = 0;
-						while (entries.hasNext() && cnt++ < fileOffsetIndexRecordCount.getRecordsInFragment()) {
+						while (entries.hasNext() && cnt++ < fileOffsetIndexRecordCount.recordsInFragment()) {
 							final VersionedValue nonFlushedValue = entries.next();
 							stream.writeLong(nonFlushedValue.primaryKey());
 							stream.writeByte(nonFlushedValue.recordType());
@@ -345,7 +336,10 @@ public class OffsetIndexSerializationService {
 		output.flush();
 
 		// return location of the last stored memory fragment file
-		return lastStorageRecordLocation.get();
+		return new FileLocationAndWrittenBytes(
+			lastStorageRecordLocation.get(),
+			output.total()
+		);
 	}
 
 	/**
@@ -426,6 +420,7 @@ public class OffsetIndexSerializationService {
 	/**
 	 * Computes number of records that are required to store OffsetIndex record pointers of specified count.
 	 */
+	@Nonnull
 	static ExpectedCounts computeExpectedRecordCount(@Nonnull StorageOptions storageOptions, int recordCount) {
 		final int maxRecordCountPerStorageRecords = (storageOptions.outputBufferSize() - StorageRecord.getOverheadSize() - PREVIOUS_MEM_TABLE_FRAGMENT_POINTER_SIZE) / MEM_TABLE_RECORD_SIZE;
 		return new ExpectedCounts(
@@ -437,7 +432,7 @@ public class OffsetIndexSerializationService {
 	/**
 	 * Count number of entries left in iterator.
 	 */
-	private static int countEntries(Iterator<VersionedValue> entries) {
+	private static int countEntries(@Nonnull Iterator<VersionedValue> entries) {
 		int cnt = 0;
 		while (entries.hasNext()) {
 			cnt++;
@@ -446,11 +441,28 @@ public class OffsetIndexSerializationService {
 		return cnt;
 	}
 
-	@Data
-	static class ExpectedCounts {
-		private final int fragments;
-		private final int recordsInFragment;
+	/**
+	 * Expected counts of records in the file.
+	 *
+	 * @param fragments         Number of fragments
+	 * @param recordsInFragment Number of records in fragment
+	 */
+	record ExpectedCounts(
+		int fragments,
+		int recordsInFragment
+	) {
+	}
 
+	/**
+	 * File location and written bytes.
+	 *
+	 * @param fileLocation file location of the last memory fragment written
+	 * @param writtenBytes number of total bytes written
+	 */
+	public record FileLocationAndWrittenBytes(
+		@Nonnull FileLocation fileLocation,
+		long writtenBytes
+	) {
 	}
 
 }

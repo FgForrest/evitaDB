@@ -58,8 +58,12 @@ import lombok.extern.slf4j.Slf4j;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
+import java.io.ByteArrayOutputStream;
 import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.RandomAccessFile;
 import java.io.Serializable;
 import java.nio.file.Path;
@@ -638,15 +642,19 @@ public class OffsetIndex {
 	}
 
 	/**
-	 * Copies entire living data set to the target file. The file must exist and must be prepared for re-writing.
-	 * File must not be used by any other process.
+	 * Copies entire living data set to the target output stream. The output stream is not closed in the method,
+	 * the caller is responsible for closing the stream.
 	 *
-	 * @param newFilePath    target file
+	 * @param outputStream target output stream to write the copy to
 	 * @param catalogVersion will be propagated to {@link StorageRecord#transactionId()}
-	 * @return length of the copied data
+	 * @return result containing the file location and the file descriptor actual when the copy was made
 	 */
 	@Nonnull
-	public OffsetIndexDescriptor copySnapshotTo(@Nonnull Path newFilePath, long catalogVersion) {
+	public OffsetIndexDescriptor copySnapshotTo(
+		@Nonnull OutputStream outputStream,
+		long catalogVersion,
+		@Nullable StoragePart... updatedStorageParts
+	) {
 		// flush all non-flushed values to the disk
 		this.doSoftFlush();
 		// copy the active parts to a new file
@@ -661,25 +669,67 @@ public class OffsetIndex {
 							Assert.isTrue(inputStream.getInputStream() instanceof RandomAccessFileInputStream, "Input stream must be RandomAccessFileInputStream!");
 							@SuppressWarnings("unchecked") final ObservableInput<RandomAccessFileInputStream> randomAccessFileInputStream =
 								(ObservableInput<RandomAccessFileInputStream>) inputStream;
-							final FileLocation fileLocation = OffsetIndexSerializationService.copySnapshotTo(
+							final Map<RecordKey, byte[]> overriddenEntries;
+							if (updatedStorageParts != null && updatedStorageParts.length > 0) {
+								overriddenEntries = CollectionUtils.createHashMap(updatedStorageParts.length);
+								final ByteArrayOutputStream baos = new ByteArrayOutputStream(storageOptions.outputBufferSize());
+								final ObservableOutput<ByteArrayOutputStream> observableOutput = new ObservableOutput<>(
+									baos, storageOptions.outputBufferSize(), 0
+								);
+								for (StoragePart value : updatedStorageParts) {
+									final RecordKey recordKey = new RecordKey(
+										recordTypeRegistry.idFor(value.getClass()),
+										ofNullable(value.getStoragePartPK())
+											.orElseGet(() -> value.computeUniquePartIdAndSet(fileOffsetDescriptor.getWriteKeyCompressor()))
+									);
+									baos.reset();
+									observableOutput.reset();
+									serializeValue(value, observableOutput);
+									observableOutput.flush();
+									overriddenEntries.put(recordKey, baos.toByteArray());
+								}
+							} else {
+								overriddenEntries = Collections.emptyMap();
+							}
+							final FileLocationAndWrittenBytes locationAndWrittenBytes = OffsetIndexSerializationService.copySnapshotTo(
 								this,
 								randomAccessFileInputStream,
-								catalogVersion,
-								newFilePath
+								outputStream, catalogVersion,
+								overriddenEntries
 							);
-							final long fileSize = newFilePath.toFile().length();
 							return new OffsetIndexDescriptor(
 								this.fileOffsetDescriptor.version() + 1,
-								fileLocation,
+								locationAndWrittenBytes.fileLocation(),
 								this.getCompressedKeys(),
 								this.fileOffsetDescriptor.getKryoFactory(),
-								getActiveRecordShare(fileSize),
-								fileSize
+								1,
+								locationAndWrittenBytes.writtenBytes()
 							);
 						}
 					)
 				)
 			)
+		);
+	}
+
+	/**
+	 * Method serializes single {@link StoragePart} to an observable output stream. The value is not wrapped into
+	 * a {@link StorageRecord} and is written in a bare form, so that it could be wrapped in {@link StorageRecord}
+	 * later on.
+	 *
+	 * @param value value to be serialized
+	 * @param observableOutput target output stream
+	 */
+	private void serializeValue(
+		@Nonnull StoragePart value,
+		@Nonnull ObservableOutput<? extends OutputStream> observableOutput
+	) {
+		// we cant write new values into the kryo here, because we write to snapshot file
+		this.readKryoPool.borrowAndExecute(
+			kryo -> {
+				kryo.writeObject(observableOutput, value);
+				return null;
+			}
 		);
 	}
 
@@ -803,7 +853,15 @@ public class OffsetIndex {
 	 */
 	@Nonnull
 	public OffsetIndexDescriptor compact(@Nonnull Path newFilePath) {
-		return copySnapshotTo(newFilePath, this.keyCatalogVersion);
+		try (final FileOutputStream fos = new FileOutputStream(newFilePath.toFile())) {
+			return copySnapshotTo(fos, this.keyCatalogVersion);
+		} catch (IOException e) {
+			throw new UnexpectedIOException(
+				"Error occurred while compacting the snapshot to the new file: " + e.getMessage(),
+				"Error occurred while compacting the snapshot to the new file.",
+				e
+			);
+		}
 	}
 
 	/**
@@ -905,7 +963,7 @@ public class OffsetIndex {
 							valuesToPromote,
 							this.getFileOffsetIndexLocation(),
 							this.getStorageOptions()
-						)
+						).fileLocation()
 					);
 				},
 				(outputStream, nonFlushedValuesWithFileLocation) -> {

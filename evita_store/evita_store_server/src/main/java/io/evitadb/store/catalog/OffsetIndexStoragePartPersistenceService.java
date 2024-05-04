@@ -41,7 +41,7 @@ import io.evitadb.store.wal.TransactionalStoragePartPersistenceService;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.nio.file.Path;
+import java.io.OutputStream;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.function.Function;
@@ -254,9 +254,12 @@ public class OffsetIndexStoragePartPersistenceService implements StoragePartPers
 
 	@Nonnull
 	@Override
-	public OffsetIndexDescriptor copySnapshotTo(@Nonnull Path newFilePath, long catalogVersion) {
+	public OffsetIndexDescriptor copySnapshotTo(
+		long catalogVersion, @Nonnull OutputStream outputStream,
+		@Nullable StoragePart... updatedStorageParts
+	) {
 		if (offsetIndex.isOperative()) {
-			return this.offsetIndex.copySnapshotTo(newFilePath, catalogVersion);
+			return this.offsetIndex.copySnapshotTo(outputStream, catalogVersion, updatedStorageParts);
 		} else {
 			throw new PersistenceServiceClosed();
 		}

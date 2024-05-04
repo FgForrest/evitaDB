@@ -34,10 +34,13 @@ import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutat
 import io.evitadb.api.requestResponse.system.SystemStatus;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.exception.UnexpectedIOException;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -317,6 +320,24 @@ public interface EvitaContract extends AutoCloseable {
 			}
 		}
 	}
+
+	/**
+	 * Creates a backup of the specified catalog and returns an InputStream to read the binary data of the zip file.
+	 *
+	 * @param catalogName the name of the catalog to backup
+	 * @param outputStream an OutputStream to write the binary data of the zip file
+	 * @throws UnexpectedIOException if an I/O error occurs during reading the catalog contents
+	 */
+	void backupCatalog(@Nonnull String catalogName, @Nonnull OutputStream outputStream) throws UnexpectedIOException;
+
+	/**
+	 * Restores a catalog from the provided InputStream which contains the binary data of a previously backed up zip file.
+	 *
+	 * @param catalogName the name of the catalog to restore
+	 * @param inputStream an InputStream to read the binary data of the zip file
+	 * @throws UnexpectedIOException if an I/O error occurs
+	 */
+	void restoreCatalog(@Nonnull String catalogName, @Nonnull InputStream inputStream) throws UnexpectedIOException;
 
 	/**
 	 * Overloaded method {@link #updateCatalogAsync(String, Function, CommitBehavior, SessionFlags...)} that returns

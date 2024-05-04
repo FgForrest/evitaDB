@@ -27,8 +27,11 @@ import io.evitadb.api.CatalogContract;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.scheduling.Scheduler;
+import io.evitadb.store.exception.InvalidStoragePathException;
+import io.evitadb.store.spi.exception.DirectoryNotEmptyException;
 
 import javax.annotation.Nonnull;
+import java.io.InputStream;
 import java.nio.file.Path;
 
 /**
@@ -76,10 +79,27 @@ public interface CatalogPersistenceServiceFactory {
 	CatalogPersistenceService load(
 		@Nonnull CatalogContract catalogInstance,
 		@Nonnull String catalogName,
-		@Nonnull Path catalogStoragePath,
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull TransactionOptions transactionOptions,
 		@Nonnull Scheduler scheduler
 	);
+
+	/**
+	 * Checks whether it's possible to create catalog of particular name in the storage directory.
+	 *
+	 * @param catalogName name of the catalog
+	 * @param storageOptions storage options
+	 * @param inputStream input stream with the catalog data
+	 * @return normalized name of the catalog to be created in storage directory
+	 *
+	 * @throws DirectoryNotEmptyException if the directory is not empty
+	 * @throws InvalidStoragePathException if the storage path is invalid
+	 */
+	@Nonnull
+	Path restoreCatalogTo(
+		@Nonnull String catalogName,
+		@Nonnull StorageOptions storageOptions,
+		@Nonnull InputStream inputStream
+	) throws DirectoryNotEmptyException, InvalidStoragePathException;
 
 }

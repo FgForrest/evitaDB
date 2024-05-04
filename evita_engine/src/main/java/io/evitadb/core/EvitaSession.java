@@ -78,6 +78,7 @@ import io.evitadb.core.exception.CatalogCorruptedException;
 import io.evitadb.core.transaction.TransactionWalFinalizer;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ReflectionLookup;
@@ -89,6 +90,7 @@ import lombok.extern.slf4j.Slf4j;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
+import java.io.OutputStream;
 import java.io.Serializable;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
@@ -1019,6 +1021,11 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 				.getOrCreateCollectionForEntity(request.getEntityTypeOrThrowException("entities to be deleted"), session);
 			return collection.deleteEntitiesAndReturnThem(request, session);
 		});
+	}
+
+	@Override
+	public void backupCatalog(@Nonnull OutputStream outputStream) throws UnexpectedIOException {
+		getCatalog().backup(outputStream);
 	}
 
 	@Nonnull
