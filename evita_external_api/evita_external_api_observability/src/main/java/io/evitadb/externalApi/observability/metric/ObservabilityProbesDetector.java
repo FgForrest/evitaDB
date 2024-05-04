@@ -138,7 +138,7 @@ public class ObservabilityProbesDetector implements ProbesProvider {
 		final Readiness readiness = this.lastReadinessSeen.get();
 		return new HealthProblemCheckResult(
 			HealthProblem.EXTERNAL_API_UNAVAILABLE,
-			readines == null || readiness.state() != ReadinessState.READY
+			readiness == null || readiness.state() != ReadinessState.READY
 		);
 	}
 
