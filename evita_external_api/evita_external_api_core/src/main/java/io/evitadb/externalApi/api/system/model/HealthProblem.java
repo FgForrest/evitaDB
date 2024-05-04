@@ -32,23 +32,21 @@ public enum HealthProblem {
 
 	/**
 	 * Signalized when the consumed memory never goes below 85% of the maximum heap size and the GC tries to free
-	 * old generation multiple times consuming a log of CPU power.
+	 * old generation at least once (this situation usually leads to repeated attempts of expensive old generation GC
+	 * and pressure on system CPUs).
 	 */
 	MEMORY_SHORTAGE,
 	/**
-	 * Signalized when the input queues are full and the server is not able to process incoming requests. This flag
-	 * is cleared when the server is able to process incoming requests again.
+	 * Signalized when the input queues are full and the server is not able to process incoming requests. The problem
+	 * is reported when there is ration of rejected tasks to accepted tasks >= 2. This flag is cleared when the rejection
+	 * ratio decreases below the specified threshold, which signalizes that server is able to process incoming requests
+	 * again.
 	 */
 	INPUT_QUEUES_OVERLOADED,
 	/**
 	 * Signaled when there are occurrences of Java internal errors. These errors are usually caused by the server
-	 * itself and are not related to the client's requests.
+	 * itself and are not related to the client's requests. Java errors signal fatal problems inside the JVM.
 	 */
-	JAVA_INTERNAL_ERRORS,
-	/**
-	 * Signaled when there are occurrences of database internal errors. These errors are usually caused by the server
-	 * itself and are not related to the client's requests.
-	 */
-	EVITA_DB_INTERNAL_ERRORS
+	JAVA_INTERNAL_ERRORS
 
 }

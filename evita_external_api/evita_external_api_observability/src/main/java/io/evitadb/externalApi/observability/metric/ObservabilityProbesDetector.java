@@ -89,9 +89,9 @@ public class ObservabilityProbesDetector implements ProbesProvider {
 			// if the ratio of rejected task to submitted tasks is greater than 2, we could consider queues as overloaded
 			if ((rejectedTaskCount - lastSeenRejectedTaskCount) / (Math.max(submittedTaskCount - lastSeenSubmittedTaskCount, 1)) > 2) {
 				healthProblems.add(HealthProblem.INPUT_QUEUES_OVERLOADED);
-				theObservabilityManager.ifPresent(it -> it.recordHealthProblem(HealthProblem.INPUT_QUEUES_OVERLOADED));
+				theObservabilityManager.ifPresent(it -> it.recordHealthProblem(HealthProblem.INPUT_QUEUES_OVERLOADED.name()));
 			} else {
-				theObservabilityManager.ifPresent(it -> it.clearHealthProblem(HealthProblem.INPUT_QUEUES_OVERLOADED));
+				theObservabilityManager.ifPresent(it -> it.clearHealthProblem(HealthProblem.INPUT_QUEUES_OVERLOADED.name()));
 			}
 			this.lastSeenRejectedTaskCount = rejectedTaskCount;
 			this.lastSeenSubmittedTaskCount = submittedTaskCount;
@@ -103,9 +103,9 @@ public class ObservabilityProbesDetector implements ProbesProvider {
 			.orElse(0L);
 		if (javaErrorCount > this.lastSeenJavaErrorCount) {
 			healthProblems.add(HealthProblem.JAVA_INTERNAL_ERRORS);
-			theObservabilityManager.ifPresent(it -> it.recordHealthProblem(HealthProblem.JAVA_INTERNAL_ERRORS));
+			theObservabilityManager.ifPresent(it -> it.recordHealthProblem(HealthProblem.JAVA_INTERNAL_ERRORS.name()));
 		} else {
-			theObservabilityManager.ifPresent(it -> it.clearHealthProblem(HealthProblem.JAVA_INTERNAL_ERRORS));
+			theObservabilityManager.ifPresent(it -> it.clearHealthProblem(HealthProblem.JAVA_INTERNAL_ERRORS.name()));
 		}
 		this.lastSeenJavaErrorCount = javaErrorCount;
 
@@ -114,10 +114,9 @@ public class ObservabilityProbesDetector implements ProbesProvider {
 			.map(ObservabilityManager::getEvitaErrorCount)
 			.orElse(0L);
 		if (evitaErrorCount > this.lastSeenEvitaErrorCount) {
-			healthProblems.add(HealthProblem.EVITA_DB_INTERNAL_ERRORS);
-			theObservabilityManager.ifPresent(it -> it.recordHealthProblem(HealthProblem.EVITA_DB_INTERNAL_ERRORS));
+			theObservabilityManager.ifPresent(it -> it.recordHealthProblem("EVITA_DB_INTERNAL_ERRORS"));
 		} else {
-			theObservabilityManager.ifPresent(it -> it.clearHealthProblem(HealthProblem.EVITA_DB_INTERNAL_ERRORS));
+			theObservabilityManager.ifPresent(it -> it.clearHealthProblem("EVITA_DB_INTERNAL_ERRORS"));
 		}
 		this.lastSeenEvitaErrorCount = evitaErrorCount;
 
@@ -130,9 +129,9 @@ public class ObservabilityProbesDetector implements ProbesProvider {
 		final long oldGenerationCollectionCount = garbageCollectorMXBeans.stream().mapToLong(GarbageCollectorMXBean::getCollectionCount).sum();
 		if (usedMemory > 0.9f && (javaOOMErrorCount > this.lastSeenJavaOOMErrorCount || oldGenerationCollectionCount > this.lastSeenJavaGarbageCollections)) {
 			healthProblems.add(HealthProblem.MEMORY_SHORTAGE);
-			theObservabilityManager.ifPresent(it -> it.recordHealthProblem(HealthProblem.MEMORY_SHORTAGE));
+			theObservabilityManager.ifPresent(it -> it.recordHealthProblem(HealthProblem.MEMORY_SHORTAGE.name()));
 		} else {
-			theObservabilityManager.ifPresent(it -> it.clearHealthProblem(HealthProblem.MEMORY_SHORTAGE));
+			theObservabilityManager.ifPresent(it -> it.clearHealthProblem(HealthProblem.MEMORY_SHORTAGE.name()));
 		}
 		this.lastSeenJavaOOMErrorCount = javaOOMErrorCount;
 		this.lastSeenJavaGarbageCollections = oldGenerationCollectionCount;

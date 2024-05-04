@@ -28,7 +28,6 @@ import io.evitadb.core.Evita;
 import io.evitadb.core.metric.event.CustomMetricsExecutionEvent;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.UnexpectedIOException;
-import io.evitadb.externalApi.api.system.model.HealthProblem;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.http.CorsFilter;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
@@ -251,16 +250,16 @@ public class ObservabilityManager {
 	 * Records health problem to the Prometheus metrics.
 	 * @param healthProblem the health problem to be recorded
 	 */
-	public void recordHealthProblem(@Nonnull HealthProblem healthProblem) {
-		MetricHandler.HEALTH_PROBLEMS.labelValues(healthProblem.name()).set(1);
+	public void recordHealthProblem(@Nonnull String healthProblem) {
+		MetricHandler.HEALTH_PROBLEMS.labelValues(healthProblem).set(1);
 	}
 
 	/**
 	 * Clears health problem from the Prometheus metrics.
 	 * @param healthProblem the health problem to be cleared
 	 */
-	public void clearHealthProblem(@Nonnull HealthProblem healthProblem) {
-		MetricHandler.HEALTH_PROBLEMS.labelValues(healthProblem.name()).set(0);
+	public void clearHealthProblem(@Nonnull String healthProblem) {
+		MetricHandler.HEALTH_PROBLEMS.labelValues(healthProblem).set(0);
 	}
 
 	/**
