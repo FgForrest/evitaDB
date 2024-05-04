@@ -120,11 +120,13 @@ Both probes are available in the `system` API and are accessible at the followin
 
 ### Readiness probe
 
-<pre>curl -k "http://localhost:5557/system/readiness" \
+```shell
+curl -k "http://localhost:5557/system/readiness" \
      -H 'Content-Type: application/json'
-</pre>
+```
 
 The probe will return `200 OK` if the server is ready to accept traffic, otherwise it will return `503 Service Unavailable`.
+Probe internally calls all enabled APIs via HTTP call on the server side to check if they are ready to serve traffic. 
 Example response:
 
 ```json
@@ -159,9 +161,10 @@ or `STALLING` status.
 
 ### Liveness probe
 
-<pre>curl -k "http://localhost:5557/system/liveness" \
+```shell
+curl -k "http://localhost:5557/system/liveness" \
      -H 'Content-Type: application/json'
-</pre>
+```
 
 If the server is healthy, the probe will return `200 OK`. Otherwise, it will return `503 Service Unavailable`.
 Example response:
