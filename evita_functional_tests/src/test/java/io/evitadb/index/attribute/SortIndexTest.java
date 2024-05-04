@@ -27,7 +27,6 @@ import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
-import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.attribute.SortIndex.ComparableArray;
 import io.evitadb.index.attribute.SortIndex.ComparatorSource;
 import io.evitadb.index.bitmap.BaseBitmap;
@@ -109,7 +108,7 @@ class SortIndexTest implements TimeBoundedTestSupport {
 	void shouldReturnCorrectBitmapForCardinalityOneAndCompoundIndex() {
 		final SortIndex sortIndex = createCompoundIndexWithBaseCardinalities();
 		assertEquals(new BaseBitmap(9), sortIndex.getRecordsEqualTo(new Object[]{"E", null}));
-		assertThrows(EvitaInvalidUsageException.class, () -> sortIndex.getRecordsEqualTo(new Object[]{"E", 1}));
+		assertTrue(sortIndex.getRecordsEqualTo(new Object[]{"E", 1}).isEmpty());
 	}
 
 	@Test

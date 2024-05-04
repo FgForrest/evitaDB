@@ -43,6 +43,7 @@ import io.evitadb.index.array.TransactionalUnorderedIntArray;
 import io.evitadb.index.attribute.SortIndexChanges.ValueStartIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.store.model.StoragePart;
@@ -485,13 +486,12 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 		final Object normalizedValue = normalizer.apply(value);
 		@SuppressWarnings("unchecked") final TransactionalObjArray<T> theSortedRecordsValues = (TransactionalObjArray<T>) this.sortedRecordsValues;
 		@SuppressWarnings("unchecked") final int index = theSortedRecordsValues.indexOf((T) normalizedValue);
-		isTrue(
-			index >= 0,
-			"Value `" + value + "` is not present in the sort index!"
-		);
-
-		//noinspection unchecked
-		return getRecordsEqualToInternal((T) normalizedValue);
+		if (index >= 0) {
+			//noinspection unchecked
+			return getRecordsEqualToInternal((T) normalizedValue);
+		} else {
+			return EmptyBitmap.INSTANCE;
+		}
 	}
 
 	/**
@@ -502,12 +502,11 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 		final ComparableArray normalizedValue = new ComparableArray(this.comparatorBase, (Object[]) normalizer.apply(value));
 		@SuppressWarnings("unchecked") final TransactionalObjArray<ComparableArray> theSortedRecordsValues = (TransactionalObjArray<ComparableArray>) this.sortedRecordsValues;
 		final int index = theSortedRecordsValues.indexOf(normalizedValue);
-		isTrue(
-			index >= 0,
-			"Value `" + Arrays.toString(value) + "` is not present in the sort index!"
-		);
-
-		return getRecordsEqualToInternal(normalizedValue);
+		if (index >= 0) {
+			return getRecordsEqualToInternal(normalizedValue);
+		} else {
+			return EmptyBitmap.INSTANCE;
+		}
 	}
 
 	/**
