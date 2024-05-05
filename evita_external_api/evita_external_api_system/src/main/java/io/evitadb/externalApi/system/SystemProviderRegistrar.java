@@ -55,9 +55,11 @@ import java.io.File;
 import java.io.IOException;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.ServiceLoader;
+import java.util.ServiceLoader.Provider;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -221,13 +223,17 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 			}
 		);
 
+		final List<ProbesProvider> probes = ServiceLoader.load(ProbesProvider.class)
+			.stream()
+			.map(Provider::get)
+			.toList();
 		router.addExactPath(
 			"/" + ENDPOINT_SYSTEM_LIVENESS,
 			exchange -> {
 				exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, "application/json");
-				final Set<HealthProblem> healthProblems = ServiceLoader.load(ProbesProvider.class)
+				final Set<HealthProblem> healthProblems = probes
 					.stream()
-					.flatMap(it -> it.get().getHealthProblems(evita, externalApiServer).stream())
+					.flatMap(it -> it.getHealthProblems(evita, externalApiServer).stream())
 					.collect(Collectors.toSet());
 
 				if (healthProblems.isEmpty()) {
@@ -253,9 +259,9 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 			exchange -> {
 				exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, "application/json");
 				if (evita.isActive()) {
-					final Optional<Readiness> readiness = ServiceLoader.load(ProbesProvider.class)
+					final Optional<Readiness> readiness = probes
 						.stream()
-						.map(it -> it.get().getReadiness(evita, externalApiServer, enabledEndPoints))
+						.map(it -> it.getReadiness(evita, externalApiServer, enabledEndPoints))
 						.findFirst();
 
 					if (readiness.map(it -> it.state() == ReadinessState.READY).orElse(false)) {
