@@ -350,6 +350,37 @@ public final class EvitaServiceGrpc {
     return getReplaceCatalogMethod;
   }
 
+  private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogRequest,
+      io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogResponse> getRestoreCatalogMethod;
+
+  @io.grpc.stub.annotations.RpcMethod(
+      fullMethodName = SERVICE_NAME + '/' + "RestoreCatalog",
+      requestType = io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogRequest.class,
+      responseType = io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogResponse.class,
+      methodType = io.grpc.MethodDescriptor.MethodType.CLIENT_STREAMING)
+  public static io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogRequest,
+      io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogResponse> getRestoreCatalogMethod() {
+    io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogRequest, io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogResponse> getRestoreCatalogMethod;
+    if ((getRestoreCatalogMethod = EvitaServiceGrpc.getRestoreCatalogMethod) == null) {
+      synchronized (EvitaServiceGrpc.class) {
+        if ((getRestoreCatalogMethod = EvitaServiceGrpc.getRestoreCatalogMethod) == null) {
+          EvitaServiceGrpc.getRestoreCatalogMethod = getRestoreCatalogMethod =
+              io.grpc.MethodDescriptor.<io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogRequest, io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogResponse>newBuilder()
+              .setType(io.grpc.MethodDescriptor.MethodType.CLIENT_STREAMING)
+              .setFullMethodName(generateFullMethodName(SERVICE_NAME, "RestoreCatalog"))
+              .setSampledToLocalTracing(true)
+              .setRequestMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogRequest.getDefaultInstance()))
+              .setResponseMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogResponse.getDefaultInstance()))
+              .setSchemaDescriptor(new EvitaServiceMethodDescriptorSupplier("RestoreCatalog"))
+              .build();
+        }
+      }
+    }
+    return getRestoreCatalogMethod;
+  }
+
   private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcDeleteCatalogIfExistsRequest,
       io.evitadb.externalApi.grpc.generated.GrpcDeleteCatalogIfExistsResponse> getDeleteCatalogIfExistsMethod;
 
@@ -566,6 +597,16 @@ public final class EvitaServiceGrpc {
 
     /**
      * <pre>
+     * Procedure used to restore a catalog from backup.
+     * </pre>
+     */
+    public io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogRequest> restoreCatalog(
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogResponse> responseObserver) {
+      return io.grpc.stub.ServerCalls.asyncUnimplementedStreamingCall(getRestoreCatalogMethod(), responseObserver);
+    }
+
+    /**
+     * <pre>
      * Procedure used to delete an existing catalog.
      * </pre>
      */
@@ -656,6 +697,13 @@ public final class EvitaServiceGrpc {
                 io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogRequest,
                 io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogResponse>(
                   this, METHODID_REPLACE_CATALOG)))
+          .addMethod(
+            getRestoreCatalogMethod(),
+            io.grpc.stub.ServerCalls.asyncClientStreamingCall(
+              new MethodHandlers<
+                io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogRequest,
+                io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogResponse>(
+                  this, METHODID_RESTORE_CATALOG)))
           .addMethod(
             getDeleteCatalogIfExistsMethod(),
             io.grpc.stub.ServerCalls.asyncUnaryCall(
@@ -800,6 +848,17 @@ public final class EvitaServiceGrpc {
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogResponse> responseObserver) {
       io.grpc.stub.ClientCalls.asyncUnaryCall(
           getChannel().newCall(getReplaceCatalogMethod(), getCallOptions()), request, responseObserver);
+    }
+
+    /**
+     * <pre>
+     * Procedure used to restore a catalog from backup.
+     * </pre>
+     */
+    public io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogRequest> restoreCatalog(
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogResponse> responseObserver) {
+      return io.grpc.stub.ClientCalls.asyncClientStreamingCall(
+          getChannel().newCall(getRestoreCatalogMethod(), getCallOptions()), responseObserver);
     }
 
     /**
@@ -1127,6 +1186,7 @@ public final class EvitaServiceGrpc {
   private static final int METHODID_REPLACE_CATALOG = 9;
   private static final int METHODID_DELETE_CATALOG_IF_EXISTS = 10;
   private static final int METHODID_UPDATE = 11;
+  private static final int METHODID_RESTORE_CATALOG = 12;
 
   private static final class MethodHandlers<Req, Resp> implements
       io.grpc.stub.ServerCalls.UnaryMethod<Req, Resp>,
@@ -1203,6 +1263,9 @@ public final class EvitaServiceGrpc {
     public io.grpc.stub.StreamObserver<Req> invoke(
         io.grpc.stub.StreamObserver<Resp> responseObserver) {
       switch (methodId) {
+        case METHODID_RESTORE_CATALOG:
+          return (io.grpc.stub.StreamObserver<Req>) serviceImpl.restoreCatalog(
+              (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogResponse>) responseObserver);
         default:
           throw new AssertionError();
       }
@@ -1264,6 +1327,7 @@ public final class EvitaServiceGrpc {
               .addMethod(getDefineCatalogMethod())
               .addMethod(getRenameCatalogMethod())
               .addMethod(getReplaceCatalogMethod())
+              .addMethod(getRestoreCatalogMethod())
               .addMethod(getDeleteCatalogIfExistsMethod())
               .addMethod(getUpdateMethod())
               .build();

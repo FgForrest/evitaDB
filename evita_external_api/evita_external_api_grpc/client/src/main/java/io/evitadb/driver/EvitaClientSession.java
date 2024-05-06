@@ -1260,7 +1260,58 @@ public class EvitaClientSession implements EvitaSessionContract {
 
 	@Override
 	public void backupCatalog(@Nonnull OutputStream outputStream) throws UnexpectedIOException {
-		/* TODO JNO - Implement me */
+		assertActive();
+		final CompletableFuture<Void> result = new CompletableFuture<>();
+		executeWithAsyncEvitaSessionService(
+			evitaSessionService -> {
+				evitaSessionService.backupCatalog(
+					Empty.newBuilder().build(),
+					new StreamObserver<>() {
+						@Override
+						public void onNext(GrpcBackupCatalogResponse grpcBackupCatalogResponse) {
+							try {
+								grpcBackupCatalogResponse.getBackupFile().writeTo(outputStream);
+							} catch (Exception ex) {
+								result.completeExceptionally(
+									new UnexpectedIOException(
+										"Unexpected exception occurred while backing up the catalog: " + ex.getMessage(),
+										"Unexpected exception occurred while backing up the catalog!",
+										ex
+									)
+								);
+							}
+						}
+
+						@Override
+						public void onError(Throwable throwable) {
+							result.completeExceptionally(
+								new UnexpectedIOException(
+									"Unexpected exception occurred while backing up the catalog: " + throwable.getMessage(),
+									"Unexpected exception occurred while backing up the catalog!",
+									throwable
+								)
+							);
+						}
+
+						@Override
+						public void onCompleted() {
+							result.complete(null);
+						}
+					}
+				);
+				return null;
+			}
+		);
+		// wait for result and rethrow original exception if available
+		try {
+			result.join();
+		} catch (RuntimeException ex) {
+			if (ex.getCause() instanceof RuntimeException runtimeException) {
+				throw runtimeException;
+			} else {
+				throw ex;
+			}
+		}
 	}
 
 	@Nonnull

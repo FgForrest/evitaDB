@@ -23,6 +23,7 @@
 
 package io.evitadb.driver;
 
+import com.google.protobuf.ByteString;
 import com.google.protobuf.Empty;
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.EvitaSessionContract;
@@ -53,6 +54,7 @@ import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc.EvitaServiceFutureStub;
+import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc.EvitaServiceStub;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingTopLevelCatalogSchemaMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.SchemaMutationConverter;
@@ -67,14 +69,17 @@ import io.grpc.ManagedChannel;
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 import io.grpc.netty.NettyChannelBuilder;
+import io.grpc.stub.StreamObserver;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
@@ -90,6 +95,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -154,6 +160,18 @@ public class EvitaClient implements EvitaContract {
 	 * Client call timeout.
 	 */
 	private final ThreadLocal<LinkedList<Timeout>> timeout;
+
+	@Nonnull
+	private static ClientTracingContext getClientTracingContext(@Nonnull EvitaClientConfiguration configuration) {
+		final ClientTracingContext context = ClientTracingContextProvider.getContext();
+		final Object openTelemetryInstance = configuration.openTelemetryInstance();
+		if (openTelemetryInstance != null && context instanceof DefaultClientTracingContext) {
+			throw new EvitaInvalidUsageException(
+				"OpenTelemetry instance is set, but tracing context is not configured!"
+			);
+		}
+		return context;
+	}
 
 	public EvitaClient(@Nonnull EvitaClientConfiguration configuration) {
 		this(configuration, null);
@@ -262,31 +280,9 @@ public class EvitaClient implements EvitaContract {
 		}
 	}
 
-	@Nonnull
-	private static ClientTracingContext getClientTracingContext(@Nonnull EvitaClientConfiguration configuration) {
-		final ClientTracingContext context = ClientTracingContextProvider.getContext();
-		final Object openTelemetryInstance = configuration.openTelemetryInstance();
-		if (openTelemetryInstance != null && context instanceof DefaultClientTracingContext) {
-			throw new EvitaInvalidUsageException(
-				"OpenTelemetry instance is set, but tracing context is not configured!"
-			);
-		}
-		return context;
-	}
-
 	@Override
 	public boolean isActive() {
 		return active.get();
-	}
-
-	/**
-	 * Retrieves the version number of the evitaDB client.
-	 *
-	 * @return The version number as a string.
-	 */
-	@Nonnull
-	public String getVersion() {
-		return VersionUtils.readVersion();
 	}
 
 	@Nonnull
@@ -591,6 +587,92 @@ public class EvitaClient implements EvitaContract {
 	}
 
 	@Override
+	public void backupCatalog(@Nonnull String catalogName, @Nonnull OutputStream outputStream) throws UnexpectedIOException {
+		assertActive();
+		try (final EvitaSessionContract session = this.createReadOnlySession(catalogName)) {
+			session.backupCatalog(outputStream);
+		}
+	}
+
+	@Override
+	public void restoreCatalog(@Nonnull String catalogName, @Nonnull InputStream inputStream) throws UnexpectedIOException {
+		assertActive();
+
+		executeWithAsyncEvitaService(
+			evitaService -> {
+				final CompletableFuture<Void> result = new CompletableFuture<>();
+				final AtomicLong bytesSent = new AtomicLong(0);
+				final StreamObserver<GrpcRestoreCatalogRequest> requestObserver = evitaService.restoreCatalog(
+					new StreamObserver<>() {
+						final AtomicLong bytesReceived = new AtomicLong(0);
+
+						@Override
+						public void onNext(GrpcRestoreCatalogResponse value) {
+							bytesReceived.accumulateAndGet(value.getRead(), Math::max);
+						}
+
+						@Override
+						public void onError(Throwable t) {
+							log.error("Error occurred during catalog restoration: {}", t.getMessage(), t);
+							result.completeExceptionally(t);
+						}
+
+						@Override
+						public void onCompleted() {
+							if (bytesSent.get() == bytesReceived.get()) {
+								result.complete(null);
+							} else {
+								result.completeExceptionally(
+									new UnexpectedIOException(
+										"Number of bytes sent and received during catalog restoration does not match (sent " + bytesSent.get() + ", received " + bytesReceived.get() + ")!",
+										"Number of bytes sent and received during catalog restoration does not match!"
+									)
+								);
+							}
+						}
+					}
+				);
+
+				// Send data in chunks
+				final ByteBuffer buffer = ByteBuffer.allocate(65_536);
+				try (inputStream) {
+					while (inputStream.available() > 0) {
+						final int read = inputStream.read(buffer.array());
+						if (read == -1) {
+							requestObserver.onCompleted();
+						}
+						buffer.limit(read);
+						requestObserver.onNext(
+							GrpcRestoreCatalogRequest.newBuilder()
+								.setCatalogName(catalogName)
+								.setBackupFile(ByteString.copyFrom(buffer))
+								.build()
+						);
+						buffer.clear();
+						bytesSent.addAndGet(read);
+					}
+
+					requestObserver.onCompleted();
+				} catch (IOException e) {
+					requestObserver.onError(e);
+					throw new RuntimeException(e);
+				}
+
+				// wait for result and rethrow original exception if available
+				try {
+					return result.join();
+				} catch (RuntimeException ex) {
+					if (ex.getCause() instanceof RuntimeException runtimeException) {
+						throw runtimeException;
+					} else {
+						throw ex;
+					}
+				}
+			}
+		);
+	}
+
+	@Override
 	public CompletableFuture<Long> updateCatalogAsync(
 		@Nonnull String catalogName,
 		@Nonnull Consumer<EvitaSessionContract> updater,
@@ -616,16 +698,6 @@ public class EvitaClient implements EvitaContract {
 		return closeFuture;
 	}
 
-	@Override
-	public void backupCatalog(@Nonnull String catalogName, @Nonnull OutputStream outputStream) throws UnexpectedIOException {
-		/* TODO JNO - implement me */
-	}
-
-	@Override
-	public void restoreCatalog(@Nonnull String catalogName, @Nonnull InputStream inputStream) throws UnexpectedIOException {
-		/* TODO JNO - implement me */
-	}
-
 	@Nonnull
 	@Override
 	public SystemStatus getSystemStatus() {
@@ -648,6 +720,16 @@ public class EvitaClient implements EvitaContract {
 		);
 	}
 
+	/**
+	 * Retrieves the version number of the evitaDB client.
+	 *
+	 * @return The version number as a string.
+	 */
+	@Nonnull
+	public String getVersion() {
+		return VersionUtils.readVersion();
+	}
+
 	@Override
 	public void close() {
 		if (active.compareAndSet(true, false)) {
@@ -662,9 +744,9 @@ public class EvitaClient implements EvitaContract {
 	 * Method executes lambda using specified timeout for the call ignoring the defaults specified
 	 * in {@link EvitaClientConfiguration#timeout()}.
 	 *
-	 * @param lambda logic to be executed
+	 * @param lambda  logic to be executed
 	 * @param timeout timeout value
-	 * @param unit   time unit of the timeout
+	 * @param unit    time unit of the timeout
 	 */
 	public void executeWithExtendedTimeout(@Nonnull Runnable lambda, long timeout, @Nonnull TimeUnit unit) {
 		try {
@@ -679,11 +761,11 @@ public class EvitaClient implements EvitaContract {
 	 * Method executes lambda using specified timeout for the call ignoring the defaults specified
 	 * in {@link EvitaClientConfiguration#timeout()}.
 	 *
-	 * @param lambda logic to be executed
+	 * @param lambda  logic to be executed
 	 * @param timeout timeout value
-	 * @param unit   time unit of the timeout
+	 * @param unit    time unit of the timeout
+	 * @param <T>     type of the result
 	 * @return result of the lambda
-	 * @param <T> type of the result
 	 */
 	public <T> T executeWithExtendedTimeout(@Nonnull Supplier<T> lambda, long timeout, @Nonnull TimeUnit unit) {
 		try {
@@ -707,14 +789,63 @@ public class EvitaClient implements EvitaContract {
 	 * Method that is called within the {@link EvitaClientSession} to apply the wanted logic on a channel retrieved
 	 * from a channel pool.
 	 *
-	 * @param evitaServiceBlockingStub function that holds a logic passed by the caller
+	 * @param lambda function that holds a logic passed by the caller
 	 * @param <T>                      return type of the function
 	 * @return result of the applied function
 	 */
-	private <T> T executeWithEvitaService(@Nonnull AsyncCallFunction<EvitaServiceFutureStub, T> evitaServiceBlockingStub) {
+	private <T> T executeWithEvitaService(@Nonnull AsyncCallFunction<EvitaServiceFutureStub, T> lambda) {
 		final ManagedChannel managedChannel = this.channelPool.getChannel();
 		try {
-			return evitaServiceBlockingStub.apply(EvitaServiceGrpc.newFutureStub(managedChannel));
+			return lambda.apply(EvitaServiceGrpc.newFutureStub(managedChannel));
+		} catch (StatusRuntimeException statusRuntimeException) {
+			final Code statusCode = statusRuntimeException.getStatus().getCode();
+			final String description = ofNullable(statusRuntimeException.getStatus().getDescription())
+				.orElse("No description.");
+			if (statusCode == Code.INVALID_ARGUMENT) {
+				final Matcher expectedFormat = ERROR_MESSAGE_PATTERN.matcher(description);
+				if (expectedFormat.matches()) {
+					throw EvitaInvalidUsageException.createExceptionWithErrorCode(
+						expectedFormat.group(2), expectedFormat.group(1)
+					);
+				} else {
+					throw new EvitaInvalidUsageException(description);
+				}
+			} else {
+				final Matcher expectedFormat = ERROR_MESSAGE_PATTERN.matcher(description);
+				if (expectedFormat.matches()) {
+					throw GenericEvitaInternalError.createExceptionWithErrorCode(
+						expectedFormat.group(2), expectedFormat.group(1)
+					);
+				} else {
+					throw new GenericEvitaInternalError(description);
+				}
+			}
+		} catch (EvitaInvalidUsageException | EvitaInternalError evitaError) {
+			throw evitaError;
+		} catch (Throwable e) {
+			log.error("Unexpected internal Evita error occurred: {}", e.getMessage(), e);
+			throw new GenericEvitaInternalError(
+				"Unexpected internal Evita error occurred: " + e.getMessage(),
+				"Unexpected internal Evita error occurred.",
+				e
+			);
+		} finally {
+			this.channelPool.releaseChannel(managedChannel);
+		}
+	}
+
+	/**
+	 * Method that is called within the {@link EvitaClientSession} to apply the wanted logic on a channel retrieved
+	 * from a channel pool.
+	 *
+	 * @param lambda function that holds a logic passed by the caller
+	 * @param <T>    return type of the function
+	 * @return result of the applied function
+	 */
+	private <T> T executeWithAsyncEvitaService(@Nonnull AsyncCallFunction<EvitaServiceStub, T> lambda) {
+		final ManagedChannel managedChannel = this.channelPool.getChannel();
+		try {
+			return lambda.apply(EvitaServiceGrpc.newStub(managedChannel));
 		} catch (StatusRuntimeException statusRuntimeException) {
 			final Code statusCode = statusRuntimeException.getStatus().getCode();
 			final String description = ofNullable(statusRuntimeException.getStatus().getDescription())

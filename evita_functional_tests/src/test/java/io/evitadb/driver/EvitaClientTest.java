@@ -88,8 +88,13 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -126,6 +131,7 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 		final int primaryKey = entityCount == 0 ? 0 : faker.random().nextInt(1, entityCount);
 		return primaryKey == 0 ? null : primaryKey;
 	};
+	private static final int PRODUCT_COUNT = 10;
 	private static DataGenerator DATA_GENERATOR;
 
 	@DataSet(value = EVITA_CLIENT_DATA_SET, openWebApi = {GrpcProvider.CODE, SystemProvider.CODE}, readOnly = false, destroyAfterClass = true)
@@ -286,7 +292,7 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 							RANDOM_ENTITY_PICKER,
 							SEED
 						)
-						.limit(10)
+						.limit(PRODUCT_COUNT)
 						.forEach(it -> {
 							final EntityReference upsertedProduct = session.upsertEntity(it);
 							theProducts.put(
@@ -844,6 +850,40 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 			Integer.valueOf(11),
 			evitaClient.queryCatalog(newCatalog, evitaSessionContract -> {
 				return evitaSessionContract.getCatalogSchema().version();
+			})
+		);
+	}
+
+	@Test
+	@UseDataSet(value = EVITA_CLIENT_DATA_SET, destroyAfterTest = true)
+	void shouldBackupAndRestoreCatalog(EvitaClient evitaClient) {
+		final Set<String> catalogNames = evitaClient.getCatalogNames();
+		assertEquals(1, catalogNames.size());
+		assertTrue(catalogNames.contains(TEST_CATALOG));
+
+		final File backupFile = createFileInTargetDirectory(TEST_CATALOG + "-backup.zip");
+		try (final OutputStream outputStream = Files.newOutputStream(backupFile.toPath())) {
+			evitaClient.backupCatalog(TEST_CATALOG, outputStream);
+		} catch (IOException e) {
+			fail("Failed to backup catalog!", e);
+		}
+
+		final String restoredCatalogName = TEST_CATALOG + "_restored";
+		try (final InputStream inputStream = Files.newInputStream(backupFile.toPath())) {
+			evitaClient.restoreCatalog(restoredCatalogName, inputStream);
+		} catch (IOException e) {
+			fail("Failed to restore catalog!", e);
+		}
+
+		final Set<String> catalogNamesAgain = evitaClient.getCatalogNames();
+		assertEquals(2, catalogNamesAgain.size());
+		assertTrue(catalogNamesAgain.contains(TEST_CATALOG));
+		assertTrue(catalogNamesAgain.contains(restoredCatalogName));
+
+		assertEquals(
+			Integer.valueOf(PRODUCT_COUNT),
+			evitaClient.queryCatalog(restoredCatalogName, session -> {
+				return session.getEntityCollectionSize(Entities.PRODUCT);
 			})
 		);
 	}

@@ -107,6 +107,21 @@ message GrpcReplaceCatalogResponse {
   bool success = 1;
 }
 
+// Request to restore a catalog.
+message GrpcRestoreCatalogRequest {
+  // Name of the catalog where the backup will be restored
+  // The name must not clash with any of existing catalogs
+  string catalogName = 1;
+  // Binary contents of the backup file.
+  bytes backupFile = 2;
+}
+
+// Response to a catalog restore request.
+message GrpcRestoreCatalogResponse {
+  // returns the number of bytes read from the backup file
+  int64 read = 1;
+}
+
 // Request to delete a catalog.
 message GrpcDeleteCatalogIfExistsRequest {
   // Name of the catalog to be deleted.
@@ -148,6 +163,8 @@ service EvitaService {
   rpc RenameCatalog(GrpcRenameCatalogRequest) returns (GrpcRenameCatalogResponse);
   // Procedure used to replace an existing catalog.
   rpc ReplaceCatalog(GrpcReplaceCatalogRequest) returns (GrpcReplaceCatalogResponse);
+  // Procedure used to restore a catalog from backup.
+  rpc RestoreCatalog(stream GrpcRestoreCatalogRequest) returns (GrpcRestoreCatalogResponse);
   // Procedure used to delete an existing catalog.
   rpc DeleteCatalogIfExists(GrpcDeleteCatalogIfExistsRequest) returns (GrpcDeleteCatalogIfExistsResponse);
   // Procedure used to update the catalog with a set of mutations.

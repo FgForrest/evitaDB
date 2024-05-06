@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.grpc.services;
 
+import com.google.protobuf.ByteString;
 import com.google.protobuf.Empty;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.EvitaSessionContract;
@@ -45,11 +46,13 @@ import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
+import io.evitadb.core.Evita;
 import io.evitadb.core.EvitaInternalSessionContract;
 import io.evitadb.dataType.DataChunk;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.StripList;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.externalApi.grpc.builders.query.extraResults.GrpcExtraResultsBuilder;
 import io.evitadb.externalApi.grpc.constants.GrpcHeaders;
 import io.evitadb.externalApi.grpc.generated.*;
@@ -66,12 +69,19 @@ import io.evitadb.externalApi.grpc.services.interceptors.ServerSessionIntercepto
 import io.evitadb.externalApi.grpc.utils.QueryUtil;
 import io.evitadb.externalApi.trace.ExternalApiTracingContextProvider;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.Assert;
 import io.grpc.Metadata;
 import io.grpc.stub.StreamObserver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -226,6 +236,59 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 				.build();
 			responseObserver.onNext(response);
 			responseObserver.onCompleted();
+		});
+	}
+
+	/**
+	 * Method allows to backup a catalog and send the backup file to the client.
+	 * @param request empty request
+	 * @param responseObserver observer on which errors might be thrown and result returned
+	 */
+	@Override
+	public void backupCatalog(Empty request, StreamObserver<GrpcBackupCatalogResponse> responseObserver) {
+		executeWithClientContext(session -> {
+			Path backupFilePath = null;
+			try {
+				final Path workDirectory = ((Evita) session.getEvita()).getConfiguration().transaction().transactionWorkDirectory();
+				if (!workDirectory.toFile().exists()) {
+					Assert.isPremiseValid(
+						workDirectory.toFile().mkdirs(),
+						() -> new UnexpectedIOException(
+							"Failed to create work directory: " + workDirectory,
+							"Failed to create work directory."
+						)
+					);
+				}
+				backupFilePath = Files.createTempFile(workDirectory, "catalog_backup_" + session.getCatalogName() + "-", ".zip");
+				try (final OutputStream outputStream = Files.newOutputStream(backupFilePath, StandardOpenOption.APPEND)) {
+					session.backupCatalog(outputStream);
+				}
+
+				// send the backup file to the client - read it by chunks of 64KB
+				try (final InputStream inputStream = Files.newInputStream(backupFilePath)) {
+					final GrpcBackupCatalogResponse response = GrpcBackupCatalogResponse.newBuilder()
+						.setBackupFile(ByteString.readFrom(inputStream, 65_536))
+						.build();
+					responseObserver.onNext(response);
+				}
+				responseObserver.onCompleted();
+			} catch (IOException e) {
+				responseObserver.onError(
+					new UnexpectedIOException(
+						"Failed to create or send the backup file: " + backupFilePath,
+						"Failed to create or send the backup file.",
+						e
+					)
+				);
+			} finally {
+				if (backupFilePath != null) {
+					try {
+						Files.deleteIfExists(backupFilePath);
+					} catch (IOException e) {
+						log.error("Failed to delete temporary backup file: {}", backupFilePath, e);
+					}
+				}
+			}
 		});
 	}
 

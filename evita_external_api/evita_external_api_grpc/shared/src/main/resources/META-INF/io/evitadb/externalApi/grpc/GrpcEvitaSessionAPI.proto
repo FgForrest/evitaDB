@@ -227,6 +227,12 @@ message GrpcGoLiveAndCloseResponse {
   int64 catalogVersion = 2;
 }
 
+// Response to a catalog backup request.
+message GrpcBackupCatalogResponse {
+  // Binary contents of the backup file.
+  bytes backupFile = 1;
+}
+
 // Request for acquiring the list of all entity types.
 message GrpcEntityTypesResponse {
   // The list of all entity types.
@@ -463,6 +469,8 @@ service EvitaSessionService {
   rpc GetAllEntityTypes(google.protobuf.Empty) returns (GrpcEntityTypesResponse);
   // Procedure that changes the state of the catalog to ALIVE and closes the session.
   rpc GoLiveAndClose(google.protobuf.Empty) returns (GrpcGoLiveAndCloseResponse);
+  // Procedure used to backup an existing catalog.
+  rpc BackupCatalog(google.protobuf.Empty) returns (GrpcBackupCatalogResponse);
   // Procedure that closes the session.
   rpc Close(GrpcCloseRequest) returns (GrpcCloseResponse);
 

@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.grpc.services;
 
+import com.google.protobuf.ByteString;
 import com.google.protobuf.Empty;
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.EvitaSessionContract;
@@ -31,7 +32,7 @@ import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.system.SystemStatus;
 import io.evitadb.core.Evita;
-
+import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.externalApi.grpc.constants.GrpcHeaders;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.*;
@@ -39,14 +40,23 @@ import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingTop
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.SchemaMutationConverter;
 import io.evitadb.externalApi.grpc.services.interceptors.ServerSessionInterceptor;
 import io.evitadb.externalApi.trace.ExternalApiTracingContextProvider;
+import io.evitadb.utils.Assert;
 import io.evitadb.utils.UUIDUtil;
 import io.grpc.Metadata;
 import io.grpc.stub.StreamObserver;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcCatalogState;
 
@@ -55,6 +65,7 @@ import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toG
  *
  * @author Tomáš Pozler, 2022
  */
+@Slf4j
 public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 
 	private static final SchemaMutationConverter<TopLevelCatalogSchemaMutation, GrpcTopLevelCatalogSchemaMutation> CATALOG_SCHEMA_MUTATION_CONVERTER =
@@ -87,8 +98,61 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 		return flags.isEmpty() ? null : flags.toArray(new SessionFlags[0]);
 	}
 
+	/**
+	 * Executes entire lambda function within the scope of a tracing context.
+	 */
+	private static void executeWithClientContext(@Nonnull Runnable lambda) {
+		final Metadata metadata = ServerSessionInterceptor.METADATA.get();
+		ExternalApiTracingContextProvider.getContext()
+			.executeWithinBlock(
+				GrpcHeaders.getGrpcTraceTaskNameWithMethodName(metadata),
+				metadata,
+				lambda
+			);
+	}
+
+	/**
+	 * Deletes temporary file if it exists.
+	 *
+	 * @param backupFilePath path to the file to be deleted
+	 */
+	private static void deleteFileIfExists(@Nullable Path backupFilePath, @Nonnull String purpose) {
+		if (backupFilePath != null) {
+			try {
+				Files.deleteIfExists(backupFilePath);
+			} catch (IOException e) {
+				log.error("Failed to delete temporary " + purpose + " file: {}", backupFilePath, e);
+			}
+		}
+	}
+
 	public EvitaService(@Nonnull Evita evita) {
 		this.evita = evita;
+	}
+
+	/**
+	 * Retrieves the server status.
+	 *
+	 * @param request          the request for server status
+	 * @param responseObserver the observer for receiving the server status response
+	 */
+	@Override
+	public void serverStatus(Empty request, StreamObserver<GrpcEvitaServerStatusResponse> responseObserver) {
+		executeWithClientContext(() -> {
+			final SystemStatus systemStatus = evita.getSystemStatus();
+			responseObserver.onNext(
+				GrpcEvitaServerStatusResponse
+					.newBuilder()
+					.setVersion(systemStatus.version())
+					.setStartedAt(EvitaDataTypesConverter.toGrpcOffsetDateTime(systemStatus.startedAt()))
+					.setUptime(systemStatus.uptime().toSeconds())
+					.setInstanceId(systemStatus.instanceId())
+					.setCatalogsCorrupted(systemStatus.catalogsCorrupted())
+					.setCatalogsOk(systemStatus.catalogsOk())
+					.build()
+			);
+			responseObserver.onCompleted();
+		});
 	}
 
 	/**
@@ -224,6 +288,81 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	}
 
 	/**
+	 * Restores catalog from uploaded backup binary file into a new catalog.
+	 *
+	 * @param responseObserver observer on which errors might be thrown and result returned
+	 * @see EvitaContract#restoreCatalog(String, InputStream)
+	 */
+	@Override
+	public StreamObserver<GrpcRestoreCatalogRequest> restoreCatalog(StreamObserver<GrpcRestoreCatalogResponse> responseObserver) {
+		Path backupFilePath = null;
+		try {
+			try {
+				final Path workDirectory = evita.getConfiguration().transaction().transactionWorkDirectory();
+				backupFilePath = Files.createTempFile(workDirectory, "catalog_backup_for_restore-", ".zip");
+				final Path finalBackupFilePath = backupFilePath;
+				@SuppressWarnings("resource")
+				final OutputStream outputStream = Files.newOutputStream(finalBackupFilePath, StandardOpenOption.APPEND);
+				final AtomicLong bytesRead = new AtomicLong(0);
+
+				return new StreamObserver<>() {
+					private String catalogNameToRestore;
+
+					@Override
+					public void onNext(GrpcRestoreCatalogRequest request) {
+						this.catalogNameToRestore = request.getCatalogName();
+						try {
+							final ByteString backupFile = request.getBackupFile();
+							backupFile.writeTo(outputStream);
+							bytesRead.addAndGet(backupFile.size());
+						} catch (IOException e) {
+							throw new UnexpectedIOException(
+								"Failed to write backup file to temporary file.",
+								"Failed to write backup file to temporary file.",
+								e
+							);
+						}
+					}
+
+					@Override
+					public void onError(Throwable t) {
+						try {
+							outputStream.close();
+						} catch (IOException e) {
+							log.error("Failed to close output stream for backup file: {}", finalBackupFilePath, e);
+						} finally {
+							deleteFileIfExists(finalBackupFilePath, "restore");
+							responseObserver.onError(t);
+						}
+					}
+
+					@Override
+					public void onCompleted() {
+						try {
+							outputStream.close();
+							Assert.isPremiseValid(catalogNameToRestore != null, "Catalog name to restore must be provided.");
+							evita.restoreCatalog(catalogNameToRestore, Files.newInputStream(finalBackupFilePath, StandardOpenOption.READ));
+							responseObserver.onNext(GrpcRestoreCatalogResponse.newBuilder().setRead(bytesRead.get()).build());
+							responseObserver.onCompleted();
+						} catch (Exception e) {
+							responseObserver.onError(e);
+							deleteFileIfExists(finalBackupFilePath, "restore");
+						}
+					}
+				};
+			} catch (IOException e) {
+				responseObserver.onError(e);
+				throw e;
+			}
+		} catch (Exception e) {
+			if (backupFilePath != null) {
+				deleteFileIfExists(backupFilePath, "restore");
+			}
+			return new NoopStreamObserver<>();
+		}
+	}
+
+	/**
 	 * Deletes catalog with a name specified in a request.
 	 *
 	 * @param request          containing name of the catalog to be deleted
@@ -231,14 +370,14 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	 * @see EvitaContract#deleteCatalogIfExists(String)
 	 */
 	@Override
-	public void deleteCatalogIfExists(GrpcDeleteCatalogIfExistsRequest request, StreamObserver<GrpcDeleteCatalogIfExistsResponse> responseObserver) {
+	public void deleteCatalogIfExists(GrpcDeleteCatalogIfExistsRequest
+		                                  request, StreamObserver<GrpcDeleteCatalogIfExistsResponse> responseObserver) {
 		executeWithClientContext(() -> {
 			boolean success = evita.deleteCatalogIfExists(request.getCatalogName());
 			responseObserver.onNext(GrpcDeleteCatalogIfExistsResponse.newBuilder().setSuccess(success).build());
 			responseObserver.onCompleted();
 		});
 	}
-
 
 	/**
 	 * Applies catalog mutation affecting entire catalog.
@@ -258,31 +397,6 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	}
 
 	/**
-	 * Retrieves the server status.
-	 *
-	 * @param request            the request for server status
-	 * @param responseObserver   the observer for receiving the server status response
-	 */
-	@Override
-	public void serverStatus(Empty request, StreamObserver<GrpcEvitaServerStatusResponse> responseObserver) {
-		executeWithClientContext(() -> {
-			final SystemStatus systemStatus = evita.getSystemStatus();
-			responseObserver.onNext(
-				GrpcEvitaServerStatusResponse
-					.newBuilder()
-					.setVersion(systemStatus.version())
-					.setStartedAt(EvitaDataTypesConverter.toGrpcOffsetDateTime(systemStatus.startedAt()))
-					.setUptime(systemStatus.uptime().toSeconds())
-					.setInstanceId(systemStatus.instanceId())
-					.setCatalogsCorrupted(systemStatus.catalogsCorrupted())
-					.setCatalogsOk(systemStatus.catalogsOk())
-					.build()
-			);
-			responseObserver.onCompleted();
-		});
-	}
-
-	/**
 	 * This method is used to create session and build a {@link GrpcEvitaSessionResponse} object.
 	 *
 	 * @param responseObserver     observer on which errors might be thrown and result returned
@@ -290,7 +404,9 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	 * @param sessionType          type of the session
 	 * @param rollbackTransactions if true, all transaction will be rolled back on session close
 	 */
-	private void createSessionAndBuildResponse(@Nonnull StreamObserver<GrpcEvitaSessionResponse> responseObserver, @Nonnull String catalogName, @Nonnull GrpcSessionType sessionType, boolean rollbackTransactions) {
+	private void createSessionAndBuildResponse
+	(@Nonnull StreamObserver<GrpcEvitaSessionResponse> responseObserver, @Nonnull String
+		catalogName, @Nonnull GrpcSessionType sessionType, boolean rollbackTransactions) {
 		executeWithClientContext(() -> {
 			final SessionFlags[] flags = getSessionFlags(sessionType, rollbackTransactions);
 			final EvitaSessionContract session = evita.createSession(new SessionTraits(catalogName, flags));
@@ -304,15 +420,21 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	}
 
 	/**
-	 * Executes entire lambda function within the scope of a tracing context.
+	 * No-op implementation of StreamObserver. Used in case the proper observer could not be created.
 	 */
-	private static void executeWithClientContext(@Nonnull Runnable lambda) {
-		final Metadata metadata = ServerSessionInterceptor.METADATA.get();
-		ExternalApiTracingContextProvider.getContext()
-			.executeWithinBlock(
-				GrpcHeaders.getGrpcTraceTaskNameWithMethodName(metadata),
-				metadata,
-				lambda
-			);
+	private static class NoopStreamObserver<V> implements StreamObserver<V> {
+
+		@Override
+		public void onNext(V value) {
+		}
+
+		@Override
+		public void onError(Throwable t) {
+		}
+
+		@Override
+		public void onCompleted() {
+		}
 	}
+
 }

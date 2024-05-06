@@ -331,7 +331,8 @@ public interface EvitaContract extends AutoCloseable {
 	void backupCatalog(@Nonnull String catalogName, @Nonnull OutputStream outputStream) throws UnexpectedIOException;
 
 	/**
-	 * Restores a catalog from the provided InputStream which contains the binary data of a previously backed up zip file.
+	 * Restores a catalog from the provided InputStream which contains the binary data of a previously backed up zip
+	 * file. The input stream is closed within the method.
 	 *
 	 * @param catalogName the name of the catalog to restore
 	 * @param inputStream an InputStream to read the binary data of the zip file
