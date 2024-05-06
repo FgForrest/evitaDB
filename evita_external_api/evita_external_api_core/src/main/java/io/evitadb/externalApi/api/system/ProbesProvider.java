@@ -112,7 +112,7 @@ public interface ProbesProvider {
 		/**
 		 * Server is shutting down. None of the APIs are ready.
 		 */
-		SHUT_DOWN,
+		SHUTDOWN,
 		/**
 		 * Unknown state - cannot determine the state of the APIs (should not happen).
 		 */

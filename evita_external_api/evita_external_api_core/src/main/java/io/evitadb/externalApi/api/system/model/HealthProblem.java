@@ -37,6 +37,11 @@ public enum HealthProblem {
 	 */
 	MEMORY_SHORTAGE,
 	/**
+	 * Signalized when the readiness probe signals that at least one external API, that is configured to be enabled
+	 * doesn't respond to internal HTTP check call.
+	 */
+	EXTERNAL_API_UNAVAILABLE,
+	/**
 	 * Signalized when the input queues are full and the server is not able to process incoming requests. The problem
 	 * is reported when there is ration of rejected tasks to accepted tasks >= 2. This flag is cleared when the rejection
 	 * ratio decreases below the specified threshold, which signalizes that server is able to process incoming requests
