@@ -217,7 +217,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	/**
 	 * Pool contains instances of {@link Kryo} that are used for serializing mutations in WAL.
 	 */
-	private final Pool<Kryo> catalogKryoPool = new Pool<>(false, false, 16) {
+	private final Pool<Kryo> catalogKryoPool = new Pool<>(true, false, 16) {
 		@Override
 		protected Kryo create() {
 			return KryoFactory.createKryo(WalKryoConfigurer.INSTANCE);
