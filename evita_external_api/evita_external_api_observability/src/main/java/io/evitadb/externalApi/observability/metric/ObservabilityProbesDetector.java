@@ -33,6 +33,7 @@ import io.evitadb.externalApi.http.ExternalApiServer;
 import io.evitadb.externalApi.observability.ObservabilityManager;
 import io.evitadb.externalApi.observability.ObservabilityProvider;
 import io.evitadb.utils.CollectionUtils;
+import lombok.extern.slf4j.Slf4j;
 import org.jboss.threads.EnhancedQueueExecutor;
 
 import javax.annotation.Nonnull;
@@ -48,6 +49,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 /**
  * This class is responsible for detecting health problems in the system. It monitors:
@@ -63,6 +65,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * unhealthy.
  * 5. The readiness of the external APIs. If at least one external API is not ready, the system is considered unhealthy.
  */
+@Slf4j
 public class ObservabilityProbesDetector implements ProbesProvider {
 	private static final Set<HealthProblem> NO_HEALTH_PROBLEMS = EnumSet.noneOf(HealthProblem.class);
 	private static final Set<String> OLD_GENERATION_GC_NAMES = Set.of("G1 Old Generation", "PS MarkSweep", "ConcurrentMarkSweep");
@@ -72,8 +75,6 @@ public class ObservabilityProbesDetector implements ProbesProvider {
 		.stream()
 		.filter(gc -> OLD_GENERATION_GC_NAMES.contains(gc.getName()))
 		.toList();
-
-	private ObservabilityManager observabilityManager;
 	private final AtomicLong lastSeenRejectedTaskCount = new AtomicLong(0L);
 	private final AtomicLong lastSeenSubmittedTaskCount = new AtomicLong(0L);
 	private final AtomicLong lastSeenJavaErrorCount = new AtomicLong(0L);
@@ -82,32 +83,13 @@ public class ObservabilityProbesDetector implements ProbesProvider {
 	private final AtomicLong lastSeenJavaGarbageCollections = new AtomicLong(0L);
 	private final AtomicBoolean seenReady = new AtomicBoolean();
 	private final AtomicReference<Readiness> lastReadinessSeen = new AtomicReference<>();
-
-	@Nonnull
-	@Override
-	public Set<HealthProblem> getHealthProblems(@Nonnull EvitaContract evitaContract, @Nonnull ExternalApiServer externalApiServer) {
-		final EnumSet<HealthProblem> healthProblems = EnumSet.noneOf(HealthProblem.class);
-		final ObservabilityManager theObservabilityManager = getObservabilityManager(externalApiServer).orElse(null);
-
-		if (evitaContract instanceof Evita evita) {
-			recordResult(checkInputQueues(evita), healthProblems, theObservabilityManager);
-		}
-
-		if (theObservabilityManager != null) {
-			recordResult(checkEvitaErrors(theObservabilityManager), healthProblems, theObservabilityManager);
-			recordResult(checkMemoryShortage(theObservabilityManager), healthProblems, theObservabilityManager);
-			recordResult(checkJavaErrors(theObservabilityManager), healthProblems, theObservabilityManager);
-		}
-
-		recordResult(checkApiReadiness(), healthProblems, theObservabilityManager);
-
-		return healthProblems.isEmpty() ? NO_HEALTH_PROBLEMS : healthProblems;
-	}
+	private ObservabilityManager observabilityManager;
 
 	/**
 	 * Records the result of the health problem check.
-	 * @param healthProblem the result of the health problem check
-	 * @param healthProblems the set of health problems
+	 *
+	 * @param healthProblem           the result of the health problem check
+	 * @param healthProblems          the set of health problems
 	 * @param theObservabilityManager the observability manager for recording the health problem
 	 */
 	private static void recordResult(
@@ -129,8 +111,77 @@ public class ObservabilityProbesDetector implements ProbesProvider {
 		}
 	}
 
+	@Nonnull
+	@Override
+	public Set<HealthProblem> getHealthProblems(@Nonnull EvitaContract evitaContract, @Nonnull ExternalApiServer externalApiServer) {
+		final EnumSet<HealthProblem> healthProblems = EnumSet.noneOf(HealthProblem.class);
+		final ObservabilityManager theObservabilityManager = getObservabilityManager(externalApiServer).orElse(null);
+
+		if (evitaContract instanceof Evita evita) {
+			recordResult(checkInputQueues(evita), healthProblems, theObservabilityManager);
+		}
+
+		if (theObservabilityManager != null) {
+			recordResult(checkEvitaErrors(theObservabilityManager), healthProblems, theObservabilityManager);
+			recordResult(checkMemoryShortage(theObservabilityManager), healthProblems, theObservabilityManager);
+			recordResult(checkJavaErrors(theObservabilityManager), healthProblems, theObservabilityManager);
+		}
+
+		recordResult(checkApiReadiness(), healthProblems, theObservabilityManager);
+
+		if (healthProblems.isEmpty()) {
+			return NO_HEALTH_PROBLEMS;
+		} else {
+			log.error(
+				"Detected health problems: {}",
+				healthProblems.stream().map(HealthProblem::name).collect(Collectors.joining(", "))
+			);
+			return healthProblems;
+		}
+	}
+
+	@Nonnull
+	@Override
+	public Readiness getReadiness(@Nonnull EvitaContract evitaContract, @Nonnull ExternalApiServer externalApiServer, @Nonnull String... apiCodes) {
+		final Optional<ObservabilityManager> theObservabilityManager = getObservabilityManager(externalApiServer);
+		// check the end-points availability
+		//noinspection rawtypes
+		final Collection<ExternalApiProviderRegistrar> availableExternalApis = ExternalApiServer.gatherExternalApiProviders();
+		final Map<String, Boolean> readiness = CollectionUtils.createHashMap(availableExternalApis.size());
+		for (String apiCode : apiCodes) {
+			final ExternalApiProvider<?> apiProvider = externalApiServer.getExternalApiProviderByCode(apiCode);
+			readiness.put(apiProvider.getCode(), apiProvider.isReady());
+			theObservabilityManager.ifPresent(it -> it.recordReadiness(apiProvider.getCode(), apiProvider.isReady()));
+		}
+		final boolean ready = readiness.values().stream().allMatch(Boolean::booleanValue);
+		if (ready) {
+			this.seenReady.set(true);
+		}
+		final Readiness currentReadiness = new Readiness(
+			ready ? ReadinessState.READY : (this.seenReady.get() ? ReadinessState.STALLING : ReadinessState.STARTING),
+			readiness.entrySet().stream()
+				.map(entry -> new ApiState(entry.getKey(), entry.getValue()))
+				.toArray(ApiState[]::new)
+		);
+
+		final Readiness previousReadiness = this.lastReadinessSeen.get();
+		if (previousReadiness == null || currentReadiness.state() != previousReadiness.state()) {
+			if (previousReadiness == null || previousReadiness.state() != ReadinessState.STALLING) {
+				log.info("System readiness changed to {}", currentReadiness.state());
+			} else if (currentReadiness.state() == ReadinessState.SHUTDOWN) {
+				log.warn("System readiness changed to {}", currentReadiness.state());
+			} else {
+				log.error("System readiness changed to {}", currentReadiness.state());
+			}
+		}
+
+		this.lastReadinessSeen.set(currentReadiness);
+		return currentReadiness;
+	}
+
 	/**
 	 * Checks the readiness of the external APIs.
+	 *
 	 * @return the result of the check
 	 */
 	@Nonnull
@@ -145,6 +196,7 @@ public class ObservabilityProbesDetector implements ProbesProvider {
 	/**
 	 * Checks the memory shortage. If the current memory usage is above 90% of the total available memory and the number
 	 * of errors has increased since the last check, the system is considered unhealthy.
+	 *
 	 * @param theObservabilityManager the observability manager
 	 * @return the result of the check
 	 */
@@ -160,7 +212,7 @@ public class ObservabilityProbesDetector implements ProbesProvider {
 			usedMemory > 0.9f &&
 				(
 					javaOOMErrorCount > this.lastSeenJavaOOMErrorCount.get() ||
-					oldGenerationCollectionCount > this.lastSeenJavaGarbageCollections.get()
+						oldGenerationCollectionCount > this.lastSeenJavaGarbageCollections.get()
 				)
 		);
 		this.lastSeenJavaOOMErrorCount.set(javaOOMErrorCount);
@@ -170,6 +222,7 @@ public class ObservabilityProbesDetector implements ProbesProvider {
 
 	/**
 	 * Checks the number of Java internal errors.
+	 *
 	 * @param theObservabilityManager the observability manager
 	 * @return the result of the check
 	 */
@@ -187,6 +240,7 @@ public class ObservabilityProbesDetector implements ProbesProvider {
 
 	/**
 	 * Checks the rejection / submission rate of the executor input queues.
+	 *
 	 * @param evita the Evita instance
 	 * @return the result of the check
 	 */
@@ -224,35 +278,9 @@ public class ObservabilityProbesDetector implements ProbesProvider {
 		return result;
 	}
 
-	@Nonnull
-	@Override
-	public Readiness getReadiness(@Nonnull EvitaContract evitaContract, @Nonnull ExternalApiServer externalApiServer, @Nonnull String... apiCodes) {
-		final Optional<ObservabilityManager> theObservabilityManager = getObservabilityManager(externalApiServer);
-		// check the end-points availability
-		//noinspection rawtypes
-		final Collection<ExternalApiProviderRegistrar> availableExternalApis = ExternalApiServer.gatherExternalApiProviders();
-		final Map<String, Boolean> readiness = CollectionUtils.createHashMap(availableExternalApis.size());
-		for (String apiCode : apiCodes) {
-			final ExternalApiProvider<?> apiProvider = externalApiServer.getExternalApiProviderByCode(apiCode);
-			readiness.put(apiProvider.getCode(), apiProvider.isReady());
-			theObservabilityManager.ifPresent(it -> it.recordReadiness(apiProvider.getCode(), apiProvider.isReady()));
-		}
-		final boolean ready = readiness.values().stream().allMatch(Boolean::booleanValue);
-		if (ready) {
-			this.seenReady.set(true);
-		}
-		final Readiness currentReadiness = new Readiness(
-			ready ? ReadinessState.READY : (this.seenReady.get() ? ReadinessState.STALLING : ReadinessState.STARTING),
-			readiness.entrySet().stream()
-				.map(entry -> new ApiState(entry.getKey(), entry.getValue()))
-				.toArray(ApiState[]::new)
-		);
-		this.lastReadinessSeen.set(currentReadiness);
-		return currentReadiness;
-	}
-
 	/**
 	 * Returns the observability manager from the external API server.
+	 *
 	 * @param externalApiServer the external API server
 	 * @return the observability manager or NULL if it is not available
 	 */
@@ -271,8 +299,9 @@ public class ObservabilityProbesDetector implements ProbesProvider {
 
 	/**
 	 * This record represents the result of a health problem check.
+	 *
 	 * @param healthProblem type of health problem
-	 * @param present true if the health problem is present, false otherwise
+	 * @param present       true if the health problem is present, false otherwise
 	 */
 	private record HealthProblemCheckResult(
 		@Nullable HealthProblem healthProblem,
