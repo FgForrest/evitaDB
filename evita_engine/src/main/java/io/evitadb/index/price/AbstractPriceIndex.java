@@ -127,7 +127,8 @@ abstract class AbstractPriceIndex<T extends PriceListAndCurrencyPriceIndex> impl
 		@Nonnull PriceInnerRecordHandling innerRecordHandling,
 		@Nullable Integer innerRecordId,
 		@Nullable DateTimeRange validity,
-		int priceWithoutTax, int priceWithTax
+		int priceWithoutTax,
+		int priceWithTax
 	) {
 		final PriceIndexKey lookupKey = new PriceIndexKey(priceKey.priceList(), priceKey.currency(), innerRecordHandling);
 		final T priceListIndex = this.getPriceIndexes().get(lookupKey);
@@ -139,7 +140,7 @@ abstract class AbstractPriceIndex<T extends PriceListAndCurrencyPriceIndex> impl
 			validity, priceWithoutTax, priceWithTax
 		);
 
-		if (priceListIndex.isEmpty()) {
+		if (!priceListIndex.isTerminated() && priceListIndex.isEmpty()) {
 			removeExistingIndex(lookupKey, priceListIndex);
 		}
 	}
@@ -189,7 +190,8 @@ abstract class AbstractPriceIndex<T extends PriceListAndCurrencyPriceIndex> impl
 	protected abstract T createNewPriceListAndCurrencyIndex(@Nonnull PriceIndexKey lookupKey);
 
 	protected void removeExistingIndex(@Nonnull PriceIndexKey lookupKey, @Nonnull T priceListIndex) {
-		getPriceIndexes().remove(lookupKey);
+		final T removedIndex = getPriceIndexes().remove(lookupKey);
+		removedIndex.terminate();
 	}
 
 	protected abstract PriceInternalIdContainer addPrice(

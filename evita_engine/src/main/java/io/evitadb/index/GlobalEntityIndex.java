@@ -23,7 +23,6 @@
 
 package io.evitadb.index;
 
-import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.EntityCollection;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
@@ -44,7 +43,6 @@ import javax.annotation.Nullable;
 import java.util.Collection;
 import java.util.Locale;
 import java.util.Map;
-import java.util.function.Supplier;
 
 /**
  * Global entity index contains complete set of indexed data including their bodies. It contains data for all entities
@@ -67,10 +65,10 @@ public class GlobalEntityIndex extends EntityIndex
 
 	public GlobalEntityIndex(
 		int primaryKey,
-		@Nonnull EntityIndexKey entityIndexKey,
-		@Nonnull Supplier<EntitySchema> schemaAccessor
+		@Nonnull String entityType,
+		@Nonnull EntityIndexKey entityIndexKey
 	) {
-		super(primaryKey, entityIndexKey, schemaAccessor);
+		super(primaryKey, entityType, entityIndexKey);
 		this.priceIndex = new PriceSuperIndex();
 	}
 
@@ -78,7 +76,6 @@ public class GlobalEntityIndex extends EntityIndex
 		int primaryKey,
 		@Nonnull EntityIndexKey entityIndexKey,
 		int version,
-		@Nonnull Supplier<EntitySchema> schemaAccessor,
 		@Nonnull Bitmap entityIds,
 		@Nonnull Map<Locale, TransactionalBitmap> entityIdsByLanguage,
 		@Nonnull AttributeIndex attributeIndex,
@@ -87,7 +84,7 @@ public class GlobalEntityIndex extends EntityIndex
 		@Nonnull FacetIndex facetIndex
 	) {
 		super(
-			primaryKey, entityIndexKey, version, schemaAccessor,
+			primaryKey, entityIndexKey, version,
 			entityIds, entityIdsByLanguage,
 			attributeIndex, hierarchyIndex, facetIndex, priceIndex
 		);
@@ -126,7 +123,7 @@ public class GlobalEntityIndex extends EntityIndex
 		// we can safely throw away dirty flag now
 		final Boolean wasDirty = transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
 		return new GlobalEntityIndex(
-			primaryKey, indexKey, version + (wasDirty ? 1 : 0), schemaAccessor,
+			this.primaryKey, this.indexKey, this.version + (wasDirty ? 1 : 0),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.entityIds),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.entityIdsByLanguage),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.attributeIndex),

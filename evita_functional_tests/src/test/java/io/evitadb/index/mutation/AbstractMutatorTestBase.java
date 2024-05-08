@@ -94,7 +94,8 @@ abstract class AbstractMutatorTestBase {
 		alterCatalogSchema(catalogSchemaBuilder);
 		catalogSchema = (CatalogSchema) catalogSchemaBuilder.toInstance();
 		sealedCatalogSchema = new CatalogSchemaDecorator(catalogSchema);
-		catalogIndex = new CatalogIndex(catalog);
+		catalogIndex = new CatalogIndex();
+		catalogIndex.attachToCatalog(null, catalog);
 
 		final EvitaSession mockSession = Mockito.mock(EvitaSession.class);
 		Mockito.when(catalog.getSchema()).thenReturn(sealedCatalogSchema);
@@ -107,7 +108,8 @@ abstract class AbstractMutatorTestBase {
 				AbstractMutatorTestBase.this::alterProductSchema
 			)
 		);
-		productIndex = new GlobalEntityIndex(1, new EntityIndexKey(EntityIndexType.GLOBAL), () -> productSchema);
+		productIndex = new GlobalEntityIndex(1, productSchema.getName(), new EntityIndexKey(EntityIndexType.GLOBAL));
+		productIndex.useSchema(() -> productSchema);
 		executor = new EntityIndexLocalMutationExecutor(
 			containerAccessor, 1,
 			new MockEntityIndexCreator<>(productIndex),

@@ -74,7 +74,7 @@ final class SessionRegistry {
 	/**
 	 * Reference to {@link Catalog} this instance is bound to.
 	 */
-	private final Catalog catalog;
+	private final Supplier<Catalog> catalog;
 	/**
 	 * Keeps information about currently active sessions.
 	 */
@@ -163,7 +163,8 @@ final class SessionRegistry {
 				.unregisterSessionConsumingCatalogInVersion(session.getCatalogVersion());
 			if (finalizationResult.lastReader()) {
 				// notify listeners that the catalog version is no longer used
-				this.catalog.catalogVersionBeyondTheHorizon(
+				final Catalog theCatalog = this.catalog.get();
+				theCatalog.catalogVersionBeyondTheHorizon(
 					finalizationResult.minimalActiveCatalogVersion()
 				);
 			}
@@ -235,7 +236,7 @@ final class SessionRegistry {
 						if (method.isAnnotationPresent(Traced.class)) {
 							return tracingContext.executeWithinBlockIfParentContextAvailable(
 								"session call - " + method.getName(),
-								invocation::get,
+								invocation,
 								() -> {
 									final Parameter[] parameters = method.getParameters();
 									final SpanAttribute[] spanAttributes = new SpanAttribute[1 + parameters.length];

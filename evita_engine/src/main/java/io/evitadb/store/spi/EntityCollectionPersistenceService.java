@@ -42,7 +42,6 @@ import io.evitadb.core.buffer.DataStoreIndexChanges;
 import io.evitadb.core.buffer.DataStoreMemoryBuffer;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
-import io.evitadb.index.price.PriceSuperIndex;
 import io.evitadb.store.model.PersistentStorageDescriptor;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.spi.model.EntityCollectionHeader;
@@ -51,7 +50,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.nio.file.Path;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 /**
  * This interface represents a link between {@link io.evitadb.api.EntityCollectionContract} and its persistent storage.
@@ -172,9 +170,7 @@ public non-sealed interface EntityCollectionPersistenceService extends Persisten
 	EntityIndex readEntityIndex(
 		long catalogVersion,
 		int entityIndexId,
-		@Nonnull Supplier<EntitySchema> schemaSupplier,
-		@Nonnull Supplier<PriceSuperIndex> temporalIndexAccessor,
-		@Nonnull Supplier<PriceSuperIndex> superIndexAccessor
+		@Nonnull EntitySchema entitySchema
 	);
 
 	/**

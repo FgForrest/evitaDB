@@ -134,7 +134,7 @@ public class TransactionWalFinalizer implements TransactionHandler {
 			// copying them to the shared WAL
 			if (walPersistenceService != null) {
 				// this invokes the asynchronous action of copying the isolated WAL to the shared one
-				catalog.commitWal(
+				this.catalog.commitWal(
 					transactionId,
 					commitBehaviour,
 					walPersistenceService,
