@@ -7,14 +7,13 @@ ARG RELEASE_DATE=not_set
 ENV EVITA_HOME="/evita"
 ENV EVITA_JAR_NAME="$EVITA_JAR_NAME"
 ENV SYSTEM_API_PORT="5557"
-ENV HEALTHCHECK_START_DELAY="30s"
 
 # Labels with dynamic information based on environment variables and current date
 LABEL vendor="FG Forrest, a.s." \
       io.evitadb.version="${VERSION}" \
       io.evitadb.release-date="${RELEASE_DATE}"
 
-HEALTHCHECK --start-period=$HEALTHCHECK_START_DELAY --interval=10s --timeout=2s --retries=3 \
+HEALTHCHECK --start-period=5m --interval=10s --timeout=2s --retries=3 \
     CMD curl -f http://localhost:$SYSTEM_API_PORT/system/liveness || exit 1
 
 USER root
