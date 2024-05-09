@@ -84,6 +84,7 @@ public class ServerSessionInterceptor implements ServerInterceptor {
 	 * Context that holds current {@link EvitaSessionContract} session.
 	 */
 	public static final Context.Key<EvitaInternalSessionContract> SESSION = Context.key(SESSION_ID_HEADER);
+	public static final Context.Key<String> CATALOG_NAME = Context.key(CATALOG_NAME_HEADER);
 	public static final Context.Key<Metadata> METADATA = Context.key(METADATA_HEADER);
 
 	/**
@@ -125,7 +126,7 @@ public class ServerSessionInterceptor implements ServerInterceptor {
 		if (activeSession.isPresent()) {
 			context = context.withValue(SESSION, activeSession.get());
 		}
-		context = context.withValue(METADATA, metadata);
+		context = context.withValue(METADATA, metadata).withValue(CATALOG_NAME, catalogName);
 		return Contexts.interceptCall(context, serverCall, metadata, serverCallHandler);
 	}
 
