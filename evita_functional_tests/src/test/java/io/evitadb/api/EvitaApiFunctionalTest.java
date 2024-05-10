@@ -352,6 +352,31 @@ class EvitaApiFunctionalTest {
 		);
 	}
 
+	@DisplayName("Existing entity can be altered and updated back to evitaDB, returning the new contents respecting removed prices")
+	@Test
+	void shouldUpdateExistingEntityAndReturnItWithoutRemovedPrice(Evita evita) {
+		// open new session
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EntityReference brand = createBrand(session, 1).upsertVia(session);
+				final EntityReference category = createCategory(session, 1).upsertVia(session);
+				final EntityReference productRef = createProduct(session, 1, brand, category).upsertVia(session);
+				// select existing entity
+				final SealedEntity product = getProductById(session, 1).orElseThrow();
+				// modify the entity contents
+				final EntityBuilder updatedProduct = product.openForWrite()
+					.removePrice(2, "basic", EUR);
+				// store entity back to the database
+				final SealedEntity updatedEntity = session.upsertAndFetchEntity(updatedProduct, priceContentAll());
+				assertNotNull(updatedEntity);
+
+				assertFalse(updatedEntity.getPrices().isEmpty());
+				assertTrue(updatedEntity.getPrices().stream().noneMatch(it -> it.currency() == EUR && it.priceList().equals("basic")));
+			}
+		);
+	}
+
 	@DisplayName("Existing entity should accept price handling strategy change")
 	@Test
 	void shouldUpdateEntityPriceInnerHandlingStrategy(Evita evita) {

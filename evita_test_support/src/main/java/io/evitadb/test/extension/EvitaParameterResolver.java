@@ -1175,6 +1175,10 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 			log.info("Closing Evita instance for data set `{}`", dataSetName);
 			evitaInstance.close();
 
+			// close the client
+			ofNullable(client.get())
+				.ifPresent(EvitaClient::close);
+
 			// close the server instance and free ports
 			ofNullable(evitaServerInstance)
 				.ifPresent(it -> {

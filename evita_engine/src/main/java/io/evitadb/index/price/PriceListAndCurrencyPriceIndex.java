@@ -41,6 +41,7 @@ import io.evitadb.store.model.StoragePart;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Serial;
 import java.io.Serializable;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
@@ -65,19 +66,19 @@ public interface PriceListAndCurrencyPriceIndex<DIFF_PIECE, COPY> extends IndexD
 	 * Returns bitmap of all indexed records of this combination of price list and currency.
 	 */
 	@Nonnull
-	Bitmap getIndexedPriceEntityIds();
+	Bitmap getIndexedPriceEntityIds() throws PriceListAndCurrencyPriceIndexTerminated;
 
 	/**
 	 * Returns bitmap of all indexed price ids.
 	 */
 	@Nonnull
-	int[] getIndexedPriceIds();
+	int[] getIndexedPriceIds() throws PriceListAndCurrencyPriceIndexTerminated;
 
 	/**
 	 * Returns array of {@link PriceRecordContract} for passed bitmap of ids.
 	 */
 	@Nonnull
-	default PriceRecordContract[] getPriceRecords(@Nonnull Bitmap priceIds) {
+	default PriceRecordContract[] getPriceRecords(@Nonnull Bitmap priceIds)  throws PriceListAndCurrencyPriceIndexTerminated {
 		return getPriceRecords(
 			priceIds,
 			priceRecordContract -> {
@@ -96,7 +97,7 @@ public interface PriceListAndCurrencyPriceIndex<DIFF_PIECE, COPY> extends IndexD
 		@Nonnull Bitmap priceIds,
 		@Nonnull Consumer<PriceRecordContract> priceFoundCallback,
 		@Nonnull IntConsumer priceIdNotFoundCallback
-	) {
+	)  throws PriceListAndCurrencyPriceIndexTerminated {
 		// TOBEDONE JNO - there is also an issue https://github.com/RoaringBitmap/RoaringBitmap/issues/562 that could make this algorithm faster
 		final CompositeObjectArray<PriceRecordContract> filteredPriceRecords = new CompositeObjectArray<>(PriceRecordContract.class);
 		final int[] buffer = SharedBufferPool.INSTANCE.obtain();
@@ -187,50 +188,73 @@ public interface PriceListAndCurrencyPriceIndex<DIFF_PIECE, COPY> extends IndexD
 	 * Returns formula that computes all indexed records of this combination of price list and currency.
 	 */
 	@Nonnull
-	Formula getIndexedPriceEntityIdsFormula();
+	Formula getIndexedPriceEntityIdsFormula() throws PriceListAndCurrencyPriceIndexTerminated;
 
 	/**
 	 * Returns formula that computes all indexed records of this combination of price list and currency that are valid
 	 * at the passed moment.
 	 */
 	@Nonnull
-	PriceIdContainerFormula getIndexedRecordIdsValidInFormula(OffsetDateTime theMoment);
+	PriceIdContainerFormula getIndexedRecordIdsValidInFormula(@Nonnull OffsetDateTime theMoment) throws PriceListAndCurrencyPriceIndexTerminated;
 
 	/**
 	 * Returns array of all {@link PriceRecord#internalPriceId()} of the entity.
 	 */
 	@Nullable
-	int[] getInternalPriceIdsForEntity(int entityId);
+	int[] getInternalPriceIdsForEntity(int entityId) throws PriceListAndCurrencyPriceIndexTerminated;
 
 	/**
 	 * Returns array of the lowest prices distinct by {@link PriceRecordContract#innerRecordId()} that exists in this
 	 * index and that belong to the particular entity sorted by price id.
 	 */
 	@Nullable
-	PriceRecordContract[] getLowestPriceRecordsForEntity(int entityId);
+	PriceRecordContract[] getLowestPriceRecordsForEntity(int entityId) throws PriceListAndCurrencyPriceIndexTerminated;
 
 	/**
 	 * Returns array of all prices in this index ordered by price id in ascending order.
 	 */
 	@Nonnull
-	PriceRecordContract[] getPriceRecords();
+	PriceRecordContract[] getPriceRecords() throws PriceListAndCurrencyPriceIndexTerminated;
 
 	/**
 	 * Returns formula that computes all indexed records in this index. Depending on the type of the index it returns
 	 * either entity ids or inner record ids.
 	 */
 	@Nonnull
-	Formula createPriceIndexFormulaWithAllRecords();
+	Formula createPriceIndexFormulaWithAllRecords() throws PriceListAndCurrencyPriceIndexTerminated;
 
 	/**
 	 * Returns true if index is empty.
 	 */
-	boolean isEmpty();
+	boolean isEmpty() throws PriceListAndCurrencyPriceIndexTerminated;
 
 	/**
 	 * Method creates container for storing any of price related indexes from memory to the persistent storage.
 	 */
 	@Nullable
-	StoragePart createStoragePart(int entityIndexPrimaryKey);
+	StoragePart createStoragePart(int entityIndexPrimaryKey) throws PriceListAndCurrencyPriceIndexTerminated;
+
+	/**
+	 * Returns true if index is terminated.
+	 * @return true if index is terminated
+	 */
+	boolean isTerminated();
+
+	/**
+	 * Sets price index as terminated.
+	 */
+	void terminate();
+
+	/**
+	 * Exception is thrown when outside logic tries to work with terminated price index.
+	 */
+	class PriceListAndCurrencyPriceIndexTerminated extends RuntimeException {
+		@Serial private static final long serialVersionUID = 1551590894819222190L;
+
+		public PriceListAndCurrencyPriceIndexTerminated(@Nonnull String message) {
+			super(message);
+		}
+
+	}
 
 }
