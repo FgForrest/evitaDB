@@ -117,7 +117,7 @@ public class MockPriceListAndCurrencyPriceIndex implements PriceListAndCurrencyP
 
 	@Nonnull
 	@Override
-	public PriceIdContainerFormula getIndexedRecordIdsValidInFormula(OffsetDateTime theMoment) {
+	public PriceIdContainerFormula getIndexedRecordIdsValidInFormula(@Nonnull OffsetDateTime theMoment) {
 		throw new UnsupportedOperationException();
 	}
 
@@ -154,6 +154,16 @@ public class MockPriceListAndCurrencyPriceIndex implements PriceListAndCurrencyP
 	@Override
 	public boolean isEmpty() {
 		throw new UnsupportedOperationException();
+	}
+
+	@Override
+	public boolean isTerminated() {
+		return false;
+	}
+
+	@Override
+	public void terminate() {
+
 	}
 
 	@Nullable

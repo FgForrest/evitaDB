@@ -833,7 +833,7 @@ public final class Evita implements EvitaContract {
 
 		final SessionRegistry sessionRegistry = activeSessions.computeIfAbsent(
 			sessionTraits.catalogName(),
-			theCatalogName -> new SessionRegistry(tracingContext, catalog)
+			theCatalogName -> new SessionRegistry(tracingContext, () -> (Catalog) this.catalogs.get(sessionTraits.catalogName()))
 		);
 
 		final NonTransactionalCatalogDescriptor nonTransactionalCatalogDescriptor =

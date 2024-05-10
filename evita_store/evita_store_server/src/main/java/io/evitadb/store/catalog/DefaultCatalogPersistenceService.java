@@ -753,7 +753,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		final CatalogStoragePartPersistenceService storagePartPersistenceService = getStoragePartPersistenceService(catalogVersion);
 		final CatalogIndexStoragePart catalogIndexStoragePart = storagePartPersistenceService.getStoragePart(catalogVersion, 1, CatalogIndexStoragePart.class);
 		if (catalogIndexStoragePart == null) {
-			return new CatalogIndex(catalog);
+			return new CatalogIndex();
 		} else {
 			final Set<AttributeKey> sharedAttributeUniqueIndexes = catalogIndexStoragePart.getSharedAttributeUniqueIndexes();
 			final Map<AttributeKey, GlobalUniqueIndex> sharedUniqueIndexes = CollectionUtils.createHashMap(sharedAttributeUniqueIndexes.size());
@@ -775,7 +775,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 					)
 				);
 			}
-			return new CatalogIndex(catalog, catalogIndexStoragePart.getVersion(), sharedUniqueIndexes);
+			return new CatalogIndex(catalogIndexStoragePart.getVersion(), sharedUniqueIndexes);
 		}
 	}
 

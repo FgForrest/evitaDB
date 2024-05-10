@@ -108,6 +108,7 @@ import static io.evitadb.store.catalog.DefaultIsolatedWalServiceTest.SCHEMA_MUTA
 import static io.evitadb.store.spi.CatalogPersistenceService.CATALOG_FILE_SUFFIX;
 import static io.evitadb.store.spi.CatalogPersistenceService.getCatalogDataStoreFileNamePattern;
 import static io.evitadb.test.Assertions.assertExactlyEquals;
+import static java.util.Optional.empty;
 import static java.util.Optional.of;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.any;
@@ -157,7 +158,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		final Catalog mockCatalog = mock(Catalog.class);
 		when(mockCatalog.getSchema()).thenReturn(catalogSchema);
 		when(mockCatalog.getEntitySchema(schema.getName())).thenReturn(of(schema));
-		when(mockCatalog.getEntityIndexIfExists(Mockito.eq(schema.getName()), any(EntityIndexKey.class))).thenReturn(null);
+		when(mockCatalog.getEntityIndexIfExists(Mockito.eq(schema.getName()), any(EntityIndexKey.class), any(Class.class))).thenReturn(empty());
 		return mockCatalog;
 	}
 
@@ -607,8 +608,8 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		final Catalog mockCatalog = getMockCatalog(catalogSchema, entitySchema);
 		final CatalogSchemaContract catalogSchemaContract = Mockito.mock(CatalogSchemaContract.class);
 		final EntityCollection entityCollection = new EntityCollection(
+			catalogSchema.getName(),
 			0L,
-			mockCatalog,
 			entityTypePrimaryKey,
 			entitySchema.getName(),
 			ioService,
@@ -616,7 +617,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			sequenceService,
 			DefaultTracingContext.INSTANCE
 		);
-
+		entityCollection.attachToCatalog(null, mockCatalog);
 
 		final ArgumentCaptor<Mutation> mutationCaptor = ArgumentCaptor.forClass(Mutation.class);
 
@@ -654,8 +655,8 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 
 		final SealedEntitySchema schema = entityCollection.getSchema();
 		final EntityCollection collection = new EntityCollection(
+			catalogSchema.getName(),
 			0L,
-			getMockCatalog(catalogSchema, schema),
 			entityCollection.getEntityTypePrimaryKey(),
 			schema.getName(),
 			ioService,
@@ -663,6 +664,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			sequenceService,
 			DefaultTracingContext.INSTANCE
 		);
+		collection.attachToCatalog(null, getMockCatalog(catalogSchema, schema));
 
 		final EvitaSession mockSession = mock(EvitaSession.class);
 		for (Integer primaryKey : entityCollection.getGlobalIndex().getAllPrimaryKeys()) {

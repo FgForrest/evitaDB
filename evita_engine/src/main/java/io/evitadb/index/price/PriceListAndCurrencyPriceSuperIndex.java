@@ -111,12 +111,17 @@ public class PriceListAndCurrencyPriceSuperIndex implements VoidTransactionMemor
 	 */
 	private final TransactionalObjArray<PriceRecordContract> priceRecords;
 	/**
+	 * Contains flags that makes the index terminated and unusable.
+	 */
+	private final TransactionalBoolean terminated;
+	/**
 	 * Contains cached result of {@link TransactionalBitmap#getArray()} call.
 	 */
 	private int[] memoizedIndexedPriceIds;
 
 	public PriceListAndCurrencyPriceSuperIndex(@Nonnull PriceIndexKey priceIndexKey) {
 		this.dirty = new TransactionalBoolean();
+		this.terminated = new TransactionalBoolean();
 		this.indexedPriceEntityIds = new TransactionalBitmap();
 		this.indexedPriceIds = new TransactionalBitmap();
 		this.priceIndexKey = priceIndexKey;
@@ -131,6 +136,7 @@ public class PriceListAndCurrencyPriceSuperIndex implements VoidTransactionMemor
 		@Nonnull PriceRecordContract[] priceRecords
 	) {
 		this.dirty = new TransactionalBoolean();
+		this.terminated = new TransactionalBoolean();
 		this.priceIndexKey = priceIndexKey;
 		this.validityIndex = validityIndex;
 		this.priceRecords = new TransactionalObjArray<>(priceRecords, Comparator.naturalOrder());
@@ -159,6 +165,7 @@ public class PriceListAndCurrencyPriceSuperIndex implements VoidTransactionMemor
 		@Nonnull PriceRecordContract[] priceRecords
 	) {
 		this.dirty = new TransactionalBoolean();
+		this.terminated = new TransactionalBoolean();
 		this.priceIndexKey = priceIndexKey;
 		this.indexedPriceEntityIds = new TransactionalBitmap(indexedPriceEntityIds);
 		this.indexedPriceIds = new TransactionalBitmap(priceIds);
@@ -171,6 +178,7 @@ public class PriceListAndCurrencyPriceSuperIndex implements VoidTransactionMemor
 	 * Indexes inner record id or entity primary key into the price index with passed values.
 	 */
 	public void addPrice(@Nonnull PriceRecordContract priceRecord, @Nullable DateTimeRange validity) {
+		assertNotTerminated();
 		if (isPriceRecordKnown(priceRecord.entityPrimaryKey(), priceRecord.priceId())) {
 			throw new PriceAlreadyAssignedToEntityException(
 				priceRecord.priceId(),
@@ -202,6 +210,7 @@ public class PriceListAndCurrencyPriceSuperIndex implements VoidTransactionMemor
 	 * Removes inner record id or entity primary key of passed values from the price index.
 	 */
 	public void removePrice(int entityPrimaryKey, int internalPriceId, @Nullable DateTimeRange validity) {
+		assertNotTerminated();
 		final PriceRecordContract priceRecord = getPriceRecord(internalPriceId);
 		this.priceRecords.remove(priceRecord);
 
@@ -231,12 +240,20 @@ public class PriceListAndCurrencyPriceSuperIndex implements VoidTransactionMemor
 		}
 	}
 
+	@Nonnull
+	@Override
+	public Bitmap getIndexedPriceEntityIds() {
+		assertNotTerminated();
+		return indexedPriceEntityIds;
+	}
+
 	/**
 	 * Method returns condensed bitmap of all {@link #priceRecords} {@link PriceRecordContract#internalPriceId()}
 	 * that can be used for the faster search for appropriate {@link PriceRecordContract} by the internal price id.
 	 */
 	@Nonnull
 	public int[] getIndexedPriceIds() {
+		assertNotTerminated();
 		// if there is transaction open, there might be changes in the histogram data, and we can't easily use cache
 		if (isTransactionAvailable() && this.dirty.isTrue()) {
 			return this.indexedPriceIds.getArray();
@@ -250,13 +267,8 @@ public class PriceListAndCurrencyPriceSuperIndex implements VoidTransactionMemor
 
 	@Nonnull
 	@Override
-	public Bitmap getIndexedPriceEntityIds() {
-		return indexedPriceEntityIds;
-	}
-
-	@Nonnull
-	@Override
 	public Formula getIndexedPriceEntityIdsFormula() {
+		assertNotTerminated();
 		if (indexedPriceEntityIds.isEmpty()) {
 			return EmptyFormula.INSTANCE;
 		} else {
@@ -266,7 +278,8 @@ public class PriceListAndCurrencyPriceSuperIndex implements VoidTransactionMemor
 
 	@Nonnull
 	@Override
-	public PriceIdContainerFormula getIndexedRecordIdsValidInFormula(OffsetDateTime theMoment) {
+	public PriceIdContainerFormula getIndexedRecordIdsValidInFormula(@Nonnull OffsetDateTime theMoment) {
+		assertNotTerminated();
 		final long thePoint = DateTimeRange.toComparableLong(theMoment);
 		return new PriceIdContainerFormula(
 			this, this.validityIndex.getRecordsEnvelopingInclusive(thePoint)
@@ -276,35 +289,41 @@ public class PriceListAndCurrencyPriceSuperIndex implements VoidTransactionMemor
 	@Nullable
 	@Override
 	public int[] getInternalPriceIdsForEntity(int entityId) {
+		assertNotTerminated();
 		return ofNullable(this.entityPrices.get(entityId)).map(EntityPrices::getInternalPriceIds).orElse(null);
 	}
 
 	@Nullable
 	@Override
 	public PriceRecordContract[] getLowestPriceRecordsForEntity(int entityId) {
+		assertNotTerminated();
 		return ofNullable(this.entityPrices.get(entityId)).map(EntityPrices::getLowestPriceRecords).orElse(null);
 	}
 
 	@Nonnull
 	@Override
 	public PriceRecordContract[] getPriceRecords() {
+		assertNotTerminated();
 		return this.priceRecords.getArray();
 	}
 
 	@Nonnull
 	@Override
 	public Formula createPriceIndexFormulaWithAllRecords() {
+		assertNotTerminated();
 		return new PriceIndexContainerFormula(this, this.getIndexedPriceEntityIdsFormula());
 	}
 
 	@Override
 	public boolean isEmpty() {
+		assertNotTerminated();
 		return this.indexedPriceEntityIds.isEmpty();
 	}
 
 	@Nullable
 	@Override
 	public StoragePart createStoragePart(int entityIndexPrimaryKey) {
+		assertNotTerminated();
 		if (this.dirty.isTrue()) {
 			return new PriceListAndCurrencySuperIndexStoragePart(
 				entityIndexPrimaryKey, priceIndexKey, validityIndex, priceRecords.getArray()
@@ -319,6 +338,7 @@ public class PriceListAndCurrencyPriceSuperIndex implements VoidTransactionMemor
 	 */
 	@Nonnull
 	public PriceRecordContract getPriceRecord(int internalPriceId) {
+		assertNotTerminated();
 		final PriceRecordContract[] priceRecords = this.priceRecords.getArray();
 		final int position = this.indexedPriceIds.indexOf(internalPriceId);
 		Assert.isTrue(position >= 0, "Price id `" + internalPriceId + "` was not found in the price super index!");
@@ -330,9 +350,20 @@ public class PriceListAndCurrencyPriceSuperIndex implements VoidTransactionMemor
 	 */
 	@Nonnull
 	public EntityPrices getEntityPrices(int entityPrimaryKey) {
+		assertNotTerminated();
 		final EntityPrices theEntityPrices = this.entityPrices.get(entityPrimaryKey);
 		Assert.isPremiseValid(theEntityPrices != null, "Entity prices for " + entityPrimaryKey + " unexpectedly not found!");
 		return theEntityPrices;
+	}
+
+	@Override
+	public boolean isTerminated() {
+		return this.terminated.isTrue();
+	}
+
+	@Override
+	public void terminate() {
+		this.terminated.setToTrue();
 	}
 
 	@Override
@@ -342,18 +373,17 @@ public class PriceListAndCurrencyPriceSuperIndex implements VoidTransactionMemor
 
 	@Override
 	public void resetDirty() {
+		assertNotTerminated();
 		this.dirty.reset();
 	}
-
-	/*
-		TransactionalLayerCreator implementation
-	 */
 
 	@Nonnull
 	@Override
 	public PriceListAndCurrencyPriceSuperIndex createCopyWithMergedTransactionalMemory(@Nullable Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
+		assertNotTerminated();
 		// we can safely throw away dirty flag now
 		final Boolean isDirty = transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
+		this.terminated.removeLayer(transactionalLayer);
 		if (isDirty) {
 			final PriceRecordContract[] newTriples = transactionalLayer.getStateCopyWithCommittedChanges(this.priceRecords);
 			return new PriceListAndCurrencyPriceSuperIndex(
@@ -369,10 +399,15 @@ public class PriceListAndCurrencyPriceSuperIndex implements VoidTransactionMemor
 		}
 	}
 
+	/*
+		TransactionalLayerCreator implementation
+	 */
+
 	@Override
 	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
 		this.dirty.removeLayer(transactionalLayer);
+		this.terminated.removeLayer(transactionalLayer);
 		this.indexedPriceEntityIds.removeLayer(transactionalLayer);
 		this.indexedPriceIds.removeLayer(transactionalLayer);
 		this.entityPrices.removeLayer(transactionalLayer);
@@ -384,6 +419,17 @@ public class PriceListAndCurrencyPriceSuperIndex implements VoidTransactionMemor
 		PRIVATE METHODS
 	*/
 
+	/**
+	 * Verifies that the index is not terminated.
+	 */
+	private void assertNotTerminated() {
+		if (terminated.isTrue()) {
+			throw new PriceListAndCurrencyPriceIndexTerminated(
+				"Price list and currency index " + priceIndexKey + " is terminated!"
+			);
+		}
+	}
+
 	private boolean isPriceRecordKnown(int entityPrimaryKey, int priceId) {
 		final EntityPrices theEntityPrices = this.entityPrices.get(entityPrimaryKey);
 		if (theEntityPrices != null) {
@@ -392,7 +438,7 @@ public class PriceListAndCurrencyPriceSuperIndex implements VoidTransactionMemor
 		return false;
 	}
 
-	private void addEntityPrice(PriceRecordContract priceRecord) {
+	private void addEntityPrice(@Nonnull PriceRecordContract priceRecord) {
 		this.entityPrices.compute(
 			priceRecord.entityPrimaryKey(),
 			(entityId, existingPriceRecords) -> {
@@ -405,7 +451,8 @@ public class PriceListAndCurrencyPriceSuperIndex implements VoidTransactionMemor
 		);
 	}
 
-	private EntityPrices removeEntityPrice(PriceRecordContract priceRecord) {
+	@Nonnull
+	private EntityPrices removeEntityPrice(@Nonnull PriceRecordContract priceRecord) {
 		return this.entityPrices.computeIfPresent(
 			priceRecord.entityPrimaryKey(),
 			(entityId, existingPriceRecords) -> EntityPrices.removePrice(existingPriceRecords, priceRecord)

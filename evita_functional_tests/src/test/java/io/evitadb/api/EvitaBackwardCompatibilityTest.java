@@ -29,6 +29,7 @@ import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.requestResponse.system.SystemStatus;
 import io.evitadb.core.Evita;
 import io.evitadb.test.EvitaTestSupport;
+import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -51,6 +52,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
+@Slf4j
 public class EvitaBackwardCompatibilityTest implements EvitaTestSupport {
 	private static final String DIRECTORY = "evita-backward-compatibility";
 	private Path mainDirectory;
@@ -69,6 +71,8 @@ public class EvitaBackwardCompatibilityTest implements EvitaTestSupport {
 	void verifyBackwardCompatibilityTo_2024_5() throws IOException {
 		final Path directory_2024_5 = mainDirectory.resolve("2024.5");
 		if (!directory_2024_5.toFile().exists()) {
+			log.info("Downloading and unzipping evita-demo-dataset_2024.5.zip");
+
 			directory_2024_5.toFile().mkdirs();
 			// first download the file from https://evitadb.io/test/evita-demo-dataset_2024.5.zip to tmp folder and unzip it
 			try (final InputStream is = new URL("https://evitadb.io/download/test/evita-demo-dataset_2024.5.zip").openStream()) {
@@ -95,6 +99,7 @@ public class EvitaBackwardCompatibilityTest implements EvitaTestSupport {
 			}
 		}
 
+		log.info("Starting Evita with backward compatibility to 2024.5");
 		final Evita evita = new Evita(
 			EvitaConfiguration.builder()
 				.server(
