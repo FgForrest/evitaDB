@@ -156,8 +156,7 @@ import static java.util.Optional.ofNullable;
 public final class EntityCollection implements
 	TransactionalLayerProducer<DataStoreChanges<EntityIndexKey, EntityIndex>, EntityCollection>,
 	EntityCollectionContract,
-	CatalogRelatedDataStructure<EntityCollection>
-{
+	CatalogRelatedDataStructure<EntityCollection> {
 
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	/**
@@ -487,9 +486,9 @@ public final class EntityCollection implements
 				);
 		}
 
-		return enrichEntity(
-			referenceFetcher.initReferenceIndex((EntityDecorator) entity, this),
-			evitaRequest, referenceFetcher
+		return applyReferenceFetcher(
+			enrichEntity(entity, evitaRequest),
+			referenceFetcher
 		);
 	}
 
@@ -806,8 +805,8 @@ public final class EntityCollection implements
 	public Optional<SealedEntity> getEntity(int primaryKey, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session, @Nonnull ReferenceFetcher referenceFetcher) {
 		// retrieve current version of entity
 		return getEntityDecorator(primaryKey, evitaRequest, session)
-			.map(it -> enrichEntity(referenceFetcher.initReferenceIndex(it, this), evitaRequest, referenceFetcher))
-			.map(it -> limitEntity(it, evitaRequest, session));
+			.map(it -> limitEntity(it, evitaRequest, session))
+			.map(it -> applyReferenceFetcher(it, referenceFetcher));
 	}
 
 	@Nonnull
@@ -818,11 +817,10 @@ public final class EntityCollection implements
 			.filter(Optional::isPresent)
 			.map(Optional::get)
 			.toList();
-		return referenceFetcher.initReferenceIndex(entityDecorators, this)
-			.stream()
-			.map(it -> enrichEntity(it, evitaRequest, referenceFetcher))
-			.map(it -> limitEntity(it, evitaRequest, session))
-			.toList();
+		return applyReferenceFetcher(
+			entityDecorators.stream().map(it -> limitEntity(it, evitaRequest, session)).toList(),
+			referenceFetcher
+		);
 	}
 
 	@Nonnull
@@ -849,17 +847,15 @@ public final class EntityCollection implements
 					);
 				}
 			},
-			theEntity -> enrichEntity(theEntity, evitaRequest, ReferenceFetcher.NO_IMPLEMENTATION)
+			theEntity -> enrichEntity(theEntity, evitaRequest)
 		);
 	}
 
 	@Nonnull
 	public EntityDecorator enrichEntity(
-		@Nonnull SealedEntity sealedEntity,
-		@Nonnull EvitaRequest evitaRequest,
-		@Nonnull ReferenceFetcher referenceFetcher
-	)
-		throws EntityAlreadyRemovedException {
+		@Nonnull EntityContract sealedEntity,
+		@Nonnull EvitaRequest evitaRequest
+	) throws EntityAlreadyRemovedException {
 		final EntityDecorator partiallyLoadedEntity = (EntityDecorator) sealedEntity;
 		// return decorator that hides information not requested by original query
 		final LocaleSerializablePredicate newLocalePredicate = partiallyLoadedEntity.createLocalePredicateRicherCopyWith(evitaRequest);
@@ -868,22 +864,7 @@ public final class EntityCollection implements
 		final AssociatedDataValueSerializablePredicate newAssociatedDataPredicate = partiallyLoadedEntity.createAssociatedDataPredicateRicherCopyWith(evitaRequest);
 		final ReferenceContractSerializablePredicate newReferenceContractPredicate = partiallyLoadedEntity.createReferencePredicateRicherCopyWith(evitaRequest);
 		final PriceContractSerializablePredicate newPriceContractPredicate = partiallyLoadedEntity.createPricePredicateRicherCopyWith(evitaRequest);
-		// fetch parents if requested
-		final EntityClassifierWithParent parentEntity;
 		final EntitySchema internalSchema = getInternalSchema();
-		if (internalSchema.isWithHierarchy() && newHierarchyPredicate.isRequiresHierarchy()) {
-			if (partiallyLoadedEntity.getParentEntityWithoutCheckingPredicate().map(it -> it instanceof SealedEntity).orElse(false)) {
-				parentEntity = partiallyLoadedEntity.getParentEntityWithoutCheckingPredicate().get();
-			} else {
-				final OptionalInt theParent = partiallyLoadedEntity.getDelegate().getParent();
-				parentEntity = theParent.isPresent() ?
-					ofNullable(referenceFetcher.getParentEntityFetcher())
-						.map(it -> it.apply(theParent.getAsInt()))
-						.orElse(null) : null;
-			}
-		} else {
-			parentEntity = null;
-		}
 
 		return Entity.decorate(
 			// load all missing data according to current evita request
@@ -902,7 +883,7 @@ public final class EntityCollection implements
 			// use original schema
 			internalSchema,
 			// fetch parents if requested
-			parentEntity,
+			null,
 			// show / hide locales the entity is fetched in
 			newLocalePredicate,
 			// show / hide parent information
@@ -917,6 +898,93 @@ public final class EntityCollection implements
 			newPriceContractPredicate,
 			// propagate original date time
 			partiallyLoadedEntity.getAlignedNow(),
+			// recursive entity loader
+			ReferenceFetcher.NO_IMPLEMENTATION
+		);
+	}
+
+	@Nonnull
+	public EntityDecorator applyReferenceFetcher(
+		@Nonnull SealedEntity sealedEntity,
+		@Nonnull ReferenceFetcher referenceFetcher
+	) throws EntityAlreadyRemovedException {
+		if (referenceFetcher == ReferenceFetcher.NO_IMPLEMENTATION) {
+			return (EntityDecorator) sealedEntity;
+		} else {
+			referenceFetcher.initReferenceIndex(sealedEntity, this);
+			return applyReferenceFetcherInternal((EntityDecorator) sealedEntity, referenceFetcher);
+		}
+	}
+
+	@Nonnull
+	public List<SealedEntity> applyReferenceFetcher(
+		@Nonnull List<SealedEntity> sealedEntities,
+		@Nonnull ReferenceFetcher referenceFetcher
+	) throws EntityAlreadyRemovedException {
+		if (referenceFetcher == ReferenceFetcher.NO_IMPLEMENTATION) {
+			return sealedEntities;
+		} else {
+			referenceFetcher.initReferenceIndex(sealedEntities, this);
+			return sealedEntities.stream()
+				.map(it -> applyReferenceFetcherInternal((EntityDecorator) it, referenceFetcher))
+				.map(SealedEntity.class::cast)
+				.toList();
+		}
+	}
+
+	private @Nonnull EntityDecorator applyReferenceFetcherInternal(
+		@Nonnull EntityDecorator sealedEntity,
+		@Nonnull ReferenceFetcher referenceFetcher
+	) {
+		// fetch parents if requested
+		final EntityClassifierWithParent parentEntity;
+		final EntitySchema internalSchema = getInternalSchema();
+		if (internalSchema.isWithHierarchy() && sealedEntity.getHierarchyPredicate().isRequiresHierarchy()) {
+			if (sealedEntity.getParentEntityWithoutCheckingPredicate().map(it -> it instanceof SealedEntity).orElse(false)) {
+				parentEntity = sealedEntity.getParentEntityWithoutCheckingPredicate().get();
+			} else {
+				final OptionalInt theParent = sealedEntity.getDelegate().getParent();
+				parentEntity = theParent.isPresent() ?
+					ofNullable(referenceFetcher.getParentEntityFetcher())
+						.map(it -> it.apply(theParent.getAsInt()))
+						.orElse(null) : null;
+			}
+		} else {
+			parentEntity = null;
+		}
+
+		return Entity.decorate(
+			// load all missing data according to current evita request
+			this.persistenceService.enrichEntity(
+				this.catalog.getVersion(),
+				internalSchema,
+				// use all data from existing entity
+				sealedEntity,
+				sealedEntity.getHierarchyPredicate(),
+				sealedEntity.getAttributePredicate(),
+				sealedEntity.getAssociatedDataPredicate(),
+				sealedEntity.getReferencePredicate(),
+				sealedEntity.getPricePredicate(),
+				dataStoreBuffer
+			),
+			// use original schema
+			internalSchema,
+			// fetch parents if requested
+			parentEntity,
+			// show / hide locales the entity is fetched in
+			sealedEntity.getLocalePredicate(),
+			// show / hide parent information
+			sealedEntity.getHierarchyPredicate(),
+			// show / hide attributes information
+			sealedEntity.getAttributePredicate(),
+			// show / hide associated data information
+			sealedEntity.getAssociatedDataPredicate(),
+			// show / hide references information
+			sealedEntity.getReferencePredicate(),
+			// show / hide price information
+			sealedEntity.getPricePredicate(),
+			// propagate original date time
+			sealedEntity.getAlignedNow(),
 			// recursive entity loader
 			referenceFetcher
 		);
@@ -1002,10 +1070,10 @@ public final class EntityCollection implements
 	public EntityCollectionHeader flush() {
 		this.persistenceService.flushTrappedUpdates(0L, this.dataStoreBuffer.getTrappedIndexChanges());
 		return this.catalogPersistenceService.flush(
-			0L,
-			this.headerInfoSupplier,
-			this.persistenceService.getEntityCollectionHeader()
-		)
+				0L,
+				this.headerInfoSupplier,
+				this.persistenceService.getEntityCollectionHeader()
+			)
 			.map(EntityCollectionPersistenceService::getEntityCollectionHeader)
 			.orElseGet(this::getEntityCollectionHeader);
 	}
@@ -1166,8 +1234,23 @@ public final class EntityCollection implements
 		return entityCollection;
 	}
 
+	@Override
+	public void attachToCatalog(@Nullable String entityType, @Nonnull Catalog catalog) {
+		this.catalog = catalog;
+		this.schema = new TransactionalReference<>(
+			new EntitySchemaDecorator(catalog::getSchema, this.initialSchema)
+		);
+		for (EntityIndex entityIndex : indexes.values()) {
+			entityIndex.useSchema(this::getInternalSchema);
+			if (entityIndex instanceof CatalogRelatedDataStructure<?> catalogRelatedEntityIndex) {
+				catalogRelatedEntityIndex.attachToCatalog(this.entityType, this.catalog);
+			}
+		}
+	}
+
 	/**
 	 * Creates a new copy of the Entity collection with the same state as the current one.
+	 *
 	 * @return a new EntityCollection object with the same state as the current one
 	 */
 	@Nonnull
@@ -1213,26 +1296,12 @@ public final class EntityCollection implements
 	EntityCollectionHeader flush(long catalogVersion) {
 		this.persistenceService.flushTrappedUpdates(catalogVersion, this.dataStoreBuffer.getTrappedIndexChanges());
 		return this.catalogPersistenceService.flush(
-			catalogVersion,
-			this.headerInfoSupplier,
-			this.persistenceService.getEntityCollectionHeader()
-		)
+				catalogVersion,
+				this.headerInfoSupplier,
+				this.persistenceService.getEntityCollectionHeader()
+			)
 			.map(EntityCollectionPersistenceService::getEntityCollectionHeader)
 			.orElseGet(this::getEntityCollectionHeader);
-	}
-
-	@Override
-	public void attachToCatalog(@Nullable String entityType, @Nonnull Catalog catalog) {
-		this.catalog = catalog;
-		this.schema = new TransactionalReference<>(
-			new EntitySchemaDecorator(catalog::getSchema, this.initialSchema)
-		);
-		for (EntityIndex entityIndex : indexes.values()) {
-			entityIndex.useSchema(this::getInternalSchema);
-			if (entityIndex instanceof CatalogRelatedDataStructure<?> catalogRelatedEntityIndex) {
-				catalogRelatedEntityIndex.attachToCatalog(this.entityType, this.catalog);
-			}
-		}
 	}
 
 	/*
