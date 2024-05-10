@@ -323,16 +323,13 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 
 		// enrich and limit entities them appropriately
 		if (!entities.isEmpty()) {
-			referenceFetcher.initReferenceIndex(entities, entityCollection);
-			entities.forEach(
-				// if so, enrich or limit the existing entity for desired scope
-				previouslyFetchedEntity -> {
-					final SealedEntity refEntity = queryContext.enrichOrLimitReferencedEntity(
-						previouslyFetchedEntity, fetchRequest, referenceFetcher
-					);
-					entityIndex.put(refEntity.getPrimaryKey(), refEntity);
-				}
-			);
+			entityCollection.applyReferenceFetcher(
+				entities.stream()
+					.map(it -> entityCollection.enrichEntity(it, fetchRequest))
+					.map(it -> entityCollection.limitEntity(it, fetchRequest, queryContext.getEvitaSession()))
+					.toList(),
+				referenceFetcher
+			).forEach(refEntity -> entityIndex.put(refEntity.getPrimaryKey(), refEntity));
 		}
 		return entityIndex;
 	}

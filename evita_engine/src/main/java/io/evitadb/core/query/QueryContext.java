@@ -391,11 +391,13 @@ public class QueryContext implements AutoCloseable, LocaleProvider {
 				(entityCollection, entityPrimaryKeys, requestToUse) ->
 					entityCollection.getEntities(entityPrimaryKeys, evitaRequest, evitaSession),
 				(entityCollection, prefetchedEntities, requestToUse) ->
-					entityFetcher.initReferenceIndex(prefetchedEntities, entityCollection)
-						.stream()
-						.map(it -> entityCollection.enrichEntity(it, requestToUse, entityFetcher))
-						.map(it -> entityCollection.limitEntity(it, requestToUse, evitaSession))
-						.toList()
+					entityCollection.applyReferenceFetcher(
+						prefetchedEntities.stream()
+							.map(it -> entityCollection.enrichEntity(it, requestToUse, evitaSession))
+							.map(it -> entityCollection.limitEntity(it, requestToUse, evitaSession))
+							.toList(),
+						entityFetcher
+					)
 			);
 		}
 	}
@@ -883,30 +885,6 @@ public class QueryContext implements AutoCloseable, LocaleProvider {
 	public boolean isRequiresBinaryForm() {
 		return evitaSession.isBinaryFormat();
 	}
-
-	/**
-	 * Method allows to enrich / limit the referenced entity according to passed evita request.
-	 */
-	public SealedEntity enrichOrLimitReferencedEntity(
-		@Nonnull SealedEntity sealedEntity,
-		@Nonnull EvitaRequest evitaRequest,
-		@Nonnull ReferenceFetcher referenceFetcher
-	) {
-		final EntityCollection theCollection = getEntityCollectionOrThrowException(sealedEntity.getType(), "enriching reference");
-		return theCollection.limitEntity(
-			theCollection.enrichEntity(
-				sealedEntity,
-				evitaRequest,
-				referenceFetcher
-			),
-			evitaRequest,
-			evitaSession
-		);
-	}
-
-	/*
-		PRIVATE METHODS
-	 */
 
 	/**
 	 * Method returns appropriate {@link EntityCollection} for the {@link #evitaRequest} or empty value.
