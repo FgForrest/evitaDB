@@ -2653,6 +2653,46 @@ public class EntityByAttributeFilteringFunctionalTest {
 		);
 	}
 
+	@DisplayName("Should return entities greater than date time range")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnEntitiesByAttributeDateTimeRangeGreaterThanMoment(Evita evita, List<SealedEntity> originalProductEntities) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final List<OffsetDateTime> allValidities = originalProductEntities.stream()
+					.map(it -> it.getAttribute(ATTRIBUTE_VALIDITY, DateTimeRange.class))
+					.filter(Objects::nonNull)
+					.map(DateTimeRange::getPreciseFrom)
+					.distinct()
+					.sorted()
+					.toList();
+				final OffsetDateTime theMoment = allValidities.get(allValidities.size() / 2);
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							attributeGreaterThan(ATTRIBUTE_VALIDITY, theMoment)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+				assertResultIs(
+					originalProductEntities,
+					sealedEntity -> ofNullable((DateTimeRange) sealedEntity.getAttribute(ATTRIBUTE_VALIDITY))
+						.map(it -> it.compareTo(DateTimeRange.between(theMoment, theMoment)) > 0)
+						.orElse(false),
+					result.getRecordData()
+				);
+				return null;
+			}
+		);
+	}
+
 	@DisplayName("Should return entities by date time range (now)")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
