@@ -727,6 +727,7 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 						}
 					})
 					.filter(Objects::nonNull)
+					.filter(it -> !it.getFacetStatistics().isEmpty())
 					.collect(Collectors.toList());
 			};
 		}
