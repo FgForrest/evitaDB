@@ -145,12 +145,12 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 	 * an account.
 	 */
 	@Nonnull
-	protected static Formula[] alterFormula(@Nonnull Formula newFormula, boolean disjunction, boolean negation, @Nonnull Formula... children) {
+	protected static Formula[] alterFormula(@Nonnull Formula newFormula, @Nonnull Formula superSetFormula, boolean disjunction, boolean negation, @Nonnull Formula... children) {
 		// if newly added formula should represent OR join
 		if (disjunction) {
 			return addNewFormulaAsDisjunction(newFormula, children);
 		} else if (negation) {
-			return addNewFormulaAsNegation(newFormula, children);
+			return addNewFormulaAsNegation(newFormula, children, superSetFormula);
 		} else {
 			return addNewFormulaAsConjunction(newFormula, children);
 		}
@@ -378,14 +378,14 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 	 * filter and combines it with `newFormula` in NOT composition where `newFormula` represents subracted set.
 	 */
 	@Nonnull
-	private static Formula[] addNewFormulaAsNegation(@Nonnull Formula newFormula, @Nonnull Formula[] children) {
+	private static Formula[] addNewFormulaAsNegation(@Nonnull Formula newFormula, @Nonnull Formula[] children, @Nonnull Formula superSetFormula) {
 		// if newly added formula should represent OR join
 		// combine existing children with new facet formula in NOT container - now is not yet created
 		// (otherwise this method would not be called at all)
 		return new Formula[]{
 			FormulaFactory.not(
 				newFormula,
-				FormulaFactory.and(children)
+				children.length == 0 ? superSetFormula : FormulaFactory.and(children)
 			)
 		};
 	}
@@ -605,7 +605,13 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 			// we can immediately alter the current formula adding new facet formula
 			storeFormula(
 				formula.getCloneWithInnerFormulas(
-					alterFormula(newFormula, isNewFacetDisjunction, isNewFacetNegation, updatedChildren)
+					alterFormula(
+						newFormula,
+						baseFormulaWithoutUserFilter,
+						isNewFacetDisjunction,
+						isNewFacetNegation,
+						updatedChildren
+					)
 				)
 			);
 			// we've stored the formula - instruct super method to skip it's handling
