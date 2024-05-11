@@ -289,6 +289,36 @@ public class EntityDecorator implements SealedEntity {
 	 * @param entity                  fully or partially loaded entity - it's usually wider than decorator (may be even complete), decorator
 	 *                                might be obtained from shared global cache
 	 * @param parentEntity            object of the parentEntity
+	 * @param referenceFetcher        fetcher that can be used for fetching, filtering and ordering referenced
+	 *                                entities / groups
+	 */
+	public EntityDecorator(
+		@Nonnull EntityDecorator entity,
+		@Nullable EntityClassifierWithParent parentEntity,
+		@Nonnull ReferenceFetcher referenceFetcher
+	) {
+		this(
+			entity.getDelegate(),
+			entity.getSchema(),
+			parentEntity,
+			entity.localePredicate,
+			entity.hierarchyPredicate,
+			entity.attributePredicate,
+			entity.associatedDataPredicate,
+			entity.referencePredicate,
+			entity.pricePredicate,
+			entity.alignedNow,
+			referenceFetcher
+		);
+	}
+
+	/**
+	 * Creates wrapper around {@link Entity} that filters existing data according passed predicates (which are constructed
+	 * to match query that is used to retrieve the decorator).
+	 *
+	 * @param entity                  fully or partially loaded entity - it's usually wider than decorator (may be even complete), decorator
+	 *                                might be obtained from shared global cache
+	 * @param parentEntity            object of the parentEntity
 	 * @param localePredicate         predicate used to filter out locales to match input query
 	 * @param attributePredicate      predicate used to filter out attributes to match input query
 	 * @param associatedDataPredicate predicate used to filter out associated data to match input query

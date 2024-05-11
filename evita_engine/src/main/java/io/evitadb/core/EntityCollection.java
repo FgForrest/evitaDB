@@ -953,41 +953,7 @@ public final class EntityCollection implements
 			parentEntity = null;
 		}
 
-		return Entity.decorate(
-			// load all missing data according to current evita request
-			this.persistenceService.enrichEntity(
-				this.catalog.getVersion(),
-				internalSchema,
-				// use all data from existing entity
-				sealedEntity,
-				sealedEntity.getHierarchyPredicate(),
-				sealedEntity.getAttributePredicate(),
-				sealedEntity.getAssociatedDataPredicate(),
-				sealedEntity.getReferencePredicate(),
-				sealedEntity.getPricePredicate(),
-				dataStoreBuffer
-			),
-			// use original schema
-			internalSchema,
-			// fetch parents if requested
-			parentEntity,
-			// show / hide locales the entity is fetched in
-			sealedEntity.getLocalePredicate(),
-			// show / hide parent information
-			sealedEntity.getHierarchyPredicate(),
-			// show / hide attributes information
-			sealedEntity.getAttributePredicate(),
-			// show / hide associated data information
-			sealedEntity.getAssociatedDataPredicate(),
-			// show / hide references information
-			sealedEntity.getReferencePredicate(),
-			// show / hide price information
-			sealedEntity.getPricePredicate(),
-			// propagate original date time
-			sealedEntity.getAlignedNow(),
-			// recursive entity loader
-			referenceFetcher
-		);
+		return new EntityDecorator(sealedEntity, parentEntity, referenceFetcher);
 	}
 
 	/**
