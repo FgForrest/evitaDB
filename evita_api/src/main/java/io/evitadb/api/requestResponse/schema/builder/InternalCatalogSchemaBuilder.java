@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -45,7 +45,7 @@ import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchem
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.MutationEntitySchemaAccessor;
 import io.evitadb.dataType.EvitaDataTypes;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.NamingConvention;
 import lombok.experimental.Delegate;
@@ -337,7 +337,7 @@ public final class InternalCatalogSchemaBuilder implements CatalogSchemaBuilder,
 				final LocalCatalogSchemaMutation mutation = this.mutations.get(i);
 				final CatalogSchemaWithImpactOnEntitySchemas mutationImpact = mutation.mutate(currentSchema, updatedEntitySchemaAccessor);
 				if (mutationImpact == null || mutationImpact.updatedCatalogSchema() == null) {
-					throw new EvitaInternalError("Catalog schema unexpectedly removed from inside!");
+					throw new GenericEvitaInternalError("Catalog schema unexpectedly removed from inside!");
 				}
 				currentSchema = mutationImpact.updatedCatalogSchema();
 			}

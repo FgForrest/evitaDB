@@ -81,7 +81,7 @@ import io.evitadb.core.query.sort.NoSorter;
 import io.evitadb.core.query.sort.OrderByVisitor;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.core.query.sort.attribute.translator.EntityAttributeExtractor;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.utils.ArrayUtils;
@@ -480,7 +480,7 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 				registerProducer(translator.apply(requireConstraint, this));
 			} else {
 				// sanity check only
-				throw new EvitaInternalError("Should never happen");
+				throw new GenericEvitaInternalError("Should never happen");
 			}
 		} else {
 			@SuppressWarnings("unchecked") final RequireConstraintTranslator<RequireConstraint> translator =
@@ -535,7 +535,7 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	@Nonnull
 	public ProcessingScope getProcessingScope() {
 		if (isScopeEmpty()) {
-			throw new EvitaInternalError("Scope should never be empty");
+			throw new GenericEvitaInternalError("Scope should never be empty");
 		} else {
 			return scope.peek();
 		}

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -35,6 +35,7 @@ import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.Range;
 import io.evitadb.dataType.data.ComplexDataObjectToJsonConverter;
 import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
 import lombok.Getter;
 
@@ -101,7 +102,7 @@ public class ObjectJsonSerializer {
 		if (value instanceof PriceContract price) return serialize(price);
 		if (value.getClass().isEnum()) return serialize((Enum<?>) value);
 
-		throw new EvitaInternalError("Serialization of value of class: " + value.getClass().getName() + " is not implemented yet.");
+		throw new GenericEvitaInternalError("Serialization of value of class: " + value.getClass().getName() + " is not implemented yet.");
 	}
 
 	/**

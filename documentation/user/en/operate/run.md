@@ -324,7 +324,11 @@ you will also see the ports configuration here.
 
 ### Check statuses of the APIs
 
-You can check statuses of the GraphQL and the REST API by using the `curl` command.
+To check the status of all enabled APIs, use the `curl` command and our [readiness probe](./monitor.md#readiness-probe).
+This probe verifies that APIs are ready to serve requests via internal HTTP calls and returns their status in a single 
+response.
+
+You can also check statuses of the GraphQL and the REST API manually by using the `curl` command.
 
 #### GraphQL
 
@@ -377,19 +381,15 @@ You need to replace `__path_to_log_file__` with the path to your logback configu
 The running (and named) container can be stopped and restarted using the following commands:
 
 ```shell
-# shut the container down
-docker stop evitadb
-# bring the container up in frontend mode
-docker start evitadb
-# bring the container up in daemon mode
-docker start evitadb -d
+# restart the running container
+docker restart evitadb
 ```
 
 Alternatively, you can use `docker ps` to get the ID of a running container and restart it using the
 [UUID short identifier](https://docs.docker.com/engine/reference/run/#name---name):
 
 ```shell
-docker start b0c7b140c6a7
+docker restart b0c7b140c6a7
 ```
 
 ### Docker Compose

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.descriptor.ConstraintCreator;
 import io.evitadb.api.query.descriptor.ConstraintCreator.ParameterDescriptor;
 import io.evitadb.api.query.descriptor.annotation.AliasForParameter;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.StringUtils;
 
 import javax.annotation.Nonnull;
@@ -51,14 +51,14 @@ public class ConstraintParameterValueResolver {
 		final Method getter = findGetter(constraintClass.getDeclaredMethods(), parameter.name())
 			.or(() -> findGetter(constraintClass.getMethods(), parameter.name()))
 			.orElseThrow(() ->
-				new EvitaInternalError("Could not find getter for parameter `" + parameter.name() + "` in constraint `" + constraintClass.getSimpleName() + "`."));
+				new GenericEvitaInternalError("Could not find getter for parameter `" + parameter.name() + "` in constraint `" + constraintClass.getSimpleName() + "`."));
 		getter.trySetAccessible();
 
 		final Object parameterValue;
 		try {
 			parameterValue = getter.invoke(constraint);
 		} catch (IllegalAccessException | InvocationTargetException e) {
-			throw new EvitaInternalError("Could not invoke getter for parameter `" + parameter.name() + "` in constraint `" + constraintClass.getSimpleName() + "`.", e);
+			throw new GenericEvitaInternalError("Could not invoke getter for parameter `" + parameter.name() + "` in constraint `" + constraintClass.getSimpleName() + "`.", e);
 		}
 
 		if (parameterValue instanceof Optional<?> optionalParameterValue) {

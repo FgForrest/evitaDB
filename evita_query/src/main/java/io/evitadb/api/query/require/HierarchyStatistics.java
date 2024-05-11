@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
@@ -108,9 +108,11 @@ public class HierarchyStatistics extends AbstractRequireConstraintLeaf implement
 		// unnecessary to duplicate the hierarchy prefix
 		super(
 			CONSTRAINT_NAME,
-			statisticsBase == null
-				? StatisticsBase.WITHOUT_USER_FILTER
-				: statisticsBase
+			statisticsBase
+		);
+		Assert.isTrue(
+			statisticsBase != null,
+			"StatisticsBase is mandatory argument, yet it was not provided!"
 		);
 	}
 
@@ -124,12 +126,15 @@ public class HierarchyStatistics extends AbstractRequireConstraintLeaf implement
 		super(
 			CONSTRAINT_NAME,
 			ArrayUtils.mergeArrays(
-				statisticsBase == null ?
-					new Serializable[] {StatisticsBase.WITHOUT_USER_FILTER} : new Serializable[] {statisticsBase},
+				new Serializable[] {statisticsBase},
 				ArrayUtils.isEmpty(statisticsType) ?
 					new StatisticsType[0] :
 					statisticsType
 			)
+		);
+		Assert.isTrue(
+			statisticsBase != null,
+			"StatisticsBase is mandatory argument, yet it was not provided!"
 		);
 	}
 
@@ -144,7 +149,7 @@ public class HierarchyStatistics extends AbstractRequireConstraintLeaf implement
 				return sb;
 			}
 		}
-		throw new EvitaInternalError("StatisticsBase is mandatory argument, yet it was not found!");
+		throw new GenericEvitaInternalError("StatisticsBase is mandatory argument, yet it was not found!");
 	}
 
 	/**

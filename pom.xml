@@ -114,7 +114,7 @@
 		<jboss.version>3.5.1.Final</jboss.version>
 		<lombok.version>1.18.30</lombok.version>
 		<grpc.version>1.62.2</grpc.version>
-		<bouncyCastle.version>1.77</bouncyCastle.version>
+		<bouncyCastle.version>1.78</bouncyCastle.version>
 		<!--Compatible versions with gRPC could be found here: https://github.com/grpc/grpc-java/blob/master/SECURITY.md#netty -->
 		<nettyHandler.version>4.1.100.Final</nettyHandler.version>
 		<swagger.version>2.2.15</swagger.version>
@@ -158,6 +158,11 @@
 				<groupId>one.edee.oss</groupId>
 				<artifactId>proxycian_bytebuddy</artifactId>
 				<version>1.3.10</version>
+			</dependency>
+			<dependency>
+				<groupId>com.squareup.okhttp3</groupId>
+				<artifactId>okhttp</artifactId>
+				<version>5.0.0-alpha.14</version>
 			</dependency>
 			<dependency>
 				<groupId>org.apache.maven.plugins</groupId>

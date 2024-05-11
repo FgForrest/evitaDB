@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,7 +26,7 @@ package io.evitadb.spike;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.dataType.trie.Trie;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.store.service.KryoFactory;
 import io.evitadb.utils.StringUtils;
 
@@ -152,7 +152,7 @@ public class TrieIngestion {
 			final Set<String> autocompletedWords = trie.getWordsStartingWith(randomWord);
 			duration += System.nanoTime() - start;
 			if (autocompletedWords.isEmpty()) {
-				throw new EvitaInternalError("Indexes doesn't match!");
+				throw new GenericEvitaInternalError("Indexes doesn't match!");
 			} else {
 				autocompleteResults += autocompletedWords.size();
 			}

@@ -54,7 +54,7 @@ import io.evitadb.core.EntityCollection;
 import io.evitadb.core.buffer.DataStoreChanges;
 import io.evitadb.core.buffer.DataStoreIndexChanges;
 import io.evitadb.core.buffer.DataStoreMemoryBuffer;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
@@ -466,8 +466,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		long catalogVersion,
 		int entityIndexId,
 		@Nonnull Set<PriceIndexKey> priceIndexes,
-		@Nonnull StoragePartPersistenceService persistenceService,
-		@Nonnull Supplier<PriceSuperIndex> superIndexAccessor
+		@Nonnull StoragePartPersistenceService persistenceService
 	) {
 		final Map<PriceIndexKey, PriceListAndCurrencyPriceRefIndex> priceRefIndexes = CollectionUtils.createHashMap(priceIndexes.size());
 		for (PriceIndexKey priceIndexKey : priceIndexes) {
@@ -482,8 +481,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 				new PriceListAndCurrencyPriceRefIndex(
 					priceIndexKey,
 					priceIndexCnt.getValidityIndex(),
-					priceIndexCnt.getPriceIds(),
-					pik -> superIndexAccessor.get().getPriceIndex(pik)
+					priceIndexCnt.getPriceIds()
 				)
 			);
 		}
@@ -912,7 +910,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	}
 
 	@Override
-	public EntityIndex readEntityIndex(long catalogVersion, int entityIndexId, @Nonnull Supplier<EntitySchema> schemaSupplier, @Nonnull Supplier<PriceSuperIndex> temporalIndexAccessor, @Nonnull Supplier<PriceSuperIndex> superIndexAccessor) {
+	public EntityIndex readEntityIndex(long catalogVersion, int entityIndexId, @Nonnull EntitySchema entitySchema) {
 		final EntityIndexStoragePart entityIndexCnt = this.storagePartPersistenceService.getStoragePart(catalogVersion, entityIndexId, EntityIndexStoragePart.class);
 		isPremiseValid(
 			entityIndexCnt != null,
@@ -926,7 +924,6 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		final Map<AttributeKey, CardinalityIndex> cardinalityIndexes = new HashMap<>();
 
 		/* TOBEDONE #538 - REMOVE IN FUTURE VERSIONS */
-		final EntitySchema entitySchema = schemaSupplier.get();
 		final Function<AttributeKey, Class> attributeTypeFetcher;
 		final EntityIndexKey entityIndexKey = entityIndexCnt.getEntityIndexKey();
 		if (entityIndexKey.getType() == EntityIndexType.GLOBAL) {
@@ -959,7 +956,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 				case CARDINALITY ->
 					fetchCardinalityIndex(catalogVersion, entityIndexId, storagePartPersistenceService, cardinalityIndexes, attributeIndexKey);
 				default ->
-					throw new EvitaInternalError("Unknown attribute index type: " + attributeIndexKey.indexType());
+					throw new GenericEvitaInternalError("Unknown attribute index type: " + attributeIndexKey.indexType());
 			}
 		}
 
@@ -976,7 +973,6 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 				entityIndexCnt.getPrimaryKey(),
 				entityIndexKey,
 				entityIndexCnt.getVersion(),
-				schemaSupplier,
 				entityIndexCnt.getEntityIds(),
 				entityIndexCnt.getEntityIdsByLanguage(),
 				new AttributeIndex(
@@ -995,7 +991,6 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 				entityIndexCnt.getPrimaryKey(),
 				entityIndexKey,
 				entityIndexCnt.getVersion(),
-				schemaSupplier,
 				entityIndexCnt.getEntityIds(),
 				entityIndexCnt.getEntityIdsByLanguage(),
 				new AttributeIndex(
@@ -1009,19 +1004,18 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 			);
 		} else {
 			final Map<PriceIndexKey, PriceListAndCurrencyPriceRefIndex> priceIndexes = fetchPriceRefIndexes(
-				catalogVersion, entityIndexId, entityIndexCnt.getPriceIndexes(), storagePartPersistenceService, temporalIndexAccessor
+				catalogVersion, entityIndexId, entityIndexCnt.getPriceIndexes(), storagePartPersistenceService
 			);
 			return new ReducedEntityIndex(
 				entityIndexCnt.getPrimaryKey(),
 				entityIndexKey,
 				entityIndexCnt.getVersion(),
-				schemaSupplier,
 				entityIndexCnt.getEntityIds(),
 				entityIndexCnt.getEntityIdsByLanguage(),
 				new AttributeIndex(
 					entitySchema.getName(), uniqueIndexes, filterIndexes, sortIndexes, chainIndexes
 				),
-				new PriceRefIndex(priceIndexes, superIndexAccessor),
+				new PriceRefIndex(priceIndexes),
 				hierarchyIndex,
 				facetIndex
 			);

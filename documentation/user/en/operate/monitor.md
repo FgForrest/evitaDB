@@ -98,6 +98,106 @@ The layout is the `io.evitadb.server.log.AppLogJsonLayout` layout to log app log
 </configuration>
 ```
 
+## Readiness and liveness probes
+
+The evitaDB server provides endpoints for Kubernetes [readiness and liveness probes](https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/). The liveness probe is also c
+onfigured as [healthcheck](https://docs.docker.com/reference/dockerfile/#healthcheck) by default in our Docker image. By default the health check waits `30s` before it
+starts checking the server health, for larger databases you may need to increase this value using environment variable 
+`HEALTHCHECK_START_DELAY` so that they have enough time to be loaded into memory.
+
+<Note type="warning">
+
+<NoteTitle toggles="false">
+
+##### When you change system API port don't forget to set `SYSTEM_API_PORT` environment variable
+</NoteTitle>
+
+The healthcheck in the Docker image is configured to use the default system API port, which is `5557`. If you change 
+the port, the health check will immediately report an unhealthy container because it won't be able to reach the probe 
+endpoint. You need to specify the new port using the `SYSTEM_API_PORT` environment variable of the Docker container.
+
+</Note>
+
+Both probes are available in the `system` API and are accessible at the following endpoints:
+
+### Readiness probe
+
+```shell
+curl -k "http://localhost:5557/system/readiness" \
+     -H 'Content-Type: application/json'
+```
+
+The probe will return `200 OK` if the server is ready to accept traffic, otherwise it will return `503 Service Unavailable`.
+Probe internally calls all enabled APIs via HTTP call on the server side to check if they are ready to serve traffic. 
+Example response:
+
+```json
+{
+  "status": "READY",
+  "apis": {
+	"rest": "ready",
+	"system": "ready",
+	"graphQL": "ready",
+	"lab": "ready",
+	"observability": "ready",
+	"gRPC": "ready"
+  }
+}
+```
+
+The overall status may be one of the following constants:
+
+<dl>
+    <dt>STARTING</dt>
+    <dd>At least one API is not yet ready.</dd>
+    <dt>READY</dt>
+    <dd>The server is ready to serve traffic.</dd>
+    <dt>STALLING</dt>
+    <dd>At least one API that was ready is not ready anymore.</dd>
+    <dt>SHUTDOWN</dt>
+    <dd>Server is shutting down. None of the APIs are ready.</dd>
+</dl>
+
+Each of the enabled APIs has its own status so that you can see which particular API is not ready in case of `STARTING` 
+or `STALLING` status.
+
+### Liveness probe
+
+```shell
+curl -k "http://localhost:5557/system/liveness" \
+     -H 'Content-Type: application/json'
+```
+
+If the server is healthy, the probe will return `200 OK`. Otherwise, it will return `503 Service Unavailable`.
+Example response:
+
+```json
+{
+  "status": "healthy",
+  "problems": []
+}
+```
+
+If the server is unhealthy, the response will list the problems.
+
+<dl>
+    <dt>MEMORY_SHORTAGE</dt>
+    <dd>Signalized when the consumed memory never goes below 85% of the maximum heap size and the GC tries to free 
+    the old generation at least once. This leads to repeated attempts of expensive old generation GC and pressure on 
+    host CPUs.</dd>
+    <dt>INPUT_QUEUES_OVERLOADED</dt>
+    <dd>Signalized when the input queues are full and the server is not able to process incoming requests. The problem
+	is reported when there is ration of rejected tasks to accepted tasks >= 2. This flag is cleared when the rejection
+	ratio decreases below the specified threshold, which signalizes that server is able to process incoming requests 
+	again.</dd>
+    <dt>JAVA_INTERNAL_ERRORS</dt>
+    <dd>Signaled when there are occurrences of Java internal errors. These errors are usually caused by the server
+    itself and are not related to the client's requests. Java errors signal fatal problems inside the JVM.</dd>
+    <dt>EXTERNAL_API_UNAVAILABLE</dt>
+    <dd>Signalized when the readiness probe signals that at least one external API, that is configured to be enabled
+	doesn't respond to internal HTTP check call.</dd>
+</dl>
+
 ## Client and request identification
 
 In order to monitor which requests each client executes against evitaDB, each client and each request can be identified by

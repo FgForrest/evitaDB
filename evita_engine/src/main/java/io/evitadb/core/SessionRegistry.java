@@ -33,6 +33,7 @@ import io.evitadb.api.trace.TracingContext.SpanAttribute;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import lombok.RequiredArgsConstructor;
@@ -73,7 +74,7 @@ final class SessionRegistry {
 	/**
 	 * Reference to {@link Catalog} this instance is bound to.
 	 */
-	private final Catalog catalog;
+	private final Supplier<Catalog> catalog;
 	/**
 	 * Keeps information about currently active sessions.
 	 */
@@ -162,7 +163,8 @@ final class SessionRegistry {
 				.unregisterSessionConsumingCatalogInVersion(session.getCatalogVersion());
 			if (finalizationResult.lastReader()) {
 				// notify listeners that the catalog version is no longer used
-				this.catalog.catalogVersionBeyondTheHorizon(
+				final Catalog theCatalog = this.catalog.get();
+				theCatalog.catalogVersionBeyondTheHorizon(
 					finalizationResult.minimalActiveCatalogVersion()
 				);
 			}
@@ -216,7 +218,7 @@ final class SessionRegistry {
 										"Unexpected internal Evita error occurred: " + ex.getCause().getMessage(),
 										targetException == null ? ex : targetException
 									);
-									throw new EvitaInternalError(
+									throw new GenericEvitaInternalError(
 										"Unexpected internal Evita error occurred: " + ex.getCause().getMessage(),
 										"Unexpected internal Evita error occurred.",
 										targetException == null ? ex : targetException
@@ -224,7 +226,7 @@ final class SessionRegistry {
 								}
 							} catch (Throwable ex) {
 								log.error("Unexpected system error occurred: " + ex.getMessage(), ex);
-								throw new EvitaInternalError(
+								throw new GenericEvitaInternalError(
 									"Unexpected system error occurred: " + ex.getMessage(),
 									"Unexpected system error occurred.",
 									ex
@@ -234,7 +236,7 @@ final class SessionRegistry {
 						if (method.isAnnotationPresent(Traced.class)) {
 							return tracingContext.executeWithinBlockIfParentContextAvailable(
 								"session call - " + method.getName(),
-								invocation::get,
+								invocation,
 								() -> {
 									final Parameter[] parameters = method.getParameters();
 									final SpanAttribute[] spanAttributes = new SpanAttribute[1 + parameters.length];

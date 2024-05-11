@@ -23,7 +23,7 @@
 
 package io.evitadb.api.query.parser;
 
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
 import lombok.ToString;
@@ -87,7 +87,7 @@ public class Classifier {
         } else {
             // correct passed type from client should be checked at visitor level, here should be should correct checked type
             // if everything is correct on parser side
-            throw new EvitaInternalError("Expected variadic string value but got `" + actualValue.getClass().getName() + "`.");
+            throw new GenericEvitaInternalError("Expected variadic string value but got `" + actualValue.getClass().getName() + "`.");
         }
     }
 }

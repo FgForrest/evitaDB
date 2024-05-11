@@ -40,7 +40,7 @@ import io.evitadb.core.query.sort.attribute.PrefetchedRecordsSorter;
 import io.evitadb.core.query.sort.primaryKey.ReversedSorter;
 import io.evitadb.core.query.sort.translator.OrderingConstraintTranslator;
 import io.evitadb.dataType.array.CompositeObjectArray;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.attribute.SortedRecordsSupplier;
 import io.evitadb.index.bitmap.Bitmap;
@@ -128,7 +128,7 @@ public class EntityPrimaryKeyNaturalTranslator implements OrderingConstraintTran
 		} else if (bitmap instanceof EmptyBitmap) {
 			return null;
 		} else {
-			throw new EvitaInternalError(
+			throw new GenericEvitaInternalError(
 				"Unexpected bitmap type: " + bitmap.getClass().getName(),
 				"Unexpected bitmap type!"
 			);

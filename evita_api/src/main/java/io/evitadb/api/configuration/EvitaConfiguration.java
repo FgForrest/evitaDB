@@ -24,7 +24,7 @@
 package io.evitadb.api.configuration;
 
 import io.evitadb.dataType.ClassifierType;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ClassifierUtils;
 import io.evitadb.utils.NetworkUtils;
@@ -105,7 +105,7 @@ public record EvitaConfiguration(
 			this.transaction = transaction;
 			this.cache = cache;
 		} catch (IOException ex) {
-			throw new EvitaInternalError("Unable to access storage directory creation time!", ex);
+			throw new GenericEvitaInternalError("Unable to access storage directory creation time!", ex);
 		}
 	}
 

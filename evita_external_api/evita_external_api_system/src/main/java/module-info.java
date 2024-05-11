@@ -21,6 +21,7 @@
  *   limitations under the License.
  */
 
+import io.evitadb.externalApi.api.system.ProbesProvider;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
 import io.evitadb.store.spi.CatalogPersistenceServiceFactory;
 /**
@@ -30,6 +31,7 @@ module evita.external.api.system {
 
 	uses CatalogPersistenceServiceFactory;
 	uses ExternalApiProviderRegistrar;
+	uses ProbesProvider;
 
 	provides ExternalApiProviderRegistrar with io.evitadb.externalApi.system.SystemProviderRegistrar;
 
@@ -48,6 +50,7 @@ module evita.external.api.system {
 	requires com.fasterxml.jackson.annotation;
 	requires com.fasterxml.jackson.databind;
 	requires java.management;
+	requires org.bouncycastle.provider;
 
 	exports io.evitadb.externalApi.system.configuration;
 	exports io.evitadb.externalApi.system;

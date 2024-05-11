@@ -25,7 +25,7 @@ package io.evitadb.test.client;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.graphql.io.GraphQLRequest;
 import io.evitadb.utils.Assert;
 import okhttp3.MediaType;
@@ -58,7 +58,7 @@ public class GraphQLClient extends ApiClient {
 		try {
 			request = createRequest(instancePath, document);
 		} catch (IOException e) {
-			throw new EvitaInternalError("Unexpected error.", e);
+			throw new GenericEvitaInternalError("Unexpected error.", e);
 		}
 
 		try (Response response = client.newCall(request).execute()) {
@@ -71,12 +71,12 @@ public class GraphQLClient extends ApiClient {
 			}
 			if (responseCode >= 400 && responseCode <= 499 && responseCode != 404) {
 				final String errorResponseString = response.body() != null ? response.body().string() : "no response body";
-				throw new EvitaInternalError("Call to GraphQL instance `" + this.url + instancePath + "` ended with status " + responseCode + ", query was:\n" + document + "\n and response was: \n" + errorResponseString);
+				throw new GenericEvitaInternalError("Call to GraphQL instance `" + this.url + instancePath + "` ended with status " + responseCode + ", query was:\n" + document + "\n and response was: \n" + errorResponseString);
 			}
 
-			throw new EvitaInternalError("Call to GraphQL server ended with status " + responseCode + ", query was:\n" + document);
+			throw new GenericEvitaInternalError("Call to GraphQL server ended with status " + responseCode + ", query was:\n" + document);
 		} catch (IOException e) {
-			throw new EvitaInternalError("Unexpected error.", e);
+			throw new GenericEvitaInternalError("Unexpected error.", e);
 		}
 	}
 
@@ -92,12 +92,10 @@ public class GraphQLClient extends ApiClient {
 
 	protected String createRequestBody(@Nonnull String document) throws IOException {
 		final GraphQLRequest requestBody = new GraphQLRequest(document, null, null, null);
-		final String requestBodyJson = objectMapper.writeValueAsString(requestBody);
-
-		return requestBodyJson;
+		return objectMapper.writeValueAsString(requestBody);
 	}
 
-	private void validateResponseBody(@Nonnull JsonNode responseBody) throws JsonProcessingException {
+	private static void validateResponseBody(@Nonnull JsonNode responseBody) throws JsonProcessingException {
 		final JsonNode errors = responseBody.get("errors");
 		Assert.isPremiseValid(
 			errors == null || errors.isNull() || errors.isEmpty(),

@@ -24,6 +24,7 @@
 package io.evitadb.api.trace;
 
 import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 
 import javax.annotation.Nonnull;
 import java.util.List;
@@ -47,7 +48,7 @@ public class TracingContextProvider {
 			.map(Provider::get)
 			.toList();
 		if (collectedContexts.size() > 1) {
-			throw new EvitaInternalError("There are multiple registered implementations of TracingContext.");
+			throw new GenericEvitaInternalError("There are multiple registered implementations of TracingContext.");
 		}
 		if (collectedContexts.size() == 1) {
 			TRACING_CONTEXT = collectedContexts.stream().findFirst().get();

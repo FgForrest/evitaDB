@@ -32,7 +32,7 @@ import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder.LookUp;
 import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.dataType.iterator.BatchArrayIterator;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.iterator.RoaringBitmapBatchArrayIterator;
@@ -126,7 +126,7 @@ public interface FilteredPriceRecords extends Serializable {
 					lazyEvaluatedEntityPriceRecords.get()
 				);
 			} else {
-				throw new EvitaInternalError("Both resolved and lazy price records are present!");
+				throw new GenericEvitaInternalError("Both resolved and lazy price records are present!");
 			}
 		}
 	}

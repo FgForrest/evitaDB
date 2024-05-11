@@ -29,6 +29,7 @@ import io.evitadb.externalApi.system.configuration.SystemConfig;
 import io.evitadb.utils.ConsoleWriter;
 import io.evitadb.utils.ConsoleWriter.ConsoleColor;
 import io.evitadb.utils.ConsoleWriter.ConsoleDecoration;
+import io.evitadb.utils.NetworkUtils;
 import io.evitadb.utils.StringUtils;
 import io.undertow.server.HttpHandler;
 import lombok.Getter;
@@ -73,6 +74,11 @@ public class SystemProvider implements ExternalApiProviderWithConsoleOutput<Syst
 	@Nonnull
 	@Getter
 	private final String[] clientPrivateKeyUrls;
+
+	/**
+	 * Contains url that was at least once found reachable.
+	 */
+	private String reachableUrl;
 
 	@Nonnull
 	@Override
@@ -138,5 +144,21 @@ public class SystemProvider implements ExternalApiProviderWithConsoleOutput<Syst
                 """,
 			ConsoleColor.BRIGHT_RED, ConsoleDecoration.BOLD
 		);
+	}
+
+	@Override
+	public boolean isReady() {
+		final String[] baseUrls = this.configuration.getBaseUrls(configuration.getExposedHost());
+		if (this.reachableUrl == null) {
+			for (String baseUrl : baseUrls) {
+				if (NetworkUtils.isReachable(baseUrl)) {
+					this.reachableUrl = baseUrl;
+					return true;
+				}
+			}
+			return false;
+		} else {
+			return NetworkUtils.isReachable(this.reachableUrl);
+		}
 	}
 }

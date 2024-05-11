@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
 
 package io.evitadb.utils;
 
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 
 import javax.annotation.Nonnull;
 import java.util.Arrays;
@@ -86,7 +86,7 @@ public enum NamingConvention {
 					Collectors.toMap(
 						Function.identity(),
 						it -> StringUtils.toSpecificCase(name, it),
-						(s, s2) -> { throw new EvitaInternalError("Should not ever occur!"); },
+						(s, s2) -> { throw new GenericEvitaInternalError("Should not ever occur!"); },
 						LinkedHashMap::new
 					)
 				)

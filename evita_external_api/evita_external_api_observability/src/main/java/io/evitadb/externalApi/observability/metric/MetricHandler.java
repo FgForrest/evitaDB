@@ -69,6 +69,27 @@ public class MetricHandler {
 
 	private static final Map<String, Runnable> DEFAULT_JVM_METRICS;
 	private static final String DEFAULT_JVM_METRICS_NAME = "AllMetrics";
+	// define a Prometheus counter for errors
+	public static final Counter JAVA_ERRORS_TOTAL = Counter.builder()
+		.name("jvm_errors_total")
+		.labelNames("error_type")
+		.help("Total number of internal Java errors")
+		.register();
+	public static final Counter EVITA_ERRORS_TOTAL = Counter.builder()
+		.name("io_evitadb_errors_total")
+		.labelNames("error_type")
+		.help("Total number of internal evitaDB errors")
+		.register();
+	public static final Gauge HEALTH_PROBLEMS = Gauge.builder()
+		.name("io_evitadb_probe_health_problem")
+		.labelNames("problem_type")
+		.help("Health problems detected in the system")
+		.register();
+	public static final Gauge API_READINESS = Gauge.builder()
+		.name("io_evitadb_probe_api_readiness")
+		.labelNames("api_type")
+		.help("Status of the API readiness (internal HTTP call check)")
+		.register();
 
 	static {
 		DEFAULT_JVM_METRICS = Map.of(
@@ -145,6 +166,10 @@ public class MetricHandler {
 				for (Entry<String, Set<String>> eventClasses : eventMetricClasses.entrySet()) {
 					final Set<String> classNames = eventClasses.getValue();
 					final Set<Class<? extends CustomMetricsExecutionEvent>> existingEventClasses = CustomEventProvider.getEventClasses();
+
+					// jvm_memory_used_bytes{area="heap"}
+					// jvm_memory_max_bytes{area="heap"}
+					// jvm_gc_collection_seconds_sum{gc="G1 Old Generation"}
 
 					for (Class<? extends CustomMetricsExecutionEvent> eventClass : existingEventClasses) {
 						// if event is enabled

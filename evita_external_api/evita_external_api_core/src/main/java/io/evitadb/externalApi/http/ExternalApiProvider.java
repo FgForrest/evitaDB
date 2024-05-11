@@ -79,4 +79,13 @@ public interface ExternalApiProvider<T extends AbstractApiConfiguration> {
 	default void beforeStop() {
 		// do nothing
 	}
+
+	/**
+	 * Returns TRUE if the API is ready to accept requests. This method should physically test an API call to determine
+	 * the API responds to the requests.
+	 *
+	 * @return TRUE if the API is ready to accept requests
+	 */
+	boolean isReady();
+
 }

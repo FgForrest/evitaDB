@@ -26,7 +26,7 @@ package io.evitadb.performance.client.state;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.performance.client.ClientDataState;
 import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Setup;
@@ -147,7 +147,7 @@ public abstract class ClientTransactionalWriteState extends ClientDataState {
 			.iterator();*/
 		this.productIterator = Collections.emptyIterator();
 		this.productSchema = session.getEntitySchema(PRODUCT_ENTITY_TYPE)
-			.orElseThrow(() -> new EvitaInternalError("Schema for entity `" + PRODUCT_ENTITY_TYPE + "` was not found!"));
+			.orElseThrow(() -> new GenericEvitaInternalError("Schema for entity `" + PRODUCT_ENTITY_TYPE + "` was not found!"));
 	}
 
 	/**
@@ -176,7 +176,7 @@ public abstract class ClientTransactionalWriteState extends ClientDataState {
 				PRODUCT_ENTITY_TYPE,
 				primaryKey,
 				entityFetchAllContent()
-			).orElseThrow(() -> new EvitaInternalError("Entity with id " + primaryKey + " unexpectedly not found!"));;
+			).orElseThrow(() -> new GenericEvitaInternalError("Entity with id " + primaryKey + " unexpectedly not found!"));;
 
 			this.product = this.modificationFunction.apply(existingEntity);
 			this.updateCounter++;

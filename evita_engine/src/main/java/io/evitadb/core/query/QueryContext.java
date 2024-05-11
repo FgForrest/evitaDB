@@ -66,7 +66,7 @@ import io.evitadb.core.query.extraResult.CacheSupervisorExtraResultAccessor;
 import io.evitadb.core.query.extraResult.ExtraResultCacheAccessor;
 import io.evitadb.core.query.extraResult.translator.facet.producer.FilteringFormulaPredicate;
 import io.evitadb.dataType.array.CompositeIntArray;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.TriFunction;
 import io.evitadb.index.CatalogIndexKey;
 import io.evitadb.index.EntityIndex;
@@ -322,7 +322,7 @@ public class QueryContext implements AutoCloseable, LocaleProvider {
 				os.writeObject(new Random());
 				this.frozenRandom = bos.toByteArray();
 			} catch (IOException e) {
-				throw new EvitaInternalError("Unexpected error during debug mode evaluation!", e);
+				throw new GenericEvitaInternalError("Unexpected error during debug mode evaluation!", e);
 			}
 			lambda.run();
 		} finally {
@@ -349,7 +349,7 @@ public class QueryContext implements AutoCloseable, LocaleProvider {
 				try (var is = new ObjectInputStream(new ByteArrayInputStream(it))) {
 					return (Random) is.readObject();
 				} catch (IOException | ClassNotFoundException e) {
-					throw new EvitaInternalError("Unexpected error during debug mode evaluation!", e);
+					throw new GenericEvitaInternalError("Unexpected error during debug mode evaluation!", e);
 				}
 			})
 			.orElseGet(ThreadLocalRandom::current);
@@ -391,11 +391,13 @@ public class QueryContext implements AutoCloseable, LocaleProvider {
 				(entityCollection, entityPrimaryKeys, requestToUse) ->
 					entityCollection.getEntities(entityPrimaryKeys, evitaRequest, evitaSession),
 				(entityCollection, prefetchedEntities, requestToUse) ->
-					entityFetcher.initReferenceIndex(prefetchedEntities, entityCollection)
-						.stream()
-						.map(it -> entityCollection.enrichEntity(it, requestToUse, entityFetcher))
-						.map(it -> entityCollection.limitEntity(it, requestToUse, evitaSession))
-						.toList()
+					entityCollection.applyReferenceFetcher(
+						prefetchedEntities.stream()
+							.map(it -> entityCollection.enrichEntity(it, requestToUse, evitaSession))
+							.map(it -> entityCollection.limitEntity(it, requestToUse, evitaSession))
+							.toList(),
+						entityFetcher
+					)
 			);
 		}
 	}
@@ -805,7 +807,7 @@ public class QueryContext implements AutoCloseable, LocaleProvider {
 	public GlobalEntityIndex getGlobalEntityIndex() {
 		return getGlobalEntityIndexIfExists()
 			.map(GlobalEntityIndex.class::cast)
-			.orElseThrow(() -> new EvitaInternalError("Global index of entity unexpectedly not found!"));
+			.orElseThrow(() -> new GenericEvitaInternalError("Global index of entity unexpectedly not found!"));
 	}
 
 	/**
@@ -883,30 +885,6 @@ public class QueryContext implements AutoCloseable, LocaleProvider {
 	public boolean isRequiresBinaryForm() {
 		return evitaSession.isBinaryFormat();
 	}
-
-	/**
-	 * Method allows to enrich / limit the referenced entity according to passed evita request.
-	 */
-	public SealedEntity enrichOrLimitReferencedEntity(
-		@Nonnull SealedEntity sealedEntity,
-		@Nonnull EvitaRequest evitaRequest,
-		@Nonnull ReferenceFetcher referenceFetcher
-	) {
-		final EntityCollection theCollection = getEntityCollectionOrThrowException(sealedEntity.getType(), "enriching reference");
-		return theCollection.limitEntity(
-			theCollection.enrichEntity(
-				sealedEntity,
-				evitaRequest,
-				referenceFetcher
-			),
-			evitaRequest,
-			evitaSession
-		);
-	}
-
-	/*
-		PRIVATE METHODS
-	 */
 
 	/**
 	 * Method returns appropriate {@link EntityCollection} for the {@link #evitaRequest} or empty value.

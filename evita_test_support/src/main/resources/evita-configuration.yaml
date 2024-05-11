@@ -87,7 +87,7 @@ api:
         readOnly: ${api.endpoints.lab.gui.readOnly:false}
         preconfiguredConnections: !include ${api.endpoints.lab.gui.preconfiguredConnections:null}
     observability:
-      enabled: false
+      enabled: ${api.endpoints.observability.enabled:false}
       host: ${api.endpoints.observability.host:localhost:5557}
       exposedHost: ${api.endpoints.observability.exposedHost:null}
       tlsEnabled: ${api.endpoints.observability.tlsEnabled:false}

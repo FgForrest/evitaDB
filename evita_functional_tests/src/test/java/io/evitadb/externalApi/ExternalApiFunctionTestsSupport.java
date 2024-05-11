@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -30,7 +30,7 @@ import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.core.Evita;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import io.evitadb.test.Entities;
 
@@ -146,7 +146,7 @@ public interface ExternalApiFunctionTestsSupport {
 			.filter(filter)
 			.findFirst()
 			.map(SealedEntity::getPrimaryKey)
-			.orElseThrow(() -> new EvitaInternalError("No entity to test."));
+			.orElseThrow(() -> new GenericEvitaInternalError("No entity to test."));
 	}
 
 	default int findEntityWithPricePk(@Nonnull List<SealedEntity> originalProductEntities) {
@@ -297,7 +297,7 @@ public interface ExternalApiFunctionTestsSupport {
 					assertFalse(entities.isEmpty());
 				}
 				return entities.stream()
-					.peek(it -> validator.accept(it))
+					.peek(validator::accept)
 					.toList();
 			}
 		);
@@ -376,12 +376,12 @@ public interface ExternalApiFunctionTestsSupport {
 
 	@Nonnull
 	default String serializeStringArrayToQueryString(@Nonnull List<String> items) {
-		return Arrays.toString(items.stream().map(it -> "\"" + it.toString() + "\"").toArray());
+		return Arrays.toString(items.stream().map(it -> "\"" + it + "\"").toArray());
 	}
 
 	@Nonnull
 	default String serializeStringArrayToQueryString(@Nonnull String[] items) {
-		return Arrays.toString(Arrays.stream(items).map(it -> "\"" + it.toString() + "\"").toArray());
+		return Arrays.toString(Arrays.stream(items).map(it -> "\"" + it + "\"").toArray());
 	}
 
 	@Nonnull

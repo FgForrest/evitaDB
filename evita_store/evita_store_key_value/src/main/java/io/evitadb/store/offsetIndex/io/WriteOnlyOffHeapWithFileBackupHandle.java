@@ -25,6 +25,7 @@ package io.evitadb.store.offsetIndex.io;
 
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.store.exception.StorageException;
 import io.evitadb.store.kryo.ObservableInput;
 import io.evitadb.store.kryo.ObservableOutput;
@@ -230,7 +231,7 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 				this::releaseTemporaryFile
 			);
 		} else {
-			throw new EvitaInternalError(
+			throw new GenericEvitaInternalError(
 				"No content has been written using this write handle!"
 			);
 		}
@@ -472,7 +473,7 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 					);
 				}
 			} else {
-				throw new EvitaInternalError(
+				throw new GenericEvitaInternalError(
 					"No content has been written using source write handle!"
 				);
 			}

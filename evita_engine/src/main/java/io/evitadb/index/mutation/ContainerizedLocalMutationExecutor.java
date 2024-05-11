@@ -58,8 +58,8 @@ import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.core.buffer.DataStoreChanges;
 import io.evitadb.core.buffer.DataStoreMemoryBuffer;
-import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.store.entity.model.entity.AssociatedDataStoragePart;
@@ -178,7 +178,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 			updateAssociatedData(entitySchema, associatedDataMutation);
 		} else {
 			// SHOULD NOT EVER HAPPEN
-			throw new EvitaInternalError("Unknown mutation: " + localMutation.getClass());
+			throw new GenericEvitaInternalError("Unknown mutation: " + localMutation.getClass());
 		}
 	}
 
@@ -414,7 +414,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 			// DO NOTHING
 		} else {
 			// SHOULD NOT EVER HAPPEN
-			throw new EvitaInternalError("Unknown mutation: " + attributeMutation.getClass());
+			throw new GenericEvitaInternalError("Unknown mutation: " + attributeMutation.getClass());
 		}
 	}
 

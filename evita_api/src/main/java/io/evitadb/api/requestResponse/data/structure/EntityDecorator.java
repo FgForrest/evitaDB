@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -52,8 +52,8 @@ import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.dataType.data.ComplexDataObjectConverter;
-import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ReflectionLookup;
 import lombok.Getter;
@@ -289,6 +289,36 @@ public class EntityDecorator implements SealedEntity {
 	 * @param entity                  fully or partially loaded entity - it's usually wider than decorator (may be even complete), decorator
 	 *                                might be obtained from shared global cache
 	 * @param parentEntity            object of the parentEntity
+	 * @param referenceFetcher        fetcher that can be used for fetching, filtering and ordering referenced
+	 *                                entities / groups
+	 */
+	public EntityDecorator(
+		@Nonnull EntityDecorator entity,
+		@Nullable EntityClassifierWithParent parentEntity,
+		@Nonnull ReferenceFetcher referenceFetcher
+	) {
+		this(
+			entity.getDelegate(),
+			entity.getSchema(),
+			parentEntity,
+			entity.localePredicate,
+			entity.hierarchyPredicate,
+			entity.attributePredicate,
+			entity.associatedDataPredicate,
+			entity.referencePredicate,
+			entity.pricePredicate,
+			entity.alignedNow,
+			referenceFetcher
+		);
+	}
+
+	/**
+	 * Creates wrapper around {@link Entity} that filters existing data according passed predicates (which are constructed
+	 * to match query that is used to retrieve the decorator).
+	 *
+	 * @param entity                  fully or partially loaded entity - it's usually wider than decorator (may be even complete), decorator
+	 *                                might be obtained from shared global cache
+	 * @param parentEntity            object of the parentEntity
 	 * @param localePredicate         predicate used to filter out locales to match input query
 	 * @param attributePredicate      predicate used to filter out attributes to match input query
 	 * @param associatedDataPredicate predicate used to filter out associated data to match input query
@@ -342,7 +372,7 @@ public class EntityDecorator implements SealedEntity {
 			if (referenceSchema == null) {
 				index = i;
 				referenceSchema = entitySchema.getReference(thisReferenceName)
-					.orElseThrow(() -> new EvitaInternalError("Sanity check!"));
+					.orElseThrow(() -> new GenericEvitaInternalError("Sanity check!"));
 				entityFetcher = referenceFetcher.getEntityFetcher(referenceSchema);
 				entityGroupFetcher = referenceFetcher.getEntityGroupFetcher(referenceSchema);
 				fetchedReferenceComparator = referenceFetcher.getEntityComparator(referenceSchema);
@@ -355,7 +385,7 @@ public class EntityDecorator implements SealedEntity {
 				);
 				index = i;
 				referenceSchema = entitySchema.getReference(thisReferenceName)
-					.orElseThrow(() -> new EvitaInternalError("Sanity check!"));
+					.orElseThrow(() -> new GenericEvitaInternalError("Sanity check!"));
 				entityFetcher = referenceFetcher.getEntityFetcher(referenceSchema);
 				entityGroupFetcher = referenceFetcher.getEntityGroupFetcher(referenceSchema);
 				fetchedReferenceComparator = referenceFetcher.getEntityComparator(referenceSchema);

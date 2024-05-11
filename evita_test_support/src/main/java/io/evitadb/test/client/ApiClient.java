@@ -25,7 +25,7 @@ package io.evitadb.test.client;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import okhttp3.ConnectionPool;
 import okhttp3.OkHttpClient;
 import okhttp3.ResponseBody;
@@ -81,12 +81,12 @@ abstract class ApiClient {
 			try {
 				sc = SSLContext.getInstance("SSL");
 			} catch (NoSuchAlgorithmException e) {
-				throw new EvitaInternalError("Cannot get SSL context.", e);
+				throw new GenericEvitaInternalError("Cannot get SSL context.", e);
 			}
 			try {
 				sc.init(null, trustAllCerts, new java.security.SecureRandom());
 			} catch (KeyManagementException e) {
-				throw new EvitaInternalError("Cannot init SSL context with custom trust manager.", e);
+				throw new GenericEvitaInternalError("Cannot init SSL context with custom trust manager.", e);
 			}
 
 			// Create an all-trusting host verifier

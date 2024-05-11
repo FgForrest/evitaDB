@@ -24,9 +24,10 @@
 package io.evitadb.externalApi.grpc.services;
 
 import com.google.protobuf.Empty;
+import io.evitadb.api.CatalogContract;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.EvitaSessionContract;
-import io.evitadb.api.exception.UnexpectedTransactionStateException;
+import io.evitadb.api.exception.CatalogNotFoundException;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.EntityFetch;
@@ -46,11 +47,12 @@ import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
+import io.evitadb.core.Evita;
 import io.evitadb.core.EvitaInternalSessionContract;
 import io.evitadb.dataType.DataChunk;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.StripList;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.grpc.builders.query.extraResults.GrpcExtraResultsBuilder;
 import io.evitadb.externalApi.grpc.constants.GrpcHeaders;
 import io.evitadb.externalApi.grpc.generated.*;
@@ -103,6 +105,11 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 		new ModifyEntitySchemaMutationConverter();
 	private static final EntityMutationConverter<EntityMutation, GrpcEntityMutation> ENTITY_MUTATION_CONVERTER =
 		new DelegatingEntityMutationConverter();
+
+	/**
+	 * Instance of Evita upon which will be executed service calls
+	 */
+	@Nonnull private final Evita evita;
 
 	/**
 	 * Produces the {@link CatalogSchema}.
@@ -682,7 +689,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 					} else if (responseEntity instanceof final BinaryEntity binaryEntity) {
 						responseBuilder.setBinaryEntity(EntityConverter.toGrpcBinaryEntity(binaryEntity));
 					} else {
-						throw new EvitaInternalError("Unsupported entity class `" + responseEntity.getClass().getName() + "`.");
+						throw new GenericEvitaInternalError("Unsupported entity class `" + responseEntity.getClass().getName() + "`.");
 					}
 				});
 				responseObserver.onNext(responseBuilder.build());
@@ -744,7 +751,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	}
 
 	/**
-	 * Method used to close currently used session by calling {@link EvitaSessionContract#close()} ()}.
+	 * Method used to close currently used session by calling {@link EvitaSessionContract#close()}.
 	 *
 	 * @param request          empty request
 	 * @param responseObserver observer on which errors might be thrown and result returned
@@ -763,7 +770,14 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 					responseObserver.onCompleted();
 				});
 			} else {
-				responseObserver.onCompleted();
+				final String catalogName = ServerSessionInterceptor.CATALOG_NAME.get();
+				final Optional<CatalogContract> catalogInstance = catalogName == null ? empty() : evita.getCatalogInstance(catalogName);
+				if (catalogInstance.isPresent()) {
+					responseObserver.onNext(GrpcCloseResponse.newBuilder().setCatalogVersion(catalogInstance.get().getVersion()).build());
+					responseObserver.onCompleted();
+				} else {
+					responseObserver.onError(new CatalogNotFoundException(catalogName));
+				}
 			}
 		});
 	}
@@ -780,23 +794,6 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 				.build()
 		);
 		responseObserver.onCompleted();
-	}
-
-	/**
-	 * Logic sent to this method could be executed in two ways. It can be executed right away if transaction has already benn opened, changes would be written
-	 * to the database only after manual call of {@link #closeTransaction(GrpcCloseTransactionRequest, StreamObserver)} . The second way executes {@link EvitaSessionContract#execute(Consumer)} which will wrap the call
-	 * in adhoc created transaction - the changes would be written to the database immediately.
-	 *
-	 * @param logic logic to be performed
-	 */
-	private static void handleTransactionCall(@Nonnull Consumer<EvitaSessionContract> logic) {
-		executeWithClientContext(session -> {
-			try {
-				session.execute(logic);
-			} catch (UnexpectedTransactionStateException ex) {
-				logic.accept(session);
-			}
-		});
 	}
 
 	/**

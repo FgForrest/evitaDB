@@ -25,6 +25,7 @@ package io.evitadb.api.query.parser;
 
 import io.evitadb.dataType.exception.InconvertibleDataTypeException;
 import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -67,7 +68,7 @@ class ValueTest {
 
 	@Test
 	void shouldNotReturnLocale() {
-		assertThrows(EvitaInternalError.class, () -> new Value(1).asLocale());
+		assertThrows(EvitaInvalidUsageException.class, () -> new Value(1).asLocale());
 		assertThrows(InconvertibleDataTypeException.class, () -> new Value("").asLocale());
 		assertThrows(InconvertibleDataTypeException.class, () -> new Value("zz").asLocale());
 	}
