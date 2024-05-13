@@ -40,15 +40,7 @@ import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.Currency;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
+import java.util.*;
 import java.util.function.BinaryOperator;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -66,6 +58,7 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public interface PricesContract extends Versioned, Serializable {
+	AccompanyingPrice[] NO_ACCOMPANYING_PRICES = new AccompanyingPrice[0];
 
 	/**
 	 * Computes a price for which the entity should be sold. Only indexed prices in requested currency, valid
@@ -73,74 +66,113 @@ public interface PricesContract extends Versioned, Serializable {
 	 * the first price found in the order of the requested price list ids will be returned.
 	 */
 	@Nonnull
-	static Optional<PriceContract> computePriceForSale(@Nonnull Collection<PriceContract> entityPrices, @Nonnull PriceInnerRecordHandling innerRecordHandling, @Nonnull Currency currency, @Nullable OffsetDateTime atTheMoment, @Nonnull String[] priceListPriority, @Nonnull Predicate<PriceContract> filterPredicate) {
+	static Optional<PriceContract> computePriceForSale(
+		@Nonnull Collection<PriceContract> entityPrices,
+		@Nonnull PriceInnerRecordHandling innerRecordHandling,
+		@Nonnull Currency currency,
+		@Nullable OffsetDateTime atTheMoment,
+		@Nonnull String[] priceListPriority,
+		@Nonnull Predicate<PriceContract> filterPredicate
+	) {
+		return computePriceForSale(
+			entityPrices, innerRecordHandling, currency, atTheMoment, priceListPriority,
+			filterPredicate, NO_ACCOMPANYING_PRICES
+		)
+			.map(PriceForSaleWithAccompanyingPrices::priceForSale);
+	}
+
+	/**
+	 * Computes a price for which the entity should be sold. Only indexed prices in requested currency, valid
+	 * at the passed moment are taken into an account. Prices are also limited by the passed set of price lists and
+	 * the first price found in the order of the requested price list ids will be returned.
+	 */
+	@Nonnull
+	static Optional<PriceForSaleWithAccompanyingPrices> computePriceForSale(
+		@Nonnull Collection<PriceContract> entityPrices,
+		@Nonnull PriceInnerRecordHandling innerRecordHandling,
+		@Nonnull Currency currency,
+		@Nullable OffsetDateTime atTheMoment,
+		@Nonnull String[] priceListPriority,
+		@Nonnull Predicate<PriceContract> filterPredicate,
+		@Nonnull AccompanyingPrice[] accompanyingPrices
+	) {
 		if (entityPrices.isEmpty()) {
 			return empty();
 		}
 
-		final Map<Serializable, Integer> pLists = createHashMap(priceListPriority.length);
-		for (int i = 0; i < priceListPriority.length; i++) {
-			final Serializable pList = priceListPriority[i];
-			pLists.put(pList, i);
-		}
+		final Map<String, Integer> priorityIndex = getPriceListPriorityIndex(priceListPriority);
 		final Stream<PriceContract> pricesStream = entityPrices
 			.stream()
 			.filter(PriceContract::exists)
 			.filter(PriceContract::sellable)
 			.filter(it -> currency.equals(it.currency()))
 			.filter(it -> ofNullable(atTheMoment).map(mmt -> it.validity() == null || it.validity().isValidFor(mmt)).orElse(true))
-			.filter(it -> pLists.containsKey(it.priceList()));
+			.filter(it -> priorityIndex.containsKey(it.priceList()));
 
 		switch (innerRecordHandling) {
 			case NONE -> {
-				return pricesStream
-					.min(Comparator.comparing(o -> pLists.get(o.priceList())))
+				final Optional<PriceContract> priceForSale = pricesStream
+					.min(Comparator.comparing(o -> priorityIndex.get(o.priceList())))
 					.filter(filterPredicate);
+				return priceForSale
+					.map(
+						priceContract -> new PriceForSaleWithAccompanyingPrices(
+							priceContract,
+							calculateAccompanyingPricesForNoneInnerRecordHandling(
+								entityPrices, currency, atTheMoment, accompanyingPrices
+							)
+						)
+					);
 			}
 			case LOWEST_PRICE -> {
 				final Map<Integer, List<PriceContract>> pricesByInnerId = pricesStream
 					.collect(Collectors.groupingBy(it -> ofNullable(it.innerRecordId()).orElse(0)));
-				return pricesByInnerId
+				final Optional<PriceContract> priceForSale = pricesByInnerId
 					.values()
 					.stream()
 					.map(prices -> prices.stream()
-						.min(Comparator.comparing(o -> pLists.get(o.priceList())))
+						.min(Comparator.comparing(o -> priorityIndex.get(o.priceList())))
 						.orElse(null))
 					.filter(Objects::nonNull)
 					.filter(filterPredicate)
 					.min(Comparator.comparing(PriceContract::priceWithTax));
+				return priceForSale
+					.map(
+						priceContract -> new PriceForSaleWithAccompanyingPrices(
+							priceContract,
+							calculateAccompanyingPricesForLowestPriceInnerRecordHandling(
+								entityPrices, priceContract.innerRecordId(), currency, atTheMoment, accompanyingPrices
+							)
+						)
+					);
 			}
 			case SUM -> {
-				final List<PriceContract> innerRecordPrices = pricesStream
+				final List<PriceContract> pricesToSum = pricesStream
 					.collect(Collectors.groupingBy(it -> ofNullable(it.innerRecordId()).orElse(0)))
 					.values()
 					.stream()
 					.map(prices -> prices.stream()
-						.min(Comparator.comparing(o -> pLists.get(o.priceList())))
+						.min(Comparator.comparing(o -> priorityIndex.get(o.priceList())))
 						.orElse(null))
 					.filter(Objects::nonNull)
 					.toList();
-				if (innerRecordPrices.isEmpty()) {
+				if (pricesToSum.isEmpty()) {
 					return empty();
 				} else {
-					final PriceContract firstPrice = innerRecordPrices.get(0);
-					// create virtual sum price
-					final Price resultPrice = new Price(
-						1, firstPrice.priceKey(), null,
-						innerRecordPrices.stream().map(PriceContract::priceWithoutTax).reduce(BigDecimal::add).orElse(BigDecimal.ZERO),
-						innerRecordPrices.stream().map(PriceContract::taxRate).reduce((tax, tax2) -> {
-							Assert.isTrue(tax.compareTo(tax2) == 0, "Prices have to have same tax rate in order to compute selling price!");
-							return tax;
-						}).orElse(BigDecimal.ZERO),
-						innerRecordPrices.stream().map(PriceContract::priceWithTax).reduce(BigDecimal::add).orElse(BigDecimal.ZERO),
-						// computed virtual price has always no validity
-						null,
-						true
-					);
-					return filterPredicate.test(resultPrice) ? of(resultPrice) : empty();
+					final PriceContract priceForSale = calculateSumPrice(pricesToSum);
+					return filterPredicate.test(priceForSale) ?
+						of(
+							new PriceForSaleWithAccompanyingPrices(
+								priceForSale,
+								calculateAccompanyingPricesForSumInnerRecordHandling(
+									entityPrices, priorityIndex.keySet(), currency, atTheMoment, accompanyingPrices
+								)
+							)
+						) : empty();
 				}
 			}
-			default -> throw new GenericEvitaInternalError("Unknown price inner record handling mode: " + innerRecordHandling);
+			default ->
+				throw new GenericEvitaInternalError("Unknown price inner record handling mode: " + innerRecordHandling);
 		}
 	}
 
@@ -158,6 +190,199 @@ public interface PricesContract extends Versioned, Serializable {
 				.stream()
 				.anyMatch(it -> it.differsFrom(second.getPrice(it.priceId(), it.priceList(), it.currency()).orElse(null)));
 		}
+	}
+
+	/**
+	 * Method will calculate all required accompanying prices for the entity. The method is used when the entity
+	 * has no inner record handling.
+	 *
+	 * @param entityPrices       source collection of all entity prices
+	 * @param currency           currency used for price for sale calculation
+	 * @param atTheMoment        moment used for price for sale calculation
+	 * @param accompanyingPrices array of requirements for accompanying prices
+	 * @return map of calculated accompanying prices
+	 */
+	@Nonnull
+	private static Map<String, Optional<PriceContract>> calculateAccompanyingPricesForNoneInnerRecordHandling(
+		@Nonnull Collection<PriceContract> entityPrices,
+		@Nonnull Currency currency,
+		@Nullable OffsetDateTime atTheMoment,
+		@Nonnull AccompanyingPrice[] accompanyingPrices
+	) {
+		if (accompanyingPrices.length > 0) {
+			final List<PriceContract> accompanyingPriceBaseCollection = entityPrices
+				.stream()
+				.filter(PriceContract::exists)
+				.filter(it -> currency.equals(it.currency()))
+				.filter(it -> ofNullable(atTheMoment).map(mmt -> it.validity() == null || it.validity().isValidFor(mmt)).orElse(true))
+				.toList();
+			return Arrays.stream(accompanyingPrices)
+				.collect(
+					Collectors.toMap(
+						AccompanyingPrice::priceName,
+						accompanyingPrice -> {
+							final Map<String, Integer> accompanyingPriorityIndex = getPriceListPriorityIndex(
+								accompanyingPrice.priceListPriority()
+							);
+							return accompanyingPriceBaseCollection
+								.stream()
+								.filter(it -> accompanyingPriorityIndex.containsKey(it.priceList()))
+								.min(Comparator.comparing(o -> accompanyingPriorityIndex.get(o.priceList())));
+						}
+					)
+				);
+		} else {
+			return Collections.emptyMap();
+		}
+	}
+
+	/**
+	 * Method will calculate all required accompanying prices for the entity. The method is used when the entity
+	 * has lowest price record handling.
+	 *
+	 * @param entityPrices       source collection of all entity prices
+	 * @param innerRecordId      inner record id selected for the price for sale
+	 * @param currency           currency used for price for sale calculation
+	 * @param atTheMoment        moment used for price for sale calculation
+	 * @param accompanyingPrices array of requirements for accompanying prices
+	 * @return map of calculated accompanying prices
+	 */
+	@Nonnull
+	private static Map<String, Optional<PriceContract>> calculateAccompanyingPricesForLowestPriceInnerRecordHandling(
+		@Nonnull Collection<PriceContract> entityPrices,
+		@Nonnull Integer innerRecordId,
+		@Nonnull Currency currency,
+		@Nullable OffsetDateTime atTheMoment,
+		@Nonnull AccompanyingPrice[] accompanyingPrices
+	) {
+		if (accompanyingPrices.length > 0) {
+			final List<PriceContract> accompanyingPriceBaseCollection = entityPrices
+				.stream()
+				.filter(PriceContract::exists)
+				.filter(it -> innerRecordId.equals(it.innerRecordId()))
+				.filter(it -> currency.equals(it.currency()))
+				.filter(it -> ofNullable(atTheMoment).map(mmt -> it.validity() == null || it.validity().isValidFor(mmt)).orElse(true))
+				.toList();
+			return Arrays.stream(accompanyingPrices)
+				.collect(
+					Collectors.toMap(
+						AccompanyingPrice::priceName,
+						accompanyingPrice -> {
+							final Map<String, Integer> accompanyingPriorityIndex = getPriceListPriorityIndex(
+								accompanyingPrice.priceListPriority()
+							);
+							return accompanyingPriceBaseCollection
+								.stream()
+								.filter(it -> accompanyingPriorityIndex.containsKey(it.priceList()))
+								.min(Comparator.comparing(o -> accompanyingPriorityIndex.get(o.priceList())));
+						}
+					)
+				);
+		} else {
+			return Collections.emptyMap();
+		}
+	}
+
+	/**
+	 * Method will calculate all required accompanying prices for the entity. The method is used when the entity
+	 * has no inner record handling.
+	 *
+	 * @param entityPrices       source collection of all entity prices
+	 * @param currency           currency used for price for sale calculation
+	 * @param atTheMoment        moment used for price for sale calculation
+	 * @param accompanyingPrices array of requirements for accompanying prices
+	 * @return map of calculated accompanying prices
+	 */
+	@Nonnull
+	private static Map<String, Optional<PriceContract>> calculateAccompanyingPricesForSumInnerRecordHandling(
+		@Nonnull Collection<PriceContract> entityPrices,
+		@Nonnull Set<String> priceForSalePriceLists,
+		@Nonnull Currency currency,
+		@Nullable OffsetDateTime atTheMoment,
+		@Nonnull AccompanyingPrice[] accompanyingPrices
+	) {
+		if (accompanyingPrices.length > 0) {
+			final Collection<Map<String, PriceContract>> accompanyingPriceBaseCollection = entityPrices
+				.stream()
+				.filter(PriceContract::exists)
+				.filter(it -> currency.equals(it.currency()))
+				.filter(it -> ofNullable(atTheMoment).map(mmt -> it.validity() == null || it.validity().isValidFor(mmt)).orElse(true))
+				.collect(
+					Collectors.groupingBy(
+						it -> ofNullable(it.innerRecordId()).orElse(0),
+						Collectors.toMap(PriceContract::priceList, Function.identity())
+					)
+				)
+				.values();
+			return Arrays.stream(accompanyingPrices)
+				.collect(
+					Collectors.toMap(
+						AccompanyingPrice::priceName,
+						accompanyingPrice -> {
+							final Map<String, Integer> accompanyingPriorityIndex = getPriceListPriorityIndex(
+								accompanyingPrice.priceListPriority()
+							);
+
+							final List<PriceContract> pricesToSum = accompanyingPriceBaseCollection
+								.stream()
+								.filter(it -> priceForSalePriceLists.stream().anyMatch(it::containsKey))
+								.map(it -> it.values().stream().filter(prices -> accompanyingPriorityIndex.containsKey(prices.priceList()))
+									.min(Comparator.comparing(o -> accompanyingPriorityIndex.get(o.priceList()))))
+								.filter(Optional::isPresent)
+								.map(Optional::get)
+								.toList();
+
+							if (pricesToSum.isEmpty()) {
+								return empty();
+							} else {
+								return of(calculateSumPrice(pricesToSum));
+							}
+						}
+					)
+				);
+		} else {
+			return Collections.emptyMap();
+		}
+	}
+
+	/**
+	 * Calculates a virtual price that is a sum of all prices in the list.
+	 *
+	 * @param pricesToSum list of prices to sum
+	 * @return virtual price that is a sum of all prices in the list
+	 */
+	@Nonnull
+	private static PriceContract calculateSumPrice(@Nonnull List<PriceContract> pricesToSum) {
+		final PriceContract firstPrice = pricesToSum.get(0);
+		// create virtual sum price
+		return new Price(
+			1, firstPrice.priceKey(), null,
+			pricesToSum.stream().map(PriceContract::priceWithoutTax).reduce(BigDecimal::add).orElse(BigDecimal.ZERO),
+			pricesToSum.stream().map(PriceContract::taxRate).reduce((tax, tax2) -> {
+				Assert.isTrue(tax.compareTo(tax2) == 0, "Prices have to have same tax rate in order to compute selling price!");
+				return tax;
+			}).orElse(BigDecimal.ZERO),
+			pricesToSum.stream().map(PriceContract::priceWithTax).reduce(BigDecimal::add).orElse(BigDecimal.ZERO),
+			// computed virtual price has always no validity
+			null,
+			true
+		);
+	}
+
+	/**
+	 * Creates a map of price list priorities where the key is the price list and the value is the priority.
+	 *
+	 * @param priceListPriority array of price list priorities
+	 * @return map of price list priorities
+	 */
+	@Nonnull
+	private static Map<String, Integer> getPriceListPriorityIndex(@Nonnull String[] priceListPriority) {
+		final Map<String, Integer> pLists = createHashMap(priceListPriority.length);
+		for (int i = 0; i < priceListPriority.length; i++) {
+			final String pList = priceListPriority[i];
+			pLists.put(pList, i);
+		}
+		return pLists;
 	}
 
 	/**
@@ -257,8 +482,39 @@ public interface PricesContract extends Versioned, Serializable {
 	 * @throws ContextMissingException when the prices were not fetched along with entity but might exist
 	 */
 	@Nonnull
-	default Optional<PriceContract> getPriceForSale(@Nonnull Currency currency, @Nullable OffsetDateTime atTheMoment, @Nonnull String... priceListPriority) throws ContextMissingException {
+	default Optional<PriceContract> getPriceForSale(
+		@Nonnull Currency currency,
+		@Nullable OffsetDateTime atTheMoment,
+		@Nonnull String... priceListPriority
+	) throws ContextMissingException {
 		return computePriceForSale(getPrices(), getPriceInnerRecordHandling(), currency, atTheMoment, priceListPriority, Objects::nonNull);
+	}
+
+	/**
+	 * Returns a price for which the entity should be sold. Only indexed prices in requested currency, valid
+	 * at the passed moment are taken into an account. Prices are also limited by the passed set of price lists and
+	 * the first price found in the order of the requested price list ids will be returned.
+	 *
+	 * This method allows to calculate also additional accompanying prices that relate to the selected price for sale
+	 * and adhere to particular price inner record handling logic.
+	 *
+	 * @param currency          - identification of the currency. Three-letter form according to [ISO 4217](https://en.wikipedia.org/wiki/ISO_4217)
+	 * @param atTheMoment       - identification of the moment when the entity is about to be sold
+	 * @param priceListPriority - identification of the price list (either external or internal)
+	 * @param accompanyingPricesRequest - array of requirements for calculation of accompanying prices
+	 * @throws ContextMissingException when the prices were not fetched along with entity but might exist
+	 */
+	@Nonnull
+	default Optional<PriceForSaleWithAccompanyingPrices> getPriceForSaleWithAccompanyingPrices(
+		@Nonnull Currency currency,
+		@Nullable OffsetDateTime atTheMoment,
+		@Nonnull String[] priceListPriority,
+		@Nonnull AccompanyingPrice[] accompanyingPricesRequest
+	) throws ContextMissingException {
+		return computePriceForSale(
+			getPrices(), getPriceInnerRecordHandling(), currency, atTheMoment, priceListPriority, Objects::nonNull,
+			accompanyingPricesRequest
+		);
 	}
 
 	/**
@@ -390,11 +646,7 @@ public interface PricesContract extends Versioned, Serializable {
 					.orElse(false);
 			}
 			case LOWEST_PRICE -> {
-				final Map<Serializable, Integer> pLists = createHashMap(priceListPriority.length);
-				for (int i = 0; i < priceListPriority.length; i++) {
-					final Serializable pList = priceListPriority[i];
-					pLists.put(pList, i);
-				}
+				final Map<String, Integer> pLists = getPriceListPriorityIndex(priceListPriority);
 				final Map<Integer, List<PriceContract>> pricesByInnerRecordId = entityPrices
 					.stream()
 					.filter(PriceContract::exists)
@@ -447,5 +699,30 @@ public interface PricesContract extends Versioned, Serializable {
 	 */
 	@Nonnull
 	PriceInnerRecordHandling getPriceInnerRecordHandling();
+
+	/**
+	 * Describes requirement for computation of additional prices along with the price for sale.
+	 *
+	 * @param priceName         name of the price to distinguish it from other accompanying prices
+	 * @param priceListPriority the priority of price lists that will be used to lookup for the price related to price
+	 *                          for sale.
+	 */
+	record AccompanyingPrice(
+		@Nonnull String priceName,
+		@Nonnull String... priceListPriority
+	) {
+	}
+
+	/**
+	 * Return type where both the price for sale and accompanying prices are returned.
+	 *
+	 * @param priceForSale       price for which the entity should be sold
+	 * @param accompanyingPrices accompanying prices that were computed along with the price for sale
+	 */
+	record PriceForSaleWithAccompanyingPrices(
+		@Nonnull PriceContract priceForSale,
+		@Nonnull Map<String, Optional<PriceContract>> accompanyingPrices
+	) {
+	}
 
 }
