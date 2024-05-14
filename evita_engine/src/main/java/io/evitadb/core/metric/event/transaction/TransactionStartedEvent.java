@@ -21,21 +21,26 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.metric.event;
+package io.evitadb.core.metric.event.transaction;
 
-import io.evitadb.core.metric.annotation.ExportMetric;
-import jdk.jfr.Event;
+import io.evitadb.core.metric.annotation.ExportInvocationMetric;
+import jdk.jfr.Description;
+import jdk.jfr.Label;
+import jdk.jfr.Name;
+
+import javax.annotation.Nonnull;
 
 /**
- * Common predecessor for all custom events which are to be published as metrics via Prometheus or used for JFR logging.
- *
- * All custom events has to inherit from this class!
- *
- * Event classes and all fields that should be compatible with above-mentioned mechanisms have to be annotated with
- * {@link jdk.jfr.Name} and {@link jdk.jfr.Label}. For Prometheus metrics, fields have to be additionally be decorated
- * with {@link ExportMetric} annotation.
- *
- * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
+ * Event that is fired when a transaction is started.
  */
-public abstract class CustomMetricsExecutionEvent extends Event {
+@Name(AbstractTransactionEvent.PACKAGE_NAME + ".TransactionStartedEvent")
+@Description("Event that is fired when a transaction is started.")
+@ExportInvocationMetric(value = "transactionsInitiatedTotal", label = "Transactions initiated")
+@Label("Transaction started")
+public class TransactionStartedEvent extends AbstractTransactionEvent {
+
+	public TransactionStartedEvent(@Nonnull String catalogName) {
+		super(catalogName);
+	}
+
 }

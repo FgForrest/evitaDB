@@ -21,24 +21,39 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.metric.event;
+package io.evitadb.core.metric.event.transaction;
 
+import io.evitadb.core.metric.annotation.EventGroup;
+import io.evitadb.core.metric.event.CatalogRelatedEvent;
+import io.evitadb.core.metric.event.CustomMetricsExecutionEvent;
 import jdk.jfr.Label;
 import jdk.jfr.Name;
 import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.RequiredArgsConstructor;
 
-@Name("io.evitadb.core.metric.event.TestEvent")
+/**
+ * This event is base class for all transaction events.
+ */
+@EventGroup(AbstractTransactionEvent.PACKAGE_NAME)
+@RequiredArgsConstructor
 @Getter
-@Setter
-@NoArgsConstructor
-public class TestEvent extends CustomMetricsExecutionEvent {
-	@Label("Time taken")
-	@Name("time")
-	private long time;
+public abstract class AbstractTransactionEvent extends CustomMetricsExecutionEvent implements CatalogRelatedEvent {
+	protected static final String PACKAGE_NAME = "io.evitadb.transaction";
+	/**
+	 * The name of the catalog the transaction relates to.
+	 */
+	@Label("Catalog")
+	@Name("catalogName")
+	private final String catalogName;
 
-	public TestEvent(long time) {
-		this.time = time;
+	/**
+	 * The resolution of the transaction (either commit or rollback).
+	 */
+	public enum TransactionResolution {
+
+		COMMIT,
+		ROLLBACK
+
 	}
+
 }

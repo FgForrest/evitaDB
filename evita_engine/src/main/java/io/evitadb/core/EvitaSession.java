@@ -1129,6 +1129,16 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	}
 
 	/**
+	 * Returns a transaction wrapped in optional. If no transaction is bound to the session, an empty optional is returned.
+	 *
+	 * @return an Optional containing the transaction, if it exists; otherwise, an empty Optional.
+	 */
+	@Nonnull
+	public Optional<Transaction> getTransaction() {
+		return ofNullable(transactionAccessor.get());
+	}
+
+	/**
 	 * Returns an opened transaction wrapped in optional. If no transaction is opened, an empty optional is returned.
 	 *
 	 * @return an Optional containing the opened transaction, if it exists and is not closed; otherwise, an empty Optional.

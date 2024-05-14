@@ -30,6 +30,7 @@ import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.Transaction;
+import io.evitadb.core.metric.event.transaction.TransactionIncorporatedToTrunkEvent;
 import io.evitadb.core.transaction.TransactionTrunkFinalizer;
 import io.evitadb.core.transaction.stage.TrunkIncorporationTransactionStage.TrunkIncorporationTransactionTask;
 import io.evitadb.core.transaction.stage.TrunkIncorporationTransactionStage.UpdatedCatalogTransactionTask;
@@ -133,9 +134,11 @@ public final class TrunkIncorporationTransactionStage
 	 * @return The processed transaction.
 	 */
 	@Nonnull
-	public UUID processTransactions(long nextCatalogVersion, long timeoutMs, boolean alive) {
+	public ProcessResult processTransactions(long nextCatalogVersion, long timeoutMs, boolean alive) {
 		TransactionMutation lastTransaction = null;
 		Transaction transaction = null;
+		int processed = 0;
+
 		try {
 			// prepare finalizer that doesn't finish the catalog automatically but on demand
 			final TransactionTrunkFinalizer transactionHandler = new TransactionTrunkFinalizer(this.catalog);
@@ -186,6 +189,8 @@ public final class TrunkIncorporationTransactionStage
 					transaction.close();
 					lastTransaction = transactionMutation;
 
+					processed++;
+
 					log.debug("Processed transaction: {}", transaction);
 				} while (
 					// try to process next transaction if the timeout is not exceeded
@@ -215,7 +220,10 @@ public final class TrunkIncorporationTransactionStage
 		}
 
 		Assert.isPremiseValid(transaction != null, "Transaction must not be null!");
-		return transaction.getTransactionId();
+		return new ProcessResult(
+			transaction.getTransactionId(),
+			processed
+		);
 	}
 
 	@Override
@@ -233,8 +241,9 @@ public final class TrunkIncorporationTransactionStage
 				task.future().complete(task.catalogVersion());
 			}
 		} else {
+			final TransactionIncorporatedToTrunkEvent event = new TransactionIncorporatedToTrunkEvent(this.catalog.getName());
 			final long lastCatalogVersionInLiveView = this.catalog.getVersion();
-			final UUID lastTransactionId = processTransactions(
+			final ProcessResult result = processTransactions(
 				task.catalogVersion(), this.timeout, true
 			);
 
@@ -246,11 +255,14 @@ public final class TrunkIncorporationTransactionStage
 				task,
 				new UpdatedCatalogTransactionTask(
 					this.catalog,
-					lastTransactionId,
+					result.lastTransactionId(),
 					task.commitBehaviour(),
 					task.future()
 				)
 			);
+
+			// emit event
+			event.finish(result.processedTransactions()).commit();
 		}
 	}
 
@@ -403,5 +415,15 @@ public final class TrunkIncorporationTransactionStage
 			return catalog.getVersion();
 		}
 	}
+
+	/**
+	 * Result of the {@link #processTransactions(long, long, boolean)} method.
+	 * @param lastTransactionId the ID of the last processed transaction
+	 * @param processedTransactions the number of processed transactions
+	 */
+	record ProcessResult(
+		@Nonnull UUID lastTransactionId,
+		int processedTransactions
+	) {}
 
 }

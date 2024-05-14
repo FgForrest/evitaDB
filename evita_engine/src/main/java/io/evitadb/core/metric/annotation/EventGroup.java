@@ -21,21 +21,25 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.metric.event;
+package io.evitadb.core.metric.annotation;
 
-import io.evitadb.core.metric.annotation.ExportMetric;
-import jdk.jfr.Event;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 
 /**
- * Common predecessor for all custom events which are to be published as metrics via Prometheus or used for JFR logging.
+ * Annotation used for aggregating events into groups. It resembles the package for the sake of metrics and JFR events.
  *
- * All custom events has to inherit from this class!
- *
- * Event classes and all fields that should be compatible with above-mentioned mechanisms have to be annotated with
- * {@link jdk.jfr.Name} and {@link jdk.jfr.Label}. For Prometheus metrics, fields have to be additionally be decorated
- * with {@link ExportMetric} annotation.
- *
- * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
+ * @author Jan Novotný, FG Forrest a.s. (c) 2024
  */
-public abstract class CustomMetricsExecutionEvent extends Event {
+@Target(ElementType.TYPE)
+@Retention(RetentionPolicy.RUNTIME)
+public @interface EventGroup {
+
+	/**
+	 * Defines the name of the group the event is part of.
+	 */
+	String value();
+
 }

@@ -23,13 +23,15 @@
 
 package io.evitadb.core;
 
-import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.exception.ConcurrentInitializationException;
 import io.evitadb.api.exception.TransactionException;
 import io.evitadb.api.trace.Traced;
 import io.evitadb.api.trace.TracingContext;
 import io.evitadb.api.trace.TracingContext.SpanAttribute;
+import io.evitadb.core.metric.event.transaction.AbstractTransactionEvent.TransactionResolution;
+import io.evitadb.core.metric.event.transaction.TransactionFinishedEvent;
+import io.evitadb.core.metric.event.transaction.TransactionStartedEvent;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -47,7 +49,9 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.lang.reflect.Proxy;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.Map;
+import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.UUID;
 import java.util.concurrent.CompletionException;
@@ -150,15 +154,47 @@ final class SessionRegistry {
 		final long catalogVersion = newSession.getCatalogVersion();
 		catalogConsumedVersions.computeIfAbsent(newSession.getCatalogName(), k -> new VersionConsumingSessions())
 			.registerSessionConsumingCatalogInVersion(catalogVersion);
+
+		newSession.getTransaction()
+			.ifPresent(transaction -> {
+				// emit event
+				new TransactionStartedEvent(
+					newSession.getCatalogName()
+				).commit();
+				// prepare finalization event
+				transaction.setFinalizationEvent(
+					new TransactionFinishedEvent(newSession.getCatalogName())
+				);
+			});
+
 		return newSessionProxy;
 	}
 
 	/**
 	 * Removes session from the registry.
 	 */
-	public void removeSession(@Nonnull EvitaSessionContract session) {
+	public void removeSession(@Nonnull EvitaSession session) {
 		if (activeSessions.remove(session.getId()) != null) {
 			this.activeSessionsCounter.decrementAndGet();
+			session.getTransaction().ifPresent(transaction -> {
+				// emit event
+				//noinspection resource
+				transaction.getFinalizationEvent()
+					.finishWithResolution(
+						// this may be expensive if there are many active sessions,
+						// but we expect that there will be hundreds of them at most
+						// if this becomes a bottleneck, we will optimize it by using a specialized data structure
+						activeSessions.values()
+							.stream()
+							.map(it -> it.plainSession().getTransaction())
+							.filter(Optional::isPresent)
+							.map(Optional::get)
+							.min(Comparator.comparing(Transaction::getCreated))
+							.map(Transaction::getCreated)
+							.orElse(null),
+						transaction.isRollbackOnly() ? TransactionResolution.ROLLBACK : TransactionResolution.COMMIT
+					).commit();
+			});
 			final SessionFinalizationResult finalizationResult = catalogConsumedVersions.get(session.getCatalogName())
 				.unregisterSessionConsumingCatalogInVersion(session.getCatalogVersion());
 			if (finalizationResult.lastReader()) {

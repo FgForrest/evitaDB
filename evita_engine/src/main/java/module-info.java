@@ -90,5 +90,7 @@ module evita.engine {
 	requires jdk.jfr;
 
 	opens io.evitadb.core.metric.event to evita.common;
+	opens io.evitadb.core.metric.event.transaction to jdk.jfr;
 	exports io.evitadb.core.query.algebra.price.predicate;
+	exports io.evitadb.core.metric.event.transaction;
 }

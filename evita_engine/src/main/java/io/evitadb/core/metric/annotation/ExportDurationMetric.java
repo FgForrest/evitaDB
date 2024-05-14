@@ -23,27 +23,28 @@
 
 package io.evitadb.core.metric.annotation;
 
-import io.evitadb.api.configuration.metric.MetricType;
-
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Annotation used for marking field with the type of Prometheus metric to be used when handling this field.
+ * Annotation used for exporting JFR duration as Prometheus metric with particular name.
  *
- * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
+ * @author Jan Novotný, FG Forrest a.s. (c) 2024
  */
-@Target(ElementType.FIELD)
+@Target(ElementType.TYPE)
 @Retention(RetentionPolicy.RUNTIME)
-public @interface UsedMetric {
+public @interface ExportDurationMetric {
 
 	/**
-	 * Returns the type of Prometheus metric to be used when handling a field marked with the {@link UsedMetric} annotation.
-	 *
-	 * @return the type of Prometheus metric
+	 * Defines the name of the metric.
 	 */
-	MetricType metricType();
+	String value();
+
+	/**
+	 * Defines the label of the metric.
+	 */
+	String label();
 
 }

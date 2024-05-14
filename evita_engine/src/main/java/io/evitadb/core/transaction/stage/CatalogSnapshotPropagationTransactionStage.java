@@ -25,6 +25,7 @@ package io.evitadb.core.transaction.stage;
 
 import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.core.Catalog;
+import io.evitadb.core.metric.event.transaction.NewCatalogVersionPropagatedEvent;
 import io.evitadb.core.transaction.stage.TrunkIncorporationTransactionStage.UpdatedCatalogTransactionTask;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
@@ -81,6 +82,8 @@ public class CatalogSnapshotPropagationTransactionStage implements Flow.Subscrib
 
 	@Override
 	public final void onNext(UpdatedCatalogTransactionTask task) {
+		final NewCatalogVersionPropagatedEvent event = new NewCatalogVersionPropagatedEvent(task.catalogName());
+
 		try {
 			this.catalogName = task.catalogName();
 			this.newCatalogVersionConsumer.accept(task.catalog());
@@ -97,7 +100,11 @@ public class CatalogSnapshotPropagationTransactionStage implements Flow.Subscrib
 			log.error("Error while processing snapshot propagating task for catalog `" + catalogName + "`!", ex);
 			task.future().completeExceptionally(ex);
 		}
-		subscription.request(1);
+
+		// emit the event
+		event.finish().commit();
+
+		this.subscription.request(1);
 	}
 
 	@Override

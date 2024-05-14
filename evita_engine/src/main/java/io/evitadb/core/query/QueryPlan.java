@@ -37,7 +37,6 @@ import io.evitadb.api.requestResponse.data.structure.BinaryEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.trace.TracingContext.SpanAttribute;
-import io.evitadb.core.metric.event.QueryPlanStepExecutedEvent;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.prefetch.PrefetchFormulaVisitor;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
@@ -151,10 +150,6 @@ public class QueryPlan {
 	@Nonnull
 	public <S extends Serializable, T extends EvitaResponse<S>> T execute() {
 		queryContext.pushStep(QueryPhase.EXECUTION);
-		new QueryPlanStepExecutedEvent(
-			QueryPhase.EXECUTION.name(),
-			this.filter.getEstimatedCost()
-		).commit();
 
 		try {
 			// prefetch the entities to allow using them in filtering / sorting in next step

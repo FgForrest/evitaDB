@@ -845,7 +845,7 @@ public final class Evita implements EvitaContract {
 		}
 
 		final EvitaSessionTerminationCallback terminationCallback = session -> {
-			sessionRegistry.removeSession(session);
+			sessionRegistry.removeSession((EvitaSession) session);
 
 			if (sessionTraits.isReadWrite()) {
 				ofNullable(nonTransactionalCatalogDescriptor)

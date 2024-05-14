@@ -25,6 +25,8 @@ package io.evitadb.core.transaction.stage;
 
 import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.core.Catalog;
+import io.evitadb.core.metric.event.transaction.AbstractTransactionEvent.TransactionResolution;
+import io.evitadb.core.metric.event.transaction.TransactionAcceptedEvent;
 import io.evitadb.core.transaction.stage.ConflictResolutionTransactionStage.ConflictResolutionTransactionTask;
 import io.evitadb.core.transaction.stage.WalAppendingTransactionStage.WalAppendingTransactionTask;
 import io.evitadb.store.spi.OffHeapWithFileBackupReference;
@@ -78,6 +80,9 @@ public final class ConflictResolutionTransactionStage
 			task.future() != null,
 			"Future is unexpectedly null on first stage!"
 		);
+
+		final TransactionAcceptedEvent event = new TransactionAcceptedEvent(task.catalogName());
+
 		// identify conflicts with other transaction
 		// TOBEDONE JNO #503 - implement conflict resolution
 		// assign new catalog version
@@ -94,6 +99,8 @@ public final class ConflictResolutionTransactionStage
 				task.commitBehaviour() != CommitBehavior.WAIT_FOR_CONFLICT_RESOLUTION ? task.future() : null
 			)
 		);
+
+		event.finishWithResolution(TransactionResolution.COMMIT).commit();
 	}
 
 	@Override

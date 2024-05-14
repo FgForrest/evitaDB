@@ -21,25 +21,22 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.observability.metric.provider;
+package io.evitadb.core.metric.event;
 
-import io.evitadb.core.metric.event.CustomMetricsExecutionEvent;
-import io.evitadb.core.metric.event.QueryPlanStepExecutedEvent;
-import io.evitadb.core.metric.event.TestEvent;
-import lombok.AccessLevel;
-import lombok.NoArgsConstructor;
-
-import java.util.Set;
+import javax.annotation.Nonnull;
 
 /**
- * This class is used as a provider of registered custom metrics events.
+ * This interface should be implemented by all events that are related to a specific catalog.
  *
- * All registered custom metrics events must be registered here.
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@NoArgsConstructor(access = AccessLevel.PRIVATE)
-public class RegisteredCustomEventProvider {
-	static final Set<Class<? extends CustomMetricsExecutionEvent>> REGISTERED_EVENTS = Set.of(
-		QueryPlanStepExecutedEvent.class,
-		TestEvent.class
-	);
+public interface CatalogRelatedEvent {
+
+	/**
+	 * Returns the name of the catalog that the event is related to.
+	 * @return the name of the catalog
+	 */
+	@Nonnull
+	String getCatalogName();
+
 }

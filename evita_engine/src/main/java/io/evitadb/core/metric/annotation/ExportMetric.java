@@ -21,37 +21,34 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.metric.event;
+package io.evitadb.core.metric.annotation;
 
 import io.evitadb.api.configuration.metric.MetricType;
-import io.evitadb.core.metric.annotation.UsedMetric;
-import jdk.jfr.Label;
-import jdk.jfr.Name;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 
 /**
- * This is a sample class that can be logged and also used for JFR recordings.
+ * Annotation used for marking field with the type of Prometheus metric to be used when handling this field.
  *
- * @see CustomMetricsExecutionEvent
+ * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
  */
-@Label("Query Plan Step Executed")
-@Name("io.evitadb.core.metric.event.QueryPlanStepExecutedEvent")
-@Getter
-@Setter
-@NoArgsConstructor
-public class QueryPlanStepExecutedEvent extends CustomMetricsExecutionEvent {
-	@Label("Step Name")
-	private String stepName;
+@Target(ElementType.FIELD)
+@Retention(RetentionPolicy.RUNTIME)
+public @interface ExportMetric {
 
-	@Label("Time taken")
-	@Name("time")
-	@UsedMetric(metricType = MetricType.GAUGE)
-	private long time;
+	/**
+	 * Name of the metric. If not set, the name of the field will be used.
+	 */
+	String metricName() default "";
 
-	public QueryPlanStepExecutedEvent(String stepName, long time) {
-		this.stepName = stepName;
-		this.time = time;
-	}
+	/**
+	 * Returns the type of Prometheus metric to be used when handling a field marked with the {@link ExportMetric} annotation.
+	 *
+	 * @return the type of Prometheus metric
+	 */
+	MetricType metricType();
+
 }

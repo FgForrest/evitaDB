@@ -26,6 +26,7 @@ package io.evitadb.core;
 import io.evitadb.api.TransactionContract;
 import io.evitadb.api.exception.TransactionException;
 import io.evitadb.api.requestResponse.mutation.Mutation;
+import io.evitadb.core.metric.event.transaction.TransactionFinishedEvent;
 import io.evitadb.core.transaction.TransactionHandler;
 import io.evitadb.core.transaction.TransactionWalFinalizer;
 import io.evitadb.core.transaction.memory.TransactionalLayerCreator;
@@ -36,11 +37,13 @@ import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.store.spi.StoragePartPersistenceService;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
+import java.time.OffsetDateTime;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Consumer;
@@ -90,9 +93,17 @@ public final class Transaction implements TransactionContract {
 	 */
 	@Getter private Throwable rollbackCause;
 	/**
-	 * Flag that marks this instance closed and unusable. Once closed it can never be opened again.
+	 * Date and time when this this instance was created.
 	 */
-	@Getter private boolean closed;
+	@Getter private final OffsetDateTime created;
+	/**
+	 * Date and time when this this instance was closed and marked unusable. Once closed it can never be opened again.
+	 */
+	@Getter private OffsetDateTime closed;
+	/**
+	 * Event that is fired when a transaction is finished (either committed or rolled back).
+	 */
+	@Setter @Getter private TransactionFinishedEvent finalizationEvent;
 
 	/**
 	 * Method initializes current session UUID to the thread context and binds transaction for particular session as
@@ -322,6 +333,7 @@ public final class Transaction implements TransactionContract {
 		this.transactionHandler = transactionHandler;
 		this.transactionalMemory = new TransactionalMemory(transactionHandler);
 		this.replay = replay;
+		this.created = OffsetDateTime.now();
 	}
 
 	/**
@@ -345,6 +357,7 @@ public final class Transaction implements TransactionContract {
 		this.transactionalMemory = transactionalMemory;
 		this.transactionalMemory.extendTransaction();
 		this.replay = replay;
+		this.created = OffsetDateTime.now();
 	}
 
 	@Override
@@ -358,9 +371,16 @@ public final class Transaction implements TransactionContract {
 	}
 
 	@Override
+	public boolean isClosed() {
+		return this.closed != null;
+	}
+
+	@Override
 	public void close() {
-		if (closed) {
+		if (this.closed != null) {
 			return;
+		} else {
+			this.closed = OffsetDateTime.now();
 		}
 
 		try {
@@ -378,7 +398,6 @@ public final class Transaction implements TransactionContract {
 		} finally {
 			// now we remove the transactional memory - no object will see it transactional memory from now on
 			CURRENT_TRANSACTION.remove();
-			closed = true;
 		}
 	}
 

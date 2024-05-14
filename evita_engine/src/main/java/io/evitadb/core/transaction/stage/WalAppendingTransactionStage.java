@@ -26,6 +26,7 @@ package io.evitadb.core.transaction.stage;
 import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.core.Catalog;
+import io.evitadb.core.metric.event.transaction.TransactionAppendedToWalEvent;
 import io.evitadb.core.transaction.stage.TrunkIncorporationTransactionStage.TrunkIncorporationTransactionTask;
 import io.evitadb.core.transaction.stage.WalAppendingTransactionStage.WalAppendingTransactionTask;
 import io.evitadb.store.spi.OffHeapWithFileBackupReference;
@@ -63,6 +64,8 @@ public final class WalAppendingTransactionStage
 
 	@Override
 	protected void handleNext(@Nonnull WalAppendingTransactionTask task) {
+		final TransactionAppendedToWalEvent event = new TransactionAppendedToWalEvent(task.catalogName());
+
 		// append WAL and discard the contents of the isolated WAL
 		this.liveCatalog.get().appendWalAndDiscard(
 			new TransactionMutation(
@@ -85,6 +88,9 @@ public final class WalAppendingTransactionStage
 				task.commitBehaviour() != CommitBehavior.WAIT_FOR_WAL_PERSISTENCE ? task.future() : null
 			)
 		);
+
+		// emit the event
+		event.finish().commit();
 	}
 
 	/**
