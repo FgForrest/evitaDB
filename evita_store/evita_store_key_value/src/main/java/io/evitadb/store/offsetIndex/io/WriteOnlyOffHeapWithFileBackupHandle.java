@@ -24,6 +24,8 @@
 package io.evitadb.store.offsetIndex.io;
 
 import io.evitadb.api.configuration.StorageOptions;
+import io.evitadb.core.metric.event.resources.IsolatedWalFileClosedEvent;
+import io.evitadb.core.metric.event.resources.IsolatedWalFileOpenedEvent;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.store.exception.StorageException;
@@ -198,6 +200,10 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 			releaseOffHeapMemory();
 		} else if (fileOutput != null) {
 			releaseTemporaryFile();
+			// emit the event
+			new IsolatedWalFileClosedEvent(
+				offHeapMemoryManager.getCatalogName()
+			).commit();
 		}
 	}
 
@@ -297,6 +303,10 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 		} catch (BufferOverflowException ex) {
 			// when we reach the end of the memory region
 			if (observableOutput.getOutputStream() instanceof OffHeapMemoryOutputStream offHeapMemoryOutputStream) {
+				// emit the event
+				new IsolatedWalFileOpenedEvent(
+					offHeapMemoryManager.getCatalogName()
+				).commit();
 				// we need to offload current data to the disk
 				offloadMemoryToDisk(operation, offHeapMemoryOutputStream);
 				// and retry the write logic again

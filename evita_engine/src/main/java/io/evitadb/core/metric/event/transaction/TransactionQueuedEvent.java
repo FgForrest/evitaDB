@@ -23,10 +23,6 @@
 
 package io.evitadb.core.metric.event.transaction;
 
-import io.evitadb.api.configuration.metric.MetricType;
-import io.evitadb.core.metric.annotation.ExportDurationMetric;
-import io.evitadb.core.metric.annotation.ExportInvocationMetric;
-import io.evitadb.core.metric.annotation.ExportMetric;
 import jdk.jfr.Description;
 import jdk.jfr.Label;
 import jdk.jfr.Name;
@@ -35,23 +31,22 @@ import lombok.Getter;
 import javax.annotation.Nonnull;
 
 /**
- * Event that is fired when a transaction is fully written into the shared WAL.
+ * Event that is fired in each transaction processing stage to reflect the time transaction waited in the queue before
+ * it was picked up for processing.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@Name(AbstractTransactionEvent.PACKAGE_NAME + ".TransactionAppendedToWalEvent")
-@Description("Event that is fired when a transaction passed conflict resolution stage.")
-@Label("Transaction appended to WAL")
-@ExportDurationMetric(value = "appendToWalDurationMilliseconds", label = "Appending transaction to shared WAL duration in milliseconds")
-@ExportInvocationMetric(value = "transactionsAppendedToWalTotal", label = "Transactions appended to WAL")
+@Name(AbstractTransactionEvent.PACKAGE_NAME + ".TransactionQueuedEvent")
+@Description("Event that is fired in each transaction processing stage to reflect the time transaction waited in the queue before it was picked up for processing.")
+@Label("Transaction waiting in queue")
 @Getter
-public class TransactionAppendedToWalEvent extends AbstractTransactionEvent {
-	@Label("Atomic mutations appended.")
-	@ExportMetric(metricName = "appendedAtomicMutationsTotal", metricType = MetricType.COUNTER)
-	private int appendedAtomicMutations;
+public class TransactionQueuedEvent extends AbstractTransactionEvent {
+	@Label("Transaction stage")
+	private final String stage;
 
-	public TransactionAppendedToWalEvent(@Nonnull String catalogName) {
+	public TransactionQueuedEvent(@Nonnull String catalogName, @Nonnull String stage) {
 		super(catalogName);
+		this.stage = stage;
 		this.begin();
 	}
 
@@ -60,9 +55,9 @@ public class TransactionAppendedToWalEvent extends AbstractTransactionEvent {
 	 * @return the event
 	 */
 	@Nonnull
-	public TransactionAppendedToWalEvent finish(int appendedAtomicMutations) {
-		this.appendedAtomicMutations = appendedAtomicMutations;
+	public TransactionQueuedEvent finish() {
 		this.end();
 		return this;
 	}
+
 }

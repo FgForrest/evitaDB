@@ -25,8 +25,9 @@ package io.evitadb.core.transaction.stage;
 
 import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.core.Catalog;
-import io.evitadb.core.metric.event.transaction.AbstractTransactionEvent.TransactionResolution;
 import io.evitadb.core.metric.event.transaction.TransactionAcceptedEvent;
+import io.evitadb.core.metric.event.transaction.TransactionQueuedEvent;
+import io.evitadb.core.metric.event.transaction.TransactionResolution;
 import io.evitadb.core.transaction.stage.ConflictResolutionTransactionStage.ConflictResolutionTransactionTask;
 import io.evitadb.core.transaction.stage.WalAppendingTransactionStage.WalAppendingTransactionTask;
 import io.evitadb.store.spi.OffHeapWithFileBackupReference;
@@ -76,6 +77,10 @@ public final class ConflictResolutionTransactionStage
 
 	@Override
 	public void handleNext(@Nonnull ConflictResolutionTransactionTask task) {
+
+		// emit queue event
+		task.transactionQueuedEvent().finish().commit();
+
 		Assert.isPremiseValid(
 			task.future() != null,
 			"Future is unexpectedly null on first stage!"
@@ -145,7 +150,8 @@ public final class ConflictResolutionTransactionStage
 		long walSizeInBytes,
 		@Nonnull OffHeapWithFileBackupReference walReference,
 		@Nonnull CommitBehavior commitBehaviour,
-		@Nonnull CompletableFuture<Long> future
+		@Nonnull CompletableFuture<Long> future,
+		@Nonnull TransactionQueuedEvent transactionQueuedEvent
 	) implements TransactionTask {
 
 		public ConflictResolutionTransactionTask {
@@ -153,6 +159,10 @@ public final class ConflictResolutionTransactionStage
 				future != null,
 				"Future is unexpectedly null!"
 			);
+		}
+
+		public ConflictResolutionTransactionTask(@Nonnull String catalogName, @Nonnull UUID transactionId, int mutationCount, long walSizeInBytes, @Nonnull OffHeapWithFileBackupReference walReference, @Nonnull CommitBehavior commitBehaviour, @Nonnull CompletableFuture<Long> future) {
+			this(catalogName, transactionId, mutationCount, walSizeInBytes, walReference, commitBehaviour, future, new TransactionQueuedEvent(catalogName, "conflict_resolution"));
 		}
 
 		@Override

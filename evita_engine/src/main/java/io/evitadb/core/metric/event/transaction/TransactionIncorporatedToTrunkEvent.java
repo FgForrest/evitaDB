@@ -44,8 +44,17 @@ import javax.annotation.Nonnull;
 @ExportDurationMetric(value = "incorporationDurationMilliseconds", label = "Incorporation duration in milliseconds")
 @Getter
 public class TransactionIncorporatedToTrunkEvent extends AbstractTransactionEvent {
+	@Label("Transactions incorporated into shared data structures.")
 	@ExportMetric(metricName = "transactionsIncorporatedTotal", metricType = MetricType.COUNTER)
 	private int collapsedTransactions;
+
+	@Label("Atomic mutations processed.")
+	@ExportMetric(metricName = "processedAtomicMutationsTotal", metricType = MetricType.COUNTER)
+	private int processedAtomicMutations;
+
+	@Label("Local mutations processed.")
+	@ExportMetric(metricName = "processedLocalMutationsTotal", metricType = MetricType.COUNTER)
+	private int processedLocalMutations;
 
 	public TransactionIncorporatedToTrunkEvent(@Nonnull String catalogName) {
 		super(catalogName);
@@ -54,11 +63,20 @@ public class TransactionIncorporatedToTrunkEvent extends AbstractTransactionEven
 
 	/**
 	 * Finishes the event and records the number of transactions processed in single run.
+	 *
+	 * @param processedAtomicMutations the number of schema/entity mutations processed
+	 * @param processedLocalMutations the number of local mutations processed
 	 * @param collapsedTransactions the number of transactions processed in single run
 	 * @return the event
 	 */
 	@Nonnull
-	public TransactionIncorporatedToTrunkEvent finish(int collapsedTransactions) {
+	public TransactionIncorporatedToTrunkEvent finish(
+		int processedAtomicMutations,
+		int processedLocalMutations,
+		int collapsedTransactions
+	) {
+		this.processedAtomicMutations = processedAtomicMutations;
+		this.processedLocalMutations = processedLocalMutations;
 		this.collapsedTransactions = collapsedTransactions;
 		this.end();
 		return this;

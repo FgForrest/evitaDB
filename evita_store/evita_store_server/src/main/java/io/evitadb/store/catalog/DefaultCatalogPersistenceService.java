@@ -501,6 +501,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		this.scheduler = scheduler;
 		this.obsoleteFileMaintainer = new ObsoleteFileMaintainer(scheduler);
 		this.offHeapMemoryManager = new OffHeapMemoryManager(
+			catalogName,
 			transactionOptions.transactionMemoryBufferLimitSizeBytes(),
 			transactionOptions.transactionMemoryRegionCount()
 		);
@@ -569,6 +570,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		this.scheduler = scheduler;
 		this.obsoleteFileMaintainer = new ObsoleteFileMaintainer(scheduler);
 		this.offHeapMemoryManager = new OffHeapMemoryManager(
+			catalogName,
 			transactionOptions.transactionMemoryBufferLimitSizeBytes(),
 			transactionOptions.transactionMemoryRegionCount()
 		);

@@ -38,6 +38,7 @@ import io.evitadb.api.requestResponse.system.CatalogVersionDescriptor;
 import io.evitadb.api.requestResponse.system.CatalogVersionDescriptor.EntityCollectionChanges;
 import io.evitadb.api.requestResponse.system.CatalogVersionDescriptor.TransactionChanges;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
+import io.evitadb.core.metric.event.transaction.WalRotationEvent;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.scheduling.DelayedAsyncTask;
 import io.evitadb.scheduling.Scheduler;
@@ -963,6 +964,7 @@ public class CatalogWriteAheadLog implements Closeable {
 	 * @throws WriteAheadLogCorruptedException if an error occurs during the rotation process.
 	 */
 	private void rotateWalFile() {
+		final WalRotationEvent event = new WalRotationEvent(catalogName);
 		this.walFileIndex++;
 		try {
 			// write information about last and first catalog version in this WAL file
@@ -1007,6 +1009,8 @@ public class CatalogWriteAheadLog implements Closeable {
 				e
 			);
 		}
+
+		OffsetDateTime firstCommitTimestamp = null;
 		try {
 			final Path walFilePath = this.catalogStoragePath.resolve(getWalFileName(this.catalogName, this.walFileIndex));
 
@@ -1059,7 +1063,7 @@ public class CatalogWriteAheadLog implements Closeable {
 				final TransactionMutation firstMutation = getFirstTransactionMutationFromWalFile(
 					walFiles[walFiles.length - this.walFileCountKept]
 				);
-				final OffsetDateTime firstCommitTimestamp = firstMutation.getCommitTimestamp();
+				firstCommitTimestamp = firstMutation.getCommitTimestamp();
 				this.bootstrapFileTrimmer.accept(firstCommitTimestamp);
 			}
 
@@ -1069,6 +1073,9 @@ public class CatalogWriteAheadLog implements Closeable {
 				"Failed to open WAL file!",
 				e
 			);
+		} finally {
+			// emit the event
+			event.finish(firstCommitTimestamp).commit();
 		}
 	}
 
@@ -1077,7 +1084,7 @@ public class CatalogWriteAheadLog implements Closeable {
 	 *
 	 * @param walFile the WAL file to read from
 	 * @return the first transaction mutation found in the WAL file
-	 * @throws IllegalArgumentException if the given WAL file is invalid
+	 * @throws IllegalArgumentException        if the given WAL file is invalid
 	 * @throws WriteAheadLogCorruptedException if failed to read the first transaction from the WAL file
 	 */
 	@Nonnull

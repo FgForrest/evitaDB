@@ -26,12 +26,15 @@ package io.evitadb.core.transaction.stage;
 import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.metric.event.transaction.NewCatalogVersionPropagatedEvent;
+import io.evitadb.core.metric.event.transaction.TransactionProcessedEvent;
 import io.evitadb.core.transaction.stage.TrunkIncorporationTransactionStage.UpdatedCatalogTransactionTask;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import java.time.Duration;
+import java.time.OffsetDateTime;
 import java.util.concurrent.Flow;
 import java.util.concurrent.Flow.Subscription;
 import java.util.function.Consumer;
@@ -82,8 +85,10 @@ public class CatalogSnapshotPropagationTransactionStage implements Flow.Subscrib
 
 	@Override
 	public final void onNext(UpdatedCatalogTransactionTask task) {
-		final NewCatalogVersionPropagatedEvent event = new NewCatalogVersionPropagatedEvent(task.catalogName());
+		// emit queue event
+		task.transactionQueuedEvent().finish().commit();
 
+		final NewCatalogVersionPropagatedEvent event = new NewCatalogVersionPropagatedEvent(task.catalogName());
 		try {
 			this.catalogName = task.catalogName();
 			this.newCatalogVersionConsumer.accept(task.catalog());
@@ -103,6 +108,12 @@ public class CatalogSnapshotPropagationTransactionStage implements Flow.Subscrib
 
 		// emit the event
 		event.finish().commit();
+
+		// emit transaction processed events
+		final OffsetDateTime now = OffsetDateTime.now();
+		for (OffsetDateTime commitTime : task.commitTimestamps()) {
+			new TransactionProcessedEvent(catalogName, Duration.between(commitTime, now)).commit();
+		}
 
 		this.subscription.request(1);
 	}

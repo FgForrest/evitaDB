@@ -231,8 +231,8 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	/**
 	 * Flushes changes in transactional memory to the persistent storage including the transactional id key.
 	 *
-	 * @param catalogVersion       new catalog version
-	 * @param headerInfoSupplier   provides wrapping entity collection information for the header
+	 * @param catalogVersion         new catalog version
+	 * @param headerInfoSupplier     provides wrapping entity collection information for the header
 	 * @param entityCollectionHeader the header of the entity collection
 	 */
 	@Nonnull
@@ -322,7 +322,7 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	/**
 	 * Method deletes entity collection persistent storage and removes collection from the schema.
 	 *
-	 * @param catalogVersion version of the catalog in which the collection should be considered removed
+	 * @param catalogVersion         version of the catalog in which the collection should be considered removed
 	 * @param entityCollectionHeader entity collection header
 	 */
 	void deleteEntityCollection(

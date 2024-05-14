@@ -56,7 +56,7 @@ class WriteOnlyOffHeapWithFileBackupHandleTest implements EvitaTestSupport {
 	@Test
 	void shouldWriteDataToOffHeapChunk() {
 		try (
-			final OffHeapMemoryManager memoryManager = new OffHeapMemoryManager(32, 1);
+			final OffHeapMemoryManager memoryManager = new OffHeapMemoryManager(TEST_CATALOG, 32, 1);
 			final WriteOnlyOffHeapWithFileBackupHandle writeHandle = new WriteOnlyOffHeapWithFileBackupHandle(
 				targetDirectory.resolve(UUIDUtil.randomUUID() + ".tmp"), outputKeeper, memoryManager
 			)
@@ -82,7 +82,7 @@ class WriteOnlyOffHeapWithFileBackupHandleTest implements EvitaTestSupport {
 	@Test
 	void shouldWriteLargeDataFirstToOffHeapChunkThatAutomaticallySwitchesToTemporaryFileWithSync() {
 		try (
-			final OffHeapMemoryManager memoryManager = new OffHeapMemoryManager(32, 1);
+			final OffHeapMemoryManager memoryManager = new OffHeapMemoryManager(TEST_CATALOG, 32, 1);
 			final WriteOnlyOffHeapWithFileBackupHandle writeHandle = new WriteOnlyOffHeapWithFileBackupHandle(
 				targetDirectory.resolve(UUIDUtil.randomUUID() + ".tmp"), outputKeeper, memoryManager
 			)
@@ -113,7 +113,7 @@ class WriteOnlyOffHeapWithFileBackupHandleTest implements EvitaTestSupport {
 	@Test
 	void shouldWriteLargeDataFirstToOffHeapChunkThatAutomaticallySwitchesToTemporaryFileWithoutSync() {
 		try (
-			final OffHeapMemoryManager memoryManager = new OffHeapMemoryManager(32, 1);
+			final OffHeapMemoryManager memoryManager = new OffHeapMemoryManager(TEST_CATALOG, 32, 1);
 			final WriteOnlyOffHeapWithFileBackupHandle writeHandle = new WriteOnlyOffHeapWithFileBackupHandle(
 				targetDirectory.resolve(UUIDUtil.randomUUID() + ".tmp"), outputKeeper, memoryManager
 			)
@@ -148,7 +148,7 @@ class WriteOnlyOffHeapWithFileBackupHandleTest implements EvitaTestSupport {
 	void shouldStartDirectlyWithFileBackupIfThereIsNoFreeMemoryRegionAvailable() {
 
 		try (
-			final OffHeapMemoryManager memoryManager = new OffHeapMemoryManager(32, 1);
+			final OffHeapMemoryManager memoryManager = new OffHeapMemoryManager(TEST_CATALOG, 32, 1);
 			final WriteOnlyOffHeapWithFileBackupHandle realMemoryHandle = new WriteOnlyOffHeapWithFileBackupHandle(
 				targetDirectory.resolve(UUIDUtil.randomUUID() + ".tmp"), outputKeeper, memoryManager
 			)

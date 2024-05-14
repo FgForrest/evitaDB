@@ -24,8 +24,6 @@
 package io.evitadb.core.metric.event.transaction;
 
 import io.evitadb.api.configuration.metric.MetricType;
-import io.evitadb.core.metric.annotation.ExportDurationMetric;
-import io.evitadb.core.metric.annotation.ExportInvocationMetric;
 import io.evitadb.core.metric.annotation.ExportMetric;
 import jdk.jfr.Description;
 import jdk.jfr.Label;
@@ -33,36 +31,26 @@ import jdk.jfr.Name;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
+import java.time.Duration;
 
 /**
- * Event that is fired when a transaction is fully written into the shared WAL.
+ * Event that is fired when a transaction reached the shared view.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@Name(AbstractTransactionEvent.PACKAGE_NAME + ".TransactionAppendedToWalEvent")
-@Description("Event that is fired when a transaction passed conflict resolution stage.")
-@Label("Transaction appended to WAL")
-@ExportDurationMetric(value = "appendToWalDurationMilliseconds", label = "Appending transaction to shared WAL duration in milliseconds")
-@ExportInvocationMetric(value = "transactionsAppendedToWalTotal", label = "Transactions appended to WAL")
+@Name(AbstractTransactionEvent.PACKAGE_NAME + ".TransactionProcessedEvent")
+@Description("Event that is fired when a transaction reached the shared view.")
+@Label("Transaction processed and visible")
 @Getter
-public class TransactionAppendedToWalEvent extends AbstractTransactionEvent {
-	@Label("Atomic mutations appended.")
-	@ExportMetric(metricName = "appendedAtomicMutationsTotal", metricType = MetricType.COUNTER)
-	private int appendedAtomicMutations;
+public class TransactionProcessedEvent extends AbstractTransactionEvent {
+	@Label("Transaction lag between being committed and finally visible to all")
+	@Name("lagMilliseconds")
+	@ExportMetric(metricName = "lagMilliseconds", metricType = MetricType.HISTOGRAM)
+	private final long lagMilliseconds;
 
-	public TransactionAppendedToWalEvent(@Nonnull String catalogName) {
+	public TransactionProcessedEvent(@Nonnull String catalogName, @Nonnull Duration duration) {
 		super(catalogName);
-		this.begin();
+		this.lagMilliseconds = duration.toMillis();
 	}
 
-	/**
-	 * Finishes the event.
-	 * @return the event
-	 */
-	@Nonnull
-	public TransactionAppendedToWalEvent finish(int appendedAtomicMutations) {
-		this.appendedAtomicMutations = appendedAtomicMutations;
-		this.end();
-		return this;
-	}
 }

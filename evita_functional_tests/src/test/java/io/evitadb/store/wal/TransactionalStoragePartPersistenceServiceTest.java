@@ -38,6 +38,7 @@ import io.evitadb.store.offsetIndex.model.OffsetIndexRecordTypeRegistry;
 import io.evitadb.store.schema.SchemaKryoConfigurer;
 import io.evitadb.store.service.SharedClassesConfigurer;
 import io.evitadb.store.spi.StoragePartPersistenceService;
+import io.evitadb.test.TestConstants;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -67,7 +68,7 @@ class TransactionalStoragePartPersistenceServiceTest {
 
 	@BeforeEach
 	public void setUp() {
-		this.offHeapMemoryManager = new OffHeapMemoryManager(2048, 1);
+		this.offHeapMemoryManager = new OffHeapMemoryManager(TestConstants.TEST_CATALOG, 2048, 1);
 		this.delegateService = mock(StoragePartPersistenceService.class);
 		when(this.delegateService.getReadOnlyKeyCompressor()).thenReturn(new ReadOnlyKeyCompressor(Map.of()));
 		final StorageOptions storageOptions = StorageOptions.builder().build();

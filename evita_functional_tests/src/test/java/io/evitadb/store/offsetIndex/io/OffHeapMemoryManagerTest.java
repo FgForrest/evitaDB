@@ -23,6 +23,7 @@
 
 package io.evitadb.store.offsetIndex.io;
 
+import io.evitadb.test.TestConstants;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -39,7 +40,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 class OffHeapMemoryManagerTest {
-	private final OffHeapMemoryManager memoryManager = new OffHeapMemoryManager(1024, 16);
+	private final OffHeapMemoryManager memoryManager = new OffHeapMemoryManager(TestConstants.TEST_CATALOG, 1024, 16);
 
 	@Test
 	void shouldAcquireOutputStreamWriteOutputAndReadItAgain() throws IOException {

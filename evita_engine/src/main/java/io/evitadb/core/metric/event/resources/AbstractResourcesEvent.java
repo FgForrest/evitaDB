@@ -21,29 +21,8 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.metric.event.transaction;
+package io.evitadb.core.metric.event.resources;
 
-<<<<<<< HEAD:evita_engine/src/main/java/io/evitadb/core/metric/event/transaction/TransactionStartedEvent.java
-import io.evitadb.core.metric.annotation.ExportInvocationMetric;
-import jdk.jfr.Description;
-import jdk.jfr.Label;
-import jdk.jfr.Name;
-
-import javax.annotation.Nonnull;
-
-/**
- * Event that is fired when a transaction is started.
- */
-@Name(AbstractTransactionEvent.PACKAGE_NAME + ".TransactionStartedEvent")
-@Description("Event that is fired when a transaction is started.")
-@ExportInvocationMetric(value = "transactionsInitiatedTotal", label = "Transactions initiated")
-@Label("Transaction started")
-public class TransactionStartedEvent extends AbstractTransactionEvent {
-
-	public TransactionStartedEvent(@Nonnull String catalogName) {
-		super(catalogName);
-	}
-=======
 import io.evitadb.core.metric.annotation.EventGroup;
 import io.evitadb.core.metric.event.CatalogRelatedEvent;
 import io.evitadb.core.metric.event.CustomMetricsExecutionEvent;
@@ -55,17 +34,16 @@ import lombok.RequiredArgsConstructor;
 /**
  * This event is base class for all transaction events.
  */
-@EventGroup(AbstractTransactionEvent.PACKAGE_NAME)
+@EventGroup(AbstractResourcesEvent.PACKAGE_NAME)
 @RequiredArgsConstructor
 @Getter
-abstract class AbstractTransactionEvent extends CustomMetricsExecutionEvent implements CatalogRelatedEvent {
-	protected static final String PACKAGE_NAME = "io.evitadb.transaction";
+abstract class AbstractResourcesEvent extends CustomMetricsExecutionEvent implements CatalogRelatedEvent {
+	protected static final String PACKAGE_NAME = "io.evitadb.resources";
 	/**
 	 * The name of the catalog the transaction relates to.
 	 */
 	@Label("Catalog")
 	@Name("catalogName")
 	private final String catalogName;
->>>>>>> feat(#18): Metrics:evita_engine/src/main/java/io/evitadb/core/metric/event/transaction/AbstractTransactionEvent.java
 
 }

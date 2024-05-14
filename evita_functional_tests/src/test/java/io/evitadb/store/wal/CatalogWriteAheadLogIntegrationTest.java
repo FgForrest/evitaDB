@@ -101,8 +101,8 @@ class CatalogWriteAheadLogIntegrationTest {
 		StorageOptions.builder().build(),
 		Mockito.mock(Scheduler.class)
 	);
-	private final OffHeapMemoryManager noOffHeapMemoryManager = new OffHeapMemoryManager(0, 0);
-	private final OffHeapMemoryManager bigOffHeapMemoryManager = new OffHeapMemoryManager(10_000_000, 128);
+	private final OffHeapMemoryManager noOffHeapMemoryManager = new OffHeapMemoryManager(TEST_CATALOG, 0, 0);
+	private final OffHeapMemoryManager bigOffHeapMemoryManager = new OffHeapMemoryManager(TEST_CATALOG, 10_000_000, 128);
 	private final int[] txSizes = new int[]{2000, 3000, 4000, 5000, 7000, 9000, 1_000};
 	private final MockOffsetConsumer offsetConsumer = new MockOffsetConsumer();
 	private CatalogWriteAheadLog wal;

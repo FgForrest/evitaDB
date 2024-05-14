@@ -33,36 +33,41 @@ import jdk.jfr.Name;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.time.OffsetDateTime;
 
 /**
- * Event that is fired when a transaction is fully written into the shared WAL.
+ * Event that is fired when a shared WAL is rotated (and possibly pruned).
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@Name(AbstractTransactionEvent.PACKAGE_NAME + ".TransactionAppendedToWalEvent")
-@Description("Event that is fired when a transaction passed conflict resolution stage.")
-@Label("Transaction appended to WAL")
-@ExportDurationMetric(value = "appendToWalDurationMilliseconds", label = "Appending transaction to shared WAL duration in milliseconds")
-@ExportInvocationMetric(value = "transactionsAppendedToWalTotal", label = "Transactions appended to WAL")
+@Name(AbstractTransactionEvent.PACKAGE_NAME + ".WalRotationEvent")
+@Description("Event that is fired when a shared WAL is rotated.")
+@Label("WAL rotated")
+@ExportDurationMetric(value = "walRotationDurationMilliseconds", label = "WAL rotation duration in milliseconds")
+@ExportInvocationMetric(value = "walRotationTotal", label = "WAL rotations")
 @Getter
-public class TransactionAppendedToWalEvent extends AbstractTransactionEvent {
-	@Label("Atomic mutations appended.")
-	@ExportMetric(metricName = "appendedAtomicMutationsTotal", metricType = MetricType.COUNTER)
-	private int appendedAtomicMutations;
+public class WalRotationEvent extends AbstractTransactionEvent {
+	@Label("Oldest WAL entry timestamp")
+	@Name("oldestWalEntrySeconds")
+	@ExportMetric(metricType = MetricType.GAUGE)
+	private long oldestWalEntrySeconds;
 
-	public TransactionAppendedToWalEvent(@Nonnull String catalogName) {
+	public WalRotationEvent(@Nonnull String catalogName) {
 		super(catalogName);
 		this.begin();
 	}
 
 	/**
-	 * Finishes the event.
+	 * Finalizes the event.
+	 * @param oldestWalEntry the oldest WAL entry in the transaction
 	 * @return the event
 	 */
 	@Nonnull
-	public TransactionAppendedToWalEvent finish(int appendedAtomicMutations) {
-		this.appendedAtomicMutations = appendedAtomicMutations;
+	public WalRotationEvent finish(@Nullable OffsetDateTime oldestWalEntry) {
+		this.oldestWalEntrySeconds = oldestWalEntry == null ? 0 : oldestWalEntry.toEpochSecond();
 		this.end();
 		return this;
 	}
+
 }
