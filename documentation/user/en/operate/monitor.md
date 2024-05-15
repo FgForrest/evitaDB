@@ -199,7 +199,7 @@ If the server is unhealthy, the response will list the problems.
 </dl>
 
 # Metrics
-evitaDB server has the option to publish [metrics](https://www.strongdm.com/observability#:~:text=Observability%20metrics%20are%20selected%20key,or%20load%20balancers%20reach%20capacity).
+evitaDB server has the option to publish [metrics](https://en.wikipedia.org/wiki/Observability_(software)#Metrics).
 The popular option of using the [Prometheus](https://prometheus.io/) solution was chosen as a way to make them available outside the application.
 evitaDB exposes a scraping endpoint to which the application publishes collected metrics at regular intervals, which can then be visualized using any tool such as [Grafana](https://grafana.com/).
 
