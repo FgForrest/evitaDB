@@ -24,8 +24,8 @@
 package io.evitadb.index;
 
 import io.evitadb.api.requestResponse.data.Versioned;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
-import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
@@ -66,7 +66,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -168,11 +167,6 @@ public abstract class EntityIndex implements
 	 * should be persisted.
 	 */
 	protected final Set<String> originalFacetIndexes;
-	/**
-	 * Lambda that provides access to the current schema.
-	 * Beware this reference changes with each entity collection exchange during transactional commit.
-	 */
-	protected Supplier<EntitySchema> schemaAccessor;
 
 	protected EntityIndex(
 		int primaryKey,
@@ -259,17 +253,6 @@ public abstract class EntityIndex implements
 	}
 
 	/**
-	 * Initializes accessor that allows accessing current entity schema. This accessor needs to be initialized in
-	 * {@link io.evitadb.core.EntityCollection} constructors and everytime new schema is created within entity
-	 * collection existence.
-	 *
-	 * @param entitySchemaAccessor lambda that provides access to the current schema
-	 */
-	public void useSchema(@Nonnull Supplier<EntitySchema> entitySchemaAccessor) {
-		this.schemaAccessor = entitySchemaAccessor;
-	}
-
-	/**
 	 * Registers new entity primary key to the superset of entity ids of this entity index.
 	 */
 	public boolean insertPrimaryKeyIfMissing(int entityPrimaryKey) {
@@ -301,6 +284,7 @@ public abstract class EntityIndex implements
 	/**
 	 * Returns superset of all entity ids known to this entity index.
 	 */
+	@Nonnull
 	public Formula getAllPrimaryKeysFormula() {
 		return entityIds.isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(entityIds);
 	}
@@ -308,15 +292,9 @@ public abstract class EntityIndex implements
 	/**
 	 * Returns superset of all entity ids known to this entity index.
 	 */
+	@Nonnull
 	public Bitmap getAllPrimaryKeys() {
 		return entityIds;
-	}
-
-	/**
-	 * Provides access to the entity schema via passed lambda.
-	 */
-	public EntitySchema getEntitySchema() {
-		return schemaAccessor.get();
 	}
 
 	/**
@@ -325,8 +303,7 @@ public abstract class EntityIndex implements
 	 *
 	 * @return true if the language was added, false if it was already present
 	 */
-	public boolean upsertLanguage(@Nonnull Locale locale, int entityPrimaryKey) {
-		final EntitySchema schema = getEntitySchema();
+	public boolean upsertLanguage(@Nonnull Locale locale, int entityPrimaryKey, @Nonnull EntitySchemaContract schema) {
 		final Set<Locale> allowedLocales = schema.getLocales();
 		isTrue(
 			allowedLocales.contains(locale) || schema.getEvolutionMode().contains(EvolutionMode.ADDING_LOCALES),

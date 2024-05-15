@@ -172,7 +172,7 @@ public interface ReferenceIndexMutator {
 	 */
 	static void referenceInsert(
 		int entityPrimaryKey,
-		@Nonnull String entityType,
+		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull EntityIndex entityIndex,
 		@Nonnull ReferencedTypeEntityIndex referenceTypeIndex,
@@ -208,7 +208,7 @@ public interface ReferenceIndexMutator {
 			addFacetToIndex(referenceIndex, referenceKey, null, executor, entityPrimaryKey, undoActionConsumer);
 
 			// we need to index all previously added global entity attributes and prices
-			indexAllExistingData(executor, referenceIndex, entityType, entityPrimaryKey, undoActionConsumer);
+			indexAllExistingData(executor, referenceIndex, entitySchema, entityPrimaryKey, undoActionConsumer);
 		}
 	}
 
@@ -217,7 +217,7 @@ public interface ReferenceIndexMutator {
 	 */
 	static void referenceRemoval(
 		int entityPrimaryKey,
-		@Nonnull String entityType,
+		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull EntityIndex entityIndex,
 		@Nonnull ReferencedTypeEntityIndex referenceTypeIndex,
@@ -225,6 +225,8 @@ public interface ReferenceIndexMutator {
 		@Nonnull ReferenceKey referenceKey,
 		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
+		final String entityType = entitySchema.getName();
+
 		// we need to remove referenced entity primary key from the reference type index
 		final WritableEntityStorageContainerAccessor containerAccessor = executor.getContainerAccessor();
 		if (referenceTypeIndex.removePrimaryKey(referenceKey.primaryKey()) && undoActionConsumer != null) {
@@ -274,7 +276,7 @@ public interface ReferenceIndexMutator {
 		}
 
 		// remove all global entity attributes and prices
-		removeAllExistingData(executor, referenceIndex, entityType, entityPrimaryKey, undoActionConsumer);
+		removeAllExistingData(executor, referenceIndex, entitySchema, entityPrimaryKey, undoActionConsumer);
 	}
 
 	/**
@@ -283,17 +285,19 @@ public interface ReferenceIndexMutator {
 	private static void indexAllExistingData(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull EntityIndex targetIndex,
-		@Nonnull String entityType,
+		@Nonnull EntitySchemaContract entitySchema,
 		int entityPrimaryKey,
 		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
+		final String entityType = entitySchema.getName();
+
 		indexAllFacets(executor, targetIndex, entityType, entityPrimaryKey, undoActionConsumer);
 
 		final EntityStoragePartAccessor containerAccessor = executor.getContainerAccessor();
 		final EntityBodyStoragePart entityCnt = containerAccessor.getEntityStoragePart(entityType, entityPrimaryKey, EntityExistence.MUST_EXIST);
 
 		for (Locale locale : entityCnt.getLocales()) {
-			final boolean added = executor.upsertEntityLanguageInTargetIndex(entityPrimaryKey, locale, targetIndex, undoActionConsumer);
+			final boolean added = executor.upsertEntityLanguageInTargetIndex(entityPrimaryKey, locale, targetIndex, entitySchema, undoActionConsumer);
 			if (added && undoActionConsumer != null) {
 				undoActionConsumer.accept(
 					() -> executor.removeEntityLanguageInTargetIndex(
@@ -456,10 +460,11 @@ public interface ReferenceIndexMutator {
 	private static void removeAllExistingData(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull EntityIndex targetIndex,
-		@Nonnull String entityType,
+		@Nonnull EntitySchemaContract entitySchema,
 		int entityPrimaryKey,
 		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
+		final String entityType = entitySchema.getName();
 		removeAllFacets(executor, targetIndex, entityType, entityPrimaryKey, undoActionConsumer);
 
 		final EntityStoragePartAccessor containerAccessor = executor.getContainerAccessor();
@@ -470,7 +475,7 @@ public interface ReferenceIndexMutator {
 				entityPrimaryKey, locale, targetIndex, undoActionConsumer
 			);
 			if (removed && undoActionConsumer != null) {
-				undoActionConsumer.accept(() -> executor.upsertEntityLanguageInTargetIndex(entityPrimaryKey, locale, targetIndex, null));
+				undoActionConsumer.accept(() -> executor.upsertEntityLanguageInTargetIndex(entityPrimaryKey, locale, targetIndex, entitySchema, null));
 			}
 		}
 

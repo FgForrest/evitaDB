@@ -58,7 +58,7 @@ public class HierarchyFromRootTranslator
 		final Optional<HierarchyStatistics> statistics = fromRoot.getStatistics();
 		final HierarchyProducerContext context = producer.getContext(fromRoot.getName());
 		final HierarchyTraversalPredicate scopePredicate = fromRoot.getStopAt()
-			.map(it -> stopAtConstraintToPredicate(TraversalDirection.TOP_DOWN, it, context.queryContext(), context.entityIndex(), context.referenceSchema()))
+			.map(it -> stopAtConstraintToPredicate(TraversalDirection.TOP_DOWN, it, context.queryContext(), context.entityIndex(), context.entitySchema(), context.referenceSchema()))
 			.orElse(HierarchyTraversalPredicate.NEVER_STOP_PREDICATE);
 		producer.addComputer(
 			fromRoot.getName(),
