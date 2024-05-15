@@ -116,11 +116,10 @@ public class GlobalUniqueIndex implements VoidTransactionMemoryProducer<GlobalUn
 	private final Map<Integer, String> primaryKeyToEntityType = new ConcurrentHashMap<>();
 	private final Map<String, Integer> entityTypeToPk = new ConcurrentHashMap<>();
 
-	public GlobalUniqueIndex(@Nonnull AttributeKey attributeKey, @Nonnull Class<? extends Serializable> attributeType, @Nonnull Catalog catalog) {
+	public GlobalUniqueIndex(@Nonnull AttributeKey attributeKey, @Nonnull Class<? extends Serializable> attributeType) {
 		this.dirty = new TransactionalBoolean();
 		this.attributeKey = attributeKey;
 		this.type = attributeType;
-		this.catalog = catalog;
 		this.uniqueValueToEntityTuple = new TransactionalMap<>(new HashMap<>());
 		this.localeToIdIndex = new TransactionalMap<>(new HashMap<>());
 		this.idToLocaleIndex = new TransactionalMap<>(new HashMap<>());
@@ -129,14 +128,12 @@ public class GlobalUniqueIndex implements VoidTransactionMemoryProducer<GlobalUn
 	public GlobalUniqueIndex(
 		@Nonnull AttributeKey attributeKey,
 		@Nonnull Class<? extends Serializable> attributeType,
-		@Nonnull Catalog catalog,
 		@Nonnull Map<Serializable, EntityWithTypeTuple> uniqueValueToEntityTuple,
 		@Nonnull Map<Integer, Locale> localeIndex
 	) {
 		this.dirty = new TransactionalBoolean();
 		this.attributeKey = attributeKey;
 		this.type = attributeType;
-		this.catalog = catalog;
 		this.uniqueValueToEntityTuple = new TransactionalMap<>(uniqueValueToEntityTuple);
 		this.idToLocaleIndex = new TransactionalMap<>(localeIndex);
 		this.localeToIdIndex = new TransactionalMap<>(
@@ -258,7 +255,7 @@ public class GlobalUniqueIndex implements VoidTransactionMemoryProducer<GlobalUn
 	@Override
 	public GlobalUniqueIndex createCopyWithMergedTransactionalMemory(@Nullable Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		final GlobalUniqueIndex uniqueKeyIndex = new GlobalUniqueIndex(
-			attributeKey, type, catalog,
+			attributeKey, type,
 			transactionalLayer.getStateCopyWithCommittedChanges(this.uniqueValueToEntityTuple),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.idToLocaleIndex)
 		);

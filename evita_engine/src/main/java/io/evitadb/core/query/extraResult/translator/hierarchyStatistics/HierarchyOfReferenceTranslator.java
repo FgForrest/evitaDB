@@ -131,6 +131,7 @@ public class HierarchyOfReferenceTranslator
 										extraResultPlanner.getQueryContext(),
 										filter,
 										ReducedEntityIndex.class,
+										extraResultPlanner.getSchema(queriedEntityType),
 										hierarchyIndex,
 										extraResultPlanner.getAttributeSchemaAccessor()
 									);

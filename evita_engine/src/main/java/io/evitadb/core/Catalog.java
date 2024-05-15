@@ -738,7 +738,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		return new Catalog(
 			catalogVersionAfterRename,
 			getCatalogState(),
-			this.catalogIndex,
+			this.catalogIndex.createCopyForNewCatalogAttachment(),
 			newCollections,
 			newIoService,
 			this,
@@ -779,7 +779,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 			final Catalog newCatalog = new Catalog(
 				1L,
 				CatalogState.ALIVE,
-				this.catalogIndex,
+				this.catalogIndex.createCopyForNewCatalogAttachment(),
 				newCollections,
 				this.persistenceService,
 				this,

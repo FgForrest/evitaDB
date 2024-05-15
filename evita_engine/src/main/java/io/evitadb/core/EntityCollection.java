@@ -1207,7 +1207,6 @@ public final class EntityCollection implements
 			new EntitySchemaDecorator(catalog::getSchema, this.initialSchema)
 		);
 		for (EntityIndex entityIndex : indexes.values()) {
-			entityIndex.useSchema(this::getInternalSchema);
 			if (entityIndex instanceof CatalogRelatedDataStructure<?> catalogRelatedEntityIndex) {
 				catalogRelatedEntityIndex.attachToCatalog(this.entityType, this.catalog);
 			}
@@ -1297,7 +1296,6 @@ public final class EntityCollection implements
 			entityHeader.globalEntityIndexId(),
 			this.initialSchema
 		);
-		globalIndex.useSchema(this::getInternalSchema);
 		Assert.isPremiseValid(
 			globalIndex != null,
 			() -> "Global index must never be null for entity type `" + this.initialSchema.getName() + "`!"
@@ -1308,11 +1306,7 @@ public final class EntityCollection implements
 					Stream.of(globalIndex),
 					entityHeader.usedEntityIndexIds()
 						.stream()
-						.map(eid -> {
-							final EntityIndex entityIndex = this.persistenceService.readEntityIndex(catalogVersion, eid, this.initialSchema);
-							entityIndex.useSchema(this::getInternalSchema);
-							return entityIndex;
-						})
+						.map(eid -> this.persistenceService.readEntityIndex(catalogVersion, eid, this.initialSchema))
 				)
 				.collect(
 					Collectors.toMap(
@@ -1656,8 +1650,7 @@ public final class EntityCollection implements
 								}
 							}
 
-							entityIndex.useSchema(EntityCollection.this::getInternalSchema);
-							if (entityIndex instanceof CatalogRelatedDataStructure lateInitializationIndex) {
+							if (entityIndex instanceof CatalogRelatedDataStructure<?> lateInitializationIndex) {
 								lateInitializationIndex.attachToCatalog(EntityCollection.this.entityType, EntityCollection.this.catalog);
 							}
 
