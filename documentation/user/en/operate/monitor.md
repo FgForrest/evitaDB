@@ -233,7 +233,7 @@ api:
 ```
 
 As mentioned above, separate groups can be specified from the two groups of metrics (system - JVM, internal - database) to constrain the collected data.
-From the JVM category (more [here](https://zio.dev/reference/observability/metrics/jvm/)), published metrics can be constrained by specifying selected names in the YAML array:
+From the JVM category (more [here](https://prometheus.github.io/client_java/instrumentation/jvm/)), published metrics can be constrained by specifying selected names in the YAML array:
 - AllMetrics
 - JvmThreadsMetrics
 - JvmBufferPoolMetrics
