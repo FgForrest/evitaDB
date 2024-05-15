@@ -98,6 +98,7 @@ class CatalogWriteAheadLogIntegrationTest {
 	};
 	private final Path isolatedWalFilePath = walDirectory.resolve("isolatedWal.tmp");
 	private final ObservableOutputKeeper observableOutputKeeper = new ObservableOutputKeeper(
+		TEST_CATALOG,
 		StorageOptions.builder().build(),
 		Mockito.mock(Scheduler.class)
 	);

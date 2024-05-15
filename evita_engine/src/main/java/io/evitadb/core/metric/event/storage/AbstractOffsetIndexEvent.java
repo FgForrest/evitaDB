@@ -21,25 +21,38 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.metric.event;
+package io.evitadb.core.metric.event.storage;
 
 import io.evitadb.core.metric.annotation.ExportMetricLabel;
+import jdk.jfr.Label;
+import lombok.Getter;
 
 import javax.annotation.Nonnull;
 
 /**
- * This interface should be implemented by all events that are related to a specific catalog.
+ * Abstract ancestor for events that are related to a specific OffsetIndex file.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public interface CatalogRelatedEvent {
-
+@Getter
+abstract class AbstractOffsetIndexEvent extends AbstractStorageEvent {
 	/**
-	 * Returns the name of the catalog that the event is related to.
-	 * @return the name of the catalog
+	 * The type of the file that was flushed.
 	 */
+	@Label("File type")
 	@ExportMetricLabel
-	@Nonnull
-	String getCatalogName();
+	final String fileType;
+	/**
+	 * The logical name of the file that was flushed.
+	 */
+	@Label("Logical file name")
+	@ExportMetricLabel
+	final String name;
+
+	public AbstractOffsetIndexEvent(@Nonnull String catalogName, @Nonnull FileType fileType, @Nonnull String name) {
+		super(catalogName);
+		this.fileType = fileType.name();
+		this.name = name;
+	}
 
 }

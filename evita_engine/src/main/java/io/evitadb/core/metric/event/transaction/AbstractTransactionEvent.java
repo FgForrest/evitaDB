@@ -44,6 +44,6 @@ abstract class AbstractTransactionEvent extends CustomMetricsExecutionEvent impl
 	 */
 	@Label("Catalog")
 	@Name("catalogName")
-	private final String catalogName;
+	final String catalogName;
 
 }

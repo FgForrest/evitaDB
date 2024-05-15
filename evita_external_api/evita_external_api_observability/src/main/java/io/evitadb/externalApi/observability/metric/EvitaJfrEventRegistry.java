@@ -25,18 +25,13 @@ package io.evitadb.externalApi.observability.metric;
 
 import io.evitadb.core.metric.annotation.EventGroup;
 import io.evitadb.core.metric.event.CustomMetricsExecutionEvent;
-import io.evitadb.core.metric.event.resources.IsolatedWalFileClosedEvent;
-import io.evitadb.core.metric.event.resources.IsolatedWalFileOpenedEvent;
-import io.evitadb.core.metric.event.resources.OffHeapMemoryAllocationChangeEvent;
-import io.evitadb.core.metric.event.transaction.NewCatalogVersionPropagatedEvent;
-import io.evitadb.core.metric.event.transaction.TransactionAcceptedEvent;
-import io.evitadb.core.metric.event.transaction.TransactionAppendedToWalEvent;
-import io.evitadb.core.metric.event.transaction.TransactionFinishedEvent;
-import io.evitadb.core.metric.event.transaction.TransactionIncorporatedToTrunkEvent;
-import io.evitadb.core.metric.event.transaction.TransactionProcessedEvent;
-import io.evitadb.core.metric.event.transaction.TransactionQueuedEvent;
-import io.evitadb.core.metric.event.transaction.TransactionStartedEvent;
-import io.evitadb.core.metric.event.transaction.WalRotationEvent;
+import io.evitadb.core.metric.event.storage.ObservableOutputChangeEvent;
+import io.evitadb.core.metric.event.storage.OffsetIndexFlushEvent;
+import io.evitadb.core.metric.event.storage.OffsetIndexRecordTypeCountChangedEvent;
+import io.evitadb.core.metric.event.storage.ReadOnlyHandleClosedEvent;
+import io.evitadb.core.metric.event.storage.ReadOnlyHandleLimitSetEvent;
+import io.evitadb.core.metric.event.storage.ReadOnlyHandleOpenedEvent;
+import io.evitadb.core.metric.event.transaction.*;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ReflectionLookup;
 import lombok.NoArgsConstructor;
@@ -57,8 +52,9 @@ import java.util.stream.Collectors;
  * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
  */
 @NoArgsConstructor
-public class CustomEventProviderRegistry {
+public class EvitaJfrEventRegistry {
 	private static final Set<Class<? extends CustomMetricsExecutionEvent>> EVENTS_TYPES = Set.of(
+		// transaction events
 		TransactionStartedEvent.class,
 		TransactionFinishedEvent.class,
 		TransactionAcceptedEvent.class,
@@ -70,7 +66,15 @@ public class CustomEventProviderRegistry {
 		WalRotationEvent.class,
 		IsolatedWalFileOpenedEvent.class,
 		IsolatedWalFileClosedEvent.class,
-		OffHeapMemoryAllocationChangeEvent.class
+		OffHeapMemoryAllocationChangeEvent.class,
+
+		// storage events
+		OffsetIndexFlushEvent.class,
+		OffsetIndexRecordTypeCountChangedEvent.class,
+		ObservableOutputChangeEvent.class,
+		ReadOnlyHandleLimitSetEvent.class,
+		ReadOnlyHandleOpenedEvent.class,
+		ReadOnlyHandleClosedEvent.class
 	);
 	private static final Map<String, Class<? extends CustomMetricsExecutionEvent>> EVENT_MAP;
 	private static final Map<String, Set<Class<? extends CustomMetricsExecutionEvent>>> EVENT_MAP_BY_PACKAGE;
@@ -83,7 +87,7 @@ public class CustomEventProviderRegistry {
 			.stream()
 			.collect(
 				Collectors.groupingBy(
-					CustomEventProviderRegistry::getMetricsGroup,
+					EvitaJfrEventRegistry::getMetricsGroup,
 					Collectors.toSet()
 				)
 			);
@@ -123,6 +127,7 @@ public class CustomEventProviderRegistry {
 	/**
 	 * Returns a set of all registered classes fetched from the registry.
 	 */
+	@Nonnull
 	public static Set<Class<? extends CustomMetricsExecutionEvent>> getEventClasses() {
 		return EVENTS_TYPES;
 	}

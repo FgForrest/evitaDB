@@ -44,7 +44,6 @@ import java.time.Duration;
 @Getter
 public class TransactionProcessedEvent extends AbstractTransactionEvent {
 	@Label("Transaction lag between being committed and finally visible to all")
-	@Name("lagMilliseconds")
 	@ExportMetric(metricName = "lagMilliseconds", metricType = MetricType.HISTOGRAM)
 	private final long lagMilliseconds;
 

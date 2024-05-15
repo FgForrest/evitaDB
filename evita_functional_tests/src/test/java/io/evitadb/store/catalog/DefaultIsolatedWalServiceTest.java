@@ -81,6 +81,7 @@ class DefaultIsolatedWalServiceTest implements EvitaTestSupport {
 	private final Path walFile = getTestDirectory().resolve(transactionId.toString());
 	private final Kryo kryo = KryoFactory.createKryo(WalKryoConfigurer.INSTANCE);
 	private final ObservableOutputKeeper observableOutputKeeper = new ObservableOutputKeeper(
+		TEST_CATALOG,
 		StorageOptions.builder().build(),
 		Mockito.mock(Scheduler.class)
 	);

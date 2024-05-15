@@ -23,6 +23,7 @@
 
 package io.evitadb.core.metric.event.transaction;
 
+import io.evitadb.core.metric.annotation.ExportMetricLabel;
 import jdk.jfr.Description;
 import jdk.jfr.Label;
 import jdk.jfr.Name;
@@ -42,6 +43,7 @@ import javax.annotation.Nonnull;
 @Getter
 public class TransactionQueuedEvent extends AbstractTransactionEvent {
 	@Label("Transaction stage")
+	@ExportMetricLabel
 	private final String stage;
 
 	public TransactionQueuedEvent(@Nonnull String catalogName, @Nonnull String stage) {

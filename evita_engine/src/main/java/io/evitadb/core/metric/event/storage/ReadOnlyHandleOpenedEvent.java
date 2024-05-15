@@ -21,25 +21,30 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.metric.event;
+package io.evitadb.core.metric.event.storage;
 
-import io.evitadb.core.metric.annotation.ExportMetricLabel;
+import io.evitadb.core.metric.annotation.ExportInvocationMetric;
+import jdk.jfr.Description;
+import jdk.jfr.Label;
+import jdk.jfr.Name;
+import lombok.Getter;
 
 import javax.annotation.Nonnull;
 
 /**
- * This interface should be implemented by all events that are related to a specific catalog.
+ * Event that is fired when a new file read handle is opened.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public interface CatalogRelatedEvent {
+@Name(AbstractStorageEvent.PACKAGE_NAME + ".ReadOnlyHandleOpenedEvent")
+@Description("Event that is fired when a new file read handle is opened.")
+@Label("File read handles opened")
+@ExportInvocationMetric(value = "readOnlyHandleOpenedTotal", label = "Opened file read handles.")
+@Getter
+public class ReadOnlyHandleOpenedEvent extends AbstractOffsetIndexEvent {
 
-	/**
-	 * Returns the name of the catalog that the event is related to.
-	 * @return the name of the catalog
-	 */
-	@ExportMetricLabel
-	@Nonnull
-	String getCatalogName();
+	public ReadOnlyHandleOpenedEvent(@Nonnull String catalogName, @Nonnull FileType fileType, @Nonnull String name) {
+		super(catalogName, fileType, name);
+	}
 
 }

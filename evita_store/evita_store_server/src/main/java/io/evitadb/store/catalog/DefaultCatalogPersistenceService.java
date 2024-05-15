@@ -45,6 +45,8 @@ import io.evitadb.core.Catalog;
 import io.evitadb.core.CatalogVersionBeyondTheHorizonListener;
 import io.evitadb.core.EntityCollection;
 import io.evitadb.core.buffer.DataStoreIndexChanges;
+import io.evitadb.core.metric.event.storage.FileType;
+import io.evitadb.core.metric.event.storage.ReadOnlyHandleLimitSetEvent;
 import io.evitadb.dataType.ClassifierType;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -293,8 +295,9 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		if (bootstrapFile.exists()) {
 			final long length = bootstrapFile.length();
 			final long lastMeaningfulPosition = CatalogBootstrap.getLastMeaningfulPosition(length);
-			final ReadOnlyFileHandle readHandle = new ReadOnlyFileHandle(bootstrapFilePath, storageOptions.computeCRC32C());
-			try {
+			try(
+				final ReadOnlyFileHandle readHandle = new ReadOnlyFileHandle(bootstrapFilePath, storageOptions.computeCRC32C());
+			) {
 				return readHandle.execute(
 					input -> StorageRecord.read(
 						input,
@@ -316,8 +319,6 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 					"Failed to open catalog bootstrap file!",
 					e
 				);
-			} finally {
-				readHandle.forceClose();
 			}
 		} else {
 			if (FileUtils.isDirectoryEmpty(catalogStoragePath)) {
@@ -508,7 +509,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		this.catalogName = catalogName;
 		this.catalogStoragePath = pathForNewCatalog(catalogName, storageOptions.storageDirectoryOrDefault());
 		verifyDirectory(this.catalogStoragePath, true);
-		this.observableOutputKeeper = new ObservableOutputKeeper(storageOptions, scheduler);
+		this.observableOutputKeeper = new ObservableOutputKeeper(catalogName, storageOptions, scheduler);
 		this.recordTypeRegistry = new OffsetIndexRecordTypeRegistry();
 		final String verifiedCatalogName = verifyDirectory(this.catalogStoragePath, false);
 		final CatalogBootstrap lastCatalogBootstrap = getLastCatalogBootstrap(
@@ -516,6 +517,9 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		);
 		this.bootstrapWriteHandle = new AtomicReference<>(
 			new WriteOnlyFileHandle(
+				this.catalogName,
+				FileType.CATALOG,
+				this.catalogName,
 				this.catalogStoragePath.resolve(getCatalogBootstrapFileName(catalogName)),
 				this.observableOutputKeeper
 			)
@@ -555,6 +559,14 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		}
 
 		this.entityCollectionPersistenceServices = CollectionUtils.createConcurrentHashMap(16);
+
+		// emit event
+		new ReadOnlyHandleLimitSetEvent(
+			catalogName,
+			FileType.CATALOG,
+			catalogName,
+			this.storageOptions.maxOpenedReadHandles()
+		).commit();
 	}
 
 	public DefaultCatalogPersistenceService(
@@ -576,7 +588,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		);
 		this.catalogName = catalogName;
 		this.catalogStoragePath = catalogStoragePath;
-		this.observableOutputKeeper = new ObservableOutputKeeper(storageOptions, scheduler);
+		this.observableOutputKeeper = new ObservableOutputKeeper(catalogName, storageOptions, scheduler);
 		this.recordTypeRegistry = new OffsetIndexRecordTypeRegistry();
 		final String verifiedCatalogName = verifyDirectory(this.catalogStoragePath, false);
 		this.bootstrapUsed = getLastCatalogBootstrap(
@@ -584,6 +596,9 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		);
 		this.bootstrapWriteHandle = new AtomicReference<>(
 			new WriteOnlyFileHandle(
+				this.catalogName,
+				FileType.CATALOG,
+				this.catalogName,
 				this.catalogStoragePath.resolve(getCatalogBootstrapFileName(catalogName)),
 				this.observableOutputKeeper
 			)
@@ -624,6 +639,14 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		this.entityCollectionPersistenceServices = CollectionUtils.createConcurrentHashMap(
 			catalogStoragePartPersistenceService.getCatalogHeader(catalogVersion).getEntityTypeFileIndexes().size()
 		);
+
+		// emit event
+		new ReadOnlyHandleLimitSetEvent(
+			this.catalogName,
+			FileType.CATALOG,
+			this.catalogName,
+			this.storageOptions.maxOpenedReadHandles()
+		).commit();
 	}
 
 	private DefaultCatalogPersistenceService(
@@ -691,6 +714,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				reference,
 				new DefaultEntityCollectionPersistenceService(
 					this.bootstrapUsed.catalogVersion(),
+					this.catalogName,
 					this.catalogStoragePath,
 					previousService,
 					this.storageOptions,
@@ -698,6 +722,14 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				)
 			);
 		}
+
+		// emit event
+		new ReadOnlyHandleLimitSetEvent(
+			this.catalogName,
+			FileType.CATALOG,
+			this.catalogName,
+			this.storageOptions.maxOpenedReadHandles()
+		).commit();
 	}
 
 	@Nonnull
@@ -866,6 +898,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			),
 			eType -> new DefaultEntityCollectionPersistenceService(
 				this.bootstrapUsed.catalogVersion(),
+				this.catalogName,
 				this.catalogStoragePath,
 				entityCollectionHeader,
 				this.storageOptions,
@@ -908,6 +941,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 					),
 					eType -> new DefaultEntityCollectionPersistenceService(
 						catalogVersion,
+						this.catalogName,
 						this.catalogStoragePath,
 						compactedHeader,
 						this.storageOptions,
@@ -1118,6 +1152,9 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				newPath,
 				newCatalogBootstrap,
 				new WriteOnlyFileHandle(
+					catalogNameToBeReplaced,
+					FileType.CATALOG,
+					catalogNameToBeReplaced,
 					newPath.resolve(getCatalogBootstrapFileName(catalogNameToBeReplaced)),
 					this.observableOutputKeeper
 				),
@@ -1195,6 +1232,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				final EntityCollectionHeader entityHeader = entityPersistenceService.getEntityCollectionHeader();
 				return new DefaultEntityCollectionPersistenceService(
 					this.bootstrapUsed.catalogVersion(),
+					this.catalogName,
 					this.catalogStoragePath,
 					new EntityCollectionHeader(
 						newEntityTypeExistingFileReference.entityType(),
@@ -1303,8 +1341,9 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			final long length = bootstrapFile.length();
 			final int recordCount = CatalogBootstrap.getRecordCount(length);
 			final int pageNumber = PaginatedList.isRequestedResultBehindLimit(page, pageSize, recordCount) ? 1 : page;
-			final ReadOnlyFileHandle readHandle = new ReadOnlyFileHandle(bootstrapFilePath, storageOptions.computeCRC32C());
-			try {
+			try (
+				final ReadOnlyFileHandle readHandle = new ReadOnlyFileHandle(bootstrapFilePath, storageOptions.computeCRC32C());
+			) {
 				final List<CatalogVersion> catalogVersions = new ArrayList<>(pageSize);
 				if (timeFlow == TimeFlow.FROM_OLDEST_TO_NEWEST) {
 					final int firstNumber = PaginatedList.getFirstItemNumberForPage(pageNumber, pageSize);
@@ -1333,8 +1372,6 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 					"Failed to open catalog bootstrap file!",
 					e
 				);
-			} finally {
-				readHandle.forceClose();
 			}
 		} else {
 			return PaginatedList.emptyList();
@@ -1635,11 +1672,12 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		final int recordCount = CatalogBootstrap.getRecordCount(
 			fromFile.toFile().length()
 		);
-		final ReadOnlyFileHandle readHandle = new ReadOnlyFileHandle(
-			fromFile,
-			storageOptions.computeCRC32C()
-		);
-		try {
+		try(
+			final ReadOnlyFileHandle readHandle = new ReadOnlyFileHandle(
+				fromFile,
+				storageOptions.computeCRC32C()
+			);
+		) {
 			boolean inValidRange = false;
 			CatalogBootstrap previousBootstrapRecord = null;
 			CatalogBootstrap bootstrapRecord = null;
@@ -1681,8 +1719,6 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				"Failed to open catalog bootstrap file!",
 				e
 			);
-		} finally {
-			readHandle.forceClose();
 		}
 	}
 
@@ -1798,8 +1834,9 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	) {
 		final long length = bootstrapFile.length();
 		final int recordCount = CatalogBootstrap.getRecordCount(length);
-		final ReadOnlyFileHandle readHandle = new ReadOnlyFileHandle(bootstrapFilePath, storageOptions.computeCRC32C());
-		try {
+		try(
+			final ReadOnlyFileHandle readHandle = new ReadOnlyFileHandle(bootstrapFilePath, storageOptions.computeCRC32C());
+		) {
 			final int minCvIndex = ArrayUtils.binarySearch(
 				index -> readCatalogVersion(readHandle, CatalogBootstrap.getPositionForRecord(index)),
 				Arrays.stream(catalogVersion).min().orElseThrow(),
@@ -1836,8 +1873,6 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				"Failed to open catalog bootstrap file!",
 				e
 			);
-		} finally {
-			readHandle.forceClose();
 		}
 	}
 

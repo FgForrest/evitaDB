@@ -21,10 +21,9 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.metric.event.transaction;
+package io.evitadb.core.metric.event.storage;
 
 import io.evitadb.api.configuration.metric.MetricType;
-import io.evitadb.core.metric.annotation.ExportDurationMetric;
 import io.evitadb.core.metric.annotation.ExportInvocationMetric;
 import io.evitadb.core.metric.annotation.ExportMetric;
 import jdk.jfr.Description;
@@ -33,41 +32,29 @@ import jdk.jfr.Name;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-import java.time.OffsetDateTime;
 
 /**
- * Event that is fired when a shared WAL is rotated (and possibly pruned).
+ * Event that is fired when an ObservableOutput buffer count is changed.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@Name(AbstractTransactionEvent.PACKAGE_NAME + ".WalRotationEvent")
-@Description("Event that is fired when a shared WAL is rotated.")
-@Label("WAL rotated")
-@ExportDurationMetric(value = "walRotationDurationMilliseconds", label = "WAL rotation duration in milliseconds")
-@ExportInvocationMetric(value = "walRotationTotal", label = "WAL rotations")
+@Name(AbstractStorageEvent.PACKAGE_NAME + ".ObservableOutputChangeEvent")
+@Description("Event that is fired when an ObservableOutput buffer count is changed.")
+@Label("ObservableOutput buffers")
+@ExportInvocationMetric(value = "observableBufferCountChangedTotal", label = "ObservableOutput buffer count changes.")
 @Getter
-public class WalRotationEvent extends AbstractTransactionEvent {
-	@Label("Oldest WAL entry timestamp")
-	@Name("oldestWalEntrySeconds")
+public class ObservableOutputChangeEvent extends AbstractStorageEvent {
+	@Label("Number of opened output buffers")
 	@ExportMetric(metricType = MetricType.GAUGE)
-	private long oldestWalEntryTimestampSeconds;
+	private final int openedBuffersTotal;
 
-	public WalRotationEvent(@Nonnull String catalogName) {
+	@Label("Memory occupied by opened output buffers in Bytes")
+	@ExportMetric(metricType = MetricType.GAUGE)
+	private final long occupiedMemoryBytes;
+
+	public ObservableOutputChangeEvent(@Nonnull String catalogName, int openedBuffersTotal, long occupiedMemoryBytes) {
 		super(catalogName);
-		this.begin();
+		this.openedBuffersTotal = openedBuffersTotal;
+		this.occupiedMemoryBytes = occupiedMemoryBytes;
 	}
-
-	/**
-	 * Finalizes the event.
-	 * @param oldestWalEntry the oldest WAL entry in the transaction
-	 * @return the event
-	 */
-	@Nonnull
-	public WalRotationEvent finish(@Nullable OffsetDateTime oldestWalEntry) {
-		this.oldestWalEntryTimestampSeconds = oldestWalEntry == null ? 0 : oldestWalEntry.toEpochSecond();
-		this.end();
-		return this;
-	}
-
 }

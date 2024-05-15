@@ -21,25 +21,29 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.metric.event;
+package io.evitadb.core.metric.event.storage;
 
-import io.evitadb.core.metric.annotation.ExportMetricLabel;
-
-import javax.annotation.Nonnull;
+import io.evitadb.core.metric.annotation.EventGroup;
+import io.evitadb.core.metric.event.CatalogRelatedEvent;
+import io.evitadb.core.metric.event.CustomMetricsExecutionEvent;
+import jdk.jfr.Label;
+import jdk.jfr.Name;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 
 /**
- * This interface should be implemented by all events that are related to a specific catalog.
- *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
+ * This event is base class for all transaction events.
  */
-public interface CatalogRelatedEvent {
-
+@EventGroup(AbstractStorageEvent.PACKAGE_NAME)
+@RequiredArgsConstructor
+@Getter
+abstract class AbstractStorageEvent extends CustomMetricsExecutionEvent implements CatalogRelatedEvent {
+	protected static final String PACKAGE_NAME = "io.evitadb.storage";
 	/**
-	 * Returns the name of the catalog that the event is related to.
-	 * @return the name of the catalog
+	 * The name of the catalog the transaction relates to.
 	 */
-	@ExportMetricLabel
-	@Nonnull
-	String getCatalogName();
+	@Label("Catalog")
+	@Name("catalogName")
+	final String catalogName;
 
 }

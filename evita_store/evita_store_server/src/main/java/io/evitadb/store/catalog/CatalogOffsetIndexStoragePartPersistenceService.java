@@ -27,6 +27,7 @@ import com.esotericsoftware.kryo.Kryo;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TransactionOptions;
+import io.evitadb.core.metric.event.storage.FileType;
 import io.evitadb.store.catalog.model.CatalogBootstrap;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.kryo.VersionedKryo;
@@ -128,7 +129,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 	@Nonnull
 	public static CatalogOffsetIndexStoragePartPersistenceService create(
 		long catalogVersion,
-		@Nonnull String catalogFileName,
+		@Nonnull String catalogName,
 		@Nonnull Path catalogFilePath,
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull TransactionOptions transactionOptions,
@@ -156,13 +157,19 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 			catalogFilePath,
 			storageOptions,
 			recordRegistry,
-			new WriteOnlyFileHandle(catalogFilePath, observableOutputKeeper),
+			new WriteOnlyFileHandle(
+				catalogName,
+				FileType.CATALOG,
+				catalogName,
+				catalogFilePath,
+				observableOutputKeeper
+			),
 			previousOffsetIndex,
 			offsetIndexDescriptor
 		);
 		return new CatalogOffsetIndexStoragePartPersistenceService(
 			lastCatalogBootstrap.catalogVersion(),
-			catalogFileName,
+			catalogName,
 			catalogHeader,
 			transactionOptions,
 			offsetIndex,
@@ -202,7 +209,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 				lastCatalogBootstrap.catalogVersion(),
 				new OffsetIndexDescriptor(
 					0L,
-					fileLocation,
+					null,
 					Map.of(),
 					kryoFactory,
 					// we don't know here yet - this will be recomputed on first flush
@@ -210,7 +217,13 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 				),
 				storageOptions,
 				recordRegistry,
-				new WriteOnlyFileHandle(catalogFilePath, observableOutputKeeper)
+				new WriteOnlyFileHandle(
+					catalogName,
+					FileType.CATALOG,
+					catalogName,
+					catalogFilePath,
+					observableOutputKeeper
+				)
 			);
 			final CatalogHeader newHeader = new CatalogHeader(catalogName);
 			newOffsetIndex.put(0L, newHeader);
@@ -224,7 +237,13 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 				fileLocation,
 				storageOptions,
 				recordRegistry,
-				new WriteOnlyFileHandle(catalogFilePath, observableOutputKeeper),
+				new WriteOnlyFileHandle(
+					catalogName,
+					FileType.CATALOG,
+					catalogName,
+					catalogFilePath,
+					observableOutputKeeper
+				),
 				(indexBuilder, theInput) -> {
 					// and load the catalog header
 					final FileLocation catalogHeaderLocation = indexBuilder.getBuiltIndex().get(
@@ -254,7 +273,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 
 	private CatalogOffsetIndexStoragePartPersistenceService(
 		long catalogVersion,
-		@Nonnull String name,
+		@Nonnull String catalogName,
 		@Nullable CatalogHeader catalogHeader,
 		@Nonnull TransactionOptions transactionOptions,
 		@Nonnull OffsetIndex offsetIndex,
@@ -264,7 +283,9 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 	) {
 		super(
 			catalogVersion,
-			name,
+			catalogName,
+			catalogName,
+			FileType.CATALOG,
 			transactionOptions,
 			offsetIndex,
 			offHeapMemoryManager,

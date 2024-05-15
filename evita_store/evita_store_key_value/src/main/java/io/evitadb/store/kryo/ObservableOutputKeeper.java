@@ -25,6 +25,7 @@ package io.evitadb.store.kryo;
 
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.StorageOptions;
+import io.evitadb.core.metric.event.storage.ObservableOutputChangeEvent;
 import io.evitadb.scheduling.DelayedAsyncTask;
 import io.evitadb.scheduling.Scheduler;
 import io.evitadb.store.offsetIndex.io.WriteOnlyFileHandle;
@@ -66,6 +67,10 @@ public class ObservableOutputKeeper implements AutoCloseable {
 	 */
 	private static final long CUT_OUTPUTS_AFTER_INACTIVITY_MS = 300_000L; // 5 minutes
 	/**
+	 * The name of the catalog that the outputs are associated with.
+	 */
+	@Getter private final String catalogName;
+	/**
 	 * The configuration options for the key-value storage.
 	 */
 	@Getter private final StorageOptions options;
@@ -90,7 +95,8 @@ public class ObservableOutputKeeper implements AutoCloseable {
 		return options.lockTimeoutSeconds();
 	}
 
-	public ObservableOutputKeeper(@Nonnull StorageOptions options, @Nonnull Scheduler scheduler) {
+	public ObservableOutputKeeper(@Nonnull String catalogName, @Nonnull StorageOptions options, @Nonnull Scheduler scheduler) {
+		this.catalogName = catalogName;
 		this.options = options;
 		this.cutTask = new DelayedAsyncTask(
 			scheduler, this::cutOutputCache,
@@ -161,7 +167,7 @@ public class ObservableOutputKeeper implements AutoCloseable {
 	@Override
 	public void close() {
 		final long start = System.currentTimeMillis();
-		final Iterator<OpenedOutputToFile> iterator = cachedOutputToFiles.values().iterator();
+		final Iterator<OpenedOutputToFile> iterator = this.cachedOutputToFiles.values().iterator();
 		do {
 			while (iterator.hasNext()) {
 				final OpenedOutputToFile outputToFile = iterator.next();
@@ -176,7 +182,14 @@ public class ObservableOutputKeeper implements AutoCloseable {
 				System.currentTimeMillis() - start < options.waitOnCloseSeconds() * 1000L
 		);
 
-		if (!cachedOutputToFiles.isEmpty()) {
+		// emit event
+		new ObservableOutputChangeEvent(
+			this.catalogName,
+			this.cachedOutputToFiles.size(),
+			(long) this.cachedOutputToFiles.size() * this.options.outputBufferSize()
+		).commit();
+
+		if (!this.cachedOutputToFiles.isEmpty()) {
 			log.error(
 				"Failed to close all cached outputs in {} seconds, {} outputs left",
 				options.waitOnCloseSeconds(),
@@ -220,6 +233,14 @@ public class ObservableOutputKeeper implements AutoCloseable {
 				oldestNotCutEntryTouchTime = outputToFile.getLastReadTime();
 			}
 		}
+
+		// emit event
+		new ObservableOutputChangeEvent(
+			this.catalogName,
+			this.cachedOutputToFiles.size(),
+			(long) this.cachedOutputToFiles.size() * this.options.outputBufferSize()
+		).commit();
+
 		// re-plan the scheduled cut to the moment when the next entry should be cut down
 		return oldestNotCutEntryTouchTime > -1L ? (oldestNotCutEntryTouchTime - threshold) + 1 : -1L;
 	}

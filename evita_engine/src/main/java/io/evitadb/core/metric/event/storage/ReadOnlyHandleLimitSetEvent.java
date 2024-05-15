@@ -21,28 +21,35 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.metric.event.resources;
+package io.evitadb.core.metric.event.storage;
 
-import io.evitadb.core.metric.annotation.ExportInvocationMetric;
+import io.evitadb.api.configuration.metric.MetricType;
+import io.evitadb.core.metric.annotation.ExportMetric;
 import jdk.jfr.Description;
 import jdk.jfr.Label;
 import jdk.jfr.Name;
+import lombok.Getter;
 
 import javax.annotation.Nonnull;
 
 /**
- * Event that is fired when a file for isolated WAL storage is closed and deleted.
+ * Event that is fired only once when catalog is created or loaded and signalizes the maximal threshold for
+ * simultaneously opened read-only handles.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@Name(AbstractResourcesEvent.PACKAGE_NAME + ".IsolatedWalFileClosedEvent")
-@Description("Event that is fired when a file for isolated WAL storage is closed and deleted.")
-@Label("Isolated WAL file closed")
-@ExportInvocationMetric(value = "isolatedWalClosedTotal", label = "Closed files for isolated WAL storage.")
-public class IsolatedWalFileClosedEvent extends AbstractResourcesEvent {
+@Name(AbstractStorageEvent.PACKAGE_NAME + ".ReadOnlyHandleLimitSetEvent")
+@Description("Event that is fired when a read-only handle limit is set.")
+@Label("Read-only handle limit set")
+@Getter
+public class ReadOnlyHandleLimitSetEvent extends AbstractOffsetIndexEvent {
+	@Label("Maximal count of opened read-only handles")
+	@ExportMetric(metricType = MetricType.GAUGE)
+	private final int readOnlyHandlesLimit;
 
-	public IsolatedWalFileClosedEvent(@Nonnull String catalogName) {
-		super(catalogName);
+	public ReadOnlyHandleLimitSetEvent(@Nonnull String catalogName, @Nonnull FileType fileType, @Nonnull String name, int readOnlyHandlesLimit) {
+		super(catalogName, fileType, name);
+		this.readOnlyHandlesLimit = readOnlyHandlesLimit;
 	}
 
 }

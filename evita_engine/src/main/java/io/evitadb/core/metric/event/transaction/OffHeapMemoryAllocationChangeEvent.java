@@ -24,8 +24,6 @@
 package io.evitadb.core.metric.event.transaction;
 
 import io.evitadb.api.configuration.metric.MetricType;
-import io.evitadb.core.metric.annotation.ExportDurationMetric;
-import io.evitadb.core.metric.annotation.ExportInvocationMetric;
 import io.evitadb.core.metric.annotation.ExportMetric;
 import jdk.jfr.Description;
 import jdk.jfr.Label;
@@ -33,41 +31,35 @@ import jdk.jfr.Name;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-import java.time.OffsetDateTime;
 
 /**
- * Event that is fired when a shared WAL is rotated (and possibly pruned).
+ * Event that is fired when a transaction passed conflict resolution stage.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@Name(AbstractTransactionEvent.PACKAGE_NAME + ".WalRotationEvent")
-@Description("Event that is fired when a shared WAL is rotated.")
-@Label("WAL rotated")
-@ExportDurationMetric(value = "walRotationDurationMilliseconds", label = "WAL rotation duration in milliseconds")
-@ExportInvocationMetric(value = "walRotationTotal", label = "WAL rotations")
+@Name(AbstractTransactionEvent.PACKAGE_NAME + ".OffHeapMemoryAllocationChangeEvent")
+@Description("Event that is fired when off-heap memory allocation changes.")
+@Label("Off-heap memory allocation change")
 @Getter
-public class WalRotationEvent extends AbstractTransactionEvent {
-	@Label("Oldest WAL entry timestamp")
-	@Name("oldestWalEntrySeconds")
+public class OffHeapMemoryAllocationChangeEvent extends AbstractTransactionEvent {
+	/**
+	 * Amount of memory allocated for off-heap storage in bytes.
+	 */
 	@ExportMetric(metricType = MetricType.GAUGE)
-	private long oldestWalEntryTimestampSeconds;
-
-	public WalRotationEvent(@Nonnull String catalogName) {
-		super(catalogName);
-		this.begin();
-	}
+	@Label("Allocated memory bytes")
+	private final long allocatedMemoryBytes;
 
 	/**
-	 * Finalizes the event.
-	 * @param oldestWalEntry the oldest WAL entry in the transaction
-	 * @return the event
+	 * Amount of memory used for off-heap storage in bytes.
 	 */
-	@Nonnull
-	public WalRotationEvent finish(@Nullable OffsetDateTime oldestWalEntry) {
-		this.oldestWalEntryTimestampSeconds = oldestWalEntry == null ? 0 : oldestWalEntry.toEpochSecond();
-		this.end();
-		return this;
-	}
+	@ExportMetric(metricType = MetricType.GAUGE)
+	@Label("Used memory bytes")
+	private final long usedMemoryBytes;
 
+
+	public OffHeapMemoryAllocationChangeEvent(@Nonnull String catalogName, long allocatedMemoryBytes, long usedMemoryBytes) {
+		super(catalogName);
+		this.allocatedMemoryBytes = allocatedMemoryBytes;
+		this.usedMemoryBytes = usedMemoryBytes;
+	}
 }

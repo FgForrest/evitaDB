@@ -133,6 +133,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 	private final Path walFile = getTestDirectory().resolve(transactionId.toString());
 	private final Kryo kryo = KryoFactory.createKryo(WalKryoConfigurer.INSTANCE);
 	private final ObservableOutputKeeper observableOutputKeeper = new ObservableOutputKeeper(
+		TEST_CATALOG,
 		StorageOptions.builder().build(),
 		Mockito.mock(Scheduler.class)
 	);
@@ -649,6 +650,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 	) {
 		assertEquals(entityCollection.size(), collectionHeader.recordCount());
 		final ObservableOutputKeeper outputKeeper = new ObservableOutputKeeper(
+			TEST_CATALOG,
 			getStorageOptions(),
 			Mockito.mock(Scheduler.class)
 		);

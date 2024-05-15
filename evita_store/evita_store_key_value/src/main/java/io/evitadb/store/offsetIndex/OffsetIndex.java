@@ -51,6 +51,7 @@ import io.evitadb.store.service.KeyCompressor;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
+import io.evitadb.utils.MemoryMeasuringConstants;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -73,6 +74,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static io.evitadb.store.offsetIndex.OffsetIndexSerializationService.*;
 import static io.evitadb.utils.Assert.isPremiseValid;
@@ -327,7 +329,7 @@ public class OffsetIndex {
 		this.keyToLocations = previousOffsetIndex.keyToLocations;
 		this.histogram = previousOffsetIndex.histogram;
 		this.totalSize.set(previousOffsetIndex.totalSize.get());
-		this.maxRecordSize.set(previousOffsetIndex.maxRecordSize.get());
+		this.maxRecordSize.set(previousOffsetIndex.getMaxRecordSize());
 		this.fileOffsetDescriptor = fileOffsetIndexDescriptor;
 		this.keyCatalogVersion = catalogVersion;
 		this.readKryoPool = new FileOffsetIndexKryoPool(
@@ -715,7 +717,7 @@ public class OffsetIndex {
 				}
 				// these handles were not released by the clients within the timeout
 				for (ReadOnlyHandle readOnlyOpenedHandle : readOnlyOpenedHandles) {
-					readOnlyOpenedHandle.forceClose();
+					readOnlyOpenedHandle.close();
 				}
 				this.readOnlyOpenedHandles.clear();
 				// at last flush OffsetIndex and close write handle
@@ -762,6 +764,30 @@ public class OffsetIndex {
 	}
 
 	/**
+	 * Returns maximal observed record size in this index.
+	 * @return maximal observed record size in this index
+	 */
+	public long getMaxRecordSize() {
+		return maxRecordSize.get();
+	}
+
+	/**
+	 * Returns histogram (counts) of particular record types in this index.
+	 *
+	 * @return histogram of particular record types in this index
+	 */
+	@Nonnull
+	public Map<String, Integer> getHistogram() {
+		return histogram.entrySet().stream()
+			.collect(
+				Collectors.toMap(
+					it -> this.recordTypeRegistry.typeFor(it.getKey()).getSimpleName(),
+					Entry::getValue
+				)
+			);
+	}
+
+	/**
 	 * Returns the total size of records held in this OffsetIndex. This number reflect the gross size of all ACTIVE
 	 * records except the OffsetIndex index. The removals and dead data are not reflected by this property.
 	 *
@@ -769,6 +795,16 @@ public class OffsetIndex {
 	 */
 	public long getTotalSize() {
 		return this.totalSize.get() + (long) this.keyToLocations.size() * (long) MEM_TABLE_RECORD_SIZE;
+	}
+
+	/**
+	 * Returns the total size of records held in this OffsetIndex. This number reflect the gross size of all ACTIVE
+	 * records except the OffsetIndex index. The removals and dead data are not reflected by this property.
+	 *
+	 * @return the total size
+	 */
+	public long getTotalSizeIncludingVolatileData() {
+		return getTotalSize() + this.volatileValues.getTotalSize();
 	}
 
 	/**
@@ -1074,7 +1110,7 @@ public class OffsetIndex {
 	 * never directly from the code. All writes are serialized by exclusive write access.
 	 */
 	private boolean doRemove(long catalogVersion, long primaryKey, @Nonnull Class<? extends StoragePart> valueType) {
-		final byte recordType = recordTypeRegistry.idFor(valueType);
+		final byte recordType = this.recordTypeRegistry.idFor(valueType);
 		final RecordKey key = new RecordKey(recordType, primaryKey);
 
 		final Optional<VersionedValue> nonFlushedValueRef = this.volatileValues.getNonFlushedValueIfVersionMatches(catalogVersion, key);
@@ -1348,6 +1384,19 @@ public class OffsetIndex {
 				removedKeys.isEmpty() ? Collections.emptySet() : Collections.unmodifiableSet(removedKeys)
 			);
 		}
+
+		/**
+		 * Returns the estimated memory size occupied by this instance in Bytes.
+		 * @return the estimated memory size occupied by this instance in Bytes
+		 */
+		public long getTotalSize() {
+			return MemoryMeasuringConstants.LONG_SIZE +
+				nonFlushedValueIndex.size() * (RecordKey.MEMORY_SIZE + VersionedValue.MEMORY_SIZE) +
+				nonFlushedValuesHistogram.size() * (2 * MemoryMeasuringConstants.OBJECT_HEADER_SIZE) +
+				addedKeys.size() * RecordKey.MEMORY_SIZE +
+				removedKeys.size() * RecordKey.MEMORY_SIZE;
+		}
+
 	}
 
 	/**
@@ -1708,6 +1757,17 @@ public class OffsetIndex {
 		}
 
 		/**
+		 * Estimates memory usage of the non-flushed values.
+		 * @return the estimated memory usage of the non-flushed values in Bytes
+		 */
+		public long getTotalSize() {
+			return (this.nonFlushedVersions == null ? 0L : (long) this.nonFlushedVersions.length * MemoryMeasuringConstants.LONG_SIZE) +
+				(this.historicalVersions == null ? 0L : (long) this.historicalVersions.length * MemoryMeasuringConstants.LONG_SIZE) +
+				(this.nonFlushedValues == null ? 0L : this.nonFlushedValues.values().stream().mapToLong(it -> MemoryMeasuringConstants.LONG_SIZE + it.getTotalSize()).sum()) +
+				(this.volatileValues == null ? 0L : this.volatileValues.values().stream().mapToLong(it -> MemoryMeasuringConstants.LONG_SIZE + it.getTotalSize()).sum());
+		}
+
+		/**
 		 * Retrieves the NonFlushedValueSet associated with the given catalog version or creates new set.
 		 *
 		 * @param catalogVersion the catalog version to check against
@@ -1886,6 +1946,17 @@ public class OffsetIndex {
 		public boolean containsKey(@Nonnull RecordKey replacedKey) {
 			return replacedValues.containsKey(replacedKey);
 		}
+
+		/**
+		 * Returns the estimated memory size occupied by this instance in Bytes.
+		 * @return the estimated memory size occupied by this instance in Bytes
+		 */
+		public long getTotalSize() {
+			return MemoryMeasuringConstants.OBJECT_HEADER_SIZE +
+				replacedValues.size() * (RecordKey.MEMORY_SIZE + VersionedValue.MEMORY_SIZE) +
+				addedKeys.size() * RecordKey.MEMORY_SIZE +
+				removedKeys.size() * RecordKey.MEMORY_SIZE;
+		}
 	}
 
 	/**
@@ -1941,23 +2012,27 @@ public class OffsetIndex {
 			try {
 				return logic.apply(readOnlyFileHandle);
 			} finally {
-				this.free(readOnlyFileHandle);
+				if (this.getFree() < OffsetIndex.this.storageOptions.maxOpenedReadHandles()) {
+					this.free(readOnlyFileHandle);
+				} else {
+					readOnlyFileHandle.close();
+				}
 			}
 		}
 
 		@Override
 		protected ReadOnlyHandle create() {
 			try {
-				if (readFilesLock.tryLock(storageOptions.lockTimeoutSeconds(), TimeUnit.SECONDS)) {
+				if (this.readFilesLock.tryLock(storageOptions.lockTimeoutSeconds(), TimeUnit.SECONDS)) {
 					try {
 						final ReadOnlyHandle readOnlyFileHandle = writeHandle.toReadOnlyHandle();
-						if (readOnlyOpenedHandles.size() >= storageOptions.maxOpenedReadHandles()) {
+						if (OffsetIndex.this.readOnlyOpenedHandles.size() >= OffsetIndex.this.storageOptions.maxOpenedReadHandles()) {
 							throw new PoolExhaustedException(storageOptions.maxOpenedReadHandles(), readOnlyFileHandle.toString());
 						}
-						readOnlyOpenedHandles.add(readOnlyFileHandle);
+						OffsetIndex.this.readOnlyOpenedHandles.add(readOnlyFileHandle);
 						return readOnlyFileHandle;
 					} finally {
-						readFilesLock.unlock();
+						this.readFilesLock.unlock();
 					}
 				}
 				throw new StorageException("New handle to the file couldn't have been created within timeout!");

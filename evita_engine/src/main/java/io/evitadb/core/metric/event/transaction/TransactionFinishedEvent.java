@@ -27,6 +27,7 @@ import io.evitadb.api.configuration.metric.MetricType;
 import io.evitadb.core.metric.annotation.ExportDurationMetric;
 import io.evitadb.core.metric.annotation.ExportInvocationMetric;
 import io.evitadb.core.metric.annotation.ExportMetric;
+import io.evitadb.core.metric.annotation.ExportMetricLabel;
 import jdk.jfr.Description;
 import jdk.jfr.Label;
 import jdk.jfr.Name;
@@ -53,7 +54,7 @@ public class TransactionFinishedEvent extends AbstractTransactionEvent {
 	 * The resolution of the transaction (either commit or rollback).
 	 */
 	@Label("Transaction resolution")
-	@Name("resolution")
+	@ExportMetricLabel
 	private String resolution;
 
 	/**

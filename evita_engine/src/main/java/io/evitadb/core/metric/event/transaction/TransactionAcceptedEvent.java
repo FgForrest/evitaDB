@@ -25,6 +25,7 @@ package io.evitadb.core.metric.event.transaction;
 
 import io.evitadb.core.metric.annotation.ExportDurationMetric;
 import io.evitadb.core.metric.annotation.ExportInvocationMetric;
+import io.evitadb.core.metric.annotation.ExportMetricLabel;
 import jdk.jfr.Description;
 import jdk.jfr.Label;
 import jdk.jfr.Name;
@@ -49,7 +50,7 @@ public class TransactionAcceptedEvent extends AbstractTransactionEvent {
 	 * conflict with another already committed and accepted transaction.
 	 */
 	@Label("Transaction resolution")
-	@Name("resolution")
+	@ExportMetricLabel
 	private String resolution;
 
 	public TransactionAcceptedEvent(@Nonnull String catalogName) {

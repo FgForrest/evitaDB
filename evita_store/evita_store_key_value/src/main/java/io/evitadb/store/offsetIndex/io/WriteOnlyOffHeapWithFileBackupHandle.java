@@ -24,8 +24,8 @@
 package io.evitadb.store.offsetIndex.io;
 
 import io.evitadb.api.configuration.StorageOptions;
-import io.evitadb.core.metric.event.resources.IsolatedWalFileClosedEvent;
-import io.evitadb.core.metric.event.resources.IsolatedWalFileOpenedEvent;
+import io.evitadb.core.metric.event.transaction.IsolatedWalFileClosedEvent;
+import io.evitadb.core.metric.event.transaction.IsolatedWalFileOpenedEvent;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.store.exception.StorageException;
@@ -442,8 +442,8 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 		}
 
 		@Override
-		public void forceClose() {
-			getDelegate().forceClose();
+		public void close() {
+			getDelegate().close();
 		}
 
 		@Override

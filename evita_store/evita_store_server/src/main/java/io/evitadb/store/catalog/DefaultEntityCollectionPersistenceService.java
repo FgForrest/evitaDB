@@ -54,6 +54,7 @@ import io.evitadb.core.EntityCollection;
 import io.evitadb.core.buffer.DataStoreChanges;
 import io.evitadb.core.buffer.DataStoreIndexChanges;
 import io.evitadb.core.buffer.DataStoreMemoryBuffer;
+import io.evitadb.core.metric.event.storage.FileType;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
@@ -629,6 +630,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 
 	public DefaultEntityCollectionPersistenceService(
 		long catalogVersion,
+		@Nonnull String catalogName,
 		@Nonnull Path catalogStoragePath,
 		@Nonnull EntityCollectionHeader entityTypeHeader,
 		@Nonnull StorageOptions storageOptions,
@@ -643,13 +645,15 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 			entityTypeHeader.entityTypeFileIndex(),
 			entityTypeHeader.fileLocation()
 		);
-		this.entityCollectionFile = entityCollectionFileReference.toFilePath(catalogStoragePath);
+		this.entityCollectionFile = this.entityCollectionFileReference.toFilePath(catalogStoragePath);
 		this.entityCollectionHeader = entityTypeHeader;
 		this.offsetIndexRecordTypeRegistry = offsetIndexRecordTypeRegistry;
 		this.observableOutputKeeper = observableOutputKeeper;
 		this.storagePartPersistenceService = new OffsetIndexStoragePartPersistenceService(
 			catalogVersion,
-			this.entityCollectionFile.toFile().getName(),
+			catalogName,
+			this.entityCollectionFileReference.entityType(),
+			FileType.ENTITY_COLLECTION,
 			transactionOptions,
 			new OffsetIndex(
 				catalogVersion,
@@ -661,7 +665,13 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 				),
 				storageOptions,
 				offsetIndexRecordTypeRegistry,
-				new WriteOnlyFileHandle(entityCollectionFile, observableOutputKeeper)
+				new WriteOnlyFileHandle(
+					catalogName,
+					FileType.ENTITY_COLLECTION,
+					this.entityCollectionFileReference.entityType(),
+					this.entityCollectionFile,
+					observableOutputKeeper
+				)
 			),
 			offHeapMemoryManager,
 			observableOutputKeeper,
@@ -675,6 +685,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	 */
 	public DefaultEntityCollectionPersistenceService(
 		long catalogVersion,
+		@Nonnull String catalogName,
 		@Nonnull Path catalogStoragePath,
 		@Nonnull DefaultEntityCollectionPersistenceService previous,
 		@Nonnull StorageOptions storageOptions,
@@ -697,14 +708,22 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		final long totalSize = previousOffsetIndex.getTotalSize();
 		this.storagePartPersistenceService = new OffsetIndexStoragePartPersistenceService(
 			catalogVersion,
-			this.entityCollectionFile.toFile().getName(),
+			catalogName,
+			this.entityCollectionFileReference.entityType(),
+			FileType.ENTITY_COLLECTION,
 			previousStoragePartService.transactionOptions,
 			new OffsetIndex(
 				catalogVersion,
 				this.entityCollectionFile,
 				storageOptions,
 				recordRegistry,
-				new WriteOnlyFileHandle(this.entityCollectionFile, observableOutputKeeper),
+				new WriteOnlyFileHandle(
+					catalogName,
+					FileType.ENTITY_COLLECTION,
+					this.entityCollectionFileReference.entityType(),
+					this.entityCollectionFile,
+					this.observableOutputKeeper
+				),
 				previousOffsetIndex,
 				new OffsetIndexDescriptor(
 					previousOffsetIndex.getVersion(),
@@ -716,7 +735,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 				)
 			),
 			previousStoragePartService.offHeapMemoryManager,
-			observableOutputKeeper,
+			this.observableOutputKeeper,
 			VERSIONED_KRYO_FACTORY
 		);
 	}

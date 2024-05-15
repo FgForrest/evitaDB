@@ -21,29 +21,25 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.metric.event.resources;
+package io.evitadb.core.metric.annotation;
 
-import io.evitadb.core.metric.annotation.EventGroup;
-import io.evitadb.core.metric.event.CatalogRelatedEvent;
-import io.evitadb.core.metric.event.CustomMetricsExecutionEvent;
-import jdk.jfr.Label;
-import jdk.jfr.Name;
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 
 /**
- * This event is base class for all transaction events.
+ * Annotation used for marking field to be propagated to all Prometheus metrics in this class as metric label.
+ *
+ * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
  */
-@EventGroup(AbstractResourcesEvent.PACKAGE_NAME)
-@RequiredArgsConstructor
-@Getter
-abstract class AbstractResourcesEvent extends CustomMetricsExecutionEvent implements CatalogRelatedEvent {
-	protected static final String PACKAGE_NAME = "io.evitadb.resources";
+@Target({ElementType.FIELD, ElementType.METHOD})
+@Retention(RetentionPolicy.RUNTIME)
+public @interface ExportMetricLabel {
+
 	/**
-	 * The name of the catalog the transaction relates to.
+	 * Name of the label. If not defined name of the field is used instead.
 	 */
-	@Label("Catalog")
-	@Name("catalogName")
-	private final String catalogName;
+	String value() default "";
 
 }

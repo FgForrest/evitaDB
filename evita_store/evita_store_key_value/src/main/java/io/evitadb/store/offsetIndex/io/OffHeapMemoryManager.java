@@ -23,7 +23,7 @@
 
 package io.evitadb.store.offsetIndex.io;
 
-import io.evitadb.core.metric.event.resources.OffHeapMemoryAllocationChangeEvent;
+import io.evitadb.core.metric.event.transaction.OffHeapMemoryAllocationChangeEvent;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;

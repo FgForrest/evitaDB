@@ -21,28 +21,26 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.metric.event.resources;
-
-import io.evitadb.core.metric.annotation.ExportInvocationMetric;
-import jdk.jfr.Description;
-import jdk.jfr.Label;
-import jdk.jfr.Name;
-
-import javax.annotation.Nonnull;
+package io.evitadb.core.metric.event.storage;
 
 /**
- * Event that is fired when a new file is opened for isolated WAL storage.
+ * Allows to distinguish files by their type.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@Name(AbstractResourcesEvent.PACKAGE_NAME + ".IsolatedWalFileOpenedEvent")
-@Description("Event that is fired when new file is opened for isolated WAL storage.")
-@Label("Isolated WAL file opened")
-@ExportInvocationMetric(value = "isolatedWalOpenedTotal", label = "Opened files for isolated WAL storage.")
-public class IsolatedWalFileOpenedEvent extends AbstractResourcesEvent {
+public enum FileType {
 
-	public IsolatedWalFileOpenedEvent(@Nonnull String catalogName) {
-		super(catalogName);
-	}
+	/**
+	 * Catalog file.
+	 */
+	CATALOG,
+	/**
+	 * Entity collection file.
+	 */
+	ENTITY_COLLECTION,
+	/**
+	 * Write-ahead log file.
+	 */
+	WAL
 
 }

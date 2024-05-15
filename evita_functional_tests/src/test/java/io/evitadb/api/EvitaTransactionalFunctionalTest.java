@@ -136,6 +136,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 		}
 	};
 	private final ObservableOutputKeeper observableOutputKeeper = new ObservableOutputKeeper(
+		TEST_CATALOG,
 		StorageOptions.builder().build(),
 		Mockito.mock(Scheduler.class)
 	);

@@ -68,7 +68,7 @@ module evita.engine {
 	exports io.evitadb.core.metric.annotation;
 	exports io.evitadb.core.query.algebra.price.predicate;
 	exports io.evitadb.core.metric.event.transaction;
-	exports io.evitadb.core.metric.event.resources;
+	exports io.evitadb.core.metric.event.storage;
 
 	uses CatalogStructuralChangeObserver;
 	uses CatalogPersistenceServiceFactory;
@@ -94,5 +94,5 @@ module evita.engine {
 
 	opens io.evitadb.core.metric.event to evita.common;
 	opens io.evitadb.core.metric.event.transaction to jdk.jfr;
-	opens io.evitadb.core.metric.event.resources to jdk.jfr;
+	opens io.evitadb.core.metric.event.storage to jdk.jfr;
 }

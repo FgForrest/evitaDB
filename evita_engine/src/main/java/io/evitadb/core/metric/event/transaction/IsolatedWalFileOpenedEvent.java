@@ -21,25 +21,28 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.metric.event;
+package io.evitadb.core.metric.event.transaction;
 
-import io.evitadb.core.metric.annotation.ExportMetricLabel;
+import io.evitadb.core.metric.annotation.ExportInvocationMetric;
+import jdk.jfr.Description;
+import jdk.jfr.Label;
+import jdk.jfr.Name;
 
 import javax.annotation.Nonnull;
 
 /**
- * This interface should be implemented by all events that are related to a specific catalog.
+ * Event that is fired when a new file is opened for isolated WAL storage.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public interface CatalogRelatedEvent {
+@Name(AbstractTransactionEvent.PACKAGE_NAME + ".ReadOnlyHandleOpenedEvent")
+@Description("Event that is fired when new file is opened for isolated WAL storage.")
+@Label("Isolated WAL file opened")
+@ExportInvocationMetric(value = "isolatedWalOpenedTotal", label = "Opened files for isolated WAL storage.")
+public class IsolatedWalFileOpenedEvent extends AbstractTransactionEvent {
 
-	/**
-	 * Returns the name of the catalog that the event is related to.
-	 * @return the name of the catalog
-	 */
-	@ExportMetricLabel
-	@Nonnull
-	String getCatalogName();
+	public IsolatedWalFileOpenedEvent(@Nonnull String catalogName) {
+		super(catalogName);
+	}
 
 }
