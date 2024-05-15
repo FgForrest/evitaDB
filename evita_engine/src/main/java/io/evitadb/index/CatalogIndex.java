@@ -56,6 +56,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static io.evitadb.core.Transaction.isTransactionAvailable;
 import static io.evitadb.index.attribute.AttributeIndex.verifyLocalizedAttribute;
@@ -115,14 +116,27 @@ public class CatalogIndex implements
 
 	@Override
 	public void attachToCatalog(@Nullable String entityType, @Nonnull Catalog catalog) {
+		Assert.isPremiseValid(this.catalog == null, "Catalog was already attached to this index!");
 		this.catalog = catalog;
+		for (GlobalUniqueIndex globalUniqueIndex : uniqueIndex.values()) {
+			globalUniqueIndex.attachToCatalog(null, catalog);
+		}
 	}
 
 	@Nonnull
 	@Override
 	public CatalogIndex createCopyForNewCatalogAttachment() {
 		return new CatalogIndex(
-			this.version, this.uniqueIndex
+			this.version,
+			this.uniqueIndex
+				.entrySet()
+				.stream()
+				.collect(
+					Collectors.toMap(
+						Entry::getKey,
+						entry -> entry.getValue().createCopyForNewCatalogAttachment()
+					)
+				)
 		);
 	}
 
@@ -162,7 +176,8 @@ public class CatalogIndex implements
 		final GlobalUniqueIndex theUniqueIndex = this.uniqueIndex.computeIfAbsent(
 			createAttributeKey(attributeSchema, allowedLocales, locale, value),
 			lookupKey -> {
-				final GlobalUniqueIndex newUniqueIndex = new GlobalUniqueIndex(lookupKey, attributeSchema.getType(), catalog);
+				final GlobalUniqueIndex newUniqueIndex = new GlobalUniqueIndex(lookupKey, attributeSchema.getType());
+				newUniqueIndex.attachToCatalog(null, catalog);
 				ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
 					.ifPresent(it -> it.addCreatedItem(newUniqueIndex));
 				this.dirty.setToTrue();

@@ -121,6 +121,7 @@ public class HierarchyWithinTranslator extends AbstractHierarchyTranslator<Hiera
 										),
 										hierarchyWithin.isDirectRelation(),
 										hierarchyWithin.isExcludingRoot(),
+										targetEntitySchema,
 										targetEntityIndex,
 										queryContext
 									)
@@ -144,12 +145,13 @@ public class HierarchyWithinTranslator extends AbstractHierarchyTranslator<Hiera
 		@Nullable HierarchyFilteringPredicate excludedChildren,
 		boolean directRelation,
 		boolean excludingRoot,
+		@Nonnull EntitySchemaContract targetEntitySchema,
 		@Nonnull EntityIndex entityIndex,
 		@Nonnull QueryContext queryContext
 	) {
 		if (directRelation) {
 			// if the hierarchy entity is the same as queried entity
-			if (Objects.equals(queryContext.getSchema().getName(), entityIndex.getEntitySchema().getName())) {
+			if (Objects.equals(queryContext.getSchema().getName(), targetEntitySchema.getName())) {
 				if (excludedChildren == null) {
 					return entityIndex.getHierarchyNodesForParentFormula(parentId);
 				} else {

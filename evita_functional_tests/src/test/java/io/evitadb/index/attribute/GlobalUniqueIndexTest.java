@@ -66,7 +66,7 @@ class GlobalUniqueIndexTest implements TimeBoundedTestSupport {
 	private final EntityReferenceWithLocale localizedProduct2FrenchRef = new EntityReferenceWithLocale(Entities.PRODUCT, 2, Locale.FRENCH);
 	private final EntityReferenceWithLocale localizedProduct3Ref = new EntityReferenceWithLocale(Entities.PRODUCT, 3, Locale.ENGLISH);
 	private final GlobalUniqueIndex tested = new GlobalUniqueIndex(
-		new AttributeKey("whatever"), String.class, catalog, new HashMap<>(), new HashMap<>()
+		new AttributeKey("whatever"), String.class, new HashMap<>(), new HashMap<>()
 	);
 
 	@BeforeEach
@@ -76,6 +76,7 @@ class GlobalUniqueIndexTest implements TimeBoundedTestSupport {
 		Mockito.when(productCollection.getEntityType()).thenReturn(Entities.PRODUCT);
 		Mockito.when(catalog.getCollectionForEntityPrimaryKeyOrThrowException(1)).thenReturn(productCollection);
 		Mockito.when(catalog.getCollectionForEntityOrThrowException(Entities.PRODUCT)).thenReturn(productCollection);
+		tested.attachToCatalog(null, catalog);
 	}
 
 	@Test
@@ -170,6 +171,8 @@ class GlobalUniqueIndexTest implements TimeBoundedTestSupport {
 		final int initialCount = 100;
 		final Map<String, Integer> mapToCompare = new HashMap<>();
 		final Set<Integer> currentRecordSet = new HashSet<>();
+		final GlobalUniqueIndex initialUniqueIndex = new GlobalUniqueIndex(new AttributeKey("code"), String.class);
+		initialUniqueIndex.attachToCatalog(null, catalog);
 
 		runFor(
 			input,
@@ -177,7 +180,7 @@ class GlobalUniqueIndexTest implements TimeBoundedTestSupport {
 			new TestState(
 				new StringBuilder(),
 				1,
-				new GlobalUniqueIndex(new AttributeKey("code"), String.class, catalog)
+				initialUniqueIndex
 			),
 			(random, testState) -> {
 				final StringBuilder codeBuffer = testState.code();
@@ -234,6 +237,8 @@ class GlobalUniqueIndexTest implements TimeBoundedTestSupport {
 							.map(it -> new EntityReference(Entities.PRODUCT, it))
 							.sorted()
 							.toArray(EntityReference[]::new);
+
+						committed.attachToCatalog(null, catalog);
 						assertArrayEquals(
 							expected,
 							committed.getEntityReferences(),
@@ -242,15 +247,14 @@ class GlobalUniqueIndexTest implements TimeBoundedTestSupport {
 								codeBuffer
 						);
 
-						committedResult.set(
-							new GlobalUniqueIndex(
-								committed.getAttributeKey(),
-								committed.getType(),
-								catalog,
-								new HashMap<>(committed.getUniqueValueToEntityReference()),
-								new HashMap<>(committed.getLocaleIndex())
-							)
+						final GlobalUniqueIndex newGlobalUniqueIndex = new GlobalUniqueIndex(
+							committed.getAttributeKey(),
+							committed.getType(),
+							new HashMap<>(committed.getUniqueValueToEntityReference()),
+							new HashMap<>(committed.getLocaleIndex())
 						);
+						newGlobalUniqueIndex.attachToCatalog(null, catalog);
+						committedResult.set(newGlobalUniqueIndex);
 					}
 				);
 

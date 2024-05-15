@@ -769,7 +769,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				sharedUniqueIndexes.put(
 					attributeKey,
 					new GlobalUniqueIndex(
-						attributeKey, attributeSchema.getPlainType(), catalog,
+						attributeKey, attributeSchema.getPlainType(),
 						sharedUniqueIndexStoragePart.getUniqueValueToRecordId(),
 						sharedUniqueIndexStoragePart.getLocaleIndex()
 					)
