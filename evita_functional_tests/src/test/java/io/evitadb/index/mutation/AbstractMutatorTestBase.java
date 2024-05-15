@@ -109,7 +109,6 @@ abstract class AbstractMutatorTestBase {
 			)
 		);
 		productIndex = new GlobalEntityIndex(1, productSchema.getName(), new EntityIndexKey(EntityIndexType.GLOBAL));
-		productIndex.useSchema(() -> productSchema);
 		executor = new EntityIndexLocalMutationExecutor(
 			containerAccessor, 1,
 			new MockEntityIndexCreator<>(productIndex),

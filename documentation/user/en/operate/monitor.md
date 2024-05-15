@@ -198,83 +198,164 @@ If the server is unhealthy, the response will list the problems.
 	doesn't respond to internal HTTP check call.</dd>
 </dl>
 
-## Client and request identification
+# Metrics
+evitaDB server has the option to publish [metrics](https://en.wikipedia.org/wiki/Observability_(software)#Metrics).
+The popular option of using the [Prometheus](https://prometheus.io/) solution was chosen as a way to make them available outside the application.
+evitaDB exposes a scraping endpoint to which the application publishes collected metrics at regular intervals, which can then be visualized using any tool such as [Grafana](https://grafana.com/).
 
-In order to monitor which requests each client executes against evitaDB, each client and each request can be identified by
-a unique identifier. In this way, evitaDB calls can be grouped by requests and clients. This may be useful, for example,
-to see if a particular client is executing queries optimally and not creating unnecessary duplicate queries.
+Prometheus offers 4 types of metrics which can be published from applications, more in official [docs](https://prometheus.io/docs/concepts/metric_types/):
+- Counter: a cumulative metric that represents a single monotonically increasing counter whose value can only be increase or be reset to zero on the start.
+- Gauge: represents a single numerical value that can arbitrarily go up and down.
+- Histogram: samples observations (usually things like request durations or response sizes) and counts them in configurable buckets. It also provides a sum of all observed values.
+- Summary: Similar to a histogram, a summary samples observations (usually things like request durations and response sizes). While it also provides a total count of observations and a sum of all observed values, it calculates configurable quantiles over a sliding time window.
 
-Both identifiers are provided by the client itself. The client identifier is expected to be a constant for a particular
-client, e.g. `Next.js application`, and will group together all calls to a evitaDB from this client.
-The request identifier is expected to be a [UUID](https://en.wikipedia.org/wiki/Universally_unique_identifier)
-but can be any string value, and will group together all evitaDB calls with this request identifier for a particular client.
-The request definition (what a request identifier represents) is up to the client to decide, for example, a single request
-for JavaScript client may group together all evitaDB calls for a single page render.
+The database server exposes two types of metrics:
+- JVM related metrics: these allow us to visualize important system information that can give us an overview of, for example, the state of the JVM, such as how much CPU and memory the database is using, how many threads it is using, or the current state of the Garbage Collector.
+- Internal evitaDB metrics: have a direct link to the state of the database, its data, indexes, query processing speed, etc.
 
-### Configuration
+## Prometheus endpoint settings
+To collect metrics and publish them to the scrape endpoint, you don't need to do anything other than have the *observability* API enabled in the evitaDB config - this is a default behaviour.
+You can also set the path to a YAML file that can be used to restrict what metrics are actually collected.
+Without its specification (or with an empty file), all metrics from both groups are automatically collected.
+The metrics are then available at the URL: *http://[evita-server-name]:5557/observability/metrics*.
+The sample below shows the relevant part of the configuration file related to the metrics.
 
-<LS to="e">
+```yaml
+api:
+  endpoints:
+    observability:
+      enabled: ${api.endpoints.observability.enabled:true}
+      host: ${api.endpoints.observability.host:localhost:5557}
+      exposedHost: ${api.endpoints.observability.exposedHost:null}
+      tlsEnabled: ${api.endpoints.observability.tlsEnabled:false}
+      allowedOrigins: ${api.endpoints.observability.allowedOrigins:null}
+      allowedEvents: !include ${api.endpoints.observability.allowedEvents:null}
+```
 
-This mechanism is not part of an evitaQL language. Check documentation for your specific client for more information.
+As mentioned above, separate groups can be specified from the two groups of metrics (system - JVM, internal - database) to constrain the collected data.
+From the JVM category (more [here](https://prometheus.github.io/client_java/instrumentation/jvm/)), published metrics can be constrained by specifying selected names in the YAML array:
+- AllMetrics
+- JvmThreadsMetrics
+- JvmBufferPoolMetrics
+- JvmClassLoadingMetrics
+- JvmCompilationMetrics
+- JvmGarbageCollectorMetrics
+- JvmMemoryPoolAllocationMetrics
+- JvmMemoryMetrics
+- JvmRuntimeInfoMetric
+- ProcessMetrics
 
+From the internal metrics section, metrics can also be constrained using the *wildcard* pattern in conjunction with Java package.
+Thus, we can specify the name of the package that contains the metrics we want to enable with the suffix ".*", which will enable the collection of all events in that category (package).
+It is also possible to specify individual metrics by specifying the full name of their corresponding class (*package_path.class_name*).
+
+Categories of internal metrics (the corresponding class and package names will be added later):
+- Storage
+    - Transactions
+    - Storage
+        - Per collection
+        - Per catalog
+        - Per instance
+- Engine
+    - Queries
+    - Per instance
+    - Cache
+- Web API
+
+## JFR events
+The [JFR events](https://docs.oracle.com/javacomponents/jmc-5-4/jfr-runtime-guide/about.htm#JFRUH170) can also be associated with metrics, which are used for local diagnostics of Java applications and can provide deeper insight into their functioning.
+Unlike metrics that publish different types of data (Counter, Gauge, ...), JFR (Java Flight Recorder) responds to the invocation of any of the events targeted by the recording that is running.
+It is usually desirable to run a streaming recording that collects data on all registered events while it is running and it can be saved to a file when the recording stops if desired.
+With JFR, one can also learn how long it took to process the monitored events or how many times each event was called during the monitored time.
+These internal events, which in the case of evitaDB share a class with Prometheus metrics, carry auxiliary information (catalog name, query parameters, etc.) which can help in solving more complex problems and finding performance bottlenecks.
+Among other things, of course, possible stack traces are stored in conjunction with this data.
+
+In evitaDB, this concept has been integrated into the aforementioned Observability API (URL /observability/), on which these two endpoints exist for JFR control:
+- start: starts the JFR.
+- stop: stops the JFR and saves the recording progress file - the file is then available at URL */observability/recording.jfr*.
+
+Since the produced JFR files are binary and therefore not directly readable (the JDK offers a terminal utility *JMC*, but this is not ideal in terms of readability and orientation in the output), we plan to add a visualizer to evitaLab.
+
+# Tracing
+As an additional tool to support observability, evitaDB offers support for tracing, which is implemented here using [OpenTelemetry](https://opentelemetry.io/).
+It offers to collect useful information on all queries to the database within a request made via any of the external APIs.
+This data is exported from the database using the [OTLP exporter](https://opentelemetry.io/docs/specs/otel/protocol/exporter/) and then forwarded to the [OpenTelemetry collector](https://opentelemetry.io/docs/collector/).
+The latter can sort, reduce and forward the data to other applications that can be used to visualize it, for example (tools like [Grafana](https://grafana.com/) using the [Tempo](https://grafana.com/oss/tempo/) module, [Jaeger](https://www.jaegertracing.io/),...).
+To maximize the effect of tracing, it is also possible to use the so-called distributed tracing method, where not only data from evitaDB related to the executed requests will be collected and forwarded within the published query data, but also data from consumer applications that communicate with the database using the API.
+Published information (`spans` using their `spanId`) can be aggregated using the same `traceId`, where a span is referred to in [OpenTelemetry](https://opentelemetry.io/) terminology as one specific recorded piece of information from any application with metadata about its processing, such as the duration of execution of a given action and any other custom attributes.
+A `Span` can optionally have a parent span (`parent span`), which will take care of the processing (decision processes about keeping or discarding parts of the `span` tree) and propagating resulting decisions from parent `spans` to their children (`child spans`).
+
+## Tracing settings within evitaDB
+As with metrics, tracing requires the *observability* API to be enabled and configured in the evitaDB config and enabled by default.
+To configure it, you need to specify the URL [OpenTelemetry collector](https://opentelemetry.io/docs/collector/) and also the protocol (HTTP, GRPC) that the data will be sent over.
+
+```yaml
+Observability:
+  enabled: ${api.endpoints.observability.enabled:true}
+  host: ${api.endpoints.observability.host:localhost:5557}
+  exposedHost: ${api.endpoints.observability.exposedHost:null}
+  tlsEnabled: ${api.endpoints.observability.tlsEnabled:false}
+  allowedOrigins: ${api.endpoints.observability.allowedOrigins:null}
+  tracing:
+    endpoint: ${api.endpoints.observability.tracing.endpoint:null}
+    protocol: ${api.endpoints.observability.tracing.protocol:grpc}
+```
+
+<LS to="j,c">
+
+When using evitaDB drivers, it is possible to pass an instance of [OpenTelemetry](https://opentelemetry.io/) that is used within the consumer application to the driver configuration class.
+This instance can only be one in the application, and since drivers are only libraries targeted for use from applications, this approach was chosen instead of reconfiguring the [OpenTelemetry collector](https://opentelemetry.io/docs/collector/) endpoint, which is consistent with the approach of other autoinstrumentation libraries.
 </LS>
+
+## Connecting consumer applications
+[OpenTelemetry](https://opentelemetry.io/) offers first-party libraries (for selected technologies with the ability to auto-instrument within consumer applications) to provide tracing from relevant parts such as HTTP communication or database operations.
+For most applications using either implicit support or additional libraries, no additional configuration is required to enable tracing, including auto-promotion to other services.
+However, the aforementioned automated approach limits the possibilities of adding custom traces, for which the use of a tracing SDK is required to manually create and integrate them with additional information into the tracing tree.
+For evitaDB there is no such library yet and therefore you need to manually configure [OpenTelemetry](https://opentelemetry.io/) including the mentioned [OTLP exporter](https://opentelemetry.io/docs/specs/otel/protocol/exporter/) and set up [Context propagation](https://opentelemetry.io/docs/concepts/context-propagation/) - for supported technologies you can find instructions on the official [OpenTelemetry](https://opentelemetry.io/) website.
+
+The official libraries offer `inject` and `extract` methods on [Context](https://opentelemetry.io/docs/specs/otel/context/), which can be used to set (or extract) identifiers about the current context into the open connection of the transport layer used (HTTP, gRPC,...).
+This approach is heavily integrated into [OpenTelemetry](https://opentelemetry.io/) and is compatible across all the technologies it supports, where the use of this library is very similar and thus not difficult to integrate into multiple services.
+
+Internally, [OpenTelemetry](https://opentelemetry.io/) uses a `traceparent` value for context propagation across services, which may look like this: `00-d4cda95b652f4a1592b449d5929fda1b-6e0c63257de34c92-01`.
+This consists of four parts:
+- 00: represents the version of `TraceContext`, nowadays this value is immutable,
+- d4cda95b652f4a1592b449d5929fda1b: `traceId`,
+- 6e0c63257de34c92: `spanId` - respectively, may represent `parent-span-id`,
+- 01: sampling decision, i.e. whether this span and its descendants should be published (`01` means the span will be published, `00` means that it won't be published).
+
+Available SDKs provide options for getting the current tracing context containing `traceId` and `spanId` across an application, often methods on the Context class are named `current` or `active`.
+
+<LS to="r,g">
+
+To connect applications using REST and GraphQL APIs, the HTTP header `traceparent` must be sent over some form of open HTTP connection to evitaDB.
+The before mentioned `inject` and `extract` methods insert the `traceparent` value into the HTTP header (or extract it from the header from the current context).
+</LS>
+
+<LS to="j,c">
+
+To connect applications using the gRPC API, you must send in the metadata sent with queries over the gRPC channel to evitaDB.
+Our recommended method at this point is to use gRPC [Interceptor](https://grpc.io/docs/guides/interceptors/).
+The aforementioned `inject` and `extract` methods insert the `traceparent` value into the gRPC Metadata (or extract it from the header of the current context).
+</LS>
+
 <LS to="j">
 
-If you are using the Java remote client, you are suggested to provide the `clientId` in
-<SourceClass>evita_external_api/evita_external_api_grpc/client/src/main/java/io/evitadb/driver/config/EvitaClientConfiguration.java</SourceClass>
-for all requests. The `requestId` is then provided by wrapping your code in a lambda passed to `executeWithRequestId`
-method on <SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaSessionContract.java</SourceClass> interface.
-
-<SourceCodeTabs langSpecificTabOnly local ignoreTest>
-
-[Provide the client and request ids to the server](/documentation/user/en/operate/example/call-server-with-ids.java)
-
-</SourceCodeTabs>
-
-If you use embedded variant of evitaDB server there is no sense to provide `clientId` since there is only one client.
-The `requestId` is then provided the same way as described above.
-
-</LS>
-<LS to="g">
-
-To pass the request identification using GraphQL API, our GraphQL API utilizes [GraphQL extensions](https://github.com/graphql/graphql-over-http/blob/main/spec/GraphQLOverHTTP.md#request-parameters).
-Therefore, to pass request identification information to the evitaDB, pass the following JSON object within the `extensions`
-property of a GraphQL request:
-
-```json
-"clientContext": {
-  "clientId": "Next.js application",
-  "requestId": "05e620b2-5b40-4932-b585-bf3bb6bde4b3"
-}
-```
-
-Both identifiers are optional.
-
-</LS>
-<LS to="r">
-
-In order to pass request identification using REST API, our REST API utilizes [HTTP headers](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers).
-Therefore, to pass request identification information to the evitaDB, pass the following HTTP headers:
-
-```
-X-EvitaDB-ClientID: Next.js application
-X-EvitaDB-RequestID: 05e620b2-5b40-4932-b585-bf3bb6bde4b3
-```
-
-Both headers are optional.
-
+evitaDB provides two essential methods for tracing purposes on the `TracingContext` interface, which is used both internally and from external APIs.
+These methods include:
+- executeWithinBlock: creates a parent `span` which, including any other exported traces inside the passed lambda function, will be implicitly logged and sent to the [OpenTelemetry collector](https://opentelemetry.io/docs/collector/),
+- executeWithinBlockIfParentContextAvailable: method for tracing if the parent context is currently open (intentionally some internal traces not coming from external APIs are suppressed in this way).
 </LS>
 
 ### Logging
 
-These identifiers can be also used to group application log messages by clients and requests for easier debugging of
+The trace identifiers can be also used to group application log messages by traces and spans for easier debugging of
 errors that happened during a specific request. This is done using [MDC](https://www.slf4j.org/manual.html#mdc)
-support. evitaDB passes the client and request identifiers to the MDC context under `clientId` and `requestId` names.
+support. evitaDB passes the trace and span identifiers to the MDC context under `traceId` and `spanId` names.
 
 The specific usage depends on the used implementation of the [SLF4J](https://www.slf4j.org/) logging facade. For example
-in [Logback](https://logback.qos.ch/index.html) this can be done using `%X{clientId}` and `%X{requestId}` patterns in the log pattern:
+in [Logback](https://logback.qos.ch/index.html) this can be done using `%X{traceId}` and `%X{spanId}` patterns in the log pattern:
 ```xml
 <encoder>
-    <pattern>%d{HH:mm:ss.SSS} %-5level %logger{10} C:%X{clientId} R:%X{requestId} - %msg%n</pattern>
+	<pattern>%d{HH:mm:ss.SSS} %-5level %logger{10} C:%X{traceId} R:%X{spanId} - %msg%n</pattern>
 </encoder>
 ```
