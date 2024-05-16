@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -62,13 +62,13 @@ public interface QueryConstraints {
 	/**
 	 * Each query must specify collection. This mandatory {@link String} entity type controls what collection
 	 * the query will be applied on.
-	 * 
+	 *
 	 * Sample of the header is:
-	 * 
+	 *
 	 * <pre>
 	 * collection('category')
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/basics#header">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
@@ -84,9 +84,9 @@ public interface QueryConstraints {
 	 * Filtering constraints allow you to select only a few entities from many that exist in the target collection. It's
 	 * similar to the "where" clause in SQL. FilterBy container might contain one or more sub-constraints, that are combined
 	 * by logical disjunction (AND).
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * filterBy(
 	 *    isNotNull("code"),
@@ -96,7 +96,7 @@ public interface QueryConstraints {
 	 *    )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/basics#filter-by">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -108,12 +108,12 @@ public interface QueryConstraints {
 	 * Filtering constraints allow you to select only a few entities from many that exist in the target collection. It's
 	 * similar to the "where" clause in SQL. FilterGroupBy container might contain one or more sub-constraints, that are
 	 * combined by logical disjunction (AND).
-	 * 
+	 *
 	 * The `filterGroupBy` is equivalent to {@link FilterBy}, but can be used only within {@link FacetSummary} container
 	 * and defines the filter constraints limiting the facet groups returned in facet summary.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * filterGroupBy(
 	 *    isNotNull("code"),
@@ -123,7 +123,7 @@ public interface QueryConstraints {
 	 *    )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/basics#filter-by">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -134,7 +134,7 @@ public interface QueryConstraints {
 	/**
 	 * The `and` container represents a <a href="https://en.wikipedia.org/wiki/Logical_conjunction">logical conjunction</a>,
 	 * that is demonstrated on following table:
-	 * 
+	 *
 	 * <table>
 	 *     <thead>
 	 *         <tr>
@@ -166,9 +166,9 @@ public interface QueryConstraints {
 	 *         </tr>
 	 *     </tbody>
 	 * </table>
-	 * 
+	 *
 	 * The following query:
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -181,10 +181,10 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ... returns a single result - product with entity primary key 106742, which is the only one that all three
 	 * `entityPrimaryKeyInSet` constraints have in common.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/logical#and">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -198,7 +198,7 @@ public interface QueryConstraints {
 	/**
 	 * The `and` container represents a <a href="https://en.wikipedia.org/wiki/Logical_conjunction">logical conjunction</a>,
 	 * that is demonstrated on following table:
-	 * 
+	 *
 	 * <table>
 	 *     <thead>
 	 *         <tr>
@@ -230,9 +230,9 @@ public interface QueryConstraints {
 	 *         </tr>
 	 *     </tbody>
 	 * </table>
-	 * 
+	 *
 	 * The following query:
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -245,10 +245,10 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ... returns four results representing a combination of all primary keys used in the `entityPrimaryKeyInSet`
 	 * constraints.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/logical#or">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -262,7 +262,7 @@ public interface QueryConstraints {
 	/**
 	 * The `not` container represents a <a href="https://en.wikipedia.org/wiki/Negation">logical negation</a>, that is
 	 * demonstrated on following table:
-	 * 
+	 *
 	 * <table>
 	 *     <thead>
 	 *         <tr>
@@ -281,9 +281,9 @@ public interface QueryConstraints {
 	 *         </tr>
 	 *     </tbody>
 	 * </table>
-	 * 
+	 *
 	 * The following query:
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -294,10 +294,10 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ... returns thousands of results excluding the entities with primary keys mentioned in `entityPrimaryKeyInSet`
 	 * constraint. Because this situation is hard to visualize - let"s narrow our super set to only a few entities:
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -309,9 +309,9 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ... which returns only three products that were not excluded by the following `not` constraint.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/logical#not">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -324,31 +324,31 @@ public interface QueryConstraints {
 	 * filtering constraints. You can examine either the attributes specified on the relation itself or wrap the filtering
 	 * constraint in {@link EntityHaving} constraint to examine the attributes of the referenced entity.
 	 * The constraint is similar to SQL <a href="https://www.w3schools.com/sql/sql_exists.asp">`EXISTS`</a> operator.
-	 * 
+	 *
 	 * Example (select entities having reference brand with category attribute equal to alternativeProduct):
-	 * 
+	 *
 	 * <pre>
 	 * referenceHavingAttribute(
 	 *     "brand",
 	 *     attributeEquals("category", "alternativeProduct")
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * Example (select entities having any reference brand):
-	 * 
+	 *
 	 * <pre>
 	 * referenceHavingAttribute("brand")
 	 * </pre>
-	 * 
+	 *
 	 * Example (select entities having any reference brand of primary key 1):
-	 * 
+	 *
 	 * <pre>
 	 * referenceHavingAttribute(
 	 *     "brand",
 	 *     entityPrimaryKeyInSet(1)
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/references#reference-having">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -361,9 +361,9 @@ public interface QueryConstraints {
 	 * by the user through some kind of user interface, from the rest of the query, which contains the mandatory constraints
 	 * on the result set. The user-defined scope can be modified during certain calculations (such as the facet or histogram
 	 * calculation), while the mandatory part outside of `userFilter` cannot.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * userFilter(
 	 *   facetHaving(
@@ -374,7 +374,7 @@ public interface QueryConstraints {
 	 *   )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/behavioral#user-filter">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -389,47 +389,47 @@ public interface QueryConstraints {
 	 * This `between` is query that compares value of the attribute with name passed in first argument with the value passed
 	 * in the second argument and value passed in third argument. First argument must be {@link String}, second and third
 	 * argument may be any of {@link Comparable} type.
-	 * 
+	 *
 	 * Type of the attribute value and second argument must be convertible one to another otherwise `between` function
 	 * returns false.
-	 * 
+	 *
 	 * Function returns true if value in a filterable attribute of such a name is greater than or equal to value in second argument
 	 * and lesser than or equal to value in third argument.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * between("age", 20, 25)
 	 * </pre>
-	 * 
+	 *
 	 * Function supports attribute arrays and when attribute is of array type `between` returns true if *any of attribute* values
 	 * is between the passed interval the value in the query. If we have the attribute `amount` with value `[1, 9]` all
 	 * these constraints will match:
-	 * 
+	 *
 	 * <pre>
 	 * between("amount", 0, 50)
 	 * between("amount", 0, 5)
 	 * between("amount", 8, 10)
 	 * </pre>
-	 * 
+	 *
 	 * If attribute is of `Range` type `between` query behaves like overlap - it returns true if examined range and
 	 * any of the attribute ranges (see previous paragraph about array types) share anything in common. All the following
 	 * constraints return true when we have the attribute `validity` with following `NumberRange` values: `[[2,5],[8,10]]`:
-	 * 
+	 *
 	 * <pre>
 	 * between("validity", 0, 3)
 	 * between("validity", 0, 100)
 	 * between("validity", 9, 10)
 	 * </pre>
-	 * 
+	 *
 	 * ... but these constraints will return false:
-	 * 
+	 *
 	 * <pre>
 	 * between("validity", 11, 15)
 	 * between("validity", 0, 1)
 	 * between("validity", 6, 7)
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#attribute-between">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -444,25 +444,25 @@ public interface QueryConstraints {
 	/**
 	 * This `contains` is query that searches value of the attribute with name passed in first argument for presence of the
 	 * {@link String} value passed in the second argument.
-	 * 
+	 *
 	 * Function returns true if attribute value contains secondary argument (starting with any position). Function is case
 	 * sensitive and comparison is executed using `UTF-8` encoding (Java native).
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * contains("code", "evitaDB")
 	 * </pre>
-	 * 
+	 *
 	 * Function supports attribute arrays and when attribute is of array type `contains` returns true if any of attribute
 	 * values contains the value in the query. If we have the attribute `code` with value `["cat","mouse","dog"]` all these
 	 * constraints will match:
-	 * 
+	 *
 	 * <pre>
 	 * contains("code","mou")
 	 * contains("code","o")
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/string#attribute-contains">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -473,26 +473,26 @@ public interface QueryConstraints {
 	/**
 	 * This `startsWith` is query that searches value of the attribute with name passed in first argument for presence of the
 	 * {@link String} value passed in the second argument.
-	 * 
+	 *
 	 * Function returns true if attribute value contains secondary argument (from first position). InSet other words attribute
 	 * value starts with string passed in second argument. Function is case sensitive and comparison is executed using `UTF-8`
 	 * encoding (Java native).
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * startsWith("code", "vid")
 	 * </pre>
-	 * 
+	 *
 	 * Function supports attribute arrays and when attribute is of array type `startsWith` returns true if any of attribute
 	 * values starts with the value in the query. If we have the attribute `code` with value `["cat","mouse","dog"]` all
 	 * these constraints will match:
-	 * 
+	 *
 	 * <pre>
 	 * contains("code","mou")
 	 * contains("code","do")
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/string#attribute-starts-with">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -503,26 +503,26 @@ public interface QueryConstraints {
 	/**
 	 * This `endsWith` is query that searches value of the attribute with name passed in first argument for presence of the
 	 * {@link String} value passed in the second argument.
-	 * 
+	 *
 	 * Function returns true if attribute value contains secondary argument (using reverse lookup from last position).
 	 * InSet other words attribute value ends with string passed in second argument. Function is case sensitive and comparison
 	 * is executed using `UTF-8` encoding (Java native).
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * endsWith("code", "ida")
 	 * </pre>
-	 * 
+	 *
 	 * Function supports attribute arrays and when attribute is of array type `endsWith` returns true if any of attribute
 	 * values ends with the value in the query. If we have the attribute `code` with value `["cat","mouse","dog"]` all these
 	 * constraints will match:
-	 * 
+	 *
 	 * <pre>
 	 * contains("code","at")
 	 * contains("code","og")
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/string#attribute-ends-with">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -535,25 +535,25 @@ public interface QueryConstraints {
 	 * in the second argument. First argument must be {@link String}, second argument may be any of {@link Comparable} type.
 	 * Type of the attribute value and second argument must be convertible one to another otherwise `equals` function
 	 * returns false.
-	 * 
+	 *
 	 * Function returns true if both values are equal.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * equals("code", "abc")
 	 * </pre>
-	 * 
+	 *
 	 * Function supports attribute arrays and when attribute is of array type `equals` returns true if any of attribute values
 	 * equals the value in the query. If we have the attribute `code` with value `["A","B","C"]` all these constraints will
 	 * match:
-	 * 
+	 *
 	 * <pre>
 	 * equals("code","A")
 	 * equals("code","B")
 	 * equals("code","C")
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#attribute-equals">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -566,18 +566,18 @@ public interface QueryConstraints {
 	 * in the second argument. First argument must be {@link String}, second argument may be any of {@link Comparable} type.
 	 * Type of the attribute value and second argument must be convertible one to another otherwise `lessThan` function
 	 * returns false.
-	 * 
+	 *
 	 * Function returns true if value in a filterable attribute of such a name is less than value in second argument.
-	 * 
+	 *
 	 * Function currently doesn't support attribute arrays and when attribute is of array type. Query returns error when this
 	 * query is used in combination with array type attribute. This may however change in the future.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * lessThan("age", 20)
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#attribute-less-than">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -590,19 +590,19 @@ public interface QueryConstraints {
 	 * in the second argument. First argument must be {@link String}, second argument may be any of {@link Comparable} type.
 	 * Type of the attribute value and second argument must be convertible one to another otherwise `lessThanEquals` function
 	 * returns false.
-	 * 
+	 *
 	 * Function returns true if value in a filterable attribute of such a name is lesser than value in second argument or
 	 * equal.
-	 * 
+	 *
 	 * Function currently doesn't support attribute arrays and when attribute is of array type. Query returns error when this
 	 * query is used in combination with array type attribute. This may however change in the future.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * lessThanEquals("age", 20)
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#attribute-less-than-equals">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -615,18 +615,18 @@ public interface QueryConstraints {
 	 * in the second argument. First argument must be {@link String}, second argument may be any of {@link Comparable} type.
 	 * Type of the attribute value and second argument must be convertible one to another otherwise `greaterThan` function
 	 * returns false.
-	 * 
+	 *
 	 * Function returns true if value in a filterable attribute of such a name is greater than value in second argument.
-	 * 
+	 *
 	 * Function currently doesn't support attribute arrays and when attribute is of array type. Query returns error when this
 	 * query is used in combination with array type attribute. This may however change in the future.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * greaterThan("age", 20)
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#attribute-greater-than">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -639,19 +639,19 @@ public interface QueryConstraints {
 	 * in the second argument. First argument must be {@link String}, second argument may be any of {@link Comparable} type.
 	 * Type of the attribute value and second argument must be convertible one to another otherwise `greaterThanEquals` function
 	 * returns false.
-	 * 
+	 *
 	 * Function returns true if value in a filterable attribute of such a name is greater than value in second argument or
 	 * equal.
-	 * 
+	 *
 	 * Function currently doesn't support attribute arrays and when attribute is of array type. Query returns error when this
 	 * query is used in combination with array type attribute. This may however change in the future.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * greaterThanEquals("age", 20)
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#attribute-greater-than-equals">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -667,10 +667,10 @@ public interface QueryConstraints {
 	 * don't have to be stored in the database as an entity, and if they are, they are not currently associated with
 	 * the price list code defined in the prices of other entities. The pricing structure is simple and flat for now
 	 * (but this may change in the future).
-	 * 
+	 *
 	 * Except for the <a href="https://evitadb.io/documentation/query/filtering/price?lang=evitaql#typical-usage-of-price-constraints">standard use-case</a>
 	 * you can also create query with this constraint only:
-	 * 
+	 *
 	 * <pre>
 	 * priceInPriceLists(
 	 *     "vip-group-1-level",
@@ -678,11 +678,11 @@ public interface QueryConstraints {
 	 *     "vip-group-3-level"
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * Warning: Only a single occurrence of any of this constraint is allowed in the filter part of the query.
 	 * Currently, there is no way to switch context between different parts of the filter and build queries such as find
 	 * a product whose price is either in "CZK" or "EUR" currency at this or that time using this constraint.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/price#price-in-price-lists">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -709,15 +709,15 @@ public interface QueryConstraints {
 	 * The `priceInCurrency` constraint can be used to limit the result set to entities that have a price in the specified
 	 * currency. Except for the <a href="https://evitadb.io/documentation/query/filtering/price?lang=evitaql#typical-usage-of-price-constraints">standard use-case</a>
 	 * you can also create query with this constraint only:
-	 * 
+	 *
 	 * <pre>
 	 * priceInCurrency("EUR")
 	 * </pre>
-	 * 
+	 *
 	 * Warning: Only a single occurrence of any of this constraint is allowed in the filter part of the query.
 	 * Currently, there is no way to switch context between different parts of the filter and build queries such as find
 	 * a product whose price is either in "CZK" or "EUR" currency at this or that time using this constraint.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/price#price-in-currency">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -729,15 +729,15 @@ public interface QueryConstraints {
 	 * The `priceInCurrency` constraint can be used to limit the result set to entities that have a price in the specified
 	 * currency. Except for the <a href="https://evitadb.io/documentation/query/filtering/price?lang=evitaql#typical-usage-of-price-constraints">standard use-case</a>
 	 * you can also create query with this constraint only:
-	 * 
+	 *
 	 * <pre>
 	 * priceInCurrency("EUR")
 	 * </pre>
-	 * 
+	 *
 	 * Warning: Only a single occurrence of any of this constraint is allowed in the filter part of the query.
 	 * Currently, there is no way to switch context between different parts of the filter and build queries such as find
 	 * a product whose price is either in "CZK" or "EUR" currency at this or that time using this constraint.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/price#price-in-currency">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -749,9 +749,9 @@ public interface QueryConstraints {
 	 * The constraint `hierarchyWithin` allows you to restrict the search to only those entities that are part of
 	 * the hierarchy tree starting with the root node identified by the first argument of this constraint. In e-commerce
 	 * systems the typical representative of a hierarchical entity is a category, which will be used in all of our examples.
-	 * 
+	 *
 	 * The constraint accepts following arguments:
-	 * 
+	 *
 	 * - optional name of the queried entity reference schema that represents the relationship to the hierarchical entity
 	 *   type, your entity may target different hierarchical entities in different reference types, or it may target
 	 *   the same hierarchical entity through multiple semantically different references, and that is why the reference name
@@ -759,14 +759,14 @@ public interface QueryConstraints {
 	 * - a single mandatory filter constraint that identifies one or more hierarchy nodes that act as hierarchy roots;
 	 *   multiple constraints must be enclosed in AND / OR containers
 	 * - optional constraints allow you to narrow the scope of the hierarchy; none or all of the constraints may be present:
-	 * 
+	 *
 	 *      - {@link HierarchyDirectRelation}
 	 *      - {@link HierarchyHaving}
 	 *      - {@link HierarchyExcluding}
 	 *      - {@link HierarchyExcludingRoot}
-	 * 
+	 *
 	 * The most straightforward usage is filtering the hierarchical entities themselves.
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Category"),
@@ -782,10 +782,10 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * The `hierarchyWithin` constraint can also be used for entities that directly reference a hierarchical entity type.
 	 * The most common use case from the e-commerce world is a product that is assigned to one or more categories.
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -802,10 +802,10 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * Products assigned to two or more subcategories of Accessories category will only appear once in the response
 	 * (contrary to what you might expect if you have experience with SQL).
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/hierarchy#hierarchy-within">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -823,9 +823,9 @@ public interface QueryConstraints {
 	 * The constraint `hierarchyWithin` allows you to restrict the search to only those entities that are part of
 	 * the hierarchy tree starting with the root node identified by the first argument of this constraint. In e-commerce
 	 * systems the typical representative of a hierarchical entity is a category, which will be used in all of our examples.
-	 * 
+	 *
 	 * The constraint accepts following arguments:
-	 * 
+	 *
 	 * - optional name of the queried entity reference schema that represents the relationship to the hierarchical entity
 	 *   type, your entity may target different hierarchical entities in different reference types, or it may target
 	 *   the same hierarchical entity through multiple semantically different references, and that is why the reference name
@@ -833,14 +833,14 @@ public interface QueryConstraints {
 	 * - a single mandatory filter constraint that identifies one or more hierarchy nodes that act as hierarchy roots;
 	 *   multiple constraints must be enclosed in AND / OR containers
 	 * - optional constraints allow you to narrow the scope of the hierarchy; none or all of the constraints may be present:
-	 * 
+	 *
 	 *      - {@link HierarchyDirectRelation}
 	 *      - {@link HierarchyHaving}
 	 *      - {@link HierarchyExcluding}
 	 *      - {@link HierarchyExcludingRoot}
-	 * 
+	 *
 	 * The most straightforward usage is filtering the hierarchical entities themselves.
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Category"),
@@ -856,10 +856,10 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * The `hierarchyWithin` constraint can also be used for entities that directly reference a hierarchical entity type.
 	 * The most common use case from the e-commerce world is a product that is assigned to one or more categories.
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -876,10 +876,10 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * Products assigned to two or more subcategories of Accessories category will only appear once in the response
 	 * (contrary to what you might expect if you have experience with SQL).
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/hierarchy#hierarchy-within">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -896,28 +896,28 @@ public interface QueryConstraints {
 	/**
 	 * The constraint `hierarchyWithinRoot` allows you to restrict the search to only those entities that are part of
 	 * the entire hierarchy tree. In e-commerce systems the typical representative of a hierarchical entity is a category.
-	 * 
+	 *
 	 * The single difference to {@link HierarchyWithin} constraint is that it doesn't accept a root node specification.
 	 * Because evitaDB accepts multiple root nodes in your entity hierarchy, it may be helpful to imagine there is
 	 * an invisible "virtual" top root above all the top nodes (whose parent property remains NULL) you have in your entity
 	 * hierarchy and this virtual top root is targeted by this constraint.
-	 * 
+	 *
 	 * - The constraint accepts following arguments:
-	 * 
+	 *
 	 * - optional name of the queried entity reference schema that represents the relationship to the hierarchical entity
 	 *   type, your entity may target different hierarchical entities in different reference types, or it may target
 	 *   the same hierarchical entity through multiple semantically different references, and that is why the reference name
 	 *   is used instead of the target entity type.
 	 * - optional constraints allow you to narrow the scope of the hierarchy; none or all of the constraints may be present:
-	 * 
+	 *
 	 *      - {@link HierarchyDirectRelation}
 	 *      - {@link HierarchyHaving}
 	 *      - {@link HierarchyExcluding}
-	 * 
+	 *
 	 * The `hierarchyWithinRoot`, which targets the Category collection itself, returns all categories except those that
 	 * would point to non-existent parent nodes, such hierarchy nodes are called orphans and do not satisfy any hierarchy
 	 * query.
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Category"),
@@ -931,10 +931,10 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * The `hierarchyWithinRoot` constraint can also be used for entities that directly reference a hierarchical entity
 	 * type. The most common use case from the e-commerce world is a product that is assigned to one or more categories.
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -948,10 +948,10 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * Products assigned to only one orphan category will be missing from the result. Products assigned to two or more
 	 * categories will only appear once in the response (contrary to what you might expect if you have experience with SQL).
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/hierarchy#hierarchy-within-root">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
@@ -962,28 +962,28 @@ public interface QueryConstraints {
 	/**
 	 * The constraint `hierarchyWithinRoot` allows you to restrict the search to only those entities that are part of
 	 * the entire hierarchy tree. In e-commerce systems the typical representative of a hierarchical entity is a category.
-	 * 
+	 *
 	 * The single difference to {@link HierarchyWithin} constraint is that it doesn't accept a root node specification.
 	 * Because evitaDB accepts multiple root nodes in your entity hierarchy, it may be helpful to imagine there is
 	 * an invisible "virtual" top root above all the top nodes (whose parent property remains NULL) you have in your entity
 	 * hierarchy and this virtual top root is targeted by this constraint.
-	 * 
+	 *
 	 * - The constraint accepts following arguments:
-	 * 
+	 *
 	 * - optional name of the queried entity reference schema that represents the relationship to the hierarchical entity
 	 *   type, your entity may target different hierarchical entities in different reference types, or it may target
 	 *   the same hierarchical entity through multiple semantically different references, and that is why the reference name
 	 *   is used instead of the target entity type.
 	 * - optional constraints allow you to narrow the scope of the hierarchy; none or all of the constraints may be present:
-	 * 
+	 *
 	 *      - {@link HierarchyDirectRelation}
 	 *      - {@link HierarchyHaving}
 	 *      - {@link HierarchyExcluding}
-	 * 
+	 *
 	 * The `hierarchyWithinRoot`, which targets the Category collection itself, returns all categories except those that
 	 * would point to non-existent parent nodes, such hierarchy nodes are called orphans and do not satisfy any hierarchy
 	 * query.
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Category"),
@@ -997,10 +997,10 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * The `hierarchyWithinRoot` constraint can also be used for entities that directly reference a hierarchical entity
 	 * type. The most common use case from the e-commerce world is a product that is assigned to one or more categories.
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -1014,10 +1014,10 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * Products assigned to only one orphan category will be missing from the result. Products assigned to two or more
 	 * categories will only appear once in the response (contrary to what you might expect if you have experience with SQL).
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/hierarchy#hierarchy-within-root">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
@@ -1030,25 +1030,25 @@ public interface QueryConstraints {
 	 * {@link HierarchyWithinRoot} parent constraints. It simply makes no sense anywhere else because it changes the default
 	 * behavior of those constraints. Hierarchy constraints return all hierarchy children of the parent node or entities
 	 * that are transitively or directly related to them, and the parent node itself.
-	 * 
+	 *
 	 * The having constraint allows you to set a constraint that must be fulfilled by all categories in the category scope
 	 * in order to be accepted by hierarchy within filter. This constraint is especially useful if you want to conditionally
 	 * display certain parts of the tree. Imagine you have a category Christmas Sale that should only be available during
 	 * a certain period of the year, or a category B2B Partners that should only be accessible to a certain role of users.
 	 * All of these scenarios can take advantage of the having constraint (but there are other approaches to solving
 	 * the above use cases).
-	 * 
+	 *
 	 * The constraint accepts following arguments:
-	 * 
+	 *
 	 * - one or more mandatory constraints that must be satisfied by all returned hierarchy nodes and that mark the visible
 	 *   part of the tree, the implicit relation between constraints is logical conjunction (boolean AND)
-	 * 
+	 *
 	 * When the hierarchy constraint targets the hierarchy entity, the children that don't satisfy the inner constraints
 	 * (and their children, whether they satisfy them or not) are excluded from the result.
-	 * 
+	 *
 	 * For demonstration purposes, let's list all categories within the Accessories category, but only those that are valid
 	 * at 01:00 AM on October 1, 2023.
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection('Category'),
@@ -1070,19 +1070,19 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * Because the category Christmas electronics has its validity set to be valid only between December 1st and December
 	 * 24th, it will be omitted from the result. If it had subcategories, they would also be omitted (even if they had no
 	 * validity restrictions).
-	 * 
+	 *
 	 * If the hierarchy constraint targets a non-hierarchical entity that references the hierarchical one (typical example
 	 * is a product assigned to a category), the having constraint is evaluated against the hierarchical entity (category),
 	 * but affects the queried non-hierarchical entities (products). It excludes all products referencing categories that
 	 * don't satisfy the having inner constraints.
-	 * 
+	 *
 	 * Let's use again our example with Christmas electronics that is valid only between 1st and 24th December. To list all
 	 * products available at 01:00 AM on October 1, 2023, issue a following query:
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -1105,22 +1105,22 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * You can see that Christmas products like Retlux Blue Christmas lightning, Retlux Warm white Christmas lightning or
 	 * Emos Candlestick are not present in the listing.
-	 * 
+	 *
 	 * <strong>The lookup stops at the first node that doesn't satisfy the constraint!</strong>
-	 * 
+	 *
 	 * The hierarchical query traverses from the root nodes to the leaf nodes. For each of the nodes, the engine checks
 	 * whether the having constraint is still valid, and if not, it excludes that hierarchy node and all of its child nodes
 	 * (entire subtree).
-	 * 
+	 *
 	 * <strong>What if the product is linked to two categories - one that meets the constraint and one that does not?</strong>
-	 * 
+	 *
 	 * In the situation where the single product, let's say Garmin Vivosmart 5, is in both the excluded category Christmas
 	 * Electronics and the included category Smartwatches, it will remain in the query result because there is at least one
 	 * product reference that is part of the visible part of the tree.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/hierarchy#having">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -1136,23 +1136,23 @@ public interface QueryConstraints {
 	 * {@link HierarchyWithinRoot} parent constraints. It simply makes no sense anywhere else because it changes the default
 	 * behavior of those constraints. Hierarchy constraints return all hierarchy children of the parent node or entities
 	 * that are transitively or directly related to them, and the parent node itself.
-	 * 
+	 *
 	 * The excluding constraint allows you to exclude one or more subtrees from the scope of the filter. This constraint is
 	 * the exact opposite of the having constraint. If the constraint is true for a hierarchy entity, it and all of its
 	 * children are excluded from the query. The excluding constraint is the same as declaring `having(not(expression))`,
 	 * but for the sake of readability it has its own constraint.
-	 * 
+	 *
 	 * The constraint accepts following arguments:
-	 * 
+	 *
 	 * - one or more mandatory constraints that must be satisfied by all returned hierarchy nodes and that mark the visible
 	 *   part of the tree, the implicit relation between constraints is logical conjunction (boolean AND)
-	 * 
+	 *
 	 * When the hierarchy constraint targets the hierarchy entity, the children that satisfy the inner constraints (and
 	 * their children, whether they satisfy them or not) are excluded from the result.
-	 * 
+	 *
 	 * For demonstration purposes, let's list all categories within the Accessories category, but exclude exactly
 	 * the Wireless headphones subcategory.
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -1172,18 +1172,18 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * The category Wireless Headphones and all its subcategories will not be shown in the results list.
-	 * 
+	 *
 	 * If the hierarchy constraint targets a non-hierarchical entity that references the hierarchical one (typical example
 	 * is a product assigned to a category), the excluding constraint is evaluated against the hierarchical entity
 	 * (category), but affects the queried non-hierarchical entities (products). It excludes all products referencing
 	 * categories that satisfy the excluding inner constraints.
-	 * 
+	 *
 	 * Let's go back to our example query that excludes the Wireless Headphones category subtree. To list all products
 	 * available in the Accessories category except those related to the Wireless Headphones category or its subcategories,
 	 * issue the following query:
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -1203,19 +1203,19 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * You can see that wireless headphone products like Huawei FreeBuds 4, Jabra Elite 3 or Adidas FWD-02 Sport are not
 	 * present in the listing.
-	 * 
+	 *
 	 * When the product is assigned to two categories - one excluded and one part of the visible category tree, the product
 	 * remains in the result. See the example.
-	 * 
+	 *
 	 * <strong>The lookup stops at the first node that satisfies the constraint!</strong>
-	 * 
+	 *
 	 * The hierarchical query traverses from the root nodes to the leaf nodes. For each of the nodes, the engine checks
 	 * whether the excluding constraint is satisfied valid, and if so, it excludes that hierarchy node and all of its child
 	 * nodes (entire subtree).
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/hierarchy#excluding">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -1232,11 +1232,11 @@ public interface QueryConstraints {
 	 * behavior of those constraints. Hierarchy constraints return all hierarchy children of the parent node or entities
 	 * that are transitively or directly related to them and the parent node itself. If the directRelation is used as
 	 * a sub-constraint, this behavior changes and only direct descendants or directly referencing entities are matched.
-	 * 
+	 *
 	 * If the hierarchy constraint targets the hierarchy entity, the `directRelation` will cause only the children of
 	 * a direct parent node to be returned. In the case of the hierarchyWithinRoot constraint, the parent is an invisible
 	 * "virtual" top root - so only the top-level categories are returned.
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection('Category'),
@@ -1252,16 +1252,16 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * If the hierarchy constraint targets a non-hierarchical entity that references the hierarchical one (typical example
 	 * is a product assigned to a category), it can only be used in the hierarchyWithin parent constraint.
-	 * 
+	 *
 	 * In the case of {@link HierarchyWithinRoot}, the `directRelation` constraint makes no sense because no entity can be
 	 * assigned to a "virtual" top parent root.
-	 * 
+	 *
 	 * So we can only list products that are directly related to a certain category. We can list products that have
 	 * Smartwatches category assigned:
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -1279,7 +1279,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/hierarchy#direct-relation">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
@@ -1294,11 +1294,11 @@ public interface QueryConstraints {
 	 * that are transitively or directly related to them and the parent node itself. When the excludingRoot is used as
 	 * a sub-constraint, this behavior changes and the parent node itself or the entities directly related to that parent
 	 * node are be excluded from the result.
-	 * 
+	 *
 	 * If the hierarchy constraint targets the hierarchy entity, the `excludingRoot` will omit the requested parent node
 	 * from the result. In the case of the {@link HierarchyWithinRoot} constraint, the parent is an invisible "virtual" top
 	 * root, and this constraint makes no sense.
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -1316,19 +1316,19 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * If the hierarchy constraint targets a non-hierarchical entity that references the hierarchical one (typical example
 	 * is a product assigned to a category), the `excludingRoot` constraint can only be used in the {@link HierarchyWithin}
 	 * parent constraint.
-	 * 
+	 *
 	 * In the case of {@link HierarchyWithinRoot}, the `excludingRoot` constraint makes no sense because no entity can be
 	 * assigned to a "virtual" top parent root.
-	 * 
+	 *
 	 * Because we learned that Accessories category has no directly assigned products, the `excludingRoot` constraint
 	 * presence would not affect the query result. Therefore, we choose Keyboard category for our example. When we list all
 	 * products in Keyboard category using {@link HierarchyWithin} constraint, we obtain 20 items. When the `excludingRoot`
 	 * constraint is used:
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -1346,10 +1346,10 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ... we get only 4 items, which means that 16 were assigned directly to Keyboards category and only 4 of them were
 	 * assigned to Exotic keyboards.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/hierarchy#excluding-root">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
@@ -1361,16 +1361,16 @@ public interface QueryConstraints {
 	 * If any filter constraint of the query targets a localized attribute, the `entityLocaleEquals` must also be provided,
 	 * otherwise the query interpreter will return an error. Localized attributes must be identified by both their name and
 	 * {@link Locale} in order to be used.
-	 * 
+	 *
 	 * Only a single occurrence of entityLocaleEquals is allowed in the filter part of the query. Currently, there is no way
 	 * to switch context between different parts of the filter and build queries such as find a product whose name in en-US
 	 * is "screwdriver" or in cs is "šroubovák".
-	 * 
+	 *
 	 * Also, it's not possible to omit the language specification for a localized attribute and ask questions like: find
 	 * a product whose name in any language is "screwdriver".
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -1388,7 +1388,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/locale#entity-locale-equals">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -1401,9 +1401,9 @@ public interface QueryConstraints {
 	 * entity. It can only be used within the referenceHaving constraint, which defines the name of the entity reference
 	 * that identifies the target entity to be subjected to the filtering restrictions in the entityHaving constraint.
 	 * The filtering constraints for the entity can use entire range of filtering operators.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * referenceHaving(
 	 *     "brand",
@@ -1412,7 +1412,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/references#entity-having">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -1425,27 +1425,27 @@ public interface QueryConstraints {
 	 * and time passed in the second argument. First argument must be {@link String}, second argument must be
 	 * {@link OffsetDateTime} type. If second argument is not passed - current date and time (now) is used.
 	 * Type of the attribute value must implement {@link Range} interface.
-	 * 
+	 *
 	 * Function returns true if second argument is greater than or equal to range start (from), and is lesser than
 	 * or equal to range end (to).
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * inRange("valid", 2020-07-30T20:37:50+00:00)
 	 * inRange("age", 18)
 	 * </pre>
-	 * 
+	 *
 	 * Function supports attribute arrays and when attribute is of array type `inRange` returns true if any of attribute
 	 * values has range, that envelopes the passed value the value in the query. If we have the attribute `age` with value
 	 * `[[18, 25],[60,65]]` all these constraints will match:
-	 * 
+	 *
 	 * <pre>
 	 * inRange("age", 18)
 	 * inRange("age", 24)
 	 * inRange("age", 63)
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/range#attribute-in-range">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -1458,27 +1458,27 @@ public interface QueryConstraints {
 	 * and time passed in the second argument. First argument must be {@link String}, second argument must be
 	 * {@link OffsetDateTime} type. If second argument is not passed - current date and time (now) is used.
 	 * Type of the attribute value must implement {@link Range} interface.
-	 * 
+	 *
 	 * Function returns true if second argument is greater than or equal to range start (from), and is lesser than
 	 * or equal to range end (to).
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * inRange("valid", 2020-07-30T20:37:50+00:00)
 	 * inRange("age", 18)
 	 * </pre>
-	 * 
+	 *
 	 * Function supports attribute arrays and when attribute is of array type `inRange` returns true if any of attribute
 	 * values has range, that envelopes the passed value the value in the query. If we have the attribute `age` with value
 	 * `[[18, 25],[60,65]]` all these constraints will match:
-	 * 
+	 *
 	 * <pre>
 	 * inRange("age", 18)
 	 * inRange("age", 24)
 	 * inRange("age", 63)
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/range#attribute-in-range">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -1491,27 +1491,27 @@ public interface QueryConstraints {
 	 * and time passed in the second argument. First argument must be {@link String}, second argument must be
 	 * {@link OffsetDateTime} type. If second argument is not passed - current date and time (now) is used.
 	 * Type of the attribute value must implement {@link Range} interface.
-	 * 
+	 *
 	 * Function returns true if second argument is greater than or equal to range start (from), and is lesser than
 	 * or equal to range end (to).
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * inRange("valid", 2020-07-30T20:37:50+00:00)
 	 * inRange("age", 18)
 	 * </pre>
-	 * 
+	 *
 	 * Function supports attribute arrays and when attribute is of array type `inRange` returns true if any of attribute
 	 * values has range, that envelopes the passed value the value in the query. If we have the attribute `age` with value
 	 * `[[18, 25],[60,65]]` all these constraints will match:
-	 * 
+	 *
 	 * <pre>
 	 * inRange("age", 18)
 	 * inRange("age", 24)
 	 * inRange("age", 63)
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/range#attribute-in-range">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -1523,27 +1523,27 @@ public interface QueryConstraints {
 	 * This `inSet` is query that compares value of the attribute with name passed in first argument with all the values passed
 	 * in the second, third and additional arguments. First argument must be {@link String}, additional arguments may be any
 	 * of {@link Comparable} type.
-	 * 
+	 *
 	 * Type of the attribute value and additional arguments must be convertible one to another otherwise `in` function
 	 * skips value comparison and ultimately returns false.
-	 * 
+	 *
 	 * Function returns true if attribute value is equal to at least one of additional values.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * inSet("level", 1, 2, 3)
 	 * </pre>
-	 * 
+	 *
 	 * Function supports attribute arrays and when attribute is of array type `inSet` returns true if any of attribute values
 	 * equals the value in the query. If we have the attribute `code` with value `["A","B","C"]` all these constraints will
 	 * match:
-	 * 
+	 *
 	 * <pre>
 	 * inSet("code","A","D")
 	 * inSet("code","A", "B")
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#attribute-in-set">Visit detailed user documentation</a></p>
 	*/
 	@SuppressWarnings("unchecked")
@@ -1575,25 +1575,25 @@ public interface QueryConstraints {
 	 * in the second argument. First argument must be {@link String}, second argument may be any of {@link Comparable} type.
 	 * Type of the attribute value and second argument must be convertible one to another otherwise `equals` function
 	 * returns false.
-	 * 
+	 *
 	 * Function returns true if both values are equal.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * equals("code", "abc")
 	 * </pre>
-	 * 
+	 *
 	 * Function supports attribute arrays and when attribute is of array type `equals` returns true if any of attribute values
 	 * equals the value in the query. If we have the attribute `code` with value `["A","B","C"]` all these constraints will
 	 * match:
-	 * 
+	 *
 	 * <pre>
 	 * equals("code","A")
 	 * equals("code","B")
 	 * equals("code","C")
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#attribute-equals">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -1606,25 +1606,25 @@ public interface QueryConstraints {
 	 * in the second argument. First argument must be {@link String}, second argument may be any of {@link Comparable} type.
 	 * Type of the attribute value and second argument must be convertible one to another otherwise `equals` function
 	 * returns false.
-	 * 
+	 *
 	 * Function returns true if both values are equal.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * equals("code", "abc")
 	 * </pre>
-	 * 
+	 *
 	 * Function supports attribute arrays and when attribute is of array type `equals` returns true if any of attribute values
 	 * equals the value in the query. If we have the attribute `code` with value `["A","B","C"]` all these constraints will
 	 * match:
-	 * 
+	 *
 	 * <pre>
 	 * equals("code","A")
 	 * equals("code","B")
 	 * equals("code","C")
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#attribute-equals">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -1636,20 +1636,20 @@ public interface QueryConstraints {
 	 * This `attributeIs` is query that checks attribute for "special" value or constant that cannot be compared through
 	 * {@link Comparable} of attribute with name passed in first argument.
 	 * First argument must be {@link String}. Second is one of the {@link AttributeSpecialValue special values}:
-	 * 
+	 *
 	 * - {@link AttributeSpecialValue#NULL}
 	 * - {@link AttributeSpecialValue#NOT_NULL}
-	 * 
+	 *
 	 * Function returns true if attribute has (explicitly or implicitly) passed special value.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * attributeIs("visible", NULL)
 	 * </pre>
-	 * 
+	 *
 	 * Function supports attribute arrays in the same way as plain values.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#attribute-is">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -1664,20 +1664,20 @@ public interface QueryConstraints {
 	 * This `attributeIs` is query that checks attribute for "special" value or constant that cannot be compared through
 	 * {@link Comparable} of attribute with name passed in first argument.
 	 * First argument must be {@link String}. Second is one of the {@link AttributeSpecialValue special values}:
-	 * 
+	 *
 	 * - {@link AttributeSpecialValue#NULL}
 	 * - {@link AttributeSpecialValue#NOT_NULL}
-	 * 
+	 *
 	 * Function returns true if attribute has (explicitly or implicitly) passed special value.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * attributeIs("visible", NULL)
 	 * </pre>
-	 * 
+	 *
 	 * Function supports attribute arrays in the same way as plain values.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#attribute-is">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -1689,20 +1689,20 @@ public interface QueryConstraints {
 	 * This `attributeIs` is query that checks attribute for "special" value or constant that cannot be compared through
 	 * {@link Comparable} of attribute with name passed in first argument.
 	 * First argument must be {@link String}. Second is one of the {@link AttributeSpecialValue special values}:
-	 * 
+	 *
 	 * - {@link AttributeSpecialValue#NULL}
 	 * - {@link AttributeSpecialValue#NOT_NULL}
-	 * 
+	 *
 	 * Function returns true if attribute has (explicitly or implicitly) passed special value.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * attributeIs("visible", NULL)
 	 * </pre>
-	 * 
+	 *
 	 * Function supports attribute arrays in the same way as plain values.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#attribute-is">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -1715,17 +1715,17 @@ public interface QueryConstraints {
 	 * range. This constraint is typically set by the user interface to allow the user to filter products by price, and
 	 * should be nested inside the userFilter constraint container so that it can be properly handled by the facet or
 	 * histogram computations.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * priceBetween(150.25, 220.0)
 	 * </pre>
-	 * 
+	 *
 	 * Warning: Only a single occurrence of any of this constraint is allowed in the filter part of the query.
 	 * Currently, there is no way to switch context between different parts of the filter and build queries such as find
 	 * a product whose price is either in "CZK" or "EUR" currency at this or that time using this constraint.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/price#price-between">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -1740,17 +1740,17 @@ public interface QueryConstraints {
 	/**
 	 * The `priceValidIn` excludes all entities that don't have a valid price for sale at the specified date and time. If
 	 * the price doesn't have a validity property specified, it passes all validity checks.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * priceValidIn(2020-07-30T20:37:50+00:00)
 	 * </pre>
-	 * 
+	 *
 	 * Warning: Only a single occurrence of any of this constraint is allowed in the filter part of the query.
 	 * Currently, there is no way to switch context between different parts of the filter and build queries such as find
 	 * a product whose price is either in "CZK" or "EUR" currency at this or that time using this constraint.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/filtering/price#price-valid-in">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -1761,17 +1761,17 @@ public interface QueryConstraints {
 	/**
 	 * The `priceValidIn` excludes all entities that don't have a valid price for sale at the specified date and time. If
 	 * the price doesn't have a validity property specified, it passes all validity checks.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * priceValidIn(2020-07-30T20:37:50+00:00)
 	 * </pre>
-	 * 
+	 *
 	 * Warning: Only a single occurrence of any of this constraint is allowed in the filter part of the query.
 	 * Currently, there is no way to switch context between different parts of the filter and build queries such as find
 	 * a product whose price is either in "CZK" or "EUR" currency at this or that time using this constraint.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/filtering/price#price-valid-in">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
@@ -1785,9 +1785,9 @@ public interface QueryConstraints {
 	 * exactly like the referenceHaving constraint, but works in conjunction with the facetSummary requirement to correctly
 	 * calculate the facet statistics and impact predictions. When used outside the userFilter constraint container,
 	 * the `facetHaving` constraint behaves like the {@link ReferenceHaving} constraint.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * userFilter(
 	 *   facetHaving(
@@ -1798,7 +1798,7 @@ public interface QueryConstraints {
 	 *   )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/references#facet-having">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -1809,13 +1809,13 @@ public interface QueryConstraints {
 	/**
 	 * The `entityPrimaryKeyInSet` constraint limits the list of returned entities by exactly specifying their entity
 	 * primary keys.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * primaryKey(1, 2, 3)
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/constant#entity-primary-key-in-set">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -1841,13 +1841,13 @@ public interface QueryConstraints {
 	/**
 	 * The `entityPrimaryKeyInSet` constraint limits the list of returned entities by exactly specifying their entity
 	 * primary keys.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * primaryKey(1, 2, 3)
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/constant#entity-primary-key-in-set">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -1871,7 +1871,7 @@ public interface QueryConstraints {
 	 * If two entities have the same value of the first attribute, they are not sorted by the second attribute, but by the
 	 * primary key (in ascending order). If we want to use fast "pre-sorted" indexes, there is no other way to do it,
 	 * because the secondary order would not be known until a query time.
-	 * 
+	 *
 	 * This default sorting behavior by multiple attributes is not always desirable, so evitaDB allows you to define
 	 * a sortable attribute compound, which is a virtual attribute composed of the values of several other attributes.
 	 * evitaDB also allows you to specify the order of the "pre-sorting" behavior (ascending/descending) for each of these
@@ -1879,9 +1879,9 @@ public interface QueryConstraints {
 	 * The sortable attribute compound is then used in the orderBy clause of the query instead of specifying the multiple
 	 * individual attributes to achieve the expected sorting behavior while maintaining the speed of the "pre-sorted"
 	 * indexes.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * orderBy(
 	 *     ascending("code"),
@@ -1889,7 +1889,7 @@ public interface QueryConstraints {
 	 *     priceDescending()
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/basics#order-by">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -1904,13 +1904,13 @@ public interface QueryConstraints {
 	 * The `entityGroupProperty` ordering constraint can only be used within the {@link ReferenceContent} requirement.
 	 * It allows the context of the reference ordering to be changed from attributes of the reference itself to attributes
 	 * of the group entity within which the reference is aggregated.
-	 * 
+	 *
 	 * In other words, if the Product entity has multiple references to ParameterValue entities that are grouped by their
 	 * assignment to the Parameter entity, you can sort those references primarily by the name attribute of the grouping
 	 * entity, and secondarily by the name attribute of the referenced entity. Let's look at an example:
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -1942,7 +1942,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/basics#order-by">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -1955,9 +1955,9 @@ public interface QueryConstraints {
 
 	/**
 	 * The constraint allows to sort output entities by primary key values in the exact order.
-	 * 
+	 *
 	 * Example usage:
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *    orderBy(
@@ -1965,11 +1965,11 @@ public interface QueryConstraints {
 	 *    )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * The example will return the selected entities (if present) in the descending order of their primary keys. Since
 	 * the entities are by default ordered by their primary key in ascending order, it has no sense to use this constraint
 	 * with {@link OrderDirection#ASC} direction.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/ordering/comparable#primary-key-natural">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
@@ -1981,9 +1981,9 @@ public interface QueryConstraints {
 	 * The constraint allows to sort output entities by primary key values in the exact order that was used for filtering
 	 * them. The constraint requires presence of exactly one {@link EntityPrimaryKeyInSet} constraint in filter part of
 	 * the query. It uses {@link EntityPrimaryKeyInSet#getPrimaryKeys()} array for sorting the output of the query.
-	 * 
+	 *
 	 * Example usage:
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *    filterBy(
@@ -1994,11 +1994,11 @@ public interface QueryConstraints {
 	 *    )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * The example will return the selected entities (if present) in the exact order that was used for array filtering them.
 	 * The ordering constraint is particularly useful when you have sorted set of entity primary keys from an external
 	 * system which needs to be maintained (for example, it represents a relevancy of those entities).
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/ordering/constant#exact-entity-primary-key-order-used-in-filter">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
@@ -2009,9 +2009,9 @@ public interface QueryConstraints {
 	/**
 	 * The constraint allows to sort output entities by primary key values in the exact order that is specified in
 	 * the arguments of this constraint.
-	 * 
+	 *
 	 * Example usage:
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *    filterBy(
@@ -2022,12 +2022,12 @@ public interface QueryConstraints {
 	 *    )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * The example will return the selected entities (if present) in the exact order that is stated in the argument of
 	 * this ordering constraint. If there are entities, whose primary keys are not present in the argument, then they
 	 * will be present at the end of the output in ascending order of their primary keys (or they will be sorted by
 	 * additional ordering constraint in the chain).
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/ordering/constant#exact-entity-primary-key-order">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -2043,9 +2043,9 @@ public interface QueryConstraints {
 	 * them. The constraint requires presence of exactly one {@link AttributeInSet} constraint in filter part of the query
 	 * that relates to the attribute with the same name as is used in the first argument of this constraint.
 	 * It uses {@link AttributeInSet#getAttributeValues()} array for sorting the output of the query.
-	 * 
+	 *
 	 * Example usage:
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *    filterBy(
@@ -2056,11 +2056,11 @@ public interface QueryConstraints {
 	 *    )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * The example will return the selected entities (if present) in the exact order of their attribute `code` that was used
 	 * for array filtering them. The ordering constraint is particularly useful when you have sorted set of attribute values
 	 * from an external system which needs to be maintained (for example, it represents a relevancy of those entities).
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/ordering/constant#exact-entity-attribute-value-order-used-in-filter">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -2074,9 +2074,9 @@ public interface QueryConstraints {
 	/**
 	 * The constraint allows output entities to be sorted by attribute values in the exact order specified in the 2nd through
 	 * Nth arguments of this constraint.
-	 * 
+	 *
 	 * Example usage:
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *    filterBy(
@@ -2087,12 +2087,12 @@ public interface QueryConstraints {
 	 *    )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * The example will return the selected entities (if present) in the exact order of their `code` attributes that is
 	 * stated in the second to Nth argument of this ordering constraint. If there are entities, that have not the attribute
 	 * `code` , then they will be present at the end of the output in ascending order of their primary keys (or they will be
 	 * sorted by additional ordering constraint in the chain).
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/ordering/constant#exact-entity-attribute-value-order">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -2107,12 +2107,12 @@ public interface QueryConstraints {
 	 * Sorting by reference attribute is not as common as sorting by entity attributes, but it allows you to sort entities
 	 * that are in a particular category or have a particular brand specifically by the priority/order for that particular
 	 * relationship.
-	 * 
+	 *
 	 * To sort products related to a "Sony" brand by the `priority` attribute set on the reference, you need to use the
 	 * following constraint:
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -2141,43 +2141,43 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * **The `referenceProperty` is implicit in requirement `referenceContent`**
-	 * 
+	 *
 	 * In the `orderBy` clause within the {@link io.evitadb.api.query.require.ReferenceContent} requirement,
 	 * the `referenceProperty` constraint is implicit and must not be repeated. All attribute order constraints
 	 * in `referenceContent` automatically refer to the reference attributes, unless the {@link EntityProperty} or
 	 * {@link EntityGroupProperty} container is used there.
-	 * 
+	 *
 	 * The example is based on a simple one-to-zero-or-one reference (a product can have at most one reference to a brand
 	 * entity). The response will only return the products that have a reference to the "Sony" brand, all of which contain the
 	 * `orderInBrand` attribute (since it's marked as a non-nullable attribute). Because the example is so simple, the returned
 	 * result can be anticipated.
-	 * 
+	 *
 	 * ## Behaviour of zero or one to many references ordering
-	 * 
+	 *
 	 * The situation is more complicated when the reference is one-to-many. What is the expected result of a query that
 	 * involves ordering by a property on a reference attribute? Is it wise to allow such ordering query in this case?
-	 * 
+	 *
 	 * We decided to allow it and bind it with the following rules:
-	 * 
+	 *
 	 * ### Non-hierarchical entity
-	 * 
+	 *
 	 * If the referenced entity is **non-hierarchical**, and the returned entity references multiple entities, only
 	 * the reference with the lowest primary key of the referenced entity, while also having the order property set, will be
 	 * used for ordering.
-	 * 
+	 *
 	 * ### Hierarchical entity
-	 * 
+	 *
 	 * If the referenced entity is **hierarchical** and the returned entity references multiple entities, the reference used
 	 * for ordering is the one that contains the order property and is the closest hierarchy node to the root of the filtered
 	 * hierarchy node.
-	 * 
+	 *
 	 * It sounds complicated, but it's really quite simple. If you list products of a certain category and at the same time
 	 * order them by a property "priority" set on the reference to the category, the first products will be those directly
 	 * related to the category, ordered by "priority", followed by the products of the first child category, and so on,
 	 * maintaining the depth-first order of the category tree.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/ordering/reference#reference-property">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -2192,12 +2192,12 @@ public interface QueryConstraints {
 	 * The `entityProperty` ordering constraint can only be used within the {@link ReferenceContent} requirement. It allows
 	 * to change the context of the reference ordering from attributes of the reference itself to attributes of the entity
 	 * the reference points to.
-	 * 
+	 *
 	 * In other words, if the `Product` entity has multiple references to `Parameter` entities, you can sort those references
 	 * by, for example, the `priority` or `name` attribute of the `Parameter` entity.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -2222,7 +2222,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/ordering/reference#entity-property">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -2237,13 +2237,13 @@ public interface QueryConstraints {
 	 * The `entityGroupProperty` ordering constraint can only be used within the {@link ReferenceContent} requirement. It
 	 * allows to change the context of the reference ordering from attributes of the reference itself to attributes of
 	 * the entity group the reference is aggregated within.
-	 * 
+	 *
 	 * In other words, if the `Product` entity has multiple references to `Parameter` entities (blue/red/yellow) grouped
 	 * within `ParameterType` (color) entity, you can sort those references by, for example, the `priority` or `name`
 	 * attribute of the `ParameterType` entity.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -2268,12 +2268,12 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * Most of the time, you will want to group primarily by a group property and secondarily by a referenced entity
 	 * property, which can be achieved in the following way:
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -2301,7 +2301,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/ordering/reference#entity-group-property">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -2316,11 +2316,11 @@ public interface QueryConstraints {
 	 * The constraint allows output entities to be sorted by their attributes in their natural order (numeric, alphabetical,
 	 * temporal). It requires specification of a single attribute and the direction of the ordering (default ordering is
 	 * {@link OrderDirection#ASC}).
-	 * 
+	 *
 	 * Ordering is executed by natural order of the {@link Comparable} type.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -2334,23 +2334,23 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * If you want to sort products by their name, which is a localized attribute, you need to specify the {@link EntityLocaleEquals}
 	 * constraint in the {@link FilterBy} part of the query. The correct {@link java.text.Collator} is used to
 	 * order the localized attribute string, so that the order is consistent with the national customs of the language.
-	 * 
+	 *
 	 * The sorting mechanism of evitaDB is somewhat different from what you might be used to. If you sort entities by two
 	 * attributes in an `orderBy` clause of the query, evitaDB sorts them first by the first attribute (if present) and then
 	 * by the second (but only those where the first attribute is missing). If two entities have the same value of the first
 	 * attribute, they are not sorted by the second attribute, but by the primary key (in ascending order).
-	 * 
+	 *
 	 * If we want to use fast "pre-sorted" indexes, there is no other way to do it, because the secondary order would not be
 	 * known until a query time. If you want to sort by multiple attributes in the conventional way, you need to define the
 	 * sortable attribute compound in advance and use its name instead of the default attribute name. The sortable attribute
 	 * compound will cover multiple attributes and prepares a special sort index for this particular combination of
 	 * attributes, respecting the predefined order and NULL values behaviour. In the query, you can then use the compound
 	 * name instead of the default attribute name and achieve the expected results.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/ordering/comparable#attribute-natural">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -2362,11 +2362,11 @@ public interface QueryConstraints {
 	 * The constraint allows output entities to be sorted by their attributes in their natural order (numeric, alphabetical,
 	 * temporal). It requires specification of a single attribute and the direction of the ordering (default ordering is
 	 * {@link OrderDirection#ASC}).
-	 * 
+	 *
 	 * Ordering is executed by natural order of the {@link Comparable} type.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -2380,23 +2380,23 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * If you want to sort products by their name, which is a localized attribute, you need to specify the {@link EntityLocaleEquals}
 	 * constraint in the {@link FilterBy} part of the query. The correct {@link java.text.Collator} is used to
 	 * order the localized attribute string, so that the order is consistent with the national customs of the language.
-	 * 
+	 *
 	 * The sorting mechanism of evitaDB is somewhat different from what you might be used to. If you sort entities by two
 	 * attributes in an `orderBy` clause of the query, evitaDB sorts them first by the first attribute (if present) and then
 	 * by the second (but only those where the first attribute is missing). If two entities have the same value of the first
 	 * attribute, they are not sorted by the second attribute, but by the primary key (in ascending order).
-	 * 
+	 *
 	 * If we want to use fast "pre-sorted" indexes, there is no other way to do it, because the secondary order would not be
 	 * known until a query time. If you want to sort by multiple attributes in the conventional way, you need to define the
 	 * sortable attribute compound in advance and use its name instead of the default attribute name. The sortable attribute
 	 * compound will cover multiple attributes and prepares a special sort index for this particular combination of
 	 * attributes, respecting the predefined order and NULL values behaviour. In the query, you can then use the compound
 	 * name instead of the default attribute name and achieve the expected results.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/ordering/comparable#attribute-natural">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -2410,17 +2410,17 @@ public interface QueryConstraints {
 	 * order. It requires only the order direction and the price constraints in the `filterBy` section of the query.
 	 * The price variant (with or without tax) is determined by the {@link PriceType} requirement of the query (price with
 	 * tax is used by default).
-	 * 
+	 *
 	 * Please read the <a href="https://evitadb.io/documentation/deep-dive/price-for-sale-calculation">price for sale
 	 * calculation algorithm documentation</a> to understand how the price for sale is calculated.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * priceNatural()
 	 * priceNatural(DESC)
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/ordering/price#price-natural">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
@@ -2433,17 +2433,17 @@ public interface QueryConstraints {
 	 * order. It requires only the order direction and the price constraints in the `filterBy` section of the query.
 	 * The price variant (with or without tax) is determined by the {@link PriceType} requirement of the query (price with
 	 * tax is used by default).
-	 * 
+	 *
 	 * Please read the <a href="https://evitadb.io/documentation/deep-dive/price-for-sale-calculation">price for sale
 	 * calculation algorithm documentation</a> to understand how the price for sale is calculated.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * priceNatural()
 	 * priceNatural(DESC)
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/ordering/price#price-natural">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
@@ -2455,13 +2455,13 @@ public interface QueryConstraints {
 	 * Random ordering is useful in situations where you want to present the end user with the unique entity listing every
 	 * time he/she accesses it. The constraint makes the order of the entities in the result random and does not take any
 	 * arguments.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * random()
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/ordering/random#random">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
@@ -2479,16 +2479,16 @@ public interface QueryConstraints {
 	 * entities. They also allow to compute additional calculations that relate to the returned entities, but contain
 	 * other contextual data - for example hierarchy data for creating menus, facet summary for parametrized filter,
 	 * histograms for charts, and so on.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * require(
 	 *     page(1, 2),
 	 *     entityFetch()
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/basics#require">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -2505,22 +2505,22 @@ public interface QueryConstraints {
 	 * related constraints - i.e. {@link AttributeBetween} and {@link PriceBetween} in the userFilter part are excluded for
 	 * the sake of histogram calculation. If this weren't the case, the user narrowing the filtered range based on
 	 * the histogram results would be driven into a narrower and narrower range and eventually into a dead end.
-	 * 
+	 *
 	 * It accepts two plus arguments:
-	 * 
+	 *
 	 * 1. The number of buckets (columns) the histogram should contain.
 	 * 2. The behavior of the histogram calculation - either STANDARD (default), where the exactly requested bucket count
 	 *    is returned or OPTIMIZED, where the number of columns is reduced if the data is scarce and there would be big gaps
 	 *    (empty buckets) between buckets. This leads to more compact histograms, which provide better user experience.
 	 * 3. variable number of attribute names for which the histogram should be computed.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * attributeHistogram(5, "width", "height")
 	 * attributeHistogram(5, OPTIMIZED, "width", "height")
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/histogram#attribute-histogram">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -2537,22 +2537,22 @@ public interface QueryConstraints {
 	 * related constraints - i.e. {@link AttributeBetween} and {@link PriceBetween} in the userFilter part are excluded for
 	 * the sake of histogram calculation. If this weren't the case, the user narrowing the filtered range based on
 	 * the histogram results would be driven into a narrower and narrower range and eventually into a dead end.
-	 * 
+	 *
 	 * It accepts two plus arguments:
-	 * 
+	 *
 	 * 1. The number of buckets (columns) the histogram should contain.
 	 * 2. The behavior of the histogram calculation - either STANDARD (default), where the exactly requested bucket count
 	 *    is returned or OPTIMIZED, where the number of columns is reduced if the data is scarce and there would be big gaps
 	 *    (empty buckets) between buckets. This leads to more compact histograms, which provide better user experience.
 	 * 3. variable number of attribute names for which the histogram should be computed.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * attributeHistogram(5, "width", "height")
 	 * attributeHistogram(5, OPTIMIZED, "width", "height")
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/histogram#attribute-histogram">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -2568,24 +2568,24 @@ public interface QueryConstraints {
 	 * and {@link PriceBetween} in the userFilter part are excluded for the sake of histogram calculation. If this weren't
 	 * the case, the user narrowing the filtered range based on the histogram results would be driven into a narrower and
 	 * narrower range and eventually into a dead end.
-	 * 
+	 *
 	 * It accepts two arguments:
-	 * 
+	 *
 	 * 1. The number of buckets (columns) the histogram should contain.
 	 * 2. The behavior of the histogram calculation - either STANDARD (default), where the exactly requested bucket count
 	 *    is returned or OPTIMIZED, where the number of columns is reduced if the data is scarce and there would be big gaps
 	 *    (empty buckets) between buckets. This leads to more compact histograms, which provide better user experience.
-	 * 
+	 *
 	 * The priceType requirement the source price property for the histogram computation. If no requirement, the histogram
 	 * visualizes the price with tax.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * priceHistogram(20)
 	 * priceHistogram(20, OPTIMIZED)
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/histogram#price-histogram">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
@@ -2598,24 +2598,24 @@ public interface QueryConstraints {
 	 * and {@link PriceBetween} in the userFilter part are excluded for the sake of histogram calculation. If this weren't
 	 * the case, the user narrowing the filtered range based on the histogram results would be driven into a narrower and
 	 * narrower range and eventually into a dead end.
-	 * 
+	 *
 	 * It accepts two arguments:
-	 * 
+	 *
 	 * 1. The number of buckets (columns) the histogram should contain.
 	 * 2. The behavior of the histogram calculation - either STANDARD (default), where the exactly requested bucket count
 	 *    is returned or OPTIMIZED, where the number of columns is reduced if the data is scarce and there would be big gaps
 	 *    (empty buckets) between buckets. This leads to more compact histograms, which provide better user experience.
-	 * 
+	 *
 	 * The priceType requirement the source price property for the histogram computation. If no requirement, the histogram
 	 * visualizes the price with tax.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * priceHistogram(20)
 	 * priceHistogram(20, OPTIMIZED)
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/histogram#price-histogram">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
@@ -2627,12 +2627,12 @@ public interface QueryConstraints {
 	 * This `facetGroupsConjunction` require allows specifying inter-facet relation inside facet groups of certain primary ids.
 	 * First mandatory argument specifies entity type of the facet group, secondary argument allows to define one more facet
 	 * group ids which inner facets should be considered conjunctive.
-	 * 
+	 *
 	 * This require constraint changes default behaviour stating that all facets inside same facet group are combined by OR
 	 * relation (eg. disjunction). Constraint has sense only when [facet](#facet) constraint is part of the query.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *    entities("product"),
@@ -2650,31 +2650,31 @@ public interface QueryConstraints {
 	 *    )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * This statement means, that facets in `parameterType` groups `1`, `8`, `15` will be joined with boolean AND relation when
 	 * selected.
-	 * 
+	 *
 	 * Let's have this facet/group situation:
-	 * 
+	 *
 	 * Color `parameterType` (group id: 1):
-	 * 
+	 *
 	 * - blue (facet id: 11)
 	 * - red (facet id: 12)
-	 * 
+	 *
 	 * Size `parameterType` (group id: 2):
-	 * 
+	 *
 	 * - small (facet id: 21)
 	 * - large (facet id: 22)
-	 * 
+	 *
 	 * Flags `tag` (group id: 3):
-	 * 
+	 *
 	 * - action products (facet id: 31)
 	 * - new products (facet id: 32)
-	 * 
+	 *
 	 * When user selects facets: blue (11), red (12) by default relation would be: get all entities that have facet blue(11) OR
 	 * facet red(12). If require `facetGroupsConjunction('parameterType', 1)` is passed in the query filtering condition will
 	 * be composed as: blue(11) AND red(12)
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-groups-conjunction">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -2686,12 +2686,12 @@ public interface QueryConstraints {
 	 * This `facetGroupsConjunction` require allows specifying inter-facet relation inside facet groups of certain primary ids.
 	 * First mandatory argument specifies entity type of the facet group, secondary argument allows to define one more facet
 	 * group ids which inner facets should be considered conjunctive.
-	 * 
+	 *
 	 * This require constraint changes default behaviour stating that all facets inside same facet group are combined by OR
 	 * relation (eg. disjunction). Constraint has sense only when [facet](#facet) constraint is part of the query.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *    entities("product"),
@@ -2709,31 +2709,31 @@ public interface QueryConstraints {
 	 *    )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * This statement means, that facets in `parameterType` groups `1`, `8`, `15` will be joined with boolean AND relation when
 	 * selected.
-	 * 
+	 *
 	 * Let's have this facet/group situation:
-	 * 
+	 *
 	 * Color `parameterType` (group id: 1):
-	 * 
+	 *
 	 * - blue (facet id: 11)
 	 * - red (facet id: 12)
-	 * 
+	 *
 	 * Size `parameterType` (group id: 2):
-	 * 
+	 *
 	 * - small (facet id: 21)
 	 * - large (facet id: 22)
-	 * 
+	 *
 	 * Flags `tag` (group id: 3):
-	 * 
+	 *
 	 * - action products (facet id: 31)
 	 * - new products (facet id: 32)
-	 * 
+	 *
 	 * When user selects facets: blue (11), red (12) by default relation would be: get all entities that have facet blue(11) OR
 	 * facet red(12). If require `facetGroupsConjunction('parameterType', 1)` is passed in the query filtering condition will
 	 * be composed as: blue(11) AND red(12)
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-groups-conjunction">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -2745,12 +2745,12 @@ public interface QueryConstraints {
 	 * This `facetGroupsDisjunction` require constraint allows specifying facet relation among different facet groups of certain
 	 * primary ids. First mandatory argument specifies entity type of the facet group, secondary argument allows to define one
 	 * more facet group ids that should be considered disjunctive.
-	 * 
+	 *
 	 * This require constraint changes default behaviour stating that facets between two different facet groups are combined by
 	 * AND relation and changes it to the disjunction relation instead.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *    entities("product"),
@@ -2768,31 +2768,31 @@ public interface QueryConstraints {
 	 *    )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * This statement means, that facets in `parameterType` facet groups `1`, `2` will be joined with the rest of the query by
 	 * boolean OR relation when selected.
-	 * 
+	 *
 	 * Let's have this facet/group situation:
-	 * 
+	 *
 	 * Color `parameterType` (group id: 1):
-	 * 
+	 *
 	 * - blue (facet id: 11)
 	 * - red (facet id: 12)
-	 * 
+	 *
 	 * Size `parameterType` (group id: 2):
-	 * 
+	 *
 	 * - small (facet id: 21)
 	 * - large (facet id: 22)
-	 * 
+	 *
 	 * Flags `tag` (group id: 3):
-	 * 
+	 *
 	 * - action products (facet id: 31)
 	 * - new products (facet id: 32)
-	 * 
+	 *
 	 * When user selects facets: blue (11), large (22), new products (31) - the default meaning would be: get all entities that
 	 * have facet blue as well as facet large and action products tag (AND). If require `facetGroupsDisjunction('tag', 3)`
 	 * is passed in the query, filtering condition will be composed as: (`blue(11)` AND `large(22)`) OR `new products(31)`
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-groups-disjunction">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -2804,12 +2804,12 @@ public interface QueryConstraints {
 	 * This `facetGroupsDisjunction` require constraint allows specifying facet relation among different facet groups of certain
 	 * primary ids. First mandatory argument specifies entity type of the facet group, secondary argument allows to define one
 	 * more facet group ids that should be considered disjunctive.
-	 * 
+	 *
 	 * This require constraint changes default behaviour stating that facets between two different facet groups are combined by
 	 * AND relation and changes it to the disjunction relation instead.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *    entities("product"),
@@ -2827,31 +2827,31 @@ public interface QueryConstraints {
 	 *    )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * This statement means, that facets in `parameterType` facet groups `1`, `2` will be joined with the rest of the query by
 	 * boolean OR relation when selected.
-	 * 
+	 *
 	 * Let's have this facet/group situation:
-	 * 
+	 *
 	 * Color `parameterType` (group id: 1):
-	 * 
+	 *
 	 * - blue (facet id: 11)
 	 * - red (facet id: 12)
-	 * 
+	 *
 	 * Size `parameterType` (group id: 2):
-	 * 
+	 *
 	 * - small (facet id: 21)
 	 * - large (facet id: 22)
-	 * 
+	 *
 	 * Flags `tag` (group id: 3):
-	 * 
+	 *
 	 * - action products (facet id: 31)
 	 * - new products (facet id: 32)
-	 * 
+	 *
 	 * When user selects facets: blue (11), large (22), new products (31) - the default meaning would be: get all entities that
 	 * have facet blue as well as facet large and action products tag (AND). If require `facetGroupsDisjunction('tag', 3)`
 	 * is passed in the query, filtering condition will be composed as: (`blue(11)` AND `large(22)`) OR `new products(31)`
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-groups-disjunction">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -2863,9 +2863,9 @@ public interface QueryConstraints {
 	 * The `facetGroupsNegation` changes the behavior of the facet option in all facet groups specified in the filterBy
 	 * constraint. Instead of returning only those items that have a reference to that particular faceted entity, the query
 	 * result will return only those items that don't have a reference to it.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -2887,11 +2887,11 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * The predicted results in the negated groups are far greater than the numbers produced by the default behavior.
 	 * Selecting any option in the RAM facet group predicts returning thousands of results, while the ROM facet group with
 	 * default behavior predicts only a dozen of them.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-groups-negation">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -2903,9 +2903,9 @@ public interface QueryConstraints {
 	 * The `facetGroupsNegation` changes the behavior of the facet option in all facet groups specified in the filterBy
 	 * constraint. Instead of returning only those items that have a reference to that particular faceted entity, the query
 	 * result will return only those items that don't have a reference to it.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -2927,11 +2927,11 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * The predicted results in the negated groups are far greater than the numbers produced by the default behavior.
 	 * Selecting any option in the RAM facet group predicts returning thousands of results, while the ROM facet group with
 	 * default behavior predicts only a dozen of them.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-groups-negation">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -2941,12 +2941,12 @@ public interface QueryConstraints {
 
 	/**
 	 * The requirement triggers the calculation of the Hierarchy data structure for the hierarchy of which it is a part.
-	 * 
+	 *
 	 * The hierarchy of self can still be combined with {@link HierarchyOfReference} if the queried entity is a hierarchical
 	 * entity that is also connected to another hierarchical entity. Such situations are rather sporadic in reality.
-	 * 
+	 *
 	 * The constraint accepts following arguments:
-	 * 
+	 *
 	 * - specification of one or more reference names that identify the reference to the target hierarchical entity for
 	 *   which the menu calculation should be performed; usually only one reference name makes sense, but to adapt
 	 *   the constraint to the behavior of other similar constraints, evitaQL accepts multiple reference names for the case
@@ -2954,23 +2954,23 @@ public interface QueryConstraints {
 	 * - optional argument of type EmptyHierarchicalEntityBehaviour enum allowing you to specify whether or not to return
 	 *   empty hierarchical entities (e.g., those that do not have any queried entities that satisfy the current query
 	 *   filter constraint assigned to them - either directly or transitively):
-	 * 
+	 *
 	 *      - {@link EmptyHierarchicalEntityBehaviour#LEAVE_EMPTY}: empty hierarchical nodes will remain in computed data
 	 *        structures
 	 *      - {@link EmptyHierarchicalEntityBehaviour#REMOVE_EMPTY}: empty hierarchical nodes are omitted from computed data
 	 *        structures
-	 * 
+	 *
 	 * - optional ordering constraint that allows you to specify an order of Hierarchy LevelInfo elements in the result
 	 *   hierarchy data structure
 	 * - mandatory one or more constraints allowing you to instruct evitaDB to calculate menu components; one or all of
 	 *   the constraints may be present:
-	 * 
+	 *
 	 *      - {@link HierarchyFromRoot}
 	 *      - {@link HierarchyFromNode}
 	 *      - {@link HierarchySiblings}
 	 *      - {@link HierarchyChildren}
 	 *      - {@link HierarchyParents}
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#hierarchy-of-self">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -2980,12 +2980,12 @@ public interface QueryConstraints {
 
 	/**
 	 * The requirement triggers the calculation of the Hierarchy data structure for the hierarchy of which it is a part.
-	 * 
+	 *
 	 * The hierarchy of self can still be combined with {@link HierarchyOfReference} if the queried entity is a hierarchical
 	 * entity that is also connected to another hierarchical entity. Such situations are rather sporadic in reality.
-	 * 
+	 *
 	 * The constraint accepts following arguments:
-	 * 
+	 *
 	 * - specification of one or more reference names that identify the reference to the target hierarchical entity for
 	 *   which the menu calculation should be performed; usually only one reference name makes sense, but to adapt
 	 *   the constraint to the behavior of other similar constraints, evitaQL accepts multiple reference names for the case
@@ -2993,23 +2993,23 @@ public interface QueryConstraints {
 	 * - optional argument of type EmptyHierarchicalEntityBehaviour enum allowing you to specify whether or not to return
 	 *   empty hierarchical entities (e.g., those that do not have any queried entities that satisfy the current query
 	 *   filter constraint assigned to them - either directly or transitively):
-	 * 
+	 *
 	 *      - {@link EmptyHierarchicalEntityBehaviour#LEAVE_EMPTY}: empty hierarchical nodes will remain in computed data
 	 *        structures
 	 *      - {@link EmptyHierarchicalEntityBehaviour#REMOVE_EMPTY}: empty hierarchical nodes are omitted from computed data
 	 *        structures
-	 * 
+	 *
 	 * - optional ordering constraint that allows you to specify an order of Hierarchy LevelInfo elements in the result
 	 *   hierarchy data structure
 	 * - mandatory one or more constraints allowing you to instruct evitaDB to calculate menu components; one or all of
 	 *   the constraints may be present:
-	 * 
+	 *
 	 *      - {@link HierarchyFromRoot}
 	 *      - {@link HierarchyFromNode}
 	 *      - {@link HierarchySiblings}
 	 *      - {@link HierarchyChildren}
 	 *      - {@link HierarchyParents}
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#hierarchy-of-self">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -3023,15 +3023,15 @@ public interface QueryConstraints {
 	/**
 	 * The requirement triggers the calculation of the Hierarchy data structure for the hierarchies of the referenced entity
 	 * type.
-	 * 
+	 *
 	 * The hierarchy of reference can still be combined with {@link HierarchyOfSelf} if the queried entity is a hierarchical
 	 * entity that is also connected to another hierarchical entity. Such situations are rather sporadic in reality.
-	 * 
+	 *
 	 * The `hierarchyOfReference` can be repeated multiple times in a single query if you need different calculation
 	 * settings for different reference types.
-	 * 
+	 *
 	 * The constraint accepts following arguments:
-	 * 
+	 *
 	 * - specification of one or more reference names that identify the reference to the target hierarchical entity for
 	 *   which the menu calculation should be performed; usually only one reference name makes sense, but to adapt
 	 *   the constraint to the behavior of other similar constraints, evitaQL accepts multiple reference names for the case
@@ -3039,23 +3039,23 @@ public interface QueryConstraints {
 	 * - optional argument of type EmptyHierarchicalEntityBehaviour enum allowing you to specify whether or not to return
 	 *   empty hierarchical entities (e.g., those that do not have any queried entities that satisfy the current query
 	 *   filter constraint assigned to them - either directly or transitively):
-	 * 
+	 *
 	 *      - {@link EmptyHierarchicalEntityBehaviour#LEAVE_EMPTY}: empty hierarchical nodes will remain in computed data
 	 *        structures
 	 *      - {@link EmptyHierarchicalEntityBehaviour#REMOVE_EMPTY}: empty hierarchical nodes are omitted from computed data
 	 *        structures (default behavior)
-	 * 
+	 *
 	 * - optional ordering constraint that allows you to specify an order of Hierarchy LevelInfo elements in the result
 	 *   hierarchy data structure
 	 * - mandatory one or more constraints allowing you to instruct evitaDB to calculate menu components; one or all of
 	 *   the constraints may be present:
-	 * 
+	 *
 	 *      - {@link HierarchyFromRoot}
 	 *      - {@link HierarchyFromNode}
 	 *      - {@link HierarchySiblings}
 	 *      - {@link HierarchyChildren}
 	 *      - {@link HierarchyParents}
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#hierarchy-of-reference">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -3069,15 +3069,15 @@ public interface QueryConstraints {
 	/**
 	 * The requirement triggers the calculation of the Hierarchy data structure for the hierarchies of the referenced entity
 	 * type.
-	 * 
+	 *
 	 * The hierarchy of reference can still be combined with {@link HierarchyOfSelf} if the queried entity is a hierarchical
 	 * entity that is also connected to another hierarchical entity. Such situations are rather sporadic in reality.
-	 * 
+	 *
 	 * The `hierarchyOfReference` can be repeated multiple times in a single query if you need different calculation
 	 * settings for different reference types.
-	 * 
+	 *
 	 * The constraint accepts following arguments:
-	 * 
+	 *
 	 * - specification of one or more reference names that identify the reference to the target hierarchical entity for
 	 *   which the menu calculation should be performed; usually only one reference name makes sense, but to adapt
 	 *   the constraint to the behavior of other similar constraints, evitaQL accepts multiple reference names for the case
@@ -3085,23 +3085,23 @@ public interface QueryConstraints {
 	 * - optional argument of type EmptyHierarchicalEntityBehaviour enum allowing you to specify whether or not to return
 	 *   empty hierarchical entities (e.g., those that do not have any queried entities that satisfy the current query
 	 *   filter constraint assigned to them - either directly or transitively):
-	 * 
+	 *
 	 *      - {@link EmptyHierarchicalEntityBehaviour#LEAVE_EMPTY}: empty hierarchical nodes will remain in computed data
 	 *        structures
 	 *      - {@link EmptyHierarchicalEntityBehaviour#REMOVE_EMPTY}: empty hierarchical nodes are omitted from computed data
 	 *        structures (default behavior)
-	 * 
+	 *
 	 * - optional ordering constraint that allows you to specify an order of Hierarchy LevelInfo elements in the result
 	 *   hierarchy data structure
 	 * - mandatory one or more constraints allowing you to instruct evitaDB to calculate menu components; one or all of
 	 *   the constraints may be present:
-	 * 
+	 *
 	 *      - {@link HierarchyFromRoot}
 	 *      - {@link HierarchyFromNode}
 	 *      - {@link HierarchySiblings}
 	 *      - {@link HierarchyChildren}
 	 *      - {@link HierarchyParents}
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#hierarchy-of-reference">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -3116,15 +3116,15 @@ public interface QueryConstraints {
 	/**
 	 * The requirement triggers the calculation of the Hierarchy data structure for the hierarchies of the referenced entity
 	 * type.
-	 * 
+	 *
 	 * The hierarchy of reference can still be combined with {@link HierarchyOfSelf} if the queried entity is a hierarchical
 	 * entity that is also connected to another hierarchical entity. Such situations are rather sporadic in reality.
-	 * 
+	 *
 	 * The `hierarchyOfReference` can be repeated multiple times in a single query if you need different calculation
 	 * settings for different reference types.
-	 * 
+	 *
 	 * The constraint accepts following arguments:
-	 * 
+	 *
 	 * - specification of one or more reference names that identify the reference to the target hierarchical entity for
 	 *   which the menu calculation should be performed; usually only one reference name makes sense, but to adapt
 	 *   the constraint to the behavior of other similar constraints, evitaQL accepts multiple reference names for the case
@@ -3132,23 +3132,23 @@ public interface QueryConstraints {
 	 * - optional argument of type EmptyHierarchicalEntityBehaviour enum allowing you to specify whether or not to return
 	 *   empty hierarchical entities (e.g., those that do not have any queried entities that satisfy the current query
 	 *   filter constraint assigned to them - either directly or transitively):
-	 * 
+	 *
 	 *      - {@link EmptyHierarchicalEntityBehaviour#LEAVE_EMPTY}: empty hierarchical nodes will remain in computed data
 	 *        structures
 	 *      - {@link EmptyHierarchicalEntityBehaviour#REMOVE_EMPTY}: empty hierarchical nodes are omitted from computed data
 	 *        structures (default behavior)
-	 * 
+	 *
 	 * - optional ordering constraint that allows you to specify an order of Hierarchy LevelInfo elements in the result
 	 *   hierarchy data structure
 	 * - mandatory one or more constraints allowing you to instruct evitaDB to calculate menu components; one or all of
 	 *   the constraints may be present:
-	 * 
+	 *
 	 *      - {@link HierarchyFromRoot}
 	 *      - {@link HierarchyFromNode}
 	 *      - {@link HierarchySiblings}
 	 *      - {@link HierarchyChildren}
 	 *      - {@link HierarchyParents}
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#hierarchy-of-reference">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -3169,15 +3169,15 @@ public interface QueryConstraints {
 	/**
 	 * The requirement triggers the calculation of the Hierarchy data structure for the hierarchies of the referenced entity
 	 * type.
-	 * 
+	 *
 	 * The hierarchy of reference can still be combined with {@link HierarchyOfSelf} if the queried entity is a hierarchical
 	 * entity that is also connected to another hierarchical entity. Such situations are rather sporadic in reality.
-	 * 
+	 *
 	 * The `hierarchyOfReference` can be repeated multiple times in a single query if you need different calculation
 	 * settings for different reference types.
-	 * 
+	 *
 	 * The constraint accepts following arguments:
-	 * 
+	 *
 	 * - specification of one or more reference names that identify the reference to the target hierarchical entity for
 	 *   which the menu calculation should be performed; usually only one reference name makes sense, but to adapt
 	 *   the constraint to the behavior of other similar constraints, evitaQL accepts multiple reference names for the case
@@ -3185,23 +3185,23 @@ public interface QueryConstraints {
 	 * - optional argument of type EmptyHierarchicalEntityBehaviour enum allowing you to specify whether or not to return
 	 *   empty hierarchical entities (e.g., those that do not have any queried entities that satisfy the current query
 	 *   filter constraint assigned to them - either directly or transitively):
-	 * 
+	 *
 	 *      - {@link EmptyHierarchicalEntityBehaviour#LEAVE_EMPTY}: empty hierarchical nodes will remain in computed data
 	 *        structures
 	 *      - {@link EmptyHierarchicalEntityBehaviour#REMOVE_EMPTY}: empty hierarchical nodes are omitted from computed data
 	 *        structures (default behavior)
-	 * 
+	 *
 	 * - optional ordering constraint that allows you to specify an order of Hierarchy LevelInfo elements in the result
 	 *   hierarchy data structure
 	 * - mandatory one or more constraints allowing you to instruct evitaDB to calculate menu components; one or all of
 	 *   the constraints may be present:
-	 * 
+	 *
 	 *      - {@link HierarchyFromRoot}
 	 *      - {@link HierarchyFromNode}
 	 *      - {@link HierarchySiblings}
 	 *      - {@link HierarchyChildren}
 	 *      - {@link HierarchyParents}
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#hierarchy-of-reference">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -3224,15 +3224,15 @@ public interface QueryConstraints {
 	/**
 	 * The requirement triggers the calculation of the Hierarchy data structure for the hierarchies of the referenced entity
 	 * type.
-	 * 
+	 *
 	 * The hierarchy of reference can still be combined with {@link HierarchyOfSelf} if the queried entity is a hierarchical
 	 * entity that is also connected to another hierarchical entity. Such situations are rather sporadic in reality.
-	 * 
+	 *
 	 * The `hierarchyOfReference` can be repeated multiple times in a single query if you need different calculation
 	 * settings for different reference types.
-	 * 
+	 *
 	 * The constraint accepts following arguments:
-	 * 
+	 *
 	 * - specification of one or more reference names that identify the reference to the target hierarchical entity for
 	 *   which the menu calculation should be performed; usually only one reference name makes sense, but to adapt
 	 *   the constraint to the behavior of other similar constraints, evitaQL accepts multiple reference names for the case
@@ -3240,23 +3240,23 @@ public interface QueryConstraints {
 	 * - optional argument of type EmptyHierarchicalEntityBehaviour enum allowing you to specify whether or not to return
 	 *   empty hierarchical entities (e.g., those that do not have any queried entities that satisfy the current query
 	 *   filter constraint assigned to them - either directly or transitively):
-	 * 
+	 *
 	 *      - {@link EmptyHierarchicalEntityBehaviour#LEAVE_EMPTY}: empty hierarchical nodes will remain in computed data
 	 *        structures
 	 *      - {@link EmptyHierarchicalEntityBehaviour#REMOVE_EMPTY}: empty hierarchical nodes are omitted from computed data
 	 *        structures (default behavior)
-	 * 
+	 *
 	 * - optional ordering constraint that allows you to specify an order of Hierarchy LevelInfo elements in the result
 	 *   hierarchy data structure
 	 * - mandatory one or more constraints allowing you to instruct evitaDB to calculate menu components; one or all of
 	 *   the constraints may be present:
-	 * 
+	 *
 	 *      - {@link HierarchyFromRoot}
 	 *      - {@link HierarchyFromNode}
 	 *      - {@link HierarchySiblings}
 	 *      - {@link HierarchyChildren}
 	 *      - {@link HierarchyParents}
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#hierarchy-of-reference">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -3270,15 +3270,15 @@ public interface QueryConstraints {
 	/**
 	 * The requirement triggers the calculation of the Hierarchy data structure for the hierarchies of the referenced entity
 	 * type.
-	 * 
+	 *
 	 * The hierarchy of reference can still be combined with {@link HierarchyOfSelf} if the queried entity is a hierarchical
 	 * entity that is also connected to another hierarchical entity. Such situations are rather sporadic in reality.
-	 * 
+	 *
 	 * The `hierarchyOfReference` can be repeated multiple times in a single query if you need different calculation
 	 * settings for different reference types.
-	 * 
+	 *
 	 * The constraint accepts following arguments:
-	 * 
+	 *
 	 * - specification of one or more reference names that identify the reference to the target hierarchical entity for
 	 *   which the menu calculation should be performed; usually only one reference name makes sense, but to adapt
 	 *   the constraint to the behavior of other similar constraints, evitaQL accepts multiple reference names for the case
@@ -3286,23 +3286,23 @@ public interface QueryConstraints {
 	 * - optional argument of type EmptyHierarchicalEntityBehaviour enum allowing you to specify whether or not to return
 	 *   empty hierarchical entities (e.g., those that do not have any queried entities that satisfy the current query
 	 *   filter constraint assigned to them - either directly or transitively):
-	 * 
+	 *
 	 *      - {@link EmptyHierarchicalEntityBehaviour#LEAVE_EMPTY}: empty hierarchical nodes will remain in computed data
 	 *        structures
 	 *      - {@link EmptyHierarchicalEntityBehaviour#REMOVE_EMPTY}: empty hierarchical nodes are omitted from computed data
 	 *        structures (default behavior)
-	 * 
+	 *
 	 * - optional ordering constraint that allows you to specify an order of Hierarchy LevelInfo elements in the result
 	 *   hierarchy data structure
 	 * - mandatory one or more constraints allowing you to instruct evitaDB to calculate menu components; one or all of
 	 *   the constraints may be present:
-	 * 
+	 *
 	 *      - {@link HierarchyFromRoot}
 	 *      - {@link HierarchyFromNode}
 	 *      - {@link HierarchySiblings}
 	 *      - {@link HierarchyChildren}
 	 *      - {@link HierarchyParents}
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#hierarchy-of-reference">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -3317,15 +3317,15 @@ public interface QueryConstraints {
 	/**
 	 * The requirement triggers the calculation of the Hierarchy data structure for the hierarchies of the referenced entity
 	 * type.
-	 * 
+	 *
 	 * The hierarchy of reference can still be combined with {@link HierarchyOfSelf} if the queried entity is a hierarchical
 	 * entity that is also connected to another hierarchical entity. Such situations are rather sporadic in reality.
-	 * 
+	 *
 	 * The `hierarchyOfReference` can be repeated multiple times in a single query if you need different calculation
 	 * settings for different reference types.
-	 * 
+	 *
 	 * The constraint accepts following arguments:
-	 * 
+	 *
 	 * - specification of one or more reference names that identify the reference to the target hierarchical entity for
 	 *   which the menu calculation should be performed; usually only one reference name makes sense, but to adapt
 	 *   the constraint to the behavior of other similar constraints, evitaQL accepts multiple reference names for the case
@@ -3333,23 +3333,23 @@ public interface QueryConstraints {
 	 * - optional argument of type EmptyHierarchicalEntityBehaviour enum allowing you to specify whether or not to return
 	 *   empty hierarchical entities (e.g., those that do not have any queried entities that satisfy the current query
 	 *   filter constraint assigned to them - either directly or transitively):
-	 * 
+	 *
 	 *      - {@link EmptyHierarchicalEntityBehaviour#LEAVE_EMPTY}: empty hierarchical nodes will remain in computed data
 	 *        structures
 	 *      - {@link EmptyHierarchicalEntityBehaviour#REMOVE_EMPTY}: empty hierarchical nodes are omitted from computed data
 	 *        structures (default behavior)
-	 * 
+	 *
 	 * - optional ordering constraint that allows you to specify an order of Hierarchy LevelInfo elements in the result
 	 *   hierarchy data structure
 	 * - mandatory one or more constraints allowing you to instruct evitaDB to calculate menu components; one or all of
 	 *   the constraints may be present:
-	 * 
+	 *
 	 *      - {@link HierarchyFromRoot}
 	 *      - {@link HierarchyFromNode}
 	 *      - {@link HierarchySiblings}
 	 *      - {@link HierarchyChildren}
 	 *      - {@link HierarchyParents}
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#hierarchy-of-reference">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -3374,15 +3374,15 @@ public interface QueryConstraints {
 	/**
 	 * The requirement triggers the calculation of the Hierarchy data structure for the hierarchies of the referenced entity
 	 * type.
-	 * 
+	 *
 	 * The hierarchy of reference can still be combined with {@link HierarchyOfSelf} if the queried entity is a hierarchical
 	 * entity that is also connected to another hierarchical entity. Such situations are rather sporadic in reality.
-	 * 
+	 *
 	 * The `hierarchyOfReference` can be repeated multiple times in a single query if you need different calculation
 	 * settings for different reference types.
-	 * 
+	 *
 	 * The constraint accepts following arguments:
-	 * 
+	 *
 	 * - specification of one or more reference names that identify the reference to the target hierarchical entity for
 	 *   which the menu calculation should be performed; usually only one reference name makes sense, but to adapt
 	 *   the constraint to the behavior of other similar constraints, evitaQL accepts multiple reference names for the case
@@ -3390,23 +3390,23 @@ public interface QueryConstraints {
 	 * - optional argument of type EmptyHierarchicalEntityBehaviour enum allowing you to specify whether or not to return
 	 *   empty hierarchical entities (e.g., those that do not have any queried entities that satisfy the current query
 	 *   filter constraint assigned to them - either directly or transitively):
-	 * 
+	 *
 	 *      - {@link EmptyHierarchicalEntityBehaviour#LEAVE_EMPTY}: empty hierarchical nodes will remain in computed data
 	 *        structures
 	 *      - {@link EmptyHierarchicalEntityBehaviour#REMOVE_EMPTY}: empty hierarchical nodes are omitted from computed data
 	 *        structures (default behavior)
-	 * 
+	 *
 	 * - optional ordering constraint that allows you to specify an order of Hierarchy LevelInfo elements in the result
 	 *   hierarchy data structure
 	 * - mandatory one or more constraints allowing you to instruct evitaDB to calculate menu components; one or all of
 	 *   the constraints may be present:
-	 * 
+	 *
 	 *      - {@link HierarchyFromRoot}
 	 *      - {@link HierarchyFromNode}
 	 *      - {@link HierarchySiblings}
 	 *      - {@link HierarchyChildren}
 	 *      - {@link HierarchyParents}
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#hierarchy-of-reference">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -3438,27 +3438,27 @@ public interface QueryConstraints {
 	 * If you need to access statistical data, use statistics constraint. Calculated data is not affected by
 	 * the {@link HierarchyWithin} filter constraint - the query can filter entities using {@link HierarchyWithin} from
 	 * category Accessories, while still allowing you to correctly compute menu at root level.
-	 * 
+	 *
 	 * Please keep in mind that the full statistic calculation can be particularly expensive in the case of the fromRoot
 	 * requirement - it usually requires aggregation for the entire queried dataset (see more information about
 	 * the calculation).
-	 * 
+	 *
 	 * The constraint accepts following arguments:
-	 * 
+	 *
 	 * - mandatory String argument specifying the output name for the calculated data structure
 	 * - optional one or more constraints that allow you to define the completeness of the hierarchy entities, the scope of
 	 *   the traversed hierarchy tree, and the statistics computed along the way; any or all of the constraints may be
 	 *   present:
-	 * 
+	 *
 	 *      - {@link EntityFetch}
 	 *      - {@link HierarchyStopAt}
 	 *      - {@link HierarchyStatistics}
-	 * 
+	 *
 	 * The following query lists products in category Audio and its subcategories. Along with the returned products, it also
 	 * requires a computed megaMenu data structure that lists the top 2 levels of the Category hierarchy tree with
 	 * a computed count of child categories for each menu item and an aggregated count of all filtered products that would
 	 * fall into the given category.
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -3484,13 +3484,13 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * The calculated result for `fromRoot` is not affected by the {@link HierarchyWithin} pivot hierarchy node.
 	 * If the {@link HierarchyWithin} contains inner constraints {@link HierarchyHaving} or {@link HierarchyExcluding},
 	 * the `fromRoot` respects them. The reason is simple: when you render a menu for the query result, you want
 	 * the calculated statistics to respect the rules that apply to the {@link HierarchyWithin} so that the calculated
 	 * number remains consistent for the end user.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#from-root">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -3513,27 +3513,27 @@ public interface QueryConstraints {
 	 * If you need to access statistical data, use statistics constraint. Calculated data is not affected by
 	 * the {@link HierarchyWithin} filter constraint - the query can filter entities using {@link HierarchyWithin} from
 	 * category Accessories, while still allowing you to correctly compute menu at root level.
-	 * 
+	 *
 	 * Please keep in mind that the full statistic calculation can be particularly expensive in the case of the fromRoot
 	 * requirement - it usually requires aggregation for the entire queried dataset (see more information about
 	 * the calculation).
-	 * 
+	 *
 	 * The constraint accepts following arguments:
-	 * 
+	 *
 	 * - mandatory String argument specifying the output name for the calculated data structure
 	 * - optional one or more constraints that allow you to define the completeness of the hierarchy entities, the scope of
 	 *   the traversed hierarchy tree, and the statistics computed along the way; any or all of the constraints may be
 	 *   present:
-	 * 
+	 *
 	 *      - {@link EntityFetch}
 	 *      - {@link HierarchyStopAt}
 	 *      - {@link HierarchyStatistics}
-	 * 
+	 *
 	 * The following query lists products in category Audio and its subcategories. Along with the returned products, it also
 	 * requires a computed megaMenu data structure that lists the top 2 levels of the Category hierarchy tree with
 	 * a computed count of child categories for each menu item and an aggregated count of all filtered products that would
 	 * fall into the given category.
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -3559,13 +3559,13 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * The calculated result for `fromRoot` is not affected by the {@link HierarchyWithin} pivot hierarchy node.
 	 * If the {@link HierarchyWithin} contains inner constraints {@link HierarchyHaving} or {@link HierarchyExcluding},
 	 * the `fromRoot` respects them. The reason is simple: when you render a menu for the query result, you want
 	 * the calculated statistics to respect the rules that apply to the {@link HierarchyWithin} so that the calculated
 	 * number remains consistent for the end user.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#from-root">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -3590,25 +3590,25 @@ public interface QueryConstraints {
 	 * the {@link HierarchyWithin} filter constraint - the query can filter entities using {@link HierarchyWithin} from
 	 * category Accessories, while still allowing you to correctly compute menu at different node defined in a `fromNode`
 	 * requirement. If you need to access statistical data, use statistics constraint.
-	 * 
+	 *
 	 * The constraint accepts following arguments:
-	 * 
+	 *
 	 * - mandatory String argument specifying the output name for the calculated data structure
 	 * - mandatory require constraint node that must match exactly one pivot hierarchical entity that represents the root
 	 *   node of the traversed hierarchy subtree.
 	 * - optional one or more constraints that allow you to define the completeness of the hierarchy entities, the scope
 	 *   of the traversed hierarchy tree, and the statistics computed along the way; any or all of the constraints may be
 	 *   present:
-	 * 
+	 *
 	 *      - {@link EntityFetch}
 	 *      - {@link HierarchyStopAt}
 	 *      - {@link HierarchyStatistics}
-	 * 
+	 *
 	 * The following query lists products in category Audio and its subcategories. Along with the products returned, it
 	 * also returns a computed sideMenu1 and sideMenu2 data structure that lists the flat category list for the categories
 	 * Portables and Laptops with a computed count of child categories for each menu item and an aggregated count of all
 	 * products that would fall into the given category.
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -3653,13 +3653,13 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * The calculated result for `fromNode` is not affected by the {@link HierarchyWithin} pivot hierarchy node.
 	 * If the {@link HierarchyWithin} contains inner constraints {@link HierarchyHaving} or {@link HierarchyExcluding},
 	 * the `fromNode` respects them. The reason is simple: when you render a menu for the query result, you want
 	 * the calculated statistics to respect the rules that apply to the hierarchyWithin so that the calculated number
 	 * remains consistent for the end user.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#from-node">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -3686,25 +3686,25 @@ public interface QueryConstraints {
 	 * the {@link HierarchyWithin} filter constraint - the query can filter entities using {@link HierarchyWithin} from
 	 * category Accessories, while still allowing you to correctly compute menu at different node defined in a `fromNode`
 	 * requirement. If you need to access statistical data, use statistics constraint.
-	 * 
+	 *
 	 * The constraint accepts following arguments:
-	 * 
+	 *
 	 * - mandatory String argument specifying the output name for the calculated data structure
 	 * - mandatory require constraint node that must match exactly one pivot hierarchical entity that represents the root
 	 *   node of the traversed hierarchy subtree.
 	 * - optional one or more constraints that allow you to define the completeness of the hierarchy entities, the scope
 	 *   of the traversed hierarchy tree, and the statistics computed along the way; any or all of the constraints may be
 	 *   present:
-	 * 
+	 *
 	 *      - {@link EntityFetch}
 	 *      - {@link HierarchyStopAt}
 	 *      - {@link HierarchyStatistics}
-	 * 
+	 *
 	 * The following query lists products in category Audio and its subcategories. Along with the products returned, it
 	 * also returns a computed sideMenu1 and sideMenu2 data structure that lists the flat category list for the categories
 	 * Portables and Laptops with a computed count of child categories for each menu item and an aggregated count of all
 	 * products that would fall into the given category.
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -3749,13 +3749,13 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * The calculated result for `fromNode` is not affected by the {@link HierarchyWithin} pivot hierarchy node.
 	 * If the {@link HierarchyWithin} contains inner constraints {@link HierarchyHaving} or {@link HierarchyExcluding},
 	 * the `fromNode` respects them. The reason is simple: when you render a menu for the query result, you want
 	 * the calculated statistics to respect the rules that apply to the hierarchyWithin so that the calculated number
 	 * remains consistent for the end user.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#from-node">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -3780,23 +3780,23 @@ public interface QueryConstraints {
 	 * The scope of the calculated information can be controlled by the stopAt constraint. By default, the traversal goes
 	 * all the way to the bottom of the hierarchy tree unless you tell it to stop at anywhere. If you need to access
 	 * statistical data, use the statistics constraint.
-	 * 
+	 *
 	 * The constraint accepts following arguments:
-	 * 
+	 *
 	 * - mandatory String argument specifying the output name for the calculated data structure
 	 * - optional one or more constraints that allow you to define the completeness of the hierarchy entities, the scope of
 	 *   the traversed hierarchy tree, and the statistics computed along the way; any or all of the constraints may be
 	 *   present:
-	 * 
+	 *
 	 *      - {@link EntityFetch}
 	 *      - {@link HierarchyStopAt}
 	 *      - {@link HierarchyStatistics}
-	 * 
+	 *
 	 * The following query lists products in category Audio and its subcategories. Along with the products returned, it also
 	 * returns a computed subcategories data structure that lists the flat category list the currently focused category
 	 * Audio with a computed count of child categories for each menu item and an aggregated count of all products that would
 	 * fall into the given category.
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -3822,14 +3822,14 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * The calculated result for children is connected with the {@link HierarchyWithin} pivot hierarchy node (or
 	 * the "virtual" invisible top root referred to by the hierarchyWithinRoot constraint). If the {@link HierarchyWithin}
 	 * contains inner constraints {@link HierarchyHaving} or {@link HierarchyExcluding}, the children will respect them as
 	 * well. The reason is simple: when you render a menu for the query result, you want the calculated statistics to
 	 * respect the rules that apply to the hierarchyWithin so that the calculated number remains consistent for the end
 	 * user.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#children">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -3851,23 +3851,23 @@ public interface QueryConstraints {
 	 * The scope of the calculated information can be controlled by the stopAt constraint. By default, the traversal goes
 	 * all the way to the bottom of the hierarchy tree unless you tell it to stop at anywhere. If you need to access
 	 * statistical data, use the statistics constraint.
-	 * 
+	 *
 	 * The constraint accepts following arguments:
-	 * 
+	 *
 	 * - mandatory String argument specifying the output name for the calculated data structure
 	 * - optional one or more constraints that allow you to define the completeness of the hierarchy entities, the scope of
 	 *   the traversed hierarchy tree, and the statistics computed along the way; any or all of the constraints may be
 	 *   present:
-	 * 
+	 *
 	 *      - {@link EntityFetch}
 	 *      - {@link HierarchyStopAt}
 	 *      - {@link HierarchyStatistics}
-	 * 
+	 *
 	 * The following query lists products in category Audio and its subcategories. Along with the products returned, it also
 	 * returns a computed subcategories data structure that lists the flat category list the currently focused category
 	 * Audio with a computed count of child categories for each menu item and an aggregated count of all products that would
 	 * fall into the given category.
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -3893,14 +3893,14 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * The calculated result for children is connected with the {@link HierarchyWithin} pivot hierarchy node (or
 	 * the "virtual" invisible top root referred to by the hierarchyWithinRoot constraint). If the {@link HierarchyWithin}
 	 * contains inner constraints {@link HierarchyHaving} or {@link HierarchyExcluding}, the children will respect them as
 	 * well. The reason is simple: when you render a menu for the query result, you want the calculated statistics to
 	 * respect the rules that apply to the hierarchyWithin so that the calculated number remains consistent for the end
 	 * user.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#children">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -3923,23 +3923,23 @@ public interface QueryConstraints {
 	 * the {@link HierarchyStopAt} constraint is used as an inner constraint. The {@link HierarchyStopAt} constraint
 	 * triggers a top-down hierarchy traversal from each of the sibling nodes until the {@link HierarchyStopAt} is
 	 * satisfied. If you need to access statistical data, use the statistics constraint.
-	 * 
+	 *
 	 * The constraint accepts following arguments:
-	 * 
+	 *
 	 * - mandatory String argument specifying the output name for the calculated data structure
 	 * - optional one or more constraints that allow you to define the completeness of the hierarchy entities, the scope
 	 *   of the traversed hierarchy tree, and the statistics computed along the way; any or all of the constraints may
 	 *   be present:
-	 * 
+	 *
 	 *      - {@link EntityFetch}
 	 *      - {@link HierarchyStopAt}
 	 *      - {@link HierarchyStatistics}
-	 * 
+	 *
 	 * The following query lists products in category Audio and its subcategories. Along with the products returned, it also
 	 * returns a computed audioSiblings data structure that lists the flat category list the currently focused category
 	 * Audio with a computed count of child categories for each menu item and an aggregated count of all products that would
 	 * fall into the given category.
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -3964,21 +3964,21 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * The calculated result for siblings is connected with the {@link HierarchyWithin} pivot hierarchy node. If
 	 * the {@link HierarchyWithin} contains inner constraints {@link HierarchyHaving} or {@link HierarchyExcluding},
 	 * the children will respect them as well. The reason is simple: when you render a menu for the query result, you want
 	 * the calculated statistics to respect the rules that apply to the hierarchyWithin so that the calculated number
 	 * remains consistent for the end user.
-	 * 
+	 *
 	 * <strong>Different siblings syntax when used within parents parent constraint</strong>
-	 * 
+	 *
 	 * The siblings constraint can be used separately as a child of {@link HierarchyOfSelf} or {@link HierarchyOfReference},
 	 * or it can be used as a child constraint of {@link HierarchyParents}. In such a case, the siblings constraint lacks
 	 * the first string argument that defines the name for the output data structure. The reason is that this name is
 	 * already defined on the enclosing parents constraint, and the siblings constraint simply extends the data available
 	 * in its data structure.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#siblings">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -4002,23 +4002,23 @@ public interface QueryConstraints {
 	 * the {@link HierarchyStopAt} constraint is used as an inner constraint. The {@link HierarchyStopAt} constraint
 	 * triggers a top-down hierarchy traversal from each of the sibling nodes until the {@link HierarchyStopAt} is
 	 * satisfied. If you need to access statistical data, use the statistics constraint.
-	 * 
+	 *
 	 * The constraint accepts following arguments:
-	 * 
+	 *
 	 * - mandatory String argument specifying the output name for the calculated data structure
 	 * - optional one or more constraints that allow you to define the completeness of the hierarchy entities, the scope
 	 *   of the traversed hierarchy tree, and the statistics computed along the way; any or all of the constraints may
 	 *   be present:
-	 * 
+	 *
 	 *      - {@link EntityFetch}
 	 *      - {@link HierarchyStopAt}
 	 *      - {@link HierarchyStatistics}
-	 * 
+	 *
 	 * The following query lists products in category Audio and its subcategories. Along with the products returned, it also
 	 * returns a computed audioSiblings data structure that lists the flat category list the currently focused category
 	 * Audio with a computed count of child categories for each menu item and an aggregated count of all products that would
 	 * fall into the given category.
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -4043,21 +4043,21 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * The calculated result for siblings is connected with the {@link HierarchyWithin} pivot hierarchy node. If
 	 * the {@link HierarchyWithin} contains inner constraints {@link HierarchyHaving} or {@link HierarchyExcluding},
 	 * the children will respect them as well. The reason is simple: when you render a menu for the query result, you want
 	 * the calculated statistics to respect the rules that apply to the hierarchyWithin so that the calculated number
 	 * remains consistent for the end user.
-	 * 
+	 *
 	 * <strong>Different siblings syntax when used within parents parent constraint</strong>
-	 * 
+	 *
 	 * The siblings constraint can be used separately as a child of {@link HierarchyOfSelf} or {@link HierarchyOfReference},
 	 * or it can be used as a child constraint of {@link HierarchyParents}. In such a case, the siblings constraint lacks
 	 * the first string argument that defines the name for the output data structure. The reason is that this name is
 	 * already defined on the enclosing parents constraint, and the siblings constraint simply extends the data available
 	 * in its data structure.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#siblings">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -4080,23 +4080,23 @@ public interface QueryConstraints {
 	 * the {@link HierarchyStopAt} constraint is used as an inner constraint. The {@link HierarchyStopAt} constraint
 	 * triggers a top-down hierarchy traversal from each of the sibling nodes until the {@link HierarchyStopAt} is
 	 * satisfied. If you need to access statistical data, use the statistics constraint.
-	 * 
+	 *
 	 * The constraint accepts following arguments:
-	 * 
+	 *
 	 * - mandatory String argument specifying the output name for the calculated data structure
 	 * - optional one or more constraints that allow you to define the completeness of the hierarchy entities, the scope
 	 *   of the traversed hierarchy tree, and the statistics computed along the way; any or all of the constraints may
 	 *   be present:
-	 * 
+	 *
 	 *      - {@link EntityFetch}
 	 *      - {@link HierarchyStopAt}
 	 *      - {@link HierarchyStatistics}
-	 * 
+	 *
 	 * The following query lists products in category Audio and its subcategories. Along with the products returned, it also
 	 * returns a computed audioSiblings data structure that lists the flat category list the currently focused category
 	 * Audio with a computed count of child categories for each menu item and an aggregated count of all products that would
 	 * fall into the given category.
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -4121,21 +4121,21 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * The calculated result for siblings is connected with the {@link HierarchyWithin} pivot hierarchy node. If
 	 * the {@link HierarchyWithin} contains inner constraints {@link HierarchyHaving} or {@link HierarchyExcluding},
 	 * the children will respect them as well. The reason is simple: when you render a menu for the query result, you want
 	 * the calculated statistics to respect the rules that apply to the hierarchyWithin so that the calculated number
 	 * remains consistent for the end user.
-	 * 
+	 *
 	 * <strong>Different siblings syntax when used within parents parent constraint</strong>
-	 * 
+	 *
 	 * The siblings constraint can be used separately as a child of {@link HierarchyOfSelf} or {@link HierarchyOfReference},
 	 * or it can be used as a child constraint of {@link HierarchyParents}. In such a case, the siblings constraint lacks
 	 * the first string argument that defines the name for the output data structure. The reason is that this name is
 	 * already defined on the enclosing parents constraint, and the siblings constraint simply extends the data available
 	 * in its data structure.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#siblings">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -4154,23 +4154,23 @@ public interface QueryConstraints {
 	 * the {@link HierarchyStopAt} constraint is used as an inner constraint. The {@link HierarchyStopAt} constraint
 	 * triggers a top-down hierarchy traversal from each of the sibling nodes until the {@link HierarchyStopAt} is
 	 * satisfied. If you need to access statistical data, use the statistics constraint.
-	 * 
+	 *
 	 * The constraint accepts following arguments:
-	 * 
+	 *
 	 * - mandatory String argument specifying the output name for the calculated data structure
 	 * - optional one or more constraints that allow you to define the completeness of the hierarchy entities, the scope
 	 *   of the traversed hierarchy tree, and the statistics computed along the way; any or all of the constraints may
 	 *   be present:
-	 * 
+	 *
 	 *      - {@link EntityFetch}
 	 *      - {@link HierarchyStopAt}
 	 *      - {@link HierarchyStatistics}
-	 * 
+	 *
 	 * The following query lists products in category Audio and its subcategories. Along with the products returned, it also
 	 * returns a computed audioSiblings data structure that lists the flat category list the currently focused category
 	 * Audio with a computed count of child categories for each menu item and an aggregated count of all products that would
 	 * fall into the given category.
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -4195,21 +4195,21 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * The calculated result for siblings is connected with the {@link HierarchyWithin} pivot hierarchy node. If
 	 * the {@link HierarchyWithin} contains inner constraints {@link HierarchyHaving} or {@link HierarchyExcluding},
 	 * the children will respect them as well. The reason is simple: when you render a menu for the query result, you want
 	 * the calculated statistics to respect the rules that apply to the hierarchyWithin so that the calculated number
 	 * remains consistent for the end user.
-	 * 
+	 *
 	 * <strong>Different siblings syntax when used within parents parent constraint</strong>
-	 * 
+	 *
 	 * The siblings constraint can be used separately as a child of {@link HierarchyOfSelf} or {@link HierarchyOfReference},
 	 * or it can be used as a child constraint of {@link HierarchyParents}. In such a case, the siblings constraint lacks
 	 * the first string argument that defines the name for the output data structure. The reason is that this name is
 	 * already defined on the enclosing parents constraint, and the siblings constraint simply extends the data available
 	 * in its data structure.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#siblings">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -4223,24 +4223,24 @@ public interface QueryConstraints {
 	 * The scope of the calculated information can be controlled by the stopAt constraint. By default, the traversal goes
 	 * all the way to the top of the hierarchy tree unless you tell it to stop at anywhere. If you need to access
 	 * statistical data, use the statistics constraint.
-	 * 
+	 *
 	 * The constraint accepts following arguments:
-	 * 
+	 *
 	 * - mandatory String argument specifying the output name for the calculated data structure
 	 * - optional one or more constraints that allow you to define the completeness of the hierarchy entities, the scope
 	 *   of the traversed hierarchy tree, and the statistics computed along the way; any or all of the constraints may be
 	 *   present:
-	 * 
+	 *
 	 *      - {@link HierarchySiblings}
 	 *      - {@link EntityFetch}
 	 *      - {@link HierarchyStopAt}
 	 *      - {@link HierarchyStatistics}
-	 * 
+	 *
 	 * The following query lists products in the category Audio and its subcategories. Along with the products returned,
 	 * it also returns a computed parentAxis data structure that lists all the parent nodes of the currently focused
 	 * category True wireless with a computed count of child categories for each menu item and an aggregated count of all
 	 * products that would fall into the given category.
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -4265,13 +4265,13 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * The calculated result for parents is connected with the {@link HierarchyWithin} pivot hierarchy node.
 	 * If the {@link HierarchyWithin} contains inner constraints {@link HierarchyHaving} or {@link HierarchyExcluding},
 	 * the parents will respect them as well during child nodes / queried entities statistics calculation. The reason is
 	 * simple: when you render a menu for the query result, you want the calculated statistics to respect the rules that
 	 * apply to the {@link HierarchyWithin} so that the calculated number remains consistent for the end user.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#parents">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -4293,24 +4293,24 @@ public interface QueryConstraints {
 	 * The scope of the calculated information can be controlled by the stopAt constraint. By default, the traversal goes
 	 * all the way to the top of the hierarchy tree unless you tell it to stop at anywhere. If you need to access
 	 * statistical data, use the statistics constraint.
-	 * 
+	 *
 	 * The constraint accepts following arguments:
-	 * 
+	 *
 	 * - mandatory String argument specifying the output name for the calculated data structure
 	 * - optional one or more constraints that allow you to define the completeness of the hierarchy entities, the scope
 	 *   of the traversed hierarchy tree, and the statistics computed along the way; any or all of the constraints may be
 	 *   present:
-	 * 
+	 *
 	 *      - {@link HierarchySiblings}
 	 *      - {@link EntityFetch}
 	 *      - {@link HierarchyStopAt}
 	 *      - {@link HierarchyStatistics}
-	 * 
+	 *
 	 * The following query lists products in the category Audio and its subcategories. Along with the products returned,
 	 * it also returns a computed parentAxis data structure that lists all the parent nodes of the currently focused
 	 * category True wireless with a computed count of child categories for each menu item and an aggregated count of all
 	 * products that would fall into the given category.
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -4335,13 +4335,13 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * The calculated result for parents is connected with the {@link HierarchyWithin} pivot hierarchy node.
 	 * If the {@link HierarchyWithin} contains inner constraints {@link HierarchyHaving} or {@link HierarchyExcluding},
 	 * the parents will respect them as well during child nodes / queried entities statistics calculation. The reason is
 	 * simple: when you render a menu for the query result, you want the calculated statistics to respect the rules that
 	 * apply to the {@link HierarchyWithin} so that the calculated number remains consistent for the end user.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#parents">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -4368,24 +4368,24 @@ public interface QueryConstraints {
 	 * The scope of the calculated information can be controlled by the stopAt constraint. By default, the traversal goes
 	 * all the way to the top of the hierarchy tree unless you tell it to stop at anywhere. If you need to access
 	 * statistical data, use the statistics constraint.
-	 * 
+	 *
 	 * The constraint accepts following arguments:
-	 * 
+	 *
 	 * - mandatory String argument specifying the output name for the calculated data structure
 	 * - optional one or more constraints that allow you to define the completeness of the hierarchy entities, the scope
 	 *   of the traversed hierarchy tree, and the statistics computed along the way; any or all of the constraints may be
 	 *   present:
-	 * 
+	 *
 	 *      - {@link HierarchySiblings}
 	 *      - {@link EntityFetch}
 	 *      - {@link HierarchyStopAt}
 	 *      - {@link HierarchyStatistics}
-	 * 
+	 *
 	 * The following query lists products in the category Audio and its subcategories. Along with the products returned,
 	 * it also returns a computed parentAxis data structure that lists all the parent nodes of the currently focused
 	 * category True wireless with a computed count of child categories for each menu item and an aggregated count of all
 	 * products that would fall into the given category.
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -4410,13 +4410,13 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * The calculated result for parents is connected with the {@link HierarchyWithin} pivot hierarchy node.
 	 * If the {@link HierarchyWithin} contains inner constraints {@link HierarchyHaving} or {@link HierarchyExcluding},
 	 * the parents will respect them as well during child nodes / queried entities statistics calculation. The reason is
 	 * simple: when you render a menu for the query result, you want the calculated statistics to respect the rules that
 	 * apply to the {@link HierarchyWithin} so that the calculated number remains consistent for the end user.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#parents">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -4437,24 +4437,24 @@ public interface QueryConstraints {
 	 * The scope of the calculated information can be controlled by the stopAt constraint. By default, the traversal goes
 	 * all the way to the top of the hierarchy tree unless you tell it to stop at anywhere. If you need to access
 	 * statistical data, use the statistics constraint.
-	 * 
+	 *
 	 * The constraint accepts following arguments:
-	 * 
+	 *
 	 * - mandatory String argument specifying the output name for the calculated data structure
 	 * - optional one or more constraints that allow you to define the completeness of the hierarchy entities, the scope
 	 *   of the traversed hierarchy tree, and the statistics computed along the way; any or all of the constraints may be
 	 *   present:
-	 * 
+	 *
 	 *      - {@link HierarchySiblings}
 	 *      - {@link EntityFetch}
 	 *      - {@link HierarchyStopAt}
 	 *      - {@link HierarchyStatistics}
-	 * 
+	 *
 	 * The following query lists products in the category Audio and its subcategories. Along with the products returned,
 	 * it also returns a computed parentAxis data structure that lists all the parent nodes of the currently focused
 	 * category True wireless with a computed count of child categories for each menu item and an aggregated count of all
 	 * products that would fall into the given category.
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -4479,13 +4479,13 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * The calculated result for parents is connected with the {@link HierarchyWithin} pivot hierarchy node.
 	 * If the {@link HierarchyWithin} contains inner constraints {@link HierarchyHaving} or {@link HierarchyExcluding},
 	 * the parents will respect them as well during child nodes / queried entities statistics calculation. The reason is
 	 * simple: when you render a menu for the query result, you want the calculated statistics to respect the rules that
 	 * apply to the {@link HierarchyWithin} so that the calculated number remains consistent for the end user.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#parents">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -4506,16 +4506,16 @@ public interface QueryConstraints {
 	/**
 	 * The stopAt container constraint is a service wrapping constraint container that only makes sense in combination with
 	 * one of the allowed nested constraints. See the usage examples for specific nested constraints.
-	 * 
+	 *
 	 * It accepts one of the following inner constraints:
-	 * 
+	 *
 	 * - {@link HierarchyDistance}
 	 * - {@link HierarchyLevel}
 	 * - {@link HierarchyNode}
-	 * 
+	 *
 	 * which define the constraint that stops traversing the hierarchy tree when it's satisfied by a currently traversed
 	 * node.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#stop-at">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -4527,15 +4527,15 @@ public interface QueryConstraints {
 	 * The node filtering container is an alternative to the {@link HierarchyDistance} and {@link HierarchyLevel}
 	 * termination constraints, which is much more dynamic and can produce hierarchy trees of non-uniform depth. Because
 	 * the filtering constraint can be satisfied by nodes of widely varying depths, traversal can be highly dynamic.
-	 * 
+	 *
 	 * Constraint children define a criterion that determines the point in a hierarchical structure where the traversal
 	 * should stop. The traversal stops at the first node that satisfies the filter condition specified in this container.
-	 * 
+	 *
 	 * The situations where you'd need this dynamic behavior are few and far between. Unfortunately, we do not have
 	 * a meaningful example of this in the demo dataset, so our example query will be slightly off. But for the sake of
 	 * demonstration, let's list the entire Accessories hierarchy, but stop traversing at the nodes whose code starts with
 	 * the letter `w`.
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -4563,7 +4563,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#node">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -4575,9 +4575,9 @@ public interface QueryConstraints {
 	 * The level constraint can only be used within the stopAt container and limits the hierarchy traversal to stop when
 	 * the actual level of the traversed node is equal to a specified constant. The "virtual" top invisible node has level
 	 * zero, the top nodes (nodes with NULL parent) have level one, their children have level two, and so on.
-	 * 
+	 *
 	 * See the following figure:
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -4599,10 +4599,10 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * The query lists products in Audio category and its subcategories. Along with the products returned, it
 	 * also returns a computed megaMenu data structure that lists top two levels of the entire hierarchy.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#level">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -4616,13 +4616,13 @@ public interface QueryConstraints {
 	 * to the pivot node (the node where the hierarchy traversal starts) and is the same whether we are traversing
 	 * the hierarchy top-down or bottom-up. The distance between any two nodes in the hierarchy can be calculated as
 	 * `abs(level(nodeA) - level(nodeB))`.
-	 * 
+	 *
 	 * The constraint accepts single integer argument `distance`, which defines a maximum relative distance from the pivot
 	 * node that can be traversed; the pivot node itself is at distance zero, its direct child or direct parent is
 	 * at distance one, each additional step adds a one to the distance.
-	 * 
+	 *
 	 * See the following figure when the pivot node is Audio:
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -4644,11 +4644,11 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * The following query lists products in category Audio and its subcategories. Along with the products returned, it
 	 * also returns a computed subcategories data structure that lists the flat category list the currently focused category
 	 * Audio.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#distance">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -4660,9 +4660,9 @@ public interface QueryConstraints {
 	 * The statistics constraint allows you to retrieve statistics about the hierarchy nodes that are returned by the
 	 * current query. When used it triggers computation of the queriedEntityCount, childrenCount statistics, or both for
 	 * each hierarchy node in the returned hierarchy tree.
-	 * 
+	 *
 	 * It requires mandatory argument of type {@link StatisticsType} enum that specifies which statistics to compute:
-	 * 
+	 *
 	 * - {@link StatisticsType#CHILDREN_COUNT}: triggers calculation of the count of child hierarchy nodes that exist in
 	 *   the hierarchy tree below the given node; the count is correct regardless of whether the children themselves are
 	 *   requested/traversed by the constraint definition, and respects hierarchyOfReference settings for automatic removal
@@ -4671,33 +4671,33 @@ public interface QueryConstraints {
 	 *   will be returned if the current query is focused on this particular hierarchy node using the hierarchyWithin filter
 	 *   constraint (the possible refining constraint in the form of directRelation and excluding-root is not taken into
 	 *   account).
-	 * 
+	 *
 	 * And optional argument of type {@link StatisticsBase} enum allowing you to specify the base queried entity set that
 	 * is the source for statistics calculations:
-	 * 
+	 *
 	 * - {@link StatisticsBase#COMPLETE_FILTER}: complete filtering query constraint
 	 * - {@link StatisticsBase#WITHOUT_USER_FILTER}: filtering query constraint where the contents of optional userFilter
 	 *    are ignored
-	 * 
+	 *
 	 * The calculation always ignores hierarchyWithin because the focused part of the hierarchy tree is defined on
 	 * the requirement constraint level, but including having/excluding constraints. The having/excluding constraints are
 	 * crucial for the calculation of queriedEntityCount (and therefore also affects the value of childrenCount
 	 * transitively).
-	 * 
+	 *
 	 * <strong>Computational complexity of statistical data calculation</strong>
-	 * 
+	 *
 	 * The performance price paid for calculating statistics is not negligible. The calculation of {@link StatisticsType#CHILDREN_COUNT}
 	 * is cheaper because it allows to eliminate "dead branches" early and thus conserve the computation cycles.
 	 * The calculation of the {@link StatisticsType#QUERIED_ENTITY_COUNT} is more expensive because it requires counting
 	 * items up to the last one and must be precise.
-	 * 
+	 *
 	 * We strongly recommend that you avoid using {@link StatisticsType#QUERIED_ENTITY_COUNT} for root hierarchy nodes for
 	 * large datasets.
-	 * 
+	 *
 	 * This query actually has to filter and aggregate all the records in the database, which is obviously quite expensive,
 	 * even considering that all the indexes are in-memory. Caching is probably the only way out if you really need
 	 * to crunch these numbers.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#statistics">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -4711,9 +4711,9 @@ public interface QueryConstraints {
 	 * The statistics constraint allows you to retrieve statistics about the hierarchy nodes that are returned by the
 	 * current query. When used it triggers computation of the queriedEntityCount, childrenCount statistics, or both for
 	 * each hierarchy node in the returned hierarchy tree.
-	 * 
+	 *
 	 * It requires mandatory argument of type {@link StatisticsType} enum that specifies which statistics to compute:
-	 * 
+	 *
 	 * - {@link StatisticsType#CHILDREN_COUNT}: triggers calculation of the count of child hierarchy nodes that exist in
 	 *   the hierarchy tree below the given node; the count is correct regardless of whether the children themselves are
 	 *   requested/traversed by the constraint definition, and respects hierarchyOfReference settings for automatic removal
@@ -4722,33 +4722,33 @@ public interface QueryConstraints {
 	 *   will be returned if the current query is focused on this particular hierarchy node using the hierarchyWithin filter
 	 *   constraint (the possible refining constraint in the form of directRelation and excluding-root is not taken into
 	 *   account).
-	 * 
+	 *
 	 * And optional argument of type {@link StatisticsBase} enum allowing you to specify the base queried entity set that
 	 * is the source for statistics calculations:
-	 * 
+	 *
 	 * - {@link StatisticsBase#COMPLETE_FILTER}: complete filtering query constraint
 	 * - {@link StatisticsBase#WITHOUT_USER_FILTER}: filtering query constraint where the contents of optional userFilter
 	 *    are ignored
-	 * 
+	 *
 	 * The calculation always ignores hierarchyWithin because the focused part of the hierarchy tree is defined on
 	 * the requirement constraint level, but including having/excluding constraints. The having/excluding constraints are
 	 * crucial for the calculation of queriedEntityCount (and therefore also affects the value of childrenCount
 	 * transitively).
-	 * 
+	 *
 	 * <strong>Computational complexity of statistical data calculation</strong>
-	 * 
+	 *
 	 * The performance price paid for calculating statistics is not negligible. The calculation of {@link StatisticsType#CHILDREN_COUNT}
 	 * is cheaper because it allows to eliminate "dead branches" early and thus conserve the computation cycles.
 	 * The calculation of the {@link StatisticsType#QUERIED_ENTITY_COUNT} is more expensive because it requires counting
 	 * items up to the last one and must be precise.
-	 * 
+	 *
 	 * We strongly recommend that you avoid using {@link StatisticsType#QUERIED_ENTITY_COUNT} for root hierarchy nodes for
 	 * large datasets.
-	 * 
+	 *
 	 * This query actually has to filter and aggregate all the records in the database, which is obviously quite expensive,
 	 * even considering that all the indexes are in-memory. Caching is probably the only way out if you really need
 	 * to crunch these numbers.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#statistics">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -4764,9 +4764,9 @@ public interface QueryConstraints {
 	 * The `entityFetch` requirement is used to trigger loading one or more entity data containers from the disk by its
 	 * primary key. This operation requires a disk access unless the entity is already loaded in the database cache
 	 * (frequently fetched entities have higher chance to stay in the cache).
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Brand"),
@@ -4781,15 +4781,15 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * See internal contents available for fetching in {@link EntityContentRequire}:
-	 * 
+	 *
 	 * - {@link AttributeContent}
 	 * - {@link AssociatedDataContent}
 	 * - {@link PriceContent}
 	 * - {@link HierarchyContent}
 	 * - {@link ReferenceContent}
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#entity-fetch">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
@@ -4803,9 +4803,9 @@ public interface QueryConstraints {
 	/**
 	 * The `entityGroupFetch` requirement is similar to {@link EntityFetch} but is used to trigger loading one or more
 	 * referenced group entities in the {@link ReferenceContent} parent.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Brand"),
@@ -4825,15 +4825,15 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * See internal contents available for fetching in {@link EntityContentRequire}:
-	 * 
+	 *
 	 * - {@link AttributeContent}
 	 * - {@link AssociatedDataContent}
 	 * - {@link PriceContent}
 	 * - {@link HierarchyContent}
 	 * - {@link ReferenceContent}
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#entity-group-fetch">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
@@ -4848,19 +4848,19 @@ public interface QueryConstraints {
 	 * The `attributeContent` requirement is used to retrieve one or more entity or reference attributes. Localized attributes
 	 * are only fetched if there is a locale context in the query, either by using the {@link EntityLocaleEquals} filter
 	 * constraint or the dataInLocales require constraint.
-	 * 
+	 *
 	 * All entity attributes are fetched from disk in bulk, so specifying only a few of them in the `attributeContent`
 	 * requirement only reduces the amount of data transferred over the network. It's not bad to fetch all the attributes
 	 * of an entity using `attributeContentAll`.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * entityFetch(
 	 *    attributeContent("code", "name")
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#attribute-content">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
@@ -4872,19 +4872,19 @@ public interface QueryConstraints {
 	 * The `attributeContent` requirement is used to retrieve one or more entity or reference attributes. Localized attributes
 	 * are only fetched if there is a locale context in the query, either by using the {@link EntityLocaleEquals} filter
 	 * constraint or the dataInLocales require constraint.
-	 * 
+	 *
 	 * All entity attributes are fetched from disk in bulk, so specifying only a few of them in the `attributeContent`
 	 * requirement only reduces the amount of data transferred over the network. It's not bad to fetch all the attributes
 	 * of an entity using `attributeContentAll`.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * entityFetch(
 	 *    attributeContent("code", "name")
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#attribute-content">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
@@ -4899,17 +4899,17 @@ public interface QueryConstraints {
 	 * This `associatedData` requirement changes default behaviour of the query engine returning only entity primary keys in
 	 * the result. When this requirement is used result contains entity bodies along with associated data with names
 	 * specified in one or more arguments of this requirement.
-	 * 
+	 *
 	 * This requirement implicitly triggers {@link EntityFetch} requirement because attributes cannot be returned without entity.
 	 * Localized associated data is returned according to {@link EntityLocaleEquals} query. Requirement might be combined
 	 * with {@link AttributeContent} requirement.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * associatedData("description", "gallery-3d")
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#associated-data-content">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
@@ -4921,17 +4921,17 @@ public interface QueryConstraints {
 	 * This `associatedData` requirement changes default behaviour of the query engine returning only entity primary keys in
 	 * the result. When this requirement is used result contains entity bodies along with associated data with names
 	 * specified in one or more arguments of this requirement.
-	 * 
+	 *
 	 * This requirement implicitly triggers {@link EntityFetch} requirement because attributes cannot be returned without entity.
 	 * Localized associated data is returned according to {@link EntityLocaleEquals} query. Requirement might be combined
 	 * with {@link AttributeContent} requirement.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * associatedData("description", "gallery-3d")
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#associated-data-content">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
@@ -4948,25 +4948,25 @@ public interface QueryConstraints {
 	 * localized in required languages as well as global ones. If query contains no argument, global data and data
 	 * localized to all languages are returned. If query is not present in the query, only global attributes and
 	 * associated data are returned.
-	 * 
+	 *
 	 * **Note:** if {@link EntityLocaleEquals}is used in the filter part of the query and `dataInLanguage`
 	 * require query is missing, the system implicitly uses `dataInLanguage` matching the language in filter query.
-	 * 
+	 *
 	 * Only single `dataInLanguage` query can be used in the query.
-	 * 
+	 *
 	 * Example that fetches only global and `en-US` localized attributes and associated data (considering there are multiple
 	 * language localizations):
-	 * 
+	 *
 	 * <pre>
 	 * dataInLocales("en-US")
 	 * </pre>
-	 * 
+	 *
 	 * Example that fetches all available global and localized data:
-	 * 
+	 *
 	 * <pre>
 	 * dataInLocalesAll()
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#data-in-locales">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
@@ -4980,25 +4980,25 @@ public interface QueryConstraints {
 	 * localized in required languages as well as global ones. If query contains no argument, global data and data
 	 * localized to all languages are returned. If query is not present in the query, only global attributes and
 	 * associated data are returned.
-	 * 
+	 *
 	 * **Note:** if {@link EntityLocaleEquals}is used in the filter part of the query and `dataInLanguage`
 	 * require query is missing, the system implicitly uses `dataInLanguage` matching the language in filter query.
-	 * 
+	 *
 	 * Only single `dataInLanguage` query can be used in the query.
-	 * 
+	 *
 	 * Example that fetches only global and `en-US` localized attributes and associated data (considering there are multiple
 	 * language localizations):
-	 * 
+	 *
 	 * <pre>
 	 * dataInLocales("en-US")
 	 * </pre>
-	 * 
+	 *
 	 * Example that fetches all available global and localized data:
-	 * 
+	 *
 	 * <pre>
 	 * dataInLocalesAll()
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#data-in-locales">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
@@ -5014,9 +5014,9 @@ public interface QueryConstraints {
 	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
 	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
 	 * `referenceContentWithAttributes` variant of it.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * entityFetch(
 	 *    attributeContent("code"),
@@ -5024,13 +5024,13 @@ public interface QueryConstraints {
 	 *    referenceContent("categories")
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Referenced entity (group) fetching
-	 * 
+	 *
 	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
 	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
 	 * a product:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -5042,20 +5042,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering references
-	 * 
+	 *
 	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
 	 * you can use the filter constraint to filter out the references you don't need.
-	 * 
+	 *
 	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the {@link EntityHaving} container constraint.
-	 * 
+	 *
 	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
 	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
 	 * use the following query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -5077,20 +5077,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ##Ordering references
-	 * 
+	 *
 	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
 	 * the references by a different property - either the attribute set on the reference itself or the property of the
 	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
-	 * 
+	 *
 	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the entityHaving container constraint.
-	 * 
+	 *
 	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
 	 * query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -5104,7 +5104,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
@@ -5117,9 +5117,9 @@ public interface QueryConstraints {
 	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
 	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
 	 * `referenceContentWithAttributes` variant of it.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * entityFetch(
 	 *    attributeContent("code"),
@@ -5127,13 +5127,13 @@ public interface QueryConstraints {
 	 *    referenceContent("categories")
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Referenced entity (group) fetching
-	 * 
+	 *
 	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
 	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
 	 * a product:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -5145,20 +5145,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering references
-	 * 
+	 *
 	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
 	 * you can use the filter constraint to filter out the references you don't need.
-	 * 
+	 *
 	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the {@link EntityHaving} container constraint.
-	 * 
+	 *
 	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
 	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
 	 * use the following query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -5180,20 +5180,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ##Ordering references
-	 * 
+	 *
 	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
 	 * the references by a different property - either the attribute set on the reference itself or the property of the
 	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
-	 * 
+	 *
 	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the entityHaving container constraint.
-	 * 
+	 *
 	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
 	 * query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -5207,7 +5207,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
@@ -5220,9 +5220,9 @@ public interface QueryConstraints {
 	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
 	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
 	 * `referenceContentWithAttributes` variant of it.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * entityFetch(
 	 *    attributeContent("code"),
@@ -5230,13 +5230,13 @@ public interface QueryConstraints {
 	 *    referenceContent("categories")
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Referenced entity (group) fetching
-	 * 
+	 *
 	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
 	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
 	 * a product:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -5248,20 +5248,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering references
-	 * 
+	 *
 	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
 	 * you can use the filter constraint to filter out the references you don't need.
-	 * 
+	 *
 	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the {@link EntityHaving} container constraint.
-	 * 
+	 *
 	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
 	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
 	 * use the following query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -5283,20 +5283,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ##Ordering references
-	 * 
+	 *
 	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
 	 * the references by a different property - either the attribute set on the reference itself or the property of the
 	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
-	 * 
+	 *
 	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the entityHaving container constraint.
-	 * 
+	 *
 	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
 	 * query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -5310,7 +5310,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
@@ -5324,9 +5324,9 @@ public interface QueryConstraints {
 	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
 	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
 	 * `referenceContentWithAttributes` variant of it.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * entityFetch(
 	 *    attributeContent("code"),
@@ -5334,13 +5334,13 @@ public interface QueryConstraints {
 	 *    referenceContent("categories")
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Referenced entity (group) fetching
-	 * 
+	 *
 	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
 	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
 	 * a product:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -5352,20 +5352,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering references
-	 * 
+	 *
 	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
 	 * you can use the filter constraint to filter out the references you don't need.
-	 * 
+	 *
 	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the {@link EntityHaving} container constraint.
-	 * 
+	 *
 	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
 	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
 	 * use the following query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -5387,20 +5387,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ##Ordering references
-	 * 
+	 *
 	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
 	 * the references by a different property - either the attribute set on the reference itself or the property of the
 	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
-	 * 
+	 *
 	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the entityHaving container constraint.
-	 * 
+	 *
 	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
 	 * query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -5414,7 +5414,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
@@ -5430,9 +5430,9 @@ public interface QueryConstraints {
 	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
 	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
 	 * `referenceContentWithAttributes` variant of it.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * entityFetch(
 	 *    attributeContent("code"),
@@ -5440,13 +5440,13 @@ public interface QueryConstraints {
 	 *    referenceContent("categories")
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Referenced entity (group) fetching
-	 * 
+	 *
 	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
 	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
 	 * a product:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -5458,20 +5458,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering references
-	 * 
+	 *
 	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
 	 * you can use the filter constraint to filter out the references you don't need.
-	 * 
+	 *
 	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the {@link EntityHaving} container constraint.
-	 * 
+	 *
 	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
 	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
 	 * use the following query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -5493,20 +5493,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ##Ordering references
-	 * 
+	 *
 	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
 	 * the references by a different property - either the attribute set on the reference itself or the property of the
 	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
-	 * 
+	 *
 	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the entityHaving container constraint.
-	 * 
+	 *
 	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
 	 * query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -5520,7 +5520,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -5540,9 +5540,9 @@ public interface QueryConstraints {
 	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
 	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
 	 * `referenceContentWithAttributes` variant of it.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * entityFetch(
 	 *    attributeContent("code"),
@@ -5550,13 +5550,13 @@ public interface QueryConstraints {
 	 *    referenceContent("categories")
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Referenced entity (group) fetching
-	 * 
+	 *
 	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
 	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
 	 * a product:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -5568,20 +5568,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering references
-	 * 
+	 *
 	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
 	 * you can use the filter constraint to filter out the references you don't need.
-	 * 
+	 *
 	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the {@link EntityHaving} container constraint.
-	 * 
+	 *
 	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
 	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
 	 * use the following query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -5603,20 +5603,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ##Ordering references
-	 * 
+	 *
 	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
 	 * the references by a different property - either the attribute set on the reference itself or the property of the
 	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
-	 * 
+	 *
 	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the entityHaving container constraint.
-	 * 
+	 *
 	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
 	 * query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -5630,7 +5630,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -5644,9 +5644,9 @@ public interface QueryConstraints {
 	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
 	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
 	 * `referenceContentWithAttributes` variant of it.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * entityFetch(
 	 *    attributeContent("code"),
@@ -5654,13 +5654,13 @@ public interface QueryConstraints {
 	 *    referenceContent("categories")
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Referenced entity (group) fetching
-	 * 
+	 *
 	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
 	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
 	 * a product:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -5672,20 +5672,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering references
-	 * 
+	 *
 	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
 	 * you can use the filter constraint to filter out the references you don't need.
-	 * 
+	 *
 	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the {@link EntityHaving} container constraint.
-	 * 
+	 *
 	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
 	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
 	 * use the following query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -5707,20 +5707,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ##Ordering references
-	 * 
+	 *
 	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
 	 * the references by a different property - either the attribute set on the reference itself or the property of the
 	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
-	 * 
+	 *
 	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the entityHaving container constraint.
-	 * 
+	 *
 	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
 	 * query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -5734,7 +5734,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -5750,9 +5750,9 @@ public interface QueryConstraints {
 	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
 	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
 	 * `referenceContentWithAttributes` variant of it.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * entityFetch(
 	 *    attributeContent("code"),
@@ -5760,13 +5760,13 @@ public interface QueryConstraints {
 	 *    referenceContent("categories")
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Referenced entity (group) fetching
-	 * 
+	 *
 	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
 	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
 	 * a product:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -5778,20 +5778,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering references
-	 * 
+	 *
 	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
 	 * you can use the filter constraint to filter out the references you don't need.
-	 * 
+	 *
 	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the {@link EntityHaving} container constraint.
-	 * 
+	 *
 	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
 	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
 	 * use the following query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -5813,20 +5813,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ##Ordering references
-	 * 
+	 *
 	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
 	 * the references by a different property - either the attribute set on the reference itself or the property of the
 	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
-	 * 
+	 *
 	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the entityHaving container constraint.
-	 * 
+	 *
 	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
 	 * query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -5840,7 +5840,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
@@ -5856,9 +5856,9 @@ public interface QueryConstraints {
 	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
 	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
 	 * `referenceContentWithAttributes` variant of it.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * entityFetch(
 	 *    attributeContent("code"),
@@ -5866,13 +5866,13 @@ public interface QueryConstraints {
 	 *    referenceContent("categories")
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Referenced entity (group) fetching
-	 * 
+	 *
 	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
 	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
 	 * a product:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -5884,20 +5884,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering references
-	 * 
+	 *
 	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
 	 * you can use the filter constraint to filter out the references you don't need.
-	 * 
+	 *
 	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the {@link EntityHaving} container constraint.
-	 * 
+	 *
 	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
 	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
 	 * use the following query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -5919,20 +5919,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ##Ordering references
-	 * 
+	 *
 	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
 	 * the references by a different property - either the attribute set on the reference itself or the property of the
 	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
-	 * 
+	 *
 	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the entityHaving container constraint.
-	 * 
+	 *
 	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
 	 * query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -5946,7 +5946,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
@@ -5967,9 +5967,9 @@ public interface QueryConstraints {
 	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
 	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
 	 * `referenceContentWithAttributes` variant of it.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * entityFetch(
 	 *    attributeContent("code"),
@@ -5977,13 +5977,13 @@ public interface QueryConstraints {
 	 *    referenceContent("categories")
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Referenced entity (group) fetching
-	 * 
+	 *
 	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
 	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
 	 * a product:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -5995,20 +5995,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering references
-	 * 
+	 *
 	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
 	 * you can use the filter constraint to filter out the references you don't need.
-	 * 
+	 *
 	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the {@link EntityHaving} container constraint.
-	 * 
+	 *
 	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
 	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
 	 * use the following query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -6030,20 +6030,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ##Ordering references
-	 * 
+	 *
 	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
 	 * the references by a different property - either the attribute set on the reference itself or the property of the
 	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
-	 * 
+	 *
 	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the entityHaving container constraint.
-	 * 
+	 *
 	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
 	 * query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -6057,7 +6057,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -6073,9 +6073,9 @@ public interface QueryConstraints {
 	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
 	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
 	 * `referenceContentWithAttributes` variant of it.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * entityFetch(
 	 *    attributeContent("code"),
@@ -6083,13 +6083,13 @@ public interface QueryConstraints {
 	 *    referenceContent("categories")
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Referenced entity (group) fetching
-	 * 
+	 *
 	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
 	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
 	 * a product:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -6101,20 +6101,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering references
-	 * 
+	 *
 	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
 	 * you can use the filter constraint to filter out the references you don't need.
-	 * 
+	 *
 	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the {@link EntityHaving} container constraint.
-	 * 
+	 *
 	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
 	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
 	 * use the following query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -6136,20 +6136,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ##Ordering references
-	 * 
+	 *
 	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
 	 * the references by a different property - either the attribute set on the reference itself or the property of the
 	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
-	 * 
+	 *
 	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the entityHaving container constraint.
-	 * 
+	 *
 	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
 	 * query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -6163,7 +6163,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -6179,9 +6179,9 @@ public interface QueryConstraints {
 	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
 	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
 	 * `referenceContentWithAttributes` variant of it.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * entityFetch(
 	 *    attributeContent("code"),
@@ -6189,13 +6189,13 @@ public interface QueryConstraints {
 	 *    referenceContent("categories")
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Referenced entity (group) fetching
-	 * 
+	 *
 	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
 	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
 	 * a product:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -6207,20 +6207,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering references
-	 * 
+	 *
 	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
 	 * you can use the filter constraint to filter out the references you don't need.
-	 * 
+	 *
 	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the {@link EntityHaving} container constraint.
-	 * 
+	 *
 	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
 	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
 	 * use the following query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -6242,20 +6242,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ##Ordering references
-	 * 
+	 *
 	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
 	 * the references by a different property - either the attribute set on the reference itself or the property of the
 	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
-	 * 
+	 *
 	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the entityHaving container constraint.
-	 * 
+	 *
 	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
 	 * query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -6269,7 +6269,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
@@ -6288,9 +6288,9 @@ public interface QueryConstraints {
 	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
 	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
 	 * `referenceContentWithAttributes` variant of it.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * entityFetch(
 	 *    attributeContent("code"),
@@ -6298,13 +6298,13 @@ public interface QueryConstraints {
 	 *    referenceContent("categories")
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Referenced entity (group) fetching
-	 * 
+	 *
 	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
 	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
 	 * a product:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -6316,20 +6316,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering references
-	 * 
+	 *
 	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
 	 * you can use the filter constraint to filter out the references you don't need.
-	 * 
+	 *
 	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the {@link EntityHaving} container constraint.
-	 * 
+	 *
 	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
 	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
 	 * use the following query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -6351,20 +6351,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ##Ordering references
-	 * 
+	 *
 	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
 	 * the references by a different property - either the attribute set on the reference itself or the property of the
 	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
-	 * 
+	 *
 	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the entityHaving container constraint.
-	 * 
+	 *
 	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
 	 * query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -6378,7 +6378,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -6394,9 +6394,9 @@ public interface QueryConstraints {
 	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
 	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
 	 * `referenceContentWithAttributes` variant of it.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * entityFetch(
 	 *    attributeContent("code"),
@@ -6404,13 +6404,13 @@ public interface QueryConstraints {
 	 *    referenceContent("categories")
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Referenced entity (group) fetching
-	 * 
+	 *
 	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
 	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
 	 * a product:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -6422,20 +6422,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering references
-	 * 
+	 *
 	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
 	 * you can use the filter constraint to filter out the references you don't need.
-	 * 
+	 *
 	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the {@link EntityHaving} container constraint.
-	 * 
+	 *
 	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
 	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
 	 * use the following query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -6457,20 +6457,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ##Ordering references
-	 * 
+	 *
 	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
 	 * the references by a different property - either the attribute set on the reference itself or the property of the
 	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
-	 * 
+	 *
 	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the entityHaving container constraint.
-	 * 
+	 *
 	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
 	 * query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -6484,7 +6484,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -6500,9 +6500,9 @@ public interface QueryConstraints {
 	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
 	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
 	 * `referenceContentWithAttributes` variant of it.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * entityFetch(
 	 *    attributeContent("code"),
@@ -6510,13 +6510,13 @@ public interface QueryConstraints {
 	 *    referenceContent("categories")
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Referenced entity (group) fetching
-	 * 
+	 *
 	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
 	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
 	 * a product:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -6528,20 +6528,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering references
-	 * 
+	 *
 	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
 	 * you can use the filter constraint to filter out the references you don't need.
-	 * 
+	 *
 	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the {@link EntityHaving} container constraint.
-	 * 
+	 *
 	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
 	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
 	 * use the following query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -6563,20 +6563,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ##Ordering references
-	 * 
+	 *
 	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
 	 * the references by a different property - either the attribute set on the reference itself or the property of the
 	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
-	 * 
+	 *
 	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the entityHaving container constraint.
-	 * 
+	 *
 	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
 	 * query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -6590,7 +6590,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
@@ -6606,9 +6606,9 @@ public interface QueryConstraints {
 	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
 	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
 	 * `referenceContentWithAttributes` variant of it.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * entityFetch(
 	 *    attributeContent("code"),
@@ -6616,13 +6616,13 @@ public interface QueryConstraints {
 	 *    referenceContent("categories")
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Referenced entity (group) fetching
-	 * 
+	 *
 	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
 	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
 	 * a product:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -6634,20 +6634,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering references
-	 * 
+	 *
 	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
 	 * you can use the filter constraint to filter out the references you don't need.
-	 * 
+	 *
 	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the {@link EntityHaving} container constraint.
-	 * 
+	 *
 	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
 	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
 	 * use the following query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -6669,20 +6669,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ##Ordering references
-	 * 
+	 *
 	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
 	 * the references by a different property - either the attribute set on the reference itself or the property of the
 	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
-	 * 
+	 *
 	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the entityHaving container constraint.
-	 * 
+	 *
 	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
 	 * query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -6696,7 +6696,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -6714,9 +6714,9 @@ public interface QueryConstraints {
 	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
 	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
 	 * `referenceContentWithAttributes` variant of it.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * entityFetch(
 	 *    attributeContent("code"),
@@ -6724,13 +6724,13 @@ public interface QueryConstraints {
 	 *    referenceContent("categories")
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Referenced entity (group) fetching
-	 * 
+	 *
 	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
 	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
 	 * a product:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -6742,20 +6742,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering references
-	 * 
+	 *
 	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
 	 * you can use the filter constraint to filter out the references you don't need.
-	 * 
+	 *
 	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the {@link EntityHaving} container constraint.
-	 * 
+	 *
 	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
 	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
 	 * use the following query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -6777,20 +6777,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ##Ordering references
-	 * 
+	 *
 	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
 	 * the references by a different property - either the attribute set on the reference itself or the property of the
 	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
-	 * 
+	 *
 	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the entityHaving container constraint.
-	 * 
+	 *
 	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
 	 * query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -6804,7 +6804,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -6824,9 +6824,9 @@ public interface QueryConstraints {
 	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
 	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
 	 * `referenceContentWithAttributes` variant of it.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * entityFetch(
 	 *    attributeContent("code"),
@@ -6834,13 +6834,13 @@ public interface QueryConstraints {
 	 *    referenceContent("categories")
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Referenced entity (group) fetching
-	 * 
+	 *
 	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
 	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
 	 * a product:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -6852,20 +6852,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering references
-	 * 
+	 *
 	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
 	 * you can use the filter constraint to filter out the references you don't need.
-	 * 
+	 *
 	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the {@link EntityHaving} container constraint.
-	 * 
+	 *
 	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
 	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
 	 * use the following query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -6887,20 +6887,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ##Ordering references
-	 * 
+	 *
 	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
 	 * the references by a different property - either the attribute set on the reference itself or the property of the
 	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
-	 * 
+	 *
 	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the entityHaving container constraint.
-	 * 
+	 *
 	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
 	 * query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -6914,7 +6914,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
@@ -6937,9 +6937,9 @@ public interface QueryConstraints {
 	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
 	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
 	 * `referenceContentWithAttributes` variant of it.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * entityFetch(
 	 *    attributeContent("code"),
@@ -6947,13 +6947,13 @@ public interface QueryConstraints {
 	 *    referenceContent("categories")
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Referenced entity (group) fetching
-	 * 
+	 *
 	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
 	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
 	 * a product:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -6965,20 +6965,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering references
-	 * 
+	 *
 	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
 	 * you can use the filter constraint to filter out the references you don't need.
-	 * 
+	 *
 	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the {@link EntityHaving} container constraint.
-	 * 
+	 *
 	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
 	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
 	 * use the following query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -7000,20 +7000,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ##Ordering references
-	 * 
+	 *
 	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
 	 * the references by a different property - either the attribute set on the reference itself or the property of the
 	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
-	 * 
+	 *
 	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the entityHaving container constraint.
-	 * 
+	 *
 	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
 	 * query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -7027,7 +7027,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
@@ -7050,9 +7050,9 @@ public interface QueryConstraints {
 	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
 	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
 	 * `referenceContentWithAttributes` variant of it.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * entityFetch(
 	 *    attributeContent("code"),
@@ -7060,13 +7060,13 @@ public interface QueryConstraints {
 	 *    referenceContent("categories")
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Referenced entity (group) fetching
-	 * 
+	 *
 	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
 	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
 	 * a product:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -7078,20 +7078,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering references
-	 * 
+	 *
 	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
 	 * you can use the filter constraint to filter out the references you don't need.
-	 * 
+	 *
 	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the {@link EntityHaving} container constraint.
-	 * 
+	 *
 	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
 	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
 	 * use the following query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -7113,20 +7113,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ##Ordering references
-	 * 
+	 *
 	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
 	 * the references by a different property - either the attribute set on the reference itself or the property of the
 	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
-	 * 
+	 *
 	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the entityHaving container constraint.
-	 * 
+	 *
 	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
 	 * query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -7140,7 +7140,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
@@ -7157,9 +7157,9 @@ public interface QueryConstraints {
 	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
 	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
 	 * `referenceContentWithAttributes` variant of it.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * entityFetch(
 	 *    attributeContent("code"),
@@ -7167,13 +7167,13 @@ public interface QueryConstraints {
 	 *    referenceContent("categories")
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Referenced entity (group) fetching
-	 * 
+	 *
 	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
 	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
 	 * a product:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -7185,20 +7185,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering references
-	 * 
+	 *
 	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
 	 * you can use the filter constraint to filter out the references you don't need.
-	 * 
+	 *
 	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the {@link EntityHaving} container constraint.
-	 * 
+	 *
 	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
 	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
 	 * use the following query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -7220,20 +7220,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ##Ordering references
-	 * 
+	 *
 	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
 	 * the references by a different property - either the attribute set on the reference itself or the property of the
 	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
-	 * 
+	 *
 	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the entityHaving container constraint.
-	 * 
+	 *
 	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
 	 * query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -7247,7 +7247,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -7260,9 +7260,9 @@ public interface QueryConstraints {
 	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
 	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
 	 * `referenceContentWithAttributes` variant of it.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * entityFetch(
 	 *    attributeContent("code"),
@@ -7270,13 +7270,13 @@ public interface QueryConstraints {
 	 *    referenceContent("categories")
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Referenced entity (group) fetching
-	 * 
+	 *
 	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
 	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
 	 * a product:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -7288,20 +7288,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering references
-	 * 
+	 *
 	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
 	 * you can use the filter constraint to filter out the references you don't need.
-	 * 
+	 *
 	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the {@link EntityHaving} container constraint.
-	 * 
+	 *
 	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
 	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
 	 * use the following query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -7323,20 +7323,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ##Ordering references
-	 * 
+	 *
 	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
 	 * the references by a different property - either the attribute set on the reference itself or the property of the
 	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
-	 * 
+	 *
 	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the entityHaving container constraint.
-	 * 
+	 *
 	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
 	 * query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -7350,7 +7350,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -7363,9 +7363,9 @@ public interface QueryConstraints {
 	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
 	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
 	 * `referenceContentWithAttributes` variant of it.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * entityFetch(
 	 *    attributeContent("code"),
@@ -7373,13 +7373,13 @@ public interface QueryConstraints {
 	 *    referenceContent("categories")
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Referenced entity (group) fetching
-	 * 
+	 *
 	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
 	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
 	 * a product:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -7391,20 +7391,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering references
-	 * 
+	 *
 	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
 	 * you can use the filter constraint to filter out the references you don't need.
-	 * 
+	 *
 	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the {@link EntityHaving} container constraint.
-	 * 
+	 *
 	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
 	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
 	 * use the following query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -7426,20 +7426,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ##Ordering references
-	 * 
+	 *
 	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
 	 * the references by a different property - either the attribute set on the reference itself or the property of the
 	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
-	 * 
+	 *
 	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the entityHaving container constraint.
-	 * 
+	 *
 	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
 	 * query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -7453,7 +7453,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -7466,9 +7466,9 @@ public interface QueryConstraints {
 	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
 	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
 	 * `referenceContentWithAttributes` variant of it.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * entityFetch(
 	 *    attributeContent("code"),
@@ -7476,13 +7476,13 @@ public interface QueryConstraints {
 	 *    referenceContent("categories")
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Referenced entity (group) fetching
-	 * 
+	 *
 	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
 	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
 	 * a product:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -7494,20 +7494,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering references
-	 * 
+	 *
 	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
 	 * you can use the filter constraint to filter out the references you don't need.
-	 * 
+	 *
 	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the {@link EntityHaving} container constraint.
-	 * 
+	 *
 	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
 	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
 	 * use the following query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -7529,20 +7529,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ##Ordering references
-	 * 
+	 *
 	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
 	 * the references by a different property - either the attribute set on the reference itself or the property of the
 	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
-	 * 
+	 *
 	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the entityHaving container constraint.
-	 * 
+	 *
 	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
 	 * query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -7556,7 +7556,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -7569,9 +7569,9 @@ public interface QueryConstraints {
 	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
 	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
 	 * `referenceContentWithAttributes` variant of it.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * entityFetch(
 	 *    attributeContent("code"),
@@ -7579,13 +7579,13 @@ public interface QueryConstraints {
 	 *    referenceContent("categories")
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Referenced entity (group) fetching
-	 * 
+	 *
 	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
 	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
 	 * a product:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -7597,20 +7597,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering references
-	 * 
+	 *
 	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
 	 * you can use the filter constraint to filter out the references you don't need.
-	 * 
+	 *
 	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the {@link EntityHaving} container constraint.
-	 * 
+	 *
 	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
 	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
 	 * use the following query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -7632,20 +7632,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ##Ordering references
-	 * 
+	 *
 	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
 	 * the references by a different property - either the attribute set on the reference itself or the property of the
 	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
-	 * 
+	 *
 	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the entityHaving container constraint.
-	 * 
+	 *
 	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
 	 * query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -7659,7 +7659,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -7675,9 +7675,9 @@ public interface QueryConstraints {
 	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
 	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
 	 * `referenceContentWithAttributes` variant of it.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * entityFetch(
 	 *    attributeContent("code"),
@@ -7685,13 +7685,13 @@ public interface QueryConstraints {
 	 *    referenceContent("categories")
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Referenced entity (group) fetching
-	 * 
+	 *
 	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
 	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
 	 * a product:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -7703,20 +7703,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering references
-	 * 
+	 *
 	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
 	 * you can use the filter constraint to filter out the references you don't need.
-	 * 
+	 *
 	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the {@link EntityHaving} container constraint.
-	 * 
+	 *
 	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
 	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
 	 * use the following query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -7738,20 +7738,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ##Ordering references
-	 * 
+	 *
 	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
 	 * the references by a different property - either the attribute set on the reference itself or the property of the
 	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
-	 * 
+	 *
 	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the entityHaving container constraint.
-	 * 
+	 *
 	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
 	 * query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -7765,7 +7765,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -7781,9 +7781,9 @@ public interface QueryConstraints {
 	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
 	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
 	 * `referenceContentWithAttributes` variant of it.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * entityFetch(
 	 *    attributeContent("code"),
@@ -7791,13 +7791,13 @@ public interface QueryConstraints {
 	 *    referenceContent("categories")
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Referenced entity (group) fetching
-	 * 
+	 *
 	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
 	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
 	 * a product:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -7809,20 +7809,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering references
-	 * 
+	 *
 	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
 	 * you can use the filter constraint to filter out the references you don't need.
-	 * 
+	 *
 	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the {@link EntityHaving} container constraint.
-	 * 
+	 *
 	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
 	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
 	 * use the following query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -7844,20 +7844,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ##Ordering references
-	 * 
+	 *
 	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
 	 * the references by a different property - either the attribute set on the reference itself or the property of the
 	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
-	 * 
+	 *
 	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the entityHaving container constraint.
-	 * 
+	 *
 	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
 	 * query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -7871,7 +7871,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -7884,9 +7884,9 @@ public interface QueryConstraints {
 	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
 	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
 	 * `referenceContentWithAttributes` variant of it.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * entityFetch(
 	 *    attributeContent("code"),
@@ -7894,13 +7894,13 @@ public interface QueryConstraints {
 	 *    referenceContent("categories")
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Referenced entity (group) fetching
-	 * 
+	 *
 	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
 	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
 	 * a product:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -7912,20 +7912,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering references
-	 * 
+	 *
 	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
 	 * you can use the filter constraint to filter out the references you don't need.
-	 * 
+	 *
 	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the {@link EntityHaving} container constraint.
-	 * 
+	 *
 	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
 	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
 	 * use the following query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -7947,20 +7947,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ##Ordering references
-	 * 
+	 *
 	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
 	 * the references by a different property - either the attribute set on the reference itself or the property of the
 	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
-	 * 
+	 *
 	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the entityHaving container constraint.
-	 * 
+	 *
 	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
 	 * query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -7974,7 +7974,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -7990,9 +7990,9 @@ public interface QueryConstraints {
 	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
 	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
 	 * `referenceContentWithAttributes` variant of it.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * entityFetch(
 	 *    attributeContent("code"),
@@ -8000,13 +8000,13 @@ public interface QueryConstraints {
 	 *    referenceContent("categories")
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Referenced entity (group) fetching
-	 * 
+	 *
 	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
 	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
 	 * a product:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -8018,20 +8018,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering references
-	 * 
+	 *
 	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
 	 * you can use the filter constraint to filter out the references you don't need.
-	 * 
+	 *
 	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the {@link EntityHaving} container constraint.
-	 * 
+	 *
 	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
 	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
 	 * use the following query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -8053,20 +8053,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ##Ordering references
-	 * 
+	 *
 	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
 	 * the references by a different property - either the attribute set on the reference itself or the property of the
 	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
-	 * 
+	 *
 	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the entityHaving container constraint.
-	 * 
+	 *
 	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
 	 * query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -8080,7 +8080,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -8096,9 +8096,9 @@ public interface QueryConstraints {
 	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
 	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
 	 * `referenceContentWithAttributes` variant of it.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * entityFetch(
 	 *    attributeContent("code"),
@@ -8106,13 +8106,13 @@ public interface QueryConstraints {
 	 *    referenceContent("categories")
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Referenced entity (group) fetching
-	 * 
+	 *
 	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
 	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
 	 * a product:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -8124,20 +8124,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering references
-	 * 
+	 *
 	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
 	 * you can use the filter constraint to filter out the references you don't need.
-	 * 
+	 *
 	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the {@link EntityHaving} container constraint.
-	 * 
+	 *
 	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
 	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
 	 * use the following query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -8159,20 +8159,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ##Ordering references
-	 * 
+	 *
 	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
 	 * the references by a different property - either the attribute set on the reference itself or the property of the
 	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
-	 * 
+	 *
 	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the entityHaving container constraint.
-	 * 
+	 *
 	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
 	 * query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -8186,7 +8186,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -8199,9 +8199,9 @@ public interface QueryConstraints {
 	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
 	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
 	 * `referenceContentWithAttributes` variant of it.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * entityFetch(
 	 *    attributeContent("code"),
@@ -8209,13 +8209,13 @@ public interface QueryConstraints {
 	 *    referenceContent("categories")
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Referenced entity (group) fetching
-	 * 
+	 *
 	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
 	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
 	 * a product:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -8227,20 +8227,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering references
-	 * 
+	 *
 	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
 	 * you can use the filter constraint to filter out the references you don't need.
-	 * 
+	 *
 	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the {@link EntityHaving} container constraint.
-	 * 
+	 *
 	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
 	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
 	 * use the following query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -8262,20 +8262,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ##Ordering references
-	 * 
+	 *
 	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
 	 * the references by a different property - either the attribute set on the reference itself or the property of the
 	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
-	 * 
+	 *
 	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the entityHaving container constraint.
-	 * 
+	 *
 	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
 	 * query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -8289,7 +8289,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -8305,9 +8305,9 @@ public interface QueryConstraints {
 	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
 	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
 	 * `referenceContentWithAttributes` variant of it.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * entityFetch(
 	 *    attributeContent("code"),
@@ -8315,13 +8315,13 @@ public interface QueryConstraints {
 	 *    referenceContent("categories")
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Referenced entity (group) fetching
-	 * 
+	 *
 	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
 	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
 	 * a product:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -8333,20 +8333,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering references
-	 * 
+	 *
 	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
 	 * you can use the filter constraint to filter out the references you don't need.
-	 * 
+	 *
 	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the {@link EntityHaving} container constraint.
-	 * 
+	 *
 	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
 	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
 	 * use the following query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -8368,20 +8368,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ##Ordering references
-	 * 
+	 *
 	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
 	 * the references by a different property - either the attribute set on the reference itself or the property of the
 	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
-	 * 
+	 *
 	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the entityHaving container constraint.
-	 * 
+	 *
 	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
 	 * query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -8395,7 +8395,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -8411,9 +8411,9 @@ public interface QueryConstraints {
 	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
 	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
 	 * `referenceContentWithAttributes` variant of it.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * entityFetch(
 	 *    attributeContent("code"),
@@ -8421,13 +8421,13 @@ public interface QueryConstraints {
 	 *    referenceContent("categories")
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Referenced entity (group) fetching
-	 * 
+	 *
 	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
 	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
 	 * a product:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -8439,20 +8439,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering references
-	 * 
+	 *
 	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
 	 * you can use the filter constraint to filter out the references you don't need.
-	 * 
+	 *
 	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the {@link EntityHaving} container constraint.
-	 * 
+	 *
 	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
 	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
 	 * use the following query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -8474,20 +8474,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ##Ordering references
-	 * 
+	 *
 	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
 	 * the references by a different property - either the attribute set on the reference itself or the property of the
 	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
-	 * 
+	 *
 	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the entityHaving container constraint.
-	 * 
+	 *
 	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
 	 * query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -8501,7 +8501,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -8514,9 +8514,9 @@ public interface QueryConstraints {
 	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
 	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
 	 * `referenceContentWithAttributes` variant of it.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * entityFetch(
 	 *    attributeContent("code"),
@@ -8524,13 +8524,13 @@ public interface QueryConstraints {
 	 *    referenceContent("categories")
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Referenced entity (group) fetching
-	 * 
+	 *
 	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
 	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
 	 * a product:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -8542,20 +8542,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering references
-	 * 
+	 *
 	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
 	 * you can use the filter constraint to filter out the references you don't need.
-	 * 
+	 *
 	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the {@link EntityHaving} container constraint.
-	 * 
+	 *
 	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
 	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
 	 * use the following query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -8577,20 +8577,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ##Ordering references
-	 * 
+	 *
 	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
 	 * the references by a different property - either the attribute set on the reference itself or the property of the
 	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
-	 * 
+	 *
 	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the entityHaving container constraint.
-	 * 
+	 *
 	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
 	 * query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -8604,7 +8604,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -8620,9 +8620,9 @@ public interface QueryConstraints {
 	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
 	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
 	 * `referenceContentWithAttributes` variant of it.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * entityFetch(
 	 *    attributeContent("code"),
@@ -8630,13 +8630,13 @@ public interface QueryConstraints {
 	 *    referenceContent("categories")
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Referenced entity (group) fetching
-	 * 
+	 *
 	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
 	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
 	 * a product:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -8648,20 +8648,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering references
-	 * 
+	 *
 	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
 	 * you can use the filter constraint to filter out the references you don't need.
-	 * 
+	 *
 	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the {@link EntityHaving} container constraint.
-	 * 
+	 *
 	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
 	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
 	 * use the following query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -8683,20 +8683,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ##Ordering references
-	 * 
+	 *
 	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
 	 * the references by a different property - either the attribute set on the reference itself or the property of the
 	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
-	 * 
+	 *
 	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the entityHaving container constraint.
-	 * 
+	 *
 	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
 	 * query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -8710,7 +8710,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -8726,9 +8726,9 @@ public interface QueryConstraints {
 	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
 	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
 	 * `referenceContentWithAttributes` variant of it.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * entityFetch(
 	 *    attributeContent("code"),
@@ -8736,13 +8736,13 @@ public interface QueryConstraints {
 	 *    referenceContent("categories")
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Referenced entity (group) fetching
-	 * 
+	 *
 	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
 	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
 	 * a product:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -8754,20 +8754,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering references
-	 * 
+	 *
 	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
 	 * you can use the filter constraint to filter out the references you don't need.
-	 * 
+	 *
 	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the {@link EntityHaving} container constraint.
-	 * 
+	 *
 	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
 	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
 	 * use the following query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -8789,20 +8789,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ##Ordering references
-	 * 
+	 *
 	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
 	 * the references by a different property - either the attribute set on the reference itself or the property of the
 	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
-	 * 
+	 *
 	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the entityHaving container constraint.
-	 * 
+	 *
 	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
 	 * query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -8816,7 +8816,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -8829,9 +8829,9 @@ public interface QueryConstraints {
 	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
 	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
 	 * `referenceContentWithAttributes` variant of it.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * entityFetch(
 	 *    attributeContent("code"),
@@ -8839,13 +8839,13 @@ public interface QueryConstraints {
 	 *    referenceContent("categories")
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Referenced entity (group) fetching
-	 * 
+	 *
 	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
 	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
 	 * a product:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -8857,20 +8857,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering references
-	 * 
+	 *
 	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
 	 * you can use the filter constraint to filter out the references you don't need.
-	 * 
+	 *
 	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the {@link EntityHaving} container constraint.
-	 * 
+	 *
 	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
 	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
 	 * use the following query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -8892,20 +8892,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ##Ordering references
-	 * 
+	 *
 	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
 	 * the references by a different property - either the attribute set on the reference itself or the property of the
 	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
-	 * 
+	 *
 	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the entityHaving container constraint.
-	 * 
+	 *
 	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
 	 * query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -8919,7 +8919,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -8935,9 +8935,9 @@ public interface QueryConstraints {
 	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
 	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
 	 * `referenceContentWithAttributes` variant of it.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * entityFetch(
 	 *    attributeContent("code"),
@@ -8945,13 +8945,13 @@ public interface QueryConstraints {
 	 *    referenceContent("categories")
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Referenced entity (group) fetching
-	 * 
+	 *
 	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
 	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
 	 * a product:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -8963,20 +8963,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering references
-	 * 
+	 *
 	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
 	 * you can use the filter constraint to filter out the references you don't need.
-	 * 
+	 *
 	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the {@link EntityHaving} container constraint.
-	 * 
+	 *
 	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
 	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
 	 * use the following query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -8998,20 +8998,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ##Ordering references
-	 * 
+	 *
 	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
 	 * the references by a different property - either the attribute set on the reference itself or the property of the
 	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
-	 * 
+	 *
 	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the entityHaving container constraint.
-	 * 
+	 *
 	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
 	 * query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -9025,7 +9025,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -9041,9 +9041,9 @@ public interface QueryConstraints {
 	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
 	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
 	 * `referenceContentWithAttributes` variant of it.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * entityFetch(
 	 *    attributeContent("code"),
@@ -9051,13 +9051,13 @@ public interface QueryConstraints {
 	 *    referenceContent("categories")
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Referenced entity (group) fetching
-	 * 
+	 *
 	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
 	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
 	 * a product:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -9069,20 +9069,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering references
-	 * 
+	 *
 	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
 	 * you can use the filter constraint to filter out the references you don't need.
-	 * 
+	 *
 	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the {@link EntityHaving} container constraint.
-	 * 
+	 *
 	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
 	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
 	 * use the following query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -9104,20 +9104,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ##Ordering references
-	 * 
+	 *
 	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
 	 * the references by a different property - either the attribute set on the reference itself or the property of the
 	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
-	 * 
+	 *
 	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the entityHaving container constraint.
-	 * 
+	 *
 	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
 	 * query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -9131,7 +9131,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -9144,9 +9144,9 @@ public interface QueryConstraints {
 	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
 	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
 	 * `referenceContentWithAttributes` variant of it.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * entityFetch(
 	 *    attributeContent("code"),
@@ -9154,13 +9154,13 @@ public interface QueryConstraints {
 	 *    referenceContent("categories")
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Referenced entity (group) fetching
-	 * 
+	 *
 	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
 	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
 	 * a product:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -9172,20 +9172,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering references
-	 * 
+	 *
 	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
 	 * you can use the filter constraint to filter out the references you don't need.
-	 * 
+	 *
 	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the {@link EntityHaving} container constraint.
-	 * 
+	 *
 	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
 	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
 	 * use the following query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -9207,20 +9207,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ##Ordering references
-	 * 
+	 *
 	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
 	 * the references by a different property - either the attribute set on the reference itself or the property of the
 	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
-	 * 
+	 *
 	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the entityHaving container constraint.
-	 * 
+	 *
 	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
 	 * query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -9234,7 +9234,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -9250,9 +9250,9 @@ public interface QueryConstraints {
 	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
 	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
 	 * `referenceContentWithAttributes` variant of it.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * entityFetch(
 	 *    attributeContent("code"),
@@ -9260,13 +9260,13 @@ public interface QueryConstraints {
 	 *    referenceContent("categories")
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Referenced entity (group) fetching
-	 * 
+	 *
 	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
 	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
 	 * a product:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -9278,20 +9278,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering references
-	 * 
+	 *
 	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
 	 * you can use the filter constraint to filter out the references you don't need.
-	 * 
+	 *
 	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the {@link EntityHaving} container constraint.
-	 * 
+	 *
 	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
 	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
 	 * use the following query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -9313,20 +9313,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ##Ordering references
-	 * 
+	 *
 	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
 	 * the references by a different property - either the attribute set on the reference itself or the property of the
 	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
-	 * 
+	 *
 	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the entityHaving container constraint.
-	 * 
+	 *
 	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
 	 * query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -9340,7 +9340,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -9356,9 +9356,9 @@ public interface QueryConstraints {
 	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
 	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
 	 * `referenceContentWithAttributes` variant of it.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * entityFetch(
 	 *    attributeContent("code"),
@@ -9366,13 +9366,13 @@ public interface QueryConstraints {
 	 *    referenceContent("categories")
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Referenced entity (group) fetching
-	 * 
+	 *
 	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
 	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
 	 * a product:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -9384,20 +9384,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering references
-	 * 
+	 *
 	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
 	 * you can use the filter constraint to filter out the references you don't need.
-	 * 
+	 *
 	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the {@link EntityHaving} container constraint.
-	 * 
+	 *
 	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
 	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
 	 * use the following query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -9419,20 +9419,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ##Ordering references
-	 * 
+	 *
 	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
 	 * the references by a different property - either the attribute set on the reference itself or the property of the
 	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
-	 * 
+	 *
 	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the entityHaving container constraint.
-	 * 
+	 *
 	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
 	 * query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -9446,7 +9446,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -9459,9 +9459,9 @@ public interface QueryConstraints {
 	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
 	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
 	 * `referenceContentWithAttributes` variant of it.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * entityFetch(
 	 *    attributeContent("code"),
@@ -9469,13 +9469,13 @@ public interface QueryConstraints {
 	 *    referenceContent("categories")
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Referenced entity (group) fetching
-	 * 
+	 *
 	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
 	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
 	 * a product:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -9487,20 +9487,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering references
-	 * 
+	 *
 	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
 	 * you can use the filter constraint to filter out the references you don't need.
-	 * 
+	 *
 	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the {@link EntityHaving} container constraint.
-	 * 
+	 *
 	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
 	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
 	 * use the following query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -9522,20 +9522,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ##Ordering references
-	 * 
+	 *
 	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
 	 * the references by a different property - either the attribute set on the reference itself or the property of the
 	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
-	 * 
+	 *
 	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the entityHaving container constraint.
-	 * 
+	 *
 	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
 	 * query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -9549,7 +9549,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -9565,9 +9565,9 @@ public interface QueryConstraints {
 	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
 	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
 	 * `referenceContentWithAttributes` variant of it.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * entityFetch(
 	 *    attributeContent("code"),
@@ -9575,13 +9575,13 @@ public interface QueryConstraints {
 	 *    referenceContent("categories")
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Referenced entity (group) fetching
-	 * 
+	 *
 	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
 	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
 	 * a product:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -9593,20 +9593,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering references
-	 * 
+	 *
 	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
 	 * you can use the filter constraint to filter out the references you don't need.
-	 * 
+	 *
 	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the {@link EntityHaving} container constraint.
-	 * 
+	 *
 	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
 	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
 	 * use the following query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -9628,20 +9628,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ##Ordering references
-	 * 
+	 *
 	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
 	 * the references by a different property - either the attribute set on the reference itself or the property of the
 	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
-	 * 
+	 *
 	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the entityHaving container constraint.
-	 * 
+	 *
 	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
 	 * query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -9655,7 +9655,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -9671,9 +9671,9 @@ public interface QueryConstraints {
 	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
 	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
 	 * `referenceContentWithAttributes` variant of it.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * entityFetch(
 	 *    attributeContent("code"),
@@ -9681,13 +9681,13 @@ public interface QueryConstraints {
 	 *    referenceContent("categories")
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Referenced entity (group) fetching
-	 * 
+	 *
 	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
 	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
 	 * a product:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -9699,20 +9699,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering references
-	 * 
+	 *
 	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
 	 * you can use the filter constraint to filter out the references you don't need.
-	 * 
+	 *
 	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the {@link EntityHaving} container constraint.
-	 * 
+	 *
 	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
 	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
 	 * use the following query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -9734,20 +9734,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ##Ordering references
-	 * 
+	 *
 	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
 	 * the references by a different property - either the attribute set on the reference itself or the property of the
 	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
-	 * 
+	 *
 	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the entityHaving container constraint.
-	 * 
+	 *
 	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
 	 * query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -9761,7 +9761,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -9774,9 +9774,9 @@ public interface QueryConstraints {
 	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
 	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
 	 * `referenceContentWithAttributes` variant of it.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * entityFetch(
 	 *    attributeContent("code"),
@@ -9784,13 +9784,13 @@ public interface QueryConstraints {
 	 *    referenceContent("categories")
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Referenced entity (group) fetching
-	 * 
+	 *
 	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
 	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
 	 * a product:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -9802,20 +9802,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering references
-	 * 
+	 *
 	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
 	 * you can use the filter constraint to filter out the references you don't need.
-	 * 
+	 *
 	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the {@link EntityHaving} container constraint.
-	 * 
+	 *
 	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
 	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
 	 * use the following query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -9837,20 +9837,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ##Ordering references
-	 * 
+	 *
 	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
 	 * the references by a different property - either the attribute set on the reference itself or the property of the
 	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
-	 * 
+	 *
 	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the entityHaving container constraint.
-	 * 
+	 *
 	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
 	 * query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -9864,7 +9864,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -9880,9 +9880,9 @@ public interface QueryConstraints {
 	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
 	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
 	 * `referenceContentWithAttributes` variant of it.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * entityFetch(
 	 *    attributeContent("code"),
@@ -9890,13 +9890,13 @@ public interface QueryConstraints {
 	 *    referenceContent("categories")
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Referenced entity (group) fetching
-	 * 
+	 *
 	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
 	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
 	 * a product:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -9908,20 +9908,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering references
-	 * 
+	 *
 	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
 	 * you can use the filter constraint to filter out the references you don't need.
-	 * 
+	 *
 	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the {@link EntityHaving} container constraint.
-	 * 
+	 *
 	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
 	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
 	 * use the following query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -9943,20 +9943,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ##Ordering references
-	 * 
+	 *
 	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
 	 * the references by a different property - either the attribute set on the reference itself or the property of the
 	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
-	 * 
+	 *
 	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the entityHaving container constraint.
-	 * 
+	 *
 	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
 	 * query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -9970,7 +9970,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -9986,9 +9986,9 @@ public interface QueryConstraints {
 	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
 	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
 	 * `referenceContentWithAttributes` variant of it.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * entityFetch(
 	 *    attributeContent("code"),
@@ -9996,13 +9996,13 @@ public interface QueryConstraints {
 	 *    referenceContent("categories")
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Referenced entity (group) fetching
-	 * 
+	 *
 	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
 	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
 	 * a product:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -10014,20 +10014,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering references
-	 * 
+	 *
 	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
 	 * you can use the filter constraint to filter out the references you don't need.
-	 * 
+	 *
 	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the {@link EntityHaving} container constraint.
-	 * 
+	 *
 	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
 	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
 	 * use the following query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -10049,20 +10049,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ##Ordering references
-	 * 
+	 *
 	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
 	 * the references by a different property - either the attribute set on the reference itself or the property of the
 	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
-	 * 
+	 *
 	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the entityHaving container constraint.
-	 * 
+	 *
 	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
 	 * query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -10076,7 +10076,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -10089,9 +10089,9 @@ public interface QueryConstraints {
 	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
 	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
 	 * `referenceContentWithAttributes` variant of it.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * entityFetch(
 	 *    attributeContent("code"),
@@ -10099,13 +10099,13 @@ public interface QueryConstraints {
 	 *    referenceContent("categories")
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Referenced entity (group) fetching
-	 * 
+	 *
 	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
 	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
 	 * a product:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -10117,20 +10117,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering references
-	 * 
+	 *
 	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
 	 * you can use the filter constraint to filter out the references you don't need.
-	 * 
+	 *
 	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the {@link EntityHaving} container constraint.
-	 * 
+	 *
 	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
 	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
 	 * use the following query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -10152,20 +10152,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ##Ordering references
-	 * 
+	 *
 	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
 	 * the references by a different property - either the attribute set on the reference itself or the property of the
 	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
-	 * 
+	 *
 	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the entityHaving container constraint.
-	 * 
+	 *
 	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
 	 * query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -10179,7 +10179,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -10195,9 +10195,9 @@ public interface QueryConstraints {
 	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
 	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
 	 * `referenceContentWithAttributes` variant of it.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * entityFetch(
 	 *    attributeContent("code"),
@@ -10205,13 +10205,13 @@ public interface QueryConstraints {
 	 *    referenceContent("categories")
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Referenced entity (group) fetching
-	 * 
+	 *
 	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
 	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
 	 * a product:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -10223,20 +10223,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering references
-	 * 
+	 *
 	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
 	 * you can use the filter constraint to filter out the references you don't need.
-	 * 
+	 *
 	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the {@link EntityHaving} container constraint.
-	 * 
+	 *
 	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
 	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
 	 * use the following query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -10258,20 +10258,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ##Ordering references
-	 * 
+	 *
 	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
 	 * the references by a different property - either the attribute set on the reference itself or the property of the
 	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
-	 * 
+	 *
 	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the entityHaving container constraint.
-	 * 
+	 *
 	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
 	 * query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -10285,7 +10285,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -10301,9 +10301,9 @@ public interface QueryConstraints {
 	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
 	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
 	 * `referenceContentWithAttributes` variant of it.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * entityFetch(
 	 *    attributeContent("code"),
@@ -10311,13 +10311,13 @@ public interface QueryConstraints {
 	 *    referenceContent("categories")
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Referenced entity (group) fetching
-	 * 
+	 *
 	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
 	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
 	 * a product:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -10329,20 +10329,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering references
-	 * 
+	 *
 	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
 	 * you can use the filter constraint to filter out the references you don't need.
-	 * 
+	 *
 	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the {@link EntityHaving} container constraint.
-	 * 
+	 *
 	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
 	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
 	 * use the following query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -10364,20 +10364,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ##Ordering references
-	 * 
+	 *
 	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
 	 * the references by a different property - either the attribute set on the reference itself or the property of the
 	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
-	 * 
+	 *
 	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the entityHaving container constraint.
-	 * 
+	 *
 	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
 	 * query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -10391,7 +10391,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -10404,9 +10404,9 @@ public interface QueryConstraints {
 	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
 	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
 	 * `referenceContentWithAttributes` variant of it.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * entityFetch(
 	 *    attributeContent("code"),
@@ -10414,13 +10414,13 @@ public interface QueryConstraints {
 	 *    referenceContent("categories")
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Referenced entity (group) fetching
-	 * 
+	 *
 	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
 	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
 	 * a product:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -10432,20 +10432,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering references
-	 * 
+	 *
 	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
 	 * you can use the filter constraint to filter out the references you don't need.
-	 * 
+	 *
 	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the {@link EntityHaving} container constraint.
-	 * 
+	 *
 	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
 	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
 	 * use the following query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -10467,20 +10467,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ##Ordering references
-	 * 
+	 *
 	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
 	 * the references by a different property - either the attribute set on the reference itself or the property of the
 	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
-	 * 
+	 *
 	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the entityHaving container constraint.
-	 * 
+	 *
 	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
 	 * query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -10494,7 +10494,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -10510,9 +10510,9 @@ public interface QueryConstraints {
 	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
 	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
 	 * `referenceContentWithAttributes` variant of it.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * entityFetch(
 	 *    attributeContent("code"),
@@ -10520,13 +10520,13 @@ public interface QueryConstraints {
 	 *    referenceContent("categories")
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Referenced entity (group) fetching
-	 * 
+	 *
 	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
 	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
 	 * a product:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -10538,20 +10538,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering references
-	 * 
+	 *
 	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
 	 * you can use the filter constraint to filter out the references you don't need.
-	 * 
+	 *
 	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the {@link EntityHaving} container constraint.
-	 * 
+	 *
 	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
 	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
 	 * use the following query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -10573,20 +10573,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ##Ordering references
-	 * 
+	 *
 	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
 	 * the references by a different property - either the attribute set on the reference itself or the property of the
 	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
-	 * 
+	 *
 	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the entityHaving container constraint.
-	 * 
+	 *
 	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
 	 * query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -10600,7 +10600,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -10616,9 +10616,9 @@ public interface QueryConstraints {
 	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
 	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
 	 * `referenceContentWithAttributes` variant of it.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * entityFetch(
 	 *    attributeContent("code"),
@@ -10626,13 +10626,13 @@ public interface QueryConstraints {
 	 *    referenceContent("categories")
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Referenced entity (group) fetching
-	 * 
+	 *
 	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
 	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
 	 * a product:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -10644,20 +10644,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering references
-	 * 
+	 *
 	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
 	 * you can use the filter constraint to filter out the references you don't need.
-	 * 
+	 *
 	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the {@link EntityHaving} container constraint.
-	 * 
+	 *
 	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
 	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
 	 * use the following query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -10679,20 +10679,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ##Ordering references
-	 * 
+	 *
 	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
 	 * the references by a different property - either the attribute set on the reference itself or the property of the
 	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
-	 * 
+	 *
 	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the entityHaving container constraint.
-	 * 
+	 *
 	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
 	 * query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -10706,7 +10706,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -10719,9 +10719,9 @@ public interface QueryConstraints {
 	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
 	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
 	 * `referenceContentWithAttributes` variant of it.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * entityFetch(
 	 *    attributeContent("code"),
@@ -10729,13 +10729,13 @@ public interface QueryConstraints {
 	 *    referenceContent("categories")
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Referenced entity (group) fetching
-	 * 
+	 *
 	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
 	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
 	 * a product:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -10747,20 +10747,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering references
-	 * 
+	 *
 	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
 	 * you can use the filter constraint to filter out the references you don't need.
-	 * 
+	 *
 	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the {@link EntityHaving} container constraint.
-	 * 
+	 *
 	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
 	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
 	 * use the following query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -10782,20 +10782,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ##Ordering references
-	 * 
+	 *
 	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
 	 * the references by a different property - either the attribute set on the reference itself or the property of the
 	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
-	 * 
+	 *
 	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the entityHaving container constraint.
-	 * 
+	 *
 	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
 	 * query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -10809,7 +10809,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -10825,9 +10825,9 @@ public interface QueryConstraints {
 	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
 	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
 	 * `referenceContentWithAttributes` variant of it.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * entityFetch(
 	 *    attributeContent("code"),
@@ -10835,13 +10835,13 @@ public interface QueryConstraints {
 	 *    referenceContent("categories")
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Referenced entity (group) fetching
-	 * 
+	 *
 	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
 	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
 	 * a product:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -10853,20 +10853,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering references
-	 * 
+	 *
 	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
 	 * you can use the filter constraint to filter out the references you don't need.
-	 * 
+	 *
 	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the {@link EntityHaving} container constraint.
-	 * 
+	 *
 	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
 	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
 	 * use the following query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -10888,20 +10888,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ##Ordering references
-	 * 
+	 *
 	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
 	 * the references by a different property - either the attribute set on the reference itself or the property of the
 	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
-	 * 
+	 *
 	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the entityHaving container constraint.
-	 * 
+	 *
 	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
 	 * query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -10915,7 +10915,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -10931,9 +10931,9 @@ public interface QueryConstraints {
 	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
 	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
 	 * `referenceContentWithAttributes` variant of it.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * entityFetch(
 	 *    attributeContent("code"),
@@ -10941,13 +10941,13 @@ public interface QueryConstraints {
 	 *    referenceContent("categories")
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Referenced entity (group) fetching
-	 * 
+	 *
 	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
 	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
 	 * a product:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -10959,20 +10959,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering references
-	 * 
+	 *
 	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
 	 * you can use the filter constraint to filter out the references you don't need.
-	 * 
+	 *
 	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the {@link EntityHaving} container constraint.
-	 * 
+	 *
 	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
 	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
 	 * use the following query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -10994,20 +10994,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ##Ordering references
-	 * 
+	 *
 	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
 	 * the references by a different property - either the attribute set on the reference itself or the property of the
 	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
-	 * 
+	 *
 	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the entityHaving container constraint.
-	 * 
+	 *
 	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
 	 * query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -11021,7 +11021,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
@@ -11034,9 +11034,9 @@ public interface QueryConstraints {
 	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
 	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
 	 * `referenceContentWithAttributes` variant of it.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * entityFetch(
 	 *    attributeContent("code"),
@@ -11044,13 +11044,13 @@ public interface QueryConstraints {
 	 *    referenceContent("categories")
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Referenced entity (group) fetching
-	 * 
+	 *
 	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
 	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
 	 * a product:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -11062,20 +11062,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering references
-	 * 
+	 *
 	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
 	 * you can use the filter constraint to filter out the references you don't need.
-	 * 
+	 *
 	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the {@link EntityHaving} container constraint.
-	 * 
+	 *
 	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
 	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
 	 * use the following query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -11097,20 +11097,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ##Ordering references
-	 * 
+	 *
 	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
 	 * the references by a different property - either the attribute set on the reference itself or the property of the
 	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
-	 * 
+	 *
 	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the entityHaving container constraint.
-	 * 
+	 *
 	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
 	 * query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -11124,7 +11124,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
@@ -11137,9 +11137,9 @@ public interface QueryConstraints {
 	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
 	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
 	 * `referenceContentWithAttributes` variant of it.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * entityFetch(
 	 *    attributeContent("code"),
@@ -11147,13 +11147,13 @@ public interface QueryConstraints {
 	 *    referenceContent("categories")
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Referenced entity (group) fetching
-	 * 
+	 *
 	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
 	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
 	 * a product:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -11165,20 +11165,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering references
-	 * 
+	 *
 	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
 	 * you can use the filter constraint to filter out the references you don't need.
-	 * 
+	 *
 	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the {@link EntityHaving} container constraint.
-	 * 
+	 *
 	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
 	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
 	 * use the following query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -11200,20 +11200,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ##Ordering references
-	 * 
+	 *
 	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
 	 * the references by a different property - either the attribute set on the reference itself or the property of the
 	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
-	 * 
+	 *
 	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the entityHaving container constraint.
-	 * 
+	 *
 	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
 	 * query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -11227,7 +11227,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
@@ -11240,9 +11240,9 @@ public interface QueryConstraints {
 	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
 	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
 	 * `referenceContentWithAttributes` variant of it.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * entityFetch(
 	 *    attributeContent("code"),
@@ -11250,13 +11250,13 @@ public interface QueryConstraints {
 	 *    referenceContent("categories")
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Referenced entity (group) fetching
-	 * 
+	 *
 	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
 	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
 	 * a product:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -11268,20 +11268,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering references
-	 * 
+	 *
 	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
 	 * you can use the filter constraint to filter out the references you don't need.
-	 * 
+	 *
 	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the {@link EntityHaving} container constraint.
-	 * 
+	 *
 	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
 	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
 	 * use the following query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -11303,20 +11303,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ##Ordering references
-	 * 
+	 *
 	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
 	 * the references by a different property - either the attribute set on the reference itself or the property of the
 	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
-	 * 
+	 *
 	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the entityHaving container constraint.
-	 * 
+	 *
 	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
 	 * query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -11330,7 +11330,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
@@ -11343,9 +11343,9 @@ public interface QueryConstraints {
 	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
 	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
 	 * `referenceContentWithAttributes` variant of it.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * entityFetch(
 	 *    attributeContent("code"),
@@ -11353,13 +11353,13 @@ public interface QueryConstraints {
 	 *    referenceContent("categories")
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Referenced entity (group) fetching
-	 * 
+	 *
 	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
 	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
 	 * a product:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -11371,20 +11371,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering references
-	 * 
+	 *
 	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
 	 * you can use the filter constraint to filter out the references you don't need.
-	 * 
+	 *
 	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the {@link EntityHaving} container constraint.
-	 * 
+	 *
 	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
 	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
 	 * use the following query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -11406,20 +11406,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ##Ordering references
-	 * 
+	 *
 	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
 	 * the references by a different property - either the attribute set on the reference itself or the property of the
 	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
-	 * 
+	 *
 	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the entityHaving container constraint.
-	 * 
+	 *
 	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
 	 * query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -11433,7 +11433,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
@@ -11446,9 +11446,9 @@ public interface QueryConstraints {
 	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
 	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
 	 * `referenceContentWithAttributes` variant of it.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * entityFetch(
 	 *    attributeContent("code"),
@@ -11456,13 +11456,13 @@ public interface QueryConstraints {
 	 *    referenceContent("categories")
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Referenced entity (group) fetching
-	 * 
+	 *
 	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
 	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
 	 * a product:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -11474,20 +11474,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering references
-	 * 
+	 *
 	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
 	 * you can use the filter constraint to filter out the references you don't need.
-	 * 
+	 *
 	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the {@link EntityHaving} container constraint.
-	 * 
+	 *
 	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
 	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
 	 * use the following query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -11509,20 +11509,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ##Ordering references
-	 * 
+	 *
 	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
 	 * the references by a different property - either the attribute set on the reference itself or the property of the
 	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
-	 * 
+	 *
 	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the entityHaving container constraint.
-	 * 
+	 *
 	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
 	 * query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -11536,7 +11536,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
@@ -11549,9 +11549,9 @@ public interface QueryConstraints {
 	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
 	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
 	 * `referenceContentWithAttributes` variant of it.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * entityFetch(
 	 *    attributeContent("code"),
@@ -11559,13 +11559,13 @@ public interface QueryConstraints {
 	 *    referenceContent("categories")
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Referenced entity (group) fetching
-	 * 
+	 *
 	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
 	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
 	 * a product:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -11577,20 +11577,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering references
-	 * 
+	 *
 	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
 	 * you can use the filter constraint to filter out the references you don't need.
-	 * 
+	 *
 	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the {@link EntityHaving} container constraint.
-	 * 
+	 *
 	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
 	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
 	 * use the following query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -11612,20 +11612,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ##Ordering references
-	 * 
+	 *
 	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
 	 * the references by a different property - either the attribute set on the reference itself or the property of the
 	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
-	 * 
+	 *
 	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the entityHaving container constraint.
-	 * 
+	 *
 	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
 	 * query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -11639,7 +11639,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
@@ -11652,9 +11652,9 @@ public interface QueryConstraints {
 	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
 	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
 	 * `referenceContentWithAttributes` variant of it.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * entityFetch(
 	 *    attributeContent("code"),
@@ -11662,13 +11662,13 @@ public interface QueryConstraints {
 	 *    referenceContent("categories")
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Referenced entity (group) fetching
-	 * 
+	 *
 	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
 	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
 	 * a product:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -11680,20 +11680,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering references
-	 * 
+	 *
 	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
 	 * you can use the filter constraint to filter out the references you don't need.
-	 * 
+	 *
 	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the {@link EntityHaving} container constraint.
-	 * 
+	 *
 	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
 	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
 	 * use the following query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -11715,20 +11715,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ##Ordering references
-	 * 
+	 *
 	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
 	 * the references by a different property - either the attribute set on the reference itself or the property of the
 	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
-	 * 
+	 *
 	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the entityHaving container constraint.
-	 * 
+	 *
 	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
 	 * query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -11742,7 +11742,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
@@ -11755,9 +11755,9 @@ public interface QueryConstraints {
 	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
 	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
 	 * `referenceContentWithAttributes` variant of it.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * entityFetch(
 	 *    attributeContent("code"),
@@ -11765,13 +11765,13 @@ public interface QueryConstraints {
 	 *    referenceContent("categories")
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Referenced entity (group) fetching
-	 * 
+	 *
 	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
 	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
 	 * a product:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -11783,20 +11783,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering references
-	 * 
+	 *
 	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
 	 * you can use the filter constraint to filter out the references you don't need.
-	 * 
+	 *
 	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the {@link EntityHaving} container constraint.
-	 * 
+	 *
 	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
 	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
 	 * use the following query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -11818,20 +11818,20 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ##Ordering references
-	 * 
+	 *
 	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
 	 * the references by a different property - either the attribute set on the reference itself or the property of the
 	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
-	 * 
+	 *
 	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
 	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
 	 * you must wrap them in the entityHaving container constraint.
-	 * 
+	 *
 	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
 	 * query:
-	 * 
+	 *
 	 * <pre>
 	 * referenceContent(
 	 *     "parameterValues",
@@ -11845,7 +11845,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
@@ -11856,26 +11856,26 @@ public interface QueryConstraints {
 	/**
 	 * The `hierarchyContent` requirement allows you to access the information about the hierarchical placement of
 	 * the entity.
-	 * 
+	 *
 	 * If no additional constraints are specified, entity will contain a full chain of parent primary keys up to the root
 	 * of a hierarchy tree. You can limit the size of the chain by using a stopAt constraint - for example, if you're only
 	 * interested in a direct parent of each entity returned, you can use a stopAt(distance(1)) constraint. The result is
 	 * similar to using a parents constraint, but is limited in that it doesn't provide information about statistics and
 	 * the ability to list siblings of the entity parents. On the other hand, it's easier to use - since the hierarchy
 	 * placement is directly available in the retrieved entity object.
-	 * 
+	 *
 	 * If you provide a nested entityFetch constraint, the hierarchy information will contain the bodies of the parent
 	 * entities in the required width. The attributeContent inside the entityFetch allows you to access the attributes
 	 * of the parent entities, etc.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * entityFetch(
 	 *    hierarchyContent()
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#hierarchy-content">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
@@ -11886,26 +11886,26 @@ public interface QueryConstraints {
 	/**
 	 * The `hierarchyContent` requirement allows you to access the information about the hierarchical placement of
 	 * the entity.
-	 * 
+	 *
 	 * If no additional constraints are specified, entity will contain a full chain of parent primary keys up to the root
 	 * of a hierarchy tree. You can limit the size of the chain by using a stopAt constraint - for example, if you're only
 	 * interested in a direct parent of each entity returned, you can use a stopAt(distance(1)) constraint. The result is
 	 * similar to using a parents constraint, but is limited in that it doesn't provide information about statistics and
 	 * the ability to list siblings of the entity parents. On the other hand, it's easier to use - since the hierarchy
 	 * placement is directly available in the retrieved entity object.
-	 * 
+	 *
 	 * If you provide a nested entityFetch constraint, the hierarchy information will contain the bodies of the parent
 	 * entities in the required width. The attributeContent inside the entityFetch allows you to access the attributes
 	 * of the parent entities, etc.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * entityFetch(
 	 *    hierarchyContent()
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#hierarchy-content">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
@@ -11916,26 +11916,26 @@ public interface QueryConstraints {
 	/**
 	 * The `hierarchyContent` requirement allows you to access the information about the hierarchical placement of
 	 * the entity.
-	 * 
+	 *
 	 * If no additional constraints are specified, entity will contain a full chain of parent primary keys up to the root
 	 * of a hierarchy tree. You can limit the size of the chain by using a stopAt constraint - for example, if you're only
 	 * interested in a direct parent of each entity returned, you can use a stopAt(distance(1)) constraint. The result is
 	 * similar to using a parents constraint, but is limited in that it doesn't provide information about statistics and
 	 * the ability to list siblings of the entity parents. On the other hand, it's easier to use - since the hierarchy
 	 * placement is directly available in the retrieved entity object.
-	 * 
+	 *
 	 * If you provide a nested entityFetch constraint, the hierarchy information will contain the bodies of the parent
 	 * entities in the required width. The attributeContent inside the entityFetch allows you to access the attributes
 	 * of the parent entities, etc.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * entityFetch(
 	 *    hierarchyContent()
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#hierarchy-content">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
@@ -11946,26 +11946,26 @@ public interface QueryConstraints {
 	/**
 	 * The `hierarchyContent` requirement allows you to access the information about the hierarchical placement of
 	 * the entity.
-	 * 
+	 *
 	 * If no additional constraints are specified, entity will contain a full chain of parent primary keys up to the root
 	 * of a hierarchy tree. You can limit the size of the chain by using a stopAt constraint - for example, if you're only
 	 * interested in a direct parent of each entity returned, you can use a stopAt(distance(1)) constraint. The result is
 	 * similar to using a parents constraint, but is limited in that it doesn't provide information about statistics and
 	 * the ability to list siblings of the entity parents. On the other hand, it's easier to use - since the hierarchy
 	 * placement is directly available in the retrieved entity object.
-	 * 
+	 *
 	 * If you provide a nested entityFetch constraint, the hierarchy information will contain the bodies of the parent
 	 * entities in the required width. The attributeContent inside the entityFetch allows you to access the attributes
 	 * of the parent entities, etc.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * entityFetch(
 	 *    hierarchyContent()
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#hierarchy-content">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
@@ -11981,26 +11981,26 @@ public interface QueryConstraints {
 
 	/**
 	 * The `priceContent` requirement allows you to access the information about the prices of the entity.
-	 * 
+	 *
 	 * If the {@link PriceContentMode#RESPECTING_FILTER} mode is used, the `priceContent` requirement will only retrieve
 	 * the prices selected by the {@link PriceInPriceLists} constraint. If the enum {@link PriceContentMode#NONE} is
 	 * specified, no prices are returned at all, if the enum {@link PriceContentMode#ALL} is specified, all prices of
 	 * the entity are returned regardless of the priceInPriceLists constraint in the filter (the constraint still controls
 	 * whether the entity is returned at all).
-	 * 
+	 *
 	 * You can also add additional price lists to the list of price lists passed in the priceInPriceLists constraint by
 	 * specifying the price list names as string arguments to the `priceContent` requirement. This is useful if you want to
 	 * fetch non-indexed prices of the entity that cannot (and are not intended to) be used to filter the entities, but you
 	 * still want to fetch them to display in the UI for the user.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * priceContentRespectingFilter()
 	 * priceContentRespectingFilter("reference")
 	 * priceContentAll()
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#price-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -12017,26 +12017,26 @@ public interface QueryConstraints {
 
 	/**
 	 * The `priceContent` requirement allows you to access the information about the prices of the entity.
-	 * 
+	 *
 	 * If the {@link PriceContentMode#RESPECTING_FILTER} mode is used, the `priceContent` requirement will only retrieve
 	 * the prices selected by the {@link PriceInPriceLists} constraint. If the enum {@link PriceContentMode#NONE} is
 	 * specified, no prices are returned at all, if the enum {@link PriceContentMode#ALL} is specified, all prices of
 	 * the entity are returned regardless of the priceInPriceLists constraint in the filter (the constraint still controls
 	 * whether the entity is returned at all).
-	 * 
+	 *
 	 * You can also add additional price lists to the list of price lists passed in the priceInPriceLists constraint by
 	 * specifying the price list names as string arguments to the `priceContent` requirement. This is useful if you want to
 	 * fetch non-indexed prices of the entity that cannot (and are not intended to) be used to filter the entities, but you
 	 * still want to fetch them to display in the UI for the user.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * priceContentRespectingFilter()
 	 * priceContentRespectingFilter("reference")
 	 * priceContentAll()
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#price-content">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
@@ -12046,26 +12046,26 @@ public interface QueryConstraints {
 
 	/**
 	 * The `priceContent` requirement allows you to access the information about the prices of the entity.
-	 * 
+	 *
 	 * If the {@link PriceContentMode#RESPECTING_FILTER} mode is used, the `priceContent` requirement will only retrieve
 	 * the prices selected by the {@link PriceInPriceLists} constraint. If the enum {@link PriceContentMode#NONE} is
 	 * specified, no prices are returned at all, if the enum {@link PriceContentMode#ALL} is specified, all prices of
 	 * the entity are returned regardless of the priceInPriceLists constraint in the filter (the constraint still controls
 	 * whether the entity is returned at all).
-	 * 
+	 *
 	 * You can also add additional price lists to the list of price lists passed in the priceInPriceLists constraint by
 	 * specifying the price list names as string arguments to the `priceContent` requirement. This is useful if you want to
 	 * fetch non-indexed prices of the entity that cannot (and are not intended to) be used to filter the entities, but you
 	 * still want to fetch them to display in the UI for the user.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * priceContentRespectingFilter()
 	 * priceContentRespectingFilter("reference")
 	 * priceContentAll()
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#price-content">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
@@ -12077,19 +12077,19 @@ public interface QueryConstraints {
 	 * This `useOfPrice` require query can be used to control the form of prices that will be used for computation in
 	 * {@link io.evitadb.api.query.filter.PriceBetween} filtering, and {@link PriceNatural},
 	 * ordering. Also {@link PriceHistogram} is sensitive to this setting.
-	 * 
+	 *
 	 * By default, end customer form of price (e.g. price with tax) is used in all above-mentioned constraints. This could
 	 * be changed by using this requirement query. It has single argument that can have one of the following values:
-	 * 
+	 *
 	 * - WITH_TAX
 	 * - WITHOUT_TAX
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * ```
 	 * useOfPrice(WITH_TAX)
 	 * ```
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/price#price-type">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
@@ -12103,17 +12103,17 @@ public interface QueryConstraints {
 	 * exceeds the number of available pages, a result with the first page is returned. An empty result is only returned if
 	 * the query returns no result at all or the page size is set to zero. By automatically returning the first page result
 	 * when the requested page is exceeded, we try to avoid the need to issue a secondary request to fetch the data.
-	 * 
+	 *
 	 * The information about the actual returned page and data statistics can be found in the query response, which is
 	 * wrapped in a so-called data chunk object. In case of the page constraint, the {@link PaginatedList} is used as data
 	 * chunk object.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * page(1, 24)
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/paging#page">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
@@ -12127,17 +12127,17 @@ public interface QueryConstraints {
 	 * An empty result is only returned if the query returns no result at all or the limit is set to zero. By automatically
 	 * returning the first strip result when the requested page is exceeded, we try to avoid the need to issue a secondary
 	 * request to fetch the data.
-	 * 
+	 *
 	 * The information about the actual returned page and data statistics can be found in the query response, which is
 	 * wrapped in a so-called data chunk object. In case of the strip constraint, the {@link StripList} is used as data
 	 * chunk object.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * strip(52, 24)
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/paging#strip">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
@@ -12150,27 +12150,27 @@ public interface QueryConstraints {
 	 * The calculated facet summary will contain all entity references marked as faceted in the entity schema. The facet
 	 * summary can be further modified by the facet summary of reference constraint, which allows you to override
 	 * the general facet summary behavior specified in the generic facet summary require constraint.
-	 * 
+	 *
 	 * The faceted property affects the size of the indexes kept in memory and the scale / complexity of the general facet
 	 * summary (i.e. the summary generated by the facetSummary request). It is recommended to mark only the references used
 	 * for faceted filtering as faceted to keep the indexes small and the calculation of the facet summary in the user
 	 * interface fast and simple. The combinatorial complexity of the facet summary is quite high for large datasets, and
 	 * you may be forced to optimize it by narrowing the summary using the filtering facility or selecting only a few
 	 * references for the summary.
-	 * 
+	 *
 	 * ## Facet calculation rules
-	 * 
+	 *
 	 * 1. The facet summary is calculated only for entities that are returned in the current query result.
 	 * 2. The calculation respects any filter constraints placed outside the 'userFilter' container.
 	 * 3. The default relation between facets within a group is logical disjunction (logical OR).
 	 * 4. The default relation between facets in different groups / references is a logical AND.
-	 * 
+	 *
 	 * The `facetSummary` requirement triggers the calculation of the {@link FacetSummary} extra result. The facet summary
 	 * is always computed as a side result of the main entity query and respects any filtering constraints placed on the
 	 * queried entities.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -12194,37 +12194,37 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering facet summary
-	 * 
+	 *
 	 * The facet summary sometimes gets very big, and besides the fact that it is not very useful to show all facet options
 	 * in the user interface, it also takes a lot of time to calculate it. To limit the facet summary, you can use the
 	 * {@link FilterBy} and {@link FilterGroupBy} (which is the same as filterBy, but it filters the entire facet group
 	 * instead of individual facets) constraints.
-	 * 
+	 *
 	 * If you add the filtering constraints to the facetSummary requirement, you can only refer to filterable properties
 	 * that are shared by all referenced entities. This may not be feasible in some cases, and you will need to split
 	 * the generic facetSummary requirement into multiple individual {@link FacetSummaryOfReference} requirements with
 	 * specific filters for each reference type.
-	 * 
+	 *
 	 * The filter conditions can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
-	 * 
+	 *
 	 * ## Ordering facet summary
-	 * 
+	 *
 	 * Typically, the facet summary is ordered in some way to present the most relevant facet options first. The same is
 	 * true for ordering facet groups. To sort the facet summary items the way you like, you can use the {@link OrderBy} and
 	 * {@link OrderGroupBy} (which is the same as orderBy but it sorts the facet groups instead of the individual facets)
 	 * constraints.
-	 * 
+	 *
 	 * If you add the ordering constraints to the facetSummary requirement, you can only refer to sortable properties that
 	 * are shared by all referenced entities. This may not be feasible in some cases, and you will need to split the generic
 	 * facetSummary requirement into multiple individual facetSummaryOfReference requirements with specific ordering
 	 * constraints for each reference type.
-	 * 
+	 *
 	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
@@ -12237,27 +12237,27 @@ public interface QueryConstraints {
 	 * The calculated facet summary will contain all entity references marked as faceted in the entity schema. The facet
 	 * summary can be further modified by the facet summary of reference constraint, which allows you to override
 	 * the general facet summary behavior specified in the generic facet summary require constraint.
-	 * 
+	 *
 	 * The faceted property affects the size of the indexes kept in memory and the scale / complexity of the general facet
 	 * summary (i.e. the summary generated by the facetSummary request). It is recommended to mark only the references used
 	 * for faceted filtering as faceted to keep the indexes small and the calculation of the facet summary in the user
 	 * interface fast and simple. The combinatorial complexity of the facet summary is quite high for large datasets, and
 	 * you may be forced to optimize it by narrowing the summary using the filtering facility or selecting only a few
 	 * references for the summary.
-	 * 
+	 *
 	 * ## Facet calculation rules
-	 * 
+	 *
 	 * 1. The facet summary is calculated only for entities that are returned in the current query result.
 	 * 2. The calculation respects any filter constraints placed outside the 'userFilter' container.
 	 * 3. The default relation between facets within a group is logical disjunction (logical OR).
 	 * 4. The default relation between facets in different groups / references is a logical AND.
-	 * 
+	 *
 	 * The `facetSummary` requirement triggers the calculation of the {@link FacetSummary} extra result. The facet summary
 	 * is always computed as a side result of the main entity query and respects any filtering constraints placed on the
 	 * queried entities.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -12281,37 +12281,37 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering facet summary
-	 * 
+	 *
 	 * The facet summary sometimes gets very big, and besides the fact that it is not very useful to show all facet options
 	 * in the user interface, it also takes a lot of time to calculate it. To limit the facet summary, you can use the
 	 * {@link FilterBy} and {@link FilterGroupBy} (which is the same as filterBy, but it filters the entire facet group
 	 * instead of individual facets) constraints.
-	 * 
+	 *
 	 * If you add the filtering constraints to the facetSummary requirement, you can only refer to filterable properties
 	 * that are shared by all referenced entities. This may not be feasible in some cases, and you will need to split
 	 * the generic facetSummary requirement into multiple individual {@link FacetSummaryOfReference} requirements with
 	 * specific filters for each reference type.
-	 * 
+	 *
 	 * The filter conditions can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
-	 * 
+	 *
 	 * ## Ordering facet summary
-	 * 
+	 *
 	 * Typically, the facet summary is ordered in some way to present the most relevant facet options first. The same is
 	 * true for ordering facet groups. To sort the facet summary items the way you like, you can use the {@link OrderBy} and
 	 * {@link OrderGroupBy} (which is the same as orderBy but it sorts the facet groups instead of the individual facets)
 	 * constraints.
-	 * 
+	 *
 	 * If you add the ordering constraints to the facetSummary requirement, you can only refer to sortable properties that
 	 * are shared by all referenced entities. This may not be feasible in some cases, and you will need to split the generic
 	 * facetSummary requirement into multiple individual facetSummaryOfReference requirements with specific ordering
 	 * constraints for each reference type.
-	 * 
+	 *
 	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
@@ -12326,27 +12326,27 @@ public interface QueryConstraints {
 	 * The calculated facet summary will contain all entity references marked as faceted in the entity schema. The facet
 	 * summary can be further modified by the facet summary of reference constraint, which allows you to override
 	 * the general facet summary behavior specified in the generic facet summary require constraint.
-	 * 
+	 *
 	 * The faceted property affects the size of the indexes kept in memory and the scale / complexity of the general facet
 	 * summary (i.e. the summary generated by the facetSummary request). It is recommended to mark only the references used
 	 * for faceted filtering as faceted to keep the indexes small and the calculation of the facet summary in the user
 	 * interface fast and simple. The combinatorial complexity of the facet summary is quite high for large datasets, and
 	 * you may be forced to optimize it by narrowing the summary using the filtering facility or selecting only a few
 	 * references for the summary.
-	 * 
+	 *
 	 * ## Facet calculation rules
-	 * 
+	 *
 	 * 1. The facet summary is calculated only for entities that are returned in the current query result.
 	 * 2. The calculation respects any filter constraints placed outside the 'userFilter' container.
 	 * 3. The default relation between facets within a group is logical disjunction (logical OR).
 	 * 4. The default relation between facets in different groups / references is a logical AND.
-	 * 
+	 *
 	 * The `facetSummary` requirement triggers the calculation of the {@link FacetSummary} extra result. The facet summary
 	 * is always computed as a side result of the main entity query and respects any filtering constraints placed on the
 	 * queried entities.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -12370,37 +12370,37 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering facet summary
-	 * 
+	 *
 	 * The facet summary sometimes gets very big, and besides the fact that it is not very useful to show all facet options
 	 * in the user interface, it also takes a lot of time to calculate it. To limit the facet summary, you can use the
 	 * {@link FilterBy} and {@link FilterGroupBy} (which is the same as filterBy, but it filters the entire facet group
 	 * instead of individual facets) constraints.
-	 * 
+	 *
 	 * If you add the filtering constraints to the facetSummary requirement, you can only refer to filterable properties
 	 * that are shared by all referenced entities. This may not be feasible in some cases, and you will need to split
 	 * the generic facetSummary requirement into multiple individual {@link FacetSummaryOfReference} requirements with
 	 * specific filters for each reference type.
-	 * 
+	 *
 	 * The filter conditions can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
-	 * 
+	 *
 	 * ## Ordering facet summary
-	 * 
+	 *
 	 * Typically, the facet summary is ordered in some way to present the most relevant facet options first. The same is
 	 * true for ordering facet groups. To sort the facet summary items the way you like, you can use the {@link OrderBy} and
 	 * {@link OrderGroupBy} (which is the same as orderBy but it sorts the facet groups instead of the individual facets)
 	 * constraints.
-	 * 
+	 *
 	 * If you add the ordering constraints to the facetSummary requirement, you can only refer to sortable properties that
 	 * are shared by all referenced entities. This may not be feasible in some cases, and you will need to split the generic
 	 * facetSummary requirement into multiple individual facetSummaryOfReference requirements with specific ordering
 	 * constraints for each reference type.
-	 * 
+	 *
 	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
@@ -12418,27 +12418,27 @@ public interface QueryConstraints {
 	 * The calculated facet summary will contain all entity references marked as faceted in the entity schema. The facet
 	 * summary can be further modified by the facet summary of reference constraint, which allows you to override
 	 * the general facet summary behavior specified in the generic facet summary require constraint.
-	 * 
+	 *
 	 * The faceted property affects the size of the indexes kept in memory and the scale / complexity of the general facet
 	 * summary (i.e. the summary generated by the facetSummary request). It is recommended to mark only the references used
 	 * for faceted filtering as faceted to keep the indexes small and the calculation of the facet summary in the user
 	 * interface fast and simple. The combinatorial complexity of the facet summary is quite high for large datasets, and
 	 * you may be forced to optimize it by narrowing the summary using the filtering facility or selecting only a few
 	 * references for the summary.
-	 * 
+	 *
 	 * ## Facet calculation rules
-	 * 
+	 *
 	 * 1. The facet summary is calculated only for entities that are returned in the current query result.
 	 * 2. The calculation respects any filter constraints placed outside the 'userFilter' container.
 	 * 3. The default relation between facets within a group is logical disjunction (logical OR).
 	 * 4. The default relation between facets in different groups / references is a logical AND.
-	 * 
+	 *
 	 * The `facetSummary` requirement triggers the calculation of the {@link FacetSummary} extra result. The facet summary
 	 * is always computed as a side result of the main entity query and respects any filtering constraints placed on the
 	 * queried entities.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -12462,37 +12462,37 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering facet summary
-	 * 
+	 *
 	 * The facet summary sometimes gets very big, and besides the fact that it is not very useful to show all facet options
 	 * in the user interface, it also takes a lot of time to calculate it. To limit the facet summary, you can use the
 	 * {@link FilterBy} and {@link FilterGroupBy} (which is the same as filterBy, but it filters the entire facet group
 	 * instead of individual facets) constraints.
-	 * 
+	 *
 	 * If you add the filtering constraints to the facetSummary requirement, you can only refer to filterable properties
 	 * that are shared by all referenced entities. This may not be feasible in some cases, and you will need to split
 	 * the generic facetSummary requirement into multiple individual {@link FacetSummaryOfReference} requirements with
 	 * specific filters for each reference type.
-	 * 
+	 *
 	 * The filter conditions can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
-	 * 
+	 *
 	 * ## Ordering facet summary
-	 * 
+	 *
 	 * Typically, the facet summary is ordered in some way to present the most relevant facet options first. The same is
 	 * true for ordering facet groups. To sort the facet summary items the way you like, you can use the {@link OrderBy} and
 	 * {@link OrderGroupBy} (which is the same as orderBy but it sorts the facet groups instead of the individual facets)
 	 * constraints.
-	 * 
+	 *
 	 * If you add the ordering constraints to the facetSummary requirement, you can only refer to sortable properties that
 	 * are shared by all referenced entities. This may not be feasible in some cases, and you will need to split the generic
 	 * facetSummary requirement into multiple individual facetSummaryOfReference requirements with specific ordering
 	 * constraints for each reference type.
-	 * 
+	 *
 	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
@@ -12511,27 +12511,27 @@ public interface QueryConstraints {
 	 * The calculated facet summary will contain all entity references marked as faceted in the entity schema. The facet
 	 * summary can be further modified by the facet summary of reference constraint, which allows you to override
 	 * the general facet summary behavior specified in the generic facet summary require constraint.
-	 * 
+	 *
 	 * The faceted property affects the size of the indexes kept in memory and the scale / complexity of the general facet
 	 * summary (i.e. the summary generated by the facetSummary request). It is recommended to mark only the references used
 	 * for faceted filtering as faceted to keep the indexes small and the calculation of the facet summary in the user
 	 * interface fast and simple. The combinatorial complexity of the facet summary is quite high for large datasets, and
 	 * you may be forced to optimize it by narrowing the summary using the filtering facility or selecting only a few
 	 * references for the summary.
-	 * 
+	 *
 	 * ## Facet calculation rules
-	 * 
+	 *
 	 * 1. The facet summary is calculated only for entities that are returned in the current query result.
 	 * 2. The calculation respects any filter constraints placed outside the 'userFilter' container.
 	 * 3. The default relation between facets within a group is logical disjunction (logical OR).
 	 * 4. The default relation between facets in different groups / references is a logical AND.
-	 * 
+	 *
 	 * The `facetSummary` requirement triggers the calculation of the {@link FacetSummary} extra result. The facet summary
 	 * is always computed as a side result of the main entity query and respects any filtering constraints placed on the
 	 * queried entities.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -12555,37 +12555,37 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering facet summary
-	 * 
+	 *
 	 * The facet summary sometimes gets very big, and besides the fact that it is not very useful to show all facet options
 	 * in the user interface, it also takes a lot of time to calculate it. To limit the facet summary, you can use the
 	 * {@link FilterBy} and {@link FilterGroupBy} (which is the same as filterBy, but it filters the entire facet group
 	 * instead of individual facets) constraints.
-	 * 
+	 *
 	 * If you add the filtering constraints to the facetSummary requirement, you can only refer to filterable properties
 	 * that are shared by all referenced entities. This may not be feasible in some cases, and you will need to split
 	 * the generic facetSummary requirement into multiple individual {@link FacetSummaryOfReference} requirements with
 	 * specific filters for each reference type.
-	 * 
+	 *
 	 * The filter conditions can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
-	 * 
+	 *
 	 * ## Ordering facet summary
-	 * 
+	 *
 	 * Typically, the facet summary is ordered in some way to present the most relevant facet options first. The same is
 	 * true for ordering facet groups. To sort the facet summary items the way you like, you can use the {@link OrderBy} and
 	 * {@link OrderGroupBy} (which is the same as orderBy but it sorts the facet groups instead of the individual facets)
 	 * constraints.
-	 * 
+	 *
 	 * If you add the ordering constraints to the facetSummary requirement, you can only refer to sortable properties that
 	 * are shared by all referenced entities. This may not be feasible in some cases, and you will need to split the generic
 	 * facetSummary requirement into multiple individual facetSummaryOfReference requirements with specific ordering
 	 * constraints for each reference type.
-	 * 
+	 *
 	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
@@ -12604,27 +12604,27 @@ public interface QueryConstraints {
 	 * The calculated facet summary will contain all entity references marked as faceted in the entity schema. The facet
 	 * summary can be further modified by the facet summary of reference constraint, which allows you to override
 	 * the general facet summary behavior specified in the generic facet summary require constraint.
-	 * 
+	 *
 	 * The faceted property affects the size of the indexes kept in memory and the scale / complexity of the general facet
 	 * summary (i.e. the summary generated by the facetSummary request). It is recommended to mark only the references used
 	 * for faceted filtering as faceted to keep the indexes small and the calculation of the facet summary in the user
 	 * interface fast and simple. The combinatorial complexity of the facet summary is quite high for large datasets, and
 	 * you may be forced to optimize it by narrowing the summary using the filtering facility or selecting only a few
 	 * references for the summary.
-	 * 
+	 *
 	 * ## Facet calculation rules
-	 * 
+	 *
 	 * 1. The facet summary is calculated only for entities that are returned in the current query result.
 	 * 2. The calculation respects any filter constraints placed outside the 'userFilter' container.
 	 * 3. The default relation between facets within a group is logical disjunction (logical OR).
 	 * 4. The default relation between facets in different groups / references is a logical AND.
-	 * 
+	 *
 	 * The `facetSummary` requirement triggers the calculation of the {@link FacetSummary} extra result. The facet summary
 	 * is always computed as a side result of the main entity query and respects any filtering constraints placed on the
 	 * queried entities.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -12648,37 +12648,37 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering facet summary
-	 * 
+	 *
 	 * The facet summary sometimes gets very big, and besides the fact that it is not very useful to show all facet options
 	 * in the user interface, it also takes a lot of time to calculate it. To limit the facet summary, you can use the
 	 * {@link FilterBy} and {@link FilterGroupBy} (which is the same as filterBy, but it filters the entire facet group
 	 * instead of individual facets) constraints.
-	 * 
+	 *
 	 * If you add the filtering constraints to the facetSummary requirement, you can only refer to filterable properties
 	 * that are shared by all referenced entities. This may not be feasible in some cases, and you will need to split
 	 * the generic facetSummary requirement into multiple individual {@link FacetSummaryOfReference} requirements with
 	 * specific filters for each reference type.
-	 * 
+	 *
 	 * The filter conditions can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
-	 * 
+	 *
 	 * ## Ordering facet summary
-	 * 
+	 *
 	 * Typically, the facet summary is ordered in some way to present the most relevant facet options first. The same is
 	 * true for ordering facet groups. To sort the facet summary items the way you like, you can use the {@link OrderBy} and
 	 * {@link OrderGroupBy} (which is the same as orderBy but it sorts the facet groups instead of the individual facets)
 	 * constraints.
-	 * 
+	 *
 	 * If you add the ordering constraints to the facetSummary requirement, you can only refer to sortable properties that
 	 * are shared by all referenced entities. This may not be feasible in some cases, and you will need to split the generic
 	 * facetSummary requirement into multiple individual facetSummaryOfReference requirements with specific ordering
 	 * constraints for each reference type.
-	 * 
+	 *
 	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
@@ -12697,27 +12697,27 @@ public interface QueryConstraints {
 	 * The calculated facet summary will contain all entity references marked as faceted in the entity schema. The facet
 	 * summary can be further modified by the facet summary of reference constraint, which allows you to override
 	 * the general facet summary behavior specified in the generic facet summary require constraint.
-	 * 
+	 *
 	 * The faceted property affects the size of the indexes kept in memory and the scale / complexity of the general facet
 	 * summary (i.e. the summary generated by the facetSummary request). It is recommended to mark only the references used
 	 * for faceted filtering as faceted to keep the indexes small and the calculation of the facet summary in the user
 	 * interface fast and simple. The combinatorial complexity of the facet summary is quite high for large datasets, and
 	 * you may be forced to optimize it by narrowing the summary using the filtering facility or selecting only a few
 	 * references for the summary.
-	 * 
+	 *
 	 * ## Facet calculation rules
-	 * 
+	 *
 	 * 1. The facet summary is calculated only for entities that are returned in the current query result.
 	 * 2. The calculation respects any filter constraints placed outside the 'userFilter' container.
 	 * 3. The default relation between facets within a group is logical disjunction (logical OR).
 	 * 4. The default relation between facets in different groups / references is a logical AND.
-	 * 
+	 *
 	 * The `facetSummary` requirement triggers the calculation of the {@link FacetSummary} extra result. The facet summary
 	 * is always computed as a side result of the main entity query and respects any filtering constraints placed on the
 	 * queried entities.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -12741,37 +12741,37 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering facet summary
-	 * 
+	 *
 	 * The facet summary sometimes gets very big, and besides the fact that it is not very useful to show all facet options
 	 * in the user interface, it also takes a lot of time to calculate it. To limit the facet summary, you can use the
 	 * {@link FilterBy} and {@link FilterGroupBy} (which is the same as filterBy, but it filters the entire facet group
 	 * instead of individual facets) constraints.
-	 * 
+	 *
 	 * If you add the filtering constraints to the facetSummary requirement, you can only refer to filterable properties
 	 * that are shared by all referenced entities. This may not be feasible in some cases, and you will need to split
 	 * the generic facetSummary requirement into multiple individual {@link FacetSummaryOfReference} requirements with
 	 * specific filters for each reference type.
-	 * 
+	 *
 	 * The filter conditions can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
-	 * 
+	 *
 	 * ## Ordering facet summary
-	 * 
+	 *
 	 * Typically, the facet summary is ordered in some way to present the most relevant facet options first. The same is
 	 * true for ordering facet groups. To sort the facet summary items the way you like, you can use the {@link OrderBy} and
 	 * {@link OrderGroupBy} (which is the same as orderBy but it sorts the facet groups instead of the individual facets)
 	 * constraints.
-	 * 
+	 *
 	 * If you add the ordering constraints to the facetSummary requirement, you can only refer to sortable properties that
 	 * are shared by all referenced entities. This may not be feasible in some cases, and you will need to split the generic
 	 * facetSummary requirement into multiple individual facetSummaryOfReference requirements with specific ordering
 	 * constraints for each reference type.
-	 * 
+	 *
 	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
@@ -12790,27 +12790,27 @@ public interface QueryConstraints {
 	 * The calculated facet summary will contain all entity references marked as faceted in the entity schema. The facet
 	 * summary can be further modified by the facet summary of reference constraint, which allows you to override
 	 * the general facet summary behavior specified in the generic facet summary require constraint.
-	 * 
+	 *
 	 * The faceted property affects the size of the indexes kept in memory and the scale / complexity of the general facet
 	 * summary (i.e. the summary generated by the facetSummary request). It is recommended to mark only the references used
 	 * for faceted filtering as faceted to keep the indexes small and the calculation of the facet summary in the user
 	 * interface fast and simple. The combinatorial complexity of the facet summary is quite high for large datasets, and
 	 * you may be forced to optimize it by narrowing the summary using the filtering facility or selecting only a few
 	 * references for the summary.
-	 * 
+	 *
 	 * ## Facet calculation rules
-	 * 
+	 *
 	 * 1. The facet summary is calculated only for entities that are returned in the current query result.
 	 * 2. The calculation respects any filter constraints placed outside the 'userFilter' container.
 	 * 3. The default relation between facets within a group is logical disjunction (logical OR).
 	 * 4. The default relation between facets in different groups / references is a logical AND.
-	 * 
+	 *
 	 * The `facetSummary` requirement triggers the calculation of the {@link FacetSummary} extra result. The facet summary
 	 * is always computed as a side result of the main entity query and respects any filtering constraints placed on the
 	 * queried entities.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -12834,37 +12834,37 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering facet summary
-	 * 
+	 *
 	 * The facet summary sometimes gets very big, and besides the fact that it is not very useful to show all facet options
 	 * in the user interface, it also takes a lot of time to calculate it. To limit the facet summary, you can use the
 	 * {@link FilterBy} and {@link FilterGroupBy} (which is the same as filterBy, but it filters the entire facet group
 	 * instead of individual facets) constraints.
-	 * 
+	 *
 	 * If you add the filtering constraints to the facetSummary requirement, you can only refer to filterable properties
 	 * that are shared by all referenced entities. This may not be feasible in some cases, and you will need to split
 	 * the generic facetSummary requirement into multiple individual {@link FacetSummaryOfReference} requirements with
 	 * specific filters for each reference type.
-	 * 
+	 *
 	 * The filter conditions can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
-	 * 
+	 *
 	 * ## Ordering facet summary
-	 * 
+	 *
 	 * Typically, the facet summary is ordered in some way to present the most relevant facet options first. The same is
 	 * true for ordering facet groups. To sort the facet summary items the way you like, you can use the {@link OrderBy} and
 	 * {@link OrderGroupBy} (which is the same as orderBy but it sorts the facet groups instead of the individual facets)
 	 * constraints.
-	 * 
+	 *
 	 * If you add the ordering constraints to the facetSummary requirement, you can only refer to sortable properties that
 	 * are shared by all referenced entities. This may not be feasible in some cases, and you will need to split the generic
 	 * facetSummary requirement into multiple individual facetSummaryOfReference requirements with specific ordering
 	 * constraints for each reference type.
-	 * 
+	 *
 	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
@@ -12882,27 +12882,27 @@ public interface QueryConstraints {
 	 * The calculated facet summary will contain all entity references marked as faceted in the entity schema. The facet
 	 * summary can be further modified by the facet summary of reference constraint, which allows you to override
 	 * the general facet summary behavior specified in the generic facet summary require constraint.
-	 * 
+	 *
 	 * The faceted property affects the size of the indexes kept in memory and the scale / complexity of the general facet
 	 * summary (i.e. the summary generated by the facetSummary request). It is recommended to mark only the references used
 	 * for faceted filtering as faceted to keep the indexes small and the calculation of the facet summary in the user
 	 * interface fast and simple. The combinatorial complexity of the facet summary is quite high for large datasets, and
 	 * you may be forced to optimize it by narrowing the summary using the filtering facility or selecting only a few
 	 * references for the summary.
-	 * 
+	 *
 	 * ## Facet calculation rules
-	 * 
+	 *
 	 * 1. The facet summary is calculated only for entities that are returned in the current query result.
 	 * 2. The calculation respects any filter constraints placed outside the 'userFilter' container.
 	 * 3. The default relation between facets within a group is logical disjunction (logical OR).
 	 * 4. The default relation between facets in different groups / references is a logical AND.
-	 * 
+	 *
 	 * The `facetSummary` requirement triggers the calculation of the {@link FacetSummary} extra result. The facet summary
 	 * is always computed as a side result of the main entity query and respects any filtering constraints placed on the
 	 * queried entities.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -12926,37 +12926,37 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering facet summary
-	 * 
+	 *
 	 * The facet summary sometimes gets very big, and besides the fact that it is not very useful to show all facet options
 	 * in the user interface, it also takes a lot of time to calculate it. To limit the facet summary, you can use the
 	 * {@link FilterBy} and {@link FilterGroupBy} (which is the same as filterBy, but it filters the entire facet group
 	 * instead of individual facets) constraints.
-	 * 
+	 *
 	 * If you add the filtering constraints to the facetSummary requirement, you can only refer to filterable properties
 	 * that are shared by all referenced entities. This may not be feasible in some cases, and you will need to split
 	 * the generic facetSummary requirement into multiple individual {@link FacetSummaryOfReference} requirements with
 	 * specific filters for each reference type.
-	 * 
+	 *
 	 * The filter conditions can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
-	 * 
+	 *
 	 * ## Ordering facet summary
-	 * 
+	 *
 	 * Typically, the facet summary is ordered in some way to present the most relevant facet options first. The same is
 	 * true for ordering facet groups. To sort the facet summary items the way you like, you can use the {@link OrderBy} and
 	 * {@link OrderGroupBy} (which is the same as orderBy but it sorts the facet groups instead of the individual facets)
 	 * constraints.
-	 * 
+	 *
 	 * If you add the ordering constraints to the facetSummary requirement, you can only refer to sortable properties that
 	 * are shared by all referenced entities. This may not be feasible in some cases, and you will need to split the generic
 	 * facetSummary requirement into multiple individual facetSummaryOfReference requirements with specific ordering
 	 * constraints for each reference type.
-	 * 
+	 *
 	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
@@ -12974,27 +12974,27 @@ public interface QueryConstraints {
 	 * The calculated facet summary will contain all entity references marked as faceted in the entity schema. The facet
 	 * summary can be further modified by the facet summary of reference constraint, which allows you to override
 	 * the general facet summary behavior specified in the generic facet summary require constraint.
-	 * 
+	 *
 	 * The faceted property affects the size of the indexes kept in memory and the scale / complexity of the general facet
 	 * summary (i.e. the summary generated by the facetSummary request). It is recommended to mark only the references used
 	 * for faceted filtering as faceted to keep the indexes small and the calculation of the facet summary in the user
 	 * interface fast and simple. The combinatorial complexity of the facet summary is quite high for large datasets, and
 	 * you may be forced to optimize it by narrowing the summary using the filtering facility or selecting only a few
 	 * references for the summary.
-	 * 
+	 *
 	 * ## Facet calculation rules
-	 * 
+	 *
 	 * 1. The facet summary is calculated only for entities that are returned in the current query result.
 	 * 2. The calculation respects any filter constraints placed outside the 'userFilter' container.
 	 * 3. The default relation between facets within a group is logical disjunction (logical OR).
 	 * 4. The default relation between facets in different groups / references is a logical AND.
-	 * 
+	 *
 	 * The `facetSummary` requirement triggers the calculation of the {@link FacetSummary} extra result. The facet summary
 	 * is always computed as a side result of the main entity query and respects any filtering constraints placed on the
 	 * queried entities.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -13018,37 +13018,37 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering facet summary
-	 * 
+	 *
 	 * The facet summary sometimes gets very big, and besides the fact that it is not very useful to show all facet options
 	 * in the user interface, it also takes a lot of time to calculate it. To limit the facet summary, you can use the
 	 * {@link FilterBy} and {@link FilterGroupBy} (which is the same as filterBy, but it filters the entire facet group
 	 * instead of individual facets) constraints.
-	 * 
+	 *
 	 * If you add the filtering constraints to the facetSummary requirement, you can only refer to filterable properties
 	 * that are shared by all referenced entities. This may not be feasible in some cases, and you will need to split
 	 * the generic facetSummary requirement into multiple individual {@link FacetSummaryOfReference} requirements with
 	 * specific filters for each reference type.
-	 * 
+	 *
 	 * The filter conditions can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
-	 * 
+	 *
 	 * ## Ordering facet summary
-	 * 
+	 *
 	 * Typically, the facet summary is ordered in some way to present the most relevant facet options first. The same is
 	 * true for ordering facet groups. To sort the facet summary items the way you like, you can use the {@link OrderBy} and
 	 * {@link OrderGroupBy} (which is the same as orderBy but it sorts the facet groups instead of the individual facets)
 	 * constraints.
-	 * 
+	 *
 	 * If you add the ordering constraints to the facetSummary requirement, you can only refer to sortable properties that
 	 * are shared by all referenced entities. This may not be feasible in some cases, and you will need to split the generic
 	 * facetSummary requirement into multiple individual facetSummaryOfReference requirements with specific ordering
 	 * constraints for each reference type.
-	 * 
+	 *
 	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
@@ -13065,27 +13065,27 @@ public interface QueryConstraints {
 	 * The calculated facet summary will contain all entity references marked as faceted in the entity schema. The facet
 	 * summary can be further modified by the facet summary of reference constraint, which allows you to override
 	 * the general facet summary behavior specified in the generic facet summary require constraint.
-	 * 
+	 *
 	 * The faceted property affects the size of the indexes kept in memory and the scale / complexity of the general facet
 	 * summary (i.e. the summary generated by the facetSummary request). It is recommended to mark only the references used
 	 * for faceted filtering as faceted to keep the indexes small and the calculation of the facet summary in the user
 	 * interface fast and simple. The combinatorial complexity of the facet summary is quite high for large datasets, and
 	 * you may be forced to optimize it by narrowing the summary using the filtering facility or selecting only a few
 	 * references for the summary.
-	 * 
+	 *
 	 * ## Facet calculation rules
-	 * 
+	 *
 	 * 1. The facet summary is calculated only for entities that are returned in the current query result.
 	 * 2. The calculation respects any filter constraints placed outside the 'userFilter' container.
 	 * 3. The default relation between facets within a group is logical disjunction (logical OR).
 	 * 4. The default relation between facets in different groups / references is a logical AND.
-	 * 
+	 *
 	 * The `facetSummary` requirement triggers the calculation of the {@link FacetSummary} extra result. The facet summary
 	 * is always computed as a side result of the main entity query and respects any filtering constraints placed on the
 	 * queried entities.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -13109,37 +13109,37 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering facet summary
-	 * 
+	 *
 	 * The facet summary sometimes gets very big, and besides the fact that it is not very useful to show all facet options
 	 * in the user interface, it also takes a lot of time to calculate it. To limit the facet summary, you can use the
 	 * {@link FilterBy} and {@link FilterGroupBy} (which is the same as filterBy, but it filters the entire facet group
 	 * instead of individual facets) constraints.
-	 * 
+	 *
 	 * If you add the filtering constraints to the facetSummary requirement, you can only refer to filterable properties
 	 * that are shared by all referenced entities. This may not be feasible in some cases, and you will need to split
 	 * the generic facetSummary requirement into multiple individual {@link FacetSummaryOfReference} requirements with
 	 * specific filters for each reference type.
-	 * 
+	 *
 	 * The filter conditions can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
-	 * 
+	 *
 	 * ## Ordering facet summary
-	 * 
+	 *
 	 * Typically, the facet summary is ordered in some way to present the most relevant facet options first. The same is
 	 * true for ordering facet groups. To sort the facet summary items the way you like, you can use the {@link OrderBy} and
 	 * {@link OrderGroupBy} (which is the same as orderBy but it sorts the facet groups instead of the individual facets)
 	 * constraints.
-	 * 
+	 *
 	 * If you add the ordering constraints to the facetSummary requirement, you can only refer to sortable properties that
 	 * are shared by all referenced entities. This may not be feasible in some cases, and you will need to split the generic
 	 * facetSummary requirement into multiple individual facetSummaryOfReference requirements with specific ordering
 	 * constraints for each reference type.
-	 * 
+	 *
 	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
@@ -13156,27 +13156,27 @@ public interface QueryConstraints {
 	 * The calculated facet summary will contain all entity references marked as faceted in the entity schema. The facet
 	 * summary can be further modified by the facet summary of reference constraint, which allows you to override
 	 * the general facet summary behavior specified in the generic facet summary require constraint.
-	 * 
+	 *
 	 * The faceted property affects the size of the indexes kept in memory and the scale / complexity of the general facet
 	 * summary (i.e. the summary generated by the facetSummary request). It is recommended to mark only the references used
 	 * for faceted filtering as faceted to keep the indexes small and the calculation of the facet summary in the user
 	 * interface fast and simple. The combinatorial complexity of the facet summary is quite high for large datasets, and
 	 * you may be forced to optimize it by narrowing the summary using the filtering facility or selecting only a few
 	 * references for the summary.
-	 * 
+	 *
 	 * ## Facet calculation rules
-	 * 
+	 *
 	 * 1. The facet summary is calculated only for entities that are returned in the current query result.
 	 * 2. The calculation respects any filter constraints placed outside the 'userFilter' container.
 	 * 3. The default relation between facets within a group is logical disjunction (logical OR).
 	 * 4. The default relation between facets in different groups / references is a logical AND.
-	 * 
+	 *
 	 * The `facetSummary` requirement triggers the calculation of the {@link FacetSummary} extra result. The facet summary
 	 * is always computed as a side result of the main entity query and respects any filtering constraints placed on the
 	 * queried entities.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -13200,37 +13200,37 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering facet summary
-	 * 
+	 *
 	 * The facet summary sometimes gets very big, and besides the fact that it is not very useful to show all facet options
 	 * in the user interface, it also takes a lot of time to calculate it. To limit the facet summary, you can use the
 	 * {@link FilterBy} and {@link FilterGroupBy} (which is the same as filterBy, but it filters the entire facet group
 	 * instead of individual facets) constraints.
-	 * 
+	 *
 	 * If you add the filtering constraints to the facetSummary requirement, you can only refer to filterable properties
 	 * that are shared by all referenced entities. This may not be feasible in some cases, and you will need to split
 	 * the generic facetSummary requirement into multiple individual {@link FacetSummaryOfReference} requirements with
 	 * specific filters for each reference type.
-	 * 
+	 *
 	 * The filter conditions can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
-	 * 
+	 *
 	 * ## Ordering facet summary
-	 * 
+	 *
 	 * Typically, the facet summary is ordered in some way to present the most relevant facet options first. The same is
 	 * true for ordering facet groups. To sort the facet summary items the way you like, you can use the {@link OrderBy} and
 	 * {@link OrderGroupBy} (which is the same as orderBy but it sorts the facet groups instead of the individual facets)
 	 * constraints.
-	 * 
+	 *
 	 * If you add the ordering constraints to the facetSummary requirement, you can only refer to sortable properties that
 	 * are shared by all referenced entities. This may not be feasible in some cases, and you will need to split the generic
 	 * facetSummary requirement into multiple individual facetSummaryOfReference requirements with specific ordering
 	 * constraints for each reference type.
-	 * 
+	 *
 	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
@@ -13247,27 +13247,27 @@ public interface QueryConstraints {
 	 * The calculated facet summary will contain all entity references marked as faceted in the entity schema. The facet
 	 * summary can be further modified by the facet summary of reference constraint, which allows you to override
 	 * the general facet summary behavior specified in the generic facet summary require constraint.
-	 * 
+	 *
 	 * The faceted property affects the size of the indexes kept in memory and the scale / complexity of the general facet
 	 * summary (i.e. the summary generated by the facetSummary request). It is recommended to mark only the references used
 	 * for faceted filtering as faceted to keep the indexes small and the calculation of the facet summary in the user
 	 * interface fast and simple. The combinatorial complexity of the facet summary is quite high for large datasets, and
 	 * you may be forced to optimize it by narrowing the summary using the filtering facility or selecting only a few
 	 * references for the summary.
-	 * 
+	 *
 	 * ## Facet calculation rules
-	 * 
+	 *
 	 * 1. The facet summary is calculated only for entities that are returned in the current query result.
 	 * 2. The calculation respects any filter constraints placed outside the 'userFilter' container.
 	 * 3. The default relation between facets within a group is logical disjunction (logical OR).
 	 * 4. The default relation between facets in different groups / references is a logical AND.
-	 * 
+	 *
 	 * The `facetSummary` requirement triggers the calculation of the {@link FacetSummary} extra result. The facet summary
 	 * is always computed as a side result of the main entity query and respects any filtering constraints placed on the
 	 * queried entities.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -13291,37 +13291,37 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering facet summary
-	 * 
+	 *
 	 * The facet summary sometimes gets very big, and besides the fact that it is not very useful to show all facet options
 	 * in the user interface, it also takes a lot of time to calculate it. To limit the facet summary, you can use the
 	 * {@link FilterBy} and {@link FilterGroupBy} (which is the same as filterBy, but it filters the entire facet group
 	 * instead of individual facets) constraints.
-	 * 
+	 *
 	 * If you add the filtering constraints to the facetSummary requirement, you can only refer to filterable properties
 	 * that are shared by all referenced entities. This may not be feasible in some cases, and you will need to split
 	 * the generic facetSummary requirement into multiple individual {@link FacetSummaryOfReference} requirements with
 	 * specific filters for each reference type.
-	 * 
+	 *
 	 * The filter conditions can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
-	 * 
+	 *
 	 * ## Ordering facet summary
-	 * 
+	 *
 	 * Typically, the facet summary is ordered in some way to present the most relevant facet options first. The same is
 	 * true for ordering facet groups. To sort the facet summary items the way you like, you can use the {@link OrderBy} and
 	 * {@link OrderGroupBy} (which is the same as orderBy but it sorts the facet groups instead of the individual facets)
 	 * constraints.
-	 * 
+	 *
 	 * If you add the ordering constraints to the facetSummary requirement, you can only refer to sortable properties that
 	 * are shared by all referenced entities. This may not be feasible in some cases, and you will need to split the generic
 	 * facetSummary requirement into multiple individual facetSummaryOfReference requirements with specific ordering
 	 * constraints for each reference type.
-	 * 
+	 *
 	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
@@ -13338,27 +13338,27 @@ public interface QueryConstraints {
 	 * The calculated facet summary will contain all entity references marked as faceted in the entity schema. The facet
 	 * summary can be further modified by the facet summary of reference constraint, which allows you to override
 	 * the general facet summary behavior specified in the generic facet summary require constraint.
-	 * 
+	 *
 	 * The faceted property affects the size of the indexes kept in memory and the scale / complexity of the general facet
 	 * summary (i.e. the summary generated by the facetSummary request). It is recommended to mark only the references used
 	 * for faceted filtering as faceted to keep the indexes small and the calculation of the facet summary in the user
 	 * interface fast and simple. The combinatorial complexity of the facet summary is quite high for large datasets, and
 	 * you may be forced to optimize it by narrowing the summary using the filtering facility or selecting only a few
 	 * references for the summary.
-	 * 
+	 *
 	 * ## Facet calculation rules
-	 * 
+	 *
 	 * 1. The facet summary is calculated only for entities that are returned in the current query result.
 	 * 2. The calculation respects any filter constraints placed outside the 'userFilter' container.
 	 * 3. The default relation between facets within a group is logical disjunction (logical OR).
 	 * 4. The default relation between facets in different groups / references is a logical AND.
-	 * 
+	 *
 	 * The `facetSummary` requirement triggers the calculation of the {@link FacetSummary} extra result. The facet summary
 	 * is always computed as a side result of the main entity query and respects any filtering constraints placed on the
 	 * queried entities.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -13382,37 +13382,37 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering facet summary
-	 * 
+	 *
 	 * The facet summary sometimes gets very big, and besides the fact that it is not very useful to show all facet options
 	 * in the user interface, it also takes a lot of time to calculate it. To limit the facet summary, you can use the
 	 * {@link FilterBy} and {@link FilterGroupBy} (which is the same as filterBy, but it filters the entire facet group
 	 * instead of individual facets) constraints.
-	 * 
+	 *
 	 * If you add the filtering constraints to the facetSummary requirement, you can only refer to filterable properties
 	 * that are shared by all referenced entities. This may not be feasible in some cases, and you will need to split
 	 * the generic facetSummary requirement into multiple individual {@link FacetSummaryOfReference} requirements with
 	 * specific filters for each reference type.
-	 * 
+	 *
 	 * The filter conditions can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
-	 * 
+	 *
 	 * ## Ordering facet summary
-	 * 
+	 *
 	 * Typically, the facet summary is ordered in some way to present the most relevant facet options first. The same is
 	 * true for ordering facet groups. To sort the facet summary items the way you like, you can use the {@link OrderBy} and
 	 * {@link OrderGroupBy} (which is the same as orderBy but it sorts the facet groups instead of the individual facets)
 	 * constraints.
-	 * 
+	 *
 	 * If you add the ordering constraints to the facetSummary requirement, you can only refer to sortable properties that
 	 * are shared by all referenced entities. This may not be feasible in some cases, and you will need to split the generic
 	 * facetSummary requirement into multiple individual facetSummaryOfReference requirements with specific ordering
 	 * constraints for each reference type.
-	 * 
+	 *
 	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
@@ -13430,27 +13430,27 @@ public interface QueryConstraints {
 	 * The calculated facet summary will contain all entity references marked as faceted in the entity schema. The facet
 	 * summary can be further modified by the facet summary of reference constraint, which allows you to override
 	 * the general facet summary behavior specified in the generic facet summary require constraint.
-	 * 
+	 *
 	 * The faceted property affects the size of the indexes kept in memory and the scale / complexity of the general facet
 	 * summary (i.e. the summary generated by the facetSummary request). It is recommended to mark only the references used
 	 * for faceted filtering as faceted to keep the indexes small and the calculation of the facet summary in the user
 	 * interface fast and simple. The combinatorial complexity of the facet summary is quite high for large datasets, and
 	 * you may be forced to optimize it by narrowing the summary using the filtering facility or selecting only a few
 	 * references for the summary.
-	 * 
+	 *
 	 * ## Facet calculation rules
-	 * 
+	 *
 	 * 1. The facet summary is calculated only for entities that are returned in the current query result.
 	 * 2. The calculation respects any filter constraints placed outside the 'userFilter' container.
 	 * 3. The default relation between facets within a group is logical disjunction (logical OR).
 	 * 4. The default relation between facets in different groups / references is a logical AND.
-	 * 
+	 *
 	 * The `facetSummary` requirement triggers the calculation of the {@link FacetSummary} extra result. The facet summary
 	 * is always computed as a side result of the main entity query and respects any filtering constraints placed on the
 	 * queried entities.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -13474,37 +13474,37 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering facet summary
-	 * 
+	 *
 	 * The facet summary sometimes gets very big, and besides the fact that it is not very useful to show all facet options
 	 * in the user interface, it also takes a lot of time to calculate it. To limit the facet summary, you can use the
 	 * {@link FilterBy} and {@link FilterGroupBy} (which is the same as filterBy, but it filters the entire facet group
 	 * instead of individual facets) constraints.
-	 * 
+	 *
 	 * If you add the filtering constraints to the facetSummary requirement, you can only refer to filterable properties
 	 * that are shared by all referenced entities. This may not be feasible in some cases, and you will need to split
 	 * the generic facetSummary requirement into multiple individual {@link FacetSummaryOfReference} requirements with
 	 * specific filters for each reference type.
-	 * 
+	 *
 	 * The filter conditions can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
-	 * 
+	 *
 	 * ## Ordering facet summary
-	 * 
+	 *
 	 * Typically, the facet summary is ordered in some way to present the most relevant facet options first. The same is
 	 * true for ordering facet groups. To sort the facet summary items the way you like, you can use the {@link OrderBy} and
 	 * {@link OrderGroupBy} (which is the same as orderBy but it sorts the facet groups instead of the individual facets)
 	 * constraints.
-	 * 
+	 *
 	 * If you add the ordering constraints to the facetSummary requirement, you can only refer to sortable properties that
 	 * are shared by all referenced entities. This may not be feasible in some cases, and you will need to split the generic
 	 * facetSummary requirement into multiple individual facetSummaryOfReference requirements with specific ordering
 	 * constraints for each reference type.
-	 * 
+	 *
 	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
@@ -13522,27 +13522,27 @@ public interface QueryConstraints {
 	 * The calculated facet summary will contain all entity references marked as faceted in the entity schema. The facet
 	 * summary can be further modified by the facet summary of reference constraint, which allows you to override
 	 * the general facet summary behavior specified in the generic facet summary require constraint.
-	 * 
+	 *
 	 * The faceted property affects the size of the indexes kept in memory and the scale / complexity of the general facet
 	 * summary (i.e. the summary generated by the facetSummary request). It is recommended to mark only the references used
 	 * for faceted filtering as faceted to keep the indexes small and the calculation of the facet summary in the user
 	 * interface fast and simple. The combinatorial complexity of the facet summary is quite high for large datasets, and
 	 * you may be forced to optimize it by narrowing the summary using the filtering facility or selecting only a few
 	 * references for the summary.
-	 * 
+	 *
 	 * ## Facet calculation rules
-	 * 
+	 *
 	 * 1. The facet summary is calculated only for entities that are returned in the current query result.
 	 * 2. The calculation respects any filter constraints placed outside the 'userFilter' container.
 	 * 3. The default relation between facets within a group is logical disjunction (logical OR).
 	 * 4. The default relation between facets in different groups / references is a logical AND.
-	 * 
+	 *
 	 * The `facetSummary` requirement triggers the calculation of the {@link FacetSummary} extra result. The facet summary
 	 * is always computed as a side result of the main entity query and respects any filtering constraints placed on the
 	 * queried entities.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -13566,37 +13566,37 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering facet summary
-	 * 
+	 *
 	 * The facet summary sometimes gets very big, and besides the fact that it is not very useful to show all facet options
 	 * in the user interface, it also takes a lot of time to calculate it. To limit the facet summary, you can use the
 	 * {@link FilterBy} and {@link FilterGroupBy} (which is the same as filterBy, but it filters the entire facet group
 	 * instead of individual facets) constraints.
-	 * 
+	 *
 	 * If you add the filtering constraints to the facetSummary requirement, you can only refer to filterable properties
 	 * that are shared by all referenced entities. This may not be feasible in some cases, and you will need to split
 	 * the generic facetSummary requirement into multiple individual {@link FacetSummaryOfReference} requirements with
 	 * specific filters for each reference type.
-	 * 
+	 *
 	 * The filter conditions can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
-	 * 
+	 *
 	 * ## Ordering facet summary
-	 * 
+	 *
 	 * Typically, the facet summary is ordered in some way to present the most relevant facet options first. The same is
 	 * true for ordering facet groups. To sort the facet summary items the way you like, you can use the {@link OrderBy} and
 	 * {@link OrderGroupBy} (which is the same as orderBy but it sorts the facet groups instead of the individual facets)
 	 * constraints.
-	 * 
+	 *
 	 * If you add the ordering constraints to the facetSummary requirement, you can only refer to sortable properties that
 	 * are shared by all referenced entities. This may not be feasible in some cases, and you will need to split the generic
 	 * facetSummary requirement into multiple individual facetSummaryOfReference requirements with specific ordering
 	 * constraints for each reference type.
-	 * 
+	 *
 	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
@@ -13614,27 +13614,27 @@ public interface QueryConstraints {
 	 * The calculated facet summary will contain all entity references marked as faceted in the entity schema. The facet
 	 * summary can be further modified by the facet summary of reference constraint, which allows you to override
 	 * the general facet summary behavior specified in the generic facet summary require constraint.
-	 * 
+	 *
 	 * The faceted property affects the size of the indexes kept in memory and the scale / complexity of the general facet
 	 * summary (i.e. the summary generated by the facetSummary request). It is recommended to mark only the references used
 	 * for faceted filtering as faceted to keep the indexes small and the calculation of the facet summary in the user
 	 * interface fast and simple. The combinatorial complexity of the facet summary is quite high for large datasets, and
 	 * you may be forced to optimize it by narrowing the summary using the filtering facility or selecting only a few
 	 * references for the summary.
-	 * 
+	 *
 	 * ## Facet calculation rules
-	 * 
+	 *
 	 * 1. The facet summary is calculated only for entities that are returned in the current query result.
 	 * 2. The calculation respects any filter constraints placed outside the 'userFilter' container.
 	 * 3. The default relation between facets within a group is logical disjunction (logical OR).
 	 * 4. The default relation between facets in different groups / references is a logical AND.
-	 * 
+	 *
 	 * The `facetSummary` requirement triggers the calculation of the {@link FacetSummary} extra result. The facet summary
 	 * is always computed as a side result of the main entity query and respects any filtering constraints placed on the
 	 * queried entities.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -13658,37 +13658,37 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering facet summary
-	 * 
+	 *
 	 * The facet summary sometimes gets very big, and besides the fact that it is not very useful to show all facet options
 	 * in the user interface, it also takes a lot of time to calculate it. To limit the facet summary, you can use the
 	 * {@link FilterBy} and {@link FilterGroupBy} (which is the same as filterBy, but it filters the entire facet group
 	 * instead of individual facets) constraints.
-	 * 
+	 *
 	 * If you add the filtering constraints to the facetSummary requirement, you can only refer to filterable properties
 	 * that are shared by all referenced entities. This may not be feasible in some cases, and you will need to split
 	 * the generic facetSummary requirement into multiple individual {@link FacetSummaryOfReference} requirements with
 	 * specific filters for each reference type.
-	 * 
+	 *
 	 * The filter conditions can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
-	 * 
+	 *
 	 * ## Ordering facet summary
-	 * 
+	 *
 	 * Typically, the facet summary is ordered in some way to present the most relevant facet options first. The same is
 	 * true for ordering facet groups. To sort the facet summary items the way you like, you can use the {@link OrderBy} and
 	 * {@link OrderGroupBy} (which is the same as orderBy but it sorts the facet groups instead of the individual facets)
 	 * constraints.
-	 * 
+	 *
 	 * If you add the ordering constraints to the facetSummary requirement, you can only refer to sortable properties that
 	 * are shared by all referenced entities. This may not be feasible in some cases, and you will need to split the generic
 	 * facetSummary requirement into multiple individual facetSummaryOfReference requirements with specific ordering
 	 * constraints for each reference type.
-	 * 
+	 *
 	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
@@ -13724,18 +13724,18 @@ public interface QueryConstraints {
 	 * the default constraints from the generic requirement to constraints specific to this particular reference.
 	 * By combining the generic facetSummary and facetSummaryOfReference, you define common requirements for the facet
 	 * summary calculation, and redefine them only for references where they are insufficient.
-	 * 
+	 *
 	 * The `facetSummaryOfReference` requirements redefine all constraints from the generic facetSummary requirement.
-	 * 
+	 *
 	 * ## Facet calculation rules
-	 * 
+	 *
 	 * 1. The facet summary is calculated only for entities that are returned in the current query result.
 	 * 2. The calculation respects any filter constraints placed outside the 'userFilter' container.
 	 * 3. The default relation between facets within a group is logical disjunction (logical OR).
 	 * 4. The default relation between facets in different groups / references is a logical AND.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -13759,37 +13759,37 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering facet summary
-	 * 
+	 *
 	 * The facet summary sometimes gets very big, and besides the fact that it is not very useful to show all facet options
 	 * in the user interface, it also takes a lot of time to calculate it. To limit the facet summary, you can use the
 	 * {@link FilterBy} and {@link FilterGroupBy} (which is the same as filterBy, but it filters the entire facet group
 	 * instead of individual facets) constraints.
-	 * 
+	 *
 	 * If you add the filtering constraints to the facetSummary requirement, you can only refer to filterable properties
 	 * that are shared by all referenced entities. This may not be feasible in some cases, and you will need to split
 	 * the generic facetSummary requirement into multiple individual {@link FacetSummaryOfReference} requirements with
 	 * specific filters for each reference type.
-	 * 
+	 *
 	 * The filter conditions can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
-	 * 
+	 *
 	 * ## Ordering facet summary
-	 * 
+	 *
 	 * Typically, the facet summary is ordered in some way to present the most relevant facet options first. The same is
 	 * true for ordering facet groups. To sort the facet summary items the way you like, you can use the {@link OrderBy} and
 	 * {@link OrderGroupBy} (which is the same as orderBy but it sorts the facet groups instead of the individual facets)
 	 * constraints.
-	 * 
+	 *
 	 * If you add the ordering constraints to the facetSummary requirement, you can only refer to sortable properties that
 	 * are shared by all referenced entities. This may not be feasible in some cases, and you will need to split the generic
 	 * facetSummary requirement into multiple individual facetSummaryOfReference requirements with specific ordering
 	 * constraints for each reference type.
-	 * 
+	 *
 	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -13803,18 +13803,18 @@ public interface QueryConstraints {
 	 * the default constraints from the generic requirement to constraints specific to this particular reference.
 	 * By combining the generic facetSummary and facetSummaryOfReference, you define common requirements for the facet
 	 * summary calculation, and redefine them only for references where they are insufficient.
-	 * 
+	 *
 	 * The `facetSummaryOfReference` requirements redefine all constraints from the generic facetSummary requirement.
-	 * 
+	 *
 	 * ## Facet calculation rules
-	 * 
+	 *
 	 * 1. The facet summary is calculated only for entities that are returned in the current query result.
 	 * 2. The calculation respects any filter constraints placed outside the 'userFilter' container.
 	 * 3. The default relation between facets within a group is logical disjunction (logical OR).
 	 * 4. The default relation between facets in different groups / references is a logical AND.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -13838,37 +13838,37 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering facet summary
-	 * 
+	 *
 	 * The facet summary sometimes gets very big, and besides the fact that it is not very useful to show all facet options
 	 * in the user interface, it also takes a lot of time to calculate it. To limit the facet summary, you can use the
 	 * {@link FilterBy} and {@link FilterGroupBy} (which is the same as filterBy, but it filters the entire facet group
 	 * instead of individual facets) constraints.
-	 * 
+	 *
 	 * If you add the filtering constraints to the facetSummary requirement, you can only refer to filterable properties
 	 * that are shared by all referenced entities. This may not be feasible in some cases, and you will need to split
 	 * the generic facetSummary requirement into multiple individual {@link FacetSummaryOfReference} requirements with
 	 * specific filters for each reference type.
-	 * 
+	 *
 	 * The filter conditions can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
-	 * 
+	 *
 	 * ## Ordering facet summary
-	 * 
+	 *
 	 * Typically, the facet summary is ordered in some way to present the most relevant facet options first. The same is
 	 * true for ordering facet groups. To sort the facet summary items the way you like, you can use the {@link OrderBy} and
 	 * {@link OrderGroupBy} (which is the same as orderBy but it sorts the facet groups instead of the individual facets)
 	 * constraints.
-	 * 
+	 *
 	 * If you add the ordering constraints to the facetSummary requirement, you can only refer to sortable properties that
 	 * are shared by all referenced entities. This may not be feasible in some cases, and you will need to split the generic
 	 * facetSummary requirement into multiple individual facetSummaryOfReference requirements with specific ordering
 	 * constraints for each reference type.
-	 * 
+	 *
 	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -13887,18 +13887,18 @@ public interface QueryConstraints {
 	 * the default constraints from the generic requirement to constraints specific to this particular reference.
 	 * By combining the generic facetSummary and facetSummaryOfReference, you define common requirements for the facet
 	 * summary calculation, and redefine them only for references where they are insufficient.
-	 * 
+	 *
 	 * The `facetSummaryOfReference` requirements redefine all constraints from the generic facetSummary requirement.
-	 * 
+	 *
 	 * ## Facet calculation rules
-	 * 
+	 *
 	 * 1. The facet summary is calculated only for entities that are returned in the current query result.
 	 * 2. The calculation respects any filter constraints placed outside the 'userFilter' container.
 	 * 3. The default relation between facets within a group is logical disjunction (logical OR).
 	 * 4. The default relation between facets in different groups / references is a logical AND.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -13922,37 +13922,37 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering facet summary
-	 * 
+	 *
 	 * The facet summary sometimes gets very big, and besides the fact that it is not very useful to show all facet options
 	 * in the user interface, it also takes a lot of time to calculate it. To limit the facet summary, you can use the
 	 * {@link FilterBy} and {@link FilterGroupBy} (which is the same as filterBy, but it filters the entire facet group
 	 * instead of individual facets) constraints.
-	 * 
+	 *
 	 * If you add the filtering constraints to the facetSummary requirement, you can only refer to filterable properties
 	 * that are shared by all referenced entities. This may not be feasible in some cases, and you will need to split
 	 * the generic facetSummary requirement into multiple individual {@link FacetSummaryOfReference} requirements with
 	 * specific filters for each reference type.
-	 * 
+	 *
 	 * The filter conditions can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
-	 * 
+	 *
 	 * ## Ordering facet summary
-	 * 
+	 *
 	 * Typically, the facet summary is ordered in some way to present the most relevant facet options first. The same is
 	 * true for ordering facet groups. To sort the facet summary items the way you like, you can use the {@link OrderBy} and
 	 * {@link OrderGroupBy} (which is the same as orderBy but it sorts the facet groups instead of the individual facets)
 	 * constraints.
-	 * 
+	 *
 	 * If you add the ordering constraints to the facetSummary requirement, you can only refer to sortable properties that
 	 * are shared by all referenced entities. This may not be feasible in some cases, and you will need to split the generic
 	 * facetSummary requirement into multiple individual facetSummaryOfReference requirements with specific ordering
 	 * constraints for each reference type.
-	 * 
+	 *
 	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -13973,18 +13973,18 @@ public interface QueryConstraints {
 	 * the default constraints from the generic requirement to constraints specific to this particular reference.
 	 * By combining the generic facetSummary and facetSummaryOfReference, you define common requirements for the facet
 	 * summary calculation, and redefine them only for references where they are insufficient.
-	 * 
+	 *
 	 * The `facetSummaryOfReference` requirements redefine all constraints from the generic facetSummary requirement.
-	 * 
+	 *
 	 * ## Facet calculation rules
-	 * 
+	 *
 	 * 1. The facet summary is calculated only for entities that are returned in the current query result.
 	 * 2. The calculation respects any filter constraints placed outside the 'userFilter' container.
 	 * 3. The default relation between facets within a group is logical disjunction (logical OR).
 	 * 4. The default relation between facets in different groups / references is a logical AND.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -14008,37 +14008,37 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering facet summary
-	 * 
+	 *
 	 * The facet summary sometimes gets very big, and besides the fact that it is not very useful to show all facet options
 	 * in the user interface, it also takes a lot of time to calculate it. To limit the facet summary, you can use the
 	 * {@link FilterBy} and {@link FilterGroupBy} (which is the same as filterBy, but it filters the entire facet group
 	 * instead of individual facets) constraints.
-	 * 
+	 *
 	 * If you add the filtering constraints to the facetSummary requirement, you can only refer to filterable properties
 	 * that are shared by all referenced entities. This may not be feasible in some cases, and you will need to split
 	 * the generic facetSummary requirement into multiple individual {@link FacetSummaryOfReference} requirements with
 	 * specific filters for each reference type.
-	 * 
+	 *
 	 * The filter conditions can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
-	 * 
+	 *
 	 * ## Ordering facet summary
-	 * 
+	 *
 	 * Typically, the facet summary is ordered in some way to present the most relevant facet options first. The same is
 	 * true for ordering facet groups. To sort the facet summary items the way you like, you can use the {@link OrderBy} and
 	 * {@link OrderGroupBy} (which is the same as orderBy but it sorts the facet groups instead of the individual facets)
 	 * constraints.
-	 * 
+	 *
 	 * If you add the ordering constraints to the facetSummary requirement, you can only refer to sortable properties that
 	 * are shared by all referenced entities. This may not be feasible in some cases, and you will need to split the generic
 	 * facetSummary requirement into multiple individual facetSummaryOfReference requirements with specific ordering
 	 * constraints for each reference type.
-	 * 
+	 *
 	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -14060,18 +14060,18 @@ public interface QueryConstraints {
 	 * the default constraints from the generic requirement to constraints specific to this particular reference.
 	 * By combining the generic facetSummary and facetSummaryOfReference, you define common requirements for the facet
 	 * summary calculation, and redefine them only for references where they are insufficient.
-	 * 
+	 *
 	 * The `facetSummaryOfReference` requirements redefine all constraints from the generic facetSummary requirement.
-	 * 
+	 *
 	 * ## Facet calculation rules
-	 * 
+	 *
 	 * 1. The facet summary is calculated only for entities that are returned in the current query result.
 	 * 2. The calculation respects any filter constraints placed outside the 'userFilter' container.
 	 * 3. The default relation between facets within a group is logical disjunction (logical OR).
 	 * 4. The default relation between facets in different groups / references is a logical AND.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -14095,37 +14095,37 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering facet summary
-	 * 
+	 *
 	 * The facet summary sometimes gets very big, and besides the fact that it is not very useful to show all facet options
 	 * in the user interface, it also takes a lot of time to calculate it. To limit the facet summary, you can use the
 	 * {@link FilterBy} and {@link FilterGroupBy} (which is the same as filterBy, but it filters the entire facet group
 	 * instead of individual facets) constraints.
-	 * 
+	 *
 	 * If you add the filtering constraints to the facetSummary requirement, you can only refer to filterable properties
 	 * that are shared by all referenced entities. This may not be feasible in some cases, and you will need to split
 	 * the generic facetSummary requirement into multiple individual {@link FacetSummaryOfReference} requirements with
 	 * specific filters for each reference type.
-	 * 
+	 *
 	 * The filter conditions can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
-	 * 
+	 *
 	 * ## Ordering facet summary
-	 * 
+	 *
 	 * Typically, the facet summary is ordered in some way to present the most relevant facet options first. The same is
 	 * true for ordering facet groups. To sort the facet summary items the way you like, you can use the {@link OrderBy} and
 	 * {@link OrderGroupBy} (which is the same as orderBy but it sorts the facet groups instead of the individual facets)
 	 * constraints.
-	 * 
+	 *
 	 * If you add the ordering constraints to the facetSummary requirement, you can only refer to sortable properties that
 	 * are shared by all referenced entities. This may not be feasible in some cases, and you will need to split the generic
 	 * facetSummary requirement into multiple individual facetSummaryOfReference requirements with specific ordering
 	 * constraints for each reference type.
-	 * 
+	 *
 	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -14147,18 +14147,18 @@ public interface QueryConstraints {
 	 * the default constraints from the generic requirement to constraints specific to this particular reference.
 	 * By combining the generic facetSummary and facetSummaryOfReference, you define common requirements for the facet
 	 * summary calculation, and redefine them only for references where they are insufficient.
-	 * 
+	 *
 	 * The `facetSummaryOfReference` requirements redefine all constraints from the generic facetSummary requirement.
-	 * 
+	 *
 	 * ## Facet calculation rules
-	 * 
+	 *
 	 * 1. The facet summary is calculated only for entities that are returned in the current query result.
 	 * 2. The calculation respects any filter constraints placed outside the 'userFilter' container.
 	 * 3. The default relation between facets within a group is logical disjunction (logical OR).
 	 * 4. The default relation between facets in different groups / references is a logical AND.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -14182,37 +14182,37 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering facet summary
-	 * 
+	 *
 	 * The facet summary sometimes gets very big, and besides the fact that it is not very useful to show all facet options
 	 * in the user interface, it also takes a lot of time to calculate it. To limit the facet summary, you can use the
 	 * {@link FilterBy} and {@link FilterGroupBy} (which is the same as filterBy, but it filters the entire facet group
 	 * instead of individual facets) constraints.
-	 * 
+	 *
 	 * If you add the filtering constraints to the facetSummary requirement, you can only refer to filterable properties
 	 * that are shared by all referenced entities. This may not be feasible in some cases, and you will need to split
 	 * the generic facetSummary requirement into multiple individual {@link FacetSummaryOfReference} requirements with
 	 * specific filters for each reference type.
-	 * 
+	 *
 	 * The filter conditions can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
-	 * 
+	 *
 	 * ## Ordering facet summary
-	 * 
+	 *
 	 * Typically, the facet summary is ordered in some way to present the most relevant facet options first. The same is
 	 * true for ordering facet groups. To sort the facet summary items the way you like, you can use the {@link OrderBy} and
 	 * {@link OrderGroupBy} (which is the same as orderBy but it sorts the facet groups instead of the individual facets)
 	 * constraints.
-	 * 
+	 *
 	 * If you add the ordering constraints to the facetSummary requirement, you can only refer to sortable properties that
 	 * are shared by all referenced entities. This may not be feasible in some cases, and you will need to split the generic
 	 * facetSummary requirement into multiple individual facetSummaryOfReference requirements with specific ordering
 	 * constraints for each reference type.
-	 * 
+	 *
 	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -14234,18 +14234,18 @@ public interface QueryConstraints {
 	 * the default constraints from the generic requirement to constraints specific to this particular reference.
 	 * By combining the generic facetSummary and facetSummaryOfReference, you define common requirements for the facet
 	 * summary calculation, and redefine them only for references where they are insufficient.
-	 * 
+	 *
 	 * The `facetSummaryOfReference` requirements redefine all constraints from the generic facetSummary requirement.
-	 * 
+	 *
 	 * ## Facet calculation rules
-	 * 
+	 *
 	 * 1. The facet summary is calculated only for entities that are returned in the current query result.
 	 * 2. The calculation respects any filter constraints placed outside the 'userFilter' container.
 	 * 3. The default relation between facets within a group is logical disjunction (logical OR).
 	 * 4. The default relation between facets in different groups / references is a logical AND.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -14269,37 +14269,37 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering facet summary
-	 * 
+	 *
 	 * The facet summary sometimes gets very big, and besides the fact that it is not very useful to show all facet options
 	 * in the user interface, it also takes a lot of time to calculate it. To limit the facet summary, you can use the
 	 * {@link FilterBy} and {@link FilterGroupBy} (which is the same as filterBy, but it filters the entire facet group
 	 * instead of individual facets) constraints.
-	 * 
+	 *
 	 * If you add the filtering constraints to the facetSummary requirement, you can only refer to filterable properties
 	 * that are shared by all referenced entities. This may not be feasible in some cases, and you will need to split
 	 * the generic facetSummary requirement into multiple individual {@link FacetSummaryOfReference} requirements with
 	 * specific filters for each reference type.
-	 * 
+	 *
 	 * The filter conditions can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
-	 * 
+	 *
 	 * ## Ordering facet summary
-	 * 
+	 *
 	 * Typically, the facet summary is ordered in some way to present the most relevant facet options first. The same is
 	 * true for ordering facet groups. To sort the facet summary items the way you like, you can use the {@link OrderBy} and
 	 * {@link OrderGroupBy} (which is the same as orderBy but it sorts the facet groups instead of the individual facets)
 	 * constraints.
-	 * 
+	 *
 	 * If you add the ordering constraints to the facetSummary requirement, you can only refer to sortable properties that
 	 * are shared by all referenced entities. This may not be feasible in some cases, and you will need to split the generic
 	 * facetSummary requirement into multiple individual facetSummaryOfReference requirements with specific ordering
 	 * constraints for each reference type.
-	 * 
+	 *
 	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -14321,18 +14321,18 @@ public interface QueryConstraints {
 	 * the default constraints from the generic requirement to constraints specific to this particular reference.
 	 * By combining the generic facetSummary and facetSummaryOfReference, you define common requirements for the facet
 	 * summary calculation, and redefine them only for references where they are insufficient.
-	 * 
+	 *
 	 * The `facetSummaryOfReference` requirements redefine all constraints from the generic facetSummary requirement.
-	 * 
+	 *
 	 * ## Facet calculation rules
-	 * 
+	 *
 	 * 1. The facet summary is calculated only for entities that are returned in the current query result.
 	 * 2. The calculation respects any filter constraints placed outside the 'userFilter' container.
 	 * 3. The default relation between facets within a group is logical disjunction (logical OR).
 	 * 4. The default relation between facets in different groups / references is a logical AND.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -14356,37 +14356,37 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering facet summary
-	 * 
+	 *
 	 * The facet summary sometimes gets very big, and besides the fact that it is not very useful to show all facet options
 	 * in the user interface, it also takes a lot of time to calculate it. To limit the facet summary, you can use the
 	 * {@link FilterBy} and {@link FilterGroupBy} (which is the same as filterBy, but it filters the entire facet group
 	 * instead of individual facets) constraints.
-	 * 
+	 *
 	 * If you add the filtering constraints to the facetSummary requirement, you can only refer to filterable properties
 	 * that are shared by all referenced entities. This may not be feasible in some cases, and you will need to split
 	 * the generic facetSummary requirement into multiple individual {@link FacetSummaryOfReference} requirements with
 	 * specific filters for each reference type.
-	 * 
+	 *
 	 * The filter conditions can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
-	 * 
+	 *
 	 * ## Ordering facet summary
-	 * 
+	 *
 	 * Typically, the facet summary is ordered in some way to present the most relevant facet options first. The same is
 	 * true for ordering facet groups. To sort the facet summary items the way you like, you can use the {@link OrderBy} and
 	 * {@link OrderGroupBy} (which is the same as orderBy but it sorts the facet groups instead of the individual facets)
 	 * constraints.
-	 * 
+	 *
 	 * If you add the ordering constraints to the facetSummary requirement, you can only refer to sortable properties that
 	 * are shared by all referenced entities. This may not be feasible in some cases, and you will need to split the generic
 	 * facetSummary requirement into multiple individual facetSummaryOfReference requirements with specific ordering
 	 * constraints for each reference type.
-	 * 
+	 *
 	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -14407,18 +14407,18 @@ public interface QueryConstraints {
 	 * the default constraints from the generic requirement to constraints specific to this particular reference.
 	 * By combining the generic facetSummary and facetSummaryOfReference, you define common requirements for the facet
 	 * summary calculation, and redefine them only for references where they are insufficient.
-	 * 
+	 *
 	 * The `facetSummaryOfReference` requirements redefine all constraints from the generic facetSummary requirement.
-	 * 
+	 *
 	 * ## Facet calculation rules
-	 * 
+	 *
 	 * 1. The facet summary is calculated only for entities that are returned in the current query result.
 	 * 2. The calculation respects any filter constraints placed outside the 'userFilter' container.
 	 * 3. The default relation between facets within a group is logical disjunction (logical OR).
 	 * 4. The default relation between facets in different groups / references is a logical AND.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -14442,37 +14442,37 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering facet summary
-	 * 
+	 *
 	 * The facet summary sometimes gets very big, and besides the fact that it is not very useful to show all facet options
 	 * in the user interface, it also takes a lot of time to calculate it. To limit the facet summary, you can use the
 	 * {@link FilterBy} and {@link FilterGroupBy} (which is the same as filterBy, but it filters the entire facet group
 	 * instead of individual facets) constraints.
-	 * 
+	 *
 	 * If you add the filtering constraints to the facetSummary requirement, you can only refer to filterable properties
 	 * that are shared by all referenced entities. This may not be feasible in some cases, and you will need to split
 	 * the generic facetSummary requirement into multiple individual {@link FacetSummaryOfReference} requirements with
 	 * specific filters for each reference type.
-	 * 
+	 *
 	 * The filter conditions can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
-	 * 
+	 *
 	 * ## Ordering facet summary
-	 * 
+	 *
 	 * Typically, the facet summary is ordered in some way to present the most relevant facet options first. The same is
 	 * true for ordering facet groups. To sort the facet summary items the way you like, you can use the {@link OrderBy} and
 	 * {@link OrderGroupBy} (which is the same as orderBy but it sorts the facet groups instead of the individual facets)
 	 * constraints.
-	 * 
+	 *
 	 * If you add the ordering constraints to the facetSummary requirement, you can only refer to sortable properties that
 	 * are shared by all referenced entities. This may not be feasible in some cases, and you will need to split the generic
 	 * facetSummary requirement into multiple individual facetSummaryOfReference requirements with specific ordering
 	 * constraints for each reference type.
-	 * 
+	 *
 	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -14493,18 +14493,18 @@ public interface QueryConstraints {
 	 * the default constraints from the generic requirement to constraints specific to this particular reference.
 	 * By combining the generic facetSummary and facetSummaryOfReference, you define common requirements for the facet
 	 * summary calculation, and redefine them only for references where they are insufficient.
-	 * 
+	 *
 	 * The `facetSummaryOfReference` requirements redefine all constraints from the generic facetSummary requirement.
-	 * 
+	 *
 	 * ## Facet calculation rules
-	 * 
+	 *
 	 * 1. The facet summary is calculated only for entities that are returned in the current query result.
 	 * 2. The calculation respects any filter constraints placed outside the 'userFilter' container.
 	 * 3. The default relation between facets within a group is logical disjunction (logical OR).
 	 * 4. The default relation between facets in different groups / references is a logical AND.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -14528,37 +14528,37 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering facet summary
-	 * 
+	 *
 	 * The facet summary sometimes gets very big, and besides the fact that it is not very useful to show all facet options
 	 * in the user interface, it also takes a lot of time to calculate it. To limit the facet summary, you can use the
 	 * {@link FilterBy} and {@link FilterGroupBy} (which is the same as filterBy, but it filters the entire facet group
 	 * instead of individual facets) constraints.
-	 * 
+	 *
 	 * If you add the filtering constraints to the facetSummary requirement, you can only refer to filterable properties
 	 * that are shared by all referenced entities. This may not be feasible in some cases, and you will need to split
 	 * the generic facetSummary requirement into multiple individual {@link FacetSummaryOfReference} requirements with
 	 * specific filters for each reference type.
-	 * 
+	 *
 	 * The filter conditions can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
-	 * 
+	 *
 	 * ## Ordering facet summary
-	 * 
+	 *
 	 * Typically, the facet summary is ordered in some way to present the most relevant facet options first. The same is
 	 * true for ordering facet groups. To sort the facet summary items the way you like, you can use the {@link OrderBy} and
 	 * {@link OrderGroupBy} (which is the same as orderBy but it sorts the facet groups instead of the individual facets)
 	 * constraints.
-	 * 
+	 *
 	 * If you add the ordering constraints to the facetSummary requirement, you can only refer to sortable properties that
 	 * are shared by all referenced entities. This may not be feasible in some cases, and you will need to split the generic
 	 * facetSummary requirement into multiple individual facetSummaryOfReference requirements with specific ordering
 	 * constraints for each reference type.
-	 * 
+	 *
 	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -14578,18 +14578,18 @@ public interface QueryConstraints {
 	 * the default constraints from the generic requirement to constraints specific to this particular reference.
 	 * By combining the generic facetSummary and facetSummaryOfReference, you define common requirements for the facet
 	 * summary calculation, and redefine them only for references where they are insufficient.
-	 * 
+	 *
 	 * The `facetSummaryOfReference` requirements redefine all constraints from the generic facetSummary requirement.
-	 * 
+	 *
 	 * ## Facet calculation rules
-	 * 
+	 *
 	 * 1. The facet summary is calculated only for entities that are returned in the current query result.
 	 * 2. The calculation respects any filter constraints placed outside the 'userFilter' container.
 	 * 3. The default relation between facets within a group is logical disjunction (logical OR).
 	 * 4. The default relation between facets in different groups / references is a logical AND.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -14613,37 +14613,37 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering facet summary
-	 * 
+	 *
 	 * The facet summary sometimes gets very big, and besides the fact that it is not very useful to show all facet options
 	 * in the user interface, it also takes a lot of time to calculate it. To limit the facet summary, you can use the
 	 * {@link FilterBy} and {@link FilterGroupBy} (which is the same as filterBy, but it filters the entire facet group
 	 * instead of individual facets) constraints.
-	 * 
+	 *
 	 * If you add the filtering constraints to the facetSummary requirement, you can only refer to filterable properties
 	 * that are shared by all referenced entities. This may not be feasible in some cases, and you will need to split
 	 * the generic facetSummary requirement into multiple individual {@link FacetSummaryOfReference} requirements with
 	 * specific filters for each reference type.
-	 * 
+	 *
 	 * The filter conditions can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
-	 * 
+	 *
 	 * ## Ordering facet summary
-	 * 
+	 *
 	 * Typically, the facet summary is ordered in some way to present the most relevant facet options first. The same is
 	 * true for ordering facet groups. To sort the facet summary items the way you like, you can use the {@link OrderBy} and
 	 * {@link OrderGroupBy} (which is the same as orderBy but it sorts the facet groups instead of the individual facets)
 	 * constraints.
-	 * 
+	 *
 	 * If you add the ordering constraints to the facetSummary requirement, you can only refer to sortable properties that
 	 * are shared by all referenced entities. This may not be feasible in some cases, and you will need to split the generic
 	 * facetSummary requirement into multiple individual facetSummaryOfReference requirements with specific ordering
 	 * constraints for each reference type.
-	 * 
+	 *
 	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -14663,18 +14663,18 @@ public interface QueryConstraints {
 	 * the default constraints from the generic requirement to constraints specific to this particular reference.
 	 * By combining the generic facetSummary and facetSummaryOfReference, you define common requirements for the facet
 	 * summary calculation, and redefine them only for references where they are insufficient.
-	 * 
+	 *
 	 * The `facetSummaryOfReference` requirements redefine all constraints from the generic facetSummary requirement.
-	 * 
+	 *
 	 * ## Facet calculation rules
-	 * 
+	 *
 	 * 1. The facet summary is calculated only for entities that are returned in the current query result.
 	 * 2. The calculation respects any filter constraints placed outside the 'userFilter' container.
 	 * 3. The default relation between facets within a group is logical disjunction (logical OR).
 	 * 4. The default relation between facets in different groups / references is a logical AND.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -14698,37 +14698,37 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering facet summary
-	 * 
+	 *
 	 * The facet summary sometimes gets very big, and besides the fact that it is not very useful to show all facet options
 	 * in the user interface, it also takes a lot of time to calculate it. To limit the facet summary, you can use the
 	 * {@link FilterBy} and {@link FilterGroupBy} (which is the same as filterBy, but it filters the entire facet group
 	 * instead of individual facets) constraints.
-	 * 
+	 *
 	 * If you add the filtering constraints to the facetSummary requirement, you can only refer to filterable properties
 	 * that are shared by all referenced entities. This may not be feasible in some cases, and you will need to split
 	 * the generic facetSummary requirement into multiple individual {@link FacetSummaryOfReference} requirements with
 	 * specific filters for each reference type.
-	 * 
+	 *
 	 * The filter conditions can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
-	 * 
+	 *
 	 * ## Ordering facet summary
-	 * 
+	 *
 	 * Typically, the facet summary is ordered in some way to present the most relevant facet options first. The same is
 	 * true for ordering facet groups. To sort the facet summary items the way you like, you can use the {@link OrderBy} and
 	 * {@link OrderGroupBy} (which is the same as orderBy but it sorts the facet groups instead of the individual facets)
 	 * constraints.
-	 * 
+	 *
 	 * If you add the ordering constraints to the facetSummary requirement, you can only refer to sortable properties that
 	 * are shared by all referenced entities. This may not be feasible in some cases, and you will need to split the generic
 	 * facetSummary requirement into multiple individual facetSummaryOfReference requirements with specific ordering
 	 * constraints for each reference type.
-	 * 
+	 *
 	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -14748,18 +14748,18 @@ public interface QueryConstraints {
 	 * the default constraints from the generic requirement to constraints specific to this particular reference.
 	 * By combining the generic facetSummary and facetSummaryOfReference, you define common requirements for the facet
 	 * summary calculation, and redefine them only for references where they are insufficient.
-	 * 
+	 *
 	 * The `facetSummaryOfReference` requirements redefine all constraints from the generic facetSummary requirement.
-	 * 
+	 *
 	 * ## Facet calculation rules
-	 * 
+	 *
 	 * 1. The facet summary is calculated only for entities that are returned in the current query result.
 	 * 2. The calculation respects any filter constraints placed outside the 'userFilter' container.
 	 * 3. The default relation between facets within a group is logical disjunction (logical OR).
 	 * 4. The default relation between facets in different groups / references is a logical AND.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -14783,37 +14783,37 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering facet summary
-	 * 
+	 *
 	 * The facet summary sometimes gets very big, and besides the fact that it is not very useful to show all facet options
 	 * in the user interface, it also takes a lot of time to calculate it. To limit the facet summary, you can use the
 	 * {@link FilterBy} and {@link FilterGroupBy} (which is the same as filterBy, but it filters the entire facet group
 	 * instead of individual facets) constraints.
-	 * 
+	 *
 	 * If you add the filtering constraints to the facetSummary requirement, you can only refer to filterable properties
 	 * that are shared by all referenced entities. This may not be feasible in some cases, and you will need to split
 	 * the generic facetSummary requirement into multiple individual {@link FacetSummaryOfReference} requirements with
 	 * specific filters for each reference type.
-	 * 
+	 *
 	 * The filter conditions can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
-	 * 
+	 *
 	 * ## Ordering facet summary
-	 * 
+	 *
 	 * Typically, the facet summary is ordered in some way to present the most relevant facet options first. The same is
 	 * true for ordering facet groups. To sort the facet summary items the way you like, you can use the {@link OrderBy} and
 	 * {@link OrderGroupBy} (which is the same as orderBy but it sorts the facet groups instead of the individual facets)
 	 * constraints.
-	 * 
+	 *
 	 * If you add the ordering constraints to the facetSummary requirement, you can only refer to sortable properties that
 	 * are shared by all referenced entities. This may not be feasible in some cases, and you will need to split the generic
 	 * facetSummary requirement into multiple individual facetSummaryOfReference requirements with specific ordering
 	 * constraints for each reference type.
-	 * 
+	 *
 	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -14833,18 +14833,18 @@ public interface QueryConstraints {
 	 * the default constraints from the generic requirement to constraints specific to this particular reference.
 	 * By combining the generic facetSummary and facetSummaryOfReference, you define common requirements for the facet
 	 * summary calculation, and redefine them only for references where they are insufficient.
-	 * 
+	 *
 	 * The `facetSummaryOfReference` requirements redefine all constraints from the generic facetSummary requirement.
-	 * 
+	 *
 	 * ## Facet calculation rules
-	 * 
+	 *
 	 * 1. The facet summary is calculated only for entities that are returned in the current query result.
 	 * 2. The calculation respects any filter constraints placed outside the 'userFilter' container.
 	 * 3. The default relation between facets within a group is logical disjunction (logical OR).
 	 * 4. The default relation between facets in different groups / references is a logical AND.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -14868,37 +14868,37 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering facet summary
-	 * 
+	 *
 	 * The facet summary sometimes gets very big, and besides the fact that it is not very useful to show all facet options
 	 * in the user interface, it also takes a lot of time to calculate it. To limit the facet summary, you can use the
 	 * {@link FilterBy} and {@link FilterGroupBy} (which is the same as filterBy, but it filters the entire facet group
 	 * instead of individual facets) constraints.
-	 * 
+	 *
 	 * If you add the filtering constraints to the facetSummary requirement, you can only refer to filterable properties
 	 * that are shared by all referenced entities. This may not be feasible in some cases, and you will need to split
 	 * the generic facetSummary requirement into multiple individual {@link FacetSummaryOfReference} requirements with
 	 * specific filters for each reference type.
-	 * 
+	 *
 	 * The filter conditions can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
-	 * 
+	 *
 	 * ## Ordering facet summary
-	 * 
+	 *
 	 * Typically, the facet summary is ordered in some way to present the most relevant facet options first. The same is
 	 * true for ordering facet groups. To sort the facet summary items the way you like, you can use the {@link OrderBy} and
 	 * {@link OrderGroupBy} (which is the same as orderBy but it sorts the facet groups instead of the individual facets)
 	 * constraints.
-	 * 
+	 *
 	 * If you add the ordering constraints to the facetSummary requirement, you can only refer to sortable properties that
 	 * are shared by all referenced entities. This may not be feasible in some cases, and you will need to split the generic
 	 * facetSummary requirement into multiple individual facetSummaryOfReference requirements with specific ordering
 	 * constraints for each reference type.
-	 * 
+	 *
 	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -14919,18 +14919,18 @@ public interface QueryConstraints {
 	 * the default constraints from the generic requirement to constraints specific to this particular reference.
 	 * By combining the generic facetSummary and facetSummaryOfReference, you define common requirements for the facet
 	 * summary calculation, and redefine them only for references where they are insufficient.
-	 * 
+	 *
 	 * The `facetSummaryOfReference` requirements redefine all constraints from the generic facetSummary requirement.
-	 * 
+	 *
 	 * ## Facet calculation rules
-	 * 
+	 *
 	 * 1. The facet summary is calculated only for entities that are returned in the current query result.
 	 * 2. The calculation respects any filter constraints placed outside the 'userFilter' container.
 	 * 3. The default relation between facets within a group is logical disjunction (logical OR).
 	 * 4. The default relation between facets in different groups / references is a logical AND.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -14954,37 +14954,37 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering facet summary
-	 * 
+	 *
 	 * The facet summary sometimes gets very big, and besides the fact that it is not very useful to show all facet options
 	 * in the user interface, it also takes a lot of time to calculate it. To limit the facet summary, you can use the
 	 * {@link FilterBy} and {@link FilterGroupBy} (which is the same as filterBy, but it filters the entire facet group
 	 * instead of individual facets) constraints.
-	 * 
+	 *
 	 * If you add the filtering constraints to the facetSummary requirement, you can only refer to filterable properties
 	 * that are shared by all referenced entities. This may not be feasible in some cases, and you will need to split
 	 * the generic facetSummary requirement into multiple individual {@link FacetSummaryOfReference} requirements with
 	 * specific filters for each reference type.
-	 * 
+	 *
 	 * The filter conditions can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
-	 * 
+	 *
 	 * ## Ordering facet summary
-	 * 
+	 *
 	 * Typically, the facet summary is ordered in some way to present the most relevant facet options first. The same is
 	 * true for ordering facet groups. To sort the facet summary items the way you like, you can use the {@link OrderBy} and
 	 * {@link OrderGroupBy} (which is the same as orderBy but it sorts the facet groups instead of the individual facets)
 	 * constraints.
-	 * 
+	 *
 	 * If you add the ordering constraints to the facetSummary requirement, you can only refer to sortable properties that
 	 * are shared by all referenced entities. This may not be feasible in some cases, and you will need to split the generic
 	 * facetSummary requirement into multiple individual facetSummaryOfReference requirements with specific ordering
 	 * constraints for each reference type.
-	 * 
+	 *
 	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -15005,18 +15005,18 @@ public interface QueryConstraints {
 	 * the default constraints from the generic requirement to constraints specific to this particular reference.
 	 * By combining the generic facetSummary and facetSummaryOfReference, you define common requirements for the facet
 	 * summary calculation, and redefine them only for references where they are insufficient.
-	 * 
+	 *
 	 * The `facetSummaryOfReference` requirements redefine all constraints from the generic facetSummary requirement.
-	 * 
+	 *
 	 * ## Facet calculation rules
-	 * 
+	 *
 	 * 1. The facet summary is calculated only for entities that are returned in the current query result.
 	 * 2. The calculation respects any filter constraints placed outside the 'userFilter' container.
 	 * 3. The default relation between facets within a group is logical disjunction (logical OR).
 	 * 4. The default relation between facets in different groups / references is a logical AND.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -15040,37 +15040,37 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering facet summary
-	 * 
+	 *
 	 * The facet summary sometimes gets very big, and besides the fact that it is not very useful to show all facet options
 	 * in the user interface, it also takes a lot of time to calculate it. To limit the facet summary, you can use the
 	 * {@link FilterBy} and {@link FilterGroupBy} (which is the same as filterBy, but it filters the entire facet group
 	 * instead of individual facets) constraints.
-	 * 
+	 *
 	 * If you add the filtering constraints to the facetSummary requirement, you can only refer to filterable properties
 	 * that are shared by all referenced entities. This may not be feasible in some cases, and you will need to split
 	 * the generic facetSummary requirement into multiple individual {@link FacetSummaryOfReference} requirements with
 	 * specific filters for each reference type.
-	 * 
+	 *
 	 * The filter conditions can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
-	 * 
+	 *
 	 * ## Ordering facet summary
-	 * 
+	 *
 	 * Typically, the facet summary is ordered in some way to present the most relevant facet options first. The same is
 	 * true for ordering facet groups. To sort the facet summary items the way you like, you can use the {@link OrderBy} and
 	 * {@link OrderGroupBy} (which is the same as orderBy but it sorts the facet groups instead of the individual facets)
 	 * constraints.
-	 * 
+	 *
 	 * If you add the ordering constraints to the facetSummary requirement, you can only refer to sortable properties that
 	 * are shared by all referenced entities. This may not be feasible in some cases, and you will need to split the generic
 	 * facetSummary requirement into multiple individual facetSummaryOfReference requirements with specific ordering
 	 * constraints for each reference type.
-	 * 
+	 *
 	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -15091,18 +15091,18 @@ public interface QueryConstraints {
 	 * the default constraints from the generic requirement to constraints specific to this particular reference.
 	 * By combining the generic facetSummary and facetSummaryOfReference, you define common requirements for the facet
 	 * summary calculation, and redefine them only for references where they are insufficient.
-	 * 
+	 *
 	 * The `facetSummaryOfReference` requirements redefine all constraints from the generic facetSummary requirement.
-	 * 
+	 *
 	 * ## Facet calculation rules
-	 * 
+	 *
 	 * 1. The facet summary is calculated only for entities that are returned in the current query result.
 	 * 2. The calculation respects any filter constraints placed outside the 'userFilter' container.
 	 * 3. The default relation between facets within a group is logical disjunction (logical OR).
 	 * 4. The default relation between facets in different groups / references is a logical AND.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Product"),
@@ -15126,37 +15126,37 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * ## Filtering facet summary
-	 * 
+	 *
 	 * The facet summary sometimes gets very big, and besides the fact that it is not very useful to show all facet options
 	 * in the user interface, it also takes a lot of time to calculate it. To limit the facet summary, you can use the
 	 * {@link FilterBy} and {@link FilterGroupBy} (which is the same as filterBy, but it filters the entire facet group
 	 * instead of individual facets) constraints.
-	 * 
+	 *
 	 * If you add the filtering constraints to the facetSummary requirement, you can only refer to filterable properties
 	 * that are shared by all referenced entities. This may not be feasible in some cases, and you will need to split
 	 * the generic facetSummary requirement into multiple individual {@link FacetSummaryOfReference} requirements with
 	 * specific filters for each reference type.
-	 * 
+	 *
 	 * The filter conditions can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
-	 * 
+	 *
 	 * ## Ordering facet summary
-	 * 
+	 *
 	 * Typically, the facet summary is ordered in some way to present the most relevant facet options first. The same is
 	 * true for ordering facet groups. To sort the facet summary items the way you like, you can use the {@link OrderBy} and
 	 * {@link OrderGroupBy} (which is the same as orderBy but it sorts the facet groups instead of the individual facets)
 	 * constraints.
-	 * 
+	 *
 	 * If you add the ordering constraints to the facetSummary requirement, you can only refer to sortable properties that
 	 * are shared by all referenced entities. This may not be feasible in some cases, and you will need to split the generic
 	 * facetSummary requirement into multiple individual facetSummaryOfReference requirements with specific ordering
 	 * constraints for each reference type.
-	 * 
+	 *
 	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
@@ -15194,13 +15194,13 @@ public interface QueryConstraints {
 	/**
 	 * This `queryTelemetry` requirement triggers creation of the {@link QueryTelemetry} DTO and including it the evitaDB
 	 * response.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * queryTelemetry()
 	 * </pre>
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/debug#query-telemetry">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
@@ -15220,9 +15220,9 @@ public interface QueryConstraints {
 	 * The `entityFetch` requirement is used to trigger loading one or more entity data containers from the disk by its
 	 * primary key. This operation requires a disk access unless the entity is already loaded in the database cache
 	 * (frequently fetched entities have higher chance to stay in the cache).
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Brand"),
@@ -15237,15 +15237,15 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * See internal contents available for fetching in {@link EntityContentRequire}:
-	 * 
+	 *
 	 * - {@link AttributeContent}
 	 * - {@link AssociatedDataContent}
 	 * - {@link PriceContent}
 	 * - {@link HierarchyContent}
 	 * - {@link ReferenceContent}
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#entity-fetch">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
@@ -15260,9 +15260,9 @@ public interface QueryConstraints {
 	/**
 	 * The `entityGroupFetch` requirement is similar to {@link EntityFetch} but is used to trigger loading one or more
 	 * referenced group entities in the {@link ReferenceContent} parent.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * <pre>
 	 * query(
 	 *     collection("Brand"),
@@ -15282,15 +15282,15 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 * 
+	 *
 	 * See internal contents available for fetching in {@link EntityContentRequire}:
-	 * 
+	 *
 	 * - {@link AttributeContent}
 	 * - {@link AssociatedDataContent}
 	 * - {@link PriceContent}
 	 * - {@link HierarchyContent}
 	 * - {@link ReferenceContent}
-	 * 
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#entity-group-fetch">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull

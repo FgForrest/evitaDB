@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -164,7 +164,7 @@ private static final long serialVersionUID = 0L;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs = 
+      com.google.protobuf.ByteString bs =
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
       entityType_ = s;
@@ -184,7 +184,7 @@ private static final long serialVersionUID = 0L;
       getEntityTypeBytes() {
     java.lang.Object ref = entityType_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b = 
+      com.google.protobuf.ByteString b =
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
       entityType_ = b;
@@ -286,7 +286,7 @@ private static final long serialVersionUID = 0L;
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocalMutation mutations = 4;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLocalMutationOrBuilder> 
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLocalMutationOrBuilder>
       getMutationsOrBuilderList() {
     return mutations_;
   }
@@ -696,7 +696,7 @@ private static final long serialVersionUID = 0L;
             mutationsBuilder_ = null;
             mutations_ = other.mutations_;
             bitField0_ = (bitField0_ & ~0x00000001);
-            mutationsBuilder_ = 
+            mutationsBuilder_ =
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getMutationsFieldBuilder() : null;
           } else {
@@ -767,7 +767,7 @@ private static final long serialVersionUID = 0L;
         getEntityTypeBytes() {
       java.lang.Object ref = entityType_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b = 
+        com.google.protobuf.ByteString b =
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
         entityType_ = b;
@@ -790,7 +790,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
     throw new NullPointerException();
   }
-  
+
       entityType_ = value;
       onChanged();
       return this;
@@ -804,7 +804,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearEntityType() {
-      
+
       entityType_ = getDefaultInstance().getEntityType();
       onChanged();
       return this;
@@ -824,7 +824,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   checkByteStringIsUtf8(value);
-      
+
       entityType_ = value;
       onChanged();
       return this;
@@ -945,7 +945,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int32Value entityPrimaryKey = 2;</code>
      */
     public com.google.protobuf.Int32Value.Builder getEntityPrimaryKeyBuilder() {
-      
+
       onChanged();
       return getEntityPrimaryKeyFieldBuilder().getBuilder();
     }
@@ -972,7 +972,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int32Value entityPrimaryKey = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder> 
+        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder>
         getEntityPrimaryKeyFieldBuilder() {
       if (entityPrimaryKeyBuilder_ == null) {
         entityPrimaryKeyBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -1013,7 +1013,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setEntityExistenceValue(int value) {
-      
+
       entityExistence_ = value;
       onChanged();
       return this;
@@ -1051,7 +1051,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
         throw new NullPointerException();
       }
-      
+
       entityExistence_ = value.getNumber();
       onChanged();
       return this;
@@ -1068,7 +1068,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearEntityExistence() {
-      
+
       entityExistence_ = 0;
       onChanged();
       return this;
@@ -1329,7 +1329,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocalMutation mutations = 4;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLocalMutationOrBuilder> 
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLocalMutationOrBuilder>
          getMutationsOrBuilderList() {
       if (mutationsBuilder_ != null) {
         return mutationsBuilder_.getMessageOrBuilderList();
@@ -1367,12 +1367,12 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocalMutation mutations = 4;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLocalMutation.Builder> 
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLocalMutation.Builder>
          getMutationsBuilderList() {
       return getMutationsFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcLocalMutation, io.evitadb.externalApi.grpc.generated.GrpcLocalMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcLocalMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcLocalMutation, io.evitadb.externalApi.grpc.generated.GrpcLocalMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcLocalMutationOrBuilder>
         getMutationsFieldBuilder() {
       if (mutationsBuilder_ == null) {
         mutationsBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<

@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -162,7 +162,7 @@ private static final long serialVersionUID = 0L;
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity deletedEntityBodies = 2;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder> 
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder>
       getDeletedEntityBodiesOrBuilderList() {
     return deletedEntityBodies_;
   }
@@ -526,7 +526,7 @@ private static final long serialVersionUID = 0L;
             deletedEntityBodiesBuilder_ = null;
             deletedEntityBodies_ = other.deletedEntityBodies_;
             bitField0_ = (bitField0_ & ~0x00000001);
-            deletedEntityBodiesBuilder_ = 
+            deletedEntityBodiesBuilder_ =
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getDeletedEntityBodiesFieldBuilder() : null;
           } else {
@@ -587,7 +587,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setDeletedEntities(int value) {
-      
+
       deletedEntities_ = value;
       onChanged();
       return this;
@@ -601,7 +601,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearDeletedEntities() {
-      
+
       deletedEntities_ = 0;
       onChanged();
       return this;
@@ -862,7 +862,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity deletedEntityBodies = 2;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder> 
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder>
          getDeletedEntityBodiesOrBuilderList() {
       if (deletedEntityBodiesBuilder_ != null) {
         return deletedEntityBodiesBuilder_.getMessageOrBuilderList();
@@ -900,12 +900,12 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity deletedEntityBodies = 2;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder> 
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder>
          getDeletedEntityBodiesBuilderList() {
       return getDeletedEntityBodiesFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcSealedEntity, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcSealedEntity, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder>
         getDeletedEntityBodiesFieldBuilder() {
       if (deletedEntityBodiesBuilder_ == null) {
         deletedEntityBodiesBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<

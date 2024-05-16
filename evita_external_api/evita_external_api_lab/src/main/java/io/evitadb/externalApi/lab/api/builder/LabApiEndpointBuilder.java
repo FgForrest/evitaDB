@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -31,8 +31,8 @@ import io.evitadb.externalApi.lab.api.model.QueryEntitiesRequestBodyDescriptor;
 import io.evitadb.externalApi.lab.api.openApi.OpenApiLabApiEndpoint;
 import io.evitadb.externalApi.lab.api.resolver.endpoint.GetCatalogSchemaHandler;
 import io.evitadb.externalApi.lab.api.resolver.endpoint.ListCatalogsHandler;
-import io.evitadb.externalApi.lab.api.resolver.endpoint.QueryEntitiesHandler;
 import io.evitadb.externalApi.lab.api.resolver.endpoint.LivenessHandler;
+import io.evitadb.externalApi.lab.api.resolver.endpoint.QueryEntitiesHandler;
 import io.evitadb.externalApi.rest.api.dataType.DataTypesConverter;
 import io.evitadb.externalApi.rest.api.model.PropertyDescriptorToOpenApiOperationPathParameterTransformer;
 import io.evitadb.externalApi.rest.api.model.RestRootDescriptor;
