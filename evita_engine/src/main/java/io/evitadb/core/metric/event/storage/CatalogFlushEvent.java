@@ -25,42 +25,46 @@ package io.evitadb.core.metric.event.storage;
 
 import io.evitadb.api.configuration.metric.MetricType;
 import io.evitadb.core.metric.annotation.ExportMetric;
-import io.evitadb.core.metric.annotation.ExportMetricLabel;
 import jdk.jfr.Description;
 import jdk.jfr.Label;
 import jdk.jfr.Name;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.time.OffsetDateTime;
 
 /**
- * Event that is fired when a file for isolated WAL storage is closed and deleted.
+ * Event that is fired when a new catalog version is flushed.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@Name(AbstractStorageEvent.PACKAGE_NAME + ".OffsetIndexRecordTypeCountChangedEvent")
-@Description("Event that is fired when number of records of a particular type in OffsetIndex file changes.")
-@Label("OffsetIndex record type count changed")
+@Name(AbstractStorageEvent.PACKAGE_NAME + ".CatalogFlushEvent")
+@Description("Event that is fired when a new catalog version is flushed.")
+@Label("Catalog flushed")
 @Getter
-public class OffsetIndexRecordTypeCountChangedEvent extends AbstractDataFileEvent {
-
-	@Label("Record type")
-	@ExportMetricLabel
-	private final String recordType;
-
-	@Label("Number of records")
+public class CatalogFlushEvent extends AbstractStorageEvent {
+	@Label("Entity collection count")
 	@ExportMetric(metricType = MetricType.GAUGE)
-	private final int countTotal;
+	private final int entityCollectionCountTotal;
 
-	public OffsetIndexRecordTypeCountChangedEvent(
+	@Label("Total occupied disk space in Bytes")
+	@ExportMetric(metricType = MetricType.GAUGE)
+	private final long occupiedDiskSpaceBytesTotal;
+
+	@Label("Timestamp of the oldest catalog version available in seconds")
+	@ExportMetric(metricType = MetricType.GAUGE)
+	private final long oldestCatalogVersionTimestampSeconds;
+
+	public CatalogFlushEvent(
 		@Nonnull String catalogName,
-		@Nonnull FileType fileType,
-		@Nonnull String name,
-		@Nonnull String recordType,
-		int countTotal
-	) {
-		super(catalogName, fileType, name);
-		this.recordType = recordType;
-		this.countTotal = countTotal;
+		int entityCollectionCountTotal,
+		long occupiedDiskSpaceBytesTotal,
+		@Nullable OffsetDateTime oldestCatalogVersionTimestampSeconds) {
+		super(catalogName);
+		this.entityCollectionCountTotal = entityCollectionCountTotal;
+		this.occupiedDiskSpaceBytesTotal = occupiedDiskSpaceBytesTotal;
+		this.oldestCatalogVersionTimestampSeconds = oldestCatalogVersionTimestampSeconds == null ?
+			0L : oldestCatalogVersionTimestampSeconds.toEpochSecond();
 	}
 }

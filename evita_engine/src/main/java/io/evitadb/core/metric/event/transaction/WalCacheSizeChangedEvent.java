@@ -21,38 +21,33 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.metric.event.storage;
+package io.evitadb.core.metric.event.transaction;
 
-import io.evitadb.core.metric.annotation.ExportMetricLabel;
+import io.evitadb.api.configuration.metric.MetricType;
+import io.evitadb.core.metric.annotation.ExportMetric;
+import jdk.jfr.Description;
 import jdk.jfr.Label;
+import jdk.jfr.Name;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
 
 /**
- * Abstract ancestor for events that are related to a specific OffsetIndex file.
+ * Event that is fired when a shared WAL location cache size is changed.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
+@Name(AbstractTransactionEvent.PACKAGE_NAME + ".WalCacheSizeChangedEvent")
+@Description("Event that is fired when a shared WAL location cache size is changed.")
+@Label("WAL cache size changed")
 @Getter
-abstract class AbstractOffsetIndexEvent extends AbstractStorageEvent {
-	/**
-	 * The type of the file that was flushed.
-	 */
-	@Label("File type")
-	@ExportMetricLabel
-	final String fileType;
-	/**
-	 * The logical name of the file that was flushed.
-	 */
-	@Label("Logical file name")
-	@ExportMetricLabel
-	final String name;
+public class WalCacheSizeChangedEvent extends AbstractTransactionEvent {
+	@Label("Total cached locations in WAL file")
+	@ExportMetric(metricType = MetricType.GAUGE)
+	private final int locationsCachedTotal;
 
-	public AbstractOffsetIndexEvent(@Nonnull String catalogName, @Nonnull FileType fileType, @Nonnull String name) {
+	public WalCacheSizeChangedEvent(@Nonnull String catalogName, int locationsCachedTotal) {
 		super(catalogName);
-		this.fileType = fileType.name();
-		this.name = name;
+		this.locationsCachedTotal = locationsCachedTotal;
 	}
-
 }

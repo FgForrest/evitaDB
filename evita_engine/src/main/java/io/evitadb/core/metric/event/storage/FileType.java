@@ -41,6 +41,10 @@ public enum FileType {
 	/**
 	 * Write-ahead log file.
 	 */
-	WAL
+	WAL,
+	/**
+	 * Bootstrap file.
+	 */
+	BOOTSTRAP
 
 }

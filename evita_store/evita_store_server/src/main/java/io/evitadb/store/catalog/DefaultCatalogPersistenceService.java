@@ -45,8 +45,9 @@ import io.evitadb.core.Catalog;
 import io.evitadb.core.CatalogVersionBeyondTheHorizonListener;
 import io.evitadb.core.EntityCollection;
 import io.evitadb.core.buffer.DataStoreIndexChanges;
+import io.evitadb.core.metric.event.storage.CatalogFlushEvent;
+import io.evitadb.core.metric.event.storage.DataFileCompactEvent;
 import io.evitadb.core.metric.event.storage.FileType;
-import io.evitadb.core.metric.event.storage.OffsetIndexCompactEvent;
 import io.evitadb.core.metric.event.storage.OffsetIndexNonFlushedRecordsEvent;
 import io.evitadb.core.metric.event.storage.ReadOnlyHandleLimitSetEvent;
 import io.evitadb.dataType.ClassifierType;
@@ -279,6 +280,31 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	}
 
 	/**
+	 * Retrieves the first catalog bootstrap for a given catalog or NULL if the bootstrap file is empty.
+	 *
+	 * @param catalogStoragePath The path to the catalog storage directory.
+	 * @param catalogName        The name of the catalog.
+	 * @param storageOptions     The storage options for reading the bootstrap file.
+	 * @return The first catalog bootstrap or NULL if the catalog bootstrap file is empty.
+	 * @throws UnexpectedIOException If there is an error opening the catalog bootstrap file.
+	 */
+	@Nonnull
+	private static Optional<CatalogBootstrap> getFirstCatalogBootstrap(
+		@Nonnull Path catalogStoragePath,
+		@Nonnull String catalogName,
+		@Nonnull StorageOptions storageOptions
+	) {
+		final String bootstrapFileName = getCatalogBootstrapFileName(catalogName);
+		final Path bootstrapFilePath = catalogStoragePath.resolve(bootstrapFileName);
+		final File bootstrapFile = bootstrapFilePath.toFile();
+		if (bootstrapFile.exists()) {
+			return of(readCatalogBootstrap(storageOptions, bootstrapFilePath, 0));
+		} else {
+			return empty();
+		}
+	}
+
+	/**
 	 * Retrieves the last catalog bootstrap for a given catalog. If the last bootstrap record was not fully written,
 	 * the previous one is returned instead. The correctness is verified by fixed length of the bootstrap record and
 	 * CRC32C checksum of the record.
@@ -302,31 +328,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		if (bootstrapFile.exists()) {
 			final long length = bootstrapFile.length();
 			final long lastMeaningfulPosition = CatalogBootstrap.getLastMeaningfulPosition(length);
-			try(
-				final ReadOnlyFileHandle readHandle = new ReadOnlyFileHandle(bootstrapFilePath, storageOptions.computeCRC32C());
-			) {
-				return readHandle.execute(
-					input -> StorageRecord.read(
-						input,
-						new FileLocation(lastMeaningfulPosition, CatalogBootstrap.BOOTSTRAP_RECORD_SIZE),
-						(theInput, recordLength) -> new CatalogBootstrap(
-							theInput.readLong(),
-							theInput.readInt(),
-							Instant.ofEpochMilli(theInput.readLong()).atZone(ZoneId.systemDefault()).toOffsetDateTime(),
-							new FileLocation(
-								theInput.readLong(),
-								theInput.readInt()
-							)
-						)
-					)
-				).payload();
-			} catch (Exception e) {
-				throw new UnexpectedIOException(
-					"Failed to open catalog bootstrap file `" + bootstrapFile.getAbsolutePath() + "`!",
-					"Failed to open catalog bootstrap file!",
-					e
-				);
-			}
+			return readCatalogBootstrap(storageOptions, bootstrapFilePath, lastMeaningfulPosition);
 		} else {
 			if (FileUtils.isDirectoryEmpty(catalogStoragePath)) {
 				return new CatalogBootstrap(
@@ -338,6 +340,47 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			} else {
 				throw new BootstrapFileNotFound(catalogStoragePath, bootstrapFile);
 			}
+		}
+	}
+
+	/**
+	 * Deserializes the catalog bootstrap record from the file on specified position.
+	 *
+	 * @param storageOptions the storage options
+	 * @param bootstrapFilePath the path to the catalog bootstrap file
+	 * @param fromPosition the position in the file to read the record from
+	 * @return the catalog bootstrap record
+	 */
+	@Nonnull
+	private static CatalogBootstrap readCatalogBootstrap(
+		@Nonnull StorageOptions storageOptions,
+		@Nonnull Path bootstrapFilePath,
+		long fromPosition
+	) {
+		try(
+			final ReadOnlyFileHandle readHandle = new ReadOnlyFileHandle(bootstrapFilePath, storageOptions.computeCRC32C());
+		) {
+			return readHandle.execute(
+				input -> StorageRecord.read(
+					input,
+					new FileLocation(fromPosition, CatalogBootstrap.BOOTSTRAP_RECORD_SIZE),
+					(theInput, recordLength) -> new CatalogBootstrap(
+						theInput.readLong(),
+						theInput.readInt(),
+						Instant.ofEpochMilli(theInput.readLong()).atZone(ZoneId.systemDefault()).toOffsetDateTime(),
+						new FileLocation(
+							theInput.readLong(),
+							theInput.readInt()
+						)
+					)
+				)
+			).payload();
+		} catch (Exception e) {
+			throw new UnexpectedIOException(
+				"Failed to open catalog bootstrap file `" + bootstrapFilePath + "`!",
+				"Failed to open catalog bootstrap file!",
+				e
+			);
 		}
 	}
 
@@ -877,6 +920,15 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			lastEntityCollectionPrimaryKey
 		);
 		this.bootstrapUsed = recordBootstrap(catalogVersion, this.catalogName, this.bootstrapUsed.catalogFileIndex());
+		// emit event if the number of collections has changed
+		new CatalogFlushEvent(
+			this.catalogName,
+			entityHeaders.size(),
+			FileUtils.getDirectorySize(this.catalogStoragePath),
+			getFirstCatalogBootstrap(this.catalogStoragePath, this.catalogName, this.storageOptions)
+				.map(CatalogBootstrap::timestamp)
+				.orElse(null)
+		).commit();
 	}
 
 	@Nonnull
@@ -1543,7 +1595,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		if (flushedDescriptor.getActiveRecordShare() < this.storageOptions.minimalActiveRecordShare() &&
 			flushedDescriptor.getFileSize() > this.storageOptions.fileSizeCompactionThresholdBytes()) {
 
-			final OffsetIndexCompactEvent event = new OffsetIndexCompactEvent(
+			final DataFileCompactEvent event = new DataFileCompactEvent(
 				this.catalogName,
 				FileType.CATALOG,
 				this.catalogName
@@ -1654,28 +1706,40 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	 * @param toTimestamp the timestamp to trim the bootstrap from (including a single record before the timestamp)
 	 */
 	void trimBootstrapFile(@Nonnull OffsetDateTime toTimestamp) {
-		final WriteOnlyFileHandle originalBootstrapHandle = this.bootstrapWriteHandle.get();
-		final WriteOnlyFileHandle newBootstrapHandle = createNewBootstrapTempWriteHandle(this.catalogName);
-
-		// copy all bootstrap records since the timestamp to the new file
-		copyAllNecessaryBootstrapRecords(toTimestamp, originalBootstrapHandle.getTargetFile(), newBootstrapHandle);
-
-		// now close both handles
-		originalBootstrapHandle.close();
-		newBootstrapHandle.close();
-		// try to atomically rewrite original bootstrap file
-		FileUtils.rewriteTargetFileAtomically(newBootstrapHandle.getTargetFile(), originalBootstrapHandle.getTargetFile());
-		// we should be the only writer here, so this should always pass
-		Assert.isPremiseValid(
-			this.bootstrapWriteHandle.compareAndSet(
-				originalBootstrapHandle,
-				new WriteOnlyFileHandle(
-					originalBootstrapHandle.getTargetFile(),
-					this.observableOutputKeeper
-				)
-			),
-			() -> new GenericEvitaInternalError("Failed to replace the bootstrap write handle in a critical section!")
+		// create tracking event
+		final DataFileCompactEvent event = new DataFileCompactEvent(
+			this.catalogName,
+			FileType.BOOTSTRAP,
+			this.catalogName
 		);
+
+		try {
+			final WriteOnlyFileHandle originalBootstrapHandle = this.bootstrapWriteHandle.get();
+			final WriteOnlyFileHandle newBootstrapHandle = createNewBootstrapTempWriteHandle(this.catalogName);
+
+			// copy all bootstrap records since the timestamp to the new file
+			copyAllNecessaryBootstrapRecords(toTimestamp, originalBootstrapHandle.getTargetFile(), newBootstrapHandle);
+
+			// now close both handles
+			originalBootstrapHandle.close();
+			newBootstrapHandle.close();
+			// try to atomically rewrite original bootstrap file
+			FileUtils.rewriteTargetFileAtomically(newBootstrapHandle.getTargetFile(), originalBootstrapHandle.getTargetFile());
+			// we should be the only writer here, so this should always pass
+			Assert.isPremiseValid(
+				this.bootstrapWriteHandle.compareAndSet(
+					originalBootstrapHandle,
+					new WriteOnlyFileHandle(
+						originalBootstrapHandle.getTargetFile(),
+						this.observableOutputKeeper
+					)
+				),
+				() -> new GenericEvitaInternalError("Failed to replace the bootstrap write handle in a critical section!")
+			);
+		} finally {
+			// emit the event
+			event.finish().commit();
+		}
 	}
 
 	/**

@@ -58,6 +58,7 @@ import io.evitadb.core.cache.HeapMemoryCacheSupervisor;
 import io.evitadb.core.cache.NoCacheSupervisor;
 import io.evitadb.core.exception.CatalogCorruptedException;
 import io.evitadb.core.maintenance.SessionKiller;
+import io.evitadb.core.metric.event.storage.EvitaDBCompositionChangedEvent;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.scheduling.RejectingExecutor;
@@ -271,6 +272,7 @@ public final class Evita implements EvitaContract {
 		try {
 			startUpLatch.await();
 			this.active = true;
+			updateStatistics();
 		} catch (InterruptedException ex) {
 			// terminate evitaDB - it has not properly started
 			this.executor.shutdown();
@@ -386,6 +388,7 @@ public final class Evita implements EvitaContract {
 			return false;
 		} else {
 			update(new RemoveCatalogSchemaMutation(catalogName));
+			updateStatistics();
 			return true;
 		}
 	}
@@ -598,6 +601,20 @@ public final class Evita implements EvitaContract {
 			.orElseThrow(() -> new IllegalArgumentException("Catalog " + catalog + " is not known to Evita!"));
 	}
 
+	/**
+	 * Emits the event about catalog statistics in metrics.
+	 */
+	private void updateStatistics() {
+		// emit the event
+		new EvitaDBCompositionChangedEvent(
+			this.catalogs.size(),
+			(int) this.catalogs.values()
+				.stream()
+				.filter(it -> it instanceof CorruptedCatalog)
+				.count()
+		).commit();
+	}
+
 	/*
 		PRIVATE METHODS
 	 */
@@ -656,7 +673,8 @@ public final class Evita implements EvitaContract {
 				}
 			}
 		);
-		structuralChangeObservers.forEach(it -> it.onCatalogCreate(catalogName));
+		this.structuralChangeObservers.forEach(it -> it.onCatalogCreate(catalogName));
+		updateStatistics();
 	}
 
 	/**
@@ -707,7 +725,7 @@ public final class Evita implements EvitaContract {
 			final CatalogContract previousCatalog = this.catalogs.put(catalogNameToBeReplaced, replacedCatalog);
 
 			// notify callback that it's now a live snapshot
-			((Catalog)replacedCatalog).notifyCatalogPresentInLiveView();
+			((Catalog) replacedCatalog).notifyCatalogPresentInLiveView();
 
 			structuralChangeObservers.forEach(it -> it.onCatalogDelete(catalogNameToBeReplacedWith));
 			if (previousCatalog == null) {
@@ -1041,8 +1059,8 @@ public final class Evita implements EvitaContract {
 
 		public TimeoutThreadKiller(
 			int timeoutInSeconds,
-           int checkRateInSeconds,
-           @Nonnull EnhancedQueueExecutor executor
+			int checkRateInSeconds,
+			@Nonnull EnhancedQueueExecutor executor
 		) {
 			this.timeoutInSeconds = timeoutInSeconds;
 			this.executor = executor;
@@ -1103,7 +1121,7 @@ public final class Evita implements EvitaContract {
 	 * Represents a created session.
 	 * This class is a record that encapsulates a session and a future for closing the session.
 	 *
-	 * @param session reference to the created session itself
+	 * @param session     reference to the created session itself
 	 * @param closeFuture future that gets completed when session is closed
 	 */
 	private record CreatedSession(

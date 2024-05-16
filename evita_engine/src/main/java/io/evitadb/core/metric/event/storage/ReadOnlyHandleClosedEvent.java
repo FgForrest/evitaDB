@@ -41,7 +41,7 @@ import javax.annotation.Nonnull;
 @Label("File read handles closed")
 @ExportInvocationMetric(value = "readOnlyHandleClosedTotal", label = "Closed file read handles.")
 @Getter
-public class ReadOnlyHandleClosedEvent extends AbstractOffsetIndexEvent {
+public class ReadOnlyHandleClosedEvent extends AbstractDataFileEvent {
 
 	public ReadOnlyHandleClosedEvent(@Nonnull String catalogName, @Nonnull FileType fileType, @Nonnull String name) {
 		super(catalogName, fileType, name);

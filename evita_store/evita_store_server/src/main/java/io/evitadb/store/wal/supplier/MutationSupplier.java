@@ -49,12 +49,13 @@ public final class MutationSupplier extends AbstractMutationSupplier {
 		int walFileIndex,
 		@Nonnull Pool<Kryo> catalogKryoPool,
 		@Nonnull ConcurrentHashMap<Integer, TransactionLocations> transactionLocationsCache,
-		boolean avoidPartiallyFilledBuffer
+		boolean avoidPartiallyFilledBuffer,
+		@Nullable Runnable onClose
 	) {
 		super(
 			catalogVersion, catalogName, catalogStoragePath,
 			walFileIndex, catalogKryoPool, transactionLocationsCache,
-			avoidPartiallyFilledBuffer
+			avoidPartiallyFilledBuffer, onClose
 		);
 	}
 

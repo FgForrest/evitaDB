@@ -36,6 +36,7 @@ import io.evitadb.utils.Assert;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -111,6 +112,10 @@ abstract sealed class AbstractMutationSupplier implements Supplier<Mutation>, Au
 	 * The number of transactions read from the WAL file.
 	 */
 	@Getter protected int transactionsRead;
+	/**
+	 * Callback to be executed when the supplier is closed.
+	 */
+	private final Runnable onClose;
 
 	public AbstractMutationSupplier(
 		long catalogVersion,
@@ -119,7 +124,8 @@ abstract sealed class AbstractMutationSupplier implements Supplier<Mutation>, Au
 		int walFileIndex,
 		@Nonnull Pool<Kryo> catalogKryoPool,
 		@Nonnull ConcurrentHashMap<Integer, TransactionLocations> transactionLocationsCache,
-		boolean avoidPartiallyFilledBuffer
+		boolean avoidPartiallyFilledBuffer,
+		@Nullable Runnable onClose
 	) {
 		this.walFile = catalogStoragePath.resolve(getWalFileName(catalogName, walFileIndex)).toFile();
 		this.walFileIndex = walFileIndex;
@@ -127,6 +133,7 @@ abstract sealed class AbstractMutationSupplier implements Supplier<Mutation>, Au
 		this.catalogStoragePath = catalogStoragePath;
 		this.transactionLocationsCache = transactionLocationsCache;
 		this.avoidPartiallyFilledBuffer = avoidPartiallyFilledBuffer;
+		this.onClose = onClose;
 		if (walFile.length() == 0) {
 			this.catalogKryoPool = catalogKryoPool;
 			this.kryo = null;
@@ -196,6 +203,9 @@ abstract sealed class AbstractMutationSupplier implements Supplier<Mutation>, Au
 		}
 		if (observableInput != null) {
 			this.observableInput.close();
+		}
+		if (this.onClose != null) {
+			this.onClose.run();
 		}
 	}
 

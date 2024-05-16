@@ -182,4 +182,33 @@ public class FileUtils {
 			);
 		}
 	}
+
+	/**
+	 * Returns the size of the specified directory in bytes.
+	 * @param directory The path to the directory.
+	 * @return The size of the directory in bytes.
+	 */
+	public static long getDirectorySize(@Nonnull Path directory) {
+		// calculate size of all bytes in particular directory
+		try (final Stream<Path> walk = Files.walk(directory);) {
+			return walk
+				.filter(Files::isRegularFile)
+				.mapToLong(it -> {
+					try {
+						return Files.size(it);
+					} catch (IOException e) {
+						throw new UnexpectedIOException(
+							"Failed to get size of file: " + it,
+							"Failed to get size of file!", e
+						);
+					}
+				})
+				.sum();
+		} catch (IOException e) {
+			throw new UnexpectedIOException(
+				"Failed to calculate size of directory: " + directory,
+				"Failed to calculate size of directory!", e
+			);
+		}
+	}
 }

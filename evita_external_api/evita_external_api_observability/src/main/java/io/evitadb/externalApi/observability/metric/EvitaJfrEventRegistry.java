@@ -25,14 +25,7 @@ package io.evitadb.externalApi.observability.metric;
 
 import io.evitadb.core.metric.annotation.EventGroup;
 import io.evitadb.core.metric.event.CustomMetricsExecutionEvent;
-import io.evitadb.core.metric.event.storage.ObservableOutputChangeEvent;
-import io.evitadb.core.metric.event.storage.OffsetIndexCompactEvent;
-import io.evitadb.core.metric.event.storage.OffsetIndexFlushEvent;
-import io.evitadb.core.metric.event.storage.OffsetIndexNonFlushedRecordsEvent;
-import io.evitadb.core.metric.event.storage.OffsetIndexRecordTypeCountChangedEvent;
-import io.evitadb.core.metric.event.storage.ReadOnlyHandleClosedEvent;
-import io.evitadb.core.metric.event.storage.ReadOnlyHandleLimitSetEvent;
-import io.evitadb.core.metric.event.storage.ReadOnlyHandleOpenedEvent;
+import io.evitadb.core.metric.event.storage.*;
 import io.evitadb.core.metric.event.transaction.*;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ReflectionLookup;
@@ -66,19 +59,22 @@ public class EvitaJfrEventRegistry {
 		TransactionQueuedEvent.class,
 		NewCatalogVersionPropagatedEvent.class,
 		WalRotationEvent.class,
+		WalCacheSizeChangedEvent.class,
 		IsolatedWalFileOpenedEvent.class,
 		IsolatedWalFileClosedEvent.class,
 		OffHeapMemoryAllocationChangeEvent.class,
 
 		// storage events
 		OffsetIndexFlushEvent.class,
-		OffsetIndexCompactEvent.class,
+		DataFileCompactEvent.class,
 		OffsetIndexRecordTypeCountChangedEvent.class,
 		OffsetIndexNonFlushedRecordsEvent.class,
 		ObservableOutputChangeEvent.class,
 		ReadOnlyHandleLimitSetEvent.class,
 		ReadOnlyHandleOpenedEvent.class,
-		ReadOnlyHandleClosedEvent.class
+		ReadOnlyHandleClosedEvent.class,
+		CatalogFlushEvent.class,
+		EvitaDBCompositionChangedEvent.class
 	);
 	private static final Map<String, Class<? extends CustomMetricsExecutionEvent>> EVENT_MAP;
 	private static final Map<String, Set<Class<? extends CustomMetricsExecutionEvent>>> EVENT_MAP_BY_PACKAGE;

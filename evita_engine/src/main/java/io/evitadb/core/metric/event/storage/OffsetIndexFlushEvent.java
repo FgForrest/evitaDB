@@ -47,7 +47,7 @@ import java.time.OffsetDateTime;
 @ExportDurationMetric(value = "offsetIndexFlushDuration", label = "Duration of OffsetIndex flush to disk.")
 @ExportInvocationMetric(value = "offsetIndexFlushTotal", label = "OffsetIndex flushes to disk.")
 @Getter
-public class OffsetIndexFlushEvent extends AbstractOffsetIndexEvent {
+public class OffsetIndexFlushEvent extends AbstractDataFileEvent {
 
 	@Label("Number of active records")
 	@ExportMetric(metricType = MetricType.GAUGE)

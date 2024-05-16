@@ -23,44 +23,36 @@
 
 package io.evitadb.core.metric.event.storage;
 
-import io.evitadb.core.metric.annotation.ExportDurationMetric;
-import io.evitadb.core.metric.annotation.ExportInvocationMetric;
-import jdk.jfr.Description;
+import io.evitadb.core.metric.annotation.ExportMetricLabel;
 import jdk.jfr.Label;
-import jdk.jfr.Name;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
 
 /**
- * Event that is fired when an OffsetIndex file is compacted.
+ * Abstract ancestor for events that are related to a specific OffsetIndex file.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@Name(AbstractStorageEvent.PACKAGE_NAME + ".OffsetIndexCompactEvent")
-@Description("Event that is fired when an OffsetIndex file is compacted.")
-@Label("OffsetIndex compaction")
-@ExportDurationMetric(value = "offsetIndexCompactionDuration", label = "Duration of OffsetIndex compaction.")
-@ExportInvocationMetric(value = "offsetIndexCompactionTotal", label = "OffsetIndex compaction.")
 @Getter
-public class OffsetIndexCompactEvent extends AbstractOffsetIndexEvent {
-
-	public OffsetIndexCompactEvent(
-		@Nonnull String catalogName,
-		@Nonnull FileType fileType,
-		@Nonnull String name
-	) {
-		super(catalogName, fileType, name);
-		this.begin();
-	}
-
+abstract class AbstractDataFileEvent extends AbstractStorageEvent {
 	/**
-	 * Finish the event.
-	 * @return this event
+	 * The type of the file that was flushed.
 	 */
-	@Nonnull
-	public OffsetIndexCompactEvent finish() {
-		this.end();
-		return this;
+	@Label("File type")
+	@ExportMetricLabel
+	final String fileType;
+	/**
+	 * The logical name of the file that was flushed.
+	 */
+	@Label("Logical file name")
+	@ExportMetricLabel
+	final String name;
+
+	public AbstractDataFileEvent(@Nonnull String catalogName, @Nonnull FileType fileType, @Nonnull String name) {
+		super(catalogName);
+		this.fileType = fileType.name();
+		this.name = name;
 	}
+
 }

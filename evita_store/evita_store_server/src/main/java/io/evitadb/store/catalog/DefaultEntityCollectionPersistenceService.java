@@ -54,8 +54,8 @@ import io.evitadb.core.EntityCollection;
 import io.evitadb.core.buffer.DataStoreChanges;
 import io.evitadb.core.buffer.DataStoreIndexChanges;
 import io.evitadb.core.buffer.DataStoreMemoryBuffer;
+import io.evitadb.core.metric.event.storage.DataFileCompactEvent;
 import io.evitadb.core.metric.event.storage.FileType;
-import io.evitadb.core.metric.event.storage.OffsetIndexCompactEvent;
 import io.evitadb.core.metric.event.storage.OffsetIndexNonFlushedRecordsEvent;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
@@ -1074,7 +1074,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 
 	@Nonnull
 	public EntityCollectionHeader compact(@Nonnull String catalogName, long catalogVersion, @Nonnull HeaderInfoSupplier headerInfoSupplier) {
-		final OffsetIndexCompactEvent event = new OffsetIndexCompactEvent(
+		final DataFileCompactEvent event = new DataFileCompactEvent(
 			catalogName,
 			FileType.ENTITY_COLLECTION,
 			this.entityCollectionFileReference.entityType()

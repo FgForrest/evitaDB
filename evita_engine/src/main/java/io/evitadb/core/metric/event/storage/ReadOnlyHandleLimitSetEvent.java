@@ -42,7 +42,7 @@ import javax.annotation.Nonnull;
 @Description("Event that is fired when a read-only handle limit is set.")
 @Label("Read-only handle limit set")
 @Getter
-public class ReadOnlyHandleLimitSetEvent extends AbstractOffsetIndexEvent {
+public class ReadOnlyHandleLimitSetEvent extends AbstractDataFileEvent {
 	@Label("Maximal count of opened read-only handles")
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private final int readOnlyHandlesLimit;

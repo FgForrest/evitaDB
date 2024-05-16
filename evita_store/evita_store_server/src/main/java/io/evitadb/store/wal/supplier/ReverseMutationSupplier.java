@@ -50,12 +50,13 @@ public final class ReverseMutationSupplier extends AbstractMutationSupplier {
 		@Nonnull Path catalogStoragePath,
 		int walFileIndex,
 		@Nonnull Pool<Kryo> catalogKryoPool,
-		@Nonnull ConcurrentHashMap<Integer, TransactionLocations> transactionLocationsCache
+		@Nonnull ConcurrentHashMap<Integer, TransactionLocations> transactionLocationsCache,
+		@Nullable Runnable onClose
 	) {
 		super(
 			catalogVersion, catalogName, catalogStoragePath,
 			walFileIndex, catalogKryoPool, transactionLocationsCache,
-			false
+			false, onClose
 		);
 		this.mutationIndex = this.transactionMutation.getMutationCount();
 	}
