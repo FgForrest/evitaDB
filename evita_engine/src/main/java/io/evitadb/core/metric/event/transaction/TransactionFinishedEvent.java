@@ -50,18 +50,12 @@ import java.time.OffsetDateTime;
 )
 @Getter
 public class TransactionFinishedEvent extends AbstractTransactionEvent {
-	/**
-	 * The resolution of the transaction (either commit or rollback).
-	 */
+
 	@Label("Transaction resolution")
 	@ExportMetricLabel
 	private String resolution;
 
-	/**
-	 * The timestamp of the oldest non-finished transaction in the catalog.
-	 */
 	@Label("Oldest transaction timestamp")
-	@Name("oldestTransactionTimestampSeconds")
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private long oldestTransactionTimestampSeconds;
 

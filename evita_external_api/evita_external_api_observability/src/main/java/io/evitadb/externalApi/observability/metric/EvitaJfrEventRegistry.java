@@ -26,7 +26,9 @@ package io.evitadb.externalApi.observability.metric;
 import io.evitadb.core.metric.annotation.EventGroup;
 import io.evitadb.core.metric.event.CustomMetricsExecutionEvent;
 import io.evitadb.core.metric.event.storage.ObservableOutputChangeEvent;
+import io.evitadb.core.metric.event.storage.OffsetIndexCompactEvent;
 import io.evitadb.core.metric.event.storage.OffsetIndexFlushEvent;
+import io.evitadb.core.metric.event.storage.OffsetIndexNonFlushedRecordsEvent;
 import io.evitadb.core.metric.event.storage.OffsetIndexRecordTypeCountChangedEvent;
 import io.evitadb.core.metric.event.storage.ReadOnlyHandleClosedEvent;
 import io.evitadb.core.metric.event.storage.ReadOnlyHandleLimitSetEvent;
@@ -70,7 +72,9 @@ public class EvitaJfrEventRegistry {
 
 		// storage events
 		OffsetIndexFlushEvent.class,
+		OffsetIndexCompactEvent.class,
 		OffsetIndexRecordTypeCountChangedEvent.class,
+		OffsetIndexNonFlushedRecordsEvent.class,
 		ObservableOutputChangeEvent.class,
 		ReadOnlyHandleLimitSetEvent.class,
 		ReadOnlyHandleOpenedEvent.class,

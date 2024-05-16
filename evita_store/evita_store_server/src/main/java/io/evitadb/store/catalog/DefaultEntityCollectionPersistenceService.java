@@ -55,6 +55,8 @@ import io.evitadb.core.buffer.DataStoreChanges;
 import io.evitadb.core.buffer.DataStoreIndexChanges;
 import io.evitadb.core.buffer.DataStoreMemoryBuffer;
 import io.evitadb.core.metric.event.storage.FileType;
+import io.evitadb.core.metric.event.storage.OffsetIndexCompactEvent;
+import io.evitadb.core.metric.event.storage.OffsetIndexNonFlushedRecordsEvent;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
@@ -92,6 +94,7 @@ import io.evitadb.store.kryo.VersionedKryoFactory;
 import io.evitadb.store.kryo.VersionedKryoKeyInputs;
 import io.evitadb.store.model.PersistentStorageDescriptor;
 import io.evitadb.store.offsetIndex.OffsetIndex;
+import io.evitadb.store.offsetIndex.OffsetIndex.NonFlushedBlock;
 import io.evitadb.store.offsetIndex.OffsetIndexDescriptor;
 import io.evitadb.store.offsetIndex.io.OffHeapMemoryManager;
 import io.evitadb.store.offsetIndex.io.WriteOnlyFileHandle;
@@ -183,6 +186,10 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	 */
 	@Nonnull @Getter
 	private EntityCollectionHeader entityCollectionHeader;
+	/**
+	 * Contains information about the time the non-flushed block was reported.
+	 */
+	private long lastReportTimestamp;
 
 	@Nonnull
 	private static Entity toEntity(
@@ -671,7 +678,8 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 					this.entityCollectionFileReference.entityType(),
 					this.entityCollectionFile,
 					observableOutputKeeper
-				)
+				),
+				nonFlushedBlock -> reportNonFlushedContents(catalogName, nonFlushedBlock)
 			),
 			offHeapMemoryManager,
 			observableOutputKeeper,
@@ -724,6 +732,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 					this.entityCollectionFile,
 					this.observableOutputKeeper
 				),
+				nonFlushedBlock -> reportNonFlushedContents(catalogName, nonFlushedBlock),
 				previousOffsetIndex,
 				new OffsetIndexDescriptor(
 					previousOffsetIndex.getVersion(),
@@ -746,11 +755,6 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	}
 
 	@Override
-	public void catalogVersionBeyondTheHorizon(@Nullable Long minimalActiveCatalogVersion) {
-		this.storagePartPersistenceService.purgeHistoryEqualAndLaterThan(minimalActiveCatalogVersion);
-	}
-
-	@Override
 	public void flushTrappedUpdates(long catalogVersion, @Nonnull DataStoreIndexChanges<EntityIndexKey, EntityIndex> dataStoreIndexChanges) {
 		// now store all entity trapped updates
 		dataStoreIndexChanges.popTrappedUpdates()
@@ -760,6 +764,11 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	@Override
 	public boolean isClosed() {
 		return this.storagePartPersistenceService.isClosed();
+	}
+
+	@Override
+	public void catalogVersionBeyondTheHorizon(@Nullable Long minimalActiveCatalogVersion) {
+		this.storagePartPersistenceService.purgeHistoryEqualAndLaterThan(minimalActiveCatalogVersion);
 	}
 
 	@Nullable
@@ -1042,6 +1051,17 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	}
 
 	@Nonnull
+	@Override
+	public PersistentStorageDescriptor copySnapshotTo(@Nonnull Path newFilePath, long catalogVersion) {
+		return getStoragePartPersistenceService().copySnapshotTo(newFilePath, catalogVersion);
+	}
+
+	@Override
+	public void close() {
+		this.storagePartPersistenceService.close();
+	}
+
+	@Nonnull
 	public OffsetIndexDescriptor flush(long newCatalogVersion, @Nonnull HeaderInfoSupplier headerInfoSupplier) {
 		final long previousVersion = this.storagePartPersistenceService.getVersion();
 		final OffsetIndexDescriptor newDescriptor = this.storagePartPersistenceService.flush(newCatalogVersion);
@@ -1053,22 +1073,19 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	}
 
 	@Nonnull
-	public EntityCollectionHeader compact(long catalogVersion, @Nonnull HeaderInfoSupplier headerInfoSupplier) {
+	public EntityCollectionHeader compact(@Nonnull String catalogName, long catalogVersion, @Nonnull HeaderInfoSupplier headerInfoSupplier) {
+		final OffsetIndexCompactEvent event = new OffsetIndexCompactEvent(
+			catalogName,
+			FileType.ENTITY_COLLECTION,
+			this.entityCollectionFileReference.entityType()
+		);
 		final CollectionFileReference newReference = this.entityCollectionFileReference.incrementAndGet();
 		final Path newFilePath = newReference.toFilePath(this.entityCollectionFile.getParent());
 		final OffsetIndexDescriptor offsetIndexDescriptor = this.storagePartPersistenceService.copySnapshotTo(newFilePath, catalogVersion);
-		return createEntityCollectionHeader(catalogVersion, offsetIndexDescriptor, headerInfoSupplier, newReference);
-	}
-
-	@Nonnull
-	@Override
-	public PersistentStorageDescriptor copySnapshotTo(@Nonnull Path newFilePath, long catalogVersion) {
-		return getStoragePartPersistenceService().copySnapshotTo(newFilePath, catalogVersion);
-	}
-
-	@Override
-	public void close() {
-		this.storagePartPersistenceService.close();
+		final EntityCollectionHeader newCollecitonHeader = createEntityCollectionHeader(catalogVersion, offsetIndexDescriptor, headerInfoSupplier, newReference);
+		// emit event
+		event.finish().commit();
+		return newCollecitonHeader;
 	}
 
 	/**
@@ -1082,6 +1099,26 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	/*
 		PRIVATE METHODS
 	*/
+
+	/**
+	 * Reports changes in non-flushed record size every second.
+	 *
+	 * @param catalogName     name of the catalog
+	 * @param nonFlushedBlock non-flushed block information
+	 */
+	private void reportNonFlushedContents(@Nonnull String catalogName, @Nonnull NonFlushedBlock nonFlushedBlock) {
+		final long now = System.currentTimeMillis();
+		if (this.lastReportTimestamp < now - 1000) {
+			this.lastReportTimestamp = now;
+			new OffsetIndexNonFlushedRecordsEvent(
+				catalogName,
+				FileType.ENTITY_COLLECTION,
+				this.entityCollectionFileReference.entityType(),
+				nonFlushedBlock.recordCount(),
+				nonFlushedBlock.estimatedMemorySizeInBytes()
+			).commit();
+		}
+	}
 
 	/**
 	 * Method creates a function that allows to create new {@link EntityCollectionHeader} instance from

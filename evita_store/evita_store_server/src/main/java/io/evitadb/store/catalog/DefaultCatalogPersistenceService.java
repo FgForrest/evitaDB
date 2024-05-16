@@ -46,6 +46,8 @@ import io.evitadb.core.CatalogVersionBeyondTheHorizonListener;
 import io.evitadb.core.EntityCollection;
 import io.evitadb.core.buffer.DataStoreIndexChanges;
 import io.evitadb.core.metric.event.storage.FileType;
+import io.evitadb.core.metric.event.storage.OffsetIndexCompactEvent;
+import io.evitadb.core.metric.event.storage.OffsetIndexNonFlushedRecordsEvent;
 import io.evitadb.core.metric.event.storage.ReadOnlyHandleLimitSetEvent;
 import io.evitadb.dataType.ClassifierType;
 import io.evitadb.dataType.PaginatedList;
@@ -69,6 +71,7 @@ import io.evitadb.store.kryo.VersionedKryoFactory;
 import io.evitadb.store.kryo.VersionedKryoKeyInputs;
 import io.evitadb.store.model.FileLocation;
 import io.evitadb.store.model.PersistentStorageDescriptor;
+import io.evitadb.store.offsetIndex.OffsetIndex.NonFlushedBlock;
 import io.evitadb.store.offsetIndex.OffsetIndexDescriptor;
 import io.evitadb.store.offsetIndex.exception.UnexpectedCatalogContentsException;
 import io.evitadb.store.offsetIndex.io.OffHeapMemoryManager;
@@ -234,6 +237,10 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	 * Contains the instance of {@link CatalogWriteAheadLog} that is used for writing mutations into shared WAL.
 	 */
 	@Nullable private CatalogWriteAheadLog catalogWal;
+	/**
+	 * Contains information about the time the non-flushed block was reported.
+	 */
+	private long lastReportTimestamp;
 
 	/**
 	 * Check whether target directory exists and whether it is really directory.
@@ -547,7 +554,8 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				recordTypeRegistry,
 				offHeapMemoryManager,
 				observableOutputKeeper,
-				VERSIONED_KRYO_FACTORY
+				VERSIONED_KRYO_FACTORY,
+				nonFlushedBlock -> this.reportNonFlushedContents(catalogName, nonFlushedBlock)
 			)
 		);
 		this.catalogPersistenceServiceVersions = new long[]{catalogVersion};
@@ -626,7 +634,8 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				this.recordTypeRegistry,
 				this.offHeapMemoryManager,
 				this.observableOutputKeeper,
-				VERSIONED_KRYO_FACTORY
+				VERSIONED_KRYO_FACTORY,
+				nonFlushedBlock -> this.reportNonFlushedContents(catalogName, nonFlushedBlock)
 			);
 		this.catalogStoragePartPersistenceService.put(
 			catalogVersion,
@@ -686,6 +695,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			this.offHeapMemoryManager,
 			this.observableOutputKeeper,
 			VERSIONED_KRYO_FACTORY,
+			nonFlushedBlock -> this.reportNonFlushedContents(catalogName, nonFlushedBlock),
 			previousCatalogStoragePartPersistenceService
 		);
 		this.catalogStoragePartPersistenceService = CollectionUtils.createConcurrentHashMap(16);
@@ -931,7 +941,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			final OffsetIndexDescriptor newDescriptor = entityCollectionPersistenceService.flush(catalogVersion, headerInfoSupplier);
 			if (newDescriptor.getActiveRecordShare() < this.storageOptions.minimalActiveRecordShare() &&
 				newDescriptor.getFileSize() > this.storageOptions.fileSizeCompactionThresholdBytes()) {
-				final EntityCollectionHeader compactedHeader = entityCollectionPersistenceService.compact(catalogVersion, headerInfoSupplier);
+				final EntityCollectionHeader compactedHeader = entityCollectionPersistenceService.compact(catalogName, catalogVersion, headerInfoSupplier);
 				final DefaultEntityCollectionPersistenceService newPersistenceService = this.entityCollectionPersistenceServices.computeIfAbsent(
 					new CollectionFileReference(
 						entityCollectionHeader.entityType(),
@@ -1532,6 +1542,13 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		final CatalogBootstrap bootstrapRecord;
 		if (flushedDescriptor.getActiveRecordShare() < this.storageOptions.minimalActiveRecordShare() &&
 			flushedDescriptor.getFileSize() > this.storageOptions.fileSizeCompactionThresholdBytes()) {
+
+			final OffsetIndexCompactEvent event = new OffsetIndexCompactEvent(
+				this.catalogName,
+				FileType.CATALOG,
+				this.catalogName
+			);
+
 			final int newCatalogFileIndex = catalogFileIndex + 1;
 			final String compactedFileName = getCatalogDataStoreFileName(newCatalogName, newCatalogFileIndex);
 			final OffsetIndexDescriptor compactedDescriptor = storagePartPersistenceService.copySnapshotTo(
@@ -1561,10 +1578,15 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 					this.recordTypeRegistry,
 					this.offHeapMemoryManager,
 					this.observableOutputKeeper,
-					VERSIONED_KRYO_FACTORY
+					VERSIONED_KRYO_FACTORY,
+					nonFlushedBlock -> this.reportNonFlushedContents(catalogName, nonFlushedBlock)
 				)
 			);
 			this.catalogPersistenceServiceVersions = ArrayUtils.insertLongIntoOrderedArray(catalogVersion, this.catalogPersistenceServiceVersions);
+
+			// emit the event
+			event.finish().commit();
+
 		} else {
 			bootstrapRecord = new CatalogBootstrap(
 				catalogVersion,
@@ -1873,6 +1895,26 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				"Failed to open catalog bootstrap file!",
 				e
 			);
+		}
+	}
+
+	/**
+	 * Reports changes in non-flushed record size every second.
+	 *
+	 * @param catalogName     name of the catalog
+	 * @param nonFlushedBlock non-flushed block information
+	 */
+	private void reportNonFlushedContents(@Nonnull String catalogName, @Nonnull NonFlushedBlock nonFlushedBlock) {
+		final long now = System.currentTimeMillis();
+		if (this.lastReportTimestamp < now - 1000) {
+			this.lastReportTimestamp = now;
+			new OffsetIndexNonFlushedRecordsEvent(
+				catalogName,
+				FileType.ENTITY_COLLECTION,
+				catalogName,
+				nonFlushedBlock.recordCount(),
+				nonFlushedBlock.estimatedMemorySizeInBytes()
+			).commit();
 		}
 	}
 

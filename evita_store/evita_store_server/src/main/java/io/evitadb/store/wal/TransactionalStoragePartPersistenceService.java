@@ -107,7 +107,10 @@ public class TransactionalStoragePartPersistenceService implements StoragePartPe
 				this.targetFile,
 				observableOutputKeeper,
 				offHeapMemoryManager
-			)
+			),
+			nonFlushedBlock -> {
+				// we don't care here
+			}
 		);
 	}
 

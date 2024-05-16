@@ -280,7 +280,8 @@ public class OffsetIndexStoragePartPersistenceService implements StoragePartPers
 				this.offsetIndex.getTotalSizeIncludingVolatileData(),
 				this.offsetIndex.getMaxRecordSize(),
 				newDescriptor.getFileSize(),
-				this.offsetIndex.getTotalSize()
+				this.offsetIndex.getTotalSize(),
+				this.offsetIndex.getOldestRecordKeptTimestamp().orElse(null)
 			).commit();
 
 			// emit event for record type count changes

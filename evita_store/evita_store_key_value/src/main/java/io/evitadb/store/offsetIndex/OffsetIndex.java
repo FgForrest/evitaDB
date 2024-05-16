@@ -64,6 +64,9 @@ import java.io.InputStream;
 import java.io.RandomAccessFile;
 import java.io.Serializable;
 import java.nio.file.Path;
+import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
@@ -73,7 +76,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.LongConsumer;
 import java.util.stream.Collectors;
 
 import static io.evitadb.store.offsetIndex.OffsetIndexSerializationService.*;
@@ -177,7 +182,7 @@ public class OffsetIndex {
 	 * chance to be read by the client and try to be purged immediately when there is no chance to read them anymore.
 	 * Otherwise their size would grow too large.
 	 */
-	private final VolatileValues volatileValues = new VolatileValues();
+	private final VolatileValues volatileValues;
 	/**
 	 * Map contains counts for each type of record stored in OffsetIndex.
 	 */
@@ -212,11 +217,13 @@ public class OffsetIndex {
 		@Nonnull OffsetIndexDescriptor fileOffsetDescriptor,
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull OffsetIndexRecordTypeRegistry recordTypeRegistry,
-		@Nonnull WriteOnlyHandle writeHandle
+		@Nonnull WriteOnlyHandle writeHandle,
+		@Nullable Consumer<NonFlushedBlock> nonFlushedBlockObserver
 	) {
 		this.storageOptions = storageOptions;
 		this.fileOffsetDescriptor = fileOffsetDescriptor;
 		this.recordTypeRegistry = recordTypeRegistry;
+		this.volatileValues = new VolatileValues(nonFlushedBlockObserver == null ? nonFlushedBlock -> {} : nonFlushedBlockObserver);
 
 		this.readOnlyOpenedHandles = new CopyOnWriteArrayList<>();
 		this.readKryoPool = new FileOffsetIndexKryoPool(
@@ -255,13 +262,15 @@ public class OffsetIndex {
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull OffsetIndexRecordTypeRegistry recordTypeRegistry,
 		@Nonnull WriteOnlyHandle writeHandle,
+		@Nullable Consumer<NonFlushedBlock> nonFlushedBlockObserver,
 		@Nonnull BiFunction<FileOffsetIndexBuilder, ObservableInput<?>, ? extends OffsetIndexDescriptor> offsetIndexDescriptorFactory
 	) {
 		this.storageOptions = storageOptions;
-		this.recordTypeRegistry = recordTypeRegistry;
-
-		this.readOnlyOpenedHandles = new CopyOnWriteArrayList<>();
 		this.writeHandle = writeHandle;
+		this.volatileValues = new VolatileValues(nonFlushedBlockObserver == null ? nonFlushedBlock -> {} : nonFlushedBlockObserver);
+
+		this.recordTypeRegistry = recordTypeRegistry;
+		this.readOnlyOpenedHandles = new CopyOnWriteArrayList<>();
 		this.lastSyncedPosition = writeHandle.getLastWrittenPosition();
 		if (this.lastSyncedPosition == 0) {
 			throw new UnexpectedIOException(
@@ -310,14 +319,16 @@ public class OffsetIndex {
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull OffsetIndexRecordTypeRegistry recordTypeRegistry,
 		@Nonnull WriteOnlyHandle writeHandle,
+		@Nullable Consumer<NonFlushedBlock> nonFlushedBlockObserver,
 		@Nonnull OffsetIndex previousOffsetIndex,
 		@Nonnull OffsetIndexDescriptor fileOffsetIndexDescriptor
 	) {
 		this.storageOptions = storageOptions;
 		this.recordTypeRegistry = recordTypeRegistry;
-
 		this.readOnlyOpenedHandles = new CopyOnWriteArrayList<>();
 		this.writeHandle = writeHandle;
+		this.volatileValues = new VolatileValues(nonFlushedBlockObserver == null ? nonFlushedBlock -> {} : nonFlushedBlockObserver);
+
 		this.lastSyncedPosition = writeHandle.getLastWrittenPosition();
 		if (this.lastSyncedPosition == 0) {
 			throw new UnexpectedIOException(
@@ -765,10 +776,21 @@ public class OffsetIndex {
 
 	/**
 	 * Returns maximal observed record size in this index.
+	 *
 	 * @return maximal observed record size in this index
 	 */
 	public long getMaxRecordSize() {
 		return maxRecordSize.get();
+	}
+
+	/**
+	 * Returns the oldest record kept timestamp.
+	 *
+	 * @return the oldest record kept timestamp
+	 */
+	@Nonnull
+	public Optional<OffsetDateTime> getOldestRecordKeptTimestamp() {
+		return volatileValues.getOldestRecordKeptTimestamp();
 	}
 
 	/**
@@ -1262,9 +1284,14 @@ public class OffsetIndex {
 		 * Set of removed records.
 		 */
 		@Getter private final Set<RecordKey> removedKeys = CollectionUtils.createHashSet(64);
+		/**
+		 * Observer that is notified when a non-flushed block size increases.
+		 */
+		private final LongConsumer nonFlushedBlockSizeChangedCallback;
 
-		public NonFlushedValueSet(long catalogVersion) {
+		public NonFlushedValueSet(long catalogVersion, @Nonnull LongConsumer nonFlushedBlockSizeChangedCallback) {
 			this.catalogVersion = catalogVersion;
+			this.nonFlushedBlockSizeChangedCallback = nonFlushedBlockSizeChangedCallback;
 		}
 
 		/**
@@ -1302,11 +1329,12 @@ public class OffsetIndex {
 		 */
 		public void put(@Nonnull RecordKey key, @Nonnull VersionedValue value, boolean create) {
 			if (create) {
-				nonFlushedValuesHistogram.merge(key.recordType(), 1, Integer::sum);
-				addedKeys.add(key);
-				removedKeys.remove(key);
+				this.nonFlushedValuesHistogram.merge(key.recordType(), 1, Integer::sum);
+				this.addedKeys.add(key);
+				this.removedKeys.remove(key);
 			}
-			nonFlushedValueIndex.put(key, value);
+			this.nonFlushedValueIndex.put(key, value);
+			this.nonFlushedBlockSizeChangedCallback.accept(value.fileLocation().recordLength());
 		}
 
 		/**
@@ -1314,10 +1342,11 @@ public class OffsetIndex {
 		 * This will prevent loading record from the persistent storage even if its present there.
 		 */
 		public void remove(@Nonnull RecordKey key, @Nonnull FileLocation fileLocation) {
-			nonFlushedValuesHistogram.merge(key.recordType(), -1, Integer::sum);
-			nonFlushedValueIndex.put(key, new VersionedValue(key.primaryKey(), (byte) (key.recordType() * -1), fileLocation));
-			addedKeys.remove(key);
-			removedKeys.add(key);
+			this.nonFlushedValuesHistogram.merge(key.recordType(), -1, Integer::sum);
+			this.nonFlushedValueIndex.put(key, new VersionedValue(key.primaryKey(), (byte) (key.recordType() * -1), fileLocation));
+			this.addedKeys.remove(key);
+			this.removedKeys.add(key);
+			this.nonFlushedBlockSizeChangedCallback.accept(fileLocation.recordLength());
 		}
 
 		/**
@@ -1387,10 +1416,12 @@ public class OffsetIndex {
 
 		/**
 		 * Returns the estimated memory size occupied by this instance in Bytes.
+		 *
 		 * @return the estimated memory size occupied by this instance in Bytes
 		 */
 		public long getTotalSize() {
 			return MemoryMeasuringConstants.LONG_SIZE +
+				MemoryMeasuringConstants.OBJECT_HEADER_SIZE * 7 +
 				nonFlushedValueIndex.size() * (RecordKey.MEMORY_SIZE + VersionedValue.MEMORY_SIZE) +
 				nonFlushedValuesHistogram.size() * (2 * MemoryMeasuringConstants.OBJECT_HEADER_SIZE) +
 				addedKeys.size() * RecordKey.MEMORY_SIZE +
@@ -1418,6 +1449,11 @@ public class OffsetIndex {
 		 */
 		private final AtomicLong purgeOlderThan = new AtomicLong(-1);
 		/**
+		 * Observer that is notified when a non-flushed block size changes in any way.
+		 */
+		@Nonnull
+		private final Consumer<NonFlushedBlock> nonFlushedBlockObserver;
+		/**
 		 * Non flushed values contains all values that has been modified in this OffsetIndex instance and their locations were
 		 * not yet flushed to the disk. They might have been written to the disk, but their location is still only in memory
 		 * and in case of crash they wouldn't be retrievable. Flush persists all file locations to disk and performs sync.
@@ -1441,6 +1477,14 @@ public class OffsetIndex {
 		 */
 		@Nullable
 		private volatile long[] historicalVersions;
+		/**
+		 * Contains the last count of non-flushed records.
+		 */
+		private int nonFlushedRecordCount;
+		/**
+		 * Contains the last size of non-flushed records in Bytes.
+		 */
+		private long nonFlushedRecordSizeInBytes;
 
 		/**
 		 * Counts all non-flushed records not yet promoted to the shared state and the historical versions we still
@@ -1676,6 +1720,10 @@ public class OffsetIndex {
 				// clear all the data that has been promoted
 				this.nonFlushedVersions = null;
 				this.nonFlushedValues = null;
+				this.nonFlushedRecordCount = 0;
+				this.nonFlushedRecordSizeInBytes = 0L;
+				// notify the observer
+				this.nonFlushedBlockObserver.accept(new NonFlushedBlock(0, 0L));
 				return result;
 			} else {
 				return Collections.emptyList();
@@ -1754,17 +1802,50 @@ public class OffsetIndex {
 		public void forgetNonFlushedValues() {
 			this.nonFlushedVersions = null;
 			this.nonFlushedValues = null;
+			this.nonFlushedRecordCount = 0;
+			this.nonFlushedRecordSizeInBytes = 0L;
+			// notify the observer
+			this.nonFlushedBlockObserver.accept(new NonFlushedBlock(0, 0L));
 		}
 
 		/**
 		 * Estimates memory usage of the non-flushed values.
+		 *
 		 * @return the estimated memory usage of the non-flushed values in Bytes
 		 */
 		public long getTotalSize() {
-			return (this.nonFlushedVersions == null ? 0L : (long) this.nonFlushedVersions.length * MemoryMeasuringConstants.LONG_SIZE) +
-				(this.historicalVersions == null ? 0L : (long) this.historicalVersions.length * MemoryMeasuringConstants.LONG_SIZE) +
-				(this.nonFlushedValues == null ? 0L : this.nonFlushedValues.values().stream().mapToLong(it -> MemoryMeasuringConstants.LONG_SIZE + it.getTotalSize()).sum()) +
-				(this.volatileValues == null ? 0L : this.volatileValues.values().stream().mapToLong(it -> MemoryMeasuringConstants.LONG_SIZE + it.getTotalSize()).sum());
+			return Optional.ofNullable(this.nonFlushedVersions)
+				.map(nv -> (long) nv.length * MemoryMeasuringConstants.LONG_SIZE)
+				.orElse(0L) +
+				Optional.ofNullable(this.historicalVersions)
+					.map(hv -> (long) hv.length * MemoryMeasuringConstants.LONG_SIZE)
+					.orElse(0L) +
+				Optional.ofNullable(this.nonFlushedValues)
+					.map(nv -> nv.values().stream().mapToLong(it -> MemoryMeasuringConstants.LONG_SIZE + it.getTotalSize()).sum())
+					.orElse(0L) +
+				Optional.ofNullable(this.volatileValues)
+					.map(vv -> vv.values().stream().mapToLong(it -> MemoryMeasuringConstants.LONG_SIZE + it.getTotalSize()).sum())
+					.orElse(0L)
+				+ MemoryMeasuringConstants.OBJECT_HEADER_SIZE * 4 +
+				+ MemoryMeasuringConstants.INT_SIZE + MemoryMeasuringConstants.LONG_SIZE;
+		}
+
+		/**
+		 * Returns the timestamp of the oldest record kept in the volatile values.
+		 *
+		 * @return the timestamp of the oldest record kept in the volatile values
+		 */
+		@Nonnull
+		public Optional<OffsetDateTime> getOldestRecordKeptTimestamp() {
+			return ofNullable(this.volatileValues)
+				.map(it -> {
+					final long index = ofNullable(this.historicalVersions).map(hv -> hv[0]).orElse(-1L);
+					return index == -1 ? null :
+						OffsetDateTime.ofInstant(
+							Instant.ofEpochMilli(it.get(index).getTimestamp()),
+							ZoneId.systemDefault()
+						);
+				});
 		}
 
 		/**
@@ -1778,7 +1859,7 @@ public class OffsetIndex {
 			if (this.nonFlushedVersions == null) {
 				this.nonFlushedValues = CollectionUtils.createConcurrentHashMap(16);
 				this.nonFlushedVersions = new long[]{catalogVersion};
-				final NonFlushedValueSet nv = new NonFlushedValueSet(catalogVersion);
+				final NonFlushedValueSet nv = new NonFlushedValueSet(catalogVersion, this::notifySizeIncrease);
 				this.nonFlushedValues.put(catalogVersion, nv);
 				return nv;
 			} else {
@@ -1795,10 +1876,20 @@ public class OffsetIndex {
 							)
 						);
 						this.nonFlushedVersions = ArrayUtils.insertLongIntoOrderedArray(catalogVersion, nv);
-						return new NonFlushedValueSet(catalogVersion);
+						return new NonFlushedValueSet(catalogVersion, this::notifySizeIncrease);
 					}
 				);
 			}
+		}
+
+		/**
+		 * Notifies the observer about the size increase of the non-flushed block.
+		 * @param sizeInBytes the size increase in Bytes.
+		 */
+		private void notifySizeIncrease(long sizeInBytes) {
+			this.nonFlushedRecordCount++;
+			this.nonFlushedRecordSizeInBytes += sizeInBytes;
+			this.nonFlushedBlockObserver.accept(new NonFlushedBlock(this.nonFlushedRecordCount, this.nonFlushedRecordSizeInBytes));
 		}
 
 	}
@@ -1922,6 +2013,7 @@ public class OffsetIndex {
 	@RequiredArgsConstructor
 	@Getter
 	private static class PastMemory {
+		@Getter private final long timestamp = System.currentTimeMillis();
 		@Nonnull private final Map<RecordKey, VersionedValue> replacedValues;
 		@Nonnull private final Set<RecordKey> addedKeys;
 		@Nonnull private final Set<RecordKey> removedKeys;
@@ -1949,10 +2041,12 @@ public class OffsetIndex {
 
 		/**
 		 * Returns the estimated memory size occupied by this instance in Bytes.
+		 *
 		 * @return the estimated memory size occupied by this instance in Bytes
 		 */
 		public long getTotalSize() {
 			return MemoryMeasuringConstants.OBJECT_HEADER_SIZE +
+				MemoryMeasuringConstants.LONG_SIZE +
 				replacedValues.size() * (RecordKey.MEMORY_SIZE + VersionedValue.MEMORY_SIZE) +
 				addedKeys.size() * RecordKey.MEMORY_SIZE +
 				removedKeys.size() * RecordKey.MEMORY_SIZE;
@@ -1986,6 +2080,18 @@ public class OffsetIndex {
 		@Nonnull VersionedValue versionedValue,
 		boolean removed,
 		boolean addedInFuture
+	) {
+	}
+
+	/**
+	 * This record allows to propagate information about the current size of non-flushed block to outside world.
+	 *
+	 * @param recordCount                number of records in the non-flushed block
+	 * @param estimatedMemorySizeInBytes estimated memory size of the non-flushed block in Bytes
+	 */
+	public record NonFlushedBlock(
+		int recordCount,
+		long estimatedMemorySizeInBytes
 	) {
 	}
 

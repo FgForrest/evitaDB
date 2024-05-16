@@ -34,6 +34,7 @@ import io.evitadb.store.kryo.VersionedKryo;
 import io.evitadb.store.kryo.VersionedKryoKeyInputs;
 import io.evitadb.store.model.FileLocation;
 import io.evitadb.store.offsetIndex.OffsetIndex;
+import io.evitadb.store.offsetIndex.OffsetIndex.NonFlushedBlock;
 import io.evitadb.store.offsetIndex.OffsetIndexDescriptor;
 import io.evitadb.store.offsetIndex.io.OffHeapMemoryManager;
 import io.evitadb.store.offsetIndex.io.WriteOnlyFileHandle;
@@ -73,7 +74,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 	/**
 	 * Creates a CatalogOffsetIndexStoragePartPersistenceService object with the given parameters.
 	 * The code cannot be directly in the constructor, because we need to execute
-	 * {@link #loadOffsetIndex(String, Path, StorageOptions, CatalogBootstrap, OffsetIndexRecordTypeRegistry, ObservableOutputKeeper, Function, Consumer)}
+	 * {@link #loadOffsetIndex(String, Path, StorageOptions, CatalogBootstrap, OffsetIndexRecordTypeRegistry, ObservableOutputKeeper, Function, Consumer, Consumer)}
 	 * and within it initialize the {@link #currentCatalogHeader} variable. This cannot be done in the consturctor
 	 * because the super constructor needs to be called first.
 	 *
@@ -100,13 +101,14 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 		@Nonnull OffsetIndexRecordTypeRegistry recordRegistry,
 		@Nonnull OffHeapMemoryManager offHeapMemoryManager,
 		@Nonnull ObservableOutputKeeper observableOutputKeeper,
-		@Nonnull Function<VersionedKryoKeyInputs, VersionedKryo> kryoFactory
-	) {
+		@Nonnull Function<VersionedKryoKeyInputs, VersionedKryo> kryoFactory,
+		@Nullable Consumer<NonFlushedBlock> nonFlushedBlockObserver
+		) {
 		final AtomicReference<CatalogHeader> catalogHeaderRef = new AtomicReference<>();
 		final OffsetIndex offsetIndex = loadOffsetIndex(
 			catalogName, catalogFilePath, storageOptions,
 			lastCatalogBootstrap, recordRegistry, observableOutputKeeper,
-			kryoFactory,
+			kryoFactory, nonFlushedBlockObserver,
 			catalogHeaderRef::set
 		);
 		return new CatalogOffsetIndexStoragePartPersistenceService(
@@ -138,6 +140,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 		@Nonnull OffHeapMemoryManager offHeapMemoryManager,
 		@Nonnull ObservableOutputKeeper observableOutputKeeper,
 		@Nonnull Function<VersionedKryoKeyInputs, VersionedKryo> kryoFactory,
+		@Nullable Consumer<NonFlushedBlock> nonFlushedBlockObserver,
 		@Nonnull CatalogOffsetIndexStoragePartPersistenceService previous
 	) {
 		final CatalogHeader catalogHeader = previous.getCatalogHeader(catalogVersion);
@@ -164,6 +167,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 				catalogFilePath,
 				observableOutputKeeper
 			),
+			nonFlushedBlockObserver,
 			previousOffsetIndex,
 			offsetIndexDescriptor
 		);
@@ -200,6 +204,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 		@Nonnull OffsetIndexRecordTypeRegistry recordRegistry,
 		@Nonnull ObservableOutputKeeper observableOutputKeeper,
 		@Nonnull Function<VersionedKryoKeyInputs, VersionedKryo> kryoFactory,
+		@Nullable Consumer<NonFlushedBlock> nonFlushedBlockObserver,
 		@Nonnull Consumer<CatalogHeader> catalogHeaderConsumer
 	) {
 		final FileLocation fileLocation = lastCatalogBootstrap.fileLocation();
@@ -223,7 +228,8 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 					catalogName,
 					catalogFilePath,
 					observableOutputKeeper
-				)
+				),
+				nonFlushedBlockObserver
 			);
 			final CatalogHeader newHeader = new CatalogHeader(catalogName);
 			newOffsetIndex.put(0L, newHeader);
@@ -244,6 +250,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 					catalogFilePath,
 					observableOutputKeeper
 				),
+				nonFlushedBlockObserver,
 				(indexBuilder, theInput) -> {
 					// and load the catalog header
 					final FileLocation catalogHeaderLocation = indexBuilder.getBuiltIndex().get(

@@ -33,9 +33,11 @@ import jdk.jfr.Name;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.time.OffsetDateTime;
 
 /**
- * Event that is fired when a file for isolated WAL storage is closed and deleted.
+ * Event that is fired when an OffsetIndex file is flushed.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
@@ -67,6 +69,10 @@ public class OffsetIndexFlushEvent extends AbstractOffsetIndexEvent {
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private long activeDiskSizeBytes;
 
+	@Label("Oldest record kept in memory timestamp in seconds")
+	@ExportMetric(metricType = MetricType.GAUGE)
+	private long oldestRecordTimestampSeconds;
+
 	public OffsetIndexFlushEvent(
 		@Nonnull String catalogName,
 		@Nonnull FileType fileType,
@@ -86,13 +92,15 @@ public class OffsetIndexFlushEvent extends AbstractOffsetIndexEvent {
 		long estimatedMemorySizeBytes,
 		long maxRecordSize,
 		long diskSizeBytes,
-		long activeDiskSizeBytes
+		long activeDiskSizeBytes,
+		@Nullable OffsetDateTime oldestRecordTimestamp
 	) {
 		this.activeRecordsTotal = activeRecordsTotal;
 		this.estimatedMemorySizeBytes = estimatedMemorySizeBytes;
 		this.maxRecordSize = maxRecordSize;
 		this.diskSizeBytes = diskSizeBytes;
 		this.activeDiskSizeBytes = activeDiskSizeBytes;
+		this.oldestRecordTimestampSeconds = oldestRecordTimestamp != null ? oldestRecordTimestamp.toEpochSecond() : 0;
 		this.end();
 		return this;
 	}
