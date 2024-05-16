@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -521,7 +521,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setWithPrice(boolean value) {
-      
+
       withPrice_ = value;
       onChanged();
       return this;
@@ -543,7 +543,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearWithPrice() {
-      
+
       withPrice_ = false;
       onChanged();
       return this;
@@ -578,7 +578,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setIndexedPricePlaces(int value) {
-      
+
       indexedPricePlaces_ = value;
       onChanged();
       return this;
@@ -595,7 +595,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearIndexedPricePlaces() {
-      
+
       indexedPricePlaces_ = 0;
       onChanged();
       return this;

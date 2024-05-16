@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -148,7 +148,7 @@ private static final long serialVersionUID = 0L;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs = 
+      com.google.protobuf.ByteString bs =
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
       referenceName_ = s;
@@ -168,7 +168,7 @@ private static final long serialVersionUID = 0L;
       getReferenceNameBytes() {
     java.lang.Object ref = referenceName_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b = 
+      com.google.protobuf.ByteString b =
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
       referenceName_ = b;
@@ -618,7 +618,7 @@ private static final long serialVersionUID = 0L;
         getReferenceNameBytes() {
       java.lang.Object ref = referenceName_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b = 
+        com.google.protobuf.ByteString b =
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
         referenceName_ = b;
@@ -641,7 +641,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
     throw new NullPointerException();
   }
-  
+
       referenceName_ = value;
       onChanged();
       return this;
@@ -655,7 +655,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearReferenceName() {
-      
+
       referenceName_ = getDefaultInstance().getReferenceName();
       onChanged();
       return this;
@@ -675,7 +675,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   checkByteStringIsUtf8(value);
-      
+
       referenceName_ = value;
       onChanged();
       return this;
@@ -706,7 +706,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setReferencePrimaryKey(int value) {
-      
+
       referencePrimaryKey_ = value;
       onChanged();
       return this;
@@ -721,7 +721,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearReferencePrimaryKey() {
-      
+
       referencePrimaryKey_ = 0;
       onChanged();
       return this;
@@ -842,7 +842,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeMutation attributeMutation = 3;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcAttributeMutation.Builder getAttributeMutationBuilder() {
-      
+
       onChanged();
       return getAttributeMutationFieldBuilder().getBuilder();
     }
@@ -869,7 +869,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeMutation attributeMutation = 3;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcAttributeMutation, io.evitadb.externalApi.grpc.generated.GrpcAttributeMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcAttributeMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcAttributeMutation, io.evitadb.externalApi.grpc.generated.GrpcAttributeMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcAttributeMutationOrBuilder>
         getAttributeMutationFieldBuilder() {
       if (attributeMutationBuilder_ == null) {
         attributeMutationBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<

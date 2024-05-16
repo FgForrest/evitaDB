@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -738,7 +738,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		return new Catalog(
 			catalogVersionAfterRename,
 			getCatalogState(),
-			this.catalogIndex,
+			this.catalogIndex.createCopyForNewCatalogAttachment(),
 			newCollections,
 			newIoService,
 			this,
@@ -779,7 +779,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 			final Catalog newCatalog = new Catalog(
 				1L,
 				CatalogState.ALIVE,
-				this.catalogIndex,
+				this.catalogIndex.createCopyForNewCatalogAttachment(),
 				newCollections,
 				this.persistenceService,
 				this,

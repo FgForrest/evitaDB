@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -65,12 +65,6 @@ class ReferenceIndexMutatorTest extends AbstractMutatorTestBase {
 	private final EntityIndex entityIndex = new GlobalEntityIndex(1, productSchema.getName(), new EntityIndexKey(EntityIndexType.GLOBAL));
 	private final ReferencedTypeEntityIndex referenceTypesIndex = new ReferencedTypeEntityIndex(1, productSchema.getName(), new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, Entities.BRAND));
 
-	{
-		entityIndex.useSchema(schemaSupplier);
-		referenceTypesIndex.useSchema(schemaSupplier);
-
-	}
-
 	@Override
 	protected void alterCatalogSchema(CatalogSchemaEditor.CatalogSchemaBuilder schema) {
 		// do nothing
@@ -94,9 +88,8 @@ class ReferenceIndexMutatorTest extends AbstractMutatorTestBase {
 	void shouldInsertNewReference() {
 		final ReferenceKey referenceKey = new ReferenceKey(Entities.BRAND, 10);
 		final EntityIndex referenceIndex = new GlobalEntityIndex(2, productSchema.getName(), new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY, referenceKey));
-		referenceIndex.useSchema(() -> productSchema);
 		referenceInsert(
-			1, ENTITY_NAME, executor, entityIndex, referenceTypesIndex, referenceIndex, referenceKey, DO_NOTHING_CONSUMER
+			1, productSchema, executor, entityIndex, referenceTypesIndex, referenceIndex, referenceKey, DO_NOTHING_CONSUMER
 		);
 		assertArrayEquals(new int[]{10}, referenceTypesIndex.getAllPrimaryKeys().getArray());
 		assertArrayEquals(new int[]{1}, referenceIndex.getAllPrimaryKeys().getArray());
@@ -106,9 +99,8 @@ class ReferenceIndexMutatorTest extends AbstractMutatorTestBase {
 	void shouldIndexAttributes() {
 		final ReferenceKey referenceKey = new ReferenceKey(Entities.BRAND, 10);
 		final EntityIndex referenceIndex = new GlobalEntityIndex(2, productSchema.getName(), new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY, referenceKey));
-		referenceIndex.useSchema(() -> productSchema);
 		referenceInsert(
-			1, ENTITY_NAME, executor, entityIndex, referenceTypesIndex, referenceIndex, referenceKey, DO_NOTHING_CONSUMER
+			1, productSchema, executor, entityIndex, referenceTypesIndex, referenceIndex, referenceKey, DO_NOTHING_CONSUMER
 		);
 		final ReferenceAttributeMutation referenceMutation = new ReferenceAttributeMutation(referenceKey, new UpsertAttributeMutation(new AttributeKey(ATTRIBUTE_VARIANT_COUNT), 55));
 		attributeUpdate(

@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -214,7 +214,7 @@ private static final long serialVersionUID = 0L;
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry steps = 3;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryOrBuilder> 
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryOrBuilder>
       getStepsOrBuilderList() {
     return steps_;
   }
@@ -700,7 +700,7 @@ private static final long serialVersionUID = 0L;
             stepsBuilder_ = null;
             steps_ = other.steps_;
             bitField0_ = (bitField0_ & ~0x00000001);
-            stepsBuilder_ = 
+            stepsBuilder_ =
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getStepsFieldBuilder() : null;
           } else {
@@ -773,7 +773,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setOperationValue(int value) {
-      
+
       operation_ = value;
       onChanged();
       return this;
@@ -805,7 +805,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
         throw new NullPointerException();
       }
-      
+
       operation_ = value.getNumber();
       onChanged();
       return this;
@@ -819,7 +819,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearOperation() {
-      
+
       operation_ = 0;
       onChanged();
       return this;
@@ -848,7 +848,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setStart(long value) {
-      
+
       start_ = value;
       onChanged();
       return this;
@@ -862,7 +862,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearStart() {
-      
+
       start_ = 0L;
       onChanged();
       return this;
@@ -1123,7 +1123,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry steps = 3;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryOrBuilder> 
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryOrBuilder>
          getStepsOrBuilderList() {
       if (stepsBuilder_ != null) {
         return stepsBuilder_.getMessageOrBuilderList();
@@ -1161,12 +1161,12 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry steps = 3;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry.Builder> 
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry.Builder>
          getStepsBuilderList() {
       return getStepsFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry, io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry.Builder, io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry, io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry.Builder, io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryOrBuilder>
         getStepsFieldBuilder() {
       if (stepsBuilder_ == null) {
         stepsBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
@@ -1349,7 +1349,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setSpentTime(long value) {
-      
+
       spentTime_ = value;
       onChanged();
       return this;
@@ -1363,7 +1363,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearSpentTime() {
-      
+
       spentTime_ = 0L;
       onChanged();
       return this;

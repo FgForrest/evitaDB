@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -1938,7 +1938,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcApplyDeltaAttributeMutation applyDeltaAttributeMutation = 1;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcApplyDeltaAttributeMutation, io.evitadb.externalApi.grpc.generated.GrpcApplyDeltaAttributeMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcApplyDeltaAttributeMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcApplyDeltaAttributeMutation, io.evitadb.externalApi.grpc.generated.GrpcApplyDeltaAttributeMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcApplyDeltaAttributeMutationOrBuilder>
         getApplyDeltaAttributeMutationFieldBuilder() {
       if (applyDeltaAttributeMutationBuilder_ == null) {
         if (!(mutationCase_ == 1)) {
@@ -2115,7 +2115,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUpsertAttributeMutation upsertAttributeMutation = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcUpsertAttributeMutation, io.evitadb.externalApi.grpc.generated.GrpcUpsertAttributeMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcUpsertAttributeMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcUpsertAttributeMutation, io.evitadb.externalApi.grpc.generated.GrpcUpsertAttributeMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcUpsertAttributeMutationOrBuilder>
         getUpsertAttributeMutationFieldBuilder() {
       if (upsertAttributeMutationBuilder_ == null) {
         if (!(mutationCase_ == 2)) {
@@ -2292,7 +2292,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveAttributeMutation removeAttributeMutation = 3;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcRemoveAttributeMutation, io.evitadb.externalApi.grpc.generated.GrpcRemoveAttributeMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcRemoveAttributeMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcRemoveAttributeMutation, io.evitadb.externalApi.grpc.generated.GrpcRemoveAttributeMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcRemoveAttributeMutationOrBuilder>
         getRemoveAttributeMutationFieldBuilder() {
       if (removeAttributeMutationBuilder_ == null) {
         if (!(mutationCase_ == 3)) {
@@ -2469,7 +2469,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUpsertAssociatedDataMutation upsertAssociatedDataMutation = 4;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcUpsertAssociatedDataMutation, io.evitadb.externalApi.grpc.generated.GrpcUpsertAssociatedDataMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcUpsertAssociatedDataMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcUpsertAssociatedDataMutation, io.evitadb.externalApi.grpc.generated.GrpcUpsertAssociatedDataMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcUpsertAssociatedDataMutationOrBuilder>
         getUpsertAssociatedDataMutationFieldBuilder() {
       if (upsertAssociatedDataMutationBuilder_ == null) {
         if (!(mutationCase_ == 4)) {
@@ -2655,7 +2655,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveAssociatedDataMutation removeAssociatedDataMutation = 5;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcRemoveAssociatedDataMutation, io.evitadb.externalApi.grpc.generated.GrpcRemoveAssociatedDataMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcRemoveAssociatedDataMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcRemoveAssociatedDataMutation, io.evitadb.externalApi.grpc.generated.GrpcRemoveAssociatedDataMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcRemoveAssociatedDataMutationOrBuilder>
         getRemoveAssociatedDataMutationFieldBuilder() {
       if (removeAssociatedDataMutationBuilder_ == null) {
         if (!(mutationCase_ == 5)) {
@@ -2832,7 +2832,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUpsertPriceMutation upsertPriceMutation = 6;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcUpsertPriceMutation, io.evitadb.externalApi.grpc.generated.GrpcUpsertPriceMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcUpsertPriceMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcUpsertPriceMutation, io.evitadb.externalApi.grpc.generated.GrpcUpsertPriceMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcUpsertPriceMutationOrBuilder>
         getUpsertPriceMutationFieldBuilder() {
       if (upsertPriceMutationBuilder_ == null) {
         if (!(mutationCase_ == 6)) {
@@ -3009,7 +3009,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemovePriceMutation removePriceMutation = 7;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcRemovePriceMutation, io.evitadb.externalApi.grpc.generated.GrpcRemovePriceMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcRemovePriceMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcRemovePriceMutation, io.evitadb.externalApi.grpc.generated.GrpcRemovePriceMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcRemovePriceMutationOrBuilder>
         getRemovePriceMutationFieldBuilder() {
       if (removePriceMutationBuilder_ == null) {
         if (!(mutationCase_ == 7)) {
@@ -3186,7 +3186,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetPriceInnerRecordHandlingMutation setPriceInnerRecordHandlingMutation = 8;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcSetPriceInnerRecordHandlingMutation, io.evitadb.externalApi.grpc.generated.GrpcSetPriceInnerRecordHandlingMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetPriceInnerRecordHandlingMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcSetPriceInnerRecordHandlingMutation, io.evitadb.externalApi.grpc.generated.GrpcSetPriceInnerRecordHandlingMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetPriceInnerRecordHandlingMutationOrBuilder>
         getSetPriceInnerRecordHandlingMutationFieldBuilder() {
       if (setPriceInnerRecordHandlingMutationBuilder_ == null) {
         if (!(mutationCase_ == 8)) {
@@ -3363,7 +3363,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetParentMutation setParentMutation = 9;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcSetParentMutation, io.evitadb.externalApi.grpc.generated.GrpcSetParentMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetParentMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcSetParentMutation, io.evitadb.externalApi.grpc.generated.GrpcSetParentMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetParentMutationOrBuilder>
         getSetParentMutationFieldBuilder() {
       if (setParentMutationBuilder_ == null) {
         if (!(mutationCase_ == 9)) {
@@ -3540,7 +3540,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation removeParentMutation = 10;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation, io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation, io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutationOrBuilder>
         getRemoveParentMutationFieldBuilder() {
       if (removeParentMutationBuilder_ == null) {
         if (!(mutationCase_ == 10)) {
@@ -3717,7 +3717,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcInsertReferenceMutation insertReferenceMutation = 11;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcInsertReferenceMutation, io.evitadb.externalApi.grpc.generated.GrpcInsertReferenceMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcInsertReferenceMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcInsertReferenceMutation, io.evitadb.externalApi.grpc.generated.GrpcInsertReferenceMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcInsertReferenceMutationOrBuilder>
         getInsertReferenceMutationFieldBuilder() {
       if (insertReferenceMutationBuilder_ == null) {
         if (!(mutationCase_ == 11)) {
@@ -3894,7 +3894,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveReferenceMutation removeReferenceMutation = 12;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcRemoveReferenceMutation, io.evitadb.externalApi.grpc.generated.GrpcRemoveReferenceMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcRemoveReferenceMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcRemoveReferenceMutation, io.evitadb.externalApi.grpc.generated.GrpcRemoveReferenceMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcRemoveReferenceMutationOrBuilder>
         getRemoveReferenceMutationFieldBuilder() {
       if (removeReferenceMutationBuilder_ == null) {
         if (!(mutationCase_ == 12)) {
@@ -4071,7 +4071,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetReferenceGroupMutation setReferenceGroupMutation = 13;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcSetReferenceGroupMutation, io.evitadb.externalApi.grpc.generated.GrpcSetReferenceGroupMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetReferenceGroupMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcSetReferenceGroupMutation, io.evitadb.externalApi.grpc.generated.GrpcSetReferenceGroupMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetReferenceGroupMutationOrBuilder>
         getSetReferenceGroupMutationFieldBuilder() {
       if (setReferenceGroupMutationBuilder_ == null) {
         if (!(mutationCase_ == 13)) {
@@ -4248,7 +4248,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveReferenceGroupMutation removeReferenceGroupMutation = 14;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcRemoveReferenceGroupMutation, io.evitadb.externalApi.grpc.generated.GrpcRemoveReferenceGroupMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcRemoveReferenceGroupMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcRemoveReferenceGroupMutation, io.evitadb.externalApi.grpc.generated.GrpcRemoveReferenceGroupMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcRemoveReferenceGroupMutationOrBuilder>
         getRemoveReferenceGroupMutationFieldBuilder() {
       if (removeReferenceGroupMutationBuilder_ == null) {
         if (!(mutationCase_ == 14)) {
@@ -4425,7 +4425,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcReferenceAttributeMutation referenceAttributeMutation = 15;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcReferenceAttributeMutation, io.evitadb.externalApi.grpc.generated.GrpcReferenceAttributeMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcReferenceAttributeMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcReferenceAttributeMutation, io.evitadb.externalApi.grpc.generated.GrpcReferenceAttributeMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcReferenceAttributeMutationOrBuilder>
         getReferenceAttributeMutationFieldBuilder() {
       if (referenceAttributeMutationBuilder_ == null) {
         if (!(mutationCase_ == 15)) {

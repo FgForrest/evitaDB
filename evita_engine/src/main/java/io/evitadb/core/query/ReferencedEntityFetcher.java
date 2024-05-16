@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -1102,14 +1102,15 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				new IntHashSet(parentIds.length * 3) : null;
 
 			// initialize used data structures
-			final String entityType = entityCollection.getEntityType();
+			final EntitySchemaContract entitySchema = entityCollection.getSchema();
+			final String entityType = entitySchema.getName();
 			final GlobalEntityIndex globalIndex = entityCollection instanceof EntityCollection ec ?
 				ec.getGlobalIndex() :
 				queryContext.getGlobalEntityIndexIfExists(entityType)
 					.orElseThrow(() -> new CollectionNotFoundException(entityType));
 			// scope predicate limits the parent traversal
 			final HierarchyTraversalPredicate scopePredicate = hierarchyContent.getStopAt()
-				.map(stopAt -> stopAtConstraintToPredicate(TraversalDirection.BOTTOM_UP, stopAt, queryContext, globalIndex, null))
+				.map(stopAt -> stopAtConstraintToPredicate(TraversalDirection.BOTTOM_UP, stopAt, queryContext, globalIndex, entitySchema, null))
 				.orElse(HierarchyTraversalPredicate.NEVER_STOP_PREDICATE);
 
 			// first, construct EntityReferenceWithParent for each requested parent id

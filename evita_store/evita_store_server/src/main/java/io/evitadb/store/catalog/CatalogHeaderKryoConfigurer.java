@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -57,7 +57,7 @@ public class CatalogHeaderKryoConfigurer implements Consumer<Kryo> {
 	@Override
 	public void accept(Kryo kryo) {
 		int index = CATALOG_BASE;
-		
+
 		kryo.register(CatalogHeader.class, new SerialVersionBasedSerializer<>(new CatalogHeaderSerializer(), CatalogHeader.class), index++);
 		kryo.register(CatalogSchema.class, new SerialVersionBasedSerializer<>(new CatalogSchemaSerializer(), CatalogSchema.class), index++);
 		kryo.register(CatalogState.class, new EnumNameSerializer<>(), index++);

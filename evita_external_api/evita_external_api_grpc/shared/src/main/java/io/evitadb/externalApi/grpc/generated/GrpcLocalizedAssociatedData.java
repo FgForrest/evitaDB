@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -139,7 +139,7 @@ private static final long serialVersionUID = 0L;
         java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue> defaultEntry =
             com.google.protobuf.MapEntry
             .<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue>newDefaultInstance(
-                io.evitadb.externalApi.grpc.generated.GrpcAssociatedData.internal_static_io_evitadb_externalApi_grpc_generated_GrpcLocalizedAssociatedData_AssociatedDataEntry_descriptor, 
+                io.evitadb.externalApi.grpc.generated.GrpcAssociatedData.internal_static_io_evitadb_externalApi_grpc_generated_GrpcLocalizedAssociatedData_AssociatedDataEntry_descriptor,
                 com.google.protobuf.WireFormat.FieldType.STRING,
                 "",
                 com.google.protobuf.WireFormat.FieldType.MESSAGE,

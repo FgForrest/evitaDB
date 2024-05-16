@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -57,7 +57,7 @@ public interface GrpcModifyEntitySchemaMutationOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation entitySchemaMutations = 2;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation> 
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation>
       getEntitySchemaMutationsList();
   /**
    * <pre>
@@ -82,7 +82,7 @@ public interface GrpcModifyEntitySchemaMutationOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation entitySchemaMutations = 2;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutationOrBuilder> 
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutationOrBuilder>
       getEntitySchemaMutationsOrBuilderList();
   /**
    * <pre>

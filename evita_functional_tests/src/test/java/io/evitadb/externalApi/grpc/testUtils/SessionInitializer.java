@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -25,12 +25,12 @@ package io.evitadb.externalApi.grpc.testUtils;
 
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.SessionTraits.SessionFlags;
+import io.evitadb.driver.interceptor.ClientSessionInterceptor;
+import io.evitadb.driver.interceptor.ClientSessionInterceptor.SessionIdHolder;
 import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc;
 import io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest;
 import io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse;
 import io.evitadb.externalApi.grpc.generated.GrpcSessionType;
-import io.evitadb.driver.interceptor.ClientSessionInterceptor;
-import io.evitadb.driver.interceptor.ClientSessionInterceptor.SessionIdHolder;
 import io.grpc.ManagedChannel;
 import io.grpc.Metadata;
 import lombok.AccessLevel;

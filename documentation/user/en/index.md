@@ -105,7 +105,7 @@ the first version to the general public.
    1. [Setup TLS](operate/tls.md) 
 2. [Run](operate/run.md)
 3. [Backup & Restore](operate/backup-restore.md)
-4. [Monitor](operate/monitor.md)
+4. [Observe](operate/observe.md)
 
 ## Deep dive
 

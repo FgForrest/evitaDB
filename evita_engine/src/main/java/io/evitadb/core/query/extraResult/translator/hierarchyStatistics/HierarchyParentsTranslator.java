@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -67,7 +67,7 @@ public class HierarchyParentsTranslator
 		final Optional<HierarchyStatistics> statistics = parents.getStatistics();
 		final HierarchyProducerContext context = producer.getContext(parents.getName());
 		final HierarchyTraversalPredicate scopePredicate = parents.getStopAt()
-			.map(it -> stopAtConstraintToPredicate(TraversalDirection.BOTTOM_UP, it, context.queryContext(), context.entityIndex(), context.referenceSchema()))
+			.map(it -> stopAtConstraintToPredicate(TraversalDirection.BOTTOM_UP, it, context.queryContext(), context.entityIndex(), context.entitySchema(), context.referenceSchema()))
 			.orElse(HierarchyTraversalPredicate.NEVER_STOP_PREDICATE);
 		final SiblingsStatisticsTravelingComputer siblingsStatisticsComputer = parents.getSiblings()
 			.map(
@@ -121,7 +121,7 @@ public class HierarchyParentsTranslator
 	) {
 		final Optional<HierarchyStatistics> statistics = siblings.getStatistics().or(() -> ofNullable(parentStatistics));
 		final HierarchyTraversalPredicate scopePredicate = siblings.getStopAt()
-			.map(it -> stopAtConstraintToPredicate(TraversalDirection.TOP_DOWN, it, context.queryContext(), context.entityIndex(), context.referenceSchema()))
+			.map(it -> stopAtConstraintToPredicate(TraversalDirection.TOP_DOWN, it, context.queryContext(), context.entityIndex(), context.entitySchema(), context.referenceSchema()))
 			.orElse((hierarchyNodeId, level, distance) -> distance == 0);
 		return new SiblingsStatisticsTravelingComputer(
 			context,

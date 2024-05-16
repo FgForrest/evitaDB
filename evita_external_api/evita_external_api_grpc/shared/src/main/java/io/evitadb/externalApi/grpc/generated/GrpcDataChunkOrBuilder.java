@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -37,7 +37,7 @@ public interface GrpcDataChunkOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityReference> 
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityReference>
       getEntityReferencesList();
   /**
    * <pre>
@@ -62,7 +62,7 @@ public interface GrpcDataChunkOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder> 
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder>
       getEntityReferencesOrBuilderList();
   /**
    * <pre>
@@ -81,7 +81,7 @@ public interface GrpcDataChunkOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcSealedEntity> 
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcSealedEntity>
       getSealedEntitiesList();
   /**
    * <pre>
@@ -106,7 +106,7 @@ public interface GrpcDataChunkOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder> 
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder>
       getSealedEntitiesOrBuilderList();
   /**
    * <pre>
@@ -125,7 +125,7 @@ public interface GrpcDataChunkOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity> 
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity>
       getBinaryEntitiesList();
   /**
    * <pre>
@@ -150,7 +150,7 @@ public interface GrpcDataChunkOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcBinaryEntityOrBuilder> 
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcBinaryEntityOrBuilder>
       getBinaryEntitiesOrBuilderList();
   /**
    * <pre>
