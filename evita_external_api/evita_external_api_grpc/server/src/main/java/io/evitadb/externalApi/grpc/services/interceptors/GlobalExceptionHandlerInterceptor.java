@@ -36,6 +36,7 @@ import io.grpc.Status;
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 import io.grpc.protobuf.StatusProto;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 
@@ -47,23 +48,22 @@ import javax.annotation.Nonnull;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
+@Slf4j
 public class GlobalExceptionHandlerInterceptor implements ServerInterceptor {
 
 	@Override
 	public <T, R> ServerCall.Listener<T> interceptCall(
 		ServerCall<T, R> serverCall, Metadata headers, ServerCallHandler<T, R> serverCallHandler) {
 		ServerCall.Listener<T> delegate = serverCallHandler.startCall(serverCall, headers);
-		return new ExceptionHandler<>(delegate, serverCall, headers);
+		return new ExceptionHandler<>(delegate, serverCall);
 	}
 
 	private static class ExceptionHandler<T, R> extends ForwardingServerCallListener.SimpleForwardingServerCallListener<T> {
 		private final ServerCall<T, R> delegate;
-		private final Metadata headers;
 
-		ExceptionHandler(@Nonnull ServerCall.Listener<T> listener, @Nonnull ServerCall<T, R> serverCall, @Nonnull Metadata headers) {
+		ExceptionHandler(@Nonnull ServerCall.Listener<T> listener, @Nonnull ServerCall<T, R> serverCall) {
 			super(listener);
 			this.delegate = serverCall;
-			this.headers = headers;
 		}
 
 		@Override
@@ -71,12 +71,14 @@ public class GlobalExceptionHandlerInterceptor implements ServerInterceptor {
 			try {
 				super.onHalfClose();
 			} catch (RuntimeException ex) {
-				handleException(ex, delegate, headers);
+				// we're responsible for logging the exception here
+				log.error("Exception occurred during processing of gRPC call", ex);
+				handleException(ex, delegate);
 				throw ex;
 			}
 		}
 
-		private void handleException(@Nonnull RuntimeException exception, @Nonnull ServerCall<T, R> serverCall, @Nonnull Metadata headers) {
+		private void handleException(@Nonnull RuntimeException exception, @Nonnull ServerCall<T, R> serverCall) {
 			if (serverCall.isReady()) {
 				final com.google.rpc.Status rpcStatus;
 				if (exception instanceof EvitaInvalidUsageException invalidUsageException) {
