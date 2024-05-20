@@ -70,6 +70,7 @@ module evita.engine {
 	exports io.evitadb.core.metric.event.transaction;
 	exports io.evitadb.core.metric.event.storage;
 	exports io.evitadb.core.metric.event.query;
+	exports io.evitadb.core.metric.event.session;
 
 	uses CatalogStructuralChangeObserver;
 	uses CatalogPersistenceServiceFactory;

@@ -73,6 +73,8 @@ import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
+import io.evitadb.api.trace.RepresentsMutation;
+import io.evitadb.api.trace.RepresentsQuery;
 import io.evitadb.api.trace.Traced;
 import io.evitadb.core.exception.CatalogCorruptedException;
 import io.evitadb.core.metric.event.query.EntityEnrichEvent;
@@ -140,6 +142,10 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	 * Evita instance this session is connected to.
 	 */
 	@Getter private final Evita evita;
+	/**
+	 * Date and time of the session creation.
+	 */
+	@Getter private final OffsetDateTime created = OffsetDateTime.now();
 	/**
 	 * Contains unique identification of this particular Evita session. The id is not currently used, but may be
 	 * propagated into the logs in the future.
@@ -465,6 +471,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		return getCatalog().getEntityTypes();
 	}
 
+	@RepresentsQuery
 	@Nonnull
 	@Override
 	public <S extends Serializable> Optional<S> queryOne(@Nonnull Query query, @Nonnull Class<S> expectedType) throws UnexpectedResultException, UnexpectedResultCountException, InstanceTerminatedException {
@@ -479,6 +486,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		);
 	}
 
+	@RepresentsQuery
 	@Nonnull
 	@Override
 	public <S extends Serializable> List<S> queryList(@Nonnull Query query, @Nonnull Class<S> expectedType)
@@ -486,6 +494,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		return query(query, expectedType).getRecordData();
 	}
 
+	@RepresentsQuery
 	@Nonnull
 	@Override
 	public <S extends Serializable, T extends EvitaResponse<S>> T query(@Nonnull Query query, @Nonnull Class<S> expectedType) throws UnexpectedResultException, InstanceTerminatedException {
@@ -501,6 +510,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	}
 
 	@Traced
+	@RepresentsQuery
 	@Nonnull
 	@Override
 	public Optional<SealedEntity> getEntity(@Nonnull String entityType, int primaryKey, EntityContentRequire... require) {
@@ -543,6 +553,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	}
 
 	@Traced
+	@RepresentsQuery
 	@Nonnull
 	@Override
 	public <T extends Serializable> Optional<T> getEntity(@Nonnull Class<T> expectedType, int primaryKey, EntityContentRequire... require) {
@@ -593,6 +604,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	}
 
 	@Traced
+	@RepresentsQuery
 	@Nonnull
 	@Override
 	public <T extends Serializable> T enrichEntity(@Nonnull T partiallyLoadedEntity, EntityContentRequire... require) {
@@ -649,6 +661,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	}
 
 	@Traced
+	@RepresentsQuery
 	@Nonnull
 	@Override
 	public <T extends Serializable> T enrichOrLimitEntity(@Nonnull T partiallyLoadedEntity, EntityContentRequire... require) {
@@ -792,6 +805,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	}
 
 	@Traced
+	@RepresentsQuery
 	@Override
 	public int getEntityCollectionSize(@Nonnull String entityType) {
 		assertActive();
@@ -846,6 +860,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	}
 
 	@Traced
+	@RepresentsMutation
 	@Nonnull
 	@Override
 	public <S extends Serializable> EntityReference upsertEntity(@Nonnull S customEntity) {
@@ -881,6 +896,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	}
 
 	@Traced
+	@RepresentsMutation
 	@Nonnull
 	@Override
 	public <S extends Serializable> List<EntityReference> upsertEntityDeeply(@Nonnull S customEntity) {
@@ -940,6 +956,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	}
 
 	@Traced
+	@RepresentsMutation
 	@Nonnull
 	@Override
 	public EntityReference upsertEntity(@Nonnull EntityMutation entityMutation) {
@@ -951,6 +968,8 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	}
 
 	@Traced
+	@RepresentsMutation
+	@RepresentsQuery
 	@Nonnull
 	@Override
 	public SealedEntity upsertAndFetchEntity(@Nonnull EntityBuilder entityBuilder, EntityContentRequire... require) {
@@ -963,6 +982,8 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	}
 
 	@Traced
+	@RepresentsMutation
+	@RepresentsQuery
 	@Nonnull
 	@Override
 	public SealedEntity upsertAndFetchEntity(@Nonnull EntityMutation entityMutation, EntityContentRequire... require) {
@@ -992,6 +1013,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	}
 
 	@Traced
+	@RepresentsMutation
 	@Override
 	public boolean deleteEntity(@Nonnull String entityType, int primaryKey) {
 		assertActive();
@@ -1002,6 +1024,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	}
 
 	@Traced
+	@RepresentsMutation
 	@Override
 	public boolean deleteEntity(@Nonnull Class<?> modelClass, int primaryKey) throws EntityClassInvalidException {
 		return deleteEntity(
@@ -1012,6 +1035,8 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	}
 
 	@Traced
+	@RepresentsMutation
+	@RepresentsQuery
 	@Nonnull
 	@Override
 	public Optional<SealedEntity> deleteEntity(@Nonnull String entityType, int primaryKey, EntityContentRequire... require) {
@@ -1019,6 +1044,8 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	}
 
 	@Traced
+	@RepresentsMutation
+	@RepresentsQuery
 	@Nonnull
 	@Override
 	public <T extends Serializable> Optional<T> deleteEntity(@Nonnull Class<T> modelClass, int primaryKey, EntityContentRequire... require) throws EntityClassInvalidException {
@@ -1030,6 +1057,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	}
 
 	@Traced
+	@RepresentsMutation
 	@Override
 	public int deleteEntityAndItsHierarchy(@Nonnull String entityType, int primaryKey) {
 		assertActive();
@@ -1044,6 +1072,8 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	}
 
 	@Traced
+	@RepresentsMutation
+	@RepresentsQuery
 	@Nonnull
 	@Override
 	public DeletedHierarchy<SealedEntity> deleteEntityAndItsHierarchy(@Nonnull String entityType, int primaryKey, EntityContentRequire... require) {
@@ -1051,6 +1081,8 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	}
 
 	@Traced
+	@RepresentsMutation
+	@RepresentsQuery
 	@Nonnull
 	@Override
 	public <T extends Serializable> DeletedHierarchy<T> deleteEntityAndItsHierarchy(@Nonnull Class<T> modelClass, int primaryKey, EntityContentRequire... require) throws EvitaInvalidUsageException, EntityClassInvalidException {
@@ -1142,6 +1174,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		return (System.currentTimeMillis() - lastCall) / 1000;
 	}
 
+	@RepresentsQuery
 	@Nonnull
 	@Override
 	public <S extends Serializable> Optional<S> queryOne(@Nonnull EvitaRequest evitaRequest)
@@ -1168,6 +1201,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		}
 	}
 
+	@RepresentsQuery
 	@Nonnull
 	@Override
 	public <S extends Serializable> List<S> queryList(@Nonnull EvitaRequest evitaRequest) throws UnexpectedResultException, InstanceTerminatedException {
@@ -1175,6 +1209,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		return (List<S>) query(evitaRequest).getRecordData();
 	}
 
+	@RepresentsQuery
 	@Nonnull
 	@Override
 	public <S extends Serializable, T extends EvitaResponse<S>> T query(@Nonnull EvitaRequest evitaRequest) throws UnexpectedResultException, InstanceTerminatedException {
