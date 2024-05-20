@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -24,6 +24,7 @@
 package io.evitadb.core.metric.event.storage;
 
 import io.evitadb.api.configuration.metric.MetricType;
+import io.evitadb.core.metric.annotation.EventGroup;
 import io.evitadb.core.metric.annotation.ExportMetric;
 import io.evitadb.core.metric.event.CustomMetricsExecutionEvent;
 import jdk.jfr.Description;
@@ -36,6 +37,7 @@ import lombok.Getter;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
+@EventGroup(AbstractStorageEvent.PACKAGE_NAME)
 @Name(AbstractStorageEvent.PACKAGE_NAME + ".EvitaDBCompositionChangedEvent")
 @Description("Event that is fired when evitaDB composition changes.")
 @Label("Evita composition changed")
@@ -43,18 +45,18 @@ import lombok.Getter;
 public class EvitaDBCompositionChangedEvent extends CustomMetricsExecutionEvent {
 	@Label("Catalog count")
 	@ExportMetric(metricType = MetricType.GAUGE)
-	private final int catalogCountTotal;
+	private final int catalogsTotal;
 
 	@Label("Corrupted catalog count")
 	@ExportMetric(metricType = MetricType.GAUGE)
-	private final int corruptedCatalogCountTotal;
+	private final int corruptedCatalogsTotal;
 
 	public EvitaDBCompositionChangedEvent(
-		int catalogCountTotal,
-		int corruptedCatalogCountTotal
+		int catalogsTotal,
+		int corruptedCatalogsTotal
 	) {
-		this.catalogCountTotal = catalogCountTotal;
-		this.corruptedCatalogCountTotal = corruptedCatalogCountTotal;
+		this.catalogsTotal = catalogsTotal;
+		this.corruptedCatalogsTotal = corruptedCatalogsTotal;
 	}
 
 }

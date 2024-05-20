@@ -69,6 +69,7 @@ module evita.engine {
 	exports io.evitadb.core.query.algebra.price.predicate;
 	exports io.evitadb.core.metric.event.transaction;
 	exports io.evitadb.core.metric.event.storage;
+	exports io.evitadb.core.metric.event.query;
 
 	uses CatalogStructuralChangeObserver;
 	uses CatalogPersistenceServiceFactory;

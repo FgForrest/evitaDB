@@ -26,11 +26,11 @@ package io.evitadb.core.cache;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.CacheOptions;
 import io.evitadb.api.query.require.EntityFetch;
-import io.evitadb.api.requestResponse.data.structure.BinaryEntity;
-import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.extraResult.CacheableEvitaResponseExtraResultComputer;
 import io.evitadb.core.query.extraResult.EvitaResponseExtraResultComputer;
+import io.evitadb.core.query.response.ServerBinaryEntityDecorator;
+import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.core.query.sort.CacheableSorter;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.scheduling.Scheduler;
@@ -137,14 +137,14 @@ public class HeapMemoryCacheSupervisor implements CacheSupervisor {
 
 	@Nonnull
 	@Override
-	public Optional<EntityDecorator> analyse(
+	public Optional<ServerEntityDecorator> analyse(
 		@Nonnull EvitaSessionContract evitaSession,
 		int primaryKey,
 		@Nonnull String entityType,
 		@Nonnull OffsetDateTime offsetDateTime,
 		@Nullable EntityFetch entityRequirement,
-		@Nonnull Supplier<EntityDecorator> entityFetcher,
-		@Nonnull UnaryOperator<EntityDecorator> enricher
+		@Nonnull Supplier<ServerEntityDecorator> entityFetcher,
+		@Nonnull UnaryOperator<ServerEntityDecorator> enricher
 	) {
 		// we use cache only for Evita read only sessions, write session might already contain client specific modifications
 		// that effectively exclude the formula caches from being used
@@ -162,13 +162,13 @@ public class HeapMemoryCacheSupervisor implements CacheSupervisor {
 
 	@Nonnull
 	@Override
-	public Optional<BinaryEntity> analyse(
+	public Optional<ServerBinaryEntityDecorator> analyse(
 		@Nonnull EvitaSessionContract evitaSession,
 		int primaryKey,
 		@Nonnull String entityType,
 		@Nullable EntityFetch entityRequirement,
-		@Nonnull Supplier<BinaryEntity> entityFetcher,
-		@Nonnull UnaryOperator<BinaryEntity> enricher
+		@Nonnull Supplier<ServerBinaryEntityDecorator> entityFetcher,
+		@Nonnull UnaryOperator<ServerBinaryEntityDecorator> enricher
 	) {
 		// we use cache only for Evita read only sessions, write session might already contain client specific modifications
 		// that effectively exclude the formula caches from being used

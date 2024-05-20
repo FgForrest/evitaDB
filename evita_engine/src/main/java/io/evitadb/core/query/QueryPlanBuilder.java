@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 package io.evitadb.core.query;
 
 import io.evitadb.api.query.require.EntityContentRequire;
+import io.evitadb.core.metric.event.query.QueryFinishedEvent;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.prefetch.PrefetchFormulaVisitor;
@@ -38,6 +39,8 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Collection;
 import java.util.Collections;
+
+import static java.util.Optional.ofNullable;
 
 /**
  * This DTO represents the carrier object that combines the constructed filtering {@link #filterFormula} with the link to
@@ -171,6 +174,8 @@ public class QueryPlanBuilder implements PrefetchRequirementCollector {
 	 */
 	@Nonnull
 	public QueryPlan build() {
+		ofNullable(queryContext.getQueryFinishedEvent())
+			.ifPresent(QueryFinishedEvent::startExecuting);
 		return new QueryPlan(
 			queryContext,
 			targetIndexes.getIndexDescription(), filterFormula, prefetchFormulaVisitor,

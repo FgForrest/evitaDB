@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -44,22 +44,22 @@ import javax.annotation.Nonnull;
 public class OffsetIndexNonFlushedRecordsEvent extends AbstractDataFileEvent {
 	@Label("Number of records pending flush")
 	@ExportMetric(metricType = MetricType.GAUGE)
-	private final int recordCount;
+	private final int recordsTotal;
 
 	@Label("Size of records pending flush in Bytes")
 	@ExportMetric(metricType = MetricType.GAUGE)
-	private final long recordSizeBytesTotal;
+	private final long recordSizeBytes;
 
 	public OffsetIndexNonFlushedRecordsEvent(
 		@Nonnull String catalogName,
 		@Nonnull FileType fileType,
 		@Nonnull String name,
-		int recordCount,
-		long recordSizeBytesTotal
+		int recordsTotal,
+		long recordSizeBytes
 	) {
 		super(catalogName, fileType, name);
-		this.recordCount = recordCount;
-		this.recordSizeBytesTotal = recordSizeBytesTotal;
+		this.recordsTotal = recordsTotal;
+		this.recordSizeBytes = recordSizeBytes;
 	}
 
 }

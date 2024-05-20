@@ -34,6 +34,7 @@ import io.evitadb.core.cache.payload.EntityPayload;
 import io.evitadb.core.query.algebra.CacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.extraResult.CacheableEvitaResponseExtraResultComputer;
+import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
 import io.evitadb.core.query.sort.CacheableSorter;
 import io.evitadb.dataType.array.CompositeLongArray;
@@ -454,7 +455,7 @@ public class CacheEden {
 	 */
 	@Nullable
 	private <S> S fetchAndCacheEntity(long recordHash, @Nonnull CachedRecord cachedRecord, @Nonnull LongHashFunction hashFunction, @Nonnull EntityComputationalObjectAdapter entityWrapper) {
-		final EntityDecorator entityToCache = entityWrapper.fetchEntity();
+		final ServerEntityDecorator entityToCache = entityWrapper.fetchEntity();
 		if (entityToCache != null && entityToCache.exists()) {
 			theCache.put(
 				recordHash,
@@ -486,7 +487,7 @@ public class CacheEden {
 	 */
 	private <S> S enrichCachedEntityIfNecessary(long recordHash, @Nonnull CachedRecord cachedRecord, @Nonnull EntityComputationalObjectAdapter entityWrapper) {
 		final EntityPayload cachedPayload = cachedRecord.getPayload(EntityPayload.class);
-		final EntityDecorator cachedEntity = new EntityDecorator(
+		final ServerEntityDecorator cachedEntity = ServerEntityDecorator.decorate(
 			cachedPayload.entity(),
 			entityWrapper.getEntitySchema(),
 			null,
@@ -496,7 +497,9 @@ public class CacheEden {
 			cachedPayload.associatedDataPredicate(),
 			cachedPayload.referencePredicate(),
 			cachedPayload.pricePredicate(),
-			entityWrapper.getAlignedNow()
+			entityWrapper.getAlignedNow(),
+			0,
+			0
 		);
 		final EntityDecorator enrichedEntity = entityWrapper.enrichEntity(cachedEntity);
 		if (enrichedEntity != cachedEntity) {
@@ -532,7 +535,6 @@ public class CacheEden {
 	 * DTO that collects all adepts for price evaluation and storing into the cache along with identification of those
 	 * that are marked for eviction.
 	 */
-
 	private record EvaluationCacheFormulaAdeptSource(
 		@Nonnull CacheAdeptKeyWithValue[] evaluation,
 		int peek,

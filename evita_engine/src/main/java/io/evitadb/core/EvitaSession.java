@@ -75,6 +75,9 @@ import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateEntitySchema
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.api.trace.Traced;
 import io.evitadb.core.exception.CatalogCorruptedException;
+import io.evitadb.core.metric.event.query.EntityEnrichEvent;
+import io.evitadb.core.metric.event.query.EntityFetchEvent;
+import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.core.transaction.TransactionWalFinalizer;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -502,6 +505,9 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	@Override
 	public Optional<SealedEntity> getEntity(@Nonnull String entityType, int primaryKey, EntityContentRequire... require) {
 		assertActive();
+
+		final EntityFetchEvent fetchEvent = new EntityFetchEvent(getCatalogName(), entityType);
+
 		final EvitaRequest evitaRequest = new EvitaRequest(
 			Query.query(
 				collection(entityType),
@@ -515,11 +521,25 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 			this::createEntityProxy
 		);
 		final EntityCollectionContract entityCollection = getCatalog().getCollectionForEntityOrThrowException(entityType);
-		return entityCollection.getEntity(
+		final Optional<SealedEntity> resultEntity = entityCollection.getEntity(
 			primaryKey,
 			evitaRequest,
 			this
 		);
+
+		// emit the event
+		final Optional<ServerEntityDecorator> serverEntityDecorator = resultEntity
+			.map(ServerEntityDecorator.class::cast);
+		fetchEvent.finish(
+			serverEntityDecorator
+				.map(ServerEntityDecorator::getIoFetchCount)
+				.orElse(0),
+			serverEntityDecorator
+				.map(ServerEntityDecorator::getIoFetchedBytes)
+				.orElse(0)
+		).commit();
+
+		return resultEntity;
 	}
 
 	@Traced
@@ -529,6 +549,9 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		assertActive();
 		final String entityType = extractEntityTypeFromClass(expectedType, reflectionLookup)
 			.orElseThrow(() -> new CollectionNotFoundException(expectedType));
+
+		final EntityFetchEvent fetchEvent = new EntityFetchEvent(getCatalogName(), entityType);
+
 		final EntityCollectionContract entityCollection = getCatalog().getCollectionForEntityOrThrowException(entityType);
 		final EvitaRequest evitaRequest = new EvitaRequest(
 			Query.query(
@@ -542,11 +565,31 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 			entityType,
 			this::createEntityProxy
 		);
-		return entityCollection.getEntity(
+		final Optional<T> resultEntity = entityCollection.getEntity(
 			primaryKey,
 			evitaRequest,
 			this
 		).map(it -> this.createEntityProxy(expectedType, it));
+
+		// emit the event
+		final Optional<ServerEntityDecorator> serverEntityDecorator = resultEntity
+			.map(it -> {
+				final EntityContract theEntity = (
+					it instanceof SealedEntityProxy sealedEntityProxy ?
+						sealedEntityProxy.entity() : (it instanceof EntityContract ec ? ec : null)
+				);
+				return theEntity instanceof ServerEntityDecorator sed ?  sed : null;
+			});
+		fetchEvent.finish(
+			serverEntityDecorator
+				.map(ServerEntityDecorator::getIoFetchCount)
+				.orElse(0),
+			serverEntityDecorator
+				.map(ServerEntityDecorator::getIoFetchedBytes)
+				.orElse(0)
+		).commit();
+
+		return resultEntity;
 	}
 
 	@Traced
@@ -555,6 +598,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	public <T extends Serializable> T enrichEntity(@Nonnull T partiallyLoadedEntity, EntityContentRequire... require) {
 		assertActive();
 		final String entityType = getEntityTypeFromEntity(partiallyLoadedEntity, reflectionLookup);
+		final EntityEnrichEvent enrichEvent = new EntityEnrichEvent(getCatalogName(), entityType);
 		final EntityCollectionContract entityCollection = getCatalog().getCollectionForEntityOrThrowException(entityType);
 		final EvitaRequest evitaRequest = new EvitaRequest(
 			Query.query(
@@ -569,24 +613,38 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 			this::createEntityProxy
 		);
 		if (partiallyLoadedEntity instanceof SealedEntityProxy sealedEntityProxy) {
-			//noinspection unchecked
-			return (T) this.createEntityProxy(
-				sealedEntityProxy.getProxyClass(),
-				entityCollection.enrichEntity(
-					sealedEntityProxy.entity(),
-					evitaRequest,
-					this
-				)
-			);
-		} else {
-			Assert.isTrue(partiallyLoadedEntity instanceof EntityDecorator, "Expected entity decorator in the input.");
-			final EntityDecorator entityDecorator = (EntityDecorator) partiallyLoadedEntity;
-			//noinspection unchecked
-			return (T) entityCollection.enrichEntity(
-				entityDecorator,
+			final ServerEntityDecorator enrichedEntity = (ServerEntityDecorator) entityCollection.enrichEntity(
+				sealedEntityProxy.entity(),
 				evitaRequest,
 				this
 			);
+
+			// emit the event
+			enrichEvent.finish(
+				enrichedEntity.getIoFetchCount(),
+				enrichedEntity.getIoFetchedBytes()
+			).commit();
+
+			//noinspection unchecked
+			return (T) this.createEntityProxy(
+				sealedEntityProxy.getProxyClass(),
+				enrichedEntity
+			);
+		} else {
+			Assert.isTrue(partiallyLoadedEntity instanceof EntityDecorator, "Expected entity decorator in the input.");
+			final ServerEntityDecorator enrichedEntity = (ServerEntityDecorator) entityCollection.enrichEntity(
+				(EntityDecorator) partiallyLoadedEntity,
+				evitaRequest,
+				this
+			);
+			// emit the event
+			enrichEvent.finish(
+				enrichedEntity.getIoFetchCount(),
+				enrichedEntity.getIoFetchedBytes()
+			).commit();
+
+			//noinspection unchecked
+			return (T) enrichedEntity;
 		}
 	}
 
@@ -596,6 +654,8 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	public <T extends Serializable> T enrichOrLimitEntity(@Nonnull T partiallyLoadedEntity, EntityContentRequire... require) {
 		assertActive();
 		final String entityType = getEntityTypeFromEntity(partiallyLoadedEntity, reflectionLookup);
+		final EntityEnrichEvent enrichEvent = new EntityEnrichEvent(getCatalogName(), entityType);
+
 		final EntityCollectionContract entityCollection = getCatalog().getCollectionForEntity(entityType)
 			.orElseThrow(() -> new CollectionNotFoundException(entityType));
 		final EvitaRequest evitaRequest = new EvitaRequest(
@@ -612,26 +672,41 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 			this::createEntityProxy
 		);
 		if (partiallyLoadedEntity instanceof SealedEntityProxy sealedEntityProxy) {
+			final ServerEntityDecorator enrichedEntity = (ServerEntityDecorator) entityCollection.limitEntity(
+				entityCollection.enrichEntity(
+					sealedEntityProxy.entity(),
+					evitaRequest,
+					this
+				),
+				evitaRequest, this
+			);
+
+			// emit the event
+			enrichEvent.finish(
+				enrichedEntity.getIoFetchCount(),
+				enrichedEntity.getIoFetchedBytes()
+			).commit();
+
 			//noinspection unchecked
 			return (T) this.createEntityProxy(
 				sealedEntityProxy.getProxyClass(),
-				entityCollection.limitEntity(
-					entityCollection.enrichEntity(
-						sealedEntityProxy.entity(),
-						evitaRequest,
-						this
-					),
-					evitaRequest, this
-				)
+				enrichedEntity
 			);
 		} else {
 			Assert.isTrue(partiallyLoadedEntity instanceof EntityDecorator, "Expected entity decorator in the input.");
-			final EntityDecorator entityDecorator = (EntityDecorator) partiallyLoadedEntity;
-			//noinspection unchecked
-			return (T) entityCollection.limitEntity(
-				entityCollection.enrichEntity(entityDecorator, evitaRequest, this),
+			final ServerEntityDecorator enrichedEntity = (ServerEntityDecorator) entityCollection.limitEntity(
+				entityCollection.enrichEntity((EntityDecorator) partiallyLoadedEntity, evitaRequest, this),
 				evitaRequest, this
 			);
+
+			// emit the event
+			enrichEvent.finish(
+				enrichedEntity.getIoFetchCount(),
+				enrichedEntity.getIoFetchedBytes()
+			).commit();
+
+			//noinspection unchecked
+			return (T) enrichedEntity;
 		}
 	}
 
@@ -882,7 +957,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		return entityBuilder.toMutation()
 			.map(it -> upsertAndFetchEntity(it, require))
 			.orElseGet(
-				() -> (SealedEntity) getEntity(entityBuilder.getType(), entityBuilder.getPrimaryKey(), require)
+				() -> getEntity(entityBuilder.getType(), entityBuilder.getPrimaryKey(), require)
 					.orElseThrow(() -> new EvitaInvalidUsageException("Entity `" + entityBuilder.getType() + "` with id `" + entityBuilder.getPrimaryKey() + "` doesn't exist!"))
 			);
 	}

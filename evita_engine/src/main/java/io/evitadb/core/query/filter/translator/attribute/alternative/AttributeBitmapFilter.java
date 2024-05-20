@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,12 +28,12 @@ import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
-import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
 import io.evitadb.core.query.algebra.prefetch.EntityToBitmapFilter;
 import io.evitadb.core.query.filter.FilterByVisitor;
+import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.function.TriFunction;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
@@ -108,7 +108,7 @@ public class AttributeBitmapFilter implements EntityToBitmapFilter {
 	@Nonnull
 	@Override
 	public Bitmap filter(@Nonnull FilterByVisitor filterByVisitor) {
-		final List<EntityDecorator> prefetchedEntities = filterByVisitor.getPrefetchedEntities();
+		final List<ServerEntityDecorator> prefetchedEntities = filterByVisitor.getPrefetchedEntities();
 		if (prefetchedEntities == null) {
 			return EmptyBitmap.INSTANCE;
 		} else {

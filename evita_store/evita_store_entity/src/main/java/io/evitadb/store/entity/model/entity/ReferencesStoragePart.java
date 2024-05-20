@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -34,6 +34,7 @@ import io.evitadb.store.model.EntityStoragePart;
 import io.evitadb.store.service.KeyCompressor;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.ArrayUtils.InsertionPosition;
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.ToString;
 
@@ -46,6 +47,7 @@ import java.util.Collection;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
@@ -59,6 +61,7 @@ import java.util.stream.Collectors;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @NotThreadSafe
+@EqualsAndHashCode(exclude = {"dirty", "sizeInBytes"})
 @ToString(of = "entityPrimaryKey")
 public class ReferencesStoragePart implements EntityStoragePart {
 	@Serial private static final long serialVersionUID = -4113353795728768940L;
@@ -73,17 +76,23 @@ public class ReferencesStoragePart implements EntityStoragePart {
 	 */
 	@Getter private ReferenceContract[] references = EMPTY_REFERENCES;
 	/**
+	 * Contains information about size of this container in bytes.
+	 */
+	private final int sizeInBytes;
+	/**
 	 * Contains true if anything changed in this container.
 	 */
 	@Getter private boolean dirty;
 
 	public ReferencesStoragePart(int entityPrimaryKey) {
 		this.entityPrimaryKey = entityPrimaryKey;
+		this.sizeInBytes = -1;
 	}
 
-	public ReferencesStoragePart(int entityPrimaryKey, @Nonnull ReferenceContract[] references) {
+	public ReferencesStoragePart(int entityPrimaryKey, @Nonnull ReferenceContract[] references, int sizeInBytes) {
 		this.entityPrimaryKey = entityPrimaryKey;
 		this.references = references;
+		this.sizeInBytes = sizeInBytes;
 	}
 
 	@Nullable
@@ -100,6 +109,12 @@ public class ReferencesStoragePart implements EntityStoragePart {
 	@Override
 	public boolean isEmpty() {
 		return references.length == 0 || Arrays.stream(references).noneMatch(Droppable::exists);
+	}
+
+	@Nonnull
+	@Override
+	public OptionalInt sizeInBytes() {
+		return sizeInBytes == -1 ? OptionalInt.empty() : OptionalInt.of(sizeInBytes);
 	}
 
 	/**

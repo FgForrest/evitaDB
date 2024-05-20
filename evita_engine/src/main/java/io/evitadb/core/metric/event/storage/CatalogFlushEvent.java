@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -46,11 +46,11 @@ import java.time.OffsetDateTime;
 public class CatalogFlushEvent extends AbstractStorageEvent {
 	@Label("Entity collection count")
 	@ExportMetric(metricType = MetricType.GAUGE)
-	private final int entityCollectionCountTotal;
+	private final int entityCollectionsTotal;
 
 	@Label("Total occupied disk space in Bytes")
 	@ExportMetric(metricType = MetricType.GAUGE)
-	private final long occupiedDiskSpaceBytesTotal;
+	private final long occupiedDiskSpaceBytes;
 
 	@Label("Timestamp of the oldest catalog version available in seconds")
 	@ExportMetric(metricType = MetricType.GAUGE)
@@ -58,12 +58,12 @@ public class CatalogFlushEvent extends AbstractStorageEvent {
 
 	public CatalogFlushEvent(
 		@Nonnull String catalogName,
-		int entityCollectionCountTotal,
-		long occupiedDiskSpaceBytesTotal,
+		int entityCollectionsTotal,
+		long occupiedDiskSpaceBytes,
 		@Nullable OffsetDateTime oldestCatalogVersionTimestampSeconds) {
 		super(catalogName);
-		this.entityCollectionCountTotal = entityCollectionCountTotal;
-		this.occupiedDiskSpaceBytesTotal = occupiedDiskSpaceBytesTotal;
+		this.entityCollectionsTotal = entityCollectionsTotal;
+		this.occupiedDiskSpaceBytes = occupiedDiskSpaceBytes;
 		this.oldestCatalogVersionTimestampSeconds = oldestCatalogVersionTimestampSeconds == null ?
 			0L : oldestCatalogVersionTimestampSeconds.toEpochSecond();
 	}

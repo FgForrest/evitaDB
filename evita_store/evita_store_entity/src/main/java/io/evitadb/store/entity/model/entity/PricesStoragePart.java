@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -39,6 +39,7 @@ import io.evitadb.store.service.KeyCompressor;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.ArrayUtils.InsertionPosition;
 import io.evitadb.utils.Assert;
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.ToString;
 
@@ -48,6 +49,7 @@ import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serial;
 import java.util.Arrays;
 import java.util.Objects;
+import java.util.OptionalInt;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
@@ -65,6 +67,7 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @NotThreadSafe
+@EqualsAndHashCode(exclude = {"dirty", "sizeInBytes"})
 @ToString(of = {"entityPrimaryKey", "priceInnerRecordHandling"})
 public class PricesStoragePart implements EntityStoragePart {
 	@Serial private static final long serialVersionUID = 3489626529648601062L;
@@ -87,6 +90,10 @@ public class PricesStoragePart implements EntityStoragePart {
 	 */
 	@Getter private PriceWithInternalIds[] prices = EMPTY_PRICES;
 	/**
+	 * Contains information about size of this container in bytes.
+	 */
+	private final int sizeInBytes;
+	/**
 	 * Contains true if anything changed in this container.
 	 */
 	@Getter private boolean dirty;
@@ -94,9 +101,16 @@ public class PricesStoragePart implements EntityStoragePart {
 	public PricesStoragePart(int entityPrimaryKey) {
 		this.entityPrimaryKey = entityPrimaryKey;
 		this.version = 0;
+		this.sizeInBytes = -1;
 	}
 
-	public PricesStoragePart(int entityPrimaryKey, int version, @Nonnull PriceInnerRecordHandling priceInnerRecordHandling, @Nonnull PriceWithInternalIds[] prices) {
+	public PricesStoragePart(
+		int entityPrimaryKey,
+		int version,
+		@Nonnull PriceInnerRecordHandling priceInnerRecordHandling,
+		@Nonnull PriceWithInternalIds[] prices,
+		int sizeInBytes
+	) {
 		Assert.isPremiseValid(
 			priceInnerRecordHandling != PriceInnerRecordHandling.UNKNOWN,
 			() -> "Cannot store price storage container with unknown price inner record handling."
@@ -105,6 +119,7 @@ public class PricesStoragePart implements EntityStoragePart {
 		this.version = version;
 		this.priceInnerRecordHandling = priceInnerRecordHandling;
 		this.prices = prices;
+		this.sizeInBytes = sizeInBytes;
 	}
 
 	@Nullable
@@ -122,6 +137,12 @@ public class PricesStoragePart implements EntityStoragePart {
 	public boolean isEmpty() {
 		return (prices.length == 0 || Arrays.stream(prices).noneMatch(Droppable::exists)) &&
 			priceInnerRecordHandling == PriceInnerRecordHandling.NONE;
+	}
+
+	@Nonnull
+	@Override
+	public OptionalInt sizeInBytes() {
+		return sizeInBytes == -1 ? OptionalInt.empty() : OptionalInt.of(sizeInBytes);
 	}
 
 	/**

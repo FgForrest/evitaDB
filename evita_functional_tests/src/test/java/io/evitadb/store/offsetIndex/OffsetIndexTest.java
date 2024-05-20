@@ -111,7 +111,7 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 		}
 
 		return new EntityBodyStoragePart(
-			1, recPrimaryKey, null, Set.of(), Set.of(), associatedData
+			1, recPrimaryKey, null, Set.of(), Set.of(), associatedData, 0
 		);
 	}
 
@@ -128,7 +128,7 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 		// retry if this id was picked already in this round
 		return touchedInThisRound.contains(adept) ?
 			getExisting(records, touchedInThisRound, random) :
-			new EntityBodyStoragePart(records.get(adept).getVersion() + 1, adept, null, Set.of(), Set.of(), Set.of());
+			new EntityBodyStoragePart(records.get(adept).getVersion() + 1, adept, null, Set.of(), Set.of(), Set.of(), 0);
 	}
 
 	@Nonnull

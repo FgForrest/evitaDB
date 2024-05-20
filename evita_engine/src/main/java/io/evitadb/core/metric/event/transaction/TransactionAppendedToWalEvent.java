@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -48,7 +48,7 @@ import javax.annotation.Nonnull;
 public class TransactionAppendedToWalEvent extends AbstractTransactionEvent {
 	@Label("Atomic mutations appended.")
 	@ExportMetric(metricName = "appendedAtomicMutationsTotal", metricType = MetricType.COUNTER)
-	private int appendedAtomicMutations;
+	private int appendedAtomicMutationsTotal;
 
 	public TransactionAppendedToWalEvent(@Nonnull String catalogName) {
 		super(catalogName);
@@ -61,7 +61,7 @@ public class TransactionAppendedToWalEvent extends AbstractTransactionEvent {
 	 */
 	@Nonnull
 	public TransactionAppendedToWalEvent finish(int appendedAtomicMutations) {
-		this.appendedAtomicMutations = appendedAtomicMutations;
+		this.appendedAtomicMutationsTotal = appendedAtomicMutations;
 		this.end();
 		return this;
 	}

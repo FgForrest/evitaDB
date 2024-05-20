@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -46,15 +46,15 @@ import javax.annotation.Nonnull;
 public class TransactionIncorporatedToTrunkEvent extends AbstractTransactionEvent {
 	@Label("Transactions incorporated into shared data structures.")
 	@ExportMetric(metricName = "transactionsIncorporatedTotal", metricType = MetricType.COUNTER)
-	private int collapsedTransactions;
+	private int collapsedTransactionsTotal;
 
 	@Label("Atomic mutations processed.")
 	@ExportMetric(metricName = "processedAtomicMutationsTotal", metricType = MetricType.COUNTER)
-	private int processedAtomicMutations;
+	private int processedAtomicMutationsTotal;
 
 	@Label("Local mutations processed.")
 	@ExportMetric(metricName = "processedLocalMutationsTotal", metricType = MetricType.COUNTER)
-	private int processedLocalMutations;
+	private int processedLocalMutationsTotal;
 
 	public TransactionIncorporatedToTrunkEvent(@Nonnull String catalogName) {
 		super(catalogName);
@@ -75,9 +75,9 @@ public class TransactionIncorporatedToTrunkEvent extends AbstractTransactionEven
 		int processedLocalMutations,
 		int collapsedTransactions
 	) {
-		this.processedAtomicMutations = processedAtomicMutations;
-		this.processedLocalMutations = processedLocalMutations;
-		this.collapsedTransactions = collapsedTransactions;
+		this.processedAtomicMutationsTotal = processedAtomicMutations;
+		this.processedLocalMutationsTotal = processedLocalMutations;
+		this.collapsedTransactionsTotal = collapsedTransactions;
 		this.end();
 		return this;
 	}

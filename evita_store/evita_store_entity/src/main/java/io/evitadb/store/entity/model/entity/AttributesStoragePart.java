@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -40,6 +40,7 @@ import io.evitadb.utils.Assert;
 import io.evitadb.utils.ComparatorUtils;
 import io.evitadb.utils.NumberUtils;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.ToString;
 
@@ -52,6 +53,7 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Locale;
+import java.util.OptionalInt;
 import java.util.function.UnaryOperator;
 
 /**
@@ -67,6 +69,7 @@ import java.util.function.UnaryOperator;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @NotThreadSafe
+@EqualsAndHashCode(exclude = {"dirty", "sizeInBytes"})
 @ToString(of = "attributeSetKey")
 public class AttributesStoragePart implements EntityStoragePart, RecordWithCompressedId<EntityAttributesSetKey> {
 	private static final AttributeValue[] EMPTY_ATTRIBUTE_VALUES = new AttributeValue[0];
@@ -88,6 +91,10 @@ public class AttributesStoragePart implements EntityStoragePart, RecordWithCompr
 	 * See {@link Attributes#getAttributeValues()}. Attributes are sorted in ascending order according to {@link AttributeKey}.
 	 */
 	@Getter private AttributeValue[] attributes = EMPTY_ATTRIBUTE_VALUES;
+	/**
+	 * Contains information about size of this container in bytes.
+	 */
+	private final int sizeInBytes;
 	/**
 	 * Contains true if anything changed in this container.
 	 */
@@ -113,19 +120,22 @@ public class AttributesStoragePart implements EntityStoragePart, RecordWithCompr
 		this.storagePartPK = null;
 		this.entityPrimaryKey = entityPrimaryKey;
 		this.attributeSetKey = new EntityAttributesSetKey(entityPrimaryKey, null);
+		this.sizeInBytes = -1;
 	}
 
 	public AttributesStoragePart(int entityPrimaryKey, Locale locale) {
 		this.storagePartPK = null;
 		this.entityPrimaryKey = entityPrimaryKey;
 		this.attributeSetKey = new EntityAttributesSetKey(entityPrimaryKey, locale);
+		this.sizeInBytes = -1;
 	}
 
-	public AttributesStoragePart(long storagePartPK, int entityPrimaryKey, Locale locale, AttributeValue[] attributes) {
+	public AttributesStoragePart(long storagePartPK, int entityPrimaryKey, @Nonnull Locale locale, @Nonnull AttributeValue[] attributes, int sizeInBytes) {
 		this.storagePartPK = storagePartPK;
 		this.entityPrimaryKey = entityPrimaryKey;
 		this.attributeSetKey = new EntityAttributesSetKey(entityPrimaryKey, locale);
 		this.attributes = attributes;
+		this.sizeInBytes = sizeInBytes;
 	}
 
 	@Override
@@ -192,6 +202,12 @@ public class AttributesStoragePart implements EntityStoragePart, RecordWithCompr
 	@Override
 	public boolean isEmpty() {
 		return attributes.length == 0 || Arrays.stream(attributes).noneMatch(Droppable::exists);
+	}
+
+	@Nonnull
+	@Override
+	public OptionalInt sizeInBytes() {
+		return sizeInBytes == -1 ? OptionalInt.empty() : OptionalInt.of(sizeInBytes);
 	}
 
 	/**

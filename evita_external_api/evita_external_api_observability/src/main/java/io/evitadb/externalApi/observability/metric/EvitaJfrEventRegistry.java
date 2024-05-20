@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -25,6 +25,9 @@ package io.evitadb.externalApi.observability.metric;
 
 import io.evitadb.core.metric.annotation.EventGroup;
 import io.evitadb.core.metric.event.CustomMetricsExecutionEvent;
+import io.evitadb.core.metric.event.query.EntityEnrichEvent;
+import io.evitadb.core.metric.event.query.EntityFetchEvent;
+import io.evitadb.core.metric.event.query.QueryFinishedEvent;
 import io.evitadb.core.metric.event.storage.*;
 import io.evitadb.core.metric.event.transaction.*;
 import io.evitadb.utils.Assert;
@@ -74,7 +77,12 @@ public class EvitaJfrEventRegistry {
 		ReadOnlyHandleOpenedEvent.class,
 		ReadOnlyHandleClosedEvent.class,
 		CatalogFlushEvent.class,
-		EvitaDBCompositionChangedEvent.class
+		EvitaDBCompositionChangedEvent.class,
+
+		// query events
+		QueryFinishedEvent.class,
+		EntityFetchEvent.class,
+		EntityEnrichEvent.class
 	);
 	private static final Map<String, Class<? extends CustomMetricsExecutionEvent>> EVENT_MAP;
 	private static final Map<String, Set<Class<? extends CustomMetricsExecutionEvent>>> EVENT_MAP_BY_PACKAGE;
@@ -103,7 +111,8 @@ public class EvitaJfrEventRegistry {
 		final EventGroup group = ReflectionLookup.NO_CACHE_INSTANCE.getClassAnnotation(eventClass, EventGroup.class);
 		Assert.isPremiseValid(
 			group != null,
-			"Custom metrics event class must be annotated with @EventGroup annotation that defines the event group assignment."
+			"Custom metrics event class `" + eventClass.getName() + "` must be annotated with @EventGroup " +
+				"annotation that defines the event group assignment."
 		);
 		return group.value();
 	}

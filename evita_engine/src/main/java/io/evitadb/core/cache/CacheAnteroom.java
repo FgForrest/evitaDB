@@ -26,7 +26,6 @@ package io.evitadb.core.cache;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.requestResponse.data.structure.BinaryEntity;
-import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.core.cache.model.CacheRecordAdept;
 import io.evitadb.core.cache.payload.BinaryEntityComputationalObjectAdapter;
 import io.evitadb.core.cache.payload.EntityComputationalObjectAdapter;
@@ -37,6 +36,8 @@ import io.evitadb.core.query.algebra.price.CacheablePriceFormula;
 import io.evitadb.core.query.algebra.price.termination.PriceTerminationFormula;
 import io.evitadb.core.query.extraResult.CacheableEvitaResponseExtraResultComputer;
 import io.evitadb.core.query.extraResult.EvitaResponseExtraResultComputer;
+import io.evitadb.core.query.response.ServerBinaryEntityDecorator;
+import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
 import io.evitadb.core.query.sort.CacheableSorter;
 import io.evitadb.core.query.sort.Sorter;
@@ -240,14 +241,14 @@ public class CacheAnteroom {
 	 * adept information is then used to evaluate the worthiness of keeping this entity in cache.
 	 */
 	@Nullable
-	public EntityDecorator register(
+	public ServerEntityDecorator register(
 		@Nonnull EvitaSessionContract evitaSession,
 		int entityPrimaryKey,
 		@Nonnull String entityType,
 		@Nonnull OffsetDateTime alignedNow,
 		@Nullable EntityFetch entityRequirement,
-		@Nonnull Supplier<EntityDecorator> entityFetcher,
-		@Nonnull UnaryOperator<EntityDecorator> enricher
+		@Nonnull Supplier<ServerEntityDecorator> entityFetcher,
+		@Nonnull UnaryOperator<ServerEntityDecorator> enricher
 	) {
 		final LongHashFunction hashFunction = CacheSupervisor.createHashFunction();
 		final String catalogName = evitaSession.getCatalogName();
@@ -269,11 +270,11 @@ public class CacheAnteroom {
 				.orElse(0),
 			minimalComplexityThreshold
 		);
-		final EntityDecorator cachedResult = cacheEden.getCachedRecord(
-			evitaSession, catalogName, entityType, entityWrapper, EntityDecorator.class, recordHash
+		final ServerEntityDecorator cachedResult = cacheEden.getCachedRecord(
+			evitaSession, catalogName, entityType, entityWrapper, ServerEntityDecorator.class, recordHash
 		);
 		if (cachedResult == null) {
-			final EntityDecorator entity = entityFetcher.get();
+			final ServerEntityDecorator entity = entityFetcher.get();
 			if (entity == null) {
 				return null;
 			} else {
@@ -313,12 +314,12 @@ public class CacheAnteroom {
 	 * @see io.evitadb.api.requestResponse.EvitaBinaryEntityResponse
 	 */
 	@Nullable
-	public BinaryEntity register(
+	public ServerBinaryEntityDecorator register(
 		@Nonnull EvitaSessionContract evitaSession,
 		int entityPrimaryKey,
 		@Nonnull Serializable entityType,
 		@Nullable EntityFetch entityRequirement,
-		@Nonnull Supplier<BinaryEntity> entityFetcher
+		@Nonnull Supplier<ServerBinaryEntityDecorator> entityFetcher
 	) {
 		final LongHashFunction hashFunction = CacheSupervisor.createHashFunction();
 		final String catalogName = evitaSession.getCatalogName();
@@ -337,11 +338,11 @@ public class CacheAnteroom {
 				.orElse(0),
 			minimalComplexityThreshold
 		);
-		final BinaryEntity cachedResult = cacheEden.getCachedRecord(
-			evitaSession, catalogName, entityType, entityWrapper, BinaryEntity.class, recordHash
+		final ServerBinaryEntityDecorator cachedResult = cacheEden.getCachedRecord(
+			evitaSession, catalogName, entityType, entityWrapper, ServerBinaryEntityDecorator.class, recordHash
 		);
 		if (cachedResult == null) {
-			final BinaryEntity entity = entityFetcher.get();
+			final ServerBinaryEntityDecorator entity = entityFetcher.get();
 			final AtomicBoolean enlarged = new AtomicBoolean(false);
 			final ConcurrentHashMap<Long, CacheRecordAdept> currentCacheAdepts = this.cacheAdepts.get();
 			final CacheRecordAdept cacheRecordAdept = currentCacheAdepts.computeIfAbsent(

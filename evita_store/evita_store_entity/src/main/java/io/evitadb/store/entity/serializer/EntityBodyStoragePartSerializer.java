@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -72,6 +72,8 @@ public class EntityBodyStoragePartSerializer extends Serializer<EntityBodyStorag
 
 	@Override
 	public EntityBodyStoragePart read(Kryo kryo, Input input, Class<? extends EntityBodyStoragePart> type) {
+		final long totalBefore = input.total();
+
 		final int version = input.readVarInt(true);
 		final int entityPrimaryKey = input.readInt();
 		final Integer hierarchicalPlacement = kryo.readObjectOrNull(input, Integer.class);
@@ -93,7 +95,11 @@ public class EntityBodyStoragePartSerializer extends Serializer<EntityBodyStorag
 		for (int i = 0; i < associatedDataKeyCount; i++) {
 			associatedDataKeys.add(keyCompressor.getKeyForId(input.readVarInt(true)));
 		}
-		return new EntityBodyStoragePart(version, entityPrimaryKey, hierarchicalPlacement, locales, attributeLocales, associatedDataKeys);
+		return new EntityBodyStoragePart(
+			version, entityPrimaryKey, hierarchicalPlacement,
+			locales, attributeLocales, associatedDataKeys,
+			Math.toIntExact(input.total() - totalBefore)
+		);
 	}
 
 }

@@ -40,6 +40,7 @@ import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.OptionalInt;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -52,7 +53,7 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @NotThreadSafe
-@EqualsAndHashCode(exclude = {"dirty", "initialRevision"})
+@EqualsAndHashCode(exclude = {"dirty", "initialRevision", "sizeInBytes"})
 @ToString(exclude = {"dirty", "initialRevision"})
 public class EntityBodyStoragePart implements EntityStoragePart {
 	@Serial private static final long serialVersionUID = 34998825794290379L;
@@ -85,6 +86,10 @@ public class EntityBodyStoragePart implements EntityStoragePart {
 	 */
 	@Nonnull private Set<Locale> locales;
 	/**
+	 * Contains information about size of this container in bytes.
+	 */
+	private final int sizeInBytes;
+	/**
 	 * Contains true if anything changed in this container.
 	 */
 	@Getter @Setter private boolean dirty;
@@ -106,6 +111,7 @@ public class EntityBodyStoragePart implements EntityStoragePart {
 		this.associatedDataKeys = new LinkedHashSet<>();
 		this.dirty = true;
 		this.initialRevision = true;
+		this.sizeInBytes = -1;
 	}
 
 	public EntityBodyStoragePart(
@@ -114,7 +120,8 @@ public class EntityBodyStoragePart implements EntityStoragePart {
 		@Nullable Integer parent,
 		@Nonnull Set<Locale> locales,
 		@Nonnull Set<Locale> attributeLocales,
-		@Nonnull Set<AssociatedDataKey> associatedDataKeys
+		@Nonnull Set<AssociatedDataKey> associatedDataKeys,
+		int sizeInBytes
 	) {
 		this.version = version;
 		this.primaryKey = primaryKey;
@@ -123,6 +130,7 @@ public class EntityBodyStoragePart implements EntityStoragePart {
 		this.attributeLocales = attributeLocales;
 		this.associatedDataKeys = associatedDataKeys;
 		this.initialRevision = false;
+		this.sizeInBytes = sizeInBytes;
 	}
 
 	@Nullable
@@ -144,6 +152,12 @@ public class EntityBodyStoragePart implements EntityStoragePart {
 	@Override
 	public boolean isEmpty() {
 		return markedForRemoval;
+	}
+
+	@Nonnull
+	@Override
+	public OptionalInt sizeInBytes() {
+		return sizeInBytes == -1 ? OptionalInt.empty() : OptionalInt.of(sizeInBytes);
 	}
 
 	/**

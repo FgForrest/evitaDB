@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,6 +24,9 @@
 package io.evitadb.store.model;
 
 import io.evitadb.api.requestResponse.data.structure.Entity;
+
+import javax.annotation.Nonnull;
+import java.util.OptionalInt;
 
 /**
  * Implementations of this interface represents parts of the {@link Entity} object that
@@ -50,4 +53,14 @@ public interface EntityStoragePart extends StoragePart {
 	 * Returns true if contents of the part are effectively empty and may be removed from the data storage.
 	 */
 	boolean isEmpty();
+
+	/**
+	 * Returns size in Bytes of the serialized form of the storage part. Might be empty if the storage part was not
+	 * fetched from the storage, but was created and it's waiting for its persistence.
+	 *
+	 * @return size in Bytes of the serialized form of the storage part
+	 */
+	@Nonnull
+	OptionalInt sizeInBytes();
+
 }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,9 +23,9 @@
 
 package io.evitadb.core.cache.payload;
 
-import io.evitadb.api.requestResponse.data.structure.BinaryEntity;
 import io.evitadb.core.cache.CacheEden;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.response.ServerBinaryEntityDecorator;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
 import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
@@ -54,7 +54,7 @@ public class BinaryEntityComputationalObjectAdapter implements TransactionalData
 	 * The logic that executed the factual entity fetch from the persistent datastore. The supplier will never be called
 	 * providing the entity is found in the cache.
 	 */
-	@Nonnull private final Supplier<BinaryEntity> entityFetcher;
+	@Nonnull private final Supplier<ServerBinaryEntityDecorator> entityFetcher;
 	/**
 	 * Contains the count of requested {@link io.evitadb.api.query.require.EntityContentRequire} that control how many
 	 * containers would have to be fetched from the persistent storage in order to supply rich enough entity for
@@ -141,7 +141,7 @@ public class BinaryEntityComputationalObjectAdapter implements TransactionalData
 	 * Method will fetch the factual entity from the persistent datastore.
 	 */
 	@Nullable
-	public BinaryEntity fetchEntity() {
+	public ServerBinaryEntityDecorator fetchEntity() {
 		return entityFetcher.get();
 	}
 
