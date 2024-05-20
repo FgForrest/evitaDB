@@ -29,6 +29,7 @@ import io.evitadb.core.metric.event.query.EntityEnrichEvent;
 import io.evitadb.core.metric.event.query.EntityFetchEvent;
 import io.evitadb.core.metric.event.query.QueryFinishedEvent;
 import io.evitadb.core.metric.event.session.SessionClosedEvent;
+import io.evitadb.core.metric.event.session.SessionKilledEvent;
 import io.evitadb.core.metric.event.session.SessionOpenedEvent;
 import io.evitadb.core.metric.event.storage.*;
 import io.evitadb.core.metric.event.transaction.*;
@@ -88,7 +89,8 @@ public class EvitaJfrEventRegistry {
 
 		// session events
 		SessionOpenedEvent.class,
-		SessionClosedEvent.class
+		SessionClosedEvent.class,
+		SessionKilledEvent.class
 	);
 	private static final Map<String, Class<? extends CustomMetricsExecutionEvent>> EVENT_MAP;
 	private static final Map<String, Set<Class<? extends CustomMetricsExecutionEvent>>> EVENT_MAP_BY_PACKAGE;
