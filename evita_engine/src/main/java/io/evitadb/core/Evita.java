@@ -59,7 +59,9 @@ import io.evitadb.core.cache.NoCacheSupervisor;
 import io.evitadb.core.exception.CatalogCorruptedException;
 import io.evitadb.core.maintenance.SessionKiller;
 import io.evitadb.core.metric.event.storage.EvitaDBCompositionChangedEvent;
+import io.evitadb.core.metric.event.system.EvitaStartedEvent;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.scheduling.BackgroundTask;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.scheduling.RejectingExecutor;
 import io.evitadb.scheduling.Scheduler;
@@ -240,33 +242,38 @@ public final class Evita implements EvitaContract {
 		final CountDownLatch startUpLatch = new CountDownLatch(directories.length);
 		for (Path directory : directories) {
 			final String catalogName = directory.toFile().getName();
-			this.executor.execute(() -> {
-				try {
-					final long start = System.nanoTime();
-					final CatalogContract catalog = new Catalog(
-						catalogName,
-						directory,
-						this.cacheSupervisor,
-						this.configuration.storage(),
-						this.configuration.transaction(),
-						this.reflectionLookup,
-						this.scheduler,
-						this::replaceCatalogReference,
-						this.tracingContext
-					);
-					log.info("Catalog {} fully loaded in: {}", catalogName, StringUtils.formatNano(System.nanoTime() - start));
-					// this will be one day used in more clever way, when entire catalog loading will be split into
-					// multiple smaller tasks and done asynchronously after the startup (along with catalog loading / unloading feature)
-					catalog.processWriteAheadLog(
-						updatedCatalog -> this.catalogs.put(catalogName, updatedCatalog)
-					);
-				} catch (Throwable ex) {
-					log.error("Catalog {} is corrupted!", catalogName, ex);
-					this.catalogs.put(catalogName, new CorruptedCatalog(catalogName, directory, ex));
-				} finally {
-					startUpLatch.countDown();
-				}
-			});
+			this.executor.execute(
+				new BackgroundTask(
+					catalogName, "Catalog loader",
+					() -> {
+						try {
+							final long start = System.nanoTime();
+							final CatalogContract catalog = new Catalog(
+								catalogName,
+								directory,
+								this.cacheSupervisor,
+								this.configuration.storage(),
+								this.configuration.transaction(),
+								this.reflectionLookup,
+								this.scheduler,
+								this::replaceCatalogReference,
+								this.tracingContext
+							);
+							log.info("Catalog {} fully loaded in: {}", catalogName, StringUtils.formatNano(System.nanoTime() - start));
+							// this will be one day used in more clever way, when entire catalog loading will be split into
+							// multiple smaller tasks and done asynchronously after the startup (along with catalog loading / unloading feature)
+							catalog.processWriteAheadLog(
+								updatedCatalog -> this.catalogs.put(catalogName, updatedCatalog)
+							);
+						} catch (Throwable ex) {
+							log.error("Catalog {} is corrupted!", catalogName, ex);
+							this.catalogs.put(catalogName, new CorruptedCatalog(catalogName, directory, ex));
+						} finally {
+							startUpLatch.countDown();
+						}
+					}
+				)
+			);
 		}
 
 		try {
@@ -288,6 +295,10 @@ public final class Evita implements EvitaContract {
 			.filter(CatalogStructuralChangeObserverWithEvitaContractCallback.class::isInstance)
 			.map(CatalogStructuralChangeObserverWithEvitaContractCallback.class::cast)
 			.forEach(it -> it.onInit(this));
+
+		// emit the event
+		new EvitaStartedEvent(configuration)
+			.commit();
 	}
 
 	/**

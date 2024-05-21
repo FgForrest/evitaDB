@@ -21,31 +21,25 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.metric.event.session;
+package io.evitadb.core.metric.event.system;
 
-import io.evitadb.core.metric.annotation.EventGroup;
-import io.evitadb.core.metric.event.CatalogRelatedEvent;
-import io.evitadb.core.metric.event.CustomMetricsExecutionEvent;
-import jdk.jfr.Category;
-import jdk.jfr.Label;
-import jdk.jfr.Name;
+import io.evitadb.core.metric.annotation.ExportMetricLabel;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
+
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 /**
- * This event is base class for all session related events.
+ * This event is base class for all background task related events.
  */
-@EventGroup(AbstractSessionEvent.PACKAGE_NAME)
-@Category({"evitaDB", "Session"})
-@RequiredArgsConstructor
 @Getter
-abstract class AbstractSessionEvent extends CustomMetricsExecutionEvent implements CatalogRelatedEvent {
-	protected static final String PACKAGE_NAME = "io.evitadb.session";
-	/**
-	 * The name of the catalog the transaction relates to.
-	 */
-	@Label("Catalog")
-	@Name("catalogName")
-	final String catalogName;
+abstract class AbstractBackgroundTaskEvent extends AbstractSystemEvent {
 
+	@ExportMetricLabel("Task name")
+	final String taskName;
+
+	public AbstractBackgroundTaskEvent(@Nullable String catalogName, @Nonnull String taskName) {
+		super(catalogName);
+		this.taskName = taskName;
+	}
 }

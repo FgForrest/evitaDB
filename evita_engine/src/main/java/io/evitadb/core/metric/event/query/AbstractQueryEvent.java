@@ -26,6 +26,7 @@ package io.evitadb.core.metric.event.query;
 import io.evitadb.core.metric.annotation.EventGroup;
 import io.evitadb.core.metric.event.CatalogRelatedEvent;
 import io.evitadb.core.metric.event.CustomMetricsExecutionEvent;
+import jdk.jfr.Category;
 import jdk.jfr.Label;
 import jdk.jfr.Name;
 import lombok.Getter;
@@ -35,6 +36,7 @@ import lombok.RequiredArgsConstructor;
  * This event is base class for all query related events.
  */
 @EventGroup(AbstractQueryEvent.PACKAGE_NAME)
+@Category({"evitaDB", "Query"})
 @RequiredArgsConstructor
 @Getter
 abstract class AbstractQueryEvent extends CustomMetricsExecutionEvent implements CatalogRelatedEvent {

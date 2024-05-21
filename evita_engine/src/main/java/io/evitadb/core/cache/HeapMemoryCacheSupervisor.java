@@ -33,6 +33,7 @@ import io.evitadb.core.query.response.ServerBinaryEntityDecorator;
 import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.core.query.sort.CacheableSorter;
 import io.evitadb.core.query.sort.Sorter;
+import io.evitadb.core.scheduling.BackgroundTask;
 import io.evitadb.scheduling.Scheduler;
 
 import javax.annotation.Nonnull;
@@ -73,7 +74,7 @@ public class HeapMemoryCacheSupervisor implements CacheSupervisor {
 		// initialize function that will frequently evaluate contents of the cache, discard unused entries and introduce
 		// new ones from the CacheAnteroom
 		scheduler.scheduleAtFixedRate(
-			this.cacheAnteroom::evaluateAssociatesSynchronouslyIfNoAdeptsWait,
+			new BackgroundTask("Eden cache gatekeeper", this.cacheAnteroom::evaluateAssociatesSynchronouslyIfNoAdeptsWait),
 			0,
 			cacheOptions.reevaluateEachSeconds(),
 			TimeUnit.SECONDS

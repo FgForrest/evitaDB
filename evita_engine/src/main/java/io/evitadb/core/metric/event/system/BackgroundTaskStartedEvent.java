@@ -21,31 +21,29 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.metric.event.session;
+package io.evitadb.core.metric.event.system;
 
-import io.evitadb.core.metric.annotation.EventGroup;
-import io.evitadb.core.metric.event.CatalogRelatedEvent;
-import io.evitadb.core.metric.event.CustomMetricsExecutionEvent;
-import jdk.jfr.Category;
+import io.evitadb.core.metric.annotation.ExportInvocationMetric;
+import jdk.jfr.Description;
 import jdk.jfr.Label;
 import jdk.jfr.Name;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
+
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 /**
- * This event is base class for all session related events.
+ * Event that is fired when a background task is started.
  */
-@EventGroup(AbstractSessionEvent.PACKAGE_NAME)
-@Category({"evitaDB", "Session"})
-@RequiredArgsConstructor
+@Name(AbstractSystemEvent.PACKAGE_NAME + ".BackgroundTaskStartedEvent")
+@Description("Event that is fired when a background task is started.")
+@ExportInvocationMetric(value = "backgroundTaskStartedTotal", label = "Background tasks started")
+@Label("Background task started")
 @Getter
-abstract class AbstractSessionEvent extends CustomMetricsExecutionEvent implements CatalogRelatedEvent {
-	protected static final String PACKAGE_NAME = "io.evitadb.session";
-	/**
-	 * The name of the catalog the transaction relates to.
-	 */
-	@Label("Catalog")
-	@Name("catalogName")
-	final String catalogName;
+public class BackgroundTaskStartedEvent extends AbstractBackgroundTaskEvent {
+
+	public BackgroundTaskStartedEvent(@Nullable String catalogName, @Nonnull String taskName) {
+		super(catalogName, taskName);
+	}
 
 }

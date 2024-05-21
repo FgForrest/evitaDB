@@ -33,9 +33,17 @@ module evita.engine {
 	exports io.evitadb.core.cache;
 	exports io.evitadb.core.cache.payload;
 	exports io.evitadb.core.buffer;
+	exports io.evitadb.core.metric.event;
+	exports io.evitadb.core.metric.annotation;
+	exports io.evitadb.core.metric.event.transaction;
+	exports io.evitadb.core.metric.event.storage;
+	exports io.evitadb.core.metric.event.query;
+	exports io.evitadb.core.metric.event.session;
+	exports io.evitadb.core.metric.event.system;
 	exports io.evitadb.core.query;
 	exports io.evitadb.core.query.response;
 	exports io.evitadb.core.query.algebra.price.filteredPriceRecords;
+	exports io.evitadb.core.query.algebra.price.predicate;
 	exports io.evitadb.core.query.algebra.price.termination;
 	exports io.evitadb.core.query.algebra;
 	exports io.evitadb.core.query.extraResult.translator.histogram.cache;
@@ -58,19 +66,13 @@ module evita.engine {
 	exports io.evitadb.index.relation;
 	exports io.evitadb.index.facet;
 	exports io.evitadb.index.price.model.priceRecord;
+	exports io.evitadb.core.scheduling;
 	exports io.evitadb.store.spi;
 	exports io.evitadb.store.spi.model;
 	exports io.evitadb.store.spi.model.storageParts;
 	exports io.evitadb.store.spi.model.reference;
 	exports io.evitadb.store.spi.model.storageParts.index;
 	exports io.evitadb.store.spi.exception;
-	exports io.evitadb.core.metric.event;
-	exports io.evitadb.core.metric.annotation;
-	exports io.evitadb.core.query.algebra.price.predicate;
-	exports io.evitadb.core.metric.event.transaction;
-	exports io.evitadb.core.metric.event.storage;
-	exports io.evitadb.core.metric.event.query;
-	exports io.evitadb.core.metric.event.session;
 
 	uses CatalogStructuralChangeObserver;
 	uses CatalogPersistenceServiceFactory;

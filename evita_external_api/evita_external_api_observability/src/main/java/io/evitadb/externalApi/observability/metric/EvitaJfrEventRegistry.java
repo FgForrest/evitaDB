@@ -32,6 +32,9 @@ import io.evitadb.core.metric.event.session.SessionClosedEvent;
 import io.evitadb.core.metric.event.session.SessionKilledEvent;
 import io.evitadb.core.metric.event.session.SessionOpenedEvent;
 import io.evitadb.core.metric.event.storage.*;
+import io.evitadb.core.metric.event.system.BackgroundTaskFinishedEvent;
+import io.evitadb.core.metric.event.system.BackgroundTaskStartedEvent;
+import io.evitadb.core.metric.event.system.EvitaStartedEvent;
 import io.evitadb.core.metric.event.transaction.*;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ReflectionLookup;
@@ -90,7 +93,12 @@ public class EvitaJfrEventRegistry {
 		// session events
 		SessionOpenedEvent.class,
 		SessionClosedEvent.class,
-		SessionKilledEvent.class
+		SessionKilledEvent.class,
+
+		// system events
+		EvitaStartedEvent.class,
+		BackgroundTaskStartedEvent.class,
+		BackgroundTaskFinishedEvent.class
 	);
 	private static final Map<String, Class<? extends CustomMetricsExecutionEvent>> EVENT_MAP;
 	private static final Map<String, Set<Class<? extends CustomMetricsExecutionEvent>>> EVENT_MAP_BY_PACKAGE;

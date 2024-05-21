@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.metric.event.session;
+package io.evitadb.core.metric.event.system;
 
 import io.evitadb.core.metric.annotation.EventGroup;
 import io.evitadb.core.metric.event.CatalogRelatedEvent;
@@ -33,14 +33,14 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 /**
- * This event is base class for all session related events.
+ * This event is base class for all system related events.
  */
-@EventGroup(AbstractSessionEvent.PACKAGE_NAME)
-@Category({"evitaDB", "Session"})
+@EventGroup(AbstractSystemEvent.PACKAGE_NAME)
+@Category({"evitaDB", "System"})
 @RequiredArgsConstructor
 @Getter
-abstract class AbstractSessionEvent extends CustomMetricsExecutionEvent implements CatalogRelatedEvent {
-	protected static final String PACKAGE_NAME = "io.evitadb.session";
+abstract class AbstractSystemEvent extends CustomMetricsExecutionEvent implements CatalogRelatedEvent {
+	protected static final String PACKAGE_NAME = "io.evitadb.system";
 	/**
 	 * The name of the catalog the transaction relates to.
 	 */

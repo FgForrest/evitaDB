@@ -21,31 +21,38 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.metric.event.session;
+package io.evitadb.core.metric.event.system;
 
-import io.evitadb.core.metric.annotation.EventGroup;
-import io.evitadb.core.metric.event.CatalogRelatedEvent;
-import io.evitadb.core.metric.event.CustomMetricsExecutionEvent;
-import jdk.jfr.Category;
+import io.evitadb.core.metric.annotation.ExportInvocationMetric;
+import jdk.jfr.Description;
 import jdk.jfr.Label;
 import jdk.jfr.Name;
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
+
+import javax.annotation.Nonnull;
 
 /**
- * This event is base class for all session related events.
+ * Event that is fired when a background task is finished.
  */
-@EventGroup(AbstractSessionEvent.PACKAGE_NAME)
-@Category({"evitaDB", "Session"})
-@RequiredArgsConstructor
-@Getter
-abstract class AbstractSessionEvent extends CustomMetricsExecutionEvent implements CatalogRelatedEvent {
-	protected static final String PACKAGE_NAME = "io.evitadb.session";
+@Name(AbstractSystemEvent.PACKAGE_NAME + ".BackgroundTaskFinishedEvent")
+@Description("Event that is fired when a background task is finished.")
+@ExportInvocationMetric(value = "backgroundTaskFinishedTotal", label = "Background tasks finished")
+@Label("Background task finished")
+public class BackgroundTaskFinishedEvent extends AbstractBackgroundTaskEvent {
+
+	public BackgroundTaskFinishedEvent(@Nonnull String catalogName, @Nonnull String taskName) {
+		super(catalogName, taskName);
+		this.begin();
+	}
+
 	/**
-	 * The name of the catalog the transaction relates to.
+	 * Finish the event.
+	 *
+	 * @return the event
 	 */
-	@Label("Catalog")
-	@Name("catalogName")
-	final String catalogName;
+	@Nonnull
+	public BackgroundTaskFinishedEvent finish() {
+		this.end();
+		return this;
+	}
 
 }

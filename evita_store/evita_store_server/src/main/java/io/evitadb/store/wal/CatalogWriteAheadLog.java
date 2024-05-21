@@ -42,8 +42,8 @@ import io.evitadb.core.metric.event.storage.DataFileCompactEvent;
 import io.evitadb.core.metric.event.storage.FileType;
 import io.evitadb.core.metric.event.transaction.WalCacheSizeChangedEvent;
 import io.evitadb.core.metric.event.transaction.WalRotationEvent;
+import io.evitadb.core.scheduling.DelayedAsyncTask;
 import io.evitadb.exception.UnexpectedIOException;
-import io.evitadb.scheduling.DelayedAsyncTask;
 import io.evitadb.scheduling.Scheduler;
 import io.evitadb.store.exception.WriteAheadLogCorruptedException;
 import io.evitadb.store.kryo.ObservableInput;
@@ -485,7 +485,9 @@ public class CatalogWriteAheadLog implements Closeable {
 	) {
 		this.walFileIndex = getLastWalFileIndex(catalogStoragePath, catalogName);
 		this.cutWalCacheTask = new DelayedAsyncTask(
-			scheduler, this::cutWalCache,
+			catalogName, "WAL cache cutter",
+			scheduler,
+			this::cutWalCache,
 			CUT_WAL_CACHE_AFTER_INACTIVITY_MS, ChronoUnit.MILLIS
 		);
 		this.maxWalFileSizeBytes = transactionOptions.walFileSizeBytes();

@@ -41,6 +41,7 @@ import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
 import io.evitadb.core.query.sort.CacheableSorter;
 import io.evitadb.core.query.sort.Sorter;
+import io.evitadb.core.scheduling.BackgroundTask;
 import io.evitadb.scheduling.Scheduler;
 import io.evitadb.utils.CollectionUtils;
 import lombok.extern.slf4j.Slf4j;
@@ -423,7 +424,9 @@ public class CacheAnteroom {
 			if (synchronously) {
 				this.cacheEden.evaluateAdepts();
 			} else {
-				scheduler.execute(this.cacheEden::evaluateAdepts);
+				this.scheduler.execute(
+					new BackgroundTask("Eden cache gatekeeper", this.cacheEden::evaluateAdepts)
+				);
 			}
 		} catch (RuntimeException e) {
 			// we don't rethrow - it would stop engine, just log error

@@ -26,7 +26,7 @@ package io.evitadb.store.kryo;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.core.metric.event.storage.ObservableOutputChangeEvent;
-import io.evitadb.scheduling.DelayedAsyncTask;
+import io.evitadb.core.scheduling.DelayedAsyncTask;
 import io.evitadb.scheduling.Scheduler;
 import io.evitadb.store.offsetIndex.io.WriteOnlyFileHandle;
 import io.evitadb.utils.Assert;
@@ -99,7 +99,9 @@ public class ObservableOutputKeeper implements AutoCloseable {
 		this.catalogName = catalogName;
 		this.options = options;
 		this.cutTask = new DelayedAsyncTask(
-			scheduler, this::cutOutputCache,
+			catalogName, "Write buffer releaser",
+			scheduler,
+			this::cutOutputCache,
 			CUT_OUTPUTS_AFTER_INACTIVITY_MS, ChronoUnit.MILLIS
 		);
 	}
