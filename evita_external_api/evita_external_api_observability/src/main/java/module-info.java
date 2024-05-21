@@ -83,6 +83,7 @@ module evita.external.api.observability {
 	requires net.bytebuddy;
 	requires org.bouncycastle.provider;
 	requires java.sql;
+	requires evita.external.api.grpc;
 
 	exports io.evitadb.externalApi.observability.configuration;
 	exports io.evitadb.externalApi.observability.trace;
