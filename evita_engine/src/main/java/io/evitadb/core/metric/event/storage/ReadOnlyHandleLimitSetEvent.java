@@ -38,7 +38,7 @@ import javax.annotation.Nonnull;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@Name(AbstractStorageEvent.PACKAGE_NAME + ".ReadOnlyHandleLimitSetEvent")
+@Name(AbstractStorageEvent.PACKAGE_NAME + ".ReadOnlyHandleLimitSet")
 @Description("Event that is fired when a read-only handle limit is set.")
 @Label("Read-only handle limit set")
 @Getter

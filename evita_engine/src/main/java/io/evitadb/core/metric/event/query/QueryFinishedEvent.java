@@ -41,7 +41,7 @@ import javax.annotation.Nullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@Name(AbstractQueryEvent.PACKAGE_NAME + ".QueryFinishedEvent")
+@Name(AbstractQueryEvent.PACKAGE_NAME + ".QueryFinished")
 @Description("Event that is fired when a query is finished.")
 @Label("Catalog finished")
 @ExportInvocationMetric(value = "queryFinished", label = "Query finished")

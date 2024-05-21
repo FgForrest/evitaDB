@@ -33,7 +33,7 @@ import javax.annotation.Nonnull;
 /**
  * Event that is fired when a transaction is started.
  */
-@Name(AbstractTransactionEvent.PACKAGE_NAME + ".TransactionStartedEvent")
+@Name(AbstractTransactionEvent.PACKAGE_NAME + ".TransactionStarted")
 @Description("Event that is fired when a transaction is started.")
 @ExportInvocationMetric(value = "transactionsInitiatedTotal", label = "Transactions initiated")
 @Label("Transaction started")

@@ -27,8 +27,10 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.requestResponse.data.structure.BinaryEntity;
 import io.evitadb.core.cache.model.CacheRecordAdept;
+import io.evitadb.core.cache.model.CacheRecordType;
 import io.evitadb.core.cache.payload.BinaryEntityComputationalObjectAdapter;
 import io.evitadb.core.cache.payload.EntityComputationalObjectAdapter;
+import io.evitadb.core.metric.event.cache.AnteroomRecordStatisticsUpdatedEvent;
 import io.evitadb.core.query.algebra.CacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.NonCacheableFormulaScope;
@@ -56,6 +58,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
@@ -106,12 +109,34 @@ public class CacheAnteroom {
 	 */
 	private final AtomicReference<ConcurrentHashMap<Long, CacheRecordAdept>> cacheAdepts;
 
+	/**
+	 * Method computes long hash for passed `dataStructure`.
+	 */
+	static long computeDataStructureHash(
+		@Nonnull String catalogName,
+		@Nonnull Serializable entityType,
+		@Nonnull TransactionalDataRelatedStructure dataStructure
+	) {
+		final LongHashFunction hashFunction = CacheSupervisor.createHashFunction();
+		return hashFunction.hashLongs(
+			new long[]{
+				hashFunction.hashChars(catalogName),
+				hashFunction.hashChars(entityType.toString()),
+				dataStructure.getHash()
+			}
+		);
+	}
+
 	public CacheAnteroom(int maxRecordCount, long minimalComplexityThreshold, @Nonnull CacheEden cacheEden, @Nonnull Scheduler scheduler) {
 		this.cacheAdepts = new AtomicReference<>(CollectionUtils.createConcurrentHashMap((int) (maxRecordCount * 1.1)));
 		this.cacheEden = cacheEden;
 		this.maxRecordCount = maxRecordCount;
 		this.minimalComplexityThreshold = minimalComplexityThreshold;
 		this.scheduler = scheduler;
+		this.scheduler.scheduleAtFixedRate(
+			this::reportStatistics,
+			1, 1, TimeUnit.MINUTES
+		);
 	}
 
 	/**
@@ -123,21 +148,6 @@ public class CacheAnteroom {
 	 */
 	public void evaluateAssociatesSynchronously() {
 		evaluateAssociates(true);
-	}
-
-	/**
-	 * Hands off {@link #cacheAdepts} via. {@link CacheEden#setNextAdeptsToEvaluate(Map)} for evaluation. It also
-	 * triggers immediate evaluation of those adepts in this thread context, but only if there is no previous map
-	 * of adepts waiting for evaluation.
-	 *
-	 * This method is expected to be used only from {@link HeapMemoryCacheSupervisor} so that we ensure that the adepts
-	 * are processed even if the map is not getting filled fast enough, but also avoid overheating the evaluation
-	 * process.
-	 */
-	void evaluateAssociatesSynchronouslyIfNoAdeptsWait() {
-		if (!cacheEden.isAdeptsWaitingForEvaluation()) {
-			evaluateAssociates(true);
-		}
 	}
 
 	/**
@@ -285,6 +295,7 @@ public class CacheAnteroom {
 					recordHash, fHash -> {
 						enlarged.set(true);
 						return new CacheRecordAdept(
+							CacheRecordType.ENTITY,
 							fHash,
 							entityWrapper.getCostToPerformanceRatio(),
 							1,
@@ -350,6 +361,7 @@ public class CacheAnteroom {
 				recordHash, fHash -> {
 					enlarged.set(true);
 					return new CacheRecordAdept(
+						CacheRecordType.ENTITY,
 						fHash,
 						entityWrapper.getCostToPerformanceRatio(),
 						1,
@@ -368,6 +380,21 @@ public class CacheAnteroom {
 	}
 
 	/**
+	 * Hands off {@link #cacheAdepts} via. {@link CacheEden#setNextAdeptsToEvaluate(Map)} for evaluation. It also
+	 * triggers immediate evaluation of those adepts in this thread context, but only if there is no previous map
+	 * of adepts waiting for evaluation.
+	 *
+	 * This method is expected to be used only from {@link HeapMemoryCacheSupervisor} so that we ensure that the adepts
+	 * are processed even if the map is not getting filled fast enough, but also avoid overheating the evaluation
+	 * process.
+	 */
+	void evaluateAssociatesSynchronouslyIfNoAdeptsWait() {
+		if (!cacheEden.isAdeptsWaitingForEvaluation()) {
+			evaluateAssociates(true);
+		}
+	}
+
+	/**
 	 * Method returns {@link CacheRecordAdept} for passed `dataStructure`.
 	 * The key is the {@link TransactionalDataRelatedStructure#getHash()}.
 	 */
@@ -380,27 +407,17 @@ public class CacheAnteroom {
 		return cacheAdepts.get().get(computeDataStructureHash(catalogName, entityType, dataStructure));
 	}
 
-	/**
-	 * Method computes long hash for passed `dataStructure`.
-	 */
-	static long computeDataStructureHash(
-		@Nonnull String catalogName,
-		@Nonnull Serializable entityType,
-		@Nonnull TransactionalDataRelatedStructure dataStructure
-	) {
-		final LongHashFunction hashFunction = CacheSupervisor.createHashFunction();
-		return hashFunction.hashLongs(
-			new long[]{
-				hashFunction.hashChars(catalogName),
-				hashFunction.hashChars(entityType.toString()),
-				dataStructure.getHash()
-			}
-		);
-	}
-
 	/*
 		PRIVATE METHODS
 	 */
+
+	/**
+	 * Method reports statistics about the number of adepts waiting in the anteroom.
+	 */
+	private void reportStatistics() {
+		final ConcurrentHashMap<Long, CacheRecordAdept> anteroom = this.cacheAdepts.get();
+		new AnteroomRecordStatisticsUpdatedEvent(anteroom == null ? 0 : anteroom.size()).commit();
+	}
 
 	/**
 	 * Hands off {@link #cacheAdepts} via. {@link CacheEden#setNextAdeptsToEvaluate(Map)} for evaluation. It also
@@ -436,7 +453,7 @@ public class CacheAnteroom {
 
 	/**
 	 * Method will check whether the `inputFormula` is already registered in {@link #cacheAdepts} and if so, it's immediately
-	 * returned. If not - new clone is created and {@link #recordDataOnComputationCompletion(long, int, long)}
+	 * returned. If not - new clone is created and {@link #recordDataOnComputationCompletion(CacheRecordType, long, int, long)}
 	 * is introduced to it so that critical information are filled in on first result computation.
 	 *
 	 * If new cache adept is created it's checked whether the number of adepts exceeds {@link #maxRecordCount} and if
@@ -448,7 +465,6 @@ public class CacheAnteroom {
 		@Nonnull CacheableFormula inputFormula,
 		long formulaHash
 	) {
-		/* TOBEDONE JNO - the cache adept is not registered?! */
 		final ConcurrentHashMap<Long, CacheRecordAdept> currentCacheAdepts = this.cacheAdepts.get();
 		final CacheRecordAdept cacheFormulaAdept = currentCacheAdepts.get(formulaHash);
 		if (cacheFormulaAdept == null) {
@@ -459,6 +475,7 @@ public class CacheAnteroom {
 			} else {
 				return inputFormula.getCloneWithComputationCallback(
 					self -> recordDataOnComputationCompletion(
+						CacheRecordType.FORMULA,
 						formulaHash,
 						self.getSerializableFormulaSizeEstimate(),
 						self.getCostToPerformanceRatio()
@@ -474,7 +491,7 @@ public class CacheAnteroom {
 
 	/**
 	 * Method will check whether the `extraResult` is already registered in {@link #cacheAdepts} and if so, it's immediately
-	 * returned. If not - new clone is created and {@link #recordDataOnComputationCompletion(long, int, long)}
+	 * returned. If not - new clone is created and {@link #recordDataOnComputationCompletion(CacheRecordType, long, int, long)}
 	 * is introduced to it so that critical information are filled in on first result computation.
 	 *
 	 * If new cache adept is created it's checked whether the number of adepts exceeds {@link #maxRecordCount} and if
@@ -485,12 +502,12 @@ public class CacheAnteroom {
 		@Nonnull CacheableEvitaResponseExtraResultComputer<?> extraResult,
 		long extraResultHash
 	) {
-		/* TOBEDONE JNO - the cache adept is not registered?! */
 		final ConcurrentHashMap<Long, CacheRecordAdept> currentCacheAdepts = this.cacheAdepts.get();
 		final CacheRecordAdept cacheRecordAdept = currentCacheAdepts.get(extraResultHash);
 		if (cacheRecordAdept == null) {
 			return extraResult.getCloneWithComputationCallback(
 				self -> recordDataOnComputationCompletion(
+					CacheRecordType.EXTRA_RESULT,
 					extraResultHash,
 					self.getSerializableResultSizeEstimate(),
 					self.getCostToPerformanceRatio()
@@ -504,7 +521,7 @@ public class CacheAnteroom {
 
 	/**
 	 * Method will check whether the `extraResult` is already registered in {@link #cacheAdepts} and if so, it's immediately
-	 * returned. If not - new clone is created and {@link #recordDataOnComputationCompletion(long, int, long)}
+	 * returned. If not - new clone is created and {@link #recordDataOnComputationCompletion(CacheRecordType, long, int, long)}
 	 * is introduced to it so that critical information are filled in on first result computation.
 	 *
 	 * If new cache adept is created it's checked whether the number of adepts exceeds {@link #maxRecordCount} and if
@@ -515,12 +532,12 @@ public class CacheAnteroom {
 		@Nonnull CacheableSorter cacheableSorter,
 		long extraResultHash
 	) {
-		/* TOBEDONE JNO - the cache adept is not registered?! */
 		final ConcurrentHashMap<Long, CacheRecordAdept> currentCacheAdepts = this.cacheAdepts.get();
 		final CacheRecordAdept cacheRecordAdept = currentCacheAdepts.get(extraResultHash);
 		if (cacheRecordAdept == null) {
 			return cacheableSorter.getCloneWithComputationCallback(
 				self -> recordDataOnComputationCompletion(
+					CacheRecordType.SORTED_RESULT,
 					extraResultHash,
 					self.getSerializableResultSizeEstimate(),
 					self.getCostToPerformanceRatio()
@@ -538,13 +555,19 @@ public class CacheAnteroom {
 	 * the cost to performance ration - i.e. how much memory we'll pay for how big performance gain. This number is
 	 * the key aspect for deciding whether this data structure is worth caching.
 	 */
-	private void recordDataOnComputationCompletion(long formulaHash, int estimatedMemorySize, long costToPerformanceRatio) {
+	private void recordDataOnComputationCompletion(
+		@Nonnull CacheRecordType recordType,
+		long formulaHash,
+		int estimatedMemorySize,
+		long costToPerformanceRatio
+	) {
 		final ConcurrentHashMap<Long, CacheRecordAdept> currentCacheAdepts = this.cacheAdepts.get();
 		currentCacheAdepts.compute(
 			formulaHash,
 			(fHash, existingCacheRecordAdept) -> {
 				if (existingCacheRecordAdept == null) {
 					return new CacheRecordAdept(
+						recordType,
 						formulaHash,
 						costToPerformanceRatio,
 						1,

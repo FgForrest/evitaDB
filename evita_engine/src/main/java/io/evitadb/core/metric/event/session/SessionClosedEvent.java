@@ -39,7 +39,7 @@ import java.time.OffsetDateTime;
 /**
  * Event that is fired when a transaction is started.
  */
-@Name(AbstractSessionEvent.PACKAGE_NAME + ".SessionClosedEvent")
+@Name(AbstractSessionEvent.PACKAGE_NAME + ".SessionClosed")
 @Description("Event that is fired when a session is closed.")
 @ExportInvocationMetric(value = "sessionsClosedTotal", label = "Sessions closed")
 @ExportDurationMetric(value = "sessionDurationMilliseconds", label = "Session lifespan duration in milliseconds")

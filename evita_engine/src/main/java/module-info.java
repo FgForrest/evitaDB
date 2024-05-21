@@ -35,11 +35,12 @@ module evita.engine {
 	exports io.evitadb.core.buffer;
 	exports io.evitadb.core.metric.event;
 	exports io.evitadb.core.metric.annotation;
-	exports io.evitadb.core.metric.event.transaction;
-	exports io.evitadb.core.metric.event.storage;
+	exports io.evitadb.core.metric.event.cache;
 	exports io.evitadb.core.metric.event.query;
 	exports io.evitadb.core.metric.event.session;
+	exports io.evitadb.core.metric.event.storage;
 	exports io.evitadb.core.metric.event.system;
+	exports io.evitadb.core.metric.event.transaction;
 	exports io.evitadb.core.query;
 	exports io.evitadb.core.query.response;
 	exports io.evitadb.core.query.algebra.price.filteredPriceRecords;
@@ -99,4 +100,5 @@ module evita.engine {
 	opens io.evitadb.core.metric.event to evita.common;
 	opens io.evitadb.core.metric.event.transaction to jdk.jfr;
 	opens io.evitadb.core.metric.event.storage to jdk.jfr;
+	exports io.evitadb.core.cache.model;
 }

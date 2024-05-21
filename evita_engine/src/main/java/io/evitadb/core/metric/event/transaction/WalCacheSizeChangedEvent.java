@@ -37,7 +37,7 @@ import javax.annotation.Nonnull;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@Name(AbstractTransactionEvent.PACKAGE_NAME + ".WalCacheSizeChangedEvent")
+@Name(AbstractTransactionEvent.PACKAGE_NAME + ".WalCacheSizeChanged")
 @Description("Event that is fired when a shared WAL location cache size is changed.")
 @Label("WAL cache size changed")
 @Getter

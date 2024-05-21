@@ -38,7 +38,7 @@ import lombok.Getter;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @EventGroup(AbstractStorageEvent.PACKAGE_NAME)
-@Name(AbstractStorageEvent.PACKAGE_NAME + ".EvitaDBCompositionChangedEvent")
+@Name(AbstractStorageEvent.PACKAGE_NAME + ".EvitaDBCompositionChanged")
 @Description("Event that is fired when evitaDB composition changes.")
 @Label("Evita composition changed")
 @Getter

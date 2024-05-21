@@ -36,7 +36,7 @@ import javax.annotation.Nonnull;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@Name(AbstractStorageEvent.PACKAGE_NAME + ".ReadOnlyHandleClosedEvent")
+@Name(AbstractStorageEvent.PACKAGE_NAME + ".ReadOnlyHandleClosed")
 @Description("Event that is fired when a file read handle is closed.")
 @Label("File read handles closed")
 @ExportInvocationMetric(value = "readOnlyHandleClosedTotal", label = "Closed file read handles.")

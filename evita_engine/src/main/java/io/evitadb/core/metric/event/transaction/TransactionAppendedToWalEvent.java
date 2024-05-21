@@ -39,7 +39,7 @@ import javax.annotation.Nonnull;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@Name(AbstractTransactionEvent.PACKAGE_NAME + ".TransactionAppendedToWalEvent")
+@Name(AbstractTransactionEvent.PACKAGE_NAME + ".TransactionAppendedToWal")
 @Description("Event that is fired when a transaction passed conflict resolution stage.")
 @Label("Transaction appended to WAL")
 @ExportDurationMetric(value = "appendToWalDurationMilliseconds", label = "Appending transaction to shared WAL duration in milliseconds")

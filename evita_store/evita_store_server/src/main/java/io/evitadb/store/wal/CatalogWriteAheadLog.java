@@ -78,7 +78,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.time.OffsetDateTime;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -87,6 +86,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
@@ -488,7 +488,7 @@ public class CatalogWriteAheadLog implements Closeable {
 			catalogName, "WAL cache cutter",
 			scheduler,
 			this::cutWalCache,
-			CUT_WAL_CACHE_AFTER_INACTIVITY_MS, ChronoUnit.MILLIS
+			CUT_WAL_CACHE_AFTER_INACTIVITY_MS, TimeUnit.MILLISECONDS
 		);
 		this.maxWalFileSizeBytes = transactionOptions.walFileSizeBytes();
 		this.walFileCountKept = transactionOptions.walFileCountKept();

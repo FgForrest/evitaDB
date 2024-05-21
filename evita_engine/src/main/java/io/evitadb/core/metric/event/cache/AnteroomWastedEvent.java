@@ -21,28 +21,21 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.metric.event.transaction;
+package io.evitadb.core.metric.event.cache;
 
 import io.evitadb.core.metric.annotation.ExportInvocationMetric;
 import jdk.jfr.Description;
 import jdk.jfr.Label;
 import jdk.jfr.Name;
 
-import javax.annotation.Nonnull;
-
 /**
- * Event that is fired when a file for isolated WAL storage is closed and deleted.
+ * Event that is fired when an entire anteroom contents were thrown away.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@Name(AbstractTransactionEvent.PACKAGE_NAME + ".ReadOnlyHandleClosed")
-@Description("Event that is fired when a file for isolated WAL storage is closed and deleted.")
-@Label("Isolated WAL file closed")
-@ExportInvocationMetric(value = "isolatedWalClosedTotal", label = "Closed files for isolated WAL storage.")
-public class IsolatedWalFileClosedEvent extends AbstractTransactionEvent {
-
-	public IsolatedWalFileClosedEvent(@Nonnull String catalogName) {
-		super(catalogName);
-	}
-
+@Name(AbstractCacheEvent.PACKAGE_NAME + ".AnteroomWasted")
+@Description("Event that is fired when an entire anteroom contents were thrown away.")
+@ExportInvocationMetric(value = "anteroomWastedTotal", label = "Anteroom wasted total")
+@Label("Anteroom wasted")
+public class AnteroomWastedEvent extends AbstractCacheEvent {
 }

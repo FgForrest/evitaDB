@@ -37,7 +37,7 @@ import javax.annotation.Nonnull;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@Name(AbstractStorageEvent.PACKAGE_NAME + ".DataFileCompactEvent")
+@Name(AbstractStorageEvent.PACKAGE_NAME + ".DataFileCompact")
 @Description("Event that is fired when an OffsetIndex file is compacted.")
 @Label("OffsetIndex compaction")
 @ExportDurationMetric(value = "offsetIndexCompactionDuration", label = "Duration of OffsetIndex compaction.")

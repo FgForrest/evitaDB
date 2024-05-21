@@ -27,18 +27,16 @@ import io.evitadb.core.metric.annotation.ExportInvocationMetric;
 import jdk.jfr.Description;
 import jdk.jfr.Label;
 import jdk.jfr.Name;
-import lombok.Getter;
 
 import javax.annotation.Nonnull;
 
 /**
  * Event that is fired when a transaction is started.
  */
-@Name(AbstractSessionEvent.PACKAGE_NAME + ".SessionKilledEvent")
+@Name(AbstractSessionEvent.PACKAGE_NAME + ".SessionKilled")
 @Description("Event that is fired when a session is killed due to timeout.")
 @ExportInvocationMetric(value = "sessionsKilledTotal", label = "Sessions killed")
 @Label("Session killed")
-@Getter
 public class SessionKilledEvent extends AbstractSessionEvent {
 
 	public SessionKilledEvent(@Nonnull String catalogName) {

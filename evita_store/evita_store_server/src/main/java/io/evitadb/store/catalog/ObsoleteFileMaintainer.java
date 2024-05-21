@@ -33,10 +33,10 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Closeable;
 import java.nio.file.Path;
-import java.time.temporal.ChronoUnit;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -95,7 +95,7 @@ public class ObsoleteFileMaintainer implements CatalogVersionBeyondTheHorizonLis
 			catalogName, "Obsolete files purger",
 			scheduler,
 			this::purgeObsoleteFiles,
-			0L, ChronoUnit.MILLIS
+			0L, TimeUnit.MILLISECONDS
 		);
 	}
 

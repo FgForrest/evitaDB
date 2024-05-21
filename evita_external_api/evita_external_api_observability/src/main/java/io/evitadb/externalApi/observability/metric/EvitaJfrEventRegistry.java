@@ -25,6 +25,8 @@ package io.evitadb.externalApi.observability.metric;
 
 import io.evitadb.core.metric.annotation.EventGroup;
 import io.evitadb.core.metric.event.CustomMetricsExecutionEvent;
+import io.evitadb.core.metric.event.cache.AnteroomRecordStatisticsUpdatedEvent;
+import io.evitadb.core.metric.event.cache.AnteroomWastedEvent;
 import io.evitadb.core.metric.event.query.EntityEnrichEvent;
 import io.evitadb.core.metric.event.query.EntityFetchEvent;
 import io.evitadb.core.metric.event.query.QueryFinishedEvent;
@@ -98,7 +100,11 @@ public class EvitaJfrEventRegistry {
 		// system events
 		EvitaStartedEvent.class,
 		BackgroundTaskStartedEvent.class,
-		BackgroundTaskFinishedEvent.class
+		BackgroundTaskFinishedEvent.class,
+
+		//cache
+		AnteroomRecordStatisticsUpdatedEvent.class,
+		AnteroomWastedEvent.class
 	);
 	private static final Map<String, Class<? extends CustomMetricsExecutionEvent>> EVENT_MAP;
 	private static final Map<String, Set<Class<? extends CustomMetricsExecutionEvent>>> EVENT_MAP_BY_PACKAGE;

@@ -37,7 +37,7 @@ import javax.annotation.Nonnull;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@Name(AbstractTransactionEvent.PACKAGE_NAME + ".NewCatalogVersionPropagatedEvent")
+@Name(AbstractTransactionEvent.PACKAGE_NAME + ".NewCatalogVersionPropagated")
 @Description("Event that is fired when a new catalog version is propagated shared view.")
 @Label("New catalog version propagated")
 @ExportDurationMetric(value = "propagationDurationMilliseconds", label = "New catalog version propagation duration in milliseconds")

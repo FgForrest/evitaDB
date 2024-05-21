@@ -41,7 +41,7 @@ import java.time.OffsetDateTime;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@Name(AbstractTransactionEvent.PACKAGE_NAME + ".WalRotationEvent")
+@Name(AbstractTransactionEvent.PACKAGE_NAME + ".WalRotation")
 @Description("Event that is fired when a shared WAL is rotated.")
 @Label("WAL rotated")
 @ExportDurationMetric(value = "walRotationDurationMilliseconds", label = "WAL rotation duration in milliseconds")

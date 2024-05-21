@@ -21,28 +21,22 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.metric.event.transaction;
+package io.evitadb.core.metric.event.cache;
 
-import io.evitadb.core.metric.annotation.ExportInvocationMetric;
-import jdk.jfr.Description;
-import jdk.jfr.Label;
-import jdk.jfr.Name;
-
-import javax.annotation.Nonnull;
+import io.evitadb.core.metric.annotation.EventGroup;
+import io.evitadb.core.metric.event.CustomMetricsExecutionEvent;
+import jdk.jfr.Category;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 
 /**
- * Event that is fired when a file for isolated WAL storage is closed and deleted.
- *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
+ * This event is base class for all cache related events.
  */
-@Name(AbstractTransactionEvent.PACKAGE_NAME + ".ReadOnlyHandleClosed")
-@Description("Event that is fired when a file for isolated WAL storage is closed and deleted.")
-@Label("Isolated WAL file closed")
-@ExportInvocationMetric(value = "isolatedWalClosedTotal", label = "Closed files for isolated WAL storage.")
-public class IsolatedWalFileClosedEvent extends AbstractTransactionEvent {
-
-	public IsolatedWalFileClosedEvent(@Nonnull String catalogName) {
-		super(catalogName);
-	}
+@EventGroup(AbstractCacheEvent.PACKAGE_NAME)
+@Category({"evitaDB", "Cache"})
+@RequiredArgsConstructor
+@Getter
+abstract class AbstractCacheEvent extends CustomMetricsExecutionEvent {
+	protected static final String PACKAGE_NAME = "io.evitadb.cache";
 
 }

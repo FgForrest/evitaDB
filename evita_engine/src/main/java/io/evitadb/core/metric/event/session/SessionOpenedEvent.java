@@ -33,7 +33,7 @@ import javax.annotation.Nonnull;
 /**
  * Event that is fired when a transaction is started.
  */
-@Name(AbstractSessionEvent.PACKAGE_NAME + ".SessionOpenedEvent")
+@Name(AbstractSessionEvent.PACKAGE_NAME + ".SessionOpened")
 @Description("Event that is fired when a session is started.")
 @ExportInvocationMetric(value = "sessionsOpenedTotal", label = "Sessions opened")
 @Label("Session opened")

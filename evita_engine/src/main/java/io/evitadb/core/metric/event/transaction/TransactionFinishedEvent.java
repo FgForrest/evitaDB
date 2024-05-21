@@ -40,7 +40,7 @@ import java.time.OffsetDateTime;
 /**
  * Event that is fired when a transaction is finished (either committed or rolled back).
  */
-@Name(AbstractTransactionEvent.PACKAGE_NAME + ".TransactionFinishedEvent")
+@Name(AbstractTransactionEvent.PACKAGE_NAME + ".TransactionFinished")
 @Label("Transaction finished")
 @ExportDurationMetric(value = "transactionDurationMilliseconds", label = "Transaction lifespan duration in milliseconds")
 @ExportInvocationMetric(value = "transactionsFinishedTotal", label = "Transactions finished")

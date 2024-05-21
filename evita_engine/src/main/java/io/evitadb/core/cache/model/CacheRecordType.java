@@ -21,30 +21,42 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.metric.event.storage;
+package io.evitadb.core.cache.model;
 
-import io.evitadb.core.metric.annotation.ExportInvocationMetric;
-import jdk.jfr.Description;
-import jdk.jfr.Label;
-import jdk.jfr.Name;
+import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.utils.BitUtils;
 import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 
 /**
- * Event that is fired when a new file read handle is opened.
- *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
+ * Type of record in cache.
  */
-@Name(AbstractStorageEvent.PACKAGE_NAME + ".ReadOnlyHandleOpened")
-@Description("Event that is fired when a new file read handle is opened.")
-@Label("File read handles opened")
-@ExportInvocationMetric(value = "readOnlyHandleOpenedTotal", label = "Opened file read handles.")
 @Getter
-public class ReadOnlyHandleOpenedEvent extends AbstractDataFileEvent {
+@RequiredArgsConstructor
+public enum CacheRecordType {
 
-	public ReadOnlyHandleOpenedEvent(@Nonnull String catalogName, @Nonnull FileType fileType, @Nonnull String name) {
-		super(catalogName, fileType, name);
+	FORMULA((byte) 7), SORTED_RESULT((byte) 6), EXTRA_RESULT((byte) 5), ENTITY((byte) 4);
+
+	/**
+	 * Offset of the flat in bitmask.
+	 */
+	private final byte offset;
+
+	/**
+	 * Extracts the cache record type from the bitset byte.
+	 * @param flags bitset byte
+	 * @return cache record type
+	 * @throws GenericEvitaInternalError if the flags do not represent any known cache record type
+	 */
+	@Nonnull
+	public static CacheRecordType fromBitset(byte flags) {
+		for (CacheRecordType value : values()) {
+			if (BitUtils.isBitSet(flags, value.getOffset())) {
+				return value;
+			}
+		}
+		throw new GenericEvitaInternalError("Unknown cache record type: " + flags);
 	}
-
 }

@@ -21,10 +21,12 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.metric.event.transaction;
+package io.evitadb.core.metric.event.cache;
 
 import io.evitadb.api.configuration.metric.MetricType;
+import io.evitadb.core.cache.model.CacheRecordType;
 import io.evitadb.core.metric.annotation.ExportMetric;
+import io.evitadb.core.metric.annotation.ExportMetricLabel;
 import jdk.jfr.Description;
 import jdk.jfr.Label;
 import jdk.jfr.Name;
@@ -33,33 +35,41 @@ import lombok.Getter;
 import javax.annotation.Nonnull;
 
 /**
- * Event that is fired when a transaction passed conflict resolution stage.
+ * Event that is fired when cache contents are updated.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@Name(AbstractTransactionEvent.PACKAGE_NAME + ".OffHeapMemoryAllocationChange")
-@Description("Event that is fired when off-heap memory allocation changes.")
-@Label("Off-heap memory allocation change")
+@Name(AbstractCacheEvent.PACKAGE_NAME + ".CacheStatisticsPerTypeUpdated")
+@Description("Event that is fired when cache contents are updated.")
+@Label("Cache type statistics updated")
 @Getter
-public class OffHeapMemoryAllocationChangeEvent extends AbstractTransactionEvent {
-	/**
-	 * Amount of memory allocated for off-heap storage in bytes.
-	 */
+public class CacheStatisticsPerTypeUpdatedEvent extends AbstractCacheEvent {
+	@Label("Type of record.")
+	@ExportMetricLabel("Record type")
+	private final String type;
+
+	@Label("Number of records of a particular type in cache.")
 	@ExportMetric(metricType = MetricType.GAUGE)
-	@Label("Allocated memory bytes")
-	private final long allocatedMemoryBytes;
+	private final int recordsTotal;
 
-	/**
-	 * Amount of memory used for off-heap storage in bytes.
-	 */
+	@Label("Number of records of a particular type in cache.")
 	@ExportMetric(metricType = MetricType.GAUGE)
-	@Label("Used memory bytes")
-	private final long usedMemoryBytes;
+	private final long recordsSizeBytes;
 
+	@Label("Number of records of a particular type in cache.")
+	@ExportMetric(metricType = MetricType.GAUGE)
+	private final long averageComplexityInfo;
 
-	public OffHeapMemoryAllocationChangeEvent(@Nonnull String catalogName, long allocatedMemoryBytes, long usedMemoryBytes) {
-		super(catalogName);
-		this.allocatedMemoryBytes = allocatedMemoryBytes;
-		this.usedMemoryBytes = usedMemoryBytes;
+	public CacheStatisticsPerTypeUpdatedEvent(
+		@Nonnull CacheRecordType type,
+		int recordsTotal,
+		long recordsSizeBytes,
+		long averageComplexityInfo
+	) {
+		this.type = type.name();
+		this.recordsTotal = recordsTotal;
+		this.recordsSizeBytes = recordsSizeBytes;
+		this.averageComplexityInfo = averageComplexityInfo;
 	}
+
 }

@@ -21,28 +21,31 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.metric.event.transaction;
+package io.evitadb.core.metric.event.cache;
 
-import io.evitadb.core.metric.annotation.ExportInvocationMetric;
+import io.evitadb.api.configuration.metric.MetricType;
+import io.evitadb.core.metric.annotation.ExportMetric;
 import jdk.jfr.Description;
 import jdk.jfr.Label;
 import jdk.jfr.Name;
-
-import javax.annotation.Nonnull;
+import lombok.Getter;
 
 /**
- * Event that is fired when a file for isolated WAL storage is closed and deleted.
+ * Event that is fired in regular intervals to update statistics about records waiting in anteroom.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@Name(AbstractTransactionEvent.PACKAGE_NAME + ".ReadOnlyHandleClosed")
-@Description("Event that is fired when a file for isolated WAL storage is closed and deleted.")
-@Label("Isolated WAL file closed")
-@ExportInvocationMetric(value = "isolatedWalClosedTotal", label = "Closed files for isolated WAL storage.")
-public class IsolatedWalFileClosedEvent extends AbstractTransactionEvent {
+@Name(AbstractCacheEvent.PACKAGE_NAME + ".AnteroomRecordStatisticsUpdated")
+@Description("Event that is fired in regular intervals to update statistics about records waiting in anteroom.")
+@Label("Anteroom statistics updated")
+@Getter
+public class AnteroomRecordStatisticsUpdatedEvent extends AbstractCacheEvent {
 
-	public IsolatedWalFileClosedEvent(@Nonnull String catalogName) {
-		super(catalogName);
+	@Label("Number of records waiting in anteroom")
+	@ExportMetric(metricType = MetricType.GAUGE)
+	private final int recordsTotal;
+
+	public AnteroomRecordStatisticsUpdatedEvent(int recordsTotal) {
+		this.recordsTotal = recordsTotal;
 	}
-
 }

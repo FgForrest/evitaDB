@@ -27,7 +27,6 @@ import io.evitadb.scheduling.Scheduler;
 
 import javax.annotation.Nonnull;
 import java.time.OffsetDateTime;
-import java.time.temporal.TemporalUnit;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
@@ -52,7 +51,7 @@ public class DelayedAsyncTask {
 	/**
 	 * The time unit of the delay.
 	 */
-	private final TemporalUnit delayUnits;
+	private final TimeUnit delayUnits;
 	/**
 	 * The task that is executed asynchronously after the specified delay and returns negative value when it should be
 	 * paused or positive value when it should be re-scheduled (with shortened delay).
@@ -70,7 +69,7 @@ public class DelayedAsyncTask {
 		@Nonnull Scheduler scheduler,
 		@Nonnull LongSupplier runnable,
 		long delay,
-		@Nonnull TemporalUnit delayUnits
+		@Nonnull TimeUnit delayUnits
 	) {
 		this.scheduler = scheduler;
 		this.delay = delay;
@@ -95,7 +94,7 @@ public class DelayedAsyncTask {
 	 */
 	public void schedule() {
 		final OffsetDateTime now = OffsetDateTime.now();
-		final OffsetDateTime nextTick = now.plus(this.delay, this.delayUnits);
+		final OffsetDateTime nextTick = now.plus(this.delay, this.delayUnits.toChronoUnit());
 		if (this.nextPlannedExecution.compareAndExchange(OffsetDateTime.MIN, nextTick) == OffsetDateTime.MIN) {
 			final long computedDelay = Math.max(
 				nextTick.toInstant().toEpochMilli() - now.toInstant().toEpochMilli(),
@@ -124,7 +123,7 @@ public class DelayedAsyncTask {
 	 */
 	private void scheduleWithDelayShorterBy(long shorterBy) {
 		final OffsetDateTime nextTick = this.nextPlannedExecution.updateAndGet(
-			offsetDateTime -> offsetDateTime.plus(Math.min(this.delay - shorterBy, 1L), this.delayUnits)
+			offsetDateTime -> offsetDateTime.plus(Math.min(this.delay - shorterBy, 1L), this.delayUnits.toChronoUnit())
 		);
 		// re-plan the scheduled cut to the moment when the next entry should be cut down
 		final OffsetDateTime now = OffsetDateTime.now();

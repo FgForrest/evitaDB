@@ -39,7 +39,7 @@ import java.time.OffsetDateTime;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@Name(AbstractStorageEvent.PACKAGE_NAME + ".CatalogFlushEvent")
+@Name(AbstractStorageEvent.PACKAGE_NAME + ".CatalogFlush")
 @Description("Event that is fired when a new catalog version is flushed.")
 @Label("Catalog flushed")
 @Getter

@@ -41,7 +41,7 @@ import java.time.OffsetDateTime;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@Name(AbstractStorageEvent.PACKAGE_NAME + ".OffsetIndexFlushEvent")
+@Name(AbstractStorageEvent.PACKAGE_NAME + ".OffsetIndexFlush")
 @Description("Event that is fired when an OffsetIndex file is flushed.")
 @Label("OffsetIndex flushed to disk")
 @ExportDurationMetric(value = "offsetIndexFlushDuration", label = "Duration of OffsetIndex flush to disk.")

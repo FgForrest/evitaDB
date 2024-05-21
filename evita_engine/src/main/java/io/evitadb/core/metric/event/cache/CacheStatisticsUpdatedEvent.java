@@ -21,28 +21,26 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.metric.event.transaction;
+package io.evitadb.core.metric.event.cache;
 
-import io.evitadb.core.metric.annotation.ExportInvocationMetric;
 import jdk.jfr.Description;
 import jdk.jfr.Label;
 import jdk.jfr.Name;
 
-import javax.annotation.Nonnull;
-
 /**
- * Event that is fired when a file for isolated WAL storage is closed and deleted.
- *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
+ * Event that is fired when a transaction is started.
  */
-@Name(AbstractTransactionEvent.PACKAGE_NAME + ".ReadOnlyHandleClosed")
-@Description("Event that is fired when a file for isolated WAL storage is closed and deleted.")
-@Label("Isolated WAL file closed")
-@ExportInvocationMetric(value = "isolatedWalClosedTotal", label = "Closed files for isolated WAL storage.")
-public class IsolatedWalFileClosedEvent extends AbstractTransactionEvent {
+@Name(AbstractCacheEvent.PACKAGE_NAME + ".CacheStatisticsUpdated")
+@Description("Event that is fired in regular intervals to update cache statistics.")
+@Label("Cache statistics updated")
+public class CacheStatisticsUpdatedEvent extends AbstractCacheStatisticsRelatedEvent {
 
-	public IsolatedWalFileClosedEvent(@Nonnull String catalogName) {
-		super(catalogName);
+	public CacheStatisticsUpdatedEvent(
+		long cacheHitsTotal,
+		long cacheMissesTotal,
+		long cacheEnrichmentsTotal,
+		long cacheInitializationsTotal
+	) {
+		super(cacheHitsTotal, cacheMissesTotal, cacheEnrichmentsTotal, cacheInitializationsTotal);
 	}
-
 }

@@ -41,7 +41,7 @@ import javax.annotation.Nonnull;
 /**
  * Event that is fired when evitaDB instance is started.
  */
-@Name(AbstractSystemEvent.PACKAGE_NAME + ".EvitaStartedEvent")
+@Name(AbstractSystemEvent.PACKAGE_NAME + ".EvitaStarted")
 @Description("Event that is fired when evitaDB instance is started.")
 @ExportInvocationMetric(value = "evitaStartedTotal", label = "Evita started total")
 @Label("Evita started")

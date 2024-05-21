@@ -38,7 +38,7 @@ import javax.annotation.Nonnull;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@Name(AbstractStorageEvent.PACKAGE_NAME + ".OffsetIndexRecordTypeCountChangedEvent")
+@Name(AbstractStorageEvent.PACKAGE_NAME + ".OffsetIndexRecordTypeCountChanged")
 @Description("Event that is fired when number of records of a particular type in OffsetIndex file changes.")
 @Label("OffsetIndex record type count changed")
 @Getter

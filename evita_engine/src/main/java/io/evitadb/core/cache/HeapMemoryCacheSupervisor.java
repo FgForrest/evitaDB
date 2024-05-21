@@ -64,7 +64,8 @@ public class HeapMemoryCacheSupervisor implements CacheSupervisor {
 		this.cacheEden = new CacheEden(
 			cacheOptions.cacheSizeInBytes(),
 			cacheOptions.minimalUsageThreshold(),
-			cacheOptions.minimalComplexityThreshold()
+			cacheOptions.minimalComplexityThreshold(),
+			scheduler
 		);
 		this.cacheAnteroom = new CacheAnteroom(
 			cacheOptions.anteroomRecordCount(),

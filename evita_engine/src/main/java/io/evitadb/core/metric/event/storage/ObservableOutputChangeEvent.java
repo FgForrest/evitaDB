@@ -38,7 +38,7 @@ import javax.annotation.Nonnull;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@Name(AbstractStorageEvent.PACKAGE_NAME + ".ObservableOutputChangeEvent")
+@Name(AbstractStorageEvent.PACKAGE_NAME + ".ObservableOutputChange")
 @Description("Event that is fired when an ObservableOutput buffer count is changed.")
 @Label("ObservableOutput buffers")
 @ExportInvocationMetric(value = "observableBufferCountChangedTotal", label = "ObservableOutput buffer count changes.")

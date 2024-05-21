@@ -41,7 +41,7 @@ import javax.annotation.Nullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@Name(AbstractQueryEvent.PACKAGE_NAME + ".EntityFetchEvent")
+@Name(AbstractQueryEvent.PACKAGE_NAME + ".EntityFetch")
 @Description("Event that is fired when an entity is fetched directly.")
 @Label("Entity fetched")
 @ExportInvocationMetric(value = "fetch", label = "Entity fetched")

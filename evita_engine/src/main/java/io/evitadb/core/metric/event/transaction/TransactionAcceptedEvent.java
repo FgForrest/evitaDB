@@ -38,7 +38,7 @@ import javax.annotation.Nonnull;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@Name(AbstractTransactionEvent.PACKAGE_NAME + ".TransactionAcceptedEvent")
+@Name(AbstractTransactionEvent.PACKAGE_NAME + ".TransactionAccepted")
 @Description("Event that is fired when a transaction passed conflict resolution stage.")
 @Label("Transaction accepted")
 @ExportDurationMetric(value = "resolutionDurationMilliseconds", label = "Conflict resolution duration in milliseconds")

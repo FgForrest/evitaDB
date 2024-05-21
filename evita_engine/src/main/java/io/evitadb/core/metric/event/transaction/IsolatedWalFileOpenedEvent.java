@@ -35,7 +35,7 @@ import javax.annotation.Nonnull;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@Name(AbstractTransactionEvent.PACKAGE_NAME + ".ReadOnlyHandleOpenedEvent")
+@Name(AbstractTransactionEvent.PACKAGE_NAME + ".ReadOnlyHandleOpened")
 @Description("Event that is fired when new file is opened for isolated WAL storage.")
 @Label("Isolated WAL file opened")
 @ExportInvocationMetric(value = "isolatedWalOpenedTotal", label = "Opened files for isolated WAL storage.")

@@ -71,18 +71,19 @@ class CacheAnteroomTest {
 
 	@BeforeEach
 	void setUp() {
-		cacheEden = new CacheEden(1_000_000, 1, MINIMAL_COMPLEXITY_THRESHOLD);
+		final Scheduler scheduler = new Scheduler(
+			new ScheduledThreadPoolExecutor(4) {
+				@Override
+				public void execute(@Nonnull Runnable runnable) {
+					runnable.run();
+				}
+			}
+		);
+		this.cacheEden = new CacheEden(1_000_000, 1, MINIMAL_COMPLEXITY_THRESHOLD, scheduler);
 		this.cacheAnteroom = new CacheAnteroom(
 			MAX_RECORD_COUNT, MINIMAL_COMPLEXITY_THRESHOLD,
 			cacheEden,
-			new Scheduler(
-				new ScheduledThreadPoolExecutor(4) {
-					@Override
-					public void execute(@Nonnull Runnable runnable) {
-						runnable.run();
-					}
-				}
-			)
+			scheduler
 		);
 		this.inputFormulas = new CacheableFormula[MAX_RECORD_COUNT + 2];
 		for (int i = 0; i < MAX_RECORD_COUNT + 2; i++) {

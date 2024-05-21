@@ -37,7 +37,7 @@ import javax.annotation.Nonnull;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@Name(AbstractStorageEvent.PACKAGE_NAME + ".OffsetIndexNonFlushedRecordsEvent")
+@Name(AbstractStorageEvent.PACKAGE_NAME + ".OffsetIndexNonFlushedRecords")
 @Description("Event that is fired when non flushed record count changes in offset index.")
 @Label("OffsetIndex Non-Flushed Records")
 @Getter

@@ -42,7 +42,7 @@ import javax.annotation.Nullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@Name(AbstractQueryEvent.PACKAGE_NAME + ".EntityEnrichEvent")
+@Name(AbstractQueryEvent.PACKAGE_NAME + ".EntityEnrich")
 @Description("Event that is fired when an entity is enriched directly.")
 @Label("Entity fetched")
 @ExportInvocationMetric(value = "enrichment", label = "Entity enriched")

@@ -39,9 +39,9 @@ import javax.annotation.Nonnull;
 import java.io.Closeable;
 import java.io.FileOutputStream;
 import java.nio.file.Path;
-import java.time.temporal.ChronoUnit;
 import java.util.Iterator;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -102,7 +102,7 @@ public class ObservableOutputKeeper implements AutoCloseable {
 			catalogName, "Write buffer releaser",
 			scheduler,
 			this::cutOutputCache,
-			CUT_OUTPUTS_AFTER_INACTIVITY_MS, ChronoUnit.MILLIS
+			CUT_OUTPUTS_AFTER_INACTIVITY_MS, TimeUnit.MILLISECONDS
 		);
 	}
 

@@ -38,7 +38,7 @@ import java.time.Duration;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@Name(AbstractTransactionEvent.PACKAGE_NAME + ".TransactionProcessedEvent")
+@Name(AbstractTransactionEvent.PACKAGE_NAME + ".TransactionProcessed")
 @Description("Event that is fired when a transaction reached the shared view.")
 @Label("Transaction processed and visible")
 @Getter
