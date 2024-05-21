@@ -40,10 +40,10 @@ import java.time.OffsetDateTime;
 /**
  * Event that is fired when a transaction is finished (either committed or rolled back).
  */
-@Name(AbstractTransactionEvent.PACKAGE_NAME + ".TransactionFinished")
+@Name(AbstractTransactionEvent.PACKAGE_NAME + ".Finished")
 @Label("Transaction finished")
-@ExportDurationMetric(value = "transactionDurationMilliseconds", label = "Transaction lifespan duration in milliseconds")
-@ExportInvocationMetric(value = "transactionsFinishedTotal", label = "Transactions finished")
+@ExportDurationMetric(label = "Transaction lifespan duration in milliseconds")
+@ExportInvocationMetric(label = "Transactions finished")
 @Description(
 	"Event that is fired when a transaction is finished either by commit or rollback and corresponding session is closed. " +
 		"This also includes waiting for transaction reaching requested stage of processing."

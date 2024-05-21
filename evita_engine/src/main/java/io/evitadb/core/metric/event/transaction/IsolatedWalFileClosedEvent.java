@@ -38,7 +38,7 @@ import javax.annotation.Nonnull;
 @Name(AbstractTransactionEvent.PACKAGE_NAME + ".ReadOnlyHandleClosed")
 @Description("Event that is fired when a file for isolated WAL storage is closed and deleted.")
 @Label("Isolated WAL file closed")
-@ExportInvocationMetric(value = "isolatedWalClosedTotal", label = "Closed files for isolated WAL storage.")
+@ExportInvocationMetric(label = "Closed files for isolated WAL storage.")
 public class IsolatedWalFileClosedEvent extends AbstractTransactionEvent {
 
 	public IsolatedWalFileClosedEvent(@Nonnull String catalogName) {

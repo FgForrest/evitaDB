@@ -39,7 +39,7 @@ import javax.annotation.Nonnull;
 @Name(AbstractStorageEvent.PACKAGE_NAME + ".ReadOnlyHandleClosed")
 @Description("Event that is fired when a file read handle is closed.")
 @Label("File read handles closed")
-@ExportInvocationMetric(value = "readOnlyHandleClosedTotal", label = "Closed file read handles.")
+@ExportInvocationMetric(label = "Closed file read handles.")
 @Getter
 public class ReadOnlyHandleClosedEvent extends AbstractDataFileEvent {
 

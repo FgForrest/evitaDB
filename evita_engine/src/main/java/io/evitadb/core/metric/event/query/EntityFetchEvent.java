@@ -44,8 +44,8 @@ import javax.annotation.Nullable;
 @Name(AbstractQueryEvent.PACKAGE_NAME + ".EntityFetch")
 @Description("Event that is fired when an entity is fetched directly.")
 @Label("Entity fetched")
-@ExportInvocationMetric(value = "fetch", label = "Entity fetched")
-@ExportDurationMetric(value = "fetchMillisecondsTotal", label = "Entity fetch duration in milliseconds")
+@ExportInvocationMetric(label = "Entity fetched")
+@ExportDurationMetric(label = "Entity fetch duration in milliseconds")
 @Getter
 public class EntityFetchEvent extends AbstractQueryEvent {
 	@Label("Entity type")
@@ -54,11 +54,11 @@ public class EntityFetchEvent extends AbstractQueryEvent {
 
 	@Label("Records fetched total")
 	@ExportMetric(metricType = MetricType.COUNTER)
-	private int recordsFetchedTotal;
+	private int records;
 
 	@Label("Fetched size in bytes")
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
-	private int fetchedSizeBytes;
+	private int sizeBytes;
 
 	/**
 	 * Creation timestamp.
@@ -85,8 +85,8 @@ public class EntityFetchEvent extends AbstractQueryEvent {
 		int fetchedSizeBytes
 	) {
 		this.end();
-		this.recordsFetchedTotal = recordsFetchedTotal;
-		this.fetchedSizeBytes = fetchedSizeBytes;
+		this.records = recordsFetchedTotal;
+		this.sizeBytes = fetchedSizeBytes;
 		return this;
 	}
 

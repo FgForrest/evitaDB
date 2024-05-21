@@ -41,20 +41,20 @@ import javax.annotation.Nonnull;
 @Name(AbstractStorageEvent.PACKAGE_NAME + ".ObservableOutputChange")
 @Description("Event that is fired when an ObservableOutput buffer count is changed.")
 @Label("ObservableOutput buffers")
-@ExportInvocationMetric(value = "observableBufferCountChangedTotal", label = "ObservableOutput buffer count changes.")
+@ExportInvocationMetric(label = "ObservableOutput buffer count changes.")
 @Getter
 public class ObservableOutputChangeEvent extends AbstractStorageEvent {
 	@Label("Number of opened output buffers")
 	@ExportMetric(metricType = MetricType.GAUGE)
-	private final int openedBuffersTotal;
+	private final int openedBuffers;
 
 	@Label("Memory occupied by opened output buffers in Bytes")
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private final long occupiedMemoryBytes;
 
-	public ObservableOutputChangeEvent(@Nonnull String catalogName, int openedBuffersTotal, long occupiedMemoryBytes) {
+	public ObservableOutputChangeEvent(@Nonnull String catalogName, int openedBuffers, long occupiedMemoryBytes) {
 		super(catalogName);
-		this.openedBuffersTotal = openedBuffersTotal;
+		this.openedBuffers = openedBuffers;
 		this.occupiedMemoryBytes = occupiedMemoryBytes;
 	}
 }

@@ -43,9 +43,9 @@ public class AnteroomRecordStatisticsUpdatedEvent extends AbstractCacheEvent {
 
 	@Label("Number of records waiting in anteroom")
 	@ExportMetric(metricType = MetricType.GAUGE)
-	private final int recordsTotal;
+	private final int records;
 
-	public AnteroomRecordStatisticsUpdatedEvent(int recordsTotal) {
-		this.recordsTotal = recordsTotal;
+	public AnteroomRecordStatisticsUpdatedEvent(int records) {
+		this.records = records;
 	}
 }

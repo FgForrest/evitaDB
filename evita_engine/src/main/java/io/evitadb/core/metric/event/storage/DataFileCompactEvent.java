@@ -40,8 +40,8 @@ import javax.annotation.Nonnull;
 @Name(AbstractStorageEvent.PACKAGE_NAME + ".DataFileCompact")
 @Description("Event that is fired when an OffsetIndex file is compacted.")
 @Label("OffsetIndex compaction")
-@ExportDurationMetric(value = "offsetIndexCompactionDuration", label = "Duration of OffsetIndex compaction.")
-@ExportInvocationMetric(value = "offsetIndexCompactionTotal", label = "OffsetIndex compaction.")
+@ExportDurationMetric(label = "Duration of OffsetIndex compaction.")
+@ExportInvocationMetric(label = "OffsetIndex compaction.")
 @Getter
 public class DataFileCompactEvent extends AbstractDataFileEvent {
 

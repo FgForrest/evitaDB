@@ -359,14 +359,14 @@ public class QueryPlan {
 			new SpanAttribute("filter", query.getFilterBy() == null ? "<NONE>" : query.getFilterBy().toString()),
 			new SpanAttribute("order", query.getOrderBy() == null ? "<NONE>" : query.getOrderBy().toString()),
 			new SpanAttribute("require", query.getRequire() == null ? "<NONE>" : query.getRequire().toString()),
-			new SpanAttribute("prefetch", queryFinishedEvent.getPrefetchInfo() == 1 ? "yes" : "no"),
-			new SpanAttribute("scannedRecords", queryFinishedEvent.getRecordsScannedTotal()),
-			new SpanAttribute("totalRecordCount", queryFinishedEvent.getRecordsFoundTotal()),
-			new SpanAttribute("returnedRecordCount", queryFinishedEvent.getRecordsReturnedTotal()),
-			new SpanAttribute("fetchedRecordCount", queryFinishedEvent.getRecordsFetchedTotal()),
+			new SpanAttribute("prefetch", queryFinishedEvent.getPrefetched() == 1 ? "yes" : "no"),
+			new SpanAttribute("scannedRecords", queryFinishedEvent.getRecordsScanned()),
+			new SpanAttribute("totalRecordCount", queryFinishedEvent.getRecordsFound()),
+			new SpanAttribute("returnedRecordCount", queryFinishedEvent.getRecordsReturned()),
+			new SpanAttribute("fetchedRecordCount", queryFinishedEvent.getRecordsFetched()),
 			new SpanAttribute("fetchedRecordSizeBytes", queryFinishedEvent.getFetchedSizeBytes()),
-			new SpanAttribute("estimatedComplexity", queryFinishedEvent.getEstimatedComplexityInfo()),
-			new SpanAttribute("complexity", queryFinishedEvent.getComplexityInfo())
+			new SpanAttribute("estimatedComplexity", queryFinishedEvent.getEstimatedComplexity()),
+			new SpanAttribute("complexity", queryFinishedEvent.getComplexity())
 		};
 	}
 }

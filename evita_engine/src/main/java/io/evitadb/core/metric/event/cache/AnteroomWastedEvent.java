@@ -35,7 +35,7 @@ import jdk.jfr.Name;
  */
 @Name(AbstractCacheEvent.PACKAGE_NAME + ".AnteroomWasted")
 @Description("Event that is fired when an entire anteroom contents were thrown away.")
-@ExportInvocationMetric(value = "anteroomWastedTotal", label = "Anteroom wasted total")
+@ExportInvocationMetric(label = "Anteroom wasted total")
 @Label("Anteroom wasted")
 public class AnteroomWastedEvent extends AbstractCacheEvent {
 }

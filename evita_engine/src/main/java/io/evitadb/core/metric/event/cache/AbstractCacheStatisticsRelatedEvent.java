@@ -43,18 +43,18 @@ abstract class AbstractCacheStatisticsRelatedEvent extends AbstractCacheEvent {
 
 	@Label("Cache hits count")
 	@ExportMetric(metricType = MetricType.COUNTER)
-	long cacheHitsTotal;
+	long cacheHits;
 
 	@Label("Cache misses count")
 	@ExportMetric(metricType = MetricType.COUNTER)
-	long cacheMissesTotal;
+	long cacheMisses;
 
 	@Label("Cache enrichments count")
 	@ExportMetric(metricType = MetricType.COUNTER)
-	long cacheEnrichmentsTotal;
+	long cacheEnrichments;
 
 	@Label("Cache record initializations count")
 	@ExportMetric(metricType = MetricType.COUNTER)
-	long cacheInitializationsTotal;
+	long cacheInitializations;
 
 }

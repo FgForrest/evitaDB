@@ -41,8 +41,8 @@ import javax.annotation.Nonnull;
  */
 @Name(AbstractGrpcApiEvent.PACKAGE_NAME + ".GrpcProcedureCalled")
 @Description("Event that is fired when a gRPC procedure is called.")
-@ExportInvocationMetric(value = "grpcProcedureCalledTotal", label = "gRPC procedure called total")
-@ExportDurationMetric(value = "grpcProcedureDurationMilliseconds", label = "gRPC procedure called duration")
+@ExportInvocationMetric(label = "gRPC procedure called total")
+@ExportDurationMetric(label = "gRPC procedure called duration")
 @Label("gRPC procedure called")
 @Getter
 public class GrpcProcedureCalledEvent extends AbstractGrpcApiEvent {
@@ -141,3 +141,5 @@ public class GrpcProcedureCalledEvent extends AbstractGrpcApiEvent {
 	}
 
 }
+
+

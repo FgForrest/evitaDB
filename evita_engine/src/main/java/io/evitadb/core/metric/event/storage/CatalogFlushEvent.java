@@ -46,7 +46,7 @@ import java.time.OffsetDateTime;
 public class CatalogFlushEvent extends AbstractStorageEvent {
 	@Label("Entity collection count")
 	@ExportMetric(metricType = MetricType.GAUGE)
-	private final int entityCollectionsTotal;
+	private final int entityCollections;
 
 	@Label("Total occupied disk space in Bytes")
 	@ExportMetric(metricType = MetricType.GAUGE)
@@ -58,11 +58,11 @@ public class CatalogFlushEvent extends AbstractStorageEvent {
 
 	public CatalogFlushEvent(
 		@Nonnull String catalogName,
-		int entityCollectionsTotal,
+		int entityCollections,
 		long occupiedDiskSpaceBytes,
 		@Nullable OffsetDateTime oldestCatalogVersionTimestampSeconds) {
 		super(catalogName);
-		this.entityCollectionsTotal = entityCollectionsTotal;
+		this.entityCollections = entityCollections;
 		this.occupiedDiskSpaceBytes = occupiedDiskSpaceBytes;
 		this.oldestCatalogVersionTimestampSeconds = oldestCatalogVersionTimestampSeconds == null ?
 			0L : oldestCatalogVersionTimestampSeconds.toEpochSecond();

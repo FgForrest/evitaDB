@@ -50,7 +50,7 @@ public class CacheStatisticsPerTypeUpdatedEvent extends AbstractCacheEvent {
 
 	@Label("Number of records of a particular type in cache.")
 	@ExportMetric(metricType = MetricType.GAUGE)
-	private final int recordsTotal;
+	private final int records;
 
 	@Label("Number of records of a particular type in cache.")
 	@ExportMetric(metricType = MetricType.GAUGE)
@@ -58,18 +58,18 @@ public class CacheStatisticsPerTypeUpdatedEvent extends AbstractCacheEvent {
 
 	@Label("Number of records of a particular type in cache.")
 	@ExportMetric(metricType = MetricType.GAUGE)
-	private final long averageComplexityInfo;
+	private final long averageComplexity;
 
 	public CacheStatisticsPerTypeUpdatedEvent(
 		@Nonnull CacheRecordType type,
-		int recordsTotal,
+		int records,
 		long recordsSizeBytes,
-		long averageComplexityInfo
+		long averageComplexity
 	) {
 		this.type = type.name();
-		this.recordsTotal = recordsTotal;
+		this.records = records;
 		this.recordsSizeBytes = recordsSizeBytes;
-		this.averageComplexityInfo = averageComplexityInfo;
+		this.averageComplexity = averageComplexity;
 	}
 
 }

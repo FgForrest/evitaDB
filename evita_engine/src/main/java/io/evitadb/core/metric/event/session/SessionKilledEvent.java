@@ -35,7 +35,7 @@ import javax.annotation.Nonnull;
  */
 @Name(AbstractSessionEvent.PACKAGE_NAME + ".SessionKilled")
 @Description("Event that is fired when a session is killed due to timeout.")
-@ExportInvocationMetric(value = "sessionsKilledTotal", label = "Sessions killed")
+@ExportInvocationMetric(label = "Sessions killed")
 @Label("Session killed")
 public class SessionKilledEvent extends AbstractSessionEvent {
 

@@ -38,11 +38,11 @@ import javax.annotation.Nonnull;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@Name(AbstractTransactionEvent.PACKAGE_NAME + ".TransactionAccepted")
+@Name(AbstractTransactionEvent.PACKAGE_NAME + ".Accepted")
 @Description("Event that is fired when a transaction passed conflict resolution stage.")
 @Label("Transaction accepted")
-@ExportDurationMetric(value = "resolutionDurationMilliseconds", label = "Conflict resolution duration in milliseconds")
-@ExportInvocationMetric(value = "transactionsAcceptedTotal", label = "Transactions accepted")
+@ExportDurationMetric(label = "Conflict resolution duration in milliseconds")
+@ExportInvocationMetric(label = "Transactions accepted")
 @Getter
 public class TransactionAcceptedEvent extends AbstractTransactionEvent {
 	/**

@@ -38,7 +38,7 @@ import javax.annotation.Nonnull;
 @Name(AbstractTransactionEvent.PACKAGE_NAME + ".ReadOnlyHandleOpened")
 @Description("Event that is fired when new file is opened for isolated WAL storage.")
 @Label("Isolated WAL file opened")
-@ExportInvocationMetric(value = "isolatedWalOpenedTotal", label = "Opened files for isolated WAL storage.")
+@ExportInvocationMetric(label = "Opened files for isolated WAL storage.")
 public class IsolatedWalFileOpenedEvent extends AbstractTransactionEvent {
 
 	public IsolatedWalFileOpenedEvent(@Nonnull String catalogName) {

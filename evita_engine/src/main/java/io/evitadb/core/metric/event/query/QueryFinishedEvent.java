@@ -41,11 +41,11 @@ import javax.annotation.Nullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@Name(AbstractQueryEvent.PACKAGE_NAME + ".QueryFinished")
+@Name(AbstractQueryEvent.PACKAGE_NAME + ".Finished")
 @Description("Event that is fired when a query is finished.")
 @Label("Catalog finished")
-@ExportInvocationMetric(value = "queryFinished", label = "Query finished")
-@ExportDurationMetric(value = "queryDurationMillisecondsTotal", label = "Query duration in milliseconds")
+@ExportInvocationMetric(label = "Query finished")
+@ExportDurationMetric(label = "Query duration in milliseconds")
 @Getter
 public class QueryFinishedEvent extends AbstractQueryEvent {
 	@Label("Entity type")
@@ -61,24 +61,24 @@ public class QueryFinishedEvent extends AbstractQueryEvent {
 	private long executionDurationMilliseconds;
 
 	@Label("Prefetched vs. non-prefetched query")
-	@ExportMetric(metricType = MetricType.HISTOGRAM)
-	private int prefetchInfo;
+	@ExportMetricLabel("prefetched")
+	private int prefetched;
 
 	@Label("Records scanned total")
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
-	private int recordsScannedTotal;
+	private int recordsScanned;
 
 	@Label("Records returned total")
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
-	private int recordsReturnedTotal;
+	private int recordsReturned;
 
 	@Label("Records found total")
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
-	private int recordsFoundTotal;
+	private int recordsFound;
 
 	@Label("Records fetched total")
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
-	private int recordsFetchedTotal;
+	private int recordsFetched;
 
 	@Label("Fetched size in bytes")
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
@@ -86,11 +86,11 @@ public class QueryFinishedEvent extends AbstractQueryEvent {
 
 	@Label("Estimated complexity info")
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
-	private long estimatedComplexityInfo;
+	private long estimatedComplexity;
 
-	@Label("Complexity info")
+	@Label("Filter complexity")
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
-	private long complexityInfo;
+	private long complexity;
 
 	/**
 	 * Creation timestamp.
@@ -134,14 +134,14 @@ public class QueryFinishedEvent extends AbstractQueryEvent {
 	) {
 		this.end();
 		this.executionDurationMilliseconds = System.currentTimeMillis() - this.created;
-		this.prefetchInfo = prefetchInfo;
-		this.recordsScannedTotal = recordsScannedTotal;
-		this.recordsReturnedTotal = recordsReturnedTotal;
-		this.recordsFoundTotal = recordsFoundTotal;
-		this.recordsFetchedTotal = recordsFetchedTotal;
+		this.prefetched = prefetchInfo;
+		this.recordsScanned = recordsScannedTotal;
+		this.recordsReturned = recordsReturnedTotal;
+		this.recordsFound = recordsFoundTotal;
+		this.recordsFetched = recordsFetchedTotal;
 		this.fetchedSizeBytes = fetchedSizeBytes;
-		this.estimatedComplexityInfo = estimatedComplexityInfo;
-		this.complexityInfo = complexityInfo;
+		this.estimatedComplexity = estimatedComplexityInfo;
+		this.complexity = complexityInfo;
 		return this;
 	}
 

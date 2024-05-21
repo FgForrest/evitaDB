@@ -37,7 +37,7 @@ import javax.annotation.Nonnull;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@Name(AbstractTransactionEvent.PACKAGE_NAME + ".TransactionQueued")
+@Name(AbstractTransactionEvent.PACKAGE_NAME + ".Queued")
 @Description("Event that is fired in each transaction processing stage to reflect the time transaction waited in the queue before it was picked up for processing.")
 @Label("Transaction waiting in queue")
 @Getter

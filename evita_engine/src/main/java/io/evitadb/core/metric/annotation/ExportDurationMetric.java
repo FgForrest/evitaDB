@@ -40,7 +40,7 @@ public @interface ExportDurationMetric {
 	/**
 	 * Defines the name of the metric.
 	 */
-	String value();
+	String value() default "durationMilliseconds";
 
 	/**
 	 * Defines the label of the metric.

@@ -45,18 +45,18 @@ import lombok.Getter;
 public class EvitaDBCompositionChangedEvent extends CustomMetricsExecutionEvent {
 	@Label("Catalog count")
 	@ExportMetric(metricType = MetricType.GAUGE)
-	private final int catalogsTotal;
+	private final int catalogs;
 
 	@Label("Corrupted catalog count")
 	@ExportMetric(metricType = MetricType.GAUGE)
-	private final int corruptedCatalogsTotal;
+	private final int corruptedCatalogs;
 
 	public EvitaDBCompositionChangedEvent(
-		int catalogsTotal,
-		int corruptedCatalogsTotal
+		int catalogs,
+		int corruptedCatalogs
 	) {
-		this.catalogsTotal = catalogsTotal;
-		this.corruptedCatalogsTotal = corruptedCatalogsTotal;
+		this.catalogs = catalogs;
+		this.corruptedCatalogs = corruptedCatalogs;
 	}
 
 }

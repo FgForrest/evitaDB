@@ -44,8 +44,8 @@ import java.time.OffsetDateTime;
 @Name(AbstractTransactionEvent.PACKAGE_NAME + ".WalRotation")
 @Description("Event that is fired when a shared WAL is rotated.")
 @Label("WAL rotated")
-@ExportDurationMetric(value = "walRotationDurationMilliseconds", label = "WAL rotation duration in milliseconds")
-@ExportInvocationMetric(value = "walRotationTotal", label = "WAL rotations")
+@ExportDurationMetric(label = "WAL rotation duration in milliseconds")
+@ExportInvocationMetric(label = "WAL rotations")
 @Getter
 public class WalRotationEvent extends AbstractTransactionEvent {
 	@Label("Oldest WAL entry timestamp")

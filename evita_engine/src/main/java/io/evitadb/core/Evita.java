@@ -59,7 +59,6 @@ import io.evitadb.core.cache.NoCacheSupervisor;
 import io.evitadb.core.exception.CatalogCorruptedException;
 import io.evitadb.core.maintenance.SessionKiller;
 import io.evitadb.core.metric.event.storage.EvitaDBCompositionChangedEvent;
-import io.evitadb.core.metric.event.system.EvitaStartedEvent;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.scheduling.BackgroundTask;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -295,10 +294,6 @@ public final class Evita implements EvitaContract {
 			.filter(CatalogStructuralChangeObserverWithEvitaContractCallback.class::isInstance)
 			.map(CatalogStructuralChangeObserverWithEvitaContractCallback.class::cast)
 			.forEach(it -> it.onInit(this));
-
-		// emit the event
-		new EvitaStartedEvent(configuration)
-			.commit();
 	}
 
 	/**

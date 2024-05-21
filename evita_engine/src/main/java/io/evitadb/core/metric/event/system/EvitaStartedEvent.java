@@ -43,18 +43,18 @@ import javax.annotation.Nonnull;
  */
 @Name(AbstractSystemEvent.PACKAGE_NAME + ".EvitaStarted")
 @Description("Event that is fired when evitaDB instance is started.")
-@ExportInvocationMetric(value = "evitaStartedTotal", label = "Evita started total")
+@ExportInvocationMetric(label = "Evita started total")
 @Label("Evita started")
 @Getter
 public class EvitaStartedEvent extends AbstractSystemEvent {
 
 	@Label("Maximal number of background threads")
 	@ExportMetric(metricType = MetricType.GAUGE)
-	private final int maxThreadsInfo;
+	private final int maxThreads;
 
 	@Label("Maximal queue size for background threads")
 	@ExportMetric(metricType = MetricType.GAUGE)
-	private final int maxThreadsQueueSizeInfo;
+	private final int maxThreadsQueueSize;
 
 	@Label("Short running tasks timeout in seconds")
 	@ExportMetric(metricType = MetricType.GAUGE)
@@ -78,7 +78,7 @@ public class EvitaStartedEvent extends AbstractSystemEvent {
 
 	@Label("Number of off-heap memory regions for transactions")
 	@ExportMetric(metricType = MetricType.GAUGE)
-	private final int transactionMemoryRegionCount;
+	private final int transactionMemoryRegions;
 
 	@Label("Maximal count of commited transactions in queue")
 	@ExportMetric(metricType = MetricType.GAUGE)
@@ -98,7 +98,7 @@ public class EvitaStartedEvent extends AbstractSystemEvent {
 
 	@Label("Maximal number of records in cache anteroom")
 	@ExportMetric(metricType = MetricType.GAUGE)
-	private final int cacheAnteroomRecordLimitInfo;
+	private final int cacheAnteroomRecordLimit;
 
 	@Label("Maximal size of cache in Bytes")
 	@ExportMetric(metricType = MetricType.GAUGE)
@@ -108,8 +108,8 @@ public class EvitaStartedEvent extends AbstractSystemEvent {
 		super(null);
 
 		final ServerOptions serverConfiguration = configuration.server();
-		this.maxThreadsInfo = serverConfiguration.maxThreadCount();
-		this.maxThreadsQueueSizeInfo = serverConfiguration.queueSize();
+		this.maxThreads = serverConfiguration.maxThreadCount();
+		this.maxThreadsQueueSize = serverConfiguration.queueSize();
 		this.shortTasksTimeoutSeconds = serverConfiguration.shortRunningThreadsTimeoutInSeconds();
 		this.sessionMaxInactiveAgeSeconds = serverConfiguration.closeSessionsAfterSecondsOfInactivity();
 
@@ -119,14 +119,14 @@ public class EvitaStartedEvent extends AbstractSystemEvent {
 
 		final TransactionOptions transactionConfiguration = configuration.transaction();
 		this.transactionMemoryBufferLimitSizeBytes = transactionConfiguration.transactionMemoryBufferLimitSizeBytes();
-		this.transactionMemoryRegionCount = transactionConfiguration.transactionMemoryRegionCount();
+		this.transactionMemoryRegions = transactionConfiguration.transactionMemoryRegionCount();
 		this.walMaxFileSizeBytes = transactionConfiguration.walFileSizeBytes();
 		this.walMaxFileCountKept = transactionConfiguration.walFileCountKept();
 		this.transactionMaxQueueSize = transactionConfiguration.maxQueueSize();
 
 		final CacheOptions cacheConfiguration = configuration.cache();
 		this.cacheReevaluationSeconds = cacheConfiguration.reevaluateEachSeconds();
-		this.cacheAnteroomRecordLimitInfo = cacheConfiguration.anteroomRecordCount();
+		this.cacheAnteroomRecordLimit = cacheConfiguration.anteroomRecordCount();
 		this.cacheSizeInBytes = cacheConfiguration.cacheSizeInBytes();
 
 	}

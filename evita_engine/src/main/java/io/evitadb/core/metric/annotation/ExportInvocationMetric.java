@@ -40,7 +40,7 @@ public @interface ExportInvocationMetric {
 	/**
 	 * Defines the name of the metric.
 	 */
-	String value();
+	String value() default "total";
 
 	/**
 	 * Defines the label of the metric.

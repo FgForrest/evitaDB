@@ -40,35 +40,35 @@ import javax.annotation.Nonnull;
  */
 @Name(AbstractCacheEvent.PACKAGE_NAME + ".CacheReevaluated")
 @Description("Event that is fired when a cache is reevaluated.")
-@ExportInvocationMetric(value = "cacheEvaluationTotal", label = "Cache evaluation total")
-@ExportDurationMetric(value = "cacheEvaluationDurationMilliseconds", label = "Cache evaluation duration in ms")
+@ExportInvocationMetric(label = "Cache evaluation total")
+@ExportDurationMetric(label = "Cache evaluation duration in ms")
 @Label("Cache reevaluated")
 @Getter @Setter
 public class CacheReevaluatedEvent extends AbstractCacheStatisticsRelatedEvent {
 
 	@Label("Number of adepts to evaluate")
 	@ExportMetric(metricType = MetricType.GAUGE)
-	private int adeptsTotal;
+	private int adepts;
 
 	@Label("Number of evaluated adepts and records")
 	@ExportMetric(metricType = MetricType.GAUGE)
-	private int evaluatedItemsTotal;
+	private int evaluatedItems;
 
 	@Label("Adepts that were promoted")
 	@ExportMetric(metricType = MetricType.GAUGE)
-	private int promotedAdeptsTotal;
+	private int promotedAdepts;
 
 	@Label("Cached records that survived the evaluation")
 	@ExportMetric(metricType = MetricType.GAUGE)
-	private int survivingRecordsTotal;
+	private int survivingRecords;
 
 	@Label("Cached records that may be evicted in the future")
 	@ExportMetric(metricType = MetricType.GAUGE)
-	private int cooldownRecordsTotal;
+	private int cooldownRecords;
 
 	@Label("Cached records that were evicted")
 	@ExportMetric(metricType = MetricType.GAUGE)
-	private int evictedRecordsTotal;
+	private int evictedRecords;
 
 	@Label("Estimated size of the cache after the evaluation in Bytes")
 	@ExportMetric(metricType = MetricType.GAUGE)

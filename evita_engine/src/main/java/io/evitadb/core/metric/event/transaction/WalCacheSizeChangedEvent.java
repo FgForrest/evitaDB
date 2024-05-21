@@ -44,10 +44,10 @@ import javax.annotation.Nonnull;
 public class WalCacheSizeChangedEvent extends AbstractTransactionEvent {
 	@Label("Total cached locations in WAL file")
 	@ExportMetric(metricType = MetricType.GAUGE)
-	private final int locationsCachedTotal;
+	private final int locationsCached;
 
-	public WalCacheSizeChangedEvent(@Nonnull String catalogName, int locationsCachedTotal) {
+	public WalCacheSizeChangedEvent(@Nonnull String catalogName, int locationsCached) {
 		super(catalogName);
-		this.locationsCachedTotal = locationsCachedTotal;
+		this.locationsCached = locationsCached;
 	}
 }

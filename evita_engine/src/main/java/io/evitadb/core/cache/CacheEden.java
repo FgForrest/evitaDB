@@ -297,7 +297,7 @@ public class CacheEden {
 				try {
 					// retrieve adepts to evaluate
 					final Map<Long, CacheRecordAdept> adepts = this.nextAdeptsToEvaluate.getAndSet(null);
-					event.setAdeptsTotal(adepts != null ? adepts.size() : 0);
+					event.setAdepts(adepts != null ? adepts.size() : 0);
 					if (adepts != null) {
 						// copy all adepts into a new array that will be sorted
 						final EvaluationCacheFormulaAdeptSource evaluationSource = mergeAdeptsWithExistingEntriesForEvaluation(adepts);
@@ -375,14 +375,14 @@ public class CacheEden {
 						}
 
 						// set final information
-						event.setPromotedAdeptsTotal(adeptsPromoted);
-						event.setSurvivingRecordsTotal(survivingRecords);
-						event.setCooldownRecordsTotal(coolDownRecords);
-						event.setEvictedRecordsTotal(evictedRecords);
-						event.setCacheHitsTotal(this.hits.get() - this.hitsReported.get());
-						event.setCacheMissesTotal(this.misses.get() - this.missesReported.get());
-						event.setCacheEnrichmentsTotal(this.enrichments.get() - this.enrichmentsReported.get());
-						event.setEvaluatedItemsTotal(evaluationSource.peek());
+						event.setPromotedAdepts(adeptsPromoted);
+						event.setSurvivingRecords(survivingRecords);
+						event.setCooldownRecords(coolDownRecords);
+						event.setEvictedRecords(evictedRecords);
+						event.setCacheHits(this.hits.get() - this.hitsReported.get());
+						event.setCacheMisses(this.misses.get() - this.missesReported.get());
+						event.setCacheEnrichments(this.enrichments.get() - this.enrichmentsReported.get());
+						event.setEvaluatedItems(evaluationSource.peek());
 						event.setOccupiedSizeBytes(occupiedMemorySize);
 
 						// report statistics per type

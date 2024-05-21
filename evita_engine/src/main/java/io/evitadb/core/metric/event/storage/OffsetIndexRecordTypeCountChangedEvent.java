@@ -50,7 +50,7 @@ public class OffsetIndexRecordTypeCountChangedEvent extends AbstractDataFileEven
 
 	@Label("Number of records")
 	@ExportMetric(metricType = MetricType.GAUGE)
-	private final int recordsTotal;
+	private final int records;
 
 	public OffsetIndexRecordTypeCountChangedEvent(
 		@Nonnull String catalogName,
@@ -61,6 +61,6 @@ public class OffsetIndexRecordTypeCountChangedEvent extends AbstractDataFileEven
 	) {
 		super(catalogName, fileType, name);
 		this.recordType = recordType;
-		this.recordsTotal = countTotal;
+		this.records = countTotal;
 	}
 }

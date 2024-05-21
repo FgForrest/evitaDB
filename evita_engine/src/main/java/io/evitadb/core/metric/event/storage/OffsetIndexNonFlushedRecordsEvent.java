@@ -37,14 +37,14 @@ import javax.annotation.Nonnull;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@Name(AbstractStorageEvent.PACKAGE_NAME + ".OffsetIndexNonFlushedRecords")
+@Name(AbstractStorageEvent.PACKAGE_NAME + ".OffsetIndexNonFlushed")
 @Description("Event that is fired when non flushed record count changes in offset index.")
 @Label("OffsetIndex Non-Flushed Records")
 @Getter
 public class OffsetIndexNonFlushedRecordsEvent extends AbstractDataFileEvent {
 	@Label("Number of records pending flush")
 	@ExportMetric(metricType = MetricType.GAUGE)
-	private final int recordsTotal;
+	private final int records;
 
 	@Label("Size of records pending flush in Bytes")
 	@ExportMetric(metricType = MetricType.GAUGE)
@@ -54,11 +54,11 @@ public class OffsetIndexNonFlushedRecordsEvent extends AbstractDataFileEvent {
 		@Nonnull String catalogName,
 		@Nonnull FileType fileType,
 		@Nonnull String name,
-		int recordsTotal,
+		int records,
 		long recordSizeBytes
 	) {
 		super(catalogName, fileType, name);
-		this.recordsTotal = recordsTotal;
+		this.records = records;
 		this.recordSizeBytes = recordSizeBytes;
 	}
 

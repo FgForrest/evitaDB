@@ -41,18 +41,18 @@ import java.time.OffsetDateTime;
  */
 @Name(AbstractSessionEvent.PACKAGE_NAME + ".SessionClosed")
 @Description("Event that is fired when a session is closed.")
-@ExportInvocationMetric(value = "sessionsClosedTotal", label = "Sessions closed")
-@ExportDurationMetric(value = "sessionDurationMilliseconds", label = "Session lifespan duration in milliseconds")
+@ExportInvocationMetric(label = "Sessions closed")
+@ExportDurationMetric(label = "Session lifespan duration in milliseconds")
 @Label("Session closed")
 @Getter
 public class SessionClosedEvent extends AbstractSessionEvent {
 	@Label("Number of queries performed in session")
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
-	private int queriesTotal;
+	private int queries;
 
 	@Label("Number of mutation calls performed in session")
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
-	private int mutationsTotal;
+	private int mutations;
 
 	@Label("Oldest session timestamp")
 	@ExportMetric(metricType = MetricType.GAUGE)
@@ -67,14 +67,14 @@ public class SessionClosedEvent extends AbstractSessionEvent {
 	 * Increases count of queries performed in this session.
 	 */
 	public void recordQuery() {
-		this.queriesTotal++;
+		this.queries++;
 	}
 
 	/**
 	 * Increases count of mutations performed in this session.
 	 */
 	public void recordMutation() {
-		this.mutationsTotal++;
+		this.mutations++;
 	}
 
 	/**

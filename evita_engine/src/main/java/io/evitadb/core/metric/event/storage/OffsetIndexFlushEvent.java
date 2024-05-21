@@ -44,14 +44,14 @@ import java.time.OffsetDateTime;
 @Name(AbstractStorageEvent.PACKAGE_NAME + ".OffsetIndexFlush")
 @Description("Event that is fired when an OffsetIndex file is flushed.")
 @Label("OffsetIndex flushed to disk")
-@ExportDurationMetric(value = "offsetIndexFlushDuration", label = "Duration of OffsetIndex flush to disk.")
-@ExportInvocationMetric(value = "offsetIndexFlushTotal", label = "OffsetIndex flushes to disk.")
+@ExportDurationMetric(label = "Duration of OffsetIndex flush to disk.")
+@ExportInvocationMetric(label = "OffsetIndex flushes to disk.")
 @Getter
 public class OffsetIndexFlushEvent extends AbstractDataFileEvent {
 
 	@Label("Number of active records")
 	@ExportMetric(metricType = MetricType.GAUGE)
-	private int activeRecordsTotal;
+	private int activeRecords;
 
 	@Label("Estimated memory size in Bytes")
 	@ExportMetric(metricType = MetricType.GAUGE)
@@ -95,7 +95,7 @@ public class OffsetIndexFlushEvent extends AbstractDataFileEvent {
 		long activeDiskSizeBytes,
 		@Nullable OffsetDateTime oldestRecordTimestamp
 	) {
-		this.activeRecordsTotal = activeRecordsTotal;
+		this.activeRecords = activeRecordsTotal;
 		this.estimatedMemorySizeBytes = estimatedMemorySizeBytes;
 		this.maxRecordSize = maxRecordSize;
 		this.diskSizeBytes = diskSizeBytes;

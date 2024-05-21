@@ -38,23 +38,23 @@ import javax.annotation.Nonnull;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@Name(AbstractTransactionEvent.PACKAGE_NAME + ".TransactionIncorporatedToTrunk")
+@Name(AbstractTransactionEvent.PACKAGE_NAME + ".IncorporatedToTrunk")
 @Description("Event that is fired when a transaction was incorporated into a shared data structures.")
 @Label("Transaction incorporated to trunk")
 @ExportDurationMetric(value = "incorporationDurationMilliseconds", label = "Incorporation duration in milliseconds")
 @Getter
 public class TransactionIncorporatedToTrunkEvent extends AbstractTransactionEvent {
 	@Label("Transactions incorporated into shared data structures.")
-	@ExportMetric(metricName = "transactionsIncorporatedTotal", metricType = MetricType.COUNTER)
-	private int collapsedTransactionsTotal;
+	@ExportMetric(metricType = MetricType.COUNTER)
+	private int collapsedTransactions;
 
 	@Label("Atomic mutations processed.")
-	@ExportMetric(metricName = "processedAtomicMutationsTotal", metricType = MetricType.COUNTER)
-	private int processedAtomicMutationsTotal;
+	@ExportMetric(metricType = MetricType.COUNTER)
+	private int processedAtomicMutations;
 
 	@Label("Local mutations processed.")
-	@ExportMetric(metricName = "processedLocalMutationsTotal", metricType = MetricType.COUNTER)
-	private int processedLocalMutationsTotal;
+	@ExportMetric(metricType = MetricType.COUNTER)
+	private int processedLocalMutations;
 
 	public TransactionIncorporatedToTrunkEvent(@Nonnull String catalogName) {
 		super(catalogName);
@@ -75,9 +75,9 @@ public class TransactionIncorporatedToTrunkEvent extends AbstractTransactionEven
 		int processedLocalMutations,
 		int collapsedTransactions
 	) {
-		this.processedAtomicMutationsTotal = processedAtomicMutations;
-		this.processedLocalMutationsTotal = processedLocalMutations;
-		this.collapsedTransactionsTotal = collapsedTransactions;
+		this.processedAtomicMutations = processedAtomicMutations;
+		this.processedLocalMutations = processedLocalMutations;
+		this.collapsedTransactions = collapsedTransactions;
 		this.end();
 		return this;
 	}

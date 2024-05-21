@@ -39,7 +39,7 @@ import javax.annotation.Nonnull;
 @Name(AbstractStorageEvent.PACKAGE_NAME + ".ReadOnlyHandleOpened")
 @Description("Event that is fired when a new file read handle is opened.")
 @Label("File read handles opened")
-@ExportInvocationMetric(value = "readOnlyHandleOpenedTotal", label = "Opened file read handles.")
+@ExportInvocationMetric(label = "Opened file read handles.")
 @Getter
 public class ReadOnlyHandleOpenedEvent extends AbstractDataFileEvent {
 

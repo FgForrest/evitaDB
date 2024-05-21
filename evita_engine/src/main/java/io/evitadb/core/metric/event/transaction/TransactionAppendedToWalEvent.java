@@ -39,16 +39,16 @@ import javax.annotation.Nonnull;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@Name(AbstractTransactionEvent.PACKAGE_NAME + ".TransactionAppendedToWal")
+@Name(AbstractTransactionEvent.PACKAGE_NAME + ".AppendedToWal")
 @Description("Event that is fired when a transaction passed conflict resolution stage.")
 @Label("Transaction appended to WAL")
-@ExportDurationMetric(value = "appendToWalDurationMilliseconds", label = "Appending transaction to shared WAL duration in milliseconds")
-@ExportInvocationMetric(value = "transactionsAppendedToWalTotal", label = "Transactions appended to WAL")
+@ExportDurationMetric(label = "Appending transaction to shared WAL duration in milliseconds")
+@ExportInvocationMetric(label = "Transactions appended to WAL")
 @Getter
 public class TransactionAppendedToWalEvent extends AbstractTransactionEvent {
 	@Label("Atomic mutations appended.")
-	@ExportMetric(metricName = "appendedAtomicMutationsTotal", metricType = MetricType.COUNTER)
-	private int appendedAtomicMutationsTotal;
+	@ExportMetric(metricType = MetricType.COUNTER)
+	private int appendedAtomicMutations;
 
 	public TransactionAppendedToWalEvent(@Nonnull String catalogName) {
 		super(catalogName);
@@ -61,7 +61,7 @@ public class TransactionAppendedToWalEvent extends AbstractTransactionEvent {
 	 */
 	@Nonnull
 	public TransactionAppendedToWalEvent finish(int appendedAtomicMutations) {
-		this.appendedAtomicMutationsTotal = appendedAtomicMutations;
+		this.appendedAtomicMutations = appendedAtomicMutations;
 		this.end();
 		return this;
 	}

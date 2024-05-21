@@ -45,8 +45,8 @@ import javax.annotation.Nullable;
 @Name(AbstractQueryEvent.PACKAGE_NAME + ".EntityEnrich")
 @Description("Event that is fired when an entity is enriched directly.")
 @Label("Entity fetched")
-@ExportInvocationMetric(value = "enrichment", label = "Entity enriched")
-@ExportDurationMetric(value = "enrichmentMillisecondsTotal", label = "Entity enrichment duration in milliseconds")
+@ExportInvocationMetric(label = "Entity enriched")
+@ExportDurationMetric(label = "Entity enrichment duration in milliseconds")
 @Getter
 public class EntityEnrichEvent extends AbstractQueryEvent {
 	@Label("Entity type")
@@ -55,11 +55,11 @@ public class EntityEnrichEvent extends AbstractQueryEvent {
 
 	@Label("Records enriched total")
 	@ExportMetric(metricType = MetricType.COUNTER)
-	private int recordsFetchedTotal;
+	private int records;
 
-	@Label("Fetched size in bytes")
+	@Label("Enrichment size in bytes")
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
-	private int fetchedSizeBytes;
+	private int sizeBytes;
 
 	/**
 	 * Creation timestamp.
@@ -86,8 +86,8 @@ public class EntityEnrichEvent extends AbstractQueryEvent {
 		int fetchedSizeBytes
 	) {
 		this.end();
-		this.recordsFetchedTotal = recordsFetchedTotal;
-		this.fetchedSizeBytes = fetchedSizeBytes;
+		this.records = recordsFetchedTotal;
+		this.sizeBytes = fetchedSizeBytes;
 		return this;
 	}
 

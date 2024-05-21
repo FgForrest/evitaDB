@@ -55,12 +55,11 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
@@ -69,6 +68,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 import static java.util.Optional.of;
+import static java.util.Optional.ofNullable;
 
 /**
  * This class orchestrates listening for JFR events and transforming them into Prometheus metrics which are in the
@@ -310,43 +310,8 @@ public class MetricHandler {
 	 * @param executor thread pool that will be used for acquiring a thread for Prometheus events handling
 	 */
 	public void registerHandlers(EnhancedQueueExecutor executor) {
-		final List<String> allowedEventsFromConfig = observabilityConfig.getAllowedEvents();
-		final boolean publishAllCustomEvents = allowedEventsFromConfig == null;
-		final Set<String> allowedEvents = new HashSet<>(16);
-		if (!publishAllCustomEvents) {
-			allowedEvents.addAll(allowedEventsFromConfig);
-		} else {
-			allowedEvents.addAll(EvitaJfrEventRegistry.getEventClasses().stream().map(Class::getName).toList());
-		}
-
-		final Map<String, Set<String>> eventMetricClasses = new HashMap<>(4);
-
-		if (allowedEventsFromConfig != null && allowedEventsFromConfig.stream().anyMatch(MetricHandler::isCustomEventClassName)) {
-			of(allowedEventsFromConfig).stream()
-				.flatMap(Collection::stream)
-				.filter(DEFAULT_JVM_METRICS::containsKey)
-				.forEach(e -> DEFAULT_JVM_METRICS.get(e).run());
-		} else {
-			DEFAULT_JVM_METRICS.get(DEFAULT_JVM_METRICS_NAME).run();
-		}
-
-		for (String loggingEvent : allowedEvents) {
-			final Set<String> classNames = new HashSet<>(4);
-			if (loggingEvent.endsWith(".*")) {
-				final String packageName = loggingEvent.substring(0, loggingEvent.length() - 2);
-				final Set<Class<? extends CustomMetricsExecutionEvent>> classes = EvitaJfrEventRegistry.getEventClassesFromPackage(packageName);
-				for (Class<?> aClass : classes) {
-					classNames.add(aClass.getName());
-				}
-			} else {
-				if (isCustomEventClassName(loggingEvent)) {
-					final Class<?> existingClass = EvitaJfrEventRegistry.getEventClass(loggingEvent);
-					classNames.add(existingClass.getName());
-				}
-				classNames.add(loggingEvent);
-			}
-			eventMetricClasses.put(loggingEvent, classNames);
-		}
+		registerJvmMetrics();
+		final Set<Class<? extends CustomMetricsExecutionEvent>> allowedMetrics = getAllowedEventSet();
 
 		executor.execute(
 			new BackgroundTask(
@@ -354,114 +319,106 @@ public class MetricHandler {
 				() -> {
 					final ReflectionLookup lookup = ReflectionLookup.NO_CACHE_INSTANCE;
 					try (var recordingStream = new RecordingStream()) {
-						for (Entry<String, Set<String>> eventClasses : eventMetricClasses.entrySet()) {
-							final Set<String> classNames = eventClasses.getValue();
-							final Set<Class<? extends CustomMetricsExecutionEvent>> existingEventClasses = EvitaJfrEventRegistry.getEventClasses();
+						for (Class<? extends CustomMetricsExecutionEvent> eventClass : allowedMetrics) {
+							FlightRecorder.register(eventClass);
+							recordingStream.enable(eventClass);
 
-							for (Class<? extends CustomMetricsExecutionEvent> eventClass : existingEventClasses) {
-								// if event is enabled
-								if (classNames.contains(eventClass.getName())) {
-									FlightRecorder.register(eventClass);
-									recordingStream.enable(eventClass);
+							final Optional<Name> name = Optional.ofNullable(lookup.getClassAnnotation(eventClass, Name.class));
+							final String eventName = name.map(Name::value).orElse(eventClass.getName());
+							AtomicReference<ChainableConsumer<RecordedEvent>> lambdaRef = new AtomicReference<>();
 
-									final Optional<Name> name = Optional.ofNullable(lookup.getClassAnnotation(eventClass, Name.class));
-									final String eventName = name.map(Name::value).orElse(eventClass.getName());
-									AtomicReference<ChainableConsumer<RecordedEvent>> lambdaRef = new AtomicReference<>();
+							final Map<Field, List<Annotation>> fieldsAnnotations = lookup.getFields(eventClass);
+							final List<MetricLabelExporter> labelExporters = Stream.concat(
+								lookup.findAllGettersHavingAnnotationDeeply(eventClass, ExportMetricLabel.class)
+									.stream()
+									.map(MetricHandler::convertGetterToMetricLabelExporter),
+								fieldsAnnotations.entrySet()
+									.stream()
+									.filter(it -> it.getValue().stream().anyMatch(ExportMetricLabel.class::isInstance))
+									.map(Entry::getKey)
+									.map(MetricHandler::convertFieldToMetricLabelExporter)
+							).toList();
 
-									final Map<Field, List<Annotation>> fieldsAnnotations = lookup.getFields(eventClass);
-									final List<MetricLabelExporter> labelExporters = Stream.concat(
-										lookup.findAllGettersHavingAnnotationDeeply(eventClass, ExportMetricLabel.class)
-											.stream()
-											.map(MetricHandler::convertGetterToMetricLabelExporter),
-										fieldsAnnotations.entrySet()
-											.stream()
-											.filter(it -> it.getValue().stream().anyMatch(ExportMetricLabel.class::isInstance))
-											.map(Entry::getKey)
-											.map(MetricHandler::convertFieldToMetricLabelExporter)
-									).toList();
+							final String[] labelNames = labelExporters.stream().map(MetricLabelExporter::labelName).toArray(String[]::new);
+							//noinspection unchecked
+							final Function<RecordedEvent, String>[] labelValueExporters = labelExporters.stream().map(MetricLabelExporter::labelValueAccessor).toArray(Function[]::new);
 
-									final String[] labelNames = labelExporters.stream().map(MetricLabelExporter::labelName).toArray(String[]::new);
-									//noinspection unchecked
-									final Function<RecordedEvent, String>[] labelValueExporters = labelExporters.stream().map(MetricLabelExporter::labelValueAccessor).toArray(Function[]::new);
-
-									Optional.ofNullable(lookup.getClassAnnotation(eventClass, ExportDurationMetric.class))
-										.ifPresent(it -> {
-											final String metricName = composeMetricName(eventClass, it.value());
-											final Metric durationMetric = buildAndRegisterMetric(new LoggedMetric(metricName, it.label(), MetricType.HISTOGRAM, labelNames));
-											if (ArrayUtils.isEmpty(labelValueExporters)) {
-												chainLambda(lambdaRef, recordedEvent -> ((Histogram) durationMetric).observe(recordedEvent.getDuration().toMillis()));
-											} else {
-												chainLambda(
-													lambdaRef,
-													recordedEvent -> ((Histogram) durationMetric)
-														.labelValues(Arrays.stream(labelValueExporters).map(exporter -> exporter.apply(recordedEvent)).toArray(String[]::new))
-														.observe(recordedEvent.getDuration().toMillis())
-												);
-											}
-										});
-									Optional.ofNullable(lookup.getClassAnnotation(eventClass, ExportInvocationMetric.class))
-										.ifPresent(it -> {
-											final String metricName = composeMetricName(eventClass, it.value());
-											final Metric invocationMetric = buildAndRegisterMetric(new LoggedMetric(metricName, it.label(), MetricType.COUNTER, labelNames));
-											if (ArrayUtils.isEmpty(labelValueExporters)) {
-												chainLambda(lambdaRef, recordedEvent -> ((Counter) invocationMetric).inc());
-											} else {
-												chainLambda(
-													lambdaRef,
-													recordedEvent -> ((Counter) invocationMetric)
-														.labelValues(Arrays.stream(labelValueExporters).map(exporter -> exporter.apply(recordedEvent)).toArray(String[]::new))
-														.inc()
-												);
-											}
-										});
-
-									for (Entry<Field, List<Annotation>> fieldAnnotationsEntry : fieldsAnnotations.entrySet()) {
-										final List<Annotation> annotations = fieldAnnotationsEntry.getValue();
-										final Optional<ExportMetric> exportMetric = annotations.stream()
-											.filter(ExportMetric.class::isInstance)
-											.map(ExportMetric.class::cast)
-											.findFirst();
-										final Optional<Label> label = annotations.stream()
-											.filter(Label.class::isInstance)
-											.map(Label.class::cast)
-											.findFirst();
-										final Optional<Name> nameAnnotation = annotations.stream()
-											.filter(Name.class::isInstance)
-											.map(Name.class::cast)
-											.findFirst();
-										if (exportMetric.isEmpty() || label.isEmpty()) {
-											continue;
-										}
-
-										final ExportMetric exportMetricAnnotation = exportMetric.get();
-										final Label labelAnnotation = label.get();
-										final String fieldName = nameAnnotation.map(Name::value)
-											.orElseGet(() -> fieldAnnotationsEntry.getKey().getName());
-
-										final String metricName = composeMetricName(eventClass, exportMetricAnnotation, fieldName);
-										final Metric metric = buildAndRegisterMetric(
-											new LoggedMetric(
-												metricName,
-												labelAnnotation.value(),
-												exportMetricAnnotation.metricType(),
-												labelNames
-											)
-										);
+							Optional.ofNullable(lookup.getClassAnnotation(eventClass, ExportDurationMetric.class))
+								.ifPresent(it -> {
+									final String metricName = composeMetricName(eventClass, it.value());
+									final Metric durationMetric = buildAndRegisterMetric(new LoggedMetric(metricName, it.label(), MetricType.HISTOGRAM, labelNames));
+									if (ArrayUtils.isEmpty(labelValueExporters)) {
+										chainLambda(lambdaRef, recordedEvent -> ((Histogram) durationMetric).observe(recordedEvent.getDuration().toMillis()));
+									} else {
 										chainLambda(
 											lambdaRef,
-											updateMetricValue(
-												exportMetricAnnotation.metricType(),
-												metric,
-												fieldName,
-												labelValueExporters
-											)
+											recordedEvent -> ((Histogram) durationMetric)
+												.labelValues(Arrays.stream(labelValueExporters).map(exporter -> exporter.apply(recordedEvent)).toArray(String[]::new))
+												.observe(recordedEvent.getDuration().toMillis())
 										);
 									}
-
-									if (lambdaRef.get() != null) {
-										recordingStream.onEvent(eventName, lambdaRef.get());
+								});
+							Optional.ofNullable(lookup.getClassAnnotation(eventClass, ExportInvocationMetric.class))
+								.ifPresent(it -> {
+									final String metricName = composeMetricName(eventClass, it.value());
+									final Metric invocationMetric = buildAndRegisterMetric(new LoggedMetric(metricName, it.label(), MetricType.COUNTER, labelNames));
+									if (ArrayUtils.isEmpty(labelValueExporters)) {
+										chainLambda(lambdaRef, recordedEvent -> ((Counter) invocationMetric).inc());
+									} else {
+										chainLambda(
+											lambdaRef,
+											recordedEvent -> ((Counter) invocationMetric)
+												.labelValues(Arrays.stream(labelValueExporters).map(exporter -> exporter.apply(recordedEvent)).toArray(String[]::new))
+												.inc()
+										);
 									}
+								});
+
+							for (Entry<Field, List<Annotation>> fieldAnnotationsEntry : fieldsAnnotations.entrySet()) {
+								final List<Annotation> annotations = fieldAnnotationsEntry.getValue();
+								final Optional<ExportMetric> exportMetric = annotations.stream()
+									.filter(ExportMetric.class::isInstance)
+									.map(ExportMetric.class::cast)
+									.findFirst();
+								final Optional<Label> label = annotations.stream()
+									.filter(Label.class::isInstance)
+									.map(Label.class::cast)
+									.findFirst();
+								final Optional<Name> nameAnnotation = annotations.stream()
+									.filter(Name.class::isInstance)
+									.map(Name.class::cast)
+									.findFirst();
+								if (exportMetric.isEmpty() || label.isEmpty()) {
+									continue;
 								}
+
+								final ExportMetric exportMetricAnnotation = exportMetric.get();
+								final Label labelAnnotation = label.get();
+								final String fieldName = nameAnnotation.map(Name::value)
+									.orElseGet(() -> fieldAnnotationsEntry.getKey().getName());
+
+								final String metricName = composeMetricName(eventClass, exportMetricAnnotation, fieldName);
+								final Metric metric = buildAndRegisterMetric(
+									new LoggedMetric(
+										metricName,
+										labelAnnotation.value(),
+										exportMetricAnnotation.metricType(),
+										labelNames
+									)
+								);
+								chainLambda(
+									lambdaRef,
+									updateMetricValue(
+										exportMetricAnnotation.metricType(),
+										metric,
+										fieldName,
+										labelValueExporters
+									)
+								);
+							}
+
+							if (lambdaRef.get() != null) {
+								recordingStream.onEvent(eventName, lambdaRef.get());
 							}
 						}
 						recordingStream.start();
@@ -469,6 +426,55 @@ public class MetricHandler {
 				}
 			)
 		);
+	}
+
+	/**
+	 * Registers JVM metrics based on the configuration.
+	 */
+	private void registerJvmMetrics() {
+		final List<String> allowedEventsFromConfig = observabilityConfig.getAllowedEvents();
+
+		if (allowedEventsFromConfig != null && allowedEventsFromConfig.stream().noneMatch(DEFAULT_JVM_METRICS_NAME::equals)) {
+			allowedEventsFromConfig
+				.stream()
+				.filter(it -> !MetricHandler.isCustomEventClassName(it))
+				.map(DEFAULT_JVM_METRICS::get)
+				.filter(Objects::nonNull)
+				.forEach(Runnable::run);
+		} else {
+			DEFAULT_JVM_METRICS.get(DEFAULT_JVM_METRICS_NAME).run();
+		}
+	}
+
+	/**
+	 * Method calculates the index of allowed events that should be logged and metrics that should be created.
+	 *
+	 * @return index of allowed events and metrics
+	 */
+	@Nonnull
+	private Set<Class<? extends CustomMetricsExecutionEvent>> getAllowedEventSet() {
+		final List<String> allowedEventsFromConfig = observabilityConfig.getAllowedEvents();
+		final Set<Class<? extends CustomMetricsExecutionEvent>> knownEvents = EvitaJfrEventRegistry.getEventClasses();
+
+		final Set<String> configuredEvents = new HashSet<>(16);
+		if (allowedEventsFromConfig == null) {
+			configuredEvents.addAll(knownEvents.stream().map(Class::getName).toList());
+		} else {
+			configuredEvents.addAll(allowedEventsFromConfig);
+		}
+
+		final Set<Class<? extends CustomMetricsExecutionEvent>> allowedEventSet = new HashSet<>(16);
+		for (String loggingEvent : configuredEvents) {
+			if (loggingEvent.endsWith(".*")) {
+				final String packageName = loggingEvent.substring(0, loggingEvent.length() - 2);
+				final Set<Class<? extends CustomMetricsExecutionEvent>> classes = EvitaJfrEventRegistry.getEventClassesFromPackage(packageName);
+				allowedEventSet.addAll(classes);
+			} else {
+				ofNullable(EvitaJfrEventRegistry.getEventClass(loggingEvent))
+					.ifPresent(allowedEventSet::add);
+			}
+		}
+		return allowedEventSet;
 	}
 
 	/**

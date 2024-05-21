@@ -35,7 +35,7 @@ import javax.annotation.Nonnull;
  */
 @Name(AbstractSystemEvent.PACKAGE_NAME + ".BackgroundTaskFinished")
 @Description("Event that is fired when a background task is finished.")
-@ExportInvocationMetric(value = "backgroundTaskFinishedTotal", label = "Background tasks finished")
+@ExportInvocationMetric(label = "Background tasks finished")
 @Label("Background task finished")
 public class BackgroundTaskFinishedEvent extends AbstractBackgroundTaskEvent {
 
