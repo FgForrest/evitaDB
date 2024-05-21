@@ -44,6 +44,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class WriteOnlyOffHeapWithFileBackupHandleTest implements EvitaTestSupport {
 	private final Path targetDirectory = getPathInTargetDirectory("WriteOnlyOffHeapWithFileBackupHandle");
 	private final ObservableOutputKeeper outputKeeper = new ObservableOutputKeeper(
+		TEST_CATALOG,
 		StorageOptions.builder().storageDirectory(targetDirectory).computeCRC32(true).build(),
 		Mockito.mock(Scheduler.class)
 	);
@@ -56,7 +57,7 @@ class WriteOnlyOffHeapWithFileBackupHandleTest implements EvitaTestSupport {
 	@Test
 	void shouldWriteDataToOffHeapChunk() {
 		try (
-			final OffHeapMemoryManager memoryManager = new OffHeapMemoryManager(32, 1);
+			final OffHeapMemoryManager memoryManager = new OffHeapMemoryManager(TEST_CATALOG, 32, 1);
 			final WriteOnlyOffHeapWithFileBackupHandle writeHandle = new WriteOnlyOffHeapWithFileBackupHandle(
 				targetDirectory.resolve(UUIDUtil.randomUUID() + ".tmp"), outputKeeper, memoryManager
 			)
@@ -82,7 +83,7 @@ class WriteOnlyOffHeapWithFileBackupHandleTest implements EvitaTestSupport {
 	@Test
 	void shouldWriteLargeDataFirstToOffHeapChunkThatAutomaticallySwitchesToTemporaryFileWithSync() {
 		try (
-			final OffHeapMemoryManager memoryManager = new OffHeapMemoryManager(32, 1);
+			final OffHeapMemoryManager memoryManager = new OffHeapMemoryManager(TEST_CATALOG, 32, 1);
 			final WriteOnlyOffHeapWithFileBackupHandle writeHandle = new WriteOnlyOffHeapWithFileBackupHandle(
 				targetDirectory.resolve(UUIDUtil.randomUUID() + ".tmp"), outputKeeper, memoryManager
 			)
@@ -113,7 +114,7 @@ class WriteOnlyOffHeapWithFileBackupHandleTest implements EvitaTestSupport {
 	@Test
 	void shouldWriteLargeDataFirstToOffHeapChunkThatAutomaticallySwitchesToTemporaryFileWithoutSync() {
 		try (
-			final OffHeapMemoryManager memoryManager = new OffHeapMemoryManager(32, 1);
+			final OffHeapMemoryManager memoryManager = new OffHeapMemoryManager(TEST_CATALOG, 32, 1);
 			final WriteOnlyOffHeapWithFileBackupHandle writeHandle = new WriteOnlyOffHeapWithFileBackupHandle(
 				targetDirectory.resolve(UUIDUtil.randomUUID() + ".tmp"), outputKeeper, memoryManager
 			)
@@ -148,7 +149,7 @@ class WriteOnlyOffHeapWithFileBackupHandleTest implements EvitaTestSupport {
 	void shouldStartDirectlyWithFileBackupIfThereIsNoFreeMemoryRegionAvailable() {
 
 		try (
-			final OffHeapMemoryManager memoryManager = new OffHeapMemoryManager(32, 1);
+			final OffHeapMemoryManager memoryManager = new OffHeapMemoryManager(TEST_CATALOG, 32, 1);
 			final WriteOnlyOffHeapWithFileBackupHandle realMemoryHandle = new WriteOnlyOffHeapWithFileBackupHandle(
 				targetDirectory.resolve(UUIDUtil.randomUUID() + ".tmp"), outputKeeper, memoryManager
 			)

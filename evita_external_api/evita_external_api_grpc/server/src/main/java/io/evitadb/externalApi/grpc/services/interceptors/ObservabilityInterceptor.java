@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,6 +23,9 @@
 
 package io.evitadb.externalApi.grpc.services.interceptors;
 
+import io.evitadb.externalApi.grpc.metric.event.GrpcProcedureCalledEvent;
+import io.evitadb.externalApi.grpc.metric.event.GrpcProcedureCalledEvent.InitiatorType;
+import io.evitadb.externalApi.grpc.metric.event.GrpcProcedureCalledEvent.ResponseState;
 import io.evitadb.externalApi.log.AccessLogMarker;
 import io.grpc.Attributes;
 import io.grpc.ForwardingServerCallListener;
@@ -67,7 +70,7 @@ import java.time.format.DateTimeFormatter;
  * @author Lukáš Hornych, 2023
  */
 @Slf4j
-public class AccessLogInterceptor implements ServerInterceptor {
+public class ObservabilityInterceptor implements ServerInterceptor {
 
 	private static final DateTimeFormatter ACCESS_LOG_DATE_FORMAT = DateTimeFormatter.ofPattern("dd/MMM/yyyy:HH:mm:ss Z");
 	/**
@@ -82,17 +85,33 @@ public class AccessLogInterceptor implements ServerInterceptor {
 	public <ReqT, RespT> Listener<ReqT> interceptCall(ServerCall<ReqT, RespT> call,
 	                                                  Metadata headers,
 	                                                  ServerCallHandler<ReqT, RespT> next) {
-		final LoggingServerCall<ReqT, RespT> loggingServerCall = new LoggingServerCall<>(call);
-		final ServerCall.Listener<ReqT> listener = next.startCall(loggingServerCall, headers);
-		return new ForwardingServerCallListener.SimpleForwardingServerCallListener<>(listener) {};
+		final MethodDescriptor<ReqT, RespT> methodDescriptor = call.getMethodDescriptor();
+		final GrpcProcedureCalledEvent event = new GrpcProcedureCalledEvent(
+			methodDescriptor.getServiceName(),
+			methodDescriptor.getBareMethodName(),
+			methodDescriptor.getType()
+		);
+		final ObservabilityServerCall<ReqT, RespT> loggingServerCall = new ObservabilityServerCall<>(call, event);
+		return new ObservabilityListener<>(
+			next.startCall(loggingServerCall, headers), event
+		);
 	}
 
-	private static class LoggingServerCall<M, R> extends ServerCall<M, R> {
-
+	/**
+	 * Observability server call that logs access log messages and fires gRPC procedure called event.
+	 * @param <M>
+	 * @param <R>
+	 */
+	private static class ObservabilityServerCall<M, R> extends ServerCall<M, R> {
 		private final ServerCall<M, R> serverCall;
+		private final GrpcProcedureCalledEvent event;
 
-		protected LoggingServerCall(ServerCall<M, R> serverCall) {
+		protected ObservabilityServerCall(
+			@Nonnull ServerCall<M, R> serverCall,
+			@Nonnull GrpcProcedureCalledEvent event
+		) {
 			this.serverCall = serverCall;
+			this.event = event;
 		}
 
 		@Override
@@ -101,22 +120,26 @@ public class AccessLogInterceptor implements ServerInterceptor {
 				.addMarker(AccessLogMarker.getInstance())
 				.addMarker(GRPC_ACCESS_LOG_MARKER)
 				.log(constructLogMessage(serverCall, status));
-			serverCall.close(status, trailers);
+			this.event.finish().commit();
+			this.serverCall.close(status, trailers);
 		}
 
 		@Override
 		public void request(int numMessages) {
-			serverCall.request(numMessages);
+			this.serverCall.request(numMessages);
 		}
 
 		@Override
 		public void sendHeaders(Metadata headers) {
-			serverCall.sendHeaders(headers);
+			this.serverCall.sendHeaders(headers);
 		}
 
 		@Override
 		public void sendMessage(R message) {
-			serverCall.sendMessage(message);
+			if (this.event.streamsResponses()) {
+				this.event.setInitiator(InitiatorType.SERVER);
+			}
+			this.serverCall.sendMessage(message);
 		}
 
 		@Override
@@ -126,11 +149,11 @@ public class AccessLogInterceptor implements ServerInterceptor {
 
 		@Override
 		public MethodDescriptor<M, R> getMethodDescriptor() {
-			return serverCall.getMethodDescriptor();
+			return this.serverCall.getMethodDescriptor();
 		}
 
 		@Nonnull
-		private <ReqT, RespT> String constructLogMessage(@Nonnull ServerCall<ReqT, RespT> call, @Nonnull Status status) {
+		private static <ReqT, RespT> String constructLogMessage(@Nonnull ServerCall<ReqT, RespT> call, @Nonnull Status status) {
 			final String clientIP = ((InetSocketAddress) call.getAttributes()
 				.get(Grpc.TRANSPORT_ATTR_REMOTE_ADDR)).getAddress().getHostName();
 			final MethodType requestMethodType = call.getMethodDescriptor().getType();
@@ -157,4 +180,52 @@ public class AccessLogInterceptor implements ServerInterceptor {
 			);
 		}
 	}
+
+	/**
+	 * Observability listener that changes the properties of the gRPC procedure called event.
+	 * @param <R>
+	 */
+	private static class ObservabilityListener<R> extends ForwardingServerCallListener<R> {
+		private final ServerCall.Listener<R> delegate;
+		private final GrpcProcedureCalledEvent event;
+
+		ObservabilityListener(
+			@Nonnull ServerCall.Listener<R> delegate,
+			@Nonnull GrpcProcedureCalledEvent event
+		) {
+			this.delegate = delegate;
+			this.event = event;
+		}
+
+		@Override
+		protected ServerCall.Listener<R> delegate() {
+			return this.delegate;
+		}
+
+		@Override
+		public void onHalfClose() {
+			try {
+				super.onHalfClose();
+			} catch (RuntimeException ex) {
+				event.setResponseState(ResponseState.ERROR);
+				throw ex;
+			}
+		}
+
+		@Override
+		public void onCancel() {
+			event.setResponseState(ResponseState.CANCELED);
+			super.onCancel();
+		}
+
+		@Override
+		public void onMessage(R request) {
+			if (event.streamsRequests()) {
+				event.setInitiator(InitiatorType.CLIENT);
+			}
+			super.onMessage(request);
+		}
+
+	}
+
 }

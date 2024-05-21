@@ -37,6 +37,7 @@ import io.evitadb.api.requestResponse.EvitaResponse;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
@@ -50,6 +51,13 @@ import java.util.function.Function;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public interface EvitaInternalSessionContract extends EvitaSessionContract {
+
+	/**
+	 * Returns date and time this session was created.
+	 * @return date and time this session was created
+	 */
+	@Nonnull
+	OffsetDateTime getCreated();
 
 	/**
 	 * Method executes query on {@link CatalogContract} data and returns zero or exactly one entity result. Method
@@ -145,5 +153,4 @@ public interface EvitaInternalSessionContract extends EvitaSessionContract {
 	 */
 	@Nonnull
 	Optional<CompletableFuture<Long>> getTransactionFinalizationFuture();
-
 }

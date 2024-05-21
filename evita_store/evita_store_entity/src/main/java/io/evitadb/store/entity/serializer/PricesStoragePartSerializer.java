@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -59,6 +59,7 @@ public class PricesStoragePartSerializer extends Serializer<PricesStoragePart> {
 
 	@Override
 	public PricesStoragePart read(Kryo kryo, Input input, Class<? extends PricesStoragePart> type) {
+		final long totalBefore = input.total();
 		final int entityPrimaryKey = input.readInt();
 		final int version = input.readVarInt(true);
 		final PriceInnerRecordHandling priceInnerRecordHandling = kryo.readObject(input, PriceInnerRecordHandling.class);
@@ -70,7 +71,8 @@ public class PricesStoragePartSerializer extends Serializer<PricesStoragePart> {
 		}
 
 		return new PricesStoragePart(
-			entityPrimaryKey, version, priceInnerRecordHandling, prices
+			entityPrimaryKey, version, priceInnerRecordHandling, prices,
+			Math.toIntExact(input.total() - totalBefore)
 		);
 	}
 

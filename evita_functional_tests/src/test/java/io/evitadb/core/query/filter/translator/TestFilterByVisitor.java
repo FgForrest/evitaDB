@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -45,6 +45,7 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
+import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.bitmap.ArrayBitmap;
 import lombok.Getter;
@@ -112,9 +113,9 @@ public class TestFilterByVisitor extends FilterByVisitor {
 
 	@Nullable
 	@Override
-	public List<EntityDecorator> getPrefetchedEntities() {
+	public List<ServerEntityDecorator> getPrefetchedEntities() {
 		return this.entities.values().stream().map(
-			it -> Entity.decorate(
+			it -> ServerEntityDecorator.decorate(
 				toEntity(it),
 				getSchema(),
 				null,
@@ -125,6 +126,7 @@ public class TestFilterByVisitor extends FilterByVisitor {
 				new ReferenceContractSerializablePredicate(evitaRequest),
 				new PriceContractSerializablePredicate(evitaRequest, (Boolean) null),
 				evitaRequest.getAlignedNow(),
+				0, 0,
 				null
 			)
 		).toList();

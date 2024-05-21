@@ -109,7 +109,7 @@ class CatalogWriteAheadLogTest {
 	@Test
 	void shouldVerifyWalIsOk() {
 		// should not throw any exception
-		CatalogWriteAheadLog.checkAndTruncate(walFilePath, catalogKryoPool, true);
+		CatalogWriteAheadLog.checkAndTruncate(TEST_CATALOG, walFilePath, catalogKryoPool, true);
 	}
 
 	@Test
@@ -122,7 +122,7 @@ class CatalogWriteAheadLogTest {
 			raf.setLength(newLength);
 		}
 		// should not throw any exception
-		CatalogWriteAheadLog.checkAndTruncate(walFilePath, catalogKryoPool, true);
+		CatalogWriteAheadLog.checkAndTruncate(TEST_CATALOG, walFilePath, catalogKryoPool, true);
 
 		final int txLengthBytes = 4;
 		final int classIdBytes = 2;
@@ -147,7 +147,7 @@ class CatalogWriteAheadLogTest {
 		// should throw an exception
 		assertThrows(
 			WriteAheadLogCorruptedException.class,
-			() -> CatalogWriteAheadLog.checkAndTruncate(walFilePath, catalogKryoPool, true)
+			() -> CatalogWriteAheadLog.checkAndTruncate(TEST_CATALOG, walFilePath, catalogKryoPool, true)
 		);
 	}
 }

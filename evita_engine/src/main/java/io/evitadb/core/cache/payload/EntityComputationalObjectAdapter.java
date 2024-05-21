@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,10 +25,10 @@ package io.evitadb.core.cache.payload;
 
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.requestResponse.EvitaRequest;
-import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.core.cache.CacheEden;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
@@ -65,12 +65,12 @@ public class EntityComputationalObjectAdapter implements TransactionalDataRelate
 	 * The logic that executed the factual entity fetch from the persistent datastore. The supplier will never be called
 	 * providing the entity is found in the cache.
 	 */
-	@Nonnull private final Supplier<EntityDecorator> entityFetcher;
+	@Nonnull private final Supplier<ServerEntityDecorator> entityFetcher;
 	/**
 	 * The logic that is executed if the entity found in the cache. This logic must check if the entity is rich enough
 	 * to satisfy the input request and if not lazy-fetch additional containers so the entity is complete enough.
 	 */
-	@Nonnull private final UnaryOperator<EntityDecorator> entityEnricher;
+	@Nonnull private final UnaryOperator<ServerEntityDecorator> entityEnricher;
 	/**
 	 * Copy of the {@link EvitaRequest#getAlignedNow()} that was actual when entity was fetched from the database.
 	 */
@@ -169,7 +169,7 @@ public class EntityComputationalObjectAdapter implements TransactionalDataRelate
 	 * Method will fetch the factual entity from the persistent datastore.
 	 */
 	@Nullable
-	public EntityDecorator fetchEntity() {
+	public ServerEntityDecorator fetchEntity() {
 		return entityFetcher.get();
 	}
 
@@ -178,7 +178,7 @@ public class EntityComputationalObjectAdapter implements TransactionalDataRelate
 	 * containers so the entity is complete enough.
 	 */
 	@Nonnull
-	public EntityDecorator enrichEntity(@Nonnull EntityDecorator entity) {
+	public ServerEntityDecorator enrichEntity(@Nonnull ServerEntityDecorator entity) {
 		return entityEnricher.apply(entity);
 	}
 

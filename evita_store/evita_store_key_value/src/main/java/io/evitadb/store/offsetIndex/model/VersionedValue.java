@@ -25,6 +25,7 @@ package io.evitadb.store.offsetIndex.model;
 
 import io.evitadb.store.model.FileLocation;
 import io.evitadb.store.offsetIndex.OffsetIndex;
+import io.evitadb.utils.MemoryMeasuringConstants;
 
 import javax.annotation.Nullable;
 import java.io.Serial;
@@ -45,6 +46,11 @@ public record VersionedValue(
 	@Nullable FileLocation fileLocation
 ) implements Serializable {
 	@Serial private static final long serialVersionUID = -4467999274212489366L;
+	public static final long MEMORY_SIZE = 2 * MemoryMeasuringConstants.OBJECT_HEADER_SIZE +
+		MemoryMeasuringConstants.LONG_SIZE +
+		MemoryMeasuringConstants.BYTE_SIZE +
+		MemoryMeasuringConstants.LONG_SIZE +
+		MemoryMeasuringConstants.INT_SIZE;
 
 	/**
 	 * Returns true if this non-flushed value represents removal of the record.

@@ -40,8 +40,10 @@ module evita.external.api.grpc {
 	provides ExternalApiProviderRegistrar with GrpcProviderRegistrar;
 
 	opens io.evitadb.externalApi.grpc.configuration to com.fasterxml.jackson.databind;
-	exports io.evitadb.externalApi.grpc.configuration;
+
 	exports io.evitadb.externalApi.grpc;
+	exports io.evitadb.externalApi.grpc.configuration;
+	exports io.evitadb.externalApi.grpc.metric.event;
 
 	requires static jsr305;
 	requires static org.slf4j;
@@ -66,4 +68,5 @@ module evita.external.api.grpc {
 	requires io.grpc;
 	requires io.grpc.stub;
 	requires io.grpc.protobuf;
+	requires jdk.jfr;
 }

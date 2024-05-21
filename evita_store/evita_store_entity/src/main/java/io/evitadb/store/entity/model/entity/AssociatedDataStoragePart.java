@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -32,6 +32,7 @@ import io.evitadb.store.model.RecordWithCompressedId;
 import io.evitadb.store.service.KeyCompressor;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.NumberUtils;
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.ToString;
 
@@ -42,6 +43,7 @@ import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Locale;
+import java.util.OptionalInt;
 
 import static io.evitadb.utils.ComparatorUtils.compareLocale;
 
@@ -53,6 +55,7 @@ import static io.evitadb.utils.ComparatorUtils.compareLocale;
  */
 @NotThreadSafe
 @ToString(of = "associatedDataKey")
+@EqualsAndHashCode(exclude = {"dirty", "sizeInBytes"})
 public class AssociatedDataStoragePart implements EntityStoragePart, RecordWithCompressedId<EntityAssociatedDataKey> {
 	@Serial private static final long serialVersionUID = -1368845012702768956L;
 
@@ -73,6 +76,10 @@ public class AssociatedDataStoragePart implements EntityStoragePart, RecordWithC
 	 */
 	@Getter private AssociatedDataValue value;
 	/**
+	 * Contains information about size of this container in bytes.
+	 */
+	private final int sizeInBytes;
+	/**
 	 * Contains true if anything changed in this container.
 	 */
 	@Getter private boolean dirty;
@@ -81,13 +88,15 @@ public class AssociatedDataStoragePart implements EntityStoragePart, RecordWithC
 		this.storagePartPK = null;
 		this.entityPrimaryKey = entityPrimaryKey;
 		this.associatedDataKey = new EntityAssociatedDataKey(entityPrimaryKey, associatedDataKey.associatedDataName(), associatedDataKey.locale());
+		this.sizeInBytes = -1;
 	}
 
-	public AssociatedDataStoragePart(long storagePartPK, int entityPrimaryKey, @Nonnull AssociatedDataValue associatedDataValue) {
+	public AssociatedDataStoragePart(long storagePartPK, int entityPrimaryKey, @Nonnull AssociatedDataValue associatedDataValue, int sizeInBytes) {
 		this.storagePartPK = storagePartPK;
 		this.entityPrimaryKey = entityPrimaryKey;
 		this.associatedDataKey = new EntityAssociatedDataKey(entityPrimaryKey, associatedDataValue.key().associatedDataName(), associatedDataValue.key().locale());
 		this.value = associatedDataValue;
+		this.sizeInBytes = sizeInBytes;
 	}
 
 	/**
@@ -122,6 +131,12 @@ public class AssociatedDataStoragePart implements EntityStoragePart, RecordWithC
 	@Override
 	public boolean isEmpty() {
 		return value == null || value.dropped();
+	}
+
+	@Nonnull
+	@Override
+	public OptionalInt sizeInBytes() {
+		return sizeInBytes == -1 ? OptionalInt.empty() : OptionalInt.of(sizeInBytes);
 	}
 
 	/**

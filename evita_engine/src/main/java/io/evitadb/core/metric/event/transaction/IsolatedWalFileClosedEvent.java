@@ -21,37 +21,28 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.metric.event;
+package io.evitadb.core.metric.event.transaction;
 
-import io.evitadb.api.configuration.metric.MetricType;
-import io.evitadb.core.metric.annotation.UsedMetric;
+import io.evitadb.core.metric.annotation.ExportInvocationMetric;
+import jdk.jfr.Description;
 import jdk.jfr.Label;
 import jdk.jfr.Name;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+
+import javax.annotation.Nonnull;
 
 /**
- * This is a sample class that can be logged and also used for JFR recordings.
+ * Event that is fired when a file for isolated WAL storage is closed and deleted.
  *
- * @see CustomMetricsExecutionEvent
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@Label("Query Plan Step Executed")
-@Name("io.evitadb.core.metric.event.QueryPlanStepExecutedEvent")
-@Getter
-@Setter
-@NoArgsConstructor
-public class QueryPlanStepExecutedEvent extends CustomMetricsExecutionEvent {
-	@Label("Step Name")
-	private String stepName;
+@Name(AbstractTransactionEvent.PACKAGE_NAME + ".ReadOnlyHandleClosed")
+@Description("Event that is fired when a file for isolated WAL storage is closed and deleted.")
+@Label("Isolated WAL file closed")
+@ExportInvocationMetric(value = "isolatedWalClosedTotal", label = "Closed files for isolated WAL storage.")
+public class IsolatedWalFileClosedEvent extends AbstractTransactionEvent {
 
-	@Label("Time taken")
-	@Name("time")
-	@UsedMetric(metricType = MetricType.GAUGE)
-	private long time;
-
-	public QueryPlanStepExecutedEvent(String stepName, long time) {
-		this.stepName = stepName;
-		this.time = time;
+	public IsolatedWalFileClosedEvent(@Nonnull String catalogName) {
+		super(catalogName);
 	}
+
 }

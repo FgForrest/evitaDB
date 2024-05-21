@@ -62,11 +62,12 @@ class FormulaCacheVisitorTest {
 
 	@BeforeEach
 	void setUp() {
-		this.cacheEden = new CacheEden(1_000_000, MINIMAL_USAGE_THRESHOLD, 100L);
+		final Scheduler scheduler = new Scheduler(new ScheduledThreadPoolExecutor(4));
+		this.cacheEden = new CacheEden(1_000_000, MINIMAL_USAGE_THRESHOLD, 100L, scheduler);
 		this.cacheAnteroom = new CacheAnteroom(
 			10_000, 30L,
 			cacheEden,
-			new Scheduler(new ScheduledThreadPoolExecutor(4))
+			scheduler
 		);
 	}
 

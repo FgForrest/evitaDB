@@ -30,6 +30,8 @@ import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.Transaction;
+import io.evitadb.core.metric.event.transaction.TransactionIncorporatedToTrunkEvent;
+import io.evitadb.core.metric.event.transaction.TransactionQueuedEvent;
 import io.evitadb.core.transaction.TransactionTrunkFinalizer;
 import io.evitadb.core.transaction.stage.TrunkIncorporationTransactionStage.TrunkIncorporationTransactionTask;
 import io.evitadb.core.transaction.stage.TrunkIncorporationTransactionStage.UpdatedCatalogTransactionTask;
@@ -43,6 +45,8 @@ import lombok.extern.slf4j.Slf4j;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
+import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -68,6 +72,10 @@ public final class TrunkIncorporationTransactionStage
 	 * fast it tries to process next one until the timeout is exceeded.
 	 */
 	private final long timeout;
+	/**
+	 * Contemporary collector of commit timestamps of processed transactions.
+	 */
+	private final ArrayList<OffsetDateTime> processed = new ArrayList<>(64);
 	/**
 	 * Contains reference to the current catalog snapshot this task will be building upon. The catalog is being exchanged
 	 * regularly and the instance of the TrunkIncorporationTransactionStage is not recreated - i.e. stays the same for
@@ -133,9 +141,14 @@ public final class TrunkIncorporationTransactionStage
 	 * @return The processed transaction.
 	 */
 	@Nonnull
-	public UUID processTransactions(long nextCatalogVersion, long timeoutMs, boolean alive) {
+	public ProcessResult processTransactions(long nextCatalogVersion, long timeoutMs, boolean alive) {
 		TransactionMutation lastTransaction = null;
 		Transaction transaction = null;
+
+		int atomicMutationCount = 0;
+		int localMutationCount = 0;
+		this.processed.clear();
+
 		try {
 			// prepare finalizer that doesn't finish the catalog automatically but on demand
 			final TransactionTrunkFinalizer transactionHandler = new TransactionTrunkFinalizer(this.catalog);
@@ -153,10 +166,8 @@ public final class TrunkIncorporationTransactionStage
 			}
 			// and process them
 			if (mutationIterator.hasNext()) {
-				int txCount = 0;
-				final long start = System.nanoTime();
+				final long start = System.currentTimeMillis();
 				do {
-					txCount++;
 					Mutation leadingMutation = mutationIterator.next();
 					// the first mutation of the transaction bulk must be transaction mutation
 					Assert.isPremiseValid(leadingMutation instanceof TransactionMutation, "First mutation must be transaction mutation!");
@@ -180,22 +191,29 @@ public final class TrunkIncorporationTransactionStage
 
 					// and replay all the mutations of the entire transaction from the WAL
 					// this cannot be interrupted even if the timeout is exceeded and must be fully applied
-					replayMutationsOnCatalog(transactionMutation, transaction, mutationIterator);
+					final int[] processedCounts = replayMutationsOnCatalog(transactionMutation, transaction, mutationIterator);
+					atomicMutationCount += processedCounts[0] + 1;
+					localMutationCount += processedCounts[1];
 
 					// this is the last mutation in the transaction, close the replay mutation now
 					transaction.close();
 					lastTransaction = transactionMutation;
 
+					this.processed.add(transactionMutation.getCommitTimestamp());
+
 					log.debug("Processed transaction: {}", transaction);
 				} while (
 					// try to process next transaction if the timeout is not exceeded
-					System.nanoTime() - start < timeoutMs &&
+					System.currentTimeMillis() - start < timeoutMs &&
 						mutationIterator.hasNext() &&
 						// and the next transaction is fully written by previous stage
 						this.catalog.getLastCatalogVersionInMutationStream() > lastTransaction.getCatalogVersion()
 				);
 
-				log.debug("Processed {} transactions in {} ms", txCount, (System.nanoTime() - start) / 1_000_000.0);
+				log.debug(
+					"Processed {} transactions ({} atomic mutations, {} local mutations) in {} ms",
+					this.processed.size(), atomicMutationCount, localMutationCount, (System.currentTimeMillis() - start)
+				);
 			}
 
 			// we've run out of mutation, or the timeout has been exceeded, create a new catalog version now
@@ -215,7 +233,14 @@ public final class TrunkIncorporationTransactionStage
 		}
 
 		Assert.isPremiseValid(transaction != null, "Transaction must not be null!");
-		return transaction.getTransactionId();
+		final ProcessResult processResult = new ProcessResult(
+			transaction.getTransactionId(),
+			atomicMutationCount,
+			localMutationCount,
+			this.processed.toArray(OffsetDateTime[]::new)
+		);
+		this.processed.trimToSize();
+		return processResult;
 	}
 
 	@Override
@@ -233,8 +258,12 @@ public final class TrunkIncorporationTransactionStage
 				task.future().complete(task.catalogVersion());
 			}
 		} else {
+			// emit queue event
+			task.transactionQueuedEvent().finish().commit();
+
+			final TransactionIncorporatedToTrunkEvent event = new TransactionIncorporatedToTrunkEvent(this.catalog.getName());
 			final long lastCatalogVersionInLiveView = this.catalog.getVersion();
-			final UUID lastTransactionId = processTransactions(
+			final ProcessResult result = processTransactions(
 				task.catalogVersion(), this.timeout, true
 			);
 
@@ -246,11 +275,19 @@ public final class TrunkIncorporationTransactionStage
 				task,
 				new UpdatedCatalogTransactionTask(
 					this.catalog,
-					lastTransactionId,
+					result.lastTransactionId(),
 					task.commitBehaviour(),
-					task.future()
+					task.future(),
+					result.commitTimesOfProcessedTransactions()
 				)
 			);
+
+			// emit event
+			event.finish(
+				result.processedAtomicMutations(),
+				result.processedLocalMutations(),
+				result.commitTimesOfProcessedTransactions().length
+			).commit();
 		}
 	}
 
@@ -284,36 +321,41 @@ public final class TrunkIncorporationTransactionStage
 	 * @param transaction         The transaction object to execute the mutations in.
 	 * @param mutationIterator    The iterator containing the mutations to replay.
 	 */
-	private void replayMutationsOnCatalog(
+	private int[] replayMutationsOnCatalog(
 		@Nonnull TransactionMutation transactionMutation,
 		@Nonnull Transaction transaction,
 		@Nonnull Iterator<Mutation> mutationIterator
 	) {
-		Transaction.executeInTransactionIfProvided(
+		return Transaction.executeInTransactionIfProvided(
 			transaction,
 			() -> {
 				this.catalog.setVersion(transactionMutation.getCatalogVersion());
 				// init mutation counter
-				int mutationCount = 0;
-				while (mutationCount < transactionMutation.getMutationCount() && mutationIterator.hasNext()) {
+				int atomicMutationCount = 0;
+				int localMutationCount = 0;
+				while (atomicMutationCount < transactionMutation.getMutationCount() && mutationIterator.hasNext()) {
 					final Mutation mutation = mutationIterator.next();
 					log.debug("Processing mutation: {}", mutation);
-					mutationCount++;
+					atomicMutationCount++;
 					if (mutation instanceof EntityUpsertMutation entityUpsertMutation) {
 						catalog.applyMutation(new VerifiedEntityUpsertMutation(entityUpsertMutation));
+						localMutationCount += entityUpsertMutation.getLocalMutations().size();
 					} else if (mutation instanceof EntityRemoveMutation entityRemoveMutation) {
 						catalog.applyMutation(new VerifiedEntityRemoveMutation(entityRemoveMutation));
+						localMutationCount += entityRemoveMutation.getLocalMutations().size();
 					} else {
 						catalog.applyMutation(mutation);
+						localMutationCount++;
 					}
 				}
 				// we should have processed all the mutations by now and the mutation count should match
 				Assert.isPremiseValid(
-					mutationCount == transactionMutation.getMutationCount(),
+					atomicMutationCount == transactionMutation.getMutationCount(),
 					"Unexpected transaction `" + transactionMutation.getTransactionId() + "` mutation count! " +
 						"Transaction mutation mutation count: " + transactionMutation.getMutationCount() + ", " +
-						"actual mutation count: " + mutationCount + "."
+						"actual mutation count: " + atomicMutationCount + "."
 				);
+				return new int[]{atomicMutationCount, localMutationCount};
 			}
 		);
 	}
@@ -377,8 +419,14 @@ public final class TrunkIncorporationTransactionStage
 		long catalogVersion,
 		@Nonnull UUID transactionId,
 		@Nonnull CommitBehavior commitBehaviour,
-		@Nullable CompletableFuture<Long> future
+		@Nullable CompletableFuture<Long> future,
+		@Nonnull TransactionQueuedEvent transactionQueuedEvent
 	) implements TransactionTask {
+
+		public TrunkIncorporationTransactionTask(@Nonnull String catalogName, long catalogVersion, @Nonnull UUID transactionId, @Nonnull CommitBehavior commitBehaviour, @Nullable CompletableFuture<Long> future) {
+			this(catalogName, catalogVersion, transactionId, commitBehaviour, future, new TransactionQueuedEvent(catalogName, "trunk_incorporation"));
+		}
+
 	}
 
 	/**
@@ -389,8 +437,14 @@ public final class TrunkIncorporationTransactionStage
 		@Nonnull Catalog catalog,
 		@Nonnull UUID transactionId,
 		@Nonnull CommitBehavior commitBehaviour,
-		@Nullable CompletableFuture<Long> future
+		@Nullable CompletableFuture<Long> future,
+		@Nonnull OffsetDateTime[] commitTimestamps,
+		@Nonnull TransactionQueuedEvent transactionQueuedEvent
 	) implements TransactionTask {
+
+		public UpdatedCatalogTransactionTask(@Nonnull Catalog catalog, @Nonnull UUID transactionId, @Nonnull CommitBehavior commitBehaviour, @Nullable CompletableFuture<Long> future, @Nonnull OffsetDateTime[] commitTimestamps) {
+			this(catalog, transactionId, commitBehaviour, future, commitTimestamps, new TransactionQueuedEvent(catalog.getName(), "catalog_propagation"));
+		}
 
 		@Nonnull
 		@Override
@@ -402,6 +456,24 @@ public final class TrunkIncorporationTransactionStage
 		public long catalogVersion() {
 			return catalog.getVersion();
 		}
+
+
+	}
+
+	/**
+	 * Result of the {@link #processTransactions(long, long, boolean)} method.
+	 *
+	 * @param lastTransactionId                  the ID of the last processed transaction
+	 * @param processedAtomicMutations           the number of processed atomic mutations
+	 * @param processedLocalMutations            the number of processed local mutations
+	 * @param commitTimesOfProcessedTransactions commit times of all processed transactions
+	 */
+	record ProcessResult(
+		@Nonnull UUID lastTransactionId,
+		int processedAtomicMutations,
+		int processedLocalMutations,
+		@Nonnull OffsetDateTime[] commitTimesOfProcessedTransactions
+	) {
 	}
 
 }

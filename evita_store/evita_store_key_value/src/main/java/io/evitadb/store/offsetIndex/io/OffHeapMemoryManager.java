@@ -23,7 +23,9 @@
 
 package io.evitadb.store.offsetIndex.io;
 
+import io.evitadb.core.metric.event.transaction.OffHeapMemoryAllocationChangeEvent;
 import io.evitadb.utils.Assert;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -57,13 +59,23 @@ public class OffHeapMemoryManager implements Closeable {
 	 */
 	private final int regionSize;
 	/**
+	 * The size of the memory block in Bytes.
+	 */
+	private final long sizeInBytes;
+	/**
+	 * The name of the catalog that this memory manager is associated with.
+	 */
+	@Getter private final String catalogName;
+	/**
 	 * The last index of the usedRegions array that was used to acquire a region. This is used to identify the first
 	 * attempted index to acquire a region. We tested a randomization function to select it, but it's miss count varied
 	 * a lot and this simple mechanism proved to be very easy to implement and not so worse than the randomization.
 	 */
 	private int lastIndex = 0;
 
-	public OffHeapMemoryManager(long sizeInBytes, int regions) {
+	public OffHeapMemoryManager(@Nonnull String catalogName, long sizeInBytes, int regions) {
+		this.catalogName = catalogName;
+		this.sizeInBytes = sizeInBytes;
 		if (regions == 0 || sizeInBytes == 0) {
 			this.regionSize = 0;
 			this.usedRegions = new AtomicReferenceArray<>(0);
@@ -77,7 +89,9 @@ public class OffHeapMemoryManager implements Closeable {
 			this.regionSize = Math.toIntExact(sizeInBytes / regions);
 			this.usedRegions = new AtomicReferenceArray<>(regions);
 			// allocate off heap memory
-			this.memoryBlock = new AtomicReference<>(ByteBuffer.allocateDirect((int) sizeInBytes));
+			this.memoryBlock = new AtomicReference<>(ByteBuffer.allocateDirect(Math.toIntExact(sizeInBytes)));
+
+			new OffHeapMemoryAllocationChangeEvent(catalogName, sizeInBytes, 0).commit();
 		}
 
 	}
@@ -94,15 +108,31 @@ public class OffHeapMemoryManager implements Closeable {
 		if (byteBuffer == null) {
 			return Optional.empty();
 		}
-		final int regionCount = usedRegions.length();
+		final int regionCount = this.usedRegions.length();
 		final OffHeapMemoryOutputStream newOutputStream = new OffHeapMemoryOutputStream();
-		final int occupiedIndex = findClearIndexAndSet(regionCount, lastIndex++, newOutputStream);
-		lastIndex = occupiedIndex;
+		final int occupiedIndex = findClearIndexAndSet(regionCount, this.lastIndex++, newOutputStream);
+		this.lastIndex = occupiedIndex;
 		if (occupiedIndex == -1) {
 			return Optional.empty();
 		} else {
 			final ByteBuffer region = byteBuffer.slice(occupiedIndex * regionSize, regionSize);
-			newOutputStream.init(occupiedIndex, region, (index, clearedReference) -> usedRegions.compareAndSet(index, clearedReference, null));
+			newOutputStream.init(
+				occupiedIndex, region,
+				(index, clearedReference) -> {
+					this.usedRegions.compareAndSet(index, clearedReference, null);
+					// emit the event
+					new OffHeapMemoryAllocationChangeEvent(
+						this.catalogName, this.sizeInBytes,
+						(long) (regionCount - getFreeRegions()) * this.regionSize
+					).commit();
+				}
+			);
+
+			// emit the event
+			new OffHeapMemoryAllocationChangeEvent(
+				this.catalogName, this.sizeInBytes,
+				(long) (regionCount - getFreeRegions()) * this.regionSize
+			).commit();
 			return Optional.of(newOutputStream);
 		}
 	}
@@ -116,6 +146,12 @@ public class OffHeapMemoryManager implements Closeable {
 		final OffHeapMemoryOutputStream stream = this.usedRegions.get(regionIndex);
 		Assert.isPremiseValid(stream != null, "Stream at index " + regionIndex + " is already released!");
 		stream.close();
+
+		// emit the event
+		new OffHeapMemoryAllocationChangeEvent(
+			this.catalogName, this.sizeInBytes,
+			(long) (this.usedRegions.length() - getFreeRegions()) * this.regionSize
+		).commit();
 	}
 
 	@Override
@@ -129,6 +165,9 @@ public class OffHeapMemoryManager implements Closeable {
 				nonReleasedStream.close();
 			}
 		}
+		// emit the event
+		// emit the event
+		new OffHeapMemoryAllocationChangeEvent(this.catalogName, 0L, 0L).commit();
 	}
 
 	/**

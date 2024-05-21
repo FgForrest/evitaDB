@@ -27,7 +27,6 @@ import io.evitadb.core.cache.CacheEden;
 import io.evitadb.core.cache.payload.CachePayloadHeader;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
 import io.evitadb.utils.Assert;
-import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -81,14 +80,28 @@ public class CachedRecord extends CacheRecordAdept {
 		}
 	}
 
-	public CachedRecord(long recordHash, long costToPerformanceRatio, int timesUsed, int sizeInBytes) {
-		super(recordHash, costToPerformanceRatio, timesUsed, Math.toIntExact((long)sizeInBytes + (long)BASE_SIZE));
+	public CachedRecord(
+		byte recordType,
+		long recordHash,
+		long costToPerformanceRatio,
+		int timesUsed,
+		int sizeInBytes
+	) {
+		super(recordType, recordHash, costToPerformanceRatio, timesUsed, Math.toIntExact((long)sizeInBytes + (long)BASE_SIZE));
 		this.transactionalIdHash = -1L;
 		this.payload = null;
 	}
 
-	public CachedRecord(long recordHash, long costToPerformanceRatio, int timesUsed, int sizeInBytes, Long transactionalIdHash, Object payload) {
-		super(recordHash, costToPerformanceRatio, timesUsed, sizeInBytes);
+	public CachedRecord(
+		byte recordType,
+		long recordHash,
+		long costToPerformanceRatio,
+		int timesUsed,
+		int sizeInBytes,
+		long transactionalIdHash,
+		@Nonnull Object payload
+	) {
+		super(recordType, recordHash, costToPerformanceRatio, timesUsed, sizeInBytes);
 		this.transactionalIdHash = transactionalIdHash;
 		this.payload = payload;
 	}
@@ -123,7 +136,7 @@ public class CachedRecord extends CacheRecordAdept {
 
 	/**
 	 * Returns hash of all transactional ids computed by
-	 * {@link TransactionalDataRelatedStructure#computeTransactionalIdHash(LongHashFunction)}. This is hash of all
+	 * {@link TransactionalDataRelatedStructure#getTransactionalIdHash()}. This is hash of all
 	 * ids of transactional data structures that this cached values relates to. The hash must exactly match the hash
 	 * of the input computational object if the cached result can be used.
 	 */
@@ -139,10 +152,10 @@ public class CachedRecord extends CacheRecordAdept {
 	public int reset() {
 		final int usedTimes = timesUsed.getAndSet(0);
 		if (usedTimes == 0) {
-			return cooling.incrementAndGet();
+			return this.cooling.incrementAndGet();
 		} else {
-			cooling.set(0);
+			this.cooling.set(0);
+			return 0;
 		}
-		return 0;
 	}
 }

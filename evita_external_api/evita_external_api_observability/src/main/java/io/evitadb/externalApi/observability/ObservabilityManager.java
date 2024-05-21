@@ -38,9 +38,8 @@ import io.evitadb.externalApi.observability.exception.JfRException;
 import io.evitadb.externalApi.observability.io.ObservabilityExceptionHandler;
 import io.evitadb.externalApi.observability.logging.StartLoggingHandler;
 import io.evitadb.externalApi.observability.logging.StopLoggingHandler;
+import io.evitadb.externalApi.observability.metric.EvitaJfrEventRegistry;
 import io.evitadb.externalApi.observability.metric.MetricHandler;
-import io.evitadb.externalApi.observability.metric.provider.CustomEventProvider;
-import io.evitadb.externalApi.observability.metric.provider.RegisteredCustomEventProvider;
 import io.evitadb.utils.Assert;
 import io.prometheus.metrics.exporter.servlet.jakarta.PrometheusMetricsServlet;
 import io.undertow.Handlers;
@@ -81,7 +80,7 @@ import java.util.function.Consumer;
  * It also registers endpoints for controlling JFR recording. It iterates over all specified events and registers them
  * within {@link FlightRecorder} for JFR recordings and Prometheus metrics. It supports wildcards specifications, so
  * it is possible to register all custom events from a package at once. It only requires to be inheritor of {@link CustomMetricsExecutionEvent}
- * and to be registered in the {@link RegisteredCustomEventProvider}.
+ * and to be registered in the {@link EvitaJfrEventRegistry}.
  *
  * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
  */
@@ -185,14 +184,14 @@ public class ObservabilityManager {
 	private static void registerJfrEvents(@Nonnull String[] allowedEvents) {
 		for (String event : Arrays.stream(allowedEvents).filter(x -> !x.startsWith("jdk.")).toList()) {
 			if (event.endsWith(".*")) {
-				final Set<Class<? extends CustomMetricsExecutionEvent>> classes = CustomEventProvider.getEventClassesFromPackage(event);
+				final Set<Class<? extends CustomMetricsExecutionEvent>> classes = EvitaJfrEventRegistry.getEventClassesFromPackage(event);
 				for (Class<? extends CustomMetricsExecutionEvent> clazz : classes) {
 					if (!Modifier.isAbstract(clazz.getModifiers())) {
 						FlightRecorder.register(clazz);
 					}
 				}
 			} else {
-				final Class<? extends CustomMetricsExecutionEvent> clazz = CustomEventProvider.getEventClass(event);
+				final Class<? extends CustomMetricsExecutionEvent> clazz = EvitaJfrEventRegistry.getEventClass(event);
 				if (!Modifier.isAbstract(clazz.getModifiers())) {
 					FlightRecorder.register(clazz);
 				}

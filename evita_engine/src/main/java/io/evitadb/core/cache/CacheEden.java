@@ -23,22 +23,34 @@
 
 package io.evitadb.core.cache;
 
+import com.carrotsearch.hppc.CharObjectMap;
+import com.carrotsearch.hppc.CharObjectWormMap;
+import com.carrotsearch.hppc.cursors.CharObjectCursor;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.CacheOptions;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.core.cache.model.CacheRecordAdept;
+import io.evitadb.core.cache.model.CacheRecordType;
 import io.evitadb.core.cache.model.CachedRecord;
 import io.evitadb.core.cache.payload.CachePayloadHeader;
 import io.evitadb.core.cache.payload.EntityComputationalObjectAdapter;
 import io.evitadb.core.cache.payload.EntityPayload;
+import io.evitadb.core.metric.event.cache.AnteroomRecordStatisticsUpdatedEvent;
+import io.evitadb.core.metric.event.cache.AnteroomWastedEvent;
+import io.evitadb.core.metric.event.cache.CacheReevaluatedEvent;
+import io.evitadb.core.metric.event.cache.CacheStatisticsPerTypeUpdatedEvent;
+import io.evitadb.core.metric.event.cache.CacheStatisticsUpdatedEvent;
 import io.evitadb.core.query.algebra.CacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.extraResult.CacheableEvitaResponseExtraResultComputer;
+import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
 import io.evitadb.core.query.sort.CacheableSorter;
 import io.evitadb.dataType.array.CompositeLongArray;
 import io.evitadb.exception.GenericEvitaInternalError;
-import io.evitadb.utils.StringUtils;
+import io.evitadb.scheduling.Scheduler;
+import io.evitadb.utils.BitUtils;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import net.openhft.hashing.LongHashFunction;
 
@@ -47,6 +59,7 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serializable;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -95,17 +108,38 @@ public class CacheEden {
 	 */
 	private final long maximalByteSize;
 	/**
+	 * Represents counter initialized records of this cache (i.e. how many adepts introduced to cache were actually
+	 * hit for the first time).
+	 */
+	private final AtomicLong initialized = new AtomicLong();
+	/**
+	 * Number of records initialized reported to the observability subsystem.
+	 */
+	private final AtomicLong initializedRecordsReported = new AtomicLong();
+	/**
 	 * Represents counter of hits of this cache (i.e. how many times requested formula was found in cache).
 	 */
 	private final AtomicLong hits = new AtomicLong();
+	/**
+	 * Number of hits reported to the observability subsystem.
+	 */
+	private final AtomicLong hitsReported = new AtomicLong();
 	/**
 	 * Represents counter of misses of this cache (i.e. how many times requested formula was NOT found in cache).
 	 */
 	private final AtomicLong misses = new AtomicLong();
 	/**
+	 * Number of misses reported to the observability subsystem.
+	 */
+	private final AtomicLong missesReported = new AtomicLong();
+	/**
 	 * Represents counter of entity enrichments of this cache.
 	 */
 	private final AtomicLong enrichments = new AtomicLong();
+	/**
+	 * Number of enrichments reported to the observability subsystem.
+	 */
+	private final AtomicLong enrichmentsReported = new AtomicLong();
 	/**
 	 * Lock used to synchronize {@link #evaluateAdepts()} that is expected to be called in synchronized block.
 	 */
@@ -124,12 +158,24 @@ public class CacheEden {
 	 */
 	private final AtomicReference<Map<Long, CacheRecordAdept>> nextAdeptsToEvaluate = new AtomicReference<>();
 
-	public CacheEden(long maximalByteSize, int minimalUsageThreshold, long minimalSpaceToPerformanceRatio) {
+	public CacheEden(
+		long maximalByteSize,
+		int minimalUsageThreshold,
+		long minimalSpaceToPerformanceRatio,
+		@Nonnull Scheduler scheduler
+	) {
 		// let's assume single record will occupy 1KB
 		this.theCache = new ConcurrentHashMap<>(Math.toIntExact(maximalByteSize / 10_000L));
 		this.maximalByteSize = maximalByteSize;
 		this.minimalUsageThreshold = minimalUsageThreshold;
 		this.minimalSpaceToPerformanceRatio = minimalSpaceToPerformanceRatio;
+
+		scheduler.scheduleAtFixedRate(
+			this::reportStatistics,
+			1,
+			1,
+			TimeUnit.MINUTES
+		);
 	}
 
 	/**
@@ -211,6 +257,10 @@ public class CacheEden {
 	 */
 	public void setNextAdeptsToEvaluate(@Nonnull Map<Long, CacheRecordAdept> adepts) {
 		final Map<Long, CacheRecordAdept> alreadyWaitingAdepts;
+
+		// update statistics
+		new AnteroomRecordStatisticsUpdatedEvent(adepts.size()).commit();
+
 		final boolean adeptsEmpty = adepts.isEmpty();
 		if (adeptsEmpty) {
 			alreadyWaitingAdepts = this.nextAdeptsToEvaluate.compareAndExchange(null, adepts);
@@ -218,6 +268,8 @@ public class CacheEden {
 			alreadyWaitingAdepts = this.nextAdeptsToEvaluate.getAndSet(adepts);
 		}
 		if (!adeptsEmpty && alreadyWaitingAdepts != null && !alreadyWaitingAdepts.isEmpty()) {
+			// emit the events
+			new AnteroomWastedEvent().commit();
 			// log excessive pressure on the cache
 			log.warn("Evita cache refresh doesn't keep up with cache adepts ingress (discarded " + alreadyWaitingAdepts.size() + " adepts)!");
 		}
@@ -240,10 +292,12 @@ public class CacheEden {
 	public void evaluateAdepts() {
 		try {
 			// this method is allowed to run in one thread only
-			if (lock.tryLock() || lock.tryLock(1, TimeUnit.SECONDS)) {
+			if (this.lock.tryLock() || this.lock.tryLock(1, TimeUnit.SECONDS)) {
+				final CacheReevaluatedEvent event = new CacheReevaluatedEvent();
 				try {
 					// retrieve adepts to evaluate
-					final Map<Long, CacheRecordAdept> adepts = nextAdeptsToEvaluate.getAndSet(null);
+					final Map<Long, CacheRecordAdept> adepts = this.nextAdeptsToEvaluate.getAndSet(null);
+					event.setAdeptsTotal(adepts != null ? adepts.size() : 0);
 					if (adepts != null) {
 						// copy all adepts into a new array that will be sorted
 						final EvaluationCacheFormulaAdeptSource evaluationSource = mergeAdeptsWithExistingEntriesForEvaluation(adepts);
@@ -256,32 +310,59 @@ public class CacheEden {
 						// now find the delimiter for entries that will be newly accepted to cache
 						int threshold = -1; // index of the last entry that will be accepted to the new cache
 						long occupiedMemorySize = 0; // contains memory size in bytes going to be occupied by flattened formula entries
+						int adeptsPromoted = 0;
+						int survivingRecords = 0;
+						int coolDownRecords = 0;
+						final CharObjectMap<TypeStatistics> promotedTypes = new CharObjectWormMap<>(CacheRecordType.values().length);
 						for (int i = 0; i < evaluationSource.peek(); i++) {
 							final CacheAdeptKeyWithValue adept = evaluation[i];
 							final int adeptSizeInBytes = adept.estimatedSizeInBytes();
 							// increase counters for bitmaps and occupied memory size
 							occupiedMemorySize += adeptSizeInBytes;
 							// if the expected memory consumption is greater than allowed
-							if (occupiedMemorySize > maximalByteSize) {
+							if (occupiedMemorySize > this.maximalByteSize) {
 								// stop iterating - we found our threshold, last counter increase must be reverted
 								// currently examined item will not be part of the cache
 								occupiedMemorySize -= adeptSizeInBytes;
 								break;
 							}
+							// detect if the entry is existing record or an adept
+							if (BitUtils.isBitSet(adept.flags(), (byte) 0)) {
+								survivingRecords++;
+								// if the entry is existing record and is in cool-down period
+								if (BitUtils.isBitSet(adept.flags(), (byte) 1)) {
+									coolDownRecords++;
+								}
+							} else {
+								adeptsPromoted++;
+							}
+							final char key = (char) BitUtils.copyBitSetFrom((byte) 2, adept.flags());
+							final TypeStatistics typeStatistics = promotedTypes.get(key);
+							if (typeStatistics == null) {
+								promotedTypes.put(key, new TypeStatistics(adept));
+							} else {
+								typeStatistics.add(adept);
+							}
 							threshold = i;
 						}
 
-						// we need first to free the memory to avoid peek
-						// evict all cold cached formulas
+						int evictedRecords = 0;
+
+						// we need first to free the memory to avoid exceeding the peek
+						// evict all cold and cached formulas
 						final OfLong expiredItemsIt = evaluationSource.expiredItems().iterator();
 						while (expiredItemsIt.hasNext()) {
 							final long expiredFormulaHash = expiredItemsIt.next();
-							theCache.remove(expiredFormulaHash);
+							this.theCache.remove(expiredFormulaHash);
+							evictedRecords++;
 						}
 						// evict all cached formulas after the found threshold
 						for (int i = threshold + 1; i < evaluationSource.peek(); i++) {
 							final CacheAdeptKeyWithValue adept = evaluation[i];
-							theCache.remove(adept.recordHash());
+							this.theCache.remove(adept.recordHash());
+							if (BitUtils.isBitSet(adept.flags(), (byte) 0)) {
+								evictedRecords++;
+							}
 						}
 
 						// cache all non-cached formulas before the found threshold
@@ -290,34 +371,54 @@ public class CacheEden {
 							final CacheAdeptKeyWithValue adept = evaluation[i];
 							// init the cached formula, final reference will be initialized with first additional request
 							Optional.ofNullable(adepts.get(adept.recordHash()))
-								.ifPresent(it -> {
-									theCache.putIfAbsent(adept.recordHash(), it.toCachedRecord());
-								});
+								.ifPresent(it -> this.theCache.putIfAbsent(adept.recordHash(), it.toCachedRecord()));
 						}
 
-						// TOBEDONE JNO #18 - replace this with metrics
-						log.debug(
-							"Cache re-evaluation: " +
-								"count " + theCache.size() +
-								", size " + StringUtils.formatByteSize(occupiedMemorySize) +
-								", hits " + this.hits.get() +
-								", misses " + this.misses.get() +
-								", enrichments " + this.enrichments.get() +
-								", ratio " + ((float) this.hits.get() / (float) (this.misses.get() + this.hits.get())) * 100f + "%" +
-								", average complexity: " + ((float) Arrays.stream(evaluation).limit(evaluationSource.peek()).mapToLong(CacheAdeptKeyWithValue::spaceToPerformanceRatio).sum() / (float) evaluationSource.peek()) +
-								", adept count: " + evaluationSource.peek()
+						// set final information
+						event.setPromotedAdeptsTotal(adeptsPromoted);
+						event.setSurvivingRecordsTotal(survivingRecords);
+						event.setCooldownRecordsTotal(coolDownRecords);
+						event.setEvictedRecordsTotal(evictedRecords);
+						event.setCacheHitsTotal(this.hits.get() - this.hitsReported.get());
+						event.setCacheMissesTotal(this.misses.get() - this.missesReported.get());
+						event.setCacheEnrichmentsTotal(this.enrichments.get() - this.enrichmentsReported.get());
+						event.setEvaluatedItemsTotal(evaluationSource.peek());
+						event.setOccupiedSizeBytes(occupiedMemorySize);
 
-						);
+						// report statistics per type
+						final EnumSet<CacheRecordType> typesToNullify = EnumSet.allOf(CacheRecordType.class);
+						for (CharObjectCursor<TypeStatistics> promotedType : promotedTypes) {
+							typesToNullify.remove(promotedType.value.getRecordType());
+							new CacheStatisticsPerTypeUpdatedEvent(
+								promotedType.value.getRecordType(),
+								promotedType.value.getCount(),
+								promotedType.value.getSize(),
+								promotedType.value.getAverageSpaceToPerformance()
+							).commit();
+						}
+						for (CacheRecordType cacheRecordType : typesToNullify) {
+							new CacheStatisticsPerTypeUpdatedEvent(
+								cacheRecordType, 0, 0L, 0L
+							).commit();
+						}
 
 						// finally, set occupied memory size according to expectations
 						this.usedByteSize.set(occupiedMemorySize);
 						this.cacheSize.set(theCache.size());
 						this.hits.set(0);
+						this.hitsReported.set(0);
+						this.initialized.set(0);
 						this.misses.set(0);
+						this.missesReported.set(0);
 						this.enrichments.set(0);
+						this.enrichmentsReported.set(0);
+						this.initializedRecordsReported.set(0);
 					}
 				} finally {
-					lock.unlock();
+					this.lock.unlock();
+
+					// emit the event
+					event.finish().commit();
 				}
 			}
 		} catch (InterruptedException e) {
@@ -327,14 +428,45 @@ public class CacheEden {
 	}
 
 	/**
+	 * Method is called in regular intervals to report cache statistics to the observability subsystem.
+	 */
+	private void reportStatistics() {
+		final long hitsObserved = this.hits.get();
+		final long previouslyReportedHits = this.hitsReported.get();
+		final long hitsToReport = hitsObserved - previouslyReportedHits;
+		this.hitsReported.set(hitsObserved);
+
+		final long missesObserved = this.misses.get();
+		final long previouslyReportedMisses = this.missesReported.get();
+		final long missesToReport = missesObserved - previouslyReportedMisses;
+		this.missesReported.set(missesObserved);
+
+		final long enrichmentsObserved = this.enrichments.get();
+		final long previouslyReportedEnrichments = this.enrichmentsReported.get();
+		final long enrichmentsToReport = enrichmentsObserved - previouslyReportedEnrichments;
+		this.enrichmentsReported.set(enrichmentsObserved);
+
+		final long initializedObserved = this.initialized.get();
+		final long previouslyReportedInitialized = this.initializedRecordsReported.get();
+		final long initializedToReport = initializedObserved - previouslyReportedInitialized;
+		this.initializedRecordsReported.set(initializedObserved);
+
+		new CacheStatisticsUpdatedEvent(
+			hitsToReport, missesToReport, enrichmentsToReport, initializedToReport
+		).commit();
+	}
+
+	/**
 	 * Combines collection of {@link CacheRecordAdept} with entire contents of {@link #theCache} - i.e. already
 	 * {@link CachedRecord} into the single object for price evaluation. During the process the {@link CachedRecord}
 	 * that hasn't been used for a long time (has cooled off) are marked for discarding.
 	 */
 	@Nonnull
-	private EvaluationCacheFormulaAdeptSource mergeAdeptsWithExistingEntriesForEvaluation(@Nonnull Map<Long, CacheRecordAdept> adepts) {
+	private EvaluationCacheFormulaAdeptSource mergeAdeptsWithExistingEntriesForEvaluation(
+		@Nonnull Map<Long, CacheRecordAdept> adepts
+	) {
 		final CacheAdeptKeyWithValue[] evaluation = new CacheAdeptKeyWithValue[adepts.size() + cacheSize.get()];
-		final CompositeLongArray expiredItems = new CompositeLongArray();
+		final CompositeLongArray recordsToEvict = new CompositeLongArray();
 		int index = 0;
 		// first fill in all waiting adepts
 		final Iterator<Entry<Long, CacheRecordAdept>> adeptIt = adepts.entrySet().iterator();
@@ -344,7 +476,12 @@ public class CacheEden {
 			final long spaceToPerformanceRatio = adept.getSpaceToPerformanceRatio(minimalUsageThreshold);
 			final int estimatedSizeInBytes = CachedRecord.computeSizeInBytes(adept);
 			if (estimatedSizeInBytes < MAX_BUFFER_SIZE && spaceToPerformanceRatio > minimalSpaceToPerformanceRatio) {
-				evaluation[index++] = new CacheAdeptKeyWithValue(adeptEntry.getKey(), estimatedSizeInBytes, spaceToPerformanceRatio);
+				evaluation[index++] = new CacheAdeptKeyWithValue(
+					adeptEntry.getKey(), estimatedSizeInBytes, spaceToPerformanceRatio,
+					BitUtils.setBit(
+						(byte) 0, adeptEntry.getValue().getRecordType(), true
+					)
+				);
 			}
 		}
 		// next fill in all existing entries in cache - we need re-evaluate even them
@@ -352,17 +489,26 @@ public class CacheEden {
 		while (cacheIt.hasNext() && index < evaluation.length) {
 			final Entry<Long, CachedRecord> cachedRecordEntry = cacheIt.next();
 			final CachedRecord cachedRecord = cachedRecordEntry.getValue();
-			if (cachedRecord.reset() <= COOL_ENOUGH) {
+			final int coolDown = cachedRecord.reset();
+			if (coolDown <= COOL_ENOUGH) {
 				evaluation[index++] = new CacheAdeptKeyWithValue(
 					cachedRecordEntry.getKey(),
 					cachedRecord.getSizeInBytes(),
-					cachedRecord.getSpaceToPerformanceRatio(minimalUsageThreshold)
+					cachedRecord.getSpaceToPerformanceRatio(minimalUsageThreshold),
+					BitUtils.setBit(
+						BitUtils.setBit(
+							BitUtils.setBit((byte) 0, (byte) 0, true),
+							(byte) 1, coolDown > 0
+						),
+						cachedRecord.getRecordType(), true
+					)
 				);
 			} else {
-				expiredItems.add(cachedRecordEntry.getKey());
+				recordsToEvict.add(cachedRecordEntry.getKey());
 			}
 		}
-		return new EvaluationCacheFormulaAdeptSource(evaluation, index, expiredItems);
+
+		return new EvaluationCacheFormulaAdeptSource(evaluation, index, recordsToEvict);
 	}
 
 	/**
@@ -381,9 +527,11 @@ public class CacheEden {
 		return (S) inputFormula.getCloneWithComputationCallback(
 			cacheableFormula -> {
 				final CachePayloadHeader payload = inputFormula.toSerializableFormula(recordHash, hashFunction);
-				theCache.put(
+				this.initialized.incrementAndGet();
+				this.theCache.put(
 					recordHash,
 					new CachedRecord(
+						cachedRecord.getRecordType(),
 						cachedRecord.getRecordHash(),
 						cachedRecord.getCostToPerformanceRatio(),
 						cachedRecord.getTimesUsed(),
@@ -408,9 +556,11 @@ public class CacheEden {
 		return (S) inputComputer.getCloneWithComputationCallback(
 			cacheableFormula -> {
 				final CachePayloadHeader payload = inputComputer.toSerializableResult(recordHash, hashFunction);
-				theCache.put(
+				this.initialized.incrementAndGet();
+				this.theCache.put(
 					recordHash,
 					new CachedRecord(
+						cachedRecord.getRecordType(),
 						cachedRecord.getRecordHash(),
 						cachedRecord.getCostToPerformanceRatio(),
 						cachedRecord.getTimesUsed(),
@@ -434,9 +584,11 @@ public class CacheEden {
 		return (S) sorter.getCloneWithComputationCallback(
 			cacheableFormula -> {
 				final CachePayloadHeader payload = sorter.toSerializableResult(recordHash, hashFunction);
-				theCache.put(
+				this.initialized.incrementAndGet();
+				this.theCache.put(
 					recordHash,
 					new CachedRecord(
+						cachedRecord.getRecordType(),
 						cachedRecord.getRecordHash(),
 						cachedRecord.getCostToPerformanceRatio(),
 						cachedRecord.getTimesUsed(),
@@ -453,12 +605,19 @@ public class CacheEden {
 	 * Method will fetch entity from the datastore and stores it to the eden cache for future requests.
 	 */
 	@Nullable
-	private <S> S fetchAndCacheEntity(long recordHash, @Nonnull CachedRecord cachedRecord, @Nonnull LongHashFunction hashFunction, @Nonnull EntityComputationalObjectAdapter entityWrapper) {
-		final EntityDecorator entityToCache = entityWrapper.fetchEntity();
+	private <S> S fetchAndCacheEntity(
+		long recordHash,
+		@Nonnull CachedRecord cachedRecord,
+		@Nonnull LongHashFunction hashFunction,
+		@Nonnull EntityComputationalObjectAdapter entityWrapper
+	) {
+		final ServerEntityDecorator entityToCache = entityWrapper.fetchEntity();
 		if (entityToCache != null && entityToCache.exists()) {
-			theCache.put(
+			this.initialized.incrementAndGet();
+			this.theCache.put(
 				recordHash,
 				new CachedRecord(
+					cachedRecord.getRecordType(),
 					cachedRecord.getRecordHash(),
 					cachedRecord.getCostToPerformanceRatio(),
 					cachedRecord.getTimesUsed(),
@@ -486,7 +645,7 @@ public class CacheEden {
 	 */
 	private <S> S enrichCachedEntityIfNecessary(long recordHash, @Nonnull CachedRecord cachedRecord, @Nonnull EntityComputationalObjectAdapter entityWrapper) {
 		final EntityPayload cachedPayload = cachedRecord.getPayload(EntityPayload.class);
-		final EntityDecorator cachedEntity = new EntityDecorator(
+		final ServerEntityDecorator cachedEntity = ServerEntityDecorator.decorate(
 			cachedPayload.entity(),
 			entityWrapper.getEntitySchema(),
 			null,
@@ -496,13 +655,17 @@ public class CacheEden {
 			cachedPayload.associatedDataPredicate(),
 			cachedPayload.referencePredicate(),
 			cachedPayload.pricePredicate(),
-			entityWrapper.getAlignedNow()
+			entityWrapper.getAlignedNow(),
+			0,
+			0
 		);
 		final EntityDecorator enrichedEntity = entityWrapper.enrichEntity(cachedEntity);
 		if (enrichedEntity != cachedEntity) {
-			theCache.put(
+			this.enrichments.incrementAndGet();
+			this.theCache.put(
 				recordHash,
 				new CachedRecord(
+					cachedRecord.getRecordType(),
 					cachedRecord.getRecordHash(),
 					cachedRecord.getCostToPerformanceRatio(),
 					cachedRecord.getTimesUsed(),
@@ -519,7 +682,6 @@ public class CacheEden {
 					)
 				)
 			);
-			enrichments.incrementAndGet();
 			//noinspection unchecked
 			return (S) enrichedEntity;
 		} else {
@@ -532,7 +694,6 @@ public class CacheEden {
 	 * DTO that collects all adepts for price evaluation and storing into the cache along with identification of those
 	 * that are marked for eviction.
 	 */
-
 	private record EvaluationCacheFormulaAdeptSource(
 		@Nonnull CacheAdeptKeyWithValue[] evaluation,
 		int peek,
@@ -547,12 +708,41 @@ public class CacheEden {
 	 * @param recordHash              the hash that uniquely represents the cached value
 	 * @param estimatedSizeInBytes    estimated size of the record in the memory
 	 * @param spaceToPerformanceRatio worthiness of the cached record computed as a ration between his size and efficiency
+	 * @param flags                   flags that carry the properties of the record, first bit = existing record, second bit = cooling down
 	 */
 	private record CacheAdeptKeyWithValue(
 		long recordHash,
 		int estimatedSizeInBytes,
-		long spaceToPerformanceRatio
+		long spaceToPerformanceRatio,
+		byte flags
 	) {
+
+	}
+
+	/**
+	 * Represents the cache statistics for the cache record type.
+	 */
+	@Getter
+	private static class TypeStatistics {
+		private final CacheRecordType recordType;
+		private int count;
+		private long size;
+		private long averageSpaceToPerformance;
+
+		public TypeStatistics(@Nonnull CacheAdeptKeyWithValue adept) {
+			this.recordType = CacheRecordType.fromBitset(adept.flags());
+			this.add(adept);
+		}
+
+		/**
+		 * Registers object of particular type.
+		 * @param adept the adept to register
+		 */
+		public void add(@Nonnull CacheAdeptKeyWithValue adept) {
+			this.count++;
+			this.size += adept.estimatedSizeInBytes();
+			this.averageSpaceToPerformance = (adept.spaceToPerformanceRatio() - this.averageSpaceToPerformance) / this.count;
+		}
 
 	}
 

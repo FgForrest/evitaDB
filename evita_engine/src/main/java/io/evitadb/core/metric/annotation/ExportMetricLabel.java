@@ -21,25 +21,25 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.observability.metric.provider;
+package io.evitadb.core.metric.annotation;
 
-import io.evitadb.core.metric.event.CustomMetricsExecutionEvent;
-import io.evitadb.core.metric.event.QueryPlanStepExecutedEvent;
-import io.evitadb.core.metric.event.TestEvent;
-import lombok.AccessLevel;
-import lombok.NoArgsConstructor;
-
-import java.util.Set;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 
 /**
- * This class is used as a provider of registered custom metrics events.
+ * Annotation used for marking field to be propagated to all Prometheus metrics in this class as metric label.
  *
- * All registered custom metrics events must be registered here.
+ * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
  */
-@NoArgsConstructor(access = AccessLevel.PRIVATE)
-public class RegisteredCustomEventProvider {
-	static final Set<Class<? extends CustomMetricsExecutionEvent>> REGISTERED_EVENTS = Set.of(
-		QueryPlanStepExecutedEvent.class,
-		TestEvent.class
-	);
+@Target({ElementType.FIELD, ElementType.METHOD})
+@Retention(RetentionPolicy.RUNTIME)
+public @interface ExportMetricLabel {
+
+	/**
+	 * Name of the label. If not defined name of the field is used instead.
+	 */
+	String value() default "";
+
 }

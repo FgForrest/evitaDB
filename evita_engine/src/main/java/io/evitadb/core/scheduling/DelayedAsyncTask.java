@@ -21,11 +21,12 @@
  *   limitations under the License.
  */
 
-package io.evitadb.scheduling;
+package io.evitadb.core.scheduling;
+
+import io.evitadb.scheduling.Scheduler;
 
 import javax.annotation.Nonnull;
 import java.time.OffsetDateTime;
-import java.time.temporal.TemporalUnit;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
@@ -41,25 +42,21 @@ import java.util.function.LongSupplier;
 public class DelayedAsyncTask {
 	/**
 	 * The scheduler that is used to schedule the task.
-
 	 */
 	private final Scheduler scheduler;
 	/**
 	 * The delay after which the task is executed.
-
 	 */
 	private final long delay;
 	/**
 	 * The time unit of the delay.
-
-
 	 */
-	private final TemporalUnit delayUnits;
+	private final TimeUnit delayUnits;
 	/**
 	 * The task that is executed asynchronously after the specified delay and returns negative value when it should be
 	 * paused or positive value when it should be re-scheduled (with shortened delay).
 	 */
-	private final Runnable task;
+	private final BackgroundTask task;
 	/**
 	 * The next planned cache cut time - if there is scheduled action planned in the current scheduled executor service,
 	 * the time is stored here to avoid scheduling the same action multiple times.
@@ -67,22 +64,27 @@ public class DelayedAsyncTask {
 	private final AtomicReference<OffsetDateTime> nextPlannedExecution = new AtomicReference<>(OffsetDateTime.MIN);
 
 	public DelayedAsyncTask(
+		@Nonnull String catalogName,
+		@Nonnull String taskName,
 		@Nonnull Scheduler scheduler,
 		@Nonnull LongSupplier runnable,
 		long delay,
-		@Nonnull TemporalUnit delayUnits
+		@Nonnull TimeUnit delayUnits
 	) {
 		this.scheduler = scheduler;
 		this.delay = delay;
 		this.delayUnits = delayUnits;
-		this.task = () -> {
-			final long planWithShorterDelay = runnable.getAsLong();
-			if (planWithShorterDelay > -1L) {
-				scheduleWithDelayShorterBy(planWithShorterDelay);
-			} else {
-				pause();
+		this.task = new BackgroundTask(
+			catalogName, taskName,
+			() -> {
+				final long planWithShorterDelay = runnable.getAsLong();
+				if (planWithShorterDelay > -1L) {
+					scheduleWithDelayShorterBy(planWithShorterDelay);
+				} else {
+					pause();
+				}
 			}
-		};
+		);
 	}
 
 	/**
@@ -92,7 +94,7 @@ public class DelayedAsyncTask {
 	 */
 	public void schedule() {
 		final OffsetDateTime now = OffsetDateTime.now();
-		final OffsetDateTime nextTick = now.plus(this.delay, this.delayUnits);
+		final OffsetDateTime nextTick = now.plus(this.delay, this.delayUnits.toChronoUnit());
 		if (this.nextPlannedExecution.compareAndExchange(OffsetDateTime.MIN, nextTick) == OffsetDateTime.MIN) {
 			final long computedDelay = Math.max(
 				nextTick.toInstant().toEpochMilli() - now.toInstant().toEpochMilli(),
@@ -121,7 +123,7 @@ public class DelayedAsyncTask {
 	 */
 	private void scheduleWithDelayShorterBy(long shorterBy) {
 		final OffsetDateTime nextTick = this.nextPlannedExecution.updateAndGet(
-			offsetDateTime -> offsetDateTime.plus(Math.min(this.delay - shorterBy, 1L), this.delayUnits)
+			offsetDateTime -> offsetDateTime.plus(Math.min(this.delay - shorterBy, 1L), this.delayUnits.toChronoUnit())
 		);
 		// re-plan the scheduled cut to the moment when the next entry should be cut down
 		final OffsetDateTime now = OffsetDateTime.now();

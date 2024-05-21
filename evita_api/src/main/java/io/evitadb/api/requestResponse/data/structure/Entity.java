@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -444,58 +444,10 @@ public class Entity implements SealedEntity {
 	}
 
 	/**
-	 * Method allows to create the entityDecorator object with up-to-date schema definition. Data of the entity are kept
-	 * untouched.
-	 */
-	public static EntityDecorator decorate(
-		@Nonnull Entity entity,
-		@Nonnull EntitySchema entitySchema,
-		@Nullable SealedEntity parentEntity,
-		@Nonnull LocaleSerializablePredicate localePredicate,
-		@Nonnull HierarchySerializablePredicate hierarchyPredicate,
-		@Nonnull AttributeValueSerializablePredicate attributePredicate,
-		@Nonnull AssociatedDataValueSerializablePredicate associatedDataValuePredicate,
-		@Nonnull ReferenceContractSerializablePredicate referencePredicate,
-		@Nonnull PriceContractSerializablePredicate pricePredicate,
-		@Nonnull OffsetDateTime alignedNow
-	) {
-		return new EntityDecorator(
-			entity, entitySchema, parentEntity,
-			localePredicate, hierarchyPredicate,
-			attributePredicate, associatedDataValuePredicate,
-			referencePredicate, pricePredicate,
-			alignedNow
-		);
-	}
-
-	/**
-	 * Method allows to create copy of the entityDecorator object with up-to-date schema definition. Data of the original
-	 * entityDecorator are kept untouched.
-	 */
-	public static EntityDecorator decorate(
-		@Nonnull EntityDecorator entityDecorator,
-		@Nullable EntityClassifierWithParent parentEntity,
-		@Nonnull LocaleSerializablePredicate localePredicate,
-		@Nonnull HierarchySerializablePredicate hierarchyPredicate,
-		@Nonnull AttributeValueSerializablePredicate attributePredicate,
-		@Nonnull AssociatedDataValueSerializablePredicate associatedDataValuePredicate,
-		@Nonnull ReferenceContractSerializablePredicate referencePredicate,
-		@Nonnull PriceContractSerializablePredicate pricePredicate,
-		@Nonnull OffsetDateTime alignedNow
-	) {
-		return new EntityDecorator(
-			entityDecorator, parentEntity,
-			localePredicate, hierarchyPredicate,
-			attributePredicate, associatedDataValuePredicate,
-			referencePredicate, pricePredicate,
-			alignedNow
-		);
-	}
-
-	/**
 	 * Method allows to create copy of the entity object with up-to-date schema definition. Data of the original
 	 * entity are kept untouched.
 	 */
+	@Nonnull
 	public static EntityDecorator decorate(
 		@Nonnull Entity entity,
 		@Nonnull EntitySchemaContract entitySchema,

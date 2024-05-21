@@ -26,6 +26,8 @@ package io.evitadb.core.transaction.stage;
 import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.core.Catalog;
+import io.evitadb.core.metric.event.transaction.TransactionAppendedToWalEvent;
+import io.evitadb.core.metric.event.transaction.TransactionQueuedEvent;
 import io.evitadb.core.transaction.stage.TrunkIncorporationTransactionStage.TrunkIncorporationTransactionTask;
 import io.evitadb.core.transaction.stage.WalAppendingTransactionStage.WalAppendingTransactionTask;
 import io.evitadb.store.spi.OffHeapWithFileBackupReference;
@@ -63,6 +65,13 @@ public final class WalAppendingTransactionStage
 
 	@Override
 	protected void handleNext(@Nonnull WalAppendingTransactionTask task) {
+
+		// emit queue event
+		task.transactionQueuedEvent().finish().commit();
+
+		// create WALL appending event
+		final TransactionAppendedToWalEvent event = new TransactionAppendedToWalEvent(task.catalogName());
+
 		// append WAL and discard the contents of the isolated WAL
 		this.liveCatalog.get().appendWalAndDiscard(
 			new TransactionMutation(
@@ -85,6 +94,9 @@ public final class WalAppendingTransactionStage
 				task.commitBehaviour() != CommitBehavior.WAIT_FOR_WAL_PERSISTENCE ? task.future() : null
 			)
 		);
+
+		// emit the event
+		event.finish(task.mutationCount() + 1).commit();
 	}
 
 	/**
@@ -107,8 +119,13 @@ public final class WalAppendingTransactionStage
 		long walSizeInBytes,
 		@Nonnull OffHeapWithFileBackupReference walReference,
 		@Nonnull CommitBehavior commitBehaviour,
-		@Nullable CompletableFuture<Long> future
+		@Nullable CompletableFuture<Long> future,
+		@Nonnull TransactionQueuedEvent transactionQueuedEvent
 	) implements TransactionTask {
+
+		public WalAppendingTransactionTask(@Nonnull String catalogName, long catalogVersion, @Nonnull UUID transactionId, int mutationCount, long walSizeInBytes, @Nonnull OffHeapWithFileBackupReference walReference, @Nonnull CommitBehavior commitBehaviour, @Nullable CompletableFuture<Long> future) {
+			this(catalogName, catalogVersion, transactionId, mutationCount, walSizeInBytes, walReference, commitBehaviour, future, new TransactionQueuedEvent(catalogName, "wal_appending"));
+		}
 	}
 
 }

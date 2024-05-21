@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -604,6 +604,37 @@ public class ReflectionLookup {
 		return findAllGetters(onClass)
 			.stream()
 			.filter(it -> getAnnotationInstance(it, annotationType) != null)
+			.toList();
+	}
+
+	/**
+	 * Returns all getters that have passed `annotationType` defined on them.
+	 */
+	public <T extends Annotation> List<Method> findAllGettersHavingAnnotationDeeply(@Nonnull Class<?> onClass, @Nonnull Class<T> annotationType) {
+		return Stream.of(
+				findAllGetters(onClass).stream()
+					.filter(it -> getAnnotationInstance(it, annotationType) != null),
+				ofNullable(onClass.getSuperclass())
+					.filter(it -> !Objects.equals(Object.class, it))
+					.map(it -> findAllGettersHavingAnnotationDeeply(it, annotationType).stream())
+					.orElse(Stream.empty()),
+				Arrays.stream(onClass.getInterfaces())
+					.flatMap(it -> findAllGettersHavingAnnotationDeeply(it, annotationType).stream())
+			)
+			// reduce them by distinct values of `.toString()` method result
+			.reduce(
+				new LinkedHashMap<String, Method>(64),
+				(map, method) -> {
+					method.forEach(it -> map.putIfAbsent(it.toString(), it));
+					return map;
+				},
+				(map1, map2) -> {
+					map1.putAll(map2);
+					return map1;
+				}
+			)
+			.values()
+			.stream()
 			.toList();
 	}
 

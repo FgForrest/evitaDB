@@ -21,24 +21,38 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.metric.event;
+package io.evitadb.core.metric.event.storage;
 
+import io.evitadb.core.metric.annotation.ExportMetricLabel;
 import jdk.jfr.Label;
-import jdk.jfr.Name;
 import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
 
-@Name("io.evitadb.core.metric.event.TestEvent")
+import javax.annotation.Nonnull;
+
+/**
+ * Abstract ancestor for events that are related to a specific OffsetIndex file.
+ *
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
+ */
 @Getter
-@Setter
-@NoArgsConstructor
-public class TestEvent extends CustomMetricsExecutionEvent {
-	@Label("Time taken")
-	@Name("time")
-	private long time;
+abstract class AbstractDataFileEvent extends AbstractStorageEvent {
+	/**
+	 * The type of the file that was flushed.
+	 */
+	@Label("File type")
+	@ExportMetricLabel
+	final String fileType;
+	/**
+	 * The logical name of the file that was flushed.
+	 */
+	@Label("Logical file name")
+	@ExportMetricLabel
+	final String name;
 
-	public TestEvent(long time) {
-		this.time = time;
+	public AbstractDataFileEvent(@Nonnull String catalogName, @Nonnull FileType fileType, @Nonnull String name) {
+		super(catalogName);
+		this.fileType = fileType.name();
+		this.name = name;
 	}
+
 }

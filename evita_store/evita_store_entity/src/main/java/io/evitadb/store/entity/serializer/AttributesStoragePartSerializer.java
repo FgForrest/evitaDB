@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -65,6 +65,7 @@ public class AttributesStoragePartSerializer extends Serializer<AttributesStorag
 
 	@Override
 	public AttributesStoragePart read(Kryo kryo, Input input, Class<? extends AttributesStoragePart> type) {
+		final long totalBefore = input.total();
 		final long uniquePartId = input.readLong();
 		final int entityPrimaryKey = input.readInt();
 		final Locale locale = kryo.readObjectOrNull(input, Locale.class);
@@ -76,7 +77,8 @@ public class AttributesStoragePartSerializer extends Serializer<AttributesStorag
 		}
 
 		return new AttributesStoragePart(
-			uniquePartId, entityPrimaryKey, locale, attributes
+			uniquePartId, entityPrimaryKey, locale, attributes,
+			Math.toIntExact(input.total() - totalBefore)
 		);
 	}
 

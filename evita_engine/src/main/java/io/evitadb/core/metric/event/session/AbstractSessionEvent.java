@@ -21,29 +21,31 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.metric.annotation;
+package io.evitadb.core.metric.event.session;
 
-import io.evitadb.api.configuration.metric.MetricType;
-
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
+import io.evitadb.core.metric.annotation.EventGroup;
+import io.evitadb.core.metric.event.CatalogRelatedEvent;
+import io.evitadb.core.metric.event.CustomMetricsExecutionEvent;
+import jdk.jfr.Category;
+import jdk.jfr.Label;
+import jdk.jfr.Name;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 
 /**
- * Annotation used for marking field with the type of Prometheus metric to be used when handling this field.
- *
- * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
+ * This event is base class for all session related events.
  */
-@Target(ElementType.FIELD)
-@Retention(RetentionPolicy.RUNTIME)
-public @interface UsedMetric {
-
+@EventGroup(AbstractSessionEvent.PACKAGE_NAME)
+@Category({"evitaDB", "Session"})
+@RequiredArgsConstructor
+@Getter
+abstract class AbstractSessionEvent extends CustomMetricsExecutionEvent implements CatalogRelatedEvent {
+	protected static final String PACKAGE_NAME = "io.evitadb.session";
 	/**
-	 * Returns the type of Prometheus metric to be used when handling a field marked with the {@link UsedMetric} annotation.
-	 *
-	 * @return the type of Prometheus metric
+	 * The name of the catalog the transaction relates to.
 	 */
-	MetricType metricType();
+	@Label("Catalog")
+	@Name("catalogName")
+	final String catalogName;
 
 }

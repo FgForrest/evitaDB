@@ -24,6 +24,7 @@
 package io.evitadb.core.transaction.stage;
 
 import io.evitadb.api.TransactionContract.CommitBehavior;
+import io.evitadb.core.metric.event.transaction.TransactionQueuedEvent;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -83,5 +84,12 @@ public interface TransactionTask {
 	 */
 	@Nullable
 	CompletableFuture<Long> future();
+
+	/**
+	 * Contains the event generated when the task was created.
+	 * @return the event
+	 */
+	@Nonnull
+	TransactionQueuedEvent transactionQueuedEvent();
 
 }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@ package io.evitadb.store.offsetIndex.io;
 import io.evitadb.store.kryo.ObservableInput;
 
 import javax.annotation.Nonnull;
+import java.io.Closeable;
 import java.util.function.Function;
 
 /**
@@ -33,7 +34,7 @@ import java.util.function.Function;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public interface ReadOnlyHandle {
+public interface ReadOnlyHandle extends Closeable {
 
 	/**
 	 * Executes the provided logic on the ObservableInput and returns the result.
@@ -45,13 +46,14 @@ public interface ReadOnlyHandle {
 	<T> T execute(@Nonnull Function<ObservableInput<?>, T> logic);
 
 	/**
-	 * This method closes the read handle ignoring the current lock.
-	 */
-	void forceClose();
-
-	/**
 	 * This method returns the last position that can be read.
 	 */
 	long getLastWrittenPosition();
+
+	/**
+	 * Closes the read only handle.
+	 */
+	@Override
+	void close();
 
 }

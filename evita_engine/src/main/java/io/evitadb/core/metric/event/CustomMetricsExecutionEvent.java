@@ -23,6 +23,7 @@
 
 package io.evitadb.core.metric.event;
 
+import io.evitadb.core.metric.annotation.ExportMetric;
 import jdk.jfr.Event;
 
 /**
@@ -32,7 +33,7 @@ import jdk.jfr.Event;
  *
  * Event classes and all fields that should be compatible with above-mentioned mechanisms have to be annotated with
  * {@link jdk.jfr.Name} and {@link jdk.jfr.Label}. For Prometheus metrics, fields have to be additionally be decorated
- * with {@link io.evitadb.core.metric.annotation.UsedMetric} annotation.
+ * with {@link ExportMetric} annotation.
  *
  * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
  */

@@ -136,10 +136,11 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 		}
 	};
 	private final ObservableOutputKeeper observableOutputKeeper = new ObservableOutputKeeper(
+		TEST_CATALOG,
 		StorageOptions.builder().build(),
 		Mockito.mock(Scheduler.class)
 	);
-	private final OffHeapMemoryManager offHeapMemoryManager = new OffHeapMemoryManager(10_000_000, 128);
+	private final OffHeapMemoryManager offHeapMemoryManager = new OffHeapMemoryManager(TEST_CATALOG, 10_000_000, 128);
 
 	/**
 	 * Verifies the contents of the catalog in the given Evita instance.

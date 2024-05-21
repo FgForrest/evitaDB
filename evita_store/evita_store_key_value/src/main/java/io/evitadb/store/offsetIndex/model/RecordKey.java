@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 package io.evitadb.store.offsetIndex.model;
 
 import io.evitadb.store.offsetIndex.OffsetIndex;
+import io.evitadb.utils.MemoryMeasuringConstants;
 
 import java.io.Serial;
 import java.io.Serializable;
@@ -38,6 +39,7 @@ import java.io.Serializable;
  */
 public record RecordKey(byte recordType, long primaryKey) implements Serializable, Comparable<RecordKey> {
 	@Serial private static final long serialVersionUID = 7212147121525140183L;
+	public static final long MEMORY_SIZE = MemoryMeasuringConstants.OBJECT_HEADER_SIZE + MemoryMeasuringConstants.BYTE_SIZE + MemoryMeasuringConstants.LONG_SIZE;
 
 	/**
 	 * Comparable keys are optimal for HashMaps handling.

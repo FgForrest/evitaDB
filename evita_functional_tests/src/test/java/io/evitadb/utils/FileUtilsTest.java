@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,11 +23,15 @@
 
 package io.evitadb.utils;
 
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -41,10 +45,21 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class FileUtilsTest {
 	private final Path tmpFolder = Path.of(System.getProperty("java.io.tmpdir") + File.separator);
+	private Path directoryTest;
+
+	@BeforeEach
+	void setUp() {
+		directoryTest = tmpFolder.resolve("directoryTest");
+		directoryTest.toFile().mkdirs();
+	}
+
+	@AfterEach
+	void tearDown() throws IOException {
+		FileUtils.deleteDirectory(directoryTest);
+	}
 
 	@Test
 	void shouldListDirectories() throws IOException {
-		final Path directoryTest = tmpFolder.resolve("directoryTest");
 		org.apache.commons.io.FileUtils.deleteDirectory(directoryTest.toFile());
 
 		assertTrue(directoryTest.toFile().mkdirs());
@@ -61,6 +76,31 @@ class FileUtilsTest {
 		);
 
 		org.apache.commons.io.FileUtils.deleteDirectory(directoryTest.toFile());
+	}
+
+	@Test
+	void shouldCalculateDirectorySizeIncludingSubdirectories() throws IOException {
+		// Create some files in the temp directory
+		Path file1 = directoryTest.resolve("file1.txt");
+		Files.write(file1, "Hello".getBytes(), StandardOpenOption.CREATE);
+
+		Path file2 = directoryTest.resolve("file2.txt");
+		Files.write(file2, "World".getBytes(), StandardOpenOption.CREATE);
+
+		// Create a subdirectory and a file in it
+		Path subDir = directoryTest.resolve("subdir");
+		Files.createDirectory(subDir);
+		Path file3 = subDir.resolve("file3.txt");
+		Files.write(file3, "Hello, Subdirectory".getBytes(), StandardOpenOption.CREATE);
+
+		// Calculate the expected size
+		long expectedSize = Files.size(file1) + Files.size(file2) + Files.size(file3);
+
+		// Call the method under test
+		long actualSize = FileUtils.getDirectorySize(directoryTest);
+
+		// Assert that the actual size matches the expected size
+		assertEquals(expectedSize, actualSize);
 	}
 
 }

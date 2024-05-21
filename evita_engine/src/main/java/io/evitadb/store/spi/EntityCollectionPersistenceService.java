@@ -64,6 +64,7 @@ public non-sealed interface EntityCollectionPersistenceService extends Persisten
 	/**
 	 * Returns underlying {@link StoragePartPersistenceService} which this instance uses for {@link StoragePart}
 	 * persistence.
+	 *
 	 * @return underlying {@link StoragePartPersistenceService}
 	 */
 	@Nonnull
@@ -83,7 +84,7 @@ public non-sealed interface EntityCollectionPersistenceService extends Persisten
 	 * is used for reading data from underlying data store.
 	 */
 	@Nullable
-	Entity readEntity(
+	EntityWithFetchCount readEntity(
 		long catalogVersion,
 		int entityPrimaryKey,
 		@Nonnull EvitaRequest evitaRequest,
@@ -97,7 +98,7 @@ public non-sealed interface EntityCollectionPersistenceService extends Persisten
 	 * is used for reading data from underlying data store.
 	 */
 	@Nullable
-	BinaryEntity readBinaryEntity(
+	BinaryEntityWithFetchCount readBinaryEntity(
 		long catalogVersion,
 		int entityPrimaryKey,
 		@Nonnull EvitaRequest evitaRequest,
@@ -115,7 +116,7 @@ public non-sealed interface EntityCollectionPersistenceService extends Persisten
 	 * @throws EntityAlreadyRemovedException when the entity has been already removed
 	 */
 	@Nonnull
-	Entity enrichEntity(
+	EntityWithFetchCount enrichEntity(
 		long catalogVersion,
 		@Nonnull EntitySchema entitySchema,
 		@Nonnull EntityDecorator entityDecorator,
@@ -155,7 +156,7 @@ public non-sealed interface EntityCollectionPersistenceService extends Persisten
 	 * @throws EntityAlreadyRemovedException when the entity has been already removed
 	 */
 	@Nonnull
-	BinaryEntity enrichEntity(
+	BinaryEntityWithFetchCount enrichEntity(
 		long catalogVersion,
 		@Nonnull EntitySchema entitySchema,
 		@Nonnull BinaryEntity entity,
@@ -189,4 +190,33 @@ public non-sealed interface EntityCollectionPersistenceService extends Persisten
 	 */
 	@Override
 	void close();
+
+	/**
+	 * Record contains information about entity and the number of I/O operation necessary to fetch it.
+	 *
+	 * @param entity         fetched entity
+	 * @param ioFetchCount   number of I/O operations necessary to fetch the entity
+	 * @param ioFetchedBytes number of bytes fetched from underlying storage to load the entity
+	 */
+	record EntityWithFetchCount(
+		@Nonnull Entity entity,
+		int ioFetchCount,
+		int ioFetchedBytes
+	) {
+	}
+
+	/**
+	 * Record contains information about binary entity and the number of I/O operation necessary to fetch it.
+	 *
+	 * @param entity         fetched binary entity
+	 * @param ioFetchCount   number of I/O operations necessary to fetch the entity
+	 * @param ioFetchedBytes number of bytes fetched from underlying storage to load the entity
+	 */
+	record BinaryEntityWithFetchCount(
+		@Nonnull BinaryEntity entity,
+		int ioFetchCount,
+		int ioFetchedBytes
+	) {
+	}
+
 }
