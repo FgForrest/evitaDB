@@ -245,16 +245,16 @@ public class MetricHandler {
 		} else {
 			return switch (metricType) {
 				case COUNTER -> (recordedEvent) -> ((Counter) metric)
-					.labelValues(Arrays.stream(labelValueExporter).map(it -> it.apply(recordedEvent)).toArray(String[]::new))
+					.labelValues(Arrays.stream(labelValueExporter).map(it -> ofNullable(it.apply(recordedEvent)).orElse("N/A")).toArray(String[]::new))
 					.inc(recordedEvent.getDouble(fieldName));
 				case GAUGE -> (recordedEvent) -> ((Gauge) metric)
-					.labelValues(Arrays.stream(labelValueExporter).map(it -> it.apply(recordedEvent)).toArray(String[]::new))
+					.labelValues(Arrays.stream(labelValueExporter).map(it -> ofNullable(it.apply(recordedEvent)).orElse("N/A")).toArray(String[]::new))
 					.set(recordedEvent.getDouble(fieldName));
 				case HISTOGRAM -> (recordedEvent) -> ((Histogram) metric)
-					.labelValues(Arrays.stream(labelValueExporter).map(it -> it.apply(recordedEvent)).toArray(String[]::new))
+					.labelValues(Arrays.stream(labelValueExporter).map(it -> ofNullable(it.apply(recordedEvent)).orElse("N/A")).toArray(String[]::new))
 					.observe(recordedEvent.getDouble(fieldName));
 				case SUMMARY -> (recordedEvent) -> ((Summary) metric)
-					.labelValues(Arrays.stream(labelValueExporter).map(it -> it.apply(recordedEvent)).toArray(String[]::new))
+					.labelValues(Arrays.stream(labelValueExporter).map(it -> ofNullable(it.apply(recordedEvent)).orElse("N/A")).toArray(String[]::new))
 					.observe(recordedEvent.getDouble(fieldName));
 			};
 		}
