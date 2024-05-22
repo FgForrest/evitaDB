@@ -82,18 +82,20 @@ public class ObservabilityTracingContext implements TracingContext {
 		@Nonnull SpanAttribute[] attributes
 	) {
 		for (SpanAttribute attribute : attributes) {
-			if (attribute.value() instanceof String string) {
-				span.setAttribute(attribute.key(), string);
-			} else if (attribute.value() instanceof Integer integer) {
-				span.setAttribute(attribute.key(), integer);
-			} else if (attribute.value() instanceof Long longValue) {
-				span.setAttribute(attribute.key(), longValue);
-			} else if (attribute.value() instanceof Double doubleValue) {
-				span.setAttribute(attribute.key(), doubleValue);
-			} else if (attribute.value() instanceof Boolean booleanValue) {
-				span.setAttribute(attribute.key(), booleanValue);
-			} else {
-				span.setAttribute(attribute.key(), attribute.value().toString());
+			final String key = attribute.key();
+			final Object value = attribute.value();
+			if (value instanceof String string) {
+				span.setAttribute(key, string);
+			} else if (value instanceof Integer integer) {
+				span.setAttribute(key, integer);
+			} else if (value instanceof Long longValue) {
+				span.setAttribute(key, longValue);
+			} else if (value instanceof Double doubleValue) {
+				span.setAttribute(key, doubleValue);
+			} else if (value instanceof Boolean booleanValue) {
+				span.setAttribute(key, booleanValue);
+			} else if (value != null) {
+				span.setAttribute(key, value.toString());
 			}
 		}
 	}

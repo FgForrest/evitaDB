@@ -272,7 +272,7 @@ public interface TracingContext {
 	 */
 	record SpanAttribute(
 		@Nonnull String key,
-		@Nonnull Object value
+		@Nullable Object value
 	) {}
 
 }
