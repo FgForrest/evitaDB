@@ -260,7 +260,7 @@ public class QueryPlan {
 						}
 					}
 					it.finish(
-						this.prefetched ? 1 : 0,
+						this.prefetched,
 						this.filter.getEstimatedCardinality(),
 						this.primaryKeys == null ? 0 : this.primaryKeys.length,
 						this.totalRecordCount,
@@ -268,7 +268,7 @@ public class QueryPlan {
 						ioFetchedSizeBytes,
 						this.filter.getEstimatedCost(),
 						this.filter.getCost()
-					);
+					).commit();
 				});
 
 			return result;
@@ -359,7 +359,7 @@ public class QueryPlan {
 			new SpanAttribute("filter", query.getFilterBy() == null ? "<NONE>" : query.getFilterBy().toString()),
 			new SpanAttribute("order", query.getOrderBy() == null ? "<NONE>" : query.getOrderBy().toString()),
 			new SpanAttribute("require", query.getRequire() == null ? "<NONE>" : query.getRequire().toString()),
-			new SpanAttribute("prefetch", queryFinishedEvent.getPrefetched() == 1 ? "yes" : "no"),
+			new SpanAttribute("prefetch", queryFinishedEvent.getPrefetched()),
 			new SpanAttribute("scannedRecords", queryFinishedEvent.getRecordsScanned()),
 			new SpanAttribute("totalRecordCount", queryFinishedEvent.getRecordsFound()),
 			new SpanAttribute("returnedRecordCount", queryFinishedEvent.getRecordsReturned()),

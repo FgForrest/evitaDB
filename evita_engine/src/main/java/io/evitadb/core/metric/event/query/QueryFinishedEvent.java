@@ -61,8 +61,8 @@ public class QueryFinishedEvent extends AbstractQueryEvent {
 	private long executionDurationMilliseconds;
 
 	@Label("Prefetched vs. non-prefetched query")
-	@ExportMetricLabel("prefetched")
-	private int prefetched;
+	@ExportMetricLabel
+	private String prefetched;
 
 	@Label("Records scanned total")
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
@@ -123,7 +123,7 @@ public class QueryFinishedEvent extends AbstractQueryEvent {
 	 */
 	@Nonnull
 	public QueryFinishedEvent finish(
-		int prefetchInfo,
+		boolean prefetchInfo,
 		int recordsScannedTotal,
 		int recordsReturnedTotal,
 		int recordsFoundTotal,
@@ -134,7 +134,7 @@ public class QueryFinishedEvent extends AbstractQueryEvent {
 	) {
 		this.end();
 		this.executionDurationMilliseconds = System.currentTimeMillis() - this.created;
-		this.prefetched = prefetchInfo;
+		this.prefetched = prefetchInfo ? "yes" : "no";
 		this.recordsScanned = recordsScannedTotal;
 		this.recordsReturned = recordsReturnedTotal;
 		this.recordsFound = recordsFoundTotal;

@@ -284,10 +284,6 @@ public class EvitaServer {
 		this.evita = evita;
 		this.evitaConfiguration = evita.getConfiguration();
 		this.apiOptions = apiOptions;
-
-		// emit the event
-		new EvitaStartedEvent(this.evitaConfiguration)
-			.commit();
 	}
 
 	/**
@@ -300,7 +296,11 @@ public class EvitaServer {
 		this.externalApiServer = new ExternalApiServer(
 			this.evita, this.apiOptions, this.externalApiProviders
 		);
-		externalApiServer.start();
+		this.externalApiServer.start();
+
+		// emit the event
+		new EvitaStartedEvent(this.evitaConfiguration)
+			.commit();
 	}
 
 	/**

@@ -48,19 +48,19 @@ import javax.annotation.Nonnull;
 public class GrpcProcedureCalledEvent extends AbstractGrpcApiEvent {
 
 	@Label("Name of the service that was called")
-	@ExportMetricLabel("serviceName")
+	@ExportMetricLabel
 	private final String serviceName;
 
 	@Label("Name of the procedure that was called")
-	@ExportMetricLabel("procedureName")
+	@ExportMetricLabel
 	private final String procedureName;
 
 	@Label("Initiator of the call (client or server)")
-	@ExportMetricLabel("initiator")
+	@ExportMetricLabel
 	private String initiator;
 
 	@Label("State of the response (OK, ERROR, CANCELED)")
-	@ExportMetricLabel("responseState")
+	@ExportMetricLabel
 	private String responseState;
 
 	/**

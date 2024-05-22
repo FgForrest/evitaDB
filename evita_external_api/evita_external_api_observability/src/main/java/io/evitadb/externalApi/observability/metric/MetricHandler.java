@@ -102,6 +102,7 @@ public class MetricHandler {
 	private static final Pattern EVENT = Pattern.compile("Event");
 	private static final Map<String, Runnable> DEFAULT_JVM_METRICS;
 	private static final String DEFAULT_JVM_METRICS_NAME = "AllMetrics";
+	public static final String NOT_APPLICABLE = "N/A";
 
 	static {
 		DEFAULT_JVM_METRICS = Map.of(
@@ -245,16 +246,16 @@ public class MetricHandler {
 		} else {
 			return switch (metricType) {
 				case COUNTER -> (recordedEvent) -> ((Counter) metric)
-					.labelValues(Arrays.stream(labelValueExporter).map(it -> ofNullable(it.apply(recordedEvent)).orElse("N/A")).toArray(String[]::new))
+					.labelValues(Arrays.stream(labelValueExporter).map(it -> ofNullable(it.apply(recordedEvent)).orElse(NOT_APPLICABLE)).toArray(String[]::new))
 					.inc(recordedEvent.getDouble(fieldName));
 				case GAUGE -> (recordedEvent) -> ((Gauge) metric)
-					.labelValues(Arrays.stream(labelValueExporter).map(it -> ofNullable(it.apply(recordedEvent)).orElse("N/A")).toArray(String[]::new))
+					.labelValues(Arrays.stream(labelValueExporter).map(it -> ofNullable(it.apply(recordedEvent)).orElse(NOT_APPLICABLE)).toArray(String[]::new))
 					.set(recordedEvent.getDouble(fieldName));
 				case HISTOGRAM -> (recordedEvent) -> ((Histogram) metric)
-					.labelValues(Arrays.stream(labelValueExporter).map(it -> ofNullable(it.apply(recordedEvent)).orElse("N/A")).toArray(String[]::new))
+					.labelValues(Arrays.stream(labelValueExporter).map(it -> ofNullable(it.apply(recordedEvent)).orElse(NOT_APPLICABLE)).toArray(String[]::new))
 					.observe(recordedEvent.getDouble(fieldName));
 				case SUMMARY -> (recordedEvent) -> ((Summary) metric)
-					.labelValues(Arrays.stream(labelValueExporter).map(it -> ofNullable(it.apply(recordedEvent)).orElse("N/A")).toArray(String[]::new))
+					.labelValues(Arrays.stream(labelValueExporter).map(it -> ofNullable(it.apply(recordedEvent)).orElse(NOT_APPLICABLE)).toArray(String[]::new))
 					.observe(recordedEvent.getDouble(fieldName));
 			};
 		}
@@ -353,7 +354,7 @@ public class MetricHandler {
 										chainLambda(
 											lambdaRef,
 											recordedEvent -> ((Histogram) durationMetric)
-												.labelValues(Arrays.stream(labelValueExporters).map(exporter -> exporter.apply(recordedEvent)).toArray(String[]::new))
+												.labelValues(Arrays.stream(labelValueExporters).map(exporter -> ofNullable(exporter.apply(recordedEvent)).orElse(NOT_APPLICABLE)).toArray(String[]::new))
 												.observe(recordedEvent.getDuration().toMillis())
 										);
 									}
@@ -368,7 +369,7 @@ public class MetricHandler {
 										chainLambda(
 											lambdaRef,
 											recordedEvent -> ((Counter) invocationMetric)
-												.labelValues(Arrays.stream(labelValueExporters).map(exporter -> exporter.apply(recordedEvent)).toArray(String[]::new))
+												.labelValues(Arrays.stream(labelValueExporters).map(exporter -> ofNullable(exporter.apply(recordedEvent)).orElse(NOT_APPLICABLE)).toArray(String[]::new))
 												.inc()
 										);
 									}

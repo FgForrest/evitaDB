@@ -35,7 +35,7 @@ import javax.annotation.Nullable;
 @Getter
 abstract class AbstractBackgroundTaskEvent extends AbstractSystemEvent {
 
-	@ExportMetricLabel("taskName")
+	@ExportMetricLabel
 	final String taskName;
 
 	public AbstractBackgroundTaskEvent(@Nullable String catalogName, @Nonnull String taskName) {
