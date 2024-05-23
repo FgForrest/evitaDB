@@ -42,6 +42,7 @@ import io.prometheus.metrics.core.metrics.Histogram;
 import io.prometheus.metrics.core.metrics.Metric;
 import io.prometheus.metrics.core.metrics.Summary;
 import io.prometheus.metrics.instrumentation.jvm.*;
+import io.prometheus.metrics.model.snapshots.Unit;
 import jdk.jfr.FlightRecorder;
 import jdk.jfr.Label;
 import jdk.jfr.Name;
@@ -283,6 +284,8 @@ public class MetricHandler {
 				.register();
 			case HISTOGRAM -> Histogram.builder()
 				.name(name)
+				.classicLinearUpperBounds(1, 50, 20)
+				.unit(new Unit("milliseconds"))
 				.labelNames(metric.labels())
 				.help(metric.helpMessage())
 				.register();

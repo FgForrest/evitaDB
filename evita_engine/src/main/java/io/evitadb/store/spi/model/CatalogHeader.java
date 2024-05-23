@@ -62,6 +62,8 @@ import static java.util.Optional.ofNullable;
  * @param catalogName                    contains name of the catalog that originates in {@link CatalogSchema#getName()}
  * @param catalogState                   contains the state of the catalog that originates in {@link Catalog#getCatalogState()}
  * @param lastEntityCollectionPrimaryKey contains the last assigned {@link EntityCollection#getEntityTypePrimaryKey()}
+ * @param activeRecordShare              contains the share of active records in the catalog that is used for
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  * @see PersistentStorageHeader
  */
@@ -73,9 +75,10 @@ public record CatalogHeader(
 	@Nonnull Map<Integer, Object> compressedKeys,
 	@Nonnull String catalogName,
 	@Nonnull CatalogState catalogState,
-	int lastEntityCollectionPrimaryKey
+	int lastEntityCollectionPrimaryKey,
+	double activeRecordShare
 ) implements StoragePart {
-	@Serial private static final long serialVersionUID = -3595987669559870397L;
+	@Serial private static final long serialVersionUID = -5987715153038480011L;
 
 	public CatalogHeader(@Nonnull String catalogName) {
 		this(
@@ -86,7 +89,8 @@ public record CatalogHeader(
 			Map.of(),
 			catalogName,
 			CatalogState.WARMING_UP,
-			0
+			0,
+			1.0
 		);
 	}
 

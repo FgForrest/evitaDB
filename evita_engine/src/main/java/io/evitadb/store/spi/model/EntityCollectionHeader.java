@@ -83,14 +83,15 @@ public record EntityCollectionHeader(
 	@Nullable PersistentStorageDescriptor storageDescriptor,
 	@Nullable Integer globalEntityIndexId,
 	@Nonnull List<Integer> usedEntityIndexIds,
-	int lastKeyId
+	int lastKeyId,
+	double activeRecordShare
 ) implements PersistentStorageDescriptor, StoragePart, Serializable {
-	@Serial private static final long serialVersionUID = 1079906797886901404L;
+	@Serial private static final long serialVersionUID = 6342590529867272012L;
 
 	public EntityCollectionHeader(@Nonnull String entityType, int entityTypePrimaryKey, int entityTypeFileIndex) {
 		this(
 			entityType, entityTypePrimaryKey,
-			entityTypeFileIndex, 0, 0, 0,
+			entityTypeFileIndex, 0, 0, 0, 0.0,
 			null, null, Collections.emptyList()
 		);
 	}
@@ -102,6 +103,7 @@ public record EntityCollectionHeader(
 		int recordCount,
 		int lastPrimaryKey,
 		int lastEntityIndexPrimaryKey,
+		double activeRecordShare,
 		@Nullable PersistentStorageDescriptor storageDescriptor,
 		@Nullable Integer globalIndexId,
 		@Nonnull List<Integer> entityIndexIds
@@ -128,7 +130,8 @@ public record EntityCollectionHeader(
 					.keySet()
 					.stream()
 					.max(Comparator.comparingInt(o -> o))
-					.orElse(1)
+					.orElse(1),
+			activeRecordShare
 		);
 	}
 
@@ -154,7 +157,8 @@ public record EntityCollectionHeader(
 			null,
 			ofNullable(originalHeader).map(it -> it.globalEntityIndexId).orElse(null),
 			ofNullable(originalHeader).map(EntityCollectionHeader::usedEntityIndexIds).orElse(Collections.emptyList()),
-			ofNullable(originalHeader).map(it -> it.lastKeyId).orElse(1)
+			ofNullable(originalHeader).map(it -> it.lastKeyId).orElse(1),
+			ofNullable(originalHeader).map(EntityCollectionHeader::activeRecordShare).orElse(1.0)
 		);
 	}
 

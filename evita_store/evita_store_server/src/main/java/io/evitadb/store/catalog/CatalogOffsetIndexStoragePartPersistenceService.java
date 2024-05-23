@@ -271,7 +271,8 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 						theCatalogHeader.compressedKeys(),
 						kryoFactory,
 						// we don't know here yet - this will be recomputed on first flush
-						1.0, 0L
+						theCatalogHeader.activeRecordShare(),
+						catalogFilePath.toFile().length()
 					);
 				}
 			);
@@ -315,6 +316,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 	public void writeCatalogHeader(
 		int storageProtocolVersion,
 		long catalogVersion,
+		@Nonnull Path catalogStoragePath,
 		@Nullable WalFileReference walFileLocation,
 		@Nonnull Map<String, CollectionFileReference> collectionFileReferenceIndex,
 		@Nonnull String catalogName,
@@ -329,7 +331,8 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 			offsetIndex.getCompressedKeys(),
 			catalogName,
 			catalogState,
-			lastEntityCollectionPrimaryKey
+			lastEntityCollectionPrimaryKey,
+			offsetIndex.getActiveRecordShare(catalogStoragePath.resolve(name).toFile().length())
 		);
 		putStoragePart(catalogVersion, newCatalogHeader);
 		this.currentCatalogHeader = newCatalogHeader;

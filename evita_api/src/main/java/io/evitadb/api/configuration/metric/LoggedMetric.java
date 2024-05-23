@@ -32,5 +32,11 @@ import javax.annotation.Nonnull;
  * @param type one of supported Prometheus metric types
  * @param labels labels that will be attached to the metric
  */
-public record LoggedMetric(@Nonnull String name, @Nonnull String helpMessage, @Nonnull MetricType type, @Nonnull String... labels) {
+public record LoggedMetric(
+	@Nonnull String name,
+	@Nonnull String helpMessage,
+	@Nonnull MetricType type,
+	@Nonnull String... labels
+) {
+
 }

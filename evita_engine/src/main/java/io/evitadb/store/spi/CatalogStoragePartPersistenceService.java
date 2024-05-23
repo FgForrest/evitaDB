@@ -31,6 +31,7 @@ import io.evitadb.store.spi.model.reference.WalFileReference;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.nio.file.Path;
 import java.util.Map;
 
 /**
@@ -56,6 +57,7 @@ public interface CatalogStoragePartPersistenceService extends StoragePartPersist
 	 *
 	 * @param storageProtocolVersion              The storage protocol version.
 	 * @param catalogVersion                      The catalog version.
+	 * @param catalogStoragePath				  The catalog storage path, must not be null.
 	 * @param walFileLocation                     The WAL file location, may be null.
 	 * @param collectionFileReferenceIndex        The collection file reference index, must not be null.
 	 * @param catalogName                         The catalog name, must not be null.
@@ -65,6 +67,7 @@ public interface CatalogStoragePartPersistenceService extends StoragePartPersist
 	void writeCatalogHeader(
 		int storageProtocolVersion,
 		long catalogVersion,
+		@Nonnull Path catalogStoragePath,
 		@Nullable WalFileReference walFileLocation,
 		@Nonnull Map<String, CollectionFileReference> collectionFileReferenceIndex,
 		@Nonnull String catalogName,

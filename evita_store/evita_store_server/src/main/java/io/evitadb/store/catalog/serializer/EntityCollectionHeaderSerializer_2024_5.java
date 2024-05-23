@@ -43,7 +43,7 @@ import java.util.stream.Collectors;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @Deprecated
-public class EntityCollectionHeaderSerializer extends AbstractPersistentStorageHeaderSerializer<EntityCollectionHeader> {
+public class EntityCollectionHeaderSerializer_2024_5 extends AbstractPersistentStorageHeaderSerializer<EntityCollectionHeader> {
 
 	@Override
 	public void write(Kryo kryo, Output output, EntityCollectionHeader object) {
@@ -54,7 +54,6 @@ public class EntityCollectionHeaderSerializer extends AbstractPersistentStorageH
 		output.writeVarInt(object.lastPrimaryKey(), true);
 		output.writeVarInt(object.lastEntityIndexPrimaryKey(), true);
 		output.writeVarInt(object.recordCount(), true);
-		output.writeDouble(object.activeRecordShare());
 
 		final FileLocation fileOffsetIndexLocation = object.fileLocation();
 		output.writeVarLong(fileOffsetIndexLocation.startingPosition(), true);
@@ -74,7 +73,6 @@ public class EntityCollectionHeaderSerializer extends AbstractPersistentStorageH
 		final int lastPrimaryKey = input.readVarInt(true);
 		final int lastEntityIndexPrimaryKey = input.readVarInt(true);
 		final int entityCount = input.readVarInt(true);
-		final double activeRecordShare = input.readDouble();
 		final FileLocation fileOffsetIndexLocation = new FileLocation(
 				input.readVarLong(true),
 				input.readVarInt(true)
@@ -91,7 +89,7 @@ public class EntityCollectionHeaderSerializer extends AbstractPersistentStorageH
 			entityCount,
 			lastPrimaryKey,
 			lastEntityIndexPrimaryKey,
-			activeRecordShare,
+			1.0,
 			new PersistentStorageHeader(version, fileOffsetIndexLocation, keys),
 			globalIndexKey,
 			entityIndexIds

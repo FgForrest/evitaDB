@@ -45,7 +45,8 @@ import java.util.Map;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class CatalogHeaderSerializer extends AbstractPersistentStorageHeaderSerializer<CatalogHeader> {
+@Deprecated
+public class CatalogHeaderSerializer_2024_05 extends AbstractPersistentStorageHeaderSerializer<CatalogHeader> {
 
 	@Override
 	public void write(Kryo kryo, Output output, CatalogHeader object) {
@@ -53,7 +54,6 @@ public class CatalogHeaderSerializer extends AbstractPersistentStorageHeaderSeri
 		output.writeString(object.catalogName());
 		output.writeVarLong(object.version(), true);
 		output.writeVarInt(object.lastEntityCollectionPrimaryKey(), true);
-		output.writeDouble(object.activeRecordShare());
 
 		final WalFileReference walFileReference = object.walFileReference();
 		if (walFileReference != null) {
@@ -93,7 +93,6 @@ public class CatalogHeaderSerializer extends AbstractPersistentStorageHeaderSeri
 		final String catalogName = input.readString();
 		final long version = input.readVarLong(true);
 		final int lastEntityCollectionPrimaryKey = input.readVarInt(true);
-		final double activeRecordShare = input.readDouble();
 
 		final WalFileReference walFileReference;
 		if (input.readBoolean()) {
@@ -140,7 +139,7 @@ public class CatalogHeaderSerializer extends AbstractPersistentStorageHeaderSeri
 			catalogName,
 			catalogState,
 			lastEntityCollectionPrimaryKey,
-			activeRecordShare
+			1.0
 		);
 	}
 

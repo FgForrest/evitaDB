@@ -84,6 +84,7 @@ module evita.external.api.observability {
 	requires org.bouncycastle.provider;
 	requires java.sql;
 	requires evita.external.api.grpc;
+	requires io.prometheus.metrics.model;
 
 	exports io.evitadb.externalApi.observability.configuration;
 	exports io.evitadb.externalApi.observability.trace;

@@ -896,6 +896,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		storagePartPersistenceService.writeCatalogHeader(
 			STORAGE_PROTOCOL_VERSION,
 			catalogVersion,
+			catalogStoragePath,
 			ofNullable(this.catalogWal)
 				.map(cwal -> cwal.getWalFileReference(lastProcessedTransaction))
 				.orElse(null),
@@ -1137,6 +1138,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		storagePartPersistenceService.writeCatalogHeader(
 			STORAGE_PROTOCOL_VERSION,
 			newCatalogVersion,
+			newPath,
 			catalogHeader.walFileReference(),
 			catalogHeader.collectionFileIndex(),
 			catalogNameToBeReplaced,
@@ -1303,6 +1305,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 						entityHeader.recordCount(),
 						entityHeader.lastPrimaryKey(),
 						entityHeader.lastEntityIndexPrimaryKey(),
+						entityHeader.activeRecordShare(),
 						newPersistentStorageDescriptor,
 						entityHeader.globalEntityIndexId(),
 						entityHeader.usedEntityIndexIds()

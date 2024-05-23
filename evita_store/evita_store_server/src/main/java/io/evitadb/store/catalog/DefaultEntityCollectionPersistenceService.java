@@ -688,7 +688,8 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 					entityTypeHeader,
 					this.createTypeKryoInstance(),
 					// we don't know here yet - this will be recomputed on first flush
-					1.0, 0L
+					entityTypeHeader.activeRecordShare(),
+					this.entityCollectionFile.toFile().length()
 				),
 				storageOptions,
 				offsetIndexRecordTypeRegistry,
@@ -1113,7 +1114,8 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		final OffsetIndexDescriptor newDescriptor = this.storagePartPersistenceService.flush(newCatalogVersion);
 		// when versions are equal - nothing has changed, and we can reuse old header
 		if (newDescriptor.version() > previousVersion) {
-			this.entityCollectionHeader = createEntityCollectionHeader(newCatalogVersion, newDescriptor, headerInfoSupplier, this.entityCollectionFileReference);
+			final Path catalogStoragePath = this.entityCollectionFile.getParent();
+			this.entityCollectionHeader = createEntityCollectionHeader(newCatalogVersion, catalogStoragePath, newDescriptor, headerInfoSupplier, this.entityCollectionFileReference);
 		}
 		return newDescriptor;
 	}
@@ -1126,9 +1128,10 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 			this.entityCollectionFileReference.entityType()
 		);
 		final CollectionFileReference newReference = this.entityCollectionFileReference.incrementAndGet();
-		final Path newFilePath = newReference.toFilePath(this.entityCollectionFile.getParent());
+		final Path catalogStoragePath = this.entityCollectionFile.getParent();
+		final Path newFilePath = newReference.toFilePath(catalogStoragePath);
 		final OffsetIndexDescriptor offsetIndexDescriptor = this.storagePartPersistenceService.copySnapshotTo(newFilePath, catalogVersion);
-		final EntityCollectionHeader newCollecitonHeader = createEntityCollectionHeader(catalogVersion, offsetIndexDescriptor, headerInfoSupplier, newReference);
+		final EntityCollectionHeader newCollecitonHeader = createEntityCollectionHeader(catalogVersion, catalogStoragePath, offsetIndexDescriptor, headerInfoSupplier, newReference);
 		// emit event
 		event.finish().commit();
 		return newCollecitonHeader;
@@ -1174,6 +1177,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	@Nonnull
 	private EntityCollectionHeader createEntityCollectionHeader(
 		long catalogVersion,
+		@Nonnull Path catalogStoragePath,
 		@Nonnull PersistentStorageDescriptor newDescriptor,
 		@Nonnull HeaderInfoSupplier headerInfoSupplier,
 		@Nonnull CollectionFileReference collectionFileReference
@@ -1185,6 +1189,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 			getStoragePartPersistenceService().countStorageParts(catalogVersion, EntityBodyStoragePart.class),
 			headerInfoSupplier.getLastAssignedPrimaryKey(),
 			headerInfoSupplier.getLastAssignedIndexKey(),
+			getStoragePartPersistenceService().offsetIndex.getActiveRecordShare(collectionFileReference.toFilePath(catalogStoragePath).toFile().length()),
 			newDescriptor,
 			headerInfoSupplier.getGlobalIndexKey().isPresent() ?
 				headerInfoSupplier.getGlobalIndexKey().getAsInt() : null,
