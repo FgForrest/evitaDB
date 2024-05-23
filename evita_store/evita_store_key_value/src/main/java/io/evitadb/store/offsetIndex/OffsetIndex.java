@@ -1858,7 +1858,10 @@ public class OffsetIndex {
 		public Optional<OffsetDateTime> getOldestRecordKeptTimestamp() {
 			return ofNullable(this.volatileValues)
 				.map(it -> {
-					final long index = ofNullable(this.historicalVersions).map(hv -> hv[0]).orElse(-1L);
+					final long index = ofNullable(this.historicalVersions)
+						.filter(hv -> !ArrayUtils.isEmpty(hv))
+						.map(hv -> hv[0])
+						.orElse(-1L);
 					return index == -1 ? null :
 						OffsetDateTime.ofInstant(
 							Instant.ofEpochMilli(it.get(index).getTimestamp()),
