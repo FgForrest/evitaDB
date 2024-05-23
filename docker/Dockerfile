@@ -19,7 +19,7 @@ HEALTHCHECK --start-period=5m --interval=10s --timeout=2s --retries=3 \
 USER root
 
 # Install bash and networking utilities
-RUN apt update && apt install -y netcat-openbsd iproute2 iputils-ping mc tcpdump dnsutils
+RUN apt update && apt install -y netcat-openbsd iproute2 iputils-ping mc tcpdump dnsutils curl
 
 # Create necessary folders
 RUN set -ex \

@@ -118,8 +118,9 @@
 		<!--Compatible versions with gRPC could be found here: https://github.com/grpc/grpc-java/blob/master/SECURITY.md#netty -->
 		<nettyHandler.version>4.1.100.Final</nettyHandler.version>
 		<swagger.version>2.2.15</swagger.version>
-		<undertow.version>2.3.12.Final</undertow.version>
+		<undertow.version>2.3.13.Final</undertow.version>
 		<prometheus.version>1.1.0</prometheus.version>
+		<xnio.version>3.8.14.Final</xnio.version>
 	</properties>
 
 	<modules>
@@ -228,6 +229,16 @@
 				<groupId>org.jboss.threads</groupId>
 				<artifactId>jboss-threads</artifactId>
 				<version>${jboss.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>org.jboss.xnio</groupId>
+				<artifactId>xnio-api</artifactId>
+				<version>${xnio.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>org.jboss.xnio</groupId>
+				<artifactId>xnio-nio</artifactId>
+				<version>${xnio.version}</version>
 			</dependency>
 			<dependency>
 				<groupId>commons-io</groupId>
