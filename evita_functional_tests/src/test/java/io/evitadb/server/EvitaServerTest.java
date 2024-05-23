@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -41,6 +41,7 @@ import io.evitadb.test.TestConstants;
 import io.evitadb.utils.CollectionUtils.Property;
 import io.evitadb.utils.NetworkUtils;
 import io.grpc.ManagedChannel;
+import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -62,6 +63,7 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
+@Slf4j
 class EvitaServerTest implements TestConstants, EvitaTestSupport {
 	private static final String DIR_EVITA_SERVER_TEST = "evitaServerTest";
 
@@ -186,8 +188,10 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 			Optional<String> response;
 			final long start = System.currentTimeMillis();
 			do {
+				final String url = baseUrls[0] + "readiness";
+				log.info("Checking readiness at {}", url);
 				response = NetworkUtils.fetchContent(
-					baseUrls[0] + "readiness",
+					url,
 					"GET",
 					"application/json",
 					null
