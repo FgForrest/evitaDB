@@ -42,6 +42,7 @@ import java.util.Map;
 
 /**
  * This {@link Serializer} implementation reads/writes {@link CatalogHeader} from/to binary format.
+ * TOBEDONE #538 - Remove this class in the future.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
