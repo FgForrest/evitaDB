@@ -72,6 +72,7 @@ import io.evitadb.core.buffer.DataStoreChanges;
 import io.evitadb.core.buffer.DataStoreMemoryBuffer;
 import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.exception.StorageImplementationNotFoundException;
+import io.evitadb.core.metric.event.transaction.CatalogGoesLiveEvent;
 import io.evitadb.core.query.QueryContext;
 import io.evitadb.core.query.QueryPlan;
 import io.evitadb.core.query.QueryPlanner;
@@ -768,6 +769,8 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 			);
 
 			Assert.isTrue(this.state == CatalogState.WARMING_UP, "Catalog has already alive state!");
+			final CatalogGoesLiveEvent event = new CatalogGoesLiveEvent(getName());
+
 			flush();
 
 			final List<EntityCollection> newCollections = this.entityCollections
@@ -787,6 +790,9 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 			);
 
 			this.newCatalogVersionConsumer.accept(newCatalog);
+
+			// emit the event
+			event.finish().commit();
 
 			return true;
 		} finally {

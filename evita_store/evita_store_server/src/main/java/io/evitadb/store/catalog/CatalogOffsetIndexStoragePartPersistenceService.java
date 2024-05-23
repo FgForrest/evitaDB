@@ -290,7 +290,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 	) {
 		super(
 			catalogVersion,
-			catalogName,
+			catalogHeader.catalogName(),
 			catalogName,
 			FileType.CATALOG,
 			transactionOptions,

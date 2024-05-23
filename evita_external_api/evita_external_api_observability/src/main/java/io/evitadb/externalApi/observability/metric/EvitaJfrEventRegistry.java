@@ -62,6 +62,7 @@ import java.util.stream.Collectors;
 public class EvitaJfrEventRegistry {
 	private static final Set<Class<? extends CustomMetricsExecutionEvent>> EVENTS_TYPES = Set.of(
 		// transaction events
+		CatalogGoesLiveEvent.class,
 		TransactionStartedEvent.class,
 		TransactionFinishedEvent.class,
 		TransactionAcceptedEvent.class,
