@@ -51,7 +51,9 @@ import io.evitadb.store.spi.model.reference.WalFileReference;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.nio.file.Path;
+import java.time.OffsetDateTime;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -74,7 +76,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 	/**
 	 * Creates a CatalogOffsetIndexStoragePartPersistenceService object with the given parameters.
 	 * The code cannot be directly in the constructor, because we need to execute
-	 * {@link #loadOffsetIndex(String, Path, StorageOptions, CatalogBootstrap, OffsetIndexRecordTypeRegistry, ObservableOutputKeeper, Function, Consumer, Consumer)}
+	 * {@link #loadOffsetIndex(String, Path, StorageOptions, CatalogBootstrap, OffsetIndexRecordTypeRegistry, ObservableOutputKeeper, Function, Consumer, Consumer, Consumer)}
 	 * and within it initialize the {@link #currentCatalogHeader} variable. This cannot be done in the consturctor
 	 * because the super constructor needs to be called first.
 	 *
@@ -102,13 +104,14 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 		@Nonnull OffHeapMemoryManager offHeapMemoryManager,
 		@Nonnull ObservableOutputKeeper observableOutputKeeper,
 		@Nonnull Function<VersionedKryoKeyInputs, VersionedKryo> kryoFactory,
-		@Nullable Consumer<NonFlushedBlock> nonFlushedBlockObserver
+		@Nullable Consumer<NonFlushedBlock> nonFlushedBlockObserver,
+		@Nullable Consumer<Optional<OffsetDateTime>> historyKeptObserver
 		) {
 		final AtomicReference<CatalogHeader> catalogHeaderRef = new AtomicReference<>();
 		final OffsetIndex offsetIndex = loadOffsetIndex(
 			catalogName, catalogFilePath, storageOptions,
 			lastCatalogBootstrap, recordRegistry, observableOutputKeeper,
-			kryoFactory, nonFlushedBlockObserver,
+			kryoFactory, nonFlushedBlockObserver, historyKeptObserver,
 			catalogHeaderRef::set
 		);
 		return new CatalogOffsetIndexStoragePartPersistenceService(
@@ -141,6 +144,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 		@Nonnull ObservableOutputKeeper observableOutputKeeper,
 		@Nonnull Function<VersionedKryoKeyInputs, VersionedKryo> kryoFactory,
 		@Nullable Consumer<NonFlushedBlock> nonFlushedBlockObserver,
+		@Nullable Consumer<Optional<OffsetDateTime>> historyKeptObserver,
 		@Nonnull CatalogOffsetIndexStoragePartPersistenceService previous
 	) {
 		final CatalogHeader catalogHeader = previous.getCatalogHeader(catalogVersion);
@@ -168,6 +172,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 				observableOutputKeeper
 			),
 			nonFlushedBlockObserver,
+			historyKeptObserver,
 			previousOffsetIndex,
 			offsetIndexDescriptor
 		);
@@ -205,6 +210,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 		@Nonnull ObservableOutputKeeper observableOutputKeeper,
 		@Nonnull Function<VersionedKryoKeyInputs, VersionedKryo> kryoFactory,
 		@Nullable Consumer<NonFlushedBlock> nonFlushedBlockObserver,
+		@Nullable Consumer<Optional<OffsetDateTime>> historyKeptObserver,
 		@Nonnull Consumer<CatalogHeader> catalogHeaderConsumer
 	) {
 		final FileLocation fileLocation = lastCatalogBootstrap.fileLocation();
@@ -229,7 +235,8 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 					catalogFilePath,
 					observableOutputKeeper
 				),
-				nonFlushedBlockObserver
+				nonFlushedBlockObserver,
+				historyKeptObserver
 			);
 			final CatalogHeader newHeader = new CatalogHeader(catalogName);
 			newOffsetIndex.put(0L, newHeader);
@@ -251,6 +258,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 					observableOutputKeeper
 				),
 				nonFlushedBlockObserver,
+				historyKeptObserver,
 				(indexBuilder, theInput) -> {
 					// and load the catalog header
 					final FileLocation catalogHeaderLocation = indexBuilder.getBuiltIndex().get(

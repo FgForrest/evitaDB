@@ -48,6 +48,7 @@ import io.evitadb.core.buffer.DataStoreIndexChanges;
 import io.evitadb.core.metric.event.storage.CatalogFlushEvent;
 import io.evitadb.core.metric.event.storage.DataFileCompactEvent;
 import io.evitadb.core.metric.event.storage.FileType;
+import io.evitadb.core.metric.event.storage.OffsetIndexHistoryKeptEvent;
 import io.evitadb.core.metric.event.storage.OffsetIndexNonFlushedEvent;
 import io.evitadb.core.metric.event.storage.ReadOnlyHandleLimitSetEvent;
 import io.evitadb.dataType.ClassifierType;
@@ -598,7 +599,8 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				offHeapMemoryManager,
 				observableOutputKeeper,
 				VERSIONED_KRYO_FACTORY,
-				nonFlushedBlock -> this.reportNonFlushedContents(catalogName, nonFlushedBlock)
+				nonFlushedBlock -> this.reportNonFlushedContents(catalogName, nonFlushedBlock),
+				oldestRecordTimestamp -> this.reportOldestHistoricalRecord(catalogName, oldestRecordTimestamp.orElse(null))
 			)
 		);
 		this.catalogPersistenceServiceVersions = new long[]{catalogVersion};
@@ -678,7 +680,8 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				this.offHeapMemoryManager,
 				this.observableOutputKeeper,
 				VERSIONED_KRYO_FACTORY,
-				nonFlushedBlock -> this.reportNonFlushedContents(catalogName, nonFlushedBlock)
+				nonFlushedBlock -> this.reportNonFlushedContents(catalogName, nonFlushedBlock),
+				oldestRecordTimestamp -> this.reportOldestHistoricalRecord(catalogName, oldestRecordTimestamp.orElse(null))
 			);
 		this.catalogStoragePartPersistenceService.put(
 			catalogVersion,
@@ -739,6 +742,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			this.observableOutputKeeper,
 			VERSIONED_KRYO_FACTORY,
 			nonFlushedBlock -> this.reportNonFlushedContents(catalogName, nonFlushedBlock),
+			oldestRecordTimestamp -> this.reportOldestHistoricalRecord(catalogName, oldestRecordTimestamp.orElse(null)),
 			previousCatalogStoragePartPersistenceService
 		);
 		this.catalogStoragePartPersistenceService = CollectionUtils.createConcurrentHashMap(16);
@@ -1634,7 +1638,8 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 					this.offHeapMemoryManager,
 					this.observableOutputKeeper,
 					VERSIONED_KRYO_FACTORY,
-					nonFlushedBlock -> this.reportNonFlushedContents(catalogName, nonFlushedBlock)
+					nonFlushedBlock -> this.reportNonFlushedContents(catalogName, nonFlushedBlock),
+					oldestRecordTimestamp -> this.reportOldestHistoricalRecord(catalogName, oldestRecordTimestamp.orElse(null))
 				)
 			);
 			this.catalogPersistenceServiceVersions = ArrayUtils.insertLongIntoOrderedArray(catalogVersion, this.catalogPersistenceServiceVersions);
@@ -1977,12 +1982,27 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			this.lastReportTimestamp = now;
 			new OffsetIndexNonFlushedEvent(
 				catalogName,
-				FileType.ENTITY_COLLECTION,
+				FileType.CATALOG,
 				catalogName,
 				nonFlushedBlock.recordCount(),
 				nonFlushedBlock.estimatedMemorySizeInBytes()
 			).commit();
 		}
+	}
+
+	/**
+	 * Reports changes in historical records kept.
+	 *
+	 * @param catalogName     name of the catalog
+	 * @param oldestHistoricalRecord oldest historical record
+	 */
+	private void reportOldestHistoricalRecord(@Nonnull String catalogName, @Nullable OffsetDateTime oldestHistoricalRecord) {
+		new OffsetIndexHistoryKeptEvent(
+			catalogName,
+			FileType.CATALOG,
+			catalogName,
+			oldestHistoricalRecord
+		).commit();
 	}
 
 	/**

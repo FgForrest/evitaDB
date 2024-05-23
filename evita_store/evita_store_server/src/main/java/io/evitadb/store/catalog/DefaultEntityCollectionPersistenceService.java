@@ -55,6 +55,7 @@ import io.evitadb.core.buffer.DataStoreIndexChanges;
 import io.evitadb.core.buffer.DataStoreMemoryBuffer;
 import io.evitadb.core.metric.event.storage.DataFileCompactEvent;
 import io.evitadb.core.metric.event.storage.FileType;
+import io.evitadb.core.metric.event.storage.OffsetIndexHistoryKeptEvent;
 import io.evitadb.core.metric.event.storage.OffsetIndexNonFlushedEvent;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
@@ -117,6 +118,7 @@ import lombok.extern.slf4j.Slf4j;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.nio.file.Path;
+import java.time.OffsetDateTime;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -700,7 +702,8 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 					this.entityCollectionFile,
 					observableOutputKeeper
 				),
-				nonFlushedBlock -> reportNonFlushedContents(catalogName, nonFlushedBlock)
+				nonFlushedBlock -> reportNonFlushedContents(catalogName, nonFlushedBlock),
+				oldestHistoricalRecord -> reportOldestHistoricalRecord(catalogName, oldestHistoricalRecord.orElse(null))
 			),
 			offHeapMemoryManager,
 			observableOutputKeeper,
@@ -754,6 +757,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 					this.observableOutputKeeper
 				),
 				nonFlushedBlock -> reportNonFlushedContents(catalogName, nonFlushedBlock),
+				oldestHistoricalRecord -> reportOldestHistoricalRecord(catalogName, oldestHistoricalRecord.orElse(null)),
 				previousOffsetIndex,
 				new OffsetIndexDescriptor(
 					previousOffsetIndex.getVersion(),
@@ -1167,6 +1171,21 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 				nonFlushedBlock.estimatedMemorySizeInBytes()
 			).commit();
 		}
+	}
+
+	/**
+	 * Reports changes in historical records kept.
+	 *
+	 * @param catalogName     name of the catalog
+	 * @param oldestHistoricalRecord oldest historical record
+	 */
+	private void reportOldestHistoricalRecord(@Nonnull String catalogName, @Nullable OffsetDateTime oldestHistoricalRecord) {
+		new OffsetIndexHistoryKeptEvent(
+			catalogName,
+			FileType.ENTITY_COLLECTION,
+			this.entityCollectionFileReference.entityType(),
+			oldestHistoricalRecord
+		).commit();
 	}
 
 	/**

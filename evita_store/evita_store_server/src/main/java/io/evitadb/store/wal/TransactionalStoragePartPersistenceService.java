@@ -110,6 +110,9 @@ public class TransactionalStoragePartPersistenceService implements StoragePartPe
 			),
 			nonFlushedBlock -> {
 				// we don't care here
+			},
+			oldestRecordTimestamp -> {
+				// we don't care here
 			}
 		);
 	}

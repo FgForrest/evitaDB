@@ -194,7 +194,8 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 			limitedBufferOptions,
 			fileOffsetIndexRecordTypeRegistry,
 			new WriteOnlyFileHandle(targetFile, observableOutputKeeper),
-			nonFlushedBlock -> {}
+			nonFlushedBlock -> {},
+			oldestRecordTimestamp -> {}
 		);
 
 		int recordCount = sourceOffsetIndex.count(insertionOutput.catalogVersion());
@@ -215,7 +216,8 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 			limitedBufferOptions,
 			fileOffsetIndexRecordTypeRegistry,
 			new WriteOnlyFileHandle(targetFile, observableOutputKeeper),
-			nonFlushedBlock -> {}
+			nonFlushedBlock -> {},
+			oldestRecordTimestamp -> {}
 		);
 
 		// now create a snapshot of the file offset index
@@ -229,7 +231,8 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 				limitedBufferOptions,
 				fileOffsetIndexRecordTypeRegistry,
 				new WriteOnlyFileHandle(snapshotPath, observableOutputKeeper),
-				nonFlushedBlock -> {}
+				nonFlushedBlock -> {},
+				oldestRecordTimestamp -> {}
 			);
 
 			assertEquals(purgedSourceOffsetIndex.count(finalCatalogVersion), loadedFileOffsetIndex.count(finalCatalogVersion));
@@ -270,7 +273,8 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 			options,
 			fileOffsetIndexRecordTypeRegistry,
 			new WriteOnlyFileHandle(targetFile, observableOutputKeeper),
-			nonFlushedBlock -> {}
+			nonFlushedBlock -> {},
+			oldestRecordTimestamp -> {}
 		);
 
 		for (int i = 1; i <= recordCount * iterationCount; i++) {
@@ -313,7 +317,8 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 			options,
 			fileOffsetIndexRecordTypeRegistry,
 			new WriteOnlyFileHandle(targetFile, observableOutputKeeper),
-			nonFlushedBlock -> {}
+			nonFlushedBlock -> {},
+			oldestRecordTimestamp -> {}
 		);
 
 		for (int i = 1; i <= recordCount * iterationCount; i++) {
@@ -353,7 +358,8 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 			options,
 			fileOffsetIndexRecordTypeRegistry,
 			new WriteOnlyFileHandle(targetFile, observableOutputKeeper),
-			nonFlushedBlock -> {}
+			nonFlushedBlock -> {},
+			oldestRecordTimestamp -> {}
 		);
 		fileOffsetIndex.put(0L, new EntityBodyStoragePart(1));
 		fileOffsetIndex.close();
@@ -382,7 +388,8 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 				buildOptionsWithLimitedBuffer(),
 				fileOffsetIndexRecordTypeRegistry,
 				new WriteOnlyFileHandle(targetFile, observableOutputKeeper),
-				nonFlushedBlock -> {}
+				nonFlushedBlock -> {},
+				oldestRecordTimestamp -> {}
 			)
 		);
 
@@ -455,7 +462,8 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 					options,
 					fileOffsetIndexRecordTypeRegistry,
 					new WriteOnlyFileHandle(currentFilePath.get(), observableOutputKeeper),
-					nonFlushedBlock -> {}
+					nonFlushedBlock -> {},
+					oldestRecordTimestamp -> {}
 				);
 				long end = System.nanoTime();
 
@@ -542,7 +550,8 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 						options,
 						fileOffsetIndexRecordTypeRegistry,
 						new WriteOnlyFileHandle(newPath, observableOutputKeeper),
-						nonFlushedBlock -> {}
+						nonFlushedBlock -> {},
+						oldestRecordTimestamp -> {}
 					);
 					final FileOffsetIndexStatistics newStats = newOffsetIndex.verifyContents();
 					assertTrue(newStats.getActiveRecordShare() > 0.5);
@@ -584,7 +593,8 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 			storageOptions,
 			fileOffsetIndexRecordTypeRegistry,
 			new WriteOnlyFileHandle(targetFile, observableOutputKeeper),
-			nonFlushedBlock -> {}
+			nonFlushedBlock -> {},
+			oldestRecordTimestamp -> {}
 		);
 		final int recordCount = 600;
 
@@ -605,7 +615,8 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 			storageOptions,
 			fileOffsetIndexRecordTypeRegistry,
 			new WriteOnlyFileHandle(targetFile, observableOutputKeeper),
-			nonFlushedBlock -> {}
+			nonFlushedBlock -> {},
+			oldestRecordTimestamp -> {}
 		);
 
 		long duration = 0L;
@@ -647,7 +658,8 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 			options,
 			fileOffsetIndexRecordTypeRegistry,
 			new WriteOnlyFileHandle(targetFile, observableOutputKeeper),
-			nonFlushedBlock -> {}
+			nonFlushedBlock -> {},
+			oldestRecordTimestamp -> {}
 		);
 
 		OffsetIndexDescriptor fileOffsetIndexDescriptor = null;

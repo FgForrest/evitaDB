@@ -31,35 +31,31 @@ import jdk.jfr.Name;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.time.OffsetDateTime;
 
 /**
- * Event that is fired when non flushed record count changes in offset index.
+ * Event that is fired when history data kept in memory change.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@Name(AbstractStorageEvent.PACKAGE_NAME + ".OffsetIndexNonFlushed")
-@Description("Event that is fired when non flushed record count changes in offset index.")
-@Label("OffsetIndex non-flushed records")
+@Name(AbstractStorageEvent.PACKAGE_NAME + ".OffsetIndexHistoryKept")
+@Description("Event that is fired when history data kept in memory change.")
+@Label("OffsetIndex last record kept")
 @Getter
-public class OffsetIndexNonFlushedEvent extends AbstractDataFileEvent {
-	@Label("Number of records pending flush")
+public class OffsetIndexHistoryKeptEvent extends AbstractDataFileEvent {
+	@Label("Oldest record kept in memory timestamp in seconds")
 	@ExportMetric(metricType = MetricType.GAUGE)
-	private final int records;
+	private long oldestRecordTimestampSeconds;
 
-	@Label("Size of records pending flush in Bytes")
-	@ExportMetric(metricType = MetricType.GAUGE)
-	private final long recordSizeBytes;
-
-	public OffsetIndexNonFlushedEvent(
+	public OffsetIndexHistoryKeptEvent(
 		@Nonnull String catalogName,
 		@Nonnull FileType fileType,
 		@Nonnull String name,
-		int records,
-		long recordSizeBytes
+		@Nullable OffsetDateTime oldestRecordTimestamp
 	) {
 		super(catalogName, fileType, name);
-		this.records = records;
-		this.recordSizeBytes = recordSizeBytes;
+		this.oldestRecordTimestampSeconds = oldestRecordTimestamp == null ? 0 : oldestRecordTimestamp.toEpochSecond();
 	}
 
 }

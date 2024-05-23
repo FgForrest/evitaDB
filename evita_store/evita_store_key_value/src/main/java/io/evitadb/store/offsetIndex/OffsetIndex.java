@@ -218,12 +218,16 @@ public class OffsetIndex {
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull OffsetIndexRecordTypeRegistry recordTypeRegistry,
 		@Nonnull WriteOnlyHandle writeHandle,
-		@Nullable Consumer<NonFlushedBlock> nonFlushedBlockObserver
+		@Nullable Consumer<NonFlushedBlock> nonFlushedBlockObserver,
+		@Nullable Consumer<Optional<OffsetDateTime>> historicalRecordObserver
 	) {
 		this.storageOptions = storageOptions;
 		this.fileOffsetDescriptor = fileOffsetDescriptor;
 		this.recordTypeRegistry = recordTypeRegistry;
-		this.volatileValues = new VolatileValues(nonFlushedBlockObserver == null ? nonFlushedBlock -> {} : nonFlushedBlockObserver);
+		this.volatileValues = new VolatileValues(
+			nonFlushedBlockObserver == null ? nonFlushedBlock -> {} : nonFlushedBlockObserver,
+			historicalRecordObserver == null ? historicalRecord -> {} : historicalRecordObserver
+		);
 
 		this.readOnlyOpenedHandles = new CopyOnWriteArrayList<>();
 		this.readKryoPool = new FileOffsetIndexKryoPool(
@@ -263,11 +267,15 @@ public class OffsetIndex {
 		@Nonnull OffsetIndexRecordTypeRegistry recordTypeRegistry,
 		@Nonnull WriteOnlyHandle writeHandle,
 		@Nullable Consumer<NonFlushedBlock> nonFlushedBlockObserver,
+		@Nullable Consumer<Optional<OffsetDateTime>> historicalRecordObserver,
 		@Nonnull BiFunction<FileOffsetIndexBuilder, ObservableInput<?>, ? extends OffsetIndexDescriptor> offsetIndexDescriptorFactory
 	) {
 		this.storageOptions = storageOptions;
 		this.writeHandle = writeHandle;
-		this.volatileValues = new VolatileValues(nonFlushedBlockObserver == null ? nonFlushedBlock -> {} : nonFlushedBlockObserver);
+		this.volatileValues = new VolatileValues(
+			nonFlushedBlockObserver == null ? nonFlushedBlock -> {} : nonFlushedBlockObserver,
+			historicalRecordObserver == null ? historicalRecord -> {} : historicalRecordObserver
+		);
 
 		this.recordTypeRegistry = recordTypeRegistry;
 		this.readOnlyOpenedHandles = new CopyOnWriteArrayList<>();
@@ -320,6 +328,7 @@ public class OffsetIndex {
 		@Nonnull OffsetIndexRecordTypeRegistry recordTypeRegistry,
 		@Nonnull WriteOnlyHandle writeHandle,
 		@Nullable Consumer<NonFlushedBlock> nonFlushedBlockObserver,
+		@Nullable Consumer<Optional<OffsetDateTime>> historicalRecordObserver,
 		@Nonnull OffsetIndex previousOffsetIndex,
 		@Nonnull OffsetIndexDescriptor fileOffsetIndexDescriptor
 	) {
@@ -327,7 +336,10 @@ public class OffsetIndex {
 		this.recordTypeRegistry = recordTypeRegistry;
 		this.readOnlyOpenedHandles = new CopyOnWriteArrayList<>();
 		this.writeHandle = writeHandle;
-		this.volatileValues = new VolatileValues(nonFlushedBlockObserver == null ? nonFlushedBlock -> {} : nonFlushedBlockObserver);
+		this.volatileValues = new VolatileValues(
+			nonFlushedBlockObserver == null ? nonFlushedBlock -> {} : nonFlushedBlockObserver,
+			historicalRecordObserver == null ? historicalRecord -> {} : historicalRecordObserver
+		);
 
 		this.lastSyncedPosition = writeHandle.getLastWrittenPosition();
 		if (this.lastSyncedPosition == 0) {
@@ -1454,6 +1466,11 @@ public class OffsetIndex {
 		@Nonnull
 		private final Consumer<NonFlushedBlock> nonFlushedBlockObserver;
 		/**
+		 * Observer that is notified when a historical versions data is purged.
+		 */
+		@Nonnull
+		private final Consumer<Optional<OffsetDateTime>> historicalVersionsObserver;
+		/**
 		 * Non flushed values contains all values that has been modified in this OffsetIndex instance and their locations were
 		 * not yet flushed to the disk. They might have been written to the disk, but their location is still only in memory
 		 * and in case of crash they wouldn't be retrievable. Flush persists all file locations to disk and performs sync.
@@ -1755,6 +1772,8 @@ public class OffsetIndex {
 						}
 					}
 					this.historicalVersions = Arrays.copyOfRange(versionsToPurge, startIndex + 1, versionsToPurge.length);
+					// notify the observer
+					this.historicalVersionsObserver.accept(getOldestRecordKeptTimestamp());
 				}
 			}
 			for (NonFlushedValueSet valuesToPromote : nonFlushedValueSetsToPromote) {
