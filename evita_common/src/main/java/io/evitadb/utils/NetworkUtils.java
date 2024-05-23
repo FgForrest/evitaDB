@@ -24,6 +24,7 @@
 package io.evitadb.utils;
 
 import lombok.NoArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import okhttp3.ConnectionPool;
 import okhttp3.Headers;
 import okhttp3.HttpUrl;
@@ -56,6 +57,7 @@ import java.util.concurrent.TimeUnit;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
+@Slf4j
 public class NetworkUtils {
 	private static OkHttpClient HTTP_CLIENT;
 
@@ -145,6 +147,7 @@ public class NetworkUtils {
 				return Optional.of(response.body().string());
 			}
 		} catch (IOException e) {
+			log.warn("Failed to fetch content from {}", url, e);
 			return Optional.empty();
 		}
 	}

@@ -48,7 +48,7 @@ import io.evitadb.core.buffer.DataStoreIndexChanges;
 import io.evitadb.core.metric.event.storage.CatalogFlushEvent;
 import io.evitadb.core.metric.event.storage.DataFileCompactEvent;
 import io.evitadb.core.metric.event.storage.FileType;
-import io.evitadb.core.metric.event.storage.OffsetIndexNonFlushedRecordsEvent;
+import io.evitadb.core.metric.event.storage.OffsetIndexNonFlushedEvent;
 import io.evitadb.core.metric.event.storage.ReadOnlyHandleLimitSetEvent;
 import io.evitadb.dataType.ClassifierType;
 import io.evitadb.dataType.PaginatedList;
@@ -1975,7 +1975,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		final long now = System.currentTimeMillis();
 		if (this.lastReportTimestamp < now - 1000) {
 			this.lastReportTimestamp = now;
-			new OffsetIndexNonFlushedRecordsEvent(
+			new OffsetIndexNonFlushedEvent(
 				catalogName,
 				FileType.ENTITY_COLLECTION,
 				catalogName,

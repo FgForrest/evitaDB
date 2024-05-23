@@ -55,7 +55,7 @@ import io.evitadb.core.buffer.DataStoreIndexChanges;
 import io.evitadb.core.buffer.DataStoreMemoryBuffer;
 import io.evitadb.core.metric.event.storage.DataFileCompactEvent;
 import io.evitadb.core.metric.event.storage.FileType;
-import io.evitadb.core.metric.event.storage.OffsetIndexNonFlushedRecordsEvent;
+import io.evitadb.core.metric.event.storage.OffsetIndexNonFlushedEvent;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
@@ -1159,7 +1159,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		final long now = System.currentTimeMillis();
 		if (this.lastReportTimestamp < now - 1000 || nonFlushedBlock.recordCount() == 0) {
 			this.lastReportTimestamp = now;
-			new OffsetIndexNonFlushedRecordsEvent(
+			new OffsetIndexNonFlushedEvent(
 				catalogName,
 				FileType.ENTITY_COLLECTION,
 				this.entityCollectionFileReference.entityType(),

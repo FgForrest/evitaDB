@@ -41,7 +41,7 @@ import javax.annotation.Nonnull;
 @Description("Event that is fired when non flushed record count changes in offset index.")
 @Label("OffsetIndex Non-Flushed Records")
 @Getter
-public class OffsetIndexNonFlushedRecordsEvent extends AbstractDataFileEvent {
+public class OffsetIndexNonFlushedEvent extends AbstractDataFileEvent {
 	@Label("Number of records pending flush")
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private final int records;
@@ -50,7 +50,7 @@ public class OffsetIndexNonFlushedRecordsEvent extends AbstractDataFileEvent {
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private final long recordSizeBytes;
 
-	public OffsetIndexNonFlushedRecordsEvent(
+	public OffsetIndexNonFlushedEvent(
 		@Nonnull String catalogName,
 		@Nonnull FileType fileType,
 		@Nonnull String name,

@@ -81,7 +81,7 @@ public class EvitaJfrEventRegistry {
 		OffsetIndexFlushEvent.class,
 		DataFileCompactEvent.class,
 		OffsetIndexRecordTypeCountChangedEvent.class,
-		OffsetIndexNonFlushedRecordsEvent.class,
+		OffsetIndexNonFlushedEvent.class,
 		ObservableOutputChangeEvent.class,
 		ReadOnlyHandleLimitSetEvent.class,
 		ReadOnlyHandleOpenedEvent.class,
