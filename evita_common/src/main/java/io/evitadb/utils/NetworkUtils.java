@@ -59,6 +59,11 @@ import java.util.concurrent.TimeUnit;
  */
 @Slf4j
 public class NetworkUtils {
+	/**
+	 * This shouldn't be changed - only in tests which needs to extend this timeout for slower machines runnning
+	 * parallel tests and squeezing the resources.
+	 */
+	public static int DEFAULT_CLIENT_TIMEOUT = 500;
 	private static OkHttpClient HTTP_CLIENT;
 
 	/**
@@ -106,7 +111,7 @@ public class NetworkUtils {
 						.build()
 				).execute()
 			) {
-				return response.code() < 500;
+				return response.code() < DEFAULT_CLIENT_TIMEOUT;
 			}
 		} catch (IOException e) {
 			return false;
@@ -147,7 +152,6 @@ public class NetworkUtils {
 				return Optional.of(response.body().string());
 			}
 		} catch (IOException e) {
-			log.warn("Failed to fetch content from {}", url, e);
 			return Optional.empty();
 		}
 	}
@@ -201,8 +205,8 @@ public class NetworkUtils {
 					.hostnameVerifier((hostname, session) -> true)
 					.sslSocketFactory(sc.getSocketFactory(), TrustAllX509TrustManager.INSTANCE)
 					.protocols(Arrays.asList(Protocol.HTTP_1_1, Protocol.HTTP_2))
-					.readTimeout(500, TimeUnit.MILLISECONDS)
-					.callTimeout(500, TimeUnit.MILLISECONDS)
+					.readTimeout(DEFAULT_CLIENT_TIMEOUT, TimeUnit.MILLISECONDS)
+					.callTimeout(DEFAULT_CLIENT_TIMEOUT, TimeUnit.MILLISECONDS)
 					.connectionPool(new ConnectionPool(0, 1, TimeUnit.MILLISECONDS))
 					.build();
 			} catch (NoSuchAlgorithmException | KeyManagementException e) {
