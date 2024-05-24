@@ -48,9 +48,13 @@ import javax.annotation.concurrent.NotThreadSafe;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+
+import static java.util.Optional.empty;
+import static java.util.Optional.of;
 
 /**
  * This stage of transaction processing reads the changes recorded in the WAL and applies them to the last snapshot
@@ -141,7 +145,7 @@ public final class TrunkIncorporationTransactionStage
 	 * @return The processed transaction.
 	 */
 	@Nonnull
-	public ProcessResult processTransactions(long nextCatalogVersion, long timeoutMs, boolean alive) {
+	public Optional<ProcessResult> processTransactions(long nextCatalogVersion, long timeoutMs, boolean alive) {
 		TransactionMutation lastTransaction = null;
 		Transaction transaction = null;
 
@@ -164,8 +168,11 @@ public final class TrunkIncorporationTransactionStage
 					.getCommittedMutationStream(Math.min(nextCatalogVersion, this.lastFinalizedCatalogVersion + 1))
 					.iterator();
 			}
-			// and process them
-			if (mutationIterator.hasNext()) {
+			if (!mutationIterator.hasNext()) {
+				// previous execution already processed all the mutations
+				return empty();
+			} else {
+				// and process them
 				final long start = System.currentTimeMillis();
 				do {
 					Mutation leadingMutation = mutationIterator.next();
@@ -240,7 +247,7 @@ public final class TrunkIncorporationTransactionStage
 			this.processed.toArray(OffsetDateTime[]::new)
 		);
 		this.processed.trimToSize();
-		return processResult;
+		return of(processResult);
 	}
 
 	@Override
@@ -263,31 +270,53 @@ public final class TrunkIncorporationTransactionStage
 
 			final TransactionIncorporatedToTrunkEvent event = new TransactionIncorporatedToTrunkEvent(this.catalog.getName());
 			final long lastCatalogVersionInLiveView = this.catalog.getVersion();
-			final ProcessResult result = processTransactions(
+			processTransactions(
 				task.catalogVersion(), this.timeout, true
-			);
+			)
+				.ifPresentOrElse(
+					result -> {
+						// we can't push another catalog version until the previous one is propagated to the "live view"
+						waitUntilLiveVersionReaches(lastCatalogVersionInLiveView);
 
-			// we can't push another catalog version until the previous one is propagated to the "live view"
-			waitUntilLiveVersionReaches(lastCatalogVersionInLiveView);
+						// and propagate it to the live view
+						push(
+							task,
+							new UpdatedCatalogTransactionTask(
+								this.catalog,
+								result.lastTransactionId(),
+								task.commitBehaviour(),
+								task.future(),
+								result.commitTimesOfProcessedTransactions()
+							)
+						);
 
-			// and propagate it to the live view
-			push(
-				task,
-				new UpdatedCatalogTransactionTask(
-					this.catalog,
-					result.lastTransactionId(),
-					task.commitBehaviour(),
-					task.future(),
-					result.commitTimesOfProcessedTransactions()
-				)
-			);
+						// emit event
+						event.finish(
+							result.processedAtomicMutations(),
+							result.processedLocalMutations(),
+							result.commitTimesOfProcessedTransactions().length
+						).commit();
+					},
+					() -> {
+						// and terminate the task
+						terminate(
+							task,
+							new UpdatedCatalogTransactionTask(
+								this.catalog,
+								task.transactionId(),
+								task.commitBehaviour(),
+								task.future(),
+								new OffsetDateTime[0]
+							)
+						);
 
-			// emit event
-			event.finish(
-				result.processedAtomicMutations(),
-				result.processedLocalMutations(),
-				result.commitTimesOfProcessedTransactions().length
-			).commit();
+						// emit event
+						event.finish(
+							0,
+							0,
+							0
+						).commit();
+					});
 		}
 	}
 

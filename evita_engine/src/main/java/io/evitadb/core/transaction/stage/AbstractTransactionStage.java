@@ -109,7 +109,7 @@ public sealed abstract class AbstractTransactionStage<T extends TransactionTask,
 	@Override
 	public final void onError(Throwable throwable) {
 		log.error(
-			"Fatal error! Error propagated outside catalog `" + this.liveCatalog.get().getName() + "` conflict resolution transaction stage! " +
+			"Fatal error! Error propagated outside catalog `" + this.liveCatalog.get().getName() + "` transaction stage! " +
 				"This is unexpected and effectively stops transaction processing!",
 			throwable
 		);
@@ -117,7 +117,7 @@ public sealed abstract class AbstractTransactionStage<T extends TransactionTask,
 
 	@Override
 	public final void onComplete() {
-		log.debug("Transaction stage  completed for catalog `" + this.liveCatalog.get().getName() + "`!");
+		log.debug("Transaction stage completed for catalog `" + this.liveCatalog.get().getName() + "`!");
 		this.completed = true;
 	}
 
@@ -176,6 +176,18 @@ public sealed abstract class AbstractTransactionStage<T extends TransactionTask,
 			}
 		);
 
+		if (sourceTask.future() != null && targetTask.future() == null) {
+			sourceTask.future().complete(targetTask.catalogVersion());
+		}
+	}
+
+	/**
+	 * Terminates the task and avoid propagation to next stage.
+	 *
+	 * @param sourceTask The source task to be pushed.
+	 * @param targetTask The target task to be created.
+	 */
+	protected void terminate(@Nonnull T sourceTask, @Nonnull F targetTask) {
 		if (sourceTask.future() != null && targetTask.future() == null) {
 			sourceTask.future().complete(targetTask.catalogVersion());
 		}
