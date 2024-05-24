@@ -23,6 +23,7 @@
 
 package io.evitadb.core.metric.event.transaction;
 
+import io.evitadb.core.metric.annotation.ExportDurationMetric;
 import io.evitadb.core.metric.annotation.ExportMetricLabel;
 import jdk.jfr.Description;
 import jdk.jfr.Label;
@@ -40,6 +41,7 @@ import javax.annotation.Nonnull;
 @Name(AbstractTransactionEvent.PACKAGE_NAME + ".Queued")
 @Description("Event that is fired in each transaction processing stage to reflect the time transaction waited in the queue before it was picked up for processing.")
 @Label("Transaction waiting in queue")
+@ExportDurationMetric(label = "Transaction waiting time in queue.")
 @Getter
 public class TransactionQueuedEvent extends AbstractTransactionEvent {
 	@Label("Transaction stage")

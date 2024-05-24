@@ -284,7 +284,7 @@ public class MetricHandler {
 				.register();
 			case HISTOGRAM -> Histogram.builder()
 				.name(name)
-				.classicLinearUpperBounds(1, 50, 20)
+				.classicExponentialUpperBounds(1, 2, 14)
 				.unit(new Unit("milliseconds"))
 				.labelNames(metric.labels())
 				.help(metric.helpMessage())

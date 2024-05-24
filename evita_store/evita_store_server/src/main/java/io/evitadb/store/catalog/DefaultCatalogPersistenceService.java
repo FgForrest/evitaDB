@@ -1978,7 +1978,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	 */
 	private void reportNonFlushedContents(@Nonnull String catalogName, @Nonnull NonFlushedBlock nonFlushedBlock) {
 		final long now = System.currentTimeMillis();
-		if (this.lastReportTimestamp < now - 1000) {
+		if (this.lastReportTimestamp < now - 1000 || nonFlushedBlock.recordCount() == 0) {
 			this.lastReportTimestamp = now;
 			new OffsetIndexNonFlushedEvent(
 				catalogName,
