@@ -23,8 +23,10 @@
 
 package io.evitadb.core.metric.event.transaction;
 
+import io.evitadb.api.configuration.metric.MetricType;
 import io.evitadb.core.metric.annotation.ExportDurationMetric;
 import io.evitadb.core.metric.annotation.ExportInvocationMetric;
+import io.evitadb.core.metric.annotation.ExportMetric;
 import jdk.jfr.Description;
 import jdk.jfr.Label;
 import jdk.jfr.Name;
@@ -44,6 +46,9 @@ import javax.annotation.Nonnull;
 @ExportInvocationMetric(label = "Catalog versions propagated")
 @Getter
 public class NewCatalogVersionPropagatedEvent extends AbstractTransactionEvent {
+	@Label("Transactions propagated to live view.")
+	@ExportMetric(metricType = MetricType.COUNTER)
+	private int collapsedTransactions;
 
 	public NewCatalogVersionPropagatedEvent(@Nonnull String catalogName) {
 		super(catalogName);
@@ -55,8 +60,9 @@ public class NewCatalogVersionPropagatedEvent extends AbstractTransactionEvent {
 	 * @return the event
 	 */
 	@Nonnull
-	public NewCatalogVersionPropagatedEvent finish() {
+	public NewCatalogVersionPropagatedEvent finish(int collapsedTransactions) {
 		this.end();
+		this.collapsedTransactions = collapsedTransactions;
 		return this;
 	}
 

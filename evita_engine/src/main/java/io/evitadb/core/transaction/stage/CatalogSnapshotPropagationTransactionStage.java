@@ -107,7 +107,7 @@ public class CatalogSnapshotPropagationTransactionStage implements Flow.Subscrib
 		}
 
 		// emit the event
-		event.finish().commit();
+		event.finish(task.commitTimestamps().length).commit();
 
 		// emit transaction processed events
 		final OffsetDateTime now = OffsetDateTime.now();
