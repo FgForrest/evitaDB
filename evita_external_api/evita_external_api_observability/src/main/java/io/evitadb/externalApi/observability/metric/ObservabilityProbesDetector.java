@@ -104,7 +104,10 @@ public class ObservabilityProbesDetector implements ProbesProvider {
 		}
 
 		final ReadinessWithTimestamp readinessWithTimestamp = this.lastReadinessSeen.get();
-		if (readinessWithTimestamp != null && OffsetDateTime.now().minus(HEALTH_CHECK_READINESS_RENEW_INTERVAL).isAfter(readinessWithTimestamp.timestamp())) {
+		if (readinessWithTimestamp != null &&
+			(OffsetDateTime.now().minus(HEALTH_CHECK_READINESS_RENEW_INTERVAL).isAfter(readinessWithTimestamp.timestamp()) ||
+				readinessWithTimestamp.result().state() != ReadinessState.READY)
+		) {
 			// enforce renewal of readiness check
 			getReadiness(
 				evitaContract,
