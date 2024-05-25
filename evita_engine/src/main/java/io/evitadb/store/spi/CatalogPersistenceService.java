@@ -273,8 +273,9 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	 * @param catalogVersion      current version of the catalog
 	 * @param transactionMutation The transaction mutation to append to the WAL.
 	 * @param walReference        The off-heap data with file backup reference to discard.
+	 * @return the number of Bytes written
 	 */
-	void appendWalAndDiscard(
+	long appendWalAndDiscard(
 		long catalogVersion,
 		@Nonnull TransactionMutation transactionMutation,
 		@Nonnull OffHeapWithFileBackupReference walReference

@@ -64,6 +64,10 @@ public class EvitaStartedEvent extends AbstractSystemEvent {
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private final int sessionMaxInactiveAgeSeconds;
 
+	@Label("Maximal count of opened read-only handles")
+	@ExportMetric(metricType = MetricType.GAUGE)
+	private final int readOnlyHandlesLimit;
+
 	@Label("Minimal share of active records in the file to start compaction in %")
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private final int compactionMinimalActiveRecordSharePercent;
@@ -114,6 +118,7 @@ public class EvitaStartedEvent extends AbstractSystemEvent {
 		this.sessionMaxInactiveAgeSeconds = serverConfiguration.closeSessionsAfterSecondsOfInactivity();
 
 		final StorageOptions storageConfiguration = configuration.storage();
+		this.readOnlyHandlesLimit = storageConfiguration.maxOpenedReadHandles();
 		this.compactionMinimalActiveRecordSharePercent = Math.toIntExact(Math.round(storageConfiguration.minimalActiveRecordShare() * 100.0));
 		this.compactionFileSizeThresholdBytes = storageConfiguration.fileSizeCompactionThresholdBytes();
 

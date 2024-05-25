@@ -21,35 +21,31 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.metric.event.storage;
+package io.evitadb.core.metric.event.transaction;
 
-import io.evitadb.api.configuration.metric.MetricType;
-import io.evitadb.core.metric.annotation.ExportMetric;
 import jdk.jfr.Description;
 import jdk.jfr.Label;
 import jdk.jfr.Name;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.time.OffsetDateTime;
 
 /**
- * Event that is fired only once when catalog is created or loaded and signalizes the maximal threshold for
- * simultaneously opened read-only handles.
+ * Event that is fired when a shared WAL is rotated (and possibly pruned).
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@Name(AbstractStorageEvent.PACKAGE_NAME + ".ReadOnlyHandleLimitSet")
-@Description("Event that is fired when a read-only handle limit is set.")
-@Label("Read-only handle limit set")
+@Name(AbstractTransactionEvent.PACKAGE_NAME + ".WalStatistics")
+@Description("Event that is fired when a catalog is loaded and WAL examined.")
+@Label("WAL statistics")
 @Getter
-public class ReadOnlyHandleLimitSetEvent extends AbstractDataFileEvent {
-	@Label("Maximal count of opened read-only handles")
-	@ExportMetric(metricType = MetricType.GAUGE)
-	private final int readOnlyHandlesLimit;
+public class WalStatisticsEvent extends AbstractWalStatisticsEvent {
 
-	public ReadOnlyHandleLimitSetEvent(@Nonnull String catalogName, @Nonnull FileType fileType, @Nonnull String name, int readOnlyHandlesLimit) {
-		super(catalogName, fileType, name);
-		this.readOnlyHandlesLimit = readOnlyHandlesLimit;
+	public WalStatisticsEvent(@Nonnull String catalogName, @Nullable OffsetDateTime oldestWalEntry) {
+		super(catalogName);
+		this.oldestWalEntryTimestampSeconds = oldestWalEntry == null ? 0 : oldestWalEntry.toEpochSecond();
 	}
 
 }

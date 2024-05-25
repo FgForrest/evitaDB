@@ -49,6 +49,9 @@ public class TransactionAppendedToWalEvent extends AbstractTransactionEvent {
 	@Label("Atomic mutations appended.")
 	@ExportMetric(metricType = MetricType.COUNTER)
 	private int appendedAtomicMutations;
+	@Label("Size of the written WAL in Bytes.")
+	@ExportMetric(metricType = MetricType.COUNTER)
+	private long appendedWalBytes;
 
 	public TransactionAppendedToWalEvent(@Nonnull String catalogName) {
 		super(catalogName);
@@ -60,8 +63,9 @@ public class TransactionAppendedToWalEvent extends AbstractTransactionEvent {
 	 * @return the event
 	 */
 	@Nonnull
-	public TransactionAppendedToWalEvent finish(int appendedAtomicMutations) {
+	public TransactionAppendedToWalEvent finish(int appendedAtomicMutations, long appendedWalBytes) {
 		this.appendedAtomicMutations = appendedAtomicMutations;
+		this.appendedWalBytes = appendedWalBytes;
 		this.end();
 		return this;
 	}

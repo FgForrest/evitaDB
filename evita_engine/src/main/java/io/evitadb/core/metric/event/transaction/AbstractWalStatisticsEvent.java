@@ -23,45 +23,28 @@
 
 package io.evitadb.core.metric.event.transaction;
 
-import io.evitadb.core.metric.annotation.ExportDurationMetric;
-import io.evitadb.core.metric.annotation.ExportInvocationMetric;
-import jdk.jfr.Description;
+import io.evitadb.api.configuration.metric.MetricType;
+import io.evitadb.core.metric.annotation.ExportMetric;
 import jdk.jfr.Label;
 import jdk.jfr.Name;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-import java.time.OffsetDateTime;
 
 /**
- * Event that is fired when a shared WAL is rotated (and possibly pruned).
+ * Abstract ancestor for WAL related events that produce WAL statistics.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@Name(AbstractTransactionEvent.PACKAGE_NAME + ".WalRotation")
-@Description("Event that is fired when a shared WAL is rotated.")
-@Label("WAL rotated")
-@ExportDurationMetric(label = "WAL rotation duration in milliseconds")
-@ExportInvocationMetric(label = "WAL rotations")
 @Getter
-public class WalRotationEvent extends AbstractWalStatisticsEvent {
+abstract class AbstractWalStatisticsEvent extends AbstractTransactionEvent {
+	@Label("Oldest WAL entry timestamp")
+	@Name("oldestWalEntrySeconds")
+	@ExportMetric(metricName = AbstractTransactionEvent.PACKAGE_NAME + ".WalStatistics.oldestWalEntryTimestampSeconds", metricType = MetricType.GAUGE)
+	long oldestWalEntryTimestampSeconds;
 
-	public WalRotationEvent(@Nonnull String catalogName) {
+	protected AbstractWalStatisticsEvent(@Nonnull String catalogName) {
 		super(catalogName);
-		this.begin();
-	}
-
-	/**
-	 * Finalizes the event.
-	 * @param oldestWalEntry the oldest WAL entry in the transaction
-	 * @return the event
-	 */
-	@Nonnull
-	public WalRotationEvent finish(@Nullable OffsetDateTime oldestWalEntry) {
-		this.oldestWalEntryTimestampSeconds = oldestWalEntry == null ? 0 : oldestWalEntry.toEpochSecond();
-		this.end();
-		return this;
 	}
 
 }

@@ -42,6 +42,7 @@ import io.evitadb.core.metric.event.storage.DataFileCompactEvent;
 import io.evitadb.core.metric.event.storage.FileType;
 import io.evitadb.core.metric.event.transaction.WalCacheSizeChangedEvent;
 import io.evitadb.core.metric.event.transaction.WalRotationEvent;
+import io.evitadb.core.metric.event.transaction.WalStatisticsEvent;
 import io.evitadb.core.scheduling.DelayedAsyncTask;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.scheduling.Scheduler;
@@ -393,20 +394,27 @@ public class CatalogWriteAheadLog implements Closeable {
 	 *
 	 * @param catalogStoragePath the path to the catalog storage folder
 	 * @param catalogName        the name of the catalog
-	 * @return the last WAL file index
+	 * @return the first and last WAL file index
 	 */
-	private static int getLastWalFileIndex(@Nonnull Path catalogStoragePath, @Nonnull String catalogName) {
+	private static int[] getFirstAndLastWalFileIndex(@Nonnull Path catalogStoragePath, @Nonnull String catalogName) {
 		final File[] walFiles = ofNullable(
 			catalogStoragePath.toFile().listFiles((dir, name) -> name.endsWith(WAL_FILE_SUFFIX))
 		).orElse(new File[0]);
 
 		if (walFiles.length == 0) {
-			return 0;
+			return new int[] {0, 0};
 		} else {
-			return Arrays.stream(walFiles)
+			final List<Integer> indexes = Arrays.stream(walFiles)
 				.map(f -> getIndexFromWalFileName(catalogName, f.getName()))
-				.max(Integer::compareTo)
-				.orElse(0);
+				.sorted()
+				.toList();
+			for (int i = 1; i < indexes.size(); i++) {
+				Assert.isPremiseValid(
+					indexes.get(i) == indexes.get(i - 1) + 1,
+					"Missing WAL file with index `" + (indexes.get(i - 1) + 1) + "`!"
+				);
+			}
+			return new int[] {indexes.get(0), indexes.get(indexes.size() - 1)};
 		}
 	}
 
@@ -483,7 +491,8 @@ public class CatalogWriteAheadLog implements Closeable {
 		@Nonnull Scheduler scheduler,
 		@Nonnull Consumer<OffsetDateTime> bootstrapFileTrimmer
 	) {
-		this.walFileIndex = getLastWalFileIndex(catalogStoragePath, catalogName);
+		final int[] firstAndLastWalFileIndex = getFirstAndLastWalFileIndex(catalogStoragePath, catalogName);
+		this.walFileIndex = firstAndLastWalFileIndex[1];
 		this.cutWalCacheTask = new DelayedAsyncTask(
 			catalogName, "WAL cache cutter",
 			scheduler,
@@ -524,6 +533,16 @@ public class CatalogWriteAheadLog implements Closeable {
 				theOutput.computeCRC32() : theOutput;
 
 			this.currentWalFileSize = this.walFileChannel.size();
+
+			// emit the event with information about first available transaction in the WAL
+			final TransactionMutation firstAvailableTransaction = getFirstTransactionMutationFromWalFile(
+				catalogStoragePath.resolve(getWalFileName(catalogName, this.walFileIndex)).toFile()
+			);
+			new WalStatisticsEvent(
+				catalogName,
+				firstAvailableTransaction.getCommitTimestamp()
+			).commit();
+
 		} catch (IOException e) {
 			throw new WriteAheadLogCorruptedException(
 				"Failed to open WAL file `" + getWalFileName(catalogName, this.walFileIndex) + "`!",
@@ -556,8 +575,9 @@ public class CatalogWriteAheadLog implements Closeable {
 	 *
 	 * @param transactionMutation The transaction mutation to append.
 	 * @param walReference        The reference to the WAL file.
+	 * @return the number of Bytes written
 	 */
-	public void append(
+	public long append(
 		@Nonnull TransactionMutation transactionMutation,
 		@Nonnull OffHeapWithFileBackupReference walReference
 	) {
@@ -638,12 +658,15 @@ public class CatalogWriteAheadLog implements Closeable {
 				this.firstCatalogVersionOfCurrentWalFile.set(transactionMutation.getCatalogVersion());
 			}
 			this.lastWrittenCatalogVersion.set(transactionMutation.getCatalogVersion());
-			this.currentWalFileSize += 4 + writtenHead + writtenContent;
+			final int writtenLength = 4 + writtenHead + writtenContent;
+			this.currentWalFileSize += writtenLength;
 
 			// clean up the folder if empty
 			walReference.getFilePath()
 				.map(Path::getParent)
 				.ifPresent(FileUtils::deleteFolderIfEmpty);
+
+			return writtenLength;
 
 		} catch (IOException e) {
 			throw new UnexpectedIOException(

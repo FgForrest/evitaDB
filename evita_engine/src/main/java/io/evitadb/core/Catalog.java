@@ -1157,12 +1157,13 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 	 *
 	 * @param transactionMutation The transaction mutation to append to the WAL.
 	 * @param walReference        The off-heap data with file backup reference to discard.
+	 * @return the number of Bytes written
 	 */
-	public void appendWalAndDiscard(
+	public long appendWalAndDiscard(
 		@Nonnull TransactionMutation transactionMutation,
 		@Nonnull OffHeapWithFileBackupReference walReference
 	) {
-		this.persistenceService.appendWalAndDiscard(getVersion(), transactionMutation, walReference);
+		return this.persistenceService.appendWalAndDiscard(getVersion(), transactionMutation, walReference);
 	}
 
 	/**

@@ -50,7 +50,6 @@ import io.evitadb.core.metric.event.storage.DataFileCompactEvent;
 import io.evitadb.core.metric.event.storage.FileType;
 import io.evitadb.core.metric.event.storage.OffsetIndexHistoryKeptEvent;
 import io.evitadb.core.metric.event.storage.OffsetIndexNonFlushedEvent;
-import io.evitadb.core.metric.event.storage.ReadOnlyHandleLimitSetEvent;
 import io.evitadb.dataType.ClassifierType;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -612,14 +611,6 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		}
 
 		this.entityCollectionPersistenceServices = CollectionUtils.createConcurrentHashMap(16);
-
-		// emit event
-		new ReadOnlyHandleLimitSetEvent(
-			catalogName,
-			FileType.CATALOG,
-			catalogName,
-			this.storageOptions.maxOpenedReadHandles()
-		).commit();
 	}
 
 	public DefaultCatalogPersistenceService(
@@ -694,14 +685,6 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		this.entityCollectionPersistenceServices = CollectionUtils.createConcurrentHashMap(
 			catalogStoragePartPersistenceService.getCatalogHeader(catalogVersion).getEntityTypeFileIndexes().size()
 		);
-
-		// emit event
-		new ReadOnlyHandleLimitSetEvent(
-			this.catalogName,
-			FileType.CATALOG,
-			this.catalogName,
-			this.storageOptions.maxOpenedReadHandles()
-		).commit();
 	}
 
 	private DefaultCatalogPersistenceService(
@@ -779,14 +762,6 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				)
 			);
 		}
-
-		// emit event
-		new ReadOnlyHandleLimitSetEvent(
-			this.catalogName,
-			FileType.CATALOG,
-			this.catalogName,
-			this.storageOptions.maxOpenedReadHandles()
-		).commit();
 	}
 
 	@Nonnull
@@ -1072,7 +1047,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	}
 
 	@Override
-	public void appendWalAndDiscard(
+	public long appendWalAndDiscard(
 		long catalogVersion,
 		@Nonnull TransactionMutation transactionMutation,
 		@Nonnull OffHeapWithFileBackupReference walReference
@@ -1090,7 +1065,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				"Unexpected WAL reference - neither off-heap buffer nor file reference present!"
 			);
 
-			this.catalogWal.append(transactionMutation, walReference);
+			return this.catalogWal.append(transactionMutation, walReference);
 		}
 	}
 

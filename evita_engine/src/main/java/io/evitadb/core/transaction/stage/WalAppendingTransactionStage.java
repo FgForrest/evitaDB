@@ -73,7 +73,7 @@ public final class WalAppendingTransactionStage
 		final TransactionAppendedToWalEvent event = new TransactionAppendedToWalEvent(task.catalogName());
 
 		// append WAL and discard the contents of the isolated WAL
-		this.liveCatalog.get().appendWalAndDiscard(
+		final long writtenLength = this.liveCatalog.get().appendWalAndDiscard(
 			new TransactionMutation(
 				task.transactionId(),
 				task.catalogVersion(),
@@ -96,7 +96,10 @@ public final class WalAppendingTransactionStage
 		);
 
 		// emit the event
-		event.finish(task.mutationCount() + 1).commit();
+		event.finish(
+			task.mutationCount() + 1,
+			writtenLength
+		).commit();
 	}
 
 	/**

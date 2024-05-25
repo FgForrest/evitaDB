@@ -171,7 +171,10 @@ public class MetricHandler {
 		final String metricName = of(exportMetric.metricName())
 			.filter(it -> !it.isBlank())
 			.orElse(fieldName);
-		return composeMetricName(eventClass, metricName);
+
+		// if the metric contains dots, it means it's already fully composed
+		return metricName.contains(".") ?
+			metricName : composeMetricName(eventClass, metricName);
 	}
 
 	/**
