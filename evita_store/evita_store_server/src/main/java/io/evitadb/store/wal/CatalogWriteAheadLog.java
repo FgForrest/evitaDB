@@ -535,13 +535,16 @@ public class CatalogWriteAheadLog implements Closeable {
 			this.currentWalFileSize = this.walFileChannel.size();
 
 			// emit the event with information about first available transaction in the WAL
-			final TransactionMutation firstAvailableTransaction = getFirstTransactionMutationFromWalFile(
-				catalogStoragePath.resolve(getWalFileName(catalogName, this.walFileIndex)).toFile()
-			);
-			new WalStatisticsEvent(
-				catalogName,
-				firstAvailableTransaction.getCommitTimestamp()
-			).commit();
+			final File firstWalFile = catalogStoragePath.resolve(getWalFileName(catalogName, this.walFileIndex)).toFile();
+			if (firstWalFile.length() > 0) {
+				final TransactionMutation firstAvailableTransaction = getFirstTransactionMutationFromWalFile(
+					firstWalFile
+				);
+				new WalStatisticsEvent(
+					catalogName,
+					firstAvailableTransaction.getCommitTimestamp()
+				).commit();
+			}
 
 		} catch (IOException e) {
 			throw new WriteAheadLogCorruptedException(
