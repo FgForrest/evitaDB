@@ -56,6 +56,7 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -103,7 +104,7 @@ public class MetricHandler {
 	private static final Pattern EVENT = Pattern.compile("Event");
 	private static final Map<String, Runnable> DEFAULT_JVM_METRICS;
 	private static final String DEFAULT_JVM_METRICS_NAME = "AllMetrics";
-	public static final String NOT_APPLICABLE = "N/A";
+	private static final String NOT_APPLICABLE = "N/A";
 
 	static {
 		DEFAULT_JVM_METRICS = Map.of(
@@ -268,36 +269,43 @@ public class MetricHandler {
 	/**
 	 * Builds and registers a metric based on the provided logged metric.
 	 *
-	 * @param metric logged metric
+	 * @param metric            logged metric
+	 * @param registeredMetrics set of registered metrics
 	 * @return built and registered metric
 	 */
 	@Nonnull
-	private static Metric buildAndRegisterMetric(@Nonnull LoggedMetric metric) {
+	private static Metric buildAndRegisterMetric(@Nonnull LoggedMetric metric, @Nonnull Map<String, Metric> registeredMetrics) {
 		final String name = StringUtils.toSnakeCase(metric.name());
-		return switch (metric.type()) {
-			case GAUGE -> Gauge.builder()
-				.name(name)
-				.labelNames(metric.labels())
-				.help(metric.helpMessage())
-				.register();
-			case COUNTER -> Counter.builder()
-				.name(name)
-				.labelNames(metric.labels())
-				.help(metric.helpMessage())
-				.register();
-			case HISTOGRAM -> Histogram.builder()
-				.name(name)
-				.classicExponentialUpperBounds(1, 2, 14)
-				.unit(new Unit("milliseconds"))
-				.labelNames(metric.labels())
-				.help(metric.helpMessage())
-				.register();
-			case SUMMARY -> Summary.builder()
-				.name(name)
-				.labelNames(metric.labels())
-				.help(metric.helpMessage())
-				.register();
-		};
+		if (registeredMetrics.containsKey(name)) {
+			return registeredMetrics.get(name);
+		} else {
+			final Metric newMetric = switch (metric.type()) {
+				case GAUGE -> Gauge.builder()
+					.name(name)
+					.labelNames(metric.labels())
+					.help(metric.helpMessage())
+					.register();
+				case COUNTER -> Counter.builder()
+					.name(name)
+					.labelNames(metric.labels())
+					.help(metric.helpMessage())
+					.register();
+				case HISTOGRAM -> Histogram.builder()
+					.name(name)
+					.classicExponentialUpperBounds(1, 2, 14)
+					.unit(new Unit("milliseconds"))
+					.labelNames(metric.labels())
+					.help(metric.helpMessage())
+					.register();
+				case SUMMARY -> Summary.builder()
+					.name(name)
+					.labelNames(metric.labels())
+					.help(metric.helpMessage())
+					.register();
+			};
+			registeredMetrics.put(name, newMetric);
+			return newMetric;
+		}
 	}
 
 	public MetricHandler(@Nonnull ObservabilityConfig observabilityConfig) {
@@ -324,6 +332,7 @@ public class MetricHandler {
 			new BackgroundTask(
 				"Metric handler",
 				() -> {
+					final Map<String, Metric> registeredMetrics = new HashMap<>(64);
 					final ReflectionLookup lookup = ReflectionLookup.NO_CACHE_INSTANCE;
 					try (var recordingStream = new RecordingStream()) {
 						for (Class<? extends CustomMetricsExecutionEvent> eventClass : allowedMetrics) {
@@ -346,21 +355,36 @@ public class MetricHandler {
 									.map(MetricHandler::convertFieldToMetricLabelExporter)
 							).toList();
 
-							final String[] labelNames = labelExporters.stream().map(MetricLabelExporter::labelName).toArray(String[]::new);
+							final String[] labelNames = labelExporters
+								.stream()
+								.map(MetricLabelExporter::labelName)
+								.toArray(String[]::new);
 							//noinspection unchecked
-							final Function<RecordedEvent, String>[] labelValueExporters = labelExporters.stream().map(MetricLabelExporter::labelValueAccessor).toArray(Function[]::new);
+							final Function<RecordedEvent, String>[] labelValueExporters = labelExporters.stream()
+								.map(MetricLabelExporter::labelValueAccessor)
+								.toArray(Function[]::new);
 
 							Optional.ofNullable(lookup.getClassAnnotation(eventClass, ExportDurationMetric.class))
 								.ifPresent(it -> {
 									final String metricName = composeMetricName(eventClass, it.value());
-									final Metric durationMetric = buildAndRegisterMetric(new LoggedMetric(metricName, it.label(), MetricType.HISTOGRAM, labelNames));
+									final Metric durationMetric = buildAndRegisterMetric(
+										new LoggedMetric(metricName, it.label(), MetricType.HISTOGRAM, labelNames),
+										registeredMetrics
+									);
 									if (ArrayUtils.isEmpty(labelValueExporters)) {
-										chainLambda(lambdaRef, recordedEvent -> ((Histogram) durationMetric).observe(recordedEvent.getDuration().toMillis()));
+										chainLambda(
+											lambdaRef,
+											recordedEvent -> ((Histogram) durationMetric)
+												.observe(recordedEvent.getDuration().toMillis())
+										);
 									} else {
 										chainLambda(
 											lambdaRef,
 											recordedEvent -> ((Histogram) durationMetric)
-												.labelValues(Arrays.stream(labelValueExporters).map(exporter -> ofNullable(exporter.apply(recordedEvent)).orElse(NOT_APPLICABLE)).toArray(String[]::new))
+												.labelValues(
+													Arrays.stream(labelValueExporters)
+														.map(exporter -> ofNullable(exporter.apply(recordedEvent)).orElse(NOT_APPLICABLE))
+														.toArray(String[]::new))
 												.observe(recordedEvent.getDuration().toMillis())
 										);
 									}
@@ -368,14 +392,21 @@ public class MetricHandler {
 							Optional.ofNullable(lookup.getClassAnnotation(eventClass, ExportInvocationMetric.class))
 								.ifPresent(it -> {
 									final String metricName = composeMetricName(eventClass, it.value());
-									final Metric invocationMetric = buildAndRegisterMetric(new LoggedMetric(metricName, it.label(), MetricType.COUNTER, labelNames));
+									final Metric invocationMetric = buildAndRegisterMetric(
+										new LoggedMetric(metricName, it.label(), MetricType.COUNTER, labelNames),
+										registeredMetrics
+									);
 									if (ArrayUtils.isEmpty(labelValueExporters)) {
 										chainLambda(lambdaRef, recordedEvent -> ((Counter) invocationMetric).inc());
 									} else {
 										chainLambda(
 											lambdaRef,
 											recordedEvent -> ((Counter) invocationMetric)
-												.labelValues(Arrays.stream(labelValueExporters).map(exporter -> ofNullable(exporter.apply(recordedEvent)).orElse(NOT_APPLICABLE)).toArray(String[]::new))
+												.labelValues(
+													Arrays.stream(labelValueExporters)
+														.map(exporter -> ofNullable(exporter.apply(recordedEvent))
+															.orElse(NOT_APPLICABLE)).toArray(String[]::new)
+												)
 												.inc()
 										);
 									}
@@ -411,7 +442,8 @@ public class MetricHandler {
 										labelAnnotation.value(),
 										exportMetricAnnotation.metricType(),
 										labelNames
-									)
+									),
+									registeredMetrics
 								);
 								chainLambda(
 									lambdaRef,
