@@ -37,7 +37,7 @@ import io.evitadb.api.requestResponse.data.structure.BinaryEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.trace.TracingContext.SpanAttribute;
-import io.evitadb.core.metric.event.query.QueryFinishedEvent;
+import io.evitadb.core.metric.event.query.FinishedEvent;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.prefetch.PrefetchFormulaVisitor;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
@@ -353,7 +353,7 @@ public class QueryPlan {
 	@Nonnull
 	public SpanAttribute[] getSpanAttributes() {
 		final Query query = this.getEvitaRequest().getQuery();
-		final QueryFinishedEvent queryFinishedEvent = queryContext.getQueryFinishedEvent();
+		final FinishedEvent queryFinishedEvent = queryContext.getQueryFinishedEvent();
 		return new SpanAttribute[] {
 			new SpanAttribute("collection", query.getCollection() == null ? "<NONE>" : query.getCollection().toString()),
 			new SpanAttribute("filter", query.getFilterBy() == null ? "<NONE>" : query.getFilterBy().toString()),

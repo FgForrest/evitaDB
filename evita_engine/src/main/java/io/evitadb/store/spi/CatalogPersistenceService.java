@@ -81,6 +81,12 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	String WAL_FILE_SUFFIX = ".wal";
 
 	/**
+	 * Method for internal use - allows emitting start events when observability facilities are already initialized.
+	 * If we didn't postpone this initialization, events would become lost.
+	 */
+	void emitStartObservabilityEvents();
+
+	/**
 	 * Returns name of the bootstrap file that contains lead information to fetching the catalog header in fixed record
 	 * size format. This file can be traversed by jumping on expected offsets.
 	 */
@@ -422,4 +428,5 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	 */
 	@Override
 	void close();
+
 }

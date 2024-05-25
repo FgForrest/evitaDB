@@ -25,6 +25,7 @@ package io.evitadb.externalApi.observability.metric;
 
 import io.evitadb.api.configuration.metric.LoggedMetric;
 import io.evitadb.api.configuration.metric.MetricType;
+import io.evitadb.core.Evita;
 import io.evitadb.core.metric.annotation.ExportDurationMetric;
 import io.evitadb.core.metric.annotation.ExportInvocationMetric;
 import io.evitadb.core.metric.annotation.ExportMetric;
@@ -322,9 +323,11 @@ public class MetricHandler {
 	 * [AllMetrics, JvmThreadsMetrics, JvmBufferPoolMetrics, JvmClassLoadingMetrics, JvmCompilationMetrics,
 	 * JvmGarbageCollectorMetrics, JvmMemoryPoolAllocationMetrics, JvmMemoryMetrics, JvmRuntimeInfoMetric, ProcessMetrics].
 	 *
-	 * @param executor thread pool that will be used for acquiring a thread for Prometheus events handling
+	 * @param evita evita instance
 	 */
-	public void registerHandlers(EnhancedQueueExecutor executor) {
+	public void registerHandlers(@Nonnull Evita evita) {
+		EnhancedQueueExecutor executor = evita.getExecutor();
+
 		registerJvmMetrics();
 		final Set<Class<? extends CustomMetricsExecutionEvent>> allowedMetrics = getAllowedEventSet();
 
@@ -461,6 +464,7 @@ public class MetricHandler {
 							}
 						}
 						recordingStream.start();
+						evita.emitStartObservabilityEvents();
 					}
 				}
 			)

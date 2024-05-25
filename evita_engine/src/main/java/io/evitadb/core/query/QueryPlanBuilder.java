@@ -24,7 +24,7 @@
 package io.evitadb.core.query;
 
 import io.evitadb.api.query.require.EntityContentRequire;
-import io.evitadb.core.metric.event.query.QueryFinishedEvent;
+import io.evitadb.core.metric.event.query.FinishedEvent;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.prefetch.PrefetchFormulaVisitor;
@@ -175,7 +175,7 @@ public class QueryPlanBuilder implements PrefetchRequirementCollector {
 	@Nonnull
 	public QueryPlan build() {
 		ofNullable(queryContext.getQueryFinishedEvent())
-			.ifPresent(QueryFinishedEvent::startExecuting);
+			.ifPresent(FinishedEvent::startExecuting);
 		return new QueryPlan(
 			queryContext,
 			targetIndexes.getIndexDescription(), filterFormula, prefetchFormulaVisitor,

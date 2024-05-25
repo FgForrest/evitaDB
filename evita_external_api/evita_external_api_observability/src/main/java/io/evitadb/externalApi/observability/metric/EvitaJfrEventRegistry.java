@@ -29,7 +29,7 @@ import io.evitadb.core.metric.event.cache.AnteroomRecordStatisticsUpdatedEvent;
 import io.evitadb.core.metric.event.cache.AnteroomWastedEvent;
 import io.evitadb.core.metric.event.query.EntityEnrichEvent;
 import io.evitadb.core.metric.event.query.EntityFetchEvent;
-import io.evitadb.core.metric.event.query.QueryFinishedEvent;
+import io.evitadb.core.metric.event.query.FinishedEvent;
 import io.evitadb.core.metric.event.session.SessionClosedEvent;
 import io.evitadb.core.metric.event.session.SessionKilledEvent;
 import io.evitadb.core.metric.event.session.SessionOpenedEvent;
@@ -91,7 +91,7 @@ public class EvitaJfrEventRegistry {
 		EvitaDBCompositionChangedEvent.class,
 
 		// query events
-		QueryFinishedEvent.class,
+		FinishedEvent.class,
 		EntityFetchEvent.class,
 		EntityEnrichEvent.class,
 

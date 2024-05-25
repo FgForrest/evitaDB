@@ -764,6 +764,13 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		}
 	}
 
+	@Override
+	public void emitStartObservabilityEvents() {
+		if (this.catalogWal != null) {
+			this.catalogWal.emitStartObservabilityEvents();
+		}
+	}
+
 	@Nonnull
 	@Override
 	public CatalogOffsetIndexStoragePartPersistenceService getStoragePartPersistenceService(long catalogVersion) {

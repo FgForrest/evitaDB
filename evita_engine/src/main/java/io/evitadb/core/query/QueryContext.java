@@ -60,7 +60,7 @@ import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.EntityCollection;
 import io.evitadb.core.cache.CacheSupervisor;
-import io.evitadb.core.metric.event.query.QueryFinishedEvent;
+import io.evitadb.core.metric.event.query.FinishedEvent;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.prefetch.SelectionFormula;
 import io.evitadb.core.query.extraResult.CacheSupervisorExtraResultAccessor;
@@ -129,7 +129,7 @@ public class QueryContext implements Closeable, LocaleProvider {
 	/**
 	 * Internal event to be fired when the query was finished.
 	 */
-	@Nullable @Getter private final QueryFinishedEvent queryFinishedEvent;
+	@Nullable @Getter private final FinishedEvent queryFinishedEvent;
 	/**
 	 * Contains reference to the catalog that is targeted by {@link #evitaRequest}.
 	 */
@@ -270,7 +270,7 @@ public class QueryContext implements Closeable, LocaleProvider {
 			null, catalog, entityCollection, entityStorageContainerAccessor,
 			evitaSession, evitaRequest,
 			telemetry, indexes, cacheSupervisor,
-			new QueryFinishedEvent(
+			new FinishedEvent(
 				catalog.getName(),
 				entityCollection == null ? null : entityCollection.getEntityType()
 			)
@@ -304,7 +304,7 @@ public class QueryContext implements Closeable, LocaleProvider {
 		@Nullable QueryTelemetry telemetry,
 		@Nonnull Map<S, T> indexes,
 		@Nonnull CacheSupervisor cacheSupervisor,
-		@Nullable QueryFinishedEvent event
+		@Nullable FinishedEvent event
 	) {
 		this.parentContext = parentQueryContext;
 		this.prefetchPossible = parentQueryContext == null;

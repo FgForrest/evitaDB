@@ -59,6 +59,7 @@ import io.evitadb.core.cache.NoCacheSupervisor;
 import io.evitadb.core.exception.CatalogCorruptedException;
 import io.evitadb.core.maintenance.SessionKiller;
 import io.evitadb.core.metric.event.storage.EvitaDBCompositionChangedEvent;
+import io.evitadb.core.metric.event.system.EvitaStartedEvent;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.scheduling.BackgroundTask;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -294,6 +295,23 @@ public final class Evita implements EvitaContract {
 			.filter(CatalogStructuralChangeObserverWithEvitaContractCallback.class::isInstance)
 			.map(CatalogStructuralChangeObserverWithEvitaContractCallback.class::cast)
 			.forEach(it -> it.onInit(this));
+	}
+
+	/**
+	 * Method for internal use - allows emitting start events when observability facilities are already initialized.
+	 * If we didn't postpone this initialization, events would become lost.
+	 */
+	public void emitStartObservabilityEvents() {
+		// emit the event
+		new EvitaStartedEvent(this.configuration)
+			.commit();
+
+		// iterate over all catalogs and emit the event
+		for (CatalogContract catalog : catalogs.values()) {
+			if (catalog instanceof Catalog theCatalog) {
+				theCatalog.emitStartObservabilityEvents();
+			}
+		}
 	}
 
 	/**

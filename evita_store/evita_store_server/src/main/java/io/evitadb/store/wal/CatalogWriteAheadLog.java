@@ -533,25 +533,30 @@ public class CatalogWriteAheadLog implements Closeable {
 				theOutput.computeCRC32() : theOutput;
 
 			this.currentWalFileSize = this.walFileChannel.size();
-
-			// emit the event with information about first available transaction in the WAL
-			final File firstWalFile = catalogStoragePath.resolve(getWalFileName(catalogName, this.walFileIndex)).toFile();
-			if (firstWalFile.length() > 0) {
-				final TransactionMutation firstAvailableTransaction = getFirstTransactionMutationFromWalFile(
-					firstWalFile
-				);
-				new WalStatisticsEvent(
-					catalogName,
-					firstAvailableTransaction.getCommitTimestamp()
-				).commit();
-			}
-
 		} catch (IOException e) {
 			throw new WriteAheadLogCorruptedException(
 				"Failed to open WAL file `" + getWalFileName(catalogName, this.walFileIndex) + "`!",
 				"Failed to open WAL file!",
 				e
 			);
+		}
+	}
+
+	/**
+	 * Method for internal use - allows emitting start events when observability facilities are already initialized.
+	 * If we didn't postpone this initialization, events would become lost.
+	 */
+	public void emitStartObservabilityEvents() {
+		// emit the event with information about first available transaction in the WAL
+		final File firstWalFile = catalogStoragePath.resolve(getWalFileName(catalogName, this.walFileIndex)).toFile();
+		if (firstWalFile.length() > 0) {
+			final TransactionMutation firstAvailableTransaction = getFirstTransactionMutationFromWalFile(
+				firstWalFile
+			);
+			new WalStatisticsEvent(
+				catalogName,
+				firstAvailableTransaction.getCommitTimestamp()
+			).commit();
 		}
 	}
 

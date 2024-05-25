@@ -33,7 +33,6 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.module.paramnames.ParameterNamesModule;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.core.Evita;
-import io.evitadb.core.metric.event.system.EvitaStartedEvent;
 import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
@@ -297,10 +296,6 @@ public class EvitaServer {
 			this.evita, this.apiOptions, this.externalApiProviders
 		);
 		this.externalApiServer.start();
-
-		// emit the event
-		new EvitaStartedEvent(this.evitaConfiguration)
-			.commit();
 	}
 
 	/**

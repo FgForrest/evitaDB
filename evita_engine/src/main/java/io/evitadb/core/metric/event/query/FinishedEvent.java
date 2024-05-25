@@ -47,7 +47,7 @@ import javax.annotation.Nullable;
 @ExportInvocationMetric(label = "Query finished")
 @ExportDurationMetric(label = "Query duration in milliseconds")
 @Getter
-public class QueryFinishedEvent extends AbstractQueryEvent {
+public class FinishedEvent extends AbstractQueryEvent {
 	@Label("Entity type")
 	@ExportMetricLabel
 	private final String entityType;
@@ -97,7 +97,7 @@ public class QueryFinishedEvent extends AbstractQueryEvent {
 	 */
 	private final long created;
 
-	public QueryFinishedEvent(
+	public FinishedEvent(
 		@Nonnull String catalogName,
 		@Nullable String entityType
 	) {
@@ -112,7 +112,7 @@ public class QueryFinishedEvent extends AbstractQueryEvent {
 	 * @return this
 	 */
 	@Nonnull
-	public QueryFinishedEvent startExecuting() {
+	public FinishedEvent startExecuting() {
 		this.planDurationMilliseconds = System.currentTimeMillis() - this.created;
 		return this;
 	}
@@ -122,7 +122,7 @@ public class QueryFinishedEvent extends AbstractQueryEvent {
 	 * @return this
 	 */
 	@Nonnull
-	public QueryFinishedEvent finish(
+	public FinishedEvent finish(
 		boolean prefetchInfo,
 		int recordsScannedTotal,
 		int recordsReturnedTotal,

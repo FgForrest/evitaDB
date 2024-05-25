@@ -310,7 +310,7 @@ public class ObservabilityManager {
 	 * Registers handler for transforming JFR events to Prometheus metrics.
 	 */
 	public void registerPrometheusMetricHandler() {
-		new MetricHandler(config).registerHandlers(evita.getExecutor());
+		new MetricHandler(this.config).registerHandlers(this.evita);
 	}
 
 	/**
