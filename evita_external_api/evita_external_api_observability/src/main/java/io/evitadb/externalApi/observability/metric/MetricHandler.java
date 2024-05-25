@@ -35,6 +35,7 @@ import io.evitadb.core.scheduling.BackgroundTask;
 import io.evitadb.externalApi.observability.configuration.ObservabilityConfig;
 import io.evitadb.function.ChainableConsumer;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.Assert;
 import io.evitadb.utils.ReflectionLookup;
 import io.evitadb.utils.StringUtils;
 import io.prometheus.metrics.core.metrics.Counter;
@@ -65,6 +66,7 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.regex.Pattern;
@@ -331,6 +333,7 @@ public class MetricHandler {
 		registerJvmMetrics();
 		final Set<Class<? extends CustomMetricsExecutionEvent>> allowedMetrics = getAllowedEventSet();
 
+		final AtomicLong initializedTime = new AtomicLong(Long.MAX_VALUE);
 		executor.execute(
 			new BackgroundTask(
 				"Metric handler",
@@ -463,12 +466,25 @@ public class MetricHandler {
 								recordingStream.onEvent(eventName, lambdaRef.get());
 							}
 						}
+
+						initializedTime.set(System.currentTimeMillis());
 						recordingStream.start();
-						evita.emitStartObservabilityEvents();
 					}
 				}
 			)
 		);
+
+		final long waitStart = System.currentTimeMillis();
+		while (System.currentTimeMillis() - initializedTime.get() < 500 && System.currentTimeMillis() - waitStart < 5000) {
+			Thread.onSpinWait();
+		}
+
+		Assert.isPremiseValid(
+			initializedTime.get() != Long.MAX_VALUE,
+			"Failed to initialize the metric handler within the specified time."
+		);
+		// emit the start event
+		evita.emitStartObservabilityEvents();
 	}
 
 	/**
