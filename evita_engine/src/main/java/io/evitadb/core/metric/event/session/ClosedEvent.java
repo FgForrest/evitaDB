@@ -45,7 +45,7 @@ import java.time.OffsetDateTime;
 @ExportDurationMetric(label = "Session lifespan duration in milliseconds")
 @Label("Session closed")
 @Getter
-public class SessionClosedEvent extends AbstractSessionEvent {
+public class ClosedEvent extends AbstractSessionEvent {
 	@Label("Number of queries performed in session")
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
 	private int queries;
@@ -62,7 +62,7 @@ public class SessionClosedEvent extends AbstractSessionEvent {
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private long activeSessions;
 
-	public SessionClosedEvent(@Nonnull String catalogName) {
+	public ClosedEvent(@Nonnull String catalogName) {
 		super(catalogName);
 		this.begin();
 	}
@@ -86,7 +86,7 @@ public class SessionClosedEvent extends AbstractSessionEvent {
 	 * @return this event
 	 */
 	@Nonnull
-	public SessionClosedEvent finish(
+	public ClosedEvent finish(
 		@Nullable OffsetDateTime oldestSessionTimestampSeconds,
 		int activeSessions
 		) {

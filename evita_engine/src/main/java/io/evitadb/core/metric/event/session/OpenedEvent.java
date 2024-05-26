@@ -37,9 +37,9 @@ import javax.annotation.Nonnull;
 @Description("Event that is fired when a session is started.")
 @ExportInvocationMetric(label = "Sessions opened")
 @Label("Session opened")
-public class SessionOpenedEvent extends AbstractSessionEvent {
+public class OpenedEvent extends AbstractSessionEvent {
 
-	public SessionOpenedEvent(@Nonnull String catalogName) {
+	public OpenedEvent(@Nonnull String catalogName) {
 		super(catalogName);
 	}
 

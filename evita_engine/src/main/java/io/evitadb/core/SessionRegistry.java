@@ -32,8 +32,8 @@ import io.evitadb.api.observability.trace.RepresentsQuery;
 import io.evitadb.api.observability.trace.Traced;
 import io.evitadb.api.observability.trace.TracingContext;
 import io.evitadb.api.observability.trace.TracingContext.SpanAttribute;
-import io.evitadb.core.metric.event.session.SessionClosedEvent;
-import io.evitadb.core.metric.event.session.SessionOpenedEvent;
+import io.evitadb.core.metric.event.session.ClosedEvent;
+import io.evitadb.core.metric.event.session.OpenedEvent;
 import io.evitadb.core.metric.event.transaction.TransactionFinishedEvent;
 import io.evitadb.core.metric.event.transaction.TransactionResolution;
 import io.evitadb.core.metric.event.transaction.TransactionStartedEvent;
@@ -221,7 +221,7 @@ final class SessionRegistry {
 	private static class EvitaSessionProxy implements InvocationHandler {
 		private final EvitaSession evitaSession;
 		private final TracingContext tracingContext;
-		@Getter private final SessionClosedEvent sessionClosedEvent;
+		@Getter private final ClosedEvent sessionClosedEvent;
 
 		public EvitaSessionProxy(@Nonnull EvitaSession evitaSession, @Nonnull TracingContext tracingContext) {
 			this.evitaSession = evitaSession;
@@ -229,8 +229,8 @@ final class SessionRegistry {
 			final String catalogName = evitaSession.getCatalogName();
 
 			// emit and prepare events
-			new SessionOpenedEvent(catalogName).commit();
-			this.sessionClosedEvent = new SessionClosedEvent(catalogName);
+			new OpenedEvent(catalogName).commit();
+			this.sessionClosedEvent = new ClosedEvent(catalogName);
 
 			evitaSession.getTransaction()
 				.ifPresent(transaction -> {
