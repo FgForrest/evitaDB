@@ -45,13 +45,15 @@ public interface ProbesProvider {
 	 *
 	 * @param evitaContract evita instance
 	 * @param externalApiServer external API server
+	 * @param apiCodes API codes to check (which are enabled)
 	 * @return set of health problems
 	 * @see HealthProblem
 	 */
 	@Nonnull
 	Set<HealthProblem> getHealthProblems(
 		@Nonnull EvitaContract evitaContract,
-		@Nonnull ExternalApiServer externalApiServer
+		@Nonnull ExternalApiServer externalApiServer,
+		@Nonnull String... apiCodes
 	);
 
 	/**

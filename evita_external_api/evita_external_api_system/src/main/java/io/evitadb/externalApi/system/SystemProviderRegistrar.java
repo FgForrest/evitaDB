@@ -223,6 +223,7 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 			}
 		);
 
+		final String[] enabledEndPoints = getEnabledApiEndpoints(apiOptions);
 		final List<ProbesProvider> probes = ServiceLoader.load(ProbesProvider.class)
 			.stream()
 			.map(Provider::get)
@@ -233,7 +234,7 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 				exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, "application/json");
 				final Set<HealthProblem> healthProblems = probes
 					.stream()
-					.flatMap(it -> it.getHealthProblems(evita, externalApiServer).stream())
+					.flatMap(it -> it.getHealthProblems(evita, externalApiServer, enabledEndPoints).stream())
 					.collect(Collectors.toSet());
 
 				if (healthProblems.isEmpty()) {
@@ -253,7 +254,6 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 			}
 		);
 
-		final String[] enabledEndPoints = getEnabledApiEndpoints(apiOptions);
 		router.addExactPath(
 			"/" + ENDPOINT_SYSTEM_READINESS,
 			exchange -> {

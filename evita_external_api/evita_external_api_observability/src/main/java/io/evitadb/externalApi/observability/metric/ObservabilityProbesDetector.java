@@ -41,7 +41,6 @@ import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
 import java.time.Duration;
 import java.time.OffsetDateTime;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.List;
@@ -89,7 +88,11 @@ public class ObservabilityProbesDetector implements ProbesProvider {
 
 	@Nonnull
 	@Override
-	public Set<HealthProblem> getHealthProblems(@Nonnull EvitaContract evitaContract, @Nonnull ExternalApiServer externalApiServer) {
+	public Set<HealthProblem> getHealthProblems(
+		@Nonnull EvitaContract evitaContract,
+		@Nonnull ExternalApiServer externalApiServer,
+		@Nonnull String... apiCodes
+	) {
 		final EnumSet<HealthProblem> healthProblems = EnumSet.noneOf(HealthProblem.class);
 		final ObservabilityManager theObservabilityManager = getObservabilityManager(externalApiServer).orElse(null);
 
@@ -109,13 +112,7 @@ public class ObservabilityProbesDetector implements ProbesProvider {
 				readinessWithTimestamp.result().state() != ReadinessState.READY)
 		) {
 			// enforce renewal of readiness check
-			getReadiness(
-				evitaContract,
-				externalApiServer,
-				Arrays.stream(readinessWithTimestamp.result().apiStates())
-					.map(ApiState::apiCode)
-					.toArray(String[]::new)
-			);
+			getReadiness(evitaContract, externalApiServer, apiCodes);
 		}
 
 		recordResult(checkApiReadiness(), healthProblems, theObservabilityManager);
