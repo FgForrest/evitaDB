@@ -104,7 +104,7 @@ public class ObservabilityProbesDetector implements ProbesProvider {
 		}
 
 		final ReadinessWithTimestamp readinessWithTimestamp = this.lastReadinessSeen.get();
-		if (readinessWithTimestamp != null &&
+		if (readinessWithTimestamp == null ||
 			(OffsetDateTime.now().minus(HEALTH_CHECK_READINESS_RENEW_INTERVAL).isAfter(readinessWithTimestamp.timestamp()) ||
 				readinessWithTimestamp.result().state() != ReadinessState.READY)
 		) {
