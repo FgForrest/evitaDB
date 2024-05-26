@@ -23,6 +23,7 @@
 
 package io.evitadb.core.query;
 
+import io.evitadb.api.observability.trace.TracingContext.SpanAttribute;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.RequireConstraint;
@@ -36,7 +37,6 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.BinaryEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
-import io.evitadb.api.trace.TracingContext.SpanAttribute;
 import io.evitadb.core.metric.event.query.FinishedEvent;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.prefetch.PrefetchFormulaVisitor;
@@ -366,7 +366,7 @@ public class QueryPlan {
 			new SpanAttribute("fetchedRecordCount", queryFinishedEvent.getRecordsFetched()),
 			new SpanAttribute("fetchedRecordSizeBytes", queryFinishedEvent.getFetchedSizeBytes()),
 			new SpanAttribute("estimatedComplexity", queryFinishedEvent.getEstimatedComplexity()),
-			new SpanAttribute("complexity", queryFinishedEvent.getComplexity())
+			new SpanAttribute("complexity", queryFinishedEvent.getRealComplexity())
 		};
 	}
 }

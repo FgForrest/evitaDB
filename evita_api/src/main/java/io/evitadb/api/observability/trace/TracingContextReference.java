@@ -21,25 +21,26 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.metric.annotation;
+package io.evitadb.api.observability.trace;
 
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
+import javax.annotation.Nonnull;
 
 /**
- * Annotation used for marking field to be propagated to all Prometheus metrics in this class as metric label.
+ * Reference for actual underlying context object.
  *
- * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
  */
-@Target({ElementType.FIELD, ElementType.METHOD})
-@Retention(RetentionPolicy.RUNTIME)
-public @interface ExportMetricLabel {
+public interface TracingContextReference<C> {
 
 	/**
-	 * Name of the label. If not defined name of the field is used instead.
+	 * Type of underlying context object.
 	 */
-	String value() default "";
+	@Nonnull
+	Class<C> getType();
 
+	/**
+	 * Returns the actual underlying context object.
+	 */
+	@Nonnull
+	Object getContext();
 }

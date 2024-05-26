@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.trace;
+package io.evitadb.api.observability.trace;
 
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;

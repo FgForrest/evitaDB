@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-import io.evitadb.api.trace.TracingContext;
+import io.evitadb.api.observability.trace.TracingContext;
 import io.evitadb.externalApi.grpc.GrpcProviderRegistrar;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
 import io.evitadb.externalApi.utils.ExternalApiTracingContext;

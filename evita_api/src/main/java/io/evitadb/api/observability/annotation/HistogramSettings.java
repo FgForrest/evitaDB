@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.metric.annotation;
+package io.evitadb.api.observability.annotation;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -29,22 +29,32 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Annotation used for exporting JFR duration as Prometheus metric with particular name.
+ * Detailed settings for the histogram metric.
  *
- * @author Jan Novotný, FG Forrest a.s. (c) 2024
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@Target(ElementType.TYPE)
+@Target({ElementType.TYPE, ElementType.FIELD})
 @Retention(RetentionPolicy.RUNTIME)
-public @interface ExportDurationMetric {
+public @interface HistogramSettings {
 
 	/**
-	 * Defines the name of the metric.
+	 * Unit of the histogram metric.
 	 */
-	String value() default "durationMilliseconds";
+	String unit() default "milliseconds";
 
 	/**
-	 * Defines the label of the metric.
+	 * The lowest threshold for the metric.
 	 */
-	String label();
+	int start() default 1;
+
+	/**
+	 * The multiplication factor for the next threshold (exponential by default).
+	 */
+	double factor() default 2.0;
+
+	/**
+	 * The number of thresholds.
+	 */
+	int count() default 14;
 
 }

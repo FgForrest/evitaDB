@@ -23,7 +23,7 @@
 
 package io.evitadb.externalApi.grpc.metric.event;
 
-import io.evitadb.core.metric.annotation.EventGroup;
+import io.evitadb.api.observability.annotation.EventGroup;
 import io.evitadb.core.metric.event.CustomMetricsExecutionEvent;
 import jdk.jfr.Category;
 import lombok.Getter;

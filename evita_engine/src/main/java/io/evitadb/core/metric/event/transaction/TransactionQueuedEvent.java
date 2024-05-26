@@ -23,8 +23,8 @@
 
 package io.evitadb.core.metric.event.transaction;
 
-import io.evitadb.core.metric.annotation.ExportDurationMetric;
-import io.evitadb.core.metric.annotation.ExportMetricLabel;
+import io.evitadb.api.observability.annotation.ExportDurationMetric;
+import io.evitadb.api.observability.annotation.ExportMetricLabel;
 import jdk.jfr.Description;
 import jdk.jfr.Label;
 import jdk.jfr.Name;

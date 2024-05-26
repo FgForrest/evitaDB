@@ -21,24 +21,25 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.trace;
+package io.evitadb.api.observability.annotation;
 
-import javax.annotation.Nonnull;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 
 /**
- * Dummy block reference when no tracing implementation is present. This does nothing.
+ * Annotation used for aggregating events into groups. It resembles the package for the sake of metrics and JFR events.
  *
- * @author Lukáš Hornych, FG Forres a.s. (c) 2024
+ * @author Jan Novotný, FG Forrest a.s. (c) 2024
  */
-public class DefaultTracingBlockReference implements TracingBlockReference {
+@Target(ElementType.TYPE)
+@Retention(RetentionPolicy.RUNTIME)
+public @interface EventGroup {
 
-	@Override
-	public void setError(@Nonnull Throwable error) {
-		// noop
-	}
+	/**
+	 * Defines the name of the group the event is part of.
+	 */
+	String value();
 
-	@Override
-	public void close() {
-		// noop
-	}
 }

@@ -21,26 +21,30 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.trace;
+package io.evitadb.api.observability.annotation;
 
-import javax.annotation.Nonnull;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 
 /**
- * Reference to underlying object representing marked block of code. Allows to mark blocks of code without need to have
- * all of marked code at one place in inner function.
+ * Annotation used for exporting JFR event occurrence as Prometheus metric with particular name.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
+ * @author Jan Novotný, FG Forrest a.s. (c) 2024
  */
-public interface TracingBlockReference extends AutoCloseable {
+@Target(ElementType.TYPE)
+@Retention(RetentionPolicy.RUNTIME)
+public @interface ExportInvocationMetric {
 
 	/**
-	 * Switches the block in error state. May log the error to the block if possible.
+	 * Defines the name of the metric.
 	 */
-	void setError(@Nonnull Throwable error);
+	String value() default "total";
 
 	/**
-	 * Closes the block (ends the marked block of code)
+	 * Defines the label of the metric.
 	 */
-	@Override
-	void close();
+	String label();
+
 }

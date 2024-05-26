@@ -21,26 +21,22 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.trace;
+package io.evitadb.api.observability.trace;
 
-import javax.annotation.Nonnull;
+import java.lang.annotation.Documented;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 
 /**
- * Reference for actual underlying context object.
+ * Methods annotated with this annotation MIGHT be traced by an observability measures. It doesn't automatically mean
+ * that the method will be traced, but it is a hint for the observability system to consider tracing this method.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public interface TracingContextReference<C> {
-
-	/**
-	 * Type of underlying context object.
-	 */
-	@Nonnull
-	Class<C> getType();
-
-	/**
-	 * Returns the actual underlying context object.
-	 */
-	@Nonnull
-	Object getContext();
+@Documented
+@Retention(RetentionPolicy.RUNTIME)
+@Target({ElementType.METHOD})
+public @interface Traced {
 }

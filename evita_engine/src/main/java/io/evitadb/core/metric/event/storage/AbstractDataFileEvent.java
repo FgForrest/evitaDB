@@ -23,7 +23,7 @@
 
 package io.evitadb.core.metric.event.storage;
 
-import io.evitadb.core.metric.annotation.ExportMetricLabel;
+import io.evitadb.api.observability.annotation.ExportMetricLabel;
 import jdk.jfr.Label;
 import lombok.Getter;
 

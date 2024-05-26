@@ -23,10 +23,10 @@
 
 package io.evitadb.externalApi.observability.trace;
 
-import io.evitadb.api.trace.DefaultTracingBlockReference;
-import io.evitadb.api.trace.TracingBlockReference;
-import io.evitadb.api.trace.TracingContext;
-import io.evitadb.api.trace.TracingContextReference;
+import io.evitadb.api.observability.trace.DefaultTracingBlockReference;
+import io.evitadb.api.observability.trace.TracingBlockReference;
+import io.evitadb.api.observability.trace.TracingContext;
+import io.evitadb.api.observability.trace.TracingContextReference;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.utils.ExternalApiTracingContext;
 import io.opentelemetry.api.trace.Span;

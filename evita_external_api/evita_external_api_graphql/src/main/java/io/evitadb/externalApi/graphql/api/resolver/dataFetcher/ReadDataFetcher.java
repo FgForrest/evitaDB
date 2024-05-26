@@ -25,8 +25,8 @@ package io.evitadb.externalApi.graphql.api.resolver.dataFetcher;
 
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
-import io.evitadb.api.trace.TracingContext;
-import io.evitadb.api.trace.TracingContextReference;
+import io.evitadb.api.observability.trace.TracingContext;
+import io.evitadb.api.observability.trace.TracingContextReference;
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import io.evitadb.thread.ShortRunningSupplier;
 import lombok.RequiredArgsConstructor;

@@ -24,8 +24,8 @@
 package io.evitadb.core.metric.event.storage;
 
 import io.evitadb.api.configuration.metric.MetricType;
-import io.evitadb.core.metric.annotation.ExportInvocationMetric;
-import io.evitadb.core.metric.annotation.ExportMetric;
+import io.evitadb.api.observability.annotation.ExportInvocationMetric;
+import io.evitadb.api.observability.annotation.ExportMetric;
 import jdk.jfr.Description;
 import jdk.jfr.Label;
 import jdk.jfr.Name;

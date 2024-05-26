@@ -23,9 +23,9 @@
 
 package io.evitadb.externalApi.grpc.metric.event;
 
-import io.evitadb.core.metric.annotation.ExportDurationMetric;
-import io.evitadb.core.metric.annotation.ExportInvocationMetric;
-import io.evitadb.core.metric.annotation.ExportMetricLabel;
+import io.evitadb.api.observability.annotation.ExportDurationMetric;
+import io.evitadb.api.observability.annotation.ExportInvocationMetric;
+import io.evitadb.api.observability.annotation.ExportMetricLabel;
 import io.grpc.MethodDescriptor.MethodType;
 import jdk.jfr.Description;
 import jdk.jfr.Label;

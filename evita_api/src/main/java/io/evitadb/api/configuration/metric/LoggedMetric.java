@@ -23,7 +23,10 @@
 
 package io.evitadb.api.configuration.metric;
 
+import io.evitadb.api.observability.annotation.HistogramSettings;
+
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 /**
  * This DTO wraps required information about to be created Prometheus metric.
@@ -36,6 +39,7 @@ public record LoggedMetric(
 	@Nonnull String name,
 	@Nonnull String helpMessage,
 	@Nonnull MetricType type,
+	@Nullable HistogramSettings histogramSettings,
 	@Nonnull String... labels
 ) {
 

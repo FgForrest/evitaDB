@@ -23,7 +23,7 @@
 
 package io.evitadb.core.metric.event.session;
 
-import io.evitadb.core.metric.annotation.EventGroup;
+import io.evitadb.api.observability.annotation.EventGroup;
 import io.evitadb.core.metric.event.CatalogRelatedEvent;
 import io.evitadb.core.metric.event.CustomMetricsExecutionEvent;
 import jdk.jfr.Category;

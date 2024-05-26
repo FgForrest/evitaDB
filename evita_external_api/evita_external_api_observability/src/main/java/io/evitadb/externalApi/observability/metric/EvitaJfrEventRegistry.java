@@ -23,7 +23,7 @@
 
 package io.evitadb.externalApi.observability.metric;
 
-import io.evitadb.core.metric.annotation.EventGroup;
+import io.evitadb.api.observability.annotation.EventGroup;
 import io.evitadb.core.metric.event.CustomMetricsExecutionEvent;
 import io.evitadb.core.metric.event.cache.AnteroomRecordStatisticsUpdatedEvent;
 import io.evitadb.core.metric.event.cache.AnteroomWastedEvent;

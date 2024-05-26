@@ -24,10 +24,11 @@
 package io.evitadb.core.metric.event.query;
 
 import io.evitadb.api.configuration.metric.MetricType;
-import io.evitadb.core.metric.annotation.ExportDurationMetric;
-import io.evitadb.core.metric.annotation.ExportInvocationMetric;
-import io.evitadb.core.metric.annotation.ExportMetric;
-import io.evitadb.core.metric.annotation.ExportMetricLabel;
+import io.evitadb.api.observability.annotation.ExportDurationMetric;
+import io.evitadb.api.observability.annotation.ExportInvocationMetric;
+import io.evitadb.api.observability.annotation.ExportMetric;
+import io.evitadb.api.observability.annotation.ExportMetricLabel;
+import io.evitadb.api.observability.annotation.HistogramSettings;
 import jdk.jfr.Description;
 import jdk.jfr.Label;
 import jdk.jfr.Name;
@@ -57,6 +58,7 @@ public class EntityFetchEvent extends AbstractQueryEvent {
 	private int records;
 
 	@Label("Fetched size in bytes")
+	@HistogramSettings(unit = "bytes", factor = 3)
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
 	private int sizeBytes;
 

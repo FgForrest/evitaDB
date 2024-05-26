@@ -21,31 +21,26 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.metric.event.system;
+package io.evitadb.api.observability.trace;
 
-import io.evitadb.api.observability.annotation.EventGroup;
-import io.evitadb.core.metric.event.CatalogRelatedEvent;
-import io.evitadb.core.metric.event.CustomMetricsExecutionEvent;
-import jdk.jfr.Category;
-import jdk.jfr.Label;
-import jdk.jfr.Name;
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
+import javax.annotation.Nonnull;
 
 /**
- * This event is base class for all system related events.
+ * Dummy context reference when no tracing context implementation is present. This does nothing.
+ *
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
  */
-@EventGroup(AbstractSystemEvent.PACKAGE_NAME)
-@Category({"evitaDB", "System"})
-@RequiredArgsConstructor
-@Getter
-abstract class AbstractSystemEvent extends CustomMetricsExecutionEvent implements CatalogRelatedEvent {
-	protected static final String PACKAGE_NAME = "io.evitadb.system";
-	/**
-	 * The name of the catalog the transaction relates to.
-	 */
-	@Label("Catalog")
-	@Name("catalogName")
-	final String catalogName;
+public class DefaultTracingContextReference implements TracingContextReference<Void> {
 
+	@Nonnull
+	@Override
+	public Class<Void> getType() {
+		return Void.class;
+	}
+
+	@Nonnull
+	@Override
+	public Void getContext() {
+		return null;
+	}
 }

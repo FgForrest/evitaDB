@@ -25,8 +25,8 @@ package io.evitadb.externalApi.graphql.api.builder;
 
 import graphql.schema.*;
 import graphql.schema.GraphQLSchema.Builder;
-import io.evitadb.api.trace.TracingContext;
-import io.evitadb.api.trace.TracingContextProvider;
+import io.evitadb.api.observability.trace.TracingContext;
+import io.evitadb.api.observability.trace.TracingContextProvider;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;

@@ -23,7 +23,7 @@
 
 package io.evitadb.core.metric.event.system;
 
-import io.evitadb.core.metric.annotation.ExportInvocationMetric;
+import io.evitadb.api.observability.annotation.ExportInvocationMetric;
 import jdk.jfr.Description;
 import jdk.jfr.Label;
 import jdk.jfr.Name;

@@ -24,10 +24,11 @@
 package io.evitadb.core.metric.event.query;
 
 import io.evitadb.api.configuration.metric.MetricType;
-import io.evitadb.core.metric.annotation.ExportDurationMetric;
-import io.evitadb.core.metric.annotation.ExportInvocationMetric;
-import io.evitadb.core.metric.annotation.ExportMetric;
-import io.evitadb.core.metric.annotation.ExportMetricLabel;
+import io.evitadb.api.observability.annotation.ExportDurationMetric;
+import io.evitadb.api.observability.annotation.ExportInvocationMetric;
+import io.evitadb.api.observability.annotation.ExportMetric;
+import io.evitadb.api.observability.annotation.ExportMetricLabel;
+import io.evitadb.api.observability.annotation.HistogramSettings;
 import jdk.jfr.Description;
 import jdk.jfr.Label;
 import jdk.jfr.Name;
@@ -65,32 +66,39 @@ public class FinishedEvent extends AbstractQueryEvent {
 	private String prefetched;
 
 	@Label("Records scanned total")
+	@HistogramSettings(unit = "records", factor = 2.5)
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
 	private int recordsScanned;
 
 	@Label("Records returned total")
+	@HistogramSettings(unit = "records", factor = 2.5)
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
 	private int recordsReturned;
 
 	@Label("Records found total")
+	@HistogramSettings(unit = "records", factor = 2.5)
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
 	private int recordsFound;
 
 	@Label("Records fetched total")
+	@HistogramSettings(unit = "records", factor = 2.5)
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
 	private int recordsFetched;
 
 	@Label("Fetched size in bytes")
+	@HistogramSettings(unit = "bytes", factor = 3)
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
 	private int fetchedSizeBytes;
 
 	@Label("Estimated complexity info")
-	@ExportMetric(metricType = MetricType.HISTOGRAM)
+	@HistogramSettings(unit = "complexity", factor = 22)
+	@ExportMetric(metricName = "estimated", metricType = MetricType.HISTOGRAM)
 	private long estimatedComplexity;
 
 	@Label("Filter complexity")
-	@ExportMetric(metricType = MetricType.HISTOGRAM)
-	private long complexity;
+	@HistogramSettings(unit = "complexity", factor = 22)
+	@ExportMetric(metricName = "real", metricType = MetricType.HISTOGRAM)
+	private long realComplexity;
 
 	/**
 	 * Creation timestamp.
@@ -141,7 +149,7 @@ public class FinishedEvent extends AbstractQueryEvent {
 		this.recordsFetched = recordsFetchedTotal;
 		this.fetchedSizeBytes = fetchedSizeBytes;
 		this.estimatedComplexity = estimatedComplexityInfo;
-		this.complexity = complexityInfo;
+		this.realComplexity = complexityInfo;
 		return this;
 	}
 

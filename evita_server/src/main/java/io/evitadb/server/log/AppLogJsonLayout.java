@@ -29,7 +29,7 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.CoreConstants;
 import ch.qos.logback.core.LayoutBase;
 import ch.qos.logback.core.util.CachingDateFormatter;
-import io.evitadb.api.trace.TracingContext;
+import io.evitadb.api.observability.trace.TracingContext;
 import io.evitadb.utils.StringUtils;
 import lombok.Setter;
 

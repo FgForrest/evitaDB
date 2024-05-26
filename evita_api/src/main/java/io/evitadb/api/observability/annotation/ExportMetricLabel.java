@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.metric.annotation;
+package io.evitadb.api.observability.annotation;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -29,17 +29,17 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Annotation used for aggregating events into groups. It resembles the package for the sake of metrics and JFR events.
+ * Annotation used for marking field to be propagated to all Prometheus metrics in this class as metric label.
  *
- * @author Jan Novotný, FG Forrest a.s. (c) 2024
+ * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
  */
-@Target(ElementType.TYPE)
+@Target({ElementType.FIELD, ElementType.METHOD})
 @Retention(RetentionPolicy.RUNTIME)
-public @interface EventGroup {
+public @interface ExportMetricLabel {
 
 	/**
-	 * Defines the name of the group the event is part of.
+	 * Name of the label. If not defined name of the field is used instead.
 	 */
-	String value();
+	String value() default "";
 
 }

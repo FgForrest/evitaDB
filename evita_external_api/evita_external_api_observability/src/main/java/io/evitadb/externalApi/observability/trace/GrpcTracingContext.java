@@ -23,8 +23,8 @@
 
 package io.evitadb.externalApi.observability.trace;
 
-import io.evitadb.api.trace.TracingContext;
-import io.evitadb.api.trace.TracingContext.SpanAttribute;
+import io.evitadb.api.observability.trace.TracingContext;
+import io.evitadb.api.observability.trace.TracingContext.SpanAttribute;
 import io.evitadb.externalApi.utils.ExternalApiTracingContext;
 import io.grpc.Metadata;
 import io.opentelemetry.context.Context;

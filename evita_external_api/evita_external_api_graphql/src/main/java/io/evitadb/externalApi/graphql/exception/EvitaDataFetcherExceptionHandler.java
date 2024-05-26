@@ -26,7 +26,7 @@ package io.evitadb.externalApi.graphql.exception;
 import graphql.execution.DataFetcherExceptionHandler;
 import graphql.execution.DataFetcherExceptionHandlerParameters;
 import graphql.execution.DataFetcherExceptionHandlerResult;
-import io.evitadb.api.trace.TracingBlockReference;
+import io.evitadb.api.observability.trace.TracingBlockReference;
 import io.evitadb.exception.EvitaError;
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
 import lombok.extern.slf4j.Slf4j;

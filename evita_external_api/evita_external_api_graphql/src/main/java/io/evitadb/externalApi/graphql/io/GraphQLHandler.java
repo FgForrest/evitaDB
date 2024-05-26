@@ -34,7 +34,7 @@ import graphql.execution.UnknownOperationException;
 import graphql.schema.CoercingParseValueException;
 import graphql.schema.CoercingSerializeException;
 import io.evitadb.api.configuration.EvitaConfiguration;
-import io.evitadb.api.trace.TracingBlockReference;
+import io.evitadb.api.observability.trace.TracingBlockReference;
 import io.evitadb.core.Evita;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;

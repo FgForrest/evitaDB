@@ -21,26 +21,30 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.trace;
+package io.evitadb.api.observability.annotation;
 
-import javax.annotation.Nonnull;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 
 /**
- * Dummy context reference when no tracing context implementation is present. This does nothing.
+ * Annotation used for exporting JFR duration as Prometheus metric with particular name.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
+ * @author Jan Novotný, FG Forrest a.s. (c) 2024
  */
-public class DefaultTracingContextReference implements TracingContextReference<Void> {
+@Target(ElementType.TYPE)
+@Retention(RetentionPolicy.RUNTIME)
+public @interface ExportDurationMetric {
 
-	@Nonnull
-	@Override
-	public Class<Void> getType() {
-		return Void.class;
-	}
+	/**
+	 * Defines the name of the metric.
+	 */
+	String value() default "durationMilliseconds";
 
-	@Nonnull
-	@Override
-	public Void getContext() {
-		return null;
-	}
+	/**
+	 * Defines the label of the metric.
+	 */
+	String label();
+
 }

@@ -25,11 +25,12 @@ package io.evitadb.externalApi.observability.metric;
 
 import io.evitadb.api.configuration.metric.LoggedMetric;
 import io.evitadb.api.configuration.metric.MetricType;
+import io.evitadb.api.observability.annotation.ExportDurationMetric;
+import io.evitadb.api.observability.annotation.ExportInvocationMetric;
+import io.evitadb.api.observability.annotation.ExportMetric;
+import io.evitadb.api.observability.annotation.ExportMetricLabel;
+import io.evitadb.api.observability.annotation.HistogramSettings;
 import io.evitadb.core.Evita;
-import io.evitadb.core.metric.annotation.ExportDurationMetric;
-import io.evitadb.core.metric.annotation.ExportInvocationMetric;
-import io.evitadb.core.metric.annotation.ExportMetric;
-import io.evitadb.core.metric.annotation.ExportMetricLabel;
 import io.evitadb.core.metric.event.CustomMetricsExecutionEvent;
 import io.evitadb.core.scheduling.BackgroundTask;
 import io.evitadb.externalApi.observability.configuration.ObservabilityConfig;
@@ -41,6 +42,7 @@ import io.evitadb.utils.StringUtils;
 import io.prometheus.metrics.core.metrics.Counter;
 import io.prometheus.metrics.core.metrics.Gauge;
 import io.prometheus.metrics.core.metrics.Histogram;
+import io.prometheus.metrics.core.metrics.Histogram.Builder;
 import io.prometheus.metrics.core.metrics.Metric;
 import io.prometheus.metrics.core.metrics.Summary;
 import io.prometheus.metrics.instrumentation.jvm.*;
@@ -293,13 +295,19 @@ public class MetricHandler {
 					.labelNames(metric.labels())
 					.help(metric.helpMessage())
 					.register();
-				case HISTOGRAM -> Histogram.builder()
-					.name(name)
-					.classicExponentialUpperBounds(1, 2, 14)
-					.unit(new Unit("milliseconds"))
-					.labelNames(metric.labels())
-					.help(metric.helpMessage())
-					.register();
+				case HISTOGRAM -> {
+					final Builder builder = Histogram.builder()
+						.name(name);
+					ofNullable(metric.histogramSettings())
+						.ifPresent(settings -> {
+							builder.classicExponentialUpperBounds(settings.start(), settings.factor(), settings.count())
+								.unit(new Unit(settings.unit()));
+						});
+					yield builder
+						.labelNames(metric.labels())
+						.help(metric.helpMessage())
+						.register();
+				}
 				case SUMMARY -> Summary.builder()
 					.name(name)
 					.labelNames(metric.labels())
@@ -373,8 +381,9 @@ public class MetricHandler {
 							Optional.ofNullable(lookup.getClassAnnotation(eventClass, ExportDurationMetric.class))
 								.ifPresent(it -> {
 									final String metricName = composeMetricName(eventClass, it.value());
+									final HistogramSettings histogramSettings = lookup.getClassAnnotation(eventClass, HistogramSettings.class);
 									final Metric durationMetric = buildAndRegisterMetric(
-										new LoggedMetric(metricName, it.label(), MetricType.HISTOGRAM, labelNames),
+										new LoggedMetric(metricName, it.label(), MetricType.HISTOGRAM, histogramSettings, labelNames),
 										registeredMetrics
 									);
 									if (ArrayUtils.isEmpty(labelValueExporters)) {
@@ -399,7 +408,7 @@ public class MetricHandler {
 								.ifPresent(it -> {
 									final String metricName = composeMetricName(eventClass, it.value());
 									final Metric invocationMetric = buildAndRegisterMetric(
-										new LoggedMetric(metricName, it.label(), MetricType.COUNTER, labelNames),
+										new LoggedMetric(metricName, it.label(), MetricType.COUNTER, null, labelNames),
 										registeredMetrics
 									);
 									if (ArrayUtils.isEmpty(labelValueExporters)) {
@@ -424,6 +433,10 @@ public class MetricHandler {
 									.filter(ExportMetric.class::isInstance)
 									.map(ExportMetric.class::cast)
 									.findFirst();
+								final Optional<HistogramSettings> histogramSettings = annotations.stream()
+									.filter(HistogramSettings.class::isInstance)
+									.map(HistogramSettings.class::cast)
+									.findFirst();
 								final Optional<Label> label = annotations.stream()
 									.filter(Label.class::isInstance)
 									.map(Label.class::cast)
@@ -447,6 +460,7 @@ public class MetricHandler {
 										metricName,
 										labelAnnotation.value(),
 										exportMetricAnnotation.metricType(),
+										histogramSettings.orElse(null),
 										labelNames
 									),
 									registeredMetrics
@@ -516,11 +530,12 @@ public class MetricHandler {
 		final Set<Class<? extends CustomMetricsExecutionEvent>> knownEvents = EvitaJfrEventRegistry.getEventClasses();
 
 		final Set<String> configuredEvents = new HashSet<>(16);
-		if (allowedEventsFromConfig == null) {
-			configuredEvents.addAll(knownEvents.stream().map(Class::getName).toList());
-		} else {
-			configuredEvents.addAll(allowedEventsFromConfig);
-		}
+		configuredEvents.addAll(
+			Objects.requireNonNullElseGet(
+				allowedEventsFromConfig,
+				() -> knownEvents.stream().map(Class::getName).toList()
+			)
+		);
 
 		final Set<Class<? extends CustomMetricsExecutionEvent>> allowedEventSet = new HashSet<>(16);
 		for (String loggingEvent : configuredEvents) {

@@ -23,7 +23,7 @@
 
 package io.evitadb.externalApi.trace;
 
-import io.evitadb.api.trace.TracingContext.SpanAttribute;
+import io.evitadb.api.observability.trace.TracingContext.SpanAttribute;
 import io.evitadb.externalApi.utils.ExternalApiTracingContext;
 import lombok.NoArgsConstructor;
 

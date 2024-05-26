@@ -21,21 +21,24 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.trace;
+package io.evitadb.api.observability.trace;
 
-import java.lang.annotation.Documented;
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
+import javax.annotation.Nonnull;
 
 /**
- * Methods annotated with this annotation represents a call that emits mutation to the database.
+ * Dummy block reference when no tracing implementation is present. This does nothing.
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
+ * @author Lukáš Hornych, FG Forres a.s. (c) 2024
  */
-@Documented
-@Retention(RetentionPolicy.RUNTIME)
-@Target({ElementType.METHOD})
-public @interface RepresentsMutation {
+public class DefaultTracingBlockReference implements TracingBlockReference {
+
+	@Override
+	public void setError(@Nonnull Throwable error) {
+		// noop
+	}
+
+	@Override
+	public void close() {
+		// noop
+	}
 }

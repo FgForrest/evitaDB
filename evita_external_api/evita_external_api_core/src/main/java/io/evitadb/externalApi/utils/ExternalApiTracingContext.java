@@ -23,7 +23,8 @@
 
 package io.evitadb.externalApi.utils;
 
-import io.evitadb.api.trace.TracingContext.SpanAttribute;
+import io.evitadb.api.observability.trace.TracingContext;
+import io.evitadb.api.observability.trace.TracingContext.SpanAttribute;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -37,7 +38,7 @@ import java.util.regex.Pattern;
  *
  * @param <C> type of the context, should be either {@link io.undertow.util.HeaderMap} for JSON APIs (REST, GraphQL) or
  *            gRPC Metadata type.
- * @see io.evitadb.api.trace.TracingContext
+ * @see TracingContext
  */
 public interface ExternalApiTracingContext<C> {
 	/**

@@ -23,7 +23,7 @@
 
 package io.evitadb.externalApi.observability.trace;
 
-import io.evitadb.api.trace.TracingContextReference;
+import io.evitadb.api.observability.trace.TracingContextReference;
 import io.opentelemetry.context.Context;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;

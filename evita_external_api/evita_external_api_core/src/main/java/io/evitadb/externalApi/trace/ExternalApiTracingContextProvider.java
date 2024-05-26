@@ -23,7 +23,7 @@
 
 package io.evitadb.externalApi.trace;
 
-import io.evitadb.api.trace.TracingContext;
+import io.evitadb.api.observability.trace.TracingContext;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.externalApi.utils.ExternalApiTracingContext;
 

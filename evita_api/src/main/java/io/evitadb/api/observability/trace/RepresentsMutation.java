@@ -21,34 +21,21 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.metric.annotation;
+package io.evitadb.api.observability.trace;
 
-import io.evitadb.api.configuration.metric.MetricType;
-
+import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Annotation used for marking field with the type of Prometheus metric to be used when handling this field.
+ * Methods annotated with this annotation represents a call that emits mutation to the database.
  *
- * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@Target(ElementType.FIELD)
+@Documented
 @Retention(RetentionPolicy.RUNTIME)
-public @interface ExportMetric {
-
-	/**
-	 * Name of the metric. If not set, the name of the field will be used.
-	 */
-	String metricName() default "";
-
-	/**
-	 * Returns the type of Prometheus metric to be used when handling a field marked with the {@link ExportMetric} annotation.
-	 *
-	 * @return the type of Prometheus metric
-	 */
-	MetricType metricType();
-
+@Target({ElementType.METHOD})
+public @interface RepresentsMutation {
 }

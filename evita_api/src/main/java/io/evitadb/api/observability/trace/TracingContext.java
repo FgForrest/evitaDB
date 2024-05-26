@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.trace;
+package io.evitadb.api.observability.trace;
 
 import org.slf4j.MDC;
 
