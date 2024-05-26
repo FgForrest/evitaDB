@@ -25,7 +25,7 @@ package io.evitadb.core.maintenance;
 
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.core.Evita;
-import io.evitadb.core.metric.event.session.SessionKilledEvent;
+import io.evitadb.core.metric.event.session.KilledEvent;
 import io.evitadb.core.scheduling.BackgroundTask;
 import io.evitadb.scheduling.Scheduler;
 import lombok.extern.slf4j.Slf4j;
@@ -75,7 +75,7 @@ public class SessionKiller implements Runnable {
 					counter.incrementAndGet();
 
 					// emit the event
-					new SessionKilledEvent(catalogName).commit();
+					new KilledEvent(catalogName).commit();
 				});
 
 			if (counter.get() > 0) {

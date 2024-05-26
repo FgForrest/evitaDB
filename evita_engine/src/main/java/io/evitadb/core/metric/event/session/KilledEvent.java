@@ -33,13 +33,13 @@ import javax.annotation.Nonnull;
 /**
  * Event that is fired when a transaction is started.
  */
-@Name(AbstractSessionEvent.PACKAGE_NAME + ".SessionKilled")
+@Name(AbstractSessionEvent.PACKAGE_NAME + ".Killed")
 @Description("Event that is fired when a session is killed due to timeout.")
 @ExportInvocationMetric(label = "Sessions killed")
 @Label("Session killed")
-public class SessionKilledEvent extends AbstractSessionEvent {
+public class KilledEvent extends AbstractSessionEvent {
 
-	public SessionKilledEvent(@Nonnull String catalogName) {
+	public KilledEvent(@Nonnull String catalogName) {
 		super(catalogName);
 	}
 
