@@ -58,6 +58,10 @@ public class SessionClosedEvent extends AbstractSessionEvent {
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private long oldestSessionTimestampSeconds;
 
+	@Label("Number of still active sessions")
+	@ExportMetric(metricType = MetricType.GAUGE)
+	private long activeSessions;
+
 	public SessionClosedEvent(@Nonnull String catalogName) {
 		super(catalogName);
 		this.begin();
@@ -83,10 +87,12 @@ public class SessionClosedEvent extends AbstractSessionEvent {
 	 */
 	@Nonnull
 	public SessionClosedEvent finish(
-		@Nullable OffsetDateTime oldestSessionTimestampSeconds
-	) {
+		@Nullable OffsetDateTime oldestSessionTimestampSeconds,
+		int activeSessions
+		) {
 		this.oldestSessionTimestampSeconds = oldestSessionTimestampSeconds == null ?
 			0 : oldestSessionTimestampSeconds.toEpochSecond();
+		this.activeSessions = activeSessions;
 		this.end();
 		return this;
 	}
