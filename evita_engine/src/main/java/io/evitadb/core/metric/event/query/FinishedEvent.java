@@ -45,6 +45,7 @@ import javax.annotation.Nullable;
 @Name(AbstractQueryEvent.PACKAGE_NAME + ".Finished")
 @Description("Event that is fired when a query is finished.")
 @Label("Catalog finished")
+@HistogramSettings(factor = 1.26, count = 40)
 @ExportInvocationMetric(label = "Query finished")
 @ExportDurationMetric(label = "Query duration in milliseconds")
 @Getter
@@ -55,10 +56,12 @@ public class FinishedEvent extends AbstractQueryEvent {
 
 	@Label("Query planning duration in milliseconds")
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
+	@HistogramSettings(factor = 1.9)
 	private long planDurationMilliseconds;
 
 	@Label("Query execution duration in milliseconds")
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
+	@HistogramSettings(factor = 1.9)
 	private long executionDurationMilliseconds;
 
 	@Label("Prefetched vs. non-prefetched query")
@@ -66,12 +69,12 @@ public class FinishedEvent extends AbstractQueryEvent {
 	private String prefetched;
 
 	@Label("Records scanned total")
-	@HistogramSettings(unit = "records", factor = 2.5)
+	@HistogramSettings(unit = "records", factor = 4)
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
 	private int recordsScanned;
 
 	@Label("Records returned total")
-	@HistogramSettings(unit = "records", factor = 2.5)
+	@HistogramSettings(unit = "records", factor = 1.9)
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
 	private int recordsReturned;
 
@@ -81,7 +84,7 @@ public class FinishedEvent extends AbstractQueryEvent {
 	private int recordsFound;
 
 	@Label("Records fetched total")
-	@HistogramSettings(unit = "records", factor = 2.5)
+	@HistogramSettings(unit = "records", factor = 1.9)
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
 	private int recordsFetched;
 

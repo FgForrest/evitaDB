@@ -27,6 +27,7 @@ import io.evitadb.api.configuration.metric.MetricType;
 import io.evitadb.api.observability.annotation.ExportDurationMetric;
 import io.evitadb.api.observability.annotation.ExportInvocationMetric;
 import io.evitadb.api.observability.annotation.ExportMetric;
+import io.evitadb.api.observability.annotation.HistogramSettings;
 import jdk.jfr.Description;
 import jdk.jfr.Label;
 import jdk.jfr.Name;
@@ -42,16 +43,19 @@ import java.time.OffsetDateTime;
 @Name(AbstractSessionEvent.PACKAGE_NAME + ".SessionClosed")
 @Description("Event that is fired when a session is closed.")
 @ExportInvocationMetric(label = "Sessions closed")
+@HistogramSettings(factor = 2.6, count = 20)
 @ExportDurationMetric(label = "Session lifespan duration in milliseconds")
 @Label("Session closed")
 @Getter
 public class ClosedEvent extends AbstractSessionEvent {
 	@Label("Number of queries performed in session")
+	@HistogramSettings(unit = "")
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
 	private int queries;
 
 	@Label("Number of mutation calls performed in session")
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
+	@HistogramSettings(unit = "")
 	private int mutations;
 
 	@Label("Oldest session timestamp")

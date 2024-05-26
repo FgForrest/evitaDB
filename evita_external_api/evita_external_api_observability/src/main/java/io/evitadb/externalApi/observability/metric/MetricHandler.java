@@ -299,10 +299,15 @@ public class MetricHandler {
 					final Builder builder = Histogram.builder()
 						.name(name);
 					ofNullable(metric.histogramSettings())
-						.ifPresent(settings -> {
-							builder.classicExponentialUpperBounds(settings.start(), settings.factor(), settings.count())
-								.unit(new Unit(settings.unit()));
-						});
+						.ifPresentOrElse(
+							settings -> {
+								builder.classicExponentialUpperBounds(settings.start(), settings.factor(), settings.count());
+								if (!settings.unit().isBlank()) {
+									builder.unit(new Unit(settings.unit()));
+								}
+							},
+							() -> builder.classicExponentialUpperBounds(1, 2.0, 14)
+									.unit(new Unit("milliseconds")));
 					yield builder
 						.labelNames(metric.labels())
 						.help(metric.helpMessage())
