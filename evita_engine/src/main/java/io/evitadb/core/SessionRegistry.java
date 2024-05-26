@@ -260,7 +260,9 @@ final class SessionRegistry {
 		@Override
 		public Object invoke(Object proxy, Method method, Object[] args) {
 			if (method.getDeclaringClass().equals(EvitaProxyFinalization.class)) {
-				sessionClosedEvent.finish((OffsetDateTime) args[0]);
+				sessionClosedEvent
+					.finish((OffsetDateTime) args[0])
+					.commit();
 				return null;
 			} else {
 				try {
