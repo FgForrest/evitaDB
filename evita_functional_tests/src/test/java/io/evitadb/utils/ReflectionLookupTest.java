@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -58,6 +58,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class ReflectionLookupTest {
 	private final ReflectionLookup tested = new ReflectionLookup(ReflectionCachingBehaviour.NO_CACHE);
 
+	@Test
 	void shouldReturnClassAnnotationsForSettingsClass() {
 		final List<MarkedClass> annotations = tested.getClassAnnotations(SomeSettings.class, MarkedClass.class);
 		assertEquals(2, annotations.size());
@@ -65,6 +66,7 @@ class ReflectionLookupTest {
 		assertEquals("Transactional", annotations.get(1).value());
 	}
 
+	@Test
 	void shouldReturnClassAnnotationsForSettingsClassWithInterface() {
 		final List<MarkedClass> annotations = tested.getClassAnnotations(ExtendedStandardSettings.class, MarkedClass.class);
 		assertEquals(3, annotations.size());
@@ -73,6 +75,7 @@ class ReflectionLookupTest {
 		assertEquals("Transactional", annotations.get(2).value());
 	}
 
+	@Test
 	void shouldReturnClassAnnotationsForSettingsClassWithOverriddenAnnotation() {
 		final List<MarkedClass> annotations = tested.getClassAnnotations(ExtendedSettings.class, MarkedClass.class);
 		assertEquals(2, annotations.size());
@@ -80,18 +83,21 @@ class ReflectionLookupTest {
 		assertEquals("AnotherSettings", annotations.get(1).value());
 	}
 
+	@Test
 	void shouldReturnFieldAnnotationsForSettingsClass() {
 		final Map<Field, List<ClearBeforeStore>> fields = tested.getFields(SomeSettings.class, ClearBeforeStore.class);
 		assertEquals(1, fields.size());
 		assertNotNull(getFieldByName(fields, "whatever"));
 	}
 
+	@Test
 	void shouldReturnFieldAnnotationsForClassWithAnotherAnnotations() {
 		final Map<Field, List<TranslateToWidgetId>> fields = tested.getFields(SomeSettings.class, TranslateToWidgetId.class);
 		assertEquals(1, fields.size());
 		assertNotNull(getFieldByName(fields, "anotherField"));
 	}
 
+	@Test
 	void shouldReturnAllFieldsWithInheritedAnnotations() {
 		final Map<Field, List<NodeReference>> fields = tested.getFields(SomeSettings.class, NodeReference.class);
 		assertEquals(3, fields.size());
@@ -100,6 +106,7 @@ class ReflectionLookupTest {
 		assertNotNull(getFieldByName(fields, "expression"));
 	}
 
+	@Test
 	void shouldReturnProperFieldAnnotationInstance() {
 		final Map<Field, List<NodeReference>> fields = tested.getFields(SomeSettings.class, NodeReference.class);
 		assertTrue(tested.getAnnotationInstance(getFieldByName(fields, "someField"), NodeReference.class).exact());
@@ -107,6 +114,7 @@ class ReflectionLookupTest {
 		assertFalse(tested.getAnnotationInstance(getFieldByName(fields, "expression"), NodeReference.class).exact());
 	}
 
+	@Test
 	void shouldReturnGettersAndSetters() throws Exception {
 		final Class<PojoExample> examinedClass = PojoExample.class;
 		assertNull(tested.findSetter(examinedClass, examinedClass.getMethod("getReadOnly")));
@@ -121,18 +129,27 @@ class ReflectionLookupTest {
 		assertEquals(examinedClass.getMethod("setText", String.class), tested.findSetter(examinedClass, examinedClass.getMethod("getText")));
 	}
 
-	void shouldReturnAllGetters() throws Exception {
+	@Test
+	void shouldReturnAllGetters() {
 		final Class<PojoExample> examinedClass = PojoExample.class;
 		final Collection<Method> allGetters = tested.findAllGetters(examinedClass);
 		assertEquals(6, allGetters.size());
 	}
 
+	@Test
+	void shouldReturnAllGettersDeeply() {
+		final List<Method> allGetters = tested.findAllGettersHavingAnnotationDeeply(ComplexClass.class, PropertyAnnotation.class);
+		assertEquals(4, allGetters.size());
+	}
+
+	@Test
 	void shouldReturnAllSetters() {
 		final Class<PojoExample> examinedClass = PojoExample.class;
 		final Collection<Method> allGetters = tested.findAllSetters(examinedClass);
 		assertEquals(5, allGetters.size());
 	}
 
+	@Test
 	void shouldReturnAllGettersAndSettersHavingCorrespondingSetter() {
 		final Class<PojoExample> examinedClass = PojoExample.class;
 		final Collection<Method> allGetters = tested.findAllGettersHavingCorrespondingSetter(examinedClass);
@@ -200,7 +217,7 @@ class ReflectionLookupTest {
 		assertTrue(properties.contains("sex"));
 	}
 
-	private Field getFieldByName(Map<Field, ?> fields, String fieldName) {
+	private static Field getFieldByName(Map<Field, ?> fields, String fieldName) {
 		for (Entry<Field, ?> entry : fields.entrySet()) {
 			if (entry.getKey().getName().equals(fieldName)) {
 				return entry.getKey();
@@ -409,6 +426,28 @@ class ReflectionLookupTest {
 
 		OffsetDateTime getChanged();
 
+	}
+
+	private class ComplexClass extends PropertyClassExample implements ClassWithGetters {
+
+		public ComplexClass(String propertyA) {
+			super(propertyA);
+		}
+
+		@Override
+		public int getAge() {
+			return 0;
+		}
+
+		@Override
+		public String getSex() {
+			return null;
+		}
+
+		@Override
+		public OffsetDateTime getChanged() {
+			return null;
+		}
 	}
 
 }

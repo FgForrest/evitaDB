@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -31,12 +31,12 @@ import io.evitadb.externalApi.api.system.model.CatalogDescriptor;
 import io.evitadb.externalApi.rest.RestProvider;
 import io.evitadb.externalApi.rest.api.system.model.LivenessDescriptor;
 import io.evitadb.externalApi.rest.api.testSuite.RestEndpointFunctionalTest;
-import io.evitadb.test.tester.RestTester;
-import io.evitadb.test.tester.RestTester.Request;
 import io.evitadb.server.EvitaServer;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DataCarrier;
+import io.evitadb.test.tester.RestTester;
+import io.evitadb.test.tester.RestTester.Request;
 import io.evitadb.utils.NamingConvention;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

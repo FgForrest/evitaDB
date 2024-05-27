@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -28,7 +28,9 @@ import io.evitadb.api.CatalogState;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.store.catalog.serializer.CatalogHeaderSerializer;
+import io.evitadb.store.catalog.serializer.CatalogHeaderSerializer_2024_05;
 import io.evitadb.store.catalog.serializer.EntityCollectionHeaderSerializer;
+import io.evitadb.store.catalog.serializer.EntityCollectionHeaderSerializer_2024_5;
 import io.evitadb.store.dataType.serializer.EnumNameSerializer;
 import io.evitadb.store.dataType.serializer.SerialVersionBasedSerializer;
 import io.evitadb.store.entity.model.entity.AttributesStoragePart.AttributesSetKey;
@@ -57,11 +59,21 @@ public class CatalogHeaderKryoConfigurer implements Consumer<Kryo> {
 	@Override
 	public void accept(Kryo kryo) {
 		int index = CATALOG_BASE;
-		
-		kryo.register(CatalogHeader.class, new SerialVersionBasedSerializer<>(new CatalogHeaderSerializer(), CatalogHeader.class), index++);
+
+		kryo.register(
+			CatalogHeader.class,
+			new SerialVersionBasedSerializer<>(new CatalogHeaderSerializer(), CatalogHeader.class)
+				.addBackwardCompatibleSerializer(-3595987669559870397L, new CatalogHeaderSerializer_2024_05()),
+			index++
+		);
 		kryo.register(CatalogSchema.class, new SerialVersionBasedSerializer<>(new CatalogSchemaSerializer(), CatalogSchema.class), index++);
 		kryo.register(CatalogState.class, new EnumNameSerializer<>(), index++);
-		kryo.register(EntityCollectionHeader.class, new SerialVersionBasedSerializer<>(new EntityCollectionHeaderSerializer(), EntityCollectionHeader.class), index++);
+		kryo.register(
+			EntityCollectionHeader.class,
+			new SerialVersionBasedSerializer<>(new EntityCollectionHeaderSerializer(), EntityCollectionHeader.class)
+				.addBackwardCompatibleSerializer(1079906797886901404L, new EntityCollectionHeaderSerializer_2024_5()),
+			index++
+		);
 		kryo.register(AttributesSetKey.class, new SerialVersionBasedSerializer<>(new AttributesSetKeySerializer(), AttributesSetKey.class), index++);
 		kryo.register(AttributeKeyWithIndexType.class, new SerialVersionBasedSerializer<>(new AttributeKeyWithIndexTypeSerializer(), AttributeKeyWithIndexType.class), index++);
 		kryo.register(PriceIndexKey.class, new SerialVersionBasedSerializer<>(new PriceIndexKeySerializer(), PriceIndexKey.class), index++);

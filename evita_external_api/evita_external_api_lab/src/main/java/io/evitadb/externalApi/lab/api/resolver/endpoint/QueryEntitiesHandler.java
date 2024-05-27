@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -49,7 +49,6 @@ import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.externalApi.rest.io.JsonRestHandler;
 import io.evitadb.externalApi.rest.io.RestEndpointExchange;
 import io.evitadb.utils.Assert;
-import io.evitadb.utils.StringUtils;
 import io.undertow.util.Methods;
 import lombok.extern.slf4j.Slf4j;
 

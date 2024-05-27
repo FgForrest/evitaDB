@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -50,12 +50,13 @@ public final class ReverseMutationSupplier extends AbstractMutationSupplier {
 		@Nonnull Path catalogStoragePath,
 		int walFileIndex,
 		@Nonnull Pool<Kryo> catalogKryoPool,
-		@Nonnull ConcurrentHashMap<Integer, TransactionLocations> transactionLocationsCache
+		@Nonnull ConcurrentHashMap<Integer, TransactionLocations> transactionLocationsCache,
+		@Nullable Runnable onClose
 	) {
 		super(
 			catalogVersion, catalogName, catalogStoragePath,
 			walFileIndex, catalogKryoPool, transactionLocationsCache,
-			false
+			false, onClose
 		);
 		this.mutationIndex = this.transactionMutation.getMutationCount();
 	}

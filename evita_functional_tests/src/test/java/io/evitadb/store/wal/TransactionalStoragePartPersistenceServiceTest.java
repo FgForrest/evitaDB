@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -38,6 +38,7 @@ import io.evitadb.store.offsetIndex.model.OffsetIndexRecordTypeRegistry;
 import io.evitadb.store.schema.SchemaKryoConfigurer;
 import io.evitadb.store.service.SharedClassesConfigurer;
 import io.evitadb.store.spi.StoragePartPersistenceService;
+import io.evitadb.test.TestConstants;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -67,7 +68,7 @@ class TransactionalStoragePartPersistenceServiceTest {
 
 	@BeforeEach
 	public void setUp() {
-		this.offHeapMemoryManager = new OffHeapMemoryManager(2048, 1);
+		this.offHeapMemoryManager = new OffHeapMemoryManager(TestConstants.TEST_CATALOG, 2048, 1);
 		this.delegateService = mock(StoragePartPersistenceService.class);
 		when(this.delegateService.getReadOnlyKeyCompressor()).thenReturn(new ReadOnlyKeyCompressor(Map.of()));
 		final StorageOptions storageOptions = StorageOptions.builder().build();

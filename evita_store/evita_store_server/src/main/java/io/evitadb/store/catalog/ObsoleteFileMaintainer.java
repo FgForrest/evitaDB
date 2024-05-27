@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -24,18 +24,19 @@
 package io.evitadb.store.catalog;
 
 import io.evitadb.core.CatalogVersionBeyondTheHorizonListener;
-import io.evitadb.scheduling.DelayedAsyncTask;
+import io.evitadb.core.scheduling.DelayedAsyncTask;
 import io.evitadb.scheduling.Scheduler;
 import io.evitadb.utils.Assert;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Closeable;
 import java.nio.file.Path;
-import java.time.temporal.ChronoUnit;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -47,7 +48,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @Slf4j
-public class ObsoleteFileMaintainer implements CatalogVersionBeyondTheHorizonListener, AutoCloseable {
+public class ObsoleteFileMaintainer implements CatalogVersionBeyondTheHorizonListener, Closeable {
 	/**
 	 * Asynchronous task that purges obsolete files.
 	 */
@@ -89,10 +90,12 @@ public class ObsoleteFileMaintainer implements CatalogVersionBeyondTheHorizonLis
 		}
 	}
 
-	public ObsoleteFileMaintainer(@Nonnull Scheduler scheduler) {
+	public ObsoleteFileMaintainer(@Nonnull String catalogName, @Nonnull Scheduler scheduler) {
 		this.purgeTask = new DelayedAsyncTask(
-			scheduler, this::purgeObsoleteFiles,
-			0L, ChronoUnit.MILLIS
+			catalogName, "Obsolete files purger",
+			scheduler,
+			this::purgeObsoleteFiles,
+			0L, TimeUnit.MILLISECONDS
 		);
 	}
 

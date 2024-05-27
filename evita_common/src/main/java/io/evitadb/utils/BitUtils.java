@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -48,6 +48,18 @@ public class BitUtils {
 	 */
 	public static boolean isBitSet(byte encoded, byte index) {
 		return ((encoded & 0xff) & (1 << index)) != 0;
+	}
+
+	/**
+	 * Copies part of the bit set from the byte value starting at specified position to new byte.
+	 * The bytes that will be stripped from the beginning will be added at the and as ones.
+	 *
+	 * @param startPosition start index (inclusive)
+	 * @param b byte value
+	 * @return new byte value with copied bits
+	 */
+	public static byte copyBitSetFrom(byte startPosition, byte b) {
+		return (byte) (b >> startPosition);
 	}
 
 }

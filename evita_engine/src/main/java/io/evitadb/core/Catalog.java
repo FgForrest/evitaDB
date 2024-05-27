@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -40,6 +40,7 @@ import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.SchemaAlteringException;
 import io.evitadb.api.exception.SchemaNotFoundException;
 import io.evitadb.api.exception.TransactionException;
+import io.evitadb.api.observability.trace.TracingContext;
 import io.evitadb.api.proxy.ProxyFactory;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaResponse;
@@ -67,11 +68,11 @@ import io.evitadb.api.requestResponse.system.CatalogVersion;
 import io.evitadb.api.requestResponse.system.CatalogVersionDescriptor;
 import io.evitadb.api.requestResponse.system.TimeFlow;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
-import io.evitadb.api.trace.TracingContext;
 import io.evitadb.core.buffer.DataStoreChanges;
 import io.evitadb.core.buffer.DataStoreMemoryBuffer;
 import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.exception.StorageImplementationNotFoundException;
+import io.evitadb.core.metric.event.transaction.CatalogGoesLiveEvent;
 import io.evitadb.core.query.QueryContext;
 import io.evitadb.core.query.QueryPlan;
 import io.evitadb.core.query.QueryPlanner;
@@ -768,6 +769,8 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 			);
 
 			Assert.isTrue(this.state == CatalogState.WARMING_UP, "Catalog has already alive state!");
+			final CatalogGoesLiveEvent event = new CatalogGoesLiveEvent(getName());
+
 			flush();
 
 			final List<EntityCollection> newCollections = this.entityCollections
@@ -787,6 +790,9 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 			);
 
 			this.newCatalogVersionConsumer.accept(newCatalog);
+
+			// emit the event
+			event.finish().commit();
 
 			return true;
 		} finally {
@@ -1151,12 +1157,13 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 	 *
 	 * @param transactionMutation The transaction mutation to append to the WAL.
 	 * @param walReference        The off-heap data with file backup reference to discard.
+	 * @return the number of Bytes written
 	 */
-	public void appendWalAndDiscard(
+	public long appendWalAndDiscard(
 		@Nonnull TransactionMutation transactionMutation,
 		@Nonnull OffHeapWithFileBackupReference walReference
 	) {
-		this.persistenceService.appendWalAndDiscard(getVersion(), transactionMutation, walReference);
+		return this.persistenceService.appendWalAndDiscard(getVersion(), transactionMutation, walReference);
 	}
 
 	/**
@@ -1178,6 +1185,14 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 				}
 			}
 		}
+	}
+
+	/**
+	 * Method for internal use - allows emitting start events when observability facilities are already initialized.
+	 * If we didn't postpone this initialization, events would become lost.
+	 */
+	public void emitStartObservabilityEvents() {
+		this.persistenceService.emitStartObservabilityEvents();
 	}
 
 	/**
