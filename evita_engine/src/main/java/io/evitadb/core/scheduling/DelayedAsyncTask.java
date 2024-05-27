@@ -41,6 +41,10 @@ import java.util.function.LongSupplier;
  */
 public class DelayedAsyncTask {
 	/**
+	 * The default minimal gap between two scheduling moments.
+	 */
+	private static final long DEFAULT_MINIMAL_SCHEDULING_GAP = 1000L;
+	/**
 	 * The scheduler that is used to schedule the task.
 	 */
 	private final Scheduler scheduler;
@@ -48,6 +52,10 @@ public class DelayedAsyncTask {
 	 * The delay after which the task is executed.
 	 */
 	private final long delay;
+	/**
+	 * The minimal gap between two scheduling moments.
+	 */
+	private final long minimalSchedulingGap;
 	/**
 	 * The time unit of the delay.
 	 */
@@ -71,9 +79,24 @@ public class DelayedAsyncTask {
 		long delay,
 		@Nonnull TimeUnit delayUnits
 	) {
+		this(
+			catalogName, taskName, scheduler, runnable, delay, delayUnits, DEFAULT_MINIMAL_SCHEDULING_GAP
+		);
+	}
+
+	public DelayedAsyncTask(
+		@Nonnull String catalogName,
+		@Nonnull String taskName,
+		@Nonnull Scheduler scheduler,
+		@Nonnull LongSupplier runnable,
+		long delay,
+		@Nonnull TimeUnit delayUnits,
+		long minimalSchedulingGap
+	) {
 		this.scheduler = scheduler;
 		this.delay = delay;
 		this.delayUnits = delayUnits;
+		this.minimalSchedulingGap = minimalSchedulingGap;
 		this.task = new BackgroundTask(
 			catalogName, taskName,
 			() -> {
@@ -98,7 +121,7 @@ public class DelayedAsyncTask {
 		if (this.nextPlannedExecution.compareAndExchange(OffsetDateTime.MIN, nextTick) == OffsetDateTime.MIN) {
 			final long computedDelay = Math.max(
 				nextTick.toInstant().toEpochMilli() - now.toInstant().toEpochMilli(),
-				0
+				this.minimalSchedulingGap
 			);
 			this.scheduler.schedule(
 				this.task,
@@ -123,13 +146,13 @@ public class DelayedAsyncTask {
 	 */
 	private void scheduleWithDelayShorterBy(long shorterBy) {
 		final OffsetDateTime nextTick = this.nextPlannedExecution.updateAndGet(
-			offsetDateTime -> offsetDateTime.plus(Math.min(this.delay - shorterBy, 1L), this.delayUnits.toChronoUnit())
+			offsetDateTime -> offsetDateTime.plus(Math.max(this.delay - shorterBy, 1L), this.delayUnits.toChronoUnit())
 		);
 		// re-plan the scheduled cut to the moment when the next entry should be cut down
 		final OffsetDateTime now = OffsetDateTime.now();
 		final long computedDelay = Math.max(
 			nextTick.toInstant().toEpochMilli() - now.toInstant().toEpochMilli(),
-			0
+			this.minimalSchedulingGap
 		);
 		this.scheduler.schedule(
 			this.task,

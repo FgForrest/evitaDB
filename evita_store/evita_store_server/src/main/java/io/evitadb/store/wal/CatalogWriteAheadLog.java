@@ -1192,7 +1192,7 @@ public class CatalogWriteAheadLog implements Closeable {
 	private long cutWalCache() {
 		final long threshold = System.currentTimeMillis() - CUT_WAL_CACHE_AFTER_INACTIVITY_MS;
 		long oldestNotCutEntryTouchTime = -1L;
-		for (TransactionLocations locations : transactionLocationsCache.values()) {
+		for (TransactionLocations locations : this.transactionLocationsCache.values()) {
 			// if the entry was not cut already (contains more than single / last read record)
 			final int size = locations.size();
 			final boolean oldestRecord = oldestNotCutEntryTouchTime == -1L || locations.getLastReadTime() < oldestNotCutEntryTouchTime;
