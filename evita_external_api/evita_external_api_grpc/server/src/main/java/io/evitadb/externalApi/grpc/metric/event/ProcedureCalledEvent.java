@@ -45,7 +45,7 @@ import javax.annotation.Nonnull;
 @ExportDurationMetric(label = "gRPC procedure called duration")
 @Label("gRPC procedure called")
 @Getter
-public class GrpcProcedureCalledEvent extends AbstractGrpcApiEvent {
+public class ProcedureCalledEvent extends AbstractGrpcApiEvent {
 
 	@Label("Name of the service that was called")
 	@ExportMetricLabel
@@ -68,11 +68,13 @@ public class GrpcProcedureCalledEvent extends AbstractGrpcApiEvent {
 	 */
 	private final MethodType methodType;
 
-	public GrpcProcedureCalledEvent(
+	public ProcedureCalledEvent(
+		@Nonnull String catalogName,
 		@Nonnull String serviceName,
 		@Nonnull String procedureName,
 		@Nonnull MethodType methodType
 	) {
+		super(catalogName);
 		this.serviceName = serviceName;
 		this.procedureName = procedureName;
 		this.methodType = methodType;
@@ -117,7 +119,7 @@ public class GrpcProcedureCalledEvent extends AbstractGrpcApiEvent {
 	 * @return this
 	 */
 	@Nonnull
-	public GrpcProcedureCalledEvent finish() {
+	public ProcedureCalledEvent finish() {
 		this.end();
 		return this;
 	}

@@ -38,7 +38,7 @@ import io.evitadb.core.metric.event.system.BackgroundTaskFinishedEvent;
 import io.evitadb.core.metric.event.system.BackgroundTaskStartedEvent;
 import io.evitadb.core.metric.event.system.EvitaStartedEvent;
 import io.evitadb.core.metric.event.transaction.*;
-import io.evitadb.externalApi.grpc.metric.event.GrpcProcedureCalledEvent;
+import io.evitadb.externalApi.grpc.metric.event.ProcedureCalledEvent;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ReflectionLookup;
 import lombok.NoArgsConstructor;
@@ -87,7 +87,7 @@ public class EvitaJfrEventRegistry {
 		ObservableOutputChangeEvent.class,
 		ReadOnlyHandleOpenedEvent.class,
 		ReadOnlyHandleClosedEvent.class,
-		CatalogFlushEvent.class,
+		CatalogStatisticsEvent.class,
 		EvitaDBCompositionChangedEvent.class,
 
 		// query events
@@ -110,7 +110,7 @@ public class EvitaJfrEventRegistry {
 		AnteroomWastedEvent.class,
 
 		// api - gRPC
-		GrpcProcedureCalledEvent.class
+		ProcedureCalledEvent.class
 	);
 	private static final Map<String, Class<? extends CustomMetricsExecutionEvent>> EVENT_MAP;
 	private static final Map<String, Set<Class<? extends CustomMetricsExecutionEvent>>> EVENT_MAP_BY_PACKAGE;

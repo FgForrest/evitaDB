@@ -279,7 +279,6 @@ public final class Evita implements EvitaContract {
 		try {
 			startUpLatch.await();
 			this.active = true;
-			updateStatistics();
 		} catch (InterruptedException ex) {
 			// terminate evitaDB - it has not properly started
 			this.executor.shutdown();
@@ -306,12 +305,8 @@ public final class Evita implements EvitaContract {
 		new EvitaStartedEvent(this.configuration)
 			.commit();
 
-		// iterate over all catalogs and emit the event
-		for (CatalogContract catalog : catalogs.values()) {
-			if (catalog instanceof Catalog theCatalog) {
-				theCatalog.emitStartObservabilityEvents();
-			}
-		}
+		// emit the statistics event
+		updateCatalogStatistics();
 	}
 
 	/**
@@ -412,7 +407,7 @@ public final class Evita implements EvitaContract {
 			return false;
 		} else {
 			update(new RemoveCatalogSchemaMutation(catalogName));
-			updateStatistics();
+			updateCatalogStatistics();
 			return true;
 		}
 	}
@@ -625,20 +620,6 @@ public final class Evita implements EvitaContract {
 			.orElseThrow(() -> new IllegalArgumentException("Catalog " + catalog + " is not known to Evita!"));
 	}
 
-	/**
-	 * Emits the event about catalog statistics in metrics.
-	 */
-	private void updateStatistics() {
-		// emit the event
-		new EvitaDBCompositionChangedEvent(
-			this.catalogs.size(),
-			(int) this.catalogs.values()
-				.stream()
-				.filter(it -> it instanceof CorruptedCatalog)
-				.count()
-		).commit();
-	}
-
 	/*
 		PRIVATE METHODS
 	 */
@@ -698,7 +679,7 @@ public final class Evita implements EvitaContract {
 			}
 		);
 		this.structuralChangeObservers.forEach(it -> it.onCatalogCreate(catalogName));
-		updateStatistics();
+		updateCatalogStatistics();
 	}
 
 	/**
@@ -761,6 +742,9 @@ public final class Evita implements EvitaContract {
 			// now remove the catalog that was renamed to, we need observers to be still able to access it and therefore
 			// and therefore the removal only takes place here
 			this.catalogs.remove(catalogNameToBeReplacedWith);
+
+			// we need to update catalog statistics
+			updateCatalogStatistics();
 
 		} catch (RuntimeException ex) {
 			// in case of exception return the original catalog to be replaced back
@@ -923,6 +907,27 @@ public final class Evita implements EvitaContract {
 			runnable.run();
 		} finally {
 			removedCatalog.remove();
+		}
+	}
+
+	/**
+	 * Emits the event about catalog statistics in metrics.
+	 */
+	private void updateCatalogStatistics() {
+		// emit the event
+		new EvitaDBCompositionChangedEvent(
+			this.catalogs.size(),
+			(int) this.catalogs.values()
+				.stream()
+				.filter(it -> it instanceof CorruptedCatalog)
+				.count()
+		).commit();
+
+		// iterate over all catalogs and emit the event
+		for (CatalogContract catalog : this.catalogs.values()) {
+			if (catalog instanceof Catalog theCatalog) {
+				theCatalog.emitStartObservabilityEvents();
+			}
 		}
 	}
 

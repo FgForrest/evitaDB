@@ -23,9 +23,9 @@
 
 package io.evitadb.externalApi.grpc.services.interceptors;
 
-import io.evitadb.externalApi.grpc.metric.event.GrpcProcedureCalledEvent;
-import io.evitadb.externalApi.grpc.metric.event.GrpcProcedureCalledEvent.InitiatorType;
-import io.evitadb.externalApi.grpc.metric.event.GrpcProcedureCalledEvent.ResponseState;
+import io.evitadb.externalApi.grpc.metric.event.ProcedureCalledEvent;
+import io.evitadb.externalApi.grpc.metric.event.ProcedureCalledEvent.InitiatorType;
+import io.evitadb.externalApi.grpc.metric.event.ProcedureCalledEvent.ResponseState;
 import io.evitadb.externalApi.log.AccessLogMarker;
 import io.grpc.Attributes;
 import io.grpc.ForwardingServerCallListener;
@@ -86,7 +86,9 @@ public class ObservabilityInterceptor implements ServerInterceptor {
 	                                                  Metadata headers,
 	                                                  ServerCallHandler<ReqT, RespT> next) {
 		final MethodDescriptor<ReqT, RespT> methodDescriptor = call.getMethodDescriptor();
-		final GrpcProcedureCalledEvent event = new GrpcProcedureCalledEvent(
+		final String catalogName = ServerSessionInterceptor.CATALOG_NAME.get();
+		final ProcedureCalledEvent event = new ProcedureCalledEvent(
+			catalogName,
 			methodDescriptor.getServiceName(),
 			methodDescriptor.getBareMethodName(),
 			methodDescriptor.getType()
@@ -104,11 +106,11 @@ public class ObservabilityInterceptor implements ServerInterceptor {
 	 */
 	private static class ObservabilityServerCall<M, R> extends ServerCall<M, R> {
 		private final ServerCall<M, R> serverCall;
-		private final GrpcProcedureCalledEvent event;
+		private final ProcedureCalledEvent event;
 
 		protected ObservabilityServerCall(
 			@Nonnull ServerCall<M, R> serverCall,
-			@Nonnull GrpcProcedureCalledEvent event
+			@Nonnull ProcedureCalledEvent event
 		) {
 			this.serverCall = serverCall;
 			this.event = event;
@@ -187,11 +189,11 @@ public class ObservabilityInterceptor implements ServerInterceptor {
 	 */
 	private static class ObservabilityListener<R> extends ForwardingServerCallListener<R> {
 		private final ServerCall.Listener<R> delegate;
-		private final GrpcProcedureCalledEvent event;
+		private final ProcedureCalledEvent event;
 
 		ObservabilityListener(
 			@Nonnull ServerCall.Listener<R> delegate,
-			@Nonnull GrpcProcedureCalledEvent event
+			@Nonnull ProcedureCalledEvent event
 		) {
 			this.delegate = delegate;
 			this.event = event;

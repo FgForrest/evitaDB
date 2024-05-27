@@ -200,10 +200,6 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 			releaseOffHeapMemory();
 		} else if (fileOutput != null) {
 			releaseTemporaryFile();
-			// emit the event
-			new IsolatedWalFileClosedEvent(
-				offHeapMemoryManager.getCatalogName()
-			).commit();
 		}
 	}
 
@@ -258,6 +254,11 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 			this.fileOutput.close();
 			this.observableOutputKeeper.close(this.targetFile);
 			Assert.isPremiseValid(getTargetFile(this.targetFile).delete(), "Failed to delete temporary file `" + this.targetFile + "`!");
+
+			// emit the event
+			new IsolatedWalFileClosedEvent(
+				offHeapMemoryManager.getCatalogName()
+			).commit();
 		}
 		this.fileOutput = null;
 	}

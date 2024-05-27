@@ -43,7 +43,7 @@ import java.time.OffsetDateTime;
 @Description("Event that is fired when a new catalog version is flushed.")
 @Label("Catalog flushed")
 @Getter
-public class CatalogFlushEvent extends AbstractStorageEvent {
+public class CatalogStatisticsEvent extends AbstractStorageEvent {
 	@Label("Entity collection count")
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private final int entityCollections;
@@ -56,11 +56,12 @@ public class CatalogFlushEvent extends AbstractStorageEvent {
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private final long oldestCatalogVersionTimestampSeconds;
 
-	public CatalogFlushEvent(
+	public CatalogStatisticsEvent(
 		@Nonnull String catalogName,
 		int entityCollections,
 		long occupiedDiskSpaceBytes,
-		@Nullable OffsetDateTime oldestCatalogVersionTimestampSeconds) {
+		@Nullable OffsetDateTime oldestCatalogVersionTimestampSeconds
+	) {
 		super(catalogName);
 		this.entityCollections = entityCollections;
 		this.occupiedDiskSpaceBytes = occupiedDiskSpaceBytes;

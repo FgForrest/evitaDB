@@ -45,7 +45,7 @@ import io.evitadb.core.Catalog;
 import io.evitadb.core.CatalogVersionBeyondTheHorizonListener;
 import io.evitadb.core.EntityCollection;
 import io.evitadb.core.buffer.DataStoreIndexChanges;
-import io.evitadb.core.metric.event.storage.CatalogFlushEvent;
+import io.evitadb.core.metric.event.storage.CatalogStatisticsEvent;
 import io.evitadb.core.metric.event.storage.DataFileCompactEvent;
 import io.evitadb.core.metric.event.storage.FileType;
 import io.evitadb.core.metric.event.storage.OffsetIndexHistoryKeptEvent;
@@ -766,8 +766,19 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 
 	@Override
 	public void emitStartObservabilityEvents() {
+		// emit statistics event
+		final CatalogHeader catalogHeader = getCatalogHeader(this.bootstrapUsed.catalogVersion());
+		new CatalogStatisticsEvent(
+			this.catalogName,
+			catalogHeader.getEntityTypeFileIndexes().size(),
+			FileUtils.getDirectorySize(this.catalogStoragePath),
+			getFirstCatalogBootstrap(this.catalogStoragePath, this.catalogName, this.storageOptions)
+				.map(CatalogBootstrap::timestamp)
+				.orElse(null)
+		).commit();
+		// emit WAL events if it exists
 		if (this.catalogWal != null) {
-			this.catalogWal.emitStartObservabilityEvents();
+			this.catalogWal.emitObservabilityEvents();
 		}
 	}
 
@@ -908,7 +919,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		);
 		this.bootstrapUsed = recordBootstrap(catalogVersion, this.catalogName, this.bootstrapUsed.catalogFileIndex());
 		// emit event if the number of collections has changed
-		new CatalogFlushEvent(
+		new CatalogStatisticsEvent(
 			this.catalogName,
 			entityHeaders.size(),
 			FileUtils.getDirectorySize(this.catalogStoragePath),

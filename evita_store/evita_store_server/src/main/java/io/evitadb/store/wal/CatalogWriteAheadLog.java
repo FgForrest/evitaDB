@@ -546,7 +546,7 @@ public class CatalogWriteAheadLog implements Closeable {
 	 * Method for internal use - allows emitting start events when observability facilities are already initialized.
 	 * If we didn't postpone this initialization, events would become lost.
 	 */
-	public void emitStartObservabilityEvents() {
+	public void emitObservabilityEvents() {
 		// emit the event with information about first available transaction in the WAL
 		final File firstWalFile = catalogStoragePath.resolve(getWalFileName(catalogName, this.walFileIndex)).toFile();
 		if (firstWalFile.length() > 0) {

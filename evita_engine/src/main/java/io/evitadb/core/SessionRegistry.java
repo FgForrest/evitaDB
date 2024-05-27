@@ -181,15 +181,16 @@ final class SessionRegistry {
 			this.activeSessionsCounter.decrementAndGet();
 			Assert.isPremiseValid(this.sessionsFifoQueue.remove(activeSession), "Session not found in the queue.");
 
-			final OffsetDateTime theOldestTransactionTimestamp = ofNullable(this.sessionsFifoQueue.peek())
-				.map(it -> it.plainSession().getCreated())
-				.orElse(null);
-
 			session.getTransaction().ifPresent(transaction -> {
 				// emit event
 				transaction.getFinalizationEvent()
 					.finishWithResolution(
-						theOldestTransactionTimestamp,
+						this.sessionsFifoQueue.stream()
+							.map(EvitaSessionTuple::plainSession)
+							.filter(it -> it.getOpenedTransaction().isPresent())
+							.map(EvitaSession::getCreated)
+							.findFirst()
+							.orElse(null),
 						transaction.isRollbackOnly() ? TransactionResolution.ROLLBACK : TransactionResolution.COMMIT
 					).commit();
 			});
@@ -206,7 +207,12 @@ final class SessionRegistry {
 			// emit event
 			//noinspection CastToIncompatibleInterface,resource
 			((EvitaProxyFinalization)activeSession.proxySession())
-				.finish(theOldestTransactionTimestamp, this.activeSessionsCounter.get());
+				.finish(
+					ofNullable(this.sessionsFifoQueue.peek())
+						.map(it -> it.plainSession().getCreated())
+						.orElse(null),
+					this.activeSessionsCounter.get()
+				);
 		}
 	}
 
