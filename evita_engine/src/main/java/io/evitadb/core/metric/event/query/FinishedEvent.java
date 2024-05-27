@@ -45,7 +45,7 @@ import javax.annotation.Nullable;
 @Name(AbstractQueryEvent.PACKAGE_NAME + ".Finished")
 @Description("Event that is fired when a query is finished.")
 @Label("Catalog finished")
-@HistogramSettings(factor = 1.26, count = 40)
+@HistogramSettings(factor = 1.65)
 @ExportInvocationMetric(label = "Query finished")
 @ExportDurationMetric(label = "Query duration in milliseconds")
 @Getter

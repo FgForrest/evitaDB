@@ -68,7 +68,6 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -302,15 +301,13 @@ public class MetricHandler {
 					ofNullable(metric.histogramSettings())
 						.ifPresentOrElse(
 							settings -> {
-								builder.nativeOnly()
-									.nativeResetDuration(24, TimeUnit.HOURS);
+								builder.classicExponentialUpperBounds(settings.start(), settings.factor(), settings.count());
 								if (!settings.unit().isBlank()) {
 									builder.unit(new Unit(settings.unit()));
 								}
 							},
-							() -> builder.nativeOnly()
-								.nativeResetDuration(24, TimeUnit.HOURS)
-								.unit(new Unit("milliseconds")));
+							() -> builder.classicExponentialUpperBounds(1, 2.0, 14)
+									.unit(new Unit("milliseconds")));
 					yield builder
 						.labelNames(metric.labels())
 						.help(metric.helpMessage())
