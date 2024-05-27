@@ -33,6 +33,8 @@ import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serial;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -103,10 +105,12 @@ public class ReadWriteKeyCompressor implements KeyCompressor {
 		});
 	}
 
-	@Nullable
+	@Nonnull
 	@Override
-	public <T extends Comparable<T>> Integer getIdIfExists(@Nonnull T key) {
-		return keyToIdIndex.get(key);
+	public <T extends Comparable<T>> OptionalInt getIdIfExists(@Nonnull T key) {
+		return Optional.ofNullable(this.keyToIdIndex.get(key))
+			.map(OptionalInt::of)
+			.orElseGet(OptionalInt::empty);
 	}
 
 	@Nonnull

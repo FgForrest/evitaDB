@@ -54,6 +54,7 @@ import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Locale;
 import java.util.OptionalInt;
+import java.util.OptionalLong;
 import java.util.function.UnaryOperator;
 
 /**
@@ -84,6 +85,10 @@ public class AttributesStoragePart implements EntityStoragePart, RecordWithCompr
 	 */
 	private final EntityAttributesSetKey attributeSetKey;
 	/**
+	 * Contains information about size of this container in bytes.
+	 */
+	private final int sizeInBytes;
+	/**
 	 * Id used for lookups in persistent storage for this particular container.
 	 */
 	@Getter private Long storagePartPK;
@@ -91,10 +96,6 @@ public class AttributesStoragePart implements EntityStoragePart, RecordWithCompr
 	 * See {@link Attributes#getAttributeValues()}. Attributes are sorted in ascending order according to {@link AttributeKey}.
 	 */
 	@Getter private AttributeValue[] attributes = EMPTY_ATTRIBUTE_VALUES;
-	/**
-	 * Contains information about size of this container in bytes.
-	 */
-	private final int sizeInBytes;
 	/**
 	 * Contains true if anything changed in this container.
 	 */
@@ -107,13 +108,21 @@ public class AttributesStoragePart implements EntityStoragePart, RecordWithCompr
 	 *
 	 * @throws CompressionKeyUnknownException when key is not recognized by {@link KeyCompressor}
 	 */
-	public static long computeUniquePartId(@Nonnull KeyCompressor keyCompressor, @Nonnull EntityAttributesSetKey attributeSetKey) throws CompressionKeyUnknownException {
-		return NumberUtils.join(
-			attributeSetKey.entityPrimaryKey(),
-			keyCompressor.getId(
-				new AttributesSetKey(attributeSetKey.locale())
-			)
+	@Nonnull
+	public static OptionalLong computeUniquePartId(@Nonnull KeyCompressor keyCompressor, @Nonnull EntityAttributesSetKey attributeSetKey) throws CompressionKeyUnknownException {
+		final OptionalInt id = keyCompressor.getIdIfExists(
+			new AttributesSetKey(attributeSetKey.locale())
 		);
+		if (id.isPresent()) {
+			return OptionalLong.of(
+				NumberUtils.join(
+					attributeSetKey.entityPrimaryKey(),
+					id.getAsInt()
+				)
+			);
+		} else {
+			return OptionalLong.empty();
+		}
 	}
 
 	public AttributesStoragePart(int entityPrimaryKey) {
@@ -146,8 +155,13 @@ public class AttributesStoragePart implements EntityStoragePart, RecordWithCompr
 	@Override
 	public long computeUniquePartIdAndSet(@Nonnull KeyCompressor keyCompressor) {
 		Assert.isTrue(this.storagePartPK == null, "Unique part id is already known!");
-		Assert.notNull(entityPrimaryKey, "Entity primary key must be non null!");
-		this.storagePartPK = computeUniquePartId(keyCompressor, attributeSetKey);
+		Assert.notNull(this.entityPrimaryKey, "Entity primary key must be non null!");
+		this.storagePartPK = NumberUtils.join(
+			this.attributeSetKey.entityPrimaryKey(),
+			keyCompressor.getId(
+				new AttributesSetKey(this.attributeSetKey.locale())
+			)
+		);
 		return this.storagePartPK;
 	}
 

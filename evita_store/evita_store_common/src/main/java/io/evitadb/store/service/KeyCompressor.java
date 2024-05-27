@@ -33,6 +33,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.Map;
+import java.util.OptionalInt;
 
 import static io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataKey;
 
@@ -67,8 +68,8 @@ public interface KeyCompressor extends Serializable {
 	 *
 	 * Method may return null when no id exists yet and the implementation cannot generate new id.
 	 */
-	@Nullable
-	<T extends Comparable<T>> Integer getIdIfExists(@Nonnull T key);
+	@Nonnull
+	<T extends Comparable<T>> OptionalInt getIdIfExists(@Nonnull T key);
 
 	/**
 	 * Returns original `key` that is linked to passed integer id that was acquired during deserialization from Kryo.

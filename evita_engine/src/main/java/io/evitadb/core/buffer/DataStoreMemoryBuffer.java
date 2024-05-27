@@ -29,7 +29,6 @@ import io.evitadb.core.transaction.memory.TransactionalLayerCreator;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.Index;
 import io.evitadb.index.IndexKey;
-import io.evitadb.store.exception.CompressionKeyUnknownException;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.service.KeyCompressor;
 import io.evitadb.store.spi.CatalogPersistenceService;
@@ -38,6 +37,7 @@ import io.evitadb.store.spi.StoragePartPersistenceService;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Objects;
+import java.util.OptionalLong;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
@@ -167,24 +167,19 @@ public class DataStoreMemoryBuffer<IK extends IndexKey, I extends Index<IK>, DSC
 	 * is not opened) reads it from the target {@link CatalogPersistenceService}.
 	 */
 	@Nullable
-	public <T extends StoragePart, U extends Comparable<U>> T fetch(long catalogVersion, @Nonnull U originalKey, @Nonnull Class<T> containerType, @Nonnull BiFunction<KeyCompressor, U, Long> compressedKeyComputer) {
-		final DataStoreChanges<IK, I> layer = getTransactionalMemoryLayerIfExists(transactionalMemoryDataSource);
-		if (layer == null) {
-			try {
-				final long storagePartId = compressedKeyComputer.apply(this.persistenceService.getReadOnlyKeyCompressor(), originalKey);
-				return persistenceService.getStoragePart(catalogVersion, storagePartId, containerType);
-			} catch (CompressionKeyUnknownException ex) {
-				// key wasn't yet assigned
-				return null;
-			}
+	public <T extends StoragePart, U extends Comparable<U>> T fetch(long catalogVersion, @Nonnull U originalKey, @Nonnull Class<T> containerType, @Nonnull BiFunction<KeyCompressor, U, OptionalLong> compressedKeyComputer) {
+		final DataStoreChanges<IK, I> layer = getTransactionalMemoryLayerIfExists(this.transactionalMemoryDataSource);
+		final OptionalLong storagePartId = compressedKeyComputer.apply(
+			layer == null ? this.persistenceService.getReadOnlyKeyCompressor() : layer.getReadOnlyKeyCompressor(),
+			originalKey
+		);
+		if (storagePartId.isEmpty()) {
+			// key wasn't yet assigned
+			return null;
 		} else {
-			try {
-				final long storagePartId = compressedKeyComputer.apply(layer.getReadOnlyKeyCompressor(), originalKey);
-				return layer.getStoragePart(catalogVersion, storagePartId, containerType);
-			} catch (CompressionKeyUnknownException ex) {
-				// key wasn't yet assigned
-				return null;
-			}
+			return layer == null ?
+				this.persistenceService.getStoragePart(catalogVersion, storagePartId.getAsLong(), containerType) :
+				layer.getStoragePart(catalogVersion, storagePartId.getAsLong(), containerType);
 		}
 	}
 
@@ -193,24 +188,19 @@ public class DataStoreMemoryBuffer<IK extends IndexKey, I extends Index<IK>, DSC
 	 * is not opened) reads it from the target {@link CatalogPersistenceService}.
 	 */
 	@Nullable
-	public <T extends StoragePart, U extends Comparable<U>> byte[] fetchBinary(long catalogVersion, @Nonnull U originalKey, @Nonnull Class<T> containerType, @Nonnull BiFunction<KeyCompressor, U, Long> compressedKeyComputer) {
+	public <T extends StoragePart, U extends Comparable<U>> byte[] fetchBinary(long catalogVersion, @Nonnull U originalKey, @Nonnull Class<T> containerType, @Nonnull BiFunction<KeyCompressor, U, OptionalLong> compressedKeyComputer) {
 		final DataStoreChanges<IK, I> layer = getTransactionalMemoryLayerIfExists(transactionalMemoryDataSource);
-		if (layer == null) {
-			try {
-				final long nonFlushedCompressedId = compressedKeyComputer.apply(this.persistenceService.getReadOnlyKeyCompressor(), originalKey);
-				return persistenceService.getStoragePartAsBinary(catalogVersion, nonFlushedCompressedId, containerType);
-			} catch (CompressionKeyUnknownException ex) {
-				// key wasn't yet assigned
-				return null;
-			}
+		final OptionalLong storagePartId = compressedKeyComputer.apply(
+			layer == null ? this.persistenceService.getReadOnlyKeyCompressor() : layer.getReadOnlyKeyCompressor(),
+			originalKey
+		);
+		if (storagePartId.isEmpty()) {
+			// key wasn't yet assigned
+			return null;
 		} else {
-			try {
-				final long nonFlushedCompressedId = compressedKeyComputer.apply(layer.getReadOnlyKeyCompressor(), originalKey);
-				return layer.getStoragePartAsBinary(catalogVersion, nonFlushedCompressedId, containerType);
-			} catch (CompressionKeyUnknownException ex) {
-				// key wasn't yet assigned
-				return null;
-			}
+			return layer == null ?
+				this.persistenceService.getStoragePartAsBinary(catalogVersion, storagePartId.getAsLong(), containerType) :
+				layer.getStoragePartAsBinary(catalogVersion, storagePartId.getAsLong(), containerType);
 		}
 	}
 

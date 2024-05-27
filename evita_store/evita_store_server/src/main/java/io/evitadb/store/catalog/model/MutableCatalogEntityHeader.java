@@ -34,6 +34,8 @@ import javax.annotation.Nullable;
 import java.io.Serial;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static io.evitadb.utils.CollectionUtils.createHashMap;
@@ -100,10 +102,12 @@ public class MutableCatalogEntityHeader implements KeyCompressor {
 		});
 	}
 
-	@Nullable
+	@Nonnull
 	@Override
-	public <T extends Comparable<T>> Integer getIdIfExists(@Nonnull T key) {
-		return keyToIdIndex.get(key);
+	public <T extends Comparable<T>> OptionalInt getIdIfExists(@Nonnull T key) {
+		return Optional.ofNullable(keyToIdIndex.get(key))
+			.map(OptionalInt::of)
+			.orElseGet(OptionalInt::empty);
 	}
 
 	@Nonnull
@@ -129,7 +133,6 @@ public class MutableCatalogEntityHeader implements KeyCompressor {
 		result = 31 * result + idToKeyIndex.hashCode();
 		result = 31 * result + keyToIdIndex.hashCode();
 		result = 31 * result + Integer.hashCode(keySequence.get());
-		result = 31 * result + recordCount;
 		return result;
 	}
 
@@ -140,7 +143,6 @@ public class MutableCatalogEntityHeader implements KeyCompressor {
 
 		MutableCatalogEntityHeader that = (MutableCatalogEntityHeader) o;
 
-		if (recordCount != that.recordCount) return false;
 		if (!entityType.equals(that.entityType)) return false;
 		if (!idToKeyIndex.equals(that.idToKeyIndex)) return false;
 		if (!keyToIdIndex.equals(that.keyToIdIndex)) return false;

@@ -35,6 +35,8 @@ import java.io.Serial;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Optional;
+import java.util.OptionalInt;
 
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 
@@ -76,20 +78,22 @@ public class ReadOnlyKeyCompressor implements KeyCompressor {
 	@Override
 	public @Nonnull
 	Map<Integer, Object> getKeys() {
-		return idToKeyIndex;
+		return this.idToKeyIndex;
 	}
 
 	@Override
 	public <T extends Comparable<T>> int getId(@Nonnull T key) {
-		final Integer id = keyToIdIndex.get(key);
+		final Integer id = this.keyToIdIndex.get(key);
 		Assert.isPremiseValid(id != null, () -> new CompressionKeyUnknownException("There is no id for key " + key + "!"));
 		return id;
 	}
 
-	@Nullable
+	@Nonnull
 	@Override
-	public <T extends Comparable<T>> Integer getIdIfExists(@Nonnull T key) {
-		return keyToIdIndex.get(key);
+	public <T extends Comparable<T>> OptionalInt getIdIfExists(@Nonnull T key) {
+		return Optional.ofNullable(keyToIdIndex.get(key))
+			.map(OptionalInt::of)
+			.orElseGet(OptionalInt::empty);
 	}
 
 	@Nonnull

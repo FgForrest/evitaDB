@@ -247,7 +247,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 				priceStorageContainer
 			),
 			ioFetchStatistics.getIoFetchCount(),
-			ioFetchStatistics.ioFetchedBytes
+			ioFetchStatistics.getIoFetchedBytes()
 		);
 	}
 

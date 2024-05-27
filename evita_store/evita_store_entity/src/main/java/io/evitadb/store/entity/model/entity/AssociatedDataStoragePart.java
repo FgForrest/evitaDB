@@ -44,6 +44,7 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.util.Locale;
 import java.util.OptionalInt;
+import java.util.OptionalLong;
 
 import static io.evitadb.utils.ComparatorUtils.compareLocale;
 
@@ -68,6 +69,10 @@ public class AssociatedDataStoragePart implements EntityStoragePart, RecordWithC
 	 */
 	private final EntityAssociatedDataKey associatedDataKey;
 	/**
+	 * Contains information about size of this container in bytes.
+	 */
+	private final int sizeInBytes;
+	/**
 	 * Id used for lookups in persistent storage for this particular container.
 	 */
 	@Getter private Long storagePartPK;
@@ -76,13 +81,33 @@ public class AssociatedDataStoragePart implements EntityStoragePart, RecordWithC
 	 */
 	@Getter private AssociatedDataValue value;
 	/**
-	 * Contains information about size of this container in bytes.
-	 */
-	private final int sizeInBytes;
-	/**
 	 * Contains true if anything changed in this container.
 	 */
 	@Getter private boolean dirty;
+
+	/**
+	 * Computes primary ID of this container that is a long consisting of two parts:
+	 * - int entity primary key
+	 * - int key assigned by {@link KeyCompressor} for its {@link AssociatedDataKey}
+	 */
+	@Nonnull
+	public static OptionalLong computeUniquePartId(@Nonnull KeyCompressor keyCompressor, @Nonnull EntityAssociatedDataKey key) {
+		final OptionalInt id = keyCompressor.getIdIfExists(
+			new AssociatedDataKey(
+				key.associatedDataName(), key.locale()
+			)
+		);
+		if (id.isPresent()) {
+			return OptionalLong.of(
+				NumberUtils.join(
+					key.entityPrimaryKey(),
+					id.getAsInt()
+				)
+			);
+		} else {
+			return OptionalLong.empty();
+		}
+	}
 
 	public AssociatedDataStoragePart(int entityPrimaryKey, @Nonnull AssociatedDataKey associatedDataKey) {
 		this.storagePartPK = null;
@@ -99,22 +124,6 @@ public class AssociatedDataStoragePart implements EntityStoragePart, RecordWithC
 		this.sizeInBytes = sizeInBytes;
 	}
 
-	/**
-	 * Computes primary ID of this container that is a long consisting of two parts:
-	 * - int entity primary key
-	 * - int key assigned by {@link KeyCompressor} for its {@link AssociatedDataKey}
-	 */
-	public static long computeUniquePartId(@Nonnull KeyCompressor keyCompressor, @Nonnull EntityAssociatedDataKey key) {
-		return NumberUtils.join(
-			key.entityPrimaryKey(),
-			keyCompressor.getId(
-				new AssociatedDataKey(
-					key.associatedDataName(), key.locale()
-				)
-			)
-		);
-	}
-
 	@Override
 	public EntityAssociatedDataKey getStoragePartSourceKey() {
 		return associatedDataKey;
@@ -123,8 +132,16 @@ public class AssociatedDataStoragePart implements EntityStoragePart, RecordWithC
 	@Override
 	public long computeUniquePartIdAndSet(@Nonnull KeyCompressor keyCompressor) {
 		Assert.isTrue(this.storagePartPK == null, "Unique part id is already known!");
-		Assert.notNull(entityPrimaryKey, "Entity primary key must be non-null!");
-		this.storagePartPK = AssociatedDataStoragePart.computeUniquePartId(keyCompressor, associatedDataKey);
+		Assert.notNull(this.entityPrimaryKey, "Entity primary key must be non-null!");
+		this.storagePartPK = NumberUtils.join(
+			this.associatedDataKey.entityPrimaryKey(),
+			keyCompressor.getId(
+				new AssociatedDataKey(
+					this.associatedDataKey.associatedDataName(),
+					this.associatedDataKey.locale()
+				)
+			)
+		);
 		return this.storagePartPK;
 	}
 

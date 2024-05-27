@@ -30,6 +30,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.util.Map;
+import java.util.OptionalInt;
 
 /**
  * The AggregatedKeyCompressor class implements the KeyCompressor interface and represents a compressor that combines
@@ -57,11 +58,11 @@ public class AggregatedKeyCompressor implements KeyCompressor {
 		// Iterate over all compressors
 		for (KeyCompressor compressor : compressors) {
 			// Try to get the ID of the key from the current compressor
-			Integer id = compressor.getIdIfExists(key);
+			final OptionalInt id = compressor.getIdIfExists(key);
 
 			// If the ID is not null, return it
-			if (id != null) {
-				return id;
+			if (id.isPresent()) {
+				return id.getAsInt();
 			}
 		}
 
@@ -69,22 +70,22 @@ public class AggregatedKeyCompressor implements KeyCompressor {
 		throw new CompressionKeyUnknownException("Key not found: " + key);
 	}
 
-	@Nullable
+	@Nonnull
 	@Override
-	public <T extends Comparable<T>> Integer getIdIfExists(@Nonnull T key) {
+	public <T extends Comparable<T>> OptionalInt getIdIfExists(@Nonnull T key) {
 		// Iterate over all compressors
 		for (KeyCompressor compressor : compressors) {
 			// Try to get the ID of the key from the current compressor
-			Integer id = compressor.getIdIfExists(key);
+			final OptionalInt id = compressor.getIdIfExists(key);
 
 			// If the ID is not null, return it
-			if (id != null) {
+			if (id.isPresent()) {
 				return id;
 			}
 		}
 
 		// If no compressor has the key, return null
-		return null;
+		return OptionalInt.empty();
 	}
 
 	@Nonnull
