@@ -71,22 +71,22 @@ public class FinishedEvent extends AbstractQueryEvent {
 	@Label("Records scanned total")
 	@HistogramSettings(unit = "records", factor = 4)
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
-	private int recordsScanned;
+	private int scanned;
 
 	@Label("Records returned total")
 	@HistogramSettings(unit = "records", factor = 1.9)
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
-	private int recordsReturned;
+	private int returned;
 
 	@Label("Records found total")
 	@HistogramSettings(unit = "records", factor = 2.5)
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
-	private int recordsFound;
+	private int found;
 
 	@Label("Records fetched total")
 	@HistogramSettings(unit = "records", factor = 1.9)
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
-	private int recordsFetched;
+	private int fetched;
 
 	@Label("Fetched size in bytes")
 	@HistogramSettings(unit = "bytes", factor = 3)
@@ -146,10 +146,10 @@ public class FinishedEvent extends AbstractQueryEvent {
 		this.end();
 		this.executionDurationMilliseconds = System.currentTimeMillis() - this.created;
 		this.prefetched = prefetchInfo ? "yes" : "no";
-		this.recordsScanned = recordsScannedTotal;
-		this.recordsReturned = recordsReturnedTotal;
-		this.recordsFound = recordsFoundTotal;
-		this.recordsFetched = recordsFetchedTotal;
+		this.scanned = recordsScannedTotal;
+		this.returned = recordsReturnedTotal;
+		this.found = recordsFoundTotal;
+		this.fetched = recordsFetchedTotal;
 		this.fetchedSizeBytes = fetchedSizeBytes;
 		this.estimatedComplexity = estimatedComplexityInfo;
 		this.realComplexity = complexityInfo;
