@@ -303,16 +303,12 @@ public class MetricHandler {
 						.ifPresentOrElse(
 							settings -> {
 								builder.nativeOnly()
-									.nativeInitialSchema(-1)
-									.nativeMaxNumberOfBuckets(14)
 									.nativeResetDuration(24, TimeUnit.HOURS);
 								if (!settings.unit().isBlank()) {
 									builder.unit(new Unit(settings.unit()));
 								}
 							},
 							() -> builder.nativeOnly()
-								.nativeInitialSchema(-1)
-								.nativeMaxNumberOfBuckets(14)
 								.nativeResetDuration(24, TimeUnit.HOURS)
 								.unit(new Unit("milliseconds")));
 					yield builder
