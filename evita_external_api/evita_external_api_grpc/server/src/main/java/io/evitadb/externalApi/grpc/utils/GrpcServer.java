@@ -120,16 +120,14 @@ public class GrpcServer {
 				e
 			);
 		}
-
 		final NettyServerBuilder serverBuilder = NettyServerBuilder.forAddress(new InetSocketAddress(hosts[0].host(), hosts[0].port()), tlsServerCredentials)
 			.executor(evita.getExecutor())
 			.addService(new EvitaService(evita))
 			.addService(new EvitaSessionService(evita))
+			.intercept(new ObservabilityInterceptor(apiOptions.accessLog()))
 			.intercept(new ServerSessionInterceptor(evita))
 			.intercept(new GlobalExceptionHandlerInterceptor());
-		if (apiOptions.accessLog()) {
-			serverBuilder.intercept(new ObservabilityInterceptor());
-		}
+
 		server = serverBuilder.build();
 	}
 }

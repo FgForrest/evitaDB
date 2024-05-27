@@ -38,6 +38,7 @@ import io.grpc.ServerCall.Listener;
 import io.grpc.ServerCallHandler;
 import io.grpc.ServerInterceptor;
 import io.grpc.Status;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Marker;
 import org.slf4j.MarkerFactory;
@@ -70,6 +71,7 @@ import java.time.format.DateTimeFormatter;
  * @author Lukáš Hornych, 2023
  */
 @Slf4j
+@RequiredArgsConstructor
 public class ObservabilityInterceptor implements ServerInterceptor {
 
 	private static final DateTimeFormatter ACCESS_LOG_DATE_FORMAT = DateTimeFormatter.ofPattern("dd/MMM/yyyy:HH:mm:ss Z");
@@ -79,6 +81,11 @@ public class ObservabilityInterceptor implements ServerInterceptor {
 	private static final Marker GRPC_ACCESS_LOG_MARKER = MarkerFactory.getMarker("GRPC_ACCESS_LOG");
 
 	private static final Attributes.Key<String> USER_AGENT = Attributes.Key.create("user-agent");
+
+	/**
+	 * True when access log should be generated.
+	 */
+	private final boolean accessLog;
 
 
 	@Override
@@ -93,7 +100,7 @@ public class ObservabilityInterceptor implements ServerInterceptor {
 			methodDescriptor.getBareMethodName(),
 			methodDescriptor.getType()
 		);
-		final ObservabilityServerCall<ReqT, RespT> loggingServerCall = new ObservabilityServerCall<>(call, event);
+		final ObservabilityServerCall<ReqT, RespT> loggingServerCall = new ObservabilityServerCall<>(call, event, this.accessLog);
 		return new ObservabilityListener<>(
 			next.startCall(loggingServerCall, headers), event
 		);
@@ -107,21 +114,26 @@ public class ObservabilityInterceptor implements ServerInterceptor {
 	private static class ObservabilityServerCall<M, R> extends ServerCall<M, R> {
 		private final ServerCall<M, R> serverCall;
 		private final ProcedureCalledEvent event;
+		private final boolean accessLog;
 
 		protected ObservabilityServerCall(
 			@Nonnull ServerCall<M, R> serverCall,
-			@Nonnull ProcedureCalledEvent event
+			@Nonnull ProcedureCalledEvent event,
+			boolean accessLog
 		) {
 			this.serverCall = serverCall;
 			this.event = event;
+			this.accessLog = accessLog;
 		}
 
 		@Override
 		public void close(Status status, Metadata trailers) {
-			log.atInfo()
-				.addMarker(AccessLogMarker.getInstance())
-				.addMarker(GRPC_ACCESS_LOG_MARKER)
-				.log(constructLogMessage(serverCall, status));
+			if (accessLog) {
+				log.atInfo()
+					.addMarker(AccessLogMarker.getInstance())
+					.addMarker(GRPC_ACCESS_LOG_MARKER)
+					.log(constructLogMessage(serverCall, status));
+			}
 			this.event.finish().commit();
 			this.serverCall.close(status, trailers);
 		}
@@ -222,7 +234,7 @@ public class ObservabilityInterceptor implements ServerInterceptor {
 
 		@Override
 		public void onMessage(R request) {
-			if (event.streamsRequests()) {
+			if (event.streamsRequests() || event.unaryCall()) {
 				event.setInitiator(InitiatorType.CLIENT);
 			}
 			super.onMessage(request);

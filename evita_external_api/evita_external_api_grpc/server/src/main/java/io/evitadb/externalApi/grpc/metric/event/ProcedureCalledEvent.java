@@ -83,6 +83,14 @@ public class ProcedureCalledEvent extends AbstractGrpcApiEvent {
 	}
 
 	/**
+	 * Check if the method represents single client invocation (inspiration taken from `java-grpc-prometheus` library).
+	 * @return true if the method represents single client invocation
+	 */
+	public boolean unaryCall() {
+		return this.methodType == MethodType.UNARY;
+	}
+
+	/**
 	 * Check if the method streams requests (inspiration taken from `java-grpc-prometheus` library).
 	 * @return true if the method streams requests
 	 */
