@@ -1107,17 +1107,6 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	}
 
 	@Nonnull
-	@Override
-	public PersistentStorageDescriptor copySnapshotTo(@Nonnull Path newFilePath, long catalogVersion) {
-		return getStoragePartPersistenceService().copySnapshotTo(newFilePath, catalogVersion);
-	}
-
-	@Override
-	public void close() {
-		this.storagePartPersistenceService.close();
-	}
-
-	@Nonnull
 	public OffsetIndexDescriptor flush(long newCatalogVersion, @Nonnull HeaderInfoSupplier headerInfoSupplier) {
 		final long previousVersion = this.storagePartPersistenceService.getVersion();
 		final OffsetIndexDescriptor newDescriptor = this.storagePartPersistenceService.flush(newCatalogVersion);
@@ -1178,8 +1167,11 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	) {
 		final OffsetIndexDescriptor offsetIndexDescriptor = getStoragePartPersistenceService().copySnapshotTo(catalogVersion, outputStream);
 		final EntityCollectionHeader currentHeader = getEntityCollectionHeader();
+		final Path catalogStoragePath = this.entityCollectionFile.getParent();
 		return createEntityCollectionHeader(
-			catalogVersion, offsetIndexDescriptor,
+			catalogVersion,
+			catalogStoragePath,
+			offsetIndexDescriptor,
 			new CopyingHeaderInfoSupplier(currentHeader),
 			new CollectionFileReference(
 				fileReference.entityType(),

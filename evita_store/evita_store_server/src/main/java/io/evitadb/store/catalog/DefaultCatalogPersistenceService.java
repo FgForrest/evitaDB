@@ -74,7 +74,6 @@ import io.evitadb.store.kryo.VersionedKryoFactory;
 import io.evitadb.store.kryo.VersionedKryoKeyInputs;
 import io.evitadb.store.model.FileLocation;
 import io.evitadb.store.model.StoragePart;
-import io.evitadb.store.model.PersistentStorageDescriptor;
 import io.evitadb.store.offsetIndex.OffsetIndex.NonFlushedBlock;
 import io.evitadb.store.offsetIndex.OffsetIndexDescriptor;
 import io.evitadb.store.offsetIndex.exception.UnexpectedCatalogContentsException;
@@ -282,7 +281,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	 * Verifies the name of the catalog and its uniqueness among other existing catalogs.
 	 */
 	@Nonnull
-	public static Path pathForNewCatalog(@Nonnull String catalogName, @Nonnull Path storageDirectory) {
+	public static Path pathForCatalog(@Nonnull String catalogName, @Nonnull Path storageDirectory) {
 		try {
 			return storageDirectory.resolve(catalogName);
 		} catch (InvalidPathException ex) {
@@ -357,9 +356,9 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	/**
 	 * Deserializes the catalog bootstrap record from the file on specified position.
 	 *
-	 * @param storageOptions the storage options
+	 * @param storageOptions    the storage options
 	 * @param bootstrapFilePath the path to the catalog bootstrap file
-	 * @param fromPosition the position in the file to read the record from
+	 * @param fromPosition      the position in the file to read the record from
 	 * @return the catalog bootstrap record
 	 */
 	@Nonnull
@@ -368,7 +367,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		@Nonnull Path bootstrapFilePath,
 		long fromPosition
 	) {
-		try(
+		try (
 			final ReadOnlyFileHandle readHandle = new ReadOnlyFileHandle(bootstrapFilePath, storageOptions.computeCRC32C());
 		) {
 			return readHandle.execute(
@@ -428,6 +427,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			storagePartPersistenceService.writeCatalogHeader(
 				STORAGE_PROTOCOL_VERSION,
 				catalogVersion,
+				catalogStoragePath,
 				ofNullable(catalogHeader.walFileReference())
 					.map(it -> new WalFileReference(catalogName, it.fileIndex(), it.fileLocation()))
 					.orElse(null),
@@ -656,7 +656,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			transactionOptions.transactionMemoryRegionCount()
 		);
 		this.catalogName = catalogName;
-		this.catalogStoragePath = pathForNewCatalog(catalogName, storageOptions.storageDirectoryOrDefault());
+		this.catalogStoragePath = pathForCatalog(catalogName, storageOptions.storageDirectoryOrDefault());
 		verifyDirectory(this.catalogStoragePath, true);
 		this.observableOutputKeeper = new ObservableOutputKeeper(catalogName, storageOptions, scheduler);
 		this.recordTypeRegistry = new OffsetIndexRecordTypeRegistry();
@@ -698,7 +698,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				observableOutputKeeper,
 				VERSIONED_KRYO_FACTORY,
 				nonFlushedBlock -> this.reportNonFlushedContents(catalogName, nonFlushedBlock),
-				oldestRecordTimestamp -> this.reportOldestHistoricalRecord(catalogName, oldestRecordTimestamp.orElse(null))
+				oldestRecordTimestamp -> DefaultCatalogPersistenceService.reportOldestHistoricalRecord(catalogName, oldestRecordTimestamp.orElse(null))
 			)
 		);
 		this.catalogPersistenceServiceVersions = new long[]{catalogVersion};
@@ -729,7 +729,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			transactionOptions.transactionMemoryRegionCount()
 		);
 		this.catalogName = catalogName;
-		this.catalogStoragePath = catalogStoragePath;
+		this.catalogStoragePath = pathForCatalog(catalogName, storageOptions.storageDirectoryOrDefault());
 		this.observableOutputKeeper = new ObservableOutputKeeper(catalogName, storageOptions, scheduler);
 		this.recordTypeRegistry = new OffsetIndexRecordTypeRegistry();
 		final String verifiedCatalogName = verifyDirectory(this.catalogStoragePath, false);
@@ -770,7 +770,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				this.observableOutputKeeper,
 				VERSIONED_KRYO_FACTORY,
 				nonFlushedBlock -> this.reportNonFlushedContents(catalogName, nonFlushedBlock),
-				oldestRecordTimestamp -> this.reportOldestHistoricalRecord(catalogName, oldestRecordTimestamp.orElse(null))
+				oldestRecordTimestamp -> DefaultCatalogPersistenceService.reportOldestHistoricalRecord(catalogName, oldestRecordTimestamp.orElse(null))
 			);
 		this.catalogStoragePartPersistenceService.put(
 			catalogVersion,
@@ -836,7 +836,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			this.observableOutputKeeper,
 			VERSIONED_KRYO_FACTORY,
 			nonFlushedBlock -> this.reportNonFlushedContents(catalogName, nonFlushedBlock),
-			oldestRecordTimestamp -> this.reportOldestHistoricalRecord(catalogName, oldestRecordTimestamp.orElse(null)),
+			oldestRecordTimestamp -> DefaultCatalogPersistenceService.reportOldestHistoricalRecord(catalogName, oldestRecordTimestamp.orElse(null)),
 			previousCatalogStoragePartPersistenceService
 		);
 		this.catalogStoragePartPersistenceService = CollectionUtils.createConcurrentHashMap(16);
@@ -1238,7 +1238,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		@Nonnull Map<NamingConvention, String> catalogNameVariationsToBeReplaced,
 		@Nonnull CatalogSchema catalogSchema
 	) {
-		final Path newPath = pathForNewCatalog(catalogNameToBeReplaced, storageOptions.storageDirectoryOrDefault());
+		final Path newPath = pathForCatalog(catalogNameToBeReplaced, storageOptions.storageDirectoryOrDefault());
 		final boolean targetPathExists = newPath.toFile().exists();
 		if (targetPathExists) {
 			Assert.isPremiseValid(newPath.toFile().isDirectory(), () -> "Path `" + newPath.toAbsolutePath() + "` is not a directory!");
@@ -1421,6 +1421,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 					oldValue == null,
 					"Entity collection persistence service for `" + newEntityType + "` already exists in catalog `" + catalogName + "`!"
 				);
+				final EntityCollectionHeader entityHeader = entityPersistenceService.getEntityCollectionHeader();
 				return new DefaultEntityCollectionPersistenceService(
 					this.bootstrapUsed.catalogVersion(),
 					this.catalogName,
@@ -1433,7 +1434,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 						entityHeader.lastPrimaryKey(),
 						entityHeader.lastEntityIndexPrimaryKey(),
 						entityHeader.activeRecordShare(),
-						newPersistentStorageDescriptor,
+						newEntityCollectionHeader,
 						entityHeader.globalEntityIndexId(),
 						entityHeader.usedEntityIndexIds()
 					),
@@ -1682,34 +1683,37 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				.copySnapshotTo(
 					catalogVersion, zipOutputStream,
 					Stream.concat(
-						Stream.of(
-							new CatalogHeader(
-								STORAGE_PROTOCOL_VERSION,
-								catalogHeader.version() + 1,
-								catalogHeader.walFileReference(),
-								entityHeaders.values().stream()
-									.map(
-										it -> new CollectionFileReference(
-											it.entityType(),
-											it.entityTypePrimaryKey(),
-											it.entityTypeFileIndex(),
-											it.fileLocation()
+							Stream.of(
+								new CatalogHeader(
+									STORAGE_PROTOCOL_VERSION,
+									catalogHeader.version() + 1,
+									catalogHeader.walFileReference(),
+									entityHeaders.values().stream()
+										.map(
+											it -> new CollectionFileReference(
+												it.entityType(),
+												it.entityTypePrimaryKey(),
+												it.entityTypeFileIndex(),
+												it.fileLocation()
+											)
 										)
-									)
-									.collect(
-										Collectors.toMap(
-											CollectionFileReference::entityType,
-											Function.identity()
-										)
-									),
-								catalogHeader.compressedKeys(),
-								catalogHeader.catalogName(),
-								catalogHeader.catalogState(),
-								catalogHeader.lastEntityCollectionPrimaryKey()
-							)
-						),
-						entityHeaders.values().stream()
-					).toArray(StoragePart[]::new)
+										.collect(
+											Collectors.toMap(
+												CollectionFileReference::entityType,
+												Function.identity()
+											)
+										),
+									catalogHeader.compressedKeys(),
+									catalogHeader.catalogName(),
+									catalogHeader.catalogState(),
+									catalogHeader.lastEntityCollectionPrimaryKey(),
+									1.0 // all entries are active
+								)
+							),
+							entityHeaders.values().stream()
+						)
+						.map(StoragePart.class::cast)
+						.toArray(StoragePart[]::new)
 				);
 			zipOutputStream.closeEntry();
 
@@ -1895,7 +1899,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 					this.observableOutputKeeper,
 					VERSIONED_KRYO_FACTORY,
 					nonFlushedBlock -> this.reportNonFlushedContents(catalogName, nonFlushedBlock),
-					oldestRecordTimestamp -> this.reportOldestHistoricalRecord(catalogName, oldestRecordTimestamp.orElse(null))
+					oldestRecordTimestamp -> DefaultCatalogPersistenceService.reportOldestHistoricalRecord(catalogName, oldestRecordTimestamp.orElse(null))
 				)
 			);
 			this.catalogPersistenceServiceVersions = ArrayUtils.insertLongIntoOrderedArray(catalogVersion, this.catalogPersistenceServiceVersions);
@@ -2012,7 +2016,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		final int recordCount = CatalogBootstrap.getRecordCount(
 			fromFile.toFile().length()
 		);
-		try(
+		try (
 			final ReadOnlyFileHandle readHandle = new ReadOnlyFileHandle(
 				fromFile,
 				storageOptions.computeCRC32C()
@@ -2147,7 +2151,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	) {
 		final long length = bootstrapFile.length();
 		final int recordCount = CatalogBootstrap.getRecordCount(length);
-		try(
+		try (
 			final ReadOnlyFileHandle readHandle = new ReadOnlyFileHandle(bootstrapFilePath, storageOptions.computeCRC32C());
 		) {
 			final int minCvIndex = ArrayUtils.binarySearch(
@@ -2212,10 +2216,13 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	/**
 	 * Reports changes in historical records kept.
 	 *
-	 * @param catalogName     name of the catalog
+	 * @param catalogName            name of the catalog
 	 * @param oldestHistoricalRecord oldest historical record
 	 */
-	private void reportOldestHistoricalRecord(@Nonnull String catalogName, @Nullable OffsetDateTime oldestHistoricalRecord) {
+	private static void reportOldestHistoricalRecord(
+		@Nonnull String catalogName,
+		@Nullable OffsetDateTime oldestHistoricalRecord
+	) {
 		new OffsetIndexHistoryKeptEvent(
 			catalogName,
 			FileType.CATALOG,

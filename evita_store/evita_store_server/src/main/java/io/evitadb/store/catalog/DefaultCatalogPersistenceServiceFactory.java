@@ -91,7 +91,7 @@ public class DefaultCatalogPersistenceServiceFactory implements CatalogPersisten
 	) throws DirectoryNotEmptyException, InvalidStoragePathException {
 		// unzip contents of the stream
 		try (final ZipInputStream zipInputStream = new ZipInputStream(inputStream)) {
-			final Path storagePath = DefaultCatalogPersistenceService.pathForNewCatalog(catalogName, storageOptions.storageDirectoryOrDefault());
+			final Path storagePath = DefaultCatalogPersistenceService.pathForCatalog(catalogName, storageOptions.storageDirectoryOrDefault());
 			DefaultCatalogPersistenceService.verifyDirectory(storagePath, true);
 
 			ZipEntry entry = zipInputStream.getNextEntry();

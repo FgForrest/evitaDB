@@ -61,7 +61,6 @@ import io.evitadb.core.maintenance.SessionKiller;
 import io.evitadb.core.metric.event.storage.EvitaDBCompositionChangedEvent;
 import io.evitadb.core.metric.event.system.EvitaStartedEvent;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.scheduling.BackgroundTask;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.scheduling.RejectingExecutor;
@@ -626,12 +625,10 @@ public final class Evita implements EvitaContract {
 	 * @param catalogName name of the catalog
 	 */
 	private void loadCatalog(@Nonnull String catalogName) {
-		final Path directory = configuration.storage().storageDirectoryOrDefault().resolve(catalogName);
 		try {
 			final long start = System.nanoTime();
 			final CatalogContract catalog = new Catalog(
 				catalogName,
-				directory,
 				this.cacheSupervisor,
 				this.configuration.storage(),
 				this.configuration.transaction(),
@@ -648,7 +645,14 @@ public final class Evita implements EvitaContract {
 			);
 		} catch (Throwable ex) {
 			log.error("Catalog {} is corrupted!", catalogName);
-			this.catalogs.put(catalogName, new CorruptedCatalog(catalogName, directory, ex));
+			this.catalogs.put(
+				catalogName,
+				new CorruptedCatalog(
+					catalogName,
+					configuration.storage().storageDirectoryOrDefault().resolve(catalogName),
+					ex
+				)
+			);
 		}
 	}
 
