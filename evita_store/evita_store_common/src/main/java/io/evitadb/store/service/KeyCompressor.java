@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -33,6 +33,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.Map;
+import java.util.OptionalInt;
 
 import static io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataKey;
 
@@ -67,8 +68,8 @@ public interface KeyCompressor extends Serializable {
 	 *
 	 * Method may return null when no id exists yet and the implementation cannot generate new id.
 	 */
-	@Nullable
-	<T extends Comparable<T>> Integer getIdIfExists(@Nonnull T key);
+	@Nonnull
+	<T extends Comparable<T>> OptionalInt getIdIfExists(@Nonnull T key);
 
 	/**
 	 * Returns original `key` that is linked to passed integer id that was acquired during deserialization from Kryo.

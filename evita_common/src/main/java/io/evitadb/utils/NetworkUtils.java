@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -24,6 +24,7 @@
 package io.evitadb.utils;
 
 import lombok.NoArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import okhttp3.ConnectionPool;
 import okhttp3.Headers;
 import okhttp3.HttpUrl;
@@ -56,7 +57,13 @@ import java.util.concurrent.TimeUnit;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
+@Slf4j
 public class NetworkUtils {
+	/**
+	 * This shouldn't be changed - only in tests which needs to extend this timeout for slower machines runnning
+	 * parallel tests and squeezing the resources.
+	 */
+	public static int DEFAULT_CLIENT_TIMEOUT = 500;
 	private static OkHttpClient HTTP_CLIENT;
 
 	/**
@@ -104,7 +111,7 @@ public class NetworkUtils {
 						.build()
 				).execute()
 			) {
-				return response.code() < 500;
+				return response.code() < DEFAULT_CLIENT_TIMEOUT;
 			}
 		} catch (IOException e) {
 			return false;
@@ -195,10 +202,11 @@ public class NetworkUtils {
 				sc.init(null, new TrustManager[]{TrustAllX509TrustManager.INSTANCE}, new java.security.SecureRandom());
 
 				HTTP_CLIENT = new OkHttpClient.Builder()
+					.hostnameVerifier((hostname, session) -> true)
 					.sslSocketFactory(sc.getSocketFactory(), TrustAllX509TrustManager.INSTANCE)
 					.protocols(Arrays.asList(Protocol.HTTP_1_1, Protocol.HTTP_2))
-					.readTimeout(500, TimeUnit.MILLISECONDS)
-					.callTimeout(500, TimeUnit.MILLISECONDS)
+					.readTimeout(DEFAULT_CLIENT_TIMEOUT, TimeUnit.MILLISECONDS)
+					.callTimeout(DEFAULT_CLIENT_TIMEOUT, TimeUnit.MILLISECONDS)
 					.connectionPool(new ConnectionPool(0, 1, TimeUnit.MILLISECONDS))
 					.build();
 			} catch (NoSuchAlgorithmException | KeyManagementException e) {

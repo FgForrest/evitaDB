@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -26,6 +26,7 @@ package io.evitadb.index.hierarchy.predicate;
 import io.evitadb.api.query.filter.EntityHaving;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.AttributeSchemaAccessor;
 import io.evitadb.core.query.QueryContext;
@@ -191,6 +192,7 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 		@Nonnull QueryContext queryContext,
 		@Nonnull GlobalEntityIndex entityIndex,
 		@Nonnull FilterBy filterBy,
+		@Nonnull EntitySchemaContract entitySchema,
 		@Nullable ReferenceSchemaContract referenceSchema
 	) {
 		this.parent = null;
@@ -218,13 +220,13 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 					GlobalEntityIndex.class,
 					Collections.singletonList(entityIndex),
 					null,
-					entityIndex.getEntitySchema(),
+					entitySchema,
 					null,
 					null,
 					null,
 					new AttributeSchemaAccessor(
 						queryContext.getCatalogSchema(),
-						entityIndex.getEntitySchema(),
+						entitySchema,
 						null
 					),
 					(entityContract, attributeName, locale) -> Stream.of(entityContract.getAttributeValue(attributeName, locale)),

@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -913,7 +913,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference facetEntityReference = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder getFacetEntityReferenceBuilder() {
-      
+
       onChanged();
       return getFacetEntityReferenceFieldBuilder().getBuilder();
     }
@@ -940,7 +940,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference facetEntityReference = 1;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcEntityReference, io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcEntityReference, io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder>
         getFacetEntityReferenceFieldBuilder() {
       if (facetEntityReferenceBuilder_ == null) {
         facetEntityReferenceBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -1068,7 +1068,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity facetEntity = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder getFacetEntityBuilder() {
-      
+
       onChanged();
       return getFacetEntityFieldBuilder().getBuilder();
     }
@@ -1095,7 +1095,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity facetEntity = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcSealedEntity, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcSealedEntity, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder>
         getFacetEntityFieldBuilder() {
       if (facetEntityBuilder_ == null) {
         facetEntityBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -1131,7 +1131,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setRequested(boolean value) {
-      
+
       requested_ = value;
       onChanged();
       return this;
@@ -1145,7 +1145,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearRequested() {
-      
+
       requested_ = false;
       onChanged();
       return this;
@@ -1174,7 +1174,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setCount(int value) {
-      
+
       count_ = value;
       onChanged();
       return this;
@@ -1188,7 +1188,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearCount() {
-      
+
       count_ = 0;
       onChanged();
       return this;
@@ -1316,7 +1316,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int32Value impact = 5;</code>
      */
     public com.google.protobuf.Int32Value.Builder getImpactBuilder() {
-      
+
       onChanged();
       return getImpactFieldBuilder().getBuilder();
     }
@@ -1345,7 +1345,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int32Value impact = 5;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder> 
+        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder>
         getImpactFieldBuilder() {
       if (impactBuilder_ == null) {
         impactBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -1473,7 +1473,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int32Value matchCount = 6;</code>
      */
     public com.google.protobuf.Int32Value.Builder getMatchCountBuilder() {
-      
+
       onChanged();
       return getMatchCountFieldBuilder().getBuilder();
     }
@@ -1500,7 +1500,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int32Value matchCount = 6;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder> 
+        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder>
         getMatchCountFieldBuilder() {
       if (matchCountBuilder_ == null) {
         matchCountBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<

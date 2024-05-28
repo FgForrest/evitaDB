@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.core.Catalog;
+import io.evitadb.core.CatalogRelatedDataStructure;
 import io.evitadb.core.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalContainerChanges;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
@@ -38,7 +39,6 @@ import io.evitadb.index.CatalogIndex.CatalogIndexChanges;
 import io.evitadb.index.attribute.GlobalUniqueIndex;
 import io.evitadb.index.attribute.UniqueIndex;
 import io.evitadb.index.bool.TransactionalBoolean;
-import io.evitadb.index.map.MapChanges;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.spi.model.storageParts.index.CatalogIndexStoragePart;
@@ -47,7 +47,6 @@ import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.io.Serializable;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -57,6 +56,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static io.evitadb.core.Transaction.isTransactionAvailable;
 import static io.evitadb.index.attribute.AttributeIndex.verifyLocalizedAttribute;
@@ -70,7 +70,11 @@ import static java.util.Optional.ofNullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public class CatalogIndex implements Index<CatalogIndexKey>, TransactionalLayerProducer<CatalogIndexChanges, CatalogIndex>, IndexDataStructure {
+public class CatalogIndex implements
+	Index<CatalogIndexKey>, TransactionalLayerProducer<CatalogIndexChanges, CatalogIndex>,
+	IndexDataStructure,
+	CatalogRelatedDataStructure<CatalogIndex>
+{
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	/**
 	 * This is internal flag that tracks whether the index contents became dirty and needs to be persisted.
@@ -92,29 +96,48 @@ public class CatalogIndex implements Index<CatalogIndexKey>, TransactionalLayerP
 	 */
 	private Catalog catalog;
 
-	public CatalogIndex(@Nonnull Catalog catalog) {
+	public CatalogIndex() {
 		this.version = 1;
 		this.dirty = new TransactionalBoolean();
-		this.catalog = catalog;
 		this.uniqueIndex = new TransactionalMap<>(new HashMap<>(), GlobalUniqueIndex.class, Function.identity());
 	}
 
-	public CatalogIndex(@Nonnull Catalog catalog, int version, @Nonnull Map<AttributeKey, GlobalUniqueIndex> uniqueIndex) {
+	public CatalogIndex(int version, @Nonnull Map<AttributeKey, GlobalUniqueIndex> uniqueIndex) {
 		this.version = version;
 		this.dirty = new TransactionalBoolean();
-		this.catalog = catalog;
 		this.uniqueIndex = new TransactionalMap<>(uniqueIndex, GlobalUniqueIndex.class, Function.identity());
 	}
 
-	/**
-	 * Replaces reference to the new catalog object. This needs to be done when transaction is
-	 * committed and new GlobalUniqueIndex is created with link to the original transactional Catalog but finally
-	 * new {@link Catalog} is created and the new indexes linking old collection needs to be
-	 * migrated to new catalog instance.
-	 */
-	public void updateReferencesTo(@Nonnull Catalog newCatalog) {
-		this.catalog = newCatalog;
-		this.uniqueIndex.values().forEach(it -> it.updateReferencesTo(newCatalog));
+	private CatalogIndex(int version, @Nonnull TransactionalMap<AttributeKey, GlobalUniqueIndex> uniqueIndex) {
+		this.version = version;
+		this.dirty = new TransactionalBoolean();
+		this.uniqueIndex = uniqueIndex;
+	}
+
+	@Override
+	public void attachToCatalog(@Nullable String entityType, @Nonnull Catalog catalog) {
+		Assert.isPremiseValid(this.catalog == null, "Catalog was already attached to this index!");
+		this.catalog = catalog;
+		for (GlobalUniqueIndex globalUniqueIndex : uniqueIndex.values()) {
+			globalUniqueIndex.attachToCatalog(null, catalog);
+		}
+	}
+
+	@Nonnull
+	@Override
+	public CatalogIndex createCopyForNewCatalogAttachment() {
+		return new CatalogIndex(
+			this.version,
+			this.uniqueIndex
+				.entrySet()
+				.stream()
+				.collect(
+					Collectors.toMap(
+						Entry::getKey,
+						entry -> entry.getValue().createCopyForNewCatalogAttachment()
+					)
+				)
+		);
 	}
 
 	@Nonnull
@@ -153,7 +176,8 @@ public class CatalogIndex implements Index<CatalogIndexKey>, TransactionalLayerP
 		final GlobalUniqueIndex theUniqueIndex = this.uniqueIndex.computeIfAbsent(
 			createAttributeKey(attributeSchema, allowedLocales, locale, value),
 			lookupKey -> {
-				final GlobalUniqueIndex newUniqueIndex = new GlobalUniqueIndex(lookupKey, attributeSchema.getType(), catalog);
+				final GlobalUniqueIndex newUniqueIndex = new GlobalUniqueIndex(lookupKey, attributeSchema.getType());
+				newUniqueIndex.attachToCatalog(null, catalog);
 				ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
 					.ifPresent(it -> it.addCreatedItem(newUniqueIndex));
 				this.dirty.setToTrue();
@@ -229,7 +253,7 @@ public class CatalogIndex implements Index<CatalogIndexKey>, TransactionalLayerP
 	public CatalogIndex createCopyWithMergedTransactionalMemory(@Nullable CatalogIndexChanges layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		final Boolean wasDirty = transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
 		final CatalogIndex newCatalogIndex = new CatalogIndex(
-			catalog, version + (wasDirty ? 1 : 0), transactionalLayer.getStateCopyWithCommittedChanges(uniqueIndex)
+			version + (wasDirty ? 1 : 0), transactionalLayer.getStateCopyWithCommittedChanges(uniqueIndex)
 		);
 		ofNullable(layer).ifPresent(it -> it.clean(transactionalLayer));
 		return newCatalogIndex;
@@ -248,7 +272,7 @@ public class CatalogIndex implements Index<CatalogIndexKey>, TransactionalLayerP
 	 * This class collects changes in {@link #uniqueIndex} transactional maps.
 	 */
 	public static class CatalogIndexChanges {
-		private final TransactionalContainerChanges<TransactionalContainerChanges<MapChanges<Serializable, Integer>, Map<Serializable, Integer>, TransactionalMap<Serializable, Integer>>, GlobalUniqueIndex, GlobalUniqueIndex> uniqueIndexChanges = new TransactionalContainerChanges<>();
+		private final TransactionalContainerChanges<Void, GlobalUniqueIndex, GlobalUniqueIndex> uniqueIndexChanges = new TransactionalContainerChanges<>();
 
 		public void addCreatedItem(@Nonnull GlobalUniqueIndex uniqueIndex) {
 			uniqueIndexChanges.addCreatedItem(uniqueIndex);

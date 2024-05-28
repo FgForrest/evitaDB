@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -25,8 +25,10 @@ package io.evitadb.externalApi.grpc.services;
 
 import com.google.protobuf.ByteString;
 import com.google.protobuf.Empty;
+import io.evitadb.api.CatalogContract;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.exception.CatalogNotFoundException;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.EntityFetch;
@@ -112,6 +114,11 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 		new ModifyEntitySchemaMutationConverter();
 	private static final EntityMutationConverter<EntityMutation, GrpcEntityMutation> ENTITY_MUTATION_CONVERTER =
 		new DelegatingEntityMutationConverter();
+
+	/**
+	 * Instance of Evita upon which will be executed service calls
+	 */
+	@Nonnull private final Evita evita;
 
 	/**
 	 * Produces the {@link CatalogSchema}.
@@ -806,7 +813,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	}
 
 	/**
-	 * Method used to close currently used session by calling {@link EvitaSessionContract#close()} ()}.
+	 * Method used to close currently used session by calling {@link EvitaSessionContract#close()}.
 	 *
 	 * @param request          empty request
 	 * @param responseObserver observer on which errors might be thrown and result returned
@@ -825,7 +832,14 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 					responseObserver.onCompleted();
 				});
 			} else {
-				responseObserver.onCompleted();
+				final String catalogName = ServerSessionInterceptor.CATALOG_NAME.get();
+				final Optional<CatalogContract> catalogInstance = catalogName == null ? empty() : evita.getCatalogInstance(catalogName);
+				if (catalogInstance.isPresent()) {
+					responseObserver.onNext(GrpcCloseResponse.newBuilder().setCatalogVersion(catalogInstance.get().getVersion()).build());
+					responseObserver.onCompleted();
+				} else {
+					responseObserver.onError(new CatalogNotFoundException(catalogName));
+				}
 			}
 		});
 	}

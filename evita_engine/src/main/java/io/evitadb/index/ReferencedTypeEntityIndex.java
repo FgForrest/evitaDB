@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -27,7 +27,6 @@ import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
-import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalContainerChanges;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
@@ -62,7 +61,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static io.evitadb.core.Transaction.isTransactionAvailable;
@@ -107,10 +105,10 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 
 	public ReferencedTypeEntityIndex(
 		int primaryKey,
-		@Nonnull EntityIndexKey entityIndexKey,
-		@Nonnull Supplier<EntitySchema> schemaAccessor
+		@Nonnull String entityType,
+		@Nonnull EntityIndexKey entityIndexKey
 	) {
-		super(primaryKey, entityIndexKey, schemaAccessor);
+		super(primaryKey, entityType, entityIndexKey);
 		this.primaryKeyCardinality = new CardinalityIndex(Integer.class);
 		this.cardinalityIndexes = new TransactionalMap<>(new HashMap<>(), CardinalityIndex.class, Function.identity());
 	}
@@ -119,7 +117,6 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		int primaryKey,
 		@Nonnull EntityIndexKey entityIndexKey,
 		int version,
-		@Nonnull Supplier<EntitySchema> schemaAccessor,
 		@Nonnull Bitmap entityIds,
 		@Nonnull Map<Locale, TransactionalBitmap> entityIdsByLanguage,
 		@Nonnull AttributeIndex attributeIndex,
@@ -129,7 +126,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		@Nonnull Map<AttributeKey, CardinalityIndex> cardinalityIndexes
 	) {
 		super(
-			primaryKey, entityIndexKey, version, schemaAccessor,
+			primaryKey, entityIndexKey, version,
 			entityIds, entityIdsByLanguage,
 			attributeIndex, hierarchyIndex, facetIndex, VoidPriceIndex.INSTANCE
 		);
@@ -365,7 +362,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		// we can safely throw away dirty flag now
 		final Boolean wasDirty = transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
 		final ReferencedTypeEntityIndex referencedTypeEntityIndex = new ReferencedTypeEntityIndex(
-			primaryKey, indexKey, version + (wasDirty ? 1 : 0), schemaAccessor,
+			this.primaryKey, this.indexKey, this.version + (wasDirty ? 1 : 0),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.entityIds),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.entityIdsByLanguage),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.attributeIndex),

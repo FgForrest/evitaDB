@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -2645,6 +2645,46 @@ public class EntityByAttributeFilteringFunctionalTest {
 					originalProductEntities,
 					sealedEntity -> ofNullable((DateTimeRange) sealedEntity.getAttribute(ATTRIBUTE_VALIDITY))
 						.map(it -> it.isValidFor(theMoment))
+						.orElse(false),
+					result.getRecordData()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return entities greater than date time range")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnEntitiesByAttributeDateTimeRangeGreaterThanMoment(Evita evita, List<SealedEntity> originalProductEntities) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final List<OffsetDateTime> allValidities = originalProductEntities.stream()
+					.map(it -> it.getAttribute(ATTRIBUTE_VALIDITY, DateTimeRange.class))
+					.filter(Objects::nonNull)
+					.map(DateTimeRange::getPreciseFrom)
+					.distinct()
+					.sorted()
+					.toList();
+				final OffsetDateTime theMoment = allValidities.get(allValidities.size() / 2);
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							attributeGreaterThan(ATTRIBUTE_VALIDITY, theMoment)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+				assertResultIs(
+					originalProductEntities,
+					sealedEntity -> ofNullable((DateTimeRange) sealedEntity.getAttribute(ATTRIBUTE_VALIDITY))
+						.map(it -> it.compareTo(DateTimeRange.between(theMoment, theMoment)) > 0)
 						.orElse(false),
 					result.getRecordData()
 				);

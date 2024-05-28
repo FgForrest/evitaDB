@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -24,15 +24,18 @@
 package io.evitadb.store.offsetIndex.io;
 
 import io.evitadb.api.configuration.StorageOptions;
+import io.evitadb.core.metric.event.storage.FileType;
 import io.evitadb.store.exception.InvalidStoragePathException;
 import io.evitadb.store.exception.StorageException;
 import io.evitadb.store.kryo.ObservableOutput;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
+import io.evitadb.store.offsetIndex.OffsetIndex;
 import io.evitadb.store.offsetIndex.exception.SyncFailedException;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
@@ -78,6 +81,18 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 		}
 	};
 
+	/**
+	 * Name of the catalog the persistence service relates to - used for observability.
+	 */
+	private final String catalogName;
+	/**
+	 * Logical name of the file that backs the {@link OffsetIndex} - used for observability.
+	 */
+	protected final String logicalName;
+	/**
+	 * Type of the file that backs the {@link OffsetIndex} - used for observability.
+	 */
+	private final FileType fileType;
 	/**
 	 * The maximum time (in seconds) that a thread may wait to acquire the lock on the file handle.
 	 * If a thread cannot acquire the lock within this time, a StorageException is thrown.
@@ -172,7 +187,23 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 		}
 	}
 
-	public WriteOnlyFileHandle(@Nonnull Path targetFile, @Nonnull ObservableOutputKeeper observableOutputKeeper) {
+	public WriteOnlyFileHandle(
+		@Nonnull Path targetFile,
+		@Nonnull ObservableOutputKeeper observableOutputKeeper
+	) {
+		this(null, null, null, targetFile, observableOutputKeeper);
+	}
+
+	public WriteOnlyFileHandle(
+		@Nullable String catalogName,
+		@Nullable FileType fileType,
+		@Nullable String logicalName,
+		@Nonnull Path targetFile,
+		@Nonnull ObservableOutputKeeper observableOutputKeeper
+	) {
+		this.catalogName = catalogName;
+		this.fileType = fileType;
+		this.logicalName = logicalName;
 		this.lockTimeoutSeconds = observableOutputKeeper.getLockTimeoutSeconds();
 		this.targetFile = targetFile;
 		Assert.isPremiseValid(getTargetFile(targetFile) != null, "Target file should be created or exception thrown!");
@@ -255,13 +286,16 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 
 	@Override
 	public long getLastWrittenPosition() {
-		return targetFile.toFile().length();
+		return this.targetFile.toFile().length();
 	}
 
 	@Nonnull
 	@Override
 	public ReadOnlyHandle toReadOnlyHandle() {
-		return new ReadOnlyFileHandle(targetFile, observableOutputKeeper.getOptions().computeCRC32C());
+		return new ReadOnlyFileHandle(
+			this.catalogName, this.fileType, this.logicalName,
+			this.targetFile, this.observableOutputKeeper.getOptions().computeCRC32C()
+		);
 	}
 
 	@Override

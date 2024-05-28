@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -192,6 +192,15 @@ public class EvitaDataTypes {
 	private static final BiFunction<Class<?>, Serializable, DateTimeRange> DATE_TIME_RANGE_FUNCTION = (requestedType, unknownObject) -> {
 		if (unknownObject instanceof DateTimeRange) {
 			return (DateTimeRange) unknownObject;
+		} else if (unknownObject instanceof OffsetDateTime offsetDateTime) {
+			return DateTimeRange.between(offsetDateTime, offsetDateTime);
+		} else if (unknownObject instanceof LocalDateTime localDateTime) {
+			return DateTimeRange.between(localDateTime.atOffset(ZoneOffset.UTC), localDateTime.atOffset(ZoneOffset.UTC));
+		} else if (unknownObject instanceof LocalDate localDate) {
+			return DateTimeRange.between(
+				localDate.atStartOfDay(ZoneOffset.UTC).toOffsetDateTime(),
+				localDate.atStartOfDay(ZoneOffset.UTC).toOffsetDateTime().plusHours(23).plusMinutes(59).plusSeconds(59).plusNanos(999999999)
+			);
 		} else {
 			final String value = unknownObject.toString();
 			final String[] parsedResult = DateTimeRange.PARSE_FCT.apply(value);

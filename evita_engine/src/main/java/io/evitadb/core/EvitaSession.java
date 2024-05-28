@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -41,6 +41,9 @@ import io.evitadb.api.exception.TransactionNotSupportedException;
 import io.evitadb.api.exception.UnexpectedResultCountException;
 import io.evitadb.api.exception.UnexpectedResultException;
 import io.evitadb.api.exception.UnexpectedTransactionStateException;
+import io.evitadb.api.observability.trace.RepresentsMutation;
+import io.evitadb.api.observability.trace.RepresentsQuery;
+import io.evitadb.api.observability.trace.Traced;
 import io.evitadb.api.proxy.ProxyFactory;
 import io.evitadb.api.proxy.SealedEntityProxy;
 import io.evitadb.api.proxy.SealedEntityReferenceProxy;
@@ -73,8 +76,10 @@ import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
-import io.evitadb.api.trace.Traced;
 import io.evitadb.core.exception.CatalogCorruptedException;
+import io.evitadb.core.metric.event.query.EntityEnrichEvent;
+import io.evitadb.core.metric.event.query.EntityFetchEvent;
+import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.core.transaction.TransactionWalFinalizer;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -139,6 +144,10 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	 * Evita instance this session is connected to.
 	 */
 	@Getter private final Evita evita;
+	/**
+	 * Date and time of the session creation.
+	 */
+	@Getter private final OffsetDateTime created = OffsetDateTime.now();
 	/**
 	 * Contains unique identification of this particular Evita session. The id is not currently used, but may be
 	 * propagated into the logs in the future.
@@ -464,6 +473,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		return getCatalog().getEntityTypes();
 	}
 
+	@RepresentsQuery
 	@Nonnull
 	@Override
 	public <S extends Serializable> Optional<S> queryOne(@Nonnull Query query, @Nonnull Class<S> expectedType) throws UnexpectedResultException, UnexpectedResultCountException, InstanceTerminatedException {
@@ -478,6 +488,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		);
 	}
 
+	@RepresentsQuery
 	@Nonnull
 	@Override
 	public <S extends Serializable> List<S> queryList(@Nonnull Query query, @Nonnull Class<S> expectedType)
@@ -485,6 +496,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		return query(query, expectedType).getRecordData();
 	}
 
+	@RepresentsQuery
 	@Nonnull
 	@Override
 	public <S extends Serializable, T extends EvitaResponse<S>> T query(@Nonnull Query query, @Nonnull Class<S> expectedType) throws UnexpectedResultException, InstanceTerminatedException {
@@ -500,10 +512,14 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	}
 
 	@Traced
+	@RepresentsQuery
 	@Nonnull
 	@Override
 	public Optional<SealedEntity> getEntity(@Nonnull String entityType, int primaryKey, EntityContentRequire... require) {
 		assertActive();
+
+		final EntityFetchEvent fetchEvent = new EntityFetchEvent(getCatalogName(), entityType);
+
 		final EvitaRequest evitaRequest = new EvitaRequest(
 			Query.query(
 				collection(entityType),
@@ -517,20 +533,38 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 			this::createEntityProxy
 		);
 		final EntityCollectionContract entityCollection = getCatalog().getCollectionForEntityOrThrowException(entityType);
-		return entityCollection.getEntity(
+		final Optional<SealedEntity> resultEntity = entityCollection.getEntity(
 			primaryKey,
 			evitaRequest,
 			this
 		);
+
+		// emit the event
+		final Optional<ServerEntityDecorator> serverEntityDecorator = resultEntity
+			.map(ServerEntityDecorator.class::cast);
+		fetchEvent.finish(
+			serverEntityDecorator
+				.map(ServerEntityDecorator::getIoFetchCount)
+				.orElse(0),
+			serverEntityDecorator
+				.map(ServerEntityDecorator::getIoFetchedBytes)
+				.orElse(0)
+		).commit();
+
+		return resultEntity;
 	}
 
 	@Traced
+	@RepresentsQuery
 	@Nonnull
 	@Override
 	public <T extends Serializable> Optional<T> getEntity(@Nonnull Class<T> expectedType, int primaryKey, EntityContentRequire... require) {
 		assertActive();
 		final String entityType = extractEntityTypeFromClass(expectedType, reflectionLookup)
 			.orElseThrow(() -> new CollectionNotFoundException(expectedType));
+
+		final EntityFetchEvent fetchEvent = new EntityFetchEvent(getCatalogName(), entityType);
+
 		final EntityCollectionContract entityCollection = getCatalog().getCollectionForEntityOrThrowException(entityType);
 		final EvitaRequest evitaRequest = new EvitaRequest(
 			Query.query(
@@ -544,19 +578,41 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 			entityType,
 			this::createEntityProxy
 		);
-		return entityCollection.getEntity(
+		final Optional<T> resultEntity = entityCollection.getEntity(
 			primaryKey,
 			evitaRequest,
 			this
 		).map(it -> this.createEntityProxy(expectedType, it));
+
+		// emit the event
+		final Optional<ServerEntityDecorator> serverEntityDecorator = resultEntity
+			.map(it -> {
+				final EntityContract theEntity = (
+					it instanceof SealedEntityProxy sealedEntityProxy ?
+						sealedEntityProxy.entity() : (it instanceof EntityContract ec ? ec : null)
+				);
+				return theEntity instanceof ServerEntityDecorator sed ?  sed : null;
+			});
+		fetchEvent.finish(
+			serverEntityDecorator
+				.map(ServerEntityDecorator::getIoFetchCount)
+				.orElse(0),
+			serverEntityDecorator
+				.map(ServerEntityDecorator::getIoFetchedBytes)
+				.orElse(0)
+		).commit();
+
+		return resultEntity;
 	}
 
 	@Traced
+	@RepresentsQuery
 	@Nonnull
 	@Override
 	public <T extends Serializable> T enrichEntity(@Nonnull T partiallyLoadedEntity, EntityContentRequire... require) {
 		assertActive();
 		final String entityType = getEntityTypeFromEntity(partiallyLoadedEntity, reflectionLookup);
+		final EntityEnrichEvent enrichEvent = new EntityEnrichEvent(getCatalogName(), entityType);
 		final EntityCollectionContract entityCollection = getCatalog().getCollectionForEntityOrThrowException(entityType);
 		final EvitaRequest evitaRequest = new EvitaRequest(
 			Query.query(
@@ -571,33 +627,50 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 			this::createEntityProxy
 		);
 		if (partiallyLoadedEntity instanceof SealedEntityProxy sealedEntityProxy) {
-			//noinspection unchecked
-			return (T) this.createEntityProxy(
-				sealedEntityProxy.getProxyClass(),
-				entityCollection.enrichEntity(
-					sealedEntityProxy.entity(),
-					evitaRequest,
-					this
-				)
-			);
-		} else {
-			Assert.isTrue(partiallyLoadedEntity instanceof EntityDecorator, "Expected entity decorator in the input.");
-			final EntityDecorator entityDecorator = (EntityDecorator) partiallyLoadedEntity;
-			//noinspection unchecked
-			return (T) entityCollection.enrichEntity(
-				entityDecorator,
+			final ServerEntityDecorator enrichedEntity = (ServerEntityDecorator) entityCollection.enrichEntity(
+				sealedEntityProxy.entity(),
 				evitaRequest,
 				this
 			);
+
+			// emit the event
+			enrichEvent.finish(
+				enrichedEntity.getIoFetchCount(),
+				enrichedEntity.getIoFetchedBytes()
+			).commit();
+
+			//noinspection unchecked
+			return (T) this.createEntityProxy(
+				sealedEntityProxy.getProxyClass(),
+				enrichedEntity
+			);
+		} else {
+			Assert.isTrue(partiallyLoadedEntity instanceof EntityDecorator, "Expected entity decorator in the input.");
+			final ServerEntityDecorator enrichedEntity = (ServerEntityDecorator) entityCollection.enrichEntity(
+				(EntityDecorator) partiallyLoadedEntity,
+				evitaRequest,
+				this
+			);
+			// emit the event
+			enrichEvent.finish(
+				enrichedEntity.getIoFetchCount(),
+				enrichedEntity.getIoFetchedBytes()
+			).commit();
+
+			//noinspection unchecked
+			return (T) enrichedEntity;
 		}
 	}
 
 	@Traced
+	@RepresentsQuery
 	@Nonnull
 	@Override
 	public <T extends Serializable> T enrichOrLimitEntity(@Nonnull T partiallyLoadedEntity, EntityContentRequire... require) {
 		assertActive();
 		final String entityType = getEntityTypeFromEntity(partiallyLoadedEntity, reflectionLookup);
+		final EntityEnrichEvent enrichEvent = new EntityEnrichEvent(getCatalogName(), entityType);
+
 		final EntityCollectionContract entityCollection = getCatalog().getCollectionForEntity(entityType)
 			.orElseThrow(() -> new CollectionNotFoundException(entityType));
 		final EvitaRequest evitaRequest = new EvitaRequest(
@@ -614,26 +687,41 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 			this::createEntityProxy
 		);
 		if (partiallyLoadedEntity instanceof SealedEntityProxy sealedEntityProxy) {
+			final ServerEntityDecorator enrichedEntity = (ServerEntityDecorator) entityCollection.limitEntity(
+				entityCollection.enrichEntity(
+					sealedEntityProxy.entity(),
+					evitaRequest,
+					this
+				),
+				evitaRequest, this
+			);
+
+			// emit the event
+			enrichEvent.finish(
+				enrichedEntity.getIoFetchCount(),
+				enrichedEntity.getIoFetchedBytes()
+			).commit();
+
 			//noinspection unchecked
 			return (T) this.createEntityProxy(
 				sealedEntityProxy.getProxyClass(),
-				entityCollection.limitEntity(
-					entityCollection.enrichEntity(
-						sealedEntityProxy.entity(),
-						evitaRequest,
-						this
-					),
-					evitaRequest, this
-				)
+				enrichedEntity
 			);
 		} else {
 			Assert.isTrue(partiallyLoadedEntity instanceof EntityDecorator, "Expected entity decorator in the input.");
-			final EntityDecorator entityDecorator = (EntityDecorator) partiallyLoadedEntity;
-			//noinspection unchecked
-			return (T) entityCollection.limitEntity(
-				entityCollection.enrichEntity(entityDecorator, evitaRequest, this),
+			final ServerEntityDecorator enrichedEntity = (ServerEntityDecorator) entityCollection.limitEntity(
+				entityCollection.enrichEntity((EntityDecorator) partiallyLoadedEntity, evitaRequest, this),
 				evitaRequest, this
 			);
+
+			// emit the event
+			enrichEvent.finish(
+				enrichedEntity.getIoFetchCount(),
+				enrichedEntity.getIoFetchedBytes()
+			).commit();
+
+			//noinspection unchecked
+			return (T) enrichedEntity;
 		}
 	}
 
@@ -719,6 +807,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	}
 
 	@Traced
+	@RepresentsQuery
 	@Override
 	public int getEntityCollectionSize(@Nonnull String entityType) {
 		assertActive();
@@ -773,6 +862,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	}
 
 	@Traced
+	@RepresentsMutation
 	@Nonnull
 	@Override
 	public <S extends Serializable> EntityReference upsertEntity(@Nonnull S customEntity) {
@@ -808,6 +898,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	}
 
 	@Traced
+	@RepresentsMutation
 	@Nonnull
 	@Override
 	public <S extends Serializable> List<EntityReference> upsertEntityDeeply(@Nonnull S customEntity) {
@@ -867,6 +958,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	}
 
 	@Traced
+	@RepresentsMutation
 	@Nonnull
 	@Override
 	public EntityReference upsertEntity(@Nonnull EntityMutation entityMutation) {
@@ -878,18 +970,22 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	}
 
 	@Traced
+	@RepresentsMutation
+	@RepresentsQuery
 	@Nonnull
 	@Override
 	public SealedEntity upsertAndFetchEntity(@Nonnull EntityBuilder entityBuilder, EntityContentRequire... require) {
 		return entityBuilder.toMutation()
 			.map(it -> upsertAndFetchEntity(it, require))
 			.orElseGet(
-				() -> (SealedEntity) getEntity(entityBuilder.getType(), entityBuilder.getPrimaryKey(), require)
+				() -> getEntity(entityBuilder.getType(), entityBuilder.getPrimaryKey(), require)
 					.orElseThrow(() -> new EvitaInvalidUsageException("Entity `" + entityBuilder.getType() + "` with id `" + entityBuilder.getPrimaryKey() + "` doesn't exist!"))
 			);
 	}
 
 	@Traced
+	@RepresentsMutation
+	@RepresentsQuery
 	@Nonnull
 	@Override
 	public SealedEntity upsertAndFetchEntity(@Nonnull EntityMutation entityMutation, EntityContentRequire... require) {
@@ -919,6 +1015,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	}
 
 	@Traced
+	@RepresentsMutation
 	@Override
 	public boolean deleteEntity(@Nonnull String entityType, int primaryKey) {
 		assertActive();
@@ -929,6 +1026,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	}
 
 	@Traced
+	@RepresentsMutation
 	@Override
 	public boolean deleteEntity(@Nonnull Class<?> modelClass, int primaryKey) throws EntityClassInvalidException {
 		return deleteEntity(
@@ -939,6 +1037,8 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	}
 
 	@Traced
+	@RepresentsMutation
+	@RepresentsQuery
 	@Nonnull
 	@Override
 	public Optional<SealedEntity> deleteEntity(@Nonnull String entityType, int primaryKey, EntityContentRequire... require) {
@@ -946,6 +1046,8 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	}
 
 	@Traced
+	@RepresentsMutation
+	@RepresentsQuery
 	@Nonnull
 	@Override
 	public <T extends Serializable> Optional<T> deleteEntity(@Nonnull Class<T> modelClass, int primaryKey, EntityContentRequire... require) throws EntityClassInvalidException {
@@ -957,6 +1059,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	}
 
 	@Traced
+	@RepresentsMutation
 	@Override
 	public int deleteEntityAndItsHierarchy(@Nonnull String entityType, int primaryKey) {
 		assertActive();
@@ -971,6 +1074,8 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	}
 
 	@Traced
+	@RepresentsMutation
+	@RepresentsQuery
 	@Nonnull
 	@Override
 	public DeletedHierarchy<SealedEntity> deleteEntityAndItsHierarchy(@Nonnull String entityType, int primaryKey, EntityContentRequire... require) {
@@ -978,6 +1083,8 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	}
 
 	@Traced
+	@RepresentsMutation
+	@RepresentsQuery
 	@Nonnull
 	@Override
 	public <T extends Serializable> DeletedHierarchy<T> deleteEntityAndItsHierarchy(@Nonnull Class<T> modelClass, int primaryKey, EntityContentRequire... require) throws EvitaInvalidUsageException, EntityClassInvalidException {
@@ -1074,6 +1181,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		return (System.currentTimeMillis() - lastCall) / 1000;
 	}
 
+	@RepresentsQuery
 	@Nonnull
 	@Override
 	public <S extends Serializable> Optional<S> queryOne(@Nonnull EvitaRequest evitaRequest)
@@ -1100,6 +1208,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		}
 	}
 
+	@RepresentsQuery
 	@Nonnull
 	@Override
 	public <S extends Serializable> List<S> queryList(@Nonnull EvitaRequest evitaRequest) throws UnexpectedResultException, InstanceTerminatedException {
@@ -1107,6 +1216,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		return (List<S>) query(evitaRequest).getRecordData();
 	}
 
+	@RepresentsQuery
 	@Nonnull
 	@Override
 	public <S extends Serializable, T extends EvitaResponse<S>> T query(@Nonnull EvitaRequest evitaRequest) throws UnexpectedResultException, InstanceTerminatedException {
@@ -1133,6 +1243,16 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	@Nonnull
 	public Optional<CompletableFuture<Long>> getTransactionFinalizationFuture() {
 		return ofNullable(transactionFinalizationFuture);
+	}
+
+	/**
+	 * Returns a transaction wrapped in optional. If no transaction is bound to the session, an empty optional is returned.
+	 *
+	 * @return an Optional containing the transaction, if it exists; otherwise, an empty Optional.
+	 */
+	@Nonnull
+	public Optional<Transaction> getTransaction() {
+		return ofNullable(transactionAccessor.get());
 	}
 
 	/**

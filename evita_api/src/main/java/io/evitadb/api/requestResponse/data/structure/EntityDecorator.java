@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -280,6 +280,36 @@ public class EntityDecorator implements SealedEntity {
 						LinkedHashMap::new
 					)
 				) : Collections.emptyMap();
+	}
+
+	/**
+	 * Creates wrapper around {@link Entity} that filters existing data according passed predicates (which are constructed
+	 * to match query that is used to retrieve the decorator).
+	 *
+	 * @param entity                  fully or partially loaded entity - it's usually wider than decorator (may be even complete), decorator
+	 *                                might be obtained from shared global cache
+	 * @param parentEntity            object of the parentEntity
+	 * @param referenceFetcher        fetcher that can be used for fetching, filtering and ordering referenced
+	 *                                entities / groups
+	 */
+	public EntityDecorator(
+		@Nonnull EntityDecorator entity,
+		@Nullable EntityClassifierWithParent parentEntity,
+		@Nonnull ReferenceFetcher referenceFetcher
+	) {
+		this(
+			entity.getDelegate(),
+			entity.getSchema(),
+			parentEntity,
+			entity.localePredicate,
+			entity.hierarchyPredicate,
+			entity.attributePredicate,
+			entity.associatedDataPredicate,
+			entity.referencePredicate,
+			entity.pricePredicate,
+			entity.alignedNow,
+			referenceFetcher
+		);
 	}
 
 	/**

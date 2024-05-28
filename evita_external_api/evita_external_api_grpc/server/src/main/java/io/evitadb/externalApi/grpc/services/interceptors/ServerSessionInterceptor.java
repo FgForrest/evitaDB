@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -85,6 +85,7 @@ public class ServerSessionInterceptor implements ServerInterceptor {
 	 * Context that holds current {@link EvitaSessionContract} session.
 	 */
 	public static final Context.Key<EvitaInternalSessionContract> SESSION = Context.key(SESSION_ID_HEADER);
+	public static final Context.Key<String> CATALOG_NAME = Context.key(CATALOG_NAME_HEADER);
 	public static final Context.Key<Metadata> METADATA = Context.key(METADATA_HEADER);
 
 	/**
@@ -126,7 +127,7 @@ public class ServerSessionInterceptor implements ServerInterceptor {
 		if (activeSession.isPresent()) {
 			context = context.withValue(SESSION, activeSession.get());
 		}
-		context = context.withValue(METADATA, metadata);
+		context = context.withValue(METADATA, metadata).withValue(CATALOG_NAME, catalogName);
 		return Contexts.interceptCall(context, serverCall, metadata, serverCallHandler);
 	}
 

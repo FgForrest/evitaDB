@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -25,6 +25,8 @@ package io.evitadb.core.maintenance;
 
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.core.Evita;
+import io.evitadb.core.metric.event.session.KilledEvent;
+import io.evitadb.core.scheduling.BackgroundTask;
 import io.evitadb.scheduling.Scheduler;
 import lombok.extern.slf4j.Slf4j;
 
@@ -46,7 +48,12 @@ public class SessionKiller implements Runnable {
 	public SessionKiller(int allowedInactivityInSeconds, @Nonnull Evita evita, @Nonnull Scheduler scheduler) {
 		this.allowedInactivityInSeconds = allowedInactivityInSeconds;
 		this.evita = evita;
-		scheduler.scheduleAtFixedRate(this, Math.min(60, allowedInactivityInSeconds), Math.min(60, allowedInactivityInSeconds), TimeUnit.SECONDS);
+		scheduler.scheduleAtFixedRate(
+			new BackgroundTask("Session killer", this),
+			Math.min(60, allowedInactivityInSeconds),
+			Math.min(60, allowedInactivityInSeconds),
+			TimeUnit.SECONDS
+		);
 	}
 
 	@Override
@@ -56,13 +63,19 @@ public class SessionKiller implements Runnable {
 			evita.getActiveSessions()
 				.filter(session -> session.getInactivityDurationInSeconds() >= allowedInactivityInSeconds)
 				.forEach(session -> {
+					final String catalogName = session.getCatalogName();
+
 					// session is orphan - it may contain only part of the changes the client wanted
 					// play it safe and throw out potentially inconsistent updates
 					if (session.isTransactionOpen()) {
 						session.setRollbackOnly();
 					}
+
 					evita.terminateSession(session);
 					counter.incrementAndGet();
+
+					// emit the event
+					new KilledEvent(catalogName).commit();
 				});
 
 			if (counter.get() > 0) {

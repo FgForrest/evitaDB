@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -40,6 +40,7 @@ import io.evitadb.utils.Assert;
 import io.evitadb.utils.ComparatorUtils;
 import io.evitadb.utils.NumberUtils;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.ToString;
 
@@ -52,6 +53,8 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Locale;
+import java.util.OptionalInt;
+import java.util.OptionalLong;
 import java.util.function.UnaryOperator;
 
 /**
@@ -67,6 +70,7 @@ import java.util.function.UnaryOperator;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @NotThreadSafe
+@EqualsAndHashCode(exclude = {"dirty", "sizeInBytes"})
 @ToString(of = "attributeSetKey")
 public class AttributesStoragePart implements EntityStoragePart, RecordWithCompressedId<EntityAttributesSetKey> {
 	private static final AttributeValue[] EMPTY_ATTRIBUTE_VALUES = new AttributeValue[0];
@@ -80,6 +84,10 @@ public class AttributesStoragePart implements EntityStoragePart, RecordWithCompr
 	 * Contains key for attribute set lookup.
 	 */
 	private final EntityAttributesSetKey attributeSetKey;
+	/**
+	 * Contains information about size of this container in bytes.
+	 */
+	private final int sizeInBytes;
 	/**
 	 * Id used for lookups in persistent storage for this particular container.
 	 */
@@ -100,32 +108,43 @@ public class AttributesStoragePart implements EntityStoragePart, RecordWithCompr
 	 *
 	 * @throws CompressionKeyUnknownException when key is not recognized by {@link KeyCompressor}
 	 */
-	public static long computeUniquePartId(@Nonnull KeyCompressor keyCompressor, @Nonnull EntityAttributesSetKey attributeSetKey) throws CompressionKeyUnknownException {
-		return NumberUtils.join(
-			attributeSetKey.entityPrimaryKey(),
-			keyCompressor.getId(
-				new AttributesSetKey(attributeSetKey.locale())
-			)
+	@Nonnull
+	public static OptionalLong computeUniquePartId(@Nonnull KeyCompressor keyCompressor, @Nonnull EntityAttributesSetKey attributeSetKey) throws CompressionKeyUnknownException {
+		final OptionalInt id = keyCompressor.getIdIfExists(
+			new AttributesSetKey(attributeSetKey.locale())
 		);
+		if (id.isPresent()) {
+			return OptionalLong.of(
+				NumberUtils.join(
+					attributeSetKey.entityPrimaryKey(),
+					id.getAsInt()
+				)
+			);
+		} else {
+			return OptionalLong.empty();
+		}
 	}
 
 	public AttributesStoragePart(int entityPrimaryKey) {
 		this.storagePartPK = null;
 		this.entityPrimaryKey = entityPrimaryKey;
 		this.attributeSetKey = new EntityAttributesSetKey(entityPrimaryKey, null);
+		this.sizeInBytes = -1;
 	}
 
 	public AttributesStoragePart(int entityPrimaryKey, Locale locale) {
 		this.storagePartPK = null;
 		this.entityPrimaryKey = entityPrimaryKey;
 		this.attributeSetKey = new EntityAttributesSetKey(entityPrimaryKey, locale);
+		this.sizeInBytes = -1;
 	}
 
-	public AttributesStoragePart(long storagePartPK, int entityPrimaryKey, Locale locale, AttributeValue[] attributes) {
+	public AttributesStoragePart(long storagePartPK, int entityPrimaryKey, @Nonnull Locale locale, @Nonnull AttributeValue[] attributes, int sizeInBytes) {
 		this.storagePartPK = storagePartPK;
 		this.entityPrimaryKey = entityPrimaryKey;
 		this.attributeSetKey = new EntityAttributesSetKey(entityPrimaryKey, locale);
 		this.attributes = attributes;
+		this.sizeInBytes = sizeInBytes;
 	}
 
 	@Override
@@ -136,8 +155,13 @@ public class AttributesStoragePart implements EntityStoragePart, RecordWithCompr
 	@Override
 	public long computeUniquePartIdAndSet(@Nonnull KeyCompressor keyCompressor) {
 		Assert.isTrue(this.storagePartPK == null, "Unique part id is already known!");
-		Assert.notNull(entityPrimaryKey, "Entity primary key must be non null!");
-		this.storagePartPK = computeUniquePartId(keyCompressor, attributeSetKey);
+		Assert.notNull(this.entityPrimaryKey, "Entity primary key must be non null!");
+		this.storagePartPK = NumberUtils.join(
+			this.attributeSetKey.entityPrimaryKey(),
+			keyCompressor.getId(
+				new AttributesSetKey(this.attributeSetKey.locale())
+			)
+		);
 		return this.storagePartPK;
 	}
 
@@ -192,6 +216,12 @@ public class AttributesStoragePart implements EntityStoragePart, RecordWithCompr
 	@Override
 	public boolean isEmpty() {
 		return attributes.length == 0 || Arrays.stream(attributes).noneMatch(Droppable::exists);
+	}
+
+	@Nonnull
+	@Override
+	public OptionalInt sizeInBytes() {
+		return sizeInBytes == -1 ? OptionalInt.empty() : OptionalInt.of(sizeInBytes);
 	}
 
 	/**

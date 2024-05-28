@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -94,7 +94,8 @@ abstract class AbstractMutatorTestBase {
 		alterCatalogSchema(catalogSchemaBuilder);
 		catalogSchema = (CatalogSchema) catalogSchemaBuilder.toInstance();
 		sealedCatalogSchema = new CatalogSchemaDecorator(catalogSchema);
-		catalogIndex = new CatalogIndex(catalog);
+		catalogIndex = new CatalogIndex();
+		catalogIndex.attachToCatalog(null, catalog);
 
 		final EvitaSession mockSession = Mockito.mock(EvitaSession.class);
 		Mockito.when(catalog.getSchema()).thenReturn(sealedCatalogSchema);
@@ -107,7 +108,7 @@ abstract class AbstractMutatorTestBase {
 				AbstractMutatorTestBase.this::alterProductSchema
 			)
 		);
-		productIndex = new GlobalEntityIndex(1, new EntityIndexKey(EntityIndexType.GLOBAL), () -> productSchema);
+		productIndex = new GlobalEntityIndex(1, productSchema.getName(), new EntityIndexKey(EntityIndexType.GLOBAL));
 		executor = new EntityIndexLocalMutationExecutor(
 			containerAccessor, 1,
 			new MockEntityIndexCreator<>(productIndex),

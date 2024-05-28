@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
@@ -41,6 +42,7 @@ import io.evitadb.test.Entities;
 import org.junit.jupiter.api.Test;
 
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import static io.evitadb.index.mutation.ReferenceIndexMutator.attributeUpdate;
 import static io.evitadb.index.mutation.ReferenceIndexMutator.referenceInsert;
@@ -59,8 +61,9 @@ class ReferenceIndexMutatorTest extends AbstractMutatorTestBase {
 	private static final String ATTRIBUTE_CHAR_ARRAY = "charArray";
 	public static final Consumer<Runnable> DO_NOTHING_CONSUMER = runnable -> {
 	};
-	private final EntityIndex entityIndex = new GlobalEntityIndex(1, new EntityIndexKey(EntityIndexType.GLOBAL), () -> productSchema);
-	private final ReferencedTypeEntityIndex referenceTypesIndex = new ReferencedTypeEntityIndex(1, new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, Entities.BRAND), () -> productSchema);
+	private final Supplier<EntitySchema> schemaSupplier = () -> productSchema;
+	private final EntityIndex entityIndex = new GlobalEntityIndex(1, productSchema.getName(), new EntityIndexKey(EntityIndexType.GLOBAL));
+	private final ReferencedTypeEntityIndex referenceTypesIndex = new ReferencedTypeEntityIndex(1, productSchema.getName(), new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, Entities.BRAND));
 
 	@Override
 	protected void alterCatalogSchema(CatalogSchemaEditor.CatalogSchemaBuilder schema) {
@@ -84,9 +87,9 @@ class ReferenceIndexMutatorTest extends AbstractMutatorTestBase {
 	@Test
 	void shouldInsertNewReference() {
 		final ReferenceKey referenceKey = new ReferenceKey(Entities.BRAND, 10);
-		final EntityIndex referenceIndex = new GlobalEntityIndex(2, new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY, referenceKey), () -> productSchema);
+		final EntityIndex referenceIndex = new GlobalEntityIndex(2, productSchema.getName(), new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY, referenceKey));
 		referenceInsert(
-			1, ENTITY_NAME, executor, entityIndex, referenceTypesIndex, referenceIndex, referenceKey, DO_NOTHING_CONSUMER
+			1, productSchema, executor, entityIndex, referenceTypesIndex, referenceIndex, referenceKey, DO_NOTHING_CONSUMER
 		);
 		assertArrayEquals(new int[]{10}, referenceTypesIndex.getAllPrimaryKeys().getArray());
 		assertArrayEquals(new int[]{1}, referenceIndex.getAllPrimaryKeys().getArray());
@@ -95,9 +98,9 @@ class ReferenceIndexMutatorTest extends AbstractMutatorTestBase {
 	@Test
 	void shouldIndexAttributes() {
 		final ReferenceKey referenceKey = new ReferenceKey(Entities.BRAND, 10);
-		final EntityIndex referenceIndex = new GlobalEntityIndex(2, new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY, referenceKey), () -> productSchema);
+		final EntityIndex referenceIndex = new GlobalEntityIndex(2, productSchema.getName(), new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY, referenceKey));
 		referenceInsert(
-			1, ENTITY_NAME, executor, entityIndex, referenceTypesIndex, referenceIndex, referenceKey, DO_NOTHING_CONSUMER
+			1, productSchema, executor, entityIndex, referenceTypesIndex, referenceIndex, referenceKey, DO_NOTHING_CONSUMER
 		);
 		final ReferenceAttributeMutation referenceMutation = new ReferenceAttributeMutation(referenceKey, new UpsertAttributeMutation(new AttributeKey(ATTRIBUTE_VARIANT_COUNT), 55));
 		attributeUpdate(

@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -39,9 +39,11 @@ import java.util.stream.Collectors;
 
 /**
  * This {@link Serializer} implementation reads/writes {@link EntityCollectionHeader} from/to binary format.
+ * TOBEDONE #538 - Remove this class in the future.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
+@Deprecated
 public class EntityCollectionHeaderSerializer extends AbstractPersistentStorageHeaderSerializer<EntityCollectionHeader> {
 
 	@Override
@@ -53,6 +55,7 @@ public class EntityCollectionHeaderSerializer extends AbstractPersistentStorageH
 		output.writeVarInt(object.lastPrimaryKey(), true);
 		output.writeVarInt(object.lastEntityIndexPrimaryKey(), true);
 		output.writeVarInt(object.recordCount(), true);
+		output.writeDouble(object.activeRecordShare());
 
 		final FileLocation fileOffsetIndexLocation = object.fileLocation();
 		output.writeVarLong(fileOffsetIndexLocation.startingPosition(), true);
@@ -72,6 +75,7 @@ public class EntityCollectionHeaderSerializer extends AbstractPersistentStorageH
 		final int lastPrimaryKey = input.readVarInt(true);
 		final int lastEntityIndexPrimaryKey = input.readVarInt(true);
 		final int entityCount = input.readVarInt(true);
+		final double activeRecordShare = input.readDouble();
 		final FileLocation fileOffsetIndexLocation = new FileLocation(
 				input.readVarLong(true),
 				input.readVarInt(true)
@@ -88,6 +92,7 @@ public class EntityCollectionHeaderSerializer extends AbstractPersistentStorageH
 			entityCount,
 			lastPrimaryKey,
 			lastEntityIndexPrimaryKey,
+			activeRecordShare,
 			new PersistentStorageHeader(version, fileOffsetIndexLocation, keys),
 			globalIndexKey,
 			entityIndexIds

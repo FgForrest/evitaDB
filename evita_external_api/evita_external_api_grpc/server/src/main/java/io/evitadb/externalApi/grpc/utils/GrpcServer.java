@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -33,8 +33,8 @@ import io.evitadb.externalApi.configuration.MtlsConfiguration;
 import io.evitadb.externalApi.grpc.configuration.GrpcConfig;
 import io.evitadb.externalApi.grpc.services.EvitaService;
 import io.evitadb.externalApi.grpc.services.EvitaSessionService;
-import io.evitadb.externalApi.grpc.services.interceptors.AccessLogInterceptor;
 import io.evitadb.externalApi.grpc.services.interceptors.GlobalExceptionHandlerInterceptor;
+import io.evitadb.externalApi.grpc.services.interceptors.ObservabilityInterceptor;
 import io.evitadb.externalApi.grpc.services.interceptors.ServerSessionInterceptor;
 import io.evitadb.utils.CertificateUtils;
 import io.grpc.ManagedChannel;
@@ -120,16 +120,14 @@ public class GrpcServer {
 				e
 			);
 		}
-
 		final NettyServerBuilder serverBuilder = NettyServerBuilder.forAddress(new InetSocketAddress(hosts[0].host(), hosts[0].port()), tlsServerCredentials)
 			.executor(evita.getExecutor())
 			.addService(new EvitaService(evita))
-			.addService(new EvitaSessionService())
+			.addService(new EvitaSessionService(evita))
+			.intercept(new ObservabilityInterceptor(apiOptions.accessLog()))
 			.intercept(new ServerSessionInterceptor(evita))
 			.intercept(new GlobalExceptionHandlerInterceptor());
-		if (apiOptions.accessLog()) {
-			serverBuilder.intercept(new AccessLogInterceptor());
-		}
+
 		server = serverBuilder.build();
 	}
 }

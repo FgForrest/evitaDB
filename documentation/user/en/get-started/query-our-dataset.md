@@ -84,7 +84,7 @@ When this procedure is completed you should see the similar output in the consol
 |  __/\ V /| | || (_| | |_| | |_) |
  \___| \_/ |_|\__\__,_|____/|____/
 
-beta build 2024.5.4 (keep calm and report bugs 😉)
+beta build 2024.6.1 (keep calm and report bugs 😉)
 Visit us at: https://evitadb.io
 
 19:45:37.088 INFO  i.e.s.c.DefaultCatalogPersistenceService - Catalog `evita` is being loaded and  it contains:
@@ -137,13 +137,13 @@ Open your Java IDE and add the following dependency to your project:
 <dependency>
     <groupId>io.evitadb</groupId>
     <artifactId>evita_java_driver</artifactId>
-    <version>2024.2.2</version>
+    <version>2024.6.1</version>
 </dependency>
 ```
 </CodeTabsBlock>
 <CodeTabsBlock>
 ```Gradle
-implementation 'io.evitadb:evita_java_driver:2024.2.2'
+implementation 'io.evitadb:evita_java_driver:2024.6.1'
 ```
 </CodeTabsBlock>
 </CodeTabs>

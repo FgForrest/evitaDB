@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -32,6 +32,7 @@ import io.evitadb.store.model.RecordWithCompressedId;
 import io.evitadb.store.service.KeyCompressor;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.NumberUtils;
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.ToString;
 
@@ -42,6 +43,8 @@ import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Locale;
+import java.util.OptionalInt;
+import java.util.OptionalLong;
 
 import static io.evitadb.utils.ComparatorUtils.compareLocale;
 
@@ -53,6 +56,7 @@ import static io.evitadb.utils.ComparatorUtils.compareLocale;
  */
 @NotThreadSafe
 @ToString(of = "associatedDataKey")
+@EqualsAndHashCode(exclude = {"dirty", "sizeInBytes"})
 public class AssociatedDataStoragePart implements EntityStoragePart, RecordWithCompressedId<EntityAssociatedDataKey> {
 	@Serial private static final long serialVersionUID = -1368845012702768956L;
 
@@ -64,6 +68,10 @@ public class AssociatedDataStoragePart implements EntityStoragePart, RecordWithC
 	 * See {@link AssociatedDataValue#key()}.
 	 */
 	private final EntityAssociatedDataKey associatedDataKey;
+	/**
+	 * Contains information about size of this container in bytes.
+	 */
+	private final int sizeInBytes;
 	/**
 	 * Id used for lookups in persistent storage for this particular container.
 	 */
@@ -77,33 +85,43 @@ public class AssociatedDataStoragePart implements EntityStoragePart, RecordWithC
 	 */
 	@Getter private boolean dirty;
 
-	public AssociatedDataStoragePart(int entityPrimaryKey, @Nonnull AssociatedDataKey associatedDataKey) {
-		this.storagePartPK = null;
-		this.entityPrimaryKey = entityPrimaryKey;
-		this.associatedDataKey = new EntityAssociatedDataKey(entityPrimaryKey, associatedDataKey.associatedDataName(), associatedDataKey.locale());
-	}
-
-	public AssociatedDataStoragePart(long storagePartPK, int entityPrimaryKey, @Nonnull AssociatedDataValue associatedDataValue) {
-		this.storagePartPK = storagePartPK;
-		this.entityPrimaryKey = entityPrimaryKey;
-		this.associatedDataKey = new EntityAssociatedDataKey(entityPrimaryKey, associatedDataValue.key().associatedDataName(), associatedDataValue.key().locale());
-		this.value = associatedDataValue;
-	}
-
 	/**
 	 * Computes primary ID of this container that is a long consisting of two parts:
 	 * - int entity primary key
 	 * - int key assigned by {@link KeyCompressor} for its {@link AssociatedDataKey}
 	 */
-	public static long computeUniquePartId(@Nonnull KeyCompressor keyCompressor, @Nonnull EntityAssociatedDataKey key) {
-		return NumberUtils.join(
-			key.entityPrimaryKey(),
-			keyCompressor.getId(
-				new AssociatedDataKey(
-					key.associatedDataName(), key.locale()
-				)
+	@Nonnull
+	public static OptionalLong computeUniquePartId(@Nonnull KeyCompressor keyCompressor, @Nonnull EntityAssociatedDataKey key) {
+		final OptionalInt id = keyCompressor.getIdIfExists(
+			new AssociatedDataKey(
+				key.associatedDataName(), key.locale()
 			)
 		);
+		if (id.isPresent()) {
+			return OptionalLong.of(
+				NumberUtils.join(
+					key.entityPrimaryKey(),
+					id.getAsInt()
+				)
+			);
+		} else {
+			return OptionalLong.empty();
+		}
+	}
+
+	public AssociatedDataStoragePart(int entityPrimaryKey, @Nonnull AssociatedDataKey associatedDataKey) {
+		this.storagePartPK = null;
+		this.entityPrimaryKey = entityPrimaryKey;
+		this.associatedDataKey = new EntityAssociatedDataKey(entityPrimaryKey, associatedDataKey.associatedDataName(), associatedDataKey.locale());
+		this.sizeInBytes = -1;
+	}
+
+	public AssociatedDataStoragePart(long storagePartPK, int entityPrimaryKey, @Nonnull AssociatedDataValue associatedDataValue, int sizeInBytes) {
+		this.storagePartPK = storagePartPK;
+		this.entityPrimaryKey = entityPrimaryKey;
+		this.associatedDataKey = new EntityAssociatedDataKey(entityPrimaryKey, associatedDataValue.key().associatedDataName(), associatedDataValue.key().locale());
+		this.value = associatedDataValue;
+		this.sizeInBytes = sizeInBytes;
 	}
 
 	@Override
@@ -114,14 +132,28 @@ public class AssociatedDataStoragePart implements EntityStoragePart, RecordWithC
 	@Override
 	public long computeUniquePartIdAndSet(@Nonnull KeyCompressor keyCompressor) {
 		Assert.isTrue(this.storagePartPK == null, "Unique part id is already known!");
-		Assert.notNull(entityPrimaryKey, "Entity primary key must be non-null!");
-		this.storagePartPK = AssociatedDataStoragePart.computeUniquePartId(keyCompressor, associatedDataKey);
+		Assert.notNull(this.entityPrimaryKey, "Entity primary key must be non-null!");
+		this.storagePartPK = NumberUtils.join(
+			this.associatedDataKey.entityPrimaryKey(),
+			keyCompressor.getId(
+				new AssociatedDataKey(
+					this.associatedDataKey.associatedDataName(),
+					this.associatedDataKey.locale()
+				)
+			)
+		);
 		return this.storagePartPK;
 	}
 
 	@Override
 	public boolean isEmpty() {
 		return value == null || value.dropped();
+	}
+
+	@Nonnull
+	@Override
+	public OptionalInt sizeInBytes() {
+		return sizeInBytes == -1 ? OptionalInt.empty() : OptionalInt.of(sizeInBytes);
 	}
 
 	/**

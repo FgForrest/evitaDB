@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -43,13 +43,13 @@ import io.evitadb.core.buffer.DataStoreMemoryBuffer;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.price.PriceSuperIndex;
+import io.evitadb.store.model.PersistentStorageDescriptor;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.spi.model.EntityCollectionHeader;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 /**
  * This interface represents a link between {@link io.evitadb.api.EntityCollectionContract} and its persistent storage.
@@ -64,6 +64,7 @@ public non-sealed interface EntityCollectionPersistenceService extends Persisten
 	/**
 	 * Returns underlying {@link StoragePartPersistenceService} which this instance uses for {@link StoragePart}
 	 * persistence.
+	 *
 	 * @return underlying {@link StoragePartPersistenceService}
 	 */
 	@Nonnull
@@ -83,7 +84,7 @@ public non-sealed interface EntityCollectionPersistenceService extends Persisten
 	 * is used for reading data from underlying data store.
 	 */
 	@Nullable
-	Entity readEntity(
+	EntityWithFetchCount readEntity(
 		long catalogVersion,
 		int entityPrimaryKey,
 		@Nonnull EvitaRequest evitaRequest,
@@ -97,7 +98,7 @@ public non-sealed interface EntityCollectionPersistenceService extends Persisten
 	 * is used for reading data from underlying data store.
 	 */
 	@Nullable
-	BinaryEntity readBinaryEntity(
+	BinaryEntityWithFetchCount readBinaryEntity(
 		long catalogVersion,
 		int entityPrimaryKey,
 		@Nonnull EvitaRequest evitaRequest,
@@ -115,7 +116,7 @@ public non-sealed interface EntityCollectionPersistenceService extends Persisten
 	 * @throws EntityAlreadyRemovedException when the entity has been already removed
 	 */
 	@Nonnull
-	Entity enrichEntity(
+	EntityWithFetchCount enrichEntity(
 		long catalogVersion,
 		@Nonnull EntitySchema entitySchema,
 		@Nonnull EntityDecorator entityDecorator,
@@ -155,7 +156,7 @@ public non-sealed interface EntityCollectionPersistenceService extends Persisten
 	 * @throws EntityAlreadyRemovedException when the entity has been already removed
 	 */
 	@Nonnull
-	BinaryEntity enrichEntity(
+	BinaryEntityWithFetchCount enrichEntity(
 		long catalogVersion,
 		@Nonnull EntitySchema entitySchema,
 		@Nonnull BinaryEntity entity,
@@ -170,9 +171,7 @@ public non-sealed interface EntityCollectionPersistenceService extends Persisten
 	EntityIndex readEntityIndex(
 		long catalogVersion,
 		int entityIndexId,
-		@Nonnull Supplier<EntitySchema> schemaSupplier,
-		@Nonnull Supplier<PriceSuperIndex> temporalIndexAccessor,
-		@Nonnull Supplier<PriceSuperIndex> superIndexAccessor
+		@Nonnull EntitySchema entitySchema
 	);
 
 	/**
@@ -181,4 +180,33 @@ public non-sealed interface EntityCollectionPersistenceService extends Persisten
 	 */
 	@Override
 	void close();
+
+	/**
+	 * Record contains information about entity and the number of I/O operation necessary to fetch it.
+	 *
+	 * @param entity         fetched entity
+	 * @param ioFetchCount   number of I/O operations necessary to fetch the entity
+	 * @param ioFetchedBytes number of bytes fetched from underlying storage to load the entity
+	 */
+	record EntityWithFetchCount(
+		@Nonnull Entity entity,
+		int ioFetchCount,
+		int ioFetchedBytes
+	) {
+	}
+
+	/**
+	 * Record contains information about binary entity and the number of I/O operation necessary to fetch it.
+	 *
+	 * @param entity         fetched binary entity
+	 * @param ioFetchCount   number of I/O operations necessary to fetch the entity
+	 * @param ioFetchedBytes number of bytes fetched from underlying storage to load the entity
+	 */
+	record BinaryEntityWithFetchCount(
+		@Nonnull BinaryEntity entity,
+		int ioFetchCount,
+		int ioFetchedBytes
+	) {
+	}
+
 }

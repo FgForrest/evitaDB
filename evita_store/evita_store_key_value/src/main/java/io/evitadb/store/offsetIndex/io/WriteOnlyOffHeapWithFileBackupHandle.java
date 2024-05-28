@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -24,6 +24,8 @@
 package io.evitadb.store.offsetIndex.io;
 
 import io.evitadb.api.configuration.StorageOptions;
+import io.evitadb.core.metric.event.transaction.IsolatedWalFileClosedEvent;
+import io.evitadb.core.metric.event.transaction.IsolatedWalFileOpenedEvent;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.store.exception.StorageException;
@@ -252,6 +254,11 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 			this.fileOutput.close();
 			this.observableOutputKeeper.close(this.targetFile);
 			Assert.isPremiseValid(getTargetFile(this.targetFile).delete(), "Failed to delete temporary file `" + this.targetFile + "`!");
+
+			// emit the event
+			new IsolatedWalFileClosedEvent(
+				offHeapMemoryManager.getCatalogName()
+			).commit();
 		}
 		this.fileOutput = null;
 	}
@@ -297,6 +304,10 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 		} catch (BufferOverflowException ex) {
 			// when we reach the end of the memory region
 			if (observableOutput.getOutputStream() instanceof OffHeapMemoryOutputStream offHeapMemoryOutputStream) {
+				// emit the event
+				new IsolatedWalFileOpenedEvent(
+					offHeapMemoryManager.getCatalogName()
+				).commit();
 				// we need to offload current data to the disk
 				offloadMemoryToDisk(operation, offHeapMemoryOutputStream);
 				// and retry the write logic again
@@ -432,8 +443,8 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 		}
 
 		@Override
-		public void forceClose() {
-			getDelegate().forceClose();
+		public void close() {
+			getDelegate().close();
 		}
 
 		@Override

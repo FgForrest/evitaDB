@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -40,6 +40,8 @@ import io.evitadb.api.exception.CatalogAlreadyPresentException;
 import io.evitadb.api.exception.CatalogNotFoundException;
 import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.exception.ReadOnlyException;
+import io.evitadb.api.observability.trace.TracingContext;
+import io.evitadb.api.observability.trace.TracingContextProvider;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -51,14 +53,15 @@ import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchem
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaNameMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.RemoveCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.system.SystemStatus;
-import io.evitadb.api.trace.TracingContext;
-import io.evitadb.api.trace.TracingContextProvider;
 import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.cache.HeapMemoryCacheSupervisor;
 import io.evitadb.core.cache.NoCacheSupervisor;
 import io.evitadb.core.exception.CatalogCorruptedException;
 import io.evitadb.core.maintenance.SessionKiller;
+import io.evitadb.core.metric.event.storage.EvitaDBCompositionChangedEvent;
+import io.evitadb.core.metric.event.system.EvitaStartedEvent;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.scheduling.BackgroundTask;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.scheduling.RejectingExecutor;
@@ -273,6 +276,19 @@ public final class Evita implements EvitaContract {
 	}
 
 	/**
+	 * Method for internal use - allows emitting start events when observability facilities are already initialized.
+	 * If we didn't postpone this initialization, events would become lost.
+	 */
+	public void emitStartObservabilityEvents() {
+		// emit the event
+		new EvitaStartedEvent(this.configuration)
+			.commit();
+
+		// emit the statistics event
+		updateCatalogStatistics();
+	}
+
+	/**
 	 * Method for internal use. Can switch Evita from read-write to read-only one time only.
 	 */
 	public void setReadOnly() {
@@ -370,6 +386,7 @@ public final class Evita implements EvitaContract {
 			return false;
 		} else {
 			update(new RemoveCatalogSchemaMutation(catalogName));
+			updateCatalogStatistics();
 			return true;
 		}
 	}
@@ -614,6 +631,7 @@ public final class Evita implements EvitaContract {
 			final long start = System.nanoTime();
 			final CatalogContract catalog = new Catalog(
 				catalogName,
+				directory,
 				this.cacheSupervisor,
 				this.configuration.storage(),
 				this.configuration.transaction(),
@@ -688,7 +706,8 @@ public final class Evita implements EvitaContract {
 				}
 			}
 		);
-		structuralChangeObservers.forEach(it -> it.onCatalogCreate(catalogName));
+		this.structuralChangeObservers.forEach(it -> it.onCatalogCreate(catalogName));
+		updateCatalogStatistics();
 	}
 
 	/**
@@ -750,7 +769,13 @@ public final class Evita implements EvitaContract {
 
 			// now remove the catalog that was renamed to, we need observers to be still able to access it and therefore
 			// and therefore the removal only takes place here
-			this.catalogs.remove(catalogNameToBeReplacedWith);
+			final CatalogContract removedCatalog = this.catalogs.remove(catalogNameToBeReplacedWith);
+			if (removedCatalog instanceof Catalog theCatalog) {
+				theCatalog.emitDeleteObservabilityEvents();
+			}
+
+			// we need to update catalog statistics
+			updateCatalogStatistics();
 
 		} catch (RuntimeException ex) {
 			// in case of exception return the original catalog to be replaced back
@@ -772,6 +797,9 @@ public final class Evita implements EvitaContract {
 			structuralChangeObservers.forEach(it -> doWithPretendingCatalogStillPresent(catalogToRemove, () -> it.onCatalogDelete(catalogName)));
 			catalogToRemove.terminate();
 			catalogToRemove.delete();
+			if (catalogToRemove instanceof Catalog theCatalog) {
+				theCatalog.emitDeleteObservabilityEvents();
+			}
 		}
 	}
 
@@ -865,7 +893,7 @@ public final class Evita implements EvitaContract {
 
 		final SessionRegistry sessionRegistry = activeSessions.computeIfAbsent(
 			sessionTraits.catalogName(),
-			theCatalogName -> new SessionRegistry(tracingContext, catalog)
+			theCatalogName -> new SessionRegistry(tracingContext, () -> (Catalog) this.catalogs.get(sessionTraits.catalogName()))
 		);
 
 		final NonTransactionalCatalogDescriptor nonTransactionalCatalogDescriptor =
@@ -877,7 +905,7 @@ public final class Evita implements EvitaContract {
 		}
 
 		final EvitaSessionTerminationCallback terminationCallback = session -> {
-			sessionRegistry.removeSession(session);
+			sessionRegistry.removeSession((EvitaSession) session);
 
 			if (sessionTraits.isReadWrite()) {
 				ofNullable(nonTransactionalCatalogDescriptor)
@@ -913,6 +941,27 @@ public final class Evita implements EvitaContract {
 			runnable.run();
 		} finally {
 			removedCatalog.remove();
+		}
+	}
+
+	/**
+	 * Emits the event about catalog statistics in metrics.
+	 */
+	private void updateCatalogStatistics() {
+		// emit the event
+		new EvitaDBCompositionChangedEvent(
+			this.catalogs.size(),
+			(int) this.catalogs.values()
+				.stream()
+				.filter(it -> it instanceof CorruptedCatalog)
+				.count()
+		).commit();
+
+		// iterate over all catalogs and emit the event
+		for (CatalogContract catalog : this.catalogs.values()) {
+			if (catalog instanceof Catalog theCatalog) {
+				theCatalog.emitStartObservabilityEvents();
+			}
 		}
 	}
 

@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -1174,6 +1174,10 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 			// close evita and clear data
 			log.info("Closing Evita instance for data set `{}`", dataSetName);
 			evitaInstance.close();
+
+			// close the client
+			ofNullable(client.get())
+				.ifPresent(EvitaClient::close);
 
 			// close the server instance and free ports
 			ofNullable(evitaServerInstance)

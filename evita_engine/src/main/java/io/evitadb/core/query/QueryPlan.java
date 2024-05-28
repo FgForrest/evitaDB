@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,6 +23,7 @@
 
 package io.evitadb.core.query;
 
+import io.evitadb.api.observability.trace.TracingContext.SpanAttribute;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.RequireConstraint;
@@ -36,11 +37,11 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.BinaryEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
-import io.evitadb.api.trace.TracingContext.SpanAttribute;
-import io.evitadb.core.metric.event.QueryPlanStepExecutedEvent;
+import io.evitadb.core.metric.event.query.FinishedEvent;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.prefetch.PrefetchFormulaVisitor;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
+import io.evitadb.core.query.response.EntityFetchAwareDecorator;
 import io.evitadb.core.query.sort.ConditionalSorter;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.core.query.sort.utils.SortUtils;
@@ -150,54 +151,53 @@ public class QueryPlan {
 	 */
 	@Nonnull
 	public <S extends Serializable, T extends EvitaResponse<S>> T execute() {
-		queryContext.pushStep(QueryPhase.EXECUTION);
-		new QueryPlanStepExecutedEvent(
-			QueryPhase.EXECUTION.name(),
-			this.filter.getEstimatedCost()
-		).commit();
+		this.queryContext.pushStep(QueryPhase.EXECUTION);
 
 		try {
 			// prefetch the entities to allow using them in filtering / sorting in next step
-			ofNullable(prefetchFormulaVisitor)
+			ofNullable(this.prefetchFormulaVisitor)
 				.ifPresent(it -> {
-					final Runnable prefetchLambda = it.createPrefetchLambdaIfNeededOrWorthwhile(queryContext);
+					final Runnable prefetchLambda = it.createPrefetchLambdaIfNeededOrWorthwhile(this.queryContext);
 					if (prefetchLambda != null) {
-						queryContext.pushStep(QueryPhase.EXECUTION_PREFETCH);
+						this.queryContext.pushStep(QueryPhase.EXECUTION_PREFETCH);
 						try {
-							prefetched = true;
+							this.prefetched = true;
 							prefetchLambda.run();
 						} finally {
-							queryContext.popStep();
+							this.queryContext.popStep();
 						}
 					}
 				});
 
-			queryContext.pushStep(QueryPhase.EXECUTION_FILTER);
+			this.queryContext.pushStep(QueryPhase.EXECUTION_FILTER);
 			try {
 				// this call triggers the filtering computation and cause memoization of results
-				totalRecordCount = filter.compute().size();
+				this.totalRecordCount = this.filter.compute().size();
 			} finally {
-				queryContext.popStep();
+				this.queryContext.popStep();
 			}
 
-			queryContext.pushStep(QueryPhase.EXECUTION_SORT_AND_SLICE);
+			this.queryContext.pushStep(QueryPhase.EXECUTION_SORT_AND_SLICE);
 			try {
-				primaryKeys = sortAndSliceResult(queryContext, totalRecordCount, filter, sorter);
+				this.primaryKeys = sortAndSliceResult(
+					this.queryContext, this.totalRecordCount,
+					this.filter, this.sorter
+				);
 			} finally {
 				popStep();
 			}
 
 			final T result;
-			final EvitaRequest evitaRequest = queryContext.getEvitaRequest();
+			final EvitaRequest evitaRequest = this.queryContext.getEvitaRequest();
 			// if full entity bodies are requested
 			if (evitaRequest.isRequiresEntity()) {
-				queryContext.pushStep(QueryPhase.FETCHING);
+				this.queryContext.pushStep(QueryPhase.FETCHING);
 				try {
-					if (queryContext.isRequiresBinaryForm()) {
+					if (this.queryContext.isRequiresBinaryForm()) {
 						// transform PKs to rich SealedEntities
 						final DataChunk<BinaryEntity> dataChunk = evitaRequest.createDataChunk(
-							totalRecordCount,
-							queryContext.fetchBinaryEntities(primaryKeys)
+							this.totalRecordCount,
+							this.queryContext.fetchBinaryEntities(this.primaryKeys)
 						);
 
 						// this may produce ClassCast exception if client assigns variable to different result than requests
@@ -211,13 +211,13 @@ public class QueryPlan {
 					} else {
 						// transform PKs to rich SealedEntities
 						final DataChunk<SealedEntity> dataChunk = evitaRequest.createDataChunk(
-							totalRecordCount,
-							queryContext.fetchEntities(primaryKeys)
+							this.totalRecordCount,
+							this.queryContext.fetchEntities(this.primaryKeys)
 						);
 
 						// this may produce ClassCast exception if client assigns variable to different result than requests
 						//noinspection unchecked
-						result = (T) new EvitaEntityResponse(
+						result = (T) new EvitaEntityResponse<>(
 							evitaRequest.getQuery(),
 							dataChunk,
 							// fabricate extra results
@@ -225,17 +225,17 @@ public class QueryPlan {
 						);
 					}
 				} finally {
-					queryContext.popStep();
+					this.queryContext.popStep();
 				}
 			} else {
 				// this may produce ClassCast exception if client assigns variable to different result than requests
 				final DataChunk<EntityReference> dataChunk = evitaRequest.createDataChunk(
-					totalRecordCount,
-					Arrays.stream(primaryKeys)
+					this.totalRecordCount,
+					Arrays.stream(this.primaryKeys)
 						// returns simple reference to the entity (i.e. primary key and type of the entity)
 						// TOBEDONE JNO - we should return a reference including the actual entity version information
 						// so that the client might implement its local cache
-						.mapToObj(queryContext::translateToEntityReference)
+						.mapToObj(this.queryContext::translateToEntityReference)
 						.collect(Collectors.toList())
 				);
 
@@ -249,9 +249,31 @@ public class QueryPlan {
 				);
 			}
 
+			ofNullable(this.queryContext.getQueryFinishedEvent())
+				.ifPresent(it -> {
+					int ioFetchCount = 0;
+					int ioFetchedSizeBytes = 0;
+					for (S record : result.getRecordData()) {
+						if (record instanceof EntityFetchAwareDecorator efad) {
+							ioFetchCount += efad.getIoFetchCount();
+							ioFetchedSizeBytes += efad.getIoFetchedBytes();
+						}
+					}
+					it.finish(
+						this.prefetched,
+						this.filter.getEstimatedCardinality(),
+						this.primaryKeys == null ? 0 : this.primaryKeys.length,
+						this.totalRecordCount,
+						ioFetchCount,
+						ioFetchedSizeBytes,
+						this.filter.getEstimatedCost(),
+						this.filter.getCost()
+					).commit();
+				});
+
 			return result;
 		} finally {
-			queryContext.popStep();
+			this.queryContext.popStep();
 		}
 	}
 
@@ -313,8 +335,8 @@ public class QueryPlan {
 			.append(" `")
 			.append(entityType)
 			.append("` entities using ")
-			.append(description);
-		if (queryContext.isRequiresBinaryForm()) {
+			.append(this.description);
+		if (this.queryContext.isRequiresBinaryForm()) {
 			result.append(" (in binary form)");
 		}
 		for (ExtraResultProducer extraResultProducer : extraResultProducers) {
@@ -331,15 +353,20 @@ public class QueryPlan {
 	@Nonnull
 	public SpanAttribute[] getSpanAttributes() {
 		final Query query = this.getEvitaRequest().getQuery();
+		final FinishedEvent queryFinishedEvent = queryContext.getQueryFinishedEvent();
 		return new SpanAttribute[] {
-			new SpanAttribute("prefetch", this.prefetched),
 			new SpanAttribute("collection", query.getCollection() == null ? "<NONE>" : query.getCollection().toString()),
 			new SpanAttribute("filter", query.getFilterBy() == null ? "<NONE>" : query.getFilterBy().toString()),
 			new SpanAttribute("order", query.getOrderBy() == null ? "<NONE>" : query.getOrderBy().toString()),
 			new SpanAttribute("require", query.getRequire() == null ? "<NONE>" : query.getRequire().toString()),
-			new SpanAttribute("scannedRecords", this.filter.getEstimatedCardinality()),
-			new SpanAttribute("totalRecordCount", this.totalRecordCount),
-			new SpanAttribute("returnedRecordCount", this.primaryKeys == null ? 0 : this.primaryKeys.length)
+			new SpanAttribute("prefetch", queryFinishedEvent.getPrefetched()),
+			new SpanAttribute("scannedRecords", queryFinishedEvent.getScanned()),
+			new SpanAttribute("totalRecordCount", queryFinishedEvent.getFound()),
+			new SpanAttribute("returnedRecordCount", queryFinishedEvent.getReturned()),
+			new SpanAttribute("fetchedRecordCount", queryFinishedEvent.getFetched()),
+			new SpanAttribute("fetchedRecordSizeBytes", queryFinishedEvent.getFetchedSizeBytes()),
+			new SpanAttribute("estimatedComplexity", queryFinishedEvent.getEstimatedComplexity()),
+			new SpanAttribute("complexity", queryFinishedEvent.getRealComplexity())
 		};
 	}
 }
