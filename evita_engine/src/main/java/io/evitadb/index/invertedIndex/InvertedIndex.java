@@ -23,6 +23,7 @@
 
 package io.evitadb.index.invertedIndex;
 
+import io.evitadb.ConsistencySensitiveDataStructure;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
@@ -32,6 +33,7 @@ import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
 import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.array.TransactionalComplexObjArray;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
@@ -79,7 +81,12 @@ import java.util.function.BiFunction;
  */
 @ThreadSafe
 @EqualsAndHashCode(exclude = {"dirty", "comparator"})
-public class InvertedIndex<T extends Comparable<T>> implements VoidTransactionMemoryProducer<InvertedIndex<T>>, Serializable {
+public class InvertedIndex<T extends Comparable<T>> implements
+	IndexDataStructure,
+	ConsistencySensitiveDataStructure,
+	VoidTransactionMemoryProducer<InvertedIndex<T>>,
+	Serializable
+{
 	@Serial private static final long serialVersionUID = 3019703951858227807L;
 	/**
 	 * This is internal flag that tracks whether the index contents became dirty and needs to be persisted.
@@ -124,15 +131,21 @@ public class InvertedIndex<T extends Comparable<T>> implements VoidTransactionMe
 	 * Method verifies that {@link ValueToRecordBitmap#getValue()}s in passed set are monotonically increasing and contain
 	 * no duplicities.
 	 */
-	private static <T extends Comparable<T>> void assertValueIsMonotonic(@Nonnull ValueToRecordBitmap<T>[] points, @Nonnull Comparator<T> comparator) {
+	@Nonnull
+	private static <T extends Comparable<T>> ConsistencyReport checkConsistency(@Nonnull ValueToRecordBitmap<T>[] points, @Nonnull Comparator<T> comparator) {
+		final StringBuilder report = new StringBuilder(256);
 		T previous = null;
 		for (ValueToRecordBitmap<T> bucket : points) {
 			T finalPrevious = previous;
-			Assert.isPremiseValid(
-				previous == null || comparator.compare(previous, bucket.getValue()) < 0,
-				() -> new MonotonicRowCorruptedException("Histogram values are not monotonic - conflicting values: " + finalPrevious + ", " + bucket.getValue())
-			);
+			if (!(previous == null || comparator.compare(previous, bucket.getValue()) < 0)) {
+				report.append("Histogram values are not monotonic - conflicting values: ").append(finalPrevious).append(", ").append(bucket.getValue()).append(".\n");
+			}
 			previous = bucket.getValue();
+		}
+		if (report.isEmpty()) {
+			return new ConsistencyReport(ConsistencyState.CONSISTENT, null);
+		} else {
+			return new ConsistencyReport(ConsistencyState.BROKEN, report.toString());
 		}
 	}
 
@@ -157,7 +170,10 @@ public class InvertedIndex<T extends Comparable<T>> implements VoidTransactionMe
 	private InvertedIndex(@Nonnull ValueToRecordBitmap<T>[] buckets, @Nonnull Comparator<T> comparator, boolean internal) {
 		// contract check
 		if (!internal) {
-			assertValueIsMonotonic(buckets, comparator);
+			final ConsistencyReport consistencyReport = checkConsistency(buckets, comparator);
+			if (consistencyReport.state() != ConsistencySensitiveDataStructure.ConsistencyState.CONSISTENT) {
+				throw new MonotonicRowCorruptedException(consistencyReport.report());
+			}
 		}
 		this.valueToRecordBitmap = new TransactionalComplexObjArray<>(
 			buckets,
@@ -169,6 +185,12 @@ public class InvertedIndex<T extends Comparable<T>> implements VoidTransactionMe
 		);
 		this.comparator = comparator;
 		this.dirty = new TransactionalBoolean(false);
+	}
+
+	@Nonnull
+	@Override
+	public ConsistencyReport getConsistencyReport() {
+		return checkConsistency(this.valueToRecordBitmap.getArray(), this.comparator);
 	}
 
 	/**
@@ -368,6 +390,11 @@ public class InvertedIndex<T extends Comparable<T>> implements VoidTransactionMe
 		return "InvertedIndex{" +
 			"points=" + valueToRecordBitmap +
 			'}';
+	}
+
+	@Override
+	public void resetDirty() {
+		this.dirty.setToFalse();
 	}
 
 	/*
