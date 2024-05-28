@@ -1196,6 +1196,13 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 	}
 
 	/**
+	 * Method for internal use. Allows to emit events clearing the information about deleted catalog.
+	 */
+	public void emitDeleteObservabilityEvents() {
+		this.persistenceService.emitDeleteObservabilityEvents();
+	}
+
+	/**
 	 * Informs transactional pipeline jobs that the catalog version has advanced due to external reasons (such as
 	 * catalog renaming).
 	 */

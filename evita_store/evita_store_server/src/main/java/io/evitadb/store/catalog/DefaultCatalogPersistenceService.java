@@ -50,6 +50,7 @@ import io.evitadb.core.metric.event.storage.DataFileCompactEvent;
 import io.evitadb.core.metric.event.storage.FileType;
 import io.evitadb.core.metric.event.storage.OffsetIndexHistoryKeptEvent;
 import io.evitadb.core.metric.event.storage.OffsetIndexNonFlushedEvent;
+import io.evitadb.core.metric.event.transaction.WalStatisticsEvent;
 import io.evitadb.dataType.ClassifierType;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -779,6 +780,24 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		// emit WAL events if it exists
 		if (this.catalogWal != null) {
 			this.catalogWal.emitObservabilityEvents();
+		}
+	}
+
+	@Override
+	public void emitDeleteObservabilityEvents() {
+		// emit statistics event
+		new CatalogStatisticsEvent(
+			this.catalogName,
+			0,
+			0,
+			null
+		).commit();
+		// emit WAL events if it exists
+		if (this.catalogWal != null) {
+			new WalStatisticsEvent(
+				this.catalogName,
+				null
+			).commit();
 		}
 	}
 
