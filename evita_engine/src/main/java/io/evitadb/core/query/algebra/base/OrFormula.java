@@ -218,6 +218,7 @@ public class OrFormula extends AbstractCacheableFormula {
 		PRIVATE METHODS
 	 */
 
+	@Nonnull
 	private RoaringBitmap[] getRoaringBitmaps() {
 		return ofNullable(this.bitmaps)
 			.map(it -> Arrays
@@ -227,6 +228,7 @@ public class OrFormula extends AbstractCacheableFormula {
 			.orElseGet(
 				() -> Arrays.stream(getInnerFormulas())
 					.map(Formula::compute)
+					.filter(it -> !it.isEmpty())
 					.map(RoaringBitmapBackedBitmap::getRoaringBitmap)
 					.toArray(RoaringBitmap[]::new)
 			);
