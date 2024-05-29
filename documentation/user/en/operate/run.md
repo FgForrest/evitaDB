@@ -269,7 +269,7 @@ You can take advantage of all the following variables:
             evitaDB server command-line arguments, default: none (empty string)
 
             the list of all available arguments is given in the configuration file:
-            <SourceClass>docker/evita-configuration.yaml</SourceClass>
+            <SourceClass>evita_server/src/main/resources/evita-configuration.yaml</SourceClass>
             the format of the argument is visible in the variables `${argument_name:default_value}`
 
             to pass an argument to a Java aplication, you need to prefix it with `-D`, the correct argument name for
@@ -303,7 +303,7 @@ existing folders on the host file system.
 
 <Note type="info">
 The contents should match the default configuration file
-<SourceClass>docker/evita-configuration.yaml</SourceClass>, but you can specify constants instead
+<SourceClass>evita_server/src/main/resources/evita-configuration.yaml</SourceClass>, but you can specify constants instead
 of variables in certain settings.
 </Note>
 

@@ -300,7 +300,7 @@ requirements.
 
 </Note>
 
-The mTLS can be controlled in the configuration file <SourceClass>docker/evita-configuration.yaml</SourceClass> in the
+The mTLS can be controlled in the configuration file <SourceClass>evita_server/src/main/resources/evita-configuration.yaml</SourceClass> in the
 section `api.endpoints.gRPC.mTLS`. At the same place it is possible to configure the list of client certificates that
 are allowed to communicate with the gRPC server. The client that doesn't present itself with the accepted certificate
 will be rejected by the server.
