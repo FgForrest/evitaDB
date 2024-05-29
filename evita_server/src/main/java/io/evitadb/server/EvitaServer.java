@@ -219,7 +219,7 @@ public class EvitaServer {
 				variable -> ofNullable(arguments.get(variable))
 					.orElseGet(
 						() -> ofNullable(System.getProperty(variable))
-							.orElseGet(() -> transformEnvironmentVariable(System.getenv(variable)))
+							.orElseGet(() -> System.getenv(transformEnvironmentVariable(variable)))
 					)
 			)
 		);

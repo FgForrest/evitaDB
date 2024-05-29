@@ -94,6 +94,16 @@ api:                                              # [see API configuration](#api
         enabled: true
         readOnly: false
         preconfiguredConnections: null
+    observability:                                # [see Observability configuration](#observability-configuration)
+      enabled: true
+      host: localhost:5557
+      exposedHost: null
+      tlsEnabled: false
+      allowedOrigins: null
+      tracing:
+        endpoint: null
+        protocol: grpc
+      allowedEvents: null
 ```
 
 <Note type="info">
@@ -231,6 +241,8 @@ variables that are present when the server is started. The format used in this f
 ${argument_name:defaultValue}
 ```
 </Note>
+
+## O
 
 ## Name
 
@@ -557,6 +569,7 @@ It allows configuring these settings:
     <NoteTitle toggles="false">
         
     ##### Tip
+
     </NoteTitle>
 
       It is recommended to provide the private key password using command line argument (environment variable) 
@@ -823,5 +836,58 @@ This configuration controls how the actual evitaLab web client will be served th
         it is exposed on a different public domain and port, not on a localhost. Without custom connection configuration
         pointing to the public domain, the evitaLab web client would try to connect to the server on localhost.
         </p>
+    </dd>
+</dl>
+
+### Observability configuration
+
+The configuration controls all observability facilities exposed to the external systems. Currently, it's the endpoint
+pro scraping Prometheus metrics, OTEL trace exporter and Java Flight Recorder events recording facilities.
+
+<dl>
+    <dt>enabled</dt>
+    <dd>
+        <p>**Default:** `true`</p>
+        <p>It enables / disables observability API.</p>
+    </dd>
+    <dt>host</dt>
+    <dd>
+        <p>**Default:** `localhost:5555`</p>
+        <p>It specifies the host and port that the evitaLab API/evitaLab web client should listen on.
+        The value may be identical to the GraphQL API and REST API, but not to the gRPC or System API.</p>
+    </dd>
+    <dt>exposedHost</dt>
+    <dd>
+        <p>When evitaDB is running in a Docker container and the ports are exposed on the host systems 
+           the internally resolved local host name and port usually don't match the host name and port 
+           evitaDB is available on that host system. If you specify this property, the `exposeOn` global property
+           is no longer used.</p>
+    </dd>
+    <dt>tlsEnabled</dt>
+    <dd>
+        <p>**Default:** `true`</p>
+        <p>Whether the [TLS](./tls.md) should be enabled for the evitaLab API/evitaLab web client. 
+        If multiple APIs share the same port, 
+        all such APIs need to have set the same `tlsEnabled` value, or each API must have its own port.</p>
+    </dd>
+    <dt>allowedOrigins</dt>
+    <dd>
+        <p>**Default:** `null`</p>
+        <p>Specifies comma separated [origins](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Origin) 
+        that are allowed to consume the evitaLab API/evitaLab web client. If no origins are specified, i.e. `null`,
+        all origins are allowed automatically.</p>
+    </dd>
+    <dt>tracing.endpoint</dt>
+    <dd>
+        <p>**Default:** `null`</p>
+        <p>Specifies the URL to the [OTEL collector](https://opentelemetry.io/docs/collector/) that collects the traces.
+        It's a good idea to run the collector on the same host as evitaDB so that it can further filter out traces and
+        avoid unnecessary remote network communication.</p>
+    </dd>
+    <dt>tracing.protocol</dt>
+    <dd>
+        <p>**Default:** `grpc`</p>
+        <p>Specifies the protocol used between the application and the OTEL collector to pass the traces. Possible 
+        values are `grpc` and `http`. gRPC is much more performant and is the preferred option.</p>
     </dd>
 </dl>
