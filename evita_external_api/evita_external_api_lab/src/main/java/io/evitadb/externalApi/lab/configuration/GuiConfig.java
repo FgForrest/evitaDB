@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -49,12 +49,6 @@ public class GuiConfig {
 		this.preconfiguredConnections = null;
 	}
 
-	public GuiConfig(boolean enabled) {
-		this.enabled = enabled;
-		this.readOnly = false;
-		this.preconfiguredConnections = null;
-	}
-
 	@JsonCreator
 	public GuiConfig(@Nullable @JsonProperty("enabled") Boolean enabled,
 	                 @Nullable @JsonProperty("readOnly") Boolean readOnly,
@@ -63,4 +57,5 @@ public class GuiConfig {
 		this.readOnly = Optional.ofNullable(readOnly).orElse(false);
 		this.preconfiguredConnections = preconfiguredConnections;
 	}
+
 }
