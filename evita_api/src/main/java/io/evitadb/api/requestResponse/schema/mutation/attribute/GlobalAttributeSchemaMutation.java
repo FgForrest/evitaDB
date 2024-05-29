@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -62,7 +62,7 @@ public interface GlobalAttributeSchemaMutation extends AttributeSchemaMutation, 
 		} else {
 			return new CatalogSchemaWithImpactOnEntitySchemas(
 				CatalogSchema._internalBuild(
-					catalogSchema.getVersion() + 1,
+					catalogSchema.version() + 1,
 					catalogSchema.getName(),
 					catalogSchema.getNameVariants(),
 					catalogSchema.getDescription(),

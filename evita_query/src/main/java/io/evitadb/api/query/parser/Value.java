@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -27,7 +27,6 @@ import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.LongNumberRange;
-import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
@@ -35,7 +34,6 @@ import lombok.Getter;
 import lombok.ToString;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.lang.reflect.Array;
 import java.math.BigDecimal;
@@ -201,7 +199,7 @@ public class Value {
         } else {
             // correct passed type from client should be checked at visitor level, here should be should correct checked type
             // if everything is correct on parser side
-            throw new EvitaInternalError("Expected locale or string value but got `" + actualValue.getClass().getName() + "`.");
+            throw new EvitaInvalidUsageException("Expected locale or string value but got `" + actualValue.getClass().getName() + "`.");
         }
     }
 
@@ -269,7 +267,7 @@ public class Value {
         } catch (ClassCastException e) {
             // correct passed type from client should be checked at visitor level, here should be should correct checked type
             // if everything is correct on parser side
-            throw new EvitaInternalError("Unexpected type of value array `" + actualValue.getClass().getName() + "`.");
+            throw new EvitaInvalidUsageException("Unexpected type of value array `" + actualValue.getClass().getName() + "`.");
         }
     }
 
@@ -293,30 +291,6 @@ public class Value {
         }
     }
 
-    @Nonnull
-    public <T extends Enum<T>> T[] asEnumArray(@Nonnull Class<T> enumType) {
-        try {
-            return asArray(
-                v -> {
-                    if (v instanceof Enum<?>) {
-                        return variadicValueItemAsSpecificType(v, enumType);
-                    } else if (v instanceof EnumWrapper) {
-                        return variadicValueItemAsSpecificType(v, EnumWrapper.class).toEnum(enumType);
-                    } else {
-                        throw new EvitaInvalidUsageException(
-                            "Expected enum value but got `" + v.getClass().getName() + "`."
-                        );
-                    }
-                },
-                enumType
-            );
-        } catch (ClassCastException e) {
-            // correct passed type from client should be checked at visitor level, here should be should correct checked type
-            // if everything is correct on parser side
-            throw new EvitaInternalError("Unexpected type of value array `" + actualValue.getClass().getName() + "`.");
-        }
-    }
-
     private void assertValueIsOfType(@Nonnull Class<?> type) {
         // correct passed type from client should be checked at visitor level, here should be should correct checked type
         // if everything is correct on parser side
@@ -333,7 +307,7 @@ public class Value {
     }
 
     @Nonnull
-    private <T> T variadicValueItemAsSpecificType(@Nonnull Object item, @Nonnull Class<T> type) {
+    private static <T> T variadicValueItemAsSpecificType(@Nonnull Object item, @Nonnull Class<T> type) {
         // correct passed type from client should be checked at visitor level, here should be should correct checked type
         // if everything is correct on parser side
         Assert.isPremiseValid(

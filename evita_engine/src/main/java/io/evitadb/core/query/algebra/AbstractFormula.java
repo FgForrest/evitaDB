@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -26,8 +26,8 @@ package io.evitadb.core.query.algebra;
 import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.query.algebra.utils.visitor.PrettyPrintingFormulaVisitor;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
+import io.evitadb.core.transaction.memory.TransactionalLayerCreator;
 import io.evitadb.index.bitmap.Bitmap;
-import io.evitadb.index.transactionalMemory.TransactionalLayerCreator;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 import net.openhft.hashing.LongHashFunction;
@@ -172,6 +172,12 @@ public abstract class AbstractFormula implements Formula {
 	@Override
 	public String prettyPrint() {
 		return PrettyPrintingFormulaVisitor.toString(this);
+	}
+
+	@Nonnull
+	@Override
+	public String toStringVerbose() {
+		return toString();
 	}
 
 	/**

@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -31,7 +31,7 @@ import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.Price;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
@@ -40,6 +40,7 @@ import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -48,6 +49,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.BinaryOperator;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -94,7 +97,7 @@ public interface PricesContract extends Versioned, Serializable {
 					.min(Comparator.comparing(o -> pLists.get(o.priceList())))
 					.filter(filterPredicate);
 			}
-			case FIRST_OCCURRENCE -> {
+			case LOWEST_PRICE -> {
 				final Map<Integer, List<PriceContract>> pricesByInnerId = pricesStream
 					.collect(Collectors.groupingBy(it -> ofNullable(it.innerRecordId()).orElse(0)));
 				return pricesByInnerId
@@ -137,7 +140,7 @@ public interface PricesContract extends Versioned, Serializable {
 					return filterPredicate.test(resultPrice) ? of(resultPrice) : empty();
 				}
 			}
-			default -> throw new EvitaInternalError("Unknown price inner record handling mode: " + innerRecordHandling);
+			default -> throw new GenericEvitaInternalError("Unknown price inner record handling mode: " + innerRecordHandling);
 		}
 	}
 
@@ -323,11 +326,23 @@ public interface PricesContract extends Versioned, Serializable {
 			.filter(it -> ofNullable(atTheMoment).map(mmt -> it.validity() == null || it.validity().isValidFor(mmt)).orElse(true))
 			.filter(it -> pLists.isEmpty() || pLists.containsKey(it.priceList()));
 		if (pLists.isEmpty()) {
-			return priceStream.toList();
-		} else {
+			return priceStream.collect(Collectors.toCollection(ArrayList::new));
+		} else if (getPriceInnerRecordHandling() == PriceInnerRecordHandling.NONE) {
 			return priceStream
-				.sorted(Comparator.comparingInt(o -> pLists.get(o.priceList())))
-				.toList();
+				.min(Comparator.comparing(o -> pLists.get(o.priceList())))
+				.map(List::of)
+				.orElse(Collections.emptyList());
+		} else {
+			return new ArrayList<>(
+				priceStream
+					.collect(
+						Collectors.toMap(
+							price -> ofNullable(price.innerRecordId()).orElse(Integer.MIN_VALUE),
+							Function.identity(),
+							BinaryOperator.minBy(Comparator.comparingInt(o -> pLists.get(o.priceList())))
+						)
+					).values()
+			);
 		}
 	}
 
@@ -374,7 +389,7 @@ public interface PricesContract extends Versioned, Serializable {
 					.map(it -> from.compareTo(it) <= 0 && to.compareTo(it) >= 0)
 					.orElse(false);
 			}
-			case FIRST_OCCURRENCE -> {
+			case LOWEST_PRICE -> {
 				final Map<Serializable, Integer> pLists = createHashMap(priceListPriority.length);
 				for (int i = 0; i < priceListPriority.length; i++) {
 					final Serializable pList = priceListPriority[i];
@@ -398,7 +413,7 @@ public interface PricesContract extends Versioned, Serializable {
 						.orElse(null));
 			}
 			default ->
-				throw new EvitaInternalError("Unknown price inner record handling mode: " + getPriceInnerRecordHandling());
+				throw new GenericEvitaInternalError("Unknown price inner record handling mode: " + getPriceInnerRecordHandling());
 		}
 	}
 

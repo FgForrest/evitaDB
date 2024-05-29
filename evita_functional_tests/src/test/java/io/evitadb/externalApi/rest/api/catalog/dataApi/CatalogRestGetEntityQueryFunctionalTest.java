@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -25,6 +25,8 @@ package io.evitadb.externalApi.rest.api.catalog.dataApi;
 
 import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
+import io.evitadb.api.requestResponse.data.PriceContract;
+import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.FetchEntityEndpointHeaderDescriptor;
@@ -382,6 +384,59 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFun
 			.requestParams(map()
 				.e(GetEntityEndpointHeaderDescriptor.PRICE_IN_CURRENCY.name(), CURRENCY_CZK.getCurrencyCode())
 				.e(GetEntityEndpointHeaderDescriptor.PRICE_IN_PRICE_LISTS.name(), "basic")
+				.e(GetEntityEndpointHeaderDescriptor.PRICE_CONTENT.name(), PriceContentMode.RESPECTING_FILTER.name())
+				.build())
+			.executeAndThen()
+			.statusCode(200)
+			.body("", equalTo(createEntityDto(entity)));
+	}
+
+	@Test
+	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@DisplayName("Should return all prices for sale for master products")
+	void shouldReturnAllPricesForSaleForMasterProducts(Evita evita, RestTester tester, List<SealedEntity> originalProductEntities) {
+		final var pk = findEntityPk(
+			originalProductEntities,
+			it -> !it.getPriceInnerRecordHandling().equals(PriceInnerRecordHandling.NONE) &&
+				it.getPrices(CURRENCY_CZK)
+					.stream()
+					.filter(PriceContract::sellable)
+					.map(PriceContract::innerRecordId)
+					.distinct()
+					.count() > 1
+		);
+
+		final List<String> priceLists = originalProductEntities.stream()
+			.filter(it -> it.getPrimaryKey().equals(pk))
+			.flatMap(it -> it.getPrices(CURRENCY_CZK).stream().map(PriceContract::priceList))
+			.distinct()
+			.toList();
+		assertTrue(priceLists.size() > 1);
+
+		final EntityClassifier entity = getEntity(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					entityPrimaryKeyInSet(pk),
+					priceInCurrency(CURRENCY_CZK),
+					priceInPriceLists(priceLists.toArray(String[]::new))
+				),
+				require(
+					entityFetch(
+						priceContentRespectingFilter()
+					)
+				)
+			)
+		);
+
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/PRODUCT/get")
+			.httpMethod(Request.METHOD_GET)
+			.requestParams(map()
+				.e(GetEntityEndpointHeaderDescriptor.PRIMARY_KEY.name(), pk)
+				.e(GetEntityEndpointHeaderDescriptor.PRICE_IN_CURRENCY.name(), CURRENCY_CZK.getCurrencyCode())
+				.e(GetEntityEndpointHeaderDescriptor.PRICE_IN_PRICE_LISTS.name(), priceLists)
 				.e(GetEntityEndpointHeaderDescriptor.PRICE_CONTENT.name(), PriceContentMode.RESPECTING_FILTER.name())
 				.build())
 			.executeAndThen()

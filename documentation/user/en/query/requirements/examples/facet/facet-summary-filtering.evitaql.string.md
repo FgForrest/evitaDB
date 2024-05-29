@@ -3,7 +3,7 @@ Facet summary:
 	brand: non-grouped [41]:
 		[ ] 'caterpillar' (2)
 		[ ] 'garmin' (39)
-	categories: non-grouped [433]:
+	categories: non-grouped [435]:
 		[ ] 'prepared-products' (92)
 		[ ] 'keyboards' (16)
 		[ ] 'smartwatches' (269)
@@ -16,6 +16,7 @@ Facet summary:
 		[ ] 'over-ear-1' (3)
 		[ ] 'on-ear-1' (4)
 		[ ] 'earbuds-1' (1)
+		[ ] 'bargain-bundles' (2)
 	parameterValues: 'operating-system' [39]:
 		[ ] 'operating-system-huawei-harmon' (29)
 		[ ] 'operating-system-wearos' (7)

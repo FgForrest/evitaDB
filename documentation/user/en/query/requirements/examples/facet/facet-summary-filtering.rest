@@ -1,0 +1,24 @@
+POST /rest/evita/Product/query
+
+{
+  "filterBy" : {
+    "attributeStatusEquals" : "ACTIVE"
+  },
+  "require" : {
+    "facetSummary" : {
+      "statisticsDepth" : "COUNTS",
+      "requirements" : {
+        "entityFetch" : {
+          "attributeContent" : [
+            "code"
+          ]
+        },
+        "entityGroupFetch" : {
+          "attributeContent" : [
+            "code"
+          ]
+        }
+      }
+    }
+  }
+}

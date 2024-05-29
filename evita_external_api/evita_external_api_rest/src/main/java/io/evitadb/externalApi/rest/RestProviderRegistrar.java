@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -27,6 +27,7 @@ import io.evitadb.core.Evita;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.http.ExternalApiProvider;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
+import io.evitadb.externalApi.http.ExternalApiServer;
 import io.evitadb.externalApi.rest.api.catalog.CatalogRestRefreshingObserver;
 import io.evitadb.externalApi.rest.configuration.RestConfig;
 
@@ -54,7 +55,7 @@ public class RestProviderRegistrar implements ExternalApiProviderRegistrar<RestC
 	@Nonnull
 	@Override
 	public ExternalApiProvider<RestConfig> register(@Nonnull Evita evita,
-	                                                @Nonnull ApiOptions apiOptions,
+	                                                @Nonnull ExternalApiServer externalApiServer, @Nonnull ApiOptions apiOptions,
 	                                                @Nonnull RestConfig restConfiguration) {
 		final RestManager restManager = new RestManager(evita, apiOptions.exposedOn(), restConfiguration);
 		evita.registerStructuralChangeObserver(new CatalogRestRefreshingObserver(restManager));

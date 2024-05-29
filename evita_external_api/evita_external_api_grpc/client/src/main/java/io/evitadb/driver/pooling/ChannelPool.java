@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -102,9 +102,9 @@ public class ChannelPool {
 	/**
 	 * Terminate all channels in the pool and after elapsed time units ensure that all channels has been closed.
 	 */
-	public boolean awaitTermination(long waitForClose, @Nonnull TimeUnit waitForCloseUnit) throws InterruptedException {
+	public boolean awaitTermination(long timeout, @Nonnull TimeUnit timeoutUnit) throws InterruptedException {
 		for (ManagedChannel channel : channels) {
-			channel.awaitTermination(waitForClose, waitForCloseUnit);
+			channel.awaitTermination(timeout, timeoutUnit);
 		}
 		return channels.stream().allMatch(ManagedChannel::isTerminated);
 	}

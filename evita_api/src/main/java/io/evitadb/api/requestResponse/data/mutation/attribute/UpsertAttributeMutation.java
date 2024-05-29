@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -26,7 +26,8 @@ package io.evitadb.api.requestResponse.data.mutation.attribute;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import lombok.EqualsAndHashCode;
+import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.StringUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -40,7 +41,6 @@ import java.util.Objects;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@EqualsAndHashCode(callSuper = true)
 public class UpsertAttributeMutation extends AttributeSchemaEvolvingMutation {
 	@Serial private static final long serialVersionUID = 4274174996930002364L;
 	@Nonnull private final Serializable value;
@@ -86,8 +86,28 @@ public class UpsertAttributeMutation extends AttributeSchemaEvolvingMutation {
 	}
 
 	@Override
+	public boolean equals(Object o) {
+		if (this == o) return true;
+		if (o == null || getClass() != o.getClass()) return false;
+		if (!super.equals(o)) return false;
+
+		UpsertAttributeMutation that = (UpsertAttributeMutation) o;
+
+		return value.getClass().isArray() ?
+			that.value.getClass().isArray() && ArrayUtils.equals(value, that.value) : value.equals(that.value);
+	}
+
+	@Override
+	public int hashCode() {
+		int result = super.hashCode();
+		result = 31 * result +
+			(value.getClass().isArray() ? ArrayUtils.hashCode(value) : value.hashCode());
+		return result;
+	}
+
+	@Override
 	public String toString() {
-		return "upsert attribute `" + attributeKey + "` with value: " + value;
+		return "upsert attribute `" + attributeKey + "` with value: " + StringUtils.toString(value);
 	}
 
 }

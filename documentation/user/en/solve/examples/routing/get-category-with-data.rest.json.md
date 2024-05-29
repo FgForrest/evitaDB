@@ -20,11 +20,11 @@
   "attributes": {
     "global": {
       "categoryType": "STANDARD",
-      "changed": "2023-12-01T15:37:59+01:00",
+      "changed": "2024-02-25T14:35:36+01:00",
       "code": "wireless-headphones",
       "level": 3,
       "order": -1,
-      "published": "2023-12-07T00:21:15.868+01:00",
+      "published": "2024-04-15T17:41:23.952+02:00",
       "status": "ACTIVE",
       "visibility": "VISIBLE"
     },

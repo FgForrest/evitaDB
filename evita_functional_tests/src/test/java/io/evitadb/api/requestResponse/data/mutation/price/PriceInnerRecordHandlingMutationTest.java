@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -39,9 +39,9 @@ class PriceInnerRecordHandlingMutationTest extends AbstractMutationTest {
 
 	@Test
 	void shouldPriceInnerRecordHandlingValue() {
-		final SetPriceInnerRecordHandlingMutation mutation = new SetPriceInnerRecordHandlingMutation(PriceInnerRecordHandling.FIRST_OCCURRENCE);
+		final SetPriceInnerRecordHandlingMutation mutation = new SetPriceInnerRecordHandlingMutation(PriceInnerRecordHandling.LOWEST_PRICE);
 		assertEquals(
-			PriceInnerRecordHandling.FIRST_OCCURRENCE,
+			PriceInnerRecordHandling.LOWEST_PRICE,
 			mutation.mutateLocal(productSchema, new Prices(productSchema, PriceInnerRecordHandling.NONE))
 				.getPriceInnerRecordHandling()
 		);

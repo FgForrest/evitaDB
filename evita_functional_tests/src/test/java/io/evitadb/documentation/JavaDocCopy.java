@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -34,7 +34,7 @@ import com.thoughtworks.qdox.model.impl.DefaultJavaMethod;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.QueryConstraints;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.utils.StringUtils;
 import org.junit.jupiter.api.Test;
@@ -254,20 +254,19 @@ public class JavaDocCopy implements EvitaTestSupport {
 				}
 			}
 			if (commentStartLine == -1) {
-				throw new EvitaInternalError("Could not find author line in `" + constraintClass.getName() + "`");
+				throw new GenericEvitaInternalError("Could not find author line in `" + constraintClass.getName() + "`");
 			}
 			final String comment = constraintClass.getComment();
 			final int commentEndLine = comment.split("\n").length + commentStartLine;
 
-			final int originalUserDocsLinkLineNumber = commentEndLine;
-			final String originalUserDocsLinkLine = constraintSource.get(originalUserDocsLinkLineNumber);
+			final String originalUserDocsLinkLine = constraintSource.get(commentEndLine);
 			if (originalUserDocsLinkLine.contains("<a href=\"https://evitadb.io")) {
 				// there is a link from previous generation, just update it
-				constraintSource.set(originalUserDocsLinkLineNumber, " * <p><a href=\"https://evitadb.io" + userDocsLink + "\">Visit detailed user documentation</a></p>");
+				constraintSource.set(commentEndLine, " * <p><a href=\"https://evitadb.io" + userDocsLink + "\">Visit detailed user documentation</a></p>");
 			} else {
 				// there is no link, add it
-				constraintSource.add(originalUserDocsLinkLineNumber + 1, " * <a href=\"https://evitadb.io" + userDocsLink + "\">Visit detailed user documentation</a>");
-				constraintSource.add(originalUserDocsLinkLineNumber + 1, " *");
+				constraintSource.add(commentEndLine + 1, " * <a href=\"https://evitadb.io" + userDocsLink + "\">Visit detailed user documentation</a>");
+				constraintSource.add(commentEndLine + 1, " *");
 			}
 
 			// rewrite the file with replaced JavaDoc
@@ -322,7 +321,7 @@ public class JavaDocCopy implements EvitaTestSupport {
 				case "io.evitadb.api.query.filter" -> "FILTER";
 				case "io.evitadb.api.query.order" -> "ORDER";
 				case "io.evitadb.api.query.require" -> "REQUIRE";
-				default -> throw new EvitaInternalError("Unknown package name: " + constraintClass.getPackageName());
+				default -> throw new GenericEvitaInternalError("Unknown package name: " + constraintClass.getPackageName());
 			};
 			final String shortDescription = ((String) constraintDefinition.get().getNamedParameter("shortDescription")).replace("\"", "");
 			final String userDocsLink = "https://evitadb.io" + ((String) constraintDefinition.get().getNamedParameter("userDocsLink")).replace("\"", "");

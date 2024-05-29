@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -40,6 +40,7 @@ import io.evitadb.utils.Assert;
 import io.evitadb.utils.ComparatorUtils;
 import io.evitadb.utils.NumberUtils;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.ToString;
 
@@ -52,6 +53,8 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Locale;
+import java.util.OptionalInt;
+import java.util.OptionalLong;
 import java.util.function.UnaryOperator;
 
 /**
@@ -67,6 +70,7 @@ import java.util.function.UnaryOperator;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @NotThreadSafe
+@EqualsAndHashCode(exclude = {"dirty", "sizeInBytes"})
 @ToString(of = "attributeSetKey")
 public class AttributesStoragePart implements EntityStoragePart, RecordWithCompressedId<EntityAttributesSetKey> {
 	private static final AttributeValue[] EMPTY_ATTRIBUTE_VALUES = new AttributeValue[0];
@@ -81,9 +85,13 @@ public class AttributesStoragePart implements EntityStoragePart, RecordWithCompr
 	 */
 	private final EntityAttributesSetKey attributeSetKey;
 	/**
+	 * Contains information about size of this container in bytes.
+	 */
+	private final int sizeInBytes;
+	/**
 	 * Id used for lookups in persistent storage for this particular container.
 	 */
-	@Getter private Long uniquePartId;
+	@Getter private Long storagePartPK;
 	/**
 	 * See {@link Attributes#getAttributeValues()}. Attributes are sorted in ascending order according to {@link AttributeKey}.
 	 */
@@ -100,32 +108,43 @@ public class AttributesStoragePart implements EntityStoragePart, RecordWithCompr
 	 *
 	 * @throws CompressionKeyUnknownException when key is not recognized by {@link KeyCompressor}
 	 */
-	public static long computeUniquePartId(@Nonnull KeyCompressor keyCompressor, @Nonnull EntityAttributesSetKey attributeSetKey) throws CompressionKeyUnknownException {
-		return NumberUtils.join(
-			attributeSetKey.entityPrimaryKey(),
-			keyCompressor.getId(
-				new AttributesSetKey(attributeSetKey.locale())
-			)
+	@Nonnull
+	public static OptionalLong computeUniquePartId(@Nonnull KeyCompressor keyCompressor, @Nonnull EntityAttributesSetKey attributeSetKey) throws CompressionKeyUnknownException {
+		final OptionalInt id = keyCompressor.getIdIfExists(
+			new AttributesSetKey(attributeSetKey.locale())
 		);
+		if (id.isPresent()) {
+			return OptionalLong.of(
+				NumberUtils.join(
+					attributeSetKey.entityPrimaryKey(),
+					id.getAsInt()
+				)
+			);
+		} else {
+			return OptionalLong.empty();
+		}
 	}
 
 	public AttributesStoragePart(int entityPrimaryKey) {
-		this.uniquePartId = null;
+		this.storagePartPK = null;
 		this.entityPrimaryKey = entityPrimaryKey;
 		this.attributeSetKey = new EntityAttributesSetKey(entityPrimaryKey, null);
+		this.sizeInBytes = -1;
 	}
 
 	public AttributesStoragePart(int entityPrimaryKey, Locale locale) {
-		this.uniquePartId = null;
+		this.storagePartPK = null;
 		this.entityPrimaryKey = entityPrimaryKey;
 		this.attributeSetKey = new EntityAttributesSetKey(entityPrimaryKey, locale);
+		this.sizeInBytes = -1;
 	}
 
-	public AttributesStoragePart(long uniquePartId, int entityPrimaryKey, Locale locale, AttributeValue[] attributes) {
-		this.uniquePartId = uniquePartId;
+	public AttributesStoragePart(long storagePartPK, int entityPrimaryKey, @Nonnull Locale locale, @Nonnull AttributeValue[] attributes, int sizeInBytes) {
+		this.storagePartPK = storagePartPK;
 		this.entityPrimaryKey = entityPrimaryKey;
 		this.attributeSetKey = new EntityAttributesSetKey(entityPrimaryKey, locale);
 		this.attributes = attributes;
+		this.sizeInBytes = sizeInBytes;
 	}
 
 	@Override
@@ -135,10 +154,15 @@ public class AttributesStoragePart implements EntityStoragePart, RecordWithCompr
 
 	@Override
 	public long computeUniquePartIdAndSet(@Nonnull KeyCompressor keyCompressor) {
-		Assert.isTrue(this.uniquePartId == null, "Unique part id is already known!");
-		Assert.notNull(entityPrimaryKey, "Entity primary key must be non null!");
-		this.uniquePartId = computeUniquePartId(keyCompressor, attributeSetKey);
-		return this.uniquePartId;
+		Assert.isTrue(this.storagePartPK == null, "Unique part id is already known!");
+		Assert.notNull(this.entityPrimaryKey, "Entity primary key must be non null!");
+		this.storagePartPK = NumberUtils.join(
+			this.attributeSetKey.entityPrimaryKey(),
+			keyCompressor.getId(
+				new AttributesSetKey(this.attributeSetKey.locale())
+			)
+		);
+		return this.storagePartPK;
 	}
 
 	/**
@@ -194,6 +218,12 @@ public class AttributesStoragePart implements EntityStoragePart, RecordWithCompr
 		return attributes.length == 0 || Arrays.stream(attributes).noneMatch(Droppable::exists);
 	}
 
+	@Nonnull
+	@Override
+	public OptionalInt sizeInBytes() {
+		return sizeInBytes == -1 ? OptionalInt.empty() : OptionalInt.of(sizeInBytes);
+	}
+
 	/**
 	 * This key is used to fully represent this {@link AttributesStoragePart} in the persistent storage. It needs to
 	 * contain all information that uniquely distinguishes this attribute set key among attribute set keys of other
@@ -217,7 +247,7 @@ public class AttributesStoragePart implements EntityStoragePart, RecordWithCompr
 	}
 
 	/**
-	 * This key is registered in {@link KeyCompressor} to retrieve id that is part of the {@link AttributesStoragePart#getUniquePartId()}.
+	 * This key is registered in {@link KeyCompressor} to retrieve id that is part of the {@link AttributesStoragePart#getStoragePartPK()}.
 	 * Key can be shared among attribute sets of different entities, but is single for all global attributes and single
 	 * for attribute sets in certain language. Together with entityPrimaryKey composes part id unique among all other
 	 * attribute set part types.

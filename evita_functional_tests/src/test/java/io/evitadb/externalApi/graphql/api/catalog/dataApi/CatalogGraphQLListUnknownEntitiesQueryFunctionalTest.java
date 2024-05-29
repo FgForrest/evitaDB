@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -28,8 +28,7 @@ import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.core.Evita;
-import io.evitadb.exception.EvitaInternalError;
-import io.evitadb.externalApi.api.catalog.dataApi.model.AssociatedDataDescriptor;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
@@ -80,11 +79,11 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 		final SealedEntity entityWithCode1 = originalProductEntities.stream()
 			.filter(it -> Objects.equals(it.getAttribute(ATTRIBUTE_CODE), codeAttribute1))
 			.findFirst()
-			.orElseThrow(() -> new EvitaInternalError("Missing entity with code attribute"));
+			.orElseThrow(() -> new GenericEvitaInternalError("Missing entity with code attribute"));
 		final SealedEntity entityWithCode2 = originalProductEntities.stream()
 			.filter(it -> Objects.equals(it.getAttribute(ATTRIBUTE_CODE), codeAttribute2))
 			.findFirst()
-			.orElseThrow(() -> new EvitaInternalError("Missing entity with code attribute"));
+			.orElseThrow(() -> new GenericEvitaInternalError("Missing entity with code attribute"));
 
 		tester.test(TEST_CATALOG)
 			.document(
@@ -272,11 +271,11 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 		final SealedEntity entityWithUrl1 = originalProductEntities.stream()
 			.filter(it -> Objects.equals(it.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH), urlAttribute1))
 			.findFirst()
-			.orElseThrow(() -> new EvitaInternalError("Missing entity with url attribute"));
+			.orElseThrow(() -> new GenericEvitaInternalError("Missing entity with url attribute"));
 		final SealedEntity entityWithUrl2 = originalProductEntities.stream()
 			.filter(it -> Objects.equals(it.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH), urlAttribute2))
 			.findFirst()
-			.orElseThrow(() -> new EvitaInternalError("Missing entity with url attribute"));
+			.orElseThrow(() -> new GenericEvitaInternalError("Missing entity with url attribute"));
 
 		tester.test(TEST_CATALOG)
 			.document(
@@ -333,12 +332,12 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 			.filter(it -> Objects.equals(it.getAttribute(ATTRIBUTE_CODE), codeAttribute1) &&
 				it.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH) != null)
 			.findFirst()
-			.orElseThrow(() -> new EvitaInternalError("Missing entity with url attribute"));
+			.orElseThrow(() -> new GenericEvitaInternalError("Missing entity with url attribute"));
 		final SealedEntity entityWithCodeAndUrl2 = originalProductEntities.stream()
 			.filter(it -> Objects.equals(it.getAttribute(ATTRIBUTE_CODE), codeAttribute2) &&
 				it.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH) != null)
 			.findFirst()
-			.orElseThrow(() -> new EvitaInternalError("Missing entity with url attribute"));
+			.orElseThrow(() -> new GenericEvitaInternalError("Missing entity with url attribute"));
 
 		tester.test(TEST_CATALOG)
 			.document(
@@ -397,7 +396,7 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 		final SealedEntity entityWithCode = originalProductEntities.stream()
 			.filter(it -> Objects.equals(it.getAttribute(ATTRIBUTE_CODE), codeAttribute))
 			.findFirst()
-			.orElseThrow(() -> new EvitaInternalError("Missing entity with code attribute"));
+			.orElseThrow(() -> new GenericEvitaInternalError("Missing entity with code attribute"));
 		final String urlAttribute = entityWithCode.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH);
 
 		tester.test(TEST_CATALOG)
@@ -435,12 +434,12 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 		final SealedEntity entityWithCode = originalProductEntities.stream()
 			.filter(it -> Objects.equals(it.getAttribute(ATTRIBUTE_CODE), codeAttribute))
 			.findFirst()
-			.orElseThrow(() -> new EvitaInternalError("Missing entity with code attribute"));
+			.orElseThrow(() -> new GenericEvitaInternalError("Missing entity with code attribute"));
 		final String urlAttribute = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_URL, Locale.ENGLISH, 7);
 		final SealedEntity entityWithUrl = originalProductEntities.stream()
 			.filter(it -> Objects.equals(it.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH), urlAttribute))
 			.findFirst()
-			.orElseThrow(() -> new EvitaInternalError("Missing entity with url attribute"));
+			.orElseThrow(() -> new GenericEvitaInternalError("Missing entity with url attribute"));
 
 		assertNotEquals(entityWithCode.getPrimaryKey(), entityWithUrl.getPrimaryKey());
 

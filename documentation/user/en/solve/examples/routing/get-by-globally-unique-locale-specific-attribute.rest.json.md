@@ -11,13 +11,13 @@
     "cs",
     "en"
   ],
-  "priceInnerRecordHandling": "FIRST_OCCURRENCE",
+  "priceInnerRecordHandling": "LOWEST_PRICE",
   "attributes": {
     "global": {
       "availability": "ALWAYS_AVAILABLE",
       "brandCode": "apple",
       "catalogNumber": "3872990",
-      "changed": "2023-12-01T15:40:03+01:00",
+      "changed": "2024-02-25T14:38:35+01:00",
       "code": "macbook-pro-13-2022",
       "codeShort": "macbook-pro-13-2022",
       "displaySize": "13.30000",
@@ -27,7 +27,7 @@
       "order": 104526,
       "orderedQuantity": "0.00000",
       "productType": "MASTER",
-      "published": "2023-12-07T00:21:30.872+01:00",
+      "published": "2024-04-15T17:41:45+02:00",
       "rating": "0",
       "ratingVotes": 0,
       "saleRestriction": "WITHOUT_RESTRICTION",
@@ -151,8 +151,8 @@
         "global": {
           "assignmentValidity": [
             [
-              "0001-01-01T00:57:44+00:57:44",
-              "+10000-01-01T00:59:59+01:00"
+              "0001-01-01T18:00:00+18:00",
+              "9999-12-31T05:59:59-18:00"
             ]
           ],
           "orderInGroup": -1
@@ -277,7 +277,7 @@
       },
       "attributes": {
         "global": {
-          "variant": false
+          "variant": true
         }
       }
     },

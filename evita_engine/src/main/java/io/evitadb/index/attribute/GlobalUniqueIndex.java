@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -27,18 +27,17 @@ import io.evitadb.api.exception.UniqueValueViolationException;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.core.Catalog;
+import io.evitadb.core.CatalogRelatedDataStructure;
 import io.evitadb.core.EntityCollection;
-import io.evitadb.core.Transaction;
+import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
+import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
+import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
 import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.bool.TransactionalBoolean;
-import io.evitadb.index.map.MapChanges;
 import io.evitadb.index.map.TransactionalMap;
-import io.evitadb.index.transactionalMemory.TransactionalContainerChanges;
-import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
-import io.evitadb.index.transactionalMemory.TransactionalLayerProducer;
-import io.evitadb.index.transactionalMemory.TransactionalObjectVersion;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.spi.model.storageParts.index.GlobalUniqueIndexStoragePart;
+import io.evitadb.utils.Assert;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -54,7 +53,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
-import static io.evitadb.core.Transaction.isTransactionAvailable;
 import static io.evitadb.index.attribute.UniqueIndex.verifyValue;
 import static io.evitadb.index.attribute.UniqueIndex.verifyValueArray;
 import static io.evitadb.utils.Assert.isTrue;
@@ -70,7 +68,7 @@ import static java.util.Optional.ofNullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
-public class GlobalUniqueIndex implements TransactionalLayerProducer<TransactionalContainerChanges<MapChanges<Serializable, Integer>, Map<Serializable, Integer>, TransactionalMap<Serializable, Integer>>, GlobalUniqueIndex>, IndexDataStructure {
+public class GlobalUniqueIndex implements VoidTransactionMemoryProducer<GlobalUniqueIndex>, IndexDataStructure, CatalogRelatedDataStructure<GlobalUniqueIndex> {
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	/**
 	 * Constant representing the attribute has no locale assigned.
@@ -118,11 +116,10 @@ public class GlobalUniqueIndex implements TransactionalLayerProducer<Transaction
 	private final Map<Integer, String> primaryKeyToEntityType = new ConcurrentHashMap<>();
 	private final Map<String, Integer> entityTypeToPk = new ConcurrentHashMap<>();
 
-	public GlobalUniqueIndex(@Nonnull AttributeKey attributeKey, @Nonnull Class<? extends Serializable> attributeType, @Nonnull Catalog catalog) {
+	public GlobalUniqueIndex(@Nonnull AttributeKey attributeKey, @Nonnull Class<? extends Serializable> attributeType) {
 		this.dirty = new TransactionalBoolean();
 		this.attributeKey = attributeKey;
 		this.type = attributeType;
-		this.catalog = catalog;
 		this.uniqueValueToEntityTuple = new TransactionalMap<>(new HashMap<>());
 		this.localeToIdIndex = new TransactionalMap<>(new HashMap<>());
 		this.idToLocaleIndex = new TransactionalMap<>(new HashMap<>());
@@ -131,14 +128,12 @@ public class GlobalUniqueIndex implements TransactionalLayerProducer<Transaction
 	public GlobalUniqueIndex(
 		@Nonnull AttributeKey attributeKey,
 		@Nonnull Class<? extends Serializable> attributeType,
-		@Nonnull Catalog catalog,
 		@Nonnull Map<Serializable, EntityWithTypeTuple> uniqueValueToEntityTuple,
 		@Nonnull Map<Integer, Locale> localeIndex
 	) {
 		this.dirty = new TransactionalBoolean();
 		this.attributeKey = attributeKey;
 		this.type = attributeType;
-		this.catalog = catalog;
 		this.uniqueValueToEntityTuple = new TransactionalMap<>(uniqueValueToEntityTuple);
 		this.idToLocaleIndex = new TransactionalMap<>(localeIndex);
 		this.localeToIdIndex = new TransactionalMap<>(
@@ -153,14 +148,37 @@ public class GlobalUniqueIndex implements TransactionalLayerProducer<Transaction
 		);
 	}
 
-	/**
-	 * Replaces reference to the new catalog object. This needs to be done when transaction is
-	 * committed and new GlobalUniqueIndex is created with link to the original transactional Catalog but finally
-	 * new {@link Catalog} is created and the new indexes linking old collection needs to be
-	 * migrated to new catalog instance.
-	 */
-	public void updateReferencesTo(@Nonnull Catalog newCatalog) {
-		this.catalog = newCatalog;
+	private GlobalUniqueIndex(
+		@Nonnull AttributeKey attributeKey,
+		@Nonnull Class<? extends Serializable> attributeType,
+		@Nonnull TransactionalMap<Serializable, EntityWithTypeTuple> uniqueValueToEntityTuple,
+		@Nonnull TransactionalMap<Locale, Integer> localeToIdIndex,
+		@Nonnull TransactionalMap<Integer, Locale> idToLocaleIndex
+	) {
+		this.attributeKey = attributeKey;
+		this.type = attributeType;
+		this.dirty = new TransactionalBoolean();
+		this.uniqueValueToEntityTuple = uniqueValueToEntityTuple;
+		this.localeToIdIndex = localeToIdIndex;
+		this.idToLocaleIndex = idToLocaleIndex;
+	}
+
+	@Override
+	public void attachToCatalog(@Nullable String entityType, @Nonnull Catalog catalog) {
+		Assert.isPremiseValid(this.catalog == null, "Catalog was already attached to this index!");
+		this.catalog = catalog;
+	}
+
+	@Nonnull
+	@Override
+	public GlobalUniqueIndex createCopyForNewCatalogAttachment() {
+		return new GlobalUniqueIndex(
+			this.attributeKey,
+			this.type,
+			this.uniqueValueToEntityTuple,
+			this.localeToIdIndex,
+			this.idToLocaleIndex
+		);
 	}
 
 	/**
@@ -233,24 +251,16 @@ public class GlobalUniqueIndex implements TransactionalLayerProducer<Transaction
 		this.dirty.reset();
 	}
 
-	@Nullable
-	@Override
-	public TransactionalContainerChanges<MapChanges<Serializable, Integer>, Map<Serializable, Integer>, TransactionalMap<Serializable, Integer>> createLayer() {
-		return isTransactionAvailable() ? new TransactionalContainerChanges<>() : null;
-	}
-
 	@Nonnull
 	@Override
-	public GlobalUniqueIndex createCopyWithMergedTransactionalMemory(@Nullable TransactionalContainerChanges<MapChanges<Serializable, Integer>, Map<Serializable, Integer>, TransactionalMap<Serializable, Integer>> layer, @Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Transaction transaction) {
+	public GlobalUniqueIndex createCopyWithMergedTransactionalMemory(@Nullable Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		final GlobalUniqueIndex uniqueKeyIndex = new GlobalUniqueIndex(
-			attributeKey, type, catalog,
-			transactionalLayer.getStateCopyWithCommittedChanges(this.uniqueValueToEntityTuple, transaction),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.idToLocaleIndex, transaction)
+			attributeKey, type,
+			transactionalLayer.getStateCopyWithCommittedChanges(this.uniqueValueToEntityTuple),
+			transactionalLayer.getStateCopyWithCommittedChanges(this.idToLocaleIndex)
 		);
-		transactionalLayer.getStateCopyWithCommittedChanges(this.dirty, transaction);
+		transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
 		transactionalLayer.removeTransactionalMemoryLayerIfExists(this.localeToIdIndex);
-		// we can safely throw away dirty flag now
-		ofNullable(layer).ifPresent(it -> it.clean(transactionalLayer));
 		return uniqueKeyIndex;
 	}
 

@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -40,6 +40,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
@@ -225,6 +226,30 @@ class FilterIndexTest implements TimeBoundedTestSupport {
 	void shouldReturnRecordsLesserThanEq() {
 		fillStringAttribute();
 		assertArrayEquals(new int[] {1, 2}, stringAttribute.getRecordsLesserThanEq("B").getArray());
+	}
+
+	@Test
+	void shouldReturnRecordsLesserThanLocaleSpecific_Czech() {
+		FilterIndex czechStringAttribute = new FilterIndex(new AttributeKey("a", new Locale("cs", "CZ")), String.class);
+		czechStringAttribute.addRecord(1, "CH");
+		czechStringAttribute.addRecord(2, "E");
+		czechStringAttribute.addRecord(3, "K");
+		czechStringAttribute.addRecord(4, "D");
+		czechStringAttribute.addRecord(5, "C");
+		czechStringAttribute.addRecord(6, "B");
+		assertArrayEquals(new int[] {2, 4, 5, 6}, czechStringAttribute.getRecordsLesserThan("CH").getArray());
+	}
+
+	@Test
+	void shouldReturnRecordsLesserThanLocaleSpecific_English() {
+		FilterIndex czechStringAttribute = new FilterIndex(new AttributeKey("a", Locale.ENGLISH), String.class);
+		czechStringAttribute.addRecord(1, "CH");
+		czechStringAttribute.addRecord(2, "E");
+		czechStringAttribute.addRecord(3, "K");
+		czechStringAttribute.addRecord(4, "D");
+		czechStringAttribute.addRecord(5, "C");
+		czechStringAttribute.addRecord(6, "B");
+		assertArrayEquals(new int[] {5, 6}, czechStringAttribute.getRecordsLesserThan("CH").getArray());
 	}
 
 	@Test
@@ -458,8 +483,9 @@ class FilterIndexTest implements TimeBoundedTestSupport {
 						committedResult.set(
 							new FilterIndex(
 								new AttributeKey("a"),
-								committed.getInvertedIndex(),
-								committed.getRangeIndex()
+								committed.getInvertedIndex().getValueToRecordBitmap(),
+								committed.getRangeIndex(),
+								Integer.class
 							)
 						);
 					}

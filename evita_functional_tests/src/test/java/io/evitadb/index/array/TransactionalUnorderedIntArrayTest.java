@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,6 +23,7 @@
 
 package io.evitadb.index.array;
 
+import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.test.duration.TimeArgumentProvider;
 import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
 import io.evitadb.test.duration.TimeBoundedTestSupport;
@@ -387,7 +388,7 @@ class TransactionalUnorderedIntArrayTest implements TimeBoundedTestSupport {
 	@Test
 	void shouldDoReversibleAddAndRemoveActions() {
 		final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[] {7, 8, 1});
-		
+
 		array.add(7, 9);
 		array.remove(9);
 		array.add(Integer.MIN_VALUE, 6);
@@ -427,7 +428,7 @@ class TransactionalUnorderedIntArrayTest implements TimeBoundedTestSupport {
 		array.add(1, 5);
 		array.remove(1);
 		array.remove(5);
-			
+
 		assertTransactionalArrayIs(new int[0], array);
 	}
 
@@ -480,7 +481,7 @@ class TransactionalUnorderedIntArrayTest implements TimeBoundedTestSupport {
 	@Test
 	void shouldCorrectlyAddAndRemoveOnNonOverlappingPositions() {
 		final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[] {5, 1, 6, 10, 2, 11});
-		
+
 		array.add(5, 4);
 		array.add(6, 3);
 		array.remove(10);
@@ -520,7 +521,7 @@ class TransactionalUnorderedIntArrayTest implements TimeBoundedTestSupport {
 	@Test
 	void shouldCorrectlyAddAndRemoveOnOverlappingBoundaryPositions() {
 		final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[] {2, 1, 10, 6, 11, 5});
-		
+
 		array.remove(2);
 		array.remove(5);
 		array.add(11, 0);
@@ -528,7 +529,7 @@ class TransactionalUnorderedIntArrayTest implements TimeBoundedTestSupport {
 
 		assertTransactionalArrayIs(new int[] {12, 1, 10, 6, 11, 0}, array);
 	}
-	
+
 	@Test
 	void shouldCorrectlyAddAndRemoveOnOverlappingBoundaryPositionsAndCommit() {
 		final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[] {2, 1, 10, 6, 11, 5});
@@ -553,7 +554,7 @@ class TransactionalUnorderedIntArrayTest implements TimeBoundedTestSupport {
 	@Test
 	void shouldCorrectlyAddAndRemoveOnOverlappingMiddlePositions() {
 		final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[] {1, 5, 8, 11});
-		
+
 		array.remove(5);
 		array.remove(8);
 		array.add(1, 6);

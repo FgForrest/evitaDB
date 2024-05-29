@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -40,6 +40,7 @@ import io.evitadb.core.query.filter.translator.attribute.alternative.AttributeBi
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
+import java.util.Arrays;
 import java.util.Optional;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
@@ -118,8 +119,13 @@ public class AttributeStartsWithTranslator implements FilteringConstraintTransla
 				if (attr.isEmpty()) {
 					return false;
 				} else {
+					final Predicate<String> predicate = theValue -> theValue != null && theValue.startsWith(textToSearch);
 					final Serializable theValue = attr.get().value();
-					return theValue != null && ((String) theValue).startsWith(textToSearch);
+					if (theValue.getClass().isArray()) {
+						return Arrays.stream((Object[])theValue).map(String.class::cast).anyMatch(predicate);
+					} else {
+						return predicate.test((String)theValue);
+					}
 				}
 			}
 		);

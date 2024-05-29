@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -46,6 +46,10 @@ public class PrettyPrintingFormulaVisitor implements FormulaVisitor {
 	 */
 	private final int indent;
 	/**
+	 * Contains true if the calculated results should contain precise primary keys.
+	 */
+	private final PrettyPrintStyle style;
+	/**
 	 * This map keeps track of already seen formulas so that we can mark duplicate instances in tree as references
 	 * to them.
 	 */
@@ -57,17 +61,33 @@ public class PrettyPrintingFormulaVisitor implements FormulaVisitor {
 
 	public PrettyPrintingFormulaVisitor() {
 		this.indent = 3;
+		this.style = PrettyPrintStyle.NORMAL;
 	}
 
 	public PrettyPrintingFormulaVisitor(int indent) {
 		this.indent = indent;
+		this.style = PrettyPrintStyle.NORMAL;
+	}
+
+	public PrettyPrintingFormulaVisitor(int indent, @Nonnull PrettyPrintStyle style) {
+		this.indent = indent;
+		this.style = style;
 	}
 
 	/**
 	 * Preferred way of invoking this visitor. Accepts formula (tree) and produces description string.
 	 */
-	public static String toString(Formula formula) {
-		final PrettyPrintingFormulaVisitor visitor = new PrettyPrintingFormulaVisitor();
+	public static String toString(@Nonnull Formula formula) {
+		final PrettyPrintingFormulaVisitor visitor = new PrettyPrintingFormulaVisitor(3);
+		formula.accept(visitor);
+		return visitor.getResult();
+	}
+
+	/**
+	 * Preferred way of invoking this visitor. Accepts formula (tree) and produces description string.
+	 */
+	public static String toStringVerbose(@Nonnull Formula formula) {
+		final PrettyPrintingFormulaVisitor visitor = new PrettyPrintingFormulaVisitor(3, PrettyPrintStyle.VERBOSE);
 		formula.accept(visitor);
 		return visitor.getResult();
 	}
@@ -83,9 +103,14 @@ public class PrettyPrintingFormulaVisitor implements FormulaVisitor {
 			formulasSeen.put(formula, new FormulaInstance(id, formula));
 			result.append("[#").append(id).append("] ");
 		}
-		result.append(formula);
+		if (style == PrettyPrintStyle.VERBOSE) {
+			result.append(formula.toStringVerbose());
+		} else {
+			result.append(formula);
+		}
 		if (formula.getInnerFormulas().length > 0) {
-			result.append(" → ").append(formula.compute());
+			result.append(" → ")
+				.append(style == PrettyPrintStyle.VERBOSE ? formula.compute() : " result count " + formula.compute().size());
 		}
 		result.append("\n");
 		level++;
@@ -106,6 +131,22 @@ public class PrettyPrintingFormulaVisitor implements FormulaVisitor {
 	private static class FormulaInstance {
 		private final int id;
 		private final Formula formula;
+	}
+
+	/**
+	 * Defines the style of pretty-printing.
+	 */
+	public enum PrettyPrintStyle {
+
+		/**
+		 * Output is concise and contains only necessary information.
+		 */
+		NORMAL,
+		/**
+		 * Output is verbose and contains all possible information.
+		 */
+		VERBOSE
+
 	}
 
 }

@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -75,7 +75,7 @@ public class CatalogSchemaJsonSerializer extends SchemaJsonSerializer {
 	                          @Nonnull Set<String> entityTypes) {
 		final ObjectNode rootNode = objectJsonSerializer.objectNode();
 
-		rootNode.put(VersionedDescriptor.VERSION.name(), catalogSchema.getVersion());
+		rootNode.put(VersionedDescriptor.VERSION.name(), catalogSchema.version());
 		rootNode.put(NamedSchemaDescriptor.NAME.name(), catalogSchema.getName());
 		rootNode.set(NamedSchemaDescriptor.NAME_VARIANTS.name(), serializeNameVariants(catalogSchema.getNameVariants()));
 		rootNode.put(NamedSchemaDescriptor.DESCRIPTION.name(), catalogSchema.getDescription());

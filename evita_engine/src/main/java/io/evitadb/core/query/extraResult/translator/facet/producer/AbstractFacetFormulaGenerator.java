@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -43,9 +43,10 @@ import io.evitadb.core.query.algebra.facet.FacetGroupOrFormula;
 import io.evitadb.core.query.algebra.facet.UserFilterFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaCloner;
+import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.facet.FacetHavingTranslator;
-import io.evitadb.exception.EvitaInternalError;
-import io.evitadb.index.array.CompositeObjectArray;
+import io.evitadb.dataType.array.CompositeObjectArray;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
@@ -144,12 +145,12 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 	 * an account.
 	 */
 	@Nonnull
-	protected static Formula[] alterFormula(@Nonnull Formula newFormula, boolean disjunction, boolean negation, @Nonnull Formula... children) {
+	protected static Formula[] alterFormula(@Nonnull Formula newFormula, @Nonnull Formula superSetFormula, boolean disjunction, boolean negation, @Nonnull Formula... children) {
 		// if newly added formula should represent OR join
 		if (disjunction) {
 			return addNewFormulaAsDisjunction(newFormula, children);
 		} else if (negation) {
-			return addNewFormulaAsNegation(newFormula, children);
+			return addNewFormulaAsNegation(newFormula, children, superSetFormula);
 		} else {
 			return addNewFormulaAsConjunction(newFormula, children);
 		}
@@ -329,31 +330,33 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 		// iterate over existing children
 		final AtomicBoolean childrenAltered = new AtomicBoolean();
 		for (int i = 0; i < children.length; i++) {
-			final Formula mutatedChild = FormulaCloner.clone(children[i], examinedFormula -> {
-				// and if existing AND formula is found
-				if (examinedFormula instanceof AndFormula) {
-					// simply add new facet group formula to the AND formula
-					return examinedFormula.getCloneWithInnerFormulas(
-						ArrayUtils.insertRecordIntoArray(
-							newFormula, examinedFormula.getInnerFormulas(), examinedFormula.getInnerFormulas().length
-						)
-					);
-				} else if (examinedFormula instanceof final CombinedFacetFormula combinedFacetFormula) {
-					// if combined facet formula is found - we know there is combination of AND and OR formulas inside
-					// take the AND part of the combined formula
-					final Formula andFormula = combinedFacetFormula.getAndFormula();
-					// and replace combined formula with OR part untouched and AND part enriched with new facet formula
-					return examinedFormula.getCloneWithInnerFormulas(
-						FormulaFactory.and(
-							andFormula,
-							newFormula
-						),
-						combinedFacetFormula.getOrFormula()
-					);
-				} else {
-					return examinedFormula;
-				}
-			});
+			final Formula mutatedChild = FormulaCloner.clone(
+				children[i],
+				(cloner, examinedFormula) -> {
+					// and if existing AND formula is found
+					if (examinedFormula instanceof AndFormula && cloner.allParentsMatch(formula -> FilterByVisitor.isConjunctiveFormula(formula.getClass()))) {
+						// simply add new facet group formula to the AND formula
+						return examinedFormula.getCloneWithInnerFormulas(
+							ArrayUtils.insertRecordIntoArray(
+								newFormula, examinedFormula.getInnerFormulas(), examinedFormula.getInnerFormulas().length
+							)
+						);
+					} else if (examinedFormula instanceof final CombinedFacetFormula combinedFacetFormula && cloner.allParentsMatch(formula -> FilterByVisitor.isConjunctiveFormula(formula.getClass()))) {
+						// if combined facet formula is found - we know there is combination of AND and OR formulas inside
+						// take the AND part of the combined formula
+						final Formula andFormula = combinedFacetFormula.getAndFormula();
+						// and replace combined formula with OR part untouched and AND part enriched with new facet formula
+						return examinedFormula.getCloneWithInnerFormulas(
+							FormulaFactory.and(
+								andFormula,
+								newFormula
+							),
+							combinedFacetFormula.getOrFormula()
+						);
+					} else {
+						return examinedFormula;
+					}
+				});
 
 			if (mutatedChild != children[i]) {
 				children[i] = mutatedChild;
@@ -375,14 +378,14 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 	 * filter and combines it with `newFormula` in NOT composition where `newFormula` represents subracted set.
 	 */
 	@Nonnull
-	private static Formula[] addNewFormulaAsNegation(@Nonnull Formula newFormula, @Nonnull Formula[] children) {
+	private static Formula[] addNewFormulaAsNegation(@Nonnull Formula newFormula, @Nonnull Formula[] children, @Nonnull Formula superSetFormula) {
 		// if newly added formula should represent OR join
 		// combine existing children with new facet formula in NOT container - now is not yet created
 		// (otherwise this method would not be called at all)
 		return new Formula[]{
 			FormulaFactory.not(
 				newFormula,
-				FormulaFactory.and(children)
+				children.length == 0 ? superSetFormula : FormulaFactory.and(children)
 			)
 		};
 	}
@@ -602,7 +605,13 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 			// we can immediately alter the current formula adding new facet formula
 			storeFormula(
 				formula.getCloneWithInnerFormulas(
-					alterFormula(newFormula, isNewFacetDisjunction, isNewFacetNegation, updatedChildren)
+					alterFormula(
+						newFormula,
+						baseFormulaWithoutUserFilter,
+						isNewFacetDisjunction,
+						isNewFacetNegation,
+						updatedChildren
+					)
 				)
 			);
 			// we've stored the formula - instruct super method to skip it's handling
@@ -642,7 +651,7 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 	/**
 	 * Method stores formula to the result of the visitor on current {@link #levelStack}.
 	 */
-	protected void storeFormula(Formula formula) {
+	protected void storeFormula(@Nonnull Formula formula) {
 		// store updated formula
 		if (levelStack.isEmpty()) {
 			this.result = formula;
@@ -677,7 +686,7 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 			if (!targetFound) {
 				if (formula instanceof MutableFormula mutableFormula) {
 					if (targetFound) {
-						throw new EvitaInternalError("Expected single MutableFormula in the formula tree!");
+						throw new GenericEvitaInternalError("Expected single MutableFormula in the formula tree!");
 					} else {
 						targetFound = true;
 						mutableFormula.setDelegate(formulaToReplaceSupplier.get());

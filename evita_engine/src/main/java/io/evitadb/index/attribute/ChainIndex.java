@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,10 +23,14 @@
 
 package io.evitadb.index.attribute;
 
+import io.evitadb.ConsistencySensitiveDataStructure;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.Transaction;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory;
+import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
+import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
+import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.IndexDataStructure;
@@ -34,11 +38,9 @@ import io.evitadb.index.array.TransactionalUnorderedIntArray;
 import io.evitadb.index.array.UnorderedLookup;
 import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.map.TransactionalMap;
-import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
-import io.evitadb.index.transactionalMemory.TransactionalLayerProducer;
-import io.evitadb.index.transactionalMemory.TransactionalObjectVersion;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.spi.model.storageParts.index.ChainIndexStoragePart;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 
@@ -52,11 +54,11 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.OptionalInt;
+import java.util.PrimitiveIterator.OfInt;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static io.evitadb.core.Transaction.getTransactionalMemoryLayer;
 import static io.evitadb.utils.Assert.isPremiseValid;
 import static io.evitadb.utils.Assert.isTrue;
 import static java.util.Optional.ofNullable;
@@ -78,18 +80,13 @@ import static java.util.Optional.ofNullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public class ChainIndex implements SortedRecordsSupplierFactory, TransactionalLayerProducer<ChainIndexChanges, ChainIndex>, IndexDataStructure, Serializable {
+public class ChainIndex implements
+	IndexDataStructure,
+	ConsistencySensitiveDataStructure,
+	SortedRecordsSupplierFactory,
+	TransactionalLayerProducer<ChainIndexChanges, ChainIndex>,
+	Serializable {
 	@Serial private static final long serialVersionUID = 6633952268102524794L;
-
-	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
-	/**
-	 * This is internal flag that tracks whether the index contents became dirty and needs to be persisted.
-	 */
-	@Nonnull private final TransactionalBoolean dirty;
-	/**
-	 * Contains key identifying the attribute.
-	 */
-	@Getter private final AttributeKey attributeKey;
 	/**
 	 * Index contains tuples of entity primary key and its predecessor primary key. The conflicting primary key is
 	 * a value and the predecessor primary key is a key.
@@ -107,9 +104,18 @@ public class ChainIndex implements SortedRecordsSupplierFactory, TransactionalLa
 	 * but is part of different chain (inconsistent state).
 	 */
 	final TransactionalMap<Integer, TransactionalUnorderedIntArray> chains;
+	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
+	/**
+	 * This is internal flag that tracks whether the index contents became dirty and needs to be persisted.
+	 */
+	@Nonnull private final TransactionalBoolean dirty;
+	/**
+	 * Contains key identifying the attribute.
+	 */
+	@Getter private final AttributeKey attributeKey;
 	/**
 	 * Temporary data structure that should be NULL and should exist only when {@link Catalog} is in
-	 * bulk insertion or read only state where transactions are not used.
+	 * bulk insertion or read only state where transaction are not used.
 	 */
 	private ChainIndexChanges chainIndexChanges;
 
@@ -217,10 +223,14 @@ public class ChainIndex implements SortedRecordsSupplierFactory, TransactionalLa
 			"An entity that is its own predecessor doesn't have sense!"
 		);
 		final ChainElementState existingState = this.elementStates.get(primaryKey);
-		// if existing state is not found - we need to insert new one
 		if (existingState == null) {
+			// if existing state is not found - we need to insert new one
 			insertPredecessor(primaryKey, predecessor);
+		} else if (existingState.predecessorPrimaryKey() == predecessor.predecessorId()) {
+			// the predecessor is the same - nothing to do
+			return;
 		} else {
+			// otherwise we need to perform update
 			updatePredecessor(primaryKey, predecessor, existingState);
 		}
 		this.dirty.setToTrue();
@@ -251,6 +261,172 @@ public class ChainIndex implements SortedRecordsSupplierFactory, TransactionalLa
 		return this.elementStates.isEmpty();
 	}
 
+	@Nonnull
+	@Override
+	public SortedRecordsSupplier getAscendingOrderRecordsSupplier() {
+		return getOrCreateChainIndexChanges().getAscendingOrderRecordsSupplier();
+	}
+
+	@Nonnull
+	@Override
+	public SortedRecordsSupplier getDescendingOrderRecordsSupplier() {
+		return getOrCreateChainIndexChanges().getDescendingOrderRecordsSupplier();
+	}
+
+	/**
+	 * This method verifies internal consistency of the data-structure. It checks whether the chains are correctly
+	 * ordered and whether the element states are correctly set.
+	 */
+	@Nonnull
+	@Override
+	public ConsistencyReport getConsistencyReport() {
+		final StringBuilder errors = new StringBuilder(512);
+
+		int overallCount = 0;
+		for (Entry<Integer, TransactionalUnorderedIntArray> entry : chains.entrySet()) {
+			overallCount += entry.getValue().getLength();
+			final int[] unorderedList = entry.getValue().getArray();
+			if (unorderedList.length <= 0) {
+				errors.append("\nThe chain with head `")
+					.append(entry.getKey())
+					.append("` is empty!");
+			}
+			int headElementId = unorderedList[0];
+			if (headElementId != entry.getKey()) {
+				errors.append("\nThe head of the chain `")
+					.append(headElementId).append("` doesn't match the chain head `")
+					.append(entry.getKey())
+					.append("`!");
+			}
+
+			int previousElementId = headElementId;
+			for (int i = 0; i < unorderedList.length; i++) {
+				int elementId = unorderedList[i];
+				final ChainElementState state = elementStates.get(elementId);
+				if (state == null) {
+					errors.append("\nThe element `")
+						.append(elementId)
+						.append("` is not present in the element states!");
+				}
+				if (i > 0) {
+					if (state.state() == ElementState.HEAD) {
+						errors.append("\nThe element `")
+							.append(elementId)
+							.append("` must not be a head of the chain!");
+					}
+					if (state.inChainOfHeadWithPrimaryKey() != headElementId) {
+						errors.append("\nThe element `")
+							.append(elementId)
+							.append("` is not in the chain with head `")
+							.append(headElementId)
+							.append("`!");
+					}
+					if (state.predecessorPrimaryKey() != previousElementId) {
+						errors.append("\nThe predecessor of the element `")
+							.append(elementId)
+							.append("` doesn't match the previous element!");
+					}
+				}
+				previousElementId = elementId;
+			}
+
+			final Integer headId = entry.getKey();
+			final ChainElementState headState = this.elementStates.get(headId);
+			if (headState.state() == ElementState.CIRCULAR) {
+				// the chain must contain element the head refers to
+				if (Arrays.stream(entry.getValue().getArray()).noneMatch(it -> it == headState.predecessorPrimaryKey())) {
+					errors.append("\nThe chain with CIRCULAR head `")
+						.append(headId)
+						.append("` doesn't contain element `")
+						.append(headState.predecessorPrimaryKey())
+						.append("` the head refers to!");
+				}
+			} else {
+				// the chain must not contain element the head refers to
+				if (Arrays.stream(entry.getValue().getArray()).anyMatch(it -> it == headState.predecessorPrimaryKey())) {
+					errors.append("\nThe chain with head `")
+						.append(headId)
+						.append("` contain element `")
+						.append(headState.predecessorPrimaryKey())
+						.append("` the head refers to and is not marked as CIRCULAR!");
+				}
+			}
+		}
+
+		for (Entry<Integer, ChainElementState> entry : elementStates.entrySet()) {
+			final int chainHeadPk = entry.getValue().inChainOfHeadWithPrimaryKey();
+			if (entry.getValue().state() == ElementState.SUCCESSOR) {
+				final TransactionalUnorderedIntArray chain = this.chains.get(chainHeadPk);
+				if (chain == null) {
+					errors.append("\nThe referenced chain with head `")
+						.append(chainHeadPk)
+						.append("` referenced by ")
+						.append(entry.getValue().state())
+						.append("` element `")
+						.append(entry.getKey())
+						.append("` doesn't exist!");
+				} else if (chain.indexOf(entry.getKey()) < 0) {
+					errors.append("\nThe `")
+						.append(entry.getValue().state())
+						.append("` element `")
+						.append(entry.getKey())
+						.append("` is not in the chain with head `")
+						.append(chainHeadPk)
+						.append("`!");
+				}
+			} else if (chainHeadPk != entry.getKey()) {
+				errors.append("\nThe `")
+					.append(entry.getValue().state())
+					.append("` element `")
+					.append(entry.getKey())
+					.append("` is not in the chain with head `")
+					.append(chainHeadPk)
+					.append("`!");
+			}
+		}
+
+		if (overallCount != elementStates.size()) {
+			errors.append("\nThe number of elements in chains doesn't match " +
+				"the number of elements in element states!");
+		}
+
+		final ConsistencyState state;
+		if (!errors.isEmpty()) {
+			state = ConsistencyState.BROKEN;
+		} else if (isConsistent()) {
+			state = ConsistencyState.CONSISTENT;
+		} else {
+			state = ConsistencyState.INCONSISTENT;
+		}
+
+		final String chainsListing = chains.values()
+			.stream()
+			.map(it -> {
+				final StringBuilder sb = new StringBuilder("\t- ");
+				final OfInt pkIt = it.iterator();
+				int counter = 0;
+				while (pkIt.hasNext() && sb.length() < 80) {
+					if (counter > 0) {
+						sb.append(", ");
+					}
+					sb.append(pkIt.nextInt());
+					counter++;
+				}
+				if (counter < it.getLength()) {
+					sb.append("... (")
+						.append(it.getLength() - counter)
+						.append(" more)");
+				}
+				return sb.toString();
+			})
+			.collect(Collectors.joining("\n"));
+		return new ConsistencyReport(
+			state,
+			"## Chains\n\n" + chainsListing + "\n\n" +
+				(errors.isEmpty() ? "## No errors detected." : "## Errors detected\n\n" + errors)
+		);
+	}
+
 	/**
 	 * Method creates container for storing chain index from memory to the persistent storage.
 	 */
@@ -278,7 +454,6 @@ public class ChainIndex implements SortedRecordsSupplierFactory, TransactionalLa
 		this.dirty.reset();
 	}
 
-
 	/*
 		Implementation of TransactionalLayerProducer
 	 */
@@ -300,14 +475,13 @@ public class ChainIndex implements SortedRecordsSupplierFactory, TransactionalLa
 	@Override
 	public ChainIndex createCopyWithMergedTransactionalMemory(
 		@Nullable ChainIndexChanges layer,
-		@Nonnull TransactionalLayerMaintainer transactionalLayer,
-		@Nullable Transaction transaction
+		@Nonnull TransactionalLayerMaintainer transactionalLayer
 	) {
-		transactionalLayer.getStateCopyWithCommittedChanges(this.dirty, transaction);
+		transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
 		return new ChainIndex(
 			attributeKey,
-			transactionalLayer.getStateCopyWithCommittedChanges(this.chains, transaction),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.elementStates, transaction)
+			transactionalLayer.getStateCopyWithCommittedChanges(this.chains),
+			transactionalLayer.getStateCopyWithCommittedChanges(this.elementStates)
 		);
 	}
 
@@ -318,13 +492,17 @@ public class ChainIndex implements SortedRecordsSupplierFactory, TransactionalLa
 			"   - elementStates:\n" + elementStates.entrySet().stream().map(it -> "      - " + it.getKey() + ": " + it.getValue()).collect(Collectors.joining("\n"));
 	}
 
+	/*
+		PRIVATE METHODS
+	 */
+
 	/**
 	 * Retrieves or creates temporary data structure. When transaction exists it's created in the transactional memory
 	 * space so that other threads are not affected by the changes in the {@link SortIndex}.
 	 */
 	@Nonnull
 	private ChainIndexChanges getOrCreateChainIndexChanges() {
-		final ChainIndexChanges layer = getTransactionalMemoryLayer(this);
+		final ChainIndexChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
 			return ofNullable(this.chainIndexChanges).orElseGet(() -> {
 				this.chainIndexChanges = new ChainIndexChanges(this);
@@ -388,7 +566,7 @@ public class ChainIndex implements SortedRecordsSupplierFactory, TransactionalLa
 	 * Method removes successor element of the existing chain. The chain is removed completely if the successor is the
 	 * only element in the chain. If the element is in the middle of the chain, the chain is split into two chains.
 	 *
-	 * @param primaryKey primary key of the element
+	 * @param primaryKey  primary key of the element
 	 * @param chainHeadPk primary key of the chain head to which the element belongs
 	 */
 	@Nonnull
@@ -396,6 +574,7 @@ public class ChainIndex implements SortedRecordsSupplierFactory, TransactionalLa
 		// if the primary key is successor of its chain
 		final TransactionalUnorderedIntArray chain = ofNullable(this.chains.get(chainHeadPk))
 			.orElseThrow(() -> new EvitaInvalidUsageException("Chain with head `" + chainHeadPk + "` is not present in the index!"));
+		final ChainElementState existingStateHeadState = this.elementStates.get(chainHeadPk);
 
 		final int index = chain.indexOf(primaryKey);
 		// sanity check - the primary key must be present in the chain according to the state information
@@ -412,9 +591,19 @@ public class ChainIndex implements SortedRecordsSupplierFactory, TransactionalLa
 				final int[] subChainWithoutRemovedElement = Arrays.copyOfRange(subChain, 1, subChain.length);
 				this.chains.put(subChainWithoutRemovedElement[0], new TransactionalUnorderedIntArray(subChainWithoutRemovedElement));
 				reclassifyChain(subChainWithoutRemovedElement[0], subChainWithoutRemovedElement);
+
+				// verify whether the head of chain was not in circular conflict and if so
+				verifyIfCircularDependencyExistsAndIsBroken(existingStateHeadState);
 			} else {
 				// just remove it from the chain
 				chain.removeRange(index, chain.getLength());
+				// if the primary key was the perpetrator of the circular dependency, remove the status
+				if (existingStateHeadState.state() == ElementState.CIRCULAR && existingStateHeadState.predecessorPrimaryKey() == primaryKey) {
+					this.elementStates.put(
+						chainHeadPk,
+						new ChainElementState(existingStateHeadState, ElementState.SUCCESSOR)
+					);
+				}
 			}
 			return OptionalInt.of(chainHeadPk);
 		} else {
@@ -449,6 +638,14 @@ public class ChainIndex implements SortedRecordsSupplierFactory, TransactionalLa
 					// we may safely append the primary key to it
 					predecessorChain.add(predecessor.predecessorId(), primaryKey);
 					this.elementStates.put(primaryKey, new ChainElementState(chainHeadId, predecessor, ElementState.SUCCESSOR));
+					// if the head of the chain refers to the appended primary key - we have circular dependency
+					final ChainElementState chainHeadState = this.elementStates.get(chainHeadId);
+					if (chainHeadState.predecessorPrimaryKey() == primaryKey) {
+						this.elementStates.put(
+							chainHeadId,
+							new ChainElementState(chainHeadState, ElementState.CIRCULAR)
+						);
+					}
 				} else {
 					// we have to create new "split" chain for the primary key
 					introduceNewSuccessorChain(primaryKey, predecessor);
@@ -457,18 +654,6 @@ public class ChainIndex implements SortedRecordsSupplierFactory, TransactionalLa
 		}
 		// collapse the chains that refer to the last element of created chain
 		collapseChainsIfPossible(primaryKey);
-	}
-
-	@Nonnull
-	@Override
-	public SortedRecordsSupplier getAscendingOrderRecordsSupplier() {
-		return getOrCreateChainIndexChanges().getAscendingOrderRecordsSupplier();
-	}
-
-	@Nonnull
-	@Override
-	public SortedRecordsSupplier getDescendingOrderRecordsSupplier() {
-		return getOrCreateChainIndexChanges().getDescendingOrderRecordsSupplier();
 	}
 
 	/**
@@ -573,40 +758,56 @@ public class ChainIndex implements SortedRecordsSupplierFactory, TransactionalLa
 			final int movedChainHeadPk;
 
 			final ChainElementState predecessorState = this.elementStates.get(predecessor.predecessorId());
-			final TransactionalUnorderedIntArray predecessorChain = this.chains.get(predecessorState.inChainOfHeadWithPrimaryKey());
-			// if we append the sub-chain to after the last record of the predecessor chain
-			if (predecessor.predecessorId() == predecessorChain.getLastRecordId()) {
-				// we can merge both chains together
-				movedChainHeadPk = predecessorState.inChainOfHeadWithPrimaryKey();
+			if (predecessorState == null) {
+				// the predecessor doesn't exist in current index
 				if (index > 0) {
-					// the element is in the body of the chain, we need to split the chain
-					movedChain = existingChain.removeRange(index, existingChain.getLength());
-					// append only the sub-chain to the predecessor chain
-					predecessorChain.appendAll(movedChain);
-				} else {
-					// the element is the head of the chain, discard the chain completely
-					final TransactionalUnorderedIntArray removedChain = this.chains.remove(existingState.inChainOfHeadWithPrimaryKey());
-					// and fully merge with predecessor chain
-					movedChain = existingChain.getArray();
-					predecessorChain.appendAll(movedChain);
-					// if there was transactional memory associated with the chain, discard it
-					removedChain.removeLayer();
-				}
-			} else {
-				// if the element is in the body of the chain and is already successor of the predecessor
-				if (index > 0 && predecessor.predecessorId() == existingChain.get(index - 1)) {
-					// do nothing - the update doesn't affect anything
-					return;
-				} else if (index > 0) {
-					// the element is in the body of the chain, we need to split the chain - we have a situation with
-					// multiple successors of the single predecessor
+					// we need to split the chain and make new successor chain
 					movedChain = existingChain.removeRange(index, existingChain.getLength());
 					movedChainHeadPk = primaryKey;
 					this.chains.put(primaryKey, new TransactionalUnorderedIntArray(movedChain));
 				} else {
-					// leave the current chain be - we need to switch the state to SUCCESSOR only
+					// but we tackle the head of the chain - so we don't have to do anything
+					movedChainHeadPk = primaryKey;
 					movedChain = null;
-					movedChainHeadPk = existingState.inChainOfHeadWithPrimaryKey();
+				}
+			} else {
+				final TransactionalUnorderedIntArray predecessorChain = this.chains.get(predecessorState.inChainOfHeadWithPrimaryKey());
+				// if we append the sub-chain to after the last record of the predecessor chain
+				if (predecessor.predecessorId() == predecessorChain.getLastRecordId()) {
+					// we can merge both chains together
+					movedChainHeadPk = predecessorState.inChainOfHeadWithPrimaryKey();
+					if (index > 0) {
+						// the element is in the body of the chain, we need to split the chain
+						movedChain = existingChain.removeRange(index, existingChain.getLength());
+						// append only the sub-chain to the predecessor chain
+						predecessorChain.appendAll(movedChain);
+						// if the appended chain contains primary key the head of predecessor chain refers to - we have circular dependency
+						examineCircularConflictInNewlyAppendedChain(predecessorState.inChainOfHeadWithPrimaryKey(), movedChain);
+					} else {
+						// the element is the head of the chain, discard the chain completely
+						final TransactionalUnorderedIntArray removedChain = this.chains.remove(existingState.inChainOfHeadWithPrimaryKey());
+						// and fully merge with predecessor chain
+						movedChain = existingChain.getArray();
+						predecessorChain.appendAll(movedChain);
+						// if there was transactional memory associated with the chain, discard it
+						removedChain.removeLayer();
+					}
+				} else {
+					// if the element is in the body of the chain and is already successor of the predecessor
+					if (index > 0 && predecessor.predecessorId() == existingChain.get(index - 1)) {
+						// do nothing - the update doesn't affect anything
+						return;
+					} else if (index > 0) {
+						// the element is in the body of the chain, we need to split the chain - we have a situation with
+						// multiple successors of the single predecessor
+						movedChain = existingChain.removeRange(index, existingChain.getLength());
+						movedChainHeadPk = primaryKey;
+						this.chains.put(primaryKey, new TransactionalUnorderedIntArray(movedChain));
+					} else {
+						// leave the current chain be - we need to switch the state to SUCCESSOR only
+						movedChain = null;
+						movedChainHeadPk = existingState.inChainOfHeadWithPrimaryKey();
+					}
 				}
 			}
 
@@ -614,6 +815,9 @@ public class ChainIndex implements SortedRecordsSupplierFactory, TransactionalLa
 			this.elementStates.put(primaryKey, new ChainElementState(movedChainHeadPk, predecessor, ElementState.SUCCESSOR));
 			// if there was a chain split
 			if (movedChain != null) {
+				// check whether the new head doesn't introduce circular dependency with new chain
+				examineCircularConflictInNewlyAppendedChain(movedChainHeadPk, movedChain);
+
 				// then we need to update the chain head for all other elements in the split chain
 				// (except the element itself which was already updated by previous statement)
 				for (int i = 1; i < movedChain.length; i++) {
@@ -633,6 +837,24 @@ public class ChainIndex implements SortedRecordsSupplierFactory, TransactionalLa
 
 			// verify whether the head of chain was not in circular conflict and if so
 			verifyIfCircularDependencyExistsAndIsBroken(existingStateHeadState);
+		}
+	}
+
+	/**
+	 * Method check whether there is circular dependency between chain head predecessor and the contents of the appended
+	 * chain. If so, the chain head is marked as circular.
+	 *
+	 * @param chainHeadPrimaryKey primary key of the chain head
+	 * @param appendedChain       chain that was appended to the chain head
+	 */
+	private void examineCircularConflictInNewlyAppendedChain(int chainHeadPrimaryKey, int[] appendedChain) {
+		final ChainElementState predecessorChainHeadState = this.elementStates.get(chainHeadPrimaryKey);
+		final boolean newCircularConflict = ArrayUtils.indexOf(predecessorChainHeadState.predecessorPrimaryKey(), appendedChain) >= 0;
+		if (newCircularConflict) {
+			this.elementStates.put(
+				chainHeadPrimaryKey,
+				new ChainElementState(predecessorChainHeadState, ElementState.CIRCULAR)
+			);
 		}
 	}
 
@@ -682,12 +904,20 @@ public class ChainIndex implements SortedRecordsSupplierFactory, TransactionalLa
 		// if original chain head is in circular dependency
 		if (originalChainHeadState.state() == ElementState.CIRCULAR) {
 			final TransactionalUnorderedIntArray originalHeadChain = this.chains.get(originalChainHeadState.inChainOfHeadWithPrimaryKey());
-			// verify it is still in circular dependency
-			if (originalHeadChain.indexOf(originalChainHeadState.predecessorPrimaryKey()) < 0) {
-				// the circular dependency was broken
-				this.elementStates.put(
+			if (originalHeadChain != null) {
+				// verify it is still in circular dependency
+				if (originalHeadChain.indexOf(originalChainHeadState.predecessorPrimaryKey()) < 0) {
+					// the circular dependency was broken
+					this.elementStates.put(
+						originalChainHeadState.inChainOfHeadWithPrimaryKey(),
+						new ChainElementState(originalChainHeadState, ElementState.SUCCESSOR)
+					);
+				}
+			} else {
+				// the circular dependency was broken - the chain is now part of another chain
+				this.elementStates.compute(
 					originalChainHeadState.inChainOfHeadWithPrimaryKey(),
-					new ChainElementState(originalChainHeadState, ElementState.SUCCESSOR)
+					(k, newState) -> new ChainElementState(newState, ElementState.SUCCESSOR)
 				);
 			}
 		}
@@ -700,8 +930,10 @@ public class ChainIndex implements SortedRecordsSupplierFactory, TransactionalLa
 	 */
 	private void reclassifyChain(int inChainOfHeadWithPrimaryKey, @Nonnull int[] primaryKeys) {
 		for (int splitPk : primaryKeys) {
-			final ChainElementState movedPkState = this.elementStates.get(splitPk);
-			this.elementStates.put(splitPk, new ChainElementState(inChainOfHeadWithPrimaryKey, movedPkState));
+			this.elementStates.compute(
+				splitPk,
+				(key, movedPkState) -> new ChainElementState(inChainOfHeadWithPrimaryKey, movedPkState)
+			);
 		}
 	}
 
@@ -764,6 +996,8 @@ public class ChainIndex implements SortedRecordsSupplierFactory, TransactionalLa
 				removedChain.removeLayer();
 				predecessorChain.appendAll(movedChain);
 				reclassifyChain(predecessorState.inChainOfHeadWithPrimaryKey(), movedChain);
+				// if the moved chain contains primary key the new head refers to - we have circular dependency
+				examineCircularConflictInNewlyAppendedChain(predecessorState.inChainOfHeadWithPrimaryKey(), movedChain);
 				return predecessorState.inChainOfHeadWithPrimaryKey();
 			}
 		}
@@ -785,30 +1019,49 @@ public class ChainIndex implements SortedRecordsSupplierFactory, TransactionalLa
 		final int lastRecordId = chain.getLastRecordId();
 		final Optional<Integer> collapsableChain = this.chains.keySet()
 			.stream()
-			.filter(pk -> {
-				final ChainElementState theState = this.elementStates.get(pk);
-				return theState.state() == ElementState.SUCCESSOR && theState.predecessorPrimaryKey() == lastRecordId;
-			})
+			.filter(pk -> this.elementStates.get(pk).predecessorPrimaryKey() == lastRecordId)
 			.findFirst();
 		if (collapsableChain.isPresent()) {
-			final ChainElementState headChainState = this.elementStates.get(collapsableChain.get());
-			final TransactionalUnorderedIntArray chainToBeCollapsed = this.chains.get(collapsableChain.get());
-			if (chainToBeCollapsed.indexOf(headChainState.predecessorPrimaryKey()) >= 0) {
+			final Integer collapsableHeadPk = collapsableChain.get();
+			final ChainElementState collapsableHeadChainState = this.elementStates.get(collapsableHeadPk);
+			final TransactionalUnorderedIntArray chainToBeCollapsed = this.chains.get(collapsableHeadPk);
+			if (chainToBeCollapsed.indexOf(collapsableHeadChainState.predecessorPrimaryKey()) >= 0) {
 				// we have circular dependency - we can't collapse the chain
 				this.elementStates.put(
-					collapsableChain.get(),
-					new ChainElementState(headChainState, ElementState.CIRCULAR)
+					collapsableHeadPk,
+					new ChainElementState(collapsableHeadChainState, ElementState.CIRCULAR)
 				);
 				return null;
 			} else {
 				// we may append the chain to the predecessor chain
-				final TransactionalUnorderedIntArray removedChain = this.chains.remove(collapsableChain.get());
+				final TransactionalUnorderedIntArray removedChain = this.chains.remove(collapsableHeadPk);
 				final int[] movedChain = removedChain.getArray();
 				// if there was transactional memory associated with the chain, discard it
 				removedChain.removeLayer();
 				chain.appendAll(movedChain);
 				reclassifyChain(chainHeadElement, movedChain);
-				return collapsableChain.get();
+				// this collapse introduced new circular dependency
+				final ChainElementState chainHeadElementState = this.elementStates.get(chainHeadElement);
+				if (ArrayUtils.indexOf(chainHeadElementState.predecessorPrimaryKey(), movedChain) >= 0) {
+					this.elementStates.put(
+						chainHeadElement,
+						new ChainElementState(
+							chainHeadElement,
+							chainHeadState.predecessorPrimaryKey(),
+							ElementState.CIRCULAR
+						)
+					);
+				} else if (collapsableHeadChainState.state() == ElementState.CIRCULAR) {
+					this.elementStates.put(
+						collapsableHeadPk,
+						new ChainElementState(
+							chainHeadElement,
+							collapsableHeadChainState.predecessorPrimaryKey(),
+							ElementState.SUCCESSOR
+						)
+					);
+				}
+				return collapsableHeadPk;
 			}
 		}
 		return null;

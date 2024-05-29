@@ -1,0 +1,30 @@
+query(
+  collection("Product"),
+  filterBy(
+    entityLocaleEquals("en"),
+    hierarchyWithin(
+      "categories",
+      attributeEquals("url", "/en/smartwatches")
+    ),
+    attributeEquals("status", "ACTIVE"),
+    or(
+      attributeInRangeNow("validity"),
+      attributeIsNull("validity")
+    ),
+    referenceHaving(
+      "stocks",
+      attributeGreaterThan("quantityOnStock", 0)
+    ),
+    priceInCurrency("EUR"),
+    priceInPriceLists("basic"),
+    priceValidInNow()
+  ),
+  require(
+    entityFetch(
+      attributeContent("name"),
+      referenceContentWithAttributes("stocks", attributeContent("quantityOnStock")),
+      priceContentRespectingFilter("reference")
+    ),
+    page(1, 16)
+  )
+)

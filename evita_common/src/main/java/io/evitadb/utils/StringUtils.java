@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -42,6 +42,9 @@ import java.util.List;
 import java.util.regex.MatchResult;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+
+import static java.lang.reflect.Array.get;
+import static java.lang.reflect.Array.getLength;
 
 /**
  * String utils contains shared utility methods for working with Strings.
@@ -539,6 +542,7 @@ public class StringUtils {
 		long hours = duration.toHoursPart();
 		long minutes = duration.toMinutesPart();
 		long seconds = duration.toSecondsPart();
+		long milliSeconds = duration.toMillis();
 
 		StringBuilder sb = new StringBuilder(32);
 
@@ -551,9 +555,40 @@ public class StringUtils {
 		if (minutes > 0 || hours > 0 || days > 0) {
 			sb.append(minutes).append("m ");
 		}
-		sb.append(seconds).append("s");
+		if (days > 0 || hours > 0 || minutes > 0 || seconds > 0) {
+			sb.append(seconds).append("s");
+		} else {
+			sb.append(milliSeconds).append("ms");
+		}
 
 		return sb.toString().trim();
+	}
+
+	/**
+	 * Renders value as String taking into account NULL values and arrays.
+	 *
+	 * @param value value to render
+	 * @return rendered value
+	 */
+	@Nonnull
+	public static String toString(@Nullable Object value) {
+		if (value == null) {
+			return "NULL";
+		} else if (value.getClass().isArray()) {
+			final StringBuilder sb = new StringBuilder(256);
+			sb.append('[');
+			for (int i = 0; i < getLength(value); i++) {
+				if (i > 0) {
+					sb.append(", ");
+				}
+				sb.append(toString(get(value, i)));
+
+			}
+			sb.append(']');
+			return sb.toString();
+		} else {
+			return value.toString();
+		}
 	}
 
 	/**
@@ -785,10 +820,18 @@ public class StringUtils {
 		appendIfNonZero(sb, minutes, "", "m");
 
 		seconds -= (minutes * 60);
-		if (!omitNanoIfPossible || (sb.length() == 0 && seconds == 0)) {
-			long nanos = nanoSeconds % 1000000000;
-			final String suffix = getIfNonZero(nanos, "." + "0".repeat(9 - String.valueOf(nanos).length()), "s");
-			append(sb, seconds, "", suffix);
+		final boolean emptyWithoutSeconds = sb.isEmpty() && seconds == 0;
+		if (!omitNanoIfPossible || emptyWithoutSeconds) {
+			if (emptyWithoutSeconds) {
+				final long millis = nanoSeconds / 1000000;
+				long nanos = nanoSeconds - (millis * 1000000);
+				final String suffix = getIfNonZero(nanos, "." + "0".repeat(6 - String.valueOf(nanos).length()), "ms");
+				append(sb, millis, "", suffix);
+			} else {
+				long nanos = nanoSeconds % 1000000000;
+				final String suffix = getIfNonZero(nanos, "." + "0".repeat(9 - String.valueOf(nanos).length()), "s");
+				append(sb, seconds, "", suffix);
+			}
 		} else {
 			appendIfNonZero(sb, seconds, "", "s");
 		}

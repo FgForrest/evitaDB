@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -258,7 +258,7 @@ public class ComplexDataObjectToJsonConverter implements DataItemVisitor {
 	/**
 	 * This factory is used in tests to get always the same output for comparison.
 	 */
-	static class SortingNodeFactory extends JsonNodeFactory {
+	public static class SortingNodeFactory extends JsonNodeFactory {
 		@Serial private static final long serialVersionUID = -840940331957056894L;
 
 		@Override

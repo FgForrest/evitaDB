@@ -46,7 +46,7 @@
       "allLocales": [
         "en"
       ],
-      "priceInnerRecordHandling": "FIRST_OCCURRENCE",
+      "priceInnerRecordHandling": "LOWEST_PRICE",
       "attributes": {
         "global": {
           "code": "nokia-g10"
@@ -86,7 +86,8 @@
         "priceWithTax": "124.0",
         "taxRate": "21.0",
         "validity": null
-      }
+      },
+      "multiplePricesForSaleAvailable": false
     },
     {
       "primaryKey": 107015,
@@ -171,7 +172,7 @@
       "allLocales": [
         "en"
       ],
-      "priceInnerRecordHandling": "FIRST_OCCURRENCE",
+      "priceInnerRecordHandling": "LOWEST_PRICE",
       "attributes": {
         "global": {
           "code": "oppo-a53"
@@ -222,7 +223,8 @@
         "priceWithTax": "124.0",
         "taxRate": "21.0",
         "validity": null
-      }
+      },
+      "multiplePricesForSaleAvailable": false
     },
     {
       "primaryKey": 107170,

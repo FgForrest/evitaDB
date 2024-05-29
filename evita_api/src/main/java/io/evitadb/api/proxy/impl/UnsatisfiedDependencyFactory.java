@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -46,11 +46,7 @@ import java.util.Map;
  */
 public class UnsatisfiedDependencyFactory implements ProxyFactory {
 	public static final UnsatisfiedDependencyFactory INSTANCE = new UnsatisfiedDependencyFactory();
-	private static final UnsatisfiedDependencyException UNSATISFIED_DEPENDENCY_EXCEPTION = new UnsatisfiedDependencyException(
-		"ProxyFactory requires a Proxycian (https://github.com/FgForrest/Proxycian) and " +
-			"ByteBuddy (https://github.com/raphw/byte-buddy) to be present on the classpath.",
-		"Required dependency is not available in evitaDB engine, contact developers of the application."
-	);
+	private static UnsatisfiedDependencyException UNSATISFIED_DEPENDENCY_EXCEPTION;
 
 	@Nonnull
 	@Override
@@ -59,7 +55,14 @@ public class UnsatisfiedDependencyFactory implements ProxyFactory {
 		@Nonnull EntityContract entity,
 		@Nonnull Map<String, EntitySchemaContract> referencedEntitySchemas
 	) throws EntityClassInvalidException {
+		if (UNSATISFIED_DEPENDENCY_EXCEPTION == null) {
+			UNSATISFIED_DEPENDENCY_EXCEPTION = new UnsatisfiedDependencyException(
+				"ProxyFactory requires a Proxycian (https://github.com/FgForrest/Proxycian) and " +
+					"ByteBuddy (https://github.com/raphw/byte-buddy) to be present on the classpath.",
+				"Required dependency is not available in evitaDB engine, contact developers of the application."
+			);
+		}
 		throw UNSATISFIED_DEPENDENCY_EXCEPTION;
 	}
-	
+
 }

@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,7 +23,7 @@
 
 package io.evitadb.driver.trace;
 
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 
 import java.util.List;
 import java.util.ServiceLoader;
@@ -45,7 +45,7 @@ public class ClientTracingContextProvider {
 			.map(Provider::get)
 			.toList();
 		if (collectedContexts.size() > 1) {
-			throw new EvitaInternalError("There are multiple registered implementations of ExternalApiTracingContext.");
+			throw new GenericEvitaInternalError("There are multiple registered implementations of ExternalApiTracingContext.");
 		}
 		if (collectedContexts.size() == 1) {
 			return collectedContexts.stream().findFirst().get();

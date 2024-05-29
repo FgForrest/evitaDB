@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -81,7 +81,8 @@ public class VersionUtils {
 	public record SemVer(
 		int major,
 		int minor,
-		@Nullable String patch
+		@Nullable String patch,
+		boolean snapshot
 	) {
 
 		/**
@@ -97,12 +98,14 @@ public class VersionUtils {
 				);
 			}
 
+			final boolean snapshotVersion = version.contains("-SNAPSHOT");
 			final String[] versionParts = version.replace("-SNAPSHOT", "").split("\\.");
 			try {
 				return new SemVer(
 					Integer.parseInt(versionParts[0]),
 					Integer.parseInt(versionParts[1]),
-					versionParts.length > 2 ? versionParts[2] : null
+					versionParts.length > 2 ? versionParts[2] : null,
+					snapshotVersion
 				);
 			} catch (NumberFormatException e) {
 				throw new InvalidEvitaVersionException(
@@ -116,7 +119,7 @@ public class VersionUtils {
 		@Override
 		public String toString() {
 			// construct the SemVer string back again
-			return major + "." + minor + (patch == null ? "" : "." + patch);
+			return major + "." + minor + (patch == null ? "" : "." + patch) + (snapshot ? "-SNAPSHOT" : "");
 		}
 
 		/**

@@ -104,6 +104,7 @@
           "en"
         ],
         "allLocales": [
+          "cs",
           "en"
         ],
         "attributes": {
@@ -126,6 +127,7 @@
               "en"
             ],
             "allLocales": [
+              "cs",
               "en"
             ],
             "attributes": {
@@ -193,6 +195,7 @@
           "en"
         ],
         "allLocales": [
+          "cs",
           "en"
         ],
         "attributes": {
@@ -238,6 +241,7 @@
           "en"
         ],
         "allLocales": [
+          "cs",
           "en"
         ],
         "attributes": {
@@ -283,6 +287,7 @@
           "en"
         ],
         "allLocales": [
+          "cs",
           "en"
         ],
         "attributes": {
@@ -305,6 +310,7 @@
               "en"
             ],
             "allLocales": [
+              "cs",
               "en"
             ],
             "attributes": {
@@ -328,6 +334,7 @@
           "en"
         ],
         "allLocales": [
+          "cs",
           "en"
         ],
         "attributes": {
@@ -659,6 +666,7 @@
           "en"
         ],
         "allLocales": [
+          "cs",
           "en"
         ],
         "attributes": {
@@ -1056,6 +1064,7 @@
           "en"
         ],
         "allLocales": [
+          "cs",
           "en"
         ],
         "attributes": {
@@ -1607,6 +1616,7 @@
           "en"
         ],
         "allLocales": [
+          "cs",
           "en"
         ],
         "attributes": {
@@ -2268,6 +2278,7 @@
           "en"
         ],
         "allLocales": [
+          "cs",
           "en"
         ],
         "attributes": {

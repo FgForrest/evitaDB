@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -156,14 +156,14 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 
 	@Test
 	@UseDataSet(value = REST_THOUSAND_PRODUCTS_FOR_UPDATE, destroyAfterTest = true)
-	@DisplayName("Should return error when missing mutations for product update")
-	void shouldReturnErrorWhenMissingMutationsForProductUpdate(RestTester tester) {
+	@DisplayName("Should return error when missing mutations for product insert")
+	void shouldReturnErrorWhenMissingMutationsForProductInsert(RestTester tester) {
 		tester.test(TEST_CATALOG)
-			.httpMethod(Request.METHOD_PUT)
-			.urlPathSuffix("/PRODUCT/100")
+			.httpMethod(Request.METHOD_POST)
+			.urlPathSuffix("/PRODUCT/")
 			.requestBody("""
                     {
-                        "entityExistence": "MUST_EXIST"
+                        "entityExistence": "MUST_NOT_EXIST"
                     }
                     """)
 			.executeAndThen()

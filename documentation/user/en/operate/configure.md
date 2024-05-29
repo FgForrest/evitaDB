@@ -30,6 +30,17 @@ storage:                                          # [see Storage configuration](
   outputBufferSize: 4MB
   maxOpenedReadHandles: 12
   computeCRC32C: true
+  minimalActiveRecordShare: 0.5
+  fileSizeCompactionThresholdBytes: 100MB
+
+transaction:                                      # [see Transaction configuration](#transaction-configuration)
+  transactionWorkDirectory: /tmp/evitaDB/transaction
+  transactionMemoryBufferLimitSizeBytes: 16MB
+  transactionMemoryRegionCount: 256
+  walFileSizeBytes: 16MB
+  walFileCountKept: 8
+  maxQueueSize: 1K
+  flushFrequencyInMillis: 1s
 
 cache:                                            # [see Cache configuration](#cache-configuration)
   enabled: true
@@ -347,6 +358,73 @@ This section contains configuration options for the storage layer of the databas
             early as possible.
         </Note>
     </dd>
+    <dt>minimalActiveRecordShare</dt>
+    <dd>
+        <p>**Default:** `0.5` (when waste exceeds 50% the file is compacted)</p>
+        <p>Minimal share of active records in the data file. If the share is lower and the file size exceeds also
+            `fileSizeCompactionThresholdBytes` limit, the file will be compacted. It means new file containing only 
+            active records will be written next to original file.</p>
+    </dd>
+    <dt>fileSizeCompactionThresholdBytes</dt>
+    <dd>
+        <p>**Default:** `100MB`</p>
+        <p>Minimal file size threshold for compaction. If the file size is lower, the file will not be compacted even 
+            if the share of active records is lower than the minimal share.</p>
+    </dd>
+</dl>
+
+## Transaction configuration
+
+This section contains configuration options for the storage layer of the database dedicated to transaction handling.
+
+<dl>
+    <dt>transactionWorkDirectory</dt>
+    <dd>
+        <p>**Default:** `/tmp/evitaDB/transaction`</p>
+        <p>Directory on local disk where Evita creates temporary folders and files for transactional transaction. 
+            By default, temporary directory is used - but it is a good idea to set your own directory to avoid problems 
+            with disk space.</p>
+    </dd>
+    <dt>transactionMemoryBufferLimitSizeBytes</dt>
+    <dd>
+        <p>**Default:** `16MB`</p>
+        <p>Number of bytes that are allocated on off-heap memory for transaction memory buffer. This buffer is used to 
+            store temporary (isolated) transactional data before they are committed to the database.
+            If the buffer is full, the transaction data are immediately written to the disk and the transaction 
+            processing gets slower.</p>
+    </dd>
+    <dt>transactionMemoryRegionCount</dt>
+    <dd>
+        <p>**Default:** `256`</p>
+        <p>Number of slices of the `transactionMemoryBufferLimitSizeBytes` buffer.
+            The more slices the smaller they get and the higher the probability that the buffer will be full and will 
+            have to be copied to the disk.</p>
+    </dd>
+    <dt>walFileSizeBytes</dt>
+    <dd>
+        <p>**Default:** `16MB`</p>
+        <p>Size of the Write-Ahead Log (WAL) file in bytes before it is rotated.</p>
+    </dd>
+    <dt>walFileCountKept</dt>
+    <dd>
+        <p>**Default:** `8`</p>
+        <p>Number of WAL files to keep. Increase this number in combination with `walFileSizeBytes` if you want to
+            keep longer history of changes.</p>
+    </dd>
+    <dt>maxQueueSize</dt>
+    <dd>
+        <p>**Default:** `1K`</p>
+        <p>Size of the catalog queue for parallel transaction. If there are more transaction than the number of free 
+            threads in the pool, the transaction are queued. If the queue is full, the transaction is rejected.</p>
+    </dd>
+    <dt>flushFrequencyInMillis</dt>
+    <dd>
+        <p>**Default:** `1s`</p>
+        <p>The frequency of flushing the transactional data to the disk when they are sequentially processed.
+            If database process the (small) transaction very quickly, it may decide to process next transaction before 
+            flushing changes to the disk. If the client waits for `WAIT_FOR_INDEX_PROPAGATION` he may wait entire 
+            `flushFrequencyInMillis` milliseconds before he gets the response.</p>
+    </dd>
 </dl>
 
 ## Cache configuration
@@ -403,6 +481,7 @@ is resolved.
     <dd>
         <p>**Default:** `null`, which means that evitaDB uses 25% of the free memory measured at the moment it starts and loads all data into it</p>
         <p>evitaDB tries to estimate the memory size of each cached object and avoid exceeding this threshold.</p>
+
         <Note type="question">
 
         <NoteTitle toggles="true">

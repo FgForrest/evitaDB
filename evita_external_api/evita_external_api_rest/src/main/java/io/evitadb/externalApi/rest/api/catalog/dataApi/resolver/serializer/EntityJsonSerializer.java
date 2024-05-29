@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -27,6 +27,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataKey;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataValue;
@@ -35,13 +36,12 @@ import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
-import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
+import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaProvider;
 import io.evitadb.api.requestResponse.schema.Cardinality;
-import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -50,6 +50,7 @@ import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.RestEntityDe
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.SectionedAssociatedDataDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.SectionedAttributesDescriptor;
 import io.evitadb.externalApi.rest.api.resolver.serializer.ObjectJsonSerializer;
+import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.externalApi.rest.exception.RestQueryResolvingInternalError;
 import io.evitadb.utils.Assert;
 import lombok.extern.slf4j.Slf4j;
@@ -87,8 +88,8 @@ public class EntityJsonSerializer {
 	 *
 	 * @return serialized entity or list of entities
 	 */
-	public JsonNode serialize(@Nonnull EntityClassifier entityClassifier, @Nonnull CatalogSchemaContract catalogSchema) {
-		return serializeSingleEntity(entityClassifier, catalogSchema);
+	public JsonNode serialize(@Nonnull EntitySerializationContext ctx, @Nonnull EntityClassifier entityClassifier) {
+		return serializeSingleEntity(ctx, entityClassifier);
 	}
 
 	/**
@@ -96,10 +97,10 @@ public class EntityJsonSerializer {
 	 *
 	 * @return serialized entity or list of entities
 	 */
-	public JsonNode serialize(@Nonnull List<EntityClassifier> entityClassifiers, @Nonnull CatalogSchemaContract catalogSchema) {
+	public JsonNode serialize(@Nonnull EntitySerializationContext ctx, @Nonnull List<EntityClassifier> entityClassifiers) {
 		final ArrayNode arrayNode = objectJsonSerializer.arrayNode();
 		for (EntityClassifier classifier : entityClassifiers) {
-			arrayNode.add(serializeSingleEntity(classifier, catalogSchema));
+			arrayNode.add(serializeSingleEntity(ctx, classifier));
 		}
 		return arrayNode;
 	}
@@ -109,23 +110,23 @@ public class EntityJsonSerializer {
 	 *
 	 * @return serialized entity or list of entities
 	 */
-	public JsonNode serialize(@Nonnull EntityClassifier[] entityClassifiers, @Nonnull CatalogSchemaContract catalogSchema) {
-		return serialize(Arrays.asList(entityClassifiers), catalogSchema);
+	public JsonNode serialize(@Nonnull EntitySerializationContext ctx, @Nonnull EntityClassifier[] entityClassifiers) {
+		return serialize(ctx, Arrays.asList(entityClassifiers));
 	}
 
 	@Nonnull
-	private ObjectNode serializeSingleEntity(@Nonnull EntityClassifier entityClassifier, @Nonnull CatalogSchemaContract catalogSchema) {
+	private ObjectNode serializeSingleEntity(@Nonnull EntitySerializationContext ctx, @Nonnull EntityClassifier entityClassifier) {
 		final ObjectNode rootNode = serializeEntityClassifier(entityClassifier);
-		if (entityClassifier instanceof EntityContract entity) {
-			final EntitySchemaContract entitySchema = catalogSchema.getEntitySchemaOrThrowException(entity.getType());
-			serializeEntityBody(rootNode, entity, catalogSchema);
+		if (entityClassifier instanceof EntityDecorator entity) {
+			final EntitySchemaContract entitySchema = ctx.getCatalogSchema().getEntitySchemaOrThrowException(entity.getType());
+			serializeEntityBody(ctx, rootNode, entity);
 			serializeAttributes(rootNode, entity.getLocales(), entity, entitySchema, entitySchema);
 			serializeAssociatedData(rootNode, entity.getLocales(), entity, entitySchema);
-			serializePrices(rootNode, entity);
-			serializeReferences(rootNode, entity, catalogSchema, entitySchema);
+			serializePrices(ctx, rootNode, entity);
+			serializeReferences(ctx, rootNode, entity, entitySchema);
 		} else if (entityClassifier instanceof EntityClassifierWithParent entity) {
 			entity.getParentEntity().ifPresent(parent ->
-				rootNode.putIfAbsent(RestEntityDescriptor.PARENT_ENTITY.name(), serializeSingleEntity(parent, catalogSchema)));
+				rootNode.putIfAbsent(RestEntityDescriptor.PARENT_ENTITY.name(), serializeSingleEntity(ctx, parent)));
 		}
 		return rootNode;
 	}
@@ -141,11 +142,13 @@ public class EntityJsonSerializer {
 	/**
 	 * Serialize body of entity
 	 */
-	private void serializeEntityBody(@Nonnull ObjectNode rootNode, @Nonnull EntityContract entity, @Nonnull CatalogSchemaContract catalogSchema) {
+	private void serializeEntityBody(@Nonnull EntitySerializationContext ctx,
+	                                 @Nonnull ObjectNode rootNode,
+	                                 @Nonnull EntityDecorator entity) {
 		rootNode.put(RestEntityDescriptor.VERSION.name(), entity.version());
 
 		if (entity.parentAvailable()) {
-			entity.getParentEntity().ifPresent(parent -> rootNode.putIfAbsent(RestEntityDescriptor.PARENT_ENTITY.name(), serializeSingleEntity(parent, catalogSchema)));
+			entity.getParentEntity().ifPresent(parent -> rootNode.putIfAbsent(RestEntityDescriptor.PARENT_ENTITY.name(), serializeSingleEntity(ctx, parent)));
 		}
 
 		if (!entity.getLocales().isEmpty()) {
@@ -242,26 +245,26 @@ public class EntityJsonSerializer {
 	/**
 	 * Serialize references
 	 */
-	protected void serializeReferences(@Nonnull ObjectNode rootNode,
-	                                   @Nonnull EntityContract entity,
-	                                   @Nonnull CatalogSchemaContract catalogSchema,
+	protected void serializeReferences(@Nonnull EntitySerializationContext ctx,
+	                                   @Nonnull ObjectNode rootNode,
+	                                   @Nonnull EntityDecorator entity,
 	                                   @Nonnull EntitySchemaContract entitySchema) {
 		if (entity.referencesAvailable() && !entity.getReferences().isEmpty()) {
 			entity.getReferences()
 				.stream()
 				.map(ReferenceContract::getReferenceName)
 				.collect(Collectors.toCollection(TreeSet::new))
-				.forEach(it -> serializeReferencesWithSameName(rootNode, entity, it, catalogSchema, entitySchema));
+				.forEach(it -> serializeReferencesWithSameName(ctx, rootNode, entity, it, entitySchema));
 		}
 	}
 
 	/**
 	 * Serialize references of same name
 	 */
-	protected void serializeReferencesWithSameName(@Nonnull ObjectNode rootNode,
-	                                               @Nonnull EntityContract entity,
+	protected void serializeReferencesWithSameName(@Nonnull EntitySerializationContext ctx,
+	                                               @Nonnull ObjectNode rootNode,
+	                                               @Nonnull EntityDecorator entity,
 	                                               @Nonnull String referenceName,
-	                                               @Nonnull CatalogSchemaContract catalogSchema,
 	                                               @Nonnull EntitySchemaContract entitySchema) {
 		final Collection<ReferenceContract> groupedReferences = entity.getReferences(referenceName);
 		final Optional<ReferenceContract> anyReferenceFound = groupedReferences.stream().findFirst();
@@ -277,13 +280,13 @@ public class EntityJsonSerializer {
 					firstReference.getReferenceCardinality() + " but found " + groupedReferences.size() +
 					" references with same name: " + referenceName);
 
-				rootNode.putIfAbsent(nodeReferenceName, serializeSingleReference(entity.getLocales(), firstReference, catalogSchema, entitySchema));
+				rootNode.putIfAbsent(nodeReferenceName, serializeSingleReference(ctx, entity.getLocales(), firstReference, entitySchema));
 			} else {
 				final ArrayNode referencesNode = objectJsonSerializer.arrayNode();
 				rootNode.putIfAbsent(nodeReferenceName, referencesNode);
 
 				for (ReferenceContract groupedReference : groupedReferences) {
-					referencesNode.add(serializeSingleReference(entity.getLocales(), groupedReference, catalogSchema, entitySchema));
+					referencesNode.add(serializeSingleReference(ctx, entity.getLocales(), groupedReference, entitySchema));
 				}
 			}
 		}
@@ -293,22 +296,22 @@ public class EntityJsonSerializer {
 	 * Serializes single reference
 	 */
 	@Nonnull
-	private ObjectNode serializeSingleReference(@Nonnull Set<Locale> locales,
+	private ObjectNode serializeSingleReference(@Nonnull EntitySerializationContext ctx,
+	                                            @Nonnull Set<Locale> locales,
 	                                            @Nonnull ReferenceContract reference,
-	                                            @Nonnull CatalogSchemaContract catalogSchema,
 	                                            @Nonnull EntitySchemaContract entitySchema) {
 		final ObjectNode referenceNode = objectJsonSerializer.objectNode();
 
 		referenceNode.putIfAbsent(ReferenceDescriptor.REFERENCED_PRIMARY_KEY.name(), objectJsonSerializer.serializeObject(reference.getReferencedPrimaryKey()));
 
 		reference.getReferencedEntity().ifPresent(sealedEntity ->
-			referenceNode.putIfAbsent(ReferenceDescriptor.REFERENCED_ENTITY.name(), serializeSingleEntity(sealedEntity, catalogSchema)));
+			referenceNode.putIfAbsent(ReferenceDescriptor.REFERENCED_ENTITY.name(), serializeSingleEntity(ctx, sealedEntity)));
 
 		reference.getGroupEntity()
 			.map(it -> (EntityClassifier) it)
 			.or(reference::getGroup)
 			.ifPresent(groupEntity -> {
-				referenceNode.putIfAbsent(ReferenceDescriptor.GROUP_ENTITY.name(), serializeSingleEntity(groupEntity, catalogSchema));
+				referenceNode.putIfAbsent(ReferenceDescriptor.GROUP_ENTITY.name(), serializeSingleEntity(ctx,groupEntity));
 			});
 
 		final ReferenceSchemaContract referenceSchema = reference.getReferenceSchema()
@@ -321,7 +324,7 @@ public class EntityJsonSerializer {
 	/**
 	 * Serialize prices
 	 */
-	private void serializePrices(@Nonnull ObjectNode rootNode, @Nonnull EntityContract entity) {
+	private void serializePrices(@Nonnull EntitySerializationContext ctx, @Nonnull ObjectNode rootNode, @Nonnull EntityDecorator entity) {
 		if (entity.pricesAvailable()) {
 			final Collection<PriceContract> prices = entity.getPrices();
 			final ArrayNode pricesNode = objectJsonSerializer.arrayNode();
@@ -331,9 +334,54 @@ public class EntityJsonSerializer {
 				pricesNode.add(objectJsonSerializer.serializeObject(price));
 			}
 
-			entity.getPriceForSaleIfAvailable()
-				.ifPresent(it -> rootNode.putIfAbsent(RestEntityDescriptor.PRICE_FOR_SALE.name(), objectJsonSerializer.serializeObject(it)));
+			entity.getPriceForSaleIfAvailable().ifPresent(it -> {
+				rootNode.putIfAbsent(RestEntityDescriptor.PRICE_FOR_SALE.name(), objectJsonSerializer.serializeObject(it));
+
+				if (!entity.getPriceInnerRecordHandling().equals(PriceInnerRecordHandling.NONE)) {
+					final boolean multiplePricesForSale = hasMultiplePricesForSaleAvailable(ctx, entity);
+					rootNode.putIfAbsent(RestEntityDescriptor.MULTIPLE_PRICES_FOR_SALE_AVAILABLE.name(), objectJsonSerializer.serializeObject(multiplePricesForSale));
+				}
+			});
 		}
+	}
+
+	/**
+	 * Resolves whether there are multiple unique prices which the entity could be sold for.
+	 */
+	private boolean hasMultiplePricesForSaleAvailable(@Nonnull EntitySerializationContext ctx, @Nonnull EntityDecorator entity) {
+		final List<PriceContract> allPricesForSale = entity.getAllPricesForSale();
+		if (allPricesForSale.size() <= 1) {
+			return false;
+		}
+
+		final boolean hasMultiplePricesForSale;
+		final PriceInnerRecordHandling priceInnerRecordHandling = entity.getPriceInnerRecordHandling();
+		if (priceInnerRecordHandling.equals(PriceInnerRecordHandling.LOWEST_PRICE)) {
+			if (allPricesForSale.size() <= 1) {
+				return false;
+			}
+
+			final QueryPriceMode desiredPriceType = entity.getPricePredicate().getQueryPriceMode();
+			final long uniquePriceValuesCount = allPricesForSale.stream()
+				.map(price -> {
+					if (desiredPriceType.equals(QueryPriceMode.WITH_TAX)) {
+						return price.priceWithTax();
+					} else if (desiredPriceType.equals(QueryPriceMode.WITHOUT_TAX)) {
+						return price.priceWithoutTax();
+					} else {
+						throw new RestInternalError("Unsupported price type `" + desiredPriceType + "`");
+					}
+				})
+				.distinct()
+				.count();
+			hasMultiplePricesForSale = uniquePriceValuesCount > 1;
+		} else if (priceInnerRecordHandling.equals(PriceInnerRecordHandling.SUM)) {
+			hasMultiplePricesForSale = allPricesForSale.size() > 1;
+		} else {
+			hasMultiplePricesForSale = false;
+		}
+
+		return hasMultiplePricesForSale;
 	}
 
 	private void writeAttributesIntoNode(@Nonnull ObjectNode attributesNode,

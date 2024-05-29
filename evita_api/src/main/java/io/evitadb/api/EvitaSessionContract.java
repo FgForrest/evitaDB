@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,13 +23,13 @@
 
 package io.evitadb.api;
 
+import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.exception.CollectionNotFoundException;
 import io.evitadb.api.exception.EntityAlreadyRemovedException;
 import io.evitadb.api.exception.EntityClassInvalidException;
 import io.evitadb.api.exception.EntityTypeAlreadyPresentInCatalogSchemaException;
 import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.exception.SchemaAlteringException;
-import io.evitadb.api.exception.TransactionException;
 import io.evitadb.api.exception.UnexpectedResultCountException;
 import io.evitadb.api.exception.UnexpectedResultException;
 import io.evitadb.api.proxy.ProxyFactory;
@@ -69,15 +69,14 @@ import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
+import java.io.Closeable;
 import java.io.Serializable;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.util.function.Consumer;
-import java.util.function.Function;
+import java.util.concurrent.CompletableFuture;
 
 import static io.evitadb.api.query.QueryConstraints.entityFetch;
 import static io.evitadb.api.query.QueryConstraints.require;
@@ -85,20 +84,20 @@ import static io.evitadb.api.query.QueryConstraints.require;
 /**
  * Session are created by the clients to envelope a "piece of work" with evitaDB. In web environment it's a good idea
  * to have session per request, in batch processing it's recommended to keep session per "record page" or "transaction".
- * There may be multiple {@link TransactionContract transactions} during single session instance life but there is no support
+ * There may be multiple {@link TransactionContract transaction} during single session instance life but there is no support
  * for transactional overlap - there may be at most single transaction open in single session.
  *
- * EvitaSession transactions behave like <a href="https://en.wikipedia.org/wiki/Snapshot_isolation">Snapshot</a>
- * transactions. When no transaction is explicitly opened - each query to Evita behaves as one small transaction. Data
+ * EvitaSession transaction behave like <a href="https://en.wikipedia.org/wiki/Snapshot_isolation">Snapshot</a>
+ * transaction. When no transaction is explicitly opened - each query to Evita behaves as one small transaction. Data
  * updates are not allowed without explicitly opened transaction.
  *
- * Don't forget to {@link #close()} when your work with Evita is finished.
+ * Remember to {@link #close()} when your work with Evita is finished.
  * EvitaSession contract is NOT thread safe.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @NotThreadSafe
-public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, AutoCloseable {
+public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, Closeable {
 
 	/**
 	 * Returns Evita instance this session is connected to.
@@ -139,6 +138,14 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	CatalogState getCatalogState();
 
 	/**
+	 * Returns version of the catalog that gets incremented with each transaction commit. When catalog state is set to
+	 * {@link CatalogState#WARMING_UP} and is not yet transactional, the version stays at zero all the time.
+	 *
+	 * @return version of the catalog that gets incremented with each transaction commit
+	 */
+	long getCatalogVersion();
+
+	/**
 	 * Returns TRUE if session is active (and can be used).
 	 */
 	boolean isActive();
@@ -157,13 +164,46 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 
 	/**
 	 * Terminates Evita session and releases all used resources. This method renders the session unusable and any further
-	 * calls to this session should end up with {@link InstanceTerminatedException}
+	 * calls to this session should end up with {@link InstanceTerminatedException}. In case there were any mutations
+	 * in read/write session and the catalog is in transactional mode, the method is finished when the changes are
+	 * propagated to indexes. The call is equivalent to calling {@link #closeWhen(CommitBehavior)} with
+	 * {@link CommitBehavior#WAIT_FOR_INDEX_PROPAGATION}. This method follows synchronous principles, which are
+	 * easier to understand and use.
 	 *
 	 * This method is idempotent and may be called multiple times. Only first call is really processed and others are
 	 * ignored.
 	 */
 	@Override
-	void close();
+	default void close() {
+		closeWhen(CommitBehavior.defaultBehaviour());
+	}
+
+	/**
+	 * Terminates Evita session and releases all used resources. This method renders the session unusable and any further
+	 * calls to this session should end up with {@link InstanceTerminatedException}. In case there were any mutations
+	 * in read/write session and the catalog is in transactional mode, the method is finished when the change processing
+	 * reaches the given state. This method follows synchronous principles, which are easier to understand and use.
+	 *
+	 * This method is idempotent and may be called multiple times. Only first call is really processed and others are
+	 * ignored.
+	 */
+	default long closeWhen(@Nonnull CommitBehavior commitBehaviour) {
+		return closeNow(commitBehaviour).join();
+	}
+
+	/**
+	 * Method terminates Evita session and releases all used resources. This method renders the session unusable and
+	 * any further calls to this session should end up with {@link InstanceTerminatedException}. Method finishes
+	 * immediately returning a {@link CompletableFuture} that will be completed when:
+	 *
+	 * 1. catalog is in warm-up mode: immediately
+	 * 2. catalog is in transactional mode and no changes were made: immediately
+	 * 3. catalog is in transactional mode and changes were made: when the change processing reaches the given state
+	 *
+	 * This method is idempotent and may be called multiple times, it always returns the same future.
+	 */
+	@Nonnull
+	CompletableFuture<Long> closeNow(@Nonnull CommitBehavior commitBehaviour);
 
 	/**
 	 * Method creates new a new entity schema and collection for it in the catalog this session is tied to. It returns
@@ -535,37 +575,6 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 		throws UnexpectedResultException, InstanceTerminatedException;
 
 	/**
-	 * If {@link CatalogContract} supports transactions (see {@link CatalogContract#supportsTransaction()}) method
-	 * executes application `logic` in current session and commits the transaction at the end. Transaction is
-	 * automatically roll-backed when exception is thrown from the `logic` scope. Changes made by the updating logic are
-	 * visible only within update function. Other threads outside the logic function work with non-changed data until
-	 * transaction is committed to the index.
-	 *
-	 * When catalog doesn't support transactions application `logic` is immediately applied to the index data and logic
-	 * operates in a <a href="https://en.wikipedia.org/wiki/Isolation_(database_systems)#Read_uncommitted">read
-	 * uncommitted</a> mode. Application `logic` can only append new entities in non-transactional mode.
-	 *
-	 * @throws TransactionException when lambda function throws exception causing the transaction to be rolled back
-	 */
-	@Nullable
-	<T> T execute(@Nonnull Function<EvitaSessionContract, T> logic) throws TransactionException;
-
-	/**
-	 * If {@link CatalogContract} supports transactions (see {@link CatalogContract#supportsTransaction()}) method
-	 * executes application `logic` in current session and commits the transaction at the end. Transaction is
-	 * automatically roll-backed when exception is thrown from the `logic` scope. Changes made by the updating logic are
-	 * visible only within update function. Other threads outside the logic function work with non-changed data until
-	 * transaction is committed to the index.
-	 *
-	 * When catalog doesn't support transactions application `logic` is immediately applied to the index data and logic
-	 * operates in a <a href="https://en.wikipedia.org/wiki/Isolation_(database_systems)#Read_uncommitted">read
-	 * uncommitted</a> mode. Application `logic` can only append new entities in non-transactional mode.
-	 *
-	 * @throws TransactionException when lambda function throws exception causing the transaction to be rolled back
-	 */
-	void execute(@Nonnull Consumer<EvitaSessionContract> logic) throws TransactionException;
-
-	/**
 	 * Method returns entity by its type and primary key in requested form of completeness. This method allows quick
 	 * access to the entity contents when primary key is known.
 	 */
@@ -627,7 +636,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 		return catalogSchemaBuilder.toMutation()
 			.map(ModifyCatalogSchemaMutation::getSchemaMutations)
 			.map(this::updateCatalogSchema)
-			.orElseGet(() -> getCatalogSchema().getVersion());
+			.orElseGet(() -> getCatalogSchema().version());
 	}
 
 	/**
@@ -806,7 +815,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 *
 	 * @param entityType type of the entity that should be created
 	 * @param primaryKey externally assigned primary key for the entity
-	 * @return builder instance to be filled up and stored via {@link #upsertEntity(Serializable)} 
+	 * @return builder instance to be filled up and stored via {@link #upsertEntity(Serializable)}
 	 */
 	@Nonnull
 	EntityBuilder createNewEntity(@Nonnull String entityType, int primaryKey);
@@ -860,8 +869,6 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * Shorthand method for {@link #upsertEntity(EntityMutation)} that accepts {@link EntityBuilder} that can produce
 	 * mutation.
 	 *
-	 * TOBEDONE #43 - support new variants for the model class
-	 *
 	 * @param entityBuilder that contains changed entity state
 	 * @return modified entity fetched according to `require` definition
 	 */
@@ -870,8 +877,6 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 
 	/**
 	 * Method inserts to or updates entity in collection according to passed set of mutations.
-	 *
-	 * TOBEDONE #43 - support new variants for the model class
 	 *
 	 * @param entityMutation list of mutation snippets that alter or form the entity
 	 * @return modified entity fetched according to `require` definition
@@ -989,18 +994,11 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	}
 
 	/**
-	 * Opens a new transaction.
-	 *
-	 * @return transaction id
-	 */
-	long openTransaction();
-
-	/**
-	 * Returns {@link TransactionContract#getId()} of the currently opened transaction in this session. Returns empty
+	 * Returns {@link TransactionContract#getTransactionId()} of the currently opened transaction in this session. Returns empty
 	 * value if no transaction is present.
 	 */
 	@Nonnull
-	Optional<Long> getOpenedTransactionId();
+	Optional<UUID> getOpenedTransactionId();
 
 	/**
 	 * Returns TRUE if transaction is currently open in this session.
@@ -1010,18 +1008,12 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	}
 
 	/**
-	 * Terminates opened transaction - either by rollback or commit depending on {@link TransactionContract#isRollbackOnly()}.
-	 * This method throws exception only when transaction hasn't been opened.
-	 */
-	void closeTransaction();
-
-	/**
 	 * Returns true if currently opened transaction has rollback flag set on.
 	 */
 	boolean isRollbackOnly();
 
 	/**
-	 * Method marks current transaction to be rolled back on {@link #closeTransaction()}.
+	 * Method marks current transaction to be rolled back on {@link #close()}.
 	 * Changes made in transaction will never make it to the database.
 	 */
 	void setRollbackOnly();
@@ -1061,4 +1053,5 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 */
 	@Nonnull
 	ProxyFactory getProxyFactory();
+
 }

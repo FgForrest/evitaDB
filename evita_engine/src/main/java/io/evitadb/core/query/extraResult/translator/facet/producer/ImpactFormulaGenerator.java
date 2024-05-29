@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -121,9 +121,9 @@ public class ImpactFormulaGenerator extends AbstractFacetFormulaGenerator {
 			boolean foundAtLast = ofNullable(this.facetGroupsInUserFilter.get(referenceName))
 				.map(it -> it.contains(normalizedFacetGroupId))
 				.orElse(false);
-			final CacheKey cacheKey = new CacheKey(
-				foundAtLast ? referenceName : null, negation, disjunction, conjunction, foundAtLast ? facetGroupId : null
-			);
+			final CacheKey cacheKey = foundAtLast ?
+				new CacheKey(referenceName, negation, disjunction, conjunction, normalizedFacetGroupId) :
+				new CacheKey(null, negation, disjunction, conjunction, null);
 			this.cache.put(cacheKey, result);
 			return result;
 		}

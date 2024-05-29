@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -60,7 +60,7 @@ public class HierarchyFromNodeTranslator
 		final HierarchyProducerContext context = producer.getContext(fromNode.getName());
 		final FilterBy fromNodeFilter = fromNode.getFromNode().getFilterBy();
 		final HierarchyTraversalPredicate scopePredicate = fromNode.getStopAt()
-			.map(it -> stopAtConstraintToPredicate(TraversalDirection.TOP_DOWN, it, context.queryContext(), context.entityIndex(), context.referenceSchema()))
+			.map(it -> stopAtConstraintToPredicate(TraversalDirection.TOP_DOWN, it, context.queryContext(), context.entityIndex(), context.entitySchema(), context.referenceSchema()))
 			.orElse(HierarchyTraversalPredicate.NEVER_STOP_PREDICATE);
 		producer.addComputer(
 			fromNode.getName(),

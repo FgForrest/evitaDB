@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -27,7 +27,7 @@ import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.ConstraintContainer;
 import io.evitadb.api.query.ConstraintLeaf;
 import io.evitadb.api.query.ConstraintVisitor;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -63,6 +63,47 @@ public class QueryPurifierVisitor implements ConstraintVisitor {
 		final QueryPurifierVisitor visitor = new QueryPurifierVisitor(constraintTranslator);
 		constraint.accept(visitor);
 		return visitor.getResult();
+	}
+
+	/**
+	 * Flattens constraint container if it's not necessary according to {@link ConstraintContainer#isNecessary()} logic.
+	 */
+	private static Constraint<?> getFlattenedResult(@Nonnull Constraint<?> constraint) {
+		if (constraint instanceof final ConstraintContainer<?> constraintContainer) {
+			if (constraintContainer.isNecessary()) {
+				return constraint;
+			} else {
+				final Constraint<?>[] children = constraintContainer.getChildren();
+				if (children.length == 1) {
+					return children[0];
+				} else {
+					throw new GenericEvitaInternalError(
+						"Constraint container " + constraintContainer.getName() + " states it's not necessary, " +
+							"but holds not exactly one child (" + children.length + ")!"
+					);
+				}
+			}
+		} else {
+			return constraint;
+		}
+	}
+
+	/**
+	 * Returns true only if array and list contents are same - i.e. has same count and same instances (in terms of reference
+	 * identity).
+	 */
+	private static boolean isEqual(@Nonnull Constraint<?>[] constraints, @Nonnull List<Constraint<?>> comparedConstraints) {
+		if (constraints.length != comparedConstraints.size()) {
+			return false;
+		}
+		for (int i = 0; i < constraints.length; i++) {
+			Constraint<?> constraint = constraints[i];
+			Constraint<?> comparedConstraint = comparedConstraints.get(i);
+			if (constraint != comparedConstraint) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	private QueryPurifierVisitor() {
@@ -102,6 +143,7 @@ public class QueryPurifierVisitor implements ConstraintVisitor {
 		}
 	}
 
+	@Nonnull
 	public Constraint<?> getResult() {
 		return result;
 	}
@@ -109,12 +151,13 @@ public class QueryPurifierVisitor implements ConstraintVisitor {
 	/**
 	 * Creates new immutable container with reduced count of children.
 	 */
+	@SuppressWarnings("DuplicatedCode")
 	private <T extends Constraint<T>> void createNewContainerWithReducedChildren(
-		ConstraintContainer<T> container,
-		List<Constraint<?>> reducedChildren,
-		List<Constraint<?>> reducedAdditionalChildren
+		@Nonnull ConstraintContainer<T> container,
+		@Nonnull List<Constraint<?>> reducedChildren,
+		@Nonnull List<Constraint<?>> reducedAdditionalChildren
 	) {
-		//noinspection unchecked
+		//noinspection unchecked,SuspiciousToArrayCall
 		final T[] newChildren = reducedChildren.toArray(value -> (T[]) Array.newInstance(container.getType(), 0));
 		final Constraint<?>[] newAdditionalChildren = reducedAdditionalChildren.toArray(Constraint<?>[]::new);
 		final Constraint<?> copyWithNewChildren = container.getCopyWithNewChildren(newChildren, newAdditionalChildren);
@@ -126,7 +169,7 @@ public class QueryPurifierVisitor implements ConstraintVisitor {
 	/**
 	 * Adds normalized constraint to the new composition.
 	 */
-	private void addOnCurrentLevel(Constraint<?> constraint) {
+	private void addOnCurrentLevel(@Nullable Constraint<?> constraint) {
 		if (constraint != null && constraint.isApplicable()) {
 			if (levelConstraints.isEmpty()) {
 				result = getFlattenedResult(constraint);
@@ -134,46 +177,5 @@ public class QueryPurifierVisitor implements ConstraintVisitor {
 				levelConstraints.peek().add(getFlattenedResult(constraint));
 			}
 		}
-	}
-
-	/**
-	 * Flattens constraint container if it's not necessary according to {@link ConstraintContainer#isNecessary()} logic.
-	 */
-	private Constraint<?> getFlattenedResult(Constraint<?> constraint) {
-		if (constraint instanceof final ConstraintContainer<?> constraintContainer) {
-			if (constraintContainer.isNecessary()) {
-				return constraint;
-			} else {
-				final Constraint<?>[] children = constraintContainer.getChildren();
-				if (children.length == 1) {
-					return children[0];
-				} else {
-					throw new EvitaInternalError(
-						"Constraint container " + constraintContainer.getName() + " states it's not necessary, " +
-							"but holds not exactly one child (" + children.length + ")!"
-					);
-				}
-			}
-		} else {
-			return constraint;
-		}
-	}
-
-	/**
-	 * Returns true only if array and list contents are same - i.e. has same count and same instances (in terms of reference
-	 * identity).
-	 */
-	private boolean isEqual(Constraint<?>[] constraints, List<Constraint<?>> comparedConstraints) {
-		if (constraints.length != comparedConstraints.size()) {
-			return false;
-		}
-		for (int i = 0; i < constraints.length; i++) {
-			Constraint<?> constraint = constraints[i];
-			Constraint<?> comparedConstraint = comparedConstraints.get(i);
-			if (constraint != comparedConstraint) {
-				return false;
-			}
-		}
-		return true;
 	}
 }

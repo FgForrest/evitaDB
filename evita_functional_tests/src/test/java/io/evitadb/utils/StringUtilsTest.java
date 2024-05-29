@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -48,7 +48,7 @@ class StringUtilsTest {
 	void shouldFormatNano() {
 		assertEquals("106751d 23h 47m 16s", StringUtils.formatNano(Long.MAX_VALUE));
 		assertEquals("14s", StringUtils.formatNano(14587877547L));
-		assertEquals("0.000000001s", StringUtils.formatNano(1L));
+		assertEquals("0.000001ms", StringUtils.formatNano(1L));
 	}
 
 	@Test
@@ -243,7 +243,43 @@ class StringUtilsTest {
 	void shouldFormatZeroDuration() {
 		Duration duration = Duration.ZERO;
 		String formattedDuration = StringUtils.formatDuration(duration);
-		assertEquals("0s", formattedDuration);
+		assertEquals("0ms", formattedDuration);
+	}
+
+	@Test
+	void shouldReturnNullStringWhenValueIsNull() {
+		assertEquals("NULL", StringUtils.toString(null));
+	}
+
+	@Test
+	void shouldReturnStringValueWhenValueIsString() {
+		assertEquals("Hello", StringUtils.toString("Hello"));
+	}
+
+	@Test
+	void shouldReturnArrayRepresentationWhenValueIsArray() {
+		assertEquals("[1, 2, 3]", StringUtils.toString(new int[]{1, 2, 3}));
+	}
+
+	@Test
+	void shouldReturnEmptyArrayRepresentationWhenValueIsEmptyArray() {
+		assertEquals("[]", StringUtils.toString(new int[]{}));
+	}
+
+	@Test
+	void shouldReturnArrayRepresentationWhenValueIsMultiDimensionalArray() {
+		assertEquals("[[1, 2], [3, 4]]", StringUtils.toString(new int[][]{{1, 2}, {3, 4}}));
+	}
+
+	@Test
+	void shouldReturnObjectRepresentationWhenValueIsObject() {
+		Object obj = new Object() {
+			@Override
+			public String toString() {
+				return "Test Object";
+			}
+		};
+		assertEquals("Test Object", StringUtils.toString(obj));
 	}
 
 }

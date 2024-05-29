@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -34,6 +34,7 @@ import com.linecorp.armeria.server.grpc.GrpcService;
 import com.linecorp.armeria.server.grpc.GrpcServiceBuilder;
 import io.evitadb.core.Evita;
 import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.certificate.ServerCertificateManager;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.configuration.CertificatePath;
@@ -44,10 +45,19 @@ import io.evitadb.externalApi.grpc.services.EvitaService;
 import io.evitadb.externalApi.grpc.services.EvitaSessionService;
 import io.evitadb.externalApi.grpc.services.interceptors.AccessLogInterceptor;
 import io.evitadb.externalApi.grpc.services.interceptors.GlobalExceptionHandlerInterceptor;
+import io.evitadb.externalApi.grpc.services.interceptors.ObservabilityInterceptor;
 import io.evitadb.externalApi.grpc.services.interceptors.ServerSessionInterceptor;
 import io.evitadb.externalApi.trace.ExternalApiTracingContextProvider;
 import io.evitadb.utils.CertificateUtils;
+import io.grpc.ManagedChannel;
+import io.grpc.Server;
+import io.grpc.ServerCredentials;
 import io.grpc.ServerInterceptor;
+import io.grpc.TlsServerCredentials;
+import io.grpc.netty.NettyServerBuilder;
+import io.grpc.ServerInterceptor;
+import io.grpc.protobuf.services.ProtoReflectionService;
+import io.netty.handler.ssl.ClientAuth;
 import io.grpc.protobuf.services.ProtoReflectionService;
 import io.netty.handler.ssl.ClientAuth;
 import lombok.Getter;
@@ -88,15 +98,15 @@ public class GrpcServer {
 	 * Builds the server instance which will operate on a set-up server port. If configured, from provided {@link ApiOptions}
 	 * and {@link GrpcConfig} the TLS/mTLS settings will be used.
 	 *
-	 * @param evita      instance on which will services be operating
-	 * @param apiOptions API options from configuration file for getting certificate settings
-	 * @param config     gRPC configuration from configuration file
+	 * @param evita                   instance on which will services be operating
+	 * @param apiOptions              API options from configuration file for getting certificate settings
+	 * @param config                  gRPC configuration from configuration file
 	 */
 	private void setUpServer(@Nonnull Evita evita, @Nonnull ApiOptions apiOptions, @Nonnull GrpcConfig config) {
 		final HostDefinition[] hosts = config.getHost();
 		final CertificatePath certificatePath = ServerCertificateManager.getCertificatePath(apiOptions.certificate());
 		if (certificatePath.certificate() == null || certificatePath.privateKey() == null) {
-			throw new EvitaInternalError("Certificate path is not set.");
+			throw new GenericEvitaInternalError("Certificate path is not set.");
 		}
 		final ServerBuilder serverBuilder = Server.builder()
 			.port(hosts[0].port(), HTTP, HTTPS)
@@ -108,6 +118,7 @@ public class GrpcServer {
 			.addService(ProtoReflectionService.newInstance())
 			.intercept(new ServerSessionInterceptor(evita))
 			.intercept(new GlobalExceptionHandlerInterceptor())
+			.intercept(new ObservabilityInterceptor(apiOptions.accessLog()))
 			.supportedSerializationFormats(GrpcSerializationFormats.values())
 			.enableUnframedRequests(true);
 
@@ -156,7 +167,7 @@ public class GrpcServer {
 						t.clientAuth(ClientAuth.OPTIONAL);
 					}
 				} catch (Exception e) {
-					throw new EvitaInternalError(
+					throw new GenericEvitaInternalError(
 						"Failed to create gRPC server credentials with provided certificate and private key: " + e.getMessage(),
 						"Failed to create gRPC server credentials with provided certificate and private key.",
 						e

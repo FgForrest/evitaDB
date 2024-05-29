@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -207,7 +207,7 @@ public class FormulaCostMeasurement {
 	public void firstVariantPriceTermination(InnerRecordIdsWithPriceRecordsRecordState priceDataSet, Blackhole blackhole) {
 		final FirstVariantPriceTerminationFormula testedFormula = new FirstVariantPriceTerminationFormula(
 			new PriceHandlingContainerFormula(
-				PriceInnerRecordHandling.FIRST_OCCURRENCE,
+				PriceInnerRecordHandling.LOWEST_PRICE,
 				priceDataSet.getFormula()
 			),
 			new PriceEvaluationContext(
@@ -223,7 +223,7 @@ public class FormulaCostMeasurement {
 	public void sumPriceTermination(InnerRecordIdsWithPriceRecordsRecordState priceDataSet, Blackhole blackhole) {
 		final SumPriceTerminationFormula testedFormula = new SumPriceTerminationFormula(
 			new PriceHandlingContainerFormula(
-				PriceInnerRecordHandling.FIRST_OCCURRENCE,
+				PriceInnerRecordHandling.LOWEST_PRICE,
 				priceDataSet.getFormula()
 			),
 			new PriceEvaluationContext(

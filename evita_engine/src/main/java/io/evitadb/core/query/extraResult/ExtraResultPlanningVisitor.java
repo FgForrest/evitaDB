@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -81,7 +81,7 @@ import io.evitadb.core.query.sort.NoSorter;
 import io.evitadb.core.query.sort.OrderByVisitor;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.core.query.sort.attribute.translator.EntityAttributeExtractor;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.utils.ArrayUtils;
@@ -461,7 +461,7 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 				(RequireConstraintTranslator<RequireConstraint>) TRANSLATORS.get(requireConstraint.getClass());
 			isPremiseValid(
 				translator != null,
-				"No translator found for query `" + requireConstraint.getClass() + "`!"
+				"No translator found for constraint `" + requireConstraint.getClass() + "`!"
 			);
 
 			// if query is a container query
@@ -480,7 +480,7 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 				registerProducer(translator.apply(requireConstraint, this));
 			} else {
 				// sanity check only
-				throw new EvitaInternalError("Should never happen");
+				throw new GenericEvitaInternalError("Should never happen");
 			}
 		} else {
 			@SuppressWarnings("unchecked") final RequireConstraintTranslator<RequireConstraint> translator =
@@ -535,7 +535,7 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	@Nonnull
 	public ProcessingScope getProcessingScope() {
 		if (isScopeEmpty()) {
-			throw new EvitaInternalError("Scope should never be empty");
+			throw new GenericEvitaInternalError("Scope should never be empty");
 		} else {
 			return scope.peek();
 		}
@@ -590,6 +590,13 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	 */
 	public boolean isScopeEmpty() {
 		return scope.isEmpty();
+	}
+
+	/**
+	 * Returns true if the scope relates to top entity.
+	 */
+	public boolean isScopeOfQueriedEntity() {
+		return scope.size() <= 1;
 	}
 
 	/**

@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -67,7 +67,7 @@ public interface AttributeIndexStoragePart extends StoragePart {
 	/**
 	 * Allows setting computed `uniquePartId` to the container so that it is computed only once.
 	 */
-	void setUniquePartId(Long uniquePartId);
+	void setStoragePartPK(Long storagePartPK);
 
 	/**
 	 * Method computes `uniquePartId` for the current container using {@link KeyCompressor} in the parameter and sets
@@ -76,9 +76,9 @@ public interface AttributeIndexStoragePart extends StoragePart {
 	@Override
 	default long computeUniquePartIdAndSet(@Nonnull KeyCompressor keyCompressor) {
 		final long computedUniquePartId = computeUniquePartId(getEntityIndexPrimaryKey(), getIndexType(), getAttributeKey(), keyCompressor);
-		final Long uniquePartId = getUniquePartId();
+		final Long uniquePartId = getStoragePartPK();
 		if (uniquePartId == null) {
-			setUniquePartId(computedUniquePartId);
+			setStoragePartPK(computedUniquePartId);
 		} else {
 			Assert.isTrue(uniquePartId == computedUniquePartId, "Unique part ids must never differ!");
 		}

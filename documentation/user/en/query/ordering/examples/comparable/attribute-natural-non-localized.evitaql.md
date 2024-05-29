@@ -1,5 +1,7 @@
 | entityPrimaryKey | code                                        | orderedQuantity |
 | ---------------- | ------------------------------------------- | --------------- |
+| 347156           | 'samsung-kit-22'                            | 0.00000         |
+| 347155           | 'apple-kit-22'                              | 0.00000         |
 | 113891           | 'vip-voucher-10-000-for-notebooks'          | 0.00000         |
 | 113889           | 'vip-voucher-5-000-for-phones'              | 0.00000         |
 | 113888           | 'vip-voucher-2-000-for-phones'              | 0.00000         |
@@ -18,7 +20,5 @@
 | 113848           | 'genius-slimstar-230'                       | 0.00000         |
 | 113846           | 'genius-slimstar-q200'                      | 0.00000         |
 | 113842           | 'genius-slimstar-m200'                      | 0.00000         |
-| 113838           | 'genius-slimstar-7230'                      | 0.00000         |
-| 113834           | 'trust-primo'                               | 0.00000         |
 
-###### **Page** 1/212 **(Total number of results: 4223)**
+###### **Page** 1/212 **(Total number of results: 4225)**

@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -77,7 +77,7 @@ public class UniqueIndexStoragePart implements AttributeIndexStoragePart, Record
 	/**
 	 * Id used for lookups in data storage for this particular container.
 	 */
-	@Getter @Setter private Long uniquePartId;
+	@Getter @Setter private Long storagePartPK;
 
 	@Override
 	public AttributeIndexType getIndexType() {

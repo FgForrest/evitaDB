@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -63,7 +63,12 @@ public class IndexStoragePartConfigurer implements Consumer<Kryo> {
 		kryo.register(CatalogIndexStoragePart.class, new SerialVersionBasedSerializer<>(new CatalogIndexStoragePartSerializer(keyCompressor), CatalogIndexStoragePart.class), index++);
 		kryo.register(EntityIndexStoragePart.class, new SerialVersionBasedSerializer<>(new EntityIndexStoragePartSerializer(keyCompressor), EntityIndexStoragePart.class), index++);
 		kryo.register(UniqueIndexStoragePart.class, new SerialVersionBasedSerializer<>(new UniqueIndexStoragePartSerializer(keyCompressor), UniqueIndexStoragePart.class), index++);
-		kryo.register(FilterIndexStoragePart.class, new SerialVersionBasedSerializer<>(new FilterIndexStoragePartSerializer(keyCompressor), FilterIndexStoragePart.class), index++);
+		kryo.register(
+			FilterIndexStoragePart.class,
+			new SerialVersionBasedSerializer<>(new FilterIndexStoragePartSerializer(keyCompressor), FilterIndexStoragePart.class)
+				.addBackwardCompatibleSerializer(6163295675316818632L, new FilterIndexStoragePartSerializer_2024_5(keyCompressor)),
+			index++
+		);
 		kryo.register(SortIndexStoragePart.class, new SerialVersionBasedSerializer<>(new SortIndexStoragePartSerializer(keyCompressor), SortIndexStoragePart.class), index++);
 		kryo.register(ChainIndexStoragePart.class, new SerialVersionBasedSerializer<>(new ChainIndexStoragePartSerializer(keyCompressor), ChainIndexStoragePart.class), index++);
 		kryo.register(CardinalityIndexStoragePart.class, new SerialVersionBasedSerializer<>(new CardinalityIndexStoragePartSerializer(keyCompressor), CardinalityIndexStoragePart.class), index++);

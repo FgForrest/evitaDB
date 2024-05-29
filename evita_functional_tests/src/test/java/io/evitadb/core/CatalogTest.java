@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -80,7 +80,7 @@ class CatalogTest implements EvitaTestSupport {
 				evitaSession -> {
 					final SealedCatalogSchema catalogSchema = evitaSession.getCatalogSchema();
 
-					assertEquals(9, catalogSchema.getVersion());
+					assertEquals(9, catalogSchema.version());
 					final AttributeSchemaContract code = catalogSchema.getAttribute("code").orElseThrow();
 					final AttributeSchemaContract name = catalogSchema.getAttribute("name").orElseThrow();
 

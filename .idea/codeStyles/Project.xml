@@ -37,7 +37,7 @@
     <JspCodeStyleSettings>
       <option name="JSP_PREFER_COMMA_SEPARATED_IMPORT_LIST" value="true" />
     </JspCodeStyleSettings>
-    <SqlCodeStyleSettings version="6">
+    <SqlCodeStyleSettings version="7">
       <option name="TYPE_CASE" value="3" />
       <option name="CUSTOM_TYPE_CASE" value="3" />
       <option name="ALIAS_CASE" value="4" />

@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -21,9 +21,11 @@
  *   limitations under the License.
  */
 
-import io.evitadb.api.trace.TracingContext;
+import io.evitadb.api.observability.trace.TracingContext;
+import io.evitadb.externalApi.api.system.ProbesProvider;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
 import io.evitadb.externalApi.observability.ObservabilityProviderRegistrar;
+import io.evitadb.externalApi.observability.metric.ObservabilityProbesDetector;
 import io.evitadb.externalApi.observability.trace.DelegateExternalApiTracingContext;
 import io.evitadb.externalApi.observability.trace.ObservabilityTracingContext;
 import io.evitadb.externalApi.utils.ExternalApiTracingContext;
@@ -41,6 +43,7 @@ module evita.external.api.observability {
 	provides TracingContext with ObservabilityTracingContext;
 	provides ExternalApiTracingContext with DelegateExternalApiTracingContext;
 	provides ExternalApiProviderRegistrar with ObservabilityProviderRegistrar;
+	provides ProbesProvider with ObservabilityProbesDetector;
 
 	opens io.evitadb.externalApi.observability.configuration to com.fasterxml.jackson.databind;
 
@@ -76,8 +79,14 @@ module evita.external.api.observability {
 	requires io.opentelemetry.exporter.logging;
 	requires io.opentelemetry.exporter.otlp;
 	requires io.opentelemetry.sdk.autoconfigure;
-	requires io.opentelemetry.instrumentation.grpc_1_6;
+	requires java.instrument;
+	requires net.bytebuddy;
+	requires org.bouncycastle.provider;
+	requires java.sql;
+	requires evita.external.api.grpc;
+	requires io.prometheus.metrics.model;
 
 	exports io.evitadb.externalApi.observability.configuration;
 	exports io.evitadb.externalApi.observability.trace;
+	exports io.evitadb.externalApi.observability.metric;
 }

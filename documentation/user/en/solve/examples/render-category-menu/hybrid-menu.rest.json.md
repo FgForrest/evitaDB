@@ -105,6 +105,8 @@
         "type": "Category",
         "version": 1,
         "allLocales": [
+          "cs",
+          "de",
           "en"
         ],
         "attributes": {
@@ -146,6 +148,22 @@
         }
       },
       "requested": false
+    },
+    {
+      "entity": {
+        "primaryKey": 347154,
+        "type": "Category",
+        "version": 1,
+        "allLocales": [
+          "en"
+        ],
+        "attributes": {
+          "global": {
+            "code": "bargain-bundles"
+          }
+        }
+      },
+      "requested": false
     }
   ],
   "parents": [
@@ -155,6 +173,8 @@
         "type": "Category",
         "version": 1,
         "allLocales": [
+          "cs",
+          "de",
           "en"
         ],
         "attributes": {

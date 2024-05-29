@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -28,7 +28,6 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.core.Evita;
 import io.evitadb.core.EvitaInternalSessionContract;
 import io.evitadb.exception.EvitaInvalidUsageException;
-import io.evitadb.externalApi.trace.ExternalApiTracingContextProvider;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.UUIDUtil;
@@ -47,6 +46,8 @@ import java.util.Optional;
 import java.util.Set;
 
 import static io.evitadb.externalApi.grpc.constants.GrpcHeaders.CATALOG_NAME_HEADER;
+import static io.evitadb.externalApi.grpc.constants.GrpcHeaders.METADATA_HEADER;
+import static io.evitadb.externalApi.grpc.constants.GrpcHeaders.METHOD_NAME_HEADER;
 import static io.evitadb.externalApi.grpc.constants.GrpcHeaders.SESSION_ID_HEADER;
 
 /**
@@ -83,6 +84,8 @@ public class ServerSessionInterceptor implements ServerInterceptor {
 	 * Context that holds current {@link EvitaSessionContract} session.
 	 */
 	public static final Context.Key<EvitaInternalSessionContract> SESSION = Context.key(SESSION_ID_HEADER);
+	public static final Context.Key<String> CATALOG_NAME = Context.key(CATALOG_NAME_HEADER);
+	public static final Context.Key<Metadata> METADATA = Context.key(METADATA_HEADER);
 
 	/**
 	 * Reference to the {@link EvitaContract} instance.
@@ -116,19 +119,15 @@ public class ServerSessionInterceptor implements ServerInterceptor {
 			return new ServerCall.Listener<>() {};
 		}
 
+		metadata.put(Metadata.Key.of(METHOD_NAME_HEADER, Metadata.ASCII_STRING_MARSHALLER), serverCall.getMethodDescriptor().getBareMethodName());
+
 		Context context = Context.current();
 
 		if (activeSession.isPresent()) {
 			context = context.withValue(SESSION, activeSession.get());
 		}
-
-		final Context finalContext = context;
-		return ExternalApiTracingContextProvider.getContext()
-			.executeWithinBlock(
-				"gRPC",
-				metadata,
-				() -> Contexts.interceptCall(finalContext, serverCall, metadata, serverCallHandler)
-			);
+		context = context.withValue(METADATA, metadata).withValue(CATALOG_NAME, catalogName);
+		return Contexts.interceptCall(context, serverCall, metadata, serverCallHandler);
 	}
 
 	@Nonnull

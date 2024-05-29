@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -70,7 +70,7 @@ public class FacetIndexStoragePart implements StoragePart {
 	/**
 	 * Id used for lookups in persistent storage for this particular container.
 	 */
-	@Getter @Setter private Long uniquePartId;
+	@Getter @Setter private Long storagePartPK;
 
 	public FacetIndexStoragePart(int entityIndexPrimaryKey, @Nonnull String referenceName, @Nullable Map<Integer, Bitmap> noGroupFacetingEntities, @Nonnull Map<Integer, Map<Integer, Bitmap>> facetingEntities) {
 		this.entityIndexPrimaryKey = entityIndexPrimaryKey;
@@ -86,9 +86,9 @@ public class FacetIndexStoragePart implements StoragePart {
 	@Override
 	public long computeUniquePartIdAndSet(@Nonnull KeyCompressor keyCompressor) {
 		final long computedUniquePartId = computeUniquePartId(entityIndexPrimaryKey, referenceName, keyCompressor);
-		final Long theUniquePartId = getUniquePartId();
+		final Long theUniquePartId = getStoragePartPK();
 		if (theUniquePartId == null) {
-			setUniquePartId(computedUniquePartId);
+			setStoragePartPK(computedUniquePartId);
 		} else {
 			Assert.isTrue(theUniquePartId == computedUniquePartId, "Unique part ids must never differ!");
 		}

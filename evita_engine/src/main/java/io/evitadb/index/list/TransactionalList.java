@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -24,11 +24,11 @@
 package io.evitadb.index.list;
 
 import io.evitadb.core.Transaction;
-import io.evitadb.exception.EvitaInternalError;
-import io.evitadb.index.transactionalMemory.TransactionalLayerCreator;
-import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
-import io.evitadb.index.transactionalMemory.TransactionalLayerProducer;
-import io.evitadb.index.transactionalMemory.TransactionalObjectVersion;
+import io.evitadb.core.transaction.memory.TransactionalLayerCreator;
+import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
+import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
+import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
+import io.evitadb.exception.GenericEvitaInternalError;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -45,7 +45,7 @@ import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.function.Function;
 
-import static io.evitadb.core.Transaction.getTransactionalMemoryLayer;
+import static io.evitadb.core.Transaction.getTransactionalLayerMaintainer;
 import static io.evitadb.core.Transaction.getTransactionalMemoryLayerIfExists;
 import static java.util.Optional.ofNullable;
 
@@ -85,10 +85,10 @@ public class TransactionalList<V> implements List<V>, Serializable, Cloneable, T
 	@Nonnull
 	@SuppressWarnings({"unchecked", "rawtypes"})
 	@Override
-	public List<V> createCopyWithMergedTransactionalMemory(@Nullable ListChanges<V> layer, @Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Transaction transaction) {
+	public List<V> createCopyWithMergedTransactionalMemory(@Nullable ListChanges<V> layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		return createCopyWithMergedTransactionalMemory(
 			layer,
-			value -> (V) transactionalLayer.getStateCopyWithCommittedChanges((TransactionalLayerProducer) value, transaction)
+			value -> (V) transactionalLayer.getStateCopyWithCommittedChanges((TransactionalLayerProducer) value)
 		);
 	}
 
@@ -167,7 +167,7 @@ public class TransactionalList<V> implements List<V>, Serializable, Cloneable, T
 
 	@Override
 	public boolean remove(Object o) {
-		final ListChanges<V> layer = getTransactionalMemoryLayer(this);
+		final ListChanges<V> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
 			return this.listDelegate.remove(Objects.requireNonNull(o));
 		} else {
@@ -233,12 +233,12 @@ public class TransactionalList<V> implements List<V>, Serializable, Cloneable, T
 
 	@Override
 	public void clear() {
-		final ListChanges<V> layer = getTransactionalMemoryLayer(this);
+		final ListChanges<V> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
 			this.listDelegate.clear();
 		} else {
 			layer.cleanAll(
-				ofNullable(getTransactionalMemoryLayer())
+				ofNullable(getTransactionalLayerMaintainer())
 					.orElseThrow(() -> new IllegalStateException("Transactional layer must be present!"))
 			);
 		}
@@ -256,7 +256,7 @@ public class TransactionalList<V> implements List<V>, Serializable, Cloneable, T
 
 	@Override
 	public V set(int index, V element) {
-		final ListChanges<V> layer = getTransactionalMemoryLayer(this);
+		final ListChanges<V> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
 			return this.listDelegate.set(index, element);
 		} else {
@@ -269,7 +269,7 @@ public class TransactionalList<V> implements List<V>, Serializable, Cloneable, T
 
 	@Override
 	public void add(int index, V element) {
-		final ListChanges<V> layer = getTransactionalMemoryLayer(this);
+		final ListChanges<V> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
 			this.listDelegate.add(index, Objects.requireNonNull(element));
 		} else {
@@ -279,7 +279,7 @@ public class TransactionalList<V> implements List<V>, Serializable, Cloneable, T
 
 	@Override
 	public V remove(int index) {
-		final ListChanges<V> layer = getTransactionalMemoryLayer(this);
+		final ListChanges<V> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
 			return this.listDelegate.remove(index);
 		} else {
@@ -389,7 +389,7 @@ public class TransactionalList<V> implements List<V>, Serializable, Cloneable, T
 		@SuppressWarnings("unchecked") final TransactionalList<V> clone = (TransactionalList<V>) super.clone();
 		final ListChanges<V> layer = getTransactionalMemoryLayerIfExists(this);
 		if (layer != null) {
-			final ListChanges<V> clonedLayer = getTransactionalMemoryLayer(clone);
+			final ListChanges<V> clonedLayer = Transaction.getOrCreateTransactionalMemoryLayer(clone);
 			if (clonedLayer != null) {
 				clonedLayer.getRemovedItems().addAll(layer.getRemovedItems());
 				clonedLayer.getAddedItems().putAll(layer.getAddedItems());
@@ -508,7 +508,7 @@ public class TransactionalList<V> implements List<V>, Serializable, Cloneable, T
 				currentPosition = previousPosition;
 				layer.remove(previousPosition);
 			} else {
-				throw new EvitaInternalError("Previous position unexpectedly: " + previousPosition);
+				throw new GenericEvitaInternalError("Previous position unexpectedly: " + previousPosition);
 			}
 		}
 
@@ -520,7 +520,7 @@ public class TransactionalList<V> implements List<V>, Serializable, Cloneable, T
 				final V result = layer.remove(index);
 				layer.add(index, v);
 			} else {
-				throw new EvitaInternalError("Current position unexpectedly: " + previousPosition);
+				throw new GenericEvitaInternalError("Current position unexpectedly: " + previousPosition);
 			}
 		}
 

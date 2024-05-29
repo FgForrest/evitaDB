@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,7 +23,7 @@
 
 package io.evitadb.utils;
 
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.ExceptionRethrowingSupplier;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
@@ -82,7 +82,7 @@ public class ClassUtils {
 			try {
 				return of(factory.get());
 			} catch (Exception e) {
-				throw new EvitaInternalError(
+				throw new GenericEvitaInternalError(
 					"Failed to evaluate lambda expression when a class `" + className + "` is present on classpath.",
 					"Internal error.", e
 				);

@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -76,7 +76,7 @@ class FilterFormulaFacetOptimizeVisitorTest {
 			         [#10] FACET BRAND OR (1 - [1]):  ↦ [1]
 			         [#11] FACET STORE OR (1 - [1]):  ↦ [2]
 			""",
-			PrettyPrintingFormulaVisitor.toString(optimizedFormula)
+			PrettyPrintingFormulaVisitor.toStringVerbose(optimizedFormula)
 		);
 	}
 
@@ -128,7 +128,7 @@ class FilterFormulaFacetOptimizeVisitorTest {
 			               [#17] FACET BRAND OR (1 - [2]):  ↦ [7]
 			               [#18] FACET STORE OR (1 - [3]):  ↦ [9]
 			""",
-			PrettyPrintingFormulaVisitor.toString(optimizedFormula)
+			PrettyPrintingFormulaVisitor.toStringVerbose(optimizedFormula)
 		);
 	}
 

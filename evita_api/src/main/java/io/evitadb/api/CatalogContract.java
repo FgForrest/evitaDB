@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -25,22 +25,30 @@ package io.evitadb.api;
 
 import io.evitadb.api.exception.CollectionNotFoundException;
 import io.evitadb.api.exception.EntityTypeAlreadyPresentInCatalogSchemaException;
-import io.evitadb.api.exception.InvalidSchemaMutationException;
+import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.SchemaAlteringException;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaResponse;
+import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.system.CatalogVersion;
+import io.evitadb.api.requestResponse.system.CatalogVersionDescriptor;
+import io.evitadb.api.requestResponse.system.TimeFlow;
+import io.evitadb.api.requestResponse.transaction.TransactionMutation;
+import io.evitadb.dataType.PaginatedList;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Consumer;
+import java.util.stream.Stream;
 
 /**
  * Catalog is a fragment of evitaDB database that can be compared to a schema of relational database. Catalog allows
@@ -68,7 +76,7 @@ public interface CatalogContract {
 	 * Alters existing schema applying passed schema mutation.
 	 */
 	@Nonnull
-	CatalogSchemaContract updateSchema(@Nonnull EvitaSessionContract session, @Nonnull LocalCatalogSchemaMutation... schemaMutation) throws SchemaAlteringException;
+	CatalogSchemaContract updateSchema(@Nonnull LocalCatalogSchemaMutation... schemaMutation) throws SchemaAlteringException;
 
 	/**
 	 * Returns state of this catalog instance.
@@ -91,7 +99,7 @@ public interface CatalogContract {
 	long getVersion();
 
 	/**
-	 * Returns true if catalog supports transactions.
+	 * Returns true if catalog supports transaction.
 	 */
 	boolean supportsTransaction();
 
@@ -109,6 +117,12 @@ public interface CatalogContract {
 	 */
 	@Nonnull
 	<S extends Serializable, T extends EvitaResponse<S>> T getEntities(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session);
+
+	/**
+	 * Applies mutation to the catalog. This is a generic method that accepts any mutation and tries to apply it to
+	 * the catalog. If the mutation is not applicable to the catalog, exception is thrown.
+	 */
+	void applyMutation(@Nonnull Mutation mutation) throws InvalidMutationException;
 
 	/**
 	 * Creates and returns collection maintaining all entities of same type. If collection for the entity type exists
@@ -147,12 +161,12 @@ public interface CatalogContract {
 	 * Returns collection maintaining all entities of same type. If no such collection exists new one is created.
 	 *
 	 * @param entityType type (name) of the entity
-	 * @throws InvalidSchemaMutationException when collection doesn't exist and {@link CatalogSchemaContract#getCatalogEvolutionMode()}
-	 *                                        doesn't allow {@link CatalogEvolutionMode#ADDING_ENTITY_TYPES}
+	 * @throws SchemaAlteringException when collection doesn't exist and {@link CatalogSchemaContract#getCatalogEvolutionMode()}
+	 *                                 doesn't allow {@link CatalogEvolutionMode#ADDING_ENTITY_TYPES}
 	 */
 	@Nonnull
 	EntityCollectionContract getOrCreateCollectionForEntity(@Nonnull String entityType, @Nonnull EvitaSessionContract session)
-		throws InvalidSchemaMutationException;
+		throws SchemaAlteringException;
 
 	/**
 	 * Deletes entire collection of entities along with its schema. After this operation there will be nothing left
@@ -209,6 +223,7 @@ public interface CatalogContract {
 	/**
 	 * Returns map with current {@link EntitySchemaContract entity schema} instances indexed by their
 	 * {@link EntitySchemaContract#getName() name}.
+	 *
 	 * @return map with current {@link EntitySchemaContract entity schema} instances indexed by their name
 	 */
 	@Nonnull
@@ -227,6 +242,63 @@ public interface CatalogContract {
 	 * @see CatalogState
 	 */
 	boolean goLive();
+
+	/**
+	 * Method checks whether there are new records in the WAL that haven't been incorporated into the catalog yet and
+	 * processes them. The method returns completable future that is completed when all records are processed.
+	 */
+	void processWriteAheadLog(@Nonnull Consumer<CatalogContract> updatedCatalog);
+
+	/**
+	 * Returns a paginated list of catalog versions based on the provided time flow, page number, and page size.
+	 * It returns only versions that are known in history - there may be a lot of other versions for which we don't have
+	 * information anymore, because the data were purged to save space.
+	 *
+	 * @param timeFlow   the time flow used to filter the catalog versions
+	 * @param page       the page number of the paginated list
+	 * @param pageSize   the number of versions per page
+	 * @return a paginated list of {@link CatalogVersion} instances
+	 */
+	@Nonnull
+	PaginatedList<CatalogVersion> getCatalogVersions(@Nonnull TimeFlow timeFlow, int page, int pageSize);
+
+	/**
+	 * Returns a stream of {@link CatalogVersionDescriptor} instances for the given catalog versions. Descriptors will
+	 * be ordered the same way as the input catalog versions, but may be missing some versions if they are not known in
+	 * history. Creating a descriptor could be an expensive operation, so it's recommended to stream changes to clients
+	 * gradually as the stream provides the data.
+	 *
+	 * @param catalogVersion the catalog versions to get descriptors for
+	 * @return a stream of {@link CatalogVersionDescriptor} instances
+	 */
+	@Nonnull
+	Stream<CatalogVersionDescriptor> getCatalogVersionDescriptors(long... catalogVersion);
+
+	/**
+	 * Retrieves a stream of committed mutations starting with a {@link TransactionMutation} that will transition
+	 * the catalog to the given version. The stream goes through all the mutations in this transaction and continues
+	 * forward with next transaction after that until the end of the WAL.
+	 *
+	 * BEWARE! Stream implements {@link java.io.Closeable} and needs to be closed to release resources.
+	 *
+	 * @param catalogVersion version of the catalog to start the stream with
+	 * @return a stream containing committed mutations
+	 */
+	@Nonnull
+	Stream<Mutation> getCommittedMutationStream(long catalogVersion);
+
+	/**
+	 * Retrieves a stream of committed mutations starting with a {@link TransactionMutation} that will transition
+	 * the catalog to the given version. The stream goes through all the mutations in this transaction from last to
+	 * first one and continues backward with previous transaction after that until the beginning of the WAL.
+	 *
+	 * BEWARE! Stream implements {@link java.io.Closeable} and needs to be closed to release resources.
+	 *
+	 * @param catalogVersion version of the catalog to start the stream with
+	 * @return a stream containing committed mutations
+	 */
+	@Nonnull
+	Stream<Mutation> getReversedCommittedMutationStream(long catalogVersion);
 
 	/**
 	 * Terminates catalog instance and frees all claimed resources. Prepares catalog instance to be garbage collected.

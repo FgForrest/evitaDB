@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,6 +23,7 @@
 
 package io.evitadb.api.query.descriptor.annotation;
 
+import io.evitadb.api.query.descriptor.ConstraintNullabilitySupport;
 import io.evitadb.dataType.EvitaDataTypes;
 
 import java.lang.annotation.ElementType;
@@ -31,7 +32,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Defines value data types of target data this query can operate on.
+ * Defines value data types of target data this constraint can operate on.
  * One can specify either specific array of classes through {@link #supportedTypes()} or specify that
  * all data types are supported through {@link #allTypesSupported()} (all supported by {@link EvitaDataTypes}.
  * Also, target data may be arrays, thus query can specify if it supports target arrays through {@link #arraysSupported()}.
@@ -57,4 +58,9 @@ public @interface ConstraintSupportedValues {
 	 * Flag stating that those {@link #supportedTypes()} can be in arrays in queried data.
 	 */
 	boolean arraysSupported() default false;
+
+	/**
+	 * Whether the constraint supports only nullable data or only nonnull data or both and so on.
+	 */
+	ConstraintNullabilitySupport nullability() default ConstraintNullabilitySupport.NULLABLE_AND_NONNULL;
 }

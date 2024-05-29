@@ -11,10 +11,10 @@
       ],
       "attributes": {
         "global": {
-          "changed": "2023-12-01T15:38:00+01:00",
+          "changed": "2024-02-25T14:35:38+01:00",
           "code": "samsung",
           "order": -1,
-          "published": "2023-12-07T00:21:15.932+01:00",
+          "published": "2024-04-15T17:41:24.074+02:00",
           "status": "ACTIVE",
           "visibility": "VISIBLE"
         }

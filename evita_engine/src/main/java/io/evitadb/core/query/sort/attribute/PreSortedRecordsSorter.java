@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -64,10 +64,6 @@ public class PreSortedRecordsSorter extends AbstractRecordsSorter implements Cac
 	 */
 	private final Consumer<CacheableSorter> computationCallback;
 	/**
-	 * This is the type of entity that is being sorted.
-	 */
-	private final String entityType;
-	/**
 	 * This instance will be used by this sorter to access pre sorted arrays of entities.
 	 */
 	private final Supplier<SortedRecordsProvider[]> sortedRecordsSupplier;
@@ -101,11 +97,9 @@ public class PreSortedRecordsSorter extends AbstractRecordsSorter implements Cac
 	private MergedSortedRecordsSupplier memoizedResult;
 
 	public PreSortedRecordsSorter(
-		@Nonnull String entityType,
 		@Nonnull Supplier<SortedRecordsProvider[]> sortedRecordsSupplier
 	) {
 		this.computationCallback = null;
-		this.entityType = entityType;
 		this.sortedRecordsSupplier = sortedRecordsSupplier;
 		this.unknownRecordIdsSorter = null;
 	}
@@ -115,7 +109,6 @@ public class PreSortedRecordsSorter extends AbstractRecordsSorter implements Cac
 	public Sorter cloneInstance() {
 		return new PreSortedRecordsSorter(
 			computationCallback,
-			entityType,
 			sortedRecordsSupplier,
 			null
 		);
@@ -126,7 +119,6 @@ public class PreSortedRecordsSorter extends AbstractRecordsSorter implements Cac
 	public Sorter andThen(Sorter sorterForUnknownRecords) {
 		return new PreSortedRecordsSorter(
 			computationCallback,
-			entityType,
 			sortedRecordsSupplier,
 			sorterForUnknownRecords
 		);
@@ -257,7 +249,6 @@ public class PreSortedRecordsSorter extends AbstractRecordsSorter implements Cac
 	public CacheableSorter getCloneWithComputationCallback(@Nonnull Consumer<CacheableSorter> selfOperator) {
 		return new PreSortedRecordsSorter(
 			selfOperator,
-			entityType,
 			sortedRecordsSupplier,
 			unknownRecordIdsSorter
 		);

@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,6 +23,8 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.dataApi;
 
+import io.evitadb.api.requestResponse.data.PriceContract;
+import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
@@ -54,7 +56,10 @@ import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.not;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.query.order.OrderDirection.DESC;
-import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.*;
+import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.ATTRIBUTE_CREATED;
+import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.ATTRIBUTE_MANUFACTURED;
+import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.ATTRIBUTE_MARKET_SHARE;
+import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.GRAPHQL_THOUSAND_PRODUCTS;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.builder.MapBuilder.map;
 import static io.evitadb.test.generator.DataGenerator.*;
@@ -672,7 +677,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 						filterBy(
 							hierarchyWithin(
 								Entities.CATEGORY,
-								entityPrimaryKeyInSet(16)
+								entityPrimaryKeyInSet(26)
 							)
 						),
 						require(
@@ -717,7 +722,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 						filterBy: {
 							hierarchyCategoryWithin: {
 								ofParent: {
-									entityPrimaryKeyInSet: 16
+									entityPrimaryKeyInSet: 26
 								}
 							}
 						},
@@ -751,7 +756,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 						filterBy(
 							hierarchyWithin(
 								Entities.CATEGORY,
-								entityPrimaryKeyInSet(16)
+								entityPrimaryKeyInSet(26)
 							)
 						),
 						require(
@@ -800,7 +805,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 						filterBy: {
 							hierarchyCategoryWithin: {
 								ofParent: {
-									entityPrimaryKeyInSet: 16
+									entityPrimaryKeyInSet: 26
 								}
 							}
 						},
@@ -917,7 +922,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 		final List<SealedEntity> entities = findEntitiesWithPrice(originalProductEntities);
 
 		final List<Map<String, Object>> expectedBody = entities.stream()
-			.map(this::createEntityDtoWithPriceForSale)
+			.map(this::createEntityDtoWithOnlyOnePriceForSale)
 			.toList();
 
 		tester.test(TEST_CATALOG)
@@ -939,6 +944,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
                                 priceList
                                 priceWithTax
                             }
+                            multiplePricesForSaleAvailable
 	                    }
 	                }
 					""",
@@ -1017,7 +1023,13 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return custom price for sale for products")
 	void shouldReturnCustomPriceForSaleForProducts(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
-		final List<SealedEntity> entities = findEntitiesWithPrice(originalProductEntities);
+		final List<SealedEntity> entities = findEntities(
+			originalProductEntities,
+			it -> it.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).size() == 1 &&
+				it.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).stream().allMatch(PriceContract::sellable) &&
+				!it.getPrices(CURRENCY_EUR).isEmpty() &&
+				it.getPrices(CURRENCY_EUR).stream().allMatch(PriceContract::sellable)
+		);
 
 		final List<Map<String,Object>> expectedBody = entities.stream()
 			.map(this::createEntityDtoWithPriceForSale)
@@ -1029,7 +1041,8 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 	                query {
 	                    listProduct(
 	                        filterBy: {
-	                            entityPrimaryKeyInSet: [%d, %d]
+	                            entityPrimaryKeyInSet: [%d, %d],
+	                            priceInCurrency: EUR
 	                        }
 	                    ) {
 	                        primaryKey
@@ -1338,6 +1351,66 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			.body(PRODUCT_LIST_PATH, hasSize(2))
 			.body(PRODUCT_LIST_PATH + "[0]." + EntityDescriptor.PRICES.name(), hasSize(greaterThan(0)))
 			.body(PRODUCT_LIST_PATH + "[1]." + EntityDescriptor.PRICES.name(), hasSize(greaterThan(0)));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return all prices for sale for master products")
+	void shouldReturnAllPricesForSaleForMasterProducts(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+		final var entities = findEntities(
+			originalProductEntities,
+			it -> !it.getPriceInnerRecordHandling().equals(PriceInnerRecordHandling.NONE) &&
+				it.getPrices(CURRENCY_CZK)
+					.stream()
+					.filter(PriceContract::sellable)
+					.map(PriceContract::innerRecordId)
+					.distinct()
+					.count() > 1,
+			2
+		);
+
+		final List<String> priceLists = entities.stream()
+			.flatMap(it -> it.getPrices(CURRENCY_CZK).stream().map(PriceContract::priceList))
+			.distinct()
+			.toList();
+		assertTrue(priceLists.size() > 1);
+
+		final var expectedBody = entities.stream()
+			.map(entity -> createEntityDtoWithAllPricesForSale(entity, priceLists.toArray(String[]::new)))
+			.toList();
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    listProduct(
+	                        filterBy: {
+		                        entityPrimaryKeyInSet: [%d, %d]
+		                        priceInCurrency: CZK,
+		                        priceInPriceLists: %s
+	                        }
+                        ) {
+                            primaryKey
+	                        type
+	                        multiplePricesForSaleAvailable
+                            allPricesForSale {
+                                __typename
+                                currency
+                                priceList
+                                priceWithTax
+                                innerRecordId
+                            }
+	                    }
+	                }
+					""",
+				entities.get(0).getPrimaryKey(),
+				entities.get(1).getPrimaryKey(),
+				serializeStringArrayToQueryString(priceLists)
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(PRODUCT_LIST_PATH, equalTo(expectedBody));
 	}
 
 	@Test
@@ -1991,11 +2064,19 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 	@Nonnull
 	private List<SealedEntity> findEntities(@Nonnull List<SealedEntity> originalProductEntities,
 	                                        @Nonnull Predicate<SealedEntity> filter) {
+		// backward compatibility default - no special meaning to the "2" limit
+		return findEntities(originalProductEntities, filter, 2);
+	}
+
+	@Nonnull
+	private List<SealedEntity> findEntities(@Nonnull List<SealedEntity> originalProductEntities,
+	                                        @Nonnull Predicate<SealedEntity> filter,
+	                                        int limit) {
 		final List<SealedEntity> entities = originalProductEntities.stream()
 			.filter(filter)
-			.limit(2)
+			.limit(limit)
 			.toList();
-		assertEquals(2, entities.size());
+		assertEquals(limit, entities.size());
 		return entities;
 	}
 
@@ -2003,7 +2084,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 	private List<SealedEntity> findEntitiesWithPrice(List<SealedEntity> originalProductEntities) {
 		return findEntities(
 			originalProductEntities,
-			it -> it.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).size() == 1
+			it -> it.getPriceInnerRecordHandling().equals(PriceInnerRecordHandling.NONE) && it.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).size() == 1
 		);
 	}
 

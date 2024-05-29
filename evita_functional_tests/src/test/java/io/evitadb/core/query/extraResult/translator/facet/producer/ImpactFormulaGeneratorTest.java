@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -88,7 +88,7 @@ class ImpactFormulaGeneratorTest {
 			   [#2] USER FILTER → [8, 9, 10]
 			      [#3] FACET BRAND OR (5 - [10, 15]):  ↦ [9],  ↦ [8, 9, 10]
 			""",
-			PrettyPrintingFormulaVisitor.toString(updatedFormula)
+			PrettyPrintingFormulaVisitor.toStringVerbose(updatedFormula)
 		);
 	}
 
@@ -115,7 +115,7 @@ class ImpactFormulaGeneratorTest {
 			      [#3] FACET BRAND OR (8 - [10]):  ↦ [9]
 			      [#4] FACET BRAND OR (5 - [15]):  ↦ [8, 9, 10]
 			""",
-			PrettyPrintingFormulaVisitor.toString(updatedFormula)
+			PrettyPrintingFormulaVisitor.toStringVerbose(updatedFormula)
 		);
 	}
 
@@ -144,7 +144,7 @@ class ImpactFormulaGeneratorTest {
 			      [#3] FACET BRAND OR (8 - [10]):  ↦ [9]
 			      [#4] FACET BRAND AND (5 - [15]):  ↦ [8, 9, 10]
 			""",
-			PrettyPrintingFormulaVisitor.toString(updatedFormula)
+			PrettyPrintingFormulaVisitor.toStringVerbose(updatedFormula)
 		);
 	}
 
@@ -177,7 +177,7 @@ class ImpactFormulaGeneratorTest {
 			            [#5] FACET BRAND OR (8 - [10]):  ↦ [9]
 			         [#6] FACET BRAND OR (5 - [15]):  ↦ [8, 9, 10]
 			""",
-			PrettyPrintingFormulaVisitor.toString(updatedFormula)
+			PrettyPrintingFormulaVisitor.toStringVerbose(updatedFormula)
 		);
 	}
 
@@ -210,7 +210,7 @@ class ImpactFormulaGeneratorTest {
 			            [Ref to #1] [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
 			            [#6] FACET BRAND OR (8 - [10]):  ↦ [9]
 			""",
-			PrettyPrintingFormulaVisitor.toString(updatedFormula)
+			PrettyPrintingFormulaVisitor.toStringVerbose(updatedFormula)
 		);
 	}
 

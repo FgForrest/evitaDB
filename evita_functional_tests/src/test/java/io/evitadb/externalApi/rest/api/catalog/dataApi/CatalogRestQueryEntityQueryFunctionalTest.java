@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -34,6 +34,8 @@ import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityContract;
+import io.evitadb.api.requestResponse.data.PriceContract;
+import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.extraResult.AttributeHistogram;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary;
@@ -530,7 +532,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 				filterBy(
 					hierarchyWithin(
 						Entities.CATEGORY,
-						entityPrimaryKeyInSet(16)
+						entityPrimaryKeyInSet(26)
 					)
 				),
 				require(
@@ -568,7 +570,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 					"filterBy": {
 						"hierarchyCategoryWithin": {
 							"ofParent": {
-								"entityPrimaryKeyInSet": [16]
+								"entityPrimaryKeyInSet": [26]
 							}
 						}
 					},
@@ -602,7 +604,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 				filterBy(
 					hierarchyWithin(
 						Entities.CATEGORY,
-						entityPrimaryKeyInSet(16)
+						entityPrimaryKeyInSet(26)
 					)
 				),
 				require(
@@ -644,7 +646,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 					"filterBy": {
 						"hierarchyCategoryWithin": {
 							"ofParent": {
-								"entityPrimaryKeyInSet": [16]
+								"entityPrimaryKeyInSet": [26]
 							}
 						}
 					},
@@ -796,6 +798,74 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 					}
 					""",
 				serializeIntArrayToQueryString(pks)
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(DATA_PATH, equalTo(createEntityDtos(entities)));
+	}
+
+	@Test
+	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@DisplayName("Should return all prices for sale for master products")
+	void shouldReturnAllPricesForSaleForMasterProducts(Evita evita, RestTester tester, List<SealedEntity> originalProductEntities) {
+		final var pks = findEntityPks(
+			originalProductEntities,
+			it -> !it.getPriceInnerRecordHandling().equals(PriceInnerRecordHandling.NONE) &&
+				it.getPrices(CURRENCY_CZK)
+					.stream()
+					.filter(PriceContract::sellable)
+					.map(PriceContract::innerRecordId)
+					.distinct()
+					.count() > 1
+		);
+
+		final Set<Integer> pksSet = Arrays.stream(pks).collect(Collectors.toSet());
+		final List<String> priceLists = originalProductEntities.stream()
+			.filter(it -> pksSet.contains(it.getPrimaryKey()))
+			.flatMap(it -> it.getPrices(CURRENCY_CZK).stream().map(PriceContract::priceList))
+			.distinct()
+			.toList();
+		assertTrue(priceLists.size() > 1);
+
+		final List<EntityClassifier> entities = getEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					entityPrimaryKeyInSet(pks),
+					priceInCurrency(CURRENCY_CZK),
+					priceInPriceLists(priceLists.toArray(String[]::new))
+				),
+				require(
+					entityFetch(
+						priceContentRespectingFilter()
+					)
+				)
+			)
+		);
+
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/PRODUCT/query")
+			.httpMethod(Request.METHOD_POST)
+			.requestBody(
+				"""
+                    {
+						"filterBy": {
+						    "entityPrimaryKeyInSet": %s,
+						    "priceInCurrency": "CZK",
+						    "priceInPriceLists": %s
+						},
+						"require": {
+						    "entityFetch": {
+						        "priceContent": {
+						            "contentMode": "RESPECTING_FILTER"
+					            }
+						    }
+						}
+					}
+					""",
+				serializeIntArrayToQueryString(pks),
+				serializeStringArrayToQueryString(priceLists)
 			)
 			.executeAndThen()
 			.statusCode(200)
@@ -1508,9 +1578,6 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
 					{
-						"filterBy": {
-							"attributeAliasIs": "NOT_NULL"
-						},
 						"require": {
 							"page": {
 								"number": 1,
@@ -1556,9 +1623,6 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
 					{
-						"filterBy": {
-							"attributeAliasIs": "NOT_NULL"
-						},
 						"require": {
 							"page": {
 								"number": 1,
@@ -1609,7 +1673,6 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.requestBody("""
 					{
 						"filterBy": {
-							"attributeAliasIs": "NOT_NULL",
 							"userFilter": [{
 								"attributeQuantityBetween": ["100", "900"]
 							}]
@@ -1645,9 +1708,6 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
 					{
-						"filterBy": {
-							"attributeAliasIs": "NOT_NULL"
-						},
 						"require": {
 							"page": {
 								"number": 1,

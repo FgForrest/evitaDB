@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -87,4 +87,11 @@ public interface Formula extends TransactionalDataRelatedStructure, PrettyPrinta
 	 * Clears the memoized results and hashes of the formula.
 	 */
 	void clearMemory();
+
+	/**
+	 * Prints information about the formula in a user-friendly way in verbose mode.
+	 */
+	@Nonnull
+	String toStringVerbose();
+
 }

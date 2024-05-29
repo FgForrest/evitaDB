@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -24,9 +24,9 @@
 package io.evitadb.core.query.filter.translator.entity.alternative;
 
 import io.evitadb.api.query.require.EntityRequire;
-import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.core.query.algebra.prefetch.EntityToBitmapFilter;
 import io.evitadb.core.query.filter.FilterByVisitor;
+import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
@@ -50,7 +50,7 @@ public class LocaleEntityToBitmapFilter implements EntityToBitmapFilter {
 	@Nonnull
 	@Override
 	public Bitmap filter(@Nonnull FilterByVisitor filterByVisitor) {
-		final List<EntityDecorator> entities = filterByVisitor.getPrefetchedEntities();
+		final List<ServerEntityDecorator> entities = filterByVisitor.getPrefetchedEntities();
 		if (entities == null) {
 			return EmptyBitmap.INSTANCE;
 		} else {

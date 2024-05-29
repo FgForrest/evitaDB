@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -29,6 +29,7 @@ import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.function.Consumer;
 
 /**
  * This interface is used to co-locate hierarchy placement mutating routines which are rather procedural and long to
@@ -46,12 +47,16 @@ public interface HierarchyPlacementMutator {
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull EntityIndex index,
 		int primaryKeyToIndex,
-		@Nullable Integer parentPrimaryKey
+		@Nullable Integer parentPrimaryKey,
+		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
 		final EntitySchema schema = executor.getEntitySchema();
 		Assert.isTrue(schema.isWithHierarchy(), "Hierarchy is not enabled by schema - cannot set hierarchical placement for " + schema.getName() + "!");
 
 		index.addNode(primaryKeyToIndex, parentPrimaryKey);
+		if (undoActionConsumer != null) {
+			undoActionConsumer.accept(() -> index.removeNode(primaryKeyToIndex));
+		}
 	}
 
 	/**
@@ -61,12 +66,16 @@ public interface HierarchyPlacementMutator {
 	static void removeParent(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull EntityIndex index,
-		int primaryKeyToIndex
+		int primaryKeyToIndex,
+		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
 		final EntitySchema schema = executor.getEntitySchema();
 		Assert.isTrue(schema.isWithHierarchy(), "Hierarchy is not enabled by schema - cannot remove hierarchical placement for " + schema.getName() + "!");
 
-		index.removeNode(primaryKeyToIndex);
+		final Integer parentNodePk = index.removeNode(primaryKeyToIndex);
+		if (undoActionConsumer != null) {
+			undoActionConsumer.accept(() -> index.addNode(primaryKeyToIndex, parentNodePk));
+		}
 	}
 
 }

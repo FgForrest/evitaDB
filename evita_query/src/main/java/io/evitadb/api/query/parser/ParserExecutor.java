@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -24,7 +24,7 @@
 package io.evitadb.api.query.parser;
 
 import io.evitadb.api.query.parser.error.EvitaQLInvalidQueryError;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
@@ -62,10 +62,10 @@ public class ParserExecutor {
 				throw evitaQLInvalidQueryError;
 			} else {
 				// probably missed to wrap error with EvitaQL error, therefore it should be checked
-				throw new EvitaInternalError(cause.getMessage(), "Internal error occurred during query parsing.", cause);
+				throw new GenericEvitaInternalError(cause.getMessage(), "Internal error occurred during query parsing.", cause);
 			}
 		} catch (Exception e) {
-			throw new EvitaInternalError(e.getMessage(), "Internal error occurred during query parsing.", e);
+			throw new GenericEvitaInternalError(e.getMessage(), "Internal error occurred during query parsing.", e);
 		} finally {
 			CONTEXT.remove();
 		}

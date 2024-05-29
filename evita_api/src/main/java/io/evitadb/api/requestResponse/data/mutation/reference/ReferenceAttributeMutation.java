@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -41,7 +41,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor.ReferenceSchemaBuilder;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -99,7 +99,7 @@ public class ReferenceAttributeMutation extends ReferenceMutation<ReferenceKeyWi
 	public void verifyOrEvolveSchema(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaBuilder entitySchemaBuilder) throws InvalidMutationException {
 		if (attributeMutation instanceof final AttributeSchemaEvolvingMutation schemaValidatingMutation) {
 			final ReferenceSchemaContract referenceSchema = entitySchemaBuilder.getReference(referenceKey.referenceName())
-				.orElseThrow(() -> new EvitaInternalError("Reference to type `" + referenceKey.referenceName() + "` was not found!"));
+				.orElseThrow(() -> new GenericEvitaInternalError("Reference to type `" + referenceKey.referenceName() + "` was not found!"));
 
 			attributeMutation.verifyOrEvolveSchema(
 				catalogSchema,

@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -66,11 +66,11 @@ public class HierarchyOfSelfTranslator
 
 	@Override
 	public ExtraResultProducer apply(HierarchyOfSelf hierarchyOfSelf, ExtraResultPlanningVisitor extraResultPlanner) {
-		final String queriedEntityType = extraResultPlanner.getSchema().getName();
+		final EntitySchemaContract queriedSchema = extraResultPlanner.getSchema();
+		final String queriedEntityType = queriedSchema.getName();
 		// verify that requested entityType is hierarchical
-		final EntitySchemaContract entitySchema = extraResultPlanner.getSchema(queriedEntityType);
 		Assert.isTrue(
-			entitySchema.isWithHierarchy(),
+			queriedSchema.isWithHierarchy(),
 			() -> new EntityIsNotHierarchicalException(null, queriedEntityType));
 
 		// prepare shared data from the context
@@ -94,14 +94,14 @@ public class HierarchyOfSelfTranslator
 						null,
 						targetCollectionRef.get(),
 						queriedEntityType,
-						() -> "Hierarchy statistics of `" + entitySchema.getName() + "`: " + it
+						() -> "Hierarchy statistics of `" + queriedEntityType + "`: " + it
 					)
 				)
 				.orElse(null);
 
 			// the request is simple - we use global index of current entity
 			hierarchyStatisticsProducer.interpret(
-				entitySchema,
+				queriedSchema,
 				null,
 				extraResultPlanner.getAttributeSchemaAccessor(),
 				hierarchyWithin,
@@ -125,6 +125,7 @@ public class HierarchyOfSelfTranslator
 								extraResultPlanner.getQueryContext(),
 								filter,
 								GlobalEntityIndex.class,
+								queriedSchema,
 								globalIndex,
 								extraResultPlanner.getAttributeSchemaAccessor()
 							)
@@ -149,6 +150,7 @@ public class HierarchyOfSelfTranslator
 								extraResultPlanner.getQueryContext(),
 								filter,
 								GlobalEntityIndex.class,
+								queriedSchema,
 								globalIndex,
 								extraResultPlanner.getAttributeSchemaAccessor()
 							)

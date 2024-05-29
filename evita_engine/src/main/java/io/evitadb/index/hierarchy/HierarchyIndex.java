@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,15 +23,17 @@
 
 package io.evitadb.index.hierarchy;
 
-import io.evitadb.core.Transaction;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.deferred.DeferredFormula;
+import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
+import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
+import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
+import io.evitadb.dataType.array.CompositeIntArray;
+import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.IndexDataStructure;
-import io.evitadb.index.array.CompositeIntArray;
-import io.evitadb.index.array.CompositeObjectArray;
 import io.evitadb.index.array.TransactionalIntArray;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
@@ -48,9 +50,6 @@ import io.evitadb.index.hierarchy.suppliers.HierarchyRootsBitmapSupplier;
 import io.evitadb.index.hierarchy.suppliers.HierarchyRootsDownBitmapSupplier;
 import io.evitadb.index.hierarchy.suppliers.HierarchyRootsDownToLevelBitmapSupplier;
 import io.evitadb.index.map.TransactionalMap;
-import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
-import io.evitadb.index.transactionalMemory.TransactionalObjectVersion;
-import io.evitadb.index.transactionalMemory.VoidTransactionMemoryProducer;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.spi.model.storageParts.index.HierarchyIndexStoragePart;
 import io.evitadb.store.spi.model.storageParts.index.HierarchyIndexStoragePart.LevelIndex;
@@ -217,13 +216,14 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 	}
 
 	@Override
-	public void removeNode(int entityPrimaryKey) {
+	public Integer removeNode(int entityPrimaryKey) {
 		final HierarchyNode removedNode = internalRemoveHierarchy(entityPrimaryKey);
 		Assert.notNull(removedNode, "No hierarchy was set for entity with primary key " + entityPrimaryKey + "!");
 		this.dirty.setToTrue();
 		if (!isTransactionAvailable()) {
 			resetMemoizedValues();
 		}
+		return removedNode.parentEntityPrimaryKey();
 	}
 
 	@Override
@@ -709,15 +709,19 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 
 	@Nonnull
 	@Override
-	public HierarchyIndex createCopyWithMergedTransactionalMemory(@Nullable Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Transaction transaction) {
+	public HierarchyIndex createCopyWithMergedTransactionalMemory(@Nullable Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		// we can safely throw away dirty flag now
-		transactionalLayer.getStateCopyWithCommittedChanges(this.dirty, transaction);
-		return new HierarchyIndex(
-			transactionalLayer.getStateCopyWithCommittedChanges(this.roots, transaction),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.levelIndex, transaction),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.itemIndex, transaction),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.orphans, transaction)
-		);
+		final Boolean isDirty = transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
+		if (isDirty) {
+			return new HierarchyIndex(
+				transactionalLayer.getStateCopyWithCommittedChanges(this.roots),
+				transactionalLayer.getStateCopyWithCommittedChanges(this.levelIndex),
+				transactionalLayer.getStateCopyWithCommittedChanges(this.itemIndex),
+				transactionalLayer.getStateCopyWithCommittedChanges(this.orphans)
+			);
+		} else {
+			return this;
+		}
 	}
 
 	@Override
@@ -787,9 +791,9 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 		if (orphans.contains(hierarchyNode.parentEntityPrimaryKey())) {
 			return empty();
 		} else {
-			hierarchyNode = this.itemIndex.get(hierarchyNode.parentEntityPrimaryKey());
-			Assert.isTrue(hierarchyNode != null, "The node parent `" + hierarchyNode.parentEntityPrimaryKey() + "` is unexpectedly not present in the index!");
-			return of(hierarchyNode);
+			final HierarchyNode parentNode = this.itemIndex.get(hierarchyNode.parentEntityPrimaryKey());
+			Assert.isTrue(parentNode != null, "The node parent `" + hierarchyNode.parentEntityPrimaryKey() + "` is unexpectedly not present in the index!");
+			return of(parentNode);
 		}
 	}
 

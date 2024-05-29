@@ -13,7 +13,7 @@
   ~   you may not use this file except in compliance with the License.
   ~   You may obtain a copy of the License at
   ~
-  ~   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+  ~   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
   ~
   ~   Unless required by applicable law or agreed to in writing, software
   ~   distributed under the License is distributed on an "AS IS" BASIS,
@@ -32,7 +32,7 @@
     <parent>
         <groupId>io.evitadb</groupId>
         <artifactId>evita_root</artifactId>
-        <version>10.1-SNAPSHOT</version>
+        <version>2024.6-SNAPSHOT</version>
     </parent>
 
     <dependencies>
@@ -116,6 +116,11 @@
         </dependency>
 
         <dependency>
+            <groupId>com.squareup.okhttp3</groupId>
+            <artifactId>okhttp</artifactId>
+        </dependency>
+
+        <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-text</artifactId>
             <version>1.10.0</version>
@@ -143,6 +148,11 @@
                             <mainClass>io.evitadb.server.EvitaServer</mainClass>
                             <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
                         </manifest>
+                        <manifestEntries>
+                            <Premain-Class>io.evitadb.externalApi.observability.agent.ErrorMonitoringAgent</Premain-Class>
+                            <Can-Redefine-Classes>true</Can-Redefine-Classes>
+                            <Can-Retransform-Classes>true</Can-Retransform-Classes>
+                        </manifestEntries>
                     </archive>
                 </configuration>
             </plugin>

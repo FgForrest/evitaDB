@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -126,6 +126,20 @@ public class HierarchyStatisticsProducer implements ExtraResultProducer {
 					)
 				)
 		);
+	}
+
+	@Nonnull
+	@Override
+	public String getDescription() {
+		if (selfHierarchyRequest == null && hierarchyRequests.isEmpty()) {
+			return "empty hierarchy";
+		} else if (selfHierarchyRequest != null && hierarchyRequests.isEmpty()) {
+			return "self hierarchy";
+		} else if (selfHierarchyRequest == null) {
+			return "referenced entity " + hierarchyRequests.keySet().stream().map(it -> '`' + it + '`').collect(Collectors.joining(" ,")) + " hierarchies";
+		} else {
+			return "referenced entity " + hierarchyRequests.keySet().stream().map(it -> '`' + it + '`').collect(Collectors.joining(" ,")) + " hierarchies and self";
+		}
 	}
 
 	/**

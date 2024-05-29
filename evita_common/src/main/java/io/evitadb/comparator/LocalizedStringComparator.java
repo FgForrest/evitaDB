@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -30,6 +30,7 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.text.Collator;
 import java.util.Comparator;
+import java.util.Locale;
 
 /**
  * This comparator compares two string with respect to a national characters.
@@ -40,6 +41,10 @@ import java.util.Comparator;
 public class LocalizedStringComparator implements Comparator<String>, Serializable {
 	@Serial private static final long serialVersionUID = 8102561596057708303L;
 	@Nonnull private final Collator collator;
+
+	public LocalizedStringComparator(@Nonnull Locale locale) {
+		this.collator = Collator.getInstance(locale);
+	}
 
 	@Override
 	public int compare(String o1, String o2) {

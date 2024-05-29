@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -63,7 +63,7 @@ import static java.util.Optional.ofNullable;
 public final class CatalogSchema implements CatalogSchemaContract {
 	@Serial private static final long serialVersionUID = -1582409928666780012L;
 
-	@Getter private final int version;
+	private final int version;
 	@Getter @Nonnull private final String name;
 	@Getter private final Map<NamingConvention, String> nameVariants;
 	@Getter @Nullable private final String description;
@@ -136,7 +136,7 @@ public final class CatalogSchema implements CatalogSchemaContract {
 		return baseSchema instanceof CatalogSchema catalogSchema ?
 			catalogSchema :
 			new CatalogSchema(
-				baseSchema.getVersion(),
+				baseSchema.version(),
 				baseSchema.getName(),
 				baseSchema.getNameVariants(),
 				baseSchema.getDescription(),
@@ -171,7 +171,7 @@ public final class CatalogSchema implements CatalogSchemaContract {
 		@Nonnull EntitySchemaProvider entitySchemaAccessor
 	) {
 		return new CatalogSchema(
-				baseSchema.getVersion() + 1,
+				baseSchema.version() + 1,
 				baseSchema.getName(),
 				baseSchema.getNameVariants(),
 				baseSchema.getDescription(),
@@ -235,6 +235,11 @@ public final class CatalogSchema implements CatalogSchemaContract {
 		this.entitySchemaAccessor = entitySchemaAccessor;
 	}
 
+	@Override
+	public int version() {
+		return version;
+	}
+
 	@Nonnull
 	@Override
 	public Collection<EntitySchemaContract> getEntitySchemas() {
@@ -281,7 +286,7 @@ public final class CatalogSchema implements CatalogSchemaContract {
 	public boolean differsFrom(CatalogSchemaContract otherObject) {
 		if (this == otherObject) return false;
 		return !(
-			version == otherObject.getVersion() &&
+			version == otherObject.version() &&
 				name.equals(otherObject.getName()) &&
 				attributes.equals(otherObject.getAttributes())
 		);

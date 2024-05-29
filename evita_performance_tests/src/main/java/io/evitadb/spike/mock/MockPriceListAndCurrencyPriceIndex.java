@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -24,15 +24,14 @@
 package io.evitadb.spike.mock;
 
 import com.carrotsearch.hppc.IntObjectHashMap;
-import io.evitadb.core.Transaction;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.price.priceIndex.PriceIdContainerFormula;
+import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.price.PriceListAndCurrencyPriceIndex;
 import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
-import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.utils.ArrayUtils;
 
@@ -89,7 +88,7 @@ public class MockPriceListAndCurrencyPriceIndex implements PriceListAndCurrencyP
 
 	@Nonnull
 	@Override
-	public MockPriceListAndCurrencyPriceIndex createCopyWithMergedTransactionalMemory(@Nullable Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Transaction transaction) {
+	public MockPriceListAndCurrencyPriceIndex createCopyWithMergedTransactionalMemory(@Nullable Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		throw new UnsupportedOperationException();
 	}
 
@@ -118,7 +117,7 @@ public class MockPriceListAndCurrencyPriceIndex implements PriceListAndCurrencyP
 
 	@Nonnull
 	@Override
-	public PriceIdContainerFormula getIndexedRecordIdsValidInFormula(OffsetDateTime theMoment) {
+	public PriceIdContainerFormula getIndexedRecordIdsValidInFormula(@Nonnull OffsetDateTime theMoment) {
 		throw new UnsupportedOperationException();
 	}
 
@@ -155,6 +154,16 @@ public class MockPriceListAndCurrencyPriceIndex implements PriceListAndCurrencyP
 	@Override
 	public boolean isEmpty() {
 		throw new UnsupportedOperationException();
+	}
+
+	@Override
+	public boolean isTerminated() {
+		return false;
+	}
+
+	@Override
+	public void terminate() {
+
 	}
 
 	@Nullable

@@ -209,6 +209,16 @@
       }
     },
     "requested": false
+  },
+  {
+    "level": 1,
+    "entity": {
+      "primaryKey": 347154,
+      "attributes": {
+        "code": "bargain-bundles"
+      }
+    },
+    "requested": false
   }
 ]
 ```

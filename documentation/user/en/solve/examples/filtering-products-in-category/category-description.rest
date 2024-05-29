@@ -1,0 +1,20 @@
+POST /rest/evita/Category/query
+
+{
+  "filterBy" : {
+    "entityLocaleEquals" : "en",
+    "attributeUrlEquals" : "/en/smartwatches"
+  },
+  "require" : {
+    "entityFetch" : {
+      "attributeContent" : [
+        "name",
+        "description",
+        "descriptionShort"
+      ],
+      "associatedDataContent" : [
+        "localization"
+      ]
+    }
+  }
+}

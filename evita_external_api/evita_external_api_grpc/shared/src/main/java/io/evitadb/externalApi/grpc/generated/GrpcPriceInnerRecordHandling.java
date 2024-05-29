@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -49,9 +49,9 @@ public enum GrpcPriceInnerRecordHandling
    * (i.e. the one with the biggest priority) will be used (others won't be considered at all)
    * </pre>
    *
-   * <code>FIRST_OCCURRENCE = 1;</code>
+   * <code>LOWEST_PRICE = 1;</code>
    */
-  FIRST_OCCURRENCE(1),
+  LOWEST_PRICE(1),
   /**
    * <pre>
    * Prices with same inner entity id will be added up to a new computed aggregated price, prices must share same
@@ -87,9 +87,9 @@ public enum GrpcPriceInnerRecordHandling
    * (i.e. the one with the biggest priority) will be used (others won't be considered at all)
    * </pre>
    *
-   * <code>FIRST_OCCURRENCE = 1;</code>
+   * <code>LOWEST_PRICE = 1;</code>
    */
-  public static final int FIRST_OCCURRENCE_VALUE = 1;
+  public static final int LOWEST_PRICE_VALUE = 1;
   /**
    * <pre>
    * Prices with same inner entity id will be added up to a new computed aggregated price, prices must share same
@@ -135,7 +135,7 @@ public enum GrpcPriceInnerRecordHandling
   public static GrpcPriceInnerRecordHandling forNumber(int value) {
     switch (value) {
       case 0: return NONE;
-      case 1: return FIRST_OCCURRENCE;
+      case 1: return LOWEST_PRICE;
       case 2: return SUM;
       case 3: return UNKNOWN;
       default: return null;

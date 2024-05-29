@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -200,11 +200,12 @@ public class EntityByPriceFilteringFunctionalTest {
 	/**
 	 * Verifies that result contains only prices in specified price lists.
 	 */
-	protected static void assertResultContainOnlyPricesFrom(@Nonnull List<SealedEntity> recordData, @Nonnull String... priceLists) {
+	protected void assertResultContainOnlyPricesFrom(@Nonnull List<SealedEntity> recordData, @Nonnull Currency currency, @Nonnull String... priceLists) {
 		final Set<String> allowedPriceLists = Arrays.stream(priceLists).collect(Collectors.toSet());
 		for (SealedEntity entity : recordData) {
 			assertTrue(
-				entity.getPrices().stream().allMatch(price -> allowedPriceLists.contains(price.priceList()))
+				entity.getPrices().stream()
+					.allMatch(price -> allowedPriceLists.contains(price.priceList()) && currency.equals(price.currency()))
 			);
 		}
 	}
@@ -336,7 +337,7 @@ public class EntityByPriceFilteringFunctionalTest {
 						filterBy(
 							and(
 								priceInCurrency(CURRENCY_CZK),
-								priceInPriceLists(PRICE_LIST_VIP, PRICE_LIST_BASIC)
+								priceInPriceLists(PRICE_LIST_VIP, PRICE_LIST_SELLOUT, PRICE_LIST_INTRODUCTION, PRICE_LIST_BASIC)
 							)
 						),
 						require(
@@ -353,16 +354,19 @@ public class EntityByPriceFilteringFunctionalTest {
 				assertResultIs(
 					originalProductEntities,
 					sealedEntity -> hasAnySellablePrice(sealedEntity, CURRENCY_CZK, PRICE_LIST_VIP) ||
+						hasAnySellablePrice(sealedEntity, CURRENCY_CZK, PRICE_LIST_SELLOUT) ||
+						hasAnySellablePrice(sealedEntity, CURRENCY_CZK, PRICE_LIST_INTRODUCTION) ||
 						hasAnySellablePrice(sealedEntity, CURRENCY_CZK, PRICE_LIST_BASIC),
 					result.getRecordData(),
 					PriceContentMode.RESPECTING_FILTER,
 					CURRENCY_CZK,
 					null,
-					PRICE_LIST_VIP, PRICE_LIST_BASIC
+					PRICE_LIST_VIP, PRICE_LIST_SELLOUT, PRICE_LIST_INTRODUCTION, PRICE_LIST_BASIC
 				);
 				assertResultContainOnlyPricesFrom(
 					result.getRecordData(),
-					PRICE_LIST_VIP, PRICE_LIST_BASIC
+					CURRENCY_CZK,
+					PRICE_LIST_VIP, PRICE_LIST_SELLOUT, PRICE_LIST_INTRODUCTION, PRICE_LIST_BASIC
 				);
 
 				return null;
@@ -1602,6 +1606,56 @@ public class EntityByPriceFilteringFunctionalTest {
 					null,
 					PRICE_LIST_VIP, PRICE_LIST_BASIC
 				);
+
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should correctly traverse through all pages or results")
+	@UseDataSet(HUNDRED_PRODUCTS_WITH_PRICES)
+	@Test
+	void shouldReturnCorrectlyTraverseThroughAllPagesOfResults(Evita evita, List<SealedEntity> originalProductEntities) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				int currentPage = 1;
+				int lastPage;
+				do {
+					final EvitaResponse<SealedEntity> result = session.query(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(
+								priceInCurrency(CURRENCY_CZK),
+								priceInPriceLists(PRICE_LIST_BASIC)
+							),
+							orderBy(
+								priceNatural()
+							),
+							require(
+								page(currentPage, 3),
+								entityFetch(
+									priceContent(PriceContentMode.RESPECTING_FILTER)
+								)
+							)
+						),
+						SealedEntity.class
+					);
+
+					lastPage = ((PaginatedList<SealedEntity>)result.getRecordPage()).getLastPageNumber();
+
+					assertSortedResultIs(
+						originalProductEntities,
+						sealedEntity -> true,
+						result.getRecordData(),
+						Comparator.comparing(PriceContract::priceWithTax),
+						page(currentPage, 3),
+						PriceContentMode.RESPECTING_FILTER,
+						CURRENCY_CZK,
+						null,
+						PRICE_LIST_BASIC
+					);
+				} while (++currentPage <= lastPage);
 
 				return null;
 			}

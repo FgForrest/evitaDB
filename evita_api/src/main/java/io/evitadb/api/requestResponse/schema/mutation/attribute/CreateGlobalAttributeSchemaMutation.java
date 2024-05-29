@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -62,8 +62,6 @@ import java.util.stream.Stream;
  * Mutation can be used for altering also the existing {@link GlobalAttributeSchemaContract} alone.
  * Mutation implements {@link CombinableEntitySchemaMutation} allowing to resolve conflicts with
  * {@link RemoveAttributeSchemaMutation} mutation (if such is found in mutation pipeline).
- *
- * TOBEDONE JNO - write tests
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -229,7 +227,7 @@ public class CreateGlobalAttributeSchemaMutation
 		if (existingAttributeSchema == null) {
 			return new CatalogSchemaWithImpactOnEntitySchemas(
 				CatalogSchema._internalBuild(
-					catalogSchema.getVersion() + 1,
+					catalogSchema.version() + 1,
 					catalogSchema.getName(),
 					catalogSchema.getNameVariants(),
 					catalogSchema.getDescription(),

@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -24,10 +24,10 @@
 package io.evitadb.index.array;
 
 import io.evitadb.core.Transaction;
-import io.evitadb.index.iterator.ConstantIntIterator;
-import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
-import io.evitadb.index.transactionalMemory.TransactionalLayerProducer;
-import io.evitadb.index.transactionalMemory.TransactionalObjectVersion;
+import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
+import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
+import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
+import io.evitadb.dataType.iterator.ConstantIntIterator;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.ArrayUtils.InsertionPosition;
 import lombok.Getter;
@@ -44,7 +44,6 @@ import java.util.Spliterators;
 import java.util.stream.IntStream;
 import java.util.stream.StreamSupport;
 
-import static io.evitadb.core.Transaction.getTransactionalMemoryLayer;
 import static io.evitadb.core.Transaction.getTransactionalMemoryLayerIfExists;
 import static io.evitadb.core.Transaction.isTransactionAvailable;
 
@@ -103,7 +102,7 @@ public class TransactionalIntArray implements TransactionalLayerProducer<IntArra
 	 * Method adds new record to the array.
 	 */
 	public void add(int recordId) {
-		final IntArrayChanges layer = getTransactionalMemoryLayer(this);
+		final IntArrayChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
 			this.delegate = ArrayUtils.insertIntIntoOrderedArray(recordId, this.delegate);
 		} else {
@@ -115,7 +114,7 @@ public class TransactionalIntArray implements TransactionalLayerProducer<IntArra
 	 * Method adds new record to the array and returns the index where record was placed.
 	 */
 	public int addReturningIndex(int recordId) {
-		final IntArrayChanges layer = getTransactionalMemoryLayer(this);
+		final IntArrayChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
 			final InsertionPosition insertionPosition = ArrayUtils.computeInsertPositionOfIntInOrderedArray(recordId, this.delegate);
 			if (!insertionPosition.alreadyPresent()) {
@@ -141,7 +140,7 @@ public class TransactionalIntArray implements TransactionalLayerProducer<IntArra
 	 * Method removes record id from the array.
 	 */
 	public void remove(int recordId) {
-		final IntArrayChanges layer = getTransactionalMemoryLayer(this);
+		final IntArrayChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
 			this.delegate = ArrayUtils.removeIntFromOrderedArray(recordId, this.delegate);
 		} else {
@@ -262,7 +261,7 @@ public class TransactionalIntArray implements TransactionalLayerProducer<IntArra
 
 	@Nonnull
 	@Override
-	public int[] createCopyWithMergedTransactionalMemory(@Nullable IntArrayChanges layer, @Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Transaction transaction) {
+	public int[] createCopyWithMergedTransactionalMemory(@Nullable IntArrayChanges layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		if (layer == null) {
 			return this.delegate;
 		} else {

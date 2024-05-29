@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -46,7 +46,7 @@ import io.evitadb.core.query.algebra.base.OrFormula;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.sort.NestedContextSorter;
 import io.evitadb.core.query.sort.utils.SortUtils;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
@@ -285,6 +285,16 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 		);
 	}
 
+	@Nonnull
+	@Override
+	public String getDescription() {
+		if (facetSummaryRequests.size() == 1) {
+			return "facet summary for `" + facetSummaryRequests.keySet().iterator().next() +"` references";
+		} else {
+			return "facet summary for " + facetSummaryRequests.keySet().stream().map(it -> '`' + it + '`').collect(Collectors.joining(" ,")) +" references";
+		}
+	}
+
 	/**
 	 * Returns a function that allows to fetch {@link EntityClassifier} for passed `entityType` and multiple `groupIds`
 	 * that represents primary keys of the group entity. The form and richness of the returned {@link EntityClassifier}
@@ -352,7 +362,7 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 				final GroupAccumulator groupAcc = entry.getValue()
 					.stream()
 					.findFirst()
-					.orElseThrow(() -> new EvitaInternalError(ERROR_SANITY_CHECK));
+					.orElseThrow(() -> new GenericEvitaInternalError(ERROR_SANITY_CHECK));
 				return Arrays.stream(
 						groupAcc.getFacetSummaryRequest()
 							.getGroupEntityFetcher(groupAcc.getReferenceSchema())
@@ -388,7 +398,7 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 				final GroupAccumulator groupAcc = entry.getValue()
 					.stream()
 					.findFirst()
-					.orElseThrow(() -> new EvitaInternalError(ERROR_SANITY_CHECK));
+					.orElseThrow(() -> new GenericEvitaInternalError(ERROR_SANITY_CHECK));
 				return Arrays.stream(
 						groupAcc.getFacetSummaryRequest()
 							.getFacetEntityFetcher(groupAcc.getReferenceSchema())
@@ -717,6 +727,7 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 						}
 					})
 					.filter(Objects::nonNull)
+					.filter(it -> !it.getFacetStatistics().isEmpty())
 					.collect(Collectors.toList());
 			};
 		}

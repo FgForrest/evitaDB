@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -26,7 +26,7 @@ package io.evitadb.api.requestResponse.schema.builder;
 import io.evitadb.api.exception.AssociatedDataAlreadyPresentInEntitySchemaException;
 import io.evitadb.api.exception.AttributeAlreadyPresentInCatalogSchemaException;
 import io.evitadb.api.exception.AttributeAlreadyPresentInEntitySchemaException;
-import io.evitadb.api.exception.InvalidSchemaMutationException;
+import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.ReferenceAlreadyPresentInEntitySchemaException;
 import io.evitadb.api.exception.SortableAttributeCompoundSchemaException;
 import io.evitadb.api.requestResponse.schema.*;
@@ -45,7 +45,7 @@ import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.
 import io.evitadb.dataType.ClassifierType;
 import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.dataType.EvitaDataTypes;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.ClassifierUtils;
 import io.evitadb.utils.NamingConvention;
 import lombok.experimental.Delegate;
@@ -333,7 +333,7 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 			.map(it -> {
 				isTrue(
 					toBeAssignedType.equals(it.getType()),
-					() -> new InvalidSchemaMutationException(
+					() -> new InvalidMutationException(
 						"Associated data " + dataName + " has already assigned type " + it.getType() +
 							", cannot change this type to: " + ofType + "!"
 					)
@@ -736,7 +736,7 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 				final EntitySchemaMutation mutation = this.mutations.get(i);
 				currentSchema = mutation.mutate(catalogSchemaAccessor.get(), currentSchema);
 				if (currentSchema == null) {
-					throw new EvitaInternalError("Catalog schema unexpectedly removed from inside!");
+					throw new GenericEvitaInternalError("Catalog schema unexpectedly removed from inside!");
 				}
 			}
 			this.updatedSchema = currentSchema;

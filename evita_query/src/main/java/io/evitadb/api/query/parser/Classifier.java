@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,7 +23,7 @@
 
 package io.evitadb.api.query.parser;
 
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
 import lombok.ToString;
@@ -87,7 +87,7 @@ public class Classifier {
         } else {
             // correct passed type from client should be checked at visitor level, here should be should correct checked type
             // if everything is correct on parser side
-            throw new EvitaInternalError("Expected variadic string value but got `" + actualValue.getClass().getName() + "`.");
+            throw new GenericEvitaInternalError("Expected variadic string value but got `" + actualValue.getClass().getName() + "`.");
         }
     }
 }

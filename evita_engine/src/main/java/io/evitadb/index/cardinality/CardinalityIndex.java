@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -24,13 +24,12 @@
 package io.evitadb.index.cardinality;
 
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
-import io.evitadb.core.Transaction;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
+import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.map.TransactionalMap;
-import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
-import io.evitadb.index.transactionalMemory.VoidTransactionMemoryProducer;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.spi.model.storageParts.index.CardinalityIndexStoragePart;
 import lombok.Getter;
@@ -125,7 +124,7 @@ public class CardinalityIndex implements VoidTransactionMemoryProducer<Cardinali
 			(k, v) -> v - 1
 		);
 		if (newValue == null) {
-			throw new EvitaInternalError("Cardinality of key `" + key + "` for record `" + recordId + "` is null");
+			throw new GenericEvitaInternalError("Cardinality of key `" + key + "` for record `" + recordId + "` is null");
 		} else if (newValue == 0) {
 			cardinalities.remove(cardinalityKey);
 			return true;
@@ -178,13 +177,17 @@ public class CardinalityIndex implements VoidTransactionMemoryProducer<Cardinali
 
 	@Nonnull
 	@Override
-	public CardinalityIndex createCopyWithMergedTransactionalMemory(@Nullable Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Transaction transaction) {
+	public CardinalityIndex createCopyWithMergedTransactionalMemory(@Nullable Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		// we can safely throw away dirty flag now
-		transactionalLayer.getStateCopyWithCommittedChanges(this.dirty, transaction);
-		return new CardinalityIndex(
-			valueType,
-			transactionalLayer.getStateCopyWithCommittedChanges(this.cardinalities, transaction)
-		);
+		final Boolean isDirty = transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
+		if (isDirty) {
+			return new CardinalityIndex(
+				valueType,
+				transactionalLayer.getStateCopyWithCommittedChanges(this.cardinalities)
+			);
+		} else {
+			return this;
+		}
 	}
 
 	/**

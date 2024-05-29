@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -24,9 +24,9 @@
 package io.evitadb.index.reference;
 
 import io.evitadb.core.Transaction;
-import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
-import io.evitadb.index.transactionalMemory.TransactionalLayerProducer;
-import io.evitadb.index.transactionalMemory.TransactionalObjectVersion;
+import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
+import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
+import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -37,7 +37,6 @@ import java.io.Serializable;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static io.evitadb.core.Transaction.getTransactionalMemoryLayer;
 import static io.evitadb.core.Transaction.getTransactionalMemoryLayerIfExists;
 
 /**
@@ -65,7 +64,7 @@ public class TransactionalReference<T> implements TransactionalLayerProducer<Ref
 	 * Sets the value to `value` in a transactional safe way (if transaction is available).
 	 */
 	public void set(T value) {
-		final ReferenceChanges<T> layer = getTransactionalMemoryLayer(this);
+		final ReferenceChanges<T> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
 			this.value.set(value);
 		} else {
@@ -80,7 +79,7 @@ public class TransactionalReference<T> implements TransactionalLayerProducer<Ref
 	 * @return the witness value, which will be the same as the expected value if successful
 	 */
 	public T compareAndExchange(T currentValue, T newValue) {
-		final ReferenceChanges<T> layer = getTransactionalMemoryLayer(this);
+		final ReferenceChanges<T> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
 			return this.value.compareAndExchange(currentValue, newValue);
 		} else {
@@ -111,7 +110,7 @@ public class TransactionalReference<T> implements TransactionalLayerProducer<Ref
 
 	@Nonnull
 	@Override
-	public Optional<T> createCopyWithMergedTransactionalMemory(@Nullable ReferenceChanges<T> layer, @Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Transaction transaction) {
+	public Optional<T> createCopyWithMergedTransactionalMemory(@Nullable ReferenceChanges<T> layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		return layer == null ? Optional.ofNullable(value.get()) : Optional.ofNullable(layer.get());
 	}
 

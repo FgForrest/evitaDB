@@ -21,4 +21,7 @@ module evita.java.driver {
 	requires io.netty.handler;
 	requires io.grpc.netty;
 	requires io.grpc;
+	requires com.google.common;
+	requires io.grpc.stub;
+
 }

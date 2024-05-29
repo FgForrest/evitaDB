@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,7 +23,6 @@
 
 package io.evitadb.externalApi.rest.io;
 
-import io.evitadb.api.CatalogContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
@@ -75,14 +74,14 @@ public abstract class RestEndpointHandler<CTX extends RestHandlingContext> exten
 
     @Override
     public void handleRequest(HttpServerExchange serverExchange) {
-        handleRequestWithClientContext(serverExchange);
+        handleRequestWithTracingContext(serverExchange);
     }
 
     /**
-     * Process every request with client context, so we can classify it in evitaDB.
+     * Process every request with tracing context, so we can classify it in evitaDB.
      */
-    private void handleRequestWithClientContext(@Nonnull HttpServerExchange serverExchange) {
-        restHandlingContext.getClientContext().executeWithinBlock(
+    private void handleRequestWithTracingContext(@Nonnull HttpServerExchange serverExchange) {
+        restHandlingContext.getTracingContext().executeWithinBlock(
             "REST",
             serverExchange,
             () -> super.handleRequest(serverExchange)
@@ -128,13 +127,7 @@ public abstract class RestEndpointHandler<CTX extends RestHandlingContext> exten
         final Evita evita = restHandlingContext.getEvita();
         final String catalogName = catalogRestHandlingContext.getCatalogSchema().getName();
         if (modifiesData()) {
-            final EvitaSessionContract session = evita.createReadWriteSession(catalogName);
-            final CatalogContract catalog = evita.getCatalogInstance(catalogName)
-                .orElseThrow(() -> new RestInternalError("Catalog `" + catalogName + "` could not be found."));
-            if (catalog.supportsTransaction()) {
-                session.openTransaction();
-            }
-            return Optional.of(session);
+            return Optional.of(evita.createReadWriteSession(catalogName));
         } else {
             return Optional.of(evita.createReadOnlySession(catalogName));
         }

@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -26,14 +26,15 @@ package io.evitadb.core.cache;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.CacheOptions;
 import io.evitadb.api.query.require.EntityFetch;
-import io.evitadb.api.requestResponse.data.structure.BinaryEntity;
-import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.extraResult.CacheableEvitaResponseExtraResultComputer;
 import io.evitadb.core.query.extraResult.EvitaResponseExtraResultComputer;
+import io.evitadb.core.query.response.ServerBinaryEntityDecorator;
+import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.core.query.sort.CacheableSorter;
 import io.evitadb.core.query.sort.Sorter;
-import io.evitadb.core.scheduling.Scheduler;
+import io.evitadb.core.scheduling.BackgroundTask;
+import io.evitadb.scheduling.Scheduler;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -63,7 +64,8 @@ public class HeapMemoryCacheSupervisor implements CacheSupervisor {
 		this.cacheEden = new CacheEden(
 			cacheOptions.cacheSizeInBytes(),
 			cacheOptions.minimalUsageThreshold(),
-			cacheOptions.minimalComplexityThreshold()
+			cacheOptions.minimalComplexityThreshold(),
+			scheduler
 		);
 		this.cacheAnteroom = new CacheAnteroom(
 			cacheOptions.anteroomRecordCount(),
@@ -73,7 +75,7 @@ public class HeapMemoryCacheSupervisor implements CacheSupervisor {
 		// initialize function that will frequently evaluate contents of the cache, discard unused entries and introduce
 		// new ones from the CacheAnteroom
 		scheduler.scheduleAtFixedRate(
-			this.cacheAnteroom::evaluateAssociatesSynchronouslyIfNoAdeptsWait,
+			new BackgroundTask("Eden cache gatekeeper", this.cacheAnteroom::evaluateAssociatesSynchronouslyIfNoAdeptsWait),
 			0,
 			cacheOptions.reevaluateEachSeconds(),
 			TimeUnit.SECONDS
@@ -137,14 +139,14 @@ public class HeapMemoryCacheSupervisor implements CacheSupervisor {
 
 	@Nonnull
 	@Override
-	public Optional<EntityDecorator> analyse(
+	public Optional<ServerEntityDecorator> analyse(
 		@Nonnull EvitaSessionContract evitaSession,
 		int primaryKey,
 		@Nonnull String entityType,
 		@Nonnull OffsetDateTime offsetDateTime,
 		@Nullable EntityFetch entityRequirement,
-		@Nonnull Supplier<EntityDecorator> entityFetcher,
-		@Nonnull UnaryOperator<EntityDecorator> enricher
+		@Nonnull Supplier<ServerEntityDecorator> entityFetcher,
+		@Nonnull UnaryOperator<ServerEntityDecorator> enricher
 	) {
 		// we use cache only for Evita read only sessions, write session might already contain client specific modifications
 		// that effectively exclude the formula caches from being used
@@ -162,13 +164,13 @@ public class HeapMemoryCacheSupervisor implements CacheSupervisor {
 
 	@Nonnull
 	@Override
-	public Optional<BinaryEntity> analyse(
+	public Optional<ServerBinaryEntityDecorator> analyse(
 		@Nonnull EvitaSessionContract evitaSession,
 		int primaryKey,
 		@Nonnull String entityType,
 		@Nullable EntityFetch entityRequirement,
-		@Nonnull Supplier<BinaryEntity> entityFetcher,
-		@Nonnull UnaryOperator<BinaryEntity> enricher
+		@Nonnull Supplier<ServerBinaryEntityDecorator> entityFetcher,
+		@Nonnull UnaryOperator<ServerBinaryEntityDecorator> enricher
 	) {
 		// we use cache only for Evita read only sessions, write session might already contain client specific modifications
 		// that effectively exclude the formula caches from being used

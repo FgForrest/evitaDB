@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -37,8 +37,9 @@ import io.evitadb.api.requestResponse.schema.mutation.CombinableEntitySchemaMuta
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.RemoveAttributeSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.RemoveSortableAttributeCompoundSchemaMutation;
 import io.evitadb.dataType.ClassifierType;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ClassifierUtils;
 import lombok.EqualsAndHashCode;
@@ -62,8 +63,6 @@ import java.util.stream.Stream;
  * Mutation implements {@link CombinableEntitySchemaMutation} allowing to resolve conflicts with
  * {@link RemoveReferenceSchemaMutation} mutation (if such is found in mutation pipeline).
  *
- * TOBEDONE JNO - write tests
- *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @ThreadSafe
@@ -74,7 +73,7 @@ public class CreateReferenceSchemaMutation implements ReferenceSchemaMutation, C
 	@Getter @Nonnull private final String name;
 	@Getter @Nullable private final String description;
 	@Getter @Nullable private final String deprecationNotice;
-	@Getter @Nullable private final Cardinality cardinality;
+	@Getter @Nonnull private final Cardinality cardinality;
 	@Getter @Nonnull private final String referencedEntityType;
 	@Getter private final boolean referencedEntityTypeManaged;
 	@Getter @Nullable private final String referencedGroupType;
@@ -94,11 +93,12 @@ public class CreateReferenceSchemaMutation implements ReferenceSchemaMutation, C
 		boolean indexed,
 		boolean faceted
 	) {
-		ClassifierUtils.validateClassifierFormat(ClassifierType.REFERENCE, referencedEntityType);
+		ClassifierUtils.validateClassifierFormat(ClassifierType.REFERENCE, name);
+		ClassifierUtils.validateClassifierFormat(ClassifierType.ENTITY, referencedEntityType);
 		this.name = name;
 		this.description = description;
 		this.deprecationNotice = deprecationNotice;
-		this.cardinality = cardinality;
+		this.cardinality = cardinality == null ? Cardinality.ZERO_OR_MORE : cardinality;
 		this.referencedEntityType = referencedEntityType;
 		this.referencedEntityTypeManaged = referencedEntityTypeManaged;
 		this.referencedGroupType = referencedGroupType;
@@ -115,11 +115,11 @@ public class CreateReferenceSchemaMutation implements ReferenceSchemaMutation, C
 		if (existingMutation instanceof RemoveReferenceSchemaMutation removeReferenceMutation && Objects.equals(removeReferenceMutation.getName(), name)) {
 			final ReferenceSchemaContract createdVersion = mutate(currentEntitySchema, null);
 			final ReferenceSchemaContract existingVersion = currentEntitySchema.getReference(name)
-				.orElseThrow(() -> new EvitaInternalError("Sanity check!"));
+				.orElseThrow(() -> new GenericEvitaInternalError("Sanity check!"));
 
 			return new MutationCombinationResult<>(
 				null,
-				Stream.concat(
+				Stream.of(
 						Stream.of(
 							makeMutationIfDifferent(
 								createdVersion, existingVersion,
@@ -160,8 +160,13 @@ public class CreateReferenceSchemaMutation implements ReferenceSchemaMutation, C
 						existingVersion.getAttributes()
 							.values()
 							.stream()
-							.map(attribute -> new ModifyReferenceAttributeSchemaMutation(name, new RemoveAttributeSchemaMutation(attribute.getName())))
+							.map(attribute -> new ModifyReferenceAttributeSchemaMutation(name, new RemoveAttributeSchemaMutation(attribute.getName()))),
+						existingVersion.getSortableAttributeCompounds()
+							.values()
+							.stream()
+							.map(attribute -> new ModifyReferenceSortableAttributeCompoundSchemaMutation(name, new RemoveSortableAttributeCompoundSchemaMutation(attribute.getName())))
 					)
+					.flatMap(Function.identity())
 					.filter(Objects::nonNull)
 					.toArray(EntitySchemaMutation[]::new)
 			);
@@ -176,7 +181,7 @@ public class CreateReferenceSchemaMutation implements ReferenceSchemaMutation, C
 		return ReferenceSchema._internalBuild(
 			name, description, deprecationNotice,
 			referencedEntityType, referencedEntityTypeManaged,
-			Optional.ofNullable(cardinality).orElse(Cardinality.ZERO_OR_MORE),
+			cardinality,
 			referencedGroupType, referencedGroupTypeManaged,
 			indexed, faceted,
 			Collections.emptyMap(),

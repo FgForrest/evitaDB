@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -25,7 +25,7 @@ package io.evitadb.test.client;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import okhttp3.ConnectionPool;
 import okhttp3.OkHttpClient;
 import okhttp3.ResponseBody;
@@ -81,12 +81,12 @@ abstract class ApiClient {
 			try {
 				sc = SSLContext.getInstance("SSL");
 			} catch (NoSuchAlgorithmException e) {
-				throw new EvitaInternalError("Cannot get SSL context.", e);
+				throw new GenericEvitaInternalError("Cannot get SSL context.", e);
 			}
 			try {
 				sc.init(null, trustAllCerts, new java.security.SecureRandom());
 			} catch (KeyManagementException e) {
-				throw new EvitaInternalError("Cannot init SSL context with custom trust manager.", e);
+				throw new GenericEvitaInternalError("Cannot init SSL context with custom trust manager.", e);
 			}
 
 			// Create an all-trusting host verifier

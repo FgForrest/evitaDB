@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -33,6 +33,7 @@ import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
+import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
@@ -842,7 +843,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 						filterBy(
 							hierarchyWithin(
 								Entities.CATEGORY,
-								entityPrimaryKeyInSet(16)
+								entityPrimaryKeyInSet(26)
 							)
 						),
 						require(
@@ -886,7 +887,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 						filterBy: {
 							hierarchyCategoryWithin: {
 								ofParent: {
-									entityPrimaryKeyInSet: 16
+									entityPrimaryKeyInSet: 26
 								}
 							}
 						}
@@ -923,7 +924,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 						filterBy(
 							hierarchyWithin(
 								Entities.CATEGORY,
-								entityPrimaryKeyInSet(16)
+								entityPrimaryKeyInSet(26)
 							)
 						),
 						require(
@@ -971,7 +972,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 						filterBy: {
 							hierarchyCategoryWithin: {
 								ofParent: {
-									entityPrimaryKeyInSet: 16
+									entityPrimaryKeyInSet: 26
 								}
 							}
 						}
@@ -1092,7 +1093,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	void shouldFilterByAndReturnPriceForSaleForMultipleProducts(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final var entities = findEntitiesWithPrice(originalProductEntities, 2);
 
-		final var expectedBody = createBasicPageResponse(entities, this::createEntityDtoWithPriceForSale);
+		final var expectedBody = createBasicPageResponse(entities, this::createEntityDtoWithOnlyOnePriceForSale);
 
 		tester.test(TEST_CATALOG)
 			.document(
@@ -1117,6 +1118,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                                priceList
 		                                priceWithTax
 		                            }
+		                            multiplePricesForSaleAvailable
 	                            }
 	                        }
 	                    }
@@ -1124,6 +1126,70 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					""",
 				entities.get(0).getAttribute(ATTRIBUTE_CODE),
 				entities.get(1).getAttribute(ATTRIBUTE_CODE)
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(PRODUCT_QUERY_PATH, equalTo(expectedBody));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return all prices for sale for master products")
+	void shouldReturnAllPricesForSaleForMasterProducts(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+		final var entities = findEntities(
+			originalProductEntities,
+			it -> !it.getPriceInnerRecordHandling().equals(PriceInnerRecordHandling.NONE) &&
+				it.getPrices(CURRENCY_CZK)
+					.stream()
+					.filter(PriceContract::sellable)
+					.map(PriceContract::innerRecordId)
+					.distinct()
+					.count() > 1,
+			2
+		);
+
+		final List<String> priceLists = entities.stream()
+			.flatMap(it -> it.getPrices(CURRENCY_CZK).stream().map(PriceContract::priceList))
+			.distinct()
+			.toList();
+		assertTrue(priceLists.size() > 1);
+
+		final var expectedBody = createBasicPageResponse(entities, entity -> createEntityDtoWithAllPricesForSale(entity, priceLists.toArray(String[]::new)));
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    queryProduct(
+	                        filterBy: {
+		                        entityPrimaryKeyInSet: [%d, %d]
+		                        priceInCurrency: CZK,
+		                        priceInPriceLists: %s
+	                        }
+                        ) {
+                            __typename
+	                        recordPage {
+	                            __typename
+	                            data {
+	                                primaryKey
+			                        type
+			                        multiplePricesForSaleAvailable
+		                            allPricesForSale {
+		                                __typename
+		                                currency
+		                                priceList
+		                                priceWithTax
+		                                innerRecordId
+		                            }
+	                            }
+	                        }
+	                    }
+	                }
+					""",
+				entities.get(0).getPrimaryKey(),
+				entities.get(1).getPrimaryKey(),
+				serializeStringArrayToQueryString(priceLists)
 			)
 			.executeAndThen()
 			.statusCode(200)
@@ -1209,7 +1275,14 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return custom price for sale for products")
 	void shouldReturnCustomPriceForSaleForProducts(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
-		final var entities = findEntitiesWithPrice(originalProductEntities, 2);
+		final var entities = findEntities(
+			originalProductEntities,
+			it -> it.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).size() == 1 &&
+				it.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).stream().allMatch(PriceContract::sellable) &&
+				!it.getPrices(CURRENCY_EUR).isEmpty() &&
+				it.getPrices(CURRENCY_EUR).stream().allMatch(PriceContract::sellable),
+			2
+		);
 
 		final var expectedBody = createBasicPageResponse(
 			entities,
@@ -1223,6 +1296,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	                    queryProduct(
 	                        filterBy: {
 	                            entityPrimaryKeyInSet: [%d, %d]
+	                            priceInCurrency: EUR
 	                        }
 	                    ) {
 	                        __typename
@@ -2694,11 +2768,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.document(
 				"""
 		            query {
-		                queryProduct(
-		                    filterBy: {
-		                        attributeAliasIs: NOT_NULL
-		                    }
-		                ) {
+		                queryProduct {
 		                    recordPage(size: %d) {
 		                        data {
 		                            primaryKey
@@ -2773,11 +2843,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.document(
 				"""
 		            query {
-		                queryProduct(
-		                    filterBy: {
-		                        attributeAliasIs: NOT_NULL
-		                    }
-		                ) {
+		                queryProduct {
 		                    recordPage(size: %d) {
 		                        data {
 		                            primaryKey
@@ -2857,7 +2923,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		            query {
 		                queryProduct(
 		                    filterBy: {
-		                        attributeAliasIs: NOT_NULL,
 		                        userFilter: {
 		                            attributeQuantityBetween: ["100", "900"]
 	                            }
@@ -2938,11 +3003,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.document(
 				"""
 		            query {
-		                queryProduct(
-		                    filterBy: {
-		                        attributeAliasIs: NOT_NULL
-		                    }
-		                ) {
+		                queryProduct {
 		                    recordPage(size: %d) {
 		                        data {
 		                            primaryKey
@@ -3008,9 +3069,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				return session.query(
 					query(
 						collection(Entities.PRODUCT),
-						filterBy(
-							attributeIsNotNull(ATTRIBUTE_ALIAS)
-						),
 						require(
 							page(1, Integer.MAX_VALUE),
 							attributeHistogram(20, ATTRIBUTE_QUANTITY)
@@ -3027,11 +3085,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.document(
 				"""
 		            query {
-		                queryProduct(
-		                    filterBy: {
-		                        attributeAliasIs: NOT_NULL
-		                    }
-		                ) {
+		                queryProduct {
 		                    recordPage(size: %d) {
 		                        data {
 		                            primaryKey

@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -27,7 +27,7 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
@@ -50,7 +50,7 @@ public class PriceListAndCurrencySuperIndexStoragePartSerializer extends Seriali
 	@Override
 	public void write(Kryo kryo, Output output, PriceListAndCurrencySuperIndexStoragePart priceIndex) {
 		output.writeInt(priceIndex.getEntityIndexPrimaryKey());
-		final Long uniquePartId = priceIndex.getUniquePartId();
+		final Long uniquePartId = priceIndex.getStoragePartPK();
 		Assert.notNull(uniquePartId, "Unique part id should have been computed by now!");
 		output.writeVarLong(uniquePartId, true);
 		output.writeVarInt(keyCompressor.getId(priceIndex.getPriceIndexKey()), true);
@@ -77,7 +77,7 @@ public class PriceListAndCurrencySuperIndexStoragePartSerializer extends Seriali
 				output.writeInt(priceRecord.priceWithTax(), true);
 				output.writeInt(priceRecord.priceWithoutTax(), true);
 			} else {
-				throw new EvitaInternalError("Unknown implementation `" + priceRecord.getClass() + "` of PriceRecordContract!");
+				throw new GenericEvitaInternalError("Unknown implementation `" + priceRecord.getClass() + "` of PriceRecordContract!");
 			}
 		}
 	}

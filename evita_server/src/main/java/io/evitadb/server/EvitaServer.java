@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -244,6 +244,7 @@ public class EvitaServer {
 			evitaServerConfig.name(),
 			evitaServerConfig.server(),
 			evitaServerConfig.storage(),
+			evitaServerConfig.transaction(),
 			evitaServerConfig.cache()
 		);
 		this.apiOptions = evitaServerConfig.api();
@@ -261,7 +262,7 @@ public class EvitaServer {
 				 \\___| \\_/ |_|\\__\\__,_|____/|____/\s\n\n""",
 			ConsoleColor.DARK_GREEN
 		);
-		ConsoleWriter.write("alpha build %s (keep calm and report bugs 😉)", new Object[]{VersionUtils.readVersion()}, ConsoleColor.LIGHT_GRAY);
+		ConsoleWriter.write("beta build %s (keep calm and report bugs 😉)", new Object[]{VersionUtils.readVersion()}, ConsoleColor.LIGHT_GRAY);
 		ConsoleWriter.write("\n", ConsoleColor.WHITE);
 		ConsoleWriter.write("Visit us at: ");
 		ConsoleWriter.write("https://evitadb.io", ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);
@@ -294,7 +295,7 @@ public class EvitaServer {
 		this.externalApiServer = new ExternalApiServer(
 			this.evita, this.apiOptions, this.externalApiProviders
 		);
-		externalApiServer.start();
+		this.externalApiServer.start();
 	}
 
 	/**

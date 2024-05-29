@@ -30,13 +30,13 @@ In order to use a Java remote client you need only to add following dependency t
 <dependency>
     <groupId>io.evitadb</groupId>
     <artifactId>evita_java_driver</artifactId>
-    <version>2024.2.2</version>
+    <version>2024.6.1</version>
 </dependency>
 ```
 </CodeTabsBlock>
 <CodeTabsBlock>
 ```Gradle
-implementation 'io.evitadb:evita_java_driver:2024.2.2'
+implementation 'io.evitadb:evita_java_driver:2024.6.1'
 ```
 </CodeTabsBlock>
 </CodeTabs>
@@ -162,16 +162,15 @@ on the client side:
         class analyzing classes for reflective information. Controls whether the once analyzed reflection information
         should be cached or freshly (and costly) retrieved each time asked.</p>
     </dd>
-    <dt>waitForClose</dt>
+    <dt>timeout</dt>
     <dd>
         <p>**Default: `5`**</p>
-        <p>Number of `waitForCloseUnit` client should wait for opened connection to terminate gracefully before killing
-        them by force.</p>
+        <p>Number of `timeout` the client should wait for server response before throwing an exception</p>
     </dd>
-    <dt>waitForCloseUnit</dt>
+    <dt>timeoutUnit</dt>
     <dd>
         <p>**Default: `TimeUnit.SECONDS`**</p>
-        <p>It specifies the time unit for `waitForClose` property.</p>
+        <p>It specifies the time unit for `timeout` property.</p>
     </dd>
 </dl>
 

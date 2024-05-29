@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -24,12 +24,15 @@
 package io.evitadb.index.attribute;
 
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
-import io.evitadb.core.Transaction;
+import io.evitadb.comparator.LocalizedStringComparator;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
+import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
+import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
+import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
 import io.evitadb.dataType.Range;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.IndexDataStructure;
@@ -37,12 +40,10 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.invertedIndex.InvertedIndex;
+import io.evitadb.index.invertedIndex.InvertedIndex.MonotonicRowCorruptedException;
 import io.evitadb.index.invertedIndex.InvertedIndexSubSet;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.index.range.RangeIndex;
-import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
-import io.evitadb.index.transactionalMemory.TransactionalObjectVersion;
-import io.evitadb.index.transactionalMemory.VoidTransactionMemoryProducer;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.spi.model.storageParts.index.FilterIndexStoragePart;
 import io.evitadb.utils.ArrayUtils;
@@ -54,10 +55,12 @@ import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.lang.reflect.Array;
+import java.time.OffsetDateTime;
 import java.util.BitSet;
-import java.util.Collection;
+import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.Map;
+import java.util.function.Function;
 
 import static io.evitadb.core.Transaction.isTransactionAvailable;
 import static io.evitadb.utils.Assert.isTrue;
@@ -75,6 +78,8 @@ import static java.util.Optional.ofNullable;
 public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, IndexDataStructure, Serializable {
 	public static final String ERROR_RANGE_TYPE_NOT_SUPPORTED = "This filter index doesn't handle Range type!";
 	@Serial private static final long serialVersionUID = -6813305126746774103L;
+	private static final Function<Comparable, Comparable> NO_NORMALIZATION = Function.identity();
+	public static final Comparator<Comparable> DEFAULT_COMPARATOR = Comparator.naturalOrder();
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	/**
 	 * Contains key identifying the attribute.
@@ -96,6 +101,19 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	 * - what records are valid after certain moment
 	 */
 	@Nullable @Getter private final RangeIndex rangeIndex;
+	/**
+	 * Contains information about the type of the value held in this filter index (the type of {@link #attributeKey} values).
+	 */
+	private final Class<?> attributeType;
+	/**
+	 * Instance of conversion function that converts the value before it's placed into internal index or looked up
+	 * in it by {@link Comparator} interface.
+	 */
+	@Nonnull private final Function<Comparable, Comparable> normalizer;
+	/**
+	 * Instance of comparator that should be used for sorting values in this filter index.
+	 */
+	@Nonnull private final Comparator<? extends Comparable> comparator;
 	/**
 	 * Value index is auxiliary data structure that allows fast O(1) access to the records of specified value.
 	 * It is created on demand on first use.
@@ -160,18 +178,116 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 		return remainingRanges;
 	}
 
-	public FilterIndex(@Nonnull AttributeKey attributeKey, @Nonnull Class<?> attributeType) {
-		this.attributeKey = attributeKey;
-		this.dirty = new TransactionalBoolean();
-		this.invertedIndex = new InvertedIndex<>();
-		this.rangeIndex = Range.class.isAssignableFrom(attributeType) ? new RangeIndex() : null;
+	/**
+	 * Returns the appropriate normalizer function for particular attribute type and key.
+	 *
+	 * @param attributeType type of the attribute
+	 * @return appropriate comparator
+	 */
+	@Nonnull
+	private static Function<Comparable, Comparable> getNormalizer(@Nonnull Class<?> attributeType) {
+		if (OffsetDateTime.class.isAssignableFrom(attributeType)) {
+			return comparable -> comparable instanceof OffsetDateTime offsetDateTime ? offsetDateTime.toInstant() : comparable;
+		} else {
+			return NO_NORMALIZATION;
+		}
 	}
 
-	public <T extends Comparable<T>> FilterIndex(@Nonnull AttributeKey attributeKey, @Nonnull InvertedIndex<T> invertedIndex, @Nullable RangeIndex rangeIndex) {
+	/**
+	 * Returns the appropriate comparator for particular attribute type and key.
+	 *
+	 * @param attributeKey  key containing information about used locale
+	 * @param attributeType type of the attribute
+	 * @return appropriate comparator
+	 */
+	@Nonnull
+	private static Comparator<? extends Comparable> getComparator(@Nonnull AttributeKey attributeKey, @Nonnull Class<?> attributeType) {
+		if (String.class.isAssignableFrom(attributeType) && attributeKey.localized()) {
+			return new LocalizedStringComparator(attributeKey.locale());
+		} else {
+			return DEFAULT_COMPARATOR;
+		}
+	}
+
+	public FilterIndex(@Nonnull AttributeKey attributeKey, @Nonnull Class<?> attributeType) {
 		this.attributeKey = attributeKey;
+		this.attributeType = attributeType;
+		this.dirty = new TransactionalBoolean();
+		this.rangeIndex = Range.class.isAssignableFrom(attributeType) ? new RangeIndex() : null;
+		this.comparator = getComparator(attributeKey, attributeType);
+		this.normalizer = getNormalizer(attributeType);
+		this.invertedIndex = new InvertedIndex<>(this.comparator);
+	}
+
+	public <T extends Comparable<T>> FilterIndex(
+		@Nonnull AttributeKey attributeKey,
+		@Nonnull ValueToRecordBitmap<T>[] valueToRecords,
+		@Nullable RangeIndex rangeIndex,
+		@Nonnull Class<?> attributeType
+	) {
+		this.attributeKey = attributeKey;
+		this.attributeType = attributeType;
+		this.dirty = new TransactionalBoolean();
+		this.rangeIndex = rangeIndex;
+		this.comparator = getComparator(attributeKey, attributeType);
+		this.normalizer = getNormalizer(attributeType);
+		this.invertedIndex = new InvertedIndex<>(valueToRecords, (Comparator<T>) this.comparator);
+	}
+
+	//	TOBEDONE #538 - remove unnecessary constructor
+	public <T extends Comparable<T>> FilterIndex(
+		@Nonnull AttributeKey attributeKey,
+		@Nonnull ValueToRecordBitmap<T>[] valueToRecords,
+		@Nullable RangeIndex rangeIndex,
+		@Nonnull Class<?> attributeType,
+		boolean updateSortedValues
+	) {
+		this.attributeKey = attributeKey;
+		this.attributeType = attributeType;
+		this.dirty = new TransactionalBoolean();
+		this.rangeIndex = rangeIndex;
+		this.comparator = getComparator(attributeKey, attributeType);
+		this.normalizer = getNormalizer(attributeType);
+		if (updateSortedValues) {
+			if (this.normalizer != NO_NORMALIZATION) {
+				for (int i = 0; i < valueToRecords.length; i++) {
+					final ValueToRecordBitmap<T> valueToRecord = valueToRecords[i];
+					valueToRecords[i] = new ValueToRecordBitmap<>(this.normalizer.apply(valueToRecord.getValue()), valueToRecord.getRecordIds());
+				}
+			}
+			if (this.comparator != DEFAULT_COMPARATOR) {
+				ArrayUtils.sortArray((o1, o2) -> ((Comparator<T>) this.comparator).compare(o1.getValue(), o2.getValue()), valueToRecords);
+			}
+		}
+		InvertedIndex<T> theInvertedIndex;
+		try {
+			theInvertedIndex = new InvertedIndex<>(valueToRecords, (Comparator<T>) this.comparator);
+		} catch (MonotonicRowCorruptedException ex) {
+			if (this.comparator != DEFAULT_COMPARATOR) {
+				ArrayUtils.sortArray((o1, o2) -> ((Comparator<T>) this.comparator).compare(o1.getValue(), o2.getValue()), valueToRecords);
+				theInvertedIndex = new InvertedIndex<>(valueToRecords, (Comparator<T>) this.comparator);
+			} else {
+				throw ex;
+			}
+		}
+		this.invertedIndex = theInvertedIndex;
+	}
+
+	private <T extends Comparable<T>> FilterIndex(
+		@Nonnull AttributeKey attributeKey,
+		@Nonnull Class<?> attributeType,
+		@Nonnull InvertedIndex<T> invertedIndex,
+		@Nullable RangeIndex rangeIndex,
+		@Nonnull Comparator<? extends Comparable> comparator,
+		@Nonnull Function<Comparable, Comparable> normalizer
+	) {
+		this.attributeKey = attributeKey;
+		this.attributeType = attributeType;
 		this.dirty = new TransactionalBoolean();
 		this.invertedIndex = invertedIndex;
 		this.rangeIndex = rangeIndex;
+		this.comparator = comparator;
+		this.normalizer = normalizer;
 	}
 
 	/**
@@ -182,16 +298,7 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	}
 
 	/**
-	 * Returns sorted (ascending, natural) collection of all distinct values present in the filter index.
-	 */
-	@Nonnull
-	public <T extends Comparable<T>> Collection<T> getValues() {
-		//noinspection unchecked
-		return (Collection<T>) getValueIndex().keySet();
-	}
-
-	/**
-	 * Returns sorted (ascending, natural) collection of all distinct values present in the filter index.
+	 * Returns formula of record ids whose String attribute starts with particular prefix.
 	 */
 	@Nonnull
 	public Formula getRecordsWhoseValuesStartWith(@Nonnull String prefix) {
@@ -202,7 +309,7 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 			(valueToRecordBitmap, textToSearch) -> {
 				final String valueA = String.valueOf(valueToRecordBitmap.getValue());
 				final String shortenedA = valueA.substring(0, Math.min(valueA.length(), textToSearch.length()));
-				return shortenedA.compareTo(textToSearch);
+				return ((Comparator<String>)this.comparator).compare(shortenedA, textToSearch);
 			}
 		);
 		if (matchIndex < 0) {
@@ -233,6 +340,38 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 			}
 			return FormulaFactory.or(formulas.toArray(new Formula[0]));
 		}
+	}
+
+	/**
+	 * Returns formula of record ids whose String attribute ends with particular prefix.
+	 */
+	@Nonnull
+	public Formula getRecordsWhoseValuesEndsWith(@Nonnull String suffix) {
+		/* TOBEDONE JNO naive and slow - use RadixTree */
+		final Formula[] foundRecords = getValueIndex().keySet()
+			.stream()
+			.map(String.class::cast)
+			.filter(it -> it.endsWith(suffix))
+			.map(this::getRecordsEqualToFormula)
+			.toArray(Formula[]::new);
+		return ArrayUtils.isEmpty(foundRecords) ?
+			EmptyFormula.INSTANCE : FormulaFactory.or(foundRecords);
+	}
+
+	/**
+	 * Returns formula of record ids whose String attribute contains particular text.
+	 */
+	@Nonnull
+	public Formula getRecordsWhoseValuesContains(@Nonnull String text) {
+		/* TOBEDONE JNO naive and slow - use RadixTree */
+		final Formula[] foundRecords = getValueIndex().keySet()
+			.stream()
+			.map(String.class::cast)
+			.filter(it -> it.contains(text))
+			.map(this::getRecordsEqualToFormula)
+			.toArray(Formula[]::new);
+		return ArrayUtils.isEmpty(foundRecords) ?
+			EmptyFormula.INSTANCE : FormulaFactory.or(foundRecords);
 	}
 
 	/**
@@ -401,7 +540,7 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	 */
 	@Nonnull
 	public <T extends Comparable<T>> Bitmap getRecordsEqualTo(@Nonnull T attributeValue) {
-		return ofNullable(getValueIndex().get(attributeValue))
+		return ofNullable(getValueIndex().get(this.normalizer.apply(attributeValue)))
 			.map(invertedIndex::getRecordsAtIndex)
 			.orElse(EmptyBitmap.INSTANCE);
 	}
@@ -411,7 +550,7 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	 */
 	@Nonnull
 	public <T extends Comparable<T>> Formula getRecordsEqualToFormula(@Nonnull T attributeValue) {
-		return ofNullable(getValueIndex().get(attributeValue))
+		return ofNullable(getValueIndex().get(this.normalizer.apply(attributeValue)))
 			.map(it -> (Formula) new ConstantFormula(invertedIndex.getRecordsAtIndex(it)))
 			.orElse(EmptyFormula.INSTANCE);
 	}
@@ -449,93 +588,93 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	/**
 	 * Returns all records lesser than or equals attribute value passed in the argument in the form of {@link InvertedIndexSubSet}.
 	 */
-	public <T extends Comparable<T>> InvertedIndexSubSet<T> getHistogramOfRecordsLesserThanEq(@Nonnull T comparable) {
-		return ((InvertedIndex) this.invertedIndex).getSortedRecords(null, comparable);
+	public <T extends Comparable<T>> InvertedIndexSubSet<T> getHistogramOfRecordsLesserThanEq(@Nonnull T to) {
+		return ((InvertedIndex) this.invertedIndex).getSortedRecords(null, this.normalizer.apply(to));
 	}
 
 	/**
 	 * Returns all records lesser than or equals attribute value passed in the argument in the form of {@link Bitmap}.
 	 */
 	@Nonnull
-	public <T extends Comparable<T>> Bitmap getRecordsLesserThanEq(@Nonnull T comparable) {
-		final Formula recordsLesserThanEqFormula = getRecordsLesserThanEqFormula(comparable);
+	public <T extends Comparable<T>> Bitmap getRecordsLesserThanEq(@Nonnull T to) {
+		final Formula recordsLesserThanEqFormula = getRecordsLesserThanEqFormula(to);
 		return recordsLesserThanEqFormula.compute();
 	}
 
 	/**
 	 * Returns all records lesser than or equals attribute value passed in the argument in the form of {@link Bitmap}.
 	 */
-	public <T extends Comparable<T>> Formula getRecordsLesserThanEqFormula(@Nonnull T comparable) {
-		return getHistogramOfRecordsLesserThanEq(comparable).getFormula();
+	public <T extends Comparable<T>> Formula getRecordsLesserThanEqFormula(@Nonnull T to) {
+		return getHistogramOfRecordsLesserThanEq(to).getFormula();
 	}
 
 	/**
 	 * Returns all records greater than or equals attribute value passed in the argument in the form of {@link InvertedIndexSubSet}.
 	 */
-	public <T extends Comparable<T>> InvertedIndexSubSet<T> getHistogramOfRecordsGreaterThanEq(@Nonnull T comparable) {
-		return ((InvertedIndex) this.invertedIndex).getSortedRecords(comparable, null);
+	public <T extends Comparable<T>> InvertedIndexSubSet<T> getHistogramOfRecordsGreaterThanEq(@Nonnull T from) {
+		return ((InvertedIndex) this.invertedIndex).getSortedRecords(this.normalizer.apply(from), null);
 	}
 
 	/**
 	 * Returns all records greater than or equals attribute value passed in the argument in the form of {@link Bitmap}.
 	 */
 	@Nonnull
-	public <T extends Comparable<T>> Bitmap getRecordsGreaterThanEq(@Nonnull T comparable) {
-		final Formula recordsGreaterThanEqFormula = getRecordsGreaterThanEqFormula(comparable);
+	public <T extends Comparable<T>> Bitmap getRecordsGreaterThanEq(@Nonnull T from) {
+		final Formula recordsGreaterThanEqFormula = getRecordsGreaterThanEqFormula(from);
 		return recordsGreaterThanEqFormula.compute();
 	}
 
 	/**
 	 * Returns all records greater than or equals attribute value passed in the argument in the form of {@link AbstractFormula}.
 	 */
-	public <T extends Comparable<T>> Formula getRecordsGreaterThanEqFormula(@Nonnull T comparable) {
-		return getHistogramOfRecordsGreaterThanEq(comparable).getFormula();
+	public <T extends Comparable<T>> Formula getRecordsGreaterThanEqFormula(@Nonnull T to) {
+		return getHistogramOfRecordsGreaterThanEq(to).getFormula();
 	}
 
 	/**
 	 * Returns all records lesser than attribute value passed in the argument in the form of {@link InvertedIndexSubSet}.
 	 */
-	public <T extends Comparable<T>> InvertedIndexSubSet<T> getHistogramOfRecordsLesserThan(@Nonnull T comparable) {
-		return ((InvertedIndex) this.invertedIndex).getSortedRecordsExclusive(null, comparable);
+	public <T extends Comparable<T>> InvertedIndexSubSet<T> getHistogramOfRecordsLesserThan(@Nonnull T to) {
+		return ((InvertedIndex) this.invertedIndex).getSortedRecordsExclusive(null, this.normalizer.apply(to));
 	}
 
 	/**
 	 * Returns all records lesser than attribute value passed in the argument in the form of {@link Bitmap}.
 	 */
 	@Nonnull
-	public <T extends Comparable<T>> Bitmap getRecordsLesserThan(@Nonnull T comparable) {
-		final Formula recordsLesserThanFormula = getRecordsLesserThanFormula(comparable);
+	public <T extends Comparable<T>> Bitmap getRecordsLesserThan(@Nonnull T to) {
+		final Formula recordsLesserThanFormula = getRecordsLesserThanFormula(to);
 		return recordsLesserThanFormula.compute();
 	}
 
 	/**
 	 * Returns all records lesser than attribute value passed in the argument in the form of {@link AbstractFormula}.
 	 */
-	public <T extends Comparable<T>> Formula getRecordsLesserThanFormula(@Nonnull T comparable) {
-		return getHistogramOfRecordsLesserThan(comparable).getFormula();
+	public <T extends Comparable<T>> Formula getRecordsLesserThanFormula(@Nonnull T from) {
+		return getHistogramOfRecordsLesserThan(from).getFormula();
 	}
 
 	/**
 	 * Returns all records greater than attribute value passed in the argument in the form of {@link InvertedIndexSubSet}.
 	 */
-	public <T extends Comparable<T>> InvertedIndexSubSet<T> getHistogramOfRecordsGreaterThan(@Nonnull T comparable) {
-		return ((InvertedIndex) this.invertedIndex).getSortedRecordsExclusive(comparable, null);
+	public <T extends Comparable<T>> InvertedIndexSubSet<T> getHistogramOfRecordsGreaterThan(@Nonnull T from) {
+		return ((InvertedIndex) this.invertedIndex).getSortedRecordsExclusive(this.normalizer.apply(from), null);
 	}
 
 	/**
 	 * Returns all records greater than attribute value passed in the argument in the form of {@link Bitmap}.
 	 */
 	@Nonnull
-	public <T extends Comparable<T>> Bitmap getRecordsGreaterThan(@Nonnull T comparable) {
-		final Formula recordsGreaterThanFormula = getRecordsGreaterThanFormula(comparable);
+	public <T extends Comparable<T>> Bitmap getRecordsGreaterThan(@Nonnull T from) {
+		final Formula recordsGreaterThanFormula = getRecordsGreaterThanFormula(from);
 		return recordsGreaterThanFormula.compute();
 	}
 
 	/**
 	 * Returns all records greater than attribute value passed in the argument in the form of {@link AbstractFormula}.
 	 */
-	public <T extends Comparable<T>> Formula getRecordsGreaterThanFormula(@Nonnull T comparable) {
-		return getHistogramOfRecordsGreaterThan(comparable).getFormula();
+	public <T extends Comparable<T>> Formula getRecordsGreaterThanFormula(@Nonnull T from) {
+		return getHistogramOfRecordsGreaterThan(this.normalizer.apply(from)).getFormula();
 	}
 
 	/**
@@ -543,7 +682,7 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	 * in the form of {@link InvertedIndexSubSet}.
 	 */
 	public <T extends Comparable<T>> InvertedIndexSubSet<T> getHistogramOfRecordsBetween(@Nonnull T from, @Nonnull T to) {
-		return ((InvertedIndex) this.invertedIndex).getSortedRecords(from, to);
+		return ((InvertedIndex) this.invertedIndex).getSortedRecords(this.normalizer.apply(from), this.normalizer.apply(to));
 	}
 
 	/**
@@ -613,7 +752,11 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	@Nullable
 	public StoragePart createStoragePart(int entityIndexPrimaryKey) {
 		if (this.dirty.isTrue()) {
-			return new FilterIndexStoragePart(entityIndexPrimaryKey, attributeKey, invertedIndex, rangeIndex);
+			return new FilterIndexStoragePart(
+				entityIndexPrimaryKey, this.attributeKey, this.attributeType,
+				this.invertedIndex.getValueToRecordBitmap(),
+				this.rangeIndex
+			);
 		} else {
 			return null;
 		}
@@ -626,13 +769,16 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 
 	@Nonnull
 	@Override
-	public FilterIndex createCopyWithMergedTransactionalMemory(@Nullable Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Transaction transaction) {
+	public FilterIndex createCopyWithMergedTransactionalMemory(@Nullable Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		// we can safely throw away dirty flag now
-		transactionalLayer.getStateCopyWithCommittedChanges(this.dirty, transaction);
+		transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
 		return new FilterIndex(
 			this.attributeKey,
-			transactionalLayer.getStateCopyWithCommittedChanges(this.invertedIndex, transaction),
-			this.rangeIndex == null ? null : transactionalLayer.getStateCopyWithCommittedChanges(this.rangeIndex, transaction)
+			this.attributeType,
+			transactionalLayer.getStateCopyWithCommittedChanges(this.invertedIndex),
+			this.rangeIndex == null ? null : transactionalLayer.getStateCopyWithCommittedChanges(this.rangeIndex),
+			this.comparator,
+			this.normalizer
 		);
 	}
 
@@ -693,12 +839,12 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	}
 
 	private <T extends Comparable<T>> void addRecordToHistogramAndValueIndex(int recordId, @Nonnull T value) {
-		((InvertedIndex) this.invertedIndex).addRecord(value, recordId);
+		((InvertedIndex) this.invertedIndex).addRecord(this.normalizer.apply(value), recordId);
 		this.valueIndex = null;
 	}
 
 	private <T extends Comparable<T>> void removeRecordFromHistogramAndValueIndex(int recordId, @Nonnull T value) {
-		final int removalIndex = ((InvertedIndex) this.invertedIndex).removeRecord(value, recordId);
+		final int removalIndex = ((InvertedIndex) this.invertedIndex).removeRecord(this.normalizer.apply(value), recordId);
 		isTrue(removalIndex >= 0, "Sanity check - record not found!");
 		this.valueIndex = null;
 	}

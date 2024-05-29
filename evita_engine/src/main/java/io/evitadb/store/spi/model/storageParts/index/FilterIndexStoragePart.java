@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -27,7 +27,7 @@ import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.dataType.Range;
-import io.evitadb.index.invertedIndex.InvertedIndex;
+import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.index.range.RangeIndex;
 import io.evitadb.store.model.RecordWithCompressedId;
 import lombok.AllArgsConstructor;
@@ -52,7 +52,7 @@ import java.io.Serial;
 @AllArgsConstructor
 @ToString(of = {"attributeKey", "entityIndexPrimaryKey"})
 public class FilterIndexStoragePart implements AttributeIndexStoragePart, RecordWithCompressedId<AttributeKey> {
-	@Serial private static final long serialVersionUID = 6163295675316818632L;
+	@Serial private static final long serialVersionUID = -3363238752052021735L;
 
 	/**
 	 * Unique id that identifies {@link io.evitadb.index.EntityIndex}.
@@ -63,9 +63,14 @@ public class FilterIndexStoragePart implements AttributeIndexStoragePart, Record
 	 */
 	@Getter private final AttributeKey attributeKey;
 	/**
+	 * Contains the type of the objects kept as values in this particular filter index.
+	 */
+	@Getter private final Class<?> attributeType;
+	/**
 	 * Histogram is the main data structure that holds the information about value to record ids relation.
 	 */
-	@Nonnull @Getter private final InvertedIndex<? extends Comparable<?>> histogram;
+	@SuppressWarnings("rawtypes")
+	@Nonnull @Getter private final ValueToRecordBitmap[] histogramPoints;
 	/**
 	 * Range index is used only for attribute types that are assignable to {@link Range} and can answer questions like:
 	 * <p>
@@ -77,7 +82,7 @@ public class FilterIndexStoragePart implements AttributeIndexStoragePart, Record
 	/**
 	 * Id used for lookups in file offset index for this particular container.
 	 */
-	@Getter @Setter private Long uniquePartId;
+	@Getter @Setter private Long storagePartPK;
 
 	@Override
 	public AttributeIndexType getIndexType() {

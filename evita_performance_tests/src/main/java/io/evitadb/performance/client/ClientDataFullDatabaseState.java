@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -28,7 +28,7 @@ import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.performance.senesi.SenesiBenchmark;
 import io.evitadb.utils.StringUtils;
 import org.openjdk.jmh.annotations.Level;
@@ -85,7 +85,7 @@ public abstract class ClientDataFullDatabaseState extends ClientDataState {
 				for (String entityType : entityTypes) {
 					final long entityProcessingStart = System.nanoTime();
 					final SealedEntitySchema entitySchema = session.getEntitySchema(entityType)
-						.orElseThrow(() -> new EvitaInternalError("Schema for entity `" + entityType + "` was not found!"));
+						.orElseThrow(() -> new GenericEvitaInternalError("Schema for entity `" + entityType + "` was not found!"));
 					processSchema(entitySchema);
 
 					EvitaResponse<SealedEntity> response;

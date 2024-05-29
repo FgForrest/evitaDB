@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -24,8 +24,8 @@
 package io.evitadb.externalApi.http;
 
 import io.evitadb.core.Evita;
-import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.certificate.ServerCertificateManager;
 import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
 import io.evitadb.externalApi.configuration.ApiOptions;
@@ -48,7 +48,6 @@ import io.undertow.server.HttpHandler;
 import io.undertow.server.handlers.PathHandler;
 import io.undertow.server.handlers.accesslog.AccessLogHandler;
 import io.undertow.server.handlers.accesslog.AccessLogReceiver;
-import io.undertow.server.handlers.accesslog.DefaultAccessLogReceiver;
 import io.undertow.server.handlers.encoding.ContentEncodingRepository;
 import io.undertow.server.handlers.encoding.DeflateEncodingProvider;
 import io.undertow.server.handlers.encoding.EncodingHandler;
@@ -133,7 +132,7 @@ public class ExternalApiServer implements AutoCloseable {
 	public static CertificatePath initCertificate(final @Nonnull ApiOptions apiOptions, final @Nonnull ServerCertificateManager serverCertificateManager) {
 		final CertificatePath certificatePath = ServerCertificateManager.getCertificatePath(apiOptions.certificate());
 		if (certificatePath.certificate() == null || certificatePath.privateKey() == null) {
-			throw new EvitaInternalError("Either certificate path or its private key path is not set");
+			throw new GenericEvitaInternalError("Either certificate path or its private key path is not set");
 		}
 		final File certificateFile = new File(certificatePath.certificate());
 		final File certificateKeyFile = new File(certificatePath.privateKey());
@@ -150,7 +149,7 @@ public class ExternalApiServer implements AutoCloseable {
 				try {
 					serverCertificateManager.generateSelfSignedCertificate();
 				} catch (Exception e) {
-					throw new EvitaInternalError(
+					throw new GenericEvitaInternalError(
 						"Failed to generate self-signed certificate: " + e.getMessage(),
 						"Failed to generate self-signed certificate",
 						e
@@ -163,7 +162,7 @@ public class ExternalApiServer implements AutoCloseable {
 			}
 		} else {
 			if (!certificateFile.exists() || !certificateKeyFile.exists()) {
-				throw new EvitaInternalError("Certificate or its private key file does not exist");
+				throw new GenericEvitaInternalError("Certificate or its private key file does not exist");
 			}
 		}
 		return certificatePath;
@@ -195,7 +194,7 @@ public class ExternalApiServer implements AutoCloseable {
 
 		} catch (NoSuchAlgorithmException | UnrecoverableKeyException | CertificateException | KeyStoreException |
 		         IOException | KeyManagementException e) {
-			throw new EvitaInternalError(
+			throw new GenericEvitaInternalError(
 				"Error while creating SSL context: " + e.getMessage(),
 				"Error while creating SSL context",
 				e
@@ -283,9 +282,11 @@ public class ExternalApiServer implements AutoCloseable {
 	/**
 	 * Registers API providers based on configuration and returns its references.
 	 */
+	@Nonnull
 	@SuppressWarnings("unchecked")
 	private static Map<String, ExternalApiProvider<?>> registerApiProviders(
-		@Nonnull Evita evitaSystemDataProvider,
+		@Nonnull Evita evita,
+		@Nonnull ExternalApiServer externalApiServer,
 		@Nonnull ApiOptions apiOptions,
 		@SuppressWarnings("rawtypes") @Nonnull Collection<ExternalApiProviderRegistrar> externalApiProviders
 	) {
@@ -299,7 +300,7 @@ public class ExternalApiServer implements AutoCloseable {
 				}
 
 				//noinspection unchecked
-				return registrar.register(evitaSystemDataProvider, apiOptions, apiProviderConfiguration);
+				return registrar.register(evita, externalApiServer, apiOptions, apiProviderConfiguration);
 			})
 			.filter(Objects::nonNull)
 			.collect(
@@ -307,7 +308,7 @@ public class ExternalApiServer implements AutoCloseable {
 					it -> it.getCode().toLowerCase(),
 					Function.identity(),
 					(externalApiProvider, externalApiProvider2) -> {
-						throw new EvitaInternalError(
+						throw new GenericEvitaInternalError(
 							"Multiple implementations of `" + externalApiProvider.getCode() + "` found on classpath!"
 						);
 					},
@@ -335,7 +336,7 @@ public class ExternalApiServer implements AutoCloseable {
 		final ServerCertificateManager serverCertificateManager = new ServerCertificateManager(apiOptions.certificate());
 		final CertificatePath certificatePath = initCertificate(apiOptions, serverCertificateManager);
 
-		this.registeredApiProviders = registerApiProviders(evita, apiOptions, externalApiProviders);
+		this.registeredApiProviders = registerApiProviders(evita, this, apiOptions, externalApiProviders);
 		if (this.registeredApiProviders.isEmpty()) {
 			log.info("No external API providers were registered. No server will be created.");
 			rootServer = null;

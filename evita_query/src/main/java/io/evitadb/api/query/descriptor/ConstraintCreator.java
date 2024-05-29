@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -24,8 +24,8 @@
 package io.evitadb.api.query.descriptor;
 
 import io.evitadb.api.query.Constraint;
-import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ClassUtils;
 
@@ -144,14 +144,14 @@ public class ConstraintCreator {
 			} else if (instantiator instanceof Method method) {
 				return (Constraint<?>) method.invoke(null, args);
 			} else {
-				throw new EvitaInternalError("Unsupported creator.");
+				throw new GenericEvitaInternalError("Unsupported creator.");
 			}
 		} catch (Exception e) {
 			if (e instanceof final InvocationTargetException invocationTargetException &&
 				invocationTargetException.getTargetException() instanceof final EvitaInvalidUsageException invalidUsageException) {
 				throw invalidUsageException;
 			}
-			throw new EvitaInternalError(
+			throw new GenericEvitaInternalError(
 				"Could not instantiate constraint `" + parsedName + "` to original constraint `" + instantiator.getDeclaringClass().getName() + "`: " + e.getMessage(),
 				"Could not recreate constraint `" + parsedName + "`.",
 				e
@@ -297,6 +297,25 @@ public class ConstraintCreator {
 			}
 		}
 		return valueStructure;
+	}
+
+	@Override
+	public String toString() {
+		return "ConstraintCreator{" +
+			"instantiator=" + instantiator +
+			", suffix='" + suffix + '\'' +
+			", parameters=" + parameters +
+			", implicitClassifier=" + implicitClassifier +
+			", hasClassifierParameter=" + hasClassifierParameter +
+			", classifierParameter=" + classifierParameter +
+			", hasValueParameters=" + hasValueParameters +
+			", valueParameters=" + valueParameters +
+			", hasChildParameters=" + hasChildParameters +
+			", childParameters=" + childParameters +
+			", hasAdditionalChildParameters=" + hasAdditionalChildParameters +
+			", additionalChildParameters=" + additionalChildParameters +
+			", valueStructure=" + valueStructure +
+			'}';
 	}
 
 	/**

@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -35,6 +35,8 @@ import java.io.Serial;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Optional;
+import java.util.OptionalInt;
 
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 
@@ -76,20 +78,22 @@ public class ReadOnlyKeyCompressor implements KeyCompressor {
 	@Override
 	public @Nonnull
 	Map<Integer, Object> getKeys() {
-		return idToKeyIndex;
+		return this.idToKeyIndex;
 	}
 
 	@Override
 	public <T extends Comparable<T>> int getId(@Nonnull T key) {
-		final Integer id = keyToIdIndex.get(key);
+		final Integer id = this.keyToIdIndex.get(key);
 		Assert.isPremiseValid(id != null, () -> new CompressionKeyUnknownException("There is no id for key " + key + "!"));
 		return id;
 	}
 
-	@Nullable
+	@Nonnull
 	@Override
-	public <T extends Comparable<T>> Integer getIdIfExists(@Nonnull T key) {
-		return keyToIdIndex.get(key);
+	public <T extends Comparable<T>> OptionalInt getIdIfExists(@Nonnull T key) {
+		return Optional.ofNullable(keyToIdIndex.get(key))
+			.map(OptionalInt::of)
+			.orElseGet(OptionalInt::empty);
 	}
 
 	@Nonnull
@@ -97,6 +101,14 @@ public class ReadOnlyKeyCompressor implements KeyCompressor {
 	public <T extends Comparable<T>> T getKeyForId(int id) {
 		final Object key = idToKeyIndex.get(id);
 		Assert.notNull(key, "There is no key for id " + id + "!");
+		//noinspection unchecked
+		return (T) key;
+	}
+
+	@Nullable
+	@Override
+	public <T extends Comparable<T>> T getKeyForIdIfExists(int id) {
+		final Object key = idToKeyIndex.get(id);
 		//noinspection unchecked
 		return (T) key;
 	}

@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -53,6 +53,7 @@ import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Locale;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
@@ -74,6 +75,8 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 	private static final String ATTRIBUTE_VARIANT_COUNT = "variantCount";
 	private static final String ATTRIBUTE_CHAR_ARRAY = "charArray";
 	private static final String ATTRIBUTE_COMPOUND = "nameVariantCount";
+	public static final Consumer<Runnable> DO_NOTHING_CONSUMER = runnable -> {
+	};
 	private Function<String, AttributeSchema> productAttributeSchemaProvider;
 	private Function<String, Stream<SortableAttributeCompoundSchema>> productCompoundSchemaProvider;
 
@@ -107,7 +110,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			productCompoundSchemaProvider,
 			new EntityAttributeValueSupplier(executor.getContainerAccessor(), ENTITY_NAME, 1),
 			productIndex, new AttributeKey(ATTRIBUTE_CODE), "A",
-			true, true
+			true, true, DO_NOTHING_CONSUMER
 		);
 		executeAttributeUpsert(
 			executor,
@@ -115,7 +118,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			productCompoundSchemaProvider,
 			new EntityAttributeValueSupplier(executor.getContainerAccessor(), ENTITY_NAME, 1),
 			productIndex, new AttributeKey(ATTRIBUTE_EAN), "EAN-001",
-			true, true
+			true, true, DO_NOTHING_CONSUMER
 		);
 		executeAttributeUpsert(
 			executor,
@@ -123,7 +126,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			productCompoundSchemaProvider,
 			new EntityAttributeValueSupplier(executor.getContainerAccessor(), ENTITY_NAME, 1),
 			productIndex, new AttributeKey(ATTRIBUTE_GLOBAL_CODE), "GA",
-			true, true
+			true, true, DO_NOTHING_CONSUMER
 		);
 
 		final AttributeSchema codeSchema = productAttributeSchemaProvider.apply(ATTRIBUTE_CODE);
@@ -158,7 +161,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			productCompoundSchemaProvider,
 			new EntityAttributeValueSupplier(executor.getContainerAccessor(), ENTITY_NAME, 1),
 			productIndex, new AttributeKey(ATTRIBUTE_VARIANT_COUNT), "115",
-			false, true
+			false, true, DO_NOTHING_CONSUMER
 		);
 
 		assertArrayEquals(new int[]{1}, productIndex.getFilterIndex(ATTRIBUTE_VARIANT_COUNT, null).getRecordsEqualTo(115).getArray());
@@ -185,7 +188,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			productCompoundSchemaProvider,
 			new EntityAttributeValueSupplier(executor.getContainerAccessor(), ENTITY_NAME, 1),
 			productIndex, codeAttributeKey, "B",
-			true, true
+			true, true, DO_NOTHING_CONSUMER
 		);
 
 		final AttributeKey eanAttributeKey = new AttributeKey(ATTRIBUTE_EAN);
@@ -199,7 +202,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			productCompoundSchemaProvider,
 			new EntityAttributeValueSupplier(executor.getContainerAccessor(), ENTITY_NAME, 1),
 			productIndex, eanAttributeKey, "EAN-002",
-			true, true
+			true, true, DO_NOTHING_CONSUMER
 		);
 
 		final AttributeKey globalCodeAttributeKey = new AttributeKey(ATTRIBUTE_GLOBAL_CODE);
@@ -213,7 +216,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			productCompoundSchemaProvider,
 			new EntityAttributeValueSupplier(executor.getContainerAccessor(), ENTITY_NAME, 1),
 			productIndex, globalCodeAttributeKey, "GB",
-			true, true
+			true, true, DO_NOTHING_CONSUMER
 		);
 
 		final UniqueIndex uniqueIndex = productIndex.getUniqueIndex(codeSchema, null);
@@ -256,7 +259,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			productCompoundSchemaProvider,
 			new EntityAttributeValueSupplier(executor.getContainerAccessor(), ENTITY_NAME, 1),
 			productIndex, charArrayAttr, 'A',
-			false, true
+			false, true, DO_NOTHING_CONSUMER
 		);
 		assertArrayEquals(new int[]{1}, productIndex.getFilterIndex(ATTRIBUTE_CHAR_ARRAY, null).getRecordsEqualTo('A').getArray());
 
@@ -269,7 +272,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			productCompoundSchemaProvider,
 			new EntityAttributeValueSupplier(executor.getContainerAccessor(), ENTITY_NAME, 1),
 			productIndex, charArrayAttr, new Character[]{'C', 'D'},
-			false, true
+			false, true, DO_NOTHING_CONSUMER
 		);
 
 		final FilterIndex filterIndex = productIndex.getFilterIndex(ATTRIBUTE_CHAR_ARRAY, null);
@@ -293,7 +296,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			productCompoundSchemaProvider,
 			new EntityAttributeValueSupplier(executor.getContainerAccessor(), ENTITY_NAME, 1),
 			productIndex, charArrayAttr, new Character[]{'A', 'B'},
-			false, true
+			false, true, DO_NOTHING_CONSUMER
 		);
 		assertArrayEquals(new int[]{1}, productIndex.getFilterIndex(ATTRIBUTE_CHAR_ARRAY, null).getRecordsEqualTo('A').getArray());
 		assertArrayEquals(new int[]{1}, productIndex.getFilterIndex(ATTRIBUTE_CHAR_ARRAY, null).getRecordsEqualTo('B').getArray());
@@ -307,7 +310,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			productCompoundSchemaProvider,
 			new EntityAttributeValueSupplier(executor.getContainerAccessor(), ENTITY_NAME, 1),
 			productIndex, charArrayAttr, new Character[]{'C', 'D'},
-			false, true
+			false, true, DO_NOTHING_CONSUMER
 		);
 
 		final FilterIndex filterIndex = productIndex.getFilterIndex(ATTRIBUTE_CHAR_ARRAY, null);
@@ -335,13 +338,14 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 						new MockEntityIndexCreator<>(productIndex),
 						new MockEntityIndexCreator<>(catalogIndex),
 						() -> productSchema,
-						entityType -> entityType.equals(productSchema.getName()) ? productSchema : null
+						entityType -> entityType.equals(productSchema.getName()) ? productSchema : null,
+						false
 					),
 					productAttributeSchemaProvider,
 					productCompoundSchemaProvider,
 					new EntityAttributeValueSupplier(executor.getContainerAccessor(), ENTITY_NAME, 2),
 					productIndex, attrCode, "A",
-					false, true
+					false, true, DO_NOTHING_CONSUMER
 				);
 			}
 		);
@@ -356,13 +360,14 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 						new MockEntityIndexCreator<>(productIndex),
 						new MockEntityIndexCreator<>(catalogIndex),
 						() -> productSchema,
-						entityType -> entityType.equals(productSchema.getName()) ? productSchema : null
+						entityType -> entityType.equals(productSchema.getName()) ? productSchema : null,
+						false
 					),
 					productAttributeSchemaProvider,
 					productCompoundSchemaProvider,
 					new EntityAttributeValueSupplier(executor.getContainerAccessor(), ENTITY_NAME, 2),
 					productIndex, attrGlobalCode, "GA",
-					false, true
+					false, true, DO_NOTHING_CONSUMER
 				);
 			}
 		);
@@ -381,13 +386,14 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 				new MockEntityIndexCreator<>(productIndex),
 				new MockEntityIndexCreator<>(catalogIndex),
 				() -> productSchema,
-				entityType -> entityType.equals(productSchema.getName()) ? productSchema : null
+				entityType -> entityType.equals(productSchema.getName()) ? productSchema : null,
+				false
 			),
 			productAttributeSchemaProvider,
 			productCompoundSchemaProvider,
 			new EntityAttributeValueSupplier(executor.getContainerAccessor(), ENTITY_NAME, 2),
 			productIndex, attrCode, "A",
-			true, true
+			true, true, DO_NOTHING_CONSUMER
 		);
 
 		final AttributeKey attrGlobalCode = new AttributeKey(ATTRIBUTE_GLOBAL_CODE);
@@ -397,13 +403,14 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 				new MockEntityIndexCreator<>(productIndex),
 				new MockEntityIndexCreator<>(catalogIndex),
 				() -> productSchema,
-				entityType -> entityType.equals(productSchema.getName()) ? productSchema : null
+				entityType -> entityType.equals(productSchema.getName()) ? productSchema : null,
+				false
 			),
 			productAttributeSchemaProvider,
 			productCompoundSchemaProvider,
 			new EntityAttributeValueSupplier(executor.getContainerAccessor(), ENTITY_NAME, 2),
 			productIndex, attrGlobalCode, "GA",
-			true, true
+			true, true, DO_NOTHING_CONSUMER
 		);
 
 		final AttributeSchema codeSchema = productAttributeSchemaProvider.apply(ATTRIBUTE_CODE);
@@ -446,7 +453,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			productCompoundSchemaProvider,
 			new EntityAttributeValueSupplier(executor.getContainerAccessor(), ENTITY_NAME, 1),
 			productIndex, attributeCode,
-			true, true
+			true, true, DO_NOTHING_CONSUMER
 		);
 
 		final AttributeKey attributeGlobalCode = new AttributeKey(ATTRIBUTE_GLOBAL_CODE);
@@ -461,7 +468,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			productCompoundSchemaProvider,
 			new EntityAttributeValueSupplier(executor.getContainerAccessor(), ENTITY_NAME, 1),
 			productIndex, attributeGlobalCode,
-			true, true
+			true, true, DO_NOTHING_CONSUMER
 		);
 
 		final AttributeSchema codeSchema = productAttributeSchemaProvider.apply(ATTRIBUTE_CODE);
@@ -488,7 +495,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			productCompoundSchemaProvider,
 			new EntityAttributeValueSupplier(executor.getContainerAccessor(), ENTITY_NAME, 1),
 			productIndex, attrVariantCount, 10,
-			false, true
+			false, true, DO_NOTHING_CONSUMER
 		);
 		executeAttributeUpsert(
 			new EntityIndexLocalMutationExecutor(
@@ -496,13 +503,14 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 				new MockEntityIndexCreator<>(productIndex),
 				new MockEntityIndexCreator<>(catalogIndex),
 				() -> productSchema,
-				entityType -> entityType.equals(productSchema.getName()) ? productSchema : null
+				entityType -> entityType.equals(productSchema.getName()) ? productSchema : null,
+				false
 			),
 			productAttributeSchemaProvider,
 			productCompoundSchemaProvider,
 			new EntityAttributeValueSupplier(executor.getContainerAccessor(), ENTITY_NAME, 2),
 			productIndex, attrVariantCount, 9,
-			false, true
+			false, true, DO_NOTHING_CONSUMER
 		);
 
 		final AttributeSchema variantCountSchema = productAttributeSchemaProvider.apply(ATTRIBUTE_VARIANT_COUNT);
@@ -519,7 +527,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			productAttributeSchemaProvider,
 			productCompoundSchemaProvider,
 			new EntityAttributeValueSupplier(executor.getContainerAccessor(), ENTITY_NAME, 1),
-			productIndex, attrVariantCount, -3
+			productIndex, attrVariantCount, -3, DO_NOTHING_CONSUMER
 		);
 
 		assertArrayEquals(new int[]{1}, productIndex.getFilterIndex(ATTRIBUTE_VARIANT_COUNT, null).getRecordsEqualTo(7).getArray());

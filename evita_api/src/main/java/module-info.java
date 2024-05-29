@@ -1,8 +1,33 @@
+/*
+ *
+ *                         _ _        ____  ____
+ *               _____   _(_) |_ __ _|  _ \| __ )
+ *              / _ \ \ / / | __/ _` | | | |  _ \
+ *             |  __/\ V /| | || (_| | |_| | |_) |
+ *              \___| \_/ |_|\__\__,_|____/|____/
+ *
+ *   Copyright (c) 2024
+ *
+ *   Licensed under the Business Source License, Version 1.1 (the "License");
+ *   you may not use this file except in compliance with the License.
+ *   You may obtain a copy of the License at
+ *
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
+ *
+ *   Unless required by applicable law or agreed to in writing, software
+ *   distributed under the License is distributed on an "AS IS" BASIS,
+ *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *   See the License for the specific language governing permissions and
+ *   limitations under the License.
+ */
+
+import io.evitadb.api.observability.trace.TracingContext;
+
 /**
  * Module contains external API of the evitaDB.
  */
 module evita.api {
-	uses io.evitadb.api.trace.TracingContext;
+	uses TracingContext;
 
 	opens io.evitadb.api.configuration to com.fasterxml.jackson.databind;
 	opens io.evitadb.api.requestResponse.extraResult to com.graphqljava;
@@ -18,7 +43,7 @@ module evita.api {
 	exports io.evitadb.api.requestResponse.data.mutation;
 	exports io.evitadb.api.requestResponse.data.mutation.associatedData;
 	exports io.evitadb.api.requestResponse.data.mutation.attribute;
-	exports io.evitadb.api.requestResponse.data.mutation.entity;
+	exports io.evitadb.api.requestResponse.data.mutation.parent;
 	exports io.evitadb.api.requestResponse.data.mutation.price;
 	exports io.evitadb.api.requestResponse.data.mutation.reference;
 	exports io.evitadb.api.requestResponse.data.structure.predicate;
@@ -37,8 +62,10 @@ module evita.api {
 	exports io.evitadb.api.requestResponse.mutation;
 	exports io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound;
 	exports io.evitadb.api.requestResponse.data.annotation;
+	exports io.evitadb.api.requestResponse.transaction;
 	exports io.evitadb.api.configuration.metric;
-	exports io.evitadb.api.trace;
+	exports io.evitadb.api.observability.trace;
+	exports io.evitadb.api.observability.annotation;
 
 	requires static lombok;
 	requires static jsr305;

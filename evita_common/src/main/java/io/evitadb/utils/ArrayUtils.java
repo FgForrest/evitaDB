@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -39,6 +39,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Random;
 import java.util.function.IntBinaryOperator;
+import java.util.function.IntFunction;
 import java.util.function.ToIntBiFunction;
 import java.util.function.ToIntFunction;
 import java.util.function.UnaryOperator;
@@ -144,6 +145,81 @@ public class ArrayUtils {
 		while (low <= high) {
 			int mid = (low + high) >>> 1;
 			T midVal = a[mid];
+
+			final int comparisonResult = comparator.applyAsInt(midVal, b);
+			if (comparisonResult < 0)
+				low = mid + 1;
+			else if (comparisonResult > 0)
+				high = mid - 1;
+			else
+				return mid; // key found
+		}
+		return -(low + 1);  // key not found.
+	}
+
+	/**
+	 * Searches a range of the specified array of object for the specified value using the binary search algorithm.
+	 * The range must be sorted (as by the {@link Arrays#sort(Object[])} method) prior to making this call.  If it
+	 * is not sorted, the results are undefined.  If the range contains multiple elements with the specified value,
+	 * there is no guarantee which one will be found.
+	 *
+	 * @param valueSupplier that extracts particular value for passed index
+	 * @param b             the value that should be compared
+	 * @param totalCount    the total number of elements in the searched data structure
+	 * @param comparator    that envelopes the value to be searched for and returns negative integer for lesser values and
+	 *                      positive integer for greater values when comparing passed value with the input one
+	 * @return index of the search key, if it is contained in the array within the specified range;
+	 * otherwise, <code>(-(<i>insertion point</i>) - 1)</code>. The <i>insertion point</i> is defined as the point at
+	 * which the key would be inserted into the array: the index of the first element in the range greater than the key,
+	 * or {@code toIndex} if all elements in the range are less than the specified key.
+	 * Note that this guarantees that the return value will be &gt;= 0 if and only if the key is found.
+	 * @throws IllegalArgumentException       if {@code fromIndex > toIndex}
+	 * @throws ArrayIndexOutOfBoundsException if {@code fromIndex < 0 or toIndex > a.length}
+	 */
+	public static <T, U> int binarySearch(@Nonnull IntFunction<T> valueSupplier, @Nonnull U b, int totalCount, @Nonnull ToIntBiFunction<T, U> comparator) {
+		return binarySearch(valueSupplier, b, 0, totalCount, totalCount, comparator);
+	}
+
+	/**
+	 * Searches a range of the specified array of object for the specified value using the binary search algorithm.
+	 * The range must be sorted (as by the {@link Arrays#sort(Object[])} method) prior to making this call.  If it
+	 * is not sorted, the results are undefined.  If the range contains multiple elements with the specified value,
+	 * there is no guarantee which one will be found.
+	 *
+	 * @param valueSupplier that extracts particular value for passed index
+	 * @param b             the value that should be compared
+	 * @param fromIndex     the index of the first element (inclusive) to be
+	 *                      searched
+	 * @param toIndex       the index of the last element (exclusive) to be searched
+	 * @param totalCount    the total number of elements in the searched data structure
+	 * @param comparator    that envelopes the value to be searched for and returns negative integer for lesser values and
+	 *                      positive integer for greater values when comparing passed value with the input one
+	 * @return index of the search key, if it is contained in the array within the specified range;
+	 * otherwise, <code>(-(<i>insertion point</i>) - 1)</code>. The <i>insertion point</i> is defined as the point at
+	 * which the key would be inserted into the array: the index of the first element in the range greater than the key,
+	 * or {@code toIndex} if all elements in the range are less than the specified key.
+	 * Note that this guarantees that the return value will be &gt;= 0 if and only if the key is found.
+	 * @throws IllegalArgumentException       if {@code fromIndex > toIndex}
+	 * @throws ArrayIndexOutOfBoundsException if {@code fromIndex < 0 or toIndex > a.length}
+	 */
+	public static <T, U> int binarySearch(@Nonnull IntFunction<T> valueSupplier, @Nonnull U b, int fromIndex, int toIndex, int totalCount, @Nonnull ToIntBiFunction<T, U> comparator) {
+		if (fromIndex > toIndex) {
+			throw new IllegalArgumentException(
+				"fromIndex(" + fromIndex + ") > toIndex(" + toIndex + ")");
+		}
+		if (fromIndex < 0) {
+			throw new ArrayIndexOutOfBoundsException(fromIndex);
+		}
+		if (toIndex > totalCount) {
+			throw new ArrayIndexOutOfBoundsException(toIndex);
+		}
+
+		int low = fromIndex;
+		int high = toIndex - 1;
+
+		while (low <= high) {
+			int mid = (low + high) >>> 1;
+			T midVal = valueSupplier.apply(mid);
 
 			final int comparisonResult = comparator.applyAsInt(midVal, b);
 			if (comparisonResult < 0)
@@ -794,6 +870,15 @@ public class ArrayUtils {
 	}
 
 	/**
+	 * Sorts array by the Comparator passed in first argument. Contents of the array are changed.
+	 */
+	public static <T> void sortArray(@Nonnull Comparator<T> comparator, @Nonnull T[] array) {
+		// now sort positions according to recordId value - this will change ordered positions to unordered ones
+		final ArrayWrapper<T> wrapper = new ArrayWrapper<>(array);
+		wrapper.sort(comparator);
+	}
+
+	/**
 	 * This method will merge all passed arrays into one. All values from all arrays will be combined one after another.
 	 * Result array is not sorted.
 	 */
@@ -889,8 +974,7 @@ public class ArrayUtils {
 	@Nonnull
 	public static <T> T[] copyOf(@Nonnull Object[] items, @Nonnull Class<T> targetType, int startIndex, int endIndex) {
 		final int size = Math.min(items.length, endIndex - startIndex);
-		@SuppressWarnings("unchecked")
-		final T[] result = (T[]) Array.newInstance(targetType, size);
+		@SuppressWarnings("unchecked") final T[] result = (T[]) Array.newInstance(targetType, size);
 		for (int i = 0; i < size; i++) {
 			//noinspection unchecked
 			result[i] = (T) items[startIndex + i];
@@ -961,8 +1045,7 @@ public class ArrayUtils {
 				}
 			}
 		}
-		@SuppressWarnings("unchecked")
-		final T[] result = (T[]) Array.newInstance(arrayToSort.getClass().getComponentType(), arrayToSort.length);
+		@SuppressWarnings("unchecked") final T[] result = (T[]) Array.newInstance(arrayToSort.getClass().getComponentType(), arrayToSort.length);
 		int unknownNumbers = 0;
 		for (int i = 0; i < arrayToSort.length; i++) {
 			if (positions[i] >= 0) {
@@ -972,6 +1055,67 @@ public class ArrayUtils {
 			}
 		}
 		return result;
+	}
+
+	/**
+	 * Compares two objects for equality.
+	 * This method checks if the specified objects are both arrays (regardles of whether of primitive types or objects)
+	 * and whether they're equal or not.
+	 *
+	 * @param a  the first object to be compared
+	 * @param a2 the second object to be compared
+	 * @return true if the objects are equal, false otherwise
+	 */
+	public static boolean equals(@Nullable Object a, @Nullable Object a2) {
+		if (a == a2) {
+			return true;
+		}
+		if (a == null || a2 == null) {
+			return false;
+		}
+
+		if (!a.getClass().isArray() || !a2.getClass().isArray()) {
+			return false;
+		}
+
+		int length = Array.getLength(a);
+		if (Array.getLength(a2) != length) {
+			return false;
+		}
+
+		for (int i = 0; i < length; i++) {
+			if (!Objects.equals(Array.get(a, i), Array.get(a2, i))) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	/**
+	 * Computes the hash code for the specified object. This method handles both arrays and non-array objects.
+	 *
+	 * @param a the object for which to compute the hash code
+	 * @return the hash code value for the specified object
+	 */
+	public static int hashCode(@Nullable Object a) {
+		if (a == null) {
+			return 0;
+		}
+
+		int result = 1;
+
+		if (a.getClass().isArray()) {
+			final int length = Array.getLength(a);
+			for (int i = 0; i < length; i++) {
+				final Object element = Array.get(a, i);
+				result = 31 * result + (element == null ? 0 : element.hashCode());
+			}
+
+			return result;
+		} else {
+			return a.hashCode();
+		}
 	}
 
 	/**
@@ -1013,6 +1157,51 @@ public class ArrayUtils {
 			if (!super.equals(o)) return false;
 			IntArrayWrapper integers = (IntArrayWrapper) o;
 			return Arrays.equals(elements, integers.elements);
+		}
+
+		@Override
+		public int hashCode() {
+			int result = super.hashCode();
+			result = 31 * result + Arrays.hashCode(elements);
+			return result;
+		}
+
+		@Override
+		public int size() {
+			return elements.length;
+		}
+
+	}
+
+	/**
+	 * Internal helper class that is used to sort array A by comparator that uses array B. This cannot be easily done
+	 * by other way than mimicking list to get advantage of {@link java.util.AbstractList#sort(Comparator)} function
+	 * that accepts external comparator.
+	 */
+	@RequiredArgsConstructor
+	private static class ArrayWrapper<T> extends AbstractList<T> {
+		@Getter private final T[] elements;
+
+		@Override
+		public T get(int index) {
+			return elements[index];
+		}
+
+		@Override
+		public T set(int index, T element) {
+			T v = elements[index];
+			elements[index] = element;
+			return v;
+		}
+
+		@Override
+		public boolean equals(Object o) {
+			if (this == o) return true;
+			if (o == null || getClass() != o.getClass()) return false;
+			if (!super.equals(o)) return false;
+			//noinspection unchecked
+			ArrayWrapper<T> otherElements = (ArrayWrapper<T>) o;
+			return Arrays.equals(elements, otherElements.elements);
 		}
 
 		@Override

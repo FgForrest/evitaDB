@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -121,6 +121,51 @@ public class EntityByAttributeFilteringFunctionalTest {
 
 	private static final int SEED = 40;
 
+	static void assertSortedAndPagedResultIs(List<SealedEntity> originalProductEntities, List<EntityReference> records, Predicate<SealedEntity> predicate, Comparator<SealedEntity> comparator, int skip, int limit) {
+		assertSortedResultEquals(
+			records.stream().map(EntityReference::getPrimaryKey).collect(Collectors.toList()),
+			originalProductEntities.stream()
+				.filter(predicate)
+				.sorted(comparator)
+				.mapToInt(EntityContract::getPrimaryKey)
+				.skip(Math.max(skip, 0))
+				.limit(skip >= 0 ? limit : limit + skip)
+				.toArray()
+		);
+	}
+
+	static void assertSortedResultIs(List<SealedEntity> originalProductEntities, List<EntityReference> records, Predicate<SealedEntity> predicate, Comparator<SealedEntity> comparator) {
+		assertSortedResultIs(originalProductEntities, records, predicate, new PredicateWithComparatorTuple(predicate, comparator));
+	}
+
+	static void assertSortedResultIs(List<SealedEntity> originalProductEntities, List<EntityReference> records, Predicate<SealedEntity> filteringPredicate, PredicateWithComparatorTuple... sortVector) {
+		final List<Predicate<SealedEntity>> previousPredicateAcc = new ArrayList<>();
+		final List<SealedEntity> expectedSortedRecords = Stream.concat(
+				Arrays.stream(sortVector)
+					.flatMap(it -> {
+						final List<SealedEntity> subResult = originalProductEntities
+							.stream()
+							.filter(filteringPredicate)
+							.filter(entity -> previousPredicateAcc.stream().noneMatch(predicate -> predicate.test(entity)))
+							.filter(it.predicate())
+							.sorted(it.comparator()).toList();
+						previousPredicateAcc.add(it.predicate());
+						return subResult.stream();
+					}),
+				// append entities that don't match any predicate
+				originalProductEntities
+					.stream()
+					.filter(filteringPredicate)
+					.filter(entity -> previousPredicateAcc.stream().noneMatch(predicate -> predicate.test(entity)))
+			)
+			.toList();
+
+		assertSortedResultEquals(
+			records.stream().map(EntityReference::getPrimaryKey).collect(Collectors.toList()),
+			expectedSortedRecords.stream().mapToInt(EntityContract::getPrimaryKey).toArray()
+		);
+	}
+
 	/**
 	 * Verifies histogram integrity against source entities.
 	 */
@@ -171,7 +216,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 				assertTrue(bucket.requested());
 			} else if (
 				(from == null || from.compareTo(bucket.threshold()) <= 0) &&
-				(to == null || to.compareTo(bucket.threshold()) >= 0)) {
+					(to == null || to.compareTo(bucket.threshold()) >= 0)) {
 				assertTrue(bucket.requested());
 			} else {
 				assertFalse(bucket.requested());
@@ -1033,8 +1078,39 @@ public class EntityByAttributeFilteringFunctionalTest {
 				);
 				assertResultIs(
 					originalProductEntities,
-					sealedEntity -> ofNullable(sealedEntity.getAttribute(ATTRIBUTE_CREATED))
-						.map(createdAttribute::equals)
+					sealedEntity -> ofNullable(sealedEntity.getAttribute(ATTRIBUTE_CREATED, OffsetDateTime.class))
+						.map(createdAttribute::isEqual)
+						.orElse(false),
+					result.getRecordData()
+				);
+				return null;
+			}
+		);
+
+		// transform the time to different offset but exact the same moment
+		final OffsetDateTime createdAttributeInDifferentTimeZone = OffsetDateTime.ofInstant(createdAttribute.toInstant(), ZoneOffset.ofHours(3));
+		assertTrue(createdAttribute.isEqual(createdAttributeInDifferentTimeZone));
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							attributeEquals(ATTRIBUTE_CREATED, createdAttributeInDifferentTimeZone)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+				assertResultIs(
+					originalProductEntities,
+					sealedEntity -> ofNullable(sealedEntity.getAttribute(ATTRIBUTE_CREATED, OffsetDateTime.class))
+						.map(it -> it.isEqual(createdAttribute))
 						.orElse(false),
 					result.getRecordData()
 				);
@@ -2005,6 +2081,71 @@ public class EntityByAttributeFilteringFunctionalTest {
 		);
 	}
 
+	@DisplayName("Should return entities by offset date time attribute lesserThanOrEquals")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnEntitiesByOffsetDateTimeAttributeLesserThanOrEqualsTo(Evita evita, List<SealedEntity> originalProductEntities) {
+		final OffsetDateTime createdAttribute = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_CREATED);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							attributeLessThanEquals(ATTRIBUTE_CREATED, createdAttribute)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+				assertResultIs(
+					originalProductEntities,
+					sealedEntity -> ofNullable(sealedEntity.getAttribute(ATTRIBUTE_CREATED, OffsetDateTime.class))
+						.map(it -> it.isEqual(createdAttribute) || it.isBefore(createdAttribute))
+						.orElse(false),
+					result.getRecordData()
+				);
+				return null;
+			}
+		);
+
+		// transform the time to different offset but exact the same moment
+		final OffsetDateTime createdAttributeInDifferentTimeZone = OffsetDateTime.ofInstant(createdAttribute.toInstant(), ZoneOffset.ofHours(3));
+		assertTrue(createdAttribute.isEqual(createdAttributeInDifferentTimeZone));
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							attributeLessThanEquals(ATTRIBUTE_CREATED, createdAttributeInDifferentTimeZone)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+				assertResultIs(
+					originalProductEntities,
+					sealedEntity -> ofNullable(sealedEntity.getAttribute(ATTRIBUTE_CREATED, OffsetDateTime.class))
+						.map(it -> it.isEqual(createdAttribute) || it.isBefore(createdAttribute))
+						.orElse(false),
+					result.getRecordData()
+				);
+				return null;
+			}
+		);
+	}
+
 	@DisplayName("Should return entities by lesser than attribute (NumberRange) with plain value")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
@@ -2381,6 +2522,71 @@ public class EntityByAttributeFilteringFunctionalTest {
 		);
 	}
 
+	@DisplayName("Should return entities by offset date time attribute greaterThanOrEquals")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnEntitiesByOffsetDateTimeAttributeGreaterThanOrEqualsTo(Evita evita, List<SealedEntity> originalProductEntities) {
+		final OffsetDateTime createdAttribute = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_CREATED);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							attributeGreaterThanEquals(ATTRIBUTE_CREATED, createdAttribute)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+				assertResultIs(
+					originalProductEntities,
+					sealedEntity -> ofNullable(sealedEntity.getAttribute(ATTRIBUTE_CREATED, OffsetDateTime.class))
+						.map(it -> it.isEqual(createdAttribute) || it.isAfter(createdAttribute))
+						.orElse(false),
+					result.getRecordData()
+				);
+				return null;
+			}
+		);
+
+		// transform the time to different offset but exact the same moment
+		final OffsetDateTime createdAttributeInDifferentTimeZone = OffsetDateTime.ofInstant(createdAttribute.toInstant(), ZoneOffset.ofHours(3));
+		assertTrue(createdAttribute.isEqual(createdAttributeInDifferentTimeZone));
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							attributeGreaterThanEquals(ATTRIBUTE_CREATED, createdAttributeInDifferentTimeZone)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+				assertResultIs(
+					originalProductEntities,
+					sealedEntity -> ofNullable(sealedEntity.getAttribute(ATTRIBUTE_CREATED, OffsetDateTime.class))
+						.map(it -> it.isEqual(createdAttribute) || it.isAfter(createdAttribute))
+						.orElse(false),
+					result.getRecordData()
+				);
+				return null;
+			}
+		);
+	}
+
 	@DisplayName("Should return entities by string attribute greaterThanEquals")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
@@ -2439,6 +2645,46 @@ public class EntityByAttributeFilteringFunctionalTest {
 					originalProductEntities,
 					sealedEntity -> ofNullable((DateTimeRange) sealedEntity.getAttribute(ATTRIBUTE_VALIDITY))
 						.map(it -> it.isValidFor(theMoment))
+						.orElse(false),
+					result.getRecordData()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return entities greater than date time range")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnEntitiesByAttributeDateTimeRangeGreaterThanMoment(Evita evita, List<SealedEntity> originalProductEntities) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final List<OffsetDateTime> allValidities = originalProductEntities.stream()
+					.map(it -> it.getAttribute(ATTRIBUTE_VALIDITY, DateTimeRange.class))
+					.filter(Objects::nonNull)
+					.map(DateTimeRange::getPreciseFrom)
+					.distinct()
+					.sorted()
+					.toList();
+				final OffsetDateTime theMoment = allValidities.get(allValidities.size() / 2);
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							attributeGreaterThan(ATTRIBUTE_VALIDITY, theMoment)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+				assertResultIs(
+					originalProductEntities,
+					sealedEntity -> ofNullable((DateTimeRange) sealedEntity.getAttribute(ATTRIBUTE_VALIDITY))
+						.map(it -> it.compareTo(DateTimeRange.between(theMoment, theMoment)) > 0)
 						.orElse(false),
 					result.getRecordData()
 				);
@@ -3699,9 +3945,9 @@ public class EntityByAttributeFilteringFunctionalTest {
 					)
 					.toArray(Integer[]::new);
 
-				final String[] exactCodeOrder = Arrays.copyOfRange(randomCodesStartingWithE, 0, (int)(randomCodesStartingWithE.length * 0.5));
-				final Integer[] exactOrder = Arrays.copyOfRange(randomProductIdsStartingWithE, 0, (int)(randomProductIdsStartingWithE.length * 0.5));
-				final Integer[] theRest = Arrays.copyOfRange(randomProductIdsStartingWithE, (int)(randomProductIdsStartingWithE.length * 0.5), randomProductIdsStartingWithE.length);
+				final String[] exactCodeOrder = Arrays.copyOfRange(randomCodesStartingWithE, 0, (int) (randomCodesStartingWithE.length * 0.5));
+				final Integer[] exactOrder = Arrays.copyOfRange(randomProductIdsStartingWithE, 0, (int) (randomProductIdsStartingWithE.length * 0.5));
+				final Integer[] theRest = Arrays.copyOfRange(randomProductIdsStartingWithE, (int) (randomProductIdsStartingWithE.length * 0.5), randomProductIdsStartingWithE.length);
 				ArrayUtils.reverse(exactOrder);
 				ArrayUtils.reverse(exactCodeOrder);
 
@@ -4206,6 +4452,10 @@ public class EntityByAttributeFilteringFunctionalTest {
 		);
 	}
 
+	/*
+		HELPER METHODS AND ASSERTIONS
+	 */
+
 	@DisplayName("Should return entities by complex OR / NOT query")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
@@ -4328,10 +4578,6 @@ public class EntityByAttributeFilteringFunctionalTest {
 		);
 	}
 
-	/*
-		HELPER METHODS AND ASSERTIONS
-	 */
-
 	private EvitaResponse<EntityReference> getByAttributeSize(EvitaSessionContract session, int size) {
 		return session.query(
 			query(
@@ -4398,51 +4644,6 @@ public class EntityByAttributeFilteringFunctionalTest {
 			.skip(10)
 			.findFirst()
 			.orElseThrow(() -> new IllegalStateException("Failed to localize `" + attributeName + "` attribute!"));
-	}
-
-	static void assertSortedAndPagedResultIs(List<SealedEntity> originalProductEntities, List<EntityReference> records, Predicate<SealedEntity> predicate, Comparator<SealedEntity> comparator, int skip, int limit) {
-		assertSortedResultEquals(
-			records.stream().map(EntityReference::getPrimaryKey).collect(Collectors.toList()),
-			originalProductEntities.stream()
-				.filter(predicate)
-				.sorted(comparator)
-				.mapToInt(EntityContract::getPrimaryKey)
-				.skip(Math.max(skip, 0))
-				.limit(skip >= 0 ? limit : limit + skip)
-				.toArray()
-		);
-	}
-
-	static void assertSortedResultIs(List<SealedEntity> originalProductEntities, List<EntityReference> records, Predicate<SealedEntity> predicate, Comparator<SealedEntity> comparator) {
-		assertSortedResultIs(originalProductEntities, records, predicate, new PredicateWithComparatorTuple(predicate, comparator));
-	}
-
-	static void assertSortedResultIs(List<SealedEntity> originalProductEntities, List<EntityReference> records, Predicate<SealedEntity> filteringPredicate, PredicateWithComparatorTuple... sortVector) {
-		final List<Predicate<SealedEntity>> previousPredicateAcc = new ArrayList<>();
-		final List<SealedEntity> expectedSortedRecords = Stream.concat(
-				Arrays.stream(sortVector)
-					.flatMap(it -> {
-						final List<SealedEntity> subResult = originalProductEntities
-							.stream()
-							.filter(filteringPredicate)
-							.filter(entity -> previousPredicateAcc.stream().noneMatch(predicate -> predicate.test(entity)))
-							.filter(it.predicate())
-							.sorted(it.comparator()).toList();
-						previousPredicateAcc.add(it.predicate());
-						return subResult.stream();
-					}),
-				// append entities that don't match any predicate
-				originalProductEntities
-					.stream()
-					.filter(filteringPredicate)
-					.filter(entity -> previousPredicateAcc.stream().noneMatch(predicate -> predicate.test(entity)))
-			)
-			.toList();
-
-		assertSortedResultEquals(
-			records.stream().map(EntityReference::getPrimaryKey).collect(Collectors.toList()),
-			expectedSortedRecords.stream().mapToInt(EntityContract::getPrimaryKey).toArray()
-		);
 	}
 
 	public record PredicateWithComparatorTuple(Predicate<SealedEntity> predicate, Comparator<SealedEntity> comparator) {

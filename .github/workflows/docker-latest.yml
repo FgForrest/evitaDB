@@ -14,14 +14,23 @@ jobs:
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
       - uses: actions/checkout@v3        # checkout from Git
+        with:
+          ref: master  # Always checks out the master branch (due to config file)
 
-      - name: Download a single artifact # download `evita-server.jar` artifact if the workflow we react to was successful
+      - name: Download a JAR file to deploy # download `evita-server.jar` artifact if the workflow we react to was successful
         uses: dawidd6/action-download-artifact@v2
         with:
           workflow: ${{ github.event.workflow_run.workflow_id }}
           workflow_conclusion: success
           name: evita-server.jar
           path: docker
+
+      - name: Download a version information # download `version.txt` artifact if the workflow we react to was successful
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          workflow: ${{ github.event.workflow_run.workflow_id }}
+          workflow_conclusion: success
+          name: version.txt
 
       - name: Set up QEMU
         # Add support for more platforms with QEMU (optional)
@@ -40,6 +49,16 @@ jobs:
           username: ${{ vars.CI_REGISTRY_USER }}
           password: ${{ secrets.CI_REGISTRY_PASSWORD }}
 
+      - name: Extract major version
+        id: major_version
+        # create a new output variable with the major version (like 2024.4)
+        run: |        
+          echo "fullVersion=$(cat version.txt)"
+          echo "fullVersion=$(cat version.txt)" >> $GITHUB_ENV
+          echo "version=$(cat version.txt | cut -d'.' -f1,2)"
+          echo "version=$(cat version.txt | cut -d'.' -f1,2)" >> $GITHUB_ENV    
+          echo "releaseDate=$(date +%Y-%m-%d)" >> $GITHUB_ENV    
+
       - name: Build and push Docker image
         env:
           RELEASE_IMAGE: "evitadb:latest"
@@ -50,7 +69,13 @@ jobs:
           file: ./docker/Dockerfile
           pull: true
           push: true
-          tags: ${{ vars.CI_REGISTRY_USER }}/${{ env.RELEASE_IMAGE }}
+          # push the image with two tags: latest and the version from the version.txt file
+          tags: |
+            ${{ vars.CI_REGISTRY_USER }}/${{ env.RELEASE_IMAGE }}
+            ${{ vars.CI_REGISTRY_USER }}/evitadb:${{ env.version }}
+            ${{ vars.CI_REGISTRY_USER }}/evitadb:${{ env.fullVersion }}
           platforms: linux/amd64,linux/arm64/v8
           build-args: |
             EVITA_JAR_NAME=${{ env.EVITA_JAR_NAME }}
+            VERSION=${{ env.fullVersion }}
+            RELEASE_DATE=${{ env.releaseDate }}

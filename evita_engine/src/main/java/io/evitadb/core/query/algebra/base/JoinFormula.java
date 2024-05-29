@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -25,12 +25,12 @@ package io.evitadb.core.query.algebra.base;
 
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.index.array.CompositeIntArray;
+import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
+import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.index.bitmap.ArrayBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
-import io.evitadb.index.transactionalMemory.TransactionalLayerProducer;
 import io.evitadb.utils.Assert;
 import lombok.Data;
 import net.openhft.hashing.LongHashFunction;
@@ -172,6 +172,12 @@ public class JoinFormula extends AbstractFormula {
 
 	@Override
 	public String toString() {
+		return "JOIN: " + Arrays.stream(bitmaps).map(it -> String.valueOf(it.size())).collect(Collectors.joining(", ")) + " primary keys";
+	}
+
+	@Nonnull
+	@Override
+	public String toStringVerbose() {
 		return "JOIN: " + Arrays.stream(bitmaps).map(Bitmap::toString).collect(Collectors.joining(", "));
 	}
 

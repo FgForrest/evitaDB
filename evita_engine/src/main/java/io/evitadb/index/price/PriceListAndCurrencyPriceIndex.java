@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -26,21 +26,22 @@ package io.evitadb.index.price;
 import io.evitadb.core.query.SharedBufferPool;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.price.priceIndex.PriceIdContainerFormula;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
+import io.evitadb.dataType.array.CompositeObjectArray;
+import io.evitadb.dataType.iterator.BatchArrayIterator;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.IndexDataStructure;
-import io.evitadb.index.array.CompositeObjectArray;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
-import io.evitadb.index.iterator.BatchArrayIterator;
 import io.evitadb.index.iterator.RoaringBitmapBatchArrayIterator;
 import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
-import io.evitadb.index.transactionalMemory.TransactionalLayerProducer;
 import io.evitadb.store.model.StoragePart;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Serial;
 import java.io.Serializable;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
@@ -65,25 +66,25 @@ public interface PriceListAndCurrencyPriceIndex<DIFF_PIECE, COPY> extends IndexD
 	 * Returns bitmap of all indexed records of this combination of price list and currency.
 	 */
 	@Nonnull
-	Bitmap getIndexedPriceEntityIds();
+	Bitmap getIndexedPriceEntityIds() throws PriceListAndCurrencyPriceIndexTerminated;
 
 	/**
 	 * Returns bitmap of all indexed price ids.
 	 */
 	@Nonnull
-	int[] getIndexedPriceIds();
+	int[] getIndexedPriceIds() throws PriceListAndCurrencyPriceIndexTerminated;
 
 	/**
 	 * Returns array of {@link PriceRecordContract} for passed bitmap of ids.
 	 */
 	@Nonnull
-	default PriceRecordContract[] getPriceRecords(@Nonnull Bitmap priceIds) {
+	default PriceRecordContract[] getPriceRecords(@Nonnull Bitmap priceIds)  throws PriceListAndCurrencyPriceIndexTerminated {
 		return getPriceRecords(
 			priceIds,
 			priceRecordContract -> {
 			},
 			notFoundPriceId -> {
-				throw new EvitaInternalError("Price with id " + notFoundPriceId + " was not found in the same index!");
+				throw new GenericEvitaInternalError("Price with id " + notFoundPriceId + " was not found in the same index!");
 			}
 		);
 	}
@@ -96,7 +97,7 @@ public interface PriceListAndCurrencyPriceIndex<DIFF_PIECE, COPY> extends IndexD
 		@Nonnull Bitmap priceIds,
 		@Nonnull Consumer<PriceRecordContract> priceFoundCallback,
 		@Nonnull IntConsumer priceIdNotFoundCallback
-	) {
+	)  throws PriceListAndCurrencyPriceIndexTerminated {
 		// TOBEDONE JNO - there is also an issue https://github.com/RoaringBitmap/RoaringBitmap/issues/562 that could make this algorithm faster
 		final CompositeObjectArray<PriceRecordContract> filteredPriceRecords = new CompositeObjectArray<>(PriceRecordContract.class);
 		final int[] buffer = SharedBufferPool.INSTANCE.obtain();
@@ -187,50 +188,73 @@ public interface PriceListAndCurrencyPriceIndex<DIFF_PIECE, COPY> extends IndexD
 	 * Returns formula that computes all indexed records of this combination of price list and currency.
 	 */
 	@Nonnull
-	Formula getIndexedPriceEntityIdsFormula();
+	Formula getIndexedPriceEntityIdsFormula() throws PriceListAndCurrencyPriceIndexTerminated;
 
 	/**
 	 * Returns formula that computes all indexed records of this combination of price list and currency that are valid
 	 * at the passed moment.
 	 */
 	@Nonnull
-	PriceIdContainerFormula getIndexedRecordIdsValidInFormula(OffsetDateTime theMoment);
+	PriceIdContainerFormula getIndexedRecordIdsValidInFormula(@Nonnull OffsetDateTime theMoment) throws PriceListAndCurrencyPriceIndexTerminated;
 
 	/**
 	 * Returns array of all {@link PriceRecord#internalPriceId()} of the entity.
 	 */
 	@Nullable
-	int[] getInternalPriceIdsForEntity(int entityId);
+	int[] getInternalPriceIdsForEntity(int entityId) throws PriceListAndCurrencyPriceIndexTerminated;
 
 	/**
 	 * Returns array of the lowest prices distinct by {@link PriceRecordContract#innerRecordId()} that exists in this
 	 * index and that belong to the particular entity sorted by price id.
 	 */
 	@Nullable
-	PriceRecordContract[] getLowestPriceRecordsForEntity(int entityId);
+	PriceRecordContract[] getLowestPriceRecordsForEntity(int entityId) throws PriceListAndCurrencyPriceIndexTerminated;
 
 	/**
 	 * Returns array of all prices in this index ordered by price id in ascending order.
 	 */
 	@Nonnull
-	PriceRecordContract[] getPriceRecords();
+	PriceRecordContract[] getPriceRecords() throws PriceListAndCurrencyPriceIndexTerminated;
 
 	/**
 	 * Returns formula that computes all indexed records in this index. Depending on the type of the index it returns
 	 * either entity ids or inner record ids.
 	 */
 	@Nonnull
-	Formula createPriceIndexFormulaWithAllRecords();
+	Formula createPriceIndexFormulaWithAllRecords() throws PriceListAndCurrencyPriceIndexTerminated;
 
 	/**
 	 * Returns true if index is empty.
 	 */
-	boolean isEmpty();
+	boolean isEmpty() throws PriceListAndCurrencyPriceIndexTerminated;
 
 	/**
 	 * Method creates container for storing any of price related indexes from memory to the persistent storage.
 	 */
 	@Nullable
-	StoragePart createStoragePart(int entityIndexPrimaryKey);
+	StoragePart createStoragePart(int entityIndexPrimaryKey) throws PriceListAndCurrencyPriceIndexTerminated;
+
+	/**
+	 * Returns true if index is terminated.
+	 * @return true if index is terminated
+	 */
+	boolean isTerminated();
+
+	/**
+	 * Sets price index as terminated.
+	 */
+	void terminate();
+
+	/**
+	 * Exception is thrown when outside logic tries to work with terminated price index.
+	 */
+	class PriceListAndCurrencyPriceIndexTerminated extends RuntimeException {
+		@Serial private static final long serialVersionUID = 1551590894819222190L;
+
+		public PriceListAndCurrencyPriceIndexTerminated(@Nonnull String message) {
+			super(message);
+		}
+
+	}
 
 }

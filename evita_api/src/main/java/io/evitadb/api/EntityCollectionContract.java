@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -44,7 +44,6 @@ import io.evitadb.exception.EvitaInvalidUsageException;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
 
@@ -261,6 +260,12 @@ public interface EntityCollectionContract {
 	SealedEntitySchema getSchema();
 
 	/**
+	 * Applies mutation to the entity collection. This is a generic method that accepts any mutation and tries to apply
+	 * it to the collection. If the mutation is not applicable to the catalog, exception is thrown.
+	 */
+	void applyMutation(@Nonnull EntityMutation entityMutation) throws InvalidMutationException;
+
+	/**
 	 * Alters existing schema applying passed schema mutation.
 	 *
 	 * @return new updated schema
@@ -286,8 +291,4 @@ public interface EntityCollectionContract {
 	 */
 	void terminate();
 
-	/**
-	 * Returns iterator that allows to iterate through all entities in the store.
-	 */
-	Iterator<Entity> entityIterator();
 }

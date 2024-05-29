@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -29,7 +29,7 @@ import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.index.attribute.FilterIndex;
-import io.evitadb.index.invertedIndex.InvertedIndex;
+import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.index.range.RangeIndex;
 import io.evitadb.store.service.KeyCompressor;
 import io.evitadb.store.spi.model.storageParts.index.FilterIndexStoragePart;
@@ -48,12 +48,18 @@ public class FilterIndexStoragePartSerializer extends Serializer<FilterIndexStor
 	@Override
 	public void write(Kryo kryo, Output output, FilterIndexStoragePart filterIndex) {
 		output.writeInt(filterIndex.getEntityIndexPrimaryKey());
-		final Long uniquePartId = filterIndex.getUniquePartId();
+		final Long uniquePartId = filterIndex.getStoragePartPK();
 		Assert.notNull(uniquePartId, "Unique part id should have been computed by now!");
 		output.writeVarLong(uniquePartId, true);
 		output.writeVarInt(keyCompressor.getId(filterIndex.getAttributeKey()), true);
+		kryo.writeClass(output, filterIndex.getAttributeType());
 
-		kryo.writeObject(output, filterIndex.getHistogram());
+		final ValueToRecordBitmap[] points = filterIndex.getHistogramPoints();
+		output.writeInt(points.length);
+		for (ValueToRecordBitmap range : points) {
+			kryo.writeObject(output, range);
+		}
+
 		final boolean rangeIndex = filterIndex.getRangeIndex() != null;
 		output.writeBoolean(rangeIndex);
 		if (rangeIndex) {
@@ -66,14 +72,20 @@ public class FilterIndexStoragePartSerializer extends Serializer<FilterIndexStor
 		final int entityIndexPrimaryKey = input.readInt();
 		final long uniquePartId = input.readVarLong(true);
 		final AttributeKey attributeKey = keyCompressor.getKeyForId(input.readVarInt(true));
+		final Class<?> attributeType = kryo.readClass(input).getType();
 
-		final InvertedIndex<?> histogramIndex = kryo.readObject(input, InvertedIndex.class);
+		final int pointCount = input.readInt();
+		final ValueToRecordBitmap[] points = new ValueToRecordBitmap[pointCount];
+		for (int i = 0; i < pointCount; i++) {
+			points[i] = kryo.readObject(input, ValueToRecordBitmap.class);
+		}
+
 		final boolean hasRangeIndex = input.readBoolean();
 		if (hasRangeIndex) {
 			final RangeIndex intRangeIndex = kryo.readObject(input, RangeIndex.class);
-			return new FilterIndexStoragePart(entityIndexPrimaryKey, attributeKey, histogramIndex, intRangeIndex, uniquePartId);
+			return new FilterIndexStoragePart(entityIndexPrimaryKey, attributeKey, attributeType, points, intRangeIndex, uniquePartId);
 		} else {
-			return new FilterIndexStoragePart(entityIndexPrimaryKey, attributeKey, histogramIndex, null, uniquePartId);
+			return new FilterIndexStoragePart(entityIndexPrimaryKey, attributeKey, attributeType, points, null, uniquePartId);
 		}
 	}
 

@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -28,7 +28,7 @@ import io.evitadb.api.query.descriptor.ConstraintCreator.FixedImplicitClassifier
 import io.evitadb.api.query.descriptor.ConstraintCreator.ImplicitClassifier;
 import io.evitadb.api.query.descriptor.ConstraintCreator.SilentImplicitClassifier;
 import io.evitadb.dataType.EvitaDataTypes;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
@@ -115,7 +115,7 @@ public class ConstraintDescriptorProvider {
 					} else if (implicitClassifier.get() instanceof final FixedImplicitClassifier fixedImplicitClassifier) {
 						return fixedImplicitClassifier.classifier().equals(classifier);
 					} else {
-						throw new EvitaInternalError("Unsupported implicit classifier class.");
+						throw new GenericEvitaInternalError("Unsupported implicit classifier class.");
 					}
 				}
 				if (creator.hasClassifierParameter()) {
@@ -151,7 +151,7 @@ public class ConstraintDescriptorProvider {
 			})
 			.findFirst()
 			.orElseThrow(() ->
-				new EvitaInternalError("Unknown constraint `" + constraintClass.getName() + "` with suffix `" + suffix + "`. Is it properly registered?"));
+				new GenericEvitaInternalError("Unknown constraint `" + constraintClass.getName() + "` with suffix `" + suffix + "`. Is it properly registered?"));
 	}
 
 	@Nonnull
@@ -196,15 +196,30 @@ public class ConstraintDescriptorProvider {
 	                                                       @Nonnull ConstraintPropertyType requiredPropertyType,
 														   @Nonnull ConstraintDomain requiredSupportedDomain,
                                                            @Nonnull Class<?> requiredSupportedValueType,
-                                                           boolean arraySupportRequired) {
+                                                           boolean arraySupportRequired,
+	                                                       boolean nullableData) {
 		return CONSTRAINT_DESCRIPTORS.stream()
 			.filter(cd -> cd.type().equals(requiredType) &&
 				cd.propertyType().equals(requiredPropertyType) &&
 				cd.supportedIn().contains(requiredSupportedDomain) &&
 				cd.supportedValues() != null &&
 				cd.supportedValues().dataTypes().contains(requiredSupportedValueType.isPrimitive() ? EvitaDataTypes.getWrappingPrimitiveClass(requiredSupportedValueType) : requiredSupportedValueType) &&
+				verifyNullabilitySupport(cd.supportedValues().nullability(), nullableData) &&
 				(!arraySupportRequired || cd.supportedValues().supportsArrays()))
 			.collect(Collectors.toUnmodifiableSet());
+	}
+
+	/**
+	 * Verifies if nullability support of constraint matches nullability setting of data.
+	 */
+	private static boolean verifyNullabilitySupport(@Nonnull ConstraintNullabilitySupport nullabilitySupport, boolean nullableData) {
+		if (nullabilitySupport.equals(ConstraintNullabilitySupport.ONLY_NULLABLE)) {
+			return nullableData;
+		} else if (nullabilitySupport.equals(ConstraintNullabilitySupport.ONLY_NONNULL)) {
+			return !nullableData;
+		} else {
+			return true;
+		}
 	}
 
 	/**

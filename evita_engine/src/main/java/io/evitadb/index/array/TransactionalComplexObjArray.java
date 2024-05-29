@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -24,10 +24,10 @@
 package io.evitadb.index.array;
 
 import io.evitadb.core.Transaction;
-import io.evitadb.index.iterator.ConstantObjIterator;
-import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
-import io.evitadb.index.transactionalMemory.TransactionalLayerProducer;
-import io.evitadb.index.transactionalMemory.TransactionalObjectVersion;
+import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
+import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
+import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
+import io.evitadb.dataType.iterator.ConstantObjIterator;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.ArrayUtils.InsertionPosition;
 import lombok.Getter;
@@ -36,12 +36,12 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.lang.reflect.Array;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
 import java.util.function.Predicate;
 
-import static io.evitadb.core.Transaction.getTransactionalMemoryLayer;
 import static io.evitadb.core.Transaction.getTransactionalMemoryLayerIfExists;
 import static io.evitadb.core.Transaction.isTransactionAvailable;
 import static java.util.Optional.ofNullable;
@@ -66,11 +66,16 @@ public class TransactionalComplexObjArray<T extends TransactionalObject<T, ?> & 
 	private final boolean transactionalLayerProducer;
 	private final BiConsumer<T, T> producer;
 	private final BiConsumer<T, T> reducer;
+	private final Comparator<T> comparator;
 	private final BiPredicate<T, T> deepComparator;
 	private final Predicate<T> obsoleteChecker;
 	private T[] delegate;
 
 	public TransactionalComplexObjArray(@Nonnull T[] delegate) {
+		this(delegate, Comparator.naturalOrder());
+	}
+
+	public TransactionalComplexObjArray(@Nonnull T[] delegate, @Nonnull Comparator<T> comparator) {
 		//noinspection unchecked
 		this.objectType = (Class<T>) delegate.getClass().getComponentType();
 		this.transactionalLayerProducer = TransactionalLayerProducer.class.isAssignableFrom(objectType);
@@ -78,10 +83,32 @@ public class TransactionalComplexObjArray<T extends TransactionalObject<T, ?> & 
 		this.producer = null;
 		this.reducer = null;
 		this.obsoleteChecker = null;
+		this.comparator = comparator;
 		this.deepComparator = null;
 	}
 
-	public TransactionalComplexObjArray(@Nonnull T[] delegate, @Nonnull BiConsumer<T, T> producer, @Nonnull BiConsumer<T, T> reducer, @Nonnull Predicate<T> obsoleteChecker, @Nonnull BiPredicate<T, T> deepComparator) {
+	public TransactionalComplexObjArray(
+		@Nonnull T[] delegate,
+		@Nonnull BiConsumer<T, T> producer,
+		@Nonnull BiConsumer<T, T> reducer,
+		@Nonnull Predicate<T> obsoleteChecker,
+		@Nonnull BiPredicate<T, T> deepComparator
+	) {
+		this(
+			delegate,
+			producer, reducer, obsoleteChecker,
+			Comparator.naturalOrder(), deepComparator
+		);
+	}
+
+	public TransactionalComplexObjArray(
+		@Nonnull T[] delegate,
+		@Nonnull BiConsumer<T, T> producer,
+		@Nonnull BiConsumer<T, T> reducer,
+		@Nonnull Predicate<T> obsoleteChecker,
+		@Nonnull Comparator<T> comparator,
+		@Nonnull BiPredicate<T, T> deepComparator
+	) {
 		//noinspection unchecked
 		this.objectType = (Class<T>) delegate.getClass().getComponentType();
 		this.transactionalLayerProducer = TransactionalLayerProducer.class.isAssignableFrom(objectType);
@@ -89,6 +116,7 @@ public class TransactionalComplexObjArray<T extends TransactionalObject<T, ?> & 
 		this.producer = producer;
 		this.reducer = reducer;
 		this.obsoleteChecker = obsoleteChecker;
+		this.comparator = comparator;
 		this.deepComparator = deepComparator;
 	}
 
@@ -124,8 +152,8 @@ public class TransactionalComplexObjArray<T extends TransactionalObject<T, ?> & 
 			return;
 		}
 
-		final ComplexObjArrayChanges<T> layer = getTransactionalMemoryLayer(this);
-		final InsertionPosition position = ArrayUtils.computeInsertPositionOfObjInOrderedArray(recordId, this.delegate);
+		final ComplexObjArrayChanges<T> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
+		final InsertionPosition position = ArrayUtils.computeInsertPositionOfObjInOrderedArray(recordId, this.delegate, this.comparator);
 		if (layer == null) {
 			if (position.alreadyPresent()) {
 				if (producer != null) {
@@ -150,8 +178,8 @@ public class TransactionalComplexObjArray<T extends TransactionalObject<T, ?> & 
 			return -1;
 		}
 
-		final ComplexObjArrayChanges<T> layer = getTransactionalMemoryLayer(this);
-		final InsertionPosition position = ArrayUtils.computeInsertPositionOfObjInOrderedArray(recordId, this.delegate);
+		final ComplexObjArrayChanges<T> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
+		final InsertionPosition position = ArrayUtils.computeInsertPositionOfObjInOrderedArray(recordId, this.delegate, this.comparator);
 		if (layer == null) {
 			if (position.alreadyPresent()) {
 				if (producer != null) {
@@ -186,8 +214,8 @@ public class TransactionalComplexObjArray<T extends TransactionalObject<T, ?> & 
 			return -1;
 		}
 
-		final ComplexObjArrayChanges<T> layer = getTransactionalMemoryLayer(this);
-		final InsertionPosition position = ArrayUtils.computeInsertPositionOfObjInOrderedArray(recordId, this.delegate);
+		final ComplexObjArrayChanges<T> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
+		final InsertionPosition position = ArrayUtils.computeInsertPositionOfObjInOrderedArray(recordId, this.delegate, this.comparator);
 		if (layer == null) {
 			if (position.alreadyPresent()) {
 				T original = this.delegate[position.position()];
@@ -196,10 +224,10 @@ public class TransactionalComplexObjArray<T extends TransactionalObject<T, ?> & 
 				}
 				if (obsoleteChecker != null) {
 					if (obsoleteChecker.test(original)) {
-						this.delegate = ArrayUtils.removeRecordFromOrderedArray(recordId, this.delegate);
+						this.delegate = ArrayUtils.removeRecordFromArrayOnIndex(this.delegate, position.position());
 					}
 				} else {
-					this.delegate = ArrayUtils.removeRecordFromOrderedArray(recordId, this.delegate);
+					this.delegate = ArrayUtils.removeRecordFromArrayOnIndex(this.delegate, position.position());
 				}
 				return position.position();
 			}
@@ -295,15 +323,15 @@ public class TransactionalComplexObjArray<T extends TransactionalObject<T, ?> & 
 	@Override
 	public ComplexObjArrayChanges<T> createLayer() {
 		if (producer != null) {
-			return isTransactionAvailable() ? new ComplexObjArrayChanges<>(objectType, delegate, producer, reducer, obsoleteChecker, deepComparator) : null;
+			return isTransactionAvailable() ? new ComplexObjArrayChanges<>(objectType, comparator, delegate, producer, reducer, obsoleteChecker, deepComparator) : null;
 		} else {
-			return isTransactionAvailable() ? new ComplexObjArrayChanges<>(objectType, delegate) : null;
+			return isTransactionAvailable() ? new ComplexObjArrayChanges<>(objectType, comparator, delegate) : null;
 		}
 	}
 
 	@Nonnull
 	@Override
-	public T[] createCopyWithMergedTransactionalMemory(@Nullable ComplexObjArrayChanges<T> layer, @Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Transaction transaction) {
+	public T[] createCopyWithMergedTransactionalMemory(@Nullable ComplexObjArrayChanges<T> layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		if (layer == null) {
 			@SuppressWarnings("unchecked") final T[] copy = (T[]) Array.newInstance(objectType, delegate.length);
 			for (int i = 0; i < delegate.length; i++) {
@@ -312,7 +340,7 @@ public class TransactionalComplexObjArray<T extends TransactionalObject<T, ?> & 
 					@SuppressWarnings("unchecked") final TransactionalLayerProducer<ComplexObjArrayChanges<T>, ?> theProducer = (TransactionalLayerProducer<ComplexObjArrayChanges<T>, ?>) item;
 					//noinspection unchecked
 					item = (T) theProducer.createCopyWithMergedTransactionalMemory(
-						null, transactionalLayer, transaction
+						null, transactionalLayer
 					);
 				}
 				copy[i] = item;

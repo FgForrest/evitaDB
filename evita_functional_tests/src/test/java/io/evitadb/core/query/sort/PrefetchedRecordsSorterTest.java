@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -25,10 +25,10 @@ package io.evitadb.core.query.sort;
 
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
-import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.core.query.QueryContext;
 import io.evitadb.core.query.SharedBufferPool;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
+import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.core.query.sort.attribute.PrefetchedRecordsSorter;
 import io.evitadb.core.query.sort.attribute.translator.AttributeComparator;
 import io.evitadb.core.query.sort.attribute.translator.EntityAttributeExtractor;
@@ -72,7 +72,7 @@ class PrefetchedRecordsSorterTest {
 
 	@BeforeEach
 	void setUp() {
-		final List<EntityDecorator> mockEntities = createMockEntities(7, 2, 4, 1, 3, 8, 5, 9, 6);
+		final List<ServerEntityDecorator> mockEntities = createMockEntities(7, 2, 4, 1, 3, 8, 5, 9, 6);
 		final Map<Integer, SealedEntity> mockEntitiesIndex = mockEntities.stream().collect(Collectors.toMap(EntityContract::getPrimaryKey, Function.identity()));
 		final QueryContext entityQueryContext = Mockito.mock(QueryContext.class);
 		Mockito.when(entityQueryContext.getPrefetchedEntities()).thenReturn(mockEntities);
@@ -131,10 +131,10 @@ class PrefetchedRecordsSorterTest {
 		);
 	}
 
-	private List<EntityDecorator> createMockEntities(int... expectedOrder) {
-		final List<EntityDecorator> result = new ArrayList<>(expectedOrder.length);
+	private List<ServerEntityDecorator> createMockEntities(int... expectedOrder) {
+		final List<ServerEntityDecorator> result = new ArrayList<>(expectedOrder.length);
 		for (int i = 0; i < expectedOrder.length; i++) {
-			final EntityDecorator mock = Mockito.mock(EntityDecorator.class);
+			final ServerEntityDecorator mock = Mockito.mock(ServerEntityDecorator.class);
 			Mockito.when(mock.getPrimaryKey()).thenReturn(expectedOrder[i]);
 			Mockito.when(mock.getAttribute(ATTRIBUTE_NAME_FIRST)).thenReturn(String.valueOf(Character.valueOf((char) (64 + i))));
 			Mockito.when(mock.getAttribute(ATTRIBUTE_NAME_SECOND)).thenReturn(null);
@@ -143,7 +143,7 @@ class PrefetchedRecordsSorterTest {
 
 		final AtomicInteger index = new AtomicInteger();
 		Stream.of(13, 0, 12).forEach(pk -> {
-			final EntityDecorator mock = Mockito.mock(EntityDecorator.class);
+			final ServerEntityDecorator mock = Mockito.mock(ServerEntityDecorator.class);
 			Mockito.when(mock.getPrimaryKey()).thenReturn(pk);
 			Mockito.when(mock.getAttribute(ATTRIBUTE_NAME_FIRST)).thenReturn(null);
 			Mockito.when(mock.getAttribute(ATTRIBUTE_NAME_SECOND)).thenReturn(String.valueOf(Character.valueOf((char) (64 + index.getAndIncrement()))));

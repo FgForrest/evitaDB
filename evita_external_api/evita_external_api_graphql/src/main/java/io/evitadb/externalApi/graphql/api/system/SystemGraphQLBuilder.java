@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -24,10 +24,12 @@
 package io.evitadb.externalApi.graphql.api.system;
 
 import graphql.GraphQL;
+import graphql.execution.instrumentation.Instrumentation;
 import graphql.schema.GraphQLSchema;
 import io.evitadb.api.EvitaContract;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.graphql.api.GraphQLBuilder;
+import io.evitadb.externalApi.graphql.api.catalog.OperationTracingInstrumentation;
 import io.evitadb.externalApi.graphql.api.system.builder.SystemGraphQLSchemaBuilder;
 import io.evitadb.externalApi.graphql.configuration.GraphQLConfig;
 import io.evitadb.externalApi.graphql.exception.EvitaDataFetcherExceptionHandler;
@@ -48,10 +50,13 @@ public class SystemGraphQLBuilder implements GraphQLBuilder {
 
     @Override
     public GraphQL build(@Nonnull GraphQLConfig config) {
+        final Instrumentation instrumentation = new OperationTracingInstrumentation();
+
         final GraphQLSchema schema = new SystemGraphQLSchemaBuilder(config, evita).build();
         final EvitaDataFetcherExceptionHandler dataFetcherExceptionHandler = new EvitaDataFetcherExceptionHandler();
 
         return GraphQL.newGraphQL(schema)
+            .instrumentation(instrumentation)
             .defaultDataFetcherExceptionHandler(dataFetcherExceptionHandler)
             .build();
     }

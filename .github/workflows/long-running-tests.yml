@@ -34,10 +34,6 @@ jobs:
         if: ${{ env.NEW_COMMIT_COUNT > 0 }}
         run: mvn -T 1C -B package -P longRunning -V --fail-at-end -Dmaven.test.skip=false --file pom.xml
 
-      - name: Documentation tests   # this run Maven tests but only if something was committed this day
-        if: ${{ env.NEW_COMMIT_COUNT > 0 }}
-        run: mvn -T 1C -B package -P documentation -Dsurefire.reportNameSuffix=documentation -V --fail-at-end -Dmaven.test.skip=false --file pom.xml
-
       - name: Upload test results  # this upload test results but only if something was committed this day
         uses: actions/upload-artifact@v2
         if: ${{ env.NEW_COMMIT_COUNT > 0 }} && (success() || failure())

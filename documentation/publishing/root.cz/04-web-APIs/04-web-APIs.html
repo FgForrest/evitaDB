@@ -1,0 +1,1027 @@
+<!--
+  ~
+  ~                         _ _        ____  ____
+  ~               _____   _(_) |_ __ _|  _ \| __ )
+  ~              / _ \ \ / / | __/ _` | | | |  _ \
+  ~             |  __/\ V /| | || (_| | |_| | |_) |
+  ~              \___| \_/ |_|\__\__,_|____/|____/
+  ~
+  ~   Copyright (c) 2024
+  ~
+  ~   Licensed under the Business Source License, Version 1.1 (the "License");
+  ~   you may not use this file except in compliance with the License.
+  ~   You may obtain a copy of the License at
+  ~
+  ~   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
+  ~
+  ~   Unless required by applicable law or agreed to in writing, software
+  ~   distributed under the License is distributed on an "AS IS" BASIS,
+  ~   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  ~   See the License for the specific language governing permissions and
+  ~   limitations under the License.
+  -->
+
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+	<meta charset="UTF-8">
+	<title>evitaDB - práce s daty přes webová API</title>
+</head>
+<body>
+<header>
+	<h1>evitaDB - práce s daty přes webová API</h1>
+	<time datetime="2024-04-15">15. dubna 2024</time>
+	<p>
+		Webová API hrají v evitaDB klíčovou roli – řada zásadních rozhodnutí byla učiněna právě s ohledem na jejich
+		dopady na úrovni webových API. Předpokládáme, že právě webová API budou hlavní vstupní branou k uloženým datům.
+	</p>
+</header>
+<article>
+
+	<p>
+		Technologií pro implementaci webových API je celá řada. My jsme chtěli nalézt takové, které pokryjí co největší
+		množství různých platforem a programovacích jazyků, jsou na trhu zavedené a mají dostatečnou podporu v
+		souvisejících knihovnách a dokumentaci.
+	</p>
+	<p>
+		Z historických důvodů jsme sáhli po <a
+			href="https://cs.wikipedia.org/wiki/Representational_State_Transfer">REST</a>, které je v podstatě
+		univerzálním API, a byť je v mnoha ohledech omezené a nešikovné, je prakticky nejrozšířenější technologií napříč
+		internetovými službami a skýtá záruku, že s evitaDB bude schopný komunikovat kdokoliv.
+	</p>
+	<p>
+		V souvislosti s rozmachem JavaScript technologií a jejich postupné penetraci v oblasti webových a mobilních
+		aplikací jsme chtěli poskytnout i komfortnější způsob práce s databází, na který jsou vývojáři v této oblasti
+		zvyklí. V tomto ohledu nám největší smysl dával protokol <a href="https://graphql.org/learn/">GraphQL</a> z
+		dílny Meta (dříve Facebook), který je už řadu let používán jako alternativa k REST a je možné jej velmi dobře
+		použít i z jiných jazyků, než jen z Javascriptu (narozdíl například od <a href="https://trpc.io/">tRPC</a>).
+	</p>
+	<p>
+		Oba výše uvedené protokoly jsou si v řadě ohledů podobné – přenáší data v textové podobě, jsou deklarativní a
+		respektují konkrétní datové zdroje. Oba tyto protokoly se používají v kombinaci se schématem, které dokáže API
+		popsat, a podle kterého je možné vygenerovat základ klienta v různých jazycích. Mohout být ale používané i
+		napřímo přes HTTP protokol, třeba i z příkazové řádky.
+	</p>
+	<p>
+		Chtěli jsme mít i možnost využít protokol postavený na odlišném přístupu, který by obohatil možné portfolio
+		použití o další scénáře, pro které by výše uvedené protokoly nebyly optimální. Pro účely rychlé komunikace v
+		binárním komprimovaném formátu jsme zvolili protokol <a href="https://grpc.io/">gRPC</a> z dílny Google, který
+		je mnohem používanější v meziserverové komunikaci (často v prostředí microservices) a je od počátku navrhován s
+		ohledem na maximální výkon.
+	</p>
+	<p>
+		Pojďme si nejdřív popsat základní konfiguraci a zpřístupnění API v evitaDB a následně probrat specifika každého
+		z těchto protokolů v samostatné kapitole.
+	</p>
+	<h2>Konfigurace protokolů</h2>
+
+
+	<p>
+		Databáze otevírá standardně všechny typy webových API na těchto adresách a portech:
+	</p>
+	<ul>
+		<li>GraphQL: <em>https://host:5555/gql/</em></li>
+		<li>REST: <em>https://host:5555/rest/</em></li>
+		<li>gRPC: <em>https://host:5556/</em></li>
+		</li>
+	</ul>
+	<p>
+		Pokud budete používat jen některé z těchto protokolů, je vhodné ostatní protokoly <a
+			href="https://evitadb.io/documentation/operate/configure#api-configuration">zakázat</a>. API jsou standardně
+		poskytovány pouze na zabezpečeném HTTPS protokolu. Pokud nedodáte vlastní certifikát odpovídající doméně, na
+		které budete databázi provozovat, je automaticky vystaven tzv. <a
+			href="https://cs.wikipedia.org/wiki/Certifik%C3%A1t_podepsan%C3%BD_s%C3%A1m_sebou">self-signed
+		certifikát</a>. Všechny protokoly lze provozovat i na nezabezpečeném HTTP protokolu, což může v některých
+		situacích postačovat (například když máte databázi v dostupnou pouze v interní síti).
+	</p>
+	<p>
+		Každý z protokolů lze kromě zákazu překonfigurovat pro použití jiného než výchozího portu. Aktuálně však není
+		možné provozovat gRPC společně s ostatními protokoly, protože gRPC protokol aktuálně poskytujeme pomocí jiného
+		HTTP serveru (<a href="https://netty.io/">Netty</a>) než ostatní protokoly (<a href="https://undertow.io/">Undertow</a>).
+	</p>
+	<p>
+		<strong><em>Poznámka: do budoucna bychom rádi vše sjednotili pod jeden HTTP server </em></strong>–<em> buď
+		přechodem na Undertow 3.0 nebo naopak migrací všech API na Netty server. Bohužel slibované práce na <a
+				href="https://undertow.io/blog/2019/04/15/Undertow-3.html">Undertow 3.0</a>, postaveném nad Netty se
+		pravděpodobně zastavily.</em>
+	</p>
+	<h2>GraphQL</h2>
+
+
+	<p>
+		GraphQL protokol je odpovědí Meta na nevýhody REST protokolu. Umožňuje přesně vyspecifikovat data, která klient
+		vyžaduje, a tudíž přenést po síti jen nezbytné minimum dat. Zároveň umožňuje efektivně propojovat různé typy dat
+		(např. přes produkt načíst i data souvisejících značek, skupin, štítků atp.) a také přenést hned několik dotazů
+		v rámci jednoho požadavku na server (tzv. <a
+			href="https://graphql.org/learn/best-practices/#server-side-batching-caching">batching</a>).
+	</p>
+	<p>
+		GraphQL API je vždy doprovázeno pevně daným <a href="https://graphql.org/learn/schema/">schématem</a>, které
+		popisuje dostupná pole, jejich datové typy, povinné a nepovinné hodnoty, obsahuje dokumentaci a informace o
+		zastaralých (<a href="https://spec.graphql.org/October2021/#sec--deprecated">deprekovaných</a>) částech. Toto
+		schéma umožňuje validaci vstupních požadavků a také introspekci ve vývojářských nástrojích, která zpříjemňuje
+		život vývojářům.
+	</p>
+	<p>
+		evitaDB automaticky generuje GraphQL schéma na základě svého vnitřního schématu popisujícího katalog a jeho
+		kolekce. Při každé změně ve schématu jsou okamžitě provedeny související změny v GraphQL schématu. Při tvorbě
+		schématu je použito názvosloví z vámi vytvořeného evitaDB schématu, takže při konzumaci GraphQL budete pracovat
+		s doménou, kterou dobře znáte. Automaticky vytvořené GraphQL API by se mělo blížit API, které byste si pro svou
+		doménu psali ručně.
+	</p>
+	<h3>Struktura API</h3>
+
+
+	<p>
+		Pro každý katalog vzniknou dvě URL ke konzumaci (end-point). První na adrese <em>https://host:5555/gql/nazev-katalogu</em>
+		umožňuje přistoupit na data v databázi. Druhé na adrese <em>https://host:5555/gql/nazev-katalogu/schema</em>
+		poskytuje informace o databázovém schématu daného typu entity. Odesláním GET požadavku na obě zmíněné URL je
+		možné stáhnout GraphQL schéma pro oba uvedené koncové body. Ze schématu pak můžete pomocí různých nástrojů
+		vygenerovat základ vašeho klienta (jedním takovým je např. <a href="https://the-guild.dev/graphql/codegen">GraphQL
+		Codegen</a>).
+	</p>
+	<p>
+		Pokud byste chtěli přes GraphQL API ovládat základní funkce evitaDB, existuje ještě jeden koncový bod: <em>https://host:5555/gql/system</em>.
+		Na tom je možné vylistovat seznam katalogů, jejich stavy a také nové katalogy vytvářet, mazat, zálohovat a
+		provádět další správcovské operace.
+	</p>
+	<p>
+		<strong><em>Poznámka: fungování GraphQL API můžete snadno vyzkoušet přes náš <a
+				href="https://demo.evitadb.io/lab?demoSnippetRequest=eyJicmFuY2giOiJkZXYiLCJwYXRoIjoiZG9jdW1lbnRhdGlvbi91c2VyL2VuL3NvbHZlL2V4YW1wbGVzL3JvdXRpbmcvZ2V0LWJ5LWdsb2JhbGx5LXVuaXF1ZS1sb2NhbGUtc3BlY2lmaWMtYXR0cmlidXRlLmdyYXBocWwifQ==">evitaLab</a>
+			nebo libovolnou instalaci <a href="https://graphql-web-client.vercel.app/">GraphQL klienta</a> na webu s
+			použitím URL na naši demo instanci: <a href="https://demo.evitadb.io:5555/gql/evita/">https://demo.evitadb.io:5555/gql/evita/</a>
+			a dalších výše zmíněných URL.</em></strong>
+	</p>
+	<h3>Dotazovací jazyk</h3>
+
+
+	<p>
+		Design GraphQL API vychází z velké míry z podoby evitaQL, který jsme si popisovali v <a
+			href="https://www.root.cz/clanky/evitadb-zaklady-dotazovaciho-jazyka-evitaql/">předchozím díle seriálu</a>,
+		avšak respektuje zvyklosti, na které jsou vývojáři ve spojitosti s GraphQL zvyklí. Vaší pozornosti zřejmě
+		neuniknou dvě klíčové změny:
+	</p>
+	<ol>
+
+		<li><strong>Názvy entit, atributů, asociovaných dat a referencí jsou součástí názvu polí.</strong>
+
+		<li><strong>Řada tzv. <a href="https://evitadb.io/documentation/query/basics#require">require podmínek</a> se
+			definuje pomocí výčtu výstupních polí.</strong>
+		</li>
+	</ol>
+	<p>
+		Pokud byste si ve svém katalogu založili typ entity (kolekci) s názvem `Product`, který bude obsahovat atributy
+		`code` a `name`, získáte je přes GraphQL API dotazem podobným tomuto:
+	</p>
+
+
+	<pre class="prettyprint">query {
+  listProduct(
+    filterBy: {
+      attributeUrlStartsWith: "/cs/macbook-pro-13",
+      entityLocaleEquals: cs,
+      priceInCurrency: CZK,
+      priceInPriceLists: "basic"
+    },
+    orderBy: {
+      priceNatural: DESC
+    },
+    limit: 5
+  ) {
+    attributes {
+        code
+        name
+    }
+    priceForSale {
+      priceWithTax
+    }
+  }
+}
+</pre>
+
+
+	<p>
+		V dotazu si můžete výše popisovaných změn snadno všimnout. Pod kořenovým polem `query` je uveden název „metody“,
+		která slouží pro získání seznamu produktů – tj. `listProduct`. Název metody se skládá ze dvou částí – prefixu
+		definujícího typ metody a názvu typu entity v <a href="https://cs.wikipedia.org/wiki/CamelCase">camel-case
+		notaci</a>.
+	</p>
+
+	<h4 id="druhy-dotazu">Druhy dotazů</h4>
+
+	<p>
+		Existují celkem 3 varianty metod pro čtení dle typu entity:
+	</p>
+	<ul>
+
+		<li><strong>get:</strong> Získá právě jednu nebo žádnou entitu filtrací přes unikátní atribut entity nebo
+			primární klíč (nejjednodušší forma dotazu umožňující rychlý přístup k jedné entitě, známe-li její
+			jednoznačnou identifikaci).
+
+		<li><strong>list:</strong> Získá konkrétní výřez entit splňujících konkrétní podmínku (zjednodušená forma dotazu
+			zpřístupňující seznam entit dle filtrovací podmínky vhodná pro situace, kdy předem víme maximální počet
+			entit, které filtraci mohou odpovídat – např. proto, že uvádíme jejich jednoznačné identifikátory ve <a
+					href="https://evitadb.io/documentation/query/filtering/comparable?lang=graphql#attribute-in-set">výčtové
+				filtrovací podmínce</a>).
+
+		<li><strong>query:</strong> Získá stránkovaný seznam entit včetně přístupu k dodatečným kalkulacím nad těmito
+			entitami (nejkomplexnější forma dotazu plně otevírající potenciál dotazovacího jazyka).
+		</li>
+	</ul>
+	<p>
+		<strong><em>Poznámka: Kromě přístupu k jednotlivým typům entit přes jejich název je možné dotázat předem neznámý
+			typ entity dotazem, který cílí na některý z jejich globálně unikátních atributů. Je tedy například možné
+			získat obsah entity dotazem přes globálně unikátní atribut `url` atp. Referenční ukázku použití najdete <a
+					href="https://evitadb.io/documentation/solve/routing?lang=graphql">v dokumentaci</a>.</em></strong>
+	</p>
+	<p>
+		Název metody je následován sekcí definující <a
+			href="https://evitadb.io/documentation/query/basics?lang=graphql#filter-by">omezující podmínky</a> v
+		kontejneru `filterBy`, <a href="https://evitadb.io/documentation/query/basics#order-by">třídící podmínky</a> v
+		kontejneru `orderBy` a některými <a href="https://evitadb.io/documentation/query/basics#paging">rozsahovými
+		podmínkami</a> – v tomto případě klauzulí `limit`, která omezuje počet vrácených produktů maximálně na 5
+		položek.
+	</p>
+	<p>
+		Většina rozsahových podmínek je však součástí druhé části dotazu, kde GraphQL protokol umožňuje definovat seznam
+		požadovaných polí, které mají být vráceny na klienta. V této části je hlavní síla GraphQL protokolu. Díky tomu
+		je možné si naprosto přesně definovat rozsah dat, která budeme na klientu potřebovat, a také procházet grafem
+		relací mezi entitami do libovolné hloubky. Tyto dvě vlastnosti činí protokol velmi silným, a proto je také slovo
+		„graph“ základem jeho názvu. Klient si vždy řekne jen o ta data, která potřebuje, a nebude zbytečně zatěžovat
+		síť přenosem dat, které by nevyužil a zahodil.
+	</p>
+	<p>
+		V našem příkladu si pro načítanou entitu získáváme atributy `code` a `name` a také jeho prodejní cenu s daní.
+		Data entit jsou rozdělena do 4 částí, které odpovídají vnitřnímu modelu entit v databázi:
+	</p>
+	<ul>
+
+		<li><strong>attributes</strong> – Obsahuje přístup k polím představujícím atributy entity.
+
+		<li><strong>associatedData</strong> – Obsahuje přístup k polím představujícím associovaná data entity.
+
+		<li><strong>parentId / parents</strong> – Obsahuje informaci / relaci na nadřízenou entitu v rámci <a
+				href="https://www.root.cz/clanky/evitadb-zaklady-dotazovaciho-jazyka-evitaql/#h26">hierarchické
+			struktury</a>.
+
+		<li><strong>price / prices / priceForSale / allPricesForSale / multiplePricesForSaleAvailable</strong> –
+			Obsahuje přístup k polím představujícím ceny entity, vybranou prodejní cenu dle <a
+					href="https://www.root.cz/clanky/evitadb-zaklady-dotazovaciho-jazyka-evitaql/#h28">algoritmu pro
+				výpočet ceny</a> nebo dodatečná metadata o cenách.
+
+		<li><strong>version</strong> – Obsahuje přístup k verzi entity, která se inkrementuje při každé změně dat
+			entity.
+
+		<li><strong>locales / allLocales</strong> – Vrací seznam lokalizací, ve kterých je entita dostupná nebo s
+			kterými byla entita načtena dle podmínek v omezujících podmínkách.
+
+		<li><strong>reference</strong> – Umožňuje přístup k relacím entity na jiné entity a jejich data. Tato sekce
+			jediná není pojmenovaná názvem `reference`, ale používají se přímo názvy referencí ze schématu naší entity
+			(viz. následující příklady).
+		</li>
+	</ul>
+	<p>
+		Rozdělení přístupu k datům pomocí sekcí umožňuje vyhnout se problémům se shodou jmen ve schématu. Např. umožňuje
+		shodně pojmenovat atribut a asociovaný údaj nebo pojmenovat shodně atribut a referenci nebo jiné klíčové slovo.
+		Pokud bychom vše měli v jedné ploché struktuře, vznikla by celá řada dalších omezení pro pojmenování
+		uživatelských položek ve schématu entity.
+	</p>
+	<p>
+		Následující příklad demonstruje reálnější příklad načtení dat entity:
+	</p>
+
+
+	<pre class="prettyprint">query {
+  getProduct(
+    url: "/en/alcatel-3t-10-2020",
+    locale: en,
+    priceInCurrency: EUR,
+    priceInPriceLists: "basic"
+) {
+    version
+    locales
+    allLocales
+    attributes {
+      code
+      name
+      descriptionShort
+    }
+    associatedData {
+      localization
+    }
+    priceForSale {
+      priceWithTax
+      currency
+    }
+    priceInCzk: price(currency: CZK, priceList: "basic") {
+      priceWithTax
+      currency
+    }
+    brand {
+      referencedEntity {
+        attributes {
+          name
+        }
+      }
+    }
+    categories {
+      referencedEntity {
+        attributes {
+          name
+        }
+      }
+    }
+    stocks(filterBy: { attributeQuantityOnStockGreaterThan: "0" }) {
+      attributes {
+        quantityOnStock
+      }
+      referencedEntity {
+        attributes {
+          name
+        }
+      }
+    }
+    parameterValues(orderBy: {entityProperty: { attributeNameNatural: DESC }}) {
+      referencedEntity {
+        attributes {
+          name
+        }
+      }
+    }
+  }
+}
+</pre>
+
+	<p>
+		<em><a href="https://demo.evitadb.io/lab?demoSnippetRequest=eyJicmFuY2giOiJkZXYiLCJwYXRoIjoiZG9jdW1lbnRhdGlvbi9wdWJsaXNoaW5nL3Jvb3QuY3ovMDQtd2ViLUFQSXMvZ2V0UHJvZHVjdC5ncmFwaHFsIn0=">Vyzkoušejte
+			si dotaz v evitaLab</a></em>
+	</p>
+
+	<p>
+		V příkladu je naznačen přístup k většině součástí produktové entity v našem demonstračním datasetu.
+	</p>
+	<p>
+		Za povšimnutí stojí použití tzv. <a href="https://graphql.org/learn/queries/#aliases">aliasů</a> u `priceInCzk`.
+		Z příkladu je vidět, že evitaDB vypočetla prodejní cenu v požadované měně EUR a ceníku `basic`. Pokud bychom
+		však chtěli uživateli naznačit cenu i v jiné měně, můžeme pomocí aliasů požádat i o libovolnou jinou cenu
+		uloženou u dané entity (produktu). Podobně můžeme k entitě načítat i atributy v jiné lokalizaci než té hlavní,
+		kterou v dotazu vyžadujeme atp.
+	</p>
+	<p>
+		Pod cenou si povšimněte polí, které načítají informace z referencí produktu na `brand` (značku), `categories`
+		(kategorie), `stocks` (sklady) a `parameterValues` (hodnoty parametrů). Všechny odkazují na tělo cílové entity a
+		načítají její atribut `name` (název). Na relaci `stocks` vidíte i příklad atributu na relaci mezi produktem a
+		skladem `quantityOnStock`, který obsahuje počet kusů daného produktu na tomto skladě. V našem demo datasetu se
+		jedná o číslo s desetinnou tečkou, které je reprezentováno jako řetězec (String), protože některé položky se
+		nemusí počítat na kusy, ale třebas na metry čtvereční, které vyžadují reprezentaci v desetinném čísle. Ačkoliv v
+		příkladu načítáme pouze přímo odkazované entity, můžeme jít do mnohem větší hloubky a z těchto odkazovaných
+		entit pokračovat přes jejich relace na další entity a rozvíjet graf do libovolné vzdálenosti.
+	</p>
+	<p>
+		Po cestě můžeme graf zužovat pomocí `filterBy` podmínek, jak je vidět například u reference `stocks`. V našem
+		příkladu nás zajímají pouze ty sklady, kde je množství produktu vyšší než nula. Stejně tak můžeme relace na
+		entity s vyšší kardinalitou třídit tak, jak je naznačeno u relace `parameterValues`, kde se hodnoty řadí podle
+		lokalizovaného názvu sestupně.
+	</p>
+	<h4>Pojmenování podmínek</h4>
+
+
+	<p>
+		V GraphQL protokolu jsme přistoupili k tvorbě podmínek v porovnání se základním evitaQL odlišně. Podmínka v
+		evitaQL vypadá nějak takto:
+	</p>
+
+
+	<pre class="prettyprint">attributeEquals("code", "abc")
+</pre>
+
+
+	<p>
+		Ekvivalentní zápis GraphQL je ovšem tento:
+	</p>
+
+
+	<pre class="prettyprint">attributeCodeEquals: "abc"
+</pre>
+
+
+	<p>
+		Proč jsme se rozhodli pro tento přístup, když významně rozšiřuje velikost a komplexitu GraphQL schématu? Hlavním
+		důvodem bylo to, že zásadním způsobem zpřístupňuje znalost schématu uživatelům (tj. vývojářům využívajícím dané
+		API). Díky <a href="https://en.wikipedia.org/wiki/Code_completion">intellisense</a>, které je vestavěno dnes už
+		v každém IDE, dostane vývojář nabídku dostupných atributů v rámci vyvolání nabídky kontextových možností v daném
+		místě kódu a nemusí ve vedlejším okně pracně prohledávat dokumentaci a dohledávat správné názvy atributů /
+		asociovaných dat / referencí, které mu pravděpodobně připravil úplně jiný člověk z týmu.
+	</p>
+	<p>
+		Zároveň intellisense vylepšuje nápovědu jakmile vývojář napíše několik znaků výrazu – například při vložení
+		řetězce `aCE` již automaticky doplní celý výraz `attributeCodeEquals`. V tuto chvíli začínají dávat význam
+		prefixy základních bloků – tj. např. `attributes` – pokud vývojář ví, že hledá atribut, ale není si jist jeho
+		názvem, stačí mu zadat počáteční písmeno `a` a následně uhodnout některé písmeno z hledaného atributu.
+	</p>
+	<p>
+		Tento přístup nám zároveň umožňuje filtrovat nabídku typů podmínek na základě datového typu atributu, na který
+		podmínka cílí. Pokud je například atribut povinný, nenabízíme pro něj podmínku `<a
+			href="https://evitadb.io/documentation/query/filtering/comparable?lang=evitaql#attribute-is">attributeIs</a>`,
+		která umožňuje porovnávat hodnotu s NULL / NOT_NULL, protože to nedává smysl. Podobně pro atributy jiného než
+		řetězcového typu (String) nenabízí schéma podmínky typu `attributeStartsWith` či `attributeEndsWith`, obdobně
+		atributy rozsahového typu získávají přístup ke <a href="https://evitadb.io/documentation/query/filtering/range">speciálním
+		typům podmínek</a>.
+	</p>
+	<p>
+		Ve výsledku práce s takovým schématem zrychluje práci vývojáře a snižuje množství chyb, kterých se může dopustit
+		(a tedy počtu iterací – pokus/omyl).
+	</p>
+	<h4>Zápisové operace</h4>
+
+
+	<p>
+		GraphQL protokol pro zápis změn používá mechanismus tzv. <a href="https://graphql.org/learn/queries/#mutations">mutations</a>.
+		Tento princip je velmi blízký tomu, jak pracuje evitaDB interně. Místo změny dat přímo v konzumovaném objektu a
+		posílání celého objektu zpět na server posílá klient pouze informaci o konkrétních změnách v tomto objektu.
+		Tento přístup je lepší než posílání celých objektů, a to ze dvou důvodů:
+	</p>
+	<ol>
+
+		<li>Po síti se přenáší jen nejnutnější údaje nutné pro provedení aktualizace.
+
+		<li>Server vždy přesně ví, co se klient snaží změnit.
+		</li>
+	</ol>
+	<p>
+		Pokud by klient vždy posílal celý objekt, musel by server vždy načíst předchozí verzi entity, porovnat ji s
+		novým stavem, který přišel po síti, a rozpoznat, které části se změnily. To je mnohem dražší operace, než když
+		klient sám rovnou pošle pouze informaci o změnách. V takovém případě může server rovnou akceptovat seznam změn,
+		provést analýzu konfliktů s paralelními klienty a zařadit seznam „mutací“ přímo do databázového <a
+			href="https://en.wikipedia.org/wiki/Write-ahead_logging">WAL</a>.
+	</p>
+	<p>
+		U GraphQL protokolu nepředpokládáme extenzivní použití mutací – očekáváme, že GraphQL protokol bude primárně
+		použit pro čtení dat a zápis se bude odehrávat spíše přes gRPC protokol, a proto jsme šli cestou nejmenšího
+		odporu a implementovali zápisovou část identicky k ostatním protokolům, ačkoliv by ji bylo možné v GraphQL
+		implementovat z pohledu konzumace vývojáři příjemněji (a nevylučujeme, že v budoucnosti takovou příjemnější
+		variantu ještě doplníme).
+	</p>
+	<p>
+		Změny v entitách se tedy na server posílají následujícím způsobem:
+	</p>
+
+
+	<pre class="prettyprint">mutation {
+  upsertProduct(
+    primaryKey: 1000000
+    entityExistence: MUST_NOT_EXIST
+    mutations: [
+      {
+        upsertAttributeMutation: {
+          name: "name"
+          locale: "en"
+          value: "ASUS Vivobook 16 X1605EA-MB044W Indie Black"
+        }
+      },
+      {
+        upsertAssociatedDataMutation: {
+          name: "gallery"
+          value: [
+            "https://picsum.photos/250/150?random=63049",
+            "https://picsum.photos/250/150?random=63050"
+          ]
+        }
+      },
+      {
+        upsertPriceMutation: {
+          priceId: 1
+          priceList: "basic"
+          currency: "EUR"
+          priceWithoutTax: "345.9"
+          taxRate: "22"
+          priceWithTax: "422"
+          sellable: true
+        }
+      },
+      {
+        insertReferenceMutation: {
+          name: "brand"
+          referencedEntityType: "Brand"
+          cardinality: ZERO_OR_ONE
+          primaryKey: 3
+        }
+      }
+    ]
+  ) {
+    primaryKey
+    attributes {
+      name
+    }
+    associatedData {
+      gallery
+    }
+    prices(priceLists: "basic") {
+      priceId
+      currency
+      priceWithoutTax
+      taxRate
+      priceWithTax
+    }
+    brand {
+      referencedPrimaryKey
+    }
+  }
+}
+</pre>
+
+	<p>
+		<em>Tento dotaz si ve sdíleném evitaLab prostředí nevyzkoušíte, protože je nastaveno do režimu pouze pro čtení.
+		Můete si jej však vyzkoušet, pokud si zprovozníte evitaDB lokálně s naším testovací datovou sadou.</em>
+	</p>
+
+	<p>
+		Pomocí pole `entityExistence` je možné specifikovat, zda klient očekává, že entita bude existovat na straně
+		serveru. Toto pole má tři alternativní hodnoty:
+	</p>
+	<ul>
+
+		<li>MUST_NOT_EXIST: Server vrátí chybu, pokud by našel entitu odpovídající primárnímu klíči v mutaci (vhodné pro
+			INSERT operace).
+
+		<li>MUST_EXIST: Server vrátí chybu, pokud by nenašel entitu odpovídající primárnímu klíči v mutaci (vhodné pro
+			UPDATE operace).
+
+		<li>MAY_EXIST: Server založí nebo aktualizuje existující entitu dle potřeby (vhodné pro UPSERT operace).
+		</li>
+	</ul>
+	<p>
+		Následně klient posílá sadu mutačních operací dané entity a v posledním bloku si specifikuje rozsah dat, která
+		mu mají být vrácena v odpovědi. V této sekci se pak snadno dostane mimo jiné i k primárním klíčům, které byly
+		automaticky přiděleny na straně serveru (pokud se jednalo o založení entity bez poskytnutí primárního klíče
+		klientem).
+	</p>
+	<p>
+		Odstranění existujících entit se provádí pomocí mutace s uvedením podmínky pro odstranění:<br>
+	</p>
+
+
+	<pre class="prettyprint">mutation {
+   deleteBrand(
+      filterBy: {
+         attributeNameStartsWith: "A"
+      }
+      limit: 20
+   ) {
+      primaryKey
+   }
+}
+</pre>
+
+
+	<p>
+		<br>Povšimněte si, že součástí příkazu je i omezení počtu entit, které mají být smazány. V transakčních
+		systémech není vhodné mazat všechny entity najednou, protože to zvyšuje riziko konfliktů a zároveň vyžaduje
+		zápis velkého množství dat do WAL, což blokuje zápisy ostatních klientů. Proto doporučujeme v evitaDB vždy
+		odstraňovat data po blocích (pokud limit nespecifikujete sami, použije se výchozí hodnota 20). Toto je ostatně
+		<a href="https://blog.quest.com/the-best-ways-to-use-sql-delete-statement-in-a-sql-table/">doporučený postup i
+			pro relační databáze</a>. Ve výstupu si pak můžete nechat vrátit libovolná data z odstraněných entit – v
+		našem příkladě se jedná o jejich primární klíče, ale můžete si nechat vrátit třeba i jejich lokalizované názvy,
+		které pak zobrazíte uživateli v informační zprávě o úspěšném odstranění dat.
+	</p>
+	<p>
+		Obdobný přístup je použitý i pro <a href="https://evitadb.io/documentation/use/api/schema-api?lang=graphql">API
+		pro definici schémat</a> či systémovém API, ve kterém máte pod kontrolou vytváření nebo mazání celých katalogů.
+		V tomto článku však již do většího detailu nepůjdeme.
+	</p>
+	<h3>Plánovaný rozvoj</h3>
+
+
+	<p>
+		Možnosti GraphQL jsou velmi široké, kromě výše zmíněných možností do budoucna zvažujeme ještě podporu <a
+			href="https://graphql.org/learn/queries/#directives">direktiv</a> (<a
+			href="https://github.com/FgForrest/evitaDB/issues/474">issue 474</a>), které by umožňovaly na základě
+		uživatelských podmínek načítat rozdílné rozsahy dat. V našich scénářích se setkáváme například s požadavky, kdy
+		pro entitu (produkt) označený atributem `productType` s hodnotou `variant` chceme načíst relaci produkt, který
+		je jeho zastřešujícím produktem (reference `master`), kdežto pro jiné produkty toto nechceme.
+	</p>
+	<p>
+		Do značné míry máme rozpracovaný i tzv. <a href="https://en.wikipedia.org/wiki/Change_data_capture">change data
+		capture</a> proces (<a href="https://github.com/FgForrest/evitaDB/issues/187">issue 187</a>), který bude
+		umožňovat klientům reagovat na změny v datech v reálném čase. V prostředí GraphQL pro přenášení změn na klienta
+		použijeme tzv. <a href="https://graphql.org/blog/subscriptions-in-graphql-and-relay/">subscriptions</a>. Tento
+		mechanismus umožní klientům zajistit korektní invalidaci lokálních keší nebo částečnou (či úplnou) replikaci
+		obsahu databáze. Zajímavým směrem dalšího vývoje by mohly být i tzv. <a
+			href="https://hasura.io/blog/types-of-realtime-graphql-subscriptions">live queries</a>, které nejsou
+		součástí GraphQL standardu, ale šikovným rozšířením, které umožňuje velmi jednoduše aktualizovat výsledky
+		konkrétních dotazů v reálném čase a tím se vyhnout komplexitě zpracování atomických událostí. O tom ale třeba
+		někdy v budoucnu vznikne samostatná kapitola tohoto seriálu.
+	</p>
+	<h2>REST</h2>
+
+
+	<p>
+		REST API je postaveno nad HTTP(S) protokolem, přes který posílá data ve formátu JSON. Vzhledem ke svému stáří a
+		univerzalitě je toto API záchytným formátem, se kterým umí komunikovat prakticky libovolná technologie.
+		Standardem pro popis tohoto API je v současné době <a href="https://www.openapis.org/">Open API</a>, které není
+		s protokolem tak pevně svázáno, jako je tomu u GraphQL schématu, ale umožňuje API popsat natolik, že je možné z
+		něj <a href="https://swagger.io/tools/swagger-codegen/">generovat základ klientů</a> na různých platformách.
+	</p>
+	<p>
+		Ačkoliv je REST nejstarším použitým protokolem, je s ním spojená celá řada nevýhod a komplikací. Např. protokol
+		sám o sobě nijak neřeší rozsah dat, která mají být vrácena na výstupu, a tak si to každá implementace řeší <a
+			href="https://developer.wordpress.org/rest-api/using-the-rest-api/global-parameters/#_fields">tak nějak po
+		svém</a>. Open API specifikace je oproti GraphQL schématu neohrabaná a výstup je řádově větší i z pohledu
+		velikosti.
+	</p>
+	<p>
+		Podpora Open API je v nástrojích také komplikovaná – větší Open API definice obvykle nástroje nezvládají
+		zpracovat, ačkoliv schéma podporuje rekurzivní definice, nástroje s tím mívají problém. V rámci diplomové práce
+		na ČVUT se alespoň snažíme implementovat <a
+			href="https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/">Language
+		Server</a> implementaci, která by umožnila intellisense jak v IDE, tak i ve webovém prohlížeči (a tím pomoci
+		vyřešit <a href="https://github.com/OAI/Outreach/issues/36">7 let otevřenou issue</a>). Přes všechny tyto
+		nevýhody je univerzálnost protokolu tak silným argumentem, že jsme se rozhodli tuto variantu API v evitaDB
+		implementovat.
+	</p>
+	<p>
+		Podobně jako v GraphQL protokolu i REST využívá vašeho vlastního pojmenování kolekcí, atributů, asociovaných dat
+		a referencí. Díky tomu by mělo být vygenerované REST rozhraní blízké tomu, které byste jako vývojáři psali
+		ručně, pokud byste obalovali data uložená v jiné databázi, a tudíž pro vás srozumitelnější.
+	</p>
+	<h3>Struktura API</h3>
+
+	<p>
+		Pro každý katalog vznikne samostatné API s vlastním OpenAPI schématem a URL adresami (end-point). Základní
+		adresou je pak <em>https://host:5555/rest/nazev-katalogu</em>. Narozdíl od GraphQL, u REST API je datové API a
+		schématové API spojeno do jednoho, primárně kvůli komplexnosti návrhu jednotlivých koncových bodů. Odesláním GET
+		požadavku na zmíněné URL je možné stáhnout Open API schéma pro uvedený katalog. Ze schématu pak můžete pomocí
+		různých nástrojů vygenerovat základ vašeho klienta (jedním takovým je např. <a
+			href="https://swagger.io/tools/swagger-codegen/">Swagger Codegen</a>).
+	</p>
+	<p>
+		Pokud byste chtěli přes REST API ovládat základní funkce evitaDB, existuje ještě jedno REST API s vlastním
+		OpenAPI schématem: <em>https://host:5555/rest/system</em>. Na tom je možné vylistovat seznam katalogů, jejich
+		stavů a také nové katalogy vytvářet, mazat, zálohovat a provádět další správcovské operace.
+	</p>
+	<h3>Dotazovací jazyk</h3>
+
+
+	<p>
+		REST API je postavené na abstrakci tzv. „zdrojů“, které je možné dotazovat a modifikovat pomocí různých forem
+		HTTP metod. Tohoto přístupu se samozřejmě držíme i v naší implementaci. Každá kolekce entit získá několik
+		koncových bodů:
+	</p>
+	<ul>
+
+		<li><em>https://host:5555/rest/{název_katalogu}/{název_entity}/get</em>
+
+		<li><em>https://host:5555/rest/{název_katalogu}/{název_entity}/list</em>
+
+		<li><em>https://host:5555/rest/{název_katalogu}/{název_entity}/query</em>
+		</li>
+	</ul>
+	<p>
+		A v případě, že je kolekce entit lokalizovaná, budou navíc k dispozici ještě:
+	</p>
+	<ul>
+
+		<li><em>https://host:5555/rest/{název_katalogu}/{jazyk}/{název_entity}/get</em>
+
+		<li><em>https://host:5555/rest/{název_katalogu}/{jazyk}/{název_entity}/list</em>
+
+		<li><em>https://host:5555/rest/{název_katalogu}/{jazyk}/{název_entity}/query</em>
+		</li>
+	</ul>
+	<p>
+		Logika koncových bodů odpovídá druhům dotazů popsaných v <a href="#druhy-dotazu">kapitole o typech
+		dotazů v GraphQL</a>. Lokalizované varianty koncových bodů poskytují zjednodušený přístup k lokalizovaným údajům
+		entit ve vybraném jazyku.
+	</p>
+	<p>
+		Get a list představují zjednodušené koncové body pro získání dat jedné nebo více entit. Například tento příkaz
+		nám v našem datasetu vypíše všechna data v anglickém jazyce o značce Apple:
+	</p>
+
+
+	<pre class="prettyprint">curl -X GET "https://demo.evitadb.io:5555/rest/evita/en/Brand/get?code=apple&fetchAll=true"
+</pre>
+
+
+	<p>
+		Pokud budeme chtít vypsat všechny značky, jejichž kód začíná písmenem `a`, stačí nám k tomu takovýto požadavek.
+	</p>
+
+
+	<pre class="prettyprint">curl -X POST 'https://demo.evitadb.io:5555/rest/evita/en/Brand/list' \
+-H 'Content-Type: application/json' \
+-d '{
+  "filterBy": {
+    "attributeCodeStartsWith": "a"
+  },
+  "require": {
+    "entityFetch": {
+      "attributeContentAll": true
+    }
+  }
+}'
+</pre>
+
+
+	<p>
+		Pokud budeme potřebovat položit plný dotaz včetně možnosti provedení výpočtů hierarchií, facetů či stránkování,
+		musíme použít nejkomplexnější variantu dotazu:
+	</p>
+
+
+	<pre class="prettyprint">curl -X POST 'https://demo.evitadb.io:5555/rest/evita/en/Product/query' \
+-H 'Content-Type: application/json' \
+-d '{
+  "filterBy": {
+    "attributeProductTypeEquals": "SET"
+  },
+  "require": {
+    "page": {
+      "number": 2,
+      "size": 5
+    },
+    "entityFetch": {
+      "attributeContentAll": true
+    },
+    "facetSummary": {
+      "statisticsDepth": "COUNTS"
+    }
+  }
+}'
+</pre>
+
+
+	<p>
+		V dotazovacím jazyce je použit stejný přístup jako v GraphQL. Díky tomu je možné u jednotlivých podmínek správně
+		definovat datové typy a díky intellisense napovídat kontextově správné podmínky v daném místě dotazu.
+	</p>
+	<p>
+		Podobně jako v GraphQL je i v REST API možné získat obsah neznámé entity podle jejího globálně unikátního
+		atributu. Následující příklad demonstruje získání předem neznámého typu entity podle anglické varianty jejího
+		URL:
+	</p>
+
+
+	<pre class="prettyprint">curl -X GET "https://demo.evitadb.io:5555/rest/evita/entity/get?url=/en/macbook-pro-13-2022&locale=en&fetchAll=true"
+</pre>
+
+
+	<p>
+		<strong><em>Poznámka: Analogicky jako u GraphQL je možné kromě přístupu k jednotlivým typům entit přes jejich
+			název dotázat předem neznámý typ entity dotazem, který cílí na některý z jejich globálně unikátních
+			atributů. Referenční ukázku použití najdete <a
+					href="https://evitadb.io/documentation/solve/routing?lang=rest">v dokumentaci</a>.</em></strong>
+	</p>
+	<h4>Zápisové operace</h4>
+
+
+	<p>
+		Zápisové operace jsou koncipovány shodně s GraphQL protokolem. Klient na server posílá pouze sadu „mutací“,
+		které se mají aplikovat ať už na existující data, nebo zavádět data nová. Z pohledu klienta je tento přístup
+		složitější, ale opět vycházíme z premisy, že REST protokol bude používá především pro čtení. Pokud by se REST
+		protokol využíval ve větší míře pro zápis, je vhodnější na straně klienta vytvořit mutabilní fasádu, která bude
+		vyhodnocovat změny na entitách a překládat vývojářsky příjemnější mutabilní zápis na sekvenci mutací, které se
+		nakonec odešlou na server.
+	</p>
+	<p>
+		I v případě REST protokolu si do budoucna dokážeme představit alternativní přístup, kde se pomocí PATCH metod
+		provedou změny na serveru příjemnějším způsobem, než jak je tomu v současné chvíli.
+	</p>
+	<p>
+		Změna entity v pojetí REST protokolu vypadá takto:
+	</p>
+
+
+	<pre class="prettyprint">PUT /rest/evita/Product/1
+
+{
+  "entityExistence": "MUST_EXIST",
+  "mutations": [
+	{
+	  "upsertAttributeMutation": {
+		"name": "name",
+		"locale": "en",
+		"value": "ASUS Vivobook 16 X1605EA-MB044W Indie Black"
+	  }
+	},
+	{
+	  "upsertAttributeMutation": {
+		"name": "name",
+		"locale": "de",
+		"value": "ASUS Vivobook 16 X1605EA-MB044W Indie Schwarz"
+	  }
+	}
+  ],
+  "require": {
+	"entityFetch": {
+	  "attributeContentAll": true,
+	  "dataInLocalesAll": true
+	}
+  }
+}
+</pre>
+
+
+	<p>
+		Stejně jako v GraphQL si můžeme v odpovědi mutačního volání nechat vrátit data entity ve stavu po aplikaci změn.
+	</p>
+	<h3>Plánovaný rozvoj</h3>
+
+
+	<p>
+		Podobně jako u GraphQL, chceme i u REST API podporovat <a
+			href="https://en.wikipedia.org/wiki/Change_data_capture">change data capture</a> proces (<a
+			href="https://github.com/FgForrest/evitaDB/issues/187">issue 187</a>), který bude umožňovat klientům
+		reagovat na změny v datech v reálném čase. Tuto funkci chceme implementovat pomocí <a
+			href="https://cs.wikipedia.org/wiki/WebSocket">WebSockets</a>, která je v současnosti již většinově
+		podporovaná ve všech prohlížečích a klientech.
+	</p>
+	<h2>gRPC</h2>
+
+
+	<p>
+		Posledním podporovaným webovým protokolem je <a href="https://grpc.io/">gRPC</a> z dílny Google. gRPC využívá
+		protokol HTTP/2 pro přenos binárních dat včetně zabudované komprese a své místo nachází především v prostředí
+		microservices. Jedná se o multiplatformní protokol, pro který existují klienti <a
+			href="https://grpc.io/docs/languages/">v řadě jazyků</a> (Java, C#, Python, PHP, Javascript, Go atd.).
+	</p>
+	<p>
+		Tento protokol jsme zvolili jako systémový protokol, který je výkonnostně efektivní a dostatečně otevřený, aby
+		se nad ním daly budovat klientské ovladače. Naši současní klienti pro <a
+			href="https://github.com/FgForrest/evitaDB/tree/dev/evita_external_api/evita_external_api_grpc/client">Java</a>
+		a <a href="https://github.com/FgForrest/evitaDB-C-Sharp-client">C#</a> komunikují s databázovým serverem právě
+		pomocí tohoto protokolu. Pokud byste nám někdy v budoucnu chtěli pomoci s klientem pro další platformu, začněte
+		přečtením datových struktur <a
+			href="https://github.com/FgForrest/evitaDB/tree/dev/evita_external_api/evita_external_api_grpc/shared/src/main/resources/META-INF/io/evitadb/externalApi/grpc">Protocol
+		buffers protokolu</a>.
+	</p>
+	<p>
+		Návrh gRPC API se od těch předchozích liší především tím, že nepoužívá názvosloví schématu databáze, ale používá
+		sémantiku obecného evitaDB modelu. Vzhledem k tomu, že má být univerzálním jazykem pro ovladače, není možné, aby
+		se jeho definice přizpůsobovala názvosloví a struktuře uživatelských schémat.
+	</p>
+	<p>
+		Komunikaci mezi klientem a serverem je možné zabezpečit pomocí <a
+			href="https://evitadb.io/documentation/operate/tls?lang=java">ověřování serverového certifikátu</a>. V
+		takovém případě doporučujeme spolu s klientem distribuovat i soubor certifikační autority, s jehož pomocí klient
+		dokáže ověřit důvěryhodnost serverového certifikátu.
+	</p>
+	<p>
+		U zabezpečeného protokolu je možné volitelně použít tzv. MTLS (<a
+			href="https://www.cloudflare.com/learning/access-management/what-is-mutual-tls/">mutual TLS</a>), při kterém
+		si server a klient vzájemně vymění své certifikáty a ověřují se navzájem. Tj. server odmítne komunikaci od
+		klienta, který se mu neprokáže povoleným certifikátem. Ve výchozím nastavení si vše dokáže server vygenerovat
+		sám a klient si certifikáty stáhne při prvním použití. Toto však není bezpečný způsob distribuce certifikátu a
+		pro produkční prostředí je nutné jej vypnout a nahradit jiným způsobem distribuce privátního klíče a certifikátu
+		společně s klientem.
+	</p>
+	<h3>Dotazovací jazyk</h3>
+
+
+	<p>
+		V současné době se v rámci gRPC protokolu používá evitaQL v řetězcové podobě. Tato možnost zde bude zachována i
+		do budoucna, protože je nejjednodušší možná (i když suboptimální). V následujícím příkladu je znázorněno, jak
+		takový dotaz v gRPC/Java rozhraní vypadá:
+	</p>
+
+
+	<pre class="prettyprint">final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
+final List&lt;GrpcQueryParam> params = new ArrayList&lt;>();
+params.add(QueryConverter.convertQueryParam("Product"));
+params.add(QueryConverter.convertQueryParam("url"));
+params.add(QueryConverter.convertQueryParam("www"));
+params.add(QueryConverter.convertQueryParam(Currency.getInstance("USD")));
+params.add(QueryConverter.convertQueryParam("vip"));
+params.add(QueryConverter.convertQueryParam("basic"));
+params.add(QueryConverter.convertQueryParam("variantParameters"));
+params.add(QueryConverter.convertQueryParam(1));
+params.add(QueryConverter.convertQueryParam(1));
+params.add(QueryConverter.convertQueryParam(20));
+
+final String stringQuery = """
+    query(
+	    collection(?),
+	    filterBy(
+	        and(
+	            attributeContains(?, ?),
+	            priceInCurrency(?),
+	            priceInPriceLists(?, ?),
+	            userFilter(
+	                facetHaving(?, entityPrimaryKeyInSet(?))
+	            )
+	        )
+	    ),
+	    require(
+	        page(?, ?),
+	        entityFetch(attributeContentAll())
+	    )
+	 )
+     """;
+
+final GrpcQueryResponse response = evitaSessionBlockingStub.query(GrpcQueryRequest.newBuilder()
+	.setQuery(stringQuery)
+	.addAllPositionalQueryParams(params)
+	.build());
+</pre>
+
+
+	<p>
+		Na straně serveru je pro rozparsování dotazu v řetězci použita <a
+			href="https://github.com/FgForrest/evitaDB/blob/dev/evita_query/src/main/resources/META-INF/io/evitadb/api/query/parser/EvitaQL.g4">ANTLR
+		gramatika</a>. Předávání dotazu v objektové struktuře by pravděpodobně vedlo k úsporám při přenosu i parsování,
+		ale je mnohem složitější na údržbu především s ohledem na další rozšiřování jazyka. Plánujeme provést
+		výkonnostní měření, a pokud by se ukázalo, že úspory jsou významné, doplníme v budoucnu ještě alternativní
+		způsob předávání dotazu, který místo dotazu v řetězci použije Protocol Buffers strukturu.
+	</p>
+	<h4>Zápisové operace</h4>
+
+
+	<p>
+		Zápis dat v prostředí gRPC vypadá analogicky k ostatním protokolům. Pro každý typ mutace je připravena
+		odpovídající datová struktura:
+	</p>
+
+
+	<pre class="prettyprint">final Executable executable = () -> evitaSessionBlockingStub.upsertEntity(
+   GrpcUpsertEntityRequest.newBuilder()
+      .setEntityMutation(
+         GrpcEntityMutation.newBuilder()
+            .setEntityUpsertMutation(
+               GrpcEntityUpsertMutation.newBuilder()
+                  .setEntityType("Product")
+                  .setEntityPrimaryKey(Int32Value.of(1))
+                  .addMutations(
+                     GrpcLocalMutation.newBuilder()
+                        .setUpsertAttributeMutation(
+                           GrpcUpsertAttributeMutation.newBuilder()
+                              .setAttributeName("name")
+                              .setAttributeLocale(
+                                 GrpcLocale.newBuilder()
+                                    .setLanguageTag("cs-CZ")
+                                    .build()
+                              )
+                              .setAttributeValue(
+                                 GrpcEvitaValue.newBuilder()
+                                    .setStringValue("iPhone 12")
+                                    .build()
+                              )
+                              .build()
+                        )
+                        .build()
+                  )
+                  .build()
+            )
+            .build()
+      )
+      .build()
+);
+</pre>
+
+
+	<p>
+		V případě Java gRPC implementace je automaticky vygenerované API klienta velmi „upovídané“, a proto nám dává
+		smysl jej obalit do nějaké použitelnější fasády. U jiných jazyků to tak být nemusí a generovaná reprezentace
+		může být stravitelnější. Budeme rádi, pokud se s námi podělíte o své zkušenosti v komentářích pod článkem.
+	</p>
+	<h3>Plánovaný rozvoj</h3>
+
+
+	<p>
+		Plánovaný <a href="https://en.wikipedia.org/wiki/Change_data_capture">change data capture</a> proces (<a
+			href="https://github.com/FgForrest/evitaDB/issues/187">issue 187</a>) máme v gRPC protokolu implementován
+		formou prototypu využívajícího <a
+			href="https://grpc.io/docs/what-is-grpc/core-concepts/#bidirectional-streaming-rpc">oboustranný
+		streaming</a>.
+	</p>
+	<p>
+		Další zajímavou oblastí je gRPC-Web. Ten umožňuje konzumovat gRPC rozhraní z prostředí webového prohlížeče. Aby
+		bylo možné zprovoznit gRPC-Web, je nutné mít nějakou formu překladové vrstvy, která přeloží volání HTTP 1.1
+		protokolu na vnitřní volání gRPC serveru (ten je totiž implementován pouze nad protokolem HTTP/2). V našem
+		případě musíme zmigrovat stávající implementaci na <a href="https://github.com/line/armeria">Armeria</a>
+		knihovny, které nám toto umožní.
+	</p>
+	<p>
+		Následně bude možné komunikovat skrz gRPC protokol z webového klienta – ať už z prostředí JavaScriptu nebo z
+		jiných platforem umožňujících generovat WebAssembly (<a
+			href="https://learn.microsoft.com/cs-cz/aspnet/core/blazor/">Microsoft Blazor</a>, <a
+			href="https://rustwasm.github.io/book/">RUST</a> či řada dalších).
+	</p>
+	<h2>Shrnutí</h2>
+
+
+	<p>
+		Dotazovací jazyk napříč všemi protokoly si zachovává jednotnou strukturu a sémantiku. Generovaná REST a GraphQL
+		API navíc využívají názvosloví odpovídající uživatelským schématům. Zároveň jsou respektována specifika
+		jednotlivých protokolů a snažíme se naplno využít síly typových a jiných kontrol díky schématům na úrovni daných
+		protokolů. To by mělo zjednodušovat pochopení mezi různými rolemi v týmu a umožnit postupné objevování API díky
+		intellisense a dokumentace exportované do API schémat.
+	</p>
+	<p>
+		Z naší vlastní zkušenosti se zdá, že tyto záměry se protínají s realitou. Naši frontendoví programátoři měli za
+		celou dobu vývoje aplikací nad GraphQL rozhraním překvapivě málo dotazů a nejasností. Budeme rádi, když tyto
+		závěry potvrdí i zpětná vazba z vaší strany.
+	</p>
+
+</article>
+</body>
+</html>

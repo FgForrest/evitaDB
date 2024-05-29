@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -24,6 +24,8 @@
 package io.evitadb.externalApi.graphql.api.catalog;
 
 import graphql.GraphQL;
+import graphql.execution.instrumentation.ChainedInstrumentation;
+import graphql.execution.instrumentation.Instrumentation;
 import graphql.schema.GraphQLSchema;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.core.Evita;
@@ -51,7 +53,10 @@ public class CatalogGraphQLBuilder implements GraphQLBuilder {
 
     @Override
     public GraphQL build(@Nonnull GraphQLConfig config) {
-        final EvitaSessionManagingInstrumentation instrumentation = new EvitaSessionManagingInstrumentation(evita, catalog.getName());
+        final Instrumentation instrumentation = new ChainedInstrumentation(
+            new OperationTracingInstrumentation(),
+            new EvitaSessionManagingInstrumentation(evita, catalog.getName())
+        );
         final EvitaDataFetcherExceptionHandler dataFetcherExceptionHandler = new EvitaDataFetcherExceptionHandler();
 
         return GraphQL.newGraphQL(graphQLSchema)

@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -25,6 +25,7 @@ package io.evitadb.utils;
 
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.exception.GenericEvitaInternalError;
 
 import javax.annotation.Nonnull;
 import java.util.function.Supplier;
@@ -85,7 +86,7 @@ public class Assert {
 	 */
 	public static void isPremiseValid(boolean theValue, @Nonnull String message) {
 		if (!theValue) {
-			throw new EvitaInternalError(message);
+			throw new GenericEvitaInternalError(message);
 		}
 	}
 
@@ -94,7 +95,7 @@ public class Assert {
 	 */
 	public static void isPremiseValid(boolean theValue, @Nonnull Supplier<String> message) {
 		if (!theValue) {
-			throw new EvitaInternalError(message.get());
+			throw new GenericEvitaInternalError(message.get());
 		}
 	}
 

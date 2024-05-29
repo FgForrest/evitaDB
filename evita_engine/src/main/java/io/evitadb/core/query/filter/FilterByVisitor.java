@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -34,7 +34,6 @@ import io.evitadb.api.query.filter.*;
 import io.evitadb.api.query.require.AttributeContent;
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.ReferenceContent;
-import io.evitadb.api.requestResponse.data.AttributesContract;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
@@ -51,10 +50,12 @@ import io.evitadb.core.query.QueryContext;
 import io.evitadb.core.query.ReferencedEntityFetcher;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.FormulaPostProcessor;
+import io.evitadb.core.query.algebra.attribute.AttributeFormula;
 import io.evitadb.core.query.algebra.base.AndFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.facet.UserFilterFormula;
 import io.evitadb.core.query.algebra.infra.SkipFormula;
+import io.evitadb.core.query.algebra.prefetch.SelectionFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.filter.translator.FilterByTranslator;
@@ -78,7 +79,7 @@ import io.evitadb.core.query.filter.translator.reference.ReferenceHavingTranslat
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure.CalculationContext;
 import io.evitadb.core.query.sort.attribute.translator.EntityNestedQueryComparator;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.TriFunction;
 import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.CatalogIndexKey;
@@ -171,6 +172,8 @@ public class FilterByVisitor implements ConstraintVisitor {
 		CONJUNCTIVE_FORMULAS = new HashSet<>();
 		CONJUNCTIVE_FORMULAS.add(AndFormula.class);
 		CONJUNCTIVE_FORMULAS.add(UserFilterFormula.class);
+		CONJUNCTIVE_FORMULAS.add(SelectionFormula.class);
+		CONJUNCTIVE_FORMULAS.add(AttributeFormula.class);
 
 		CONJUNCTIVE_CONSTRAINTS = new HashSet<>();
 		CONJUNCTIVE_CONSTRAINTS.add(And.class);
@@ -270,12 +273,12 @@ public class FilterByVisitor implements ConstraintVisitor {
 							GlobalEntityIndex.class,
 							Collections.singletonList(entityIndex),
 							null,
-							entityIndex.getEntitySchema(),
+							queryContext.getSchema(entityType),
 							null,
 							null,
 							null,
 							new AttributeSchemaAccessor(queryContext.getCatalogSchema(), queryContext.getSchema(entityType)),
-							AttributesContract::getAttribute,
+							(entityContract, attributeName, locale) -> Stream.of(entityContract.getAttributeValue(attributeName, locale)),
 							() -> {
 								filterBy.accept(theFilterByVisitor);
 								// get the result and clear the visitor internal structures
@@ -398,14 +401,6 @@ public class FilterByVisitor implements ConstraintVisitor {
 	}
 
 	/**
-	 * Returns attribute values from current scope.
-	 */
-	@Nonnull
-	public Stream<Optional<AttributeValue>> getAttributeValueStream(@Nonnull EntityContract entity, @Nonnull String attributeName, @Nonnull Locale locale) {
-		return getProcessingScope().getAttributeValueStream(entity, attributeName, locale);
-	}
-
-	/**
 	 * Method returns true if any of the siblings of the currently examined query matches any of the passed types.
 	 */
 	@SuppressWarnings("unchecked")
@@ -467,7 +462,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 			(FilteringConstraintTranslator<FilterConstraint>) TRANSLATORS.get(filterConstraint.getClass());
 		isPremiseValid(
 			translator != null,
-			"No translator found for query `" + filterConstraint.getClass() + "`!"
+			"No translator found for constraint `" + filterConstraint.getClass() + "`!"
 		);
 
 		final ProcessingScope<?> theScope = getProcessingScope();
@@ -498,7 +493,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 				constraintFormula = translator.translate(filterConstraint, this);
 			} else {
 				// sanity check only
-				throw new EvitaInternalError("Should never happen");
+				throw new GenericEvitaInternalError("Should never happen");
 			}
 
 			// if current query is FilterBy we know we're at the top of the filtering query tree
@@ -538,7 +533,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 	public ProcessingScope<? extends Index<?>> getProcessingScope() {
 		final ProcessingScope<? extends Index<?>> processingScope;
 		if (scope.isEmpty()) {
-			throw new EvitaInternalError("Scope should never be empty");
+			throw new GenericEvitaInternalError("Scope should never be empty");
 		} else {
 			processingScope = scope.peek();
 			isPremiseValid(processingScope != null, "Scope could never be null!");
@@ -599,7 +594,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 			ReferencedTypeEntityIndex.class,
 			Collections.singletonList(entityIndex),
 			ReferenceContent.ALL_REFERENCES,
-			entityIndex.getEntitySchema(),
+			entitySchema,
 			referenceSchema,
 			null, null,
 			getProcessingScope().withReferenceSchemaAccessor(referenceSchema.getName()),

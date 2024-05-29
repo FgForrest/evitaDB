@@ -1,0 +1,23 @@
+query(
+  collection("Product"),
+  filterBy(
+    attributeEquals("url", "/en/macbook-pro-13-2022"),
+    entityLocaleEquals("en")
+  ),
+  require(
+    entityFetch(
+      attributeContent("code", "name"),
+      referenceContent(
+        "categories",
+        entityFetch(
+          attributeContent("code", "name"),
+          hierarchyContent(
+            entityFetch(
+              attributeContent("code", "name", "level")
+            )
+          )
+        )
+      )
+    )
+  )
+)

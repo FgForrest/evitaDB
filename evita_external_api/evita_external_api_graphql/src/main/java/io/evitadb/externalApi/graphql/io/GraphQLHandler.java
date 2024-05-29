@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.graphql.io;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import graphql.ExecutionInput;
 import graphql.ExecutionResult;
 import graphql.GraphQL;
 import graphql.GraphQLException;
@@ -33,12 +34,14 @@ import graphql.execution.UnknownOperationException;
 import graphql.schema.CoercingParseValueException;
 import graphql.schema.CoercingSerializeException;
 import io.evitadb.api.configuration.EvitaConfiguration;
+import io.evitadb.api.observability.trace.TracingBlockReference;
 import io.evitadb.core.Evita;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.externalApi.exception.ExternalApiInvalidUsageException;
 import io.evitadb.externalApi.exception.HttpExchangeException;
+import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidUsageException;
 import io.evitadb.externalApi.graphql.io.GraphQLHandler.GraphQLEndpointExchange;
@@ -90,7 +93,7 @@ public class GraphQLHandler extends EndpointHandler<GraphQLEndpointExchange> {
     @Nonnull
     private final ObjectMapper objectMapper;
     @Nonnull
-    private final ExternalApiTracingContext<Object> clientContext;
+    private final ExternalApiTracingContext<Object> tracingContext;
     @Nonnull
     private final EvitaConfiguration evitaConfiguration;
     @Nonnull
@@ -100,7 +103,7 @@ public class GraphQLHandler extends EndpointHandler<GraphQLEndpointExchange> {
                           @Nonnull Evita evita,
                           @Nonnull AtomicReference<GraphQL> graphQL) {
         this.objectMapper = objectMapper;
-        this.clientContext = ExternalApiTracingContextProvider.getContext();
+        this.tracingContext = ExternalApiTracingContextProvider.getContext();
         this.evitaConfiguration = evita.getConfiguration();
         this.graphQL = graphQL;
     }
@@ -115,14 +118,26 @@ public class GraphQLHandler extends EndpointHandler<GraphQLEndpointExchange> {
     }
 
     @Override
+    public void handleRequest(HttpServerExchange serverExchange) {
+        handleRequestWithTracingContext(serverExchange);
+    }
+
+    /**
+     * Process every request with tracing context, so we can classify it in evitaDB.
+     */
+    private void handleRequestWithTracingContext(@Nonnull HttpServerExchange serverExchange) {
+        this.tracingContext.executeWithinBlock(
+            "GraphQL",
+            serverExchange,
+            () -> super.handleRequest(serverExchange)
+        );
+    }
+
+    @Override
     @Nonnull
     protected EndpointResponse doHandleRequest(@Nonnull GraphQLEndpointExchange exchange) {
         final GraphQLRequest graphQLRequest = parseRequestBody(exchange, GraphQLRequest.class);
-        final GraphQLResponse<?> graphQLResponse = clientContext.executeWithinBlock(
-            "GraphQL",
-            exchange.serverExchange(),
-            () -> executeRequest(graphQLRequest)
-        );
+        final GraphQLResponse<?> graphQLResponse = executeRequest(graphQLRequest);
         return new SuccessEndpointResponse(graphQLResponse);
     }
 
@@ -187,10 +202,17 @@ public class GraphQLHandler extends EndpointHandler<GraphQLEndpointExchange> {
     @Nonnull
     private GraphQLResponse<?> executeRequest(@Nonnull GraphQLRequest graphQLRequest) {
         try {
+            final ExecutionInput executionInput = graphQLRequest.toExecutionInput();
             final ExecutionResult result = graphQL.get()
-                .executeAsync(graphQLRequest.toExecutionInput())
+                .executeAsync(executionInput)
                 .orTimeout(evitaConfiguration.server().shortRunningThreadsTimeoutInSeconds(), TimeUnit.SECONDS)
                 .join();
+
+            // trying to close potential tracing block (created by OperationTracingInstrumentation) in the original thread
+            final TracingBlockReference blockReference = executionInput.getGraphQLContext().get(GraphQLContextKey.OPERATION_TRACING_BLOCK);
+            if (blockReference != null) {
+                blockReference.close();
+            }
 
             return GraphQLResponse.fromExecutionResult(result);
         } catch (CompletionException e) {

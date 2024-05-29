@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -33,6 +33,7 @@ import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRoo
 import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nonNullListRef;
 import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nullableRef;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
+import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 
 /**
  * Descriptor of {@link EntityContract} for schema-based external APIs. It describes what entity data are supported in API
@@ -91,10 +92,22 @@ public interface EntityDescriptor extends VersionedDescriptor, AttributesProvide
         .name("priceForSale")
         .description("""
             Price for which the entity should be sold. This method can be used only when appropriate
-            price related constraints are present so that `currency` and `priceList` priority can be extracted from the query.
+            price related constraints are present or appropriate arguments are passed so that `currency` and `priceList`
+            priority can be extracted.
             The moment is either extracted from the query as well (if present) or current date and time is used.
             """)
         .type(nullableRef(PriceDescriptor.THIS))
+        .build();
+    PropertyDescriptor MULTIPLE_PRICES_FOR_SALE_AVAILABLE = PropertyDescriptor.builder()
+        .name("multiplePricesForSaleAvailable")
+        .description("""
+			Whether the entity could be sold for multiple prices or not. This method can be used only when appropriate
+            price related constraints are present in query so that `currency` and `priceList`
+            priority can be extracted.
+            
+            For actual prices, the `allPricesForSale` field can be used.
+			""")
+        .type(nullable(Boolean.class))
         .build();
     PropertyDescriptor PRICE = PropertyDescriptor.builder()
         .name("price")

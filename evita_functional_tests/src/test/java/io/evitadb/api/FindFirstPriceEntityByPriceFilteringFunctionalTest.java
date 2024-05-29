@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -62,7 +62,7 @@ public class FindFirstPriceEntityByPriceFilteringFunctionalTest extends EntityBy
 	private static final String HUNDRED_PRODUCTS_WITH_FIND_FIRST_PRICES = "HundredProductsWithFindFirstPrices";
 
 	private static final int SEED = 40;
-	private final DataGenerator dataGenerator = new DataGenerator(faker -> PriceInnerRecordHandling.FIRST_OCCURRENCE);
+	private final DataGenerator dataGenerator = new DataGenerator(faker -> PriceInnerRecordHandling.LOWEST_PRICE);
 
 	@DataSet(value = HUNDRED_PRODUCTS_WITH_FIND_FIRST_PRICES, destroyAfterClass = true)
 	List<SealedEntity> setUp(Evita evita) {
@@ -294,4 +294,11 @@ public class FindFirstPriceEntityByPriceFilteringFunctionalTest extends EntityBy
 		super.shouldReturnProductsHavingPriceInCurrencyAndPriceListInIntervalWithTaxOrderByPriceAscendingWithoutExplicitAnd(evita, originalProductEntities);
 	}
 
+	@DisplayName("Should correctly traverse through all pages or results")
+	@UseDataSet(HUNDRED_PRODUCTS_WITH_FIND_FIRST_PRICES)
+	@Test
+	@Override
+	void shouldReturnCorrectlyTraverseThroughAllPagesOfResults(Evita evita, List<SealedEntity> originalProductEntities) {
+		super.shouldReturnCorrectlyTraverseThroughAllPagesOfResults(evita, originalProductEntities);
+	}
 }

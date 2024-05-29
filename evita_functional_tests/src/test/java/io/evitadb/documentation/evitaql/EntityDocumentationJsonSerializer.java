@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -27,6 +27,7 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonSerializer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializerProvider;
+import com.fasterxml.jackson.databind.json.JsonMapper;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataValue;
 import io.evitadb.api.requestResponse.data.AttributesContract;
@@ -63,6 +64,9 @@ import static java.util.Optional.ofNullable;
  */
 @RequiredArgsConstructor
 public class EntityDocumentationJsonSerializer extends JsonSerializer<EntityContract> {
+	private static final ObjectMapper objectMapper = JsonMapper.builder()
+		.nodeFactory(new ComplexDataObjectToJsonConverter.SortingNodeFactory())
+		.build();
 
 	/**
 	 * Wraps and rethrows possible {@link IOException} declared on lambda.
@@ -209,7 +213,7 @@ public class EntityDocumentationJsonSerializer extends JsonSerializer<EntityCont
 					} else if (theValue instanceof NumberRange<?> range) {
 						writeNumberRange(gen, range);
 					} else if (theValue instanceof ComplexDataObject complexDataObject) {
-						final ComplexDataObjectToJsonConverter converter = new ComplexDataObjectToJsonConverter(new ObjectMapper());
+						final ComplexDataObjectToJsonConverter converter = new ComplexDataObjectToJsonConverter(objectMapper);
 						complexDataObject.accept(converter);
 						gen.writeFieldName(fieldName);
 						gen.writeTree(converter.getRootNode());
@@ -315,7 +319,7 @@ public class EntityDocumentationJsonSerializer extends JsonSerializer<EntityCont
 	}
 
 	@Override
-	public void serialize(EntityContract value, JsonGenerator gen, SerializerProvider serializers) throws IOException {
+	public void serialize(@Nonnull EntityContract value, @Nonnull JsonGenerator gen, @Nonnull SerializerProvider serializers) throws IOException {
 		gen.writeStartObject();
 		gen.writeNumberField("primaryKey", value.getPrimaryKey());
 		if (value.parentAvailable()) {

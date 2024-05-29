@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -64,8 +64,6 @@ import java.util.stream.Collectors;
  * Mutation implements {@link CombinableEntitySchemaMutation} allowing to resolve conflicts with
  * {@link CreateAttributeSchemaMutation} mutation (if such is found in mutation pipeline).
  *
- * TOBEDONE JNO - write tests
- *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @ThreadSafe
@@ -97,11 +95,7 @@ public class RemoveAttributeSchemaMutation implements
 	public MutationCombinationResult<EntitySchemaMutation> combineWith(@Nonnull CatalogSchemaContract currentCatalogSchema, @Nonnull EntitySchemaContract currentEntitySchema, @Nonnull EntitySchemaMutation existingMutation) {
 		final SchemaMutation mutationToExamine = existingMutation instanceof ModifyReferenceAttributeSchemaMutation wrappingMutation ? wrappingMutation.getAttributeSchemaMutation() : existingMutation;
 		if (mutationToExamine instanceof AttributeSchemaMutation attributeSchemaMutation && Objects.equals(name, attributeSchemaMutation.getName())) {
-			if (mutationToExamine instanceof CreateAttributeSchemaMutation || mutationToExamine instanceof CreateGlobalAttributeSchemaMutation) {
-				return new MutationCombinationResult<>(null);
-			} else {
-				return new MutationCombinationResult<>(null, existingMutation);
-			}
+			return new MutationCombinationResult<>(true, null, this);
 		} else {
 			return null;
 		}
@@ -126,7 +120,7 @@ public class RemoveAttributeSchemaMutation implements
 		} else {
 			return new CatalogSchemaWithImpactOnEntitySchemas(
 				CatalogSchema._internalBuild(
-					catalogSchema.getVersion() + 1,
+					catalogSchema.version() + 1,
 					catalogSchema.getName(),
 					catalogSchema.getNameVariants(),
 					catalogSchema.getDescription(),

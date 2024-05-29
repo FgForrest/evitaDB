@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -26,7 +26,7 @@ package io.evitadb.performance.client.state;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.performance.client.ClientDataState;
 import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Setup;
@@ -147,7 +147,7 @@ public abstract class ClientTransactionalWriteState extends ClientDataState {
 			.iterator();*/
 		this.productIterator = Collections.emptyIterator();
 		this.productSchema = session.getEntitySchema(PRODUCT_ENTITY_TYPE)
-			.orElseThrow(() -> new EvitaInternalError("Schema for entity `" + PRODUCT_ENTITY_TYPE + "` was not found!"));
+			.orElseThrow(() -> new GenericEvitaInternalError("Schema for entity `" + PRODUCT_ENTITY_TYPE + "` was not found!"));
 	}
 
 	/**
@@ -167,7 +167,6 @@ public abstract class ClientTransactionalWriteState extends ClientDataState {
 	 */
 	@Setup(Level.Invocation)
 	public void prepareCall() {
-		this.session.openTransaction();
 		// there is 50% on update instead of insert
 		if (random.nextBoolean()) {
 			final List<Integer> existingProductIds = generatedEntities.get(PRODUCT_ENTITY_TYPE);
@@ -177,7 +176,7 @@ public abstract class ClientTransactionalWriteState extends ClientDataState {
 				PRODUCT_ENTITY_TYPE,
 				primaryKey,
 				entityFetchAllContent()
-			).orElseThrow(() -> new EvitaInternalError("Entity with id " + primaryKey + " unexpectedly not found!"));;
+			).orElseThrow(() -> new GenericEvitaInternalError("Entity with id " + primaryKey + " unexpectedly not found!"));;
 
 			this.product = this.modificationFunction.apply(existingEntity);
 			this.updateCounter++;
@@ -213,7 +212,7 @@ public abstract class ClientTransactionalWriteState extends ClientDataState {
 
 	@TearDown(Level.Invocation)
 	public void finishCall() {
-		this.session.closeTransaction();
+		this.session.close();
 	}
 
 	private void addToGeneratedEntities(EntitySchemaContract productSchema, Integer primaryKey) {
