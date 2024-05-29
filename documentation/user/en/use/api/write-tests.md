@@ -44,14 +44,14 @@ artifact into your project:
 <dependency>
     <groupId>io.evitadb</groupId>
     <artifactId>evita_test_support</artifactId>
-    <version>2024.6.1</version>
+    <version>2024.7.2</version>
     <scope>test</scope>
 </dependency>
 ```
 </CodeTabsBlock>
 <CodeTabsBlock>
 ```Gradle
-implementation 'io.evitadb:evita_test_support:2024.6.1'
+implementation 'io.evitadb:evita_test_support:2024.7.2'
 ```
 </CodeTabsBlock>
 </CodeTabs>
