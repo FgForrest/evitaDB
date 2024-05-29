@@ -106,6 +106,7 @@ public class MetricHandler {
 		.labelNames("api_type")
 		.help("Status of the API readiness (internal HTTP call check)")
 		.register();
+	public static final int DEFAULT_INIT_TIMEOUT = 5000;
 	private static final Pattern EVENT = Pattern.compile("Event");
 	private static final Map<String, Runnable> DEFAULT_JVM_METRICS;
 	private static final String DEFAULT_JVM_METRICS_NAME = "AllMetrics";
@@ -494,7 +495,7 @@ public class MetricHandler {
 		);
 
 		final long waitStart = System.currentTimeMillis();
-		while (System.currentTimeMillis() - initializedTime.get() < 500 && System.currentTimeMillis() - waitStart < 5000) {
+		while (System.currentTimeMillis() - initializedTime.get() < 500 && System.currentTimeMillis() - waitStart < DEFAULT_INIT_TIMEOUT) {
 			Thread.onSpinWait();
 		}
 
