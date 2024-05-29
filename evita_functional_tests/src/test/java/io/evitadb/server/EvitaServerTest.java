@@ -25,6 +25,7 @@ package io.evitadb.server;
 
 import io.evitadb.core.Evita;
 import io.evitadb.driver.interceptor.ClientSessionInterceptor;
+import io.evitadb.externalApi.graphql.GraphQLProvider;
 import io.evitadb.externalApi.grpc.GrpcProvider;
 import io.evitadb.externalApi.grpc.TestChannelCreator;
 import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc;
@@ -35,6 +36,8 @@ import io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionTerminationResponse
 import io.evitadb.externalApi.grpc.generated.GrpcSessionType;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
 import io.evitadb.externalApi.http.ExternalApiServer;
+import io.evitadb.externalApi.observability.ObservabilityProvider;
+import io.evitadb.externalApi.rest.RestProvider;
 import io.evitadb.externalApi.system.SystemProvider;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.TestConstants;
@@ -79,7 +82,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 
 	@Test
 	void shouldStartAndStopServerCorrectly() {
-		final Path configFilePath = EvitaTestSupport.bootstrapEvitaServerConfigurationFile(DIR_EVITA_SERVER_TEST);
+		final Path configFileDirectory = EvitaTestSupport.bootstrapEvitaServerConfigurationFile(DIR_EVITA_SERVER_TEST);
 
 		final Set<String> apis = ExternalApiServer.gatherExternalApiProviders()
 			.stream()
@@ -90,7 +93,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 		final AtomicInteger index = new AtomicInteger();
 		//noinspection unchecked
 		final EvitaServer evitaServer = new EvitaServer(
-			configFilePath,
+			configFileDirectory,
 			createHashMap(
 				Stream.concat(
 					Stream.of(
@@ -244,4 +247,52 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 		}
 	}
 
+	@Test
+	void shouldMergeMultipleYamlConfigurationTogether() {
+		final Path configFilePath = EvitaTestSupport.bootstrapEvitaServerConfigurationFile(DIR_EVITA_SERVER_TEST);
+		EvitaTestSupport.bootstrapEvitaServerConfigurationFileFrom(
+			DIR_EVITA_SERVER_TEST,
+			"/testData/evita-configuration-one.yaml",
+			"evita-configuration-one.yaml"
+		);
+		EvitaTestSupport.bootstrapEvitaServerConfigurationFileFrom(
+			DIR_EVITA_SERVER_TEST,
+			"/testData/evita-configuration-two.yaml",
+			"evita-configuration-two.yaml"
+		);
+
+		//noinspection unchecked
+		final EvitaServer evitaServer = new EvitaServer(
+			configFilePath.getParent(),
+			createHashMap(
+				Stream.of(
+					property("storage.storageDirectory", getTestDirectory().resolve(DIR_EVITA_SERVER_TEST).toString())
+				).toArray(Property[]::new)
+			)
+		);
+		try {
+			evitaServer.run();
+
+			final Evita evita = evitaServer.getEvita();
+			evita.defineCatalog(TEST_CATALOG);
+			assertFalse(evita.getConfiguration().cache().enabled());
+
+			final ExternalApiServer externalApiServer = evitaServer.getExternalApiServer();
+			assertNull(externalApiServer.getExternalApiProviderByCode(SystemProvider.CODE));
+			assertNull(externalApiServer.getExternalApiProviderByCode(GraphQLProvider.CODE));
+			assertNull(externalApiServer.getExternalApiProviderByCode(RestProvider.CODE));
+			assertNull(externalApiServer.getExternalApiProviderByCode(GrpcProvider.CODE));
+			assertNull(externalApiServer.getExternalApiProviderByCode(ObservabilityProvider.CODE));
+
+		} catch (Exception ex) {
+			fail(ex);
+		} finally {
+			try {
+				evitaServer.getEvita().deleteCatalogIfExists(TEST_CATALOG);
+				evitaServer.stop();
+			} catch (Exception ex) {
+				fail(ex.getMessage(), ex);
+			}
+		}
+	}
 }

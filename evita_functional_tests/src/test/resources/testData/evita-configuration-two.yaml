@@ -1,0 +1,14 @@
+api:
+  endpoints:
+    system:
+      enabled: false
+    graphQL:
+      enabled: false
+    rest:
+      enabled: false
+    gRPC:
+      enabled: false
+    lab:
+      enabled: false
+    observability:
+      enabled: false

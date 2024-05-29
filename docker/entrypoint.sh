@@ -7,7 +7,7 @@
 #             |  __/\ V /| | || (_| | |_| | |_) |
 #              \___| \_/ |_|\__\__,_|____/|____/
 #
-#   Copyright (c) 2023
+#   Copyright (c) 2023-2024
 #
 #   Licensed under the Business Source License, Version 1.1 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -27,13 +27,13 @@ set -e
 if [ "$1" = "" ]; then
     set -x
     exec java \
-        -javaagent:${EVITA_HOME}/bin/${EVITA_JAR_NAME} \
+        -javaagent:${EVITA_BIN_DIR}${EVITA_JAR_NAME} \
         $EVITA_JAVA_OPTS \
-        -jar "${EVITA_HOME}/bin/${EVITA_JAR_NAME}" \
-        "-DconfigFile=$EVITA_CONFIG_FILE" \
-        "-Dstorage.storageDirectory=$EVITA_STORAGE_DIR" \
-        "-Dapi.certificate.folderPath=$EVITA_CERTIFICATE_DIR" \
-        "-Dlogback.configurationFile=$EVITA_LOG_FILE" \
+        -jar "${EVITA_BIN_DIR}${EVITA_JAR_NAME}" \
+        "configDir=$EVITA_CONFIG_DIR" \
+        "storage.storageDirectory=$EVITA_STORAGE_DIR" \
+        "api.certificate.folderPath=$EVITA_CERTIFICATE_DIR" \
+        "logback.configurationFile=$EVITA_LOG_FILE" \
         $EVITA_ARGS
 else
     exec "$@"
