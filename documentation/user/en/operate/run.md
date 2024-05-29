@@ -226,7 +226,7 @@ docker run --name evitadb -i --net=host \
 -v "__data_dir__:/evita/data" \
 -v "__certificate_dir__:/evita/certificates" \
 -e "EVITA_JAVA_OPTS=-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5000" \
--e "EVITA_ARGS=-Dapi.endpoints.graphQL.enabled=false -Dapi.endpoints.grpc.enabled=false" \
+-e "EVITA_ARGS=api.endpoints.graphQL.enabled=false api.endpoints.grpc.enabled=false" \
 index.docker.io/evitadb/evitadb:latest
 ```
 

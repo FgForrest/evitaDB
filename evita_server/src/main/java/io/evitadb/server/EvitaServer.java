@@ -358,8 +358,8 @@ public class EvitaServer {
 	/**
 	 * Constructor that initializes the EvitaServer.
 	 */
-	public EvitaServer(@Nonnull Path configFileLocation, @Nonnull Map<String, String> arguments) {
-		this(configFileLocation, null, arguments);
+	public EvitaServer(@Nonnull Path configDirLocation, @Nonnull Map<String, String> arguments) {
+		this(configDirLocation, null, arguments);
 	}
 
 	/**
