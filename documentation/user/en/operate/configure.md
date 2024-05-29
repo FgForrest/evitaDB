@@ -230,19 +230,72 @@ Yes there are - you can use standardized metric system shortcuts for counts and 
 
 <NoteTitle toggles="true">
 
-##### Where the default configuration bundled with Docker image is located?
+##### Where is the default configuration bundled with the Docker image?
 </NoteTitle>
 
-The default configuration file is located in the file <SourceClass>docker/evita-configuration.yaml</SourceClass>.
+The default configuration file is located in the file <SourceClass>evita_server/src/main/resources/evita-configuration.yaml</SourceClass>.
 As you can see, it contains variables that allow the propagation of arguments from the command line / environment
-variables that are present when the server is started. The format used in this file is :
+variables that are present when the server is started. The format used in this file is:
 
 ```
 ${argument_name:defaultValue}
 ```
 </Note>
 
-## O
+## Overriding defaults
+
+There are several ways to override the defaults specified in the <SourceClass>evita_server/src/main/resources/evita-configuration.yaml</SourceClass> 
+file on the classpath.
+
+### Environment Variables
+
+Any configuration property can be overridden by setting an environment variable with a specially crafted name. The name
+of the variable can be calculated from the variable used in the default config file, which is always constructed from 
+the path to the property in the configuration file. The calculation consists of capitalizing the variable name and 
+replacing all dots with underscores. For example, the `server.coreThreadCount` property can be overridden by setting
+the `SERVER_CORETHREADCOUNT` environment variable.
+
+### Command Line Arguments
+
+Any configuration property can also be overridden by setting a command line argument with the following format
+
+```shell
+java -jar "target/evita-server.jar" "storage.storageDirectory=../data"
+```
+
+Application arguments have priority over environment variables.
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### How do I set application arguments in a Docker container?
+
+</NoteTitle>
+
+When using Docker containers, you can set application arguments in the `EVITA_ARGS` environment variable - for example
+
+```shell
+docker run -i --rm --net=host -e EVITA_ARGS="storage.storageDirectory=../data" index.docker.io/evitadb/evitadb:latest
+```
+
+</Note>
+
+### Custom configuration file
+
+Finally, the configuration file can be overridden by specifying a custom configuration file in the configuration folder
+specified by the `configDir` application argument. The custom configuration file must be in the same YAML format as 
+the default configuration, but may only contain a subset of the properties to be overridden. It's also possible to 
+define multiple override files. The files are applied in alphabetical order of their names. If you are building your 
+own Docker image, you can use the following command to override the configuration file:
+
+```shell
+COPY "your_file.yaml" "$EVITA_CONFIG_DIR"
+```
+
+If you have a more complex concatenated pipeline, you can copy multiple files to this folder at different stages of 
+the pipeline - but you must maintain the proper alphabetical order of the files so that overrides are applied the way
+you want.
 
 ## Name
 

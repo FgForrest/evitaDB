@@ -22,12 +22,10 @@
 #   limitations under the License.
 #
 
-export EVITADB_API_ENDPOINTS_GRPC_HOST="localhost:6666"
-
 java \
         -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:8005 \
         -javaagent:target/evita-server.jar \
         -jar "target/evita-server.jar" \
-        "-DconfigDir=../docker/" \
-        "-Dstorage.storageDirectory=../data " \
-        "-Dcache.enabled=false"
+        "configDir=../docker/" \
+        "storage.storageDirectory=../data " \
+        "cache.enabled=false"
