@@ -396,8 +396,8 @@ public class EvitaServer {
 		ConsoleWriter.write("Visit us at: ");
 		ConsoleWriter.write("https://evitadb.io", ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);
 		ConsoleWriter.write("\n\n", ConsoleColor.WHITE);
-		ConsoleWriter.write("Log config used: " + System.getProperty(ContextInitializer.CONFIG_FILE_PROPERTY) + ofNullable(logInitializationStatus).map(it -> " (" + it + ")").orElse("") + "", ConsoleColor.DARK_GRAY);
-		ConsoleWriter.write("Config files used:\n" + Arrays.stream(evitaServerConfigurationWithLogFilesListing.configFilesApplied()).map(it -> "\t" + it.toAbsolutePath()).collect(Collectors.joining("\n")), ConsoleColor.DARK_GRAY);
+		ConsoleWriter.write("Log config used: " + System.getProperty(ContextInitializer.CONFIG_FILE_PROPERTY) + ofNullable(logInitializationStatus).map(it -> " (" + it + ")").orElse("") + "\n", ConsoleColor.DARK_GRAY);
+		ConsoleWriter.write("Config files used:\n\t- DEFAULT (on classpath)\n" + Arrays.stream(evitaServerConfigurationWithLogFilesListing.configFilesApplied()).map(it -> "\t- " + it.toAbsolutePath()).collect(Collectors.joining("\n")), ConsoleColor.DARK_GRAY);
 		ConsoleWriter.write("\n", ConsoleColor.WHITE);
 
 		ConsoleWriter.write("Server name: ", ConsoleColor.WHITE);
