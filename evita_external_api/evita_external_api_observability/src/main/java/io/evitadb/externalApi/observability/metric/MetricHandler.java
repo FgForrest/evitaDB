@@ -106,6 +106,7 @@ public class MetricHandler {
 		.labelNames("api_type")
 		.help("Status of the API readiness (internal HTTP call check)")
 		.register();
+	private static final Map<String, Metric> REGISTERED_METRICS = new HashMap<>(64);
 	private static final Pattern EVENT = Pattern.compile("Event");
 	private static final Map<String, Runnable> DEFAULT_JVM_METRICS;
 	private static final String DEFAULT_JVM_METRICS_NAME = "AllMetrics";
@@ -351,7 +352,6 @@ public class MetricHandler {
 			new BackgroundTask(
 				"Metric handler",
 				() -> {
-					final Map<String, Metric> registeredMetrics = new HashMap<>(64);
 					final ReflectionLookup lookup = ReflectionLookup.NO_CACHE_INSTANCE;
 					try (var recordingStream = new RecordingStream()) {
 						for (Class<? extends CustomMetricsExecutionEvent> eventClass : allowedMetrics) {
@@ -389,7 +389,7 @@ public class MetricHandler {
 									final HistogramSettings histogramSettings = lookup.getClassAnnotation(eventClass, HistogramSettings.class);
 									final Metric durationMetric = buildAndRegisterMetric(
 										new LoggedMetric(metricName, it.label(), MetricType.HISTOGRAM, histogramSettings, labelNames),
-										registeredMetrics
+										REGISTERED_METRICS
 									);
 									if (ArrayUtils.isEmpty(labelValueExporters)) {
 										chainLambda(
@@ -414,7 +414,7 @@ public class MetricHandler {
 									final String metricName = composeMetricName(eventClass, it.value());
 									final Metric invocationMetric = buildAndRegisterMetric(
 										new LoggedMetric(metricName, it.label(), MetricType.COUNTER, null, labelNames),
-										registeredMetrics
+										REGISTERED_METRICS
 									);
 									if (ArrayUtils.isEmpty(labelValueExporters)) {
 										chainLambda(lambdaRef, recordedEvent -> ((Counter) invocationMetric).inc());
@@ -468,7 +468,7 @@ public class MetricHandler {
 										histogramSettings.orElse(null),
 										labelNames
 									),
-									registeredMetrics
+									REGISTERED_METRICS
 								);
 								chainLambda(
 									lambdaRef,

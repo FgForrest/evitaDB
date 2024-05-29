@@ -34,4 +34,5 @@ module evita.test.support {
 	requires evita.external.api.rest;
 	requires evita.external.api.lab;
 	requires okhttp3;
+	requires evita.external.api.observability;
 }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -31,6 +31,7 @@ import org.roaringbitmap.buffer.MutableRoaringBitmap;
 
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -103,7 +104,7 @@ public interface RoaringBitmapBackedBitmap extends Bitmap {
 	 */
 	@Nonnull
 	static Bitmap and(@Nonnull RoaringBitmap[] theBitmaps) {
-		if (theBitmaps.length == 0) {
+		if (theBitmaps.length == 0 || Arrays.stream(theBitmaps).anyMatch(RoaringBitmap::isEmpty)) {
 			return EmptyBitmap.INSTANCE;
 		} else if (theBitmaps.length == 1) {
 			return new BaseBitmap(theBitmaps[0]);
