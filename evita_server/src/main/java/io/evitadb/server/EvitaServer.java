@@ -403,9 +403,6 @@ public class EvitaServer {
 		ConsoleWriter.write("Server name: ", ConsoleColor.WHITE);
 		ConsoleWriter.write(this.evitaConfiguration.name(), ConsoleColor.BRIGHT_YELLOW);
 		ConsoleWriter.write("\n", ConsoleColor.WHITE);
-
-		ConsoleWriter.write("Actual configuration:\n\n" + evitaServerConfigurationWithLogFilesListing.configAsString(), ConsoleColor.DARK_GRAY);
-		ConsoleWriter.write("\n", ConsoleColor.WHITE);
 	}
 
 	/**
@@ -460,7 +457,6 @@ public class EvitaServer {
 
 		final Path[] configFiles;
 		final EvitaServerConfiguration evitaServerConfig;
-		final String configAsString;
 		try (
 			final Stream<Path> filesInDirectory = configDirLocation.toFile().exists() ?
 				Files.list(configDirLocation) : Stream.empty()
@@ -490,7 +486,6 @@ public class EvitaServer {
 				// (the last file has the highest priority and overrides the previous ones)
 				configFiles
 			);
-			configAsString = yamlMapper.writeValueAsString(evitaServerConfig);
 		} catch (IOException e) {
 			throw new ConfigurationParseException(
 				"Failed to parse configuration files from directory `" + configDirLocation + "` due to: " + e.getMessage() + ".",
@@ -499,8 +494,7 @@ public class EvitaServer {
 		}
 		return new EvitaServerConfigurationWithLogFilesListing(
 			evitaServerConfig,
-			configFiles,
-			configAsString
+			configFiles
 		);
 	}
 
@@ -530,8 +524,7 @@ public class EvitaServer {
 	 */
 	private record EvitaServerConfigurationWithLogFilesListing(
 		@Nonnull EvitaServerConfiguration configuration,
-		@Nonnull Path[] configFilesApplied,
-		@Nonnull String configAsString
+		@Nonnull Path[] configFilesApplied
 	) {
 	}
 
