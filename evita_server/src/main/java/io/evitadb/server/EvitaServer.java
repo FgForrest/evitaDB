@@ -118,6 +118,10 @@ public class EvitaServer {
 	 */
 	private static final Pattern OPTION_SIMPLE_ARGUMENT = Pattern.compile("(\\S+)=(\\S+)");
 	/**
+	 * Classpath location of the default evita configuration file.
+	 */
+	private static final String DEFAULT_EVITA_CONFIGURATION = "/evita-configuration.yaml";
+	/**
 	 * Logger.
 	 */
 	private static Logger log;
@@ -286,10 +290,12 @@ public class EvitaServer {
 
 		try {
 			// iterate over all files in the directory and merge them into a single configuration
-			Map<String, Object> finalYaml = null;
+			Map<String, Object> finalYaml = yamlParser.get().load(
+				readerFactory.apply(EvitaServer.class.getResourceAsStream(DEFAULT_EVITA_CONFIGURATION))
+			);
 			for (Path file : files) {
 				final Map<String, Object> loadedYaml = yamlParser.get().load(readerFactory.apply(new FileInputStream(file.toFile())));
-				finalYaml = finalYaml == null ? loadedYaml : combine(finalYaml, loadedYaml);
+				finalYaml = combine(finalYaml, loadedYaml);
 			}
 
 			// if the final configuration is null, return default configuration, otherwise convert it to the object
@@ -455,10 +461,16 @@ public class EvitaServer {
 		final Path[] configFiles;
 		final EvitaServerConfiguration evitaServerConfig;
 		final String configAsString;
-		try (final Stream<Path> filesInDirectory = Files.list(configDirLocation)) {
+		try (
+			final Stream<Path> filesInDirectory = configDirLocation.toFile().exists() ?
+				Files.list(configDirLocation) : Stream.empty()
+		) {
 			configFiles = filesInDirectory
 				.filter(Files::isRegularFile)
-				.filter(it -> it.getFileName().toString().endsWith(".yaml"))
+				.filter(it -> {
+					final String fileName = it.getFileName().toString().toLowerCase();
+					return fileName.endsWith(".yaml") || fileName.endsWith(".yml");
+				})
 				.sorted()
 				.toArray(Path[]::new);
 			evitaServerConfig = mergeYamlFiles(

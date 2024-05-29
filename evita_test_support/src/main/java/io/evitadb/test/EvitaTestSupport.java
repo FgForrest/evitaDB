@@ -63,22 +63,6 @@ public interface EvitaTestSupport extends TestConstants {
 	 * Method copies `evita-configuration.yaml` from the classpath to the temporary directory on the filesystem so that
 	 * evita server that is going to be started in tests will be able to find it.
 	 *
-	 * @param folderName name of the folder where the configuration file will be stored
-	 * @return path of the exported configuration file
-	 */
-	@Nonnull
-	static Path bootstrapEvitaServerConfigurationFile(@Nonnull String folderName) {
-		return bootstrapEvitaServerConfigurationFileFrom(
-			folderName,
-			"/" + DEFAULT_EVITA_CONFIGURATION_FILE,
-			DEFAULT_EVITA_CONFIGURATION_FILE
-		);
-	}
-
-	/**
-	 * Method copies `evita-configuration.yaml` from the classpath to the temporary directory on the filesystem so that
-	 * evita server that is going to be started in tests will be able to find it.
-	 *
 	 * @param folderName        name of the folder where the configuration file will be stored
 	 * @param classPathLocation classpath location of the source configuration file
 	 * @param targetFileName    name of the target configuration file

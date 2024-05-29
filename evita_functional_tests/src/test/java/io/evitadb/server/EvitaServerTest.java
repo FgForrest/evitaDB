@@ -50,7 +50,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -82,8 +81,6 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 
 	@Test
 	void shouldStartAndStopServerCorrectly() {
-		final Path configFileDirectory = EvitaTestSupport.bootstrapEvitaServerConfigurationFile(DIR_EVITA_SERVER_TEST);
-
 		final Set<String> apis = ExternalApiServer.gatherExternalApiProviders()
 			.stream()
 			.map(ExternalApiProviderRegistrar::getExternalApiCode)
@@ -93,7 +90,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 		final AtomicInteger index = new AtomicInteger();
 		//noinspection unchecked
 		final EvitaServer evitaServer = new EvitaServer(
-			configFileDirectory,
+			getPathInTargetDirectory(DIR_EVITA_SERVER_TEST),
 			createHashMap(
 				Stream.concat(
 					Stream.of(
@@ -153,8 +150,6 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 
 	@Test
 	void shouldSignalizeReadinessAndHealthinessCorrectly() {
-		final Path configFilePath = EvitaTestSupport.bootstrapEvitaServerConfigurationFile(DIR_EVITA_SERVER_TEST);
-
 		final Set<String> apis = ExternalApiServer.gatherExternalApiProviders()
 			.stream()
 			.map(ExternalApiProviderRegistrar::getExternalApiCode)
@@ -164,7 +159,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 		final AtomicInteger index = new AtomicInteger();
 		//noinspection unchecked
 		final EvitaServer evitaServer = new EvitaServer(
-			configFilePath,
+			getPathInTargetDirectory(DIR_EVITA_SERVER_TEST),
 			createHashMap(
 				Stream.concat(
 						Stream.of(
@@ -249,7 +244,6 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 
 	@Test
 	void shouldMergeMultipleYamlConfigurationTogether() {
-		final Path configFilePath = EvitaTestSupport.bootstrapEvitaServerConfigurationFile(DIR_EVITA_SERVER_TEST);
 		EvitaTestSupport.bootstrapEvitaServerConfigurationFileFrom(
 			DIR_EVITA_SERVER_TEST,
 			"/testData/evita-configuration-one.yaml",
@@ -263,7 +257,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 
 		//noinspection unchecked
 		final EvitaServer evitaServer = new EvitaServer(
-			configFilePath.getParent(),
+			getPathInTargetDirectory(DIR_EVITA_SERVER_TEST),
 			createHashMap(
 				Stream.of(
 					property("storage.storageDirectory", getTestDirectory().resolve(DIR_EVITA_SERVER_TEST).toString())

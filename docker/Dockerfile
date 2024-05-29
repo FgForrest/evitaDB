@@ -50,7 +50,6 @@ RUN set -ex \
 # Copy files
 COPY "entrypoint.sh" "/"
 COPY "$EVITA_JAR_NAME" "$EVITA_BIN_DIR"
-COPY "evita-configuration.yaml" "$EVITA_CONFIG_DIR/evita-configuration.yaml"
 
 ## 5. Startup part ##
 
