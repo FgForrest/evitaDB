@@ -741,7 +741,10 @@ public final class Evita implements EvitaContract {
 
 			// now remove the catalog that was renamed to, we need observers to be still able to access it and therefore
 			// and therefore the removal only takes place here
-			this.catalogs.remove(catalogNameToBeReplacedWith);
+			final CatalogContract removedCatalog = this.catalogs.remove(catalogNameToBeReplacedWith);
+			if (removedCatalog instanceof Catalog theCatalog) {
+				theCatalog.emitDeleteObservabilityEvents();
+			}
 
 			// we need to update catalog statistics
 			updateCatalogStatistics();
@@ -766,6 +769,9 @@ public final class Evita implements EvitaContract {
 			structuralChangeObservers.forEach(it -> doWithPretendingCatalogStillPresent(catalogToRemove, () -> it.onCatalogDelete(catalogName)));
 			catalogToRemove.terminate();
 			catalogToRemove.delete();
+			if (catalogToRemove instanceof Catalog theCatalog) {
+				theCatalog.emitDeleteObservabilityEvents();
+			}
 		}
 	}
 

@@ -211,13 +211,14 @@ public class OrFormula extends AbstractCacheableFormula {
 		} else {
 			theResult = new BaseBitmap(RoaringBitmap.or(theBitmaps));
 		}
-		return theResult;
+		return theResult.isEmpty() ? EmptyBitmap.INSTANCE : theResult;
 	}
 
 	/*
 		PRIVATE METHODS
 	 */
 
+	@Nonnull
 	private RoaringBitmap[] getRoaringBitmaps() {
 		return ofNullable(this.bitmaps)
 			.map(it -> Arrays

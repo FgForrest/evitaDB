@@ -87,6 +87,11 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	void emitStartObservabilityEvents();
 
 	/**
+	 * Method for internal use. Allows to emit events clearing the information about deleted catalog.
+	 */
+	void emitDeleteObservabilityEvents();
+
+	/**
 	 * Returns name of the bootstrap file that contains lead information to fetching the catalog header in fixed record
 	 * size format. This file can be traversed by jumping on expected offsets.
 	 */
