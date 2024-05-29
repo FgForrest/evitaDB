@@ -106,7 +106,7 @@ public class MetricHandler {
 		.labelNames("api_type")
 		.help("Status of the API readiness (internal HTTP call check)")
 		.register();
-	public static final int DEFAULT_INIT_TIMEOUT = 5000;
+	public static int DEFAULT_INIT_TIMEOUT = 5000;
 	private static final Pattern EVENT = Pattern.compile("Event");
 	private static final Map<String, Runnable> DEFAULT_JVM_METRICS;
 	private static final String DEFAULT_JVM_METRICS_NAME = "AllMetrics";
