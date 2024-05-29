@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -71,7 +71,7 @@ class FilterFormulaFacetOptimizeVisitorTest {
 			      [#5] AND → [2]
 			         [#6] [1, 2]
 			         [#7] [2, 3]
-			      [#8] AND → []
+			      [#8] AND → EMPTY
 			         [#9] FACET PARAMETER OR (2 - [1]):  ↦ [7]
 			         [#10] FACET BRAND OR (1 - [1]):  ↦ [1]
 			         [#11] FACET STORE OR (1 - [1]):  ↦ [2]
@@ -117,10 +117,10 @@ class FilterFormulaFacetOptimizeVisitorTest {
 			      [#6] AND → [2]
 			         [#7] [1, 2]
 			         [#8] [2, 3]
-			      [#9] NOT → []
+			      [#9] NOT → EMPTY
 			         [#10] FACET PARAMETER OR (10 - [1]):  ↦ [12]
 			         [#11] AND → EMPTY
-			            [#12] AND → []
+			            [#12] AND → EMPTY
 			               [#13] FACET PARAMETER OR (2 - [1]):  ↦ [7]
 			               [#14] FACET BRAND OR (1 - [1]):  ↦ [1]
 			               [#15] FACET STORE OR (1 - [1]):  ↦ [2]

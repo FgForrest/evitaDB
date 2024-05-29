@@ -211,7 +211,7 @@ public class OrFormula extends AbstractCacheableFormula {
 		} else {
 			theResult = new BaseBitmap(RoaringBitmap.or(theBitmaps));
 		}
-		return theResult;
+		return theResult.isEmpty() ? EmptyBitmap.INSTANCE : theResult;
 	}
 
 	/*
@@ -228,7 +228,6 @@ public class OrFormula extends AbstractCacheableFormula {
 			.orElseGet(
 				() -> Arrays.stream(getInnerFormulas())
 					.map(Formula::compute)
-					.filter(it -> !it.isEmpty())
 					.map(RoaringBitmapBackedBitmap::getRoaringBitmap)
 					.toArray(RoaringBitmap[]::new)
 			);
