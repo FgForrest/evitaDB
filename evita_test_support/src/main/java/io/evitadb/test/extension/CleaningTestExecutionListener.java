@@ -24,7 +24,6 @@
 package io.evitadb.test.extension;
 
 import io.evitadb.api.requestResponse.data.DevelopmentConstants;
-import io.evitadb.externalApi.observability.metric.MetricHandler;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.extension.EvitaParameterResolver.DataSetInfo;
 import io.evitadb.utils.Assert;
@@ -118,7 +117,6 @@ public class CleaningTestExecutionListener implements TestExecutionListener, Evi
 		}
 		System.setProperty(DevelopmentConstants.TEST_RUN, "true");
 		NetworkUtils.DEFAULT_CLIENT_TIMEOUT = 30000;
-		MetricHandler.DEFAULT_INIT_TIMEOUT = 30000;
 		this.testsStarted = System.nanoTime();
 	}
 
