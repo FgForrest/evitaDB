@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -44,6 +44,7 @@ import io.evitadb.core.query.algebra.price.predicate.PriceAmountPredicate;
 import io.evitadb.core.query.algebra.price.predicate.PriceContractPredicate;
 import io.evitadb.core.query.algebra.price.predicate.PricePredicate;
 import io.evitadb.core.query.filter.FilterByVisitor;
+import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.function.QuadriFunction;
 import io.evitadb.index.bitmap.BaseBitmap;
@@ -149,7 +150,7 @@ public class SellingPriceAvailableBitmapFilter implements EntityToBitmapFilter, 
 		final BaseBitmap filterOutResult = new BaseBitmap();
 		final AtomicInteger indexedPricePlaces = new AtomicInteger();
 		String entityType = null;
-		final List<EntityDecorator> entities = filterByVisitor.getPrefetchedEntities();
+		final List<ServerEntityDecorator> entities = filterByVisitor.getPrefetchedEntities();
 		if (entities == null) {
 			return EmptyBitmap.INSTANCE;
 		} else {

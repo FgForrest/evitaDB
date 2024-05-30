@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -179,6 +179,35 @@ public class FileUtils {
 				"Cannot delete empty folder: " + parentDirectory,
 				"Cannot delete empty folder!",
 				e
+			);
+		}
+	}
+
+	/**
+	 * Returns the size of the specified directory in bytes.
+	 * @param directory The path to the directory.
+	 * @return The size of the directory in bytes.
+	 */
+	public static long getDirectorySize(@Nonnull Path directory) {
+		// calculate size of all bytes in particular directory
+		try (final Stream<Path> walk = Files.walk(directory);) {
+			return walk
+				.filter(Files::isRegularFile)
+				.mapToLong(it -> {
+					try {
+						return Files.size(it);
+					} catch (IOException e) {
+						throw new UnexpectedIOException(
+							"Failed to get size of file: " + it,
+							"Failed to get size of file!", e
+						);
+					}
+				})
+				.sum();
+		} catch (IOException e) {
+			throw new UnexpectedIOException(
+				"Failed to calculate size of directory: " + directory,
+				"Failed to calculate size of directory!", e
 			);
 		}
 	}

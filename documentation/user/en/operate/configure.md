@@ -94,6 +94,16 @@ api:                                              # [see API configuration](#api
         enabled: true
         readOnly: false
         preconfiguredConnections: null
+    observability:                                # [see Observability configuration](#observability-configuration)
+      enabled: true
+      host: localhost:5557
+      exposedHost: null
+      tlsEnabled: false
+      allowedOrigins: null
+      tracing:
+        endpoint: null
+        protocol: grpc
+      allowedEvents: null
 ```
 
 <Note type="info">
@@ -220,17 +230,72 @@ Yes there are - you can use standardized metric system shortcuts for counts and 
 
 <NoteTitle toggles="true">
 
-##### Where the default configuration bundled with Docker image is located?
+##### Where is the default configuration bundled with the Docker image?
 </NoteTitle>
 
-The default configuration file is located in the file <SourceClass>docker/evita-configuration.yaml</SourceClass>.
+The default configuration file is located in the file <SourceClass>evita_server/src/main/resources/evita-configuration.yaml</SourceClass>.
 As you can see, it contains variables that allow the propagation of arguments from the command line / environment
-variables that are present when the server is started. The format used in this file is :
+variables that are present when the server is started. The format used in this file is:
 
 ```
 ${argument_name:defaultValue}
 ```
 </Note>
+
+## Overriding defaults
+
+There are several ways to override the defaults specified in the <SourceClass>evita_server/src/main/resources/evita-configuration.yaml</SourceClass> 
+file on the classpath.
+
+### Environment Variables
+
+Any configuration property can be overridden by setting an environment variable with a specially crafted name. The name
+of the variable can be calculated from the variable used in the default config file, which is always constructed from 
+the path to the property in the configuration file. The calculation consists of capitalizing the variable name and 
+replacing all dots with underscores. For example, the `server.coreThreadCount` property can be overridden by setting
+the `SERVER_CORETHREADCOUNT` environment variable.
+
+### Command Line Arguments
+
+Any configuration property can also be overridden by setting a command line argument with the following format
+
+```shell
+java -jar "target/evita-server.jar" "storage.storageDirectory=../data"
+```
+
+Application arguments have priority over environment variables.
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### How do I set application arguments in a Docker container?
+
+</NoteTitle>
+
+When using Docker containers, you can set application arguments in the `EVITA_ARGS` environment variable - for example
+
+```shell
+docker run -i --rm --net=host -e EVITA_ARGS="storage.storageDirectory=../data" index.docker.io/evitadb/evitadb:latest
+```
+
+</Note>
+
+### Custom configuration file
+
+Finally, the configuration file can be overridden by specifying a custom configuration file in the configuration folder
+specified by the `configDir` application argument. The custom configuration file must be in the same YAML format as 
+the default configuration, but may only contain a subset of the properties to be overridden. It's also possible to 
+define multiple override files. The files are applied in alphabetical order of their names. If you are building your 
+own Docker image, you can use the following command to override the configuration file:
+
+```shell
+COPY "your_file.yaml" "$EVITA_CONFIG_DIR"
+```
+
+If you have a more complex concatenated pipeline, you can copy multiple files to this folder at different stages of 
+the pipeline - but you must maintain the proper alphabetical order of the files so that overrides are applied the way
+you want.
 
 ## Name
 
@@ -557,6 +622,7 @@ It allows configuring these settings:
     <NoteTitle toggles="false">
         
     ##### Tip
+
     </NoteTitle>
 
       It is recommended to provide the private key password using command line argument (environment variable) 
@@ -823,5 +889,58 @@ This configuration controls how the actual evitaLab web client will be served th
         it is exposed on a different public domain and port, not on a localhost. Without custom connection configuration
         pointing to the public domain, the evitaLab web client would try to connect to the server on localhost.
         </p>
+    </dd>
+</dl>
+
+### Observability configuration
+
+The configuration controls all observability facilities exposed to the external systems. Currently, it's the endpoint
+pro scraping Prometheus metrics, OTEL trace exporter and Java Flight Recorder events recording facilities.
+
+<dl>
+    <dt>enabled</dt>
+    <dd>
+        <p>**Default:** `true`</p>
+        <p>It enables / disables observability API.</p>
+    </dd>
+    <dt>host</dt>
+    <dd>
+        <p>**Default:** `localhost:5555`</p>
+        <p>It specifies the host and port that the evitaLab API/evitaLab web client should listen on.
+        The value may be identical to the GraphQL API and REST API, but not to the gRPC or System API.</p>
+    </dd>
+    <dt>exposedHost</dt>
+    <dd>
+        <p>When evitaDB is running in a Docker container and the ports are exposed on the host systems 
+           the internally resolved local host name and port usually don't match the host name and port 
+           evitaDB is available on that host system. If you specify this property, the `exposeOn` global property
+           is no longer used.</p>
+    </dd>
+    <dt>tlsEnabled</dt>
+    <dd>
+        <p>**Default:** `true`</p>
+        <p>Whether the [TLS](./tls.md) should be enabled for the evitaLab API/evitaLab web client. 
+        If multiple APIs share the same port, 
+        all such APIs need to have set the same `tlsEnabled` value, or each API must have its own port.</p>
+    </dd>
+    <dt>allowedOrigins</dt>
+    <dd>
+        <p>**Default:** `null`</p>
+        <p>Specifies comma separated [origins](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Origin) 
+        that are allowed to consume the evitaLab API/evitaLab web client. If no origins are specified, i.e. `null`,
+        all origins are allowed automatically.</p>
+    </dd>
+    <dt>tracing.endpoint</dt>
+    <dd>
+        <p>**Default:** `null`</p>
+        <p>Specifies the URL to the [OTEL collector](https://opentelemetry.io/docs/collector/) that collects the traces.
+        It's a good idea to run the collector on the same host as evitaDB so that it can further filter out traces and
+        avoid unnecessary remote network communication.</p>
+    </dd>
+    <dt>tracing.protocol</dt>
+    <dd>
+        <p>**Default:** `grpc`</p>
+        <p>Specifies the protocol used between the application and the OTEL collector to pass the traces. Possible 
+        values are `grpc` and `http`. gRPC is much more performant and is the preferred option.</p>
     </dd>
 </dl>

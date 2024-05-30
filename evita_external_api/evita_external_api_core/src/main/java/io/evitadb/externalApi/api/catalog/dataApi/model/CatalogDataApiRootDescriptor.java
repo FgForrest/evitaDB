@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -27,8 +27,6 @@ import io.evitadb.externalApi.api.catalog.model.CatalogRootDescriptor;
 import io.evitadb.externalApi.api.model.EndpointDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 
-import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nullableListRef;
-import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nullableRef;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 
 /**

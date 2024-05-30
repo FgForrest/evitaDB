@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -32,22 +32,23 @@ import javax.annotation.Nonnull;
 /**
  * DTO contains base server wide settings for the evitaDB.
  *
- * @param coreThreadCount                               Defines count of threads that are spun up in {@link java.util.concurrent.ExecutorService} for handling
- *                                                      input requests as well as maintenance tasks. The more catalog in Evita
- *                                                      DB there is, the higher count of thread count might be required.
- * @param maxThreadCount                                Defines count of threads that might by spun up at the maximum (i.e. when
- *                                                      there are not enough threads to process input requests and background tasks)
- * @param threadPriority                                Defines a {@link Thread#getPriority()} for background threads. The number must be in
- *                                                      interval 1-10. The threads with higher priority should be preferred over the ones
- *                                                      with lesser priority.
- * @param queueSize                                     maximum amount of task accepted to thread pool to wait for a free thread
- * @param shortRunningThreadsTimeoutInSeconds 	        sets the timeout in seconds after which threads that are supposed to be short-running should timeout and cancel its execution
- * @param killTimedOutShortRunningThreadsEverySeconds   sets interval in seconds in which short-running timed out threads are forced to be killed (unfortunately, it's not guarantied that the threads will be actually killed) and stack traces are printed
- * @param closeSessionsAfterSecondsOfInactivity         sets the timeout in seconds after which the session is closed
- *                                                      automatically if there is no activity observed on it
- * @param readOnly                                      starts the database in full read-only mode that forbids to execute write
- *                                                      operations on {@link EntityContract} level and open read-write
- *                                                      {@link EvitaSessionContract}
+ * @param coreThreadCount                             Defines count of threads that are spun up in {@link java.util.concurrent.ExecutorService} for handling
+ *                                                    input requests as well as maintenance tasks. The more catalog in Evita
+ *                                                    DB there is, the higher count of thread count might be required.
+ * @param maxThreadCount                              Defines count of threads that might by spun up at the maximum (i.e. when
+ *                                                    there are not enough threads to process input requests and background tasks)
+ * @param threadPriority                              Defines a {@link Thread#getPriority()} for background threads. The number must be in
+ *                                                    interval 1-10. The threads with higher priority should be preferred over the ones
+ *                                                    with lesser priority.
+ * @param queueSize                                   maximum amount of task accepted to thread pool to wait for a free thread
+ * @param shortRunningThreadsTimeoutInSeconds         sets the timeout in seconds after which threads that are supposed to be short-running should timeout and cancel its execution
+ * @param killTimedOutShortRunningThreadsEverySeconds sets interval in seconds in which short-running timed out threads are forced to be killed (unfortunately, it's not guarantied that the threads will be actually killed) and stack traces are printed
+ * @param closeSessionsAfterSecondsOfInactivity       sets the timeout in seconds after which the session is closed
+ *                                                    automatically if there is no activity observed on it
+ * @param readOnly                                    starts the database in full read-only mode that forbids to execute write
+ *                                                    operations on {@link EntityContract} level and open read-write
+ *                                                    {@link EvitaSessionContract}
+ * @param quiet                                       when true all outputs to system console output are suppressed
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public record ServerOptions(

@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -25,6 +25,7 @@ package io.evitadb.server;
 
 import io.evitadb.core.Evita;
 import io.evitadb.driver.interceptor.ClientSessionInterceptor;
+import io.evitadb.externalApi.graphql.GraphQLProvider;
 import io.evitadb.externalApi.grpc.GrpcProvider;
 import io.evitadb.externalApi.grpc.TestChannelCreator;
 import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc;
@@ -35,18 +36,20 @@ import io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionTerminationResponse
 import io.evitadb.externalApi.grpc.generated.GrpcSessionType;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
 import io.evitadb.externalApi.http.ExternalApiServer;
+import io.evitadb.externalApi.observability.ObservabilityProvider;
+import io.evitadb.externalApi.rest.RestProvider;
 import io.evitadb.externalApi.system.SystemProvider;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.TestConstants;
 import io.evitadb.utils.CollectionUtils.Property;
 import io.evitadb.utils.NetworkUtils;
 import io.grpc.ManagedChannel;
+import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -62,6 +65,7 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
+@Slf4j
 class EvitaServerTest implements TestConstants, EvitaTestSupport {
 	private static final String DIR_EVITA_SERVER_TEST = "evitaServerTest";
 
@@ -77,8 +81,6 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 
 	@Test
 	void shouldStartAndStopServerCorrectly() {
-		final Path configFilePath = EvitaTestSupport.bootstrapEvitaServerConfigurationFile(DIR_EVITA_SERVER_TEST);
-
 		final Set<String> apis = ExternalApiServer.gatherExternalApiProviders()
 			.stream()
 			.map(ExternalApiProviderRegistrar::getExternalApiCode)
@@ -88,7 +90,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 		final AtomicInteger index = new AtomicInteger();
 		//noinspection unchecked
 		final EvitaServer evitaServer = new EvitaServer(
-			configFilePath,
+			getPathInTargetDirectory(DIR_EVITA_SERVER_TEST),
 			createHashMap(
 				Stream.concat(
 					Stream.of(
@@ -148,8 +150,6 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 
 	@Test
 	void shouldSignalizeReadinessAndHealthinessCorrectly() {
-		final Path configFilePath = EvitaTestSupport.bootstrapEvitaServerConfigurationFile(DIR_EVITA_SERVER_TEST);
-
 		final Set<String> apis = ExternalApiServer.gatherExternalApiProviders()
 			.stream()
 			.map(ExternalApiProviderRegistrar::getExternalApiCode)
@@ -159,7 +159,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 		final AtomicInteger index = new AtomicInteger();
 		//noinspection unchecked
 		final EvitaServer evitaServer = new EvitaServer(
-			configFilePath,
+			getPathInTargetDirectory(DIR_EVITA_SERVER_TEST),
 			createHashMap(
 				Stream.concat(
 						Stream.of(
@@ -186,8 +186,10 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 			Optional<String> response;
 			final long start = System.currentTimeMillis();
 			do {
+				final String url = baseUrls[0] + "readiness";
+				log.info("Checking readiness at {}", url);
 				response = NetworkUtils.fetchContent(
-					baseUrls[0] + "readiness",
+					url,
 					"GET",
 					"application/json",
 					null
@@ -240,4 +242,51 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 		}
 	}
 
+	@Test
+	void shouldMergeMultipleYamlConfigurationTogether() {
+		EvitaTestSupport.bootstrapEvitaServerConfigurationFileFrom(
+			DIR_EVITA_SERVER_TEST,
+			"/testData/evita-configuration-one.yaml",
+			"evita-configuration-one.yaml"
+		);
+		EvitaTestSupport.bootstrapEvitaServerConfigurationFileFrom(
+			DIR_EVITA_SERVER_TEST,
+			"/testData/evita-configuration-two.yaml",
+			"evita-configuration-two.yaml"
+		);
+
+		//noinspection unchecked
+		final EvitaServer evitaServer = new EvitaServer(
+			getPathInTargetDirectory(DIR_EVITA_SERVER_TEST),
+			createHashMap(
+				Stream.of(
+					property("storage.storageDirectory", getTestDirectory().resolve(DIR_EVITA_SERVER_TEST).toString())
+				).toArray(Property[]::new)
+			)
+		);
+		try {
+			evitaServer.run();
+
+			final Evita evita = evitaServer.getEvita();
+			evita.defineCatalog(TEST_CATALOG);
+			assertFalse(evita.getConfiguration().cache().enabled());
+
+			final ExternalApiServer externalApiServer = evitaServer.getExternalApiServer();
+			assertNull(externalApiServer.getExternalApiProviderByCode(SystemProvider.CODE));
+			assertNull(externalApiServer.getExternalApiProviderByCode(GraphQLProvider.CODE));
+			assertNull(externalApiServer.getExternalApiProviderByCode(RestProvider.CODE));
+			assertNull(externalApiServer.getExternalApiProviderByCode(GrpcProvider.CODE));
+			assertNull(externalApiServer.getExternalApiProviderByCode(ObservabilityProvider.CODE));
+
+		} catch (Exception ex) {
+			fail(ex);
+		} finally {
+			try {
+				evitaServer.getEvita().deleteCatalogIfExists(TEST_CATALOG);
+				evitaServer.stop();
+			} catch (Exception ex) {
+				fail(ex.getMessage(), ex);
+			}
+		}
+	}
 }

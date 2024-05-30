@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -273,7 +273,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 							GlobalEntityIndex.class,
 							Collections.singletonList(entityIndex),
 							null,
-							entityIndex.getEntitySchema(),
+							queryContext.getSchema(entityType),
 							null,
 							null,
 							null,
@@ -594,7 +594,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 			ReferencedTypeEntityIndex.class,
 			Collections.singletonList(entityIndex),
 			ReferenceContent.ALL_REFERENCES,
-			entityIndex.getEntitySchema(),
+			entitySchema,
 			referenceSchema,
 			null, null,
 			getProcessingScope().withReferenceSchemaAccessor(referenceSchema.getName()),

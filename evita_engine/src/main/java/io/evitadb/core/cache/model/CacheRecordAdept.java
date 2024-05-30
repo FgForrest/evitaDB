@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -26,8 +26,8 @@ package io.evitadb.core.cache.model;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
 import io.evitadb.utils.MemoryMeasuringConstants;
 import lombok.Getter;
-import net.openhft.hashing.LongHashFunction;
 
+import javax.annotation.Nonnull;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static io.evitadb.utils.MemoryMeasuringConstants.*;
@@ -42,6 +42,10 @@ public class CacheRecordAdept {
 	 * Estimated {@link CacheRecordAdept} size on Java heap in bytes.
 	 */
 	protected static final int ADEPT_SIZE = OBJECT_HEADER_SIZE + 2 * INT_SIZE + LONG_SIZE + 3 * REFERENCE_SIZE + ARRAY_BASE_SIZE;
+	/**
+	 * Type of the record in payload referring to {@link CacheRecordType#getOffset()}
+	 */
+	@Getter protected final byte recordType;
 	/**
 	 * Hash that uniquely identifies the serialized computational object. It needs to be computed with low collision
 	 * hashing function.
@@ -70,7 +74,15 @@ public class CacheRecordAdept {
 		return CacheRecordAdept.ADEPT_SIZE + payloadSize;
 	}
 
-	public CacheRecordAdept(long recordHash, long costToPerformanceRatio, int timesUsed, int sizeInBytes) {
+	public CacheRecordAdept(byte recordType, long recordHash, long costToPerformanceRatio, int timesUsed, int sizeInBytes) {
+		this.recordType = recordType;
+		this.recordHash = recordHash;
+		this.timesUsed = new AtomicInteger(timesUsed);
+		this.costToPerformanceRatio = costToPerformanceRatio;
+		this.sizeInBytes = sizeInBytes;
+	}
+	public CacheRecordAdept(@Nonnull CacheRecordType recordType, long recordHash, long costToPerformanceRatio, int timesUsed, int sizeInBytes) {
+		this.recordType = recordType.getOffset();
 		this.recordHash = recordHash;
 		this.timesUsed = new AtomicInteger(timesUsed);
 		this.costToPerformanceRatio = costToPerformanceRatio;
@@ -98,7 +110,7 @@ public class CacheRecordAdept {
 
 	/**
 	 * Returns count of usages of this particular record identified by
-	 * {@link TransactionalDataRelatedStructure#computeHash(LongHashFunction)}.
+	 * {@link TransactionalDataRelatedStructure#getTransactionalIdHash()}
 	 */
 	public int getTimesUsed() {
 		return timesUsed.get();
@@ -108,6 +120,6 @@ public class CacheRecordAdept {
 	 * Creates {@link CachedRecord} from this adept. This means that the adept was promoted to finally cached record.
 	 */
 	public CachedRecord toCachedRecord() {
-		return new CachedRecord(recordHash, costToPerformanceRatio, 0, sizeInBytes);
+		return new CachedRecord(recordType, recordHash, costToPerformanceRatio, 0, sizeInBytes);
 	}
 }

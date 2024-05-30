@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -35,6 +35,7 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.AttributeSchemaAccessor;
 import io.evitadb.core.query.QueryContext;
@@ -97,6 +98,7 @@ public abstract class AbstractHierarchyTranslator {
 		@Nonnull HierarchyStopAt stopAt,
 		@Nonnull QueryContext queryContext,
 		@Nonnull GlobalEntityIndex entityIndex,
+		@Nonnull EntitySchemaContract entitySchema,
 		@Nullable ReferenceSchemaContract referenceSchema
 	) {
 		final HierarchyStopAtRequireConstraint filter = stopAt.getStopAtDefinition();
@@ -111,6 +113,7 @@ public abstract class AbstractHierarchyTranslator {
 				queryContext,
 				entityIndex,
 				node.getFilterBy(),
+				entitySchema,
 				referenceSchema
 			);
 		} else {
@@ -152,11 +155,12 @@ public abstract class AbstractHierarchyTranslator {
 		@Nonnull QueryContext queryContext,
 		@Nonnull FilterBy filterBy,
 		@Nonnull Class<T> indexType,
+		@Nonnull EntitySchemaContract targetEntitySchema,
 		@Nonnull T entityIndex,
 		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor
 	) {
 		try {
-			final Supplier<String> stepDescriptionSupplier = () -> "Hierarchy statistics of `" + entityIndex.getEntitySchema().getName() + "`: " +
+			final Supplier<String> stepDescriptionSupplier = () -> "Hierarchy statistics of `" + targetEntitySchema.getName() + "`: " +
 				Arrays.stream(filterBy.getChildren()).map(Object::toString).collect(Collectors.joining(", "));
 			queryContext.pushStep(
 				QueryPhase.PLANNING_FILTER_NESTED_QUERY,
@@ -175,7 +179,7 @@ public abstract class AbstractHierarchyTranslator {
 					indexType,
 					Collections.singletonList(entityIndex),
 					null,
-					entityIndex.getEntitySchema(),
+					targetEntitySchema,
 					null,
 					null,
 					null,

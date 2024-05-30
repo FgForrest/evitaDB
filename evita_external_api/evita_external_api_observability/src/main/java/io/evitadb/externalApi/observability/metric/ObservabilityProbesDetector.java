@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -39,6 +39,8 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
+import java.time.Duration;
+import java.time.OffsetDateTime;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.List;
@@ -66,6 +68,7 @@ import java.util.concurrent.atomic.AtomicReference;
 public class ObservabilityProbesDetector implements ProbesProvider {
 	private static final Set<HealthProblem> NO_HEALTH_PROBLEMS = EnumSet.noneOf(HealthProblem.class);
 	private static final Set<String> OLD_GENERATION_GC_NAMES = Set.of("G1 Old Generation", "PS MarkSweep", "ConcurrentMarkSweep");
+	private static final Duration HEALTH_CHECK_READINESS_RENEW_INTERVAL = Duration.ofSeconds(30);
 
 	private final Runtime runtime = Runtime.getRuntime();
 	private final List<GarbageCollectorMXBean> garbageCollectorMXBeans = ManagementFactory.getGarbageCollectorMXBeans()
@@ -81,11 +84,15 @@ public class ObservabilityProbesDetector implements ProbesProvider {
 	private final AtomicLong lastSeenEvitaErrorCount = new AtomicLong(0L);
 	private final AtomicLong lastSeenJavaGarbageCollections = new AtomicLong(0L);
 	private final AtomicBoolean seenReady = new AtomicBoolean();
-	private final AtomicReference<Readiness> lastReadinessSeen = new AtomicReference<>();
+	private final AtomicReference<ReadinessWithTimestamp> lastReadinessSeen = new AtomicReference<>();
 
 	@Nonnull
 	@Override
-	public Set<HealthProblem> getHealthProblems(@Nonnull EvitaContract evitaContract, @Nonnull ExternalApiServer externalApiServer) {
+	public Set<HealthProblem> getHealthProblems(
+		@Nonnull EvitaContract evitaContract,
+		@Nonnull ExternalApiServer externalApiServer,
+		@Nonnull String... apiCodes
+	) {
 		final EnumSet<HealthProblem> healthProblems = EnumSet.noneOf(HealthProblem.class);
 		final ObservabilityManager theObservabilityManager = getObservabilityManager(externalApiServer).orElse(null);
 
@@ -97,6 +104,15 @@ public class ObservabilityProbesDetector implements ProbesProvider {
 			recordResult(checkEvitaErrors(theObservabilityManager), healthProblems, theObservabilityManager);
 			recordResult(checkMemoryShortage(theObservabilityManager), healthProblems, theObservabilityManager);
 			recordResult(checkJavaErrors(theObservabilityManager), healthProblems, theObservabilityManager);
+		}
+
+		final ReadinessWithTimestamp readinessWithTimestamp = this.lastReadinessSeen.get();
+		if (readinessWithTimestamp == null ||
+			(OffsetDateTime.now().minus(HEALTH_CHECK_READINESS_RENEW_INTERVAL).isAfter(readinessWithTimestamp.timestamp()) ||
+				readinessWithTimestamp.result().state() != ReadinessState.READY)
+		) {
+			// enforce renewal of readiness check
+			getReadiness(evitaContract, externalApiServer, apiCodes);
 		}
 
 		recordResult(checkApiReadiness(), healthProblems, theObservabilityManager);
@@ -135,10 +151,10 @@ public class ObservabilityProbesDetector implements ProbesProvider {
 	 */
 	@Nonnull
 	private HealthProblemCheckResult checkApiReadiness() {
-		final Readiness readiness = this.lastReadinessSeen.get();
+		final ReadinessWithTimestamp readiness = this.lastReadinessSeen.get();
 		return new HealthProblemCheckResult(
 			HealthProblem.EXTERNAL_API_UNAVAILABLE,
-			readiness == null || readiness.state() != ReadinessState.READY
+			readiness == null || readiness.result().state() != ReadinessState.READY
 		);
 	}
 
@@ -153,7 +169,7 @@ public class ObservabilityProbesDetector implements ProbesProvider {
 		// if the number of errors has increased since the last check, we could consider the system as unhealthy
 		final long javaOOMErrorCount = theObservabilityManager.getJavaOutOfMemoryErrorCount();
 		// get used memory of the JVM
-		final float usedMemory = 1.0f - ((float) runtime.freeMemory() / (float) runtime.maxMemory());
+		final float usedMemory = (float) (runtime.totalMemory() - runtime.freeMemory()) / (float) runtime.maxMemory();
 		final long oldGenerationCollectionCount = garbageCollectorMXBeans.stream().mapToLong(GarbageCollectorMXBean::getCollectionCount).sum();
 		final HealthProblemCheckResult result = new HealthProblemCheckResult(
 			HealthProblem.MEMORY_SHORTAGE,
@@ -247,7 +263,9 @@ public class ObservabilityProbesDetector implements ProbesProvider {
 				.map(entry -> new ApiState(entry.getKey(), entry.getValue()))
 				.toArray(ApiState[]::new)
 		);
-		this.lastReadinessSeen.set(currentReadiness);
+		this.lastReadinessSeen.set(
+			new ReadinessWithTimestamp(currentReadiness, OffsetDateTime.now())
+		);
 		return currentReadiness;
 	}
 
@@ -289,5 +307,16 @@ public class ObservabilityProbesDetector implements ProbesProvider {
 		}
 
 	}
+
+	/**
+	 * Record keeps the readiness result and the detail of readiness result for each API along with the timestamp when
+	 * it was recorded.
+	 * @param result overall readiness result (over all APIs)
+	 * @param timestamp timestamp when the readiness was recorded
+	 */
+	private record ReadinessWithTimestamp(
+		@Nonnull Readiness result,
+		@Nonnull OffsetDateTime timestamp
+	) { }
 
 }

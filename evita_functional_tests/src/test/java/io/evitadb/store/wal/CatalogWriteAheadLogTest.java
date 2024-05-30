@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -109,7 +109,7 @@ class CatalogWriteAheadLogTest {
 	@Test
 	void shouldVerifyWalIsOk() {
 		// should not throw any exception
-		CatalogWriteAheadLog.checkAndTruncate(walFilePath, catalogKryoPool, true);
+		CatalogWriteAheadLog.checkAndTruncate(TEST_CATALOG, walFilePath, catalogKryoPool, true);
 	}
 
 	@Test
@@ -122,7 +122,7 @@ class CatalogWriteAheadLogTest {
 			raf.setLength(newLength);
 		}
 		// should not throw any exception
-		CatalogWriteAheadLog.checkAndTruncate(walFilePath, catalogKryoPool, true);
+		CatalogWriteAheadLog.checkAndTruncate(TEST_CATALOG, walFilePath, catalogKryoPool, true);
 
 		final int txLengthBytes = 4;
 		final int classIdBytes = 2;
@@ -147,7 +147,7 @@ class CatalogWriteAheadLogTest {
 		// should throw an exception
 		assertThrows(
 			WriteAheadLogCorruptedException.class,
-			() -> CatalogWriteAheadLog.checkAndTruncate(walFilePath, catalogKryoPool, true)
+			() -> CatalogWriteAheadLog.checkAndTruncate(TEST_CATALOG, walFilePath, catalogKryoPool, true)
 		);
 	}
 }

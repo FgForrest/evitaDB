@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -79,6 +79,17 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	String CATALOG_FILE_SUFFIX = ".catalog";
 	String ENTITY_COLLECTION_FILE_SUFFIX = ".collection";
 	String WAL_FILE_SUFFIX = ".wal";
+
+	/**
+	 * Method for internal use - allows emitting start events when observability facilities are already initialized.
+	 * If we didn't postpone this initialization, events would become lost.
+	 */
+	void emitStartObservabilityEvents();
+
+	/**
+	 * Method for internal use. Allows to emit events clearing the information about deleted catalog.
+	 */
+	void emitDeleteObservabilityEvents();
 
 	/**
 	 * Returns name of the bootstrap file that contains lead information to fetching the catalog header in fixed record
@@ -231,8 +242,8 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	/**
 	 * Flushes changes in transactional memory to the persistent storage including the transactional id key.
 	 *
-	 * @param catalogVersion       new catalog version
-	 * @param headerInfoSupplier   provides wrapping entity collection information for the header
+	 * @param catalogVersion         new catalog version
+	 * @param headerInfoSupplier     provides wrapping entity collection information for the header
 	 * @param entityCollectionHeader the header of the entity collection
 	 */
 	@Nonnull
@@ -273,8 +284,9 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	 * @param catalogVersion      current version of the catalog
 	 * @param transactionMutation The transaction mutation to append to the WAL.
 	 * @param walReference        The off-heap data with file backup reference to discard.
+	 * @return the number of Bytes written
 	 */
-	void appendWalAndDiscard(
+	long appendWalAndDiscard(
 		long catalogVersion,
 		@Nonnull TransactionMutation transactionMutation,
 		@Nonnull OffHeapWithFileBackupReference walReference
@@ -322,7 +334,7 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	/**
 	 * Method deletes entity collection persistent storage and removes collection from the schema.
 	 *
-	 * @param catalogVersion version of the catalog in which the collection should be considered removed
+	 * @param catalogVersion         version of the catalog in which the collection should be considered removed
 	 * @param entityCollectionHeader entity collection header
 	 */
 	void deleteEntityCollection(
@@ -421,4 +433,5 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	 */
 	@Override
 	void close();
+
 }

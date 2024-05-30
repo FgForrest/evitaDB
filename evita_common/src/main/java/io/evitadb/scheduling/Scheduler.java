@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -62,22 +62,12 @@ public class Scheduler implements Executor {
 	 */
 	public void scheduleAtFixedRate(@Nonnull Runnable runnable, int initialDelay, int period, @Nonnull TimeUnit timeUnit) {
 		if (!this.executorService.isShutdown()) {
-			this.executorService.scheduleAtFixedRate(runnable, initialDelay, period, timeUnit);
-		}
-	}
-
-	/**
-	 * Method schedules immediate execution of `runnable`. If there is no free thread left in the pool, the runnable
-	 * 	 * will be executed "as soon as possible".
-	 *
-	 * @param runnable the runnable task to be executed
-	 * @throws NullPointerException if the runnable parameter is null
-	 * @throws RejectedExecutionException if the task cannot be submitted for execution
-	 */
-	@Override
-	public void execute(@Nonnull Runnable runnable) {
-		if (!this.executorService.isShutdown()) {
-			this.executorService.submit(runnable);
+			this.executorService.scheduleAtFixedRate(
+				runnable,
+				initialDelay,
+				period,
+				timeUnit
+			);
 		}
 	}
 
@@ -93,6 +83,21 @@ public class Scheduler implements Executor {
 	public void schedule(@Nonnull Runnable lambda, long delay, @Nonnull TimeUnit delayUnits) {
 		if (!this.executorService.isShutdown()) {
 			this.executorService.schedule(lambda, delay, delayUnits);
+		}
+	}
+
+	/**
+	 * Method schedules immediate execution of `runnable`. If there is no free thread left in the pool, the runnable
+	 * will be executed "as soon as possible".
+	 *
+	 * @param runnable the runnable task to be executed
+	 * @throws NullPointerException if the runnable parameter is null
+	 * @throws RejectedExecutionException if the task cannot be submitted for execution
+	 */
+	@Override
+	public void execute(@Nonnull Runnable runnable) {
+		if (!this.executorService.isShutdown()) {
+			this.executorService.submit(runnable);
 		}
 	}
 }
