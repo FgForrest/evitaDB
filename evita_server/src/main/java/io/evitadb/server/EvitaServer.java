@@ -467,6 +467,8 @@ public class EvitaServer {
 					final String fileName = it.getFileName().toString().toLowerCase();
 					return fileName.endsWith(".yaml") || fileName.endsWith(".yml");
 				})
+				.map(Path::toAbsolutePath)
+				.map(Path::normalize)
 				.sorted()
 				.toArray(Path[]::new);
 			evitaServerConfig = mergeYamlFiles(
