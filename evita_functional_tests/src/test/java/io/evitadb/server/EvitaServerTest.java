@@ -23,17 +23,12 @@
 
 package io.evitadb.server;
 
+import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.core.Evita;
-import io.evitadb.driver.interceptor.ClientSessionInterceptor;
+import io.evitadb.driver.EvitaClient;
+import io.evitadb.driver.config.EvitaClientConfiguration;
 import io.evitadb.externalApi.graphql.GraphQLProvider;
 import io.evitadb.externalApi.grpc.GrpcProvider;
-import io.evitadb.externalApi.grpc.TestChannelCreator;
-import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc;
-import io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest;
-import io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse;
-import io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionTerminationRequest;
-import io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionTerminationResponse;
-import io.evitadb.externalApi.grpc.generated.GrpcSessionType;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
 import io.evitadb.externalApi.http.ExternalApiServer;
 import io.evitadb.externalApi.observability.ObservabilityProvider;
@@ -43,13 +38,14 @@ import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.TestConstants;
 import io.evitadb.utils.CollectionUtils.Property;
 import io.evitadb.utils.NetworkUtils;
-import io.grpc.ManagedChannel;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -80,7 +76,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 	}
 
 	@Test
-	void shouldStartAndStopServerCorrectly() {
+	void shouldStartAndStopTlsServerCorrectly() {
 		final Set<String> apis = ExternalApiServer.gatherExternalApiProviders()
 			.stream()
 			.map(ExternalApiProviderRegistrar::getExternalApiCode)
@@ -88,6 +84,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 
 		final int[] ports = getPortManager().allocatePorts(DIR_EVITA_SERVER_TEST, apis.size());
 		final AtomicInteger index = new AtomicInteger();
+		final Map<String, Integer> servicePorts = new HashMap<>();
 		//noinspection unchecked
 		final EvitaServer evitaServer = new EvitaServer(
 			getPathInTargetDirectory(DIR_EVITA_SERVER_TEST),
@@ -98,7 +95,11 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 						property("cache.enabled", "false")
 					),
 					apis.stream()
-						.map(it -> property("api.endpoints." + it + ".host", "localhost:" + ports[index.getAndIncrement()]))
+						.map(it -> {
+							final int port = ports[index.getAndIncrement()];
+							servicePorts.put(it, port);
+							return property("api.endpoints." + it + ".host", "localhost:" + port);
+						})
 				)
 				.toArray(Property[]::new)
 			)
@@ -110,31 +111,81 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 			evita.defineCatalog(TEST_CATALOG);
 			assertFalse(evita.getConfiguration().cache().enabled());
 
-			final ExternalApiServer externalApiServer = evitaServer.getExternalApiServer();
-			final GrpcProvider grpcProvider = externalApiServer.getExternalApiProviderByCode(GrpcProvider.CODE);
-			assertNotNull(grpcProvider);
-
-			final ManagedChannel channel = TestChannelCreator.getChannel(new ClientSessionInterceptor(), externalApiServer);
-
-			final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = EvitaServiceGrpc.newBlockingStub(channel);
-
-			//get a session id from EvitaService
-			final GrpcEvitaSessionResponse response = evitaBlockingStub.createReadOnlySession(
-				GrpcEvitaSessionRequest.newBuilder().setCatalogName(TEST_CATALOG).build()
-			);
-
-			//should get a valid sessionId
-			assertNotNull(response.getSessionId());
-			assertEquals(response.getSessionType(), GrpcSessionType.READ_ONLY);
-
-			final GrpcEvitaSessionTerminationResponse terminationResponse = evitaBlockingStub.terminateSession(
-				GrpcEvitaSessionTerminationRequest.newBuilder()
-					.setCatalogName(TEST_CATALOG)
-					.setSessionId(response.getSessionId())
+			final EvitaClient evitaClient = new EvitaClient(
+				EvitaClientConfiguration.builder()
+					.host("localhost")
+					.port(servicePorts.get(GrpcProvider.CODE))
+					.systemApiPort(servicePorts.get(SystemProvider.CODE))
 					.build()
 			);
 
-			assertTrue(terminationResponse.getTerminated());
+			final EvitaSessionContract session = evitaClient.createReadWriteSession(TEST_CATALOG);
+			assertNotNull(session);
+			evitaClient.terminateSession(session);
+			assertFalse(session.isActive());
+
+		} catch (Exception ex) {
+			fail(ex);
+		} finally {
+			try {
+				evitaServer.getEvita().deleteCatalogIfExists(TEST_CATALOG);
+				evitaServer.stop();
+			} catch (Exception ex) {
+				fail(ex.getMessage(), ex);
+			}
+		}
+	}
+
+	@Test
+	void shouldStartAndStopPlainServerCorrectly() {
+		final Set<String> apis = ExternalApiServer.gatherExternalApiProviders()
+			.stream()
+			.map(ExternalApiProviderRegistrar::getExternalApiCode)
+			.collect(Collectors.toSet());
+
+		final int[] ports = getPortManager().allocatePorts(DIR_EVITA_SERVER_TEST, apis.size());
+		final AtomicInteger index = new AtomicInteger();
+		final Map<String, Integer> servicePorts = new HashMap<>();
+		//noinspection unchecked
+		final EvitaServer evitaServer = new EvitaServer(
+			getPathInTargetDirectory(DIR_EVITA_SERVER_TEST),
+			createHashMap(
+				Stream.concat(
+						Stream.of(
+							property("storage.storageDirectory", getTestDirectory().resolve(DIR_EVITA_SERVER_TEST).toString()),
+							property("cache.enabled", "false"),
+							property("api.endpoints.gRPC.tlsEnabled", "false")
+						),
+						apis.stream()
+							.map(it -> {
+								final int port = ports[index.getAndIncrement()];
+								servicePorts.put(it, port);
+								return property("api.endpoints." + it + ".host", "localhost:" + port);
+							})
+					)
+					.toArray(Property[]::new)
+			)
+		);
+		try {
+			evitaServer.run();
+
+			final Evita evita = evitaServer.getEvita();
+			evita.defineCatalog(TEST_CATALOG);
+			assertFalse(evita.getConfiguration().cache().enabled());
+
+			final EvitaClient evitaClient = new EvitaClient(
+				EvitaClientConfiguration.builder()
+					.host("localhost")
+					.port(servicePorts.get(GrpcProvider.CODE))
+					.systemApiPort(servicePorts.get(SystemProvider.CODE))
+					.tlsEnabled(false)
+					.build()
+			);
+
+			final EvitaSessionContract session = evitaClient.createReadWriteSession(TEST_CATALOG);
+			assertNotNull(session);
+			evitaClient.terminateSession(session);
+			assertFalse(session.isActive());
 
 		} catch (Exception ex) {
 			fail(ex);
