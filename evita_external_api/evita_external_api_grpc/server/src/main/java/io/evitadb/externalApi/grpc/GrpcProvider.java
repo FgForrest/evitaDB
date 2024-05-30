@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,17 +23,19 @@
 
 package io.evitadb.externalApi.grpc;
 
+import io.evitadb.externalApi.configuration.HostDefinition;
 import io.evitadb.externalApi.grpc.configuration.GrpcConfig;
 import io.evitadb.externalApi.grpc.exception.GrpcServerStartFailedException;
 import io.evitadb.externalApi.http.ExternalApiProvider;
-import io.evitadb.utils.NetworkUtils;
+import io.grpc.ConnectivityState;
+import io.grpc.ManagedChannel;
+import io.grpc.ManagedChannelBuilder;
 import io.grpc.Server;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import java.io.IOException;
-import java.util.function.Predicate;
 
 /**
  * Descriptor of external API provider that provides gRPC API.
@@ -54,9 +56,9 @@ public class GrpcProvider implements ExternalApiProvider<GrpcConfig> {
 	private final Server server;
 
 	/**
-	 * Contains url that was at least once found reachable.
+	 * Contains channel that was successfully used to check if gRPC server is ready.
 	 */
-	private String reachableUrl;
+	private ManagedChannel channel;
 
 	@Nonnull
 	@Override
@@ -84,29 +86,63 @@ public class GrpcProvider implements ExternalApiProvider<GrpcConfig> {
 
 	@Override
 	public void beforeStop() {
-		server.shutdown();
+		if (this.channel != null && !this.channel.isShutdown()) {
+			this.channel.shutdown();
+			this.channel = null;
+		}
+		this.server.shutdown();
 	}
 
 	@Override
 	public boolean isReady() {
-		final Predicate<String> isReady = url -> {
-			final int responseCode = NetworkUtils.getHttpStatusCode(url, "GET", "application/grpc")
-				.orElse(-1);
-			// we are interested in 405 Method Not Allowed which signals gRPC server is running
-			return responseCode == 405;
-		};
-		final String[] baseUrls = this.configuration.getBaseUrls(configuration.getExposedHost());
-		if (this.reachableUrl == null) {
-			for (String baseUrl : baseUrls) {
-				if (isReady.test(baseUrl)) {
-					this.reachableUrl = baseUrl;
-					return true;
+		if (this.channel == null) {
+			for (HostDefinition hostDefinition : this.configuration.getHost()) {
+				final ManagedChannelBuilder<?> builder = ManagedChannelBuilder.forAddress(hostDefinition.hostName(), hostDefinition.port());
+				if (!configuration.isTlsEnabled()) {
+					builder.usePlaintext();
+				}
+				ManagedChannel examinedChannel = null;
+				try {
+					examinedChannel = builder.build();
+					if (isReady(examinedChannel)) {
+						return true;
+					}
+				} catch (Exception e) {
+					// ignore the exception and continue with next host
+				} finally {
+					if (examinedChannel != null && !examinedChannel.isShutdown()) {
+						examinedChannel.shutdown();
+					}
 				}
 			}
-			return false;
 		} else {
-			return isReady.test(this.reachableUrl);
+			if (isReady(this.channel)) {
+				return true;
+			} else {
+				this.channel = null;
+			}
 		}
+		return false;
+	}
+
+	/**
+	 * Returns true if the channel is ready or idle.
+	 * @param channel channel to check
+	 * @return true if the channel is ready or idle
+	 */
+	private boolean isReady(@Nonnull ManagedChannel channel) {
+		ConnectivityState state;
+
+		final long start = System.currentTimeMillis();
+		do {
+			state = channel.getState(true);
+			if (state == ConnectivityState.READY || state == ConnectivityState.IDLE) {
+				this.channel = channel;
+				return true;
+			}
+		} while (state == ConnectivityState.CONNECTING && System.currentTimeMillis() - start < 1000);
+
+		return false;
 	}
 
 }

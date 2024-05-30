@@ -26,6 +26,6 @@ java \
         -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:8005 \
         -javaagent:target/evita-server.jar \
         -jar "target/evita-server.jar" \
-        "configDir=../docker/" \
+        "configDir=../config/" \
         "storage.storageDirectory=../data " \
         "cache.enabled=false"

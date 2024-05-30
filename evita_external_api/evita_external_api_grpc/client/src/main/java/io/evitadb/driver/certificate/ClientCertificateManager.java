@@ -25,6 +25,7 @@ package io.evitadb.driver.certificate;
 
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CertificateUtils;
 import io.netty.handler.ssl.ApplicationProtocolConfig;
@@ -60,6 +61,8 @@ import java.security.NoSuchAlgorithmException;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
+import java.util.Arrays;
+import java.util.stream.Stream;
 
 import static java.util.Optional.ofNullable;
 
@@ -97,7 +100,11 @@ public class ClientCertificateManager {
 	 * @return path to the folder with the certificates specific to the server instance
 	 */
 	@Nonnull
-	private static Path getCertificatesFromServer(@Nonnull String host, int port, @Nonnull Path certificateClientFolderPath) {
+	private static Path getCertificatesFromServer(@Nonnull String host, int port, @Nonnull Path certificateClientFolderPath, @Nonnull CertificateType... certificateType) {
+		if (ArrayUtils.isEmpty(certificateType)) {
+			throw new EvitaInvalidUsageException("At least one certificate type must be provided");
+		}
+
 		final String apiEndpoint = "http://" + host + ":" + port + "/system/";
 		try {
 			final String serverName = getServerName(apiEndpoint);
@@ -114,9 +121,14 @@ public class ClientCertificateManager {
 				}
 			}
 
-			downloadFileFromServer(apiEndpoint, serverSpecificDirectory, CertificateUtils.getGeneratedRootCaCertificateFileName());
-			downloadFileFromServer(apiEndpoint, serverSpecificDirectory, CertificateUtils.getGeneratedClientCertificateFileName());
-			downloadFileFromServer(apiEndpoint, serverSpecificDirectory, CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName());
+			if (Arrays.asList(certificateType).contains(CertificateType.SERVER)) {
+				downloadFileFromServer(apiEndpoint, serverSpecificDirectory, CertificateUtils.getGeneratedRootCaCertificateFileName());
+			}
+
+			if (Arrays.asList(certificateType).contains(CertificateType.CLIENT)) {
+				downloadFileFromServer(apiEndpoint, serverSpecificDirectory, CertificateUtils.getGeneratedClientCertificateFileName());
+				downloadFileFromServer(apiEndpoint, serverSpecificDirectory, CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName());
+			}
 
 			return serverSpecificDirectory;
 		} catch (IOException e) {
@@ -197,7 +209,12 @@ public class ClientCertificateManager {
 		boolean usingTrustedRootCaCertificate
 	) {
 		if (useGeneratedCertificate) {
-			this.certificateClientFolderPath = getCertificatesFromServer(host, port, certificateClientFolderPath);
+			this.certificateClientFolderPath = getCertificatesFromServer(
+				host, port, certificateClientFolderPath, Stream.concat(
+					Stream.of(CertificateType.SERVER),
+					isMtlsEnabled ? Stream.of(CertificateType.CLIENT) : Stream.empty()
+				).toArray(CertificateType[]::new)
+			);
 			this.rootCaCertificateFilePath = this.certificateClientFolderPath.resolve(CertificateUtils.getGeneratedRootCaCertificateFileName());
 			this.clientCertificateFilePath = this.certificateClientFolderPath.resolve(CertificateUtils.getGeneratedClientCertificateFileName());
 			this.clientPrivateKeyFilePath = this.certificateClientFolderPath.resolve(CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName());
@@ -435,4 +452,13 @@ public class ClientCertificateManager {
 			);
 		}
 	}
+
+	/**
+	 * The type of the certificate to generate.
+	 */
+	public enum CertificateType {
+		SERVER,
+		CLIENT
+	}
+
 }

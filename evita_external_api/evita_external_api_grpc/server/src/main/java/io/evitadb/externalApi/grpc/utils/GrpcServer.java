@@ -51,6 +51,7 @@ import java.io.FileInputStream;
 import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.security.cert.CertificateFactory;
+import java.util.Optional;
 
 /**
  * Builder class for {@link Server} and {@link ManagedChannel} instances.
@@ -84,43 +85,48 @@ public class GrpcServer {
 	 */
 	private void setUpServer(@Nonnull Evita evita, @Nonnull ApiOptions apiOptions, @Nonnull GrpcConfig config) {
 		final HostDefinition[] hosts = config.getHost();
-		final CertificatePath certificatePath = ServerCertificateManager.getCertificatePath(apiOptions.certificate());
-		if (certificatePath.certificate() == null || certificatePath.privateKey() == null) {
-			throw new GenericEvitaInternalError("Certificate path is not set.");
-		}
-		final ServerCredentials tlsServerCredentials;
-		try {
-			final TlsServerCredentials.Builder tlsServerCredentialsBuilder = TlsServerCredentials.newBuilder();
-			tlsServerCredentialsBuilder.keyManager(new File(certificatePath.certificate()), new File(certificatePath.privateKey()), certificatePath.privateKeyPassword());
-			final MtlsConfiguration mtlsConfiguration = config.getMtlsConfiguration();
-			if (mtlsConfiguration != null && Boolean.TRUE.equals(mtlsConfiguration.enabled())) {
-				if (apiOptions.certificate().generateAndUseSelfSigned()) {
-					tlsServerCredentialsBuilder.trustManager(
-						apiOptions.certificate().getFolderPath()
-							.resolve(CertificateUtils.getGeneratedRootCaCertificateFileName())
-							.toFile()
-					);
-				}
-				tlsServerCredentialsBuilder.clientAuth(TlsServerCredentials.ClientAuth.REQUIRE);
-				final CertificateFactory cf = CertificateFactory.getInstance("X.509");
-				for (String clientCert : mtlsConfiguration.allowedClientCertificatePaths()) {
-					tlsServerCredentialsBuilder.trustManager(new FileInputStream(clientCert));
-					try (InputStream in = new FileInputStream(clientCert)) {
-						log.info("Whitelisted client's certificate fingerprint: {}", CertificateUtils.getCertificateFingerprint(cf.generateCertificate(in)));
+		final Optional<CertificatePath> optionalCertificatePath = ServerCertificateManager.getCertificatePath(apiOptions.certificate());
+
+		final NettyServerBuilder serverBuilder;
+		if (optionalCertificatePath.isPresent()) {
+			final ServerCredentials tlsServerCredentials;
+			try {
+				final CertificatePath certificatePath = optionalCertificatePath.get();
+				final TlsServerCredentials.Builder tlsServerCredentialsBuilder = TlsServerCredentials.newBuilder();
+				tlsServerCredentialsBuilder.keyManager(new File(certificatePath.certificate()), new File(certificatePath.privateKey()), certificatePath.privateKeyPassword());
+				final MtlsConfiguration mtlsConfiguration = config.getMtlsConfiguration();
+				if (mtlsConfiguration != null && Boolean.TRUE.equals(mtlsConfiguration.enabled())) {
+					if (apiOptions.certificate().generateAndUseSelfSigned()) {
+						tlsServerCredentialsBuilder.trustManager(
+							apiOptions.certificate().getFolderPath()
+								.resolve(CertificateUtils.getGeneratedRootCaCertificateFileName())
+								.toFile()
+						);
 					}
+					tlsServerCredentialsBuilder.clientAuth(TlsServerCredentials.ClientAuth.REQUIRE);
+					final CertificateFactory cf = CertificateFactory.getInstance("X.509");
+					for (String clientCert : mtlsConfiguration.allowedClientCertificatePaths()) {
+						tlsServerCredentialsBuilder.trustManager(new FileInputStream(clientCert));
+						try (InputStream in = new FileInputStream(clientCert)) {
+							log.info("Whitelisted client's certificate fingerprint: {}", CertificateUtils.getCertificateFingerprint(cf.generateCertificate(in)));
+						}
+					}
+				} else {
+					tlsServerCredentialsBuilder.clientAuth(TlsServerCredentials.ClientAuth.OPTIONAL);
 				}
-			} else {
-				tlsServerCredentialsBuilder.clientAuth(TlsServerCredentials.ClientAuth.OPTIONAL);
+				tlsServerCredentials = tlsServerCredentialsBuilder.build();
+			} catch (Exception e) {
+				throw new GenericEvitaInternalError(
+					"Failed to create gRPC server credentials with provided certificate and private key: " + e.getMessage(),
+					"Failed to create gRPC server credentials with provided certificate and private key.",
+					e
+				);
 			}
-			tlsServerCredentials = tlsServerCredentialsBuilder.build();
-		} catch (Exception e) {
-			throw new GenericEvitaInternalError(
-				"Failed to create gRPC server credentials with provided certificate and private key: " + e.getMessage(),
-				"Failed to create gRPC server credentials with provided certificate and private key.",
-				e
-			);
+			serverBuilder = NettyServerBuilder.forAddress(new InetSocketAddress(hosts[0].host(), hosts[0].port()), tlsServerCredentials);
+		} else {
+			serverBuilder = NettyServerBuilder.forAddress(new InetSocketAddress(hosts[0].host(), hosts[0].port()));
 		}
-		final NettyServerBuilder serverBuilder = NettyServerBuilder.forAddress(new InetSocketAddress(hosts[0].host(), hosts[0].port()), tlsServerCredentials)
+		serverBuilder
 			.executor(evita.getExecutor())
 			.addService(new EvitaService(evita))
 			.addService(new EvitaSessionService(evita))
