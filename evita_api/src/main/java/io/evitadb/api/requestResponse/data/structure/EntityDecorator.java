@@ -1081,7 +1081,7 @@ public class EntityDecorator implements SealedEntity {
 
 	@Nonnull
 	@Override
-	public List<PriceContract> getAllPricesForSale(@Nullable Currency currency, @Nullable OffsetDateTime atTheMoment, @Nullable String... priceListPriority) throws ContextMissingException {
+	public List<PriceContract> getAllPricesForSale(@Nonnull Currency currency, @Nullable OffsetDateTime atTheMoment, @Nonnull String... priceListPriority) throws ContextMissingException {
 		pricePredicate.checkFetched(currency, priceListPriority);
 		final List<PriceContract> allPricesForSale = SealedEntity.super.getAllPricesForSale(currency, atTheMoment, priceListPriority);
 		if (allPricesForSale.size() > 1) {
@@ -1098,12 +1098,16 @@ public class EntityDecorator implements SealedEntity {
 	@Nonnull
 	@Override
 	public List<PriceContract> getAllPricesForSale() {
-		pricePredicate.checkPricesFetched();
-		return getAllPricesForSale(
-			pricePredicate.getCurrency(),
-			pricePredicate.getValidIn(),
-			pricePredicate.getPriceLists()
-		);
+		if (pricePredicate.isContextAvailable()) {
+			pricePredicate.checkPricesFetched();
+			return getAllPricesForSale(
+				pricePredicate.getCurrency(),
+				pricePredicate.getValidIn(),
+				pricePredicate.getPriceLists()
+			);
+		} else {
+			throw new ContextMissingException();
+		}
 	}
 
 	@Override

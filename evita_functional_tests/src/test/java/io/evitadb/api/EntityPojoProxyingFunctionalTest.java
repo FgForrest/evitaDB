@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -273,9 +273,13 @@ public class EntityPojoProxyingFunctionalTest extends AbstractEntityProxyingFunc
 		}
 
 		final PriceContract[] allPricesForSale = product.getAllPricesForSale();
-		final PriceContract[] expectedAllPricesForSale = originalProduct.getAllPricesForSale().toArray(PriceContract[]::new);
-		assertEquals(expectedAllPricesForSale.length, allPricesForSale.length);
-		assertArrayEquals(expectedAllPricesForSale, allPricesForSale);
+		if (allPricesForSale == null) {
+			assertFalse(originalProduct.isPriceForSaleContextAvailable());
+		} else {
+			final PriceContract[] expectedAllPricesForSale = originalProduct.getAllPricesForSale().toArray(PriceContract[]::new);
+			assertEquals(expectedAllPricesForSale.length, allPricesForSale.length);
+			assertArrayEquals(expectedAllPricesForSale, allPricesForSale);
+		}
 
 		final PriceContract[] expectedAllPrices = originalProduct.getPrices().toArray(PriceContract[]::new);
 		final PriceContract[] allPrices = Arrays.stream(product.getAllPricesAsArray())
@@ -504,7 +508,7 @@ public class EntityPojoProxyingFunctionalTest extends AbstractEntityProxyingFunc
 
 		verifyAllFieldsAreSet(
 			proxiedEntity, theClass,
-			"priceForSale"
+			"priceForSale", "allPricesForSale"
 		);
 
 		assertProduct(
@@ -946,7 +950,7 @@ public class EntityPojoProxyingFunctionalTest extends AbstractEntityProxyingFunc
 		final SealedEntity theProduct = originalProducts
 			.stream()
 			.filter(it -> it.getReferences(Entities.CATEGORY).size() > 1)
-			.filter(it -> it.getAllPricesForSale().size() > 1)
+			.filter(it -> it.getPrices().stream().anyMatch(PriceContract::sellable))
 			.findFirst()
 			.orElseThrow();
 
@@ -1009,7 +1013,7 @@ public class EntityPojoProxyingFunctionalTest extends AbstractEntityProxyingFunc
 		final SealedEntity theProduct = originalProducts
 			.stream()
 			.filter(it -> it.getReferences(Entities.CATEGORY).size() > 1)
-			.filter(it -> it.getAllPricesForSale().size() > 1)
+			.filter(it -> it.getPrices().size() > 1)
 			.findFirst()
 			.orElseThrow();
 

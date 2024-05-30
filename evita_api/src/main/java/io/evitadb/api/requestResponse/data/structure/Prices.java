@@ -256,7 +256,7 @@ public class Prices implements PricesContract, Versioned, ContentComparator<Pric
 	@Nonnull
 	@Override
 	public List<PriceContract> getAllPricesForSale() {
-		return getAllPricesForSale(null, null, (String)null);
+		throw new ContextMissingException();
 	}
 
 	@Override
