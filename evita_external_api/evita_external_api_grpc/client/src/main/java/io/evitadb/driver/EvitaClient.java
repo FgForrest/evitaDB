@@ -36,7 +36,6 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.system.SystemStatus;
-import io.evitadb.driver.certificate.ClientCertificateManager;
 import io.evitadb.driver.config.EvitaClientConfiguration;
 import io.evitadb.driver.exception.EvitaClientTimedOutException;
 import io.evitadb.driver.exception.IncompatibleClientException;
@@ -49,6 +48,7 @@ import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.InvalidEvitaVersionException;
+import io.evitadb.externalApi.grpc.certificate.ClientCertificateManager;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc.EvitaServiceFutureStub;
@@ -57,6 +57,7 @@ import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingTop
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.SchemaMutationConverter;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.CertificateUtils;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.ReflectionLookup;
 import io.evitadb.utils.UUIDUtil;
@@ -72,6 +73,8 @@ import lombok.extern.slf4j.Slf4j;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
+import java.security.NoSuchAlgorithmException;
+import java.security.cert.CertificateEncodingException;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
@@ -161,20 +164,45 @@ public class EvitaClient implements EvitaContract {
 		@Nullable Consumer<NettyChannelBuilder> grpcConfigurator
 	) {
 		this.configuration = configuration;
-		final ClientCertificateManager clientCertificateManager = new ClientCertificateManager.Builder()
-			.useGeneratedCertificate(configuration.useGeneratedCertificate(), configuration.host(), configuration.systemApiPort())
-			.usingTrustedRootCaCertificate(configuration.trustCertificate())
-			.trustStorePassword(configuration.trustStorePassword())
-			.mtls(configuration.mtlsEnabled())
-			.certificateClientFolderPath(configuration.certificateFolderPath())
-			.rootCaCertificateFilePath(configuration.rootCaCertificatePath())
-			.clientCertificateFilePath(configuration.certificateFileName())
-			.clientPrivateKeyFilePath(configuration.certificateKeyFileName())
-			.clientPrivateKeyPassword(configuration.certificateKeyPassword())
-			.build();
 
-		NettyChannelBuilder nettyChannelBuilder = NettyChannelBuilder.forAddress(configuration.host(), configuration.port())
-			.sslContext(clientCertificateManager.buildClientSslContext())
+		NettyChannelBuilder nettyChannelBuilder = NettyChannelBuilder.forAddress(configuration.host(), configuration.port());
+		if (configuration.tlsEnabled()) {
+			final ClientCertificateManager clientCertificateManager = new ClientCertificateManager.Builder()
+				.useGeneratedCertificate(configuration.useGeneratedCertificate(), configuration.host(), configuration.systemApiPort())
+				.usingTrustedRootCaCertificate(configuration.trustCertificate())
+				.trustStorePassword(configuration.trustStorePassword())
+				.mtls(configuration.mtlsEnabled())
+				.certificateClientFolderPath(configuration.certificateFolderPath())
+				.rootCaCertificateFilePath(configuration.rootCaCertificatePath())
+				.clientCertificateFilePath(configuration.certificateFileName())
+				.clientPrivateKeyFilePath(configuration.certificateKeyFileName())
+				.clientPrivateKeyPassword(configuration.certificateKeyPassword())
+				.build();
+			nettyChannelBuilder.sslContext(
+				clientCertificateManager.buildClientSslContext(
+					(certificateType, certificate) -> {
+						try {
+							switch (certificateType) {
+								case SERVER ->
+									log.info("Server's CA certificate fingerprint: {}", CertificateUtils.getCertificateFingerprint(certificate));
+								case CLIENT ->
+									log.info("Client's certificate fingerprint: {}", CertificateUtils.getCertificateFingerprint(certificate));
+							}
+						} catch (NoSuchAlgorithmException | CertificateEncodingException e) {
+							throw new GenericEvitaInternalError(
+								"Failed to get certificate fingerprint.",
+								"Failed to get certificate fingerprint: " + e.getMessage(),
+								e
+							);
+						}
+					}
+				)
+			);
+		} else {
+			nettyChannelBuilder.usePlaintext();
+		}
+
+		nettyChannelBuilder
 			.executor(Executors.newCachedThreadPool())
 			.defaultLoadBalancingPolicy("round_robin")
 			.intercept(new ClientSessionInterceptor(configuration));

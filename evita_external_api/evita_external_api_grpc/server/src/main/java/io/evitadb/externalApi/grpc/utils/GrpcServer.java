@@ -53,6 +53,8 @@ import java.net.InetSocketAddress;
 import java.security.cert.CertificateFactory;
 import java.util.Optional;
 
+import static java.util.Optional.empty;
+
 /**
  * Builder class for {@link Server} and {@link ManagedChannel} instances.
  *
@@ -85,7 +87,8 @@ public class GrpcServer {
 	 */
 	private void setUpServer(@Nonnull Evita evita, @Nonnull ApiOptions apiOptions, @Nonnull GrpcConfig config) {
 		final HostDefinition[] hosts = config.getHost();
-		final Optional<CertificatePath> optionalCertificatePath = ServerCertificateManager.getCertificatePath(apiOptions.certificate());
+		final Optional<CertificatePath> optionalCertificatePath = config.isTlsEnabled() ?
+			ServerCertificateManager.getCertificatePath(apiOptions.certificate()) : empty();
 
 		final NettyServerBuilder serverBuilder;
 		if (optionalCertificatePath.isPresent()) {
