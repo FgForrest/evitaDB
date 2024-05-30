@@ -187,7 +187,12 @@ public class NotFormula extends AbstractCacheableFormula {
 		if (supersetBitmap != null && subtractedBitmap != null) {
 			return Stream.of(supersetBitmap, subtractedBitmap).mapToLong(Bitmap::size).sum();
 		} else {
-			return super.getCostInternal();
+			final Bitmap supersetBitmap = innerFormulas[1].compute();
+			if (supersetBitmap.isEmpty()) {
+				return innerFormulas[1].getCost();
+			} else {
+				return super.getCostInternal();
+			}
 		}
 	}
 
