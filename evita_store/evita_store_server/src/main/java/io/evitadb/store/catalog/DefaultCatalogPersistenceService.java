@@ -127,6 +127,7 @@ import java.time.ZoneId;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -233,6 +234,10 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		}
 	};
 	/**
+	 * Lock used for synchronization to {@link #catalogPersistenceServiceVersions} array.
+	 */
+	private final ReentrantLock lock = new ReentrantLock();
+	/**
 	 * Contains sorted array of {@link #catalogStoragePartPersistenceService} keys. It is used for fast lookup of the
 	 * storage part persistence service for a given catalog version.
 	 */
@@ -253,7 +258,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	/**
 	 * Method returns continuous stream of catalog bootstrap records from the catalog bootstrap file.
 	 *
-	 * @param catalogName the name of the catalog
+	 * @param catalogName    the name of the catalog
 	 * @param storageOptions the storage options for reading the bootstrap file
 	 * @return the stream of catalog bootstrap records
 	 */
@@ -683,34 +688,6 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	}
 
 	/**
-	 * Copies the bootstrap record to the specified file handle.
-	 *
-	 * @param newBootstrapHandle The handle to the file where the bootstrap record will be copied.
-	 * @param bootstrapRecord    The bootstrap record to be copied.
-	 */
-	private static void copyBootstrapRecord(
-		@Nonnull WriteOnlyFileHandle newBootstrapHandle,
-		@Nonnull CatalogBootstrap bootstrapRecord
-	) {
-		newBootstrapHandle.checkAndExecute(
-			"copy bootstrap record",
-			() -> {
-			},
-			output -> new StorageRecord<>(
-				output, bootstrapRecord.catalogVersion(), true,
-				theOutput -> {
-					theOutput.writeLong(bootstrapRecord.catalogVersion());
-					theOutput.writeInt(bootstrapRecord.catalogFileIndex());
-					theOutput.writeLong(bootstrapRecord.timestamp().toInstant().toEpochMilli());
-					theOutput.writeLong(bootstrapRecord.fileLocation().startingPosition());
-					theOutput.writeInt(bootstrapRecord.fileLocation().recordLength());
-					return bootstrapRecord;
-				}
-			).payload()
-		);
-	}
-
-	/**
 	 * Reports changes in historical records kept.
 	 *
 	 * @param catalogName            name of the catalog
@@ -999,15 +976,28 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	@Nonnull
 	@Override
 	public CatalogOffsetIndexStoragePartPersistenceService getStoragePartPersistenceService(long catalogVersion) {
-		final int index = Arrays.binarySearch(this.catalogPersistenceServiceVersions, catalogVersion);
-		final int lookupIndex = index >= 0 ? index : (-index - 2);
-		Assert.isPremiseValid(
-			lookupIndex >= 0 && lookupIndex < this.catalogPersistenceServiceVersions.length,
-			() -> new GenericEvitaInternalError("Catalog version " + catalogVersion + " not found in the catalog persistence service versions!")
-		);
-		return this.catalogStoragePartPersistenceService.get(
-			this.catalogPersistenceServiceVersions[lookupIndex]
-		);
+		try {
+			this.lock.lockInterruptibly();
+			final int index = Arrays.binarySearch(this.catalogPersistenceServiceVersions, catalogVersion);
+			final int lookupIndex = index >= 0 ? index : (-index - 2);
+			Assert.isPremiseValid(
+				lookupIndex >= 0 && lookupIndex < this.catalogPersistenceServiceVersions.length,
+				() -> new GenericEvitaInternalError("Catalog version " + catalogVersion + " not found in the catalog persistence service versions!")
+			);
+			return this.catalogStoragePartPersistenceService.get(
+				this.catalogPersistenceServiceVersions[lookupIndex]
+			);
+		} catch (InterruptedException e) {
+			throw new GenericEvitaInternalError(
+				"Interrupted while trying to lock the catalog persistence service versions!",
+				"Interrupted while trying to lock the catalog persistence service versions!",
+				e
+			);
+		} finally {
+			if (this.lock.isHeldByCurrentThread()) {
+				this.lock.unlock();
+			}
+		}
 	}
 
 	@Override
@@ -1965,29 +1955,46 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				bootstrapWriteTime,
 				compactedDescriptor.fileLocation()
 			);
-			this.obsoleteFileMaintainer.removeFileWhenNotUsed(
-				catalogVersion,
-				this.catalogStoragePath.resolve(getCatalogDataStoreFileName(newCatalogName, catalogFileIndex)),
-				() -> removeCatalogPersistenceServiceForVersion(catalogVersion)
-			);
-			this.catalogStoragePartPersistenceService.put(
-				catalogVersion,
-				CatalogOffsetIndexStoragePartPersistenceService.create(
-					this.catalogName,
-					compactedFileName,
-					this.catalogStoragePath.resolve(compactedFileName),
-					this.storageOptions,
-					this.transactionOptions,
-					bootstrapRecord,
-					this.recordTypeRegistry,
-					this.offHeapMemoryManager,
-					this.observableOutputKeeper,
-					VERSIONED_KRYO_FACTORY,
-					nonFlushedBlock -> this.reportNonFlushedContents(catalogName, nonFlushedBlock),
-					oldestRecordTimestamp -> DefaultCatalogPersistenceService.reportOldestHistoricalRecord(catalogName, oldestRecordTimestamp.orElse(null))
-				)
-			);
-			this.catalogPersistenceServiceVersions = ArrayUtils.insertLongIntoOrderedArray(catalogVersion, this.catalogPersistenceServiceVersions);
+
+			try {
+				this.lock.lockInterruptibly();
+
+				final long currentVersion = this.catalogPersistenceServiceVersions[this.catalogPersistenceServiceVersions.length - 1];
+				this.obsoleteFileMaintainer.removeFileWhenNotUsed(
+					catalogVersion,
+					this.catalogStoragePath.resolve(getCatalogDataStoreFileName(newCatalogName, catalogFileIndex)),
+					() -> removeCatalogPersistenceServiceForVersion(currentVersion)
+				);
+
+				this.catalogStoragePartPersistenceService.put(
+					catalogVersion,
+					CatalogOffsetIndexStoragePartPersistenceService.create(
+						this.catalogName,
+						compactedFileName,
+						this.catalogStoragePath.resolve(compactedFileName),
+						this.storageOptions,
+						this.transactionOptions,
+						bootstrapRecord,
+						this.recordTypeRegistry,
+						this.offHeapMemoryManager,
+						this.observableOutputKeeper,
+						VERSIONED_KRYO_FACTORY,
+						nonFlushedBlock -> this.reportNonFlushedContents(catalogName, nonFlushedBlock),
+						oldestRecordTimestamp -> DefaultCatalogPersistenceService.reportOldestHistoricalRecord(catalogName, oldestRecordTimestamp.orElse(null))
+					)
+				);
+				this.catalogPersistenceServiceVersions = ArrayUtils.insertLongIntoOrderedArray(catalogVersion, this.catalogPersistenceServiceVersions);
+			} catch (InterruptedException e) {
+				throw new GenericEvitaInternalError(
+					"Failed to lock the catalog persistence service for catalog `" + this.catalogName + "`!",
+					"Failed to lock the catalog persistence service!",
+					e
+				);
+			} finally {
+				if (this.lock.isHeldByCurrentThread()) {
+					this.lock.unlock();
+				}
+			}
 
 			// emit the event
 			event.finish().commit();
@@ -2208,15 +2215,28 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	 * @param catalogVersion the catalog version to remove the persistence service for
 	 */
 	private void removeCatalogPersistenceServiceForVersion(long catalogVersion) {
-		final int index = Arrays.binarySearch(this.catalogPersistenceServiceVersions, catalogVersion);
-		final int lookupIndex = index >= 0 ? index : (-index - 2);
-		Assert.isPremiseValid(
-			lookupIndex >= 0 && lookupIndex < this.catalogPersistenceServiceVersions.length,
-			() -> new GenericEvitaInternalError("Catalog version " + catalogVersion + " not found in the catalog persistence service versions!")
-		);
-		final long versionToRemove = this.catalogPersistenceServiceVersions[lookupIndex];
-		this.catalogPersistenceServiceVersions = ArrayUtils.removeLongFromArrayOnIndex(this.catalogPersistenceServiceVersions, lookupIndex);
-		this.catalogStoragePartPersistenceService.remove(versionToRemove);
+		try {
+			this.lock.lockInterruptibly();
+			final int index = Arrays.binarySearch(this.catalogPersistenceServiceVersions, catalogVersion);
+			final int lookupIndex = index >= 0 ? index : (-index - 2);
+			Assert.isPremiseValid(
+				lookupIndex >= 0 && lookupIndex < this.catalogPersistenceServiceVersions.length,
+				() -> new GenericEvitaInternalError("Catalog version " + catalogVersion + " not found in the catalog persistence service versions!")
+			);
+			final long versionToRemove = this.catalogPersistenceServiceVersions[lookupIndex];
+			this.catalogPersistenceServiceVersions = ArrayUtils.removeLongFromArrayOnIndex(this.catalogPersistenceServiceVersions, lookupIndex);
+			this.catalogStoragePartPersistenceService.remove(versionToRemove);
+		} catch (InterruptedException e) {
+			throw new GenericEvitaInternalError(
+				"Failed to lock the catalog persistence service for catalog `" + this.catalogName + "`!",
+				"Failed to lock the catalog persistence service!",
+				e
+			);
+		} finally {
+			if (this.lock.isHeldByCurrentThread()) {
+				this.lock.unlock();
+			}
+		}
 	}
 
 	/**
@@ -2299,25 +2319,6 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	}
 
 	/**
-	 * Reports changes in historical records kept.
-	 *
-	 * @param catalogName            name of the catalog
-	 * @param oldestHistoricalRecord oldest historical record
-	 */
-	private static void reportOldestHistoricalRecord(
-		@Nonnull String catalogName,
-		@Nullable OffsetDateTime oldestHistoricalRecord
-	) {
-		XX check
-		new OffsetIndexHistoryKeptEvent(
-			catalogName,
-			FileType.CATALOG,
-			catalogName,
-			oldestHistoricalRecord
-		).commit();
-	}
-
-	/**
 	 * Finds the first available file index for the given entity type.
 	 *
 	 * @param entityType the type of entity
@@ -2387,7 +2388,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 
 		@Override
 		public CatalogBootstrap get() {
-			if (this. position + CatalogBootstrap.BOOTSTRAP_RECORD_SIZE > this.readHandle.getLastWrittenPosition()) {
+			if (this.position + CatalogBootstrap.BOOTSTRAP_RECORD_SIZE > this.readHandle.getLastWrittenPosition()) {
 				return null;
 			}
 			final CatalogBootstrap catalogBootstrap = readCatalogBootstrap(this.position, this.readHandle);

@@ -29,6 +29,7 @@ import com.github.javafaker.Faker;
 import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.configuration.EvitaConfiguration;
+import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.api.exception.RollbackException;
@@ -36,6 +37,7 @@ import io.evitadb.api.query.QueryConstraints;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.InstanceEditor;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.data.SealedInstance;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -46,6 +48,7 @@ import io.evitadb.api.requestResponse.system.CatalogVersionDescriptor;
 import io.evitadb.api.requestResponse.system.CatalogVersionDescriptor.TransactionChanges;
 import io.evitadb.api.requestResponse.system.TimeFlow;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
+import io.evitadb.core.Catalog;
 import io.evitadb.core.Evita;
 import io.evitadb.core.EvitaSession;
 import io.evitadb.core.Transaction;
@@ -65,6 +68,8 @@ import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
+import io.evitadb.test.duration.TimeArgumentProvider;
+import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
 import io.evitadb.test.extension.EvitaParameterResolver;
 import io.evitadb.test.generator.DataGenerator;
 import io.evitadb.utils.CollectionUtils;
@@ -75,14 +80,19 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ArgumentsSource;
 import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
+import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -90,6 +100,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -107,6 +118,7 @@ import java.util.function.Consumer;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import static io.evitadb.api.query.QueryConstraints.attributeContentAll;
 import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
@@ -1016,6 +1028,117 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 
 			}
 		);
+	}
+
+	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
+	@Tag(LONG_RUNNING_TEST)
+	@ParameterizedTest(name = "This test verifies, that all data files are correctly rotated and compacted.")
+	@ArgumentsSource(TimeArgumentProvider.class)
+	void shouldCorrectlyRotateAllFiles(GenerationalTestInput input) throws Exception {
+		final Path testDirectory = getTestDirectory().resolve("shouldCorrectlyRotateAllFiles");
+		cleanTestSubDirectory("shouldCorrectlyRotateAllFiles");
+		final Evita evita = new Evita(
+			EvitaConfiguration.builder()
+				.storage(
+					StorageOptions.builder()
+						.storageDirectory(testDirectory)
+						.minimalActiveRecordShare(0.9)
+						.fileSizeCompactionThresholdBytes(16_384)
+						.build()
+				)
+				.transaction(
+					TransactionOptions.builder()
+						.walFileSizeBytes(4_096)
+						.walFileCountKept(2)
+						.build()
+				)
+				.server(
+					ServerOptions.builder()
+						.killTimedOutShortRunningThreadsEverySeconds(-1)
+						.closeSessionsAfterSecondsOfInactivity(-1)
+						.build()
+				)
+				.build()
+		);
+
+		try {
+			final String entityProduct = "product";
+			final String attributeUrl = "url";
+			final String attributeCode = "code";
+			final String attributeName = "name";
+			final String attributePrice = "price";
+
+			evita.defineCatalog(TEST_CATALOG)
+				.updateAndFetchViaNewSession(evita)
+				.openForWrite()
+				.withAttribute(attributeUrl, String.class)
+				.withEntitySchema(entityProduct, productSchema -> productSchema
+					.withoutGeneratedPrimaryKey()
+					.withGlobalAttribute(attributeUrl)
+					.withAttribute(attributeCode, String.class, thatIs -> thatIs.unique().sortable())
+					.withAttribute(attributeName, String.class, thatIs -> thatIs.filterable().sortable())
+					.withAttribute(attributePrice, BigDecimal.class, thatIs -> thatIs.filterable().sortable()))
+				.updateViaNewSession(evita);
+			evita.updateCatalog(
+				TEST_CATALOG, session -> {
+					session.goLiveAndClose();
+				}
+			);
+
+			final Faker faker = new Faker(new Random(input.randomSeed()));
+			final LocalDateTime initialStart = LocalDateTime.now();
+			do {
+				evita.updateCatalog(
+					TEST_CATALOG,
+					session -> {
+						session.getEntity(
+								entityProduct, 1, attributeContentAll()
+							)
+							.map(SealedInstance::openForWrite)
+							.orElseGet(() -> session.createNewEntity(entityProduct, 1))
+							.setAttribute(attributeUrl, faker.internet().url())
+							.setAttribute(attributeCode, faker.code().isbn10())
+							.setAttribute(attributeName, faker.book().title())
+							.setAttribute(attributePrice, BigDecimal.valueOf(faker.number().randomDouble(2, 1, 1000)))
+							.upsertVia(session);
+					}
+				);
+			} while (Duration.between(initialStart, LocalDateTime.now()).toMinutes() < input.intervalInMinutes());
+
+			// close the evita
+			evita.close();
+
+			try (final Evita restartedEvita = new Evita(evita.getConfiguration())) {
+				assertInstanceOf(
+					Catalog.class, restartedEvita.getCatalogInstance(TEST_CATALOG).orElseThrow(),
+					"Catalog should be loaded from the disk!"
+				);
+			}
+
+			// final solution
+			/*evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					assertTrue(session.getEntity(entityProduct, 1).isPresent());
+
+					// read entire history
+					DefaultCatalogPersistenceService.getBootstrapRecordStream(
+						TEST_CATALOG, evita.getConfiguration().storage()
+					).forEach(
+						record -> {
+							log.info("Bootstrap record: " + record);
+							// TODO JNO - reconstruct the catalog from that moment, which verifies the consistency
+						}
+					);
+				}
+			);*/
+		} finally {
+			if (evita.isActive()) {
+				evita.close();
+			}
+			// TODO JNO - UNCOMMENT
+			// cleanTestDirectory();
+		}
 	}
 
 	/**
