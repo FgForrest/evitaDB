@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -32,7 +32,6 @@ import io.evitadb.api.requestResponse.data.PricesContract.PriceForSaleWithAccomp
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.dto.PrefetchedPriceForSale;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.AccompanyingPriceFieldHeaderDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PriceForSaleFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.EntityQueryContext;
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidArgumentException;
@@ -100,7 +99,7 @@ public class AccompanyingPriceDataFetcher implements DataFetcher<DataFetcherResu
 
 	@Nonnull
 	private Optional<PriceContract> getPrefetchedPrice(@Nonnull PrefetchedPriceForSale prefetchedPrices,
-	                                                          @Nonnull String priceName) {
+	                                                   @Nonnull String priceName) {
 		final Optional<PriceContract> prefetchedPrice = prefetchedPrices.getAccompanyingPrices().get(priceName);
 		if (prefetchedPrice == null) {
 			throw new GraphQLInternalError("Missing prefetched price `" + priceName + "` for entity `" + prefetchedPrices.getParentEntity().getType() + ":" + prefetchedPrices.getParentEntity().getPrimaryKey() + "`.");

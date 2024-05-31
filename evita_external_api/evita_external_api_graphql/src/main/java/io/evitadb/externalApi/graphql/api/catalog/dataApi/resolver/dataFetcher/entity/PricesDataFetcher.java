@@ -53,17 +53,17 @@ public class PricesDataFetcher implements DataFetcher<DataFetcherResult<Collecti
         final EntityDecorator entity = environment.getSource();
         final Collection<PriceContract> prices;
         if (priceLists == null && currency == null) {
-            prices = entity.getPrefetchedPrices();
+            prices = entity.getPrices();
         } else if (priceLists != null && currency != null) {
             prices = priceLists.stream()
-                .flatMap(pl -> entity.getPrefetchedPrices(currency, pl).stream())
+                .flatMap(pl -> entity.getPrices(currency, pl).stream())
                 .toList();
         } else if (priceLists != null) {
             prices = priceLists.stream()
-                .flatMap(pl -> entity.getPrefetchedPrices(pl).stream())
+                .flatMap(pl -> entity.getPrices(pl).stream())
                 .toList();
         } else {
-            prices = entity.getPrefetchedPrices(currency);
+            prices = entity.getPrices(currency);
         }
 
         final Locale customLocale = environment.getArgument(PricesFieldHeaderDescriptor.LOCALE.name());

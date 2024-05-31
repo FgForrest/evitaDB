@@ -327,6 +327,7 @@ public class EntityObjectBuilder {
 	private BuiltFieldDescriptor buildEntityPriceForSaleField() {
 		final GraphQLFieldDefinition field = GraphQLEntityDescriptor.PRICE_FOR_SALE
 			.to(fieldBuilderTransformer)
+			// todo #538: deprecated, remove
 			.argument(PriceForSaleFieldHeaderDescriptor.PRICE_LIST
 				.to(argumentBuilderTransformer))
 			.argument(PriceForSaleFieldHeaderDescriptor.PRICE_LISTS
@@ -360,7 +361,10 @@ public class EntityObjectBuilder {
 	private BuiltFieldDescriptor buildEntityAllPricesForSaleField() {
 		final GraphQLFieldDefinition field = GraphQLEntityDescriptor.ALL_PRICES_FOR_SALE
 			.to(fieldBuilderTransformer)
+			// todo #538: deprecated, remove
 			.argument(PriceForSaleFieldHeaderDescriptor.PRICE_LIST
+				.to(argumentBuilderTransformer))
+			.argument(PriceForSaleFieldHeaderDescriptor.PRICE_LISTS
 				.to(argumentBuilderTransformer))
 			.argument(PriceForSaleFieldHeaderDescriptor.CURRENCY
 				.to(argumentBuilderTransformer)

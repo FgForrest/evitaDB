@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -26,11 +26,8 @@ package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.
 import graphql.execution.DataFetcherResult;
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
-import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PricesContract.AccompanyingPrice;
-import io.evitadb.api.requestResponse.data.PricesContract.PriceForSaleWithAccompanyingPrices;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.dto.PrefetchedPriceForSale;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.AccompanyingPriceFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PriceForSaleDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PriceForSaleFieldHeaderDescriptor;
@@ -46,11 +43,12 @@ import java.util.Locale;
 import java.util.Optional;
 
 /**
- * TODO lho docs
+ * Ancestor for all data fetchers computing price for sales. The main goal is to gather all needed data for computation
+ * and correctly pass the price for sale down to other data fetchers.
  *
- * @author Lukáš Hornych, 2024
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
  */
-public abstract class AbstractPriceForSaleDataFetcher<P, DTO> implements DataFetcher<DataFetcherResult<P>> {
+public abstract class AbstractPriceForSaleDataFetcher<P> implements DataFetcher<DataFetcherResult<P>> {
 
 	@Nonnull
 	@Override
@@ -63,7 +61,7 @@ public abstract class AbstractPriceForSaleDataFetcher<P, DTO> implements DataFet
 		final OffsetDateTime validIn = resolveDesiredValidIn(environment, entity, context);
 		final AccompanyingPrice[] desiredAccompanyingPrices = resolveDesiredAccompanyingPrices(environment);
 
-		final DTO price = computePrice(entity, priceLists, currency, validIn, desiredAccompanyingPrices);
+		final P result = computePrices(entity, priceLists, currency, validIn, desiredAccompanyingPrices);
 
 		final Locale customLocale = environment.getArgument(PriceForSaleFieldHeaderDescriptor.LOCALE.name());
 		final EntityQueryContext newContext = context.toBuilder()
@@ -74,17 +72,33 @@ public abstract class AbstractPriceForSaleDataFetcher<P, DTO> implements DataFet
 			.desiredLocale(customLocale != null ? customLocale : context.getDesiredLocale())
 			.build();
 
-		return DataFetcherResult.<PriceContract>newResult()
-			.data(priceForSale
-				.map(it -> new PrefetchedPriceForSale(it.priceForSale(), entity, it.accompanyingPrices()))
-				.orElse(null))
+		return DataFetcherResult.<P>newResult()
+			.data(result)
 			.localContext(newContext)
 			.build();
 	}
 
+	/**
+	 * Computes actual price for sale or all prices for sale. Also should prefetch accompanying prices for nested price
+	 * fields.
+	 *
+	 * @param entity parent entity
+	 * @param desiredPriceLists desired price lists
+	 * @param desiredCurrency desired currency
+	 * @param desiredValidIn desired validity
+	 * @param desiredAccompanyingPrices desired accompanying prices
+	 * @return computed price for sale
+	 */
+	@Nullable
+	protected abstract P computePrices(@Nonnull EntityDecorator entity,
+	                                   @Nonnull String[] desiredPriceLists,
+	                                   @Nonnull Currency desiredCurrency,
+	                                   @Nullable OffsetDateTime desiredValidIn,
+	                                   @Nonnull AccompanyingPrice[] desiredAccompanyingPrices);
+
 	@Nonnull
 	protected String[] resolveDesiredPricesLists(@Nonnull DataFetchingEnvironment environment,
-	                                           @Nonnull EntityQueryContext context) {
+	                                             @Nonnull EntityQueryContext context) {
 		return Optional.ofNullable((String) environment.getArgument(PriceForSaleFieldHeaderDescriptor.PRICE_LIST.name()))
 			.map(priceList -> new String[]{priceList})
 			.or(() -> Optional.ofNullable(context.getDesiredPriceInPriceLists()))
@@ -93,7 +107,7 @@ public abstract class AbstractPriceForSaleDataFetcher<P, DTO> implements DataFet
 
 	@Nonnull
 	protected Currency resolveDesiredCurrency(@Nonnull DataFetchingEnvironment environment,
-	                                        @Nonnull EntityQueryContext context) {
+	                                          @Nonnull EntityQueryContext context) {
 		return Optional.ofNullable((Currency) environment.getArgument(PriceForSaleFieldHeaderDescriptor.CURRENCY.name()))
 			.or(() -> Optional.ofNullable(context.getDesiredPriceInCurrency()))
 			.orElseThrow(() -> new GraphQLInvalidArgumentException("Missing `currency` argument. You can use `" + PriceForSaleFieldHeaderDescriptor.CURRENCY.name() + "` parameter for specifying custom currency."));
@@ -101,8 +115,8 @@ public abstract class AbstractPriceForSaleDataFetcher<P, DTO> implements DataFet
 
 	@Nullable
 	protected OffsetDateTime resolveDesiredValidIn(@Nonnull DataFetchingEnvironment environment,
-	                                             @Nonnull EntityDecorator entity,
-	                                             @Nonnull EntityQueryContext context) {
+	                                               @Nonnull EntityDecorator entity,
+	                                               @Nonnull EntityQueryContext context) {
 		return Optional.ofNullable((OffsetDateTime) environment.getArgument(PriceForSaleFieldHeaderDescriptor.VALID_IN.name()))
 			.or(() -> Optional.ofNullable((Boolean) environment.getArgument(PriceForSaleFieldHeaderDescriptor.VALID_NOW.name()))
 				.map(validNow -> validNow ? entity.getAlignedNow() : null))

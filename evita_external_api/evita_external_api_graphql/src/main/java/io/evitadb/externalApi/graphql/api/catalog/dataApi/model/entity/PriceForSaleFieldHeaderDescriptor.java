@@ -37,16 +37,20 @@ import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescript
  */
 public interface PriceForSaleFieldHeaderDescriptor {
 
+	// todo #538: deprecated, remove
 	PropertyDescriptor PRICE_LIST = PropertyDescriptor.builder()
 		.name("priceList")
 		.description("""
 	         Parameter specifying desired price list of output price.
 	         Whenever possible, use constraint `priceInPriceLists` in main query instead.
 			""")
+		.deprecate("""
+			Use `priceLists` argument instead.
+			""")
 		.type(nullable(String.class))
 		.build();
 	PropertyDescriptor PRICE_LISTS = PropertyDescriptor.builder()
-		.name("priceList")
+		.name("priceLists")
 		.description("""
 	         Parameter specifying list of price lists ordered by priority for defining output price.
 	         Whenever possible, use constraint `priceInPriceLists` in main query instead.

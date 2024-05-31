@@ -23,26 +23,16 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.entity;
 
-import graphql.execution.DataFetcherResult;
-import graphql.schema.DataFetcher;
-import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PricesContract.AccompanyingPrice;
 import io.evitadb.api.requestResponse.data.PricesContract.PriceForSaleWithAccompanyingPrices;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.dto.PrefetchedPriceForSale;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.AccompanyingPriceFieldHeaderDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PriceForSaleDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PriceForSaleFieldHeaderDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.EntityQueryContext;
-import io.evitadb.externalApi.graphql.api.resolver.SelectionSetAggregator;
-import io.evitadb.externalApi.graphql.exception.GraphQLInvalidArgumentException;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.time.OffsetDateTime;
 import java.util.Currency;
-import java.util.Locale;
 import java.util.Optional;
 
 /**
@@ -53,39 +43,22 @@ import java.util.Optional;
  */
 public class PriceForSaleDataFetcher extends AbstractPriceForSaleDataFetcher<PriceContract> {
 
-    @Nonnull
+    @Nullable
     @Override
-    public DataFetcherResult<PriceContract> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
-        final EntityDecorator entity = environment.getSource();
-        final EntityQueryContext context = environment.getLocalContext();
-
-        final String[] priceLists = resolveDesiredPricesLists(environment, context);
-        final Currency currency = resolveDesiredCurrency(environment, context);
-        final OffsetDateTime validIn = resolveDesiredValidIn(environment, entity, context);
-        final AccompanyingPrice[] desiredAccompanyingPrices = resolveDesiredAccompanyingPrices(environment);
-
+    protected PriceContract computePrices(@Nonnull EntityDecorator entity,
+                                          @Nonnull String[] desiredPriceLists,
+                                          @Nonnull Currency desiredCurrency,
+                                          @Nullable OffsetDateTime desiredValidIn,
+                                          @Nonnull AccompanyingPrice[] desiredAccompanyingPrices) {
         final Optional<PriceForSaleWithAccompanyingPrices> priceForSale = entity.getPriceForSaleWithAccompanyingPrices(
-            currency,
-            validIn,
-            priceLists,
+            desiredCurrency,
+            desiredValidIn,
+            desiredPriceLists,
             desiredAccompanyingPrices
         );
 
-        final Locale customLocale = environment.getArgument(PriceForSaleFieldHeaderDescriptor.LOCALE.name());
-        final EntityQueryContext newContext = context.toBuilder()
-            .desiredPriceInPriceLists(priceLists)
-            .desiredPriceInCurrency(currency)
-            .desiredPriceValidIn(validIn)
-            .desiredPriceValidInNow(false)
-            .desiredLocale(customLocale != null ? customLocale : context.getDesiredLocale())
-            .build();
-
-        return DataFetcherResult.<PriceContract>newResult()
-            .data(priceForSale
-                .map(it -> new PrefetchedPriceForSale(it.priceForSale(), entity, it.accompanyingPrices()))
-                .orElse(null))
-            .localContext(newContext)
-            .build();
+        return priceForSale
+            .map(it -> new PrefetchedPriceForSale(it.priceForSale(), entity, it.accompanyingPrices()))
+            .orElse(null);
     }
-
 }

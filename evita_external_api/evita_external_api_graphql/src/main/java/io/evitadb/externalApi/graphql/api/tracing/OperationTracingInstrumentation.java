@@ -28,10 +28,11 @@ import graphql.execution.instrumentation.InstrumentationState;
 import graphql.execution.instrumentation.SimplePerformantInstrumentation;
 import graphql.execution.instrumentation.parameters.InstrumentationExecutionParameters;
 import graphql.language.OperationDefinition;
-import io.evitadb.api.trace.TracingBlockReference;
-import io.evitadb.api.trace.TracingContext;
-import io.evitadb.api.trace.TracingContext.SpanAttribute;
-import io.evitadb.api.trace.TracingContextProvider;
+
+import io.evitadb.api.observability.trace.TracingBlockReference;
+import io.evitadb.api.observability.trace.TracingContext;
+import io.evitadb.api.observability.trace.TracingContext.SpanAttribute;
+import io.evitadb.api.observability.trace.TracingContextProvider;
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
 
 import javax.annotation.Nonnull;
