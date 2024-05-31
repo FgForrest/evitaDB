@@ -664,6 +664,11 @@ public class CatalogWriteAheadLog implements Closeable {
 
 			if (this.firstCatalogVersionOfCurrentWalFile.get() == -1) {
 				this.firstCatalogVersionOfCurrentWalFile.set(transactionMutation.getCatalogVersion());
+				// emit the event with information about the first transaction in the WAL
+				new WalStatisticsEvent(
+					catalogName,
+					transactionMutation.getCommitTimestamp()
+				).commit();
 			}
 			this.lastWrittenCatalogVersion.set(transactionMutation.getCatalogVersion());
 			final int writtenLength = 4 + writtenHead + writtenContent;
