@@ -349,7 +349,7 @@ public class EntityFetchConverter extends RequireConverter {
 
 						entityFieldsBuilder.addObjectField(
 							StringUtils.toCamelCase(additionalPriceList),
-							EntityDescriptor.PRICE,
+							GraphQLEntityDescriptor.PRICE,
 							pricesBuilder -> {
 								pricesBuilder.addPrimitiveField(PriceDescriptor.PRICE_WITHOUT_TAX, getPriceValueFieldArguments(locale));
 								pricesBuilder.addPrimitiveField(PriceDescriptor.PRICE_WITH_TAX, getPriceValueFieldArguments(locale));

@@ -27,8 +27,10 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PriceForSaleDescriptor;
 
 import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nonNullListRef;
+import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nullableRef;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 
 /**
@@ -60,6 +62,9 @@ public interface GraphQLEntityDescriptor extends EntityDescriptor {
             """)
 		// type is expected to be a list of non-hierarchical version of this entity
 		.build();
+	PropertyDescriptor PRICE_FOR_SALE = PropertyDescriptor.extend(EntityDescriptor.PRICE_FOR_SALE)
+		.type(nullableRef(PriceForSaleDescriptor.THIS))
+		.build();
 	PropertyDescriptor ALL_PRICES_FOR_SALE = PropertyDescriptor.builder()
 		.name("allPricesForSale")
 		.description("""
@@ -68,7 +73,21 @@ public interface GraphQLEntityDescriptor extends EntityDescriptor {
             priority can be extracted.
             The moment is either extracted from the query/arguments as well (if present) or current date and time is used.
             """)
-		.type(nonNullListRef(PriceDescriptor.THIS))
+		.type(nonNullListRef(PriceForSaleDescriptor.THIS))
+		.build();
+	// todo #538: deprecated, remove
+	PropertyDescriptor PRICE = PropertyDescriptor.builder()
+		.name("price")
+		.description("""
+            Single price corresponding to defined arguments picked up from set of all `prices`.
+            If more than one price is found, the valid one is picked. Validity is check based on query, if desired
+            validity is not specified in query, current time is used. 
+            """)
+		.deprecate("""
+			This field doesn't correctly return price according to computed price for sale and it doesn't
+			respect price inner record handling. Use `accompanyingPrice` fields within the `priceForSale` field instead.
+			""")
+		.type(nullableRef(PriceDescriptor.THIS))
 		.build();
 
 	ObjectDescriptor THIS_NON_HIERARCHICAL = ObjectDescriptor.extend(THIS_CLASSIFIER)

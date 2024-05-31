@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -53,17 +53,17 @@ public class PricesDataFetcher implements DataFetcher<DataFetcherResult<Collecti
         final EntityDecorator entity = environment.getSource();
         final Collection<PriceContract> prices;
         if (priceLists == null && currency == null) {
-            prices = entity.getPrices();
+            prices = entity.getPrefetchedPrices();
         } else if (priceLists != null && currency != null) {
             prices = priceLists.stream()
-                .flatMap(pl -> entity.getPrices(currency, pl).stream())
+                .flatMap(pl -> entity.getPrefetchedPrices(currency, pl).stream())
                 .toList();
         } else if (priceLists != null) {
             prices = priceLists.stream()
-                .flatMap(pl -> entity.getPrices(pl).stream())
+                .flatMap(pl -> entity.getPrefetchedPrices(pl).stream())
                 .toList();
         } else {
-            prices = entity.getPrices(currency);
+            prices = entity.getPrefetchedPrices(currency);
         }
 
         final Locale customLocale = environment.getArgument(PricesFieldHeaderDescriptor.LOCALE.name());

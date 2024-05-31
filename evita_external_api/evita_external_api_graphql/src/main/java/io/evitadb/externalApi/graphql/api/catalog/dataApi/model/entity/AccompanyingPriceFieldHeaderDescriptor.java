@@ -23,41 +23,31 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity;
 
-import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
 import java.time.OffsetDateTime;
 
+import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 
 /**
- * Descriptor of header parameters of {@link EntityDescriptor#PRICE_FOR_SALE} field.
+ * Descriptor of header parameters of {@link PriceForSaleDescriptor#ACCOMPANYING_PRICE} field.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
  */
-public interface PriceForSaleFieldHeaderDescriptor {
+public interface AccompanyingPriceFieldHeaderDescriptor {
 
-	PropertyDescriptor PRICE_LIST = PropertyDescriptor.builder()
-		.name("priceList")
-		.description("""
-	         Parameter specifying desired price list of output price.
-	         Whenever possible, use constraint `priceInPriceLists` in main query instead.
-			""")
-		.type(nullable(String.class))
-		.build();
 	PropertyDescriptor PRICE_LISTS = PropertyDescriptor.builder()
-		.name("priceList")
+		.name("priceLists")
 		.description("""
-	         Parameter specifying list of price lists ordered by priority for defining output price.
-	         Whenever possible, use constraint `priceInPriceLists` in main query instead.
+			Parameter specifying list of price lists ordered by priority for defining output price.
 			""")
-		.type(nullable(String[].class))
+		.type(nonNull(String[].class))
 		.build();
 	PropertyDescriptor CURRENCY = PropertyDescriptor.builder()
 		.name("currency")
 		.description("""
-	         Parameter specifying desired currency of output price if different currency that already defined is desired.
-	         Whenever possible, use constraint `priceInCurrency` in main query instead.
+			Parameter specifying desired currency of output price if different currency that already defined is desired.
 			""")
 		// type is expected to be a currency enum
 		.build();
@@ -66,7 +56,6 @@ public interface PriceForSaleFieldHeaderDescriptor {
 		.description("""
 			Parameter specifying when output price should be valid. If both `validInNow` and `validIn` parameters are
 			specified `validIn` is used.
-			Whenever possible, use constraint `priceValidIn` in main query instead.
 			""")
 		.type(nullable(OffsetDateTime.class))
 		.build();
@@ -75,7 +64,6 @@ public interface PriceForSaleFieldHeaderDescriptor {
 		.description("""
 			Parameter specifying when output price should be valid. The date time is resolved to `now` by evitaDB. If both `validNow`
 			and `validIn` parameters are specified `validIn` is used.
-			Whenever possible, use constraint `priceValidInNow` in main query instead.
 			""")
 		.type(nullable(Boolean.class))
 		.build();

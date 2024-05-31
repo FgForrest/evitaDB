@@ -109,15 +109,6 @@ public interface EntityDescriptor extends VersionedDescriptor, AttributesProvide
 			""")
         .type(nullable(Boolean.class))
         .build();
-    PropertyDescriptor PRICE = PropertyDescriptor.builder()
-        .name("price")
-        .description("""
-            Single price corresponding to defined arguments picked up from set of all `prices`.
-            If more than one price is found, the valid one is picked. Validity is check based on query, if desired
-            validity is not specified in query, current time is used. 
-            """)
-        .type(nullableRef(PriceDescriptor.THIS))
-        .build();
     PropertyDescriptor PRICES = PropertyDescriptor.builder()
         .name("prices")
         .description("""

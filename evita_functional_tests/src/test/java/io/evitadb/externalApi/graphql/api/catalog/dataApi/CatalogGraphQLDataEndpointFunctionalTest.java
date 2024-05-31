@@ -165,7 +165,7 @@ public abstract class CatalogGraphQLDataEndpointFunctionalTest extends GraphQLEn
 		priceFormatter.setCurrency(CURRENCY_CZK);
 
 		return map()
-			.e(EntityDescriptor.PRICE.name(), map()
+			.e(GraphQLEntityDescriptor.PRICE.name(), map()
 				.e(PriceDescriptor.PRICE_WITH_TAX.name(), priceFormatter.format(entity.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).iterator().next().priceWithTax()))
 				.build())
 			.build();
@@ -252,7 +252,7 @@ public abstract class CatalogGraphQLDataEndpointFunctionalTest extends GraphQLEn
 		return map()
 			.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
 			.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
-			.e(EntityDescriptor.PRICE.name(), map()
+			.e(GraphQLEntityDescriptor.PRICE.name(), map()
 				.e(TYPENAME_FIELD, PriceDescriptor.THIS.name())
 				.e(PriceDescriptor.CURRENCY.name(), currency.toString())
 				.e(PriceDescriptor.PRICE_LIST.name(), priceList)

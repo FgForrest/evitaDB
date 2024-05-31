@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.api.catalog;
+package io.evitadb.externalApi.graphql.api.tracing;
 
 import graphql.execution.ExecutionContext;
 import graphql.execution.instrumentation.InstrumentationState;
@@ -32,6 +32,7 @@ import io.evitadb.api.trace.TracingBlockReference;
 import io.evitadb.api.trace.TracingContext;
 import io.evitadb.api.trace.TracingContext.SpanAttribute;
 import io.evitadb.api.trace.TracingContextProvider;
+import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.NotThreadSafe;

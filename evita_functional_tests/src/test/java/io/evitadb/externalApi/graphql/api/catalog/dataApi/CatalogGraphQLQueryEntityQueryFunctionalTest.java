@@ -1548,7 +1548,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
 			.body(
-				resultPath(PRODUCT_QUERY_DATA_PATH, EntityDescriptor.PRICE),
+				resultPath(PRODUCT_QUERY_DATA_PATH, GraphQLEntityDescriptor.PRICE),
 				equalTo(List.of(
 					map()
 						.e(PriceDescriptor.PRICE_ID.name(), vipPrices.iterator().next().priceId())
