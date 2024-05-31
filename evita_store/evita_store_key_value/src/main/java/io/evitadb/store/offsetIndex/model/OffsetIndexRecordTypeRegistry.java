@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -75,7 +75,7 @@ public class OffsetIndexRecordTypeRegistry {
 	 */
 	@Nonnull
 	public Class<? extends StoragePart> typeFor(byte id) {
-		return Optional.ofNullable(idToTypeIndex.get(id))
+		return Optional.ofNullable(this.idToTypeIndex.get(id))
 			.orElseThrow(() -> new GenericEvitaInternalError("Type id " + id + " cannot be handled by OffsetIndex!"));
 	}
 
@@ -83,7 +83,7 @@ public class OffsetIndexRecordTypeRegistry {
 	 * Returns record type id for passed class.
 	 */
 	public byte idFor(@Nonnull Class<? extends StoragePart> type) {
-		return Optional.ofNullable(typeToIdIndex.get(type))
+		return Optional.ofNullable(this.typeToIdIndex.get(type))
 			.orElseThrow(() -> new GenericEvitaInternalError("Type " + type + " cannot be handled by OffsetIndex!"));
 	}
 

@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -24,6 +24,7 @@
 package io.evitadb.core.transaction.stage;
 
 import io.evitadb.api.TransactionContract.CommitBehavior;
+import io.evitadb.core.metric.event.transaction.TransactionQueuedEvent;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -83,5 +84,12 @@ public interface TransactionTask {
 	 */
 	@Nullable
 	CompletableFuture<Long> future();
+
+	/**
+	 * Contains the event generated when the task was created.
+	 * @return the event
+	 */
+	@Nonnull
+	TransactionQueuedEvent transactionQueuedEvent();
 
 }

@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -62,11 +62,12 @@ class FormulaCacheVisitorTest {
 
 	@BeforeEach
 	void setUp() {
-		this.cacheEden = new CacheEden(1_000_000, MINIMAL_USAGE_THRESHOLD, 100L);
+		final Scheduler scheduler = new Scheduler(new ScheduledThreadPoolExecutor(4));
+		this.cacheEden = new CacheEden(1_000_000, MINIMAL_USAGE_THRESHOLD, 100L, scheduler);
 		this.cacheAnteroom = new CacheAnteroom(
 			10_000, 30L,
 			cacheEden,
-			new Scheduler(new ScheduledThreadPoolExecutor(4))
+			scheduler
 		);
 	}
 

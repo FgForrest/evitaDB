@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -44,9 +44,7 @@ import java.util.Locale;
 
 import static io.evitadb.api.EvitaApiFunctionalTest.LOGO;
 import static io.evitadb.api.EvitaApiFunctionalTest.SIEMENS_TITLE;
-import static io.evitadb.api.query.QueryConstraints.associatedDataContent;
 import static io.evitadb.api.query.QueryConstraints.associatedDataContentAll;
-import static io.evitadb.api.query.QueryConstraints.attributeContent;
 import static io.evitadb.api.query.QueryConstraints.attributeContentAll;
 import static io.evitadb.test.Entities.BRAND;
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;

@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -30,6 +30,7 @@ import io.evitadb.externalApi.api.system.ProbesProvider;
 import io.evitadb.externalApi.api.system.ProbesProvider.Readiness;
 import io.evitadb.externalApi.api.system.ProbesProvider.ReadinessState;
 import io.evitadb.externalApi.api.system.model.HealthProblem;
+import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.configuration.CertificatePath;
 import io.evitadb.externalApi.configuration.CertificateSettings;
@@ -38,6 +39,7 @@ import io.evitadb.externalApi.http.ExternalApiProvider;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
 import io.evitadb.externalApi.http.ExternalApiServer;
 import io.evitadb.externalApi.system.configuration.SystemConfig;
+import io.evitadb.utils.Assert;
 import io.evitadb.utils.CertificateUtils;
 import io.evitadb.utils.StringUtils;
 import io.undertow.Handlers;
@@ -179,25 +181,6 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 		@Nonnull ApiOptions apiOptions,
 		@Nonnull SystemConfig systemConfig
 	) {
-		final File file;
-		final String fileName;
-		final CertificateSettings certificateSettings = apiOptions.certificate();
-		if (certificateSettings.generateAndUseSelfSigned()) {
-			file = apiOptions.certificate()
-				.getFolderPath()
-				.toFile();
-			fileName = CertificateUtils.getGeneratedRootCaCertificateFileName();
-		} else {
-			final CertificatePath certificatePath = certificateSettings.custom();
-			if (certificatePath == null || certificatePath.certificate() == null || certificatePath.privateKey() == null) {
-				throw new GenericEvitaInternalError("Certificate path is not properly set in the configuration file.");
-			}
-			final String certificate = certificatePath.certificate();
-			final int lastSeparatorIndex = certificatePath.certificate().lastIndexOf(File.separator);
-			file = new File(certificate.substring(0, lastSeparatorIndex));
-			fileName = certificate.substring(lastSeparatorIndex);
-		}
-
 		final PathHandler router = Handlers.path();
 		router.addExactPath(
 			"/" + ENDPOINT_SERVER_NAME,
@@ -223,6 +206,7 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 			}
 		);
 
+		final String[] enabledEndPoints = getEnabledApiEndpoints(apiOptions);
 		final List<ProbesProvider> probes = ServiceLoader.load(ProbesProvider.class)
 			.stream()
 			.map(Provider::get)
@@ -233,7 +217,7 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 				exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, "application/json");
 				final Set<HealthProblem> healthProblems = probes
 					.stream()
-					.flatMap(it -> it.getHealthProblems(evita, externalApiServer).stream())
+					.flatMap(it -> it.getHealthProblems(evita, externalApiServer, enabledEndPoints).stream())
 					.collect(Collectors.toSet());
 
 				if (healthProblems.isEmpty()) {
@@ -253,7 +237,6 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 			}
 		);
 
-		final String[] enabledEndPoints = getEnabledApiEndpoints(apiOptions);
 		router.addExactPath(
 			"/" + ENDPOINT_SYSTEM_READINESS,
 			exchange -> {
@@ -281,58 +264,101 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 			}
 		);
 
-		final ResourceHandler fileSystemHandler;
-		try (ResourceManager resourceManager = new FileResourceManager(file, 100)) {
-			fileSystemHandler = new ResourceHandler(
-				(exchange, path) -> {
-					if (("/" + fileName).equals(path)) {
-						return resourceManager.getResource(fileName);
-					} else if (("/" + CertificateUtils.getGeneratedServerCertificateFileName()).equals(path) && certificateSettings.generateAndUseSelfSigned()) {
-						return resourceManager.getResource(CertificateUtils.getGeneratedServerCertificateFileName());
-					} else if (("/" + CertificateUtils.getGeneratedClientCertificateFileName()).equals(path) && certificateSettings.generateAndUseSelfSigned()) {
-						return resourceManager.getResource(CertificateUtils.getGeneratedClientCertificateFileName());
-					} else if (("/" + CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName()).equals(path) && certificateSettings.generateAndUseSelfSigned()) {
-						return resourceManager.getResource(CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName());
-					} else {
-						return null;
-					}
+		final String fileName;
+		final CertificateSettings certificateSettings = apiOptions.certificate();
+		final boolean atLeastOnEndpointRequiresTls = apiOptions.endpoints()
+			.values()
+			.stream()
+			.anyMatch(AbstractApiConfiguration::isTlsEnabled);
+		final boolean atLeastOnEndpointRequiresMtls = apiOptions.endpoints()
+			.values()
+			.stream()
+			.anyMatch(it -> {
+				if (it.isMtlsEnabled()) {
+					Assert.isPremiseValid(
+						it.isTlsEnabled(), "mTLS cannot be enabled without enabled TLS!"
+					);
+					return true;
+				} else {
+					return false;
 				}
-			);
-			router.addPrefixPath("/", fileSystemHandler);
+			});
 
-			return new SystemProvider(
-				systemConfig,
-				new BlockingHandler(
-					new CorsFilter(
-						router,
-						systemConfig.getAllowedOrigins()
-					)
-				),
-				Arrays.stream(systemConfig.getBaseUrls(apiOptions.exposedOn()))
-					.map(it -> it + ENDPOINT_SERVER_NAME)
-					.toArray(String[]::new),
-				Arrays.stream(systemConfig.getBaseUrls(apiOptions.exposedOn()))
+		if (atLeastOnEndpointRequiresTls) {
+			final File file;
+			if (certificateSettings.generateAndUseSelfSigned()) {
+				file = apiOptions.certificate()
+					.getFolderPath()
+					.toFile();
+				fileName = CertificateUtils.getGeneratedRootCaCertificateFileName();
+			} else {
+				final CertificatePath certificatePath = certificateSettings.custom();
+				if (certificatePath == null || certificatePath.certificate() == null || certificatePath.privateKey() == null) {
+					throw new GenericEvitaInternalError(
+						"Certificate path is not properly set in the configuration file and `generateAndUseSelfSigned` is set to false."
+					);
+				}
+				final String certificate = certificatePath.certificate();
+				final int lastSeparatorIndex = certificatePath.certificate().lastIndexOf(File.separator);
+				file = new File(certificate.substring(0, lastSeparatorIndex));
+				fileName = certificate.substring(lastSeparatorIndex);
+			}
+
+			try (ResourceManager resourceManager = new FileResourceManager(file, 100)) {
+				final ResourceHandler fileSystemHandler = new ResourceHandler(
+					(exchange, path) -> {
+						if (("/" + fileName).equals(path)) {
+							return resourceManager.getResource(fileName);
+						} else if (("/" + CertificateUtils.getGeneratedServerCertificateFileName()).equals(path) && certificateSettings.generateAndUseSelfSigned()) {
+							return resourceManager.getResource(CertificateUtils.getGeneratedServerCertificateFileName());
+						} else if (("/" + CertificateUtils.getGeneratedClientCertificateFileName()).equals(path) && certificateSettings.generateAndUseSelfSigned()) {
+							return resourceManager.getResource(CertificateUtils.getGeneratedClientCertificateFileName());
+						} else if (("/" + CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName()).equals(path) && certificateSettings.generateAndUseSelfSigned()) {
+							return resourceManager.getResource(CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName());
+						} else {
+							return null;
+						}
+					}
+				);
+				router.addPrefixPath("/", fileSystemHandler);
+			} catch (IOException e) {
+				throw new GenericEvitaInternalError(e.getMessage(), e);
+			}
+		} else {
+			fileName = null;
+		}
+
+		return new SystemProvider(
+			systemConfig,
+			new BlockingHandler(
+				new CorsFilter(
+					router,
+					systemConfig.getAllowedOrigins()
+				)
+			),
+			Arrays.stream(systemConfig.getBaseUrls(apiOptions.exposedOn()))
+				.map(it -> it + ENDPOINT_SERVER_NAME)
+				.toArray(String[]::new),
+			fileName == null ?
+				new String[0] : Arrays.stream(systemConfig.getBaseUrls(apiOptions.exposedOn()))
 					.map(it -> it + fileName)
 					.toArray(String[]::new),
-				certificateSettings.generateAndUseSelfSigned() ?
-					Arrays.stream(systemConfig.getBaseUrls(apiOptions.exposedOn()))
-						.map(it -> it + CertificateUtils.getGeneratedServerCertificateFileName())
-						.toArray(String[]::new) :
-					new String[0],
-				certificateSettings.generateAndUseSelfSigned() ?
-					Arrays.stream(systemConfig.getBaseUrls(apiOptions.exposedOn()))
-						.map(it -> it + CertificateUtils.getGeneratedClientCertificateFileName())
-						.toArray(String[]::new) :
-					new String[0],
-				certificateSettings.generateAndUseSelfSigned() ?
-					Arrays.stream(systemConfig.getBaseUrls(apiOptions.exposedOn()))
-						.map(it -> it + CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName())
-						.toArray(String[]::new) :
-					new String[0]
-			);
-		} catch (IOException e) {
-			throw new GenericEvitaInternalError(e.getMessage(), e);
-		}
+			certificateSettings.generateAndUseSelfSigned() && atLeastOnEndpointRequiresTls ?
+				Arrays.stream(systemConfig.getBaseUrls(apiOptions.exposedOn()))
+					.map(it -> it + CertificateUtils.getGeneratedServerCertificateFileName())
+					.toArray(String[]::new) :
+				new String[0],
+			certificateSettings.generateAndUseSelfSigned() && atLeastOnEndpointRequiresMtls ?
+				Arrays.stream(systemConfig.getBaseUrls(apiOptions.exposedOn()))
+					.map(it -> it + CertificateUtils.getGeneratedClientCertificateFileName())
+					.toArray(String[]::new) :
+				new String[0],
+			certificateSettings.generateAndUseSelfSigned() && atLeastOnEndpointRequiresMtls ?
+				Arrays.stream(systemConfig.getBaseUrls(apiOptions.exposedOn()))
+					.map(it -> it + CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName())
+					.toArray(String[]::new) :
+				new String[0]
+		);
 	}
 
 }

@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -25,6 +25,9 @@ package io.evitadb.core.transaction.stage;
 
 import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.core.Catalog;
+import io.evitadb.core.metric.event.transaction.TransactionAcceptedEvent;
+import io.evitadb.core.metric.event.transaction.TransactionQueuedEvent;
+import io.evitadb.core.metric.event.transaction.TransactionResolution;
 import io.evitadb.core.transaction.stage.ConflictResolutionTransactionStage.ConflictResolutionTransactionTask;
 import io.evitadb.core.transaction.stage.WalAppendingTransactionStage.WalAppendingTransactionTask;
 import io.evitadb.store.spi.OffHeapWithFileBackupReference;
@@ -74,10 +77,17 @@ public final class ConflictResolutionTransactionStage
 
 	@Override
 	public void handleNext(@Nonnull ConflictResolutionTransactionTask task) {
+
+		// emit queue event
+		task.transactionQueuedEvent().finish().commit();
+
 		Assert.isPremiseValid(
 			task.future() != null,
 			"Future is unexpectedly null on first stage!"
 		);
+
+		final TransactionAcceptedEvent event = new TransactionAcceptedEvent(task.catalogName());
+
 		// identify conflicts with other transaction
 		// TOBEDONE JNO #503 - implement conflict resolution
 		// assign new catalog version
@@ -94,6 +104,8 @@ public final class ConflictResolutionTransactionStage
 				task.commitBehaviour() != CommitBehavior.WAIT_FOR_CONFLICT_RESOLUTION ? task.future() : null
 			)
 		);
+
+		event.finishWithResolution(TransactionResolution.COMMIT).commit();
 	}
 
 	@Override
@@ -138,7 +150,8 @@ public final class ConflictResolutionTransactionStage
 		long walSizeInBytes,
 		@Nonnull OffHeapWithFileBackupReference walReference,
 		@Nonnull CommitBehavior commitBehaviour,
-		@Nonnull CompletableFuture<Long> future
+		@Nonnull CompletableFuture<Long> future,
+		@Nonnull TransactionQueuedEvent transactionQueuedEvent
 	) implements TransactionTask {
 
 		public ConflictResolutionTransactionTask {
@@ -146,6 +159,10 @@ public final class ConflictResolutionTransactionStage
 				future != null,
 				"Future is unexpectedly null!"
 			);
+		}
+
+		public ConflictResolutionTransactionTask(@Nonnull String catalogName, @Nonnull UUID transactionId, int mutationCount, long walSizeInBytes, @Nonnull OffHeapWithFileBackupReference walReference, @Nonnull CommitBehavior commitBehaviour, @Nonnull CompletableFuture<Long> future) {
+			this(catalogName, transactionId, mutationCount, walSizeInBytes, walReference, commitBehaviour, future, new TransactionQueuedEvent(catalogName, "conflict_resolution"));
 		}
 
 		@Override

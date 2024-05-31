@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,10 +23,10 @@
 
 package io.evitadb.externalApi.certificate;
 
-import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
 import io.evitadb.externalApi.configuration.CertificatePath;
 import io.evitadb.externalApi.configuration.CertificateSettings;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CertificateUtils;
 import lombok.Getter;
@@ -66,8 +66,12 @@ import java.security.Security;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.Date;
+import java.util.Optional;
 
+import static java.util.Optional.empty;
+import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -103,31 +107,32 @@ public class ServerCertificateManager {
 	 * @return {@link CertificatePath} object that contains paths to the certificate and private key.
 	 */
 	@Nonnull
-	public static CertificatePath getCertificatePath(@Nonnull CertificateSettings certificateSettings) {
+	public static Optional<CertificatePath> getCertificatePath(@Nonnull CertificateSettings certificateSettings) {
 		final Path certPath;
 		final Path certPrivateKeyPath;
 		final String certPrivateKeyPassword;
+		final CertificatePath customPaths = certificateSettings.custom();
 		if (certificateSettings.generateAndUseSelfSigned()) {
 			certPath = certificateSettings.getFolderPath().resolve(CertificateUtils.getGeneratedServerCertificateFileName());
 			certPrivateKeyPath = certificateSettings.getFolderPath().resolve(CertificateUtils.getGeneratedServerCertificatePrivateKeyFileName());
 			certPrivateKeyPassword = null;
+		} else if (customPaths != null && customPaths.certificate() != null && customPaths.privateKey() != null) {
+			certPath = ofNullable(customPaths.certificate()).map(Path::of).orElse(null);
+			certPrivateKeyPath = ofNullable(customPaths.privateKey()).map(Path::of).orElse(null);
+			certPrivateKeyPassword = customPaths.privateKeyPassword();
 		} else {
-			final CertificatePath certificatePath = certificateSettings.custom();
-			if (certificatePath == null || certificatePath.certificate() == null || certificatePath.privateKey() == null) {
-				throw new GenericEvitaInternalError("Certificate path is not properly set in the configuration file.");
-			}
-			certPath = ofNullable(certificatePath.certificate()).map(Path::of).orElse(null);
-			certPrivateKeyPath = ofNullable(certificatePath.privateKey()).map(Path::of).orElse(null);
-			certPrivateKeyPassword = certificatePath.privateKeyPassword();
+			return empty();
 		}
-		return new CertificatePath(
-			ofNullable(certPath.toAbsolutePath())
-				.map(it -> it.toAbsolutePath().toString())
-				.orElse(null),
-			ofNullable(certPrivateKeyPath)
-				.map(it -> it.toAbsolutePath().toString())
-				.orElse(null),
-			certPrivateKeyPassword
+		return of(
+			new CertificatePath(
+				ofNullable(certPath.toAbsolutePath())
+					.map(it -> it.toAbsolutePath().toString())
+					.orElse(null),
+				ofNullable(certPrivateKeyPath)
+					.map(it -> it.toAbsolutePath().toString())
+					.orElse(null),
+				certPrivateKeyPassword
+			)
 		);
 	}
 
@@ -187,7 +192,11 @@ public class ServerCertificateManager {
 	/**
 	 * Generates a self-signed certificate using the BouncyCastle library.
 	 */
-	public void generateSelfSignedCertificate() throws Exception {
+	public void generateSelfSignedCertificate(@Nonnull CertificateType... type) throws Exception {
+		if (ArrayUtils.isEmpty(type)) {
+			return;
+		}
+
 		final KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance(KEY_ALGORITHM, BC_PROVIDER);
 		keyPairGenerator.initialize(2048, new SecureRandom());
 		final KeyPair keyPair = keyPairGenerator.generateKeyPair();
@@ -223,8 +232,12 @@ public class ServerCertificateManager {
 		}
 
 		// Issue server and client certificates
-		issueCertificate(CertificateUtils.getServerCertName(), keyPairGenerator, keyPair, x500Name, notBefore, notAfter, rootCert);
-		issueCertificate(CertificateUtils.getClientCertName(), keyPairGenerator, keyPair, x500Name, notBefore, notAfter, rootCert);
+		if (Arrays.stream(type).anyMatch(it -> it == CertificateType.SERVER)) {
+			issueCertificate(CertificateUtils.getServerCertName(), keyPairGenerator, keyPair, x500Name, notBefore, notAfter, rootCert);
+		}
+		if (Arrays.stream(type).anyMatch(it -> it == CertificateType.CLIENT)) {
+			issueCertificate(CertificateUtils.getClientCertName(), keyPairGenerator, keyPair, x500Name, notBefore, notAfter, rootCert);
+		}
 	}
 
 	/**
@@ -296,4 +309,13 @@ public class ServerCertificateManager {
 			privateKeyWriter.writeObject(new PemObject("PRIVATE KEY", issuedCertKeyPair.getPrivate().getEncoded()));
 		}
 	}
+
+	/**
+	 * The type of the certificate to generate.
+	 */
+	public enum CertificateType {
+		SERVER,
+		CLIENT
+	}
+
 }

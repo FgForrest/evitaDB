@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,10 +23,10 @@
 
 package io.evitadb.externalApi.observability.trace;
 
-import io.evitadb.api.trace.DefaultTracingBlockReference;
-import io.evitadb.api.trace.TracingBlockReference;
-import io.evitadb.api.trace.TracingContext;
-import io.evitadb.api.trace.TracingContextReference;
+import io.evitadb.api.observability.trace.DefaultTracingBlockReference;
+import io.evitadb.api.observability.trace.TracingBlockReference;
+import io.evitadb.api.observability.trace.TracingContext;
+import io.evitadb.api.observability.trace.TracingContextReference;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.utils.ExternalApiTracingContext;
 import io.opentelemetry.api.trace.Span;
@@ -82,18 +82,20 @@ public class ObservabilityTracingContext implements TracingContext {
 		@Nonnull SpanAttribute[] attributes
 	) {
 		for (SpanAttribute attribute : attributes) {
-			if (attribute.value() instanceof String string) {
-				span.setAttribute(attribute.key(), string);
-			} else if (attribute.value() instanceof Integer integer) {
-				span.setAttribute(attribute.key(), integer);
-			} else if (attribute.value() instanceof Long longValue) {
-				span.setAttribute(attribute.key(), longValue);
-			} else if (attribute.value() instanceof Double doubleValue) {
-				span.setAttribute(attribute.key(), doubleValue);
-			} else if (attribute.value() instanceof Boolean booleanValue) {
-				span.setAttribute(attribute.key(), booleanValue);
-			} else {
-				span.setAttribute(attribute.key(), attribute.value().toString());
+			final String key = attribute.key();
+			final Object value = attribute.value();
+			if (value instanceof String string) {
+				span.setAttribute(key, string);
+			} else if (value instanceof Integer integer) {
+				span.setAttribute(key, integer);
+			} else if (value instanceof Long longValue) {
+				span.setAttribute(key, longValue);
+			} else if (value instanceof Double doubleValue) {
+				span.setAttribute(key, doubleValue);
+			} else if (value instanceof Boolean booleanValue) {
+				span.setAttribute(key, booleanValue);
+			} else if (value != null) {
+				span.setAttribute(key, value.toString());
 			}
 		}
 	}

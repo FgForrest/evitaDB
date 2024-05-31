@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -53,6 +53,7 @@ public class CatalogHeaderSerializer extends AbstractPersistentStorageHeaderSeri
 		output.writeString(object.catalogName());
 		output.writeVarLong(object.version(), true);
 		output.writeVarInt(object.lastEntityCollectionPrimaryKey(), true);
+		output.writeDouble(object.activeRecordShare());
 
 		final WalFileReference walFileReference = object.walFileReference();
 		if (walFileReference != null) {
@@ -92,6 +93,7 @@ public class CatalogHeaderSerializer extends AbstractPersistentStorageHeaderSeri
 		final String catalogName = input.readString();
 		final long version = input.readVarLong(true);
 		final int lastEntityCollectionPrimaryKey = input.readVarInt(true);
+		final double activeRecordShare = input.readDouble();
 
 		final WalFileReference walFileReference;
 		if (input.readBoolean()) {
@@ -137,7 +139,8 @@ public class CatalogHeaderSerializer extends AbstractPersistentStorageHeaderSeri
 			compressedKeys,
 			catalogName,
 			catalogState,
-			lastEntityCollectionPrimaryKey
+			lastEntityCollectionPrimaryKey,
+			activeRecordShare
 		);
 	}
 

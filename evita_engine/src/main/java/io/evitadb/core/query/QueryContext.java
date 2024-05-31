@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -60,11 +60,13 @@ import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.EntityCollection;
 import io.evitadb.core.cache.CacheSupervisor;
+import io.evitadb.core.metric.event.query.FinishedEvent;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.prefetch.SelectionFormula;
 import io.evitadb.core.query.extraResult.CacheSupervisorExtraResultAccessor;
 import io.evitadb.core.query.extraResult.ExtraResultCacheAccessor;
 import io.evitadb.core.query.extraResult.translator.facet.producer.FilteringFormulaPredicate;
+import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.TriFunction;
@@ -96,6 +98,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
@@ -116,13 +119,17 @@ import static java.util.Optional.ofNullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class QueryContext implements AutoCloseable, LocaleProvider {
+public class QueryContext implements Closeable, LocaleProvider {
 	private static final EntityIndexKey GLOBAL_INDEX_KEY = new EntityIndexKey(EntityIndexType.GLOBAL);
 
 	/**
 	 * Contains reference to the parent context of this one. The reference is not NULL only for sub-queries.
 	 */
 	@Nullable private final QueryContext parentContext;
+	/**
+	 * Internal event to be fired when the query was finished.
+	 */
+	@Nullable @Getter private final FinishedEvent queryFinishedEvent;
 	/**
 	 * Contains reference to the catalog that is targeted by {@link #evitaRequest}.
 	 */
@@ -186,7 +193,7 @@ public class QueryContext implements AutoCloseable, LocaleProvider {
 	 * see {@link SelectionFormula} for more information.
 	 */
 	@Getter
-	private List<EntityDecorator> prefetchedEntities;
+	private List<ServerEntityDecorator> prefetchedEntities;
 	/**
 	 * Contains sequence of already assigned virtual entity primary keys.
 	 * If set to zero - no virtual entity primary key was assigned, if greater than zero it represents the last assigned
@@ -262,7 +269,11 @@ public class QueryContext implements AutoCloseable, LocaleProvider {
 		this(
 			null, catalog, entityCollection, entityStorageContainerAccessor,
 			evitaSession, evitaRequest,
-			telemetry, indexes, cacheSupervisor
+			telemetry, indexes, cacheSupervisor,
+			new FinishedEvent(
+				catalog.getName(),
+				entityCollection == null ? null : entityCollection.getEntityType()
+			)
 		);
 	}
 
@@ -276,6 +287,24 @@ public class QueryContext implements AutoCloseable, LocaleProvider {
 		@Nullable QueryTelemetry telemetry,
 		@Nonnull Map<S, T> indexes,
 		@Nonnull CacheSupervisor cacheSupervisor
+	) {
+		this(
+			parentQueryContext, catalog, entityCollection, entityStorageContainerAccessor,
+			evitaSession, evitaRequest, telemetry, indexes, cacheSupervisor, null
+		);
+	}
+
+	private <S extends IndexKey, T extends Index<S>> QueryContext(
+		@Nullable QueryContext parentQueryContext,
+		@Nonnull Catalog catalog,
+		@Nullable EntityCollection entityCollection,
+		@Nonnull EntityStoragePartAccessor entityStorageContainerAccessor,
+		@Nonnull EvitaSessionContract evitaSession,
+		@Nonnull EvitaRequest evitaRequest,
+		@Nullable QueryTelemetry telemetry,
+		@Nonnull Map<S, T> indexes,
+		@Nonnull CacheSupervisor cacheSupervisor,
+		@Nullable FinishedEvent event
 	) {
 		this.parentContext = parentQueryContext;
 		this.prefetchPossible = parentQueryContext == null;
@@ -293,6 +322,7 @@ public class QueryContext implements AutoCloseable, LocaleProvider {
 		//noinspection unchecked
 		this.indexes = (Map<IndexKey, Index<?>>) indexes;
 		this.cacheSupervisor = cacheSupervisor;
+		this.queryFinishedEvent = event;
 	}
 
 	@Override
@@ -371,30 +401,30 @@ public class QueryContext implements AutoCloseable, LocaleProvider {
 
 		// new predicates are richer that previous ones - we need to fetch additional data and create new entity
 		final ReferenceFetcher entityFetcher = requirementTuples.isEmpty() &&
-			!evitaRequest.isRequiresEntityReferences() &&
-			!evitaRequest.isRequiresParent() ?
+			!this.evitaRequest.isRequiresEntityReferences() &&
+			!this.evitaRequest.isRequiresParent() ?
 			ReferenceFetcher.NO_IMPLEMENTATION :
 			new ReferencedEntityFetcher(
-				evitaRequest.getHierarchyContent(),
+				this.evitaRequest.getHierarchyContent(),
 				requirementTuples,
-				evitaRequest.getDefaultReferenceRequirement(),
+				this.evitaRequest.getDefaultReferenceRequirement(),
 				this
 			);
 
 		if (this.prefetchedEntities == null) {
-			final EntityCollection entityCollection = getEntityCollectionOrThrowException(entityType, "fetch entity");
-			return entityCollection.getEntities(entityPrimaryKey, evitaRequest, evitaSession, entityFetcher);
+			final EntityCollection entityCollection = getEntityCollectionOrThrowException(this.entityType, "fetch entity");
+			return entityCollection.getEntities(entityPrimaryKey, this.evitaRequest, this.evitaSession, entityFetcher);
 		} else {
 			return takeAdvantageOfPrefetchedEntities(
 				entityPrimaryKey,
 				entityType,
 				(entityCollection, entityPrimaryKeys, requestToUse) ->
-					entityCollection.getEntities(entityPrimaryKeys, evitaRequest, evitaSession),
+					entityCollection.getEntities(entityPrimaryKeys, this.evitaRequest, this.evitaSession),
 				(entityCollection, prefetchedEntities, requestToUse) ->
 					entityCollection.applyReferenceFetcher(
 						prefetchedEntities.stream()
-							.map(it -> entityCollection.enrichEntity(it, requestToUse, evitaSession))
-							.map(it -> entityCollection.limitEntity(it, requestToUse, evitaSession))
+							.map(it -> entityCollection.enrichEntity(it, requestToUse, this.evitaSession))
+							.map(it -> entityCollection.limitEntity(it, requestToUse, this.evitaSession))
 							.toList(),
 						entityFetcher
 					)
@@ -410,20 +440,20 @@ public class QueryContext implements AutoCloseable, LocaleProvider {
 	@Nullable
 	public List<BinaryEntity> fetchBinaryEntities(int... entityPrimaryKey) {
 		if (this.prefetchedEntities == null) {
-			final EntityCollectionContract entityCollection = getEntityCollectionOrThrowException(entityType, "fetch entity");
-			return entityCollection.getBinaryEntities(entityPrimaryKey, evitaRequest, evitaSession);
+			final EntityCollectionContract entityCollection = getEntityCollectionOrThrowException(this.entityType, "fetch entity");
+			return entityCollection.getBinaryEntities(entityPrimaryKey, this.evitaRequest, this.evitaSession);
 		} else {
 			// we need to reread the contents of the prefetched entity in binary form
 			return takeAdvantageOfPrefetchedEntities(
 				entityPrimaryKey,
-				entityType,
+				this.entityType,
 				(entityCollection, entityPrimaryKeys, requestToUse) ->
-					entityCollection.getBinaryEntities(entityPrimaryKeys, evitaRequest, evitaSession),
+					entityCollection.getBinaryEntities(entityPrimaryKeys, this.evitaRequest, this.evitaSession),
 				(entityCollection, prefetchedEntities, requestToUse) -> entityCollection.getBinaryEntities(
 					prefetchedEntities.stream()
 						.mapToInt(EntityDecorator::getPrimaryKey)
 						.toArray(),
-					evitaRequest, evitaSession
+					this.evitaRequest, this.evitaSession
 				)
 			);
 		}

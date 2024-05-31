@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -203,8 +203,8 @@ class ImpactFormulaGeneratorTest {
 			"""
 			[#0] AND → EMPTY
 			   [#1] [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
-			   [#2] USER FILTER → []
-			      [#3] NOT → []
+			   [#2] USER FILTER → EMPTY
+			      [#3] NOT → EMPTY
 			         [#4] FACET BRAND OR (5 - [15]):  ↦ [8, 9, 10]
 			         [#5] AND → [9]
 			            [Ref to #1] [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]

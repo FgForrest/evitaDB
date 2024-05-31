@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -25,7 +25,7 @@ package io.evitadb.driver.config;
 
 import io.evitadb.dataType.data.ReflectionCachingBehaviour;
 import io.evitadb.driver.EvitaClient;
-import io.evitadb.driver.certificate.ClientCertificateManager;
+import io.evitadb.externalApi.grpc.certificate.ClientCertificateManager;
 import io.evitadb.utils.ReflectionLookup;
 import lombok.ToString;
 
@@ -46,6 +46,10 @@ import java.util.concurrent.TimeUnit;
  * @param systemApiPort             The port the system API server listens on.
  * @param useGeneratedCertificate   Whether to use generated certificate by the server for the connection or not.
  * @param trustCertificate          Whether to trust the server CA certificate or not when it's not trusted CA.
+ * @param tlsEnabled                Whether to use HTTP/2 without TLS encryption. Corresponding setting must be
+ *                                  set on the server side.
+ * @param mtlsEnabled               Whether to use mutual TLS encryption. Corresponding setting must be set on the
+ *                                  server side.
  * @param rootCaCertificatePath     A relative path to the root CA certificate. Has to be provided when
  *                                  `useGeneratedCertificate` and `trustCertificate` flag is disabled and server
  *                                  is using non-trusted CA certificate.
@@ -68,6 +72,7 @@ public record EvitaClientConfiguration(
 	int systemApiPort,
 	boolean useGeneratedCertificate,
 	boolean trustCertificate,
+	boolean tlsEnabled,
 	boolean mtlsEnabled,
 	@Nullable Path rootCaCertificatePath,
 	@Nullable Path certificateFileName,
@@ -101,6 +106,7 @@ public record EvitaClientConfiguration(
 		private int systemApiPort = DEFAULT_SYSTEM_API_PORT;
 		private boolean useGeneratedCertificate = true;
 		private boolean trustCertificate = false;
+		private boolean tlsEnabled = true;
 		private boolean mtlsEnabled = false;
 		private Path rootCaCertificatePath = null;
 		private Path certificatePath = null;
@@ -173,6 +179,11 @@ public record EvitaClientConfiguration(
 			return this;
 		}
 
+		public EvitaClientConfiguration.Builder tlsEnabled(boolean tlsEnabled) {
+			this.tlsEnabled = tlsEnabled;
+			return this;
+		}
+
 		public EvitaClientConfiguration.Builder mtlsEnabled(boolean mtlsEnabled) {
 			this.mtlsEnabled = mtlsEnabled;
 			return this;
@@ -211,6 +222,7 @@ public record EvitaClientConfiguration(
 				systemApiPort,
 				useGeneratedCertificate,
 				trustCertificate,
+				tlsEnabled,
 				mtlsEnabled,
 				rootCaCertificatePath,
 				certificatePath,

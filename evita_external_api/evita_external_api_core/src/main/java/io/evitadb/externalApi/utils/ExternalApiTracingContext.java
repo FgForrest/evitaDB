@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,7 +23,8 @@
 
 package io.evitadb.externalApi.utils;
 
-import io.evitadb.api.trace.TracingContext.SpanAttribute;
+import io.evitadb.api.observability.trace.TracingContext;
+import io.evitadb.api.observability.trace.TracingContext.SpanAttribute;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -37,7 +38,7 @@ import java.util.regex.Pattern;
  *
  * @param <C> type of the context, should be either {@link io.undertow.util.HeaderMap} for JSON APIs (REST, GraphQL) or
  *            gRPC Metadata type.
- * @see io.evitadb.api.trace.TracingContext
+ * @see TracingContext
  */
 public interface ExternalApiTracingContext<C> {
 	/**

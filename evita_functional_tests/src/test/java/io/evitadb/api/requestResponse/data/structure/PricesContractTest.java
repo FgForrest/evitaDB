@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -41,6 +41,9 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Currency;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 import static java.util.Optional.ofNullable;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -183,6 +186,28 @@ class PricesContractTest extends AbstractBuilderTest {
 				new AccompanyingPrice("p", VIP)
 			}
 		);
+
+		// verify all prices for sale with accompanying prices
+		final List<PriceForSaleWithAccompanyingPrices> allPrices = prices.getAllPricesForSaleWithAccompanyingPrices(
+			CZK, MOMENT_2020, new String[]{BASIC},
+			new AccompanyingPrice[]{
+				new AccompanyingPrice("p1", REFERENCE),
+				new AccompanyingPrice("p2", REFERENCE, VIP),
+				new AccompanyingPrice("p3", LOGGED_ONLY, VIP),
+				new AccompanyingPrice("p", VIP)
+			}
+		);
+
+		assertEquals(3, allPrices.size());
+		for (PriceForSaleWithAccompanyingPrices allPrice : allPrices) {
+			final Map<String, Optional<PriceContract>> accompanyingPrices = allPrice.accompanyingPrices();
+			assertEquals(4, accompanyingPrices.size());
+			final int mainPriceId = allPrice.priceForSale().innerRecordId();
+			assertEquals(1000000 * mainPriceId + 7, accompanyingPrices.get("p1").map(PriceContract::priceId).orElse(null));
+			assertEquals(1000000 * mainPriceId + 7, accompanyingPrices.get("p2").map(PriceContract::priceId).orElse(null));
+			assertEquals(1000000 * mainPriceId + 3, accompanyingPrices.get("p3").map(PriceContract::priceId).orElse(null));
+			assertNull(accompanyingPrices.get("p").map(PriceContract::priceId).orElse(null));
+		}
 	}
 
 	@Test
@@ -219,7 +244,10 @@ class PricesContractTest extends AbstractBuilderTest {
 				new Price(new PriceKey(combineIntoId(2, 4), BASIC, CZK), 2, new BigDecimal("60"), new BigDecimal("21"), new BigDecimal("72.6"), null, true),
 				new Price(new PriceKey(combineIntoId(2, 5), LOGGED_ONLY, CZK), 2, new BigDecimal("50"), new BigDecimal("21"), new BigDecimal("60.5"), null, true),
 				new Price(new PriceKey(combineIntoId(3, 6), BASIC, CZK), 3, new BigDecimal("90"), new BigDecimal("21"), new BigDecimal("108.9"), null, true),
-				new Price(new PriceKey(combineIntoId(3, 7), LOGGED_ONLY, CZK), 3, new BigDecimal("70"), new BigDecimal("21"), new BigDecimal("84.7"), null, true)
+				new Price(new PriceKey(combineIntoId(3, 7), LOGGED_ONLY, CZK), 3, new BigDecimal("70"), new BigDecimal("21"), new BigDecimal("84.7"), null, true),
+				new Price(new PriceKey(combineIntoId(1, 8), REFERENCE, CZK), 1, new BigDecimal("10"), new BigDecimal("21"), new BigDecimal("12.1"), null, false),
+				new Price(new PriceKey(combineIntoId(2, 9), REFERENCE, CZK), 2, new BigDecimal("10"), new BigDecimal("21"), new BigDecimal("12.1"), null, false),
+				new Price(new PriceKey(combineIntoId(3, 10), REFERENCE, CZK), 3, new BigDecimal("10"), new BigDecimal("21"), new BigDecimal("12.1"), null, false)
 			),
 			PriceInnerRecordHandling.LOWEST_PRICE,
 			true
@@ -227,7 +255,7 @@ class PricesContractTest extends AbstractBuilderTest {
 
 		// price 5 is the lowest price from all allowed price lists over the inner record id
 		assertPriceForSaleWithAccompanyingPrices(
-			5, new int[] { -1, -1, 5, -1}, 2, prices, CZK, null, new String[] { VIP, LOGGED_ONLY, BASIC },
+			5, new int[] { 9, 9, 5, -1}, 2, prices, CZK, null, new String[] { VIP, LOGGED_ONLY, BASIC },
 			new AccompanyingPrice[] {
 				new AccompanyingPrice("p1", REFERENCE),
 				new AccompanyingPrice("p2", REFERENCE, VIP),
@@ -235,6 +263,36 @@ class PricesContractTest extends AbstractBuilderTest {
 				new AccompanyingPrice("p", VIP)
 			}
 		);
+
+		// verify all prices for sale with accompanying prices
+		final List<PriceForSaleWithAccompanyingPrices> allPrices = prices.getAllPricesForSaleWithAccompanyingPrices(
+			CZK, null, new String[] { VIP, LOGGED_ONLY, BASIC },
+			new AccompanyingPrice[]{
+				new AccompanyingPrice("p0", REFERENCE),
+				new AccompanyingPrice("p1", REFERENCE, VIP),
+				new AccompanyingPrice("p2", LOGGED_ONLY, VIP),
+				new AccompanyingPrice("p3", VIP)
+			}
+		);
+
+		assertEquals(3, allPrices.size());
+
+		assertAccompanyingPrices(allPrices.get(0), combineIntoId(1, 8), combineIntoId(1, 8), combineIntoId(1, 2), combineIntoId(1, 3));
+		assertAccompanyingPrices(allPrices.get(1), combineIntoId(2, 9), combineIntoId(2, 9), combineIntoId(2, 5), -1);
+		assertAccompanyingPrices(allPrices.get(2), combineIntoId(3, 10), combineIntoId(3, 10), combineIntoId(3, 7), -1);
+	}
+
+	private static void assertAccompanyingPrices(PriceForSaleWithAccompanyingPrices allPrice, int... accompanyingPriceId) {
+		final Map<String, Optional<PriceContract>> accompanyingPrices = allPrice.accompanyingPrices();
+		assertEquals(accompanyingPriceId.length, accompanyingPrices.size());
+		for (int i = 0; i < accompanyingPriceId.length; i++) {
+			int pid = accompanyingPriceId[i];
+			if (pid == -1) {
+				assertNull(accompanyingPrices.get("p" + i).map(PriceContract::priceId).orElse(null));
+			} else {
+				assertEquals(pid, accompanyingPrices.get("p" + i).map(PriceContract::priceId).orElse(null));
+			}
+		}
 	}
 
 	@Test
@@ -490,6 +548,14 @@ class PricesContractTest extends AbstractBuilderTest {
 				);
 			}
 		}
+
+		if (prices.getPriceInnerRecordHandling() == PriceInnerRecordHandling.NONE) {
+			final List<PriceForSaleWithAccompanyingPrices> allPricesResult = prices.getAllPricesForSaleWithAccompanyingPrices(
+				currency, moment, convertToClassifiers(priceLists), accompanyingPrices
+			);
+			assertEquals(1, allPricesResult.size());
+			assertEquals(priceForSaleWithAccompanyingPrices, allPricesResult.get(0));
+		}
 	}
 
 	private static void assertPriceForSale(BigDecimal expectedPriceWithoutVat, PricesContract prices, Currency currency, OffsetDateTime moment, String... priceLists) {
@@ -528,6 +594,12 @@ class PricesContractTest extends AbstractBuilderTest {
 				);
 			}
 		}
+
+		final List<PriceForSaleWithAccompanyingPrices> allPricesResult = prices.getAllPricesForSaleWithAccompanyingPrices(
+			currency, moment, convertToClassifiers(priceLists), accompanyingPrices
+		);
+		assertEquals(1, allPricesResult.size());
+		assertEquals(priceForSaleWithAccompanyingPrices, allPricesResult.get(0));
 	}
 
 	private static void assertNoPriceForSell(PricesContract prices, Currency currency, OffsetDateTime moment, String... priceLists) {

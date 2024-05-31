@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -25,15 +25,14 @@ package io.evitadb.core.cache;
 
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.require.EntityFetch;
-import io.evitadb.api.requestResponse.data.structure.BinaryEntity;
-import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.core.cache.model.CacheRecordAdept;
 import io.evitadb.core.cache.model.CachedRecord;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.extraResult.CacheableEvitaResponseExtraResultComputer;
 import io.evitadb.core.query.extraResult.EvitaResponseExtraResultComputer;
+import io.evitadb.core.query.response.ServerBinaryEntityDecorator;
+import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
-import io.evitadb.core.query.response.TransactionalDataRelatedStructure.CalculationContext;
 import io.evitadb.core.query.sort.CacheableSorter;
 import io.evitadb.core.query.sort.Sorter;
 import net.openhft.hashing.LongHashFunction;
@@ -130,14 +129,14 @@ public interface CacheSupervisor {
 	 * the cache.
 	 */
 	@Nonnull
-	Optional<EntityDecorator> analyse(
+	Optional<ServerEntityDecorator> analyse(
 		@Nonnull EvitaSessionContract evitaSession,
 		int primaryKey,
 		@Nonnull String entityType,
 		@Nonnull OffsetDateTime offsetDateTime,
 		@Nullable EntityFetch entityRequirement,
-		@Nonnull Supplier<EntityDecorator> entityFetcher,
-		@Nonnull UnaryOperator<EntityDecorator> enricher
+		@Nonnull Supplier<ServerEntityDecorator> entityFetcher,
+		@Nonnull UnaryOperator<ServerEntityDecorator> enricher
 	);
 
 	/**
@@ -148,19 +147,19 @@ public interface CacheSupervisor {
 	 * is created for it. If there are enough requests targeting this entity, the entity will eventually propagate to
 	 * the cache.
 	 *
-	 * This method is analogous to {@link #analyse(EvitaSessionContract, CalculationContext, int, String, OffsetDateTime, EntityFetch, Supplier, UnaryOperator)}
-	 * but it handles and returns {@link BinaryEntity} instead.
+	 * This method is analogous to {@link #analyse(EvitaSessionContract, int, String, OffsetDateTime, EntityFetch, Supplier, UnaryOperator)}
+	 * but it handles and returns {@link ServerBinaryEntityDecorator} instead.
 	 *
 	 * @see io.evitadb.api.requestResponse.EvitaBinaryEntityResponse
 	 */
 	@Nonnull
-	Optional<BinaryEntity> analyse(
+	Optional<ServerBinaryEntityDecorator> analyse(
 		@Nonnull EvitaSessionContract evitaSession,
 		int primaryKey,
 		@Nonnull String entityType,
 		@Nullable EntityFetch entityRequirement,
-		@Nonnull Supplier<BinaryEntity> entityFetcher,
-		@Nonnull UnaryOperator<BinaryEntity> enricher
+		@Nonnull Supplier<ServerBinaryEntityDecorator> entityFetcher,
+		@Nonnull UnaryOperator<ServerBinaryEntityDecorator> enricher
 	);
 
 }

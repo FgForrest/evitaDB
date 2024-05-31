@@ -26,7 +26,7 @@ preferredLang: 'java'
 
 ### Database is slow in overall
 
-First, look at the [monitoring](../../operate/monitor.md) and verify:
+First, look at the [observability facilities](../../operate/observe.md) and verify:
 
 - how many queries are processed per second
 - what background jobs are running and for how long
@@ -47,11 +47,11 @@ If the directory grows too much beyond the expected size of the working data-set
 
 1. **what [settings](../../operate/configure.md) are set for vacuuming policy** - if the evitaDB is configured too much
    garbage in the data or to retain too long history for the records, the file might grew over your expectations
-2. **whether the vacuuming process [runs regularly](../../operate/monitor.md)** - it there is high pressure on the 
+2. **whether the vacuuming process [runs regularly](../../operate/observe.md)** - it there is high pressure on the 
    system or too many writes are processed, the vacuuming process might not keep up 
 
 The amount of the old and garbage data along with vacuuming process statistics can be found in 
-[monitoring dashboard](../../operate/monitor.md).
+[monitoring dashboard](../../operate/observe.md).
 
 <Note type="warning">
 The vacuuming process is not yet implemented - track [issue #41](https://github.com/FgForrest/evitaDB/issues/41).

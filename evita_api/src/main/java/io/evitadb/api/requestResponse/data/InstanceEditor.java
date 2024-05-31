@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -37,10 +37,10 @@ import java.util.Optional;
 /**
  * Interface that could be implemented by custom model classes that want to follow the immutable principles that are
  * used within evitaDB.
- * 
+ *
  * Builder produces either {@link EntityMutation} that describes all changes to be made on entity model instance
  * to get it to "up-to-date" state or can provide new read-only version of the entity model instance  that may not
- * represent globally "up-to-date" state because it is based on the version of the entity known when builder was 
+ * represent globally "up-to-date" state because it is based on the version of the entity known when builder was
  * created.
  *
  * Mutation allows Evita to perform surgical updates on the latest version of the entity model instance that

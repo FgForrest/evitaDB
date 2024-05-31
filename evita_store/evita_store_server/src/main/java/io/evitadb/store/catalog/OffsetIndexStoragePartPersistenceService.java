@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -26,6 +26,9 @@ package io.evitadb.store.catalog;
 import com.esotericsoftware.kryo.io.ByteBufferOutput;
 import com.esotericsoftware.kryo.io.Input;
 import io.evitadb.api.configuration.TransactionOptions;
+import io.evitadb.core.metric.event.storage.FileType;
+import io.evitadb.core.metric.event.storage.OffsetIndexFlushEvent;
+import io.evitadb.core.metric.event.storage.OffsetIndexRecordTypeCountChangedEvent;
 import io.evitadb.store.kryo.ObservableOutput;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.kryo.VersionedKryo;
@@ -42,6 +45,7 @@ import io.evitadb.store.wal.TransactionalStoragePartPersistenceService;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.nio.file.Path;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.function.Function;
@@ -55,9 +59,17 @@ import java.util.stream.Stream;
  */
 public class OffsetIndexStoragePartPersistenceService implements StoragePartPersistenceService {
 	/**
-	 * Logical name of the file that backs the {@link OffsetIndex}.
+	 * Name of the catalog the persistence service relates to - used for observability.
+	 */
+	private final String catalogName;
+	/**
+	 * Logical name of the file that backs the {@link OffsetIndex} - used for observability.
 	 */
 	protected final String name;
+	/**
+	 * Type of the file that backs the {@link OffsetIndex} - used for observability.
+	 */
+	private final FileType fileType;
 	/**
 	 * Version of the catalog the storage parts are related to.
 	 */
@@ -85,10 +97,16 @@ public class OffsetIndexStoragePartPersistenceService implements StoragePartPers
 	 * Factory for {@link VersionedKryo} instances.
 	 */
 	@Nonnull protected final Function<VersionedKryoKeyInputs, VersionedKryo> kryoFactory;
+	/**
+	 * Last observed histogram of record types.
+	 */
+	private Map<String, Integer> lastObservedHistogram;
 
 	public OffsetIndexStoragePartPersistenceService(
 		long catalogVersion,
+		@Nonnull String catalogName,
 		@Nonnull String name,
+		@Nonnull FileType fileType,
 		@Nonnull TransactionOptions transactionOptions,
 		@Nonnull OffsetIndex offsetIndex,
 		@Nonnull OffHeapMemoryManager offHeapMemoryManager,
@@ -96,7 +114,9 @@ public class OffsetIndexStoragePartPersistenceService implements StoragePartPers
 		@Nonnull Function<VersionedKryoKeyInputs, VersionedKryo> kryoFactory
 	) {
 		this.catalogVersion = catalogVersion;
+		this.catalogName = catalogName;
 		this.name = name;
+		this.fileType = fileType;
 		this.transactionOptions = transactionOptions;
 		this.offsetIndex = offsetIndex;
 		this.offHeapMemoryManager = offHeapMemoryManager;
@@ -245,8 +265,46 @@ public class OffsetIndexStoragePartPersistenceService implements StoragePartPers
 	@Nonnull
 	@Override
 	public OffsetIndexDescriptor flush(long catalogVersion) {
-		if (offsetIndex.isOperative()) {
-			return this.offsetIndex.flush(catalogVersion);
+		if (this.offsetIndex.isOperative()) {
+			final OffsetIndexFlushEvent event = new OffsetIndexFlushEvent(
+				this.catalogName,
+				this.fileType,
+				this.name
+			);
+
+			final OffsetIndexDescriptor newDescriptor = this.offsetIndex.flush(catalogVersion);
+
+			// emit event
+			event.finish(
+				this.offsetIndex.count(catalogVersion),
+				this.offsetIndex.getTotalSizeIncludingVolatileData(),
+				this.offsetIndex.getMaxRecordSize(),
+				newDescriptor.getFileSize(),
+				this.offsetIndex.getTotalSize(),
+				this.offsetIndex.getOldestRecordKeptTimestamp().orElse(null)
+			).commit();
+
+			// emit event for record type count changes
+			final Map<String, Integer> histogram = this.offsetIndex.getHistogram();
+			histogram.forEach(
+				(recordType, count) -> {
+					final int lastCount = this.lastObservedHistogram == null ?
+						0 : this.lastObservedHistogram.getOrDefault(recordType, 0);
+					if (lastCount != count) {
+						// emit event
+						new OffsetIndexRecordTypeCountChangedEvent(
+							this.catalogName,
+							this.fileType,
+							this.name,
+							recordType,
+							count
+						).commit();
+					}
+				}
+			);
+			this.lastObservedHistogram = histogram;
+
+			return newDescriptor;
 		} else {
 			throw new PersistenceServiceClosed();
 		}

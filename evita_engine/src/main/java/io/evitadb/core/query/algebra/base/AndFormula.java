@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -111,6 +111,15 @@ public class AndFormula extends AbstractCacheableFormula {
 	}
 
 	@Override
+	public int getEstimatedCardinality() {
+		if (bitmaps == null) {
+			return Arrays.stream(this.innerFormulas).mapToInt(Formula::getEstimatedCardinality).min().orElse(0);
+		} else {
+			return Arrays.stream(this.bitmaps).mapToInt(Bitmap::size).min().orElse(0);
+		}
+	}
+
+	@Override
 	public long getOperationCost() {
 		return 9;
 	}
@@ -155,15 +164,6 @@ public class AndFormula extends AbstractCacheableFormula {
 	}
 
 	@Override
-	public int getEstimatedCardinality() {
-		if (bitmaps == null) {
-			return Arrays.stream(this.innerFormulas).mapToInt(Formula::getEstimatedCardinality).min().orElse(0);
-		} else {
-			return Arrays.stream(this.bitmaps).mapToInt(Bitmap::size).min().orElse(0);
-		}
-	}
-
-	@Override
 	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
 		if (bitmaps == null) {
 			return 0L;
@@ -190,26 +190,6 @@ public class AndFormula extends AbstractCacheableFormula {
 	}
 
 	@Override
-	protected long getCostToPerformanceInternal() {
-		return ofNullable(this.bitmaps)
-			.map(it -> getCost() / Math.max(1, compute().size()))
-			.orElseGet(() -> {
-				long costToPerformance = 0L;
-				if (this.sortedFormulasByComplexity == null) {
-		initialize(CalculationContext.NO_CACHING_INSTANCE);
-}
-				for (Formula innerFormula : this.sortedFormulasByComplexity) {
-					final Bitmap innerResult = innerFormula.compute();
-					if (innerResult == EmptyBitmap.INSTANCE) {
-						break;
-					}
-					costToPerformance += innerFormula.getCostToPerformanceRatio();
-				}
-				return costToPerformance + getCost() / Math.max(1, compute().size());
-			});
-	}
-
-	@Override
 	protected long getCostInternal() {
 		return ofNullable(this.bitmaps)
 			.map(it -> {
@@ -225,8 +205,8 @@ public class AndFormula extends AbstractCacheableFormula {
 			.orElseGet(() -> {
 				long cost = 0L;
 				if (this.sortedFormulasByComplexity == null) {
-		initialize(CalculationContext.NO_CACHING_INSTANCE);
-}
+					initialize(CalculationContext.NO_CACHING_INSTANCE);
+				}
 				for (Formula innerFormula : this.sortedFormulasByComplexity) {
 					final Bitmap innerResult = innerFormula.compute();
 					cost += innerFormula.getCost() + innerResult.size() * getOperationCost();
@@ -239,12 +219,23 @@ public class AndFormula extends AbstractCacheableFormula {
 	}
 
 	@Override
-	public String toString() {
-		if (ArrayUtils.isEmpty(bitmaps)) {
-			return "AND";
-		} else {
-			return "AND: " + Arrays.stream(bitmaps).map(Bitmap::toString).collect(Collectors.joining(", "));
-		}
+	protected long getCostToPerformanceInternal() {
+		return ofNullable(this.bitmaps)
+			.map(it -> getCost() / Math.max(1, compute().size()))
+			.orElseGet(() -> {
+				long costToPerformance = 0L;
+				if (this.sortedFormulasByComplexity == null) {
+					initialize(CalculationContext.NO_CACHING_INSTANCE);
+				}
+				for (Formula innerFormula : this.sortedFormulasByComplexity) {
+					final Bitmap innerResult = innerFormula.compute();
+					if (innerResult == EmptyBitmap.INSTANCE) {
+						break;
+					}
+					costToPerformance += innerFormula.getCostToPerformanceRatio();
+				}
+				return costToPerformance + getCost() / Math.max(1, compute().size());
+			});
 	}
 
 	@Nonnull
@@ -259,7 +250,16 @@ public class AndFormula extends AbstractCacheableFormula {
 		} else {
 			theResult = RoaringBitmapBackedBitmap.and(theBitmaps);
 		}
-		return theResult;
+		return theResult.isEmpty() ? EmptyBitmap.INSTANCE : theResult;
+	}
+
+	@Override
+	public String toString() {
+		if (ArrayUtils.isEmpty(bitmaps)) {
+			return "AND";
+		} else {
+			return "AND: " + Arrays.stream(bitmaps).map(Bitmap::toString).collect(Collectors.joining(", "));
+		}
 	}
 
 	/*

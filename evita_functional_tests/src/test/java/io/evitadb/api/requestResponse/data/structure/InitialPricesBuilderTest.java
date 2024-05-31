@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -27,6 +27,7 @@ import io.evitadb.api.exception.AmbiguousPriceException;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.PricesContract;
+import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -149,10 +150,16 @@ class InitialPricesBuilderTest extends AbstractBuilderTest {
 			.build();
 
 		final List<PriceContract> allPricesForSale = prices.getAllPricesForSale(CZK, null, "vip", "basic");
-		assertEquals(3, allPricesForSale.size());
-		for (PriceContract price : allPricesForSale) {
-			assertTrue(Set.of(2, 4, 5).contains(price.priceId()));
-		}
+		assertEquals(1, allPricesForSale.size());
+		final PriceContract priceContract = allPricesForSale.get(0);
+
+		assertEquals(
+			new Price(
+				new PriceKey(2, "vip", CZK), null,
+				new BigDecimal("21"), new BigDecimal("21"), BigDecimal.ZERO, null, true
+			),
+			priceContract
+		);
 	}
 
 	@SuppressWarnings("OptionalUsedAsFieldOrParameterType")

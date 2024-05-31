@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -26,6 +26,9 @@ package io.evitadb.index.invertedIndex;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
+import io.evitadb.ConsistencySensitiveDataStructure.ConsistencyReport;
+import io.evitadb.ConsistencySensitiveDataStructure.ConsistencyState;
+import io.evitadb.comparator.LocalizedStringComparator;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.store.index.serializer.InvertedIndexSerializer;
 import io.evitadb.store.index.serializer.TransactionalIntegerBitmapSerializer;
@@ -39,8 +42,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ArgumentsSource;
 
+import javax.annotation.Nonnull;
 import java.util.*;
 import java.util.Map.Entry;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static io.evitadb.test.TestConstants.LONG_RUNNING_TEST;
@@ -55,6 +60,56 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
 class InvertedIndexTest implements TimeBoundedTestSupport {
+	public static final String[] NATIONAL_SPECIFIC_WORDS = {
+		"chléb",
+		"hlína",
+		"chata",
+		"chalupa",
+		"chatka",
+		"chechtat",
+		"chirurg",
+		"chodba",
+		"chodník",
+		"choroba",
+		"chrám",
+		"chránit",
+		"chroust",
+		"chřest",
+		"chuť",
+		"chůze",
+		"hajný",
+		"hajzl",
+		"haló",
+		"halucinace",
+		"hanba",
+		"hanka",
+		"harfa",
+		"harpunář",
+		"hasák",
+		"hasič",
+		"hasička",
+		"hasičský",
+		"hasit",
+		"haslo",
+		"házat",
+		"hejtman",
+		"hejtmanka",
+		"herna",
+		"hezký",
+		"hlad",
+		"hledat",
+		"hlídka",
+		"hloupý",
+		"hnůj",
+		"hodina",
+		"hodiny",
+		"hojnost",
+		"holka",
+		"holub",
+		"horko",
+		"horší",
+		"hostina"
+	};
 	private final InvertedIndex<Integer> tested = new InvertedIndex<>((Comparator<Integer>) Comparator.naturalOrder());
 
 	@BeforeEach
@@ -597,11 +652,33 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 	@Tag(LONG_RUNNING_TEST)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	void generationalProofTest(GenerationalTestInput input) {
-		final int initialCount = 100;
-		final Map<Long, List<Integer>> mapToCompare = new HashMap<>();
-		final Map<Integer, Set<Long>> recordValues = new HashMap<>();
+		doExecute(100, input, Long.class, Comparator.naturalOrder(), random -> (long) random.nextInt(200));
+	}
+
+	@ParameterizedTest(name = "InvertedIndex should survive generational randomized test applying localized modifications on it")
+	@Tag(LONG_RUNNING_TEST)
+	@ArgumentsSource(TimeArgumentProvider.class)
+	void generationalProofTestLocalized(GenerationalTestInput input) {
+		doExecute(
+			100,
+			new GenerationalTestInput(1, 1),
+			String.class,
+			new LocalizedStringComparator(new Locale("cs")),
+			random -> NATIONAL_SPECIFIC_WORDS[random.nextInt(NATIONAL_SPECIFIC_WORDS.length)]
+		);
+	}
+
+	private <T extends Comparable<T>> void doExecute(
+		int initialCount,
+		@Nonnull GenerationalTestInput input,
+		@Nonnull Class<T> type,
+		@Nonnull Comparator<T> comparator,
+		@Nonnull Function<Random, T> randomValueSupplier
+	) {
+		final Map<T, List<Integer>> mapToCompare = new HashMap<>();
+		final Map<Integer, Set<T>> recordValues = new HashMap<>();
 		final Set<Integer> currentRecordSet = new HashSet<>();
-		final Set<Long> uniqueValues = new TreeSet<>();
+		final Set<T> uniqueValues = new TreeSet<>(comparator);
 
 		runFor(
 			input,
@@ -620,8 +697,8 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 					)
 					.append("\nOps:\n");
 
-				final InvertedIndex<Long> histogram = new InvertedIndex<>((Comparator<Long>) Comparator.naturalOrder());
-				for (Entry<Long, List<Integer>> entry : mapToCompare.entrySet()) {
+				final InvertedIndex<T> histogram = new InvertedIndex<>(comparator);
+				for (Entry<T, List<Integer>> entry : mapToCompare.entrySet()) {
 					histogram.addRecord(
 						entry.getKey(),
 						entry.getValue().stream().mapToInt(it -> it).toArray()
@@ -637,7 +714,7 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 								final int length = histogram.getRecords().getRecordIds().size();
 								if ((random.nextBoolean() || length < 10) && length < 50) {
 									// insert new item
-									final Long newValue = (long) random.nextInt(initialCount);
+									final T newValue = randomValueSupplier.apply(random);
 
 									int newRecId;
 									do {
@@ -653,14 +730,14 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 									histogram.addRecord(newValue, newRecId);
 								} else {
 									// remove existing item
-									final Iterator<Entry<Long, List<Integer>>> it = mapToCompare.entrySet().iterator();
-									Long valueToRemove = null;
+									final Iterator<Entry<T, List<Integer>>> it = mapToCompare.entrySet().iterator();
+									T valueToRemove = null;
 									Integer recordToRemove = null;
 									final int removePosition = random.nextInt(length);
 									int cnt = 0;
 									finder:
 									for (int j = 0; j < mapToCompare.size() + 1; j++) {
-										final Entry<Long, List<Integer>> entry = it.next();
+										final Entry<T, List<Integer>> entry = it.next();
 										final Iterator<Integer> valIt = entry.getValue().iterator();
 										while (valIt.hasNext()) {
 											final Integer recordId = valIt.next();
@@ -674,7 +751,7 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 									}
 									currentRecordSet.remove(recordToRemove);
 
-									final Set<Long> theRecordValues = recordValues.get(recordToRemove);
+									final Set<T> theRecordValues = recordValues.get(recordToRemove);
 									theRecordValues.remove(valueToRemove);
 									if (theRecordValues.isEmpty()) {
 										recordValues.remove(recordToRemove);
@@ -698,12 +775,12 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 					},
 					(original, committed) -> {
 						final int[] expected = currentRecordSet.stream().mapToInt(it -> it).sorted().toArray();
-						for (Entry<Integer, Set<Long>> entry : recordValues.entrySet()) {
-							final Set<Long> values = entry.getValue();
-							final Long[] actual = committed.getValuesForRecord(entry.getKey(), Long.class);
+						for (Entry<Integer, Set<T>> entry : recordValues.entrySet()) {
+							final Set<T> values = entry.getValue();
+							final T[] actual = committed.getValuesForRecord(entry.getKey(), type);
 							assertArrayEquals(
-								values.stream().mapToLong(it -> it).sorted().toArray(),
-								Arrays.stream(actual).mapToLong(it -> it).sorted().toArray(),
+								values.stream().sorted(comparator).toArray(),
+								Arrays.stream(actual).sorted(comparator).toArray(),
 								"\nExpected: " + Arrays.toString(values.toArray()) + "\n" +
 									"Actual:   " + Arrays.toString(actual) + "\n\n" +
 									codeBuffer
@@ -716,6 +793,11 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 								"Actual:   " + Arrays.toString(committed.getSortedRecords().getRecordIds().getArray()) + "\n\n" +
 								codeBuffer
 						);
+						final ConsistencyReport consistencyReport = committed.getConsistencyReport();
+						assertEquals(
+							ConsistencyState.CONSISTENT, consistencyReport.state(),
+							consistencyReport::report
+						);
 					}
 				);
 
@@ -726,11 +808,11 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 		);
 	}
 
-	private static int indexOf(Set<Long> values, Long valueToFind) {
+	private static <T extends Comparable<T>> int indexOf(@Nonnull Set<T> values, @Nonnull T valueToFind) {
 		int result = -1;
-		for (Long value : values) {
+		for (T value : values) {
 			result++;
-			if (valueToFind.equals(value)) {
+			if (valueToFind.compareTo(value) == 0) {
 				return result;
 			}
 		}

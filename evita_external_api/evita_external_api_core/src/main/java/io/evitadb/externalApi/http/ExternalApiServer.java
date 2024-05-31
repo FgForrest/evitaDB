@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -27,6 +27,7 @@ import io.evitadb.core.Evita;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.certificate.ServerCertificateManager;
+import io.evitadb.externalApi.certificate.ServerCertificateManager.CertificateType;
 import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.configuration.ApiWithSpecificPrefix;
@@ -35,6 +36,7 @@ import io.evitadb.externalApi.configuration.HostDefinition;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.externalApi.log.NoopAccessLogReceiver;
 import io.evitadb.externalApi.log.Slf4JAccessLogReceiver;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CertificateUtils;
 import io.evitadb.utils.ConsoleWriter;
@@ -87,6 +89,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.ServiceLoader;
@@ -94,6 +97,7 @@ import java.util.ServiceLoader.Provider;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 import static java.util.Optional.empty;
@@ -129,36 +133,53 @@ public class ExternalApiServer implements AutoCloseable {
 	}
 
 	@Nonnull
-	public static CertificatePath initCertificate(final @Nonnull ApiOptions apiOptions, final @Nonnull ServerCertificateManager serverCertificateManager) {
-		final CertificatePath certificatePath = ServerCertificateManager.getCertificatePath(apiOptions.certificate());
-		if (certificatePath.certificate() == null || certificatePath.privateKey() == null) {
-			throw new GenericEvitaInternalError("Either certificate path or its private key path is not set");
-		}
+	public static CertificatePath initCertificate(
+		final @Nonnull ApiOptions apiOptions,
+		final @Nonnull ServerCertificateManager serverCertificateManager
+	) {
+		final CertificatePath certificatePath = ServerCertificateManager.getCertificatePath(apiOptions.certificate())
+			.orElseThrow(() -> new GenericEvitaInternalError("Either certificate path or its private key path is not set"));
 		final File certificateFile = new File(certificatePath.certificate());
 		final File certificateKeyFile = new File(certificatePath.privateKey());
 		if (apiOptions.certificate().generateAndUseSelfSigned()) {
-			final Path certificateFolderPath = serverCertificateManager.getCertificateFolderPath();
-			if (!certificateFolderPath.toFile().exists()) {
-				Assert.isTrue(
-					certificateFolderPath.toFile().mkdirs(),
-					() -> "Cannot create certificate folder path: `" + certificateFolderPath + "`"
-				);
-			}
-			final File rootCaFile = serverCertificateManager.getRootCaCertificatePath().toFile();
-			if (!certificateFile.exists() && !certificateKeyFile.exists() && !rootCaFile.exists()) {
-				try {
-					serverCertificateManager.generateSelfSignedCertificate();
-				} catch (Exception e) {
-					throw new GenericEvitaInternalError(
-						"Failed to generate self-signed certificate: " + e.getMessage(),
-						"Failed to generate self-signed certificate",
-						e
+			final CertificateType[] certificateTypes = apiOptions.endpoints()
+				.values()
+				.stream()
+				.flatMap(it -> Stream.of(
+					it.isTlsEnabled() ? CertificateType.SERVER : null,
+					it.isMtlsEnabled() ? CertificateType.CLIENT : null
+				)
+				.filter(Objects::nonNull))
+				.distinct()
+				.toArray(CertificateType[]::new);
+
+			// if no end-point requires any certificate skip generation
+			if (ArrayUtils.isEmpty(certificateTypes)) {
+				log.info("No end-point is configured to use TLS or mTLS. Skipping certificate generation regardless `generateAndUseSelfSigned` is set to true.");
+			} else {
+				final Path certificateFolderPath = serverCertificateManager.getCertificateFolderPath();
+				if (!certificateFolderPath.toFile().exists()) {
+					Assert.isTrue(
+						certificateFolderPath.toFile().mkdirs(),
+						() -> "Cannot create certificate folder path: `" + certificateFolderPath + "`"
 					);
 				}
-			} else if (!certificateFile.exists() || !certificateKeyFile.exists() || !rootCaFile.exists()) {
-				throw new EvitaInvalidUsageException("One of essential certificate files is missing. Please either " +
-					"provide all of these files or delete all files in the configured certificate folder and try again."
-				);
+				final File rootCaFile = serverCertificateManager.getRootCaCertificatePath().toFile();
+				if (!certificateFile.exists() && !certificateKeyFile.exists() && !rootCaFile.exists()) {
+					try {
+						serverCertificateManager.generateSelfSignedCertificate(certificateTypes);
+					} catch (Exception e) {
+						throw new GenericEvitaInternalError(
+							"Failed to generate self-signed certificate: " + e.getMessage(),
+							"Failed to generate self-signed certificate",
+							e
+						);
+					}
+				} else if (!certificateFile.exists() || !certificateKeyFile.exists() || !rootCaFile.exists()) {
+					throw new EvitaInvalidUsageException("One of the essential certificate files is missing. Please either " +
+						"provide all of these files or delete all files in the configured certificate folder and try again."
+					);
+				}
 			}
 		} else {
 			if (!certificateFile.exists() || !certificateKeyFile.exists()) {
@@ -290,6 +311,7 @@ public class ExternalApiServer implements AutoCloseable {
 		@Nonnull ApiOptions apiOptions,
 		@SuppressWarnings("rawtypes") @Nonnull Collection<ExternalApiProviderRegistrar> externalApiProviders
 	) {
+		//noinspection rawtypes
 		return (Map) externalApiProviders
 			.stream()
 			.sorted(Comparator.comparingInt(ExternalApiProviderRegistrar::getOrder))
@@ -334,7 +356,8 @@ public class ExternalApiServer implements AutoCloseable {
 		final Undertow.Builder rootServerBuilder = Undertow.builder();
 
 		final ServerCertificateManager serverCertificateManager = new ServerCertificateManager(apiOptions.certificate());
-		final CertificatePath certificatePath = initCertificate(apiOptions, serverCertificateManager);
+		final CertificatePath certificatePath = apiOptions.certificate().generateAndUseSelfSigned() ?
+			initCertificate(apiOptions, serverCertificateManager) : null;
 
 		this.registeredApiProviders = registerApiProviders(evita, this, apiOptions, externalApiProviders);
 		if (this.registeredApiProviders.isEmpty()) {
@@ -402,7 +425,7 @@ public class ExternalApiServer implements AutoCloseable {
 	private void configureUndertow(
 		@Nonnull Undertow.Builder undertowBuilder,
 		@Nonnull Evita evita,
-		@Nonnull CertificatePath certificatePath,
+		@Nullable CertificatePath certificatePath,
 		@Nonnull ApiOptions apiOptions,
 		@Nonnull ServerCertificateManager serverCertificateManager
 	) {
@@ -460,83 +483,102 @@ public class ExternalApiServer implements AutoCloseable {
 
 		final AccessLogReceiver accessLogReceiver = apiOptions.accessLog() ? new Slf4JAccessLogReceiver() : new NoopAccessLogReceiver();
 
-		final SSLContext sslContext = configureSSLContext(certificatePath, serverCertificateManager);
+		final Optional<SSLContext> sslContext = certificatePath == null ?
+			empty() : of(configureSSLContext(certificatePath, serverCertificateManager));
 		final Map<HostKey, PathHandler> undertowSetupHosts = createHashMap(10);
-		for (ExternalApiProvider<?> registeredApiProvider : registeredApiProviders.values()) {
-			final AbstractApiConfiguration configuration = apiOptions.endpoints().get(registeredApiProvider.getCode());
-			for (HostDefinition host : configuration.getHost()) {
-				final HostKey hostKey = new HostKey(host, configuration.isTlsEnabled());
-				if (!registeredApiProvider.isManagedByUndertow() || registeredApiProvider.getApiHandler() == null) {
-					continue;
-				}
+		this.registeredApiProviders
+			.entrySet()
+			.stream()
+			.sorted(Entry.comparingByKey())
+			.forEach(
+				entry -> {
+					final String apiCode = entry.getKey();
+					final ExternalApiProvider<?> registeredApiProvider = entry.getValue();
+					final AbstractApiConfiguration configuration = apiOptions.endpoints().get(registeredApiProvider.getCode());
+					for (HostDefinition host : configuration.getHost()) {
+						final HostKey hostKey = new HostKey(host, configuration.isTlsEnabled());
+						if (!registeredApiProvider.isManagedByUndertow() || registeredApiProvider.getApiHandler() == null) {
+							continue;
+						}
 
-				final boolean portCollision = undertowSetupHosts.keySet()
-					.stream()
-					.anyMatch(it -> it.host().port() == hostKey.host().port() &&
-						it.ssl() != hostKey.ssl());
-				if (portCollision) {
-					throw new EvitaInvalidUsageException("There is ports collision in APIs configuration for `" + host + "`.");
-				}
+						final boolean portCollision = undertowSetupHosts.keySet()
+							.stream()
+							.anyMatch(it -> it.host().port() == hostKey.host().port() &&
+								it.ssl() != hostKey.ssl());
+						if (portCollision) {
+							throw new EvitaInvalidUsageException("There is ports collision in APIs configuration for `" + host + "`.");
+						}
 
-				final PathHandler hostRouter;
-				if (undertowSetupHosts.containsKey(hostKey)) {
-					hostRouter = undertowSetupHosts.get(hostKey);
-				} else {
-					hostRouter = Handlers.path();
-					undertowSetupHosts.put(hostKey, hostRouter);
+						final PathHandler hostRouter;
+						if (undertowSetupHosts.containsKey(hostKey)) {
+							hostRouter = undertowSetupHosts.get(hostKey);
+						} else {
+							hostRouter = Handlers.path();
+							undertowSetupHosts.put(hostKey, hostRouter);
 
-					final HttpHandler fallbackHandler = new FallbackExceptionHandler(hostRouter);
+							final HttpHandler fallbackHandler = new FallbackExceptionHandler(hostRouter);
 
-					// we want to support GZIP/deflate compression options for large payloads
-					// source https://stackoverflow.com/questions/28295752/compressing-undertow-server-responses#28329810
-					final EncodingHandler compressionHandler = new EncodingHandler(
-						new ContentEncodingRepository()
-							.addEncodingHandler("gzip", new GzipEncodingProvider(), 50)
-							.addEncodingHandler("deflate", new DeflateEncodingProvider(), 5)
-					)
-						.setNext(fallbackHandler);
+							// we want to support GZIP/deflate compression options for large payloads
+							// source https://stackoverflow.com/questions/28295752/compressing-undertow-server-responses#28329810
+							final EncodingHandler compressionHandler = new EncodingHandler(
+								new ContentEncodingRepository()
+									.addEncodingHandler("gzip", new GzipEncodingProvider(), 50)
+									.addEncodingHandler("deflate", new DeflateEncodingProvider(), 5)
+							)
+								.setNext(fallbackHandler);
 
-					// we want to log all requests coming into the Undertow server
-					final HttpHandler accessLogHandler = new AccessLogHandler(
-						compressionHandler,
-						accessLogReceiver,
-						"combined",
-						ExternalApiServer.class.getClassLoader()
+							// we want to log all requests coming into the Undertow server
+							final HttpHandler accessLogHandler = new AccessLogHandler(
+								compressionHandler,
+								accessLogReceiver,
+								"combined",
+								ExternalApiServer.class.getClassLoader()
+							);
+
+							if (configuration.isTlsEnabled()) {
+								undertowBuilder.addHttpsListener(
+									host.port(), host.host().getHostAddress(),
+									sslContext
+										.orElseThrow(
+											() -> new ExternalApiInternalError(
+												"API `" + apiCode + "` has TLS enabled, but server is not configured" +
+													" to use either provided server certificate nor to generate its own self-signed one."
+											)
+										),
+									accessLogHandler
+								);
+							} else {
+								undertowBuilder.addHttpListener(host.port(), host.host().getHostAddress(), accessLogHandler);
+							}
+						}
+
+						Assert.isPremiseValid(
+							configuration instanceof ApiWithSpecificPrefix,
+							() -> new ExternalApiInternalError("Cannot register path because API `" + apiCode + "` has no prefix specified.")
+						);
+						hostRouter.addPrefixPath(
+							((ApiWithSpecificPrefix) configuration).getPrefix(),
+							registeredApiProvider.getApiHandler()
+						);
+					}
+					ConsoleWriter.write(
+						StringUtils.rightPad("API `" + apiCode + "` listening on ", " ", PADDING_START_UP)
 					);
+					final String[] baseUrls = configuration.getBaseUrls(apiOptions.exposedOn());
+					for (int i = 0; i < baseUrls.length; i++) {
+						final String url = baseUrls[i];
+						if (i > 0) {
+							ConsoleWriter.write(", ", ConsoleColor.WHITE);
+						}
+						ConsoleWriter.write(url, ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);
+					}
+					ConsoleWriter.write("\n", ConsoleColor.WHITE);
 
-					if (configuration.isTlsEnabled()) {
-						undertowBuilder.addHttpsListener(host.port(), host.host().getHostAddress(), sslContext, accessLogHandler);
-					} else {
-						undertowBuilder.addHttpListener(host.port(), host.host().getHostAddress(), accessLogHandler);
+					if (registeredApiProvider instanceof ExternalApiProviderWithConsoleOutput<?> consoleOutput) {
+						consoleOutput.writeToConsole();
 					}
 				}
-
-				Assert.isPremiseValid(
-					configuration instanceof ApiWithSpecificPrefix,
-					() -> new ExternalApiInternalError("Cannot register path because API has no prefix specified.")
-				);
-				hostRouter.addPrefixPath(
-					((ApiWithSpecificPrefix) configuration).getPrefix(),
-					registeredApiProvider.getApiHandler()
-				);
-			}
-			ConsoleWriter.write(
-				StringUtils.rightPad("API `" + registeredApiProvider.getCode() + "` listening on ", " ", PADDING_START_UP)
 			);
-			final String[] baseUrls = configuration.getBaseUrls(apiOptions.exposedOn());
-			for (int i = 0; i < baseUrls.length; i++) {
-				final String url = baseUrls[i];
-				if (i > 0) {
-					ConsoleWriter.write(", ", ConsoleColor.WHITE);
-				}
-				ConsoleWriter.write(url, ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);
-			}
-			ConsoleWriter.write("\n", ConsoleColor.WHITE);
-
-			if (registeredApiProvider instanceof ExternalApiProviderWithConsoleOutput consoleOutput) {
-				consoleOutput.writeToConsole();
-			}
-		}
 	}
 
 	private record HostKey(HostDefinition host, boolean ssl) {

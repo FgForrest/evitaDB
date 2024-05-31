@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -37,6 +37,7 @@ import io.evitadb.api.requestResponse.EvitaResponse;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
@@ -50,6 +51,13 @@ import java.util.function.Function;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public interface EvitaInternalSessionContract extends EvitaSessionContract {
+
+	/**
+	 * Returns date and time this session was created.
+	 * @return date and time this session was created
+	 */
+	@Nonnull
+	OffsetDateTime getCreated();
 
 	/**
 	 * Method executes query on {@link CatalogContract} data and returns zero or exactly one entity result. Method
@@ -145,5 +153,4 @@ public interface EvitaInternalSessionContract extends EvitaSessionContract {
 	 */
 	@Nonnull
 	Optional<CompletableFuture<Long>> getTransactionFinalizationFuture();
-
 }

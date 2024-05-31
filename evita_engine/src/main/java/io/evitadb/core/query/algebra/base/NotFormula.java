@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -29,6 +29,7 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.utils.Assert;
 import net.openhft.hashing.LongHashFunction;
@@ -81,6 +82,49 @@ public class NotFormula extends AbstractCacheableFormula {
 
 	@Nonnull
 	@Override
+	public Formula getCloneWithInnerFormulas(@Nonnull Formula... innerFormulas) {
+		return new NotFormula(innerFormulas[0], innerFormulas[1]);
+	}
+
+	@Override
+	public int getEstimatedCardinality() {
+		if (supersetBitmap != null && subtractedBitmap != null) {
+			return supersetBitmap.size();
+		} else {
+			return innerFormulas[1].getEstimatedCardinality();
+		}
+	}
+
+	@Override
+	public long getOperationCost() {
+		return 9;
+	}
+
+	@Nonnull
+	@Override
+	public CacheableFormula getCloneWithComputationCallback(@Nonnull Consumer<CacheableFormula> selfOperator, @Nonnull Formula... innerFormulas) {
+		return new NotFormula(
+			selfOperator,
+			innerFormulas[0], innerFormulas[1]
+		);
+	}
+
+	@Override
+	public String toString() {
+		if (subtractedBitmap != null && supersetBitmap != null) {
+			return "NOT: " + Stream.of(subtractedBitmap, supersetBitmap).map(Bitmap::toString).collect(Collectors.joining(", "));
+		} else {
+			return "NOT";
+		}
+	}
+
+	@Override
+	protected boolean isFormulaOrderSignificant() {
+		return true;
+	}
+
+	@Nonnull
+	@Override
 	public long[] gatherBitmapIdsInternal() {
 		return LongStream.concat(
 				Stream.of(subtractedBitmap, supersetBitmap)
@@ -116,15 +160,6 @@ public class NotFormula extends AbstractCacheableFormula {
 	}
 
 	@Override
-	public int getEstimatedCardinality() {
-		if (supersetBitmap != null && subtractedBitmap != null) {
-			return supersetBitmap.size();
-		} else {
-			return innerFormulas[1].getEstimatedCardinality();
-		}
-	}
-
-	@Override
 	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
 		return hashFunction.hashLongs(
 			Stream.of(subtractedBitmap, supersetBitmap)
@@ -143,11 +178,6 @@ public class NotFormula extends AbstractCacheableFormula {
 	}
 
 	@Override
-	protected boolean isFormulaOrderSignificant() {
-		return true;
-	}
-
-	@Override
 	protected long getClassId() {
 		return CLASS_ID;
 	}
@@ -157,36 +187,26 @@ public class NotFormula extends AbstractCacheableFormula {
 		if (supersetBitmap != null && subtractedBitmap != null) {
 			return Stream.of(supersetBitmap, subtractedBitmap).mapToLong(Bitmap::size).sum();
 		} else {
-			return super.getCostInternal();
+			final Bitmap supersetBitmap = innerFormulas[1].compute();
+			if (supersetBitmap.isEmpty()) {
+				return innerFormulas[1].getCost();
+			} else {
+				return super.getCostInternal();
+			}
 		}
 	}
 
-	@Nonnull
 	@Override
-	public Formula getCloneWithInnerFormulas(@Nonnull Formula... innerFormulas) {
-		return new NotFormula(innerFormulas[0], innerFormulas[1]);
-	}
-
-	@Override
-	public long getOperationCost() {
-		return 9;
-	}
-
-	@Nonnull
-	@Override
-	public CacheableFormula getCloneWithComputationCallback(@Nonnull Consumer<CacheableFormula> selfOperator, @Nonnull Formula... innerFormulas) {
-		return new NotFormula(
-			selfOperator,
-			innerFormulas[0], innerFormulas[1]
-		);
-	}
-
-	@Override
-	public String toString() {
-		if (subtractedBitmap != null && supersetBitmap != null) {
-			return "NOT: " + Stream.of(subtractedBitmap, supersetBitmap).map(Bitmap::toString).collect(Collectors.joining(", "));
+	protected long getCostToPerformanceInternal() {
+		if (supersetBitmap != null && subtractedBitmap != null) {
+			return getCost() / Math.max(1, compute().size());
 		} else {
-			return "NOT";
+			final Bitmap supersetBitmap = innerFormulas[1].compute();
+			if (supersetBitmap.isEmpty()) {
+				return getCost() / Math.max(1, compute().size());
+			} else {
+				return super.getCostToPerformanceInternal();
+			}
 		}
 	}
 
@@ -195,21 +215,30 @@ public class NotFormula extends AbstractCacheableFormula {
 	protected Bitmap computeInternal() {
 		final Bitmap theResult;
 		if (subtractedBitmap != null && supersetBitmap != null) {
-			theResult = new BaseBitmap(
-				RoaringBitmap.andNot(
-					RoaringBitmapBackedBitmap.getRoaringBitmap(supersetBitmap),
-					RoaringBitmapBackedBitmap.getRoaringBitmap(subtractedBitmap)
-				)
-			);
+			if (supersetBitmap.isEmpty()) {
+				theResult = EmptyBitmap.INSTANCE;
+			} else {
+				theResult = new BaseBitmap(
+					RoaringBitmap.andNot(
+						RoaringBitmapBackedBitmap.getRoaringBitmap(supersetBitmap),
+						RoaringBitmapBackedBitmap.getRoaringBitmap(subtractedBitmap)
+					)
+				);
+			}
 		} else {
-			theResult = new BaseBitmap(
-				RoaringBitmap.andNot(
-					RoaringBitmapBackedBitmap.getRoaringBitmap(innerFormulas[1].compute()),
-					RoaringBitmapBackedBitmap.getRoaringBitmap(innerFormulas[0].compute())
-				)
-			);
+			final Bitmap supersetBitmap = innerFormulas[1].compute();
+			if (supersetBitmap.isEmpty()) {
+				theResult = EmptyBitmap.INSTANCE;
+			} else {
+				theResult = new BaseBitmap(
+					RoaringBitmap.andNot(
+						RoaringBitmapBackedBitmap.getRoaringBitmap(supersetBitmap),
+						RoaringBitmapBackedBitmap.getRoaringBitmap(innerFormulas[0].compute())
+					)
+				);
+			}
 		}
-		return theResult;
+		return theResult.isEmpty() ? EmptyBitmap.INSTANCE : theResult;
 	}
 
 }

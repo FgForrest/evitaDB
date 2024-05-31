@@ -12,7 +12,7 @@
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -65,7 +65,7 @@ public class LabProvider implements ExternalApiProvider<LabConfig> {
 	@Override
 	public boolean isReady() {
 		final Predicate<String> isReady = url -> NetworkUtils.fetchContent(url, null, "text/html", null)
-			.map(content -> content.contains("https://github.com/FgForrest/evitaDB/blob/main/LICENSE"))
+			.map(content -> content.contains("https://github.com/FgForrest/evitaDB/blob/master/LICENSE"))
 			.orElse(false);
 		final String[] baseUrls = this.configuration.getBaseUrls(configuration.getExposedHost());
 		if (this.reachableUrl == null) {
