@@ -46,7 +46,6 @@ public class MultiplePricesForSaleAvailableDataFetcher implements DataFetcher<Bo
     @Override
     public Boolean get(@Nonnull DataFetchingEnvironment environment) throws Exception {
         final EntityDecorator entity = environment.getSource();
-        final EntityQueryContext context = environment.getLocalContext();
 
         final List<PriceContract> allPricesForSale = entity.getAllPricesForSale();
         if (allPricesForSale.size() <= 1) {
@@ -74,8 +73,6 @@ public class MultiplePricesForSaleAvailableDataFetcher implements DataFetcher<Bo
                 .distinct()
                 .count();
             hasMultiplePricesForSale = uniquePriceValuesCount > 1;
-        } else if (priceInnerRecordHandling.equals(PriceInnerRecordHandling.SUM)) {
-            hasMultiplePricesForSale = allPricesForSale.size() > 1;
         } else {
             hasMultiplePricesForSale = false;
         }

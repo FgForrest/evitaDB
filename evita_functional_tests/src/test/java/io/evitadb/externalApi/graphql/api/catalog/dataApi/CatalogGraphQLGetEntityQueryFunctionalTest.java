@@ -1177,7 +1177,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 	void shouldReturnAllPricesForSaleForMasterProduct(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final var entity = findEntity(
 			originalProductEntities,
-			it -> !it.getPriceInnerRecordHandling().equals(PriceInnerRecordHandling.NONE) &&
+			it -> it.getPriceInnerRecordHandling().equals(PriceInnerRecordHandling.LOWEST_PRICE) &&
 				it.getPrices(CURRENCY_CZK)
 					.stream()
 					.filter(PriceContract::sellable)

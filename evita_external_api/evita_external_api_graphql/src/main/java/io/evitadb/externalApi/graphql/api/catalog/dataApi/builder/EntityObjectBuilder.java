@@ -142,9 +142,11 @@ public class EntityObjectBuilder {
 			new EntityDtoTypeResolver(buildingContext.getEntityTypeToEntityObject())
 		);
 		buildingContext.registerType(EntityDescriptor.THIS_REFERENCE.to(objectBuilderTransformer).build());
-		buildingContext.registerType(buildPriceObject());
-		buildingContext.registerType(buildPriceForSaleObject());
-		buildingContext.registerType(buildGlobal());
+		buildingContext.registerType(buildGlobalEntity());
+		if (!buildingContext.getSupportedCurrencies().isEmpty()) {
+			buildingContext.registerType(buildPriceObject());
+			buildingContext.registerType(buildPriceForSaleObject());
+		}
 	}
 
 	@Nonnull
@@ -256,7 +258,7 @@ public class EntityObjectBuilder {
 	}
 
 	@Nonnull
-	private GraphQLObjectType buildGlobal() {
+	private GraphQLObjectType buildGlobalEntity() {
 		final CatalogSchemaContract catalogSchema = buildingContext.getSchema();
 
 		final GraphQLObjectType.Builder globalEntityObjectBuilder = GlobalEntityDescriptor.THIS.to(objectBuilderTransformer);
