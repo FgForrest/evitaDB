@@ -404,7 +404,9 @@ public class EvitaServer {
 		ConsoleWriter.write(this.evitaConfiguration.name(), ConsoleColor.BRIGHT_YELLOW);
 		ConsoleWriter.write("\n", ConsoleColor.WHITE);
 
-		log.info("EvitaDB server started.", new RuntimeException("Test exception."));
+		log.info("EvitaDB server started.");
+		log.warn("EvitaDB server started.");
+		log.error("EvitaDB server started.", new RuntimeException("Test exception."));
 	}
 
 	/**
