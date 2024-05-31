@@ -1502,6 +1502,10 @@ public class OffsetIndex {
 		 * Contains the last size of non-flushed records in Bytes.
 		 */
 		private long nonFlushedRecordSizeInBytes;
+		/**
+		 * Lock guarding the access to the {@link #historicalVersions}.
+		 */
+		private final ReentrantLock lock = new ReentrantLock();
 
 		/**
 		 * Counts all non-flushed records not yet promoted to the shared state and the historical versions we still
@@ -1528,8 +1532,15 @@ public class OffsetIndex {
 			}
 
 			// scan also all previous versions we still keep in memory
-			final ConcurrentHashMap<Long, PastMemory> hvValues = this.volatileValues;
-			final long[] hv = this.historicalVersions;
+			final ConcurrentHashMap<Long, PastMemory> hvValues;
+			final long[] hv;
+			try {
+				this.lock.lock();
+				hvValues = this.volatileValues;
+				hv = this.historicalVersions;
+			} finally {
+				this.lock.unlock();
+			}
 			if (hv != null) {
 				int index = Arrays.binarySearch(hv, catalogVersion);
 				if (index != -1) {
@@ -1578,8 +1589,15 @@ public class OffsetIndex {
 			}
 
 			// scan also all previous versions we still keep in memory
-			final ConcurrentHashMap<Long, PastMemory> hvValues = this.volatileValues;
-			final long[] hv = this.historicalVersions;
+			final ConcurrentHashMap<Long, PastMemory> hvValues;
+			final long[] hv;
+			try {
+				this.lock.lock();
+				hvValues = this.volatileValues;
+				hv = this.historicalVersions;
+			} finally {
+				this.lock.unlock();
+			}
 			if (hv != null) {
 				int index = Arrays.binarySearch(hv, catalogVersion);
 				if (index != -1) {
@@ -1618,7 +1636,7 @@ public class OffsetIndex {
 				int index = Arrays.binarySearch(nv, catalogVersion);
 				if (index != -1) {
 					final int startIndex = index >= 0 ? index - 1 : -index - 2;
-					for (int ix = nv.length - 1; ix > startIndex && ix >= 0; ix--) {
+					for (int ix = nv.length - 1; ix >= startIndex && ix >= 0; ix--) {
 						final Optional<VersionedValue> versionedValue = ofNullable(nvSet.get(nv[ix]))
 							.map(it -> it.get(key));
 						if (versionedValue.isPresent()) {
@@ -1663,24 +1681,37 @@ public class OffsetIndex {
 		@Nonnull
 		public Optional<VolatileValueInformation> getVolatileValueInformation(long catalogVersion, @Nonnull RecordKey key) {
 			// scan also all previous versions we still keep in memory
-			if (this.historicalVersions != null && this.volatileValues != null) {
-				int index = Arrays.binarySearch(this.historicalVersions, catalogVersion);
+			final long[] hv;
+			final ConcurrentHashMap<Long, PastMemory> hvValues;
+			try {
+				this.lock.lock();
+				hvValues = this.volatileValues;
+				hv = this.historicalVersions;
+			} finally {
+				this.lock.unlock();
+			}
+			if (hv != null && hvValues != null) {
+				int index = Arrays.binarySearch(hv, catalogVersion);
 				final int startIndex = index >= 0 ? index : -index - 1;
 				boolean addedInFuture = false;
-				for (int ix = startIndex; ix < this.volatileValues.size(); ix++) {
-					final long examinedVersion = this.historicalVersions[ix];
-					final PastMemory pastMemory = this.volatileValues.get(examinedVersion);
+				for (int ix = startIndex; ix < hv.length; ix++) {
+					final long examinedVersion = hv[ix];
+					final PastMemory pastMemory = hvValues.get(examinedVersion);
 					if (pastMemory.getRemovedKeys().contains(key)) {
 						addedInFuture = false;
 					}
 					if (pastMemory.getAddedKeys().contains(key) && examinedVersion != catalogVersion) {
 						addedInFuture = true;
 					}
-					final VersionedValue previousValue = pastMemory.getPreviousValue(key);
-					if (previousValue != null) {
-						return of(new VolatileValueInformation(previousValue, previousValue.removed(), addedInFuture));
-					} else if (addedInFuture) {
-						return of(new VolatileValueInformation(null, false, addedInFuture));
+					// we must skip the current version, because it contains previous value that was overwritten
+					// not the currently valid one
+					if (examinedVersion != catalogVersion) {
+						final VersionedValue previousValue = pastMemory.getPreviousValue(key);
+						if (previousValue != null) {
+							return of(new VolatileValueInformation(previousValue, previousValue.removed(), addedInFuture));
+						} else if (addedInFuture) {
+							return of(new VolatileValueInformation(null, false, addedInFuture));
+						}
 					}
 				}
 			}
@@ -1759,42 +1790,52 @@ public class OffsetIndex {
 			@Nonnull Collection<NonFlushedValueSet> nonFlushedValueSetsToPromote,
 			@Nonnull Map<RecordKey, FileLocation> keyToLocations
 		) {
-			final long versionToPurge = purgeOlderThan.getAndSet(-1);
+			final long versionToPurge = this.purgeOlderThan.getAndSet(-1);
 			// remove all versions that are lower than the given catalog version in a safe - single threaded scope
 			if (versionToPurge > -1) {
-				if (this.historicalVersions != null) {
-					final long[] versionsToPurge = this.historicalVersions;
-					int index = Arrays.binarySearch(versionsToPurge, versionToPurge);
-					final int startIndex = index >= 0 ? index : -index - 2;
-					if (index != -1) {
-						for (int ix = startIndex; ix >= 0; ix--) {
-							this.volatileValues.remove(versionsToPurge[ix]);
+				try {
+					this.lock.lock();
+					if (this.historicalVersions != null) {
+						final long[] versionsToPurge = this.historicalVersions;
+						int index = Arrays.binarySearch(versionsToPurge, versionToPurge);
+						final int startIndex = index >= 0 ? index : -index - 2;
+						if (index != -1) {
+							for (int ix = startIndex; ix >= 0; ix--) {
+								this.volatileValues.remove(versionsToPurge[ix]);
+							}
 						}
+						this.historicalVersions = Arrays.copyOfRange(versionsToPurge, startIndex + 1, versionsToPurge.length);
+						// notify the observer
+						this.historicalVersionsObserver.accept(getOldestRecordKeptTimestamp());
 					}
-					this.historicalVersions = Arrays.copyOfRange(versionsToPurge, startIndex + 1, versionsToPurge.length);
-					// notify the observer
-					this.historicalVersionsObserver.accept(getOldestRecordKeptTimestamp());
+				} finally {
+					this.lock.unlock();
 				}
 			}
 			for (NonFlushedValueSet valuesToPromote : nonFlushedValueSetsToPromote) {
 				final long catalogVersion = valuesToPromote.getCatalogVersion();
-				if (this.historicalVersions == null) {
-					this.historicalVersions = new long[]{catalogVersion};
-					this.volatileValues = CollectionUtils.createConcurrentHashMap(16);
-					this.volatileValues.put(catalogVersion, valuesToPromote.createFrom(keyToLocations));
-				} else {
-					this.volatileValues.compute(
-						catalogVersion,
-						(key, value) -> {
-							if (value == null) {
-								final long[] hv = this.historicalVersions;
-								this.historicalVersions = ArrayUtils.insertLongIntoOrderedArray(catalogVersion, hv);
-								return valuesToPromote.createFrom(keyToLocations);
-							} else {
-								return valuesToPromote.mergeWith(value, keyToLocations);
+				try {
+					this.lock.lock();
+					if (this.historicalVersions == null) {
+						this.historicalVersions = new long[]{catalogVersion};
+						this.volatileValues = CollectionUtils.createConcurrentHashMap(16);
+						this.volatileValues.put(catalogVersion, valuesToPromote.createFrom(keyToLocations));
+					} else {
+						this.volatileValues.compute(
+							catalogVersion,
+							(key, value) -> {
+								if (value == null) {
+									final long[] hv = this.historicalVersions;
+									this.historicalVersions = ArrayUtils.insertLongIntoOrderedArray(catalogVersion, hv);
+									return valuesToPromote.createFrom(keyToLocations);
+								} else {
+									return valuesToPromote.mergeWith(value, keyToLocations);
+								}
 							}
-						}
-					);
+						);
+					}
+				} finally {
+					this.lock.unlock();
 				}
 			}
 		}
@@ -1806,10 +1847,16 @@ public class OffsetIndex {
 		 * @param catalogVersion the catalog version to compare against, NULL if all versions should be removed
 		 */
 		public void purge(@Nullable Long catalogVersion) {
-			final long[] theHistoricalVersions = this.historicalVersions;
-			if (theHistoricalVersions != null && theHistoricalVersions.length > 0) {
+			final long[] hv;
+			try {
+				this.lock.lock();
+				hv = this.historicalVersions;
+			} finally {
+				this.lock.unlock();
+			}
+			if (hv != null && hv.length > 0) {
 				this.purgeOlderThan.accumulateAndGet(
-					catalogVersion == null ? theHistoricalVersions[theHistoricalVersions.length - 1] : catalogVersion,
+					catalogVersion == null ? hv[hv.length - 1] : catalogVersion,
 					(prev, next) -> prev > -1 ? Math.min(prev, next) : next
 				);
 			}

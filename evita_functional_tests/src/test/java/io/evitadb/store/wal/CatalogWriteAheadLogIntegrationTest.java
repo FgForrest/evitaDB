@@ -45,6 +45,7 @@ import io.evitadb.store.service.KryoFactory;
 import io.evitadb.store.spi.IsolatedWalPersistenceService;
 import io.evitadb.store.spi.OffHeapWithFileBackupReference;
 import io.evitadb.store.spi.model.reference.WalFileReference;
+import io.evitadb.store.wal.CatalogWriteAheadLog.FirstAndLastCatalogVersions;
 import io.evitadb.store.wal.supplier.MutationSupplier;
 import io.evitadb.store.wal.supplier.TransactionMutationWithLocation;
 import io.evitadb.test.TestConstants;
@@ -62,10 +63,12 @@ import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -76,6 +79,8 @@ import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import static io.evitadb.store.spi.CatalogPersistenceService.WAL_FILE_SUFFIX;
+import static io.evitadb.store.spi.CatalogPersistenceService.getIndexFromWalFileName;
 import static io.evitadb.test.TestConstants.LONG_RUNNING_TEST;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -153,6 +158,33 @@ class CatalogWriteAheadLogIntegrationTest {
 	}
 
 	@Test
+	void shouldReadFirstAndLastCatalogVersionOfPreviousWalFiles() {
+		wal = createCatalogWriteAheadLogOfSmallSize();
+
+		final int[] transactionSizes = {10, 15, 20, 15, 10};
+		final Map<Long, List<Mutation>> txInMutations = writeWal(bigOffHeapMemoryManager, transactionSizes);
+
+		// list all existing WAL files and remove the oldest ones when their count exceeds the limit
+		final File[] walFiles = this.walDirectory.toFile().listFiles(
+			(dir, name) -> name.endsWith(WAL_FILE_SUFFIX)
+		);
+		// first sort the files from oldest to newest according to their index in the file name
+		Arrays.sort(
+			walFiles,
+			Comparator.comparingInt(f -> getIndexFromWalFileName(TEST_CATALOG, f.getName()))
+		);
+
+		assertEquals(3, walFiles.length);
+		final FirstAndLastCatalogVersions versionFirstFile = CatalogWriteAheadLog.getFirstAndLastCatalogVersionsFromWalFile(walFiles[0]);
+		assertEquals(1, versionFirstFile.firstCatalogVersion());
+		assertEquals(2, versionFirstFile.lastCatalogVersion());
+
+		final FirstAndLastCatalogVersions versionsSecondFile = CatalogWriteAheadLog.getFirstAndLastCatalogVersionsFromWalFile(walFiles[1]);
+		assertEquals(3, versionsSecondFile.firstCatalogVersion());
+		assertEquals(3, versionsSecondFile.lastCatalogVersion());
+	}
+
+	@Test
 	void shouldWriteAndReadWalOverMultipleFilesInReversedOrder() {
 		wal = createCatalogWriteAheadLogOfSmallSize();
 
@@ -227,6 +259,7 @@ class CatalogWriteAheadLogIntegrationTest {
 	@Nonnull
 	private CatalogWriteAheadLog createCatalogWriteAheadLogOfSmallSize() {
 		return new CatalogWriteAheadLog(
+			0L,
 			TEST_CATALOG,
 			walDirectory,
 			catalogKryoPool,
@@ -243,6 +276,7 @@ class CatalogWriteAheadLogIntegrationTest {
 	@Nonnull
 	private CatalogWriteAheadLog createCatalogWriteAheadLogOfLargeEnoughSize() {
 		return new CatalogWriteAheadLog(
+			0L,
 			TEST_CATALOG,
 			walDirectory,
 			catalogKryoPool,
