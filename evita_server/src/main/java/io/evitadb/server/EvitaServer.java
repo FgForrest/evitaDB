@@ -403,6 +403,8 @@ public class EvitaServer {
 		ConsoleWriter.write("Server name: ", ConsoleColor.WHITE);
 		ConsoleWriter.write(this.evitaConfiguration.name(), ConsoleColor.BRIGHT_YELLOW);
 		ConsoleWriter.write("\n", ConsoleColor.WHITE);
+
+		log.info("EvitaDB server started.", new RuntimeException("Test exception."));
 	}
 
 	/**
