@@ -172,6 +172,7 @@ public class EvitaServer {
 	/**
 	 * Initializes the file from the specified location.
 	 */
+	@Nonnull
 	private static String initLog() {
 		String logMsg;
 		if (System.getProperty(ContextInitializer.CONFIG_FILE_PROPERTY) == null) {
@@ -188,7 +189,12 @@ public class EvitaServer {
 			}
 		}
 		// and then initialize logger so that `logback.configurationFile` argument might apply
-		getLog();
+		final Logger theLog = getLog();
+
+		theLog.info("EvitaDB server started.");
+		theLog.warn("EvitaDB server started.");
+		theLog.error("EvitaDB server started.", new RuntimeException("Test exception."));
+
 		return logMsg;
 	}
 
@@ -403,10 +409,6 @@ public class EvitaServer {
 		ConsoleWriter.write("Server name: ", ConsoleColor.WHITE);
 		ConsoleWriter.write(this.evitaConfiguration.name(), ConsoleColor.BRIGHT_YELLOW);
 		ConsoleWriter.write("\n", ConsoleColor.WHITE);
-
-		log.info("EvitaDB server started.");
-		log.warn("EvitaDB server started.");
-		log.error("EvitaDB server started.", new RuntimeException("Test exception."));
 	}
 
 	/**
