@@ -52,6 +52,7 @@ import io.evitadb.core.Catalog;
 import io.evitadb.core.EntityCollection;
 import io.evitadb.core.EvitaSession;
 import io.evitadb.core.cache.NoCacheSupervisor;
+import io.evitadb.core.metric.event.storage.FileType;
 import io.evitadb.core.sequence.SequenceService;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.exception.InvalidClassifierFormatException;
@@ -59,11 +60,14 @@ import io.evitadb.index.EntityIndexKey;
 import io.evitadb.scheduling.Scheduler;
 import io.evitadb.store.entity.model.schema.CatalogSchemaStoragePart;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
+import io.evitadb.store.offsetIndex.OffsetIndex;
 import io.evitadb.store.offsetIndex.exception.UnexpectedCatalogContentsException;
 import io.evitadb.store.offsetIndex.io.OffHeapMemoryManager;
 import io.evitadb.store.offsetIndex.io.ReadOnlyFileHandle;
 import io.evitadb.store.offsetIndex.io.ReadOnlyHandle;
+import io.evitadb.store.offsetIndex.io.WriteOnlyFileHandle;
 import io.evitadb.store.offsetIndex.io.WriteOnlyOffHeapWithFileBackupHandle;
+import io.evitadb.store.offsetIndex.model.OffsetIndexRecordTypeRegistry;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.store.service.KryoFactory;
 import io.evitadb.store.spi.CatalogPersistenceService;
@@ -72,6 +76,7 @@ import io.evitadb.store.spi.exception.DirectoryNotEmptyException;
 import io.evitadb.store.spi.model.CatalogHeader;
 import io.evitadb.store.spi.model.EntityCollectionHeader;
 import io.evitadb.store.spi.model.reference.CollectionFileReference;
+import io.evitadb.store.spi.model.reference.WalFileReference;
 import io.evitadb.store.wal.CatalogWriteAheadLog;
 import io.evitadb.store.wal.WalKryoConfigurer;
 import io.evitadb.test.Entities;
@@ -81,6 +86,7 @@ import io.evitadb.test.generator.DataGenerator;
 import io.evitadb.utils.NamingConvention;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
@@ -98,14 +104,18 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
+import static io.evitadb.store.catalog.CatalogOffsetIndexStoragePartPersistenceService.loadOffsetIndexDescriptor;
+import static io.evitadb.store.catalog.DefaultCatalogPersistenceService.VERSIONED_KRYO_FACTORY;
 import static io.evitadb.store.catalog.DefaultIsolatedWalServiceTest.DATA_MUTATION_EXAMPLE;
 import static io.evitadb.store.catalog.DefaultIsolatedWalServiceTest.SCHEMA_MUTATION_EXAMPLE;
 import static io.evitadb.store.spi.CatalogPersistenceService.CATALOG_FILE_SUFFIX;
+import static io.evitadb.store.spi.CatalogPersistenceService.getCatalogDataStoreFileName;
 import static io.evitadb.store.spi.CatalogPersistenceService.getCatalogDataStoreFileNamePattern;
 import static io.evitadb.test.Assertions.assertExactlyEquals;
 import static java.util.Optional.empty;
@@ -193,6 +203,54 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			fail("File " + file + " should not exist after close!");
 		}
 		cleanTestSubDirectory(DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST);
+	}
+
+	@Disabled("This test is not meant to be run in CI, it is for manual post-mortem analysis of the catalog data file remnants.")
+	@Test
+	void postMortemAnalysis() {
+		final String catalogName = "INSERT_HERE";
+		final Path basePath = Path.of("/www/oss/evitaDB/data/");
+		final Path catalogFilePath = basePath.resolve(catalogName);
+		final OffsetIndexRecordTypeRegistry recordRegistry = new OffsetIndexRecordTypeRegistry();
+		final StorageOptions storageOptions = StorageOptions.builder().storageDirectory(basePath).build();
+		DefaultCatalogPersistenceService.getBootstrapRecordStream(
+			catalogName,
+			storageOptions
+		).forEach(it -> {
+			System.out.print(it.catalogFileIndex() + "/" + it.catalogVersion() + ": " + it.timestamp() + " (" + it.fileLocation() + ")");
+			final AtomicReference<CatalogHeader> catalogHeaderRef = new AtomicReference<>();
+			try {
+				final OffsetIndex indexRead = new OffsetIndex(
+					it.catalogVersion(),
+					catalogFilePath.resolve(getCatalogDataStoreFileName(catalogName, it.catalogFileIndex())),
+					it.fileLocation(),
+					storageOptions,
+					recordRegistry,
+					new WriteOnlyFileHandle(
+						catalogName,
+						FileType.CATALOG,
+						catalogName,
+						catalogFilePath,
+						observableOutputKeeper
+					),
+					null,
+					null,
+					(indexBuilder, theInput) -> loadOffsetIndexDescriptor(
+						catalogFilePath, recordRegistry, VERSIONED_KRYO_FACTORY,
+						catalogHeaderRef::set,
+						indexBuilder, theInput, it.fileLocation()
+					)
+				);
+				final WalFileReference walRef = catalogHeaderRef.get().walFileReference();
+				if (walRef == null) {
+					System.out.println(" -> OK, size " + indexRead.getEntries().size());
+				} else {
+					System.out.println(" -> OK " + walRef.fileIndex() + "/" + walRef.fileLocation() + ", size " + indexRead.getEntries().size());
+				}
+			} catch (Exception e) {
+				System.out.println(" -> ERROR: " + e.getMessage());
+			}
+		});
 	}
 
 	@Test

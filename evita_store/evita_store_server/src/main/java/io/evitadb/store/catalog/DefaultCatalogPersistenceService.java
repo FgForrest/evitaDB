@@ -113,6 +113,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Closeable;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -128,6 +129,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -151,7 +153,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	/**
 	 * Factory function that configures new instance of the versioned kryo factory.
 	 */
-	private static final Function<VersionedKryoKeyInputs, VersionedKryo> VERSIONED_KRYO_FACTORY = kryoKeyInputs -> VersionedKryoFactory.createKryo(
+	static final Function<VersionedKryoKeyInputs, VersionedKryo> VERSIONED_KRYO_FACTORY = kryoKeyInputs -> VersionedKryoFactory.createKryo(
 		kryoKeyInputs.version(),
 		SchemaKryoConfigurer.INSTANCE
 			.andThen(CatalogHeaderKryoConfigurer.INSTANCE)
@@ -247,6 +249,34 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	 * Contains information about the time the non-flushed block was reported.
 	 */
 	private long lastReportTimestamp;
+
+	/**
+	 * Method returns continuous stream of catalog bootstrap records from the catalog bootstrap file.
+	 *
+	 * @param catalogName the name of the catalog
+	 * @param storageOptions the storage options for reading the bootstrap file
+	 * @return the stream of catalog bootstrap records
+	 */
+	@Nonnull
+	public static Stream<CatalogBootstrap> getBootstrapRecordStream(
+		@Nonnull String catalogName,
+		@Nonnull StorageOptions storageOptions
+	) {
+		final String bootstrapFileName = getCatalogBootstrapFileName(catalogName);
+		final Path catalogStoragePath = storageOptions.storageDirectory().resolve(catalogName);
+		final Path bootstrapFilePath = catalogStoragePath.resolve(bootstrapFileName);
+		final File bootstrapFile = bootstrapFilePath.toFile();
+		if (bootstrapFile.exists()) {
+			final CatalogBootstrapSupplier supplier = new CatalogBootstrapSupplier(
+				bootstrapFilePath, storageOptions
+			);
+			return Stream.generate(supplier)
+				.takeWhile(Objects::nonNull)
+				.onClose(supplier::close);
+		} else {
+			throw new BootstrapFileNotFound(catalogStoragePath, bootstrapFile);
+		}
+	}
 
 	/**
 	 * Check whether target directory exists and whether it is really directory.
@@ -370,21 +400,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		try (
 			final ReadOnlyFileHandle readHandle = new ReadOnlyFileHandle(bootstrapFilePath, storageOptions.computeCRC32C());
 		) {
-			return readHandle.execute(
-				input -> StorageRecord.read(
-					input,
-					new FileLocation(fromPosition, CatalogBootstrap.BOOTSTRAP_RECORD_SIZE),
-					(theInput, recordLength) -> new CatalogBootstrap(
-						theInput.readLong(),
-						theInput.readInt(),
-						Instant.ofEpochMilli(theInput.readLong()).atZone(ZoneId.systemDefault()).toOffsetDateTime(),
-						new FileLocation(
-							theInput.readLong(),
-							theInput.readInt()
-						)
-					)
-				)
-			).payload();
+			return readCatalogBootstrap(fromPosition, readHandle);
 		} catch (Exception e) {
 			throw new UnexpectedIOException(
 				"Failed to open catalog bootstrap file `" + bootstrapFilePath + "`!",
@@ -392,6 +408,32 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				e
 			);
 		}
+	}
+
+	/**
+	 * Internal method for reading the catalog bootstrap record from the file handle.
+	 *
+	 * @param fromPosition from which position to read the record
+	 * @param readHandle   the file handle to read the record from
+	 * @return the catalog bootstrap record
+	 */
+	@Nonnull
+	private static CatalogBootstrap readCatalogBootstrap(long fromPosition, @Nonnull ReadOnlyFileHandle readHandle) {
+		return readHandle.execute(
+			input -> StorageRecord.read(
+				input,
+				new FileLocation(fromPosition, CatalogBootstrap.BOOTSTRAP_RECORD_SIZE),
+				(theInput, recordLength) -> new CatalogBootstrap(
+					theInput.readLong(),
+					theInput.readInt(),
+					Instant.ofEpochMilli(theInput.readLong()).atZone(ZoneId.systemDefault()).toOffsetDateTime(),
+					new FileLocation(
+						theInput.readLong(),
+						theInput.readInt()
+					)
+				)
+			)
+		).payload();
 	}
 
 	/**
@@ -638,6 +680,49 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				}
 			).payload()
 		);
+	}
+
+	/**
+	 * Copies the bootstrap record to the specified file handle.
+	 *
+	 * @param newBootstrapHandle The handle to the file where the bootstrap record will be copied.
+	 * @param bootstrapRecord    The bootstrap record to be copied.
+	 */
+	private static void copyBootstrapRecord(
+		@Nonnull WriteOnlyFileHandle newBootstrapHandle,
+		@Nonnull CatalogBootstrap bootstrapRecord
+	) {
+		newBootstrapHandle.checkAndExecute(
+			"copy bootstrap record",
+			() -> {
+			},
+			output -> new StorageRecord<>(
+				output, bootstrapRecord.catalogVersion(), true,
+				theOutput -> {
+					theOutput.writeLong(bootstrapRecord.catalogVersion());
+					theOutput.writeInt(bootstrapRecord.catalogFileIndex());
+					theOutput.writeLong(bootstrapRecord.timestamp().toInstant().toEpochMilli());
+					theOutput.writeLong(bootstrapRecord.fileLocation().startingPosition());
+					theOutput.writeInt(bootstrapRecord.fileLocation().recordLength());
+					return bootstrapRecord;
+				}
+			).payload()
+		);
+	}
+
+	/**
+	 * Reports changes in historical records kept.
+	 *
+	 * @param catalogName            name of the catalog
+	 * @param oldestHistoricalRecord oldest historical record
+	 */
+	private static void reportOldestHistoricalRecord(@Nonnull String catalogName, @Nullable OffsetDateTime oldestHistoricalRecord) {
+		new OffsetIndexHistoryKeptEvent(
+			catalogName,
+			FileType.CATALOG,
+			catalogName,
+			oldestHistoricalRecord
+		).commit();
 	}
 
 	public DefaultCatalogPersistenceService(
@@ -2024,7 +2109,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		) {
 			boolean inValidRange = false;
 			CatalogBootstrap previousBootstrapRecord = null;
-			CatalogBootstrap bootstrapRecord = null;
+			CatalogBootstrap bootstrapRecord;
 			for (int i = 0; i < recordCount; i++) {
 				final long startPosition = CatalogBootstrap.getPositionForRecord(i);
 				bootstrapRecord = readHandle.execute(
@@ -2223,6 +2308,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		@Nonnull String catalogName,
 		@Nullable OffsetDateTime oldestHistoricalRecord
 	) {
+		XX check
 		new OffsetIndexHistoryKeptEvent(
 			catalogName,
 			FileType.CATALOG,
@@ -2285,4 +2371,33 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	) {
 	}
 
+	/**
+	 * Supplier that reads catalog bootstrap records from the catalog bootstrap file.
+	 */
+	private static class CatalogBootstrapSupplier implements Supplier<CatalogBootstrap>, Closeable {
+		private final ReadOnlyFileHandle readHandle;
+		private int position;
+
+		public CatalogBootstrapSupplier(
+			@Nonnull Path bootstrapFilePath,
+			@Nonnull StorageOptions storageOptions
+		) {
+			this.readHandle = new ReadOnlyFileHandle(bootstrapFilePath, storageOptions.computeCRC32C());
+		}
+
+		@Override
+		public CatalogBootstrap get() {
+			if (this. position + CatalogBootstrap.BOOTSTRAP_RECORD_SIZE > this.readHandle.getLastWrittenPosition()) {
+				return null;
+			}
+			final CatalogBootstrap catalogBootstrap = readCatalogBootstrap(this.position, this.readHandle);
+			this.position += CatalogBootstrap.BOOTSTRAP_RECORD_SIZE;
+			return catalogBootstrap;
+		}
+
+		@Override
+		public void close() {
+			this.readHandle.close();
+		}
+	}
 }

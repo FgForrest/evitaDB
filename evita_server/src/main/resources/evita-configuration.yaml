@@ -74,6 +74,7 @@ api:
       enabled: ${api.endpoints.gRPC.enabled:true}
       host: ${api.endpoints.gRPC.host:localhost:5556}
       exposedHost: ${api.endpoints.gRPC.exposedHost:null}
+      tlsEnabled: ${api.endpoints.gRPC.tlsEnabled:true}
       mTLS:
         enabled: ${api.endpoints.gRPC.mTLS.enabled:false}
         allowedClientCertificatePaths: ${api.endpoints.gRPC.mTLS.allowedClientCertificatesPaths:[]}
