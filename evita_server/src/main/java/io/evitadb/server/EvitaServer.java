@@ -45,6 +45,7 @@ import io.evitadb.server.configuration.EvitaServerConfiguration;
 import io.evitadb.server.exception.ConfigurationParseException;
 import io.evitadb.server.yaml.AbstractClassDeserializer;
 import io.evitadb.server.yaml.EvitaConstructor;
+import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.ConsoleWriter;
 import io.evitadb.utils.ConsoleWriter.ConsoleColor;
@@ -189,12 +190,7 @@ public class EvitaServer {
 			}
 		}
 		// and then initialize logger so that `logback.configurationFile` argument might apply
-		final Logger theLog = getLog();
-
-		theLog.info("EvitaDB server started.");
-		theLog.warn("EvitaDB server started.");
-		theLog.error("EvitaDB server started.", new RuntimeException("Test exception."));
-
+		Assert.isPremiseValid(getLog() != null, () -> "Logger should be initialized here.");
 		return logMsg;
 	}
 
