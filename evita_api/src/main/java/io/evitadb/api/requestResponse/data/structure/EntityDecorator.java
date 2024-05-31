@@ -286,11 +286,11 @@ public class EntityDecorator implements SealedEntity {
 	 * Creates wrapper around {@link Entity} that filters existing data according passed predicates (which are constructed
 	 * to match query that is used to retrieve the decorator).
 	 *
-	 * @param entity                  fully or partially loaded entity - it's usually wider than decorator (may be even complete), decorator
-	 *                                might be obtained from shared global cache
-	 * @param parentEntity            object of the parentEntity
-	 * @param referenceFetcher        fetcher that can be used for fetching, filtering and ordering referenced
-	 *                                entities / groups
+	 * @param entity           fully or partially loaded entity - it's usually wider than decorator (may be even complete), decorator
+	 *                         might be obtained from shared global cache
+	 * @param parentEntity     object of the parentEntity
+	 * @param referenceFetcher fetcher that can be used for fetching, filtering and ordering referenced
+	 *                         entities / groups
 	 */
 	public EntityDecorator(
 		@Nonnull EntityDecorator entity,
@@ -1085,14 +1085,17 @@ public class EntityDecorator implements SealedEntity {
 		pricePredicate.checkFetched(currency, priceListPriority);
 		final List<PriceContract> allPricesForSale = SealedEntity.super.getAllPricesForSale(currency, atTheMoment, priceListPriority);
 		if (allPricesForSale.size() > 1) {
-			allPricesForSale.sort(
-				Comparator.comparing(
-					pricePredicate.getQueryPriceMode() == QueryPriceMode.WITH_TAX ?
-						PriceContract::priceWithTax : PriceContract::priceWithoutTax
-				)
-			);
+			return allPricesForSale
+				.stream()
+				.sorted(
+					Comparator.comparing(
+						pricePredicate.getQueryPriceMode() == QueryPriceMode.WITH_TAX ?
+							PriceContract::priceWithTax : PriceContract::priceWithoutTax
+					)
+				).toList();
+		} else {
+			return allPricesForSale;
 		}
-		return allPricesForSale;
 	}
 
 	@Nonnull
