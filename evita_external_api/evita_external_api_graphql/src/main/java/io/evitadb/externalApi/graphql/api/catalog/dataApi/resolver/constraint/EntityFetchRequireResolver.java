@@ -62,7 +62,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_NAME_NAMING_CONVENTION;
@@ -348,7 +347,7 @@ public class EntityFetchRequireResolver {
 			.stream()
 			.flatMap(f -> SelectionSetAggregator.getImmediateFields(PriceForSaleDescriptor.ACCOMPANYING_PRICE.name(), f.getSelectionSet())
 				.stream()
-				.flatMap(apf -> Stream.of((String[]) apf.getArguments().get(AccompanyingPriceFieldHeaderDescriptor.PRICE_LISTS.name()))))
+				.flatMap(apf -> ((List<String>) apf.getArguments().get(AccompanyingPriceFieldHeaderDescriptor.PRICE_LISTS.name())).stream()))
 			.toArray(String[]::new);
 	}
 

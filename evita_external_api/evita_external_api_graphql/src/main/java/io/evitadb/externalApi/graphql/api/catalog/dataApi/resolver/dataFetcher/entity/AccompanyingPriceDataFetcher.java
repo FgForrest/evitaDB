@@ -40,6 +40,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.time.OffsetDateTime;
 import java.util.Currency;
+import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 
@@ -109,7 +110,8 @@ public class AccompanyingPriceDataFetcher implements DataFetcher<DataFetcherResu
 
 	@Nonnull
 	private String[] resolveDesiredPriceListsForCustomPrice(@Nonnull DataFetchingEnvironment environment) {
-		return Optional.ofNullable((String[]) environment.getArgument(AccompanyingPriceFieldHeaderDescriptor.PRICE_LISTS.name()))
+		return Optional.ofNullable((List<String>) environment.getArgument(AccompanyingPriceFieldHeaderDescriptor.PRICE_LISTS.name()))
+			.map(it -> it.toArray(String[]::new))
 			.orElseThrow(() -> new GraphQLInvalidArgumentException("Missing price list argument. You can use `" + AccompanyingPriceFieldHeaderDescriptor.PRICE_LISTS.name() + "` parameter for specifying custom price list."));
 	}
 

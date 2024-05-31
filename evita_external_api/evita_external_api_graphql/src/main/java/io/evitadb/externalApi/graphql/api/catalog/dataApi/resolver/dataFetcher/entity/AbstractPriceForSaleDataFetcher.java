@@ -39,6 +39,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.time.OffsetDateTime;
 import java.util.Currency;
+import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 
@@ -99,8 +100,10 @@ public abstract class AbstractPriceForSaleDataFetcher<P> implements DataFetcher<
 	@Nonnull
 	protected String[] resolveDesiredPricesLists(@Nonnull DataFetchingEnvironment environment,
 	                                             @Nonnull EntityQueryContext context) {
-		return Optional.ofNullable((String) environment.getArgument(PriceForSaleFieldHeaderDescriptor.PRICE_LIST.name()))
-			.map(priceList -> new String[]{priceList})
+		return Optional.ofNullable((List<String>) environment.getArgument(PriceForSaleFieldHeaderDescriptor.PRICE_LISTS.name()))
+			.map(it -> it.toArray(String[]::new))
+			.or(() -> Optional.ofNullable((String) environment.getArgument(PriceForSaleFieldHeaderDescriptor.PRICE_LIST.name()))
+				.map(priceList -> new String[]{ priceList }))
 			.or(() -> Optional.ofNullable(context.getDesiredPriceInPriceLists()))
 			.orElseThrow(() -> new GraphQLInvalidArgumentException("Missing price list argument. You can use `" + PriceForSaleFieldHeaderDescriptor.PRICE_LIST.name() + "` or `" + PriceForSaleFieldHeaderDescriptor.PRICE_LISTS.name() + "` parameter for specifying custom price list."));
 	}
@@ -133,7 +136,8 @@ public abstract class AbstractPriceForSaleDataFetcher<P> implements DataFetcher<
 			.filter(f -> f.getArguments().size() == 1 && f.getArguments().containsKey(AccompanyingPriceFieldHeaderDescriptor.PRICE_LISTS.name()))
 			.map(f -> new AccompanyingPrice(
 				f.getAlias() != null ? f.getAlias() : f.getName(),
-				(String[]) f.getArguments().get(AccompanyingPriceFieldHeaderDescriptor.PRICE_LISTS.name())
+				((List<String>) f.getArguments().get(AccompanyingPriceFieldHeaderDescriptor.PRICE_LISTS.name()))
+					.toArray(String[]::new)
 			))
 			.toArray(AccompanyingPrice[]::new);
 	}
