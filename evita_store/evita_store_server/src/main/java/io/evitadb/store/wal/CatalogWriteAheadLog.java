@@ -385,7 +385,7 @@ public class CatalogWriteAheadLog implements Closeable {
 	 * @return the first and last catalog versions found in the WAL file
 	 */
 	@Nonnull
-	static FirstAndLastCatalogVersions getFirstAndLastCatalogVersionsFromWalFile(@Nonnull File walFile) {
+	static FirstAndLastCatalogVersions getFirstAndLastCatalogVersionsFromWalFile(@Nonnull File walFile) throws FileNotFoundException {
 		try (
 			final RandomAccessFile randomAccessOldWalFile = new RandomAccessFile(walFile, "r");
 			final RandomAccessFileInputStream inputStream = new RandomAccessFileInputStream(randomAccessOldWalFile);
@@ -395,6 +395,8 @@ public class CatalogWriteAheadLog implements Closeable {
 			final long firstCatalogVersion = input.readLong();
 			final long lastCatalogVersion = input.readLong();
 			return new FirstAndLastCatalogVersions(firstCatalogVersion, lastCatalogVersion);
+		} catch (FileNotFoundException e) {
+			throw e;
 		} catch (IOException e) {
 			throw new WriteAheadLogCorruptedException(
 				"Failed to read `" + walFile.getAbsolutePath() + "`!",
@@ -1192,22 +1194,26 @@ public class CatalogWriteAheadLog implements Closeable {
 				// then delete all files except the last `walFileCountKept` files
 				for (int i = 0; i < walFiles.length - this.walFileCountKept; i++) {
 					final File walFile = walFiles[i];
-					final FirstAndLastCatalogVersions versionsFromWalFile = getFirstAndLastCatalogVersionsFromWalFile(walFile);
-					final PendingRemoval pendingRemoval = new PendingRemoval(
-						versionsFromWalFile.lastCatalogVersion(),
-						() -> {
-							try {
-								if (!walFile.delete()) {
-									// don't throw exception - this is not so critical so that we should stop accepting new mutations
-									log.error("Failed to delete WAL file `" + walFile + "`!");
+					try {
+						final FirstAndLastCatalogVersions versionsFromWalFile = getFirstAndLastCatalogVersionsFromWalFile(walFile);
+						final PendingRemoval pendingRemoval = new PendingRemoval(
+							versionsFromWalFile.lastCatalogVersion(),
+							() -> {
+								try {
+									if (!walFile.delete()) {
+										// don't throw exception - this is not so critical so that we should stop accepting new mutations
+										log.error("Failed to delete WAL file `" + walFile + "`!");
+									}
+								} catch (Exception ex) {
+									log.error("Failed to delete WAL file `" + walFile + "`!", ex);
 								}
-							} catch (Exception ex) {
-								log.error("Failed to delete WAL file `" + walFile + "`!", ex);
 							}
+						);
+						if (!this.pendingRemovals.contains(pendingRemoval)) {
+							this.pendingRemovals.add(pendingRemoval);
 						}
-					);
-					if (!this.pendingRemovals.contains(pendingRemoval)) {
-						this.pendingRemovals.add(pendingRemoval);
+					} catch (FileNotFoundException ex) {
+						// the file was deleted in the meantime
 					}
 				}
 

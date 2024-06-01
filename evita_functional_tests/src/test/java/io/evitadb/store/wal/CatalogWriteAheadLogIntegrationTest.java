@@ -64,6 +64,7 @@ import org.mockito.Mockito;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
@@ -158,7 +159,7 @@ class CatalogWriteAheadLogIntegrationTest {
 	}
 
 	@Test
-	void shouldReadFirstAndLastCatalogVersionOfPreviousWalFiles() {
+	void shouldReadFirstAndLastCatalogVersionOfPreviousWalFiles() throws FileNotFoundException {
 		wal = createCatalogWriteAheadLogOfSmallSize();
 
 		final int[] transactionSizes = {10, 15, 20, 15, 10};
