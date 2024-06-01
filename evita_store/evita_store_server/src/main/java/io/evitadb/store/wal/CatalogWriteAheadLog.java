@@ -1040,54 +1040,56 @@ public class CatalogWriteAheadLog implements Closeable {
 		int foundWalIndex = -1;
 		for (int indexToSearch : walIndexesToSearch) {
 			final File oldWalFile = this.catalogStoragePath.resolve(getWalFileName(this.catalogName, indexToSearch)).toFile();
-			try (
-				final RandomAccessFile randomAccessOldWalFile = new RandomAccessFile(oldWalFile, "r");
-				final ObservableInput<RandomAccessFileInputStream> input = new ObservableInput<>(
-					new RandomAccessFileInputStream(
-						randomAccessOldWalFile
+			if (oldWalFile.length() > WAL_TAIL_LENGTH) {
+				try (
+					final RandomAccessFile randomAccessOldWalFile = new RandomAccessFile(oldWalFile, "r");
+					final ObservableInput<RandomAccessFileInputStream> input = new ObservableInput<>(
+						new RandomAccessFileInputStream(
+							randomAccessOldWalFile
+						)
 					)
-				)
-			) {
-				input.seekWithUnknownLength(oldWalFile.length() - WAL_TAIL_LENGTH);
-				final long firstCatalogVersion = input.simpleLongRead();
-				final long lastCatalogVersion = input.simpleLongRead();
+				) {
+					input.seekWithUnknownLength(oldWalFile.length() - WAL_TAIL_LENGTH);
+					final long firstCatalogVersion = input.simpleLongRead();
+					final long lastCatalogVersion = input.simpleLongRead();
 
-				Assert.isPremiseValid(
-					firstCatalogVersion >= 1,
-					() -> new WriteAheadLogCorruptedException(
-						"Invalid first catalog version in the WAL file `" + oldWalFile.getAbsolutePath() + "` (`" + firstCatalogVersion + "`)!",
-						"Invalid first catalog version in the WAL file!"
-					)
-				);
-				Assert.isPremiseValid(
-					firstCatalogVersion <= lastCatalogVersion,
-					() -> new WriteAheadLogCorruptedException(
-						"Invalid first catalog version in the WAL file `" + oldWalFile.getAbsolutePath() + "` (first: `" + firstCatalogVersion + "`, last: `" + lastCatalogVersion + "`)!",
-						"Invalid first catalog version in the WAL file!"
-					)
-				);
-				long finalPreviousLastCatalogVersion = previousLastCatalogVersion;
-				Assert.isPremiseValid(
-					previousLastCatalogVersion == -1 || previousLastCatalogVersion < firstCatalogVersion,
-					() -> new WriteAheadLogCorruptedException(
-						"Invalid first catalog version in the WAL file `" + oldWalFile.getAbsolutePath() + "` (first: `" + firstCatalogVersion + "`, last version of the previous file: `" + finalPreviousLastCatalogVersion + "`)!",
-						"Invalid first catalog version in the WAL file!"
-					)
-				);
+					Assert.isPremiseValid(
+						firstCatalogVersion >= 1,
+						() -> new WriteAheadLogCorruptedException(
+							"Invalid first catalog version in the WAL file `" + oldWalFile.getAbsolutePath() + "` (`" + firstCatalogVersion + "`)!",
+							"Invalid first catalog version in the WAL file!"
+						)
+					);
+					Assert.isPremiseValid(
+						firstCatalogVersion <= lastCatalogVersion,
+						() -> new WriteAheadLogCorruptedException(
+							"Invalid first catalog version in the WAL file `" + oldWalFile.getAbsolutePath() + "` (first: `" + firstCatalogVersion + "`, last: `" + lastCatalogVersion + "`)!",
+							"Invalid first catalog version in the WAL file!"
+						)
+					);
+					long finalPreviousLastCatalogVersion = previousLastCatalogVersion;
+					Assert.isPremiseValid(
+						previousLastCatalogVersion == -1 || previousLastCatalogVersion < firstCatalogVersion,
+						() -> new WriteAheadLogCorruptedException(
+							"Invalid first catalog version in the WAL file `" + oldWalFile.getAbsolutePath() + "` (first: `" + firstCatalogVersion + "`, last version of the previous file: `" + finalPreviousLastCatalogVersion + "`)!",
+							"Invalid first catalog version in the WAL file!"
+						)
+					);
 
-				if (catalogVersion >= firstCatalogVersion && catalogVersion <= lastCatalogVersion) {
-					foundWalIndex = indexToSearch;
-					break;
+					if (catalogVersion >= firstCatalogVersion && catalogVersion <= lastCatalogVersion) {
+						foundWalIndex = indexToSearch;
+						break;
+					}
+
+					previousLastCatalogVersion = lastCatalogVersion;
+				} catch (FileNotFoundException e) {
+					// the file was deleted in the meantime
+				} catch (IOException e) {
+					throw new WriteAheadLogCorruptedException(
+						"Failed to read `" + oldWalFile.getAbsolutePath() + "`!",
+						"Failed to read WAL file!", e
+					);
 				}
-
-				previousLastCatalogVersion = lastCatalogVersion;
-			} catch (FileNotFoundException e) {
-				// the file was deleted in the meantime
-			} catch (IOException e) {
-				throw new WriteAheadLogCorruptedException(
-					"Failed to read `" + oldWalFile.getAbsolutePath() + "`!",
-					"Failed to read WAL file!", e
-				);
 			}
 		}
 		return foundWalIndex;
