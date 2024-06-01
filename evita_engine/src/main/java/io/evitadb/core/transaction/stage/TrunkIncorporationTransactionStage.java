@@ -52,6 +52,7 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.stream.Stream;
 
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
@@ -153,21 +154,20 @@ public final class TrunkIncorporationTransactionStage
 		int localMutationCount = 0;
 		this.processed.clear();
 
+		Stream<Mutation> committedMutationStream = null;
 		try {
 			// prepare finalizer that doesn't finish the catalog automatically but on demand
 			final TransactionTrunkFinalizer transactionHandler = new TransactionTrunkFinalizer(this.catalog);
 			// read the mutations from the WAL since the current task version
 			// if the transaction failed we need to replay it again
-			final Iterator<Mutation> mutationIterator;
 			if (alive) {
-				mutationIterator = this.catalog
-					.getCommittedLiveMutationStream(Math.min(nextCatalogVersion, this.lastFinalizedCatalogVersion + 1))
-					.iterator();
+				committedMutationStream = this.catalog
+					.getCommittedLiveMutationStream(Math.min(nextCatalogVersion, this.lastFinalizedCatalogVersion + 1));
 			} else {
-				mutationIterator = this.catalog
-					.getCommittedMutationStream(Math.min(nextCatalogVersion, this.lastFinalizedCatalogVersion + 1))
-					.iterator();
+				committedMutationStream = this.catalog
+					.getCommittedMutationStream(Math.min(nextCatalogVersion, this.lastFinalizedCatalogVersion + 1));
 			}
+			final Iterator<Mutation> mutationIterator = committedMutationStream.iterator();
 			if (!mutationIterator.hasNext()) {
 				// previous execution already processed all the mutations
 				return empty();
@@ -180,12 +180,13 @@ public final class TrunkIncorporationTransactionStage
 					Assert.isPremiseValid(leadingMutation instanceof TransactionMutation, "First mutation must be transaction mutation!");
 
 					final TransactionMutation transactionMutation = (TransactionMutation) leadingMutation;
+					TransactionMutation finalLastTransaction = lastTransaction;
 					Assert.isPremiseValid(
 						transactionMutation.getCatalogVersion() == this.lastFinalizedCatalogVersion + 1 ||
 							(lastTransaction != null && transactionMutation.getCatalogVersion() == lastTransaction.getCatalogVersion() + 1),
 						() -> new GenericEvitaInternalError(
 							"Unexpected catalog version! " +
-								"Transaction mutation catalog version: " + transactionMutation.getCatalogVersion() + ", " +
+								"Transaction mutation catalog version: " + (finalLastTransaction == null ? transactionMutation.getCatalogVersion() : finalLastTransaction.getCatalogVersion()) + ", " +
 								"last finalized catalog version: " + this.lastFinalizedCatalogVersion + "."
 						)
 
@@ -237,6 +238,10 @@ public final class TrunkIncorporationTransactionStage
 
 			// rethrow the exception - we will have to re-try the transaction
 			throw ex;
+		} finally {
+			if (committedMutationStream != null) {
+				committedMutationStream.close();
+			}
 		}
 
 		Assert.isPremiseValid(transaction != null, "Transaction must not be null!");

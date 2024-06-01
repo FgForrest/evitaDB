@@ -237,7 +237,7 @@ public class CompositeObjectArray<T> implements Iterable<T> {
 			} else if (index * -1 > CHUNK_SIZE) {
 				// continue searching - the index is out of this chunk
 			} else if (index < -1) {
-				return -1 * CHUNK_SIZE + index;
+				return -1 * i * CHUNK_SIZE + index;
 			}
 		}
 		return -1;

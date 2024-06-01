@@ -24,16 +24,13 @@
 package io.evitadb.store.wal.supplier;
 
 import com.esotericsoftware.kryo.Kryo;
-import com.esotericsoftware.kryo.KryoException;
 import com.esotericsoftware.kryo.util.Pool;
 import io.evitadb.api.requestResponse.mutation.Mutation;
-import io.evitadb.store.offsetIndex.exception.CorruptedRecordException;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.store.wal.CatalogWriteAheadLog;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.nio.BufferUnderflowException;
 import java.nio.file.Path;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -41,6 +38,10 @@ import java.util.concurrent.ConcurrentHashMap;
  * This class is used to supply Mutation objects from a Write-Ahead Log (WAL) file in forward order.
  */
 public final class MutationSupplier extends AbstractMutationSupplier {
+	/**
+	 * Contains catalog version that was requested for reading.
+	 */
+	private final long requestedCatalogVersion;
 
 	public MutationSupplier(
 		long catalogVersion,
@@ -57,6 +58,7 @@ public final class MutationSupplier extends AbstractMutationSupplier {
 			walFileIndex, catalogKryoPool, transactionLocationsCache,
 			avoidPartiallyFilledBuffer, onClose
 		);
+		this.requestedCatalogVersion = catalogVersion;
 	}
 
 	@Override
@@ -95,7 +97,14 @@ public final class MutationSupplier extends AbstractMutationSupplier {
 					// in the WAL only when there is a lot of them to be read and processed
 					final long requiredLength = this.filePosition + this.transactionMutation.getTransactionSpan().recordLength() +
 						(avoidPartiallyFilledBuffer ? this.observableInput.getBuffer().length : 0);
-					if (currentFileLength >= requiredLength) {
+					if (
+						avoidPartiallyFilledBuffer ?
+							// for partially filled buffer we require much more data to be written or the fact that reader explicitly requested the catalog version
+							currentFileLength >= requiredLength + 4096 ||
+								(this.transactionMutation.getCatalogVersion() == this.requestedCatalogVersion && currentFileLength >= requiredLength) :
+							// otherwise we require just the entire transaction to be written
+							currentFileLength >= requiredLength
+					) {
 						this.transactionMutationRead = 1;
 						// return the transaction mutation
 						return this.transactionMutation;
@@ -103,7 +112,7 @@ public final class MutationSupplier extends AbstractMutationSupplier {
 						// we've reached EOF or the tx mutation hasn't been yet completely written
 						return null;
 					}
-				} catch (CorruptedRecordException | BufferUnderflowException | KryoException ex) {
+				} catch (Exception ex) {
 					// we've reached EOF or the tx mutation hasn't been yet completely written
 					return null;
 				}

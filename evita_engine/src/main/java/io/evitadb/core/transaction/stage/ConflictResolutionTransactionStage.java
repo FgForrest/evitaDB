@@ -39,6 +39,7 @@ import javax.annotation.concurrent.NotThreadSafe;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Represents a transaction stage responsible for resolving conflicts during a transaction and assigning a new
@@ -59,7 +60,7 @@ public final class ConflictResolutionTransactionStage
 	 * Contains current version of the catalog - this practically represents a sequence number increased with each
 	 * committed transaction and denotes the next catalog version.
 	 */
-	private long catalogVersion;
+	private final AtomicLong catalogVersion;
 
 	public ConflictResolutionTransactionStage(
 		@Nonnull Executor executor,
@@ -67,7 +68,7 @@ public final class ConflictResolutionTransactionStage
 		@Nonnull Catalog catalog
 	) {
 		super(executor, maxBufferCapacity, catalog);
-		this.catalogVersion = catalog.getVersion();
+		this.catalogVersion = new AtomicLong(catalog.getVersion());
 	}
 
 	@Override
@@ -95,7 +96,7 @@ public final class ConflictResolutionTransactionStage
 			task,
 			new WalAppendingTransactionTask(
 				task.catalogName(),
-				++this.catalogVersion,
+				this.catalogVersion.incrementAndGet(),
 				task.transactionId(),
 				task.mutationCount(),
 				task.walSizeInBytes(),
@@ -109,24 +110,37 @@ public final class ConflictResolutionTransactionStage
 	}
 
 	@Override
+	protected void handleException(@Nonnull ConflictResolutionTransactionTask task, @Nonnull Throwable ex) {
+		notifyCatalogVersionDropped(1);
+		super.handleException(task, ex);
+	}
+
+	/**
+	 * This method registers the number of catalog versions that were dropped due to the processor being overloaded
+	 * or the WAL appending failing. We need to lower newly assigned catalog versions so that they take the dropped
+	 * versions into account and produce a consistent sequence of catalog versions.
+	 */
+	public void notifyCatalogVersionDropped(int numberOfDroppedCatalogVersions) {
+		this.catalogVersion.addAndGet(-numberOfDroppedCatalogVersions);
+	}
+
+	@Override
 	public void advanceVersion(long catalogVersion) {
 		// we need to advance the version to the latest committed version
 		Assert.isPremiseValid(
-			this.catalogVersion <= catalogVersion,
+			this.catalogVersion.get() <= catalogVersion,
 			"Unexpected catalog version " + catalogVersion + " vs. " + this.catalogVersion + "!"
 		);
-		this.catalogVersion = catalogVersion;
+		this.catalogVersion.set(catalogVersion);
 	}
 
 	@Override
 	public void updateCatalogReference(@Nonnull Catalog catalog) {
 		super.updateCatalogReference(catalog);
-		if (this.catalogVersion == 0) {
-			// at this moment, the catalog transitions from non-transactional to transactional state
-			this.catalogVersion = catalog.getVersion();
-		} else {
+		// at this moment, the catalog transitions from non-transactional to transactional state
+		if (!this.catalogVersion.compareAndSet(0, catalog.getVersion())) {
 			Assert.isPremiseValid(
-				this.catalogVersion >= catalog.getVersion(),
+				this.catalogVersion.get() >= catalog.getVersion(),
 				"Unexpected catalog version " + catalog.getVersion() + " vs. " + this.catalogVersion + "!"
 			);
 		}
