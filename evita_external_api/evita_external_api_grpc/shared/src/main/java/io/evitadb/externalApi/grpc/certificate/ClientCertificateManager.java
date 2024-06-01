@@ -21,10 +21,11 @@
  *   limitations under the License.
  */
 
-package io.evitadb.driver.certificate;
+package io.evitadb.externalApi.grpc.certificate;
 
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CertificateUtils;
 import io.netty.handler.ssl.ApplicationProtocolConfig;
@@ -60,6 +61,10 @@ import java.security.NoSuchAlgorithmException;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
+import java.util.Arrays;
+import java.util.Optional;
+import java.util.function.BiConsumer;
+import java.util.stream.Stream;
 
 import static java.util.Optional.ofNullable;
 
@@ -97,7 +102,11 @@ public class ClientCertificateManager {
 	 * @return path to the folder with the certificates specific to the server instance
 	 */
 	@Nonnull
-	private static Path getCertificatesFromServer(@Nonnull String host, int port, @Nonnull Path certificateClientFolderPath) {
+	private static Path getCertificatesFromServer(@Nonnull String host, int port, @Nonnull Path certificateClientFolderPath, @Nonnull CertificateType... certificateType) {
+		if (ArrayUtils.isEmpty(certificateType)) {
+			throw new EvitaInvalidUsageException("At least one certificate type must be provided");
+		}
+
 		final String apiEndpoint = "http://" + host + ":" + port + "/system/";
 		try {
 			final String serverName = getServerName(apiEndpoint);
@@ -114,29 +123,16 @@ public class ClientCertificateManager {
 				}
 			}
 
-			downloadFileFromServer(apiEndpoint, serverSpecificDirectory, CertificateUtils.getGeneratedRootCaCertificateFileName());
-			downloadFileFromServer(apiEndpoint, serverSpecificDirectory, CertificateUtils.getGeneratedClientCertificateFileName());
-			downloadFileFromServer(apiEndpoint, serverSpecificDirectory, CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName());
+			if (Arrays.asList(certificateType).contains(CertificateType.SERVER)) {
+				downloadFileFromServer(apiEndpoint, serverSpecificDirectory, CertificateUtils.getGeneratedRootCaCertificateFileName());
+			}
+
+			if (Arrays.asList(certificateType).contains(CertificateType.CLIENT)) {
+				downloadFileFromServer(apiEndpoint, serverSpecificDirectory, CertificateUtils.getGeneratedClientCertificateFileName());
+				downloadFileFromServer(apiEndpoint, serverSpecificDirectory, CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName());
+			}
 
 			return serverSpecificDirectory;
-		} catch (IOException e) {
-			throw new EvitaInvalidUsageException("Failed to download certificates from server", e);
-		}
-	}
-
-	/**
-	 * Fetches the certificate from the server and stores it in the client certificate folder.
-	 *
-	 * @param host server host
-	 * @param port server port
-	 * @return path to the folder with the certificates specific to the server instance
-	 */
-	@Nonnull
-	private static Path identifyServerDirectory(@Nonnull String host, int port, @Nonnull Path certificateClientFolderPath) {
-		final String apiEndpoint = "http://" + host + ":" + port + "/system/";
-		try {
-			final String serverName = getServerName(apiEndpoint);
-			return certificateClientFolderPath.resolve(serverName);
 		} catch (IOException e) {
 			throw new EvitaInvalidUsageException("Failed to download certificates from server", e);
 		}
@@ -197,12 +193,17 @@ public class ClientCertificateManager {
 		boolean usingTrustedRootCaCertificate
 	) {
 		if (useGeneratedCertificate) {
-			this.certificateClientFolderPath = getCertificatesFromServer(host, port, certificateClientFolderPath);
+			this.certificateClientFolderPath = getCertificatesFromServer(
+				host, port, certificateClientFolderPath, Stream.concat(
+					Stream.of(CertificateType.SERVER),
+					isMtlsEnabled ? Stream.of(CertificateType.CLIENT) : Stream.empty()
+				).toArray(CertificateType[]::new)
+			);
 			this.rootCaCertificateFilePath = this.certificateClientFolderPath.resolve(CertificateUtils.getGeneratedRootCaCertificateFileName());
 			this.clientCertificateFilePath = this.certificateClientFolderPath.resolve(CertificateUtils.getGeneratedClientCertificateFileName());
 			this.clientPrivateKeyFilePath = this.certificateClientFolderPath.resolve(CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName());
 		} else {
-			this.certificateClientFolderPath = identifyServerDirectory(host, port, certificateClientFolderPath);
+			this.certificateClientFolderPath = rootCaCertificateFilePath.getParent();
 			this.rootCaCertificateFilePath = rootCaCertificateFilePath;
 			this.clientCertificateFilePath = clientCertificateFilePath;
 			this.clientPrivateKeyFilePath = clientPrivateKeyFilePath;
@@ -221,11 +222,13 @@ public class ClientCertificateManager {
 	 *
 	 * @return built {@link SslContext} for client
 	 */
-	public SslContext buildClientSslContext() {
+	public SslContext buildClientSslContext(
+		@Nullable BiConsumer<CertificateType, Certificate> onCertificateLoaded
+	) {
 		try {
 			final Path usedCertificatePath = getUsedRootCaCertificatePath();
 			final TrustManager trustManagerTrustingProvidedRootCertificate = usedCertificatePath == null ?
-				null : getTrustManager(usedCertificatePath);
+				null : getTrustManager(usedCertificatePath, onCertificateLoaded);
 			final SslContextBuilder sslContextBuilder = SslContextBuilder.forClient()
 				.applicationProtocolConfig(
 					new ApplicationProtocolConfig(
@@ -290,7 +293,11 @@ public class ClientCertificateManager {
 	 * of those, and we will rely on Java internal trust store.
 	 */
 	@Nullable
-	private TrustManager getTrustManager(@Nonnull Path usedCertificatePath) {
+	private TrustManager getTrustManager(
+		@Nonnull Path usedCertificatePath,
+		@Nullable BiConsumer<CertificateType, Certificate> onCertificateLoaded
+	) {
+		final Optional<BiConsumer<CertificateType, Certificate>> optionalCallback = ofNullable(onCertificateLoaded);
 		final TrustManager trustManagerTrustingProvidedRootCertificate;
 		try {
 			final CertificateFactory cf = CertificateFactory.getInstance("X.509");
@@ -299,7 +306,7 @@ public class ClientCertificateManager {
 				try (InputStream in = new FileInputStream(usedCertificatePath.toFile())) {
 					serverCert = cf.generateCertificate(in);
 				}
-				log.info("Server's CA certificate fingerprint: {}", CertificateUtils.getCertificateFingerprint(serverCert));
+				optionalCallback.ifPresent(it -> it.accept(CertificateType.SERVER, serverCert));
 				trustManagerTrustingProvidedRootCertificate = getTrustManagerTrustingProvidedCertificate(usedCertificatePath, "evita-root-ca");
 			} else {
 				trustManagerTrustingProvidedRootCertificate = null;
@@ -309,9 +316,9 @@ public class ClientCertificateManager {
 				try (InputStream in = new FileInputStream(clientCertificateFilePath.toFile())) {
 					clientCert = cf.generateCertificate(in);
 				}
-				log.info("Client's certificate fingerprint: {}", CertificateUtils.getCertificateFingerprint(clientCert));
+				optionalCallback.ifPresent(it -> it.accept(CertificateType.CLIENT, clientCert));
 			}
-		} catch (CertificateException | IOException | NoSuchAlgorithmException e) {
+		} catch (CertificateException | IOException e) {
 			throw new GenericEvitaInternalError(e.getMessage(), e);
 		}
 		return trustManagerTrustingProvidedRootCertificate;
@@ -408,6 +415,11 @@ public class ClientCertificateManager {
 			return this;
 		}
 
+		public Builder dontUseGeneratedCertificate() {
+			this.useGeneratedCertificate = false;
+			return this;
+		}
+
 		public Builder useGeneratedCertificate(boolean useGeneratedCertificate, @Nonnull String host, int port) {
 			this.useGeneratedCertificate = useGeneratedCertificate;
 			this.host = host;
@@ -435,4 +447,13 @@ public class ClientCertificateManager {
 			);
 		}
 	}
+
+	/**
+	 * The type of the certificate to generate.
+	 */
+	public enum CertificateType {
+		SERVER,
+		CLIENT
+	}
+
 }

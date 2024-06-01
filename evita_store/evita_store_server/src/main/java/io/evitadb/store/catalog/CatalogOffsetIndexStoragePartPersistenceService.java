@@ -29,11 +29,13 @@ import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.core.metric.event.storage.FileType;
 import io.evitadb.store.catalog.model.CatalogBootstrap;
+import io.evitadb.store.kryo.ObservableInput;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.kryo.VersionedKryo;
 import io.evitadb.store.kryo.VersionedKryoKeyInputs;
 import io.evitadb.store.model.FileLocation;
 import io.evitadb.store.offsetIndex.OffsetIndex;
+import io.evitadb.store.offsetIndex.OffsetIndex.FileOffsetIndexBuilder;
 import io.evitadb.store.offsetIndex.OffsetIndex.NonFlushedBlock;
 import io.evitadb.store.offsetIndex.OffsetIndexDescriptor;
 import io.evitadb.store.offsetIndex.io.OffHeapMemoryManager;
@@ -259,32 +261,57 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 				),
 				nonFlushedBlockObserver,
 				historyKeptObserver,
-				(indexBuilder, theInput) -> {
-					// and load the catalog header
-					final FileLocation catalogHeaderLocation = indexBuilder.getBuiltIndex().get(
-						new RecordKey(recordRegistry.idFor(CatalogHeader.class), 1L)
-					);
-					final Kryo kryo = KryoFactory.createKryo(
-						SharedClassesConfigurer.INSTANCE.andThen(CatalogHeaderKryoConfigurer.INSTANCE)
-					);
-					final CatalogHeader theCatalogHeader = StorageRecord.read(
-						theInput, catalogHeaderLocation,
-						(input, recordLength) -> kryo.readObject(input, CatalogHeader.class)
-					).payload();
-
-					catalogHeaderConsumer.accept(theCatalogHeader);
-					return new OffsetIndexDescriptor(
-						theCatalogHeader.version(),
-						fileLocation,
-						theCatalogHeader.compressedKeys(),
-						kryoFactory,
-						// we don't know here yet - this will be recomputed on first flush
-						theCatalogHeader.activeRecordShare(),
-						catalogFilePath.toFile().length()
-					);
-				}
+				(indexBuilder, theInput) -> loadOffsetIndexDescriptor(
+					catalogFilePath, recordRegistry, kryoFactory, catalogHeaderConsumer,
+					indexBuilder, theInput, fileLocation
+				)
 			);
 		}
+	}
+
+	/**
+	 * Loads an offset index descriptor based on the given parameters.
+	 * @param catalogFilePath the file to load offset index descriptor from
+	 * @param recordRegistry the record registry
+	 * @param kryoFactory the factory to create Kryo instances
+	 * @param catalogHeaderConsumer the consumer to accept the catalog header
+	 * @param indexBuilder the index builder to use
+	 * @param theInput the observable input
+	 * @param fileLocation the file location to read record from
+	 * @return the loaded offset index descriptor
+	 */
+	@Nonnull
+	static OffsetIndexDescriptor loadOffsetIndexDescriptor(
+		@Nonnull Path catalogFilePath,
+		@Nonnull OffsetIndexRecordTypeRegistry recordRegistry,
+		@Nonnull Function<VersionedKryoKeyInputs, VersionedKryo> kryoFactory,
+		@Nonnull Consumer<CatalogHeader> catalogHeaderConsumer,
+		@Nonnull FileOffsetIndexBuilder indexBuilder,
+		@Nonnull ObservableInput<?> theInput,
+		@Nonnull FileLocation fileLocation
+	) {
+		// and load the catalog header
+		final FileLocation catalogHeaderLocation = indexBuilder.getBuiltIndex().get(
+			new RecordKey(recordRegistry.idFor(CatalogHeader.class), 1L)
+		);
+		final Kryo kryo = KryoFactory.createKryo(
+			SharedClassesConfigurer.INSTANCE.andThen(CatalogHeaderKryoConfigurer.INSTANCE)
+		);
+		final CatalogHeader theCatalogHeader = StorageRecord.read(
+			theInput, catalogHeaderLocation,
+			(input, recordLength) -> kryo.readObject(input, CatalogHeader.class)
+		).payload();
+
+		catalogHeaderConsumer.accept(theCatalogHeader);
+		return new OffsetIndexDescriptor(
+			theCatalogHeader.version(),
+			fileLocation,
+			theCatalogHeader.compressedKeys(),
+			kryoFactory,
+			// we don't know here yet - this will be recomputed on first flush
+			theCatalogHeader.activeRecordShare(),
+			catalogFilePath.toFile().length()
+		);
 	}
 
 	private CatalogOffsetIndexStoragePartPersistenceService(

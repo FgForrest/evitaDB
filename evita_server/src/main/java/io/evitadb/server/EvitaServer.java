@@ -45,6 +45,7 @@ import io.evitadb.server.configuration.EvitaServerConfiguration;
 import io.evitadb.server.exception.ConfigurationParseException;
 import io.evitadb.server.yaml.AbstractClassDeserializer;
 import io.evitadb.server.yaml.EvitaConstructor;
+import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.ConsoleWriter;
 import io.evitadb.utils.ConsoleWriter.ConsoleColor;
@@ -172,6 +173,7 @@ public class EvitaServer {
 	/**
 	 * Initializes the file from the specified location.
 	 */
+	@Nonnull
 	private static String initLog() {
 		String logMsg;
 		if (System.getProperty(ContextInitializer.CONFIG_FILE_PROPERTY) == null) {
@@ -188,7 +190,7 @@ public class EvitaServer {
 			}
 		}
 		// and then initialize logger so that `logback.configurationFile` argument might apply
-		getLog();
+		Assert.isPremiseValid(getLog() != null, () -> "Logger should be initialized here.");
 		return logMsg;
 	}
 
@@ -467,6 +469,8 @@ public class EvitaServer {
 					final String fileName = it.getFileName().toString().toLowerCase();
 					return fileName.endsWith(".yaml") || fileName.endsWith(".yml");
 				})
+				.map(Path::toAbsolutePath)
+				.map(Path::normalize)
 				.sorted()
 				.toArray(Path[]::new);
 			evitaServerConfig = mergeYamlFiles(
