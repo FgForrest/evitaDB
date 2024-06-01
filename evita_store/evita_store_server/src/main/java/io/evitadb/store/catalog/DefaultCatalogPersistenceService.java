@@ -2148,21 +2148,6 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	}
 
 	/**
-	 * Reports changes in historical records kept.
-	 *
-	 * @param catalogName     name of the catalog
-	 * @param oldestHistoricalRecord oldest historical record
-	 */
-	private static void reportOldestHistoricalRecord(@Nonnull String catalogName, @Nullable OffsetDateTime oldestHistoricalRecord) {
-		new OffsetIndexHistoryKeptEvent(
-			catalogName,
-			FileType.CATALOG,
-			catalogName,
-			oldestHistoricalRecord
-		).commit();
-	}
-
-	/**
 	 * Finds the first available file index for the given entity type.
 	 *
 	 * @param entityType the type of entity
