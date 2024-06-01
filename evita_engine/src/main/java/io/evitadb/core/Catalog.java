@@ -281,7 +281,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 	) {
 		final SubmissionPublisher<ConflictResolutionTransactionTask> txPublisher = new SubmissionPublisher<>(scheduler, transactionOptions.maxQueueSize());
 		final ConflictResolutionTransactionStage stage1 = new ConflictResolutionTransactionStage(scheduler, transactionOptions.maxQueueSize(), catalog);
-		final WalAppendingTransactionStage stage2 = new WalAppendingTransactionStage(scheduler, transactionOptions.maxQueueSize(), catalog);
+		final WalAppendingTransactionStage stage2 = new WalAppendingTransactionStage(scheduler, transactionOptions.maxQueueSize(), catalog, stage1::notifyCatalogVersionDropped);
 		final TrunkIncorporationTransactionStage stage3 = new TrunkIncorporationTransactionStage(scheduler, transactionOptions.maxQueueSize(), catalog, transactionOptions.flushFrequencyInMillis());
 		final CatalogSnapshotPropagationTransactionStage stage4 = new CatalogSnapshotPropagationTransactionStage(newCatalogVersionConsumer);
 
@@ -1065,7 +1065,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		@Nonnull CompletableFuture<Long> transactionFinalizationFuture
 	) {
 		try {
-			transactionalPipeline.submit(
+			transactionalPipeline.offer(
 				new ConflictResolutionTransactionTask(
 					getName(),
 					transactionId,
@@ -1074,7 +1074,15 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 					walPersistenceService.getWalReference(),
 					commitBehaviour,
 					transactionFinalizationFuture
-				)
+				),
+				(subscriber, task) -> {
+					transactionFinalizationFuture.completeExceptionally(
+						new TransactionException(
+							"Conflict resolution transaction queue is full! Transaction cannot be processed at the moment."
+						)
+					);
+					return false;
+				}
 			);
 		} catch (Exception e) {
 			if (e.getCause() instanceof TransactionException txException) {

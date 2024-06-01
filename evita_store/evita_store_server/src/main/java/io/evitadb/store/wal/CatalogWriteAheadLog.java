@@ -24,6 +24,7 @@
 package io.evitadb.store.wal;
 
 import com.esotericsoftware.kryo.Kryo;
+import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import com.esotericsoftware.kryo.util.Pool;
 import io.evitadb.api.configuration.StorageOptions;
@@ -71,6 +72,7 @@ import javax.annotation.concurrent.NotThreadSafe;
 import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
@@ -82,11 +84,14 @@ import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
@@ -163,10 +168,18 @@ public class CatalogWriteAheadLog implements Closeable {
 	 */
 	private final AtomicLong lastWrittenCatalogVersion = new AtomicLong();
 	/**
+	 * Contains information about the last catalog version that was successfully stored (and its WAL contents processed).
+	 */
+	private final AtomicLong processedCatalogVersion;
+	/**
 	 * Contains reference to the asynchronous task executor that clears the cached WAL pointers after some
 	 * time of inactivity.
 	 */
 	private final DelayedAsyncTask cutWalCacheTask;
+	/**
+	 * Contains reference to the asynchronous task executor that removes the obsolete WAL files.
+	 */
+	private final DelayedAsyncTask removeWalFileTask;
 	/**
 	 * Cache of already scanned WAL files. The locations might not be complete, but they will be always cover the start
 	 * of the particular WAL file, but they may be later appended with new records that are not yet scanned or gradually
@@ -192,6 +205,11 @@ public class CatalogWriteAheadLog implements Closeable {
 	 * This lambda allows trimming the bootstrap file to the given date.
 	 */
 	private final Consumer<OffsetDateTime> bootstrapFileTrimmer;
+	/**
+	 * List of pending removals of WAL files that should be removed, but could not be removed yet because the WAL
+	 * records in them were not yet processed.
+	 */
+	private final List<PendingRemoval> pendingRemovals = new CopyOnWriteArrayList<>();
 	/**
 	 * The index of the WAL file incremented each time the WAL file is rotated.
 	 */
@@ -362,6 +380,32 @@ public class CatalogWriteAheadLog implements Closeable {
 	}
 
 	/**
+	 * Returns the first and last catalog versions found in the given WAL file.
+	 * @param walFile the WAL file to read from
+	 * @return the first and last catalog versions found in the WAL file
+	 */
+	@Nonnull
+	static FirstAndLastCatalogVersions getFirstAndLastCatalogVersionsFromWalFile(@Nonnull File walFile) throws FileNotFoundException {
+		try (
+			final RandomAccessFile randomAccessOldWalFile = new RandomAccessFile(walFile, "r");
+			final RandomAccessFileInputStream inputStream = new RandomAccessFileInputStream(randomAccessOldWalFile);
+			final Input input = new Input(inputStream)
+		) {
+			inputStream.seek(walFile.length() - WAL_TAIL_LENGTH);
+			final long firstCatalogVersion = input.readLong();
+			final long lastCatalogVersion = input.readLong();
+			return new FirstAndLastCatalogVersions(firstCatalogVersion, lastCatalogVersion);
+		} catch (FileNotFoundException e) {
+			throw e;
+		} catch (IOException e) {
+			throw new WriteAheadLogCorruptedException(
+				"Failed to read `" + walFile.getAbsolutePath() + "`!",
+				"Failed to read WAL file!", e
+			);
+		}
+	}
+
+	/**
 	 * Creates a Write-Ahead Log (WAL) file if it does not already exist.
 	 *
 	 * @param walFilePath The path of the WAL file.
@@ -402,7 +446,7 @@ public class CatalogWriteAheadLog implements Closeable {
 		).orElse(new File[0]);
 
 		if (walFiles.length == 0) {
-			return new int[] {0, 0};
+			return new int[]{0, 0};
 		} else {
 			final List<Integer> indexes = Arrays.stream(walFiles)
 				.map(f -> getIndexFromWalFileName(catalogName, f.getName()))
@@ -414,7 +458,7 @@ public class CatalogWriteAheadLog implements Closeable {
 					"Missing WAL file with index `" + (indexes.get(i - 1) + 1) + "`!"
 				);
 			}
-			return new int[] {indexes.get(0), indexes.get(indexes.size() - 1)};
+			return new int[]{indexes.get(0), indexes.get(indexes.size() - 1)};
 		}
 	}
 
@@ -483,6 +527,7 @@ public class CatalogWriteAheadLog implements Closeable {
 	}
 
 	public CatalogWriteAheadLog(
+		long catalogVersion,
 		@Nonnull String catalogName,
 		@Nonnull Path catalogStoragePath,
 		@Nonnull Pool<Kryo> catalogKryoPool,
@@ -491,6 +536,7 @@ public class CatalogWriteAheadLog implements Closeable {
 		@Nonnull Scheduler scheduler,
 		@Nonnull Consumer<OffsetDateTime> bootstrapFileTrimmer
 	) {
+		this.processedCatalogVersion = new AtomicLong(catalogVersion);
 		final int[] firstAndLastWalFileIndex = getFirstAndLastWalFileIndex(catalogStoragePath, catalogName);
 		this.walFileIndex = firstAndLastWalFileIndex[1];
 		this.cutWalCacheTask = new DelayedAsyncTask(
@@ -498,6 +544,12 @@ public class CatalogWriteAheadLog implements Closeable {
 			scheduler,
 			this::cutWalCache,
 			CUT_WAL_CACHE_AFTER_INACTIVITY_MS, TimeUnit.MILLISECONDS
+		);
+		this.removeWalFileTask = new DelayedAsyncTask(
+			catalogName, "WAL file remover",
+			scheduler,
+			this::removeWalFiles,
+			0, TimeUnit.MILLISECONDS
 		);
 		this.maxWalFileSizeBytes = transactionOptions.walFileSizeBytes();
 		this.walFileCountKept = transactionOptions.walFileCountKept();
@@ -539,6 +591,26 @@ public class CatalogWriteAheadLog implements Closeable {
 				"Failed to open WAL file!",
 				e
 			);
+		}
+	}
+
+	/**
+	 * Removes the obsolete WAL files from the catalog storage path.
+	 */
+	private long removeWalFiles() {
+		synchronized (this.pendingRemovals) {
+			final long catalogVersion = this.processedCatalogVersion.get();
+			final Set<PendingRemoval> toRemove = new HashSet<>(64);
+			for (PendingRemoval pendingRemoval : this.pendingRemovals) {
+				if (pendingRemoval.catalogVersion <= catalogVersion) {
+					pendingRemoval.runnable().run();
+					toRemove.add(pendingRemoval);
+				} else {
+					break;
+				}
+			}
+			this.pendingRemovals.removeAll(toRemove);
+			return -1;
 		}
 	}
 
@@ -901,11 +973,25 @@ public class CatalogWriteAheadLog implements Closeable {
 		}
 	}
 
+	/**
+	 * Notify method that allows to track which versions of the catalog have been already processed and safe to be
+	 * removed in the future.
+	 *
+	 * @param catalogVersion the catalog version that has been processed
+	 */
+	public void walProcessedUntil(long catalogVersion) {
+		this.processedCatalogVersion.set(catalogVersion);
+		if (!this.pendingRemovals.isEmpty()) {
+			this.removeWalFileTask.schedule();
+		}
+	}
+
 	@Override
 	public void close() throws IOException {
 		this.output.close();
 		this.walFileChannel.close();
 		this.transactionMutationOutputStream.close();
+		removeWalFiles();
 	}
 
 	/**
@@ -917,7 +1003,8 @@ public class CatalogWriteAheadLog implements Closeable {
 	 */
 	@Nonnull
 	MutationSupplier createSupplier(long catalogVersion, boolean avoidPartiallyFilledBuffer) {
-		if (this.getFirstCatalogVersionOfCurrentWalFile() <= catalogVersion) {
+		final long theFirstCatalogVersionOfCurrentWalFile = this.getFirstCatalogVersionOfCurrentWalFile();
+		if (theFirstCatalogVersionOfCurrentWalFile != -1 && theFirstCatalogVersionOfCurrentWalFile <= catalogVersion) {
 			// we could start reading the current WAL file
 			return new MutationSupplier(
 				catalogVersion, this.catalogName, this.catalogStoragePath, this.walFileIndex,
@@ -960,52 +1047,56 @@ public class CatalogWriteAheadLog implements Closeable {
 		int foundWalIndex = -1;
 		for (int indexToSearch : walIndexesToSearch) {
 			final File oldWalFile = this.catalogStoragePath.resolve(getWalFileName(this.catalogName, indexToSearch)).toFile();
-			try (
-				final RandomAccessFile randomAccessOldWalFile = new RandomAccessFile(oldWalFile, "r");
-				final ObservableInput<RandomAccessFileInputStream> input = new ObservableInput<>(
-					new RandomAccessFileInputStream(
-						randomAccessOldWalFile
+			if (oldWalFile.length() > WAL_TAIL_LENGTH) {
+				try (
+					final RandomAccessFile randomAccessOldWalFile = new RandomAccessFile(oldWalFile, "r");
+					final ObservableInput<RandomAccessFileInputStream> input = new ObservableInput<>(
+						new RandomAccessFileInputStream(
+							randomAccessOldWalFile
+						)
 					)
-				)
-			) {
-				input.seekWithUnknownLength(oldWalFile.length() - WAL_TAIL_LENGTH);
-				final long firstCatalogVersion = input.simpleLongRead();
-				final long lastCatalogVersion = input.simpleLongRead();
+				) {
+					input.seekWithUnknownLength(oldWalFile.length() - WAL_TAIL_LENGTH);
+					final long firstCatalogVersion = input.simpleLongRead();
+					final long lastCatalogVersion = input.simpleLongRead();
 
-				Assert.isPremiseValid(
-					firstCatalogVersion >= 1,
-					() -> new WriteAheadLogCorruptedException(
-						"Invalid first catalog version in the WAL file `" + oldWalFile.getAbsolutePath() + "` (`" + firstCatalogVersion + "`)!",
-						"Invalid first catalog version in the WAL file!"
-					)
-				);
-				Assert.isPremiseValid(
-					firstCatalogVersion <= lastCatalogVersion,
-					() -> new WriteAheadLogCorruptedException(
-						"Invalid first catalog version in the WAL file `" + oldWalFile.getAbsolutePath() + "` (first: `" + firstCatalogVersion + "`, last: `" + lastCatalogVersion + "`)!",
-						"Invalid first catalog version in the WAL file!"
-					)
-				);
-				long finalPreviousLastCatalogVersion = previousLastCatalogVersion;
-				Assert.isPremiseValid(
-					previousLastCatalogVersion == -1 || previousLastCatalogVersion < firstCatalogVersion,
-					() -> new WriteAheadLogCorruptedException(
-						"Invalid first catalog version in the WAL file `" + oldWalFile.getAbsolutePath() + "` (first: `" + firstCatalogVersion + "`, last version of the previous file: `" + finalPreviousLastCatalogVersion + "`)!",
-						"Invalid first catalog version in the WAL file!"
-					)
-				);
+					Assert.isPremiseValid(
+						firstCatalogVersion >= 1,
+						() -> new WriteAheadLogCorruptedException(
+							"Invalid first catalog version in the WAL file `" + oldWalFile.getAbsolutePath() + "` (`" + firstCatalogVersion + "`)!",
+							"Invalid first catalog version in the WAL file!"
+						)
+					);
+					Assert.isPremiseValid(
+						firstCatalogVersion <= lastCatalogVersion,
+						() -> new WriteAheadLogCorruptedException(
+							"Invalid first catalog version in the WAL file `" + oldWalFile.getAbsolutePath() + "` (first: `" + firstCatalogVersion + "`, last: `" + lastCatalogVersion + "`)!",
+							"Invalid first catalog version in the WAL file!"
+						)
+					);
+					long finalPreviousLastCatalogVersion = previousLastCatalogVersion;
+					Assert.isPremiseValid(
+						previousLastCatalogVersion == -1 || previousLastCatalogVersion < firstCatalogVersion,
+						() -> new WriteAheadLogCorruptedException(
+							"Invalid first catalog version in the WAL file `" + oldWalFile.getAbsolutePath() + "` (first: `" + firstCatalogVersion + "`, last version of the previous file: `" + finalPreviousLastCatalogVersion + "`)!",
+							"Invalid first catalog version in the WAL file!"
+						)
+					);
 
-				if (catalogVersion >= firstCatalogVersion && catalogVersion <= lastCatalogVersion) {
-					foundWalIndex = indexToSearch;
-					break;
+					if (catalogVersion >= firstCatalogVersion && catalogVersion <= lastCatalogVersion) {
+						foundWalIndex = indexToSearch;
+						break;
+					}
+
+					previousLastCatalogVersion = lastCatalogVersion;
+				} catch (FileNotFoundException e) {
+					// the file was deleted in the meantime
+				} catch (IOException e) {
+					throw new WriteAheadLogCorruptedException(
+						"Failed to read `" + oldWalFile.getAbsolutePath() + "`!",
+						"Failed to read WAL file!", e
+					);
 				}
-
-				previousLastCatalogVersion = lastCatalogVersion;
-			} catch (IOException e) {
-				throw new WriteAheadLogCorruptedException(
-					"Failed to read `" + oldWalFile.getAbsolutePath() + "`!",
-					"Failed to read WAL file!", e
-				);
 			}
 		}
 		return foundWalIndex;
@@ -1108,9 +1199,26 @@ public class CatalogWriteAheadLog implements Closeable {
 				// then delete all files except the last `walFileCountKept` files
 				for (int i = 0; i < walFiles.length - this.walFileCountKept; i++) {
 					final File walFile = walFiles[i];
-					if (!walFile.delete()) {
-						// don't throw exception - this is not so critical so that we should stop accepting new mutations
-						log.error("Failed to delete WAL file `" + walFile + "`!");
+					try {
+						final FirstAndLastCatalogVersions versionsFromWalFile = getFirstAndLastCatalogVersionsFromWalFile(walFile);
+						final PendingRemoval pendingRemoval = new PendingRemoval(
+							versionsFromWalFile.lastCatalogVersion(),
+							() -> {
+								try {
+									if (!walFile.delete()) {
+										// don't throw exception - this is not so critical so that we should stop accepting new mutations
+										log.error("Failed to delete WAL file `" + walFile + "`!");
+									}
+								} catch (Exception ex) {
+									log.error("Failed to delete WAL file `" + walFile + "`!", ex);
+								}
+							}
+						);
+						if (!this.pendingRemovals.contains(pendingRemoval)) {
+							this.pendingRemovals.add(pendingRemoval);
+						}
+					} catch (FileNotFoundException ex) {
+						// the file was deleted in the meantime
 					}
 				}
 
@@ -1124,7 +1232,7 @@ public class CatalogWriteAheadLog implements Closeable {
 
 		} catch (IOException e) {
 			throw new WriteAheadLogCorruptedException(
-				"Failed to open WAL file `" + getWalFileName(catalogName, this.walFileIndex) + "`!",
+				"Failed to open WAL file `" + getWalFileName(this.catalogName, this.walFileIndex) + "`!",
 				"Failed to open WAL file!",
 				e
 			);
@@ -1177,17 +1285,11 @@ public class CatalogWriteAheadLog implements Closeable {
 	 */
 	@Nonnull
 	private Stream<Mutation> getCommittedMutationStream(long catalogVersion, boolean avoidPartiallyFilledBuffer) {
-		final File walFile = this.walFilePath.toFile();
-		if (!walFile.exists() || walFile.length() < 4) {
-			// WAL file does not exist or is empty, nothing to read
-			return Stream.empty();
-		} else {
-			final MutationSupplier supplier = createSupplier(catalogVersion, avoidPartiallyFilledBuffer);
-			this.cutWalCacheTask.schedule();
-			return Stream.generate(supplier)
-				.takeWhile(Objects::nonNull)
-				.onClose(supplier::close);
-		}
+		final MutationSupplier supplier = createSupplier(catalogVersion, avoidPartiallyFilledBuffer);
+		this.cutWalCacheTask.schedule();
+		return Stream.generate(supplier)
+			.takeWhile(Objects::nonNull)
+			.onClose(supplier::close);
 	}
 
 	/**
@@ -1236,10 +1338,36 @@ public class CatalogWriteAheadLog implements Closeable {
 	 * @param firstCatalogVersion first catalog version
 	 * @param lastCatalogVersion  last catalog version
 	 */
-	private record FirstAndLastCatalogVersions(
+	record FirstAndLastCatalogVersions(
 		long firstCatalogVersion,
 		long lastCatalogVersion
 	) {
+	}
+
+	/**
+	 * Record that holds information about pending removal of the WAL file.
+	 * @param catalogVersion the catalog version that needs to be processed before the removal
+	 * @param runnable the runnable that performs the file removal
+	 */
+	private record PendingRemoval(
+		long catalogVersion,
+		@Nonnull Runnable runnable
+	) {
+
+		@Override
+		public boolean equals(Object o) {
+			if (this == o) return true;
+			if (o == null || getClass() != o.getClass()) return false;
+
+			PendingRemoval that = (PendingRemoval) o;
+			return catalogVersion == that.catalogVersion;
+		}
+
+		@Override
+		public int hashCode() {
+			return Long.hashCode(catalogVersion);
+		}
+
 	}
 
 	/**

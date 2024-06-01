@@ -220,7 +220,7 @@ public class ObservableOutputKeeper implements AutoCloseable {
 	private long cutOutputCache() {
 		final long threshold = System.currentTimeMillis() - CUT_OUTPUTS_AFTER_INACTIVITY_MS;
 		long oldestNotCutEntryTouchTime = -1L;
-		final Iterator<OpenedOutputToFile> iterator = cachedOutputToFiles.values().iterator();
+		final Iterator<OpenedOutputToFile> iterator = this.cachedOutputToFiles.values().iterator();
 		while (iterator.hasNext()) {
 			final OpenedOutputToFile outputToFile = iterator.next();
 			final boolean oldestRecord = oldestNotCutEntryTouchTime == -1L || outputToFile.getLastReadTime() < oldestNotCutEntryTouchTime;
@@ -261,6 +261,10 @@ public class ObservableOutputKeeper implements AutoCloseable {
 		 * The flag indicating whether the output is leased. The output must not be leased more than once.
 		 */
 		@Getter private boolean leased;
+		/**
+		 * The flag indicating whether the output is closed. The output must not be closed more than once.
+		 */
+		@Getter private boolean closed;
 
 		/**
 		 * Returns the observable output for the file with opened stream and allocated array.
@@ -269,6 +273,7 @@ public class ObservableOutputKeeper implements AutoCloseable {
 		 */
 		@Nonnull
 		public ObservableOutput<FileOutputStream> leaseOutput() {
+			Assert.isPremiseValid(!this.closed, "The output is already closed");
 			Assert.isPremiseValid(!this.leased, "The output is already leased");
 			this.leased = true;
 			this.lastReadTime = System.currentTimeMillis();
@@ -279,6 +284,7 @@ public class ObservableOutputKeeper implements AutoCloseable {
 		 * Notifies about the usage of a transaction location object by updating the last read time.
 		 */
 		public void releaseOutput() {
+			Assert.isPremiseValid(!this.closed, "The output is already closed");
 			Assert.isPremiseValid(this.leased, "The output is not leased");
 			this.leased = false;
 			this.lastReadTime = System.currentTimeMillis();
@@ -286,6 +292,8 @@ public class ObservableOutputKeeper implements AutoCloseable {
 
 		@Override
 		public void close() {
+			Assert.isPremiseValid(!this.closed, "The output is already closed");
+			this.closed = true;
 			this.leased = false;
 			this.output.close();
 		}
