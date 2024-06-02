@@ -146,7 +146,9 @@ public class TransactionLocations {
 						catalogVersion,
 						(transactionLocation, cv) -> Long.compare(transactionLocation.catalogVersion(), cv)
 					);
-					return index >= 0 ? locs.get(index).startPosition() : 0L;
+					return index >= 0 ?
+						locs.get(index).startPosition() :
+						ofNullable(locs.getLast()).map(TransactionLocation::startPosition).orElse(0L);
 				} finally {
 					lock.unlock();
 				}

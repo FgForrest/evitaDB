@@ -31,6 +31,7 @@ import io.evitadb.core.metric.event.transaction.TransactionQueuedEvent;
 import io.evitadb.core.transaction.stage.TrunkIncorporationTransactionStage.TrunkIncorporationTransactionTask;
 import io.evitadb.core.transaction.stage.WalAppendingTransactionStage.WalAppendingTransactionTask;
 import io.evitadb.store.spi.OffHeapWithFileBackupReference;
+import io.evitadb.utils.Assert;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -39,6 +40,7 @@ import java.time.OffsetDateTime;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.function.IntConsumer;
 
 /**
  * Represents a stage in a catalog processing pipeline that appends isolated write-ahead log (WAL) entries to a shared
@@ -49,13 +51,23 @@ import java.util.concurrent.Executor;
 @Slf4j
 public final class WalAppendingTransactionStage
 	extends AbstractTransactionStage<WalAppendingTransactionTask, TrunkIncorporationTransactionTask> {
+	/**
+	 * Contains consumer that compensates the catalog version in case of a failure in previous stages of the pipeline.
+	 */
+	private final IntConsumer catalogVersionCompensator;
+	/**
+	 * Contains last catalog version appended successfully to the WAL.
+	 */
+	private long lastWrittenCatalogVersion = -1L;
 
 	public WalAppendingTransactionStage(
 		@Nonnull Executor executor,
 		int maxBufferCapacity,
-		@Nonnull Catalog catalog
+		@Nonnull Catalog catalog,
+		@Nonnull IntConsumer catalogVersionCompensator
 	) {
 		super(executor, maxBufferCapacity, catalog);
+		this.catalogVersionCompensator = catalogVersionCompensator;
 	}
 
 	@Override
@@ -68,6 +80,12 @@ public final class WalAppendingTransactionStage
 
 		// emit queue event
 		task.transactionQueuedEvent().finish().commit();
+
+		Assert.isPremiseValid(
+			lastWrittenCatalogVersion == -1 || lastWrittenCatalogVersion == task.catalogVersion() - 1,
+			"Transaction cannot be written to the WAL out of order. " +
+				"Expected version " + (lastWrittenCatalogVersion + 1) + ", got " + task.catalogVersion() + "."
+		);
 
 		// create WALL appending event
 		final TransactionAppendedToWalEvent event = new TransactionAppendedToWalEvent(task.catalogName());
@@ -100,6 +118,14 @@ public final class WalAppendingTransactionStage
 			task.mutationCount() + 1,
 			writtenLength
 		).commit();
+
+		this.lastWrittenCatalogVersion = task.catalogVersion();
+	}
+
+	@Override
+	protected void handleException(@Nonnull WalAppendingTransactionTask task, @Nonnull Throwable ex) {
+		catalogVersionCompensator.accept(1);
+		super.handleException(task, ex);
 	}
 
 	/**

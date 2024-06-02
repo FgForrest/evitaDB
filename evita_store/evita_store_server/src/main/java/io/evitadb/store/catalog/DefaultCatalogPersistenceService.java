@@ -217,6 +217,10 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	@Nonnull
 	private final AtomicReference<WriteOnlyFileHandle> bootstrapWriteHandle;
 	/**
+	 * This lock synchronizes the access to the bootstrap file.
+	 */
+	private final ReentrantLock bootstrapWriteLock = new ReentrantLock();
+	/**
 	 * Scheduled executor service is used for planning maintenance tasks on the data level.
 	 */
 	@Nonnull private final Scheduler scheduler;
@@ -236,7 +240,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	/**
 	 * Lock used for synchronization to {@link #catalogPersistenceServiceVersions} array.
 	 */
-	private final ReentrantLock lock = new ReentrantLock();
+	private final ReentrantLock cpsvLock = new ReentrantLock();
 	/**
 	 * Contains sorted array of {@link #catalogStoragePartPersistenceService} keys. It is used for fast lookup of the
 	 * storage part persistence service for a given catalog version.
@@ -251,9 +255,13 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	 */
 	@Nullable private CatalogWriteAheadLog catalogWal;
 	/**
-	 * Contains information about the time the non-flushed block was reported.
+	 * Contains the millis from the time the non-flushed block was reported.
 	 */
 	private long lastReportTimestamp;
+	/**
+	 * Contains the millis from the time when catalog statistics was reported.
+	 */
+	private long lastCatalogStatisticsTimestamp;
 
 	/**
 	 * Method returns continuous stream of catalog bootstrap records from the catalog bootstrap file.
@@ -512,6 +520,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	 *
 	 * BEWARE: work with {@link CatalogWriteAheadLog} is not thread safe and must be synchronized!
 	 *
+	 * @param catalogVersion     The version of the catalog.
 	 * @param catalogName        The name of the catalog.
 	 * @param catalogStoragePath The path to the storage location of the catalog.
 	 * @param catalogHeader      The catalog header object.
@@ -522,6 +531,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	 */
 	@Nullable
 	private static CatalogWriteAheadLog getCatalogWriteAheadLog(
+		long catalogVersion,
 		@Nonnull String catalogName,
 		@Nonnull Path catalogStoragePath,
 		@Nonnull CatalogHeader catalogHeader,
@@ -562,7 +572,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		return ofNullable(currentWalFileRef)
 			.map(
 				walFileReference -> new CatalogWriteAheadLog(
-					catalogName, catalogStoragePath, catalogKryoPool,
+					catalogVersion, catalogName, catalogStoragePath, catalogKryoPool,
 					storageOptions, transactionOptions, scheduler,
 					bootstrapFileTrimFunction
 				)
@@ -573,6 +583,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	/**
 	 * Creates a CatalogWriteAheadLog if there are any WAL files present in the catalog file path.
 	 *
+	 * @param catalogVersion     the version of the catalog
 	 * @param catalogName        the name of the catalog
 	 * @param storageOptions     the storage options
 	 * @param transactionOptions the transaction options
@@ -583,6 +594,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	 */
 	@Nullable
 	private static CatalogWriteAheadLog createWalIfAnyWalFilePresent(
+		long catalogVersion,
 		@Nonnull String catalogName,
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull TransactionOptions transactionOptions,
@@ -597,7 +609,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		return walFiles == null || walFiles.length == 0 ?
 			null :
 			new CatalogWriteAheadLog(
-				catalogName, catalogFilePath, kryoPool,
+				catalogVersion, catalogName, catalogFilePath, kryoPool,
 				storageOptions, transactionOptions, scheduler,
 				bootstrapFileTrimFunction
 			);
@@ -735,8 +747,11 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				this.observableOutputKeeper
 			)
 		);
+
+		final long catalogVersion = 0L;
 		this.catalogWal = createWalIfAnyWalFilePresent(
-			catalogName, storageOptions, transactionOptions, scheduler,
+			catalogVersion, catalogName,
+			storageOptions, transactionOptions, scheduler,
 			this::trimBootstrapFile,
 			this.catalogStoragePath, this.catalogKryoPool
 		);
@@ -744,7 +759,6 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		final String catalogFileName = getCatalogDataStoreFileName(catalogName, lastCatalogBootstrap.catalogFileIndex());
 		final Path catalogFilePath = this.catalogStoragePath.resolve(catalogFileName);
 
-		final long catalogVersion = 0L;
 		this.catalogStoragePartPersistenceService = CollectionUtils.createConcurrentHashMap(16);
 		this.catalogStoragePartPersistenceService.put(
 			catalogVersion,
@@ -760,7 +774,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				observableOutputKeeper,
 				VERSIONED_KRYO_FACTORY,
 				nonFlushedBlock -> this.reportNonFlushedContents(catalogName, nonFlushedBlock),
-				oldestRecordTimestamp -> DefaultCatalogPersistenceService.reportOldestHistoricalRecord(catalogName, oldestRecordTimestamp.orElse(null))
+				oldestRecordTimestamp -> reportOldestHistoricalRecord(catalogName, oldestRecordTimestamp.orElse(null))
 			)
 		);
 		this.catalogPersistenceServiceVersions = new long[]{catalogVersion};
@@ -811,13 +825,13 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		final String catalogFileName = getCatalogDataStoreFileName(catalogName, this.bootstrapUsed.catalogFileIndex());
 		final Path catalogFilePath = this.catalogStoragePath.resolve(catalogFileName);
 
+		final long catalogVersion = this.bootstrapUsed.catalogVersion();
 		this.catalogWal = createWalIfAnyWalFilePresent(
-			catalogName, storageOptions, transactionOptions, scheduler,
+			catalogVersion, catalogName, storageOptions, transactionOptions, scheduler,
 			this::trimBootstrapFile,
 			this.catalogStoragePath, this.catalogKryoPool
 		);
 
-		final long catalogVersion = this.bootstrapUsed.catalogVersion();
 		this.catalogStoragePartPersistenceService = CollectionUtils.createConcurrentHashMap(16);
 		final CatalogOffsetIndexStoragePartPersistenceService catalogStoragePartPersistenceService =
 			CatalogOffsetIndexStoragePartPersistenceService.create(
@@ -832,7 +846,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				this.observableOutputKeeper,
 				VERSIONED_KRYO_FACTORY,
 				nonFlushedBlock -> this.reportNonFlushedContents(catalogName, nonFlushedBlock),
-				oldestRecordTimestamp -> DefaultCatalogPersistenceService.reportOldestHistoricalRecord(catalogName, oldestRecordTimestamp.orElse(null))
+				oldestRecordTimestamp -> reportOldestHistoricalRecord(catalogName, oldestRecordTimestamp.orElse(null))
 			);
 		this.catalogStoragePartPersistenceService.put(
 			catalogVersion,
@@ -898,7 +912,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			this.observableOutputKeeper,
 			VERSIONED_KRYO_FACTORY,
 			nonFlushedBlock -> this.reportNonFlushedContents(catalogName, nonFlushedBlock),
-			oldestRecordTimestamp -> DefaultCatalogPersistenceService.reportOldestHistoricalRecord(catalogName, oldestRecordTimestamp.orElse(null)),
+			oldestRecordTimestamp -> reportOldestHistoricalRecord(catalogName, oldestRecordTimestamp.orElse(null)),
 			previousCatalogStoragePartPersistenceService
 		);
 		this.catalogStoragePartPersistenceService = CollectionUtils.createConcurrentHashMap(16);
@@ -977,7 +991,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	@Override
 	public CatalogOffsetIndexStoragePartPersistenceService getStoragePartPersistenceService(long catalogVersion) {
 		try {
-			this.lock.lockInterruptibly();
+			this.cpsvLock.lockInterruptibly();
 			final int index = Arrays.binarySearch(this.catalogPersistenceServiceVersions, catalogVersion);
 			final int lookupIndex = index >= 0 ? index : (-index - 2);
 			Assert.isPremiseValid(
@@ -994,8 +1008,8 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				e
 			);
 		} finally {
-			if (this.lock.isHeldByCurrentThread()) {
-				this.lock.unlock();
+			if (this.cpsvLock.isHeldByCurrentThread()) {
+				this.cpsvLock.unlock();
 			}
 		}
 	}
@@ -1122,15 +1136,24 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			lastEntityCollectionPrimaryKey
 		);
 		this.bootstrapUsed = recordBootstrap(catalogVersion, this.catalogName, this.bootstrapUsed.catalogFileIndex());
+
+		// notify WAL that the new version was successfully stored
+		if (this.catalogWal != null) {
+			this.catalogWal.walProcessedUntil(catalogVersion);
+		}
+
 		// emit event if the number of collections has changed
-		new CatalogStatisticsEvent(
-			this.catalogName,
-			entityHeaders.size(),
-			FileUtils.getDirectorySize(this.catalogStoragePath),
-			getFirstCatalogBootstrap(this.catalogStoragePath, this.catalogName, this.storageOptions)
-				.map(CatalogBootstrap::timestamp)
-				.orElse(null)
-		).commit();
+		if (System.currentTimeMillis() - this.lastCatalogStatisticsTimestamp > 1000) {
+			new CatalogStatisticsEvent(
+				this.catalogName,
+				entityHeaders.size(),
+				FileUtils.getDirectorySize(this.catalogStoragePath),
+				getFirstCatalogBootstrap(this.catalogStoragePath, this.catalogName, this.storageOptions)
+					.map(CatalogBootstrap::timestamp)
+					.orElse(null)
+			).commit();
+			this.lastCatalogStatisticsTimestamp = System.currentTimeMillis();
+		}
 	}
 
 	@Nonnull
@@ -1278,7 +1301,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			if (this.catalogWal == null) {
 				final CatalogHeader catalogHeader = getCatalogHeader(catalogVersion);
 				this.catalogWal = getCatalogWriteAheadLog(
-					this.catalogName, this.catalogStoragePath, catalogHeader, this.catalogKryoPool,
+					this.bootstrapUsed.catalogVersion(), this.catalogName, this.catalogStoragePath, catalogHeader, this.catalogKryoPool,
 					this.storageOptions, this.transactionOptions, this.scheduler, this::trimBootstrapFile
 				);
 			}
@@ -1957,7 +1980,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			);
 
 			try {
-				this.lock.lockInterruptibly();
+				this.cpsvLock.lockInterruptibly();
 
 				final long currentVersion = this.catalogPersistenceServiceVersions[this.catalogPersistenceServiceVersions.length - 1];
 				this.obsoleteFileMaintainer.removeFileWhenNotUsed(
@@ -1991,8 +2014,8 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 					e
 				);
 			} finally {
-				if (this.lock.isHeldByCurrentThread()) {
-					this.lock.unlock();
+				if (this.cpsvLock.isHeldByCurrentThread()) {
+					this.cpsvLock.unlock();
 				}
 			}
 
@@ -2009,6 +2032,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		}
 		final Kryo kryo = this.catalogKryoPool.obtain();
 		try {
+			this.bootstrapWriteLock.lockInterruptibly();
 			final WriteOnlyFileHandle originalBootstrapHandle = this.bootstrapWriteHandle.get();
 			final WriteOnlyFileHandle bootstrapHandle = getOrCreateNewBootstrapTempWriteHandle(
 				catalogVersion, newCatalogName, originalBootstrapHandle
@@ -2043,7 +2067,14 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			}
 
 			return bootstrapRecord;
+		} catch (InterruptedException e) {
+			throw new GenericEvitaInternalError(
+				"Failed to lock the bootstrap file for catalog `" + this.catalogName + "`!",
+				"Failed to lock the bootstrap file!",
+				e
+			);
 		} finally {
+			this.bootstrapWriteLock.unlock();
 			this.catalogKryoPool.free(kryo);
 			log.debug("Catalog `{}` stored to `{}`.", newCatalogName, catalogStoragePath);
 		}
@@ -2064,6 +2095,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		);
 
 		try {
+			this.bootstrapWriteLock.lockInterruptibly();
 			final WriteOnlyFileHandle originalBootstrapHandle = this.bootstrapWriteHandle.get();
 			final WriteOnlyFileHandle newBootstrapHandle = createNewBootstrapTempWriteHandle(this.catalogName);
 
@@ -2086,7 +2118,14 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				),
 				() -> new GenericEvitaInternalError("Failed to replace the bootstrap write handle in a critical section!")
 			);
+		} catch (InterruptedException e) {
+			throw new GenericEvitaInternalError(
+				"Failed to lock the bootstrap file for catalog `" + this.catalogName + "`!",
+				"Failed to lock the bootstrap file!",
+				e
+			);
 		} finally {
+			this.bootstrapWriteLock.unlock();
 			// emit the event
 			event.finish().commit();
 		}
@@ -2216,7 +2255,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	 */
 	private void removeCatalogPersistenceServiceForVersion(long catalogVersion) {
 		try {
-			this.lock.lockInterruptibly();
+			this.cpsvLock.lockInterruptibly();
 			final int index = Arrays.binarySearch(this.catalogPersistenceServiceVersions, catalogVersion);
 			final int lookupIndex = index >= 0 ? index : (-index - 2);
 			Assert.isPremiseValid(
@@ -2233,8 +2272,8 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				e
 			);
 		} finally {
-			if (this.lock.isHeldByCurrentThread()) {
-				this.lock.unlock();
+			if (this.cpsvLock.isHeldByCurrentThread()) {
+				this.cpsvLock.unlock();
 			}
 		}
 	}
