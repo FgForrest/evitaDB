@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -263,9 +263,9 @@ public class QueryPlanner {
 						indexSelectionResult.targetIndexQueriedByOtherConstraints()
 					);
 
-					final PrefetchFormulaVisitor prefetchFormulaVisitor = createPrefetchFormulaVisitor(targetIndex, queryContext);
+					final PrefetchFormulaVisitor prefetchFormulaVisitor = createPrefetchFormulaVisitor(targetIndex);
 					ofNullable(prefetchFormulaVisitor)
-						.ifPresent(it -> filterByVisitor.registerFormulaPostProcessorIfNotPresent(PrefetchFormulaVisitor.class, () -> it));
+						.ifPresent(it -> filterByVisitor.registerFormulaPostProcessor(PrefetchFormulaVisitor.class, () -> it));
 					ofNullable(queryContext.getFilterBy()).ifPresent(filterByVisitor::visit);
 					// we need the original trees to contain only non-cached forms of formula if debug mode is enabled
 					if (debugCachedVariantTrees) {
@@ -409,8 +409,7 @@ public class QueryPlanner {
 	 */
 	@Nullable
 	private static PrefetchFormulaVisitor createPrefetchFormulaVisitor(
-		@Nonnull TargetIndexes<?> targetIndex,
-		@Nonnull QueryContext queryContext
+		@Nonnull TargetIndexes<?> targetIndex
 	) {
 		if (targetIndex.isGlobalIndex() || targetIndex.isCatalogIndex()) {
 			return new PrefetchFormulaVisitor();

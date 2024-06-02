@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.FormulaPostProcessor;
 import io.evitadb.core.query.algebra.attribute.AttributeFormula;
+import io.evitadb.core.query.algebra.base.OrFormula;
 import io.evitadb.core.query.algebra.infra.SkipFormula;
 import io.evitadb.core.query.algebra.locale.LocaleFormula;
 import io.evitadb.core.query.algebra.prefetch.EntityFilteringFormula;
@@ -39,6 +40,7 @@ import io.evitadb.core.query.filter.translator.entity.alternative.LocaleEntityTo
 import io.evitadb.index.ReferencedTypeEntityIndex;
 
 import javax.annotation.Nonnull;
+import java.util.Arrays;
 import java.util.Locale;
 
 import static java.util.Optional.ofNullable;
@@ -59,7 +61,7 @@ public class EntityLocaleEqualsTranslator implements FilteringConstraintTranslat
 			.ifPresent(it -> it.setLocale(locale));
 
 		if (filterByVisitor.isEntityTypeKnown()) {
-			filterByVisitor.registerFormulaPostProcessorIfNotPresent(
+			filterByVisitor.registerFormulaPostProcessor(
 				LocaleOptimizingPostProcessor.class, LocaleOptimizingPostProcessor::new
 			);
 
@@ -122,10 +124,14 @@ public class EntityLocaleEqualsTranslator implements FilteringConstraintTranslat
 						if (formula instanceof final AttributeFormula attributeFormula) {
 							clonerInstance.localizedAttributeFormulaFound = clonerInstance.localizedAttributeFormulaFound ||
 								(attributeFormula.isLocalized() && clonerInstance.conjunctiveScope);
-						} else if (formula instanceof SelectionFormula selectionFormula && selectionFormula.getDelegate() instanceof LocaleFormula) {
+						} else if (formula instanceof SelectionFormula selectionFormula &&
+							(selectionFormula.getDelegate() instanceof LocaleFormula ||
+								selectionFormula.getDelegate() instanceof OrFormula orFormula &&
+									Arrays.stream(orFormula.getInnerFormulas()).allMatch(it -> it instanceof LocaleFormula))
+						) {
 							// skip this formula
 							return null;
-						} else if (formula instanceof LocaleFormula) {
+						} else if (formula instanceof LocaleFormula && clonerInstance.conjunctiveScope) {
 							// skip this formula
 							return null;
 						}
