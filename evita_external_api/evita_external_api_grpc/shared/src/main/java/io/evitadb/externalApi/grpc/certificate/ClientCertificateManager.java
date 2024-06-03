@@ -180,15 +180,16 @@ public class ClientCertificateManager {
 	}
 
 	public ClientCertificateManager(
-		String trustStorePassword,
-		Path certificateClientFolderPath,
-		Path rootCaCertificateFilePath,
-		Path clientCertificateFilePath,
-		Path clientPrivateKeyFilePath,
-		String clientPrivateKeyPassword,
+		@Nullable String trustStorePassword,
+		@Nonnull Path certificateClientFolderPath,
+		@Nullable Path rootCaCertificateFilePath,
+		@Nullable Path clientCertificateFilePath,
+		@Nullable Path clientPrivateKeyFilePath,
+		@Nullable String clientPrivateKeyPassword,
 		boolean isMtlsEnabled,
 		boolean useGeneratedCertificate,
-		String host,
+		@Nullable String serverName,
+		@Nullable String host,
 		int port,
 		boolean usingTrustedRootCaCertificate
 	) {
@@ -203,7 +204,9 @@ public class ClientCertificateManager {
 			this.clientCertificateFilePath = this.certificateClientFolderPath.resolve(CertificateUtils.getGeneratedClientCertificateFileName());
 			this.clientPrivateKeyFilePath = this.certificateClientFolderPath.resolve(CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName());
 		} else {
-			this.certificateClientFolderPath = identifyServerDirectory(host, port, certificateClientFolderPath);
+			this.certificateClientFolderPath = serverName == null ?
+				identifyServerDirectory(host, port, certificateClientFolderPath) :
+				certificateClientFolderPath.resolve(serverName);
 			this.rootCaCertificateFilePath = rootCaCertificateFilePath;
 			this.clientCertificateFilePath = clientCertificateFilePath;
 			this.clientPrivateKeyFilePath = clientPrivateKeyFilePath;
@@ -390,6 +393,7 @@ public class ClientCertificateManager {
 		private String trustStorePassword = "trustStorePassword";
 		private boolean isMtlsEnabled = false;
 		private boolean useGeneratedCertificate = true;
+		private String serverName;
 		private String host;
 		private int port;
 		private boolean usingTrustedRootCaCertificate = false;
@@ -445,6 +449,11 @@ public class ClientCertificateManager {
 			return this;
 		}
 
+		public Builder serverName(@Nullable String serverName) {
+			this.serverName = serverName;
+			return this;
+		}
+
 		public Builder usingTrustedRootCaCertificate(boolean usingTrustedRootCaCertificate) {
 			this.usingTrustedRootCaCertificate = usingTrustedRootCaCertificate;
 			return this;
@@ -460,7 +469,9 @@ public class ClientCertificateManager {
 				clientPrivateKeyPassword,
 				isMtlsEnabled,
 				useGeneratedCertificate,
-				host, port,
+				serverName,
+				host,
+				port,
 				usingTrustedRootCaCertificate
 			);
 		}
