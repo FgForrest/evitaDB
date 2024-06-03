@@ -74,7 +74,7 @@ evitaDB data types are limited to following list:
 </LS>
 <LS to="c">
 
-evitaDB data types are limited to following list:
+evitaDB data types are limited to the following list:
 
 - [string](#string),
   formatted as `"string"`
