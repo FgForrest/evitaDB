@@ -99,6 +99,34 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 	}
 
 	/**
+	 * Method allows creating the entityDecorator object with up-to-date schema definition. Data of the entity are kept
+	 * untouched.
+	 */
+	@Nonnull
+	public static ServerEntityDecorator decorate(
+		@Nonnull ServerEntityDecorator entity,
+		@Nullable EntityClassifierWithParent parentEntity,
+		@Nonnull LocaleSerializablePredicate localePredicate,
+		@Nonnull HierarchySerializablePredicate hierarchyPredicate,
+		@Nonnull AttributeValueSerializablePredicate attributePredicate,
+		@Nonnull AssociatedDataValueSerializablePredicate associatedDataValuePredicate,
+		@Nonnull ReferenceContractSerializablePredicate referencePredicate,
+		@Nonnull PriceContractSerializablePredicate pricePredicate,
+		@Nonnull OffsetDateTime alignedNow,
+		int ioFetchCount,
+		int ioFetchedBytes
+	) {
+		return new ServerEntityDecorator(
+			entity, parentEntity,
+			localePredicate, hierarchyPredicate,
+			attributePredicate, associatedDataValuePredicate,
+			referencePredicate, pricePredicate,
+			alignedNow,
+			ioFetchCount, ioFetchedBytes
+		);
+	}
+
+	/**
 	 * Method allows to create copy of the entity object with up-to-date schema definition. Data of the original
 	 * entity are kept untouched.
 	 */
@@ -165,7 +193,7 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 	}
 
 	public ServerEntityDecorator(
-		@Nonnull ServerEntityDecorator decorator,
+		@Nonnull ServerEntityDecorator delegate,
 		@Nullable EntityClassifierWithParent parentEntity,
 		@Nonnull LocaleSerializablePredicate localePredicate,
 		@Nonnull HierarchySerializablePredicate hierarchyPredicate,
@@ -173,16 +201,18 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 		@Nonnull AssociatedDataValueSerializablePredicate associatedDataPredicate,
 		@Nonnull ReferenceContractSerializablePredicate referencePredicate,
 		@Nonnull PriceContractSerializablePredicate pricePredicate,
-		@Nonnull OffsetDateTime alignedNow
+		@Nonnull OffsetDateTime alignedNow,
+		int ioFetchCount,
+		int ioFetchedBytes
 	) {
 		super(
-			decorator, parentEntity,
+			delegate, parentEntity,
 			localePredicate, hierarchyPredicate, attributePredicate, associatedDataPredicate,
 			referencePredicate, pricePredicate,
 			alignedNow
 		);
-		this.ioFetchCount = decorator.getIoFetchCount();
-		this.ioFetchedBytes = decorator.getIoFetchedBytes();
+		this.ioFetchCount = ioFetchCount;
+		this.ioFetchedBytes = ioFetchedBytes;
 	}
 
 	public ServerEntityDecorator(

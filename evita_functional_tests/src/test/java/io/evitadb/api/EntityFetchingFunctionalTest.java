@@ -3249,6 +3249,66 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 		);
 	}
 
+	@DisplayName("Should return hierarchy parent entity references with bodies stopping at level two")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnDirectHierarchyParentsWithBodiesUpToLevelTwo(Evita evita, Hierarchy categoryHierarchy) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final HierarchyItem theChild = categoryHierarchy.getRootItems()
+					.stream()
+					.flatMap(it -> categoryHierarchy.getAllChildItems(it.getCode()).stream())
+					.max(Comparator.comparingInt(HierarchyItem::getLevel))
+					.orElseThrow();
+				final int theChildPk = Integer.parseInt(theChild.getCode());
+				final int theParentPk = Integer.parseInt(categoryHierarchy.getParentItem(theChild.getCode()).getCode());
+
+				final EvitaResponse<SealedEntity> categoryByPk = session.querySealedEntity(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							entityPrimaryKeyInSet(theChildPk)
+						),
+						require(
+							entityFetch(
+								hierarchyContent(
+									stopAt(level(2)),
+									entityFetch(
+										attributeContentAll(),
+										referenceContent(Entities.PRICE_LIST, entityFetchAll())
+									)
+								)
+							)
+						)
+					)
+				);
+				assertEquals(1, categoryByPk.getRecordData().size());
+				assertEquals(1, categoryByPk.getTotalRecordCount());
+
+				final SealedEntity returnedEntity = categoryByPk.getRecordData().get(0);
+				assertEquals(theParentPk, returnedEntity.getParentEntity().orElseThrow().getPrimaryKey());
+
+				boolean atLeastOnPriceListFound = false;
+				Optional<EntityClassifierWithParent> parentEntityRef = returnedEntity.getParentEntity();
+				while (parentEntityRef.isPresent()) {
+					final EntityClassifierWithParent parentEntity = parentEntityRef.get();
+					assertInstanceOf(SealedEntity.class, parentEntity);
+					final Collection<ReferenceContract> references = ((SealedEntity) parentEntity).getReferences(Entities.PRICE_LIST);
+					if (!references.isEmpty()) {
+						atLeastOnPriceListFound = true;
+						assertEquals(1, references.size());
+						assertTrue(references.iterator().next().getReferencedEntity().isPresent());
+						parentEntityRef = parentEntity.getParentEntity();
+					}
+				}
+				assertTrue(atLeastOnPriceListFound, "At least one price list should be found in the hierarchy");
+
+				return null;
+			}
+		);
+	}
+
 	@DisplayName("Should return hierarchy parent entity references stopping at distance one")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
@@ -3872,6 +3932,81 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 					createParentEntityChain(categoryHierarchy, originalCategories, theChildPk, 2, null),
 					referencedCategory.getParentEntity().orElseThrow()
 				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return product hierarchy parent sealed entities stopping at level two")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnProductHierarchyParentEntitiesWithBodiesUpToLevelTwo(Evita evita, Hierarchy categoryHierarchy, Map<Integer, SealedEntity> originalCategories) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final HierarchyItem theChild = categoryHierarchy.getRootItems()
+					.stream()
+					.flatMap(it -> categoryHierarchy.getAllChildItems(it.getCode()).stream())
+					.max(Comparator.comparingInt(HierarchyItem::getLevel))
+					.orElseThrow();
+				final int theChildPk = Integer.parseInt(theChild.getCode());
+				final int theParentPk = Integer.parseInt(categoryHierarchy.getParentItem(theChild.getCode()).getCode());
+
+				final EvitaResponse<SealedEntity> products = session.querySealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(theChildPk))
+						),
+						require(
+							entityFetch(
+								referenceContent(
+									Entities.CATEGORY,
+									entityFetch(
+										hierarchyContent(
+											stopAt(level(2)),
+											entityFetch(
+												attributeContentAll(),
+												referenceContent(Entities.PRICE_LIST, entityFetchAll())
+											)
+										)
+									)
+								)
+							)
+						)
+					)
+				);
+				assertFalse(products.getRecordData().isEmpty());
+				assertTrue(products.getTotalRecordCount() > 0);
+
+				final ReferenceContract categoryReference = products.getRecordData().get(0).getReference(Entities.CATEGORY, theChildPk).orElseThrow();
+				final SealedEntity referencedCategory = categoryReference.getReferencedEntity().orElseThrow();
+				assertEquals(theParentPk, referencedCategory.getParentEntity().orElseThrow().getPrimaryKey());
+
+				boolean atLeastOnPriceListFound = false;
+				for (SealedEntity returnedEntity : products.getRecordData()) {
+					final Collection<ReferenceContract> referencedCategories = returnedEntity.getReferences(Entities.CATEGORY);
+					for (ReferenceContract category : referencedCategories) {
+						final Optional<SealedEntity> referencedEntity = category.getReferencedEntity();
+						if (referencedEntity.isPresent()) {
+							Optional<EntityClassifierWithParent> parentEntityRef = referencedEntity.get().getParentEntity();
+							while (parentEntityRef.isPresent()) {
+								final EntityClassifierWithParent parentEntity = parentEntityRef.get();
+								assertInstanceOf(SealedEntity.class, parentEntity);
+								final Collection<ReferenceContract> references = ((SealedEntity) parentEntity).getReferences(Entities.PRICE_LIST);
+								if (!references.isEmpty()) {
+									atLeastOnPriceListFound = true;
+									assertEquals(1, references.size());
+									assertTrue(references.iterator().next().getReferencedEntity().isPresent());
+									parentEntityRef = parentEntity.getParentEntity();
+								}
+							}
+						}
+
+					}
+				}
+
+				assertTrue(atLeastOnPriceListFound, "At least one price list should be found in the hierarchy");
 				return null;
 			}
 		);
