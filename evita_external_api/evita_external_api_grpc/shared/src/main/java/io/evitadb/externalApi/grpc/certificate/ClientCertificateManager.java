@@ -203,7 +203,7 @@ public class ClientCertificateManager {
 			this.clientCertificateFilePath = this.certificateClientFolderPath.resolve(CertificateUtils.getGeneratedClientCertificateFileName());
 			this.clientPrivateKeyFilePath = this.certificateClientFolderPath.resolve(CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName());
 		} else {
-			this.certificateClientFolderPath = rootCaCertificateFilePath.getParent();
+			this.certificateClientFolderPath = identifyServerDirectory(host, port, certificateClientFolderPath);
 			this.rootCaCertificateFilePath = rootCaCertificateFilePath;
 			this.clientCertificateFilePath = clientCertificateFilePath;
 			this.clientPrivateKeyFilePath = clientPrivateKeyFilePath;
@@ -361,6 +361,24 @@ public class ClientCertificateManager {
 			trustStore.store(trustStoreOutputStream, trustStorePasswordCharArray);
 		}
 		return trustStore;
+	}
+
+	/**
+	 * Fetches the certificate from the server and stores it in the client certificate folder.
+	 *
+	 * @param host server host
+	 * @param port server port
+	 * @return path to the folder with the certificates specific to the server instance
+	 */
+	@Nonnull
+	private static Path identifyServerDirectory(@Nonnull String host, int port, @Nonnull Path certificateClientFolderPath) {
+		final String apiEndpoint = "http://" + host + ":" + port + "/system/";
+		try {
+			final String serverName = getServerName(apiEndpoint);
+			return certificateClientFolderPath.resolve(serverName);
+		} catch (IOException e) {
+			throw new EvitaInvalidUsageException("Failed to download certificates from server", e);
+		}
 	}
 
 	public static class Builder {
