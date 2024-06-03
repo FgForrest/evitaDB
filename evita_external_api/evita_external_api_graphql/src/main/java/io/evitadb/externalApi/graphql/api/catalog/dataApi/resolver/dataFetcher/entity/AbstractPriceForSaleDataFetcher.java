@@ -133,7 +133,6 @@ public abstract class AbstractPriceForSaleDataFetcher<P> implements DataFetcher<
 	protected AccompanyingPrice[] resolveDesiredAccompanyingPrices(@Nonnull DataFetchingEnvironment environment) {
 		return SelectionSetAggregator.getImmediateFields(PriceForSaleDescriptor.ACCOMPANYING_PRICE.name(), environment.getSelectionSet())
 			.stream()
-			.filter(f -> f.getArguments().size() == 1 && f.getArguments().containsKey(AccompanyingPriceFieldHeaderDescriptor.PRICE_LISTS.name()))
 			.map(f -> new AccompanyingPrice(
 				f.getAlias() != null ? f.getAlias() : f.getName(),
 				((List<String>) f.getArguments().get(AccompanyingPriceFieldHeaderDescriptor.PRICE_LISTS.name()))

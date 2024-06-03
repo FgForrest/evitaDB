@@ -25,7 +25,10 @@ package io.evitadb.externalApi.graphql.api.catalog.dataApi;
 
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.PriceContract;
+import io.evitadb.api.requestResponse.data.PricesContract.AccompanyingPrice;
+import io.evitadb.api.requestResponse.data.PricesContract.PriceForSaleWithAccompanyingPrices;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.externalApi.ExternalApiFunctionTestsSupport;
 import io.evitadb.externalApi.api.catalog.dataApi.model.AssociatedDataDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
@@ -59,6 +62,8 @@ import static io.evitadb.test.builder.MapBuilder.map;
 import static io.evitadb.test.generator.DataGenerator.*;
 import static org.hamcrest.Matchers.nullValue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Ancestor for tests for GraphQL catalog endpoint.
@@ -288,6 +293,80 @@ public abstract class CatalogGraphQLDataEndpointFunctionalTest extends GraphQLEn
 				.e(ASSOCIATED_DATA_LABELS, map()
 					.build())
 				.build())
+			.build();
+	}
+
+	@Nonnull
+	protected Map<String, Object> createEntityDtoWithAccompanyingPricesForSinglePriceForSale(@Nonnull SealedEntity entity) {
+		final String vipPrice = "vipPrice";
+
+		final EntityDecorator entityDecorator = ((EntityDecorator) entity);
+		final Optional<PriceForSaleWithAccompanyingPrices> prices = entityDecorator.getPriceForSaleWithAccompanyingPrices(
+			CURRENCY_CZK,
+			null,
+			new String[]{PRICE_LIST_BASIC},
+			new AccompanyingPrice[]{
+				new AccompanyingPrice(PriceForSaleDescriptor.ACCOMPANYING_PRICE.name(), PRICE_LIST_REFERENCE),
+				new AccompanyingPrice(vipPrice, PRICE_LIST_VIP)
+			}
+		);
+		assertTrue(prices.isPresent());
+
+		return map()
+			.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
+			.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
+			.e(GraphQLEntityDescriptor.PRICE_FOR_SALE.name(), map()
+				.e(TYPENAME_FIELD, PriceForSaleDescriptor.THIS.name())
+				.e(PriceForSaleDescriptor.PRICE_WITH_TAX.name(), prices.get().priceForSale().priceWithTax().toString())
+				.e(PriceForSaleDescriptor.ACCOMPANYING_PRICE.name(), prices.get().accompanyingPrices().get(PriceForSaleDescriptor.ACCOMPANYING_PRICE.name())
+					.map(price -> map()
+						.e(TYPENAME_FIELD, PriceDescriptor.THIS.name())
+						.e(PriceDescriptor.PRICE_WITH_TAX.name(), price.priceWithTax().toString()))
+					.orElse(null))
+				.e(vipPrice, prices.get().accompanyingPrices().get(vipPrice)
+					.map(price -> map()
+						.e(TYPENAME_FIELD, PriceDescriptor.THIS.name())
+						.e(PriceDescriptor.PRICE_WITH_TAX.name(), price.priceWithTax().toString()))
+					.orElse(null))
+				.build())
+			.build();
+	}
+
+	@Nonnull
+	protected Map<String, Object> createEntityDtoWithAccompanyingPricesForAllPricesForSale(@Nonnull SealedEntity entity) {
+		final String vipPrice = "vipPrice";
+
+		final EntityDecorator entityDecorator = ((EntityDecorator) entity);
+		final List<PriceForSaleWithAccompanyingPrices> allPrices = entityDecorator.getAllPricesForSaleWithAccompanyingPrices(
+			CURRENCY_CZK,
+			null,
+			new String[]{PRICE_LIST_BASIC},
+			new AccompanyingPrice[]{
+				new AccompanyingPrice(PriceForSaleDescriptor.ACCOMPANYING_PRICE.name(), PRICE_LIST_REFERENCE),
+				new AccompanyingPrice(vipPrice, PRICE_LIST_VIP)
+			}
+		);
+		assertFalse(allPrices.isEmpty());
+
+		return map()
+			.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
+			.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
+			.e(GraphQLEntityDescriptor.ALL_PRICES_FOR_SALE.name(), allPrices.stream()
+				.map(prices -> map()
+					.e(TYPENAME_FIELD, PriceForSaleDescriptor.THIS.name())
+					.e(PriceForSaleDescriptor.PRICE_WITH_TAX.name(), prices.priceForSale().priceWithTax().toString())
+					.e(PriceForSaleDescriptor.ACCOMPANYING_PRICE.name(), prices.accompanyingPrices().get(PriceForSaleDescriptor.ACCOMPANYING_PRICE.name())
+						.map(price -> map()
+							.e(TYPENAME_FIELD, PriceDescriptor.THIS.name())
+							.e(PriceDescriptor.PRICE_WITH_TAX.name(), price.priceWithTax().toString()))
+						.orElse(null))
+					.e(vipPrice, prices.accompanyingPrices().get(vipPrice)
+						.map(price -> map()
+							.e(TYPENAME_FIELD, PriceDescriptor.THIS.name())
+							.e(PriceDescriptor.PRICE_WITH_TAX.name(), price.priceWithTax().toString()))
+						.orElse(null))
+					.build())
+				.toList())
 			.build();
 	}
 

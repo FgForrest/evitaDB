@@ -332,13 +332,7 @@ public class EntityFetchRequireResolver {
 	private boolean isCustomPriceForSaleFieldPresent(@Nonnull SelectionSetAggregator selectionSetAggregator) {
 		return selectionSetAggregator.getImmediateFields(PRICE_FOR_SALE_FIELDS)
 			.stream()
-			.anyMatch(f -> !f.getArguments().isEmpty() || isCustomAccompanyingPriceFieldPresent(f));
-	}
-
-	private boolean isCustomAccompanyingPriceFieldPresent(@Nonnull SelectedField priceForSaleField) {
-		return SelectionSetAggregator.getImmediateFields(PriceForSaleDescriptor.ACCOMPANYING_PRICE.name(), priceForSaleField.getSelectionSet())
-			.stream()
-			.anyMatch(apf -> apf.getArguments().size() > 1);
+			.anyMatch(f -> !f.getArguments().isEmpty());
 	}
 
 	@Nonnull

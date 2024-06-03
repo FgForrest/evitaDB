@@ -1113,6 +1113,31 @@ public class EntityDecorator implements SealedEntity {
 		}
 	}
 
+
+
+	@Nonnull
+	@Override
+	public List<PriceForSaleWithAccompanyingPrices> getAllPricesForSaleWithAccompanyingPrices(@Nullable Currency currency,
+	                                                                                          @Nullable OffsetDateTime atTheMoment,
+	                                                                                          @Nullable String[] priceListPriority,
+	                                                                                          @Nonnull AccompanyingPrice[] accompanyingPricesRequest) {
+		pricePredicate.checkFetched(currency, priceListPriority);
+		final List<PriceForSaleWithAccompanyingPrices> allPricesForSale = SealedEntity.super.getAllPricesForSaleWithAccompanyingPrices(currency, atTheMoment, priceListPriority, accompanyingPricesRequest);
+		if (allPricesForSale.size() > 1) {
+			return allPricesForSale
+				.stream()
+				.sorted(
+					Comparator.comparing(
+						pricePredicate.getQueryPriceMode() == QueryPriceMode.WITH_TAX ?
+							it -> it.priceForSale().priceWithTax() :
+							it -> it.priceForSale().priceWithoutTax()
+					)
+				).toList();
+		} else {
+			return allPricesForSale;
+		}
+	}
+
 	@Override
 	public boolean hasPriceInInterval(@Nonnull BigDecimal from, @Nonnull BigDecimal to, @Nonnull QueryPriceMode queryPriceMode) throws ContextMissingException {
 		if (pricePredicate.isContextAvailable()) {

@@ -801,13 +801,7 @@ public class EntityObjectBuilder {
 			.field(PriceForSaleDescriptor.TAX_RATE.to(fieldBuilderTransformer.with(priceFieldDecorator)))
 			.field(PriceForSaleDescriptor.ACCOMPANYING_PRICE.to(fieldBuilderTransformer)
 				.argument(AccompanyingPriceFieldHeaderDescriptor.PRICE_LISTS
-					.to(argumentBuilderTransformer))
-				.argument(AccompanyingPriceFieldHeaderDescriptor.CURRENCY
-					.to(argumentBuilderTransformer)
-					.type(typeRef(CURRENCY_ENUM.name())))
-				.argument(AccompanyingPriceFieldHeaderDescriptor.LOCALE
-					.to(argumentBuilderTransformer)
-					.type(typeRef(LOCALE_ENUM.name()))))
+					.to(argumentBuilderTransformer)))
 			.build();
 	}
 
