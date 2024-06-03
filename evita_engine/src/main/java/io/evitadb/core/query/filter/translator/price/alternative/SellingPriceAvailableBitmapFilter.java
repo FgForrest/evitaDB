@@ -179,7 +179,7 @@ public class SellingPriceAvailableBitmapFilter implements EntityToBitmapFilter, 
 							() -> filterOutResult.add(primaryKey)
 						);
 				} else {
-					if (entity.getAllPricesForSale().stream().anyMatch(filter)) {
+					if (entity.getPrices().stream().filter(PriceContract::sellable).anyMatch(filter)) {
 						result.add(primaryKey);
 					} else {
 						filterOutResult.add(primaryKey);

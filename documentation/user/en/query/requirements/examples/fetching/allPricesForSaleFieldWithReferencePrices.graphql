@@ -2,7 +2,7 @@
   queryProduct(
     filterBy: {
       entityPrimaryKeyInSet: [
-        103885
+        103911
       ],
       priceInCurrency: EUR,
       priceInPriceLists: [
@@ -17,15 +17,15 @@
         attributes {
           code
         }
-        priceForSale {
+        allPricesForSale {
           priceWithoutTax
           priceWithTax
           taxRate
-        }
-        referencePrice: price(priceList: "basic") {
-          priceWithoutTax
-          priceWithTax
-          taxRate
+          referencePrice: accompanyingPrice(priceLists: "basic") {
+            priceWithoutTax
+            priceWithTax
+            taxRate
+          }
         }
       }
     }

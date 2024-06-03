@@ -40,9 +40,11 @@ import io.evitadb.externalApi.api.catalog.dataApi.constraint.ReferenceDataLocato
 import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesProviderDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GraphQLEntityDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.AccompanyingPriceFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.AssociatedDataFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.AttributesFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.ParentsFieldHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PriceForSaleDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.ReferenceFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.resolver.SelectionSetAggregator;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidArgumentException;
@@ -80,7 +82,7 @@ public class EntityFetchRequireResolver {
 		GraphQLEntityDescriptor.ALL_PRICES_FOR_SALE.name()
 	);
 	private static final Set<String> CUSTOM_PRICE_FIELDS = Set.of(
-		GraphQLEntityDescriptor.PRICE.name(),
+		GraphQLEntityDescriptor.PRICE.name(), // todo #538: deprecated, remove
 		GraphQLEntityDescriptor.PRICES.name()
 	);
 
@@ -315,16 +317,33 @@ public class EntityFetchRequireResolver {
 			return Optional.empty();
 		}
 
-		if (!selectionSetAggregator.getImmediateFields(CUSTOM_PRICE_FIELDS).isEmpty() ||
-			selectionSetAggregator.getImmediateFields(PRICE_FOR_SALE_FIELDS)
-				.stream()
-				.anyMatch(f -> !f.getArguments().isEmpty())) {
+		if (isCustomPriceFieldPresent(selectionSetAggregator) || isCustomPriceForSaleFieldPresent(selectionSetAggregator)) {
 			return Optional.of(priceContentAll());
 		} else {
-			return Optional.of(priceContent(PriceContentMode.RESPECTING_FILTER));
+			final String[] accompanyingPriceListsToFetch = resolveAccompanyingPriceLists(selectionSetAggregator);
+			return Optional.of(priceContent(PriceContentMode.RESPECTING_FILTER, accompanyingPriceListsToFetch));
 		}
 	}
 
+	private boolean isCustomPriceFieldPresent(@Nonnull SelectionSetAggregator selectionSetAggregator) {
+		return !selectionSetAggregator.getImmediateFields(CUSTOM_PRICE_FIELDS).isEmpty();
+	}
+
+	private boolean isCustomPriceForSaleFieldPresent(@Nonnull SelectionSetAggregator selectionSetAggregator) {
+		return selectionSetAggregator.getImmediateFields(PRICE_FOR_SALE_FIELDS)
+			.stream()
+			.anyMatch(f -> !f.getArguments().isEmpty());
+	}
+
+	@Nonnull
+	private String[] resolveAccompanyingPriceLists(@Nonnull SelectionSetAggregator selectionSetAggregator) {
+		return selectionSetAggregator.getImmediateFields(PRICE_FOR_SALE_FIELDS)
+			.stream()
+			.flatMap(f -> SelectionSetAggregator.getImmediateFields(PriceForSaleDescriptor.ACCOMPANYING_PRICE.name(), f.getSelectionSet())
+				.stream()
+				.flatMap(apf -> ((List<String>) apf.getArguments().get(AccompanyingPriceFieldHeaderDescriptor.PRICE_LISTS.name())).stream()))
+			.toArray(String[]::new);
+	}
 
 	@Nonnull
 	private List<ReferenceContent> resolveReferenceContent(@Nonnull SelectionSetAggregator selectionSetAggregator,
