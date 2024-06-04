@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -72,11 +72,20 @@ public class AbstractHundredProductsFunctionalTest {
 				return primaryKey == 0 ? null : primaryKey;
 			};
 
+			dataGenerator.generateEntities(
+					dataGenerator.getSamplePriceListSchema(session),
+					randomEntityPicker,
+					SEED
+				)
+				.limit(4)
+				.forEach(session::upsertEntity);
+
 			final List<EntityReference> storedCategories = dataGenerator.generateEntities(
 					dataGenerator.getSampleCategorySchema(
 						session,
 						builder -> {
 							builder
+								.withReferenceToEntity(Entities.PRICE_LIST, Entities.PRICE_LIST, Cardinality.ZERO_OR_ONE)
 								/* here we define set of associated data, that can be stored along with entity */
 								.withAssociatedData(ASSOCIATED_DATA_REFERENCED_FILES, ReferencedFileSet.class)
 								.withAssociatedData(ASSOCIATED_DATA_LABELS, Labels.class)
@@ -90,14 +99,6 @@ public class AbstractHundredProductsFunctionalTest {
 				.limit(20)
 				.map(session::upsertEntity)
 				.toList();
-
-			dataGenerator.generateEntities(
-					dataGenerator.getSamplePriceListSchema(session),
-					randomEntityPicker,
-					SEED
-				)
-				.limit(4)
-				.forEach(session::upsertEntity);
 
 			final List<EntityReference> storedStores = dataGenerator.generateEntities(
 					dataGenerator.getSampleStoreSchema(

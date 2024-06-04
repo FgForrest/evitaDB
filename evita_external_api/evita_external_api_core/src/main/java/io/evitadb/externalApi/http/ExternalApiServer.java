@@ -32,6 +32,7 @@ import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.configuration.ApiWithSpecificPrefix;
 import io.evitadb.externalApi.configuration.CertificatePath;
+import io.evitadb.externalApi.configuration.CertificateSettings;
 import io.evitadb.externalApi.configuration.HostDefinition;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.externalApi.log.NoopAccessLogReceiver;
@@ -146,10 +147,10 @@ public class ExternalApiServer implements AutoCloseable {
 				.values()
 				.stream()
 				.flatMap(it -> Stream.of(
-					it.isTlsEnabled() ? CertificateType.SERVER : null,
-					it.isMtlsEnabled() ? CertificateType.CLIENT : null
-				)
-				.filter(Objects::nonNull))
+						it.isTlsEnabled() ? CertificateType.SERVER : null,
+						it.isMtlsEnabled() ? CertificateType.CLIENT : null
+					)
+					.filter(Objects::nonNull))
 				.distinct()
 				.toArray(CertificateType[]::new);
 
@@ -355,9 +356,19 @@ public class ExternalApiServer implements AutoCloseable {
 
 		final Undertow.Builder rootServerBuilder = Undertow.builder();
 
-		final ServerCertificateManager serverCertificateManager = new ServerCertificateManager(apiOptions.certificate());
-		final CertificatePath certificatePath = apiOptions.certificate().generateAndUseSelfSigned() ?
-			initCertificate(apiOptions, serverCertificateManager) : null;
+		final CertificateSettings certificateSettings = apiOptions.certificate();
+		final ServerCertificateManager serverCertificateManager = new ServerCertificateManager(certificateSettings);
+		final CertificatePath certificatePath = certificateSettings.generateAndUseSelfSigned() ?
+			initCertificate(apiOptions, serverCertificateManager) :
+			(
+				certificateSettings.custom().certificate() != null && !certificateSettings.custom().certificate().isBlank() &&
+				certificateSettings.custom().privateKey() != null && !certificateSettings.custom().privateKey().isBlank() ?
+					new CertificatePath(
+						certificateSettings.custom().certificate(),
+						certificateSettings.custom().privateKey(),
+						certificateSettings.custom().privateKeyPassword()
+					) : null
+			);
 
 		this.registeredApiProviders = registerApiProviders(evita, this, apiOptions, externalApiProviders);
 		if (this.registeredApiProviders.isEmpty()) {
