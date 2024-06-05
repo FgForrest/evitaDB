@@ -25,6 +25,7 @@ package io.evitadb.core.scheduling;
 
 import io.evitadb.core.metric.event.system.BackgroundTaskFinishedEvent;
 import io.evitadb.core.metric.event.system.BackgroundTaskStartedEvent;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -44,6 +45,7 @@ public class BackgroundTask implements Runnable {
 	/**
 	 * The name of the task.
 	 */
+	@Getter
 	private final String taskName;
 	/**
 	 * The actual logic wrapped in a lambda that is executed by the task.

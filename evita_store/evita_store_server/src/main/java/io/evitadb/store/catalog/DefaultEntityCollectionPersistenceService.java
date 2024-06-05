@@ -742,7 +742,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 
 		final OffsetIndexStoragePartPersistenceService previousStoragePartService = previous.storagePartPersistenceService;
 		final OffsetIndex previousOffsetIndex = previousStoragePartService.offsetIndex;
-		final long totalSize = previousOffsetIndex.getTotalSize();
+		final long totalSize = previousOffsetIndex.getTotalSizeBytes();
 		this.storagePartPersistenceService = new OffsetIndexStoragePartPersistenceService(
 			catalogVersion,
 			catalogName,

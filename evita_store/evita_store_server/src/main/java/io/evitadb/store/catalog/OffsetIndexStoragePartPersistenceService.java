@@ -45,7 +45,6 @@ import io.evitadb.store.wal.TransactionalStoragePartPersistenceService;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.OutputStream;
-import java.nio.file.Path;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
@@ -279,9 +278,9 @@ public class OffsetIndexStoragePartPersistenceService implements StoragePartPers
 			event.finish(
 				this.offsetIndex.count(catalogVersion),
 				this.offsetIndex.getTotalSizeIncludingVolatileData(),
-				this.offsetIndex.getMaxRecordSize(),
+				this.offsetIndex.getMaxRecordSizeBytes(),
 				newDescriptor.getFileSize(),
-				this.offsetIndex.getTotalSize(),
+				this.offsetIndex.getTotalSizeBytes(),
 				this.offsetIndex.getOldestRecordKeptTimestamp().orElse(null)
 			).commit();
 

@@ -62,6 +62,7 @@ import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.CatalogIndexKey;
 import io.evitadb.index.attribute.GlobalUniqueIndex;
 import io.evitadb.scheduling.Scheduler;
+import io.evitadb.store.catalog.ObsoleteFileMaintainer.DataFilesBulkInfo;
 import io.evitadb.store.catalog.model.CatalogBootstrap;
 import io.evitadb.store.entity.model.schema.CatalogSchemaStoragePart;
 import io.evitadb.store.exception.InvalidFileNameException;
@@ -130,6 +131,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.LongConsumer;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -138,6 +140,7 @@ import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
+import static io.evitadb.store.catalog.CatalogOffsetIndexStoragePartPersistenceService.readCatalogHeader;
 import static io.evitadb.store.spi.CatalogPersistenceService.*;
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
@@ -539,7 +542,8 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull TransactionOptions transactionOptions,
 		@Nonnull Scheduler scheduler,
-		@Nonnull Consumer<OffsetDateTime> bootstrapFileTrimFunction
+		@Nonnull Consumer<OffsetDateTime> bootstrapFileTrimFunction,
+		@Nonnull LongConsumer onWalPurgeCallback
 	) {
 		WalFileReference currentWalFileRef = catalogHeader.walFileReference();
 		if (catalogHeader.catalogState() == CatalogState.ALIVE && currentWalFileRef == null) {
@@ -574,7 +578,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				walFileReference -> new CatalogWriteAheadLog(
 					catalogVersion, catalogName, catalogStoragePath, catalogKryoPool,
 					storageOptions, transactionOptions, scheduler,
-					bootstrapFileTrimFunction
+					bootstrapFileTrimFunction, onWalPurgeCallback
 				)
 			)
 			.orElse(null);
@@ -600,6 +604,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		@Nonnull TransactionOptions transactionOptions,
 		@Nonnull Scheduler scheduler,
 		@Nonnull Consumer<OffsetDateTime> bootstrapFileTrimFunction,
+		@Nonnull LongConsumer onWalPurgeCallback,
 		@Nonnull Path catalogFilePath,
 		@Nonnull Pool<Kryo> kryoPool
 	) {
@@ -611,7 +616,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			new CatalogWriteAheadLog(
 				catalogVersion, catalogName, catalogFilePath, kryoPool,
 				storageOptions, transactionOptions, scheduler,
-				bootstrapFileTrimFunction
+				bootstrapFileTrimFunction, onWalPurgeCallback
 			);
 	}
 
@@ -723,7 +728,6 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		this.storageOptions = storageOptions;
 		this.transactionOptions = transactionOptions;
 		this.scheduler = scheduler;
-		this.obsoleteFileMaintainer = new ObsoleteFileMaintainer(catalogName, scheduler);
 		this.offHeapMemoryManager = new OffHeapMemoryManager(
 			catalogName,
 			transactionOptions.transactionMemoryBufferLimitSizeBytes(),
@@ -734,6 +738,13 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		verifyDirectory(this.catalogStoragePath, true);
 		this.observableOutputKeeper = new ObservableOutputKeeper(catalogName, storageOptions, scheduler);
 		this.recordTypeRegistry = new OffsetIndexRecordTypeRegistry();
+		this.obsoleteFileMaintainer = new ObsoleteFileMaintainer(
+			catalogName,
+			scheduler,
+			this.catalogStoragePath,
+			storageOptions.timeTravelEnabled(),
+			this::fetchDataFilesInfo
+		);
 		final String verifiedCatalogName = verifyDirectory(this.catalogStoragePath, false);
 		final CatalogBootstrap lastCatalogBootstrap = getLastCatalogBootstrap(
 			this.catalogStoragePath, verifiedCatalogName, storageOptions
@@ -752,7 +763,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		this.catalogWal = createWalIfAnyWalFilePresent(
 			catalogVersion, catalogName,
 			storageOptions, transactionOptions, scheduler,
-			this::trimBootstrapFile,
+			this::trimBootstrapFile, this.obsoleteFileMaintainer::firstAvailableCatalogVersionChanged,
 			this.catalogStoragePath, this.catalogKryoPool
 		);
 
@@ -764,7 +775,6 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			catalogVersion,
 			CatalogOffsetIndexStoragePartPersistenceService.create(
 				this.catalogName,
-				catalogFileName,
 				catalogFilePath,
 				this.storageOptions,
 				this.transactionOptions,
@@ -798,7 +808,6 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		this.storageOptions = storageOptions;
 		this.transactionOptions = transactionOptions;
 		this.scheduler = scheduler;
-		this.obsoleteFileMaintainer = new ObsoleteFileMaintainer(catalogName, scheduler);
 		this.offHeapMemoryManager = new OffHeapMemoryManager(
 			catalogName,
 			transactionOptions.transactionMemoryBufferLimitSizeBytes(),
@@ -808,6 +817,13 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		this.catalogStoragePath = pathForCatalog(catalogName, storageOptions.storageDirectoryOrDefault());
 		this.observableOutputKeeper = new ObservableOutputKeeper(catalogName, storageOptions, scheduler);
 		this.recordTypeRegistry = new OffsetIndexRecordTypeRegistry();
+		this.obsoleteFileMaintainer = new ObsoleteFileMaintainer(
+			catalogName,
+			scheduler,
+			this.catalogStoragePath,
+			storageOptions.timeTravelEnabled(),
+			this::fetchDataFilesInfo
+		);
 		final String verifiedCatalogName = verifyDirectory(this.catalogStoragePath, false);
 		this.bootstrapUsed = getLastCatalogBootstrap(
 			catalogStoragePath, verifiedCatalogName, storageOptions
@@ -828,7 +844,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		final long catalogVersion = this.bootstrapUsed.catalogVersion();
 		this.catalogWal = createWalIfAnyWalFilePresent(
 			catalogVersion, catalogName, storageOptions, transactionOptions, scheduler,
-			this::trimBootstrapFile,
+			this::trimBootstrapFile, this.obsoleteFileMaintainer::firstAvailableCatalogVersionChanged,
 			this.catalogStoragePath, this.catalogKryoPool
 		);
 
@@ -836,7 +852,6 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		final CatalogOffsetIndexStoragePartPersistenceService catalogStoragePartPersistenceService =
 			CatalogOffsetIndexStoragePartPersistenceService.create(
 				this.catalogName,
-				catalogFileName,
 				catalogFilePath,
 				this.storageOptions,
 				this.transactionOptions,
@@ -1173,7 +1188,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				() -> new EntityCollectionHeader(
 					entityType,
 					entityTypePrimaryKey,
-					findFirstAvailableFileIndex(entityType)
+					findFirstAvailableFileIndex(entityType, entityTypePrimaryKey)
 				)
 			);
 		return this.entityCollectionPersistenceServices.computeIfAbsent(
@@ -1241,7 +1256,11 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				this.obsoleteFileMaintainer.removeFileWhenNotUsed(
 					catalogVersion,
 					this.catalogStoragePath.resolve(
-						getEntityCollectionDataStoreFileName(entityCollectionHeader.entityType(), entityCollectionHeader.entityTypeFileIndex())
+						getEntityCollectionDataStoreFileName(
+							entityCollectionHeader.entityType(),
+							entityCollectionHeader.entityTypePrimaryKey(),
+							entityCollectionHeader.entityTypeFileIndex()
+						)
 					),
 					() -> this.entityCollectionPersistenceServices.remove(collectionFileReference)
 				);
@@ -1302,7 +1321,9 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				final CatalogHeader catalogHeader = getCatalogHeader(catalogVersion);
 				this.catalogWal = getCatalogWriteAheadLog(
 					this.bootstrapUsed.catalogVersion(), this.catalogName, this.catalogStoragePath, catalogHeader, this.catalogKryoPool,
-					this.storageOptions, this.transactionOptions, this.scheduler, this::trimBootstrapFile
+					this.storageOptions, this.transactionOptions, this.scheduler,
+					this::trimBootstrapFile,
+					this.obsoleteFileMaintainer::firstAvailableCatalogVersionChanged
 				);
 			}
 			Assert.isPremiseValid(
@@ -1476,7 +1497,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		final CollectionFileReference replacedEntityTypeFileReference = catalogHeader.getEntityTypeFileIndexIfExists(entityType)
 			.orElseThrow(() -> new CollectionNotFoundException(entityType));
 		final CollectionFileReference newEntityTypeExistingFileReference = catalogHeader.getEntityTypeFileIndexIfExists(newEntityType)
-			.orElseGet(() -> new CollectionFileReference(newEntityType, entityTypePrimaryKey, findFirstAvailableFileIndex(newEntityType), null));
+			.orElseGet(() -> new CollectionFileReference(newEntityType, entityTypePrimaryKey, replacedEntityTypeFileReference.fileIndex() + 1, null));
 		final CollectionFileReference newEntityTypeFileIndex = newEntityTypeExistingFileReference.incrementAndGet();
 		final Path newFilePath = newEntityTypeFileIndex.toFilePath(this.catalogStoragePath);
 
@@ -1751,7 +1772,11 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			);
 			final CatalogHeader catalogHeader = getCatalogHeader(catalogVersion);
 			for (CollectionFileReference entityTypeFileIndex : catalogHeader.getEntityTypeFileIndexes()) {
-				final String entityDataFileName = CatalogPersistenceService.getEntityCollectionDataStoreFileName(entityTypeFileIndex.entityType(), 0);
+				final String entityDataFileName = CatalogPersistenceService.getEntityCollectionDataStoreFileName(
+					entityTypeFileIndex.entityType(),
+					entityTypeFileIndex.entityTypePrimaryKey(),
+					0
+				);
 				zipOutputStream.putNextEntry(new ZipEntry(this.catalogName + "/" + entityDataFileName));
 				final DefaultEntityCollectionPersistenceService entityCollectionPersistenceService = getOrCreateEntityCollectionPersistenceService(
 					catalogVersion, entityTypeFileIndex.entityType(), entityTypeFileIndex.entityTypePrimaryKey()
@@ -1993,7 +2018,6 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 					catalogVersion,
 					CatalogOffsetIndexStoragePartPersistenceService.create(
 						this.catalogName,
-						compactedFileName,
 						this.catalogStoragePath.resolve(compactedFileName),
 						this.storageOptions,
 						this.transactionOptions,
@@ -2360,11 +2384,12 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	/**
 	 * Finds the first available file index for the given entity type.
 	 *
-	 * @param entityType the type of entity
+	 * @param entityType           the type of entity
+	 * @param entityTypePrimaryKey the primary key of the entity type
 	 * @return the first available file index
 	 */
-	private int findFirstAvailableFileIndex(@Nonnull String entityType) {
-		final Pattern pattern = getEntityCollectionDataStoreFileNamePattern(entityType);
+	private int findFirstAvailableFileIndex(@Nonnull String entityType, int entityTypePrimaryKey) {
+		final Pattern pattern = getEntityCollectionDataStoreFileNamePattern(entityType, entityTypePrimaryKey);
 		final File[] entityCollectionFiles = this.catalogStoragePath.toFile().listFiles(
 			(dir, name) -> name.endsWith(ENTITY_COLLECTION_FILE_SUFFIX)
 		);
@@ -2384,6 +2409,29 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			}
 			return maxIndex + 1;
 		}
+	}
+
+	/**
+	 * This method finds bootstrap record for the given catalog version and returns its record along with the appropriate
+	 * catalog header.
+	 *
+	 * @param catalogVersion the catalog version
+	 * @return the catalog header and the bootstrap record
+	 */
+	@Nullable
+	private DataFilesBulkInfo fetchDataFilesInfo(long catalogVersion) {
+		return getBootstrapRecordStream(this.catalogName, this.storageOptions)
+			.filter(it -> it.catalogVersion() == catalogVersion)
+			.map(it -> {
+				final String catalogFileName = getCatalogDataStoreFileName(catalogName, it.catalogFileIndex());
+				final Path catalogFilePath = this.catalogStoragePath.resolve(catalogFileName);
+				return new DataFilesBulkInfo(
+					it,
+					readCatalogHeader(catalogFilePath, it, this.recordTypeRegistry)
+				);
+			})
+			.findFirst()
+			.orElse(null);
 	}
 
 	/**

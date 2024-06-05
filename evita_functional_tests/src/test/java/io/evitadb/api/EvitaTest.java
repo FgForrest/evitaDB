@@ -675,7 +675,7 @@ class EvitaTest implements EvitaTestSupport {
 		setupCatalogWithProductAndCategory();
 
 		final File theCollectionFile = getEvitaTestDirectory()
-			.resolve(TEST_CATALOG + File.separator + Entities.PRODUCT.toLowerCase() + "_0" + ENTITY_COLLECTION_FILE_SUFFIX)
+			.resolve(TEST_CATALOG + File.separator + Entities.PRODUCT.toLowerCase() + "-1_0" + ENTITY_COLLECTION_FILE_SUFFIX)
 			.toFile();
 		assertTrue(theCollectionFile.exists());
 
@@ -705,7 +705,7 @@ class EvitaTest implements EvitaTestSupport {
 		setupCatalogWithProductAndCategory();
 
 		final File theCollectionFile = getEvitaTestDirectory()
-			.resolve(TEST_CATALOG + File.separator + Entities.PRODUCT.toLowerCase() + "_0" + ENTITY_COLLECTION_FILE_SUFFIX)
+			.resolve(TEST_CATALOG + File.separator + Entities.PRODUCT.toLowerCase() + "-1_0" + ENTITY_COLLECTION_FILE_SUFFIX)
 			.toFile();
 		assertTrue(theCollectionFile.exists());
 
@@ -722,7 +722,7 @@ class EvitaTest implements EvitaTestSupport {
 		setupCatalogWithProductAndCategory();
 
 		final File theCollectionFile = getEvitaTestDirectory()
-			.resolve(TEST_CATALOG + File.separator + Entities.PRODUCT.toLowerCase() + "_0" + ENTITY_COLLECTION_FILE_SUFFIX)
+			.resolve(TEST_CATALOG + File.separator + Entities.PRODUCT.toLowerCase() + "-1_0" + ENTITY_COLLECTION_FILE_SUFFIX)
 			.toFile();
 		assertTrue(theCollectionFile.exists());
 
@@ -754,7 +754,7 @@ class EvitaTest implements EvitaTestSupport {
 		});
 
 		final File theCollectionFile = getEvitaTestDirectory()
-			.resolve(TEST_CATALOG + File.separator + Entities.PRODUCT.toLowerCase() + "_0" + ENTITY_COLLECTION_FILE_SUFFIX)
+			.resolve(TEST_CATALOG + File.separator + Entities.PRODUCT.toLowerCase() + "-1_0" + ENTITY_COLLECTION_FILE_SUFFIX)
 			.toFile();
 		assertTrue(theCollectionFile.exists());
 
@@ -1375,7 +1375,7 @@ class EvitaTest implements EvitaTestSupport {
 
 		// damage the TEST_CATALOG_1 contents
 		try {
-			final Path productCollectionFile = getEvitaTestDirectory().resolve(TEST_CATALOG + "_1" + File.separator + Entities.PRODUCT.toLowerCase() + "_0" + CatalogPersistenceService.ENTITY_COLLECTION_FILE_SUFFIX);
+			final Path productCollectionFile = getEvitaTestDirectory().resolve(TEST_CATALOG + "_1" + File.separator + Entities.PRODUCT.toLowerCase() + "-1_0" + CatalogPersistenceService.ENTITY_COLLECTION_FILE_SUFFIX);
 			Files.write(productCollectionFile, "Mangled content!".getBytes(StandardCharsets.UTF_8));
 		} catch (Exception ex) {
 			fail(ex);
@@ -1458,7 +1458,7 @@ class EvitaTest implements EvitaTestSupport {
 
 		// damage the TEST_CATALOG_1 contents
 		try {
-			final Path productCollectionFile = getEvitaTestDirectory().resolve(TEST_CATALOG + "_1" + File.separator + Entities.PRODUCT.toLowerCase() + "_0" + CatalogPersistenceService.ENTITY_COLLECTION_FILE_SUFFIX);
+			final Path productCollectionFile = getEvitaTestDirectory().resolve(TEST_CATALOG + "_1" + File.separator + Entities.PRODUCT.toLowerCase() + "-1_0" + CatalogPersistenceService.ENTITY_COLLECTION_FILE_SUFFIX);
 			Files.write(productCollectionFile, "Mangled content!".getBytes(StandardCharsets.UTF_8));
 		} catch (Exception ex) {
 			fail(ex);
@@ -1548,7 +1548,7 @@ class EvitaTest implements EvitaTestSupport {
 
 		// damage the TEST_CATALOG_1 contents
 		try {
-			final Path productCollectionFile = getEvitaTestDirectory().resolve(TEST_CATALOG + "_1" + File.separator + Entities.PRODUCT.toLowerCase() + "_0" + CatalogPersistenceService.ENTITY_COLLECTION_FILE_SUFFIX);
+			final Path productCollectionFile = getEvitaTestDirectory().resolve(TEST_CATALOG + "_1" + File.separator + Entities.PRODUCT.toLowerCase() + "-1_0" + CatalogPersistenceService.ENTITY_COLLECTION_FILE_SUFFIX);
 			Files.write(productCollectionFile, "Mangled content!".getBytes(StandardCharsets.UTF_8));
 		} catch (Exception ex) {
 			fail(ex);
@@ -1953,6 +1953,7 @@ class EvitaTest implements EvitaTestSupport {
 			.storage(
 				StorageOptions.builder()
 					.storageDirectory(getEvitaTestDirectory())
+					.timeTravelEnabled(false)
 					.build()
 			)
 			.build();

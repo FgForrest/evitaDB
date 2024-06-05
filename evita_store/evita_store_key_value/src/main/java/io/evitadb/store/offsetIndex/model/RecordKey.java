@@ -46,8 +46,8 @@ public record RecordKey(byte recordType, long primaryKey) implements Serializabl
 	 */
 	@Override
 	public int compareTo(RecordKey o) {
-		final int result = Byte.compare(recordType, o.recordType);
-		return result == 0 ? Long.compare(primaryKey, o.primaryKey) : result;
+		final int result = Byte.compare(this.recordType, o.recordType);
+		return result == 0 ? Long.compare(this.primaryKey, o.primaryKey) : result;
 	}
 
 }

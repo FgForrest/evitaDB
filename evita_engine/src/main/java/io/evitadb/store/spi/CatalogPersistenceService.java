@@ -37,6 +37,7 @@ import io.evitadb.core.Catalog;
 import io.evitadb.core.EntityCollection;
 import io.evitadb.core.buffer.DataStoreIndexChanges;
 import io.evitadb.dataType.PaginatedList;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.InvalidClassifierFormatException;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.index.CatalogIndex;
@@ -56,6 +57,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
@@ -80,17 +82,6 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	String ENTITY_COLLECTION_FILE_SUFFIX = ".collection";
 	String WAL_FILE_SUFFIX = ".wal";
 	String RESTORE_FLAG = ".restored";
-
-	/**
-	 * Method for internal use - allows emitting start events when observability facilities are already initialized.
-	 * If we didn't postpone this initialization, events would become lost.
-	 */
-	void emitStartObservabilityEvents();
-
-	/**
-	 * Method for internal use. Allows to emit events clearing the information about deleted catalog.
-	 */
-	void emitDeleteObservabilityEvents();
 
 	/**
 	 * Returns name of the bootstrap file that contains lead information to fetching the catalog header in fixed record
@@ -121,11 +112,30 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	}
 
 	/**
+	 * Returns the index extracted from the given catalog data store file name.
+	 *
+	 * @param fileName the name of the catalog data store file
+	 * @return the index extracted from the catalog data store file name
+	 */
+	static int getIndexFromCatalogFileName(@Nonnull String fileName) {
+		final Pattern genericCatalogPattern = Pattern.compile(".*_(\\d+)" + CATALOG_FILE_SUFFIX);
+		final Matcher matcher = genericCatalogPattern.matcher(fileName);
+		if (matcher.matches()) {
+			return Integer.parseInt(matcher.group(1));
+		} else {
+			throw new GenericEvitaInternalError(
+				"Catalog file name does not match the expected pattern.",
+				"Catalog file name does not match the expected pattern: " + fileName
+			);
+		}
+	}
+
+	/**
 	 * Returns name of the entity collection data file that contains entity schema, entity indexes and entity bodies.
 	 */
 	@Nonnull
-	static String getEntityCollectionDataStoreFileName(@Nonnull String entityType, int fileIndex) {
-		return StringUtils.toCamelCase(entityType) + '_' + fileIndex + ENTITY_COLLECTION_FILE_SUFFIX;
+	static String getEntityCollectionDataStoreFileName(@Nonnull String entityType, int entityTypePrimaryKey, int fileIndex) {
+		return StringUtils.toCamelCase(entityType) + '-' + entityTypePrimaryKey + '_' + fileIndex + ENTITY_COLLECTION_FILE_SUFFIX;
 	}
 
 	/**
@@ -135,8 +145,30 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	 * @return the compiled pattern for the file name matching the entity collection data store file
 	 */
 	@Nonnull
-	static Pattern getEntityCollectionDataStoreFileNamePattern(@Nonnull String entityType) {
-		return Pattern.compile(StringUtils.toCamelCase(entityType) + "_(\\d+)" + ENTITY_COLLECTION_FILE_SUFFIX);
+	static Pattern getEntityCollectionDataStoreFileNamePattern(@Nonnull String entityType, int entityTypePrimaryKey) {
+		return Pattern.compile(StringUtils.toCamelCase(entityType) + "-" + entityTypePrimaryKey + "_(\\d+)" + ENTITY_COLLECTION_FILE_SUFFIX);
+	}
+
+	/**
+	 * Returns the index and entity type primary key extracted from the given entity collection data store file name.
+	 * @param fileName the name of the entity collection data store file
+	 * @return the index and entity type primary key extracted from the entity collection data store file name
+	 */
+	@Nonnull
+	static EntityTypePrimaryKeyAndFileIndex getEntityPrimaryKeyAndIndexFromEntityCollectionFileName(@Nonnull String fileName) {
+		final Pattern genericEntityCollectionPattern = Pattern.compile(".*-(\\d+)_(\\d+)" + ENTITY_COLLECTION_FILE_SUFFIX);
+		final Matcher matcher = genericEntityCollectionPattern.matcher(fileName);
+		if (matcher.matches()) {
+			return new EntityTypePrimaryKeyAndFileIndex(
+				Integer.parseInt(matcher.group(1)),
+				Integer.parseInt(matcher.group(2))
+			);
+		} else {
+			throw new GenericEvitaInternalError(
+				"Entity collection file name does not match the expected pattern.",
+				"Entity collection file name does not match the expected pattern: " + fileName
+			);
+		}
 	}
 
 	/**
@@ -164,6 +196,17 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 			walFileName.substring(catalogName.length() + 1, walFileName.length() - WAL_FILE_SUFFIX.length())
 		);
 	}
+
+	/**
+	 * Method for internal use - allows emitting start events when observability facilities are already initialized.
+	 * If we didn't postpone this initialization, events would become lost.
+	 */
+	void emitStartObservabilityEvents();
+
+	/**
+	 * Method for internal use. Allows to emit events clearing the information about deleted catalog.
+	 */
+	void emitDeleteObservabilityEvents();
 
 	/**
 	 * Retrieves the {@link CatalogStoragePartPersistenceService} associated with this {@link CatalogPersistenceService}.
@@ -442,5 +485,17 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	 */
 	@Override
 	void close();
+
+	/**
+	 * Tuple for returning multiple values from {@link #getEntityPrimaryKeyAndIndexFromEntityCollectionFileName} method.
+	 *
+	 * @param entityTypePrimaryKey the primary key of the entity type
+	 * @param fileIndex            the index of the file
+	 */
+	record EntityTypePrimaryKeyAndFileIndex(
+		int entityTypePrimaryKey,
+		int fileIndex
+	) {
+	}
 
 }

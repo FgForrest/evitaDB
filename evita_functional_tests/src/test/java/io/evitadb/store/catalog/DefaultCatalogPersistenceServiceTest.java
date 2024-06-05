@@ -608,6 +608,11 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		trimAndCheck(ioService, timestamp.plusMinutes(8).minusSeconds(1), 8, 5);
 	}
 
+	/*
+		PRIVATE METHODS
+	 */
+
+	@Nonnull
 	private Path prepareInvalidCatalogContents() {
 		final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
 			SEALED_CATALOG_SCHEMA.getName(),
@@ -664,17 +669,13 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		return renamedCatalogPath;
 	}
 
-	/*
-		PRIVATE METHODS
-	 */
-
 	@Nonnull
 	private StorageOptions getStorageOptions() {
 		return new StorageOptions(
 			getTestDirectory().resolve(DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST),
 			60, 60,
 			StorageOptions.DEFAULT_OUTPUT_BUFFER_SIZE, 1,
-			true, 1.0, 0L
+			true, 1.0, 0L, false
 		);
 	}
 

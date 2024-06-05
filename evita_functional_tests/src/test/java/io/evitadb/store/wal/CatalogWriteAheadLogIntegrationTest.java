@@ -270,7 +270,8 @@ class CatalogWriteAheadLogIntegrationTest {
 				.walFileSizeBytes(16_384)
 				.build(),
 			Mockito.mock(Scheduler.class),
-			offsetConsumer
+			offsetConsumer,
+			null
 		);
 	}
 
@@ -284,7 +285,8 @@ class CatalogWriteAheadLogIntegrationTest {
 			StorageOptions.builder().build(),
 			TransactionOptions.builder().walFileSizeBytes(Long.MAX_VALUE).build(),
 			Mockito.mock(Scheduler.class),
-			offsetConsumer
+			offsetConsumer,
+			null
 		);
 	}
 

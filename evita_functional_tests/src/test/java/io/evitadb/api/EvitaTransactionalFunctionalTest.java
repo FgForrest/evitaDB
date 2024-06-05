@@ -61,6 +61,7 @@ import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.offsetIndex.io.OffHeapMemoryManager;
 import io.evitadb.store.offsetIndex.io.WriteOnlyOffHeapWithFileBackupHandle;
 import io.evitadb.store.service.KryoFactory;
+import io.evitadb.store.spi.CatalogPersistenceService;
 import io.evitadb.store.spi.IsolatedWalPersistenceService;
 import io.evitadb.store.spi.OffHeapWithFileBackupReference;
 import io.evitadb.store.wal.CatalogWriteAheadLog;
@@ -118,6 +119,7 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static io.evitadb.api.query.QueryConstraints.attributeContentAll;
 import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
@@ -374,6 +376,57 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 		return primaryKeysWithTxIds;
 	}
 
+	/**
+	 * Method returns number of WAL files in the catalog directory.
+	 *
+	 * @param catalogPath path to the catalog directory
+	 * @return number of WAL files
+	 * @throws IOException when the directory cannot be read
+	 */
+	private static int numberOfWalFiles(@Nonnull Path catalogPath) throws IOException {
+		try (final Stream<Path> list = Files.list(catalogPath)) {
+			return list
+				.filter(it -> it.getFileName().toString().endsWith(CatalogPersistenceService.WAL_FILE_SUFFIX))
+				.mapToInt(it -> 1)
+				.sum();
+		}
+	}
+
+	/**
+	 * Method returns first index of the catalog data file in the catalog directory.
+	 *
+	 * @param catalogPath path to the catalog directory
+	 * @return first index found
+	 * @throws IOException when the directory cannot be read
+	 */
+	private static int firstIndexOfCatalogDataFile(@Nonnull Path catalogPath) throws IOException {
+		try (final Stream<Path> list = Files.list(catalogPath)) {
+			return list
+				.filter(it -> it.getFileName().toString().endsWith(CatalogPersistenceService.CATALOG_FILE_SUFFIX))
+				.mapToInt(it -> CatalogPersistenceService.getIndexFromCatalogFileName(it.getFileName().toString()))
+				.min()
+				.orElse(0);
+		}
+	}
+
+	/**
+	 * Method returns first index of the entity data file in the catalog directory.
+	 *
+	 * @param catalogPath path to the catalog directory
+	 * @param entityType  entity type
+	 * @return first index found
+	 * @throws IOException when the directory cannot be read
+	 */
+	private static int firstIndexOfCollectionDataFile(@Nonnull Path catalogPath, @Nonnull String entityType) throws IOException {
+		try (final Stream<Path> list = Files.list(catalogPath)) {
+			return list
+				.filter(it -> it.getFileName().toString().endsWith(CatalogPersistenceService.ENTITY_COLLECTION_FILE_SUFFIX) && it.getFileName().toString().toLowerCase().startsWith(entityType.toLowerCase() + "-"))
+				.mapToInt(it -> CatalogPersistenceService.getEntityPrimaryKeyAndIndexFromEntityCollectionFileName(it.getFileName().toString()).fileIndex())
+				.min()
+				.orElseThrow();
+		}
+	}
+
 	@DataSet(value = TRANSACTIONAL_DATA_SET, readOnly = false)
 	SealedEntitySchema setUp(Evita evita) {
 		return evita.updateCatalog(TEST_CATALOG, session -> {
@@ -453,7 +506,8 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 			TransactionOptions.builder().build(),
 			Mockito.mock(Scheduler.class),
 			timestamp -> {
-			}
+			},
+			null
 		);
 
 		// create WAL file with a few contents first
@@ -507,7 +561,8 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 			TransactionOptions.builder().build(),
 			Mockito.mock(Scheduler.class),
 			timestamp -> {
-			}
+			},
+			null
 		);
 
 		// create WAL file multiple times, start Catalog to crunch the history and close evitaDB again
@@ -957,6 +1012,103 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 		}
 
 		assertTrue(expectedResult, "Entity not found in catalog!");
+	}
+
+	@DisplayName("When enough data is written, old data should be removed but time travel is still possible")
+	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
+	@Test
+	void shouldRemoveOldDataFilesAndVerifyTimeTravel(EvitaContract originalEvita, SealedEntitySchema productSchema) throws Exception {
+		final EvitaConfiguration originalConfiguration = ((Evita) originalEvita).getConfiguration();
+		originalEvita.close();
+
+		// reinitialize evita with a specific narrowed WAL limitations
+		final Evita evita = new Evita(
+			EvitaConfiguration.builder()
+				.name(originalConfiguration.name())
+				.storage(
+					StorageOptions.builder(originalConfiguration.storage())
+						.minimalActiveRecordShare(0.9)
+						.timeTravelEnabled(true)
+						.fileSizeCompactionThresholdBytes(4_096)
+						.build()
+				)
+				.transaction(
+					TransactionOptions.builder(originalConfiguration.transaction())
+						.walFileSizeBytes(16_384)
+						.walFileCountKept(2)
+						.build()
+				)
+				.server(originalConfiguration.server())
+				.cache(originalConfiguration.cache())
+				.build()
+		);
+
+		// insert enough data to rotate WAL more than twice
+		for (int i = 0; i < 10; i++) {
+			int itCnt = i;
+			evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					final int bulkSize = 16;
+					dataGenerator.generateEntities(
+							productSchema,
+							(entityType, faker) -> {
+								try (EvitaSessionContract readOnlySession = evita.createReadOnlySession(TEST_CATALOG)) {
+									return RANDOM_ENTITY_PICKER.apply(entityType, readOnlySession, faker);
+								}
+							},
+							1
+						)
+						.limit(bulkSize)
+						.forEach(session::upsertEntity);
+					// in each following session remove each other entity inserted in previous session
+					if (itCnt > 0) {
+						for (int j = ((itCnt - 1) * bulkSize) + 1; j <= (itCnt * bulkSize); j += 2) {
+							session.deleteEntity(productSchema.getName(), j);
+						}
+					}
+					// and also update the code of the leading entity plus one
+					session.getEntity(
+						productSchema.getName(),
+						((itCnt - 1) * bulkSize) + 2,
+						entityFetchAllContent()
+					).ifPresent(
+						entity -> {
+							entity.openForWrite()
+								.setAttribute(ATTRIBUTE_CODE, "Iteration #" + itCnt + " modification")
+								.upsertVia(session);
+						}
+					);
+					// by this we will be able to verify that the time travel worked as expected
+				}
+			);
+		}
+
+		log.info("Waiting for the WAL to be cleaned up.");
+
+		// we need to wait for the WAL to be cleaned up
+		final Path catalogPath = evita.getConfiguration().storage().storageDirectory().resolve(TEST_CATALOG);
+		final long start = System.currentTimeMillis();
+		do {
+			Thread.onSpinWait();
+		} while (numberOfWalFiles(catalogPath) > 2 && System.currentTimeMillis() - start < 10_000);
+
+		assertEquals(2, numberOfWalFiles(catalogPath), "There should be only two WAL files left!");
+
+		log.info("WAL cleaned up, letting the system breathe.");
+
+		// and when that happens wait another while to let the other files to be cleaned
+		synchronized (this) {
+			Thread.sleep(250);
+		}
+
+		log.info("Verifying the previous data files were removed as well.");
+
+		// verify that the old data is not present
+		assertTrue(firstIndexOfCatalogDataFile(catalogPath) > 0);
+		assertTrue(firstIndexOfCollectionDataFile(catalogPath, Entities.PRODUCT) > 0);
+
+		log.info("Checking time-travel data.");
 	}
 
 	@DisplayName("Verify code has no problems assigning new PK in concurrent environment")

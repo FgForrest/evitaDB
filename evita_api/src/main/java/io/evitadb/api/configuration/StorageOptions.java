@@ -57,6 +57,11 @@ import java.util.Optional;
  * @param fileSizeCompactionThresholdBytes Minimal file size threshold for compaction. If the file size is lower,
  *                                         the file will not be compacted even if the share of active records is lower
  *                                         than the minimal share.
+ * @param timeTravelEnabled				   When set to true, the data files are not removed immediately after compacting,
+ *                                         but are kept on disk as long as there is history available in the WAL log.
+ *                                         This allows a snapshot of the database to be taken at any point in
+ *                                         the history covered by the WAL log. From the snapshot, the database can be
+ *                                         restored to the exact point in time with all the data available at that time.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -69,7 +74,8 @@ public record StorageOptions(
 	int maxOpenedReadHandles,
 	boolean computeCRC32C,
 	double minimalActiveRecordShare,
-	long fileSizeCompactionThresholdBytes
+	long fileSizeCompactionThresholdBytes,
+	boolean timeTravelEnabled
 ) {
 
 	public static final int DEFAULT_OUTPUT_BUFFER_SIZE = 2_097_152;
@@ -80,6 +86,7 @@ public record StorageOptions(
 	public static final boolean DEFAULT_COMPUTE_CRC = true;
 	public static final double DEFAULT_MINIMAL_ACTIVE_RECORD_SHARE = 0.5;
 	public static final long DEFAULT_MINIMAL_FILE_SIZE_COMPACTION_THRESHOLD = 104_857_600L;
+	public static final boolean DEFAULT_TIME_TRAVEL_ENABLED = true;
 
 	/**
 	 * Builder method is planned to be used only in tests.
@@ -91,7 +98,8 @@ public record StorageOptions(
 			Runtime.getRuntime().availableProcessors(),
 			true,
 			DEFAULT_MINIMAL_ACTIVE_RECORD_SHARE,
-			DEFAULT_MINIMAL_FILE_SIZE_COMPACTION_THRESHOLD
+			DEFAULT_MINIMAL_FILE_SIZE_COMPACTION_THRESHOLD,
+			DEFAULT_TIME_TRAVEL_ENABLED
 		);
 	}
 
@@ -118,7 +126,8 @@ public record StorageOptions(
 			DEFAULT_MAX_OPENED_READ_HANDLES,
 			DEFAULT_COMPUTE_CRC,
 			DEFAULT_MINIMAL_ACTIVE_RECORD_SHARE,
-			DEFAULT_MINIMAL_FILE_SIZE_COMPACTION_THRESHOLD
+			DEFAULT_MINIMAL_FILE_SIZE_COMPACTION_THRESHOLD,
+			DEFAULT_TIME_TRAVEL_ENABLED
 		);
 	}
 
@@ -130,7 +139,8 @@ public record StorageOptions(
 		int maxOpenedReadHandles,
 		boolean computeCRC32C,
 		double minimalActiveRecordShare,
-		long fileSizeCompactionThresholdBytes
+		long fileSizeCompactionThresholdBytes,
+		boolean timeTravelEnabled
 	) {
 		this.storageDirectory = Optional.ofNullable(storageDirectory).orElse(DEFAULT_DIRECTORY);
 		this.lockTimeoutSeconds = lockTimeoutSeconds;
@@ -140,6 +150,7 @@ public record StorageOptions(
 		this.computeCRC32C = computeCRC32C;
 		this.minimalActiveRecordShare = minimalActiveRecordShare;
 		this.fileSizeCompactionThresholdBytes = fileSizeCompactionThresholdBytes;
+		this.timeTravelEnabled = timeTravelEnabled;
 	}
 
 	/**
@@ -164,6 +175,7 @@ public record StorageOptions(
 		private boolean computeCRC32C = DEFAULT_COMPUTE_CRC;
 		private double minimalActiveRecordShare = DEFAULT_MINIMAL_ACTIVE_RECORD_SHARE;
 		private long fileSizeCompactionThresholdBytes = DEFAULT_MINIMAL_FILE_SIZE_COMPACTION_THRESHOLD;
+		private boolean timeTravelEnabled = DEFAULT_TIME_TRAVEL_ENABLED;
 
 		Builder() {
 		}
@@ -177,6 +189,7 @@ public record StorageOptions(
 			this.computeCRC32C = storageOptions.computeCRC32C;
 			this.minimalActiveRecordShare = storageOptions.minimalActiveRecordShare;
 			this.fileSizeCompactionThresholdBytes = storageOptions.fileSizeCompactionThresholdBytes;
+			this.timeTravelEnabled = storageOptions.timeTravelEnabled;
 		}
 
 		@Nonnull
@@ -228,6 +241,12 @@ public record StorageOptions(
 		}
 
 		@Nonnull
+		public Builder timeTravelEnabled(boolean timeTravelEnabled) {
+			this.timeTravelEnabled = timeTravelEnabled;
+			return this;
+		}
+
+		@Nonnull
 		public StorageOptions build() {
 			return new StorageOptions(
 				storageDirectory,
@@ -237,7 +256,8 @@ public record StorageOptions(
 				maxOpenedReadHandles,
 				computeCRC32C,
 				minimalActiveRecordShare,
-				fileSizeCompactionThresholdBytes
+				fileSizeCompactionThresholdBytes,
+				timeTravelEnabled
 			);
 		}
 

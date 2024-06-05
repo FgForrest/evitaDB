@@ -72,7 +72,8 @@ class CatalogWriteAheadLogTest {
 		StorageOptions.builder().build(),
 		TransactionOptions.builder().build(),
 		Mockito.mock(Scheduler.class),
-		offsetDateTime -> {}
+		offsetDateTime -> {},
+		null
 	);
 	private final Path walFilePath = walDirectory.resolve(getWalFileName(TEST_CATALOG, walFileReference.fileIndex()));
 	private final int[] txSizes = new int[] {55, 152, 199, 46};

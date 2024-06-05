@@ -21,30 +21,23 @@
  *   limitations under the License.
  */
 
-package io.evitadb.store.offsetIndex;
+package io.evitadb.api.exception;
 
-import io.evitadb.api.configuration.StorageOptions;
-import org.junit.jupiter.api.Test;
+import io.evitadb.exception.EvitaInvalidUsageException;
 
-import java.nio.file.Path;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import javax.annotation.Nonnull;
+import java.io.Serial;
 
 /**
- * This test verifies {@link OffsetIndexSerializationService} contract.
+ * This exception is thrown when the transaction size exceeds the allowed limit.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-class OffsetIndexSerializationServiceTest {
+public class TransactionTooBigException extends EvitaInvalidUsageException {
+	@Serial private static final long serialVersionUID = 6870692024926622358L;
 
-	@Test
-	void shouldComputeExpectedRecordCountProperly() {
-		final StorageOptions testOptions = new StorageOptions(
-			Path.of(""), 1, 0, 55, 1,
-			false, 1.0, 0L, false
-		);
-		assertEquals(new OffsetIndexSerializationService.ExpectedCounts(0, 1), OffsetIndexSerializationService.computeExpectedRecordCount(testOptions, 0));
-		assertEquals(new OffsetIndexSerializationService.ExpectedCounts(1, 1), OffsetIndexSerializationService.computeExpectedRecordCount(testOptions, 1));
-		assertEquals(new OffsetIndexSerializationService.ExpectedCounts(2, 1), OffsetIndexSerializationService.computeExpectedRecordCount(testOptions, 2));
+	public TransactionTooBigException(@Nonnull String privateMessage, @Nonnull String publicMessage) {
+		super(privateMessage, publicMessage);
 	}
+
 }

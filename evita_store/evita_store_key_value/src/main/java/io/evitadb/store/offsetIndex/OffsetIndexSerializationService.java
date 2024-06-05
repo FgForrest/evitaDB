@@ -29,7 +29,6 @@ import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.store.kryo.ObservableInput;
 import io.evitadb.store.kryo.ObservableOutput;
 import io.evitadb.store.model.FileLocation;
-import io.evitadb.store.offsetIndex.OffsetIndex.FileOffsetIndexBuilder;
 import io.evitadb.store.offsetIndex.OffsetIndex.FileOffsetIndexStatistics;
 import io.evitadb.store.offsetIndex.exception.CorruptedRecordException;
 import io.evitadb.store.offsetIndex.exception.IncompleteSerializationException;
@@ -115,7 +114,7 @@ public class OffsetIndexSerializationService {
 		final FileOffsetIndexStatistics result = new FileOffsetIndexStatistics(
 			// use the latest possible version - we need actual count of records
 			offsetIndex.count(Long.MAX_VALUE),
-			offsetIndex.getTotalSize()
+			offsetIndex.getTotalSizeBytes()
 		);
 		inputStream.resetToPosition(0);
 		final CRC32C crc32C = offsetIndex.getStorageOptions().computeCRC32C() ? new CRC32C() : null;
@@ -345,7 +344,7 @@ public class OffsetIndexSerializationService {
 	/**
 	 * Deserializes {@link OffsetIndex} from the fragment identified by `fileLocation`.
 	 */
-	public static void deserialize(@Nonnull ObservableInput<?> input, @Nonnull FileLocation fileLocation, @Nonnull FileOffsetIndexBuilder fileOffsetIndexBuilder) {
+	public static void deserialize(@Nonnull ObservableInput<?> input, @Nonnull FileLocation fileLocation, @Nonnull OffsetIndexBuilder OffsetIndexBuilder) {
 		// this set holds all record keys that were removed
 		final Set<RecordKey> removedEntries = new HashSet<>(16_384);
 		// this variable holds location of the previous mem table fragment
@@ -384,9 +383,9 @@ public class OffsetIndexSerializationService {
 						} else {
 							final RecordKey recordKey = new RecordKey(recordType, primaryKey);
 							final boolean wasRemoved = removedEntries.contains(recordKey);
-							final boolean wasUpdated = fileOffsetIndexBuilder.contains(recordKey);
+							final boolean wasUpdated = OffsetIndexBuilder.contains(recordKey);
 							if (!wasRemoved && !wasUpdated) {
-								fileOffsetIndexBuilder.register(
+								OffsetIndexBuilder.register(
 									recordKey,
 									new FileLocation(startingPosition, recordLength)
 								);

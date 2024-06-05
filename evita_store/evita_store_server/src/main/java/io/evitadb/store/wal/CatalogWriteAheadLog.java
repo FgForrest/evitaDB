@@ -30,6 +30,7 @@ import com.esotericsoftware.kryo.util.Pool;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.api.exception.InvalidMutationException;
+import io.evitadb.api.exception.TransactionTooBigException;
 import io.evitadb.api.requestResponse.data.mutation.EntityRemoveMutation;
 import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
@@ -95,6 +96,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import java.util.function.LongConsumer;
 import java.util.stream.Stream;
 
 import static io.evitadb.store.spi.CatalogPersistenceService.WAL_FILE_SUFFIX;
@@ -232,6 +234,10 @@ public class CatalogWriteAheadLog implements Closeable {
 	 * Field contains current size of the WAL file the records are appended to in Bytes.
 	 */
 	private long currentWalFileSize;
+	/**
+	 * Callback to be called when the WAL file is purged.
+	 */
+	private final LongConsumer onWalPurgeCallback;
 
 	/**
 	 * Method checks if the WAL file is complete and if not, it truncates it. The non-complete WAL file record is
@@ -534,7 +540,8 @@ public class CatalogWriteAheadLog implements Closeable {
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull TransactionOptions transactionOptions,
 		@Nonnull Scheduler scheduler,
-		@Nonnull Consumer<OffsetDateTime> bootstrapFileTrimmer
+		@Nonnull Consumer<OffsetDateTime> bootstrapFileTrimmer,
+		@Nonnull LongConsumer onWalPurgeCallback
 	) {
 		this.processedCatalogVersion = new AtomicLong(catalogVersion);
 		final int[] firstAndLastWalFileIndex = getFirstAndLastWalFileIndex(catalogStoragePath, catalogName);
@@ -556,6 +563,7 @@ public class CatalogWriteAheadLog implements Closeable {
 		this.catalogStoragePath = catalogStoragePath;
 		this.computeCRC32C = storageOptions.computeCRC32C();
 		this.bootstrapFileTrimmer = bootstrapFileTrimmer;
+		this.onWalPurgeCallback = onWalPurgeCallback;
 		try {
 			final Path walFilePath = catalogStoragePath.resolve(getWalFileName(catalogName, this.walFileIndex));
 			final FirstAndLastCatalogVersions versions = checkAndTruncate(
@@ -601,15 +609,22 @@ public class CatalogWriteAheadLog implements Closeable {
 		synchronized (this.pendingRemovals) {
 			final long catalogVersion = this.processedCatalogVersion.get();
 			final Set<PendingRemoval> toRemove = new HashSet<>(64);
+
+			long lastPuredCatalogVersion = -1;
 			for (PendingRemoval pendingRemoval : this.pendingRemovals) {
 				if (pendingRemoval.catalogVersion <= catalogVersion) {
 					pendingRemoval.runnable().run();
 					toRemove.add(pendingRemoval);
+					lastPuredCatalogVersion = pendingRemoval.catalogVersion;
 				} else {
 					break;
 				}
 			}
 			this.pendingRemovals.removeAll(toRemove);
+			// call the listener to remove the obsolete files
+			if (lastPuredCatalogVersion > -1) {
+				this.onWalPurgeCallback.accept(lastPuredCatalogVersion + 1);
+			}
 			return -1;
 		}
 	}
@@ -661,6 +676,17 @@ public class CatalogWriteAheadLog implements Closeable {
 		@Nonnull TransactionMutation transactionMutation,
 		@Nonnull OffHeapWithFileBackupReference walReference
 	) {
+		Assert.isTrue(
+			transactionMutation.getWalSizeInBytes() <= this.maxWalFileSizeBytes,
+			() -> new TransactionTooBigException(
+				"Transaction size (`" + transactionMutation.getWalSizeInBytes() + "B`) exceeds the maximum WAL file size (`" + this.maxWalFileSizeBytes + "B`)! " +
+					"Transactions cannot be split into multiple WAL files, so you need to extend the limit " +
+					"for maximum WAL file size in evitaDB settings.",
+				"Transaction size exceeds the maximum WAL file size! " +
+					"Transactions cannot be split into multiple WAL files, so you need to extend the limit " +
+					"for maximum WAL file size in evitaDB settings."
+			)
+		);
 		if (this.currentWalFileSize + transactionMutation.getWalSizeInBytes() + 4 > this.maxWalFileSizeBytes) {
 			// rotate the WAL file
 			rotateWalFile();
@@ -1205,7 +1231,9 @@ public class CatalogWriteAheadLog implements Closeable {
 							versionsFromWalFile.lastCatalogVersion(),
 							() -> {
 								try {
-									if (!walFile.delete()) {
+									if (walFile.delete()) {
+										log.info("Deleted WAL file `" + walFile + "`!");
+									} else {
 										// don't throw exception - this is not so critical so that we should stop accepting new mutations
 										log.error("Failed to delete WAL file `" + walFile + "`!");
 									}
@@ -1217,6 +1245,8 @@ public class CatalogWriteAheadLog implements Closeable {
 						if (!this.pendingRemovals.contains(pendingRemoval)) {
 							this.pendingRemovals.add(pendingRemoval);
 						}
+						// schedule the task to remove the file
+						this.removeWalFileTask.schedule();
 					} catch (FileNotFoundException ex) {
 						// the file was deleted in the meantime
 					}

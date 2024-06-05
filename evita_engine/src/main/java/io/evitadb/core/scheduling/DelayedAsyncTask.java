@@ -24,10 +24,13 @@
 package io.evitadb.core.scheduling;
 
 import io.evitadb.scheduling.Scheduler;
+import io.evitadb.utils.Assert;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import java.time.OffsetDateTime;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
 
@@ -39,6 +42,7 @@ import java.util.function.LongSupplier;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
+@Slf4j
 public class DelayedAsyncTask {
 	/**
 	 * The default minimal gap between two scheduling moments.
@@ -70,6 +74,14 @@ public class DelayedAsyncTask {
 	 * the time is stored here to avoid scheduling the same action multiple times.
 	 */
 	private final AtomicReference<OffsetDateTime> nextPlannedExecution = new AtomicReference<>(OffsetDateTime.MIN);
+	/**
+	 * The flag indicating whether the task is currently running.
+	 */
+	private final AtomicBoolean running = new AtomicBoolean();
+	/**
+	 * The flag indicating whether the task should be re-scheduled after it finishes run.
+	 */
+	private final AtomicBoolean reSchedule = new AtomicBoolean();
 
 	public DelayedAsyncTask(
 		@Nonnull String catalogName,
@@ -98,15 +110,7 @@ public class DelayedAsyncTask {
 		this.delayUnits = delayUnits;
 		this.minimalSchedulingGap = minimalSchedulingGap;
 		this.task = new BackgroundTask(
-			catalogName, taskName,
-			() -> {
-				final long planWithShorterDelay = runnable.getAsLong();
-				if (planWithShorterDelay > -1L) {
-					scheduleWithDelayShorterBy(planWithShorterDelay);
-				} else {
-					pause();
-				}
-			}
+			catalogName, taskName, () -> runTask(runnable)
 		);
 	}
 
@@ -128,6 +132,9 @@ public class DelayedAsyncTask {
 				computedDelay,
 				TimeUnit.MILLISECONDS
 			);
+		} else if (this.running.get()) {
+			// if this task is currently running, we need to schedule it again after it finishes
+			this.reSchedule.set(true);
 		}
 	}
 
@@ -159,5 +166,35 @@ public class DelayedAsyncTask {
 			computedDelay,
 			TimeUnit.MILLISECONDS
 		);
+	}
+
+	/**
+	 * Executes the task and sets the running flag to false when the task is finished.
+	 */
+	private void runTask(@Nonnull LongSupplier runnable) {
+		try {
+			Assert.isPremiseValid(
+				this.running.compareAndSet(false, true),
+				"Task is already running."
+			);
+			final long planWithShorterDelay = runnable.getAsLong();
+			if (planWithShorterDelay > -1L) {
+				scheduleWithDelayShorterBy(planWithShorterDelay);
+			} else {
+				pause();
+			}
+		} catch (RuntimeException ex) {
+			log.error("Error while running task: {}", this.task.getTaskName(), ex);
+			throw ex;
+		} finally {
+			Assert.isPremiseValid(
+				this.running.compareAndSet(true, false),
+				"Task is not running."
+			);
+		}
+		// reschedule the task if it was requested during the run
+		if (this.reSchedule.compareAndSet(true, false)) {
+			this.schedule();
+		}
 	}
 }
