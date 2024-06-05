@@ -107,6 +107,7 @@ public class FinishedEvent extends AbstractQueryEvent {
 	 * Creation timestamp.
 	 */
 	private final long created;
+	private long planned;
 
 	public FinishedEvent(
 		@Nonnull String catalogName,
@@ -124,7 +125,9 @@ public class FinishedEvent extends AbstractQueryEvent {
 	 */
 	@Nonnull
 	public FinishedEvent startExecuting() {
-		this.planDurationMilliseconds = System.currentTimeMillis() - this.created;
+		final long now = System.currentTimeMillis();
+		this.planDurationMilliseconds = now - this.created;
+		this.planned = now;
 		return this;
 	}
 
@@ -144,7 +147,7 @@ public class FinishedEvent extends AbstractQueryEvent {
 		long complexityInfo
 	) {
 		this.end();
-		this.executionDurationMilliseconds = System.currentTimeMillis() - this.created;
+		this.executionDurationMilliseconds = System.currentTimeMillis() - this.planned;
 		this.prefetched = prefetchInfo ? "yes" : "no";
 		this.scanned = recordsScannedTotal;
 		this.returned = recordsReturnedTotal;
