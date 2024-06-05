@@ -17,6 +17,177 @@ HTTP server, library or framework that would serve as a common foundation for al
 
 <NoteTitle toggles="false">
 
+##### The article updated as of June 2024 (added Armeria server)
+
+</NoteTitle>
+
+All web server versions have been updated to up-to-date versions as of June 2024.
+We also added the [Armeria](https://armeria.dev/) built on top of Netty server server to the listing.
+
+<Table caption="Throughput results (ops/s - higher is better).">
+  <Thead>
+    <Tr>
+      <Th>Server, library or framework</Th>
+      <Th>JMH Score (ops/s)</Th>
+      <Th>Min JMH Score (ops/s)</Th>
+      <Th>Max JMH Score (ops/s)</Th>
+    </Tr>
+  </Thead>
+  <Tbody>
+    <Tr>
+      <Td>microhttp</Td>
+      <Td>16478</Td>
+      <Td>15527</Td>
+      <Td>17429</Td>
+    </Tr>
+    <Tr>
+      <Td>Netty</Td>
+      <Td>16109</Td>
+      <Td>15010</Td>
+      <Td>17208</Td>
+    </Tr>
+    <Tr>
+      <Td>Vert.x</Td>
+      <Td>15189</Td>
+      <Td>14597</Td>
+      <Td>15781</Td>
+    </Tr>
+    <Tr>
+      <Td>Undertow</Td>
+      <Td>14733</Td>
+      <Td>14021</Td>
+      <Td>15445</Td>
+    </Tr>
+    <Tr>
+      <Td>Armeria</Td>
+      <Td>14256</Td>
+      <Td>13935</Td>
+      <Td>14576</Td>
+    </Tr>
+    <Tr>
+      <Td>Javalin</Td>
+      <Td>14114</Td>
+      <Td>11269</Td>
+      <Td>16960</Td>
+    </Tr>
+    <Tr>
+      <Td>Quarkus</Td>
+      <Td>13529</Td>
+      <Td>13420</Td>
+      <Td>13639</Td>
+    </Tr>
+    <Tr>
+      <Td>Micronaut</Td>
+      <Td>13507</Td>
+      <Td>12337</Td>
+      <Td>14677</Td>
+    </Tr>
+    <Tr>
+      <Td>Spring Boot WebFlux</Td>
+      <Td>13129</Td>
+      <Td>12703</Td>
+      <Td>13555</Td>
+    </Tr>
+    <Tr>
+      <Td>Spring Boot MVC</Td>
+      <Td>10675</Td>
+      <Td>10533</Td>
+      <Td>10817</Td>
+    </Tr>
+    <Tr>
+      <Td>NanoHTTPD</Td>
+      <Td>7744</Td>
+      <Td>7561</Td>
+      <Td>7927</Td>
+    </Tr>
+  </Tbody>
+</Table>
+
+<Table caption="Average time results (us/op - smaller is better).">
+  <Thead>
+    <Tr>
+      <Th>Server, library or framework</Th>
+      <Th>JMH Score (us/op)</Th>
+      <Th>Min JMH Score (us/op)</Th>
+      <Th>Max JMH Score (us/op)</Th>
+    </Tr>
+  </Thead>
+  <Tbody>
+    <Tr>
+      <Td>Microhttp</Td>
+      <Td>367.523</Td>
+      <Td>341.455</Td>
+      <Td>393.591</Td>
+    </Tr>
+    <Tr>
+      <Td>Netty</Td>
+      <Td>381.255</Td>
+      <Td>355.639</Td>
+      <Td>406.871</Td>
+    </Tr>
+    <Tr>
+      <Td>Vert.x</Td>
+      <Td>383.202</Td>
+      <Td>365.798</Td>
+      <Td>400.606</Td>
+    </Tr>
+    <Tr>
+      <Td>Undertow</Td>
+      <Td>392.591</Td>
+      <Td>373.907</Td>
+      <Td>411.275</Td>
+    </Tr>
+    <Tr>
+      <Td>Armeria</Td>
+      <Td>452.791</Td>
+      <Td>425.552</Td>
+      <Td>480.030</Td>
+    </Tr>
+    <Tr>
+      <Td>Quarkus</Td>
+      <Td>455.963</Td>
+      <Td>428.281</Td>
+      <Td>483.645</Td>
+    </Tr>
+    <Tr>
+      <Td>Micronaut</Td>
+      <Td>459.101</Td>
+      <Td>430.433</Td>
+      <Td>487.769</Td>
+    </Tr>
+    <Tr>
+      <Td>Spring Boot WebFlux</Td>
+      <Td>460.533</Td>
+      <Td>433.276</Td>
+      <Td>487.790</Td>
+    </Tr>
+    <Tr>
+      <Td>Javalin</Td>
+      <Td>465.533</Td>
+      <Td>407.634</Td>
+      <Td>523.432</Td>
+    </Tr>
+    <Tr>
+      <Td>Spring Boot MVC</Td>
+      <Td>558.134</Td>
+      <Td>540.083</Td>
+      <Td>576.185</Td>
+    </Tr>
+    <Tr>
+      <Td>NanoHTTPD</Td>
+      <Td>800.347</Td>
+      <Td>764.524</Td>
+      <Td>836.170</Td>
+    </Tr>
+  </Tbody>
+</Table>
+
+</Note>
+
+<Note type="info">
+
+<NoteTitle toggles="false">
+
 ##### The article updated as of June 2023
 </NoteTitle>
 
