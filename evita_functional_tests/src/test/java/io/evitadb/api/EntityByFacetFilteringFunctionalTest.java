@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -247,7 +247,7 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 		final List<SealedEntity> filteredEntities = ofNullable(entityFilter)
 			.map(it -> entities.stream().filter(it))
 			.orElseGet(entities::stream)
-			.collect(toList());
+			.toList();
 
 		// collect set of faceted reference types
 		final Set<String> facetedEntities = schema.getReferences()
@@ -311,9 +311,9 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 
 		// filter entities by facets in input query (even if part of user filter) - use AND for different entity types, and OR for facet ids
 		final List<SealedEntity> filteredEntitiesIncludingUserFilter =
-				selectedEntitiesPredicate == null ?
-					filteredEntities.stream().toList() :
-					filteredEntities.stream().filter(selectedEntitiesPredicate).toList();
+			selectedEntitiesPredicate == null ?
+				filteredEntities.stream().toList() :
+				filteredEntities.stream().filter(selectedEntitiesPredicate).toList();
 		final Set<Integer> facetFilteredEntityIds = filteredEntitiesIncludingUserFilter
 			.stream()
 			.filter(fcc.createBaseFacetPredicate())
@@ -448,21 +448,38 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 		}
 	}
 
-	private static RequestImpact computeImpact(@Nonnull List<SealedEntity> filteredEntities, @Nonnull Set<Integer> filteredEntityIds, @Nonnull ReferenceKey facet, @Nonnull FacetComputationalContext fcc) {
+	@Nonnull
+	private static RequestImpact computeImpact(
+		@Nonnull List<SealedEntity> filteredEntities,
+		@Nonnull Set<Integer> filteredEntityIds,
+		@Nonnull ReferenceKey facet,
+		@Nonnull FacetComputationalContext fcc
+	) {
 		// on already filtered entities
+		final Predicate<? super SealedEntity> newPredicate = fcc.createTestFacetPredicate(facet);
 		final Set<Integer> newResult = filteredEntities.stream()
 			// apply newly created predicate with added current facet query
-			.filter(fcc.createTestFacetPredicate(facet))
+			.filter(newPredicate)
 			// we need only primary keys
 			.map(EntityContract::getPrimaryKey)
 			// in set
 			.collect(Collectors.toSet());
 
+		final int difference = newResult.size() - filteredEntityIds.size();
 		return new RequestImpact(
 			// compute difference with base result
-			newResult.size() - filteredEntityIds.size(),
+			difference,
 			// pass new result count
-			newResult.size()
+			newResult.size(),
+			// calculate has sense
+			!newResult.isEmpty() && (
+				// if there is difference
+				(
+					difference != 0 ||
+						filteredEntities.stream()
+							.anyMatch(fcc.createBaseFacetPredicateWithoutGroupOfFacet(facet))
+				)
+			)
 		);
 	}
 
@@ -1590,15 +1607,15 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 	@DisplayName("Should return facet summary with parameter selection for hierarchy with statistics")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnFacetSummaryForHierarchyTreeAndParameterFacetWithStatistics(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Hierarchy categoryHierarchy, Map<Integer, Integer> parameterGroupMapping) {
+	void shouldReturnFacetSummaryForHierarchyTreeAndParameterFacetWithStatistics(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Map<Integer, Integer> parameterGroupMapping) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
 				final int allParametersWithinOneGroupResult = queryParameterFacets(
-					productSchema, originalProductEntities, categoryHierarchy, parameterGroupMapping, session, null, 3, 11
+					productSchema, originalProductEntities, parameterGroupMapping, session, null, 3, 11
 				);
 				final int parametersInDifferentGroupsResult = queryParameterFacets(
-					productSchema, originalProductEntities, categoryHierarchy, parameterGroupMapping, session, null, 2, 3, 11
+					productSchema, originalProductEntities, parameterGroupMapping, session, null, 2, 3, 11
 				);
 				assertTrue(
 					parametersInDifferentGroupsResult < allParametersWithinOneGroupResult,
@@ -1661,7 +1678,7 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 	@DisplayName("Should return facet summary with parameter selection for hierarchy with statistics with inverted inter facet relation")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnFacetSummaryForHierarchyTreeAndParameterFacetWithStatisticsAndInvertedInterFacetRelation(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Hierarchy categoryHierarchy, Map<Integer, Integer> parameterGroupMapping) {
+	void shouldReturnFacetSummaryForHierarchyTreeAndParameterFacetWithStatisticsAndInvertedInterFacetRelation(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Map<Integer, Integer> parameterGroupMapping) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -1672,10 +1689,10 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 				assertTrue(facets.length > 1, "There should be at least two facets.");
 
 				final int singleParameterSelectedResult = queryParameterFacets(
-					productSchema, originalProductEntities, categoryHierarchy, parameterGroupMapping, session, null, facets[0]
+					productSchema, originalProductEntities, parameterGroupMapping, session, null, facets[0]
 				);
 				final int twoParametersFromSameGroupResult = queryParameterFacets(
-					productSchema, originalProductEntities, categoryHierarchy, parameterGroupMapping, session, null, facets[0], facets[1]
+					productSchema, originalProductEntities, parameterGroupMapping, session, null, facets[0], facets[1]
 				);
 				assertTrue(
 					twoParametersFromSameGroupResult > singleParameterSelectedResult,
@@ -1683,10 +1700,10 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 				);
 				final Integer groupId = groups.iterator().next();
 				final int singleParameterSelectedResultInverted = queryParameterFacets(
-					productSchema, originalProductEntities, categoryHierarchy, parameterGroupMapping, session, facetGroupsConjunction(Entities.PARAMETER, filterBy(entityPrimaryKeyInSet(groupId))), facets[0]
+					productSchema, originalProductEntities, parameterGroupMapping, session, facetGroupsConjunction(Entities.PARAMETER, filterBy(entityPrimaryKeyInSet(groupId))), facets[0]
 				);
 				final int twoParametersFromSameGroupResultInverted = queryParameterFacets(
-					productSchema, originalProductEntities, categoryHierarchy, parameterGroupMapping, session, facetGroupsConjunction(Entities.PARAMETER, filterBy(entityPrimaryKeyInSet(groupId))), facets[0], facets[1]
+					productSchema, originalProductEntities, parameterGroupMapping, session, facetGroupsConjunction(Entities.PARAMETER, filterBy(entityPrimaryKeyInSet(groupId))), facets[0], facets[1]
 				);
 				assertTrue(
 					twoParametersFromSameGroupResultInverted < singleParameterSelectedResultInverted,
@@ -1700,7 +1717,7 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 	@DisplayName("Should return facet summary with parameter selection for hierarchy with statistics with inverted facet group relation")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnFacetSummaryForHierarchyTreeAndParameterFacetWithStatisticsAndInvertedFacetGroupRelation(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Hierarchy categoryHierarchy, Map<Integer, Integer> parameterGroupMapping) {
+	void shouldReturnFacetSummaryForHierarchyTreeAndParameterFacetWithStatisticsAndInvertedFacetGroupRelation(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Map<Integer, Integer> parameterGroupMapping) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -1716,20 +1733,20 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 				assertEquals(facets.length, groups.length, "Number of facets and groups must be equal.");
 
 				final int singleParameterSelectedResult = queryParameterFacets(
-					productSchema, originalProductEntities, categoryHierarchy, parameterGroupMapping, session, null, facets[0]
+					productSchema, originalProductEntities, parameterGroupMapping, session, null, facets[0]
 				);
 				final int twoParametersFromDifferentGroupResult = queryParameterFacets(
-					productSchema, originalProductEntities, categoryHierarchy, parameterGroupMapping, session, null, facets
+					productSchema, originalProductEntities, parameterGroupMapping, session, null, facets
 				);
 				assertTrue(
 					twoParametersFromDifferentGroupResult < singleParameterSelectedResult,
 					"When selecting multiple facets from their groups should decrease the result"
 				);
 				final int singleParameterSelectedResultWithOr = queryParameterFacets(
-					productSchema, originalProductEntities, categoryHierarchy, parameterGroupMapping, session, facetGroupsDisjunction(Entities.PARAMETER, filterBy(entityPrimaryKeyInSet(groups[1]))), facets[0]
+					productSchema, originalProductEntities, parameterGroupMapping, session, facetGroupsDisjunction(Entities.PARAMETER, filterBy(entityPrimaryKeyInSet(groups[1]))), facets[0]
 				);
 				final int twoParametersFromDifferentGroupResultWithOr = queryParameterFacets(
-					productSchema, originalProductEntities, categoryHierarchy, parameterGroupMapping, session, facetGroupsDisjunction(Entities.PARAMETER, filterBy(entityPrimaryKeyInSet(groups[1]))), facets
+					productSchema, originalProductEntities, parameterGroupMapping, session, facetGroupsDisjunction(Entities.PARAMETER, filterBy(entityPrimaryKeyInSet(groups[1]))), facets
 				);
 				assertTrue(
 					twoParametersFromDifferentGroupResultWithOr > singleParameterSelectedResultWithOr,
@@ -1743,16 +1760,16 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 	@DisplayName("Should return facet summary with parameter selection for hierarchy with statistics with negated meaning of group")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnFacetSummaryForHierarchyTreeAndParameterFacetWithStatisticsAndNegatedGroupImpact(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Hierarchy categoryHierarchy, Map<Integer, Integer> parameterGroupMapping) {
+	void shouldReturnFacetSummaryForHierarchyTreeAndParameterFacetWithStatisticsAndNegatedGroupImpact(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Map<Integer, Integer> parameterGroupMapping) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
 				final int facetId = 3;
 				final int singleParameterSelectedResult = queryParameterFacets(
-					productSchema, originalProductEntities, categoryHierarchy, parameterGroupMapping, session, null, facetId
+					productSchema, originalProductEntities, parameterGroupMapping, session, null, facetId
 				);
 				final int twoParametersFromSameGroupResult = queryParameterFacets(
-					productSchema, originalProductEntities, categoryHierarchy, parameterGroupMapping, session,
+					productSchema, originalProductEntities, parameterGroupMapping, session,
 					facetGroupsNegation(Entities.PARAMETER, filterBy(entityPrimaryKeyInSet(parameterGroupMapping.get(facetId)))),
 					facetId
 				);
@@ -2376,7 +2393,14 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 	 * Simplification method that executes query with facet computation and returns how many record matches the query
 	 * that filters over input parameter facet ids.
 	 */
-	private int queryParameterFacets(EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Hierarchy categoryHierarchy, Map<Integer, Integer> parameterGroupMapping, EvitaSessionContract session, RequireConstraint additionalRequirement, Integer... facetIds) {
+	private int queryParameterFacets(
+		EntitySchemaContract productSchema,
+		List<SealedEntity> originalProductEntities,
+		Map<Integer, Integer> parameterGroupMapping,
+		EvitaSessionContract session,
+		RequireConstraint additionalRequirement,
+		Integer... facetIds
+	) {
 		final Query query = query(
 			collection(Entities.PRODUCT),
 			filterBy(
@@ -2740,9 +2764,30 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 			return combineFacetsIntoPredicate(existingFacetPredicates);
 		}
 
+		public Predicate<? super SealedEntity> createBaseFacetPredicateWithoutGroupOfFacet(ReferenceKey facet) {
+			final Predicate<FacetPredicate> matchTypeAndGroup = it -> Objects.equals(facet.referenceName(), it.referenceSchema().getName()) &&
+				Objects.equals(getGroup(facet), it.facetGroupId());
+
+			return combineFacetsIntoPredicate(
+				Stream.concat(
+					Stream.of(
+						// create brand new predicate
+						createFacetGroupPredicate(
+							entitySchema.getReferenceOrThrowException(facet.referenceName()),
+							getGroup(facet),
+							facet.primaryKey()
+						)
+					),
+					// use all previous facet predicates that doesn't match this facet type and group
+					existingFacetPredicates
+						.stream()
+						.filter(matchTypeAndGroup.negate())
+				).toList()
+			);
+		}
+
 		@Nonnull
 		public Predicate<? super SealedEntity> createTestFacetPredicate(@Nonnull ReferenceKey facet) {
-			// create brand new predicate
 			final Predicate<FacetPredicate> matchTypeAndGroup = it -> Objects.equals(facet.referenceName(), it.referenceSchema().getName()) &&
 				Objects.equals(getGroup(facet), it.facetGroupId());
 

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary.FacetGroupStatistics;
+import io.evitadb.api.requestResponse.extraResult.FacetSummary.RequestImpact;
 import io.evitadb.externalApi.grpc.generated.GrpcEntityReference;
 import io.evitadb.externalApi.grpc.generated.GrpcExtraResults.Builder;
 import io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics;
@@ -75,9 +76,12 @@ public class GrpcFacetSummaryBuilder {
 					statisticsBuilder.setFacetEntity(EntityConverter.toGrpcSealedEntity(entity));
 				}
 
-				if (facetStatistic.getImpact() != null) {
-					statisticsBuilder.setImpact(Int32Value.newBuilder().setValue(facetStatistic.getImpact().difference()).build());
-					statisticsBuilder.setMatchCount(Int32Value.newBuilder().setValue(facetStatistic.getImpact().matchCount()).build());
+				final RequestImpact impact = facetStatistic.getImpact();
+				if (impact != null) {
+					statisticsBuilder.
+						setImpact(Int32Value.newBuilder().setValue(impact.difference()).build())
+						.setMatchCount(Int32Value.newBuilder().setValue(impact.matchCount()).build())
+						.setHasSense(impact.hasSense());
 				}
 
 				final GrpcFacetStatistics statistics = statisticsBuilder.build();

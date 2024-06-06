@@ -160,4 +160,17 @@ public interface GrpcFacetStatisticsOrBuilder extends
    * <code>.google.protobuf.Int32Value matchCount = 6;</code>
    */
   com.google.protobuf.Int32ValueOrBuilder getMatchCountOrBuilder();
+
+  /**
+   * <pre>
+   * Selection has sense - TRUE if there is at least one entity still present in the result if
+   * the query is altered by adding this facet to filtering query. In case of OR relation between
+   * facets it's also true only if there is at least one entity present in the result when all other
+   * facets in the same group are removed and only this facet is requested.
+   * </pre>
+   *
+   * <code>bool hasSense = 7;</code>
+   * @return The hasSense.
+   */
+  boolean getHasSense();
 }

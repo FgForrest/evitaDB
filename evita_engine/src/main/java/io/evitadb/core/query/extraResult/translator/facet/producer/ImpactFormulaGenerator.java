@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -34,6 +34,7 @@ import io.evitadb.core.query.algebra.facet.FacetGroupFormula;
 import io.evitadb.core.query.algebra.facet.FacetGroupOrFormula;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;
@@ -167,6 +168,39 @@ public class ImpactFormulaGenerator extends AbstractFacetFormulaGenerator {
 		} else {
 			// there was no FacetGroupFormula inside - we have to create a brand new one and add it before leaving user filter
 			return super.handleUserFilter(formula, updatedChildren);
+		}
+	}
+
+	/**
+	 * We need to calculate whether the `facetId` returns any results when other facets in the same group are removed.
+	 *
+	 * @param hypotheticalFormula the current formula including this facet and all other facets
+	 * @param referenceSchema     the reference schema of the facet group
+	 * @param facetGroupId        the facet group id
+	 * @param facetId             the examined facet id
+	 * @param facetEntityIds      the examined facet entity ids
+	 * @return true when there is at least one result when the formula is altered in a way, that the `facetId` is requested
+	 * on its own in the facet group OR formula
+	 */
+	public boolean hasSenseAlone(
+		@Nonnull Formula hypotheticalFormula,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nullable Integer facetGroupId,
+		int facetId,
+		@Nonnull Bitmap[] facetEntityIds
+	) {
+		if (this.isFacetGroupConjunction.test(referenceSchema, facetGroupId)) {
+			return !hypotheticalFormula.compute().isEmpty();
+		} else {
+			final Bitmap facetEntityIdsBitmap = getBaseEntityIds(facetEntityIds);
+			final MutableFormulaFinderAndReplacer mutableFormulaFinderAndReplacer = new MutableFormulaFinderAndReplacer(
+				() -> new FacetGroupOrFormula(referenceSchema.getName(), facetGroupId, new BaseBitmap(facetId), facetEntityIdsBitmap)
+			);
+			hypotheticalFormula.accept(mutableFormulaFinderAndReplacer);
+			Assert.isPremiseValid(mutableFormulaFinderAndReplacer.isTargetFound(), "Expected single MutableFormula in the formula tree!");
+			return mutableFormulaFinderAndReplacer.getTarget().suppressPivot(
+				() -> !hypotheticalFormula.compute().isEmpty()
+			);
 		}
 	}
 
