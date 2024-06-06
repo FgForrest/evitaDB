@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,46 +21,24 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.http;
+package io.evitadb.externalApi.graphql.utils;
 
-import io.undertow.server.HttpServerExchange;
+import graphql.language.OperationDefinition;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 /**
- * An endpoint request/response exchange. Used as context object for endpoint processing.
+ * TODO lho docs
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
+ * @author Lukáš Hornych, 2024
  */
-public interface EndpointExchange extends AutoCloseable {
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
+public class GraphQLOperationNameResolver {
 
-	/**
-	 * Underlying HTTP server exchange
-	 */
 	@Nonnull
-	HttpServerExchange serverExchange();
-
-	/**
-	 * HTTP method of the request.
-	 */
-	@Nonnull
-	String httpMethod();
-
-	/**
-	 * Parsed content type of request body, if any request body is present.
-	 */
-	@Nullable
-	String requestBodyContentType();
-
-	/**
-	 * Preferred content type of response body, if any response body is will be send.
-	 */
-	@Nullable
-	String preferredResponseContentType();
-
-	@Override
-	default void close() {
-		// do nothing
+	public static String resolve(@Nonnull OperationDefinition operationDefinition) {
+		return operationDefinition.getName() != null ? operationDefinition.getName() : "<unnamed>";
 	}
 }

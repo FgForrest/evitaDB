@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,7 +29,7 @@ import io.evitadb.externalApi.rest.api.catalog.dataApi.dto.CollectionPointer;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.CollectionsEndpointHeaderDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.resolver.endpoint.CatalogRestHandlingContext;
 import io.evitadb.externalApi.rest.io.JsonRestHandler;
-import io.evitadb.externalApi.rest.io.RestEndpointExchange;
+import io.evitadb.externalApi.rest.io.RestEndpointExecutionContext;
 import io.undertow.util.Methods;
 
 import javax.annotation.Nonnull;
@@ -51,20 +51,20 @@ public class CollectionsHandler extends JsonRestHandler<CatalogRestHandlingConte
 
 	@Nonnull
 	@Override
-	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExchange exchange) {
-		final Map<String, Object> parametersFromRequest = getParametersFromRequest(exchange);
+	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
+		final Map<String, Object> parametersFromRequest = getParametersFromRequest(executionContext);
 		final Boolean withCounts = (Boolean) parametersFromRequest.get(CollectionsEndpointHeaderDescriptor.ENTITY_COUNT.name());
 
-		final List<CollectionPointer> collections = exchange.session()
+		final List<CollectionPointer> collections = executionContext.session()
 			.getAllEntityTypes()
 			.stream()
 			.map(entityType -> new CollectionPointer(
 				entityType,
-				withCounts != null && withCounts ? exchange.session().getEntityCollectionSize(entityType) : null
+				withCounts != null && withCounts ? executionContext.session().getEntityCollectionSize(entityType) : null
 			))
 			.toList();
 
-		return new SuccessEndpointResponse(convertResultIntoSerializableObject(exchange, collections));
+		return new SuccessEndpointResponse(convertResultIntoSerializableObject(executionContext, collections));
 	}
 
 	@Nonnull

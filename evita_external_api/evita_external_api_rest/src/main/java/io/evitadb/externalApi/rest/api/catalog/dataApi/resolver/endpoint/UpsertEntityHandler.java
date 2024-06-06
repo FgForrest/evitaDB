@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -39,7 +39,7 @@ import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.Order
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.RequireConstraintResolver;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.mutation.RestEntityUpsertMutationConverter;
 import io.evitadb.externalApi.rest.exception.RestInvalidArgumentException;
-import io.evitadb.externalApi.rest.io.RestEndpointExchange;
+import io.evitadb.externalApi.rest.io.RestEndpointExecutionContext;
 import io.evitadb.utils.Assert;
 import io.undertow.util.Methods;
 import lombok.extern.slf4j.Slf4j;
@@ -85,11 +85,11 @@ public class UpsertEntityHandler extends EntityHandler<CollectionRestHandlingCon
 
 	@Override
 	@Nonnull
-	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExchange exchange) {
-		final UpsertEntityUpsertRequestDto requestData = parseRequestBody(exchange, UpsertEntityUpsertRequestDto.class);
+	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
+		final UpsertEntityUpsertRequestDto requestData = parseRequestBody(executionContext, UpsertEntityUpsertRequestDto.class);
 
 		if (withPrimaryKeyInPath) {
-			final Map<String, Object> parametersFromRequest = getParametersFromRequest(exchange);
+			final Map<String, Object> parametersFromRequest = getParametersFromRequest(executionContext);
 			Assert.isTrue(
 				parametersFromRequest.containsKey(DeleteEntityEndpointHeaderDescriptor.PRIMARY_KEY.name()),
 				() -> new RestInvalidArgumentException("Primary key is not present in request's URL path.")
@@ -109,10 +109,10 @@ public class UpsertEntityHandler extends EntityHandler<CollectionRestHandlingCon
 		final EntityContentRequire[] requires = getEntityContentRequires(requestData).orElse(null);
 
 		final EntityClassifier upsertedEntity = requestData.getRequire().isPresent()
-			? exchange.session().upsertAndFetchEntity(entityMutation, requires)
-			: exchange.session().upsertEntity(entityMutation);
+			? executionContext.session().upsertAndFetchEntity(entityMutation, requires)
+			: executionContext.session().upsertEntity(entityMutation);
 
-		return new SuccessEndpointResponse(convertResultIntoSerializableObject(exchange, upsertedEntity));
+		return new SuccessEndpointResponse(convertResultIntoSerializableObject(executionContext, upsertedEntity));
 	}
 
 	@Nonnull

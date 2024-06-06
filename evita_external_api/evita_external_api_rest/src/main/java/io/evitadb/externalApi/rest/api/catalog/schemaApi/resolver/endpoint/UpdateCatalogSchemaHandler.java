@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -34,7 +34,7 @@ import io.evitadb.externalApi.rest.api.catalog.resolver.mutation.RestMutationObj
 import io.evitadb.externalApi.rest.api.catalog.resolver.mutation.RestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.rest.api.catalog.schemaApi.dto.CreateOrUpdateEntitySchemaRequestData;
 import io.evitadb.externalApi.rest.exception.RestInvalidArgumentException;
-import io.evitadb.externalApi.rest.io.RestEndpointExchange;
+import io.evitadb.externalApi.rest.io.RestEndpointExecutionContext;
 import io.undertow.util.Methods;
 import lombok.extern.slf4j.Slf4j;
 
@@ -69,8 +69,8 @@ public class UpdateCatalogSchemaHandler extends CatalogSchemaHandler {
 
 	@Override
 	@Nonnull
-	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExchange exchange) {
-		final CreateOrUpdateEntitySchemaRequestData requestData = parseRequestBody(exchange, CreateOrUpdateEntitySchemaRequestData.class);
+	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
+		final CreateOrUpdateEntitySchemaRequestData requestData = parseRequestBody(executionContext, CreateOrUpdateEntitySchemaRequestData.class);
 
 		final List<LocalCatalogSchemaMutation> schemaMutations = new LinkedList<>();
 		final JsonNode inputMutations = requestData.getMutations()
@@ -79,10 +79,10 @@ public class UpdateCatalogSchemaHandler extends CatalogSchemaHandler {
 			schemaMutations.addAll(mutationAggregateResolver.convert(schemaMutationsIterator.next()));
 		}
 
-		final CatalogSchemaContract updatedCatalogSchema = exchange.session().updateAndFetchCatalogSchema(
+		final CatalogSchemaContract updatedCatalogSchema = executionContext.session().updateAndFetchCatalogSchema(
 			schemaMutations.toArray(LocalCatalogSchemaMutation[]::new)
 		);
-		return new SuccessEndpointResponse(convertResultIntoSerializableObject(exchange, updatedCatalogSchema));
+		return new SuccessEndpointResponse(convertResultIntoSerializableObject(executionContext, updatedCatalogSchema));
 	}
 
 	@Nonnull

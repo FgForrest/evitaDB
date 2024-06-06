@@ -21,21 +21,15 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.observability.logging;
-
-import io.evitadb.externalApi.http.EndpointExchange;
-import io.undertow.server.HttpServerExchange;
-
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
+package io.evitadb.externalApi.graphql.io;
 
 /**
- * Implementation of {@link EndpointExchange} for Observation API.
+ * Represents semantically GraphQL instance. Defines which data it provides.
  *
- * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
+ * @author Lukáš Hornych, 2024
  */
-public record LoggingEndpointExchange(@Nonnull HttpServerExchange serverExchange,
-                                      @Nonnull String httpMethod,
-                                      @Nullable String requestBodyContentType,
-                                      @Nullable String preferredResponseContentType) implements EndpointExchange {
-};
+public enum GraphQLInstanceType {
+	SYSTEM,
+	DATA,
+	SCHEMA
+}

@@ -40,7 +40,7 @@ import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer.Entit
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer.EntitySerializationContext;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer.ExtraResultsJsonSerializer;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
-import io.evitadb.externalApi.rest.io.RestEndpointExchange;
+import io.evitadb.externalApi.rest.io.RestEndpointExecutionContext;
 import io.evitadb.utils.Assert;
 import lombok.extern.slf4j.Slf4j;
 
@@ -71,18 +71,18 @@ public class QueryEntitiesHandler extends QueryOrientedEntitiesHandler {
 
 	@Override
 	@Nonnull
-	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExchange exchange) {
-		final Query query = resolveQuery(exchange);
+	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
+		final Query query = resolveQuery(executionContext);
 		log.debug("Generated evitaDB query for entity query of type `{}` is `{}`.", restHandlingContext.getEntitySchema(), query);
 
-		final EvitaResponse<EntityClassifier> response = exchange.session().query(query, EntityClassifier.class);
+		final EvitaResponse<EntityClassifier> response = executionContext.session().query(query, EntityClassifier.class);
 
-		return new SuccessEndpointResponse(convertResultIntoSerializableObject(exchange, response));
+		return new SuccessEndpointResponse(convertResultIntoSerializableObject(executionContext, response));
 	}
 
 	@Nonnull
 	@Override
-	protected Object convertResultIntoSerializableObject(@Nonnull RestEndpointExchange exchange, @Nonnull Object response) {
+	protected Object convertResultIntoSerializableObject(@Nonnull RestEndpointExecutionContext exchange, @Nonnull Object response) {
 		Assert.isPremiseValid(
 			response instanceof EvitaResponse,
 			() -> new RestInternalError("Expected evitaDB response, but got `" + response.getClass().getName() + "`.")

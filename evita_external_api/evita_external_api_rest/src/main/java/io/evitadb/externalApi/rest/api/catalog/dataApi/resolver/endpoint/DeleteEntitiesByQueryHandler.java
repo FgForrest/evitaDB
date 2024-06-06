@@ -35,7 +35,7 @@ import io.evitadb.externalApi.http.SuccessEndpointResponse;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer.EntityJsonSerializer;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer.EntitySerializationContext;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
-import io.evitadb.externalApi.rest.io.RestEndpointExchange;
+import io.evitadb.externalApi.rest.io.RestEndpointExecutionContext;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.undertow.util.Methods;
@@ -70,8 +70,8 @@ public class DeleteEntitiesByQueryHandler extends QueryOrientedEntitiesHandler {
 
 	@Override
 	@Nonnull
-	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExchange exchange) {
-		Query query = resolveQuery(exchange);
+	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
+		Query query = resolveQuery(executionContext);
 		if (QueryUtils.findRequire(query, EntityFetch.class, SeparateEntityContentRequireContainer.class) == null) {
 			query = Query.query(
 				query.getCollection(),
@@ -87,9 +87,9 @@ public class DeleteEntitiesByQueryHandler extends QueryOrientedEntitiesHandler {
 		}
 		log.debug("Generated evitaDB query for deletion of entity list of type `{}` is `{}`.", restHandlingContext.getEntitySchema(), query);
 
-		final SealedEntity[] deletedEntities = exchange.session().deleteSealedEntitiesAndReturnBodies(query);
+		final SealedEntity[] deletedEntities = executionContext.session().deleteSealedEntitiesAndReturnBodies(query);
 
-		return new SuccessEndpointResponse(convertResultIntoSerializableObject(exchange, deletedEntities));
+		return new SuccessEndpointResponse(convertResultIntoSerializableObject(executionContext, deletedEntities));
 	}
 
 	@Nonnull
@@ -100,7 +100,7 @@ public class DeleteEntitiesByQueryHandler extends QueryOrientedEntitiesHandler {
 
 	@Nonnull
 	@Override
-	protected Object convertResultIntoSerializableObject(@Nonnull RestEndpointExchange exchange, @Nonnull Object deletedEntities) {
+	protected Object convertResultIntoSerializableObject(@Nonnull RestEndpointExecutionContext exchange, @Nonnull Object deletedEntities) {
 		Assert.isPremiseValid(
 			deletedEntities instanceof SealedEntity[],
 			() -> new RestInternalError("Expected SealedEntity[], but got `" + deletedEntities.getClass().getName() + "`.")

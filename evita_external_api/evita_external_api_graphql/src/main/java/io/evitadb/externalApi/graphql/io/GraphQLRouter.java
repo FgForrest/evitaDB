@@ -95,7 +95,7 @@ public class GraphQLRouter implements HttpHandler {
 		final RoutingHandler apiRouter = Handlers.routing();
 		registerApi(
 			apiRouter,
-			new RegisteredApi(SYSTEM_API_PATH, new AtomicReference<>(systemApi))
+			new RegisteredApi(GraphQLInstanceType.SYSTEM, SYSTEM_API_PATH, new AtomicReference<>(systemApi))
 		);
 		delegateRouter.addPrefixPath(SYSTEM_PATH.toString(), apiRouter);
 
@@ -114,12 +114,14 @@ public class GraphQLRouter implements HttpHandler {
 		final RoutingHandler apiRouter = Handlers.routing();
 
 		final RegisteredApi registeredDataApi = new RegisteredApi(
+			GraphQLInstanceType.DATA,
 			DATA_API_PATH,
 			new AtomicReference<>(dataApi)
 		);
 		registerApi(apiRouter, registeredDataApi);
 
 		final RegisteredApi registeredSchemaApi = new RegisteredApi(
+			GraphQLInstanceType.SCHEMA,
 			SCHEMA_API_PATH,
 			new AtomicReference<>(schemaApi)
 		);
@@ -166,7 +168,7 @@ public class GraphQLRouter implements HttpHandler {
 				new CorsFilter(
 					new GraphQLExceptionHandler(
 						objectMapper,
-						new GraphQLHandler(objectMapper, evita, registeredApi.graphQLReference())
+						new GraphQLHandler(objectMapper, evita, registeredApi.instanceType(), registeredApi.graphQLReference())
 					),
 					graphQLConfig.getAllowedOrigins()
 				)
@@ -220,6 +222,7 @@ public class GraphQLRouter implements HttpHandler {
 	private record RegisteredCatalog(@Nonnull RegisteredApi dataApi,
 	                                 @Nonnull RegisteredApi schemaApi) {}
 
-	private record RegisteredApi(@Nonnull UriPath path,
+	private record RegisteredApi(@Nonnull GraphQLInstanceType instanceType,
+	                             @Nonnull UriPath path,
 	                             @Nonnull AtomicReference<GraphQL> graphQLReference) {}
 }

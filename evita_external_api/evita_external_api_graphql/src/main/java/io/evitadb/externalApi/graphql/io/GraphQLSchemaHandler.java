@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -31,8 +31,6 @@ import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.externalApi.exception.ExternalApiInvalidUsageException;
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidUsageException;
-import io.evitadb.externalApi.graphql.io.GraphQLSchemaHandler.GraphQLEndpointExchange;
-import io.evitadb.externalApi.http.EndpointExchange;
 import io.evitadb.externalApi.http.EndpointHandler;
 import io.evitadb.externalApi.http.EndpointResponse;
 import io.evitadb.externalApi.http.SuccessEndpointResponse;
@@ -42,7 +40,6 @@ import io.undertow.util.Methods;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.util.LinkedHashSet;
@@ -58,7 +55,7 @@ import static io.evitadb.utils.CollectionUtils.createLinkedHashSet;
  * @author Lukáš Hornych, FG Forrest a.s. 2023
  */
 @Slf4j
-public class GraphQLSchemaHandler extends EndpointHandler<GraphQLEndpointExchange> {
+public class GraphQLSchemaHandler extends EndpointHandler<GraphQLSchemaEndpointExecutionContext> {
 
     private static final Set<String> IMPLICIT_DIRECTIVES = Set.of("deprecated", "skip", "include", "specifiedBy");
 
@@ -75,16 +72,13 @@ public class GraphQLSchemaHandler extends EndpointHandler<GraphQLEndpointExchang
 
     @Nonnull
     @Override
-    protected GraphQLEndpointExchange createEndpointExchange(@Nonnull HttpServerExchange serverExchange,
-                                                                     @Nonnull String httpMethod,
-                                                                     @Nullable String requestBodyMediaType,
-                                                                     @Nullable String preferredResponseMediaType) {
-        return new GraphQLEndpointExchange(serverExchange, httpMethod, requestBodyMediaType, preferredResponseMediaType);
+    protected GraphQLSchemaEndpointExecutionContext createExecutionContext(@Nonnull HttpServerExchange serverExchange) {
+        return new GraphQLSchemaEndpointExecutionContext(serverExchange);
     }
 
     @Override
     @Nonnull
-    protected EndpointResponse doHandleRequest(@Nonnull GraphQLEndpointExchange exchange) {
+    protected EndpointResponse doHandleRequest(@Nonnull GraphQLSchemaEndpointExecutionContext executionContext) {
         return new SuccessEndpointResponse(graphQL.get().getGraphQLSchema());
     }
 
@@ -125,7 +119,7 @@ public class GraphQLSchemaHandler extends EndpointHandler<GraphQLEndpointExchang
 
 
     @Override
-    protected void writeResult(@Nonnull GraphQLEndpointExchange exchange, @Nonnull OutputStream outputStream, @Nonnull Object response) {
+    protected void writeResult(@Nonnull GraphQLSchemaEndpointExecutionContext executionContext, @Nonnull OutputStream outputStream, @Nonnull Object response) {
         Assert.isPremiseValid(
             response instanceof GraphQLSchema,
             () -> new GraphQLInternalError("Expected response to be instance of GraphQLSchema, but was `" + response.getClass().getName() + "`.")
@@ -136,8 +130,4 @@ public class GraphQLSchemaHandler extends EndpointHandler<GraphQLEndpointExchang
         }
     }
 
-    protected record GraphQLEndpointExchange(@Nonnull HttpServerExchange serverExchange,
-                                             @Nonnull String httpMethod,
-                                             @Nullable String requestBodyContentType,
-                                             @Nullable String preferredResponseContentType) implements EndpointExchange {}
 }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -30,7 +30,7 @@ import io.evitadb.externalApi.http.SuccessEndpointResponse;
 import io.evitadb.externalApi.rest.api.system.resolver.serializer.CatalogJsonSerializer;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.externalApi.rest.io.JsonRestHandler;
-import io.evitadb.externalApi.rest.io.RestEndpointExchange;
+import io.evitadb.externalApi.rest.io.RestEndpointExecutionContext;
 import io.evitadb.utils.Assert;
 import io.undertow.util.Methods;
 
@@ -56,9 +56,9 @@ public class ListCatalogsHandler extends JsonRestHandler<LabApiHandlingContext> 
 
 	@Nonnull
 	@Override
-	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExchange exchange) {
+	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
 		final Collection<CatalogContract> catalogs = restHandlingContext.getEvita().getCatalogs();
-		return new SuccessEndpointResponse(convertResultIntoSerializableObject(exchange, catalogs));
+		return new SuccessEndpointResponse(convertResultIntoSerializableObject(executionContext, catalogs));
 	}
 
 	@Nonnull
@@ -75,7 +75,7 @@ public class ListCatalogsHandler extends JsonRestHandler<LabApiHandlingContext> 
 
 	@Nonnull
 	@Override
-	protected JsonNode convertResultIntoSerializableObject(@Nonnull RestEndpointExchange exchange, @Nonnull Object catalogs) {
+	protected JsonNode convertResultIntoSerializableObject(@Nonnull RestEndpointExecutionContext exchange, @Nonnull Object catalogs) {
 		Assert.isPremiseValid(
 			catalogs instanceof Collection,
 			() -> new RestInternalError("Expected collection of catalogs, but got `" + catalogs.getClass().getName() + "`.")

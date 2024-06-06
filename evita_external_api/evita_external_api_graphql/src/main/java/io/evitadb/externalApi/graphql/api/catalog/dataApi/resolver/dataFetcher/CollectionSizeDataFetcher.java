@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
+import io.evitadb.externalApi.graphql.metric.event.request.ExecutedEvent;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -45,7 +46,9 @@ public class CollectionSizeDataFetcher implements DataFetcher<Integer> {
 	@Nonnull
 	@Override
 	public Integer get(@Nonnull DataFetchingEnvironment environment) {
+		final ExecutedEvent requestExecutedEvent = environment.getGraphQlContext().get(GraphQLContextKey.METRIC_EXECUTED_EVENT);
+
 		final EvitaSessionContract evitaSession = environment.getGraphQlContext().get(GraphQLContextKey.EVITA_SESSION);
-		return evitaSession.getEntityCollectionSize(entitySchema.getName());
+		return requestExecutedEvent.measureInternalEvitaDBExecution(() -> evitaSession.getEntityCollectionSize(entitySchema.getName()));
 	}
 }
