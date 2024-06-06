@@ -27,9 +27,11 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.FormulaVisitor;
 import io.evitadb.core.query.algebra.facet.FacetGroupFormula;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import java.util.Objects;
+import java.util.function.BooleanSupplier;
 
 /**
  * This formula is a HACK and don't use it!!!
@@ -46,6 +48,7 @@ import java.util.Objects;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 class MutableFormula implements Formula {
+	private boolean suppressPivot;
 	private FacetGroupFormula pivot;
 	private FacetGroupFormula delegate;
 	private FacetGroupFormula result;
@@ -189,13 +192,30 @@ class MutableFormula implements Formula {
 	}
 
 	/**
+	 * Method allows to calculate {@link #compute()} result based only on {@link #delegate}, suppressing combination
+	 * with {@link #pivot} formula even if this is set.
+	 *
+	 * @param lambda the lambda to be executed
+	 * @return the result of the lambda
+	 */
+	public boolean suppressPivot(@Nonnull BooleanSupplier lambda) {
+		try {
+			Assert.isPremiseValid(this.result == null, "Cannot suppress pivot when the result is already computed!");
+			this.suppressPivot = true;
+			return lambda.getAsBoolean();
+		} finally {
+			this.suppressPivot = false;
+		}
+	}
+
+	/**
 	 * Returns the inner formula. If the pivot is set, the result is merged with the pivot.
 	 * @return the inner formula
 	 */
 	@Nonnull
 	private FacetGroupFormula getInnerFormula() {
 		if (this.result == null) {
-			if (this.pivot != null) {
+			if (this.pivot != null && !this.suppressPivot) {
 				this.result = this.pivot.mergeWith(this.delegate);
 			} else {
 				this.result = this.delegate;
