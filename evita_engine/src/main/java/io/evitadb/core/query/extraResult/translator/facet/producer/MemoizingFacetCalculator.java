@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -60,9 +60,9 @@ public class MemoizingFacetCalculator implements FacetCalculator, ImpactCalculat
 	 */
 	private final Formula baseFormulaWithoutUserFilter;
 	/**
-	 * Contains "no-impact" result for all facets that are already selected in {@link EvitaRequest}.
+	 * Contains current match count (the base-line).
 	 */
-	private final RequestImpact base;
+	private final int baseMatchCount;
 	/**
 	 * Contains instance of {@link FacetFormulaGenerator} that is reused for all calls. Visitors instances are usually
 	 * created for single use and then thrown away but here we expect a lot of repeated computations for facets and
@@ -86,7 +86,7 @@ public class MemoizingFacetCalculator implements FacetCalculator, ImpactCalculat
 		// now replace common parts of the formula with cached counterparts
 		this.baseFormula = queryContext.analyse(optimizedFormula);
 		this.baseFormulaWithoutUserFilter = baseFormulaWithoutUserFilter;
-		this.base = new RequestImpact(0, baseFormula.compute().size());
+		this.baseMatchCount = baseFormula.compute().size();
 		this.facetFormulaGenerator = new FacetFormulaGenerator(
 			queryContext::isFacetGroupConjunction,
 			queryContext::isFacetGroupDisjunction,
@@ -102,32 +102,29 @@ public class MemoizingFacetCalculator implements FacetCalculator, ImpactCalculat
 	@Nullable
 	@Override
 	public RequestImpact calculateImpact(@Nonnull ReferenceSchemaContract referenceSchema, int facetId, @Nullable Integer facetGroupId, boolean required, @Nonnull Bitmap[] facetEntityIds) {
-		if (required) {
-			// facet is already selected in request - return "no impact" result quickly
-			return base;
-		} else {
-			// create formula that would capture the requested facet selected
-			final Formula hypotheticalFormula = impactFormulaGenerator.generateFormula(
-				baseFormula, baseFormulaWithoutUserFilter, referenceSchema, facetGroupId, facetId, facetEntityIds
-			);
-			// compute the hypothetical result
-			final int hypotheticalCount = hypotheticalFormula.compute().size();
-			// and return computed impact
-			return new RequestImpact(
-				hypotheticalCount - base.matchCount(),
-				hypotheticalCount
-			);
-		}
+		// create formula that would capture the requested facet selected
+		final Formula hypotheticalFormula = impactFormulaGenerator.generateFormula(
+			baseFormula, baseFormulaWithoutUserFilter, referenceSchema, facetGroupId, facetId, facetEntityIds
+		);
+		// compute the hypothetical result
+		final int hypotheticalCount = hypotheticalFormula.compute().size();
+		// and return computed impact
+		final int difference = hypotheticalCount - this.baseMatchCount;
+		return new RequestImpact(
+			difference,
+			hypotheticalCount,
+			hypotheticalCount > 0 &&
+				(difference != 0 || impactFormulaGenerator.hasSenseAlone(hypotheticalFormula, referenceSchema, facetGroupId, facetId, facetEntityIds))
+		);
 	}
 
 	@Nonnull
 	@Override
 	public Formula createCountFormula(@Nonnull ReferenceSchemaContract referenceSchema, int facetId, @Nullable Integer facetGroupId, @Nonnull Bitmap[] facetEntityIds) {
 		// create formula that would capture all mandatory filtering constraints plus this single facet selected
-		final Formula formula = facetFormulaGenerator.generateFormula(
+		return facetFormulaGenerator.generateFormula(
 			baseFormula, baseFormulaWithoutUserFilter, referenceSchema, facetGroupId, facetId, facetEntityIds
 		);
-		return formula;
 	}
 
 	@Nonnull
