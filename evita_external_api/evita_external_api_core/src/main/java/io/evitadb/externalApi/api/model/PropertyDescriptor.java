@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -38,6 +38,7 @@ import javax.annotation.Nullable;
  *
  * @param name name of property
  * @param description can be parametrized with {@link String#format(String, Object...)} parameters
+ * @param deprecate if present, the property should be marked as deprecated with the specified reason
  * @param type optional type descriptor
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
@@ -45,6 +46,7 @@ import javax.annotation.Nullable;
 @Builder
 public record PropertyDescriptor(@Nonnull String name,
                                  @Nonnull String description,
+								 @Nullable String deprecate,
                                  @Nullable PropertyDataTypeDescriptor type,
                                  @Nullable Object defaultValue) {
 
@@ -60,7 +62,7 @@ public record PropertyDescriptor(@Nonnull String name,
 	}
 
 	public PropertyDescriptor(@Nonnull String name, @Nonnull String description) {
-		this(name, description, null, null);
+		this(name, description, null, null, null);
 	}
 
 	/**
@@ -71,6 +73,7 @@ public record PropertyDescriptor(@Nonnull String name,
 		return builder()
 			.name(propertyDescriptor.name())
 			.description(propertyDescriptor.description())
+			.deprecate(propertyDescriptor.deprecate())
 			.type(propertyDescriptor.type())
 			.defaultValue(propertyDescriptor.defaultValue());
 	}

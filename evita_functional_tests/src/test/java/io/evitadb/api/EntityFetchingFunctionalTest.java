@@ -1925,11 +1925,12 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 	void shouldLazyLoadFilteredPrices(Evita evita, List<SealedEntity> originalProducts) {
 		final SealedEntity product = originalProducts
 			.stream()
-			.filter(it -> it.getAllPricesForSale().stream().anyMatch(price -> price.validity() != null))
+			.filter(it -> it.getPrices().stream().filter(PriceContract::sellable).anyMatch(price -> price.validity() != null))
 			.findFirst()
 			.orElseThrow();
-		final PriceContract thePrice = product.getAllPricesForSale()
+		final PriceContract thePrice = product.getPrices()
 			.stream()
+			.filter(PriceContract::sellable)
 			.filter(it -> it.validity() != null)
 			.findFirst()
 			.orElseThrow();

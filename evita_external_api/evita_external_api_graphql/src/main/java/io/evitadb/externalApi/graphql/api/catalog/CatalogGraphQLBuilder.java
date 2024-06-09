@@ -30,6 +30,7 @@ import graphql.schema.GraphQLSchema;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.graphql.api.GraphQLBuilder;
+import io.evitadb.externalApi.graphql.api.tracing.OperationTracingInstrumentation;
 import io.evitadb.externalApi.graphql.configuration.GraphQLConfig;
 import io.evitadb.externalApi.graphql.exception.EvitaDataFetcherExceptionHandler;
 import lombok.RequiredArgsConstructor;

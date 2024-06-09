@@ -28,34 +28,17 @@ import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 
 /**
- * Descriptor of header parameters of {@link io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GraphQLEntityDescriptor#PRICE} field.
+ * Descriptor of header parameters of {@link PriceForSaleDescriptor#ACCOMPANYING_PRICE} field.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
  */
-// todo #538: deprecated, remove
-@Deprecated
-public interface PriceFieldHeaderDescriptor {
+public interface AccompanyingPriceFieldHeaderDescriptor {
 
-	PropertyDescriptor PRICE_LIST = PropertyDescriptor.builder()
-		.name("priceList")
+	PropertyDescriptor PRICE_LISTS = PropertyDescriptor.builder()
+		.name("priceLists")
 		.description("""
-			Parameter specifying desired price list of output price.
+			Parameter specifying list of price lists ordered by priority for defining output price.
 			""")
-		.type(nonNull(String.class))
-		.build();
-	PropertyDescriptor CURRENCY = PropertyDescriptor.builder()
-		.name("currency")
-		.description("""
-			Parameter specifying desired currency of output price if different currency that already defined is desired.
-			""")
-		// type is expected to be a currency enum
-		.build();
-	PropertyDescriptor LOCALE = PropertyDescriptor.builder()
-		.name("locale")
-		.description("""
-			Parameter specifying desired locale price formatting.
-			If not specified, desired entity locale is used instead.
-			""")
-		// type is expected to be a locale enum
+		.type(nonNull(String[].class))
 		.build();
 }
