@@ -27,6 +27,7 @@ import io.evitadb.api.configuration.metric.MetricType;
 import io.evitadb.api.observability.annotation.EventGroup;
 import io.evitadb.api.observability.annotation.ExportMetric;
 import io.evitadb.core.metric.event.CustomMetricsExecutionEvent;
+import jdk.jfr.Category;
 import jdk.jfr.Description;
 import jdk.jfr.Label;
 import jdk.jfr.Name;
@@ -38,6 +39,7 @@ import lombok.Getter;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @EventGroup(AbstractStorageEvent.PACKAGE_NAME)
+@Category({"evitaDB", "Storage"})
 @Name(AbstractStorageEvent.PACKAGE_NAME + ".EvitaDBCompositionChanged")
 @Description("Event that is fired when evitaDB composition changes.")
 @Label("Evita composition changed")
