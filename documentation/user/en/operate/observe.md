@@ -434,3 +434,4 @@ in [Logback](https://logback.qos.ch/index.html) this can be done using `%X{trace
 ## Reference documentation
 
 <MDInclude>[Java Flight Recorder events](/documentation/user/en/operate/reference/jfr-events.md)</MDInclude>
+<MDInclude>[Metrics](/documentation/user/en/operate/reference/metrics.md)</MDInclude>
