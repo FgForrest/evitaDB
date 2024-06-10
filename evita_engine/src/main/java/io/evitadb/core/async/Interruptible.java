@@ -21,27 +21,19 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.scheduling;
+package io.evitadb.core.async;
 
-import java.util.concurrent.ExecutorService;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 
 /**
- * Interface that extends {@link ExecutorService} with additional methods for observing the state of the executor.
+ * Methods annotated with this annotation will have automatically injected this code
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public interface ObservableExecutorService extends ExecutorService {
-
-	/**
-	 * Returns the number of tasks that have been submitted to the executor to be executed.
-	 * @return the number of tasks that have been submitted to the executor to be executed
-	 */
-	long getSubmittedTaskCount();
-
-	/**
-	 * Returns the number of tasks that have been rejected by the executor due to full queues.
-	 * @return the number of tasks that have been rejected by the executor due to full queues
-	 */
-	long getRejectedTaskCount();
-
+@Retention(RetentionPolicy.CLASS)
+@Target({ElementType.METHOD})
+public @interface Interruptible {
 }

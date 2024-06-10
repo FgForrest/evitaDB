@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.scheduling;
+package io.evitadb.core.async;
 
 import io.evitadb.core.metric.event.system.BackgroundTaskFinishedEvent;
 import io.evitadb.core.metric.event.system.BackgroundTaskStartedEvent;

@@ -25,13 +25,13 @@ package io.evitadb.core.cache;
 
 import io.evitadb.api.configuration.ThreadPoolOptions;
 import io.evitadb.core.EvitaSession;
+import io.evitadb.core.async.Scheduler;
 import io.evitadb.core.cache.model.CacheRecordAdept;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.AndFormula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.OrFormula;
 import io.evitadb.core.query.algebra.facet.UserFilterFormula;
-import io.evitadb.core.scheduling.Scheduler;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import net.openhft.hashing.LongHashFunction;
 import org.junit.jupiter.api.BeforeEach;

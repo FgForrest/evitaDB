@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.scheduling;
+package io.evitadb.core.async;
 
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.extraResult.EvitaResponseExtraResultComputer;
@@ -59,6 +59,9 @@ public class InterruptionTransformer implements Plugin {
 	) {
 		return builder.method(
 				ElementMatchers.anyOf(
+					/* any interruptible method */
+					ElementMatchers.isAnnotatedWith(Interruptible.class)
+						.and(ElementMatchers.not(ElementMatchers.isAbstract())),
 					/* analysis of filtering constraints and conversion to Formulas */
 					ElementMatchers.isOverriddenFrom(FilteringConstraintTranslator.class)
 						.and(ElementMatchers.named("translate"))
