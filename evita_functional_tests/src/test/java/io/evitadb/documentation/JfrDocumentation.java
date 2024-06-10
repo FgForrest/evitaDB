@@ -75,12 +75,19 @@ public class JfrDocumentation implements EvitaTestSupport {
 		generateMetricsDocumentation();
 	}
 
+	/**
+	 * Generates reference documentation for all custom JFR events.
+	 *
+	 * @throws IOException if an I/O error occurs
+	 */
 	private void generateJfrReferenceDocumentation() throws IOException {
 		final ReflectionLookup lookup = ReflectionLookup.NO_CACHE_INSTANCE;
 		final Path jfrReferencePath = getRootDirectory().resolve(JFR_REFERENCE_DOCUMENTATION);
 		try (Writer writer = new FileWriter(jfrReferencePath.toFile(), StandardCharsets.UTF_8, false)) {
+			// write header
 			writer.write("### Java Flight Recorder (JFR) Events\n\n");
 
+			// group events by category
 			final Map<String, List<Class<? extends CustomMetricsExecutionEvent>>> groupedEvents = EvitaJfrEventRegistry.getEventClasses()
 				.stream()
 				.collect(
@@ -93,8 +100,11 @@ public class JfrDocumentation implements EvitaTestSupport {
 						}
 					)
 				);
+
+			// write documentation for each category
 			groupedEvents.entrySet()
 				.stream()
+				// sort categories by name
 				.sorted(Entry.comparingByKey())
 				.forEach(
 					group -> {
@@ -103,6 +113,7 @@ public class JfrDocumentation implements EvitaTestSupport {
 							writer.write("<dl>\n");
 							group.getValue()
 								.stream()
+								// sort events by class name
 								.sorted(Comparator.comparing(Class::getSimpleName))
 								.forEach(
 									event -> {
@@ -122,12 +133,18 @@ public class JfrDocumentation implements EvitaTestSupport {
 		}
 	}
 
+	/**
+	 * Generates reference documentation for all custom metrics.
+	 * @throws IOException if an I/O error occurs
+	 */
 	private void generateMetricsDocumentation() throws IOException {
 		final ReflectionLookup lookup = new ReflectionLookup(ReflectionCachingBehaviour.CACHE);
 		final Path jfrReferencePath = getRootDirectory().resolve(METRICS_DOCUMENTATION);
 		try (Writer writer = new FileWriter(jfrReferencePath.toFile(), StandardCharsets.UTF_8, false)) {
+			// write header
 			writer.write("### Metrics\n\n");
 
+			// collect all labels used in metrics
 			final List<MetricLabel> labels = EvitaJfrEventRegistry.getEventClasses()
 				.stream()
 				.flatMap(it -> {
@@ -144,11 +161,14 @@ public class JfrDocumentation implements EvitaTestSupport {
 									"**" + label + "**: " + description
 								);
 							})
+						// we care only about distinct labels
 						.distinct()
+						// sort labels by name
 						.sorted(Comparator.comparing(MetricLabel::name));
 				})
 				.toList();
 
+			// write used terms section for each of it
 			writer.write("<UsedTerms>\n");
 			writer.write("  <h4>Labels used in metrics</h4>\n");
 			writer.write("  <dl>\n");
@@ -159,6 +179,7 @@ public class JfrDocumentation implements EvitaTestSupport {
 			writer.write("  </dl>\n");
 			writer.write("</UsedTerms>\n\n");
 
+			// group metrics by category
 			final Map<String, List<Class<? extends CustomMetricsExecutionEvent>>> groupedEvents = EvitaJfrEventRegistry.getEventClasses()
 				.stream()
 				.collect(
@@ -171,8 +192,11 @@ public class JfrDocumentation implements EvitaTestSupport {
 						}
 					)
 				);
+
+			// write documentation for each category
 			groupedEvents.entrySet()
 				.stream()
+				// sort categories by name
 				.sorted(Entry.comparingByKey())
 				.forEach(
 					group -> {
@@ -183,8 +207,11 @@ public class JfrDocumentation implements EvitaTestSupport {
 								.stream()
 								.flatMap(
 									it -> Stream.of(
+										// union invocation metric
 										ofNullable(lookup.getClassAnnotation(it, ExportInvocationMetric.class)).stream().map(ann -> toInvocationMetric(it, ann, lookup)),
+										// duration metric
 										ofNullable(lookup.getClassAnnotation(it, ExportDurationMetric.class)).stream().map(ann -> toDurationMetric(it, ann, lookup)),
+										// and custom metrics in the class
 										lookup.getFields(it, ExportMetric.class).entrySet().stream().map(
 											field -> {
 												final ExportMetric annotation = field.getValue().get(0);
@@ -200,13 +227,16 @@ public class JfrDocumentation implements EvitaTestSupport {
 										)
 									).flatMap(Function.identity())
 								)
+								// sort them by name
 								.sorted(Comparator.comparing(Metric::name))
+								// and print them
 								.forEach(
 									metric -> {
 										try {
 											writer.write("  <dt>`" + metric.name() + "` (" + metric.metricType() +  ")</dt>\n");
 											writer.write("  <dd>");
 											writer.write(metric.description());
+											// if there are labels referred by the metrics list them including link to used terms
 											if (metric.labels().length > 0) {
 												writer.write("\n\n    Labels: ");
 												writer.write(Arrays.stream(metric.labels())
@@ -228,8 +258,20 @@ public class JfrDocumentation implements EvitaTestSupport {
 		}
 	}
 
+	/**
+	 * Transform {@link ExportInvocationMetric} to metric record.
+	 *
+	 * @param eventClass the event class
+	 * @param invocationMetric annotation
+	 * @param lookup reflection accessor
+	 * @return translated metric
+	 */
 	@Nonnull
-	private static Metric toInvocationMetric(@Nonnull Class<? extends CustomMetricsExecutionEvent> eventClass, @Nonnull ExportInvocationMetric invocationMetric, @Nonnull ReflectionLookup lookup) {
+	private static Metric toInvocationMetric(
+		@Nonnull Class<? extends CustomMetricsExecutionEvent> eventClass,
+		@Nonnull ExportInvocationMetric invocationMetric,
+		@Nonnull ReflectionLookup lookup
+	) {
 		return new Metric(
 			MetricHandler.composeMetricName(eventClass, invocationMetric.value()),
 			MetricType.COUNTER.name(),
@@ -238,8 +280,20 @@ public class JfrDocumentation implements EvitaTestSupport {
 		);
 	}
 
+	/**
+	 * Transform {@link ExportDurationMetric} to metric record.
+	 *
+	 * @param eventClass the event class
+	 * @param durationMetric annotation
+	 * @param lookup reflection accessor
+	 * @return translated metric
+	 */
 	@Nonnull
-	private static Metric toDurationMetric(@Nonnull Class<? extends CustomMetricsExecutionEvent> eventClass, @Nonnull ExportDurationMetric durationMetric, @Nonnull ReflectionLookup lookup) {
+	private static Metric toDurationMetric(
+		@Nonnull Class<? extends CustomMetricsExecutionEvent> eventClass,
+		@Nonnull ExportDurationMetric durationMetric,
+		@Nonnull ReflectionLookup lookup
+	) {
 		return new Metric(
 			MetricHandler.composeMetricName(eventClass, durationMetric.value()),
 			MetricType.HISTOGRAM.name(),
@@ -248,8 +302,18 @@ public class JfrDocumentation implements EvitaTestSupport {
 		);
 	}
 
+	/**
+	 * Extracts label names in {@link ExportMetricLabel} from the event class.
+	 *
+	 * @param eventClass the event class
+	 * @param lookup reflection accessor
+	 * @return array of label names
+	 */
 	@Nonnull
-	private static String[] getLabels(@Nonnull Class<?> eventClass, @Nonnull ReflectionLookup lookup) {
+	private static String[] getLabels(
+		@Nonnull Class<?> eventClass,
+		@Nonnull ReflectionLookup lookup
+	) {
 		return lookup.getFields(eventClass, ExportMetricLabel.class)
 			.entrySet()
 			.stream()
@@ -259,6 +323,14 @@ public class JfrDocumentation implements EvitaTestSupport {
 			.toArray(String[]::new);
 	}
 
+	/**
+	 * Metrics record used for printing the documentation.
+	 *
+	 * @param name name of the metric
+	 * @param metricType metric type (counter, gauge etc.)
+	 * @param description description
+	 * @param labels array of label names used in metrics
+	 */
 	private record Metric(
 		@Nonnull String name,
 		@Nonnull String metricType,
@@ -266,6 +338,12 @@ public class JfrDocumentation implements EvitaTestSupport {
 		@Nonnull String[] labels
 	) {}
 
+	/**
+	 * Metric label record.
+	 *
+	 * @param name name of the label
+	 * @param description description of the label
+	 */
 	private record MetricLabel(
 		@Nonnull String name,
 		@Nonnull String description
