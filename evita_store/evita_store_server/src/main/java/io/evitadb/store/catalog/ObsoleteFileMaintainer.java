@@ -24,8 +24,8 @@
 package io.evitadb.store.catalog;
 
 import io.evitadb.core.CatalogVersionBeyondTheHorizonListener;
-import io.evitadb.core.scheduling.DelayedAsyncTask;
-import io.evitadb.core.scheduling.Scheduler;
+import io.evitadb.core.async.DelayedAsyncTask;
+import io.evitadb.core.async.Scheduler;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.store.catalog.model.CatalogBootstrap;
 import io.evitadb.store.spi.CatalogPersistenceService.EntityTypePrimaryKeyAndFileIndex;

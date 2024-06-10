@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.scheduling;
+package io.evitadb.core.async;
 
 import io.evitadb.api.configuration.ThreadPoolOptions;
 import io.evitadb.test.TestConstants;

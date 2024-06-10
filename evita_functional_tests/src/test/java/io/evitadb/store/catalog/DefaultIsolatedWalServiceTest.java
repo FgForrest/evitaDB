@@ -31,7 +31,7 @@ import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMut
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
-import io.evitadb.core.scheduling.Scheduler;
+import io.evitadb.core.async.Scheduler;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.offsetIndex.io.OffHeapMemoryManager;
 import io.evitadb.store.offsetIndex.io.ReadOnlyHandle;

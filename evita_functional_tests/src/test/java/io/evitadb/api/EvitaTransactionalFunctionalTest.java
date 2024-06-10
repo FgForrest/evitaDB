@@ -53,7 +53,7 @@ import io.evitadb.core.Catalog;
 import io.evitadb.core.Evita;
 import io.evitadb.core.EvitaSession;
 import io.evitadb.core.Transaction;
-import io.evitadb.core.scheduling.Scheduler;
+import io.evitadb.core.async.Scheduler;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.function.TriFunction;
 import io.evitadb.store.catalog.DefaultIsolatedWalService;

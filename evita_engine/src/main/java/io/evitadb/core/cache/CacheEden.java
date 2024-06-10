@@ -29,6 +29,7 @@ import com.carrotsearch.hppc.cursors.CharObjectCursor;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.CacheOptions;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
+import io.evitadb.core.async.Scheduler;
 import io.evitadb.core.cache.model.CacheRecordAdept;
 import io.evitadb.core.cache.model.CacheRecordType;
 import io.evitadb.core.cache.model.CachedRecord;
@@ -46,7 +47,6 @@ import io.evitadb.core.query.extraResult.CacheableEvitaResponseExtraResultComput
 import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
 import io.evitadb.core.query.sort.CacheableSorter;
-import io.evitadb.core.scheduling.Scheduler;
 import io.evitadb.dataType.array.CompositeLongArray;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.BitUtils;

@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.scheduling;
+package io.evitadb.core.async;
 
 import io.evitadb.utils.Assert;
 import lombok.extern.slf4j.Slf4j;

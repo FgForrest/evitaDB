@@ -30,10 +30,11 @@ import io.evitadb.store.spi.CatalogPersistenceServiceFactory;
 module evita.engine {
 
 	exports io.evitadb.core;
+	exports io.evitadb.core.async;
+	exports io.evitadb.core.buffer;
 	exports io.evitadb.core.cache;
 	exports io.evitadb.core.cache.model;
 	exports io.evitadb.core.cache.payload;
-	exports io.evitadb.core.buffer;
 	exports io.evitadb.core.metric.event;
 	exports io.evitadb.core.metric.event.cache;
 	exports io.evitadb.core.metric.event.query;
@@ -67,7 +68,6 @@ module evita.engine {
 	exports io.evitadb.index.relation;
 	exports io.evitadb.index.facet;
 	exports io.evitadb.index.price.model.priceRecord;
-	exports io.evitadb.core.scheduling;
 	exports io.evitadb.store.spi;
 	exports io.evitadb.store.spi.model;
 	exports io.evitadb.store.spi.model.storageParts;

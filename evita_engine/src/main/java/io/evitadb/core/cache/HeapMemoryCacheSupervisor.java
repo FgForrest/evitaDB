@@ -26,6 +26,8 @@ package io.evitadb.core.cache;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.CacheOptions;
 import io.evitadb.api.query.require.EntityFetch;
+import io.evitadb.core.async.BackgroundTask;
+import io.evitadb.core.async.Scheduler;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.extraResult.CacheableEvitaResponseExtraResultComputer;
 import io.evitadb.core.query.extraResult.EvitaResponseExtraResultComputer;
@@ -33,8 +35,6 @@ import io.evitadb.core.query.response.ServerBinaryEntityDecorator;
 import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.core.query.sort.CacheableSorter;
 import io.evitadb.core.query.sort.Sorter;
-import io.evitadb.core.scheduling.BackgroundTask;
-import io.evitadb.core.scheduling.Scheduler;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;

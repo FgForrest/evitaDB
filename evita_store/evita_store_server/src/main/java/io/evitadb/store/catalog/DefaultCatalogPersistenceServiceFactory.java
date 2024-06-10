@@ -26,7 +26,7 @@ package io.evitadb.store.catalog;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TransactionOptions;
-import io.evitadb.core.scheduling.Scheduler;
+import io.evitadb.core.async.Scheduler;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.store.exception.InvalidStoragePathException;
 import io.evitadb.store.spi.CatalogPersistenceService;

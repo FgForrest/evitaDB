@@ -27,7 +27,7 @@ import com.esotericsoftware.kryo.io.Input;
 import com.github.javafaker.Faker;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataKey;
-import io.evitadb.core.scheduling.Scheduler;
+import io.evitadb.core.async.Scheduler;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.store.entity.EntityStoragePartConfigurer;
 import io.evitadb.store.entity.model.entity.EntityBodyStoragePart;
