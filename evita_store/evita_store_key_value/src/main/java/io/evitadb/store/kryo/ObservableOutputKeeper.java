@@ -27,7 +27,7 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.core.metric.event.storage.ObservableOutputChangeEvent;
 import io.evitadb.core.scheduling.DelayedAsyncTask;
-import io.evitadb.scheduling.Scheduler;
+import io.evitadb.core.scheduling.Scheduler;
 import io.evitadb.store.offsetIndex.io.WriteOnlyFileHandle;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;

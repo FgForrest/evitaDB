@@ -27,7 +27,7 @@ import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.core.Evita;
 import io.evitadb.core.metric.event.session.KilledEvent;
 import io.evitadb.core.scheduling.BackgroundTask;
-import io.evitadb.scheduling.Scheduler;
+import io.evitadb.core.scheduling.Scheduler;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;

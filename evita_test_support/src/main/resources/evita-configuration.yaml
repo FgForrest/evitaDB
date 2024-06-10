@@ -1,20 +1,31 @@
 name: ${server.name:evitaDB}
 
 server:
-  coreThreadCount: ${server.coreThreadCount:4}
-  maxThreadCount: ${server.maxThreadCount:16}
-  threadPriority: ${server.threadPriority:5}
-  queueSize: ${server.queueSize:100}
-  shortRunningThreadsTimeoutInSeconds: ${server.shortRunningThreadsTimeoutInSeconds:0}
-  killTimedOutShortRunningThreadsEverySeconds: ${server.killTimedOutShortRunningThreadsEverySeconds:0}
+  requestThreadPool:
+    minThreadCount: ${server.requestThreadPool.minThreadCount:4}
+    maxThreadCount: ${server.requestThreadPool.maxThreadCount:16}
+    threadPriority: ${server.requestThreadPool.threadPriority:5}
+    queueSize: ${server.requestThreadPool.queueSize:100}
+  transactionThreadPool:
+    minThreadCount: ${server.transactionThreadPool.minThreadCount:4}
+    maxThreadCount: ${server.transactionThreadPool.maxThreadCount:16}
+    threadPriority: ${server.transactionThreadPool.threadPriority:5}
+    queueSize: ${server.transactionThreadPool.queueSize:100}
+  serviceThreadPool:
+    minThreadCount: ${server.serviceThreadPool.minThreadCount:4}
+    maxThreadCount: ${server.serviceThreadPool.maxThreadCount:16}
+    threadPriority: ${server.serviceThreadPool.threadPriority:5}
+    queueSize: ${server.serviceThreadPool.queueSize:100}
+  queryTimeoutInMilliseconds: ${server.shortRunningThreadsTimeoutInSeconds:5000}
+  transactionTimeoutInMilliseconds: ${server.shortRunningThreadsTimeoutInSeconds:300000}
   closeSessionsAfterSecondsOfInactivity: ${server.closeSessionsAfterSecondsOfInactivity:60}
   readOnly: ${server.readOnly:false}
   quiet: ${server.quiet:false}
 
 storage:
-  storageDirectory: ${storage.storageDirectory}
-  lockTimeoutSeconds: ${storage.lockTimeoutSeconds:50}
-  waitOnCloseSeconds: ${storage.waitOnCloseSeconds:50}
+  storageDirectory: ${storage.storageDirectory:null}
+  lockTimeoutSeconds: ${storage.lockTimeoutSeconds:60}
+  waitOnCloseSeconds: ${storage.waitOnCloseSeconds:60}
   outputBufferSize: ${storage.outputBufferSize:4MB}
   maxOpenedReadHandles: ${storage.maxOpenedReadHandles:12}
   computeCRC32C: ${storage.computeCRC32C:true}
@@ -74,6 +85,7 @@ api:
       enabled: ${api.endpoints.gRPC.enabled:true}
       host: ${api.endpoints.gRPC.host:localhost:5556}
       exposedHost: ${api.endpoints.gRPC.exposedHost:null}
+      tlsEnabled: ${api.endpoints.gRPC.tlsEnabled:true}
       mTLS:
         enabled: ${api.endpoints.gRPC.mTLS.enabled:false}
         allowedClientCertificatePaths: ${api.endpoints.gRPC.mTLS.allowedClientCertificatesPaths:[]}

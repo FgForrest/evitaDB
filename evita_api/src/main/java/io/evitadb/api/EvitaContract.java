@@ -27,11 +27,14 @@ import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.exception.CatalogAlreadyPresentException;
 import io.evitadb.api.exception.InstanceTerminatedException;
+import io.evitadb.api.exception.PastDataNotAvailableException;
 import io.evitadb.api.exception.TransactionException;
+import io.evitadb.api.job.JobStatus;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.system.SystemStatus;
+import io.evitadb.dataType.PaginatedList;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.UnexpectedIOException;
@@ -41,6 +44,7 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.time.OffsetDateTime;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -322,25 +326,6 @@ public interface EvitaContract extends AutoCloseable {
 	}
 
 	/**
-	 * Creates a backup of the specified catalog and returns an InputStream to read the binary data of the zip file.
-	 *
-	 * @param catalogName the name of the catalog to backup
-	 * @param outputStream an OutputStream to write the binary data of the zip file
-	 * @throws UnexpectedIOException if an I/O error occurs during reading the catalog contents
-	 */
-	void backupCatalog(@Nonnull String catalogName, @Nonnull OutputStream outputStream) throws UnexpectedIOException;
-
-	/**
-	 * Restores a catalog from the provided InputStream which contains the binary data of a previously backed up zip
-	 * file. The input stream is closed within the method.
-	 *
-	 * @param catalogName the name of the catalog to restore
-	 * @param inputStream an InputStream to read the binary data of the zip file
-	 * @throws UnexpectedIOException if an I/O error occurs
-	 */
-	void restoreCatalog(@Nonnull String catalogName, @Nonnull InputStream inputStream) throws UnexpectedIOException;
-
-	/**
 	 * Overloaded method {@link #updateCatalogAsync(String, Function, CommitBehavior, SessionFlags...)} that returns
 	 * future that is completed when the transaction reaches the processing stage defined by the `commitBehaviour`
 	 * argument.
@@ -357,6 +342,63 @@ public interface EvitaContract extends AutoCloseable {
 		@Nullable SessionFlags... flags
 	)
 		throws TransactionException;
+
+	/**
+	 * Creates a backup of the specified catalog and returns an InputStream to read the binary data of the zip file.
+	 *
+	 * @param catalogName the name of the catalog to backup
+	 * @param pastMoment   leave null for creating backup for actual dataset, or specify past moment to create backup for
+	 *                     the dataset as it was at that moment
+	 * @param includingWAL if true, the backup will include the Write-Ahead Log (WAL) file and when the catalog is
+	 *                     restored, it'll replay the WAL contents locally to bring the catalog to the current state
+	 * @return jobId of the backup process
+	 * @throws PastDataNotAvailableException when the past data is not available
+	 */
+	@Nonnull
+	UUID backupCatalog(@Nonnull String catalogName, @Nullable OffsetDateTime pastMoment, boolean includingWAL) throws PastDataNotAvailableException;
+
+	/**
+	 * Restores a catalog from the provided InputStream which contains the binary data of a previously backed up zip
+	 * file. The input stream is closed within the method.
+	 *
+	 * @param catalogName the name of the catalog to restore
+	 * @param inputStream an InputStream to read the binary data of the zip file
+	 * @return jobId of the restore process
+	 * @throws UnexpectedIOException if an I/O error occurs
+	 */
+	@Nonnull
+	UUID restoreCatalog(@Nonnull String catalogName, @Nonnull InputStream inputStream) throws UnexpectedIOException;
+
+	/**
+	 * TODO JNO - document me
+	 * @param page
+	 * @param pageSize
+	 * @return
+	 */
+	@Nonnull
+	PaginatedList<JobStatus<?, ?>> getJobStatuses(int page, int pageSize);
+
+	/**
+	 * TODO JNO - document me
+	 * @param jobId
+	 * @return
+	 */
+	@Nonnull
+	Optional<JobStatus<?, ?>> getJobStatus(@Nonnull UUID jobId);
+
+	/**
+	 * TODO JNO - document me
+	 * @param jobId
+	 * @return
+	 */
+	boolean cancelJob(@Nonnull UUID jobId);
+
+	/**
+	 * TODO JNO - document me
+	 * @param fileId
+	 * @param outputStream
+	 */
+	void writeFile(@Nonnull UUID fileId, @Nonnull OutputStream outputStream);
 
 	/**
 	 * Retrieves the current system status of the EvitaDB server.

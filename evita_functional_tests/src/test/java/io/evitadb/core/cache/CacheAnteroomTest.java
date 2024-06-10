@@ -28,7 +28,7 @@ import io.evitadb.core.cache.payload.FlattenedFormula;
 import io.evitadb.core.query.algebra.CacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.AndFormula;
-import io.evitadb.scheduling.Scheduler;
+import io.evitadb.core.scheduling.Scheduler;
 import io.evitadb.test.TestConstants;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

@@ -25,6 +25,7 @@ package io.evitadb.externalApi.observability.metric;
 
 import io.evitadb.api.EvitaContract;
 import io.evitadb.core.Evita;
+import io.evitadb.core.scheduling.ObservableExecutorService;
 import io.evitadb.externalApi.api.system.ProbesProvider;
 import io.evitadb.externalApi.api.system.model.HealthProblem;
 import io.evitadb.externalApi.http.ExternalApiProvider;
@@ -34,7 +35,6 @@ import io.evitadb.externalApi.observability.ObservabilityManager;
 import io.evitadb.externalApi.observability.ObservabilityProvider;
 import io.evitadb.utils.CollectionUtils;
 import lombok.extern.slf4j.Slf4j;
-import org.jboss.threads.EnhancedQueueExecutor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -243,7 +243,7 @@ public class ObservabilityProbesDetector implements ProbesProvider {
 	 */
 	@Nonnull
 	private HealthProblemCheckResult checkInputQueues(@Nonnull Evita evita) {
-		final EnhancedQueueExecutor executor = evita.getExecutor();
+		final ObservableExecutorService executor = evita.getRequestExecutor();
 		final long rejectedTaskCount = executor.getRejectedTaskCount();
 		final long submittedTaskCount = executor.getSubmittedTaskCount();
 		// if the ratio of rejected task to submitted tasks is greater than 2, we could consider queues as overloaded

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,30 +21,27 @@
  *   limitations under the License.
  */
 
-package io.evitadb.scheduling;
+package io.evitadb.core.scheduling;
 
-import lombok.AccessLevel;
-import lombok.NoArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-
-import javax.annotation.Nonnull;
-import java.util.concurrent.Executor;
-import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ExecutorService;
 
 /**
- * Custom rejecting executor that logs the problem when the queue gets full.
+ * Interface that extends {@link ExecutorService} with additional methods for observing the state of the executor.
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@Slf4j
-@NoArgsConstructor(access = AccessLevel.PRIVATE)
-public class RejectingExecutor implements Executor {
-	public static final RejectingExecutor INSTANCE = new RejectingExecutor();
+public interface ObservableExecutorService extends ExecutorService {
 
-	@Override
-	public void execute(@Nonnull Runnable command) {
-		log.error("Evita executor queue full. Please add more threads to the pool.");
-		throw new RejectedExecutionException("Evita executor queue full. Please add more threads to the pool.");
-	}
+	/**
+	 * Returns the number of tasks that have been submitted to the executor to be executed.
+	 * @return the number of tasks that have been submitted to the executor to be executed
+	 */
+	long getSubmittedTaskCount();
+
+	/**
+	 * Returns the number of tasks that have been rejected by the executor due to full queues.
+	 * @return the number of tasks that have been rejected by the executor due to full queues
+	 */
+	long getRejectedTaskCount();
 
 }

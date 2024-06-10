@@ -184,7 +184,7 @@ public final class GrpcEvitaSessionAPI {
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcGoLiveAndCloseResponse_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcBackupCatalogResponse_descriptor;
-  static final 
+  static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcBackupCatalogResponse_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor

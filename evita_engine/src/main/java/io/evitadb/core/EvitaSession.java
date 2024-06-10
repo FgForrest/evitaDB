@@ -32,15 +32,7 @@ import io.evitadb.api.SchemaPostProcessor;
 import io.evitadb.api.SchemaPostProcessorCapturingResult;
 import io.evitadb.api.SessionTraits;
 import io.evitadb.api.TransactionContract.CommitBehavior;
-import io.evitadb.api.exception.CollectionNotFoundException;
-import io.evitadb.api.exception.EntityClassInvalidException;
-import io.evitadb.api.exception.InstanceTerminatedException;
-import io.evitadb.api.exception.SchemaAlteringException;
-import io.evitadb.api.exception.TransactionException;
-import io.evitadb.api.exception.TransactionNotSupportedException;
-import io.evitadb.api.exception.UnexpectedResultCountException;
-import io.evitadb.api.exception.UnexpectedResultException;
-import io.evitadb.api.exception.UnexpectedTransactionStateException;
+import io.evitadb.api.exception.*;
 import io.evitadb.api.observability.trace.RepresentsMutation;
 import io.evitadb.api.observability.trace.RepresentsQuery;
 import io.evitadb.api.observability.trace.Traced;
@@ -83,7 +75,6 @@ import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.core.transaction.TransactionWalFinalizer;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
-import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ReflectionLookup;
@@ -95,7 +86,6 @@ import lombok.extern.slf4j.Slf4j;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
-import java.io.OutputStream;
 import java.io.Serializable;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
@@ -1130,9 +1120,12 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		});
 	}
 
+	@Nonnull
 	@Override
-	public void backupCatalog(@Nonnull OutputStream outputStream) throws UnexpectedIOException {
-		getCatalog().backup(outputStream);
+	public UUID backupCatalog(@Nullable OffsetDateTime pastMoment, boolean includingWAL) throws PastDataNotAvailableException {
+		/* TODO JNO - implement me */
+		/*getCatalog().backup(outputStream);*/
+		return null;
 	}
 
 	@Nonnull

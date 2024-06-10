@@ -44,7 +44,7 @@ import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
 import io.evitadb.core.query.sort.CacheableSorter;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.core.scheduling.BackgroundTask;
-import io.evitadb.scheduling.Scheduler;
+import io.evitadb.core.scheduling.Scheduler;
 import io.evitadb.utils.CollectionUtils;
 import lombok.extern.slf4j.Slf4j;
 import net.openhft.hashing.LongHashFunction;

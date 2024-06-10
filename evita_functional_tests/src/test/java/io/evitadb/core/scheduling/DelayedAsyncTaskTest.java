@@ -23,14 +23,12 @@
 
 package io.evitadb.core.scheduling;
 
-import io.evitadb.scheduling.Scheduler;
+import io.evitadb.api.configuration.ThreadPoolOptions;
 import io.evitadb.test.TestConstants;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -43,22 +41,20 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 class DelayedAsyncTaskTest implements TestConstants {
-	private ScheduledThreadPoolExecutor poolExecutor;
 	private Scheduler scheduler;
 
 	@BeforeEach
 	void setUp() {
-		this.poolExecutor = new ScheduledThreadPoolExecutor(1, (r, executor) -> {
-			throw new RejectedExecutionException("Task rejected");
-		});
-		this.scheduler = new Scheduler(this.poolExecutor);
+		this.scheduler = new Scheduler(
+			ThreadPoolOptions.requestThreadPoolBuilder()
+				.minThreadCount(1)
+				.build()
+		);
 	}
 
 	@AfterEach
 	void tearDown() {
-		if (this.poolExecutor != null) {
-			this.poolExecutor.shutdownNow();
-		}
+		this.scheduler.shutdownNow();
 	}
 
 	@Test
@@ -107,7 +103,9 @@ class DelayedAsyncTaskTest implements TestConstants {
 			TEST_CATALOG, "testTask", scheduler,
 			() -> {
 				executed.incrementAndGet();
-				return counter.updateAndGet(i -> i / 2 == 0 ? -1 : i / 2);
+				final int planAgainIn = counter.updateAndGet(i -> i / 2 == 0 ? -1 : i / 2);
+				System.out.println(planAgainIn);
+				return planAgainIn;
 			},
 			0, TimeUnit.MILLISECONDS, 0
 		);

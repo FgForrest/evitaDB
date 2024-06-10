@@ -31,12 +31,15 @@ import io.evitadb.api.SessionTraits;
 import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.exception.InstanceTerminatedException;
+import io.evitadb.api.exception.PastDataNotAvailableException;
 import io.evitadb.api.exception.TransactionException;
+import io.evitadb.api.job.JobStatus;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.system.SystemStatus;
+import io.evitadb.dataType.PaginatedList;
 import io.evitadb.driver.config.EvitaClientConfiguration;
 import io.evitadb.driver.exception.EvitaClientTimedOutException;
 import io.evitadb.driver.exception.IncompatibleClientException;
@@ -84,6 +87,7 @@ import java.nio.ByteBuffer;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateEncodingException;
 import java.time.Duration;
+import java.time.OffsetDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
@@ -615,15 +619,46 @@ public class EvitaClient implements EvitaContract {
 	}
 
 	@Override
-	public void backupCatalog(@Nonnull String catalogName, @Nonnull OutputStream outputStream) throws UnexpectedIOException {
+	public CompletableFuture<Long> updateCatalogAsync(
+		@Nonnull String catalogName,
+		@Nonnull Consumer<EvitaSessionContract> updater,
+		@Nonnull CommitBehavior commitBehaviour,
+		@Nullable SessionFlags... flags
+	) throws TransactionException {
 		assertActive();
-		try (final EvitaSessionContract session = this.createReadOnlySession(catalogName)) {
-			session.backupCatalog(outputStream);
+		final SessionTraits traits = new SessionTraits(
+			catalogName,
+			commitBehaviour,
+			flags == null ?
+				new SessionFlags[]{SessionFlags.READ_WRITE} :
+				ArrayUtils.insertRecordIntoArray(SessionFlags.READ_WRITE, flags, flags.length)
+		);
+		final EvitaSessionContract session = this.createSession(traits);
+		final CompletableFuture<Long> closeFuture;
+		try {
+			updater.accept(session);
+		} finally {
+			closeFuture = session.closeNow(commitBehaviour);
 		}
+
+		return closeFuture;
 	}
 
+	@Nonnull
 	@Override
-	public void restoreCatalog(@Nonnull String catalogName, @Nonnull InputStream inputStream) throws UnexpectedIOException {
+	public UUID backupCatalog(@Nonnull String catalogName, @Nullable OffsetDateTime pastMoment, boolean includingWAL) throws PastDataNotAvailableException {
+		assertActive();
+		try (final EvitaSessionContract session = this.createReadOnlySession(catalogName)) {
+			/*session.backupCatalog(outputStream);*/
+		}
+
+		// TODO JNO - alter implementation
+		return null;
+	}
+
+	@Nonnull
+	@Override
+	public UUID restoreCatalog(@Nonnull String catalogName, @Nonnull InputStream inputStream) throws UnexpectedIOException {
 		assertActive();
 
 		executeWithAsyncEvitaService(
@@ -698,32 +733,34 @@ public class EvitaClient implements EvitaContract {
 				}
 			}
 		);
+
+		// TODO JNO - ALTER IMPLEMENTATION
+		return null;
+	}
+
+	@Nonnull
+	@Override
+	public PaginatedList<JobStatus<?, ?>> getJobStatuses(int page, int pageSize) {
+		/* TODO JNO - Implement me */
+		return null;
+	}
+
+	@Nonnull
+	@Override
+	public Optional<JobStatus<?, ?>> getJobStatus(@Nonnull UUID jobId) {
+		/* TODO JNO - Implement me */
+		return Optional.empty();
 	}
 
 	@Override
-	public CompletableFuture<Long> updateCatalogAsync(
-		@Nonnull String catalogName,
-		@Nonnull Consumer<EvitaSessionContract> updater,
-		@Nonnull CommitBehavior commitBehaviour,
-		@Nullable SessionFlags... flags
-	) throws TransactionException {
-		assertActive();
-		final SessionTraits traits = new SessionTraits(
-			catalogName,
-			commitBehaviour,
-			flags == null ?
-				new SessionFlags[]{SessionFlags.READ_WRITE} :
-				ArrayUtils.insertRecordIntoArray(SessionFlags.READ_WRITE, flags, flags.length)
-		);
-		final EvitaSessionContract session = this.createSession(traits);
-		final CompletableFuture<Long> closeFuture;
-		try {
-			updater.accept(session);
-		} finally {
-			closeFuture = session.closeNow(commitBehaviour);
-		}
+	public boolean cancelJob(@Nonnull UUID jobId) {
+		/* TODO JNO - Implement me */
+		return false;
+	}
 
-		return closeFuture;
+	@Override
+	public void writeFile(@Nonnull UUID fileId, @Nonnull OutputStream outputStream) {
+		/* TODO JNO - Implement me */
 	}
 
 	@Nonnull

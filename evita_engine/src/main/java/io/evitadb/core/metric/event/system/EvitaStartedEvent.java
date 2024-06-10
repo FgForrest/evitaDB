@@ -41,24 +41,44 @@ import javax.annotation.Nonnull;
 /**
  * Event that is fired when evitaDB instance is started.
  */
-@Name(AbstractSystemEvent.PACKAGE_NAME + ".EvitaStarted")
+@Name(AbstractSystemCatalogEvent.PACKAGE_NAME + ".EvitaStarted")
 @Description("Event that is fired when evitaDB instance is started.")
 @ExportInvocationMetric(label = "Evita started total")
 @Label("Evita started")
 @Getter
-public class EvitaStartedEvent extends AbstractSystemEvent {
+public class EvitaStartedEvent extends AbstractSystemCatalogEvent {
 
-	@Label("Maximal number of background threads")
+	@Label("Maximal number of threads read only request handling")
 	@ExportMetric(metricType = MetricType.GAUGE)
-	private final int maxThreads;
+	private final int requestMaxThreads;
 
-	@Label("Maximal queue size for background threads")
+	@Label("Maximal queue size for read only request handling")
 	@ExportMetric(metricType = MetricType.GAUGE)
-	private final int maxThreadsQueueSize;
+	private final int requestMaxThreadsQueueSize;
 
-	@Label("Short running tasks timeout in seconds")
+	@Label("Maximal number of threads for read/write requests")
 	@ExportMetric(metricType = MetricType.GAUGE)
-	private final int shortTasksTimeoutSeconds;
+	private final int transactionMaxThreads;
+
+	@Label("Maximal queue size for read/write requests")
+	@ExportMetric(metricType = MetricType.GAUGE)
+	private final int transactionMaxThreadsQueueSize;
+
+	@Label("Maximal number of threads for service tasks")
+	@ExportMetric(metricType = MetricType.GAUGE)
+	private final int serviceMaxThreads;
+
+	@Label("Maximal queue size for service tasks")
+	@ExportMetric(metricType = MetricType.GAUGE)
+	private final int serviceMaxThreadsQueueSize;
+
+	@Label("Read only request timeout in seconds")
+	@ExportMetric(metricType = MetricType.GAUGE)
+	private final int queryTimeoutSeconds;
+
+	@Label("Read/write request timeout in seconds")
+	@ExportMetric(metricType = MetricType.GAUGE)
+	private final int transactionTimeoutSeconds;
 
 	@Label("Maximal session inactivity age in seconds")
 	@ExportMetric(metricType = MetricType.GAUGE)
@@ -112,9 +132,14 @@ public class EvitaStartedEvent extends AbstractSystemEvent {
 		super(null);
 
 		final ServerOptions serverConfiguration = configuration.server();
-		this.maxThreads = serverConfiguration.maxThreadCount();
-		this.maxThreadsQueueSize = serverConfiguration.queueSize();
-		this.shortTasksTimeoutSeconds = serverConfiguration.shortRunningThreadsTimeoutInSeconds();
+		this.requestMaxThreads = serverConfiguration.requestThreadPool().maxThreadCount();
+		this.requestMaxThreadsQueueSize = serverConfiguration.requestThreadPool().queueSize();
+		this.transactionMaxThreads = serverConfiguration.transactionThreadPool().maxThreadCount();
+		this.transactionMaxThreadsQueueSize = serverConfiguration.transactionThreadPool().queueSize();
+		this.serviceMaxThreads = serverConfiguration.serviceThreadPool().maxThreadCount();
+		this.serviceMaxThreadsQueueSize = serverConfiguration.serviceThreadPool().queueSize();
+		this.queryTimeoutSeconds = (int) (serverConfiguration.queryTimeoutInMilliseconds() / 1000L);
+		this.transactionTimeoutSeconds = (int) (serverConfiguration.transactionTimeoutInMilliseconds() / 1000L);
 		this.sessionMaxInactiveAgeSeconds = serverConfiguration.closeSessionsAfterSecondsOfInactivity();
 
 		final StorageOptions storageConfiguration = configuration.storage();

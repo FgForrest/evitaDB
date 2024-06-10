@@ -23,7 +23,6 @@
 
 package io.evitadb.core.scheduling;
 
-import io.evitadb.scheduling.Scheduler;
 import io.evitadb.utils.Assert;
 import lombok.extern.slf4j.Slf4j;
 
@@ -172,17 +171,13 @@ public class DelayedAsyncTask {
 	 * Executes the task and sets the running flag to false when the task is finished.
 	 */
 	private void runTask(@Nonnull LongSupplier runnable) {
+		final long planWithShorterDelay;
 		try {
 			Assert.isPremiseValid(
 				this.running.compareAndSet(false, true),
 				"Task is already running."
 			);
-			final long planWithShorterDelay = runnable.getAsLong();
-			if (planWithShorterDelay > -1L) {
-				scheduleWithDelayShorterBy(planWithShorterDelay);
-			} else {
-				pause();
-			}
+			planWithShorterDelay = runnable.getAsLong();
 		} catch (RuntimeException ex) {
 			log.error("Error while running task: {}", this.task.getTaskName(), ex);
 			throw ex;
@@ -192,9 +187,13 @@ public class DelayedAsyncTask {
 				"Task is not running."
 			);
 		}
-		// reschedule the task if it was requested during the run
-		if (this.reSchedule.compareAndSet(true, false)) {
+		if (planWithShorterDelay > -1L) {
+			scheduleWithDelayShorterBy(planWithShorterDelay);
+		} else if (this.reSchedule.compareAndSet(true, false)) {
+			// reschedule the task if it was requested during the run
 			this.schedule();
+		} else {
+			pause();
 		}
 	}
 }

@@ -111,8 +111,8 @@ import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
-import java.io.OutputStream;
 import java.io.Serializable;
 import java.time.OffsetDateTime;
 import java.util.*;
@@ -1258,8 +1258,9 @@ public class EvitaClientSession implements EvitaSessionContract {
 		});
 	}
 
+	@Nonnull
 	@Override
-	public void backupCatalog(@Nonnull OutputStream outputStream) throws UnexpectedIOException {
+	public UUID backupCatalog(@Nullable OffsetDateTime pastMoment, boolean includingWAL) throws PastDataNotAvailableException {
 		assertActive();
 		final CompletableFuture<Void> result = new CompletableFuture<>();
 		executeWithAsyncEvitaSessionService(
@@ -1270,7 +1271,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 						@Override
 						public void onNext(GrpcBackupCatalogResponse grpcBackupCatalogResponse) {
 							try {
-								grpcBackupCatalogResponse.getBackupFile().writeTo(outputStream);
+								/*grpcBackupCatalogResponse.getBackupFile().writeTo(outputStream);*/
 							} catch (Exception ex) {
 								result.completeExceptionally(
 									new UnexpectedIOException(
@@ -1312,6 +1313,9 @@ public class EvitaClientSession implements EvitaSessionContract {
 				throw ex;
 			}
 		}
+
+		/* TODO JNO - alter implementation */
+		return null;
 	}
 
 	@Nonnull

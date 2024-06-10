@@ -77,6 +77,8 @@ import io.evitadb.core.query.QueryContext;
 import io.evitadb.core.query.QueryPlan;
 import io.evitadb.core.query.QueryPlanner;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.scheduling.ObservableExecutorService;
+import io.evitadb.core.scheduling.Scheduler;
 import io.evitadb.core.sequence.SequenceService;
 import io.evitadb.core.sequence.SequenceType;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
@@ -99,7 +101,6 @@ import io.evitadb.index.IndexMaintainer;
 import io.evitadb.index.map.MapChanges;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.index.reference.TransactionalReference;
-import io.evitadb.scheduling.Scheduler;
 import io.evitadb.store.entity.model.schema.CatalogSchemaStoragePart;
 import io.evitadb.store.spi.CatalogPersistenceService;
 import io.evitadb.store.spi.CatalogPersistenceServiceFactory;
@@ -235,6 +236,10 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 	 */
 	private final TransactionOptions transactionOptions;
 	/**
+	 * Reference to the shared transactional executor service that provides carrier threads for transaction processing.
+	 */
+	private final ObservableExecutorService transactionalExecutor;
+	/**
 	 * Reference to the shared executor service that provides carrier threads for transaction processing.
 	 */
 	private final Scheduler scheduler;
@@ -297,11 +302,12 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		@Nonnull Catalog catalog,
 		@Nonnull TransactionOptions transactionOptions,
 		@Nonnull Scheduler scheduler,
+		@Nonnull ObservableExecutorService transactionalExecutor,
 		@Nonnull Consumer<Catalog> newCatalogVersionConsumer
 	) {
-		final SubmissionPublisher<ConflictResolutionTransactionTask> txPublisher = new SubmissionPublisher<>(scheduler, transactionOptions.maxQueueSize());
-		final ConflictResolutionTransactionStage stage1 = new ConflictResolutionTransactionStage(scheduler, transactionOptions.maxQueueSize(), catalog);
-		final WalAppendingTransactionStage stage2 = new WalAppendingTransactionStage(scheduler, transactionOptions.maxQueueSize(), catalog, stage1::notifyCatalogVersionDropped);
+		final SubmissionPublisher<ConflictResolutionTransactionTask> txPublisher = new SubmissionPublisher<>(transactionalExecutor, transactionOptions.maxQueueSize());
+		final ConflictResolutionTransactionStage stage1 = new ConflictResolutionTransactionStage(transactionalExecutor, transactionOptions.maxQueueSize(), catalog);
+		final WalAppendingTransactionStage stage2 = new WalAppendingTransactionStage(transactionalExecutor, transactionOptions.maxQueueSize(), catalog, stage1::notifyCatalogVersionDropped);
 		final TrunkIncorporationTransactionStage stage3 = new TrunkIncorporationTransactionStage(scheduler, transactionOptions.maxQueueSize(), catalog, transactionOptions.flushFrequencyInMillis());
 		final CatalogSnapshotPropagationTransactionStage stage4 = new CatalogSnapshotPropagationTransactionStage(newCatalogVersionConsumer);
 
@@ -319,6 +325,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		@Nonnull TransactionOptions transactionOptions,
 		@Nonnull ReflectionLookup reflectionLookup,
 		@Nonnull Scheduler scheduler,
+		@Nonnull ObservableExecutorService transactionalExecutor,
 		@Nonnull Consumer<Catalog> newCatalogVersionConsumer,
 		@Nonnull TracingContext tracingContext
 	) {
@@ -361,9 +368,10 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		this.storageOptions = storageOptions;
 		this.transactionOptions = transactionOptions;
 		this.scheduler = scheduler;
+		this.transactionalExecutor = transactionalExecutor;
 		this.newCatalogVersionConsumer = newCatalogVersionConsumer;
 		this.lastPersistedSchemaVersion = this.schema.get().version();
-		this.transactionalPipeline = createTransactionPipeline(this, transactionOptions, scheduler, newCatalogVersionConsumer);
+		this.transactionalPipeline = createTransactionPipeline(this, transactionOptions, scheduler, transactionalExecutor, newCatalogVersionConsumer);
 	}
 
 	public Catalog(
@@ -373,6 +381,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		@Nonnull TransactionOptions transactionOptions,
 		@Nonnull ReflectionLookup reflectionLookup,
 		@Nonnull Scheduler scheduler,
+		@Nonnull ObservableExecutorService transactionalExecutor,
 		@Nonnull Consumer<Catalog> newCatalogVersionConsumer,
 		@Nonnull TracingContext tracingContext
 	) {
@@ -458,9 +467,10 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		this.storageOptions = storageOptions;
 		this.transactionOptions = transactionOptions;
 		this.scheduler = scheduler;
+		this.transactionalExecutor = transactionalExecutor;
 		this.newCatalogVersionConsumer = newCatalogVersionConsumer;
 		this.lastPersistedSchemaVersion = this.schema.get().version();
-		this.transactionalPipeline = createTransactionPipeline(this, transactionOptions, scheduler, newCatalogVersionConsumer);
+		this.transactionalPipeline = createTransactionPipeline(this, transactionOptions, scheduler, transactionalExecutor, newCatalogVersionConsumer);
 	}
 
 	Catalog(
@@ -501,6 +511,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		this.storageOptions = previousCatalogVersion.storageOptions;
 		this.transactionOptions = previousCatalogVersion.transactionOptions;
 		this.scheduler = previousCatalogVersion.scheduler;
+		this.transactionalExecutor = previousCatalogVersion.transactionalExecutor;
 		this.newCatalogVersionConsumer = previousCatalogVersion.newCatalogVersionConsumer;
 		this.transactionalPipeline = previousCatalogVersion.transactionalPipeline;
 
@@ -867,6 +878,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 	@Override
 	public void terminate() {
 		try {
+			final String catalogName = getName();
 			final List<EntityCollectionHeader> entityHeaders;
 			boolean changeOccurred = this.lastPersistedSchemaVersion != schema.get().version();
 			final boolean warmingUpState = getCatalogState() == CatalogState.WARMING_UP;
@@ -894,7 +906,9 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 				);
 			}
 			// close all resources here, here we just hand all objects to GC
-			entityCollections.clear();
+			this.entityCollections.clear();
+			// log info
+			log.info("Catalog {} successfully terminated.", catalogName);
 		} finally {
 			persistenceService.close();
 		}

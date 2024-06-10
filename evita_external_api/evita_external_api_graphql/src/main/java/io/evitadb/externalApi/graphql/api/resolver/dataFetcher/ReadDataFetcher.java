@@ -28,7 +28,6 @@ import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.observability.trace.TracingContext;
 import io.evitadb.api.observability.trace.TracingContextReference;
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
-import io.evitadb.thread.ShortRunningSupplier;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -71,7 +70,7 @@ public class ReadDataFetcher implements DataFetcher<Object> {
 		// We need to manually pass the context, because the completable future will be detached from this call.
 		final TracingContextReference<?> parentContextReference = tracingContext.getCurrentContext();
 		return CompletableFuture.supplyAsync(
-			new ShortRunningSupplier<>(() -> tracingContext.executeWithinBlockWithParentContext(
+			() -> tracingContext.executeWithinBlockWithParentContext(
 				parentContextReference,
 				"GraphQL fetch",
 				() -> {
@@ -85,7 +84,7 @@ public class ReadDataFetcher implements DataFetcher<Object> {
 						}
 					}
 				}
-			)),
+			),
 			executor
 		);
 	}

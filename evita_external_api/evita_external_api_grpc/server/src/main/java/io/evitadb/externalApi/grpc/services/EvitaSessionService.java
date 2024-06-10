@@ -268,7 +268,8 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 				}
 				backupFilePath = Files.createTempFile(workDirectory, "catalog_backup_" + session.getCatalogName() + "-", ".zip");
 				try (final OutputStream outputStream = Files.newOutputStream(backupFilePath, StandardOpenOption.APPEND)) {
-					session.backupCatalog(outputStream);
+					/*TODO JNO - ALTER IMPLEMENTATION*/
+					/*session.backupCatalog(outputStream);*/
 				}
 
 				// send the backup file to the client - read it by chunks of 64KB

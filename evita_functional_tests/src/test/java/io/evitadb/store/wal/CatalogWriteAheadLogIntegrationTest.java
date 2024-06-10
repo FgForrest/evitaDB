@@ -35,7 +35,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuil
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.core.EvitaSession;
-import io.evitadb.scheduling.Scheduler;
+import io.evitadb.core.scheduling.Scheduler;
 import io.evitadb.store.catalog.DefaultIsolatedWalService;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.model.FileLocation;

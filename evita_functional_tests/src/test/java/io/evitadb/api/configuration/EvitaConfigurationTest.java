@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -40,7 +40,7 @@ class EvitaConfigurationTest {
 	void shouldInitDefaults() {
 		final EvitaConfiguration options = EvitaConfiguration.builder().build();
 		assertNotNull(options.storage().storageDirectory());
-		assertTrue(options.server().coreThreadCount() > 0);
+		assertTrue(options.server().requestThreadPool().minThreadCount() > 0);
 		assertFalse(options.cache().enabled());
 	}
 

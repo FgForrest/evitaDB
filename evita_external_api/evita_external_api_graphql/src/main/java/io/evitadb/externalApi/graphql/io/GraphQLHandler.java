@@ -33,7 +33,6 @@ import graphql.execution.NonNullableValueCoercedAsNullException;
 import graphql.execution.UnknownOperationException;
 import graphql.schema.CoercingParseValueException;
 import graphql.schema.CoercingSerializeException;
-import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.observability.trace.TracingBlockReference;
 import io.evitadb.core.Evita;
 import io.evitadb.exception.EvitaInternalError;
@@ -64,7 +63,6 @@ import java.io.OutputStream;
 import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -95,8 +93,6 @@ public class GraphQLHandler extends EndpointHandler<GraphQLEndpointExchange> {
     @Nonnull
     private final ExternalApiTracingContext<Object> tracingContext;
     @Nonnull
-    private final EvitaConfiguration evitaConfiguration;
-    @Nonnull
     private final AtomicReference<GraphQL> graphQL;
 
     public GraphQLHandler(@Nonnull ObjectMapper objectMapper,
@@ -104,7 +100,6 @@ public class GraphQLHandler extends EndpointHandler<GraphQLEndpointExchange> {
                           @Nonnull AtomicReference<GraphQL> graphQL) {
         this.objectMapper = objectMapper;
         this.tracingContext = ExternalApiTracingContextProvider.getContext();
-        this.evitaConfiguration = evita.getConfiguration();
         this.graphQL = graphQL;
     }
 
@@ -205,7 +200,6 @@ public class GraphQLHandler extends EndpointHandler<GraphQLEndpointExchange> {
             final ExecutionInput executionInput = graphQLRequest.toExecutionInput();
             final ExecutionResult result = graphQL.get()
                 .executeAsync(executionInput)
-                .orTimeout(evitaConfiguration.server().shortRunningThreadsTimeoutInSeconds(), TimeUnit.SECONDS)
                 .join();
 
             // trying to close potential tracing block (created by OperationTracingInstrumentation) in the original thread

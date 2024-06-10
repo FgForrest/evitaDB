@@ -24,26 +24,30 @@
 package io.evitadb.core.metric.event.system;
 
 import io.evitadb.api.observability.annotation.ExportInvocationMetric;
+import io.evitadb.api.observability.annotation.ExportMetricLabel;
 import jdk.jfr.Description;
 import jdk.jfr.Label;
 import jdk.jfr.Name;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 /**
- * Event that is fired when a background task is started.
+ * Event that is fired when a background task is rejected due to full queues.
+ *
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@Name(AbstractSystemCatalogEvent.PACKAGE_NAME + ".BackgroundTaskStarted")
-@Description("Event that is fired when a background task is started.")
-@ExportInvocationMetric(label = "Background tasks started")
-@Label("Background task started")
+@Name(AbstractSystemCatalogEvent.PACKAGE_NAME + ".BackgroundTaskRejected")
+@Description("Event that is fired when a background task is rejected due to full queues.")
+@ExportInvocationMetric(label = "Background tasks rejected")
+@Label("Background task rejected")
 @Getter
-public class BackgroundTaskStartedEvent extends AbstractBackgroundTaskEvent {
+public class BackgroundTaskRejectedEvent extends AbstractSystemEvent {
+	@ExportMetricLabel
+	private final String taskName;
 
-	public BackgroundTaskStartedEvent(@Nullable String catalogName, @Nonnull String taskName) {
-		super(catalogName, taskName);
+	public BackgroundTaskRejectedEvent(@Nonnull String taskName) {
+		this.taskName = taskName;
 	}
 
 }

@@ -90,12 +90,12 @@ module evita.engine {
 
 	requires zero.allocation.hashing;
 	requires com.carrotsearch.hppc;
-	requires jboss.threads;
 	requires roaringbitmap;
 	requires com.esotericsoftware.kryo;
 
 	requires jdk.httpserver;
 	requires jdk.jfr;
+	requires net.bytebuddy;
 
 	opens io.evitadb.core.metric.event to evita.common;
 	opens io.evitadb.core.metric.event.transaction to jdk.jfr;

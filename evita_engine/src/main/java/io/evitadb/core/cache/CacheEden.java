@@ -46,9 +46,9 @@ import io.evitadb.core.query.extraResult.CacheableEvitaResponseExtraResultComput
 import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
 import io.evitadb.core.query.sort.CacheableSorter;
+import io.evitadb.core.scheduling.Scheduler;
 import io.evitadb.dataType.array.CompositeLongArray;
 import io.evitadb.exception.GenericEvitaInternalError;
-import io.evitadb.scheduling.Scheduler;
 import io.evitadb.utils.BitUtils;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;

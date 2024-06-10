@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,30 +21,26 @@
  *   limitations under the License.
  */
 
-package io.evitadb.thread;
+package io.evitadb.api.exception;
 
-import lombok.RequiredArgsConstructor;
+import io.evitadb.exception.EvitaInvalidUsageException;
+import lombok.Getter;
 
+import java.io.Serial;
+import java.time.OffsetDateTime;
 
 /**
- * Runnable wrapper wrapping short-running execution that can be killed when running longer than expected by system timeout.
+ * Exception thrown when the user requests data from a time in the past that is not available.
  *
- * @see TimeoutableThread
- * @see java.util.concurrent.ExecutorService
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@RequiredArgsConstructor
-public class ShortRunningRunnable implements Runnable {
+public class PastDataNotAvailableException extends EvitaInvalidUsageException {
+	@Serial private static final long serialVersionUID = 2157655513551186466L;
+	@Getter private final OffsetDateTime offsetDateTime;
 
-	private final Runnable delegate;
-
-	@Override
-	public void run() {
-		try {
-			((TimeoutableThread) Thread.currentThread()).setStartTime(System.nanoTime());
-			delegate.run();
-		} finally {
-			((TimeoutableThread) Thread.currentThread()).setStartTime(null);
-		}
+	public PastDataNotAvailableException(OffsetDateTime offsetDateTime) {
+		super("The latest data available is from " + offsetDateTime + ".");
+		this.offsetDateTime = offsetDateTime;
 	}
+
 }

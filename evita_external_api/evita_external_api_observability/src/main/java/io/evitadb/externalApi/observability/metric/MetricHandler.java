@@ -53,7 +53,6 @@ import jdk.jfr.Name;
 import jdk.jfr.consumer.RecordedEvent;
 import jdk.jfr.consumer.RecordingStream;
 import lombok.extern.slf4j.Slf4j;
-import org.jboss.threads.EnhancedQueueExecutor;
 
 import javax.annotation.Nonnull;
 import java.lang.annotation.Annotation;
@@ -68,6 +67,7 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -342,7 +342,7 @@ public class MetricHandler {
 	 * @param evita evita instance
 	 */
 	public void registerHandlers(@Nonnull Evita evita) {
-		EnhancedQueueExecutor executor = evita.getExecutor();
+		ExecutorService executor = evita.getServiceExecutor();
 
 		registerJvmMetrics();
 		final Set<Class<? extends CustomMetricsExecutionEvent>> allowedMetrics = getAllowedEventSet();

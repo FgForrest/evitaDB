@@ -34,7 +34,7 @@ import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.core.query.sort.CacheableSorter;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.core.scheduling.BackgroundTask;
-import io.evitadb.scheduling.Scheduler;
+import io.evitadb.core.scheduling.Scheduler;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;

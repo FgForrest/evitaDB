@@ -88,7 +88,7 @@ public class GraphQLSchemaBuildingContext {
         if (!config.isParallelize()) {
             return Optional.empty();
         }
-        return Optional.of(evita.getExecutor());
+        return Optional.of(evita.getRequestExecutor());
     }
 
     /**

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,32 +21,23 @@
  *   limitations under the License.
  */
 
-package io.evitadb.thread;
+package io.evitadb.api.job;
 
-import lombok.RequiredArgsConstructor;
-
-import java.util.function.Supplier;
-
+import java.io.Serializable;
+import java.time.OffsetDateTime;
 
 /**
- * Supplier wrapper wrapping short-running execution that can be killed when running longer than expected by system timeout.
+ * TODO JNO - document me
  *
- * @see TimeoutableThread
- * @see java.util.concurrent.ExecutorService
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@RequiredArgsConstructor
-public class ShortRunningSupplier<T> implements Supplier<T> {
-
-	private final Supplier<T> delegate;
-
-	@Override
-	public T get() {
-		try {
-			((TimeoutableThread) Thread.currentThread()).setStartTime(System.nanoTime());
-			return delegate.get();
-		} finally {
-			((TimeoutableThread) Thread.currentThread()).setStartTime(null);
-		}
-	}
+public record JobStatus<S extends JobSettings, T extends JobResult>(
+	JobType jobType,
+	OffsetDateTime issued,
+	OffsetDateTime started,
+	OffsetDateTime finished,
+	int progress,
+	S settings,
+	T result
+) implements Serializable {
 }

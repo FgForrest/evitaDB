@@ -23,27 +23,34 @@
 
 package io.evitadb.core.metric.event.system;
 
-import io.evitadb.api.observability.annotation.ExportInvocationMetric;
+import io.evitadb.api.configuration.metric.MetricType;
+import io.evitadb.api.observability.annotation.ExportMetric;
+import io.evitadb.api.observability.annotation.ExportMetricLabel;
 import jdk.jfr.Description;
 import jdk.jfr.Label;
 import jdk.jfr.Name;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 /**
- * Event that is fired when a background task is started.
+ * Event that is fired when a background task was timed out and was canceled.
+ *
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@Name(AbstractSystemCatalogEvent.PACKAGE_NAME + ".BackgroundTaskStarted")
-@Description("Event that is fired when a background task is started.")
-@ExportInvocationMetric(label = "Background tasks started")
-@Label("Background task started")
+@Name(AbstractSystemCatalogEvent.PACKAGE_NAME + ".BackgroundTaskTimedOut")
+@Description("Event that is fired when a background task was timed out and was canceled.")
+@Label("Background task timed out")
 @Getter
-public class BackgroundTaskStartedEvent extends AbstractBackgroundTaskEvent {
+public class BackgroundTaskTimedOutEvent extends AbstractSystemEvent {
+	@ExportMetric(metricType = MetricType.COUNTER)
+	private final int timedOutTasks;
+	@ExportMetricLabel
+	private final String taskName;
 
-	public BackgroundTaskStartedEvent(@Nullable String catalogName, @Nonnull String taskName) {
-		super(catalogName, taskName);
+	public BackgroundTaskTimedOutEvent(@Nonnull String taskName, int timedOutTasks) {
+		this.taskName = taskName;
+		this.timedOutTasks = timedOutTasks;
 	}
 
 }
