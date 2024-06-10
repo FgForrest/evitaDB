@@ -93,6 +93,7 @@ import java.math.BigDecimal;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
@@ -1020,6 +1021,18 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 
 		assertNotNull(catalogSchema);
 		assertEquals(TEST_CATALOG, catalogSchema.getName());
+	}
+
+	@Test
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldQueryCatalogAsynchronously(EvitaClient evitaClient) throws ExecutionException, InterruptedException {
+		final CompletableFuture<CatalogSchemaContract> catalogSchema = evitaClient.queryCatalogAsync(
+			TEST_CATALOG,
+			EvitaSessionContract::getCatalogSchema
+		);
+
+		assertNotNull(catalogSchema);
+		assertEquals(TEST_CATALOG, catalogSchema.get().getName());
 	}
 
 	@Test

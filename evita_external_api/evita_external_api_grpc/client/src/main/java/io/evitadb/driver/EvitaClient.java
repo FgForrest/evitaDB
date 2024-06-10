@@ -99,6 +99,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -167,6 +168,10 @@ public class EvitaClient implements EvitaContract {
 	 * Client call timeout.
 	 */
 	private final ThreadLocal<LinkedList<Timeout>> timeout;
+	/**
+	 * Executor service used for asynchronous operations.
+	 */
+	private final ExecutorService executor;
 
 	@Nonnull
 	private static ClientTracingContext getClientTracingContext(@Nonnull EvitaClientConfiguration configuration) {
@@ -227,8 +232,9 @@ public class EvitaClient implements EvitaContract {
 			nettyChannelBuilder.usePlaintext();
 		}
 
+		this.executor = Executors.newCachedThreadPool();
 		nettyChannelBuilder
-			.executor(Executors.newCachedThreadPool())
+			.executor(this.executor)
 			.defaultLoadBalancingPolicy("round_robin")
 			.intercept(new ClientSessionInterceptor(configuration));
 
@@ -545,6 +551,19 @@ public class EvitaClient implements EvitaContract {
 		try (final EvitaSessionContract session = this.createSession(new SessionTraits(catalogName, flags))) {
 			queryLogic.accept(session);
 		}
+	}
+
+	@Override
+	public <T> CompletableFuture<T> queryCatalogAsync(@Nonnull String catalogName, @Nonnull Function<EvitaSessionContract, T> queryLogic, @Nullable SessionFlags... flags) {
+		return CompletableFuture.supplyAsync(
+			() -> {
+				assertActive();
+				try (final EvitaSessionContract session = this.createSession(new SessionTraits(catalogName, flags))) {
+					return queryLogic.apply(session);
+				}
+			},
+			this.executor
+		);
 	}
 
 	@Override
