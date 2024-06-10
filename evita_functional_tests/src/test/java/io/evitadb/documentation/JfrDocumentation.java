@@ -233,12 +233,12 @@ public class JfrDocumentation implements EvitaTestSupport {
 								.forEach(
 									metric -> {
 										try {
-											writer.write("  <dt>`" + metric.name() + "` (" + metric.metricType() +  ")</dt>\n");
+											writer.write("  <dt>**" + metric.name() + "** (" + metric.metricType() +  ")</dt>\n");
 											writer.write("  <dd>");
 											writer.write(metric.description());
 											// if there are labels referred by the metrics list them including link to used terms
 											if (metric.labels().length > 0) {
-												writer.write("\n\n    Labels: ");
+												writer.write("\n\n    **Labels:** ");
 												writer.write(Arrays.stream(metric.labels())
 													.map(label -> "<Term>" + label + "</Term>").collect(Collectors.joining(", ")));
 												writer.write("\n");
