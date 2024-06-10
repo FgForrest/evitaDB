@@ -212,6 +212,20 @@ public interface EvitaContract extends AutoCloseable {
 	void queryCatalog(@Nonnull String catalogName, @Nonnull Consumer<EvitaSessionContract> queryLogic, @Nullable SessionFlags... flags);
 
 	/**
+	 * Executes querying logic in the newly created Evita session. Session is safely closed at the end of this method
+	 * and result is returned.
+	 *
+	 * Query logic is intended to be read-only. For read-write logic use {@link #updateCatalog(String, Function, SessionFlags[]))} or
+	 * open a transaction manually in the logic itself.
+	 *
+	 * This is asynchronous variant of {@link #queryCatalog(String, Function, SessionFlags...)} that immediately returns
+	 * a future that is completed when the query finishes.
+	 *
+	 * @return future that is completed when the query finishes
+	 */
+	<T> CompletableFuture<T> queryCatalogAsync(@Nonnull String catalogName, @Nonnull Function<EvitaSessionContract, T> queryLogic, @Nullable SessionFlags... flags);
+
+	/**
 	 * Executes catalog read-write logic in the newly Evita session. When logic finishes without exception, changes are
 	 * committed to the index, otherwise changes are roll-backed and no data is affected. Changes made by the updating
 	 * logic are visible only within update function. Other threads outside the logic function work with non-changed

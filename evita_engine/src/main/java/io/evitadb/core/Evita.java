@@ -200,6 +200,26 @@ public final class Evita implements EvitaContract {
 	 */
 	@Getter private boolean readOnly;
 
+	/**
+	 * Shuts down passed executor service in a safe manner.
+	 *
+	 * @param name            name of the executor service
+	 * @param executorService executor service to be shut down
+	 * @param waitSeconds     number of seconds to wait for the executor service to shut down
+	 */
+	private static void shutdownScheduler(@Nonnull String name, @Nonnull ExecutorService executorService, int waitSeconds) {
+		executorService.shutdown();
+		try {
+			if (!executorService.awaitTermination(waitSeconds, TimeUnit.SECONDS)) {
+				log.warn("EvitaDB executor `" + name + "` did not terminate in time, forcing shutdown.");
+				executorService.shutdownNow();
+			}
+		} catch (InterruptedException ex) {
+			log.warn("EvitaDB executor `" + name + "` did not terminate in time (interrupted), forcing shutdown.");
+			executorService.shutdownNow();
+		}
+	}
+
 	public Evita(@Nonnull EvitaConfiguration configuration) {
 		this.configuration = configuration;
 		this.serviceExecutor = new Scheduler(
@@ -429,6 +449,19 @@ public final class Evita implements EvitaContract {
 	}
 
 	@Override
+	public <T> CompletableFuture<T> queryCatalogAsync(@Nonnull String catalogName, @Nonnull Function<EvitaSessionContract, T> queryLogic, @Nullable SessionFlags... flags) {
+		return CompletableFuture.supplyAsync(
+			() -> {
+				assertActive();
+				try (final EvitaSessionContract session = this.createSession(new SessionTraits(catalogName, flags))) {
+					return queryLogic.apply(session);
+				}
+			},
+			this.requestExecutor
+		);
+	}
+
+	@Override
 	public <T> CompletableFuture<T> updateCatalogAsync(
 		@Nonnull String catalogName,
 		@Nonnull Function<EvitaSessionContract, T> updater,
@@ -595,6 +628,10 @@ public final class Evita implements EvitaContract {
 			.or(() -> Optional.ofNullable(removedCatalog.get()));
 	}
 
+	/*
+		PRIVATE METHODS
+	*/
+
 	/**
 	 * Returns catalog instance for passed catalog name or throws exception.
 	 *
@@ -605,10 +642,6 @@ public final class Evita implements EvitaContract {
 		return getCatalogInstance(catalog)
 			.orElseThrow(() -> new IllegalArgumentException("Catalog " + catalog + " is not known to Evita!"));
 	}
-
-	/*
-		PRIVATE METHODS
-	*/
 
 	/**
 	 * Loads catalog from the designated directory. If the catalog is corrupted, it will be marked as such, but it'll
@@ -996,26 +1029,6 @@ public final class Evita implements EvitaContract {
 
 		// clear map
 		this.catalogs.clear();
-	}
-
-	/**
-	 * Shuts down passed executor service in a safe manner.
-	 *
-	 * @param name            name of the executor service
-	 * @param executorService executor service to be shut down
-	 * @param waitSeconds     number of seconds to wait for the executor service to shut down
-	 */
-	private static void shutdownScheduler(@Nonnull String name, @Nonnull ExecutorService executorService, int waitSeconds) {
-		executorService.shutdown();
-		try {
-			if (!executorService.awaitTermination(waitSeconds, TimeUnit.SECONDS)) {
-				log.warn("EvitaDB executor `" + name + "` did not terminate in time, forcing shutdown.");
-				executorService.shutdownNow();
-			}
-		} catch (InterruptedException ex) {
-			log.warn("EvitaDB executor `" + name + "` did not terminate in time (interrupted), forcing shutdown.");
-			executorService.shutdownNow();
-		}
 	}
 
 	/**
