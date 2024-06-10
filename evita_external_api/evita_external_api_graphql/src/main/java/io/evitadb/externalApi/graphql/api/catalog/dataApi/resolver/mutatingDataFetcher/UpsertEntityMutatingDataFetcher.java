@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -45,6 +45,7 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.Re
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.EntityQueryContext;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.mutation.GraphQLEntityUpsertMutationConverter;
 import io.evitadb.externalApi.graphql.api.resolver.SelectionSetAggregator;
+import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.WriteDataFetcher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -63,7 +64,7 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 @Slf4j
 @RequiredArgsConstructor
-public class UpsertEntityMutatingDataFetcher implements DataFetcher<DataFetcherResult<EntityClassifier>> {
+public class UpsertEntityMutatingDataFetcher implements DataFetcher<DataFetcherResult<EntityClassifier>>, WriteDataFetcher {
 
 
 	/**

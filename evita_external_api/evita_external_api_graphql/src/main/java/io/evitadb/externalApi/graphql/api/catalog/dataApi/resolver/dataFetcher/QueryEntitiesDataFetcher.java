@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -52,6 +52,7 @@ import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.QueryEntitiesHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.*;
 import io.evitadb.externalApi.graphql.api.resolver.SelectionSetAggregator;
+import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.ReadDataFetcher;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidResponseUsageException;
 import io.evitadb.utils.Assert;
 import lombok.extern.slf4j.Slf4j;
@@ -82,7 +83,7 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 @Slf4j
-public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<EvitaResponse<EntityClassifier>>> {
+public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<EvitaResponse<EntityClassifier>>>, ReadDataFetcher {
 
 	/**
 	 * Schema of collection to which this fetcher is mapped to.

@@ -71,7 +71,6 @@ import io.evitadb.externalApi.graphql.api.model.ObjectDescriptorToGraphQLInterfa
 import io.evitadb.externalApi.graphql.api.model.ObjectDescriptorToGraphQLObjectTransformer;
 import io.evitadb.externalApi.graphql.api.model.PropertyDescriptorToGraphQLArgumentTransformer;
 import io.evitadb.externalApi.graphql.api.model.PropertyDescriptorToGraphQLFieldTransformer;
-import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.ReadDataFetcher;
 import io.evitadb.externalApi.graphql.exception.GraphQLSchemaBuildingError;
 
 import javax.annotation.Nonnull;
@@ -579,22 +578,14 @@ public class EntityObjectBuilder {
 				new NonNullBigDecimalFieldDecorator(argumentBuilderTransformer).accept(associatedDataFieldBuilder);
 			}
 
-			associatedDataFieldDataFetcher = new ReadDataFetcher(
-				new BigDecimalDataFetcher(
-					new AssociatedDataValueDataFetcher<>(cdoObjectMapper, associatedDataSchema)
-				),
-				buildingContext.getTracingContext(),
-				buildingContext.getEvitaExecutor().orElse(null)
+			associatedDataFieldDataFetcher = new BigDecimalDataFetcher(
+				new AssociatedDataValueDataFetcher<>(cdoObjectMapper, associatedDataSchema)
 			);
 		} else {
 			associatedDataFieldBuilder.type(
 				(GraphQLOutputType) DataTypesConverter.getGraphQLScalarType(associatedDataType, !associatedDataSchema.isNullable())
 			);
-			associatedDataFieldDataFetcher = new ReadDataFetcher(
-				new AssociatedDataValueDataFetcher<>(cdoObjectMapper, associatedDataSchema),
-				buildingContext.getTracingContext(),
-				buildingContext.getEvitaExecutor().orElse(null)
-			);
+			associatedDataFieldDataFetcher = new AssociatedDataValueDataFetcher<>(cdoObjectMapper, associatedDataSchema);
 		}
 
 		associatedDataFieldBuilder

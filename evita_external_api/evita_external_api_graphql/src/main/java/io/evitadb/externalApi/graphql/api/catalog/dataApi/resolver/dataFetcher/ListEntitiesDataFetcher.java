@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -50,6 +50,7 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.Fi
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.OrderConstraintResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.RequireConstraintResolver;
 import io.evitadb.externalApi.graphql.api.resolver.SelectionSetAggregator;
+import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.ReadDataFetcher;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -75,7 +76,7 @@ import static io.evitadb.api.query.QueryConstraints.strip;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 @Slf4j
-public class ListEntitiesDataFetcher implements DataFetcher<DataFetcherResult<List<EntityClassifier>>> {
+public class ListEntitiesDataFetcher implements DataFetcher<DataFetcherResult<List<EntityClassifier>>>, ReadDataFetcher {
 
     /**
      * Entity type of collection to which this fetcher is mapped to.
