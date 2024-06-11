@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,26 +21,15 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.api.catalog;
-
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
-
-import javax.annotation.Nonnull;
+package io.evitadb.externalApi.graphql.io;
 
 /**
- * List of possible keys (for possible values) for GraphQL query execution context.
+ * Represents semantically GraphQL instance. Defines which data it provides.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
+ * @author Lukáš Hornych, 2024
  */
-@Getter
-@RequiredArgsConstructor
-public enum GraphQLContextKey {
-
-    EVITA_SESSION("evitaSession"),
-    OPERATION_TRACING_BLOCK("operationTracingBlock"),
-    METRIC_EXECUTED_EVENT("metricExecutedEvent");
-
-    @Nonnull
-    private final String key;
+public enum GraphQLInstanceType {
+	SYSTEM,
+	DATA,
+	SCHEMA
 }

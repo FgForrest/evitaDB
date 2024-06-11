@@ -33,6 +33,7 @@ import io.evitadb.externalApi.graphql.api.GraphQLBuilder;
 import io.evitadb.externalApi.graphql.api.tracing.OperationTracingInstrumentation;
 import io.evitadb.externalApi.graphql.configuration.GraphQLConfig;
 import io.evitadb.externalApi.graphql.exception.EvitaDataFetcherExceptionHandler;
+import io.evitadb.externalApi.graphql.metric.event.request.RequestMetricInstrumentation;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -56,6 +57,7 @@ public class CatalogGraphQLBuilder implements GraphQLBuilder {
     public GraphQL build(@Nonnull GraphQLConfig config) {
         final Instrumentation instrumentation = new ChainedInstrumentation(
             new OperationTracingInstrumentation(),
+            new RequestMetricInstrumentation(catalog.getName()),
             new EvitaSessionManagingInstrumentation(evita, catalog.getName())
         );
         final EvitaDataFetcherExceptionHandler dataFetcherExceptionHandler = new EvitaDataFetcherExceptionHandler();

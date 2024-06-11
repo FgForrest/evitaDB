@@ -44,8 +44,7 @@ import io.evitadb.externalApi.exception.HttpExchangeException;
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidUsageException;
-import io.evitadb.externalApi.graphql.io.GraphQLHandler.GraphQLEndpointExchange;
-import io.evitadb.externalApi.http.EndpointExchange;
+import io.evitadb.externalApi.graphql.metric.event.request.ExecutedEvent;
 import io.evitadb.externalApi.http.EndpointHandler;
 import io.evitadb.externalApi.http.EndpointResponse;
 import io.evitadb.externalApi.http.MimeTypes;
@@ -58,7 +57,6 @@ import io.undertow.util.StatusCodes;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.LinkedHashSet;
@@ -77,7 +75,7 @@ import static io.evitadb.utils.CollectionUtils.createLinkedHashSet;
  * @author Lukáš Hornych, FG Forrest a.s. 2022
  */
 @Slf4j
-public class GraphQLHandler extends EndpointHandler<GraphQLEndpointExchange> {
+public class GraphQLHandler extends EndpointHandler<GraphQLEndpointExecutionContext> {
 
     /**
      * Set of GraphQL exceptions that are caused by invalid user input and thus shouldn't return server error.
@@ -97,47 +95,54 @@ public class GraphQLHandler extends EndpointHandler<GraphQLEndpointExchange> {
     @Nonnull
     private final EvitaConfiguration evitaConfiguration;
     @Nonnull
+    private final GraphQLInstanceType instanceType;
+    @Nonnull
     private final AtomicReference<GraphQL> graphQL;
 
     public GraphQLHandler(@Nonnull ObjectMapper objectMapper,
                           @Nonnull Evita evita,
+                          @Nonnull GraphQLInstanceType instanceType,
                           @Nonnull AtomicReference<GraphQL> graphQL) {
         this.objectMapper = objectMapper;
         this.tracingContext = ExternalApiTracingContextProvider.getContext();
         this.evitaConfiguration = evita.getConfiguration();
+        this.instanceType = instanceType;
         this.graphQL = graphQL;
-    }
-
-    @Nonnull
-    @Override
-    protected GraphQLEndpointExchange createEndpointExchange(@Nonnull HttpServerExchange serverExchange,
-                                                             @Nonnull String httpMethod,
-                                                             @Nullable String requestBodyMediaType,
-                                                             @Nullable String preferredResponseMediaType) {
-        return new GraphQLEndpointExchange(serverExchange, httpMethod, requestBodyMediaType, preferredResponseMediaType);
     }
 
     @Override
     public void handleRequest(HttpServerExchange serverExchange) {
-        handleRequestWithTracingContext(serverExchange);
+        instrumentRequest(serverExchange);
     }
 
     /**
      * Process every request with tracing context, so we can classify it in evitaDB.
      */
-    private void handleRequestWithTracingContext(@Nonnull HttpServerExchange serverExchange) {
+    private void instrumentRequest(@Nonnull HttpServerExchange serverExchange) {
         this.tracingContext.executeWithinBlock(
             "GraphQL",
             serverExchange,
-            () -> super.handleRequest(serverExchange)
+            () -> {
+                super.handleRequest(serverExchange);
+            }
+        );
+    }
+
+    @Nonnull
+    @Override
+    protected GraphQLEndpointExecutionContext createExecutionContext(@Nonnull HttpServerExchange serverExchange) {
+        return new GraphQLEndpointExecutionContext(
+            serverExchange,
+            new ExecutedEvent(instanceType)
         );
     }
 
     @Override
     @Nonnull
-    protected EndpointResponse doHandleRequest(@Nonnull GraphQLEndpointExchange exchange) {
-        final GraphQLRequest graphQLRequest = parseRequestBody(exchange, GraphQLRequest.class);
-        final GraphQLResponse<?> graphQLResponse = executeRequest(graphQLRequest);
+    protected EndpointResponse doHandleRequest(@Nonnull GraphQLEndpointExecutionContext executionContext) {
+        final GraphQLRequest graphQLRequest = parseRequestBody(executionContext, GraphQLRequest.class);
+        executionContext.requestExecutedEvent().finishRequestDeserialization();
+        final GraphQLResponse<?> graphQLResponse = executeRequest(executionContext, graphQLRequest);
         return new SuccessEndpointResponse(graphQLResponse);
     }
 
@@ -185,8 +190,8 @@ public class GraphQLHandler extends EndpointHandler<GraphQLEndpointExchange> {
 
     @Nonnull
     @Override
-    protected <T> T parseRequestBody(@Nonnull GraphQLEndpointExchange exchange, @Nonnull Class<T> dataClass) {
-        final String rawBody = readRawRequestBody(exchange);
+    protected <T> T parseRequestBody(@Nonnull GraphQLEndpointExecutionContext executionContext, @Nonnull Class<T> dataClass) {
+        final String rawBody = readRawRequestBody(executionContext);
         try {
             return objectMapper.readValue(rawBody, dataClass);
         } catch (IOException e) {
@@ -200,9 +205,10 @@ public class GraphQLHandler extends EndpointHandler<GraphQLEndpointExchange> {
     }
 
     @Nonnull
-    private GraphQLResponse<?> executeRequest(@Nonnull GraphQLRequest graphQLRequest) {
+    private GraphQLResponse<?> executeRequest(@Nonnull GraphQLEndpointExecutionContext executionContext,
+                                              @Nonnull GraphQLRequest graphQLRequest) {
         try {
-            final ExecutionInput executionInput = graphQLRequest.toExecutionInput();
+            final ExecutionInput executionInput = graphQLRequest.toExecutionInput(executionContext);
             final ExecutionResult result = graphQL.get()
                 .executeAsync(executionInput)
                 .orTimeout(evitaConfiguration.server().shortRunningThreadsTimeoutInSeconds(), TimeUnit.SECONDS)
@@ -244,7 +250,7 @@ public class GraphQLHandler extends EndpointHandler<GraphQLEndpointExchange> {
     }
 
     @Override
-    protected void writeResult(@Nonnull GraphQLEndpointExchange exchange, @Nonnull OutputStream outputStream, @Nonnull Object response) {
+    protected void writeResult(@Nonnull GraphQLEndpointExecutionContext executionContext, @Nonnull OutputStream outputStream, @Nonnull Object response) {
         try {
             objectMapper.writeValue(outputStream, response);
         } catch (IOException e) {
@@ -253,11 +259,9 @@ public class GraphQLHandler extends EndpointHandler<GraphQLEndpointExchange> {
                 "Could not provide GraphQL API response.",
                 e
             );
+        } finally {
+            executionContext.requestExecutedEvent().finishResultSerialization();
         }
     }
 
-    protected record GraphQLEndpointExchange(@Nonnull HttpServerExchange serverExchange,
-                                             @Nonnull String httpMethod,
-                                             @Nullable String requestBodyContentType,
-                                             @Nullable String preferredResponseContentType) implements EndpointExchange {}
 }

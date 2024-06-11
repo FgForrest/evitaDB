@@ -21,21 +21,24 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.observability.logging;
+package io.evitadb.externalApi.graphql.metric.event.schema;
 
-import io.evitadb.externalApi.http.EndpointExchange;
-import io.undertow.server.HttpServerExchange;
-
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
+import io.evitadb.api.observability.annotation.EventGroup;
+import io.evitadb.core.metric.event.CustomMetricsExecutionEvent;
+import jdk.jfr.Category;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 
 /**
- * Implementation of {@link EndpointExchange} for Observation API.
+ * Common event ancestor for event regarding GraphQL schemas.
  *
- * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
  */
-public record LoggingEndpointExchange(@Nonnull HttpServerExchange serverExchange,
-                                      @Nonnull String httpMethod,
-                                      @Nullable String requestBodyContentType,
-                                      @Nullable String preferredResponseContentType) implements EndpointExchange {
-};
+@EventGroup(AbstractGraphQLSchemaEvent.PACKAGE_NAME)
+@Category({"evitaDB", "API", "GraphQL", "Schema"})
+@RequiredArgsConstructor
+@Getter
+public class AbstractGraphQLSchemaEvent extends CustomMetricsExecutionEvent {
+
+	protected static final String PACKAGE_NAME = "io.evitadb.externalApi.graphql.schema";
+}

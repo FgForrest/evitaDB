@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -50,6 +50,7 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.Fi
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.OrderConstraintResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.RequireConstraintResolver;
 import io.evitadb.externalApi.graphql.api.resolver.SelectionSetAggregator;
+import io.evitadb.externalApi.graphql.metric.event.request.ExecutedEvent;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -108,20 +109,24 @@ public class ListEntitiesDataFetcher implements DataFetcher<DataFetcherResult<Li
     @Override
     public DataFetcherResult<List<EntityClassifier>> get(@Nonnull DataFetchingEnvironment environment) {
         final Arguments arguments = Arguments.from(environment);
+        final ExecutedEvent requestExecutedEvent = environment.getGraphQlContext().get(GraphQLContextKey.METRIC_EXECUTED_EVENT);
 
-        final FilterBy filterBy = buildFilterBy(arguments);
-        final OrderBy orderBy = buildOrderBy(arguments);
-        final Require require = buildRequire(environment, arguments, filterBy);
-        final Query query = query(
-            collection(entitySchema.getName()),
-            filterBy,
-            orderBy,
-            require
-        );
+        final Query query = requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() -> {
+            final FilterBy filterBy = buildFilterBy(arguments);
+            final OrderBy orderBy = buildOrderBy(arguments);
+            final Require require = buildRequire(environment, arguments, filterBy);
+            return query(
+                collection(entitySchema.getName()),
+                filterBy,
+                orderBy,
+                require
+            );
+        });
         log.debug("Generated evitaDB query for entity list fetch of type `{}` is `{}`.", entitySchema.getName(), query);
 
         final EvitaSessionContract evitaSession = environment.getGraphQlContext().get(GraphQLContextKey.EVITA_SESSION);
-        final List<EntityClassifier> entities = evitaSession.queryList(query, EntityClassifier.class);
+        final List<EntityClassifier> entities = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
+            evitaSession.queryList(query, EntityClassifier.class));
 
         final DataFetcherResult.Builder<List<EntityClassifier>> resultBuilder = DataFetcherResult.<List<EntityClassifier>>newResult()
             .data(entities);

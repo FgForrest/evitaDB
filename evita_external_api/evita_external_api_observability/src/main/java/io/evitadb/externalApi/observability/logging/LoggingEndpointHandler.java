@@ -35,7 +35,6 @@ import io.evitadb.utils.Assert;
 import io.undertow.server.HttpServerExchange;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.LinkedHashSet;
@@ -46,7 +45,7 @@ import java.util.List;
  *
  * @author Tomáš Pozler, FG Forrest a.s. (c) 202č
  */
-public abstract class LoggingEndpointHandler extends EndpointHandler<LoggingEndpointExchange> {
+public abstract class LoggingEndpointHandler extends EndpointHandler<LoggingEndpointExecutionContext> {
 	protected static final LinkedHashSet<String> DEFAULT_SUPPORTED_CONTENT_TYPES = new LinkedHashSet<>(List.of(MimeTypes.APPLICATION_JSON));
 	protected final ObservabilityManager manager;
 
@@ -56,17 +55,8 @@ public abstract class LoggingEndpointHandler extends EndpointHandler<LoggingEndp
 
 	@Nonnull
 	@Override
-	protected LoggingEndpointExchange createEndpointExchange(
-		@Nonnull HttpServerExchange serverExchange,
-		@Nonnull String method,
-		@Nullable String requestBodyMediaType,
-		@Nullable String preferredResponseMediaType) {
-		return new LoggingEndpointExchange(
-			serverExchange,
-			method,
-			requestBodyMediaType,
-			preferredResponseMediaType
-		);
+	protected LoggingEndpointExecutionContext createExecutionContext(@Nonnull HttpServerExchange serverExchange) {
+		return new LoggingEndpointExecutionContext(serverExchange);
 	}
 
 	@Nonnull
@@ -94,7 +84,7 @@ public abstract class LoggingEndpointHandler extends EndpointHandler<LoggingEndp
 	 * Tries to parse input request body JSON into data class.
 	 */
 	@Nonnull
-	protected <T> T parseRequestBody(@Nonnull LoggingEndpointExchange exchange, @Nonnull Class<T> dataClass) {
+	protected <T> T parseRequestBody(@Nonnull LoggingEndpointExecutionContext exchange, @Nonnull Class<T> dataClass) {
 		final String content = readRawRequestBody(exchange);
 		Assert.isTrue(
 			!content.trim().isEmpty(),
@@ -109,7 +99,7 @@ public abstract class LoggingEndpointHandler extends EndpointHandler<LoggingEndp
 	}
 
 	@Override
-	protected void writeResult(@Nonnull LoggingEndpointExchange exchange, @Nonnull OutputStream outputStream, @Nonnull Object result) {
+	protected void writeResult(@Nonnull LoggingEndpointExecutionContext executionContext, @Nonnull OutputStream outputStream, @Nonnull Object result) {
 		try {
 			manager.getObjectMapper().writeValue(outputStream, result);
 		} catch (IOException e) {

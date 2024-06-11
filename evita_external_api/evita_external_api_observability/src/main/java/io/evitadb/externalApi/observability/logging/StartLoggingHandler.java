@@ -44,8 +44,8 @@ public class StartLoggingHandler extends LoggingEndpointHandler {
 
 	@Nonnull
 	@Override
-	protected EndpointResponse doHandleRequest(@Nonnull LoggingEndpointExchange exchange) {
-		final String[] allowedEvents = parseRequestBody(exchange, String[].class);
+	protected EndpointResponse doHandleRequest(@Nonnull LoggingEndpointExecutionContext executionContext) {
+		final String[] allowedEvents = parseRequestBody(executionContext, String[].class);
 		manager.start(allowedEvents);
 		return new SuccessEndpointResponse();
 	}

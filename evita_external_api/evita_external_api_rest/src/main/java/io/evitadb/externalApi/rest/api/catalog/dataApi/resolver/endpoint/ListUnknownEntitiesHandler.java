@@ -34,7 +34,7 @@ import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer.Entit
 import io.evitadb.externalApi.rest.api.catalog.resolver.endpoint.CatalogRestHandlingContext;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.externalApi.rest.io.JsonRestHandler;
-import io.evitadb.externalApi.rest.io.RestEndpointExchange;
+import io.evitadb.externalApi.rest.io.RestEndpointExecutionContext;
 import io.evitadb.utils.Assert;
 import io.undertow.util.Methods;
 import lombok.extern.slf4j.Slf4j;
@@ -63,8 +63,8 @@ public class ListUnknownEntitiesHandler extends JsonRestHandler<CatalogRestHandl
 
 	@Override
 	@Nonnull
-	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExchange exchange) {
-		final Map<String, Object> parametersFromRequest = getParametersFromRequest(exchange);
+	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
+		final Map<String, Object> parametersFromRequest = getParametersFromRequest(executionContext);
 
 		final Query query = Query.query(
 			FilterByConstraintFromRequestQueryBuilder.buildFilterByForUnknownEntityList(parametersFromRequest, restHandlingContext.getCatalogSchema()),
@@ -73,8 +73,8 @@ public class ListUnknownEntitiesHandler extends JsonRestHandler<CatalogRestHandl
 
 		log.debug("Generated evitaDB query for unknown entity list fetch is `{}`.", query);
 
-		final List<EntityClassifier> entities = exchange.session().queryList(query, EntityClassifier.class);
-		return new SuccessEndpointResponse(convertResultIntoSerializableObject(exchange, entities));
+		final List<EntityClassifier> entities = executionContext.session().queryList(query, EntityClassifier.class);
+		return new SuccessEndpointResponse(convertResultIntoSerializableObject(executionContext, entities));
 	}
 
 	@Nonnull
@@ -91,7 +91,7 @@ public class ListUnknownEntitiesHandler extends JsonRestHandler<CatalogRestHandl
 
 	@Nonnull
 	@Override
-	protected Object convertResultIntoSerializableObject(@Nonnull RestEndpointExchange exchange, @Nonnull Object entities) {
+	protected Object convertResultIntoSerializableObject(@Nonnull RestEndpointExecutionContext exchange, @Nonnull Object entities) {
 		Assert.isPremiseValid(
 			entities instanceof List,
 			() -> new RestInternalError("Expected list of entities, but got `" + entities.getClass().getName() + "`.")

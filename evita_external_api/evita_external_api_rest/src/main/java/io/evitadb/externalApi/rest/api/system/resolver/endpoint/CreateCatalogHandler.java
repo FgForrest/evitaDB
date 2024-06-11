@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ import io.evitadb.api.CatalogContract;
 import io.evitadb.externalApi.http.EndpointResponse;
 import io.evitadb.externalApi.http.SuccessEndpointResponse;
 import io.evitadb.externalApi.rest.api.system.dto.CreateCatalogRequestDto;
-import io.evitadb.externalApi.rest.io.RestEndpointExchange;
+import io.evitadb.externalApi.rest.io.RestEndpointExecutionContext;
 import io.undertow.util.Methods;
 
 import javax.annotation.Nonnull;
@@ -51,13 +51,13 @@ public class CreateCatalogHandler extends CatalogHandler {
 
 	@Nonnull
 	@Override
-	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExchange exchange) {
-		final CreateCatalogRequestDto requestBody = parseRequestBody(exchange, CreateCatalogRequestDto.class);
+	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
+		final CreateCatalogRequestDto requestBody = parseRequestBody(executionContext, CreateCatalogRequestDto.class);
 
 		restHandlingContext.getEvita().defineCatalog(requestBody.name());
 		final CatalogContract newCatalog = restHandlingContext.getEvita().getCatalogInstanceOrThrowException(requestBody.name());
 
-		return new SuccessEndpointResponse(convertResultIntoSerializableObject(exchange, newCatalog));
+		return new SuccessEndpointResponse(convertResultIntoSerializableObject(executionContext, newCatalog));
 	}
 
 	@Nonnull

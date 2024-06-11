@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -53,7 +53,7 @@ public abstract class JsonRestHandler<CTX extends RestHandlingContext> extends R
 	 * Tries to parse input request body JSON into data class.
 	 */
 	@Nonnull
-	protected <T> T parseRequestBody(@Nonnull RestEndpointExchange exchange, @Nonnull Class<T> dataClass) {
+	protected <T> T parseRequestBody(@Nonnull RestEndpointExecutionContext exchange, @Nonnull Class<T> dataClass) {
 		final String content = readRawRequestBody(exchange);
 		Assert.isTrue(
 			!content.trim().isEmpty(),
@@ -68,7 +68,7 @@ public abstract class JsonRestHandler<CTX extends RestHandlingContext> extends R
 	}
 
 	@Override
-	protected void writeResult(@Nonnull RestEndpointExchange exchange, @Nonnull OutputStream outputStream, @Nonnull Object result) {
+	protected void writeResult(@Nonnull RestEndpointExecutionContext executionContext, @Nonnull OutputStream outputStream, @Nonnull Object result) {
 		try {
 			restHandlingContext.getObjectMapper().writeValue(outputStream, result);
 		} catch (IOException e) {
@@ -88,7 +88,7 @@ public abstract class JsonRestHandler<CTX extends RestHandlingContext> extends R
 	 * @return result object read to be serialized
 	 */
 	@Nonnull
-	protected Object convertResultIntoSerializableObject(@Nonnull RestEndpointExchange exchange, @Nonnull Object result) {
+	protected Object convertResultIntoSerializableObject(@Nonnull RestEndpointExecutionContext exchange, @Nonnull Object result) {
 		return result;
 	}
 }

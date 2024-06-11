@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,26 +21,36 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.api.catalog;
+package io.evitadb.externalApi.graphql.utils;
 
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
+import graphql.schema.GraphQLSchema;
+import graphql.schema.idl.SchemaPrinter;
+import graphql.schema.idl.SchemaPrinter.Options;
 
 import javax.annotation.Nonnull;
+import java.util.Set;
 
 /**
- * List of possible keys (for possible values) for GraphQL query execution context.
+ * Preconfigured GraphQL schema printer to string.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
  */
-@Getter
-@RequiredArgsConstructor
-public enum GraphQLContextKey {
+public class GraphQLSchemaPrinter {
 
-    EVITA_SESSION("evitaSession"),
-    OPERATION_TRACING_BLOCK("operationTracingBlock"),
-    METRIC_EXECUTED_EVENT("metricExecutedEvent");
+	private static final Set<String> IMPLICIT_DIRECTIVES = Set.of("deprecated", "skip", "include", "specifiedBy");
 
-    @Nonnull
-    private final String key;
+	@Nonnull private static final SchemaPrinter schemaPrinter;
+
+	static {
+		schemaPrinter = new SchemaPrinter(Options.defaultOptions()
+			.includeDirectives(directive -> !IMPLICIT_DIRECTIVES.contains(directive)));
+	}
+
+	/**
+	 * Prints GraphQL schema to string in DSL.
+	 */
+	@Nonnull
+	public static String print(@Nonnull GraphQLSchema schema) {
+		return schemaPrinter.print(schema);
+	}
 }

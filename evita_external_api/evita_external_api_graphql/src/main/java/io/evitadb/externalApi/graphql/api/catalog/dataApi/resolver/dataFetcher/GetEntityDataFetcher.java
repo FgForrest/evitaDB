@@ -48,6 +48,7 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.Re
 import io.evitadb.externalApi.graphql.api.resolver.SelectionSetAggregator;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidArgumentException;
 import io.evitadb.externalApi.graphql.exception.GraphQLQueryResolvingInternalError;
+import io.evitadb.externalApi.graphql.metric.event.request.ExecutedEvent;
 import io.evitadb.utils.Assert;
 import lombok.extern.slf4j.Slf4j;
 
@@ -105,24 +106,28 @@ public class GetEntityDataFetcher implements DataFetcher<DataFetcherResult<Entit
 	@Override
 	public DataFetcherResult<EntityClassifier> get(@Nonnull DataFetchingEnvironment environment) {
 		final Arguments arguments = Arguments.from(environment, entitySchema);
+		final ExecutedEvent requestExecutedEvent = environment.getGraphQlContext().get(GraphQLContextKey.METRIC_EXECUTED_EVENT);
 
-		final FilterBy filterBy = buildFilterBy(arguments);
-		final Require require = buildRequire(environment, arguments);
-		final Query query = query(
-			collection(entitySchema.getName()),
-			filterBy,
-			require
-		);
+		final Query query = requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() -> {
+			final FilterBy filterBy = buildFilterBy(arguments);
+			final Require require = buildRequire(environment, arguments);
+			return query(
+				collection(entitySchema.getName()),
+				filterBy,
+				require
+			);
+		});
 		log.debug("Generated evitaDB query for single entity fetch of type `{}` is `{}`.", entitySchema.getName(), query);
 
 		final EvitaSessionContract evitaSession = environment.getGraphQlContext().get(GraphQLContextKey.EVITA_SESSION);
 
 		final DataFetcherResult.Builder<EntityClassifier> resultBuilder = DataFetcherResult.newResult();
-		evitaSession.queryOne(query, EntityClassifier.class)
-			.ifPresent(entity -> resultBuilder
-				.data(entity)
-				.localContext(buildResultContext(arguments))
-			);
+		final Optional<EntityClassifier> entityClassifier = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
+			evitaSession.queryOne(query, EntityClassifier.class));
+
+		entityClassifier.ifPresent(entity -> resultBuilder
+			.data(entity)
+			.localContext(buildResultContext(arguments)));
 		return resultBuilder.build();
 	}
 

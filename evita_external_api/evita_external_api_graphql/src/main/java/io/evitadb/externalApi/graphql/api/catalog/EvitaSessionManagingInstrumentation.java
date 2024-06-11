@@ -26,10 +26,13 @@ package io.evitadb.externalApi.graphql.api.catalog;
 import graphql.ExecutionResult;
 import graphql.execution.ExecutionContext;
 import graphql.execution.instrumentation.Instrumentation;
+import graphql.execution.instrumentation.InstrumentationContext;
 import graphql.execution.instrumentation.InstrumentationState;
 import graphql.execution.instrumentation.SimplePerformantInstrumentation;
+import graphql.execution.instrumentation.parameters.InstrumentationExecuteOperationParameters;
 import graphql.execution.instrumentation.parameters.InstrumentationExecutionParameters;
 import graphql.language.OperationDefinition;
+import graphql.language.OperationDefinition.Operation;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.RollbackException;
 import io.evitadb.core.Evita;
@@ -37,8 +40,11 @@ import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.util.concurrent.CompletableFuture;
+
+import static graphql.execution.instrumentation.SimpleInstrumentationContext.noOp;
 
 /**
  * GraphQL {@link Instrumentation} which is responsible for managing lifecycle of {@link EvitaSessionContract} during
@@ -58,12 +64,12 @@ public class EvitaSessionManagingInstrumentation extends SimplePerformantInstrum
     @Nonnull
     private final String catalogName;
 
-    @Nonnull
     @Override
-    public ExecutionContext instrumentExecutionContext(@Nonnull ExecutionContext executionContext,
-                                                       @Nonnull InstrumentationExecutionParameters parameters,
-                                                       @Nonnull InstrumentationState state) {
-        final OperationDefinition.Operation operation = executionContext.getOperationDefinition().getOperation();
+    @Nullable
+    public InstrumentationContext<ExecutionResult> beginExecuteOperation(@Nonnull InstrumentationExecuteOperationParameters parameters,
+                                                                         @Nonnull InstrumentationState state) {
+        final ExecutionContext executionContext = parameters.getExecutionContext();
+        final Operation operation = executionContext.getOperationDefinition().getOperation();
 
         final EvitaSessionContract evitaSession;
         if (operation == OperationDefinition.Operation.QUERY) {
@@ -75,7 +81,7 @@ public class EvitaSessionManagingInstrumentation extends SimplePerformantInstrum
         }
         executionContext.getGraphQLContext().put(GraphQLContextKey.EVITA_SESSION, evitaSession);
 
-        return executionContext;
+        return noOp();
     }
 
     @Nonnull

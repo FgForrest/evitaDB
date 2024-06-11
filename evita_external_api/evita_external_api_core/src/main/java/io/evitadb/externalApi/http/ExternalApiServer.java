@@ -380,6 +380,7 @@ public class ExternalApiServer implements AutoCloseable {
 		configureUndertow(rootServerBuilder, evita, certificatePath, apiOptions, serverCertificateManager);
 
 		this.rootServer = rootServerBuilder.build();
+		registeredApiProviders.values().forEach(ExternalApiProvider::afterAllInitialized);
 	}
 
 	/**
