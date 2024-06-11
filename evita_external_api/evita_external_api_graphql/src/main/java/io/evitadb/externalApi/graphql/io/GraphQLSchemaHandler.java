@@ -25,12 +25,11 @@ package io.evitadb.externalApi.graphql.io;
 
 import graphql.GraphQL;
 import graphql.schema.GraphQLSchema;
-import graphql.schema.idl.SchemaPrinter;
-import graphql.schema.idl.SchemaPrinter.Options;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.externalApi.exception.ExternalApiInvalidUsageException;
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidUsageException;
+import io.evitadb.externalApi.graphql.utils.GraphQLSchemaPrinter;
 import io.evitadb.externalApi.http.EndpointHandler;
 import io.evitadb.externalApi.http.EndpointResponse;
 import io.evitadb.externalApi.http.SuccessEndpointResponse;
@@ -57,16 +56,10 @@ import static io.evitadb.utils.CollectionUtils.createLinkedHashSet;
 @Slf4j
 public class GraphQLSchemaHandler extends EndpointHandler<GraphQLSchemaEndpointExecutionContext> {
 
-    private static final Set<String> IMPLICIT_DIRECTIVES = Set.of("deprecated", "skip", "include", "specifiedBy");
-
-    @Nonnull
-    private final SchemaPrinter schemaPrinter;
     @Nonnull
     private final AtomicReference<GraphQL> graphQL;
 
     public GraphQLSchemaHandler(@Nonnull AtomicReference<GraphQL> graphQL) {
-        this.schemaPrinter = new SchemaPrinter(Options.defaultOptions()
-            .includeDirectives(directive -> !IMPLICIT_DIRECTIVES.contains(directive)));
         this.graphQL = graphQL;
     }
 
@@ -124,7 +117,7 @@ public class GraphQLSchemaHandler extends EndpointHandler<GraphQLSchemaEndpointE
             response instanceof GraphQLSchema,
             () -> new GraphQLInternalError("Expected response to be instance of GraphQLSchema, but was `" + response.getClass().getName() + "`.")
         );
-        final String printedSchema = schemaPrinter.print((GraphQLSchema) response);
+        final String printedSchema = GraphQLSchemaPrinter.print((GraphQLSchema) response);
         try (PrintWriter writer = new PrintWriter(outputStream)) {
             writer.write(printedSchema);
         }

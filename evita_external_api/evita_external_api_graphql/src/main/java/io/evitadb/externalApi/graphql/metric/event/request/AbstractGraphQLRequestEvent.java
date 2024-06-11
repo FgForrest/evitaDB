@@ -44,7 +44,7 @@ import javax.annotation.Nullable;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
  */
 @EventGroup(AbstractGraphQLRequestEvent.PACKAGE_NAME)
-@Category({"evitaDB", "API", "Graphql"})
+@Category({"evitaDB", "API", "GraphQL", "Request"})
 @Getter
 public class AbstractGraphQLRequestEvent<E extends AbstractGraphQLRequestEvent<E>> extends CustomMetricsExecutionEvent {
 
