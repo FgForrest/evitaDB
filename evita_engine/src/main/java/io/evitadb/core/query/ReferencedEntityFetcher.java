@@ -694,8 +694,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			.orElse(EntityClassifierWithParent.CONCEALED_ENTITY);
 
 		return ServerEntityDecorator.decorate(
-			entityDecorator.getDelegate(),
-			entityDecorator.getSchema(),
+			entityDecorator,
 			enrichedParentEntity,
 			entityDecorator.getLocalePredicate(),
 			new HierarchySerializablePredicate(true),

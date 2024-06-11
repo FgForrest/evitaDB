@@ -292,7 +292,7 @@ public class FacetSummary implements EvitaResponseExtraResult, PrettyPrintable {
 								statistics
 									.getFacetStatistics()
 									.stream()
-									.map(facet -> "\t\t[" + (facet.isRequested() ? "X" : " ") + "] " +
+									.map(facet -> "\t\t[" + (facet.isRequested() ? "X" : (ofNullable(facet.getImpact()).map(RequestImpact::hasSense).orElse(true) ? " " : "-")) + "] " +
 										ofNullable(facetRenderer.apply(facet)).filter(it -> !it.isBlank()).orElseGet(() -> String.valueOf(facet.getFacetEntity().getPrimaryKey())) +
 										" (" + facet.getCount() + ")" +
 										ofNullable(facet.getImpact()).map(RequestImpact::toString).map(it -> " " + it).orElse(""))
@@ -361,8 +361,12 @@ public class FacetSummary implements EvitaResponseExtraResult, PrettyPrintable {
 	 * @param difference Projected number of entities that are added or removed from result if the query is altered by adding this
 	 *                   facet to filtering query in comparison to current result.
 	 * @param matchCount Projected number of filtered entities if the query is altered by adding this facet to filtering query.
+	 * @param hasSense   Selection has sense - TRUE if there is at least one entity still present in the result if
+	 *                   the query is altered by adding this facet to filtering query. In case of OR relation between
+	 *                   facets it's also true only if there is at least one entity present in the result when all other
+	 *                   facets in the same group are removed and only this facet is requested.
 	 */
-	public record RequestImpact(int difference, int matchCount) implements Serializable {
+	public record RequestImpact(int difference, int matchCount, boolean hasSense) implements Serializable {
 		@Serial private static final long serialVersionUID = 8332603848272953977L;
 
 		/**
@@ -373,24 +377,16 @@ public class FacetSummary implements EvitaResponseExtraResult, PrettyPrintable {
 			return difference;
 		}
 
-		/**
-		 * Selection has sense - TRUE if there is at least one entity still present in the result if the query is
-		 * altered by adding this facet to filtering query.
-		 */
-		public boolean hasSense() {
-			return matchCount > 0;
-		}
-
 		@Override
 		public boolean equals(Object o) {
 			if (this == o) return true;
 			if (!(o instanceof RequestImpact that)) return false;
-			return difference() == that.difference() && matchCount() == that.matchCount();
+			return difference() == that.difference() && this.matchCount() == that.matchCount() && this.hasSense() == that.hasSense();
 		}
 
 		@Override
 		public int hashCode() {
-			return Objects.hash(difference(), matchCount());
+			return Objects.hash(difference(), matchCount(), hasSense());
 		}
 
 		@Override

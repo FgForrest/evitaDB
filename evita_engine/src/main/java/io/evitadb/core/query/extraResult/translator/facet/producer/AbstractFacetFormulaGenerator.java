@@ -512,7 +512,7 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 	 * @return The base entity IDs as a Bitmap.
 	 */
 	@Nonnull
-	protected Bitmap getBaseEntityIds(@Nonnull Bitmap[] facetEntityIds) {
+	protected static Bitmap getBaseEntityIds(@Nonnull Bitmap[] facetEntityIds) {
 		if (facetEntityIds.length == 0) {
 			return EmptyBitmap.INSTANCE;
 		} else if (facetEntityIds.length == 1) {
@@ -677,18 +677,27 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 		 */
 		private final Deque<Formula> formulaStack = new ArrayDeque<>(16);
 		/**
-		 * Flag that is set to true if the visitor found the target {@link MutableFormula}.
+		 * Reference to {@link MutableFormula} found.
 		 */
-		@Getter private boolean targetFound;
+		@Getter
+		private MutableFormula target;
+
+		/**
+		 * Returns true if the target {@link MutableFormula} has been found.
+		 * @return True if the target {@link MutableFormula} has been found.
+		 */
+		public boolean isTargetFound() {
+			return target != null;
+		}
 
 		@Override
 		public void visit(@Nonnull Formula formula) {
-			if (!targetFound) {
+			if (target == null) {
 				if (formula instanceof MutableFormula mutableFormula) {
-					if (targetFound) {
+					if (target != null) {
 						throw new GenericEvitaInternalError("Expected single MutableFormula in the formula tree!");
 					} else {
-						targetFound = true;
+						target = mutableFormula;
 						mutableFormula.setDelegate(formulaToReplaceSupplier.get());
 						for (Formula parentFormula : formulaStack) {
 							parentFormula.clearMemory();

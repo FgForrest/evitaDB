@@ -65,6 +65,9 @@ public class GrpcProvider implements ExternalApiProvider<GrpcConfig> {
 	public static final String CODE = "gRPC";
 
 	@Nonnull
+	private final String serverName;
+
+	@Nonnull
 	private final ApiOptions apiOptions;
 
 	@Nonnull
@@ -133,6 +136,7 @@ public class GrpcProvider implements ExternalApiProvider<GrpcConfig> {
 						.usingTrustedRootCaCertificate(certificateSettings.generateAndUseSelfSigned())
 						// this will prevent attempt to download certificates (we use certificates directly from the server)
 						.dontUseGeneratedCertificate()
+						.serverName(serverName)
 						.mtls(configuration.isMtlsEnabled())
 						.rootCaCertificateFilePath(Path.of(paths.certificate()))
 						.certificateClientFolderPath(folderPath)

@@ -57,6 +57,6 @@ public class GrpcProviderRegistrar implements ExternalApiProviderRegistrar<GrpcC
 	@Override
 	public ExternalApiProvider<GrpcConfig> register(@Nonnull Evita evita, @Nonnull ExternalApiServer externalApiServer, @Nonnull ApiOptions apiOptions, @Nonnull GrpcConfig grpcAPIConfig) {
 		final Server server = new GrpcServer(evita, apiOptions, grpcAPIConfig).getServer();
-		return new GrpcProvider(apiOptions, grpcAPIConfig, server);
+		return new GrpcProvider(evita.getConfiguration().name(), apiOptions, grpcAPIConfig, server);
 	}
 }
