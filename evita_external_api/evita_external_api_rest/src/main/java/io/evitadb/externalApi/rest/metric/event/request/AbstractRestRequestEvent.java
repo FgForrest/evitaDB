@@ -21,15 +21,12 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.metric.event.request;
+package io.evitadb.externalApi.rest.metric.event.request;
 
-import graphql.language.OperationDefinition.Operation;
 import io.evitadb.api.observability.annotation.EventGroup;
 import io.evitadb.api.observability.annotation.ExportMetricLabel;
 import io.evitadb.core.metric.event.CustomMetricsExecutionEvent;
-import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
-import io.evitadb.externalApi.graphql.io.GraphQLInstanceType;
-import io.evitadb.utils.Assert;
+import io.evitadb.externalApi.rest.io.RestInstanceType;
 import jdk.jfr.Category;
 import jdk.jfr.Label;
 import jdk.jfr.Name;
@@ -39,16 +36,16 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 /**
- * Ancestor for GraphQL request processing events.
+ * Common ancestor for REST API request processing events.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
  */
-@EventGroup(AbstractGraphQLRequestEvent.PACKAGE_NAME)
-@Category({"evitaDB", "ExternalAPI", "GraphQL", "Request"})
+@EventGroup(AbstractRestRequestEvent.PACKAGE_NAME)
+@Category({"evitaDB", "ExternalAPI", "REST", "Request"})
 @Getter
-public class AbstractGraphQLRequestEvent extends CustomMetricsExecutionEvent {
+public class AbstractRestRequestEvent extends CustomMetricsExecutionEvent {
 
-	protected static final String PACKAGE_NAME = "io.evitadb.externalApi.graphql.request";
+	protected static final String PACKAGE_NAME = "io.evitadb.externalApi.rest.request";
 
 	/**
 	 * Type of used GQL instance.
@@ -59,7 +56,7 @@ public class AbstractGraphQLRequestEvent extends CustomMetricsExecutionEvent {
 	@Nullable
 	final String instanceType;
 
-	protected AbstractGraphQLRequestEvent(@Nullable GraphQLInstanceType instanceType) {
-		this.instanceType = instanceType.toString();
+	protected AbstractRestRequestEvent(@Nonnull RestInstanceType instanceType) {
+		this.instanceType = instanceType.name();
 	}
 }

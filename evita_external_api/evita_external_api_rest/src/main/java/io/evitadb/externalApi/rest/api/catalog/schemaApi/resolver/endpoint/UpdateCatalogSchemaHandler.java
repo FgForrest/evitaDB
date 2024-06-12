@@ -35,6 +35,7 @@ import io.evitadb.externalApi.rest.api.catalog.resolver.mutation.RestMutationRes
 import io.evitadb.externalApi.rest.api.catalog.schemaApi.dto.CreateOrUpdateEntitySchemaRequestData;
 import io.evitadb.externalApi.rest.exception.RestInvalidArgumentException;
 import io.evitadb.externalApi.rest.io.RestEndpointExecutionContext;
+import io.evitadb.externalApi.rest.metric.event.request.ExecutedEvent;
 import io.undertow.util.Methods;
 import lombok.extern.slf4j.Slf4j;
 
@@ -70,19 +71,29 @@ public class UpdateCatalogSchemaHandler extends CatalogSchemaHandler {
 	@Override
 	@Nonnull
 	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
+		final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
+
 		final CreateOrUpdateEntitySchemaRequestData requestData = parseRequestBody(executionContext, CreateOrUpdateEntitySchemaRequestData.class);
+		requestExecutedEvent.finishInputDeserialization();
 
-		final List<LocalCatalogSchemaMutation> schemaMutations = new LinkedList<>();
-		final JsonNode inputMutations = requestData.getMutations()
-			.orElseThrow(() -> new RestInvalidArgumentException("Mutations are not set in request data."));
-		for (Iterator<JsonNode> schemaMutationsIterator = inputMutations.elements(); schemaMutationsIterator.hasNext(); ) {
-			schemaMutations.addAll(mutationAggregateResolver.convert(schemaMutationsIterator.next()));
-		}
+		final List<LocalCatalogSchemaMutation> schemaMutations = requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() -> {
+			final List<LocalCatalogSchemaMutation> convertedSchemaMutations = new LinkedList<>();
+			final JsonNode inputMutations = requestData.getMutations()
+				.orElseThrow(() -> new RestInvalidArgumentException("Mutations are not set in request data."));
+			for (Iterator<JsonNode> schemaMutationsIterator = inputMutations.elements(); schemaMutationsIterator.hasNext(); ) {
+				convertedSchemaMutations.addAll(mutationAggregateResolver.convert(schemaMutationsIterator.next()));
+			}
+			return convertedSchemaMutations;
+		});
 
-		final CatalogSchemaContract updatedCatalogSchema = executionContext.session().updateAndFetchCatalogSchema(
-			schemaMutations.toArray(LocalCatalogSchemaMutation[]::new)
-		);
-		return new SuccessEndpointResponse(convertResultIntoSerializableObject(executionContext, updatedCatalogSchema));
+		final CatalogSchemaContract updatedCatalogSchema = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
+			executionContext.session().updateAndFetchCatalogSchema(schemaMutations.toArray(LocalCatalogSchemaMutation[]::new)));
+		requestExecutedEvent.finishOperationExecution();
+
+		final Object result = convertResultIntoSerializableObject(executionContext, updatedCatalogSchema);
+		requestExecutedEvent.finishResultSerialization();
+
+		return new SuccessEndpointResponse(result);
 	}
 
 	@Nonnull

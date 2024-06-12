@@ -32,11 +32,13 @@ import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.Filte
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.RequireConstraintFromRequestQueryBuilder;
 import io.evitadb.externalApi.rest.api.catalog.resolver.endpoint.CatalogRestHandlingContext;
 import io.evitadb.externalApi.rest.io.RestEndpointExecutionContext;
+import io.evitadb.externalApi.rest.metric.event.request.ExecutedEvent;
 import io.undertow.util.Methods;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -54,18 +56,27 @@ public class GetUnknownEntityHandler extends EntityHandler<CatalogRestHandlingCo
 	@Override
 	@Nonnull
 	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
-		final Map<String, Object> parametersFromRequest = getParametersFromRequest(executionContext);
+		final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
 
-		final Query query = Query.query(
+		final Map<String, Object> parametersFromRequest = getParametersFromRequest(executionContext);
+		requestExecutedEvent.finishInputDeserialization();
+
+		final Query query = requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() -> Query.query(
 			FilterByConstraintFromRequestQueryBuilder.buildFilterByForUnknownEntity(parametersFromRequest, restHandlingContext.getCatalogSchema()),
 			RequireConstraintFromRequestQueryBuilder.buildRequire(parametersFromRequest)
-		);
+		));
 
 		log.debug("Generated evitaDB query for single unknown entity fetch is `{}`.", query);
 
-		return executionContext.session()
-			.queryOne(query, EntityClassifier.class)
-			.map(it -> (EndpointResponse) new SuccessEndpointResponse(convertResultIntoSerializableObject(executionContext, it)))
+		final Optional<EntityClassifier> entity = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
+			executionContext.session().queryOne(query, EntityClassifier.class));
+		requestExecutedEvent.finishOperationExecution();
+
+		final Optional<Object> result = entity.map(it -> convertResultIntoSerializableObject(executionContext, it));
+		requestExecutedEvent.finishResultSerialization();
+
+		return result
+			.map(it -> (EndpointResponse) new SuccessEndpointResponse(it))
 			.orElse(new NotFoundEndpointResponse());
 	}
 

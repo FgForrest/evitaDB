@@ -35,6 +35,7 @@ import io.evitadb.externalApi.rest.api.catalog.resolver.endpoint.CatalogRestHand
 import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.externalApi.rest.io.JsonRestHandler;
 import io.evitadb.externalApi.rest.io.RestEndpointExecutionContext;
+import io.evitadb.externalApi.rest.metric.event.request.ExecutedEvent;
 import io.evitadb.utils.Assert;
 import io.undertow.util.Methods;
 import lombok.extern.slf4j.Slf4j;
@@ -64,17 +65,25 @@ public class ListUnknownEntitiesHandler extends JsonRestHandler<CatalogRestHandl
 	@Override
 	@Nonnull
 	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
-		final Map<String, Object> parametersFromRequest = getParametersFromRequest(executionContext);
+		final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
 
-		final Query query = Query.query(
+		final Map<String, Object> parametersFromRequest = getParametersFromRequest(executionContext);
+		requestExecutedEvent.finishInputDeserialization();
+
+		final Query query = requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() -> Query.query(
 			FilterByConstraintFromRequestQueryBuilder.buildFilterByForUnknownEntityList(parametersFromRequest, restHandlingContext.getCatalogSchema()),
 			RequireConstraintFromRequestQueryBuilder.buildRequire(parametersFromRequest)
-		);
-
+		));
 		log.debug("Generated evitaDB query for unknown entity list fetch is `{}`.", query);
 
-		final List<EntityClassifier> entities = executionContext.session().queryList(query, EntityClassifier.class);
-		return new SuccessEndpointResponse(convertResultIntoSerializableObject(executionContext, entities));
+		final List<EntityClassifier> entities = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
+			executionContext.session().queryList(query, EntityClassifier.class));
+		requestExecutedEvent.finishOperationExecution();
+
+		final Object result = convertResultIntoSerializableObject(executionContext, entities);
+		requestExecutedEvent.finishResultSerialization();
+
+		return new SuccessEndpointResponse(result);
 	}
 
 	@Nonnull

@@ -21,15 +21,14 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.io;
+package io.evitadb.externalApi.rest.io;
 
 /**
- * Represents semantically GraphQL instance. Defines which data it provides.
+ * Represents semantically REST instance. Defines which data it provides.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
  */
-public enum GraphQLInstanceType {
+public enum RestInstanceType {
 	SYSTEM,
-	DATA,
-	SCHEMA
+	CATALOG
 }

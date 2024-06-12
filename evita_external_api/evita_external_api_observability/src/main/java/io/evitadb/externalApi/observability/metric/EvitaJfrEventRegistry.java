@@ -38,8 +38,6 @@ import io.evitadb.core.metric.event.system.BackgroundTaskFinishedEvent;
 import io.evitadb.core.metric.event.system.BackgroundTaskStartedEvent;
 import io.evitadb.core.metric.event.system.EvitaStartedEvent;
 import io.evitadb.core.metric.event.transaction.*;
-import io.evitadb.externalApi.graphql.metric.event.request.ExecutedEvent;
-import io.evitadb.externalApi.graphql.metric.event.schema.BuiltEvent;
 import io.evitadb.externalApi.grpc.metric.event.ProcedureCalledEvent;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ReflectionLookup;
@@ -115,8 +113,11 @@ public class EvitaJfrEventRegistry {
 		ProcedureCalledEvent.class,
 
 		// api - GraphQL
-		ExecutedEvent.class,
-		BuiltEvent.class
+		io.evitadb.externalApi.graphql.metric.event.request.ExecutedEvent.class,
+		io.evitadb.externalApi.graphql.metric.event.schema.BuiltEvent.class,
+
+		// api - REST
+		io.evitadb.externalApi.rest.metric.event.request.ExecutedEvent.class
 	);
 	private static final Map<String, Class<? extends CustomMetricsExecutionEvent>> EVENT_MAP;
 	private static final Map<String, Set<Class<? extends CustomMetricsExecutionEvent>>> EVENT_MAP_BY_PACKAGE;

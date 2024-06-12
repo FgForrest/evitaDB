@@ -26,6 +26,8 @@ package io.evitadb.externalApi.rest.io;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.externalApi.http.EndpointExecutionContext;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
+import io.evitadb.externalApi.rest.metric.event.request.ExecutedEvent;
+import io.evitadb.externalApi.rest.metric.event.request.ExecutedEvent.ResponseStatus;
 import io.evitadb.utils.Assert;
 import io.undertow.server.HttpServerExchange;
 
@@ -39,13 +41,22 @@ import javax.annotation.Nullable;
  */
 public class RestEndpointExecutionContext extends EndpointExecutionContext {
 
+	@Nonnull private final ExecutedEvent requestExecutedEvent;
+
 	@Nullable private EvitaSessionContract session;
 
 	@Nullable private String requestBodyContentType;
 	@Nullable private String preferredResponseContentType;
 
-	public RestEndpointExecutionContext(@Nonnull HttpServerExchange serverExchange) {
+	public RestEndpointExecutionContext(@Nonnull HttpServerExchange serverExchange,
+	                                    @Nonnull ExecutedEvent requestExecutedEvent) {
 		super(serverExchange);
+		this.requestExecutedEvent = requestExecutedEvent;
+	}
+
+	@Nonnull
+	public ExecutedEvent requestExecutedEvent() {
+		return requestExecutedEvent;
 	}
 
 	@Nonnull
@@ -112,8 +123,15 @@ public class RestEndpointExecutionContext extends EndpointExecutionContext {
 	}
 
 	@Override
+	public void notifyError(@Nonnull Exception e) {
+		requestExecutedEvent.provideResponseStatus(ResponseStatus.ERROR);
+	}
+
+	@Override
 	public void close() {
 		// the session may not be properly closed in case of exception during request handling
 		closeSessionIfOpen();
+
+		requestExecutedEvent.finish().commit();
 	}
 }

@@ -24,8 +24,8 @@
 package io.evitadb.externalApi.graphql.io;
 
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
-import io.evitadb.externalApi.graphql.metric.event.request.AbstractGraphQLRequestEvent.ResponseStatus;
 import io.evitadb.externalApi.graphql.metric.event.request.ExecutedEvent;
+import io.evitadb.externalApi.graphql.metric.event.request.ExecutedEvent.ResponseStatus;
 import io.evitadb.externalApi.http.EndpointExecutionContext;
 import io.evitadb.utils.Assert;
 import io.undertow.server.HttpServerExchange;

@@ -30,6 +30,7 @@ import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.CollectionsE
 import io.evitadb.externalApi.rest.api.catalog.resolver.endpoint.CatalogRestHandlingContext;
 import io.evitadb.externalApi.rest.io.JsonRestHandler;
 import io.evitadb.externalApi.rest.io.RestEndpointExecutionContext;
+import io.evitadb.externalApi.rest.metric.event.request.ExecutedEvent;
 import io.undertow.util.Methods;
 
 import javax.annotation.Nonnull;
@@ -52,19 +53,27 @@ public class CollectionsHandler extends JsonRestHandler<CatalogRestHandlingConte
 	@Nonnull
 	@Override
 	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
+		final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
+
 		final Map<String, Object> parametersFromRequest = getParametersFromRequest(executionContext);
 		final Boolean withCounts = (Boolean) parametersFromRequest.get(CollectionsEndpointHeaderDescriptor.ENTITY_COUNT.name());
+		requestExecutedEvent.finishInputDeserialization();
 
-		final List<CollectionPointer> collections = executionContext.session()
-			.getAllEntityTypes()
-			.stream()
-			.map(entityType -> new CollectionPointer(
-				entityType,
-				withCounts != null && withCounts ? executionContext.session().getEntityCollectionSize(entityType) : null
-			))
-			.toList();
+		final List<CollectionPointer> collections = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
+			executionContext.session()
+				.getAllEntityTypes()
+				.stream()
+				.map(entityType -> new CollectionPointer(
+					entityType,
+					withCounts != null && withCounts ? executionContext.session().getEntityCollectionSize(entityType) : null
+				))
+				.toList());
+		requestExecutedEvent.finishOperationExecution();
 
-		return new SuccessEndpointResponse(convertResultIntoSerializableObject(executionContext, collections));
+		final Object result = convertResultIntoSerializableObject(executionContext, collections);
+		requestExecutedEvent.finishResultSerialization();
+
+		return new SuccessEndpointResponse(result);
 	}
 
 	@Nonnull
