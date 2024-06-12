@@ -206,7 +206,7 @@ final class SessionRegistry {
 
 			// emit event
 			//noinspection CastToIncompatibleInterface,resource
-			((EvitaProxyFinalization)activeSession.proxySession())
+			((EvitaProxyFinalization) activeSession.proxySession())
 				.finish(
 					ofNullable(this.sessionsFifoQueue.peek())
 						.map(it -> it.plainSession().getCreated())
@@ -214,6 +214,21 @@ final class SessionRegistry {
 					this.activeSessionsCounter.get()
 				);
 		}
+	}
+
+	/**
+	 * Internal interface for finalizing the session proxy.
+	 */
+	private interface EvitaProxyFinalization {
+
+		/**
+		 * Method should be called when session proxy is terminated.
+		 *
+		 * @param oldestSessionTimestamp the oldest active session timestamp
+		 * @param activeSessions         the number of still active sessions
+		 */
+		void finish(@Null OffsetDateTime oldestSessionTimestamp, int activeSessions);
+
 	}
 
 	/**
@@ -228,6 +243,22 @@ final class SessionRegistry {
 		private final EvitaSession evitaSession;
 		private final TracingContext tracingContext;
 		@Getter private final ClosedEvent sessionClosedEvent;
+
+		/**
+		 * Handles arguments printing.
+		 */
+		@Nonnull
+		private static String printArguments(@Nonnull Method method, @Nonnull Object[] args) {
+			final StringBuilder sb = new StringBuilder(256);
+			for (int i = 0; i < args.length; i++) {
+				Object arg = args[i];
+				if (i > 0) {
+					sb.append("|");
+				}
+				sb.append(method.getParameters()[i].getName()).append("=").append(arg);
+			}
+			return sb.toString();
+		}
 
 		public EvitaSessionProxy(@Nonnull EvitaSession evitaSession, @Nonnull TracingContext tracingContext) {
 			this.evitaSession = evitaSession;
@@ -280,17 +311,24 @@ final class SessionRegistry {
 										// just unwrap and rethrow
 										throw evitaInvalidUsageException;
 									} else if (targetException instanceof EvitaInternalError evitaInternalError) {
-										log.error(
-											"Internal Evita error occurred in " + evitaInternalError.getErrorCode() + ": " + evitaInternalError.getPrivateMessage(),
-											targetException
-										);
+										if (log.isErrorEnabled()) {
+											log.error(
+												"Internal Evita error occurred in " + evitaInternalError.getErrorCode() +
+													": " + evitaInternalError.getPrivateMessage() + "," +
+													" arguments: " + printArguments(method, args),
+												targetException
+											);
+										}
 										// unwrap and rethrow
 										throw evitaInternalError;
 									} else {
-										log.error(
-											"Unexpected internal Evita error occurred: " + ex.getCause().getMessage(),
-											targetException == null ? ex : targetException
-										);
+										if (log.isErrorEnabled()) {
+											log.error(
+												"Unexpected internal Evita error occurred: " + ex.getCause().getMessage() + ", " +
+													" arguments: " + printArguments(method, args),
+												targetException == null ? ex : targetException
+											);
+										}
 										throw new GenericEvitaInternalError(
 											"Unexpected internal Evita error occurred: " + ex.getCause().getMessage(),
 											"Unexpected internal Evita error occurred.",
@@ -298,7 +336,13 @@ final class SessionRegistry {
 										);
 									}
 								} catch (Throwable ex) {
-									log.error("Unexpected system error occurred: " + ex.getMessage(), ex);
+									if (log.isErrorEnabled()) {
+										log.error(
+											"Unexpected system error occurred: " + ex.getMessage() + "," +
+												" arguments: " + printArguments(method, args),
+											ex
+										);
+									}
 									throw new GenericEvitaInternalError(
 										"Unexpected system error occurred: " + ex.getMessage(),
 										"Unexpected system error occurred.",
@@ -417,20 +461,6 @@ final class SessionRegistry {
 		@Nullable Long minimalActiveCatalogVersion,
 		boolean lastReader
 	) {
-	}
-
-	/**
-	 * Internal interface for finalizing the session proxy.
-	 */
-	private interface EvitaProxyFinalization {
-
-		/**
-		 * Method should be called when session proxy is terminated.
-		 * @param oldestSessionTimestamp the oldest active session timestamp
-		 * @param activeSessions the number of still active sessions
-		 */
-		void finish(@Null OffsetDateTime oldestSessionTimestamp, int activeSessions);
-
 	}
 
 }
