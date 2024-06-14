@@ -136,7 +136,7 @@ public class ExecutedEvent extends AbstractGraphQLRequestEvent {
 	@Label("Request result serialization duration in milliseconds")
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
 	@HistogramSettings(factor = 1.9)
-	private long resultSerializationDurationMilliseconds = -1;
+	private long resultSerializationDurationMilliseconds;
 
 	/**
 	 * Overall request execution duration in milliseconds for calculating API overhead.
@@ -306,10 +306,6 @@ public class ExecutedEvent extends AbstractGraphQLRequestEvent {
 	 */
 	@Nonnull
 	public ExecutedEvent finishOperationExecution() {
-		Assert.isPremiseValid(
-			this.operationExecutionStarted != 0,
-			() -> new GraphQLInternalError("Operation execution didn't started. Cannot measure operation execution duration.")
-		);
 		final long now = System.currentTimeMillis();
 		this.operationExecutionDurationMilliseconds = now - this.operationExecutionStarted;
 		this.resultSerializationStarted = now;
@@ -318,6 +314,7 @@ public class ExecutedEvent extends AbstractGraphQLRequestEvent {
 
 	/**
 	 * Measures duration of result serialization from previous state. Should be called only once.
+	 * If not called, it is assumed that no result serialization was done and thus it took 0 seconds.
 	 * @return this
 	 */
 	@Nonnull
@@ -339,13 +336,12 @@ public class ExecutedEvent extends AbstractGraphQLRequestEvent {
 		this.end();
 
 		Assert.isPremiseValid(
-			this.resultSerializationDurationMilliseconds != -1,
-			() -> new GraphQLInternalError("Result serialization didn't finished.")
-		);
-		Assert.isPremiseValid(
 			this.processStarted != 0,
 			() -> new GraphQLInternalError("Process didn't started. Cannot measure execution duration duration.")
 		);
+		if (this.operationExecutionStarted > 0 && this.operationExecutionDurationMilliseconds == 0) {
+			finishOperationExecution();
+		}
 		this.executionDurationMilliseconds = System.currentTimeMillis() - this.processStarted;
 		this.executionApiOverheadDurationMilliseconds = this.executionDurationMilliseconds - this.internalEvitadbExecutionDurationMilliseconds;
 

@@ -100,7 +100,9 @@ public abstract class RestEndpointHandler<CTX extends RestHandlingContext> exten
         } else if (restHandlingContext instanceof CatalogRestHandlingContext) {
             instanceType = RestInstanceType.CATALOG;
         } else {
-            throw new RestInternalError("Unknown parent rest handling context `" + restHandlingContext.getClass().getName() + "`.");
+            // note: this is a bit of a hack to support lab rest API without rewriting it entirely. We will get rid of it
+            // when lab uses gRPC API
+            instanceType = RestInstanceType.LAB;
         }
 
         return new RestEndpointExecutionContext(

@@ -30,5 +30,9 @@ package io.evitadb.externalApi.rest.io;
  */
 public enum RestInstanceType {
 	SYSTEM,
-	CATALOG
+	CATALOG,
+	/**
+	 * Note: this is a bit of a hack, we will get rid of this when lab uses gRPC API
+	 */
+	LAB
 }

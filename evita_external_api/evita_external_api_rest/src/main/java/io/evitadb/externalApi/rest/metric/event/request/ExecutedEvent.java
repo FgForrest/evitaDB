@@ -124,7 +124,7 @@ public class ExecutedEvent extends AbstractRestRequestEvent {
 	@Label("Request result serialization duration in milliseconds")
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
 	@HistogramSettings(factor = 1.9)
-	private long resultSerializationDurationMilliseconds = -1;
+	private long resultSerializationDurationMilliseconds;
 
 	/**
 	 * Overall request execution duration in milliseconds for calculating API overhead.
@@ -240,13 +240,12 @@ public class ExecutedEvent extends AbstractRestRequestEvent {
 		this.end();
 
 		Assert.isPremiseValid(
-			this.resultSerializationDurationMilliseconds != -1,
-			() -> new RestInternalError("Result serialization didn't finish.")
-		);
-		Assert.isPremiseValid(
 			this.processStarted != 0,
 			() -> new RestInternalError("Process didn't started. Cannot measure execution duration.")
 		);
+		if (this.operationExecutionStarted > 0 && this.operationExecutionDurationMilliseconds == 0) {
+			finishOperationExecution();
+		}
 		this.executionDurationMilliseconds = System.currentTimeMillis() - this.processStarted;
 		this.executionApiOverheadDurationMilliseconds = this.executionDurationMilliseconds - this.internalEvitadbExecutionDurationMilliseconds;
 
