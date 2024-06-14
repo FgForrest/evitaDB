@@ -24,6 +24,7 @@
 package io.evitadb.core.async;
 
 import io.evitadb.api.configuration.ThreadPoolOptions;
+import io.evitadb.api.task.ProgressiveCompletableFuture;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -147,7 +148,6 @@ public class Scheduler implements ObservableExecutorService {
 
 	@Override
 	public void shutdown() {
-		System.out.println("Shutting down scheduler");
 		executorService.shutdown();
 	}
 
@@ -170,6 +170,20 @@ public class Scheduler implements ObservableExecutorService {
 	@Override
 	public boolean awaitTermination(long timeout, @Nonnull TimeUnit unit) throws InterruptedException {
 		return executorService.awaitTermination(timeout, unit);
+	}
+
+	@Nonnull
+	public <T> ProgressiveCompletableFuture<T> submit(@Nonnull BackgroundCallableTask<T> task) {
+		this.executorService.submit(task);
+		this.submittedTaskCount.incrementAndGet();
+		return task.getFuture();
+	}
+
+	@Nonnull
+	public ProgressiveCompletableFuture<Void> submit(@Nonnull BackgroundRunnableTask task) {
+		this.executorService.submit(task);
+		this.submittedTaskCount.incrementAndGet();
+		return task.getFuture();
 	}
 
 	@Nonnull

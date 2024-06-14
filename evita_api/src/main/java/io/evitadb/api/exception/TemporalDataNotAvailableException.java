@@ -26,6 +26,7 @@ package io.evitadb.api.exception;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import lombok.Getter;
 
+import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.time.OffsetDateTime;
 
@@ -34,11 +35,11 @@ import java.time.OffsetDateTime;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public class PastDataNotAvailableException extends EvitaInvalidUsageException {
+public class TemporalDataNotAvailableException extends EvitaInvalidUsageException {
 	@Serial private static final long serialVersionUID = 2157655513551186466L;
 	@Getter private final OffsetDateTime offsetDateTime;
 
-	public PastDataNotAvailableException(OffsetDateTime offsetDateTime) {
+	public TemporalDataNotAvailableException(@Nonnull OffsetDateTime offsetDateTime) {
 		super("The latest data available is from " + offsetDateTime + ".");
 		this.offsetDateTime = offsetDateTime;
 	}

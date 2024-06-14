@@ -30,6 +30,7 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.CollectionNotFoundException;
 import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.SchemaAlteringException;
+import io.evitadb.api.exception.TemporalDataNotAvailableException;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.mutation.Mutation;
@@ -49,9 +50,10 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
-import java.io.OutputStream;
+import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.nio.file.Path;
+import java.time.OffsetDateTime;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -223,8 +225,9 @@ public final class CorruptedCatalog implements CatalogContract {
 		throw new CatalogCorruptedException(this);
 	}
 
+	@Nonnull
 	@Override
-	public void backup(OutputStream outputStream) throws UnexpectedIOException {
+	public ProgressiveCompletableFuture<Path> backup(@Nullable OffsetDateTime pastMoment, boolean includingWAL) throws TemporalDataNotAvailableException {
 		throw new CatalogCorruptedException(this);
 	}
 

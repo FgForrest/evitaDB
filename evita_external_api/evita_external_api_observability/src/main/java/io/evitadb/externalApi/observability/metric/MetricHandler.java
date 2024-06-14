@@ -31,7 +31,7 @@ import io.evitadb.api.observability.annotation.ExportMetric;
 import io.evitadb.api.observability.annotation.ExportMetricLabel;
 import io.evitadb.api.observability.annotation.HistogramSettings;
 import io.evitadb.core.Evita;
-import io.evitadb.core.async.BackgroundTask;
+import io.evitadb.core.async.BackgroundRunnableTask;
 import io.evitadb.core.metric.event.CustomMetricsExecutionEvent;
 import io.evitadb.externalApi.observability.configuration.ObservabilityConfig;
 import io.evitadb.function.ChainableConsumer;
@@ -349,7 +349,7 @@ public class MetricHandler {
 
 		final AtomicLong initializedTime = new AtomicLong(Long.MAX_VALUE);
 		executor.execute(
-			new BackgroundTask(
+			new BackgroundRunnableTask(
 				"Metric handler",
 				() -> {
 					final ReflectionLookup lookup = ReflectionLookup.NO_CACHE_INSTANCE;

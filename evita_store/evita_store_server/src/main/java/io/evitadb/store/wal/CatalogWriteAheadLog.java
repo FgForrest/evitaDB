@@ -625,6 +625,7 @@ public class CatalogWriteAheadLog implements Closeable {
 			if (lastPuredCatalogVersion > -1) {
 				this.onWalPurgeCallback.accept(lastPuredCatalogVersion + 1);
 			}
+
 			return -1;
 		}
 	}

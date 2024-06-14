@@ -67,7 +67,7 @@ public class DelayedAsyncTask {
 	 * The task that is executed asynchronously after the specified delay and returns negative value when it should be
 	 * paused or positive value when it should be re-scheduled (with shortened delay).
 	 */
-	private final BackgroundTask task;
+	private final BackgroundRunnableTask task;
 	/**
 	 * The next planned cache cut time - if there is scheduled action planned in the current scheduled executor service,
 	 * the time is stored here to avoid scheduling the same action multiple times.
@@ -108,7 +108,7 @@ public class DelayedAsyncTask {
 		this.delay = delay;
 		this.delayUnits = delayUnits;
 		this.minimalSchedulingGap = minimalSchedulingGap;
-		this.task = new BackgroundTask(
+		this.task = new BackgroundRunnableTask(
 			catalogName, taskName, () -> runTask(runnable)
 		);
 	}
@@ -189,11 +189,12 @@ public class DelayedAsyncTask {
 		}
 		if (planWithShorterDelay > -1L) {
 			scheduleWithDelayShorterBy(planWithShorterDelay);
-		} else if (this.reSchedule.compareAndSet(true, false)) {
-			// reschedule the task if it was requested during the run
-			this.schedule();
 		} else {
 			pause();
+			if (this.reSchedule.compareAndSet(true, false)) {
+				// reschedule the task if it was requested during the run
+				this.schedule();
+			}
 		}
 	}
 }

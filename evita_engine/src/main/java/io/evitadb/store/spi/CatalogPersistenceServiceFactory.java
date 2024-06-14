@@ -26,6 +26,7 @@ package io.evitadb.store.spi;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TransactionOptions;
+import io.evitadb.core.async.BackgroundCallableTask;
 import io.evitadb.core.async.Scheduler;
 import io.evitadb.store.exception.InvalidStoragePathException;
 import io.evitadb.store.spi.exception.DirectoryNotEmptyException;
@@ -89,6 +90,7 @@ public interface CatalogPersistenceServiceFactory {
 	 *
 	 * @param catalogName name of the catalog
 	 * @param storageOptions storage options
+	 * @param totalBytesExpected total bytes expected to be read from the input stream
 	 * @param inputStream input stream with the catalog data
 	 * @return normalized name of the catalog to be created in storage directory
 	 *
@@ -96,9 +98,10 @@ public interface CatalogPersistenceServiceFactory {
 	 * @throws InvalidStoragePathException if the storage path is invalid
 	 */
 	@Nonnull
-	Path restoreCatalogTo(
+	BackgroundCallableTask<Path> restoreCatalogTo(
 		@Nonnull String catalogName,
 		@Nonnull StorageOptions storageOptions,
+		long totalBytesExpected,
 		@Nonnull InputStream inputStream
 	) throws DirectoryNotEmptyException, InvalidStoragePathException;
 

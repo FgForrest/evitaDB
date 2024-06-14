@@ -31,6 +31,7 @@ import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.api.exception.CollectionNotFoundException;
 import io.evitadb.api.exception.EntityTypeAlreadyPresentInCatalogSchemaException;
+import io.evitadb.api.exception.TemporalDataNotAvailableException;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -114,11 +115,11 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.BufferedOutputStream;
 import java.io.Closeable;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
@@ -131,7 +132,9 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.IntConsumer;
 import java.util.function.LongConsumer;
+import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -154,6 +157,7 @@ import static java.util.Optional.ofNullable;
  */
 @Slf4j
 public class DefaultCatalogPersistenceService implements CatalogPersistenceService, CatalogVersionBeyondTheHorizonListener {
+
 	/**
 	 * Factory function that configures new instance of the versioned kryo factory.
 	 */
@@ -164,6 +168,11 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			.andThen(SharedClassesConfigurer.INSTANCE)
 			.andThen(new IndexStoragePartConfigurer(kryoKeyInputs.keyCompressor()))
 	);
+
+	/**
+	 * This supplier is overridden in tests to provide deterministic time. Do not use elsewhere.
+	 */
+	static LongSupplier CURRENT_TIME_MILLIS = System::currentTimeMillis;
 
 	/**
 	 * This instance keeps references to the {@link ObservableOutput} instances that internally keep large buffers in
@@ -274,7 +283,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	 * @return the stream of catalog bootstrap records
 	 */
 	@Nonnull
-	public static Stream<CatalogBootstrap> getBootstrapRecordStream(
+	public static Stream<CatalogBootstrap> getCatalogBootstrapRecordStream(
 		@Nonnull String catalogName,
 		@Nonnull StorageOptions storageOptions
 	) {
@@ -338,19 +347,18 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	/**
 	 * Retrieves the first catalog bootstrap for a given catalog or NULL if the bootstrap file is empty.
 	 *
-	 * @param catalogStoragePath The path to the catalog storage directory.
-	 * @param catalogName        The name of the catalog.
-	 * @param storageOptions     The storage options for reading the bootstrap file.
+	 * @param catalogName    The name of the catalog.
+	 * @param storageOptions The storage options for reading the bootstrap file.
 	 * @return The first catalog bootstrap or NULL if the catalog bootstrap file is empty.
 	 * @throws UnexpectedIOException If there is an error opening the catalog bootstrap file.
 	 */
 	@Nonnull
-	private static Optional<CatalogBootstrap> getFirstCatalogBootstrap(
-		@Nonnull Path catalogStoragePath,
+	static Optional<CatalogBootstrap> getFirstCatalogBootstrap(
 		@Nonnull String catalogName,
 		@Nonnull StorageOptions storageOptions
 	) {
 		final String bootstrapFileName = getCatalogBootstrapFileName(catalogName);
+		final Path catalogStoragePath = storageOptions.storageDirectory().resolve(catalogName);
 		final Path bootstrapFilePath = catalogStoragePath.resolve(bootstrapFileName);
 		final File bootstrapFile = bootstrapFilePath.toFile();
 		if (bootstrapFile.exists()) {
@@ -361,24 +369,57 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	}
 
 	/**
+	 * Retrieves the catalog bootstrap that is valid for passed date and time for a given catalog.
+	 *
+	 * @param catalogName    The name of the catalog.
+	 * @param storageOptions The storage options for reading the bootstrap file.
+	 * @param pastMoment     The moment in time to search for the first catalog bootstrap.
+	 * @return The first catalog bootstrap or NULL if the catalog bootstrap file is empty.
+	 * @throws UnexpectedIOException             If there is an error opening the catalog bootstrap file.
+	 * @throws TemporalDataNotAvailableException If the catalog bootstrap starts with later record than the specified
+	 *                                           moment or is in the future
+	 */
+	@Nonnull
+	static CatalogBootstrap getCatalogBootstrapForSpecificMoment(
+		@Nonnull String catalogName,
+		@Nonnull StorageOptions storageOptions,
+		@Nonnull OffsetDateTime pastMoment
+	) {
+		Assert.isTrue(
+			pastMoment.isBefore(OffsetDateTime.now()),
+			() -> new TemporalDataNotAvailableException(pastMoment)
+		);
+		Assert.isTrue(
+			getFirstCatalogBootstrap(catalogName, storageOptions)
+				.map(it -> it.timestamp().compareTo(pastMoment) <= 0)
+				.orElse(false),
+			() -> new TemporalDataNotAvailableException(pastMoment)
+		);
+
+		return getCatalogBootstrapRecordStream(catalogName, storageOptions)
+			.takeWhile(current -> !current.timestamp().isAfter(pastMoment))
+			.reduce((previous, current) -> current)
+			.orElseGet(() -> getLastCatalogBootstrap(catalogName, storageOptions));
+	}
+
+	/**
 	 * Retrieves the last catalog bootstrap for a given catalog. If the last bootstrap record was not fully written,
 	 * the previous one is returned instead. The correctness is verified by fixed length of the bootstrap record and
 	 * CRC32C checksum of the record.
 	 *
-	 * @param catalogStoragePath The path to the catalog storage directory.
-	 * @param catalogName        The name of the catalog.
-	 * @param storageOptions     The storage options for reading the bootstrap file.
+	 * @param catalogName    The name of the catalog.
+	 * @param storageOptions The storage options for reading the bootstrap file.
 	 * @return The last catalog bootstrap.
 	 * @throws UnexpectedIOException If there is an error opening the catalog bootstrap file.
 	 * @throws BootstrapFileNotFound If the catalog bootstrap file is not found.
 	 */
 	@Nonnull
-	private static CatalogBootstrap getLastCatalogBootstrap(
-		@Nonnull Path catalogStoragePath,
+	static CatalogBootstrap getLastCatalogBootstrap(
 		@Nonnull String catalogName,
 		@Nonnull StorageOptions storageOptions
 	) {
 		final String bootstrapFileName = getCatalogBootstrapFileName(catalogName);
+		final Path catalogStoragePath = storageOptions.storageDirectory().resolve(catalogName);
 		final Path bootstrapFilePath = catalogStoragePath.resolve(bootstrapFileName);
 		final File bootstrapFile = bootstrapFilePath.toFile();
 		if (bootstrapFile.exists()) {
@@ -719,6 +760,15 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		).commit();
 	}
 
+	/**
+	 * Returns current date & time in epoch milliseconds.
+	 *
+	 * @return current date & time in epoch milliseconds
+	 */
+	private static long getNowEpochMillis() {
+		return CURRENT_TIME_MILLIS.getAsLong();
+	}
+
 	public DefaultCatalogPersistenceService(
 		@Nonnull String catalogName,
 		@Nonnull StorageOptions storageOptions,
@@ -746,9 +796,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			this::fetchDataFilesInfo
 		);
 		final String verifiedCatalogName = verifyDirectory(this.catalogStoragePath, false);
-		final CatalogBootstrap lastCatalogBootstrap = getLastCatalogBootstrap(
-			this.catalogStoragePath, verifiedCatalogName, storageOptions
-		);
+		final CatalogBootstrap lastCatalogBootstrap = getLastCatalogBootstrap(verifiedCatalogName, storageOptions);
 		this.bootstrapWriteHandle = new AtomicReference<>(
 			new WriteOnlyFileHandle(
 				this.catalogName,
@@ -825,9 +873,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			this::fetchDataFilesInfo
 		);
 		final String verifiedCatalogName = verifyDirectory(this.catalogStoragePath, false);
-		this.bootstrapUsed = getLastCatalogBootstrap(
-			catalogStoragePath, verifiedCatalogName, storageOptions
-		);
+		this.bootstrapUsed = getLastCatalogBootstrap(verifiedCatalogName, storageOptions);
 		this.bootstrapWriteHandle = new AtomicReference<>(
 			new WriteOnlyFileHandle(
 				this.catalogName,
@@ -974,7 +1020,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			this.catalogName,
 			catalogHeader.getEntityTypeFileIndexes().size(),
 			FileUtils.getDirectorySize(this.catalogStoragePath),
-			getFirstCatalogBootstrap(this.catalogStoragePath, this.catalogName, this.storageOptions)
+			getFirstCatalogBootstrap(this.catalogName, this.storageOptions)
 				.map(CatalogBootstrap::timestamp)
 				.orElse(null)
 		).commit();
@@ -1158,16 +1204,16 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		}
 
 		// emit event if the number of collections has changed
-		if (System.currentTimeMillis() - this.lastCatalogStatisticsTimestamp > 1000) {
+		if (getNowEpochMillis() - this.lastCatalogStatisticsTimestamp > 1000) {
 			new CatalogStatisticsEvent(
 				this.catalogName,
 				entityHeaders.size(),
 				FileUtils.getDirectorySize(this.catalogStoragePath),
-				getFirstCatalogBootstrap(this.catalogStoragePath, this.catalogName, this.storageOptions)
+				getFirstCatalogBootstrap(this.catalogName, this.storageOptions)
 					.map(CatalogBootstrap::timestamp)
 					.orElse(null)
 			).commit();
-			this.lastCatalogStatisticsTimestamp = System.currentTimeMillis();
+			this.lastCatalogStatisticsTimestamp = getNowEpochMillis();
 		}
 	}
 
@@ -1759,18 +1805,27 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		}
 	}
 
+	@Nonnull
 	@Override
-	public void backup(@Nonnull OutputStream outputStream) throws UnexpectedIOException {
-		final long catalogVersion = this.bootstrapUsed.catalogVersion();
-		try (ZipOutputStream zipOutputStream = new ZipOutputStream(outputStream)) {
+	public Path backup(@Nonnull UUID id, @Nullable OffsetDateTime pastMoment, boolean includingWAL, @Nonnull IntConsumer progressUpdater) throws TemporalDataNotAvailableException {
+		final long catalogVersion = pastMoment == null ?
+			this.bootstrapUsed.catalogVersion() :
+			getCatalogBootstrapForSpecificMoment(this.catalogName, this.storageOptions, pastMoment).catalogVersion();
+
+		final Path backupFolder = this.transactionOptions.transactionWorkDirectory().resolve("backup");
+		if (!backupFolder.toFile().exists()) {
+			Assert.isPremiseValid(backupFolder.toFile().mkdirs(), "Failed to create backup folder `" + backupFolder + "`!");
+		}
+		final Path backupFile = backupFolder.resolve(id + ".zip");
+		try (ZipOutputStream zipOutputStream = new ZipOutputStream(new BufferedOutputStream(new FileOutputStream(backupFile.toFile())))) {
 			zipOutputStream.putNextEntry(new ZipEntry(this.catalogName + "/"));
 			zipOutputStream.closeEntry();
 
 			// first store all the active contents of the entity collection data files
-			final Map<String, EntityCollectionHeader> entityHeaders = CollectionUtils.createHashMap(
-				this.entityCollectionPersistenceServices.size()
-			);
 			final CatalogHeader catalogHeader = getCatalogHeader(catalogVersion);
+			final Map<String, EntityCollectionHeader> entityHeaders = CollectionUtils.createHashMap(
+				catalogHeader.getEntityTypeFileIndexes().size()
+			);
 			for (CollectionFileReference entityTypeFileIndex : catalogHeader.getEntityTypeFileIndexes()) {
 				final String entityDataFileName = CatalogPersistenceService.getEntityCollectionDataStoreFileName(
 					entityTypeFileIndex.entityType(),
@@ -1841,22 +1896,24 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			zipOutputStream.closeEntry();
 
 			// store the WAL file with all records written after the catalog version
-			try (final Stream<Path> walFileStream = Files.list(catalogStoragePath)) {
-				walFileStream
-					.filter(it -> it.getFileName().toString().endsWith(WAL_FILE_SUFFIX))
-					.forEach(walFile -> {
-						try {
-							zipOutputStream.putNextEntry(new ZipEntry(this.catalogName + "/" + walFile.getFileName()));
-							Files.copy(walFile, zipOutputStream);
-							zipOutputStream.closeEntry();
-						} catch (IOException e) {
-							throw new UnexpectedIOException(
-								"Failed to backup WAL file `" + walFile + "`!",
-								"Failed to backup WAL file!",
-								e
-							);
-						}
-					});
+			if (includingWAL) {
+				try (final Stream<Path> walFileStream = Files.list(catalogStoragePath)) {
+					walFileStream
+						.filter(it -> it.getFileName().toString().endsWith(WAL_FILE_SUFFIX))
+						.forEach(walFile -> {
+							try {
+								zipOutputStream.putNextEntry(new ZipEntry(this.catalogName + "/" + walFile.getFileName()));
+								Files.copy(walFile, zipOutputStream);
+								zipOutputStream.closeEntry();
+							} catch (IOException e) {
+								throw new UnexpectedIOException(
+									"Failed to backup WAL file `" + walFile + "`!",
+									"Failed to backup WAL file!",
+									e
+								);
+							}
+						});
+				}
 			}
 
 			// finally, store the catalog bootstrap
@@ -1891,6 +1948,8 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				e
 			);
 		}
+
+		return backupFile;
 	}
 
 	@Override
@@ -1958,7 +2017,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	 */
 	@Nonnull
 	CatalogBootstrap recordBootstrap(long catalogVersion, @Nonnull String newCatalogName, int catalogFileIndex) {
-		return recordBootstrap(catalogVersion, newCatalogName, catalogFileIndex, System.currentTimeMillis());
+		return recordBootstrap(catalogVersion, newCatalogName, catalogFileIndex, getNowEpochMillis());
 	}
 
 	/**
@@ -2368,7 +2427,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	 * @param nonFlushedBlock non-flushed block information
 	 */
 	private void reportNonFlushedContents(@Nonnull String catalogName, @Nonnull NonFlushedBlock nonFlushedBlock) {
-		final long now = System.currentTimeMillis();
+		final long now = getNowEpochMillis();
 		if (this.lastReportTimestamp < now - 1000 || nonFlushedBlock.recordCount() == 0) {
 			this.lastReportTimestamp = now;
 			new OffsetIndexNonFlushedEvent(
@@ -2420,7 +2479,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	 */
 	@Nullable
 	private DataFilesBulkInfo fetchDataFilesInfo(long catalogVersion) {
-		return getBootstrapRecordStream(this.catalogName, this.storageOptions)
+		return getCatalogBootstrapRecordStream(this.catalogName, this.storageOptions)
 			.filter(it -> it.catalogVersion() == catalogVersion)
 			.map(it -> {
 				final String catalogFileName = getCatalogDataStoreFileName(catalogName, it.catalogFileIndex());

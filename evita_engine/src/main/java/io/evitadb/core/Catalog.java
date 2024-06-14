@@ -78,7 +78,6 @@ import io.evitadb.core.buffer.DataStoreMemoryBuffer;
 import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.exception.StorageImplementationNotFoundException;
 import io.evitadb.core.metric.event.transaction.CatalogGoesLiveEvent;
-import io.evitadb.core.query.QueryContext;
 import io.evitadb.core.query.QueryPlan;
 import io.evitadb.core.query.QueryPlanner;
 import io.evitadb.core.query.QueryPlanningContext;
@@ -96,7 +95,6 @@ import io.evitadb.core.transaction.stage.TrunkIncorporationTransactionStage;
 import io.evitadb.core.transaction.stage.WalAppendingTransactionStage;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.exception.GenericEvitaInternalError;
-import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.CatalogIndexKey;
 import io.evitadb.index.EntityIndex;
@@ -116,7 +114,6 @@ import io.evitadb.store.spi.StoragePartPersistenceService;
 import io.evitadb.store.spi.model.CatalogHeader;
 import io.evitadb.store.spi.model.EntityCollectionHeader;
 import io.evitadb.store.spi.model.reference.CollectionFileReference;
-import io.evitadb.store.spi.model.storageParts.accessor.CatalogReadOnlyEntityStorageContainerAccessor;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
@@ -130,9 +127,9 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.io.Serializable;
 import java.nio.file.Path;
+import java.time.OffsetDateTime;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.CompletableFuture;
@@ -275,15 +272,19 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 	 *
 	 * @param catalogName the name of the catalog
 	 * @param storageOptions the storage options
+	 * @param totalBytesExpected the total bytes expected to be read from the input stream
+	 * @param inputStream the input stream with the catalog data
+	 * @return future that will be completed with path where the content of the catalog was restored
 	 */
-	public static Path restoreCatalogTo(
+	public static BackgroundCallableTask<Path> restoreCatalogTo(
 		@Nonnull String catalogName,
 		@Nonnull StorageOptions storageOptions,
+		long totalBytesExpected,
 		@Nonnull InputStream inputStream
 		) {
 		return ServiceLoader.load(CatalogPersistenceServiceFactory.class)
 			.findFirst()
-			.map(it -> it.restoreCatalogTo(catalogName, storageOptions, inputStream))
+			.map(it -> it.restoreCatalogTo(catalogName, storageOptions, totalBytesExpected, inputStream))
 			.orElseThrow(() -> new IllegalStateException("IO service is unexpectedly not available!"));
 	}
 
@@ -649,10 +650,9 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 	@Override
 	@Nonnull
 	public <S extends Serializable, T extends EvitaResponse<S>> T getEntities(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
-		final QueryPlan queryPlan;
-		try (final QueryContext queryContext = createQueryContext(evitaRequest, session)) {
-			queryPlan = QueryPlanner.planQuery(queryContext);
-		}
+		final QueryPlanningContext queryContext = createQueryContext(evitaRequest, session);
+		final QueryPlan queryPlan = QueryPlanner.planQuery(queryContext);
+
 		return tracingContext.executeWithinBlockIfParentContextAvailable(
 			"query - " + queryPlan.getDescription(),
 			(Supplier<T>) queryPlan::execute,
@@ -874,9 +874,19 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		return this.persistenceService.getReversedCommittedMutationStream(catalogVersion);
 	}
 
+	@Nonnull
 	@Override
-	public void backup(OutputStream outputStream) throws UnexpectedIOException {
-		this.persistenceService.backup(outputStream);
+	public ProgressiveCompletableFuture<Path> backup(@Nullable OffsetDateTime pastMoment, boolean includingWAL) throws TemporalDataNotAvailableException {
+		final String catalogName = getName();
+		return this.scheduler.submit(
+			new BackgroundCallableTask<>(
+				catalogName,
+				"Backup catalog `" + catalogName + "` at " +
+					ofNullable(pastMoment).map(OffsetDateTime::toString).orElse("current moment") +
+					(includingWAL ? " including WAL" : ""),
+				task -> this.persistenceService.backup(task.getId(), pastMoment, includingWAL, task::updateProgress)
+			)
+		);
 	}
 
 	@Override
