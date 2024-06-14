@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -161,7 +161,7 @@ public class FacetGroupOrFormula extends AbstractFormula implements FacetGroupFo
 	@Override
 	public int getEstimatedCardinality() {
 		if (bitmaps == null) {
-			return Arrays.stream(this.innerFormulas).mapToInt(Formula::getEstimatedCardinality).sum();
+			return Arrays.stream(this.innerFormulas).mapToInt(formula -> formula.getEstimatedCardinality()).sum();
 		} else {
 			return Arrays.stream(this.bitmaps).mapToInt(Bitmap::size).sum();
 		}
@@ -193,6 +193,6 @@ public class FacetGroupOrFormula extends AbstractFormula implements FacetGroupFo
 	protected long getCostInternal() {
 		return ofNullable(this.bitmaps)
 			.map(it -> Arrays.stream(it).mapToLong(Bitmap::size).sum())
-			.orElseGet(super::getCostInternal);
+			.orElseGet(() -> super.getCostInternal());
 	}
 }

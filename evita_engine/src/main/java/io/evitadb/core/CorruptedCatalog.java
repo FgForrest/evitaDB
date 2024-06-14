@@ -41,9 +41,9 @@ import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation
 import io.evitadb.api.requestResponse.system.CatalogVersion;
 import io.evitadb.api.requestResponse.system.CatalogVersionDescriptor;
 import io.evitadb.api.requestResponse.system.TimeFlow;
+import io.evitadb.api.task.ProgressiveCompletableFuture;
 import io.evitadb.core.exception.CatalogCorruptedException;
 import io.evitadb.dataType.PaginatedList;
-import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.utils.FileUtils;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;

@@ -26,7 +26,7 @@ package io.evitadb.core.query.extraResult.translator.facet.producer;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary.RequestImpact;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.core.query.QueryContext;
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
@@ -77,7 +77,7 @@ public class MemoizingFacetCalculator implements FacetCalculator, ImpactCalculat
 	private final ImpactFormulaGenerator impactFormulaGenerator;
 
 	public MemoizingFacetCalculator(
-		@Nonnull QueryContext queryContext,
+		@Nonnull QueryExecutionContext queryContext,
 		@Nonnull Formula baseFormula,
 		@Nonnull Formula baseFormulaWithoutUserFilter
 	) {

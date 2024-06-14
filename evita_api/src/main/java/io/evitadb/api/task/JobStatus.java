@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.job;
+package io.evitadb.api.task;
 
 import java.io.Serializable;
 import java.time.OffsetDateTime;

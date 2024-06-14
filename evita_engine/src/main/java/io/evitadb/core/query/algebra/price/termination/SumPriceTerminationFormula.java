@@ -101,12 +101,12 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 	 */
 	private final ToIntFunction<PriceRecordContract> transformer;
 	/**
-	 * Contains array of price records that links to the price ids produced by {@link #compute()} method. This array
-	 * is available once the {@link #compute()} method has been called.
+	 * Contains array of price records that links to the price ids produced by {@link Formula#compute()} method. This array
+	 * is available once the {@link Formula#compute()} method has been called.
 	 */
 	private FilteredPriceRecords filteredPriceRecords;
 	/**
-	 * Bitmap is initialized (non-null) after {@link #compute()} method is called and contains set of entity primary
+	 * Bitmap is initialized (non-null) after {@link Formula#compute()} method is called and contains set of entity primary
 	 * keys that were excluded due to {@link #pricePredicate} query. This information is reused in
 	 * {@link PriceHistogramProducer} to avoid duplicate computation - price histogram must not take price predicate
 	 * into an account.

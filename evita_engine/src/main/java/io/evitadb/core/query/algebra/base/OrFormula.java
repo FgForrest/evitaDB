@@ -151,7 +151,7 @@ public class OrFormula extends AbstractCacheableFormula {
 	@Override
 	public int getEstimatedCardinality() {
 		if (bitmaps == null) {
-			return Arrays.stream(this.innerFormulas).mapToInt(Formula::getEstimatedCardinality).sum();
+			return Arrays.stream(this.innerFormulas).mapToInt(formula -> formula.getEstimatedCardinality()).sum();
 		} else {
 			return Arrays.stream(this.bitmaps).mapToInt(Bitmap::size).sum();
 		}
@@ -187,7 +187,7 @@ public class OrFormula extends AbstractCacheableFormula {
 	protected long getCostInternal() {
 		return ofNullable(this.bitmaps)
 			.map(it -> Arrays.stream(it).mapToLong(Bitmap::size).sum())
-			.orElseGet(super::getCostInternal);
+			.orElseGet(() -> super.getCostInternal());
 	}
 
 	@Override
@@ -227,7 +227,7 @@ public class OrFormula extends AbstractCacheableFormula {
 			)
 			.orElseGet(
 				() -> Arrays.stream(getInnerFormulas())
-					.map(Formula::compute)
+					.map(formula -> formula.compute())
 					.map(RoaringBitmapBackedBitmap::getRoaringBitmap)
 					.toArray(RoaringBitmap[]::new)
 			);

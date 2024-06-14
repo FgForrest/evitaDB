@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -75,7 +75,7 @@ import static java.util.Optional.ofNullable;
 /**
  * This implementation of {@link RequireConstraintTranslator} converts {@link FacetSummaryOfReference} to {@link FacetSummaryProducer}.
  * The producer instance has all pointer necessary to compute result. All operations in this translator are relatively
- * cheap comparing to final result computation, that is deferred to {@link ExtraResultProducer#fabricate(List)} method.
+ * cheap comparing to final result computation, that is deferred to {@link ExtraResultProducer#fabricate(io.evitadb.core.query.QueryExecutionContext, List)} method.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -84,16 +84,16 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 	/**
 	 * Creates a predicate for filtering facet groups.
 	 *
-	 * @param filterGroupBy      the filter group to apply
-	 * @param extraResultPlanner the extra result planning visitor
-	 * @param referenceSchema    the reference schema contract
-	 * @param required           indicates if the facet groups are required
+	 * @param extraResultPlanningVisitor the extra result planning visitor with context
+	 * @param filterGroupBy              the filter group to apply
+	 * @param referenceSchema            the reference schema contract
+	 * @param required                   indicates if the facet groups are required
 	 * @return the predicate for filtering facet groups, or null if not required
 	 */
 	@Nullable
 	static IntPredicate createFacetGroupPredicate(
+		@Nonnull ExtraResultPlanningVisitor extraResultPlanningVisitor,
 		@Nullable FilterGroupBy filterGroupBy,
-		@Nonnull ExtraResultPlanningVisitor extraResultPlanner,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		boolean required
 	) {
@@ -107,7 +107,7 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 			return null;
 		}
 		return new FilteringFormulaPredicate(
-			extraResultPlanner.getQueryContext(),
+			extraResultPlanningVisitor.getQueryContext(),
 			new FilterBy(filterGroupBy.getChildren()),
 			referenceSchema.getReferencedGroupType(),
 			() -> "Facet summary of `" + referenceSchema.getName() + "` group filter: " + filterGroupBy
@@ -117,16 +117,16 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 	/**
 	 * Creates a predicate for filtering facets.
 	 *
-	 * @param filterBy           The filter criteria.
-	 * @param extraResultPlanner The visitor for planning extra result queries.
-	 * @param referenceSchema    The schema of the referenced entity.
-	 * @param required           Indicates if the facet is required.
+	 * @param extraResultPlanningVisitor the extra result planning visitor with context
+	 * @param filterBy                   The filter criteria.
+	 * @param referenceSchema            The schema of the referenced entity.
+	 * @param required                   Indicates if the facet is required.
 	 * @return The created facet predicate.
 	 */
 	@Nullable
 	static IntPredicate createFacetPredicate(
+		@Nonnull ExtraResultPlanningVisitor extraResultPlanningVisitor,
 		@Nonnull FilterBy filterBy,
-		@Nonnull ExtraResultPlanningVisitor extraResultPlanner,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		boolean required
 	) {
@@ -141,7 +141,7 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 		}
 
 		return new FilteringFormulaPredicate(
-			extraResultPlanner.getQueryContext(),
+			extraResultPlanningVisitor.getQueryContext(),
 			filterBy,
 			referenceSchema.getReferencedEntityType(),
 			() -> "Facet summary of `" + referenceSchema.getName() + "` facet filter: " + filterBy
@@ -151,15 +151,17 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 	/**
 	 * Creates a facet sorter based on the provided parameters.
 	 *
-	 * @param orderBy            the ordering criteria for the facet
-	 * @param locale             the locale used for sorting
-	 * @param extraResultPlanner the extra result planning visitor
-	 * @param referenceSchema    the reference schema contract
-	 * @param required           indicates whether sorting is required or optional
+	 * @param extraResultPlanningVisitor the extra result planning visitor with context
+	 * @param orderBy                    the ordering criteria for the facet
+	 * @param locale                     the locale used for sorting
+	 * @param extraResultPlanner         the extra result planning visitor
+	 * @param referenceSchema            the reference schema contract
+	 * @param required                   indicates whether sorting is required or optional
 	 * @return the created facet sorter, or null if the reference schema is not managed and sorting is not required
 	 */
 	@Nullable
 	static NestedContextSorter createFacetSorter(
+		@Nonnull ExtraResultPlanningVisitor extraResultPlanningVisitor,
 		@Nonnull OrderBy orderBy,
 		@Nullable Locale locale,
 		@Nonnull ExtraResultPlanningVisitor extraResultPlanner,
@@ -184,21 +186,23 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 					() -> "Facet summary `" + referenceSchema.getName() + "` facet ordering: " + orderBy
 				)
 			)
-			.orElseGet(() -> new NestedContextSorter(extraResultPlanner.getQueryContext(), NoSorter.INSTANCE));
+			.orElseGet(() -> new NestedContextSorter(extraResultPlanningVisitor.createExecutionContext(), NoSorter.INSTANCE));
 	}
 
 	/**
 	 * Creates a sorter for facet group ordering.
 	 *
-	 * @param orderBy            The order by criteria for the facet groups.
-	 * @param locale             The locale used for sorting.
-	 * @param extraResultPlanner The extra result planner used for sorting.
-	 * @param referenceSchema    The reference schema for the facet groups.
-	 * @param required           Indicates if sorting is required.
+	 * @param extraResultPlanningVisitor the extra result planning visitor with context
+	 * @param orderBy                    The order by criteria for the facet groups.
+	 * @param locale                     The locale used for sorting.
+	 * @param extraResultPlanner         The extra result planner used for sorting.
+	 * @param referenceSchema            The reference schema for the facet groups.
+	 * @param required                   Indicates if sorting is required.
 	 * @return The created sorter for facet group ordering, or null if not required.
 	 */
 	@Nullable
 	static NestedContextSorter createFacetGroupSorter(
+		@Nonnull ExtraResultPlanningVisitor extraResultPlanningVisitor,
 		@Nullable OrderGroupBy orderBy,
 		@Nullable Locale locale,
 		@Nonnull ExtraResultPlanningVisitor extraResultPlanner,
@@ -224,7 +228,7 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 					() -> "Facet summary `" + referenceSchema.getName() + "` group ordering: " + orderBy
 				)
 			)
-			.orElseGet(() -> new NestedContextSorter(extraResultPlanner.getQueryContext(), NoSorter.INSTANCE));
+			.orElseGet(() -> new NestedContextSorter(extraResultPlanningVisitor.createExecutionContext(), NoSorter.INSTANCE));
 	}
 
 	/**
@@ -306,7 +310,6 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 			// all operations above should be relatively cheap comparing to final result computation, that is deferred
 			// to FacetSummaryProducer#fabricate method
 			facetSummaryProducer = new FacetSummaryProducer(
-				extraResultPlanner.getQueryContext(),
 				extraResultPlanner.getFilteringFormula(),
 				extraResultPlanner.getFilteringFormulaWithoutUserFilter(),
 				facetIndexes,
@@ -327,10 +330,10 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 		facetSummaryProducer.requireReferenceFacetSummary(
 			referenceSchema,
 			facetSummaryOfReference.getStatisticsDepth(),
-			facetSummaryOfReference.getFilterBy().map(it -> createFacetPredicate(it, extraResultPlanner, referenceSchema, true)).orElse(null),
-			facetSummaryOfReference.getFilterGroupBy().map(it -> createFacetGroupPredicate(it, extraResultPlanner, referenceSchema, true)).orElse(null),
-			facetSummaryOfReference.getOrderBy().map(it -> createFacetSorter(it, findLocale(facetSummaryOfReference.getFilterBy().orElse(null)), extraResultPlanner, referenceSchema, true)).orElse(null),
-			facetSummaryOfReference.getOrderGroupBy().map(it -> createFacetGroupSorter(it, findLocale(facetSummaryOfReference.getFilterGroupBy().orElse(null)), extraResultPlanner, referenceSchema, true)).orElse(null),
+			facetSummaryOfReference.getFilterBy().map(it -> createFacetPredicate(extraResultPlanner, it, referenceSchema, true)).orElse(null),
+			facetSummaryOfReference.getFilterGroupBy().map(it -> createFacetGroupPredicate(extraResultPlanner, it, referenceSchema, true)).orElse(null),
+			facetSummaryOfReference.getOrderBy().map(it -> createFacetSorter(extraResultPlanner, it, findLocale(facetSummaryOfReference.getFilterBy().orElse(null)), extraResultPlanner, referenceSchema, true)).orElse(null),
+			facetSummaryOfReference.getOrderGroupBy().map(it -> createFacetGroupSorter(extraResultPlanner, it, findLocale(facetSummaryOfReference.getFilterGroupBy().orElse(null)), extraResultPlanner, referenceSchema, true)).orElse(null),
 			facetEntityRequirement,
 			groupEntityRequirement
 		);

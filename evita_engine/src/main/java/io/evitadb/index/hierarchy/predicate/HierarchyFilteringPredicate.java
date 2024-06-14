@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 package io.evitadb.index.hierarchy.predicate;
 
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure.CalculationContext;
+import io.evitadb.utils.Assert;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
@@ -112,9 +113,7 @@ public interface HierarchyFilteringPredicate extends IntPredicate {
 
 		@Override
 		public long getHash() {
-			if (this.hash == null) {
-		initialize(CalculationContext.NO_CACHING_INSTANCE);
-}
+			Assert.isPremiseValid(this.hash != null, "Predicate must be initialized prior to calling getHash().");
 			return this.hash;
 		}
 
@@ -125,7 +124,7 @@ public interface HierarchyFilteringPredicate extends IntPredicate {
 
 		@Override
 		public String toString() {
-			return  first + " AND " + second;
+			return first + " AND " + second;
 		}
 
 	}
@@ -158,9 +157,7 @@ public interface HierarchyFilteringPredicate extends IntPredicate {
 
 		@Override
 		public long getHash() {
-			if (this.hash == null) {
-		initialize(CalculationContext.NO_CACHING_INSTANCE);
-}
+			Assert.isPremiseValid(this.hash != null, "Predicate must be initialized prior to calling getHash().");
 			return this.hash;
 		}
 
@@ -171,7 +168,7 @@ public interface HierarchyFilteringPredicate extends IntPredicate {
 
 		@Override
 		public String toString() {
-			return  first + " OR " + second;
+			return first + " OR " + second;
 		}
 	}
 
@@ -238,9 +235,7 @@ public interface HierarchyFilteringPredicate extends IntPredicate {
 
 		@Override
 		public long getHash() {
-			if (this.hash == null) {
-		initialize(CalculationContext.NO_CACHING_INSTANCE);
-}
+			Assert.isPremiseValid(this.hash != null, "Predicate must be initialized prior to calling getHash().");
 			return this.hash;
 		}
 

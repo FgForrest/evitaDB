@@ -113,7 +113,7 @@ public class AndFormula extends AbstractCacheableFormula {
 	@Override
 	public int getEstimatedCardinality() {
 		if (bitmaps == null) {
-			return Arrays.stream(this.innerFormulas).mapToInt(Formula::getEstimatedCardinality).min().orElse(0);
+			return Arrays.stream(this.innerFormulas).mapToInt(formula -> formula.getEstimatedCardinality()).min().orElse(0);
 		} else {
 			return Arrays.stream(this.bitmaps).mapToInt(Bitmap::size).min().orElse(0);
 		}
@@ -204,9 +204,6 @@ public class AndFormula extends AbstractCacheableFormula {
 			})
 			.orElseGet(() -> {
 				long cost = 0L;
-				if (this.sortedFormulasByComplexity == null) {
-					initialize(CalculationContext.NO_CACHING_INSTANCE);
-				}
 				for (Formula innerFormula : this.sortedFormulasByComplexity) {
 					final Bitmap innerResult = innerFormula.compute();
 					cost += innerFormula.getCost() + innerResult.size() * getOperationCost();
@@ -224,9 +221,6 @@ public class AndFormula extends AbstractCacheableFormula {
 			.map(it -> getCost() / Math.max(1, compute().size()))
 			.orElseGet(() -> {
 				long costToPerformance = 0L;
-				if (this.sortedFormulasByComplexity == null) {
-					initialize(CalculationContext.NO_CACHING_INSTANCE);
-				}
 				for (Formula innerFormula : this.sortedFormulasByComplexity) {
 					final Bitmap innerResult = innerFormula.compute();
 					if (innerResult == EmptyBitmap.INSTANCE) {

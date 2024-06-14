@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -58,7 +58,7 @@ public interface CacheableFormula extends Formula {
 
 	/**
 	 * Returns copy of this formula with same inner formulas but new method handle that references callback that
-	 * will be called when {@link #compute()} method is first executed and memoized result is available.
+	 * will be called when {@link Formula#compute()} method is first executed and memoized result is available.
 	 */
 	@Nonnull
 	CacheableFormula getCloneWithComputationCallback(@Nonnull Consumer<CacheableFormula> selfOperator, @Nonnull Formula... innerFormulas);

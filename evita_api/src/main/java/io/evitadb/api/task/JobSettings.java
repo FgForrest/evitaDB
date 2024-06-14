@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,25 +21,14 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.query.extraResult;
+package io.evitadb.api.task;
 
-import lombok.RequiredArgsConstructor;
-
-import javax.annotation.Nonnull;
+import java.io.Serializable;
 
 /**
- * This implementation returns the input computer without any caching.
+ * TODO JNO - document me
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@RequiredArgsConstructor
-public class CacheDisabledExtraResultAccessor implements ExtraResultCacheAccessor {
-	public static final CacheDisabledExtraResultAccessor INSTANCE = new CacheDisabledExtraResultAccessor();
-
-	@Nonnull
-	@Override
-	public <U, T extends CacheableEvitaResponseExtraResultComputer<U>> EvitaResponseExtraResultComputer<U> analyse(@Nonnull String entityType, @Nonnull T computer) {
-		return computer;
-	}
-
+public interface JobSettings extends Serializable {
 }

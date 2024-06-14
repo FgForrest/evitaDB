@@ -26,7 +26,7 @@ package io.evitadb.core.query.sort.attribute;
 import com.carrotsearch.hppc.ObjectIntHashMap;
 import com.carrotsearch.hppc.ObjectIntMap;
 import io.evitadb.api.requestResponse.data.EntityContract;
-import io.evitadb.core.query.QueryContext;
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
@@ -124,7 +124,7 @@ public class AttributeExactSorter extends AbstractRecordsSorter {
 	}
 
 	@Override
-	public int sortAndSlice(@Nonnull QueryContext queryContext, @Nonnull Formula input, int startIndex, int endIndex, @Nonnull int[] result, int peak) {
+	public int sortAndSlice(@Nonnull QueryExecutionContext queryContext, @Nonnull Formula input, int startIndex, int endIndex, @Nonnull int[] result, int peak) {
 		final Bitmap selectedRecordIds = input.compute();
 		if (selectedRecordIds.isEmpty()) {
 			return 0;
@@ -141,7 +141,7 @@ public class AttributeExactSorter extends AbstractRecordsSorter {
 	 * Sorts the selected primary key ids by the order of attributes in {@link SortIndex}.
 	 */
 	private int sortOutputBasedOnIndex(
-		@Nonnull QueryContext queryContext, int startIndex, int endIndex, @Nonnull Bitmap selectedRecordIds,
+		@Nonnull QueryExecutionContext queryContext, int startIndex, int endIndex, @Nonnull Bitmap selectedRecordIds,
 		@Nonnull int[] result, int peak
 	) {
 		final int[] entireResult = selectedRecordIds.getArray();
@@ -188,7 +188,7 @@ public class AttributeExactSorter extends AbstractRecordsSorter {
 	 * by comparator in the place.
 	 */
 	private int sortOutputByPrefetchedEntities(
-		@Nonnull QueryContext queryContext, int startIndex, int endIndex, @Nonnull Bitmap selectedRecordIds,
+		@Nonnull QueryExecutionContext queryContext, int startIndex, int endIndex, @Nonnull Bitmap selectedRecordIds,
 		@Nonnull int[] result, int peak
 	) {
 		// collect entity primary keys

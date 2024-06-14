@@ -27,6 +27,7 @@ import com.carrotsearch.hppc.LongHashSet;
 import com.carrotsearch.hppc.LongSet;
 import io.evitadb.core.cache.CacheEden;
 import io.evitadb.core.cache.CacheSupervisor;
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.deferred.BitmapSupplier;
 import io.evitadb.core.transaction.memory.TransactionalLayerCreator;
@@ -35,6 +36,7 @@ import lombok.Getter;
 import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Map;
 
 /**
@@ -52,6 +54,9 @@ public interface TransactionalDataRelatedStructure {
 	 */
 	int EXCESSIVE_HIGH_CARDINALITY = 100;
 
+	/* TODO JNO - možná dodělat metodu isInitialized a potom vnitřně automaticky zavolat #initialize() pokud není */
+	/* pak možná minimalizovat volání .initialize() */
+
 	/**
 	 * Initializes internal ids and cost estimations. This method is necessary to be called prior to calling any of
 	 * these methods:
@@ -65,6 +70,14 @@ public interface TransactionalDataRelatedStructure {
 	 * @param calculationContext calculation context to use for initialization
 	 */
 	void initialize(@Nonnull CalculationContext calculationContext);
+
+	/**
+	 * Initialization method that uses {@link CalculationContext#NO_CACHING_INSTANCE} as and can be used in cases where
+	 * {@link QueryExecutionContext} is not yet available.
+	 */
+	default void initialize() {
+		initialize(CalculationContext.NO_CACHING_INSTANCE);
+	}
 
 	/**
 	 * Hash identifies the formula and it's contents. The hash must be different for formulas with logically different
@@ -142,6 +155,11 @@ public interface TransactionalDataRelatedStructure {
 		 */
 		public static final CalculationContext NO_CACHING_INSTANCE = new NoOpCalculationContext();
 		/**
+		 * Execution context to use for hash calculation.
+		 */
+		@Getter @Nullable
+		private final QueryExecutionContext executionContext;
+		/**
 		 * Contains hashes of already visited elements.
 		 */
 		private final Map<CalculationType, LongSet> visitedElements = CollectionUtils.createHashMap(8);
@@ -149,6 +167,22 @@ public interface TransactionalDataRelatedStructure {
 		 * The hash function to use for hash calculation.
 		 */
 		@Nonnull @Getter private final LongHashFunction hashFunction = CacheSupervisor.createHashFunction();
+
+		/**
+		 * Creates a new calculation context without execution context.
+		 */
+		private CalculationContext() {
+			this.executionContext = null;
+		}
+
+		/**
+		 * Creates a new calculation context using execution context.
+		 *
+		 * @param executionContext to use for hash calculation
+		 */
+		public CalculationContext(@Nonnull QueryExecutionContext executionContext) {
+			this.executionContext = executionContext;
+		}
 
 		/**
 		 * Visits the element and returns true if it was not visited before.
@@ -172,6 +206,7 @@ public interface TransactionalDataRelatedStructure {
 				return true;
 			}
 		}
+
 	}
 
 }

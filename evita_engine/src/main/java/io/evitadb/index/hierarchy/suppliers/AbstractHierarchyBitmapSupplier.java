@@ -26,6 +26,7 @@ package io.evitadb.index.hierarchy.suppliers;
 import io.evitadb.core.query.algebra.deferred.BitmapSupplier;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
+import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.hierarchy.HierarchyIndex;
 import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
@@ -70,52 +71,43 @@ public abstract class AbstractHierarchyBitmapSupplier implements BitmapSupplier 
 	 * Contains memoized value of {@link #gatherTransactionalIds()} computed hash.
 	 */
 	private Long transactionalIdHash;
+	/**
+	 * Contains memoized result of the supplier.
+	 */
+	private Bitmap memoizedResult;
 
 	@Override
 	public void initialize(@Nonnull CalculationContext calculationContext) {
-		if (this.hash == null) {
-			this.hash = computeHash(calculationContext.getHashFunction());
+		this.hash = computeHash(calculationContext.getHashFunction());
+		this.transactionalIdHash = calculationContext.getHashFunction().hashLongs(
+			Arrays.stream(gatherTransactionalIds())
+				.distinct()
+				.sorted()
+				.toArray()
+		);
+		if (calculationContext.visit(CalculationType.ESTIMATED_COST, this)) {
+			this.estimatedCost = getEstimatedCardinality() * 12L;
+		} else {
+			this.estimatedCost = 0L;
 		}
-		if (this.transactionalIdHash == null) {
-			this.transactionalIdHash = calculationContext.getHashFunction().hashLongs(
-				Arrays.stream(gatherTransactionalIds())
-					.distinct()
-					.sorted()
-					.toArray()
-			);
-		}
-		if (this.estimatedCost == null) {
-			if (calculationContext.visit(CalculationType.ESTIMATED_COST, this)) {
-				this.estimatedCost = getEstimatedCardinality() * 12L;
-			} else {
-				this.estimatedCost = 0L;
-			}
-		}
-		if (this.cost == null) {
-			if (calculationContext.visit(CalculationType.COST, this)) {
-				this.cost = hierarchyIndex.getHierarchySize() * getOperationCost();
-				this.costToPerformance = getCost() / (get().size() * getOperationCost());
-			} else {
-				this.cost = 0L;
-				this.costToPerformance = Long.MAX_VALUE;
-
-			}
+		if (this.memoizedResult != null && calculationContext.visit(CalculationType.COST, this)) {
+			this.cost = hierarchyIndex.getHierarchySize() * getOperationCost();
+			this.costToPerformance = getCost() / (get().size() * getOperationCost());
+		} else {
+			this.cost = 0L;
+			this.costToPerformance = Long.MAX_VALUE;
 		}
 	}
 
 	@Override
 	public long getHash() {
-		if (this.hash == null) {
-			initialize(CalculationContext.NO_CACHING_INSTANCE);
-		}
+		Assert.isPremiseValid(this.hash != null, "The BitmapSupplier hasn't been initialized!");
 		return this.hash;
 	}
 
 	@Override
 	public long getTransactionalIdHash() {
-		if (this.transactionalIdHash == null) {
-			initialize(CalculationContext.NO_CACHING_INSTANCE);
-		}
+		Assert.isPremiseValid(this.transactionalIdHash != null, "The BitmapSupplier hasn't been initialized!");
 		return this.transactionalIdHash;
 
 	}
@@ -123,28 +115,20 @@ public abstract class AbstractHierarchyBitmapSupplier implements BitmapSupplier 
 	@Nonnull
 	@Override
 	public long[] gatherTransactionalIds() {
-		if (this.transactionalIds == null) {
-			initialize(CalculationContext.NO_CACHING_INSTANCE);
-		}
+		Assert.isPremiseValid(this.transactionalIds != null, "The BitmapSupplier hasn't been initialized!");
 		return transactionalIds;
 	}
 
 	@Override
 	public long getEstimatedCost() {
-		if (this.estimatedCost == null) {
-			initialize(CalculationContext.NO_CACHING_INSTANCE);
-		}
+		Assert.isPremiseValid(this.estimatedCost != null, "The BitmapSupplier hasn't been initialized!");
 		return this.estimatedCost;
 	}
 
 	@Override
 	public long getCost() {
-		if (this.cost == null) {
-			initialize(CalculationContext.NO_CACHING_INSTANCE);
-			Assert.isPremiseValid(this.cost != null, "Formula results haven't been computed!");
-		}
+		Assert.isPremiseValid(this.cost != null, "The BitmapSupplier hasn't been initialized!");
 		return this.cost;
-
 	}
 
 	@Override
@@ -154,11 +138,24 @@ public abstract class AbstractHierarchyBitmapSupplier implements BitmapSupplier 
 
 	@Override
 	public long getCostToPerformanceRatio() {
-		if (this.costToPerformance == null) {
-			initialize(CalculationContext.NO_CACHING_INSTANCE);
-		}
+		Assert.isPremiseValid(this.costToPerformance != null, "The BitmapSupplier hasn't been initialized!");
 		return costToPerformance;
 	}
+
+	@Override
+	public final Bitmap get() {
+		if (this.memoizedResult == null) {
+			this.memoizedResult = getInternal();
+		}
+		return this.memoizedResult;
+	}
+
+	/**
+	 * Calculates the result.
+	 * @return the result
+	 */
+	@Nonnull
+	protected abstract Bitmap getInternal();
 
 	/**
 	 * Computes the hash value using the specified hash function.

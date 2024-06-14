@@ -85,86 +85,67 @@ public class HistogramBitmapSupplier<T extends Comparable<T>> implements BitmapS
 
 	@Override
 	public void initialize(@Nonnull CalculationContext calculationContext) {
-		if (this.hash == null) {
-			this.hash = calculationContext.getHashFunction().hashLongs(
-				Stream.of(
-						LongStream.of(CLASS_ID),
-						Arrays.stream(histogramBuckets).mapToLong(it -> it.getRecordIds().getId()).sorted()
-					)
-					.flatMapToLong(it -> it)
-					.toArray()
-			);
+		this.hash = calculationContext.getHashFunction().hashLongs(
+			Stream.of(
+					LongStream.of(CLASS_ID),
+					Arrays.stream(histogramBuckets).mapToLong(it -> it.getRecordIds().getId()).sorted()
+				)
+				.flatMapToLong(it -> it)
+				.toArray()
+		);
+		this.estimatedCardinality = Arrays.stream(histogramBuckets)
+			.mapToInt(it -> it.getRecordIds().size())
+			.sum();
+		if (calculationContext.visit(CalculationType.ESTIMATED_COST, this)) {
+			this.estimatedCost = this.estimatedCardinality * getOperationCost();
+		} else {
+			this.estimatedCost = 0L;
 		}
-		if (this.estimatedCardinality == null) {
-			this.estimatedCardinality = Arrays.stream(histogramBuckets)
-				.mapToInt(it -> it.getRecordIds().size())
-				.sum();
-			if (calculationContext.visit(CalculationType.ESTIMATED_COST, this)) {
-				this.estimatedCost = this.estimatedCardinality * getOperationCost();
-			} else {
-				this.estimatedCost = 0L;
-			}
+		if (calculationContext.visit(CalculationType.COST, this)) {
+			this.cost = this.estimatedCost;
+		} else {
+			this.cost = 0L;
 		}
-		if (this.cost == null) {
-			if (calculationContext.visit(CalculationType.COST, this)) {
-				this.cost = this.estimatedCost;
-			} else {
-				this.cost = 0L;
-			}
-			this.costToPerformance = getCost() / (get().size() * getOperationCost());
-		}
-		if (this.transactionalIds == null) {
-			this.transactionalIds = Arrays.stream(histogramBuckets)
-				.mapToLong(it -> it.getRecordIds().getId())
-				.toArray();
-			this.transactionalIdHash = calculationContext.getHashFunction().hashLongs(
-				Arrays.stream(this.transactionalIds)
-					.distinct()
-					.sorted()
-					.toArray()
-			);
-		}
+		this.costToPerformance = getCost() / (get().size() * getOperationCost());
+		this.transactionalIds = Arrays.stream(histogramBuckets)
+			.mapToLong(it -> it.getRecordIds().getId())
+			.toArray();
+		this.transactionalIdHash = calculationContext.getHashFunction().hashLongs(
+			Arrays.stream(this.transactionalIds)
+				.distinct()
+				.sorted()
+				.toArray()
+		);
 	}
 
 	@Override
 	public long getHash() {
-		if (this.hash == null) {
-			initialize(CalculationContext.NO_CACHING_INSTANCE);
-		}
+		Assert.isPremiseValid(this.hash != null, "The HistogramBitmapSupplier hasn't been initialized!");
 		return this.hash;
 	}
 
 	@Override
 	public long getTransactionalIdHash() {
-		if (this.transactionalIdHash == null) {
-			initialize(CalculationContext.NO_CACHING_INSTANCE);
-		}
+		Assert.isPremiseValid(this.transactionalIdHash != null, "The HistogramBitmapSupplier hasn't been initialized!");
 		return this.transactionalIdHash;
 	}
 
 	@Nonnull
 	@Override
 	public long[] gatherTransactionalIds() {
-		if (this.transactionalIds == null) {
-			initialize(CalculationContext.NO_CACHING_INSTANCE);
-		}
+		Assert.isPremiseValid(this.transactionalIds != null, "The HistogramBitmapSupplier hasn't been initialized!");
 		return this.transactionalIds;
 	}
 
 	@Override
 	public long getEstimatedCost() {
-		if (this.estimatedCost == null) {
-			initialize(CalculationContext.NO_CACHING_INSTANCE);
-		}
+		Assert.isPremiseValid(this.estimatedCost != null, "The HistogramBitmapSupplier hasn't been initialized!");
 		return this.estimatedCost;
 	}
 
 	@Override
 	public long getCost() {
-		if (this.cost == null) {
-			initialize(CalculationContext.NO_CACHING_INSTANCE);
-			Assert.isPremiseValid(this.cost != null, "Formula results haven't been computed!");
-		}
+		Assert.isPremiseValid(this.cost != null, "The HistogramBitmapSupplier hasn't been initialized!");
 		return this.cost;
 	}
 
@@ -175,18 +156,13 @@ public class HistogramBitmapSupplier<T extends Comparable<T>> implements BitmapS
 
 	@Override
 	public long getCostToPerformanceRatio() {
-		if (this.costToPerformance == null) {
-			initialize(CalculationContext.NO_CACHING_INSTANCE);
-			Assert.isPremiseValid(this.costToPerformance != null, "Formula results haven't been computed!");
-		}
+		Assert.isPremiseValid(this.costToPerformance != null, "The HistogramBitmapSupplier hasn't been initialized!");
 		return this.costToPerformance;
 	}
 
 	@Override
 	public int getEstimatedCardinality() {
-		if (this.estimatedCardinality == null) {
-			initialize(CalculationContext.NO_CACHING_INSTANCE);
-		}
+		Assert.isPremiseValid(this.estimatedCardinality != null, "The HistogramBitmapSupplier hasn't been initialized!");
 		return this.estimatedCardinality;
 	}
 

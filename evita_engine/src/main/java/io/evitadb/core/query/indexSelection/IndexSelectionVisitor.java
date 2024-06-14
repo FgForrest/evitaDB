@@ -38,12 +38,13 @@ import io.evitadb.api.query.filter.IndexUsingConstraint;
 import io.evitadb.api.query.filter.ReferenceHaving;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.core.query.QueryContext;
+import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.hierarchy.HierarchyWithinRootTranslator;
 import io.evitadb.core.query.filter.translator.hierarchy.HierarchyWithinTranslator;
+import io.evitadb.core.query.response.TransactionalDataRelatedStructure.CalculationContext;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.CatalogIndexKey;
@@ -75,12 +76,12 @@ import java.util.Optional;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class IndexSelectionVisitor implements ConstraintVisitor {
-	private final QueryContext queryContext;
+	private final QueryPlanningContext queryContext;
 	@Getter private final List<TargetIndexes<? extends Index<?>>> targetIndexes = new LinkedList<>();
 	@Getter private boolean targetIndexQueriedByOtherConstraints;
 	private FilterByVisitor filterByVisitor;
 
-	public IndexSelectionVisitor(@Nonnull QueryContext queryContext) {
+	public IndexSelectionVisitor(@Nonnull QueryPlanningContext queryContext) {
 		this.queryContext = queryContext;
 		final Optional<EntityIndex> entityIndex = queryContext.getIndex(new EntityIndexKey(EntityIndexType.GLOBAL));
 		if (entityIndex.isPresent()) {
@@ -158,6 +159,10 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 						// if target entity has no global index present, it means that the query cannot be fulfilled
 						// we may quickly return empty result
 						targetIndexes.add(TargetIndexes.EMPTY);
+					} else {
+						requestedHierarchyNodesFormula.initialize(
+							new CalculationContext(this.queryContext.createExecutionContext())
+						);
 					}
 					// locate all hierarchy indexes
 					final Bitmap requestedHierarchyNodes = requestedHierarchyNodesFormula.compute();

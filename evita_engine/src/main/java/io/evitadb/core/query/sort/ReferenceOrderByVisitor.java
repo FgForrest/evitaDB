@@ -34,7 +34,7 @@ import io.evitadb.api.query.order.EntityProperty;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.requestResponse.data.structure.ReferenceComparator;
 import io.evitadb.api.requestResponse.data.structure.ReferenceFetcher;
-import io.evitadb.core.query.QueryContext;
+import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.sort.attribute.translator.AttributeNaturalTranslator;
 import io.evitadb.core.query.sort.attribute.translator.EntityGroupPropertyTranslator;
@@ -78,7 +78,7 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor {
 	/**
 	 * Reference to the query context that allows to access entity bodies, indexes, original request and much more.
 	 */
-	@Delegate private final QueryContext queryContext;
+	@Delegate private final QueryPlanningContext queryContext;
 	/**
 	 * Pre-initialized comparator initialized during entity filtering (if it's performed) allowing to order references
 	 * by sorter defined on referenced entity (requiring nested query).
@@ -95,7 +95,7 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor {
 	 */
 	@Nonnull
 	public static OrderingDescriptor getComparator(
-		@Nonnull QueryContext queryContext,
+		@Nonnull QueryPlanningContext queryContext,
 		@Nonnull OrderConstraint orderBy
 	) {
 		final ReferenceOrderByVisitor orderVisitor = new ReferenceOrderByVisitor(queryContext);

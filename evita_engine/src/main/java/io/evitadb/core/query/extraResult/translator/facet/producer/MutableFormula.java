@@ -156,11 +156,6 @@ class MutableFormula implements Formula {
 	}
 
 	@Override
-	public void initializeAgain(@Nonnull CalculationContext calculationContext) {
-		getInnerFormula().initializeAgain(calculationContext);
-	}
-
-	@Override
 	public int getEstimatedCardinality() {
 		return getInnerFormula().getEstimatedCardinality();
 	}
@@ -192,7 +187,7 @@ class MutableFormula implements Formula {
 	}
 
 	/**
-	 * Method allows to calculate {@link #compute()} result based only on {@link #delegate}, suppressing combination
+	 * Method allows to calculate {@link Formula#compute()} result based only on {@link #delegate}, suppressing combination
 	 * with {@link #pivot} formula even if this is set.
 	 *
 	 * @param lambda the lambda to be executed

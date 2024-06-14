@@ -28,17 +28,22 @@ import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.EntityFetchRequire;
 import io.evitadb.api.query.require.EntityRequire;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
-import io.evitadb.core.query.QueryContext;
+import io.evitadb.core.query.QueryExecutionContext;
+import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.FormulaPostProcessor;
 import io.evitadb.core.query.algebra.FormulaVisitor;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.filter.FilterByVisitor;
-import io.evitadb.function.ToLongDoubleIntBiFunction;
+import io.evitadb.core.query.indexSelection.TargetIndexes;
+import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
+import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.Assert;
+import lombok.Getter;
 import org.roaringbitmap.RoaringBitmap;
 
 import javax.annotation.Nonnull;
@@ -48,7 +53,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Supplier;
 
 /**
  * This formula visitor identifies the entity ids that are accessible within conjunction scope from the formula root
@@ -64,6 +68,11 @@ public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProces
 	 */
 	private static final int BITMAP_SIZE_THRESHOLD = 1000;
 	/**
+	 * Indexes that were used when visitor was created.
+	 */
+	@Nonnull
+	@Getter private final TargetIndexes<?> targetIndexes;
+	/**
 	 * Contains set of requirements collected from all {@link SelectionFormula} in the tree.
 	 */
 	protected final Map<Class<? extends EntityContentRequire>, EntityContentRequire> requirements = new HashMap<>();
@@ -72,7 +81,7 @@ public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProces
 	 */
 	@Nonnull private final List<Bitmap> conjunctiveEntityIds = new LinkedList<>();
 	/**
-	 * Contains set of entity primary keys (masked by {@link QueryContext#translateEntityReference(EntityReferenceContract...)}
+	 * Contains set of entity primary keys (masked by {@link QueryPlanningContext#translateEntityReference(EntityReferenceContract...)}
 	 * that needs to be prefetched.
 	 */
 	@Nonnull private final Bitmap entityReferences = new BaseBitmap();
@@ -94,43 +103,9 @@ public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProces
 	 * Contains aggregated costs that is estimated to be paid with regular execution of the {@link SelectionFormula}.
 	 */
 	private long expectedComputationalCosts = 0L;
-	/**
-	 * Default formula for computing the prefetch costs. Can be overridden in tests so that we can make sure multiple
-	 * paths of the calculation are tested (i.e. with or without prefetch).
-	 */
-	private static ToLongDoubleIntBiFunction PREFETCH_COST_ESTIMATOR =
-		(prefetchedEntityCount, requirementCount) -> prefetchedEntityCount * requirementCount * 148L;
 
-	/**
-	 * Method allows to run given {@link Runnable} with custom prefetch cost estimator.
-	 */
-	public static <T> T doWithCustomPrefetchCostEstimator(@Nonnull Supplier<T> supplier, @Nonnull ToLongDoubleIntBiFunction costEstimator) {
-		final ToLongDoubleIntBiFunction old = PREFETCH_COST_ESTIMATOR;
-		try {
-			PREFETCH_COST_ESTIMATOR = costEstimator;
-			return supplier.get();
-		} finally {
-			PREFETCH_COST_ESTIMATOR = old;
-		}
-	}
-
-	/**
-	 * We've performed benchmark of reading data from disk - using Linux file cache the reading performance was:
-	 *
-	 * Benchmark                                Mode  Cnt       Score   Error  Units
-	 * SenesiThroughputBenchmark.memTableRead  thrpt       140496.829          ops/s
-	 *
-	 * For two storage parts - this means 280992 reads / sec. When the linux cache would be empty it would require I/O
-	 * which may be 40x times slower (source: https://www.quora.com/Is-the-speed-of-SSD-and-RAM-the-same) for 4kB payload
-	 * it means that the lowest expectations are 6782 reads / sec.
-	 *
-	 * Recomputed on 1. mil operations ({@link io.evitadb.spike.FormulaCostMeasurement}) it's cost of 148.
-	 */
-	private static long estimatePrefetchCost(int prefetchedEntityCount, @Nonnull EntityFetchRequire requirements) {
-		return PREFETCH_COST_ESTIMATOR.apply(prefetchedEntityCount, requirements.getRequirements().length);
-	}
-
-	public PrefetchFormulaVisitor() {
+	public PrefetchFormulaVisitor(@Nonnull TargetIndexes<?> targetIndexes) {
+		this.targetIndexes = targetIndexes;
 	}
 
 	/**
@@ -145,7 +120,7 @@ public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProces
 	}
 
 	/**
-	 * Method allows to add a requirement that will be used by {@link QueryContext#prefetchEntities(Bitmap, EntityFetchRequire)}
+	 * Method allows to add a requirement that will be used by {@link QueryExecutionContext#prefetchEntities(Bitmap, EntityFetchRequire)}
 	 * to fetch wide enough scope of the entity so that all filtering/sorting logic would have all data present
 	 * for its evaluation.
 	 */
@@ -164,7 +139,7 @@ public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProces
 	 * filtering logic, the prefetch is not executed.
 	 */
 	@Nullable
-	public Runnable createPrefetchLambdaIfNeededOrWorthwhile(@Nonnull QueryContext queryContext) {
+	public Runnable createPrefetchLambdaIfNeededOrWorthwhile(@Nonnull QueryExecutionContext queryContext) {
 		EntityFetchRequire requirements = null;
 		Bitmap entitiesToPrefetch = null;
 		// are we forced to prefetch entities from catalog index?
@@ -177,7 +152,7 @@ public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProces
 			final Bitmap conjunctiveEntities = getConjunctiveEntities();
 			requirements = requirements == null ? getRequirements() : requirements;
 			// does the prefetch pay off?
-			if (getExpectedComputationalCosts() > estimatePrefetchCost(conjunctiveEntities.size(), requirements)) {
+			if (getExpectedComputationalCosts() > queryContext.estimatePrefetchCost(conjunctiveEntities.size(), requirements)) {
 				if (entitiesToPrefetch == null) {
 					entitiesToPrefetch = conjunctiveEntities;
 				} else {
@@ -185,6 +160,23 @@ public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProces
 					final RoaringBitmap roaringBitmapB = RoaringBitmapBackedBitmap.getRoaringBitmap(conjunctiveEntities);
 					entitiesToPrefetch = new BaseBitmap(
 						RoaringBitmap.or(roaringBitmapA, roaringBitmapB)
+					);
+				}
+				if (!(targetIndexes.isGlobalIndex() || targetIndexes.isCatalogIndex())) {
+					// when narrowed indexes were used we need to filter the prefetched primary keys to the ones that are
+					// present in the index
+					Assert.isPremiseValid(
+						ReducedEntityIndex.class.isAssignableFrom(targetIndexes.getIndexType()),
+						"Only reduced entity indexes are supported"
+					);
+					entitiesToPrefetch = RoaringBitmapBackedBitmap.and(
+						ArrayUtils.mergeArrays(
+							new RoaringBitmap[]{RoaringBitmapBackedBitmap.getRoaringBitmap(entitiesToPrefetch)},
+							targetIndexes.getIndexes().stream()
+								.map(index -> ((ReducedEntityIndex)index).getAllPrimaryKeys())
+								.map(RoaringBitmapBackedBitmap::getRoaringBitmap)
+								.toArray(RoaringBitmap[]::new)
+						)
 					);
 				}
 			}
@@ -206,6 +198,8 @@ public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProces
 	public void visit(@Nonnull Formula formula) {
 		if (outputFormula == null) {
 			this.outputFormula = formula;
+			// we will work with estimated costs, so we need to initialize the formula
+			formula.initialize();
 		}
 		if (formula instanceof final SelectionFormula selectionFormula) {
 			expectedComputationalCosts += selectionFormula.getDelegate().getEstimatedCost();

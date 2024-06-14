@@ -24,7 +24,6 @@
 package io.evitadb.core.query.filter.translator;
 
 import io.evitadb.api.query.Query;
-import io.evitadb.api.query.require.AttributeContent;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
@@ -39,38 +38,37 @@ import io.evitadb.api.requestResponse.data.structure.predicate.PriceContractSeri
 import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceContractSerializablePredicate;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.core.query.AttributeSchemaAccessor;
-import io.evitadb.core.query.QueryContext;
-import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.algebra.base.ConstantFormula;
+import io.evitadb.core.query.QueryExecutionContext;
+import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.filter.FilterByVisitor;
-import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.core.query.response.ServerEntityDecorator;
-import io.evitadb.index.EntityIndex;
-import io.evitadb.index.bitmap.ArrayBitmap;
 import lombok.Getter;
 import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.time.OffsetDateTime;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Stream;
 
 /**
  * Mock implementation of the {@link FilterByVisitor} that is used in alternative predicate tests.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class TestFilterByVisitor extends FilterByVisitor {
+public class TestQueryExecutionContext extends QueryExecutionContext {
 	@Getter private final EntitySchemaContract schema;
 	@Getter private final EvitaRequest evitaRequest;
 	private final Map<Integer, SealedEntity> entities;
 
-	public TestFilterByVisitor(CatalogSchemaContract catalogSchema, EntitySchemaContract entitySchema, Query query, Map<Integer, SealedEntity> entities) {
-		super(
+	public TestQueryExecutionContext(
+		CatalogSchemaContract catalogSchema,
+		EntitySchemaContract entitySchema,
+		Query query,
+		Map<Integer, SealedEntity> entities
+	) {
+		super(Mockito.mock(QueryPlanningContext.class));
+		/*super(
 			new ProcessingScope<>(
 				EntityIndex.class,
 				Collections.emptyList(),
@@ -79,11 +77,11 @@ public class TestFilterByVisitor extends FilterByVisitor {
 				new AttributeSchemaAccessor(catalogSchema, entitySchema),
 				(entityContract, attributeName, locale) -> Stream.of(entityContract.getAttributeValue(attributeName, locale))
 			),
-			Mockito.mock(QueryContext.class),
+			Mockito.mock(QueryPlanningContext.class),
 			Collections.emptyList(),
 			Mockito.mock(TargetIndexes.class),
 			false
-		);
+		);*/
 		this.schema = entitySchema;
 		this.evitaRequest = new EvitaRequest(
 			query,
@@ -95,7 +93,8 @@ public class TestFilterByVisitor extends FilterByVisitor {
 		this.entities = entities;
 	}
 
-	@Nonnull
+	/* TODO JNO - Jestli to nebude potřeba, tak smazat */
+	/*@Nonnull
 	@Override
 	public Formula getSuperSetFormula() {
 		return new ConstantFormula(
@@ -109,7 +108,7 @@ public class TestFilterByVisitor extends FilterByVisitor {
 	@Override
 	public EntitySchemaContract getSchema(@Nonnull String entityType) {
 		throw new UnsupportedOperationException();
-	}
+	}*/
 
 	@Nullable
 	@Override
@@ -133,7 +132,7 @@ public class TestFilterByVisitor extends FilterByVisitor {
 	}
 
 	@Nonnull
-	private Entity toEntity(@Nonnull SealedEntity sealedEntity) {
+	private static Entity toEntity(@Nonnull SealedEntity sealedEntity) {
 		if (sealedEntity instanceof Entity entity) {
 			return entity;
 		} else if (sealedEntity instanceof EntityDecorator entityDecorator) {

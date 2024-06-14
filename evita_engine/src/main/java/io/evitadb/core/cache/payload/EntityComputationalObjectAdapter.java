@@ -98,19 +98,15 @@ public class EntityComputationalObjectAdapter implements TransactionalDataRelate
 
 	@Override
 	public void initialize(@Nonnull CalculationContext calculationContext) {
-		if (this.estimatedCost == null) {
-			if (calculationContext.visit(CalculationType.ESTIMATED_COST, this)) {
-				this.estimatedCost = Math.max(minimalComplexityThreshold, requirementCount * getOperationCost());
-			} else {
-				this.estimatedCost = 0L;
-			}
+		if (calculationContext.visit(CalculationType.ESTIMATED_COST, this)) {
+			this.estimatedCost = Math.max(minimalComplexityThreshold, requirementCount * getOperationCost());
+		} else {
+			this.estimatedCost = 0L;
 		}
-		if (this.cost == null) {
-			if (calculationContext.visit(CalculationType.COST, this)) {
-				this.cost = Math.max(minimalComplexityThreshold, requirementCount * getOperationCost());
-			} else {
-				this.cost = 0L;
-			}
+		if (calculationContext.visit(CalculationType.COST, this)) {
+			this.cost = Math.max(minimalComplexityThreshold, requirementCount * getOperationCost());
+		} else {
+			this.cost = 0L;
 		}
 	}
 
@@ -132,18 +128,13 @@ public class EntityComputationalObjectAdapter implements TransactionalDataRelate
 
 	@Override
 	public long getEstimatedCost() {
-		if (this.estimatedCost == null) {
-			initialize(CalculationContext.NO_CACHING_INSTANCE);
-		}
+		Assert.isPremiseValid(this.estimatedCost != null, "The adapter hasn't been initialized!");
 		return this.estimatedCost;
 	}
 
 	@Override
 	public long getCost() {
-		if (this.cost == null) {
-			initialize(CalculationContext.NO_CACHING_INSTANCE);
-			Assert.isPremiseValid(this.cost != null, "Formula results haven't been computed!");
-		}
+		Assert.isPremiseValid(this.cost != null, "The adapter hasn't been initialized!");
 		return this.cost;
 	}
 

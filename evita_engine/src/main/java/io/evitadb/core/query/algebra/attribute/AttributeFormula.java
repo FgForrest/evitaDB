@@ -47,7 +47,7 @@ import static io.evitadb.api.query.QueryConstraints.entityFetch;
 
 /**
  * Attribute formula envelopes {@link Formula} that compute {@link io.evitadb.api.query.FilterConstraint} targeted
- * at attribute values. The formula simply delegates its {@link #compute()} method to the single delegating formula.
+ * at attribute values. The formula simply delegates its {@link Formula#compute()} method to the single delegating formula.
  * Purpose of the formula is to serve as marker container that allows to retrieve target {@link #attributeKey} when
  * working with formula tree and reconstructing it to different form. This is namely used in {@link AttributeHistogram}
  * computation that needs to exclude query targeting the attribute histogram is computed for.

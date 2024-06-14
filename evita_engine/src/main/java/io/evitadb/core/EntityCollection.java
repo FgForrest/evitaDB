@@ -81,9 +81,9 @@ import io.evitadb.api.requestResponse.schema.mutation.entity.SetEntitySchemaWith
 import io.evitadb.core.buffer.DataStoreChanges;
 import io.evitadb.core.buffer.DataStoreMemoryBuffer;
 import io.evitadb.core.cache.CacheSupervisor;
-import io.evitadb.core.query.QueryContext;
 import io.evitadb.core.query.QueryPlan;
 import io.evitadb.core.query.QueryPlanner;
+import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.ReferencedEntityFetcher;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.response.ServerBinaryEntityDecorator;
@@ -118,7 +118,6 @@ import io.evitadb.store.spi.EntityCollectionPersistenceService.EntityWithFetchCo
 import io.evitadb.store.spi.HeaderInfoSupplier;
 import io.evitadb.store.spi.StoragePartPersistenceService;
 import io.evitadb.store.spi.model.EntityCollectionHeader;
-import io.evitadb.store.spi.model.storageParts.accessor.ReadOnlyEntityStorageContainerAccessor;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 
@@ -407,10 +406,9 @@ public final class EntityCollection implements
 	@Override
 	@Nonnull
 	public <S extends Serializable, T extends EvitaResponse<S>> T getEntities(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
-		final QueryPlan queryPlan;
-		try (final QueryContext queryContext = createQueryContext(evitaRequest, session)) {
-			queryPlan = QueryPlanner.planQuery(queryContext);
-		}
+		final QueryPlanningContext queryContext = createQueryContext(evitaRequest, session);
+		final QueryPlan queryPlan = QueryPlanner.planQuery(queryContext);
+
 		return tracingContext.executeWithinBlockIfParentContextAvailable(
 			"query - " + queryPlan.getDescription(),
 			(Supplier<T>) queryPlan::execute,
@@ -493,19 +491,18 @@ public final class EntityCollection implements
 	public ServerEntityDecorator enrichEntity(@Nonnull EntityContract entity, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
 		final Map<String, RequirementContext> referenceEntityFetch = evitaRequest.getReferenceEntityFetch();
 		final ReferenceFetcher referenceFetcher;
-		try (final QueryContext queryContext = createQueryContext(evitaRequest, session)) {
-			referenceFetcher = referenceEntityFetch.isEmpty() &&
-				!evitaRequest.isRequiresEntityReferences() &&
-				!evitaRequest.isRequiresParent() ?
-				ReferenceFetcher.NO_IMPLEMENTATION :
-				new ReferencedEntityFetcher(
-					evitaRequest.getHierarchyContent(),
-					referenceEntityFetch,
-					evitaRequest.getDefaultReferenceRequirement(),
-					queryContext,
-					entity
-				);
-		}
+		final QueryPlanningContext queryContext = createQueryContext(evitaRequest, session);
+		referenceFetcher = referenceEntityFetch.isEmpty() &&
+			!evitaRequest.isRequiresEntityReferences() &&
+			!evitaRequest.isRequiresParent() ?
+			ReferenceFetcher.NO_IMPLEMENTATION :
+			new ReferencedEntityFetcher(
+				evitaRequest.getHierarchyContent(),
+				referenceEntityFetch,
+				evitaRequest.getDefaultReferenceRequirement(),
+				queryContext.createExecutionContext(),
+				entity
+			);
 
 		return applyReferenceFetcher(
 			enrichEntity(entity, evitaRequest),
@@ -680,10 +677,9 @@ public final class EntityCollection implements
 
 	@Override
 	public int deleteEntities(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
-		final QueryPlan queryPlan;
-		try (final QueryContext queryContext = createQueryContext(evitaRequest, session)) {
-			queryPlan = QueryPlanner.planQuery(queryContext);
-		}
+		final QueryPlanningContext queryContext = createQueryContext(evitaRequest, session);
+		final QueryPlan queryPlan = QueryPlanner.planQuery(queryContext);
+
 		final EvitaEntityReferenceResponse result = tracingContext.executeWithinBlockIfParentContextAvailable(
 			"delete - " + queryPlan.getDescription(),
 			(Supplier<EvitaEntityReferenceResponse>) queryPlan::execute,
@@ -701,10 +697,9 @@ public final class EntityCollection implements
 	@Override
 	@Nonnull
 	public SealedEntity[] deleteEntitiesAndReturnThem(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
-		final QueryPlan queryPlan;
-		try (final QueryContext queryContext = createQueryContext(evitaRequest, session)) {
-			queryPlan = QueryPlanner.planQuery(queryContext);
-		}
+		final QueryPlanningContext queryContext = createQueryContext(evitaRequest, session);
+		final QueryPlan queryPlan = QueryPlanner.planQuery(queryContext);
+
 		final EvitaResponse<? extends Serializable> result = tracingContext.executeWithinBlockIfParentContextAvailable(
 			"delete - " + queryPlan.getDescription(),
 			() -> queryPlan.execute(),
@@ -1102,19 +1097,18 @@ public final class EntityCollection implements
 	}
 
 	/**
-	 * Method creates {@link QueryContext} that is used for read operations.
+	 * Method creates {@link QueryPlanningContext} that is used for read operations.
 	 */
 	@Nonnull
-	public QueryContext createQueryContext(
-		@Nonnull QueryContext queryContext,
+	public QueryPlanningContext createQueryContext(
+		@Nonnull QueryPlanningContext queryContext,
 		@Nonnull EvitaRequest evitaRequest,
 		@Nonnull EvitaSessionContract session
 	) {
-		return new QueryContext(
+		return new QueryPlanningContext(
 			queryContext,
 			this.catalog,
 			this,
-			new ReadOnlyEntityStorageContainerAccessor(catalog.getVersion(), this.dataStoreBuffer, this::getInternalSchema),
 			session, evitaRequest,
 			queryContext.getCurrentStep(),
 			this.indexes,
@@ -1123,14 +1117,13 @@ public final class EntityCollection implements
 	}
 
 	/**
-	 * Method creates {@link QueryContext} that is used for read operations.
+	 * Method creates {@link QueryPlanningContext} that is used for read operations.
 	 */
 	@Nonnull
-	public QueryContext createQueryContext(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
-		return new QueryContext(
+	public QueryPlanningContext createQueryContext(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
+		return new QueryPlanningContext(
 			this.catalog,
 			this,
-			new ReadOnlyEntityStorageContainerAccessor(catalog.getVersion(), this.dataStoreBuffer, this::getInternalSchema),
 			session, evitaRequest,
 			evitaRequest.isQueryTelemetryRequested() ? new QueryTelemetry(QueryPhase.OVERALL) : null,
 			this.indexes,
@@ -1387,23 +1380,23 @@ public final class EntityCollection implements
 		@Nonnull EvitaSessionContract session
 	) {
 		final Map<String, RequirementContext> referenceEntityFetch = evitaRequest.getReferenceEntityFetch();
-		try (final QueryContext queryContext = createQueryContext(evitaRequest, session)) {
-			return referenceEntityFetch.isEmpty() &&
-				!evitaRequest.isRequiresEntityReferences() &&
-				!evitaRequest.isRequiresParent() ?
-				ReferenceFetcher.NO_IMPLEMENTATION :
-				new ReferencedEntityFetcher(
-					evitaRequest.getHierarchyContent(),
-					referenceEntityFetch,
-					evitaRequest.getDefaultReferenceRequirement(),
-					queryContext
-				);
-		}
+		final QueryPlanningContext queryContext = createQueryContext(evitaRequest, session);
+		return referenceEntityFetch.isEmpty() &&
+			!evitaRequest.isRequiresEntityReferences() &&
+			!evitaRequest.isRequiresParent() ?
+			ReferenceFetcher.NO_IMPLEMENTATION :
+			new ReferencedEntityFetcher(
+				evitaRequest.getHierarchyContent(),
+				referenceEntityFetch,
+				evitaRequest.getDefaultReferenceRequirement(),
+				queryContext.createExecutionContext()
+			);
 	}
 
 	/**
 	 * Injects referenced entity bodies into the main entity.
-	 * @param sealedEntity main entity to be enriched
+	 *
+	 * @param sealedEntity     main entity to be enriched
 	 * @param referenceFetcher reference fetcher to be used for accessing referenced entities
 	 * @return enriched entity
 	 */

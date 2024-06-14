@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -64,7 +64,7 @@ public class ReferenceOwnerTranslatingFormula extends AbstractFormula {
 	private final long referencedEntityTypeTransactionalId;
 	/**
 	 * Contains the information about referenced entity type cardinality. The consideration is the same as for
-	 * {@link #referencedEntityTypeTransactionalId} - we have to provide the {@link #getEstimatedCardinality()} before
+	 * {@link #referencedEntityTypeTransactionalId} - we have to provide the {@link Formula#getEstimatedCardinality()} before
 	 * the real calculation occurs, so we have to consider the worst possible cardinality here.
 	 */
 	private final int worstCardinality;

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -122,7 +122,6 @@ public class AttributeIsTranslator implements FilteringConstraintTranslator<Attr
 		} else {
 			return new EntityFilteringFormula(
 				"attribute is filter",
-				filterByVisitor,
 				createAlternativeNullBitmapFilter(attributeName, filterByVisitor)
 			);
 		}
@@ -151,7 +150,6 @@ public class AttributeIsTranslator implements FilteringConstraintTranslator<Attr
 				);
 				if (filterByVisitor.isPrefetchPossible()) {
 					return new SelectionFormula(
-						filterByVisitor,
 						filteringFormula,
 						createAlternativeNotNullBitmapFilter(attributeName, filterByVisitor)
 					);
@@ -162,7 +160,6 @@ public class AttributeIsTranslator implements FilteringConstraintTranslator<Attr
 		} else {
 			return new EntityFilteringFormula(
 				"attribute is filter",
-				filterByVisitor,
 				createAlternativeNotNullBitmapFilter(attributeName, filterByVisitor)
 			);
 		}

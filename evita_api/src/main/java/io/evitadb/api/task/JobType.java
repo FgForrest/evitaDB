@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,29 +21,15 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.query.extraResult;
-
-import io.evitadb.core.query.QueryContext;
-import lombok.RequiredArgsConstructor;
-
-import javax.annotation.Nonnull;
+package io.evitadb.api.task;
 
 /**
- * This implementation will consult the evitaDB cache whether there is a cached result for the given computer and if
- * it is, it's returned instead of the input computer.
+ * This enumeration contains listing of all job types.
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@RequiredArgsConstructor
-public class CacheSupervisorExtraResultAccessor implements ExtraResultCacheAccessor {
-	private final QueryContext queryContext;
+public enum JobType {
 
-	@Nonnull
-	@Override
-	public <U, T extends CacheableEvitaResponseExtraResultComputer<U>> EvitaResponseExtraResultComputer<U> analyse(@Nonnull String entityType, @Nonnull T computer) {
-		return queryContext.getCacheSupervisor().analyse(
-			queryContext.getEvitaSession(), entityType, computer
-		);
-	}
+	BACKUP, RESTORE
 
 }

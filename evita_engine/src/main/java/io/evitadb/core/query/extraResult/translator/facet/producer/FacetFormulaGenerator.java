@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -81,7 +81,7 @@ public class FacetFormulaGenerator extends AbstractFacetFormulaGenerator {
 		final boolean conjunction = this.isFacetGroupConjunction.test(referenceSchema, facetGroupId);
 		final CacheKey key = new CacheKey(negation, disjunction, conjunction);
 
-		return cache.compute(
+		final Formula resultFormula = cache.compute(
 			key,
 			(cacheKey, formula) -> {
 				if (formula == null) {
@@ -99,6 +99,8 @@ public class FacetFormulaGenerator extends AbstractFacetFormulaGenerator {
 				}
 			}
 		);
+		resultFormula.initialize();
+		return resultFormula;
 	}
 
 	@Override

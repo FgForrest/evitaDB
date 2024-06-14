@@ -73,9 +73,6 @@ public class UserFilterFormula extends AbstractFormula implements NonCacheableFo
 	@Override
 	protected long getCostInternal() {
 		long cost = 0L;
-		if (this.sortedFormulasByComplexity == null) {
-			initialize(CalculationContext.NO_CACHING_INSTANCE);
-		}
 		for (Formula innerFormula : this.sortedFormulasByComplexity) {
 			final Bitmap innerResult = innerFormula.compute();
 			cost += innerFormula.getCost() + innerResult.size() * getOperationCost();
@@ -89,9 +86,6 @@ public class UserFilterFormula extends AbstractFormula implements NonCacheableFo
 	@Override
 	protected long getCostToPerformanceInternal() {
 		long costToPerformance = 0L;
-		if (this.sortedFormulasByComplexity == null) {
-			initialize(CalculationContext.NO_CACHING_INSTANCE);
-		}
 		for (Formula innerFormula : this.sortedFormulasByComplexity) {
 			final Bitmap innerResult = innerFormula.compute();
 			if (innerResult == EmptyBitmap.INSTANCE) {
@@ -119,7 +113,7 @@ public class UserFilterFormula extends AbstractFormula implements NonCacheableFo
 
 	@Override
 	public int getEstimatedCardinality() {
-		return Arrays.stream(this.innerFormulas).mapToInt(Formula::getEstimatedCardinality).min().orElse(0);
+		return Arrays.stream(this.innerFormulas).mapToInt(formula -> formula.getEstimatedCardinality()).min().orElse(0);
 	}
 
 	@Override

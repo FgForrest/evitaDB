@@ -26,7 +26,7 @@ package io.evitadb.core.cache;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.CacheOptions;
 import io.evitadb.api.query.require.EntityFetch;
-import io.evitadb.core.async.BackgroundTask;
+import io.evitadb.core.async.BackgroundRunnableTask;
 import io.evitadb.core.async.Scheduler;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.extraResult.CacheableEvitaResponseExtraResultComputer;
@@ -75,7 +75,7 @@ public class HeapMemoryCacheSupervisor implements CacheSupervisor {
 		// initialize function that will frequently evaluate contents of the cache, discard unused entries and introduce
 		// new ones from the CacheAnteroom
 		scheduler.scheduleAtFixedRate(
-			new BackgroundTask("Eden cache gatekeeper", this.cacheAnteroom::evaluateAssociatesSynchronouslyIfNoAdeptsWait),
+			new BackgroundRunnableTask("Eden cache gatekeeper", this.cacheAnteroom::evaluateAssociatesSynchronouslyIfNoAdeptsWait),
 			0,
 			cacheOptions.reevaluateEachSeconds(),
 			TimeUnit.SECONDS

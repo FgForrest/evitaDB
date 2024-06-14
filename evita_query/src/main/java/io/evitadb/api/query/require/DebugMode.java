@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -44,6 +44,11 @@ public enum DebugMode {
 	 * are exchanged with cached variants. This mode allows us to verify that all variants of cacheable tree parts
 	 * produce the same results.
 	 */
-	VERIFY_POSSIBLE_CACHING_TREES
+	VERIFY_POSSIBLE_CACHING_TREES,
+	/**
+	 * This option always selects prefetching strategy if it's possible to use it (depends on the query filter by
+	 * constraints).
+	 */
+	PREFER_PREFETCHING
 
 }

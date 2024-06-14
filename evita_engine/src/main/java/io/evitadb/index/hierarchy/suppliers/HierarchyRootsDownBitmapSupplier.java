@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -64,14 +64,16 @@ public class HierarchyRootsDownBitmapSupplier extends AbstractHierarchyBitmapSup
 		);
 	}
 
+	@Nonnull
 	@Override
-	public Bitmap get() {
+	protected Bitmap getInternal() {
 		return hierarchyIndex.listHierarchyNodesFromRoot(excludedNodeTrees);
 	}
 
 	@Override
 	public int getEstimatedCardinality() {
-		return hierarchyIndex.getHierarchyNodeCountFromRootDownTo(Integer.MAX_VALUE, excludedNodeTrees);
+		/* we don't use excluded node trees here, because it would trigger the formula computation */
+		return hierarchyIndex.getHierarchyNodeCountFromRootDownTo(Integer.MAX_VALUE, HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE);
 	}
 
 	@Override

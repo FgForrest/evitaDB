@@ -36,7 +36,7 @@ module evita.api {
 	exports io.evitadb.api.configuration;
 	exports io.evitadb.api.configuration.metric;
 	exports io.evitadb.api.exception;
-	exports io.evitadb.api.job;
+	exports io.evitadb.api.task;
 	exports io.evitadb.api.proxy;
 	exports io.evitadb.api.proxy.impl;
 	exports io.evitadb.api.requestResponse;

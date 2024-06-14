@@ -280,11 +280,10 @@ public class FacetReferenceIndex implements TransactionalLayerProducer<FacetEnti
 	@Nonnull
 	public List<FacetGroupFormula> getFacetReferencingEntityIdsFormula(@Nonnull TriFunction<Integer, Bitmap, Bitmap[], FacetGroupFormula> formulaFactory, @Nonnull Bitmap facetId) {
 		final Map<FacetGroupIndex, List<Integer>> facetsByGroup = StreamSupport.stream(facetId.spliterator(), false)
-			.map(fId -> ofNullable(facetToGroupIndex.get(fId))
+			.flatMap(fId -> ofNullable(facetToGroupIndex.get(fId))
 				.map(groupIds -> Arrays.stream(groupIds).mapToObj(groupId -> new GroupFacetIdDTO(groupedFacets.get(groupId), fId)))
 				.orElseGet(() -> Stream.of(new GroupFacetIdDTO(notGroupedFacets.get(), fId)))
 			)
-			.flatMap(Function.identity())
 			.filter(it -> it.groupIndex() != null)
 			.collect(
 				Collectors.groupingBy(

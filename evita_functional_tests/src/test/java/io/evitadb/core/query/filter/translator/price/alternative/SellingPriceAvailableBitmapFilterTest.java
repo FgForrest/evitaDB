@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -33,7 +33,7 @@ import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.core.query.algebra.price.predicate.PricePredicate.PriceContractPredicate;
-import io.evitadb.core.query.filter.translator.TestFilterByVisitor;
+import io.evitadb.core.query.filter.translator.TestQueryExecutionContext;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.test.Entities;
@@ -127,7 +127,7 @@ class SellingPriceAvailableBitmapFilterTest {
 	void shouldFilterEntitiesByCurrencyAndPriceList() {
 		final SellingPriceAvailableBitmapFilter filter = new SellingPriceAvailableBitmapFilter(null);
 		final Bitmap result = filter.filter(
-			new TestFilterByVisitor(
+			new TestQueryExecutionContext(
 				CATALOG_SCHEMA,
 				PRODUCT_SCHEMA,
 				Query.query(
@@ -156,7 +156,7 @@ class SellingPriceAvailableBitmapFilterTest {
 	void shouldFilterEntitiesByCurrencyAndPriceListWithDifferentPriceLists() {
 		final SellingPriceAvailableBitmapFilter filter = new SellingPriceAvailableBitmapFilter(PRICE_LIST_REFERENCE);
 		final Bitmap result = filter.filter(
-			new TestFilterByVisitor(
+			new TestQueryExecutionContext(
 				CATALOG_SCHEMA,
 				PRODUCT_SCHEMA,
 				Query.query(
@@ -190,7 +190,7 @@ class SellingPriceAvailableBitmapFilterTest {
 			)
 		);
 		final Bitmap result = filter.filter(
-			new TestFilterByVisitor(
+			new TestQueryExecutionContext(
 				CATALOG_SCHEMA,
 				PRODUCT_SCHEMA,
 				Query.query(
@@ -225,7 +225,7 @@ class SellingPriceAvailableBitmapFilterTest {
 			)
 		);
 		final Bitmap result = filter.filter(
-			new TestFilterByVisitor(
+			new TestQueryExecutionContext(
 				CATALOG_SCHEMA,
 				PRODUCT_SCHEMA,
 				Query.query(
@@ -255,7 +255,7 @@ class SellingPriceAvailableBitmapFilterTest {
 	void shouldFilterEntitiesByCurrencyAndPriceListAndValidity() {
 		final SellingPriceAvailableBitmapFilter filter = new SellingPriceAvailableBitmapFilter(PRICE_LIST_REFERENCE);
 		final Bitmap result = filter.filter(
-			new TestFilterByVisitor(
+			new TestQueryExecutionContext(
 				CATALOG_SCHEMA,
 				PRODUCT_SCHEMA,
 				Query.query(
@@ -285,7 +285,7 @@ class SellingPriceAvailableBitmapFilterTest {
 	void shouldFilterEntitiesByCurrencyAndPriceListAndValidityInFarFuture() {
 		final SellingPriceAvailableBitmapFilter filter = new SellingPriceAvailableBitmapFilter(PRICE_LIST_REFERENCE);
 		final Bitmap result = filter.filter(
-			new TestFilterByVisitor(
+			new TestQueryExecutionContext(
 				CATALOG_SCHEMA,
 				PRODUCT_SCHEMA,
 				Query.query(

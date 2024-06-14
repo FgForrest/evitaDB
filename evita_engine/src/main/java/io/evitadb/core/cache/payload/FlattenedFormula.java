@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -62,11 +62,6 @@ public class FlattenedFormula extends CachePayloadHeader implements Formula {
 
 	@Override
 	public void initialize(@Nonnull CalculationContext calculationContext) {
-
-	}
-
-	@Override
-	public void initializeAgain(@Nonnull CalculationContext calculationContext) {
 
 	}
 

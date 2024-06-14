@@ -102,6 +102,7 @@ public class TransactionalBitmap implements RoaringBitmapBackedBitmap, Transacti
 		transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
 	}
 
+	@Nonnull
 	@Override
 	public RoaringBitmap getRoaringBitmap() {
 		final BitmapChanges layer = getTransactionalMemoryLayerIfExists(this);

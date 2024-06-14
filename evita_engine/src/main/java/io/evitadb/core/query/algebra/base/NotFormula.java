@@ -23,6 +23,7 @@
 
 package io.evitadb.core.query.algebra.base;
 
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.AbstractCacheableFormula;
 import io.evitadb.core.query.algebra.CacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
@@ -136,7 +137,7 @@ public class NotFormula extends AbstractCacheableFormula {
 	}
 
 	@Override
-	public long getEstimatedCostInternal() {
+	public long getEstimatedCostInternal(@Nonnull QueryExecutionContext context) {
 		if (subtractedBitmap != null && supersetBitmap != null) {
 			try {
 				long costs = subtractedBitmap.size();
@@ -146,7 +147,7 @@ public class NotFormula extends AbstractCacheableFormula {
 				return Long.MAX_VALUE;
 			}
 		} else {
-			return super.getEstimatedCostInternal();
+			return super.getEstimatedCostInternal(context);
 		}
 	}
 

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,12 +27,12 @@ import io.evitadb.api.exception.EntityCollectionRequiredException;
 import io.evitadb.api.query.require.EntityRequire;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.ResolvedFilteredPriceRecords;
-import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
@@ -63,10 +63,6 @@ public class EntityFilteringFormula extends AbstractFormula implements Requireme
 	 */
 	private final String reason;
 	/**
-	 * Contains reference to a visitor that was used for creating this formula instance.
-	 */
-	private final FilterByVisitor filterByVisitor;
-	/**
 	 * Contains the alternative computation based on entity contents filtering.
 	 */
 	private final EntityToBitmapFilter alternative;
@@ -84,17 +80,19 @@ public class EntityFilteringFormula extends AbstractFormula implements Requireme
 	@Nonnull
 	@Override
 	protected Bitmap computeInternal() {
+		Assert.isPremiseValid(this.context != null, "The formula hasn't been initialized!");
 		Assert.isTrue(
-			filterByVisitor.getPrefetchedEntities() != null,
+			this.context.getPrefetchedEntities() != null,
 			() -> new EntityCollectionRequiredException(reason)
 		);
-		return alternative.filter(filterByVisitor);
+		return alternative.filter(this.context);
 	}
 
 	@Nonnull
 	@Override
 	public FilteredPriceRecords getFilteredPriceRecords() {
-		Assert.isTrue(filterByVisitor.getPrefetchedEntities() != null, () -> new EntityCollectionRequiredException("matching entities"));
+		Assert.isPremiseValid(this.context != null, "The formula hasn't been initialized!");
+		Assert.isTrue(this.context.getPrefetchedEntities() != null, () -> new EntityCollectionRequiredException("matching entities"));
 		return alternative instanceof FilteredPriceRecordAccessor ?
 			((FilteredPriceRecordAccessor) alternative).getFilteredPriceRecords() :
 			new ResolvedFilteredPriceRecords();
@@ -114,13 +112,14 @@ public class EntityFilteringFormula extends AbstractFormula implements Requireme
 
 	@Override
 	public int getEstimatedCardinality() {
-		return ofNullable(filterByVisitor.getPrefetchedEntities())
+		Assert.isPremiseValid(this.context != null, "The formula hasn't been initialized!");
+		return ofNullable(this.context.getPrefetchedEntities())
 			.map(List::size)
 			.orElse(0);
 	}
 
 	@Override
-	protected long getEstimatedCostInternal() {
+	protected long getEstimatedCostInternal(@Nonnull QueryExecutionContext context) {
 		if (alternative.getEntityRequire() == null) {
 			return 0;
 		}

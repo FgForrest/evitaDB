@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,8 +26,10 @@ package io.evitadb.core.query.extraResult.translator.hierarchyStatistics.produce
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.query.require.StatisticsType;
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.visitor.Accumulator;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.visitor.ChildrenStatisticsHierarchyVisitor;
+import io.evitadb.core.query.response.TransactionalDataRelatedStructure.CalculationContext;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.hierarchy.predicate.FilteringFormulaHierarchyEntityPredicate;
 import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
@@ -73,16 +75,18 @@ public class NodeRelativeStatisticsComputer extends AbstractHierarchyStatisticsC
 	@Nonnull
 	@Override
 	protected List<Accumulator> createStatistics(
+		@Nonnull QueryExecutionContext executionContext,
 		@Nonnull HierarchyTraversalPredicate scopePredicate,
 		@Nonnull HierarchyFilteringPredicate filterPredicate
 	) {
 		final FilteringFormulaHierarchyEntityPredicate parentIdPredicate = new FilteringFormulaHierarchyEntityPredicate(
-			context.queryContext(),
+			executionContext.getQueryContext(),
 			context.entityIndex(),
 			parentId,
 			context.entitySchema(),
 			context.referenceSchema()
 		);
+		parentIdPredicate.initialize(new CalculationContext(executionContext));
 		final Bitmap parentId = parentIdPredicate.getFilteringFormula().compute();
 
 		if (!parentId.isEmpty()) {
@@ -91,9 +95,10 @@ public class NodeRelativeStatisticsComputer extends AbstractHierarchyStatisticsC
 				() -> "The filter by constraint: `" + parentIdPredicate.getFilterBy() + "` matches multiple (" + parentId.size() + ") hierarchy nodes! " +
 					"Hierarchy statistics computation expects only single node will be matched (due to performance reasons)."
 			);
-			final Bitmap hierarchyNodes = context.queryContext().getRootHierarchyNodes();
+			final Bitmap hierarchyNodes = context.rootHierarchyNodesSupplier().get();
 			// we always start at specific node, but we respect the excluded children
 			final ChildrenStatisticsHierarchyVisitor visitor = new ChildrenStatisticsHierarchyVisitor(
+				executionContext,
 				context.removeEmptyResults(),
 				0,
 				hierarchyNodes::contains,

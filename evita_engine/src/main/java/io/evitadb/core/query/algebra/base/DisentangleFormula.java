@@ -23,6 +23,7 @@
 
 package io.evitadb.core.query.algebra.base;
 
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.AbstractCacheableFormula;
 import io.evitadb.core.query.algebra.CacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
@@ -121,7 +122,7 @@ public class DisentangleFormula extends AbstractCacheableFormula implements Cach
 	}
 
 	@Override
-	public long getEstimatedCostInternal() {
+	public long getEstimatedCostInternal(@Nonnull QueryExecutionContext context) {
 		if (mainBitmap != null && controlBitmap != null) {
 			try {
 				long costs = mainBitmap.size();
@@ -131,7 +132,7 @@ public class DisentangleFormula extends AbstractCacheableFormula implements Cach
 				return Long.MAX_VALUE;
 			}
 		} else {
-			return super.getEstimatedCostInternal();
+			return super.getEstimatedCostInternal(context);
 		}
 	}
 

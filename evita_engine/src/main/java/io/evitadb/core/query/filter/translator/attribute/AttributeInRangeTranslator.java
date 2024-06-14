@@ -78,7 +78,6 @@ public class AttributeInRangeTranslator implements FilteringConstraintTranslator
 			);
 			if (filterByVisitor.isPrefetchPossible()) {
 				return new SelectionFormula(
-					filterByVisitor,
 					filteringFormula,
 					createAlternativeBitmapFilter(attributeInRange, filterByVisitor, attributeName)
 				);
@@ -88,7 +87,6 @@ public class AttributeInRangeTranslator implements FilteringConstraintTranslator
 		} else {
 			return new EntityFilteringFormula(
 				"attribute in range filter",
-				filterByVisitor,
 				createAlternativeBitmapFilter(attributeInRange, filterByVisitor, attributeName)
 			);
 		}

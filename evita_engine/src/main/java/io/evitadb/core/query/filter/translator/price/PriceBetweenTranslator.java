@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -126,7 +126,6 @@ public class PriceBetweenTranslator extends AbstractPriceRelatedConstraintTransl
 			// there is no default return so that we completed all combinations in previous if-else hell
 			if (filterByVisitor.isPrefetchPossible()) {
 				return new SelectionFormula(
-					filterByVisitor,
 					filteringFormula,
 					new SellingPriceAvailableBitmapFilter(
 						filterByVisitor.getEvitaRequest().getFetchesAdditionalPriceLists(),
@@ -139,7 +138,6 @@ public class PriceBetweenTranslator extends AbstractPriceRelatedConstraintTransl
 		} else {
 			return new EntityFilteringFormula(
 				"price between filter",
-				filterByVisitor,
 				new SellingPriceAvailableBitmapFilter(
 					filterByVisitor.getEvitaRequest().getFetchesAdditionalPriceLists(),
 					new PriceContractPredicate(priceBetween.getFrom(), priceBetween.getTo(), queryPriceMode, indexedPricePlaces)

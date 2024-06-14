@@ -24,6 +24,7 @@
 package io.evitadb.core.query.algebra;
 
 import io.evitadb.core.cache.CacheSupervisor;
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.utils.visitor.PrettyPrintingFormulaVisitor;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
 import io.evitadb.core.transaction.memory.TransactionalLayerCreator;
@@ -45,12 +46,16 @@ import java.util.stream.Stream;
  */
 public abstract class AbstractFormula implements Formula {
 	/**
+	 * Execution context from initialization phase.
+	 */
+	protected QueryExecutionContext context;
+	/**
 	 * Contains array of inner formulas.
 	 */
 	@Getter protected final Formula[] innerFormulas;
 	/**
 	 * Contains memoized result once {@link #computeInternal()} is invoked for the first time. Additional calls of
-	 * {@link #compute()} will return this memoized result without paying the computational costs
+	 * {@link Formula#compute()} will return this memoized result without paying the computational costs
 	 */
 	protected Bitmap memoizedResult;
 	/**
@@ -84,47 +89,69 @@ public abstract class AbstractFormula implements Formula {
 
 	@Override
 	public void initialize(@Nonnull CalculationContext calculationContext) {
-		initializeInternal(calculationContext, false);
+		this.context = calculationContext.getExecutionContext();
+
+		for (Formula innerFormula : innerFormulas) {
+			innerFormula.initialize(calculationContext);
+		}
+		final LongStream formulaHashStream = Arrays.stream(innerFormulas)
+			.mapToLong(TransactionalDataRelatedStructure::getHash);
+		this.hash = calculationContext.getHashFunction().hashLongs(
+			Stream.of(
+					LongStream.of(getClassId()),
+					isFormulaOrderSignificant() ? formulaHashStream : formulaHashStream.sorted(),
+					LongStream.of(includeAdditionalHash(calculationContext.getHashFunction()))
+				)
+				.flatMapToLong(it -> it)
+				.toArray()
+		);
+		this.transactionalIds = gatherBitmapIdsInternal();
+		this.transactionalIdHash = calculationContext.getHashFunction().hashLongs(
+			Arrays.stream(this.transactionalIds)
+				.distinct()
+				.sorted()
+				.toArray()
+		);
+		if (context != null && calculationContext.visit(CalculationType.ESTIMATED_COST, this)) {
+			this.estimatedCost = getEstimatedCostInternal(context);
+		} else {
+			this.estimatedCost = 0L;
+		}
 	}
 
 	@Override
 	public final long getHash() {
-		if (this.hash == null) {
-			initialize(CalculationContext.NO_CACHING_INSTANCE);
-		}
+		Assert.isPremiseValid(this.hash != null, "The formula must be initialized prior to calling getHash().");
 		return this.hash;
 	}
 
 	@Override
 	public long getTransactionalIdHash() {
-		if (this.transactionalIdHash == null) {
-			initialize(CalculationContext.NO_CACHING_INSTANCE);
-		}
+		Assert.isPremiseValid(this.transactionalIdHash != null, "The formula must be initialized prior to calling getTransactionalIdHash().");
 		return this.transactionalIdHash;
 	}
 
 	@Nonnull
 	@Override
 	public final long[] gatherTransactionalIds() {
-		if (this.transactionalIds == null) {
-			initialize(CalculationContext.NO_CACHING_INSTANCE);
-		}
+		Assert.isPremiseValid(this.transactionalIds != null, "The formula must be initialized prior to calling gatherTransactionalIds().");
 		return this.transactionalIds;
 	}
 
 	@Override
 	public final long getEstimatedCost() {
-		if (this.estimatedCost == null) {
-			initialize(CalculationContext.NO_CACHING_INSTANCE);
-		}
+		Assert.isPremiseValid(this.estimatedCost != null, "The formula must be initialized prior to calling getEstimatedCost().");
 		return this.estimatedCost;
 	}
 
 	@Override
 	public final long getCost() {
 		if (this.cost == null) {
-			initialize(CalculationContext.NO_CACHING_INSTANCE);
-			Assert.isPremiseValid(this.cost != null, "Formula results haven't been computed!");
+			if (this.memoizedResult == null) {
+				return Long.MAX_VALUE;
+			} else {
+				this.cost = getCostInternal();
+			}
 		}
 		return this.cost;
 	}
@@ -132,8 +159,11 @@ public abstract class AbstractFormula implements Formula {
 	@Override
 	public final long getCostToPerformanceRatio() {
 		if (this.costToPerformance == null) {
-			initialize(CalculationContext.NO_CACHING_INSTANCE);
-			Assert.isPremiseValid(this.costToPerformance != null, "Formula results haven't been computed!");
+			if (this.memoizedResult == null) {
+				return Long.MAX_VALUE;
+			} else {
+				this.costToPerformance = getCostToPerformanceInternal();
+			}
 		}
 		return this.costToPerformance;
 	}
@@ -150,11 +180,6 @@ public abstract class AbstractFormula implements Formula {
 			this.memoizedResult = computeInternal();
 		}
 		return this.memoizedResult;
-	}
-
-	@Override
-	public void initializeAgain(@Nonnull CalculationContext calculationContext) {
-		initializeInternal(calculationContext, true);
 	}
 
 	@Override
@@ -208,7 +233,7 @@ public abstract class AbstractFormula implements Formula {
 	 * sizes of referenced bitmaps multiplied by known {@link #getOperationCost()} of this operation.
 	 * This method doesn't trigger formula computation.
 	 */
-	protected long getEstimatedCostInternal() {
+	protected long getEstimatedCostInternal(@Nonnull QueryExecutionContext context) {
 		try {
 			long costs = getEstimatedBaseCost();
 			for (Formula innerFormula : innerFormulas) {
@@ -222,7 +247,7 @@ public abstract class AbstractFormula implements Formula {
 
 	/**
 	 * Returns estimated computation complexity cost for computation that covers all additional internal data that
-	 * affect the output of {@link #compute()} method and are not part {@link #getInnerFormulas()}.
+	 * affect the output of {@link Formula#compute()} method and are not part {@link #getInnerFormulas()}.
 	 * The {@link #getInnerFormulas()} are implicitly part of the hash and should not be covered by this method.
 	 */
 	protected long getEstimatedBaseCost() {
@@ -231,7 +256,7 @@ public abstract class AbstractFormula implements Formula {
 
 	/**
 	 * Returns a long hash, that should be computed by {@link CacheSupervisor#createHashFunction()} and covers all
-	 * additional internal data that affect the output of {@link #compute()} method and are not part
+	 * additional internal data that affect the output of {@link Formula#compute()} method and are not part
 	 * {@link #getInnerFormulas()}. The {@link #getInnerFormulas()} are implicitly part of the hash and should not be
 	 * covered by this method.
 	 */
@@ -273,61 +298,5 @@ public abstract class AbstractFormula implements Formula {
 	 */
 	@Nonnull
 	protected abstract Bitmap computeInternal();
-
-	/**
-	 * Initializes the internal state of the formula by initializing inner formulas, calculating hash, transactional IDs,
-	 * estimated cost, cost, and cost-to-performance ratio. If the resetMemoizedResults flag is true, the memoized results
-	 * will be reset.
-	 *
-	 * @param calculationContext   the calculation context used to initialize the formula
-	 * @param resetMemoizedResults flag indicating whether to reset the memoized results
-	 */
-	private void initializeInternal(@Nonnull CalculationContext calculationContext, boolean resetMemoizedResults) {
-		for (Formula innerFormula : innerFormulas) {
-			if (resetMemoizedResults) {
-				innerFormula.initializeAgain(calculationContext);
-			} else {
-				innerFormula.initialize(calculationContext);
-			}
-		}
-		if (this.hash == null || resetMemoizedResults) {
-			final LongStream formulaHashStream = Arrays.stream(innerFormulas)
-				.mapToLong(TransactionalDataRelatedStructure::getHash);
-			this.hash = calculationContext.getHashFunction().hashLongs(
-				Stream.of(
-						LongStream.of(getClassId()),
-						isFormulaOrderSignificant() ? formulaHashStream : formulaHashStream.sorted(),
-						LongStream.of(includeAdditionalHash(calculationContext.getHashFunction()))
-					)
-					.flatMapToLong(it -> it)
-					.toArray()
-			);
-		}
-		if (this.transactionalIds == null || resetMemoizedResults) {
-			this.transactionalIds = gatherBitmapIdsInternal();
-			this.transactionalIdHash = calculationContext.getHashFunction().hashLongs(
-				Arrays.stream(this.transactionalIds)
-					.distinct()
-					.sorted()
-					.toArray()
-			);
-		}
-		if (this.estimatedCost == null || resetMemoizedResults) {
-			if (calculationContext.visit(CalculationType.ESTIMATED_COST, this)) {
-				this.estimatedCost = getEstimatedCostInternal();
-			} else {
-				this.estimatedCost = 0L;
-			}
-		}
-		if ((this.cost == null || resetMemoizedResults) && this.memoizedResult != null) {
-			if (calculationContext.visit(CalculationType.COST, this)) {
-				this.cost = getCostInternal();
-				this.costToPerformance = getCostToPerformanceInternal();
-			} else {
-				this.cost = 0L;
-				this.costToPerformance = Long.MAX_VALUE;
-			}
-		}
-	}
 
 }

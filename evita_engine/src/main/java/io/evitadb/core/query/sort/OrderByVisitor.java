@@ -39,7 +39,7 @@ import io.evitadb.core.query.AttributeSchemaAccessor;
 import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
 import io.evitadb.core.query.LocaleProvider;
 import io.evitadb.core.query.PrefetchRequirementCollector;
-import io.evitadb.core.query.QueryContext;
+import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
@@ -107,7 +107,7 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	 * Reference to the query context that allows to access entity bodies, indexes, original request and much more.
 	 */
 	@Getter @Delegate(excludes = LocaleProvider.class)
-	private final QueryContext queryContext;
+	private final QueryPlanningContext queryContext;
 	/**
 	 * Collection contains all alternative {@link TargetIndexes} sets that might already contain precalculated information
 	 * related to {@link EntityIndex} that can be used to partially resolve input filter although the target index set
@@ -135,7 +135,7 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	private final Deque<Sorter> sorters = new ArrayDeque<>(16);
 
 	public OrderByVisitor(
-		@Nonnull QueryContext queryContext,
+		@Nonnull QueryPlanningContext queryContext,
 		@Nonnull List<? extends TargetIndexes<?>> targetIndexes,
 		@Nonnull PrefetchRequirementCollector prefetchRequirementCollector,
 		@Nonnull Formula filteringFormula
@@ -147,7 +147,7 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	}
 
 	public OrderByVisitor(
-		@Nonnull QueryContext queryContext,
+		@Nonnull QueryPlanningContext queryContext,
 		@Nonnull List<? extends TargetIndexes<?>> targetIndexes,
 		@Nonnull PrefetchRequirementCollector prefetchRequirementCollector,
 		@Nonnull Formula filteringFormula,
@@ -156,7 +156,7 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 		this.targetIndexes = targetIndexes;
 		this.prefetchRequirementCollector = prefetchRequirementCollector;
 		this.filteringFormula = filteringFormula;
-		scope.push(
+		this.scope.push(
 			new ProcessingScope(
 				this.queryContext.getGlobalEntityIndexIfExists()
 					.map(it -> new EntityIndex[]{it})

@@ -23,6 +23,7 @@
 
 package io.evitadb.core.query.algebra.base;
 
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
@@ -216,7 +217,7 @@ public class JoinFormula extends AbstractFormula {
 	}
 
 	@Override
-	public long getEstimatedCostInternal() {
+	public long getEstimatedCostInternal(@Nonnull QueryExecutionContext context) {
 		try {
 			long costs = 0L;
 			for (Bitmap bitmap : bitmaps) {
@@ -264,7 +265,7 @@ public class JoinFormula extends AbstractFormula {
 	protected long getCostInternal() {
 		return ofNullable(this.bitmaps)
 			.map(it -> Arrays.stream(it).mapToLong(Bitmap::size).sum())
-			.orElseGet(super::getCostInternal);
+			.orElseGet(() -> super.getCostInternal());
 	}
 
 	/*

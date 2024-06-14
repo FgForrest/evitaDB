@@ -26,6 +26,7 @@ package io.evitadb.core.query.extraResult.translator.histogram.producer;
 import io.evitadb.api.query.require.HistogramBehavior;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.facet.UserFilterFormula;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor;
@@ -62,6 +63,10 @@ import static java.util.Optional.ofNullable;
  */
 @RequiredArgsConstructor
 public class PriceHistogramComputer implements CacheableEvitaResponseExtraResultComputer<CacheableHistogramContract> {
+	/**
+	 * Execution context from initialization phase.
+	 */
+	protected QueryExecutionContext context;
 	/**
 	 * Contains reference to the lambda that needs to be executed THE FIRST time the histogram produced by this computer
 	 * instance is really computed (and memoized).
@@ -166,83 +171,64 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 
 	@Override
 	public void initialize(@Nonnull CalculationContext calculationContext) {
+		this.context = calculationContext.getExecutionContext();
 		this.filteringFormula.initialize(calculationContext);
-		if (this.hash == null) {
-			this.hash = calculationContext.getHashFunction().hashLongs(
-				new long[]{
-					bucketCount, behavior.ordinal(),
-					queryPriceMode.ordinal(),
-					filteringFormula.getHash()
-				}
-			);
-		}
-		if (this.memoizedTransactionalIdHash == null) {
-			this.transactionalIds = filteringFormula.gatherTransactionalIds();
-			this.memoizedTransactionalIdHash = calculationContext.getHashFunction().hashLongs(
-				Arrays.stream(this.transactionalIds)
-					.distinct()
-					.sorted()
-					.toArray()
-			);
-		}
-		if (this.estimatedCost == null) {
-			if (calculationContext.visit(CalculationType.ESTIMATED_COST, this)) {
-				this.estimatedCost = filteringFormula.compute().size() *
-					(filteredPriceRecordAccessors.size() / 2) *
-					getOperationCost();
-			} else {
-				this.estimatedCost = 0L;
+		this.hash = calculationContext.getHashFunction().hashLongs(
+			new long[]{
+				bucketCount, behavior.ordinal(),
+				queryPriceMode.ordinal(),
+				filteringFormula.getHash()
 			}
-		}
-		if (this.cost == null && this.memoizedResult != null) {
-			if (calculationContext.visit(CalculationType.COST, this)) {
-				this.cost = getPriceRecords().length * getOperationCost();
-				this.costToPerformance = getCost() / (getOperationCost() * bucketCount);
-			} else {
-				this.cost = 0L;
-				this.costToPerformance = Long.MAX_VALUE;
-			}
+		);
+		this.transactionalIds = filteringFormula.gatherTransactionalIds();
+		this.memoizedTransactionalIdHash = calculationContext.getHashFunction().hashLongs(
+			Arrays.stream(this.transactionalIds)
+				.distinct()
+				.sorted()
+				.toArray()
+		);
+		if (calculationContext.visit(CalculationType.ESTIMATED_COST, this)) {
+			this.estimatedCost = filteringFormula.compute().size() *
+				(filteredPriceRecordAccessors.size() / 2) *
+				getOperationCost();
+		} else {
+			this.estimatedCost = 0L;
 		}
 	}
 
 	@Override
 	public long getHash() {
-		if (this.hash == null) {
-			initialize(CalculationContext.NO_CACHING_INSTANCE);
-		}
+		Assert.isPremiseValid(this.hash != null, "The computer must be initialized prior to calling getHash().");
 		return this.hash;
 	}
 
 	@Override
 	public long getTransactionalIdHash() {
-		if (this.memoizedTransactionalIdHash == null) {
-			initialize(CalculationContext.NO_CACHING_INSTANCE);
-		}
+		Assert.isPremiseValid(this.memoizedTransactionalIdHash != null, "The computer must be initialized prior to calling getTransactionalIdHash().");
 		return this.memoizedTransactionalIdHash;
 	}
 
 	@Nonnull
 	@Override
 	public long[] gatherTransactionalIds() {
-		if (this.transactionalIds == null) {
-			initialize(CalculationContext.NO_CACHING_INSTANCE);
-		}
+		Assert.isPremiseValid(this.transactionalIds != null, "The computer must be initialized prior to calling gatherTransactionalIds().");
 		return this.transactionalIds;
 	}
 
 	@Override
 	public long getEstimatedCost() {
-		if (this.estimatedCost == null) {
-			initialize(CalculationContext.NO_CACHING_INSTANCE);
-		}
+		Assert.isPremiseValid(this.estimatedCost != null, "The computer must be initialized prior to calling getEstimatedCost().");
 		return this.estimatedCost;
 	}
 
 	@Override
 	public long getCost() {
 		if (this.cost == null) {
-			initialize(CalculationContext.NO_CACHING_INSTANCE);
-			Assert.isPremiseValid(this.cost != null, "Formula results haven't been computed!");
+			if (this.memoizedResult == null) {
+				return Long.MAX_VALUE;
+			} else {
+				this.cost = getPriceRecords().length * getOperationCost();
+			}
 		}
 		return this.cost;
 	}
@@ -256,8 +242,11 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 	@Override
 	public long getCostToPerformanceRatio() {
 		if (this.costToPerformance == null) {
-			initialize(CalculationContext.NO_CACHING_INSTANCE);
-			Assert.isPremiseValid(this.costToPerformance != null, "Formula results haven't been computed!");
+			if (this.memoizedResult == null) {
+				return Long.MAX_VALUE;
+			} else {
+				this.costToPerformance = getCost() / (getOperationCost() * bucketCount);
+			}
 		}
 		return this.costToPerformance;
 	}
