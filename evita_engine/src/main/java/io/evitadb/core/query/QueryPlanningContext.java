@@ -197,6 +197,11 @@ public class QueryPlanningContext implements LocaleProvider {
 	 */
 	private Map<FacetRelationTuple, FilteringFormulaPredicate> facetRelationTuples;
 	/**
+	 * Internal execution context used for execution of formulas evaluated in planning phase.
+	 */
+	@Getter @Nonnull
+	private final QueryExecutionContext internalExecutionContext;
+	/**
 	 * Internal cache currently server sor caching the computed formulas of nested queries.
 	 *
 	 * @see #computeOnlyOnce(List, FilterConstraint, Supplier, long...) for more details
@@ -276,6 +281,7 @@ public class QueryPlanningContext implements LocaleProvider {
 		this.indexes = (Map<IndexKey, Index<?>>) indexes;
 		this.cacheSupervisor = cacheSupervisor;
 		this.queryFinishedEvent = event;
+		this.internalExecutionContext = createExecutionContext();
 	}
 
 	/**
@@ -593,6 +599,9 @@ public class QueryPlanningContext implements LocaleProvider {
 	 * the nested tree is evaluated separately we need to cache its result to avoid unnecessary multiple creations
 	 * of the exactly same nested query formula tree.
 	 *
+	 * Formulas are expected to be invoked in planning phase and share the same {@link #internalExecutionContext}.
+	 *
+	 *
 	 * @param constraint      caching key for which the lambda should be invoked only once
 	 * @param formulaSupplier the lambda that creates the formula
 	 * @return created formula
@@ -618,6 +627,7 @@ public class QueryPlanningContext implements LocaleProvider {
 			final Formula cachedResult = internalCache.get(cacheKey);
 			if (cachedResult == null) {
 				final Formula computedResult = formulaSupplier.get();
+				computedResult.initialize(this.internalExecutionContext);
 				internalCache.put(cacheKey, computedResult);
 				return computedResult;
 			} else {
@@ -832,7 +842,18 @@ public class QueryPlanningContext implements LocaleProvider {
 	 */
 	@Nonnull
 	public QueryExecutionContext createExecutionContext() {
-		return new QueryExecutionContext(this);
+		return this.createExecutionContext(null);
+	}
+
+	/**
+	 * Creates new {@link QueryExecutionContext} that can be used to execute the query plan.
+	 * This overload allows to pass frozen random bytes that will be used for the query execution.
+	 *
+	 * @return new query execution context
+	 */
+	@Nonnull
+	public QueryExecutionContext createExecutionContext(@Nullable byte[] frozenRandom) {
+		return new QueryExecutionContext(this, frozenRandom);
 	}
 
 	/*

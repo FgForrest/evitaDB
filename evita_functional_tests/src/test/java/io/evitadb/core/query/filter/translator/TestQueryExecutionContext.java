@@ -36,7 +36,6 @@ import io.evitadb.api.requestResponse.data.structure.predicate.HierarchySerializ
 import io.evitadb.api.requestResponse.data.structure.predicate.LocaleSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.PriceContractSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceContractSerializablePredicate;
-import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.QueryPlanningContext;
@@ -62,26 +61,11 @@ public class TestQueryExecutionContext extends QueryExecutionContext {
 	private final Map<Integer, SealedEntity> entities;
 
 	public TestQueryExecutionContext(
-		CatalogSchemaContract catalogSchema,
 		EntitySchemaContract entitySchema,
 		Query query,
 		Map<Integer, SealedEntity> entities
 	) {
-		super(Mockito.mock(QueryPlanningContext.class));
-		/*super(
-			new ProcessingScope<>(
-				EntityIndex.class,
-				Collections.emptyList(),
-				AttributeContent.ALL_ATTRIBUTES,
-				entitySchema, null, null,
-				new AttributeSchemaAccessor(catalogSchema, entitySchema),
-				(entityContract, attributeName, locale) -> Stream.of(entityContract.getAttributeValue(attributeName, locale))
-			),
-			Mockito.mock(QueryPlanningContext.class),
-			Collections.emptyList(),
-			Mockito.mock(TargetIndexes.class),
-			false
-		);*/
+		super(Mockito.mock(QueryPlanningContext.class), null);
 		this.schema = entitySchema;
 		this.evitaRequest = new EvitaRequest(
 			query,
@@ -92,23 +76,6 @@ public class TestQueryExecutionContext extends QueryExecutionContext {
 		);
 		this.entities = entities;
 	}
-
-	/* TODO JNO - Jestli to nebude potřeba, tak smazat */
-	/*@Nonnull
-	@Override
-	public Formula getSuperSetFormula() {
-		return new ConstantFormula(
-			new ArrayBitmap(
-				this.entities.keySet().stream().mapToInt(it -> it).toArray()
-			)
-		);
-	}
-
-	@Nonnull
-	@Override
-	public EntitySchemaContract getSchema(@Nonnull String entityType) {
-		throw new UnsupportedOperationException();
-	}*/
 
 	@Nullable
 	@Override

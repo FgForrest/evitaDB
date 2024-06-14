@@ -29,7 +29,6 @@ import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.visitor.Accumulator;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.visitor.ChildrenStatisticsHierarchyVisitor;
-import io.evitadb.core.query.response.TransactionalDataRelatedStructure.CalculationContext;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.hierarchy.predicate.FilteringFormulaHierarchyEntityPredicate;
 import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
@@ -86,7 +85,7 @@ public class NodeRelativeStatisticsComputer extends AbstractHierarchyStatisticsC
 			context.entitySchema(),
 			context.referenceSchema()
 		);
-		parentIdPredicate.initialize(new CalculationContext(executionContext));
+		parentIdPredicate.initializeIfNotAlreadyInitialized(executionContext);
 		final Bitmap parentId = parentIdPredicate.getFilteringFormula().compute();
 
 		if (!parentId.isEmpty()) {

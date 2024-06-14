@@ -25,6 +25,7 @@ package io.evitadb.core.query.algebra.price.termination;
 
 import io.evitadb.core.cache.payload.FlattenedFormula;
 import io.evitadb.core.cache.payload.FlattenedFormulaWithFilteredPricesAndFilteredOutRecords;
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.SharedBufferPool;
 import io.evitadb.core.query.algebra.AbstractCacheableFormula;
 import io.evitadb.core.query.algebra.CacheableFormula;
@@ -103,9 +104,10 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 		@Nonnull PriceEvaluationContext priceEvaluationContext,
 		@Nonnull PriceRecordPredicate pricePredicate
 	) {
-		super(null, containerFormula);
+		super(null);
 		this.priceEvaluationContext = priceEvaluationContext;
 		this.pricePredicate = pricePredicate;
+		this.initFields(containerFormula);
 	}
 
 	private PlainPriceTerminationFormulaWithPriceFilter(
@@ -114,9 +116,10 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 		@Nonnull PriceEvaluationContext priceEvaluationContext,
 		@Nonnull PriceRecordPredicate pricePredicate
 	) {
-		super(computationCallback, containerFormula);
+		super(computationCallback);
 		this.pricePredicate = pricePredicate;
 		this.priceEvaluationContext = priceEvaluationContext;
+		this.initFields(containerFormula);
 	}
 
 	private PlainPriceTerminationFormulaWithPriceFilter(
@@ -126,10 +129,11 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 		@Nonnull PriceRecordPredicate pricePredicate,
 		@Nonnull Bitmap recordsFilteredOutByPredicate
 	) {
-		super(recordsFilteredOutByPredicate, computationCallback, containerFormula);
+		super(recordsFilteredOutByPredicate, computationCallback);
 		this.pricePredicate = pricePredicate;
 		this.priceEvaluationContext = priceEvaluationContext;
 		this.recordsFilteredOutByPredicate = recordsFilteredOutByPredicate;
+		this.initFields(containerFormula);
 	}
 
 	@Nullable
@@ -141,14 +145,15 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 	/**
 	 * Returns delegate formula of this container.
 	 */
+	@Nonnull
 	public Formula getDelegate() {
 		return this.innerFormulas[0];
 	}
 
 	@Override
-	public void initialize(@Nonnull CalculationContext calculationContext) {
-		getDelegate().initialize(calculationContext);
-		super.initialize(calculationContext);
+	public void initialize(@Nonnull QueryExecutionContext executionContextt) {
+		getDelegate().initialize(executionContext);
+		super.initialize(executionContext);
 	}
 
 	@Nonnull

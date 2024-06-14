@@ -55,14 +55,14 @@ public interface CatalogStoragePartPersistenceService extends StoragePartPersist
 	/**
 	 * Writes the catalog header with the specified information to the catalog.
 	 *
-	 * @param storageProtocolVersion              The storage protocol version.
-	 * @param catalogVersion                      The catalog version.
-	 * @param catalogStoragePath				  The catalog storage path, must not be null.
-	 * @param walFileLocation                     The WAL file location, may be null.
-	 * @param collectionFileReferenceIndex        The collection file reference index, must not be null.
-	 * @param catalogName                         The catalog name, must not be null.
-	 * @param catalogState                        The catalog state, must not be null.
-	 * @param lastEntityCollectionPrimaryKey      The last entity collection primary key.
+	 * @param storageProtocolVersion         The storage protocol version.
+	 * @param catalogVersion                 The catalog version.
+	 * @param catalogStoragePath             The catalog storage path, must not be null.
+	 * @param walFileLocation                The WAL file location, may be null.
+	 * @param collectionFileReferenceIndex   The collection file reference index, must not be null.
+	 * @param catalogName                    The catalog name, must not be null.
+	 * @param catalogState                   The catalog state, must not be null.
+	 * @param lastEntityCollectionPrimaryKey The last entity collection primary key.
 	 */
 	void writeCatalogHeader(
 		int storageProtocolVersion,

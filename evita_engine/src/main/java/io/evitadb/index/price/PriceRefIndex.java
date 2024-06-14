@@ -23,6 +23,7 @@
 
 package io.evitadb.index.price;
 
+import io.evitadb.api.CatalogState;
 import io.evitadb.api.query.order.PriceNatural;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.core.Catalog;
@@ -106,7 +107,7 @@ public class PriceRefIndex extends AbstractPriceIndex<PriceListAndCurrencyPriceR
 
 	@Nonnull
 	@Override
-	public PriceRefIndex createCopyForNewCatalogAttachment() {
+	public PriceRefIndex createCopyForNewCatalogAttachment(@Nonnull CatalogState catalogState) {
 		return new PriceRefIndex(
 			this.priceIndexes
 				.entrySet()
@@ -114,7 +115,7 @@ public class PriceRefIndex extends AbstractPriceIndex<PriceListAndCurrencyPriceR
 				.collect(
 					Collectors.toMap(
 						Map.Entry::getKey,
-						it -> it.getValue().createCopyForNewCatalogAttachment()
+						it -> it.getValue().createCopyForNewCatalogAttachment(catalogState)
 					)
 				)
 		);

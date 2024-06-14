@@ -69,7 +69,6 @@ import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.core.query.response.ServerEntityDecorator;
-import io.evitadb.core.query.response.TransactionalDataRelatedStructure.CalculationContext;
 import io.evitadb.core.query.sort.ReferenceOrderByVisitor;
 import io.evitadb.core.query.sort.ReferenceOrderByVisitor.OrderingDescriptor;
 import io.evitadb.core.query.sort.Sorter;
@@ -492,7 +491,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 							resultFormula,
 							entityPrimaryKeyFormula
 						);
-						combinedFormula.initialize(new CalculationContext(executionContext));
+						combinedFormula.initialize(executionContext);
 						matchingPrimaryKeys = combinedFormula.compute();
 						lastIndexFormula = resultFormula;
 						lastResult = matchingPrimaryKeys;
@@ -1115,14 +1114,18 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			// scope predicate limits the parent traversal
 			final HierarchyTraversalPredicate scopePredicate = hierarchyContent.getStopAt()
 				.map(
-					stopAt -> stopAtConstraintToPredicate(
-						TraversalDirection.BOTTOM_UP,
-						stopAt,
-						queryContext,
-						globalIndex,
-						entitySchema,
-						null
-					)
+					stopAt -> {
+						final HierarchyTraversalPredicate predicate = stopAtConstraintToPredicate(
+							TraversalDirection.BOTTOM_UP,
+							stopAt,
+							queryContext,
+							globalIndex,
+							entitySchema,
+							null
+						);
+						predicate.initializeIfNotAlreadyInitialized(executionContext);
+						return predicate;
+					}
 				)
 				.orElse(HierarchyTraversalPredicate.NEVER_STOP_PREDICATE);
 

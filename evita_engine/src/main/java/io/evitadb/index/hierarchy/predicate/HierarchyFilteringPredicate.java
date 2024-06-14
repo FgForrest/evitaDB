@@ -23,10 +23,10 @@
 
 package io.evitadb.index.hierarchy.predicate;
 
-import io.evitadb.core.query.response.TransactionalDataRelatedStructure.CalculationContext;
+import io.evitadb.core.query.QueryExecutionContext;
+import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -41,7 +41,7 @@ import java.util.function.Predicate;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public interface HierarchyFilteringPredicate extends IntPredicate {
+public non-sealed interface HierarchyFilteringPredicate extends IntPredicate, ExecutionContextRequiringPredicate {
 
 	HierarchyFilteringPredicate REJECT_ALL_NODES_PREDICATE = new HierarchyFilteringRejectAllPredicate();
 	HierarchyFilteringPredicate ACCEPT_ALL_NODES_PREDICATE = new HierarchyFilteringAcceptAllPredicate();
@@ -67,9 +67,9 @@ public interface HierarchyFilteringPredicate extends IntPredicate {
 	/**
 	 * Allows to compute the {@link #getHash()}. Must be called prior to {@link #getHash()} method
 	 *
-	 * @param calculationContext the context providing access to hash function
+	 * @param executionContext the context for the query execution
 	 */
-	void initialize(@Nonnull CalculationContext calculationContext);
+	void initializeIfNotAlreadyInitialized(@Nonnull QueryExecutionContext executionContext);
 
 	/**
 	 * Returns unique hash for this predicate.
@@ -89,31 +89,32 @@ public interface HierarchyFilteringPredicate extends IntPredicate {
 	 * Implementation of {@link HierarchyFilteringPredicate} that combines two implementations of the same type with
 	 * AND relation.
 	 */
-	@RequiredArgsConstructor
 	class AndHierarchyFilteringPredicate implements HierarchyFilteringPredicate, Serializable {
 		@Serial private static final long serialVersionUID = 1384400346650986235L;
 		private final HierarchyFilteringPredicate first;
 		private final HierarchyFilteringPredicate second;
-		private Long hash;
+		private final Long hash;
+
+		public AndHierarchyFilteringPredicate(HierarchyFilteringPredicate first, HierarchyFilteringPredicate second) {
+			this.first = first;
+			this.second = second;
+			this.hash = TransactionalDataRelatedStructure.HASH_FUNCTION.hashLongs(
+				new long[]{
+					serialVersionUID,
+					first.getHash(),
+					second.getHash()
+				}
+			);
+		}
 
 		@Override
-		public void initialize(@Nonnull CalculationContext calculationContext) {
-			first.initialize(calculationContext);
-			second.initialize(calculationContext);
-			if (this.hash == null) {
-				this.hash = calculationContext.getHashFunction().hashLongs(
-					new long[]{
-						serialVersionUID,
-						first.getHash(),
-						second.getHash()
-					}
-				);
-			}
+		public void initializeIfNotAlreadyInitialized(@Nonnull QueryExecutionContext executionContext) {
+			first.initializeIfNotAlreadyInitialized(executionContext);
+			second.initializeIfNotAlreadyInitialized(executionContext);
 		}
 
 		@Override
 		public long getHash() {
-			Assert.isPremiseValid(this.hash != null, "Predicate must be initialized prior to calling getHash().");
 			return this.hash;
 		}
 
@@ -133,26 +134,28 @@ public interface HierarchyFilteringPredicate extends IntPredicate {
 	 * Implementation of {@link HierarchyFilteringPredicate} that combines two implementations of the same type with
 	 * OR relation.
 	 */
-	@RequiredArgsConstructor
 	class OrHierarchyFilteringPredicate implements HierarchyFilteringPredicate, Serializable {
 		@Serial private static final long serialVersionUID = 2547741955086633818L;
 		private final HierarchyFilteringPredicate first;
 		private final HierarchyFilteringPredicate second;
-		private Long hash;
+		private final Long hash;
+
+		public OrHierarchyFilteringPredicate(HierarchyFilteringPredicate first, HierarchyFilteringPredicate second) {
+			this.first = first;
+			this.second = second;
+			this.hash = TransactionalDataRelatedStructure.HASH_FUNCTION.hashLongs(
+				new long[]{
+					serialVersionUID,
+					first.getHash(),
+					second.getHash()
+				}
+			);
+		}
 
 		@Override
-		public void initialize(@Nonnull CalculationContext calculationContext) {
-			first.initialize(calculationContext);
-			second.initialize(calculationContext);
-			if (this.hash == null) {
-				this.hash = calculationContext.getHashFunction().hashLongs(
-					new long[]{
-						serialVersionUID,
-						first.getHash(),
-						second.getHash()
-					}
-				);
-			}
+		public void initializeIfNotAlreadyInitialized(@Nonnull QueryExecutionContext executionContext) {
+			first.initializeIfNotAlreadyInitialized(executionContext);
+			second.initializeIfNotAlreadyInitialized(executionContext);
 		}
 
 		@Override
@@ -176,7 +179,7 @@ public interface HierarchyFilteringPredicate extends IntPredicate {
 		@Serial private static final long serialVersionUID = 5859718563627156229L;
 
 		@Override
-		public void initialize(@Nonnull CalculationContext calculationContext) {
+		public void initializeIfNotAlreadyInitialized(@Nonnull QueryExecutionContext executionContext) {
 
 		}
 
@@ -200,7 +203,7 @@ public interface HierarchyFilteringPredicate extends IntPredicate {
 		@Serial private static final long serialVersionUID = 387062010451039137L;
 
 		@Override
-		public void initialize(@Nonnull CalculationContext calculationContext) {
+		public void initializeIfNotAlreadyInitialized(@Nonnull QueryExecutionContext executionContext) {
 
 		}
 
@@ -220,17 +223,18 @@ public interface HierarchyFilteringPredicate extends IntPredicate {
 		}
 	}
 
-	@RequiredArgsConstructor
 	class NegatedHierarchyFilteringPredicate implements HierarchyFilteringPredicate {
 		@Getter private final HierarchyFilteringPredicate predicate;
-		private Long hash;
+		private final Long hash;
+
+		public NegatedHierarchyFilteringPredicate(HierarchyFilteringPredicate predicate) {
+			this.predicate = predicate;
+			this.hash = predicate.getHash() * -1;
+		}
 
 		@Override
-		public void initialize(@Nonnull CalculationContext calculationContext) {
-			predicate.initialize(calculationContext);
-			if (this.hash == null) {
-				this.hash = predicate.getHash() * -1;
-			}
+		public void initializeIfNotAlreadyInitialized(@Nonnull QueryExecutionContext executionContext) {
+			predicate.initializeIfNotAlreadyInitialized(executionContext);
 		}
 
 		@Override

@@ -23,6 +23,7 @@
 
 package io.evitadb.index.invertedIndex.suppliers;
 
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.deferred.BitmapSupplier;
 import io.evitadb.core.query.algebra.deferred.DeferredFormula;
 import io.evitadb.dataType.array.CompositeIntArray;
@@ -31,7 +32,6 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.invertedIndex.InvertedIndex;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.utils.Assert;
-import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import java.util.Arrays;
@@ -45,7 +45,6 @@ import java.util.stream.Stream;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-@RequiredArgsConstructor
 public class HistogramBitmapSupplier<T extends Comparable<T>> implements BitmapSupplier {
 	private static final long CLASS_ID = 516692463222738021L;
 	private final ValueToRecordBitmap<T>[] histogramBuckets;
@@ -57,35 +56,35 @@ public class HistogramBitmapSupplier<T extends Comparable<T>> implements BitmapS
 	/**
 	 * Contains memoized value of {@link #getEstimatedCost()}  of this formula.
 	 */
-	private Long estimatedCost;
+	private final Long estimatedCost;
 	/**
 	 * Contains memoized value of {@link #getCost()}  of this formula.
 	 */
-	private Long cost;
+	private final Long cost;
 	/**
 	 * Contains memoized value of {@link #getCostToPerformanceRatio()} of this formula.
 	 */
-	private Long costToPerformance;
+	private final Long costToPerformance;
 	/**
 	 * Contains memoized value of {@link #getEstimatedCardinality()} of this formula.
 	 */
-	private Integer estimatedCardinality;
+	private final Integer estimatedCardinality;
 	/**
 	 * Contains memoized value of {@link #getHash()} method.
 	 */
-	private Long hash;
+	private final Long hash;
 	/**
 	 * Contains memoized value of {@link #gatherTransactionalIds()} method.
 	 */
-	private long[] transactionalIds;
+	private final long[] transactionalIds;
 	/**
 	 * Contains memoized value of {@link #gatherTransactionalIds()} computed hash.
 	 */
-	private Long transactionalIdHash;
+	private final Long transactionalIdHash;
 
-	@Override
-	public void initialize(@Nonnull CalculationContext calculationContext) {
-		this.hash = calculationContext.getHashFunction().hashLongs(
+	public HistogramBitmapSupplier(ValueToRecordBitmap<T>[] histogramBuckets) {
+		this.histogramBuckets = histogramBuckets;
+		this.hash = HASH_FUNCTION.hashLongs(
 			Stream.of(
 					LongStream.of(CLASS_ID),
 					Arrays.stream(histogramBuckets).mapToLong(it -> it.getRecordIds().getId()).sorted()
@@ -96,26 +95,23 @@ public class HistogramBitmapSupplier<T extends Comparable<T>> implements BitmapS
 		this.estimatedCardinality = Arrays.stream(histogramBuckets)
 			.mapToInt(it -> it.getRecordIds().size())
 			.sum();
-		if (calculationContext.visit(CalculationType.ESTIMATED_COST, this)) {
-			this.estimatedCost = this.estimatedCardinality * getOperationCost();
-		} else {
-			this.estimatedCost = 0L;
-		}
-		if (calculationContext.visit(CalculationType.COST, this)) {
-			this.cost = this.estimatedCost;
-		} else {
-			this.cost = 0L;
-		}
+		this.estimatedCost = this.estimatedCardinality * getOperationCost();
+		this.cost = this.estimatedCost;
 		this.costToPerformance = getCost() / (get().size() * getOperationCost());
 		this.transactionalIds = Arrays.stream(histogramBuckets)
 			.mapToLong(it -> it.getRecordIds().getId())
 			.toArray();
-		this.transactionalIdHash = calculationContext.getHashFunction().hashLongs(
+		this.transactionalIdHash = HASH_FUNCTION.hashLongs(
 			Arrays.stream(this.transactionalIds)
 				.distinct()
 				.sorted()
 				.toArray()
 		);
+	}
+
+	@Override
+	public void initialize(@Nonnull QueryExecutionContext executionContext) {
+		// do nothing
 	}
 
 	@Override

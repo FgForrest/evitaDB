@@ -231,6 +231,41 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 		this.behavior = behavior;
 		this.request = request;
 		this.onComputationCallback = null;
+
+		this.hash = HASH_FUNCTION.hashLongs(
+			LongStream.concat(
+				LongStream.of(
+					bucketCount,
+					behavior.ordinal(),
+					filterFormula.getHash()
+				),
+				LongStream.of(
+					request.attributeIndexes()
+						.stream()
+						.mapToLong(FilterIndex::getId)
+						.sorted()
+						.toArray()
+				)
+			).toArray()
+		);
+		this.transactionalIds = LongStream.concat(
+			LongStream.of(filterFormula.gatherTransactionalIds()),
+			request.attributeIndexes()
+				.stream()
+				.mapToLong(FilterIndex::getId)
+		).toArray();
+		this.transactionalIdHash = HASH_FUNCTION.hashLongs(
+			Arrays.stream(this.transactionalIds)
+				.distinct()
+				.sorted()
+				.toArray()
+		);
+		this.estimatedCost = filterFormula.getEstimatedCost() +
+			getAttributeIndexes()
+				.stream()
+				.map(FilterIndex::getAllRecordsFormula)
+				.mapToLong(TransactionalDataRelatedStructure::getEstimatedCost)
+				.sum() * getOperationCost();
 	}
 
 	@Override
@@ -268,48 +303,9 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 	}
 
 	@Override
-	public void initialize(@Nonnull CalculationContext calculationContext) {
-		this.context = calculationContext.getExecutionContext();
-		this.filterFormula.initialize(calculationContext);
-		this.hash = calculationContext.getHashFunction().hashLongs(
-			LongStream.concat(
-				LongStream.of(
-					bucketCount,
-					behavior.ordinal(),
-					filterFormula.getHash()
-				),
-				LongStream.of(
-					request.attributeIndexes()
-						.stream()
-						.mapToLong(FilterIndex::getId)
-						.sorted()
-						.toArray()
-				)
-			).toArray()
-		);
-		this.transactionalIds = LongStream.concat(
-			LongStream.of(filterFormula.gatherTransactionalIds()),
-			request.attributeIndexes()
-				.stream()
-				.mapToLong(FilterIndex::getId)
-		).toArray();
-		this.transactionalIdHash = calculationContext.getHashFunction().hashLongs(
-			Arrays.stream(this.transactionalIds)
-				.distinct()
-				.sorted()
-				.toArray()
-		);
-		if (calculationContext.visit(CalculationType.ESTIMATED_COST, this)) {
-			this.estimatedCost = filterFormula.getEstimatedCost() +
-				getAttributeIndexes()
-					.stream()
-					.map(FilterIndex::getAllRecordsFormula)
-					.peek(it -> it.initialize(calculationContext))
-					.mapToLong(TransactionalDataRelatedStructure::getEstimatedCost)
-					.sum() * getOperationCost();
-		} else {
-			this.estimatedCost = 0L;
-		}
+	public void initialize(@Nonnull QueryExecutionContext executionContext) {
+		this.context = executionContext;
+		this.filterFormula.initialize(executionContext);
 	}
 
 	@Override

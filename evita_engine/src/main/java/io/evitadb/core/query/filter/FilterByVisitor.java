@@ -222,10 +222,6 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 */
 	@Getter private final boolean targetIndexQueriedByOtherConstraints;
 	/**
-	 * Superset formula with all primary keys present in indexes.
-	 */
-	private Formula superSetFormula;
-	/**
 	 * Contains the translated formula from the filtering query source tree.
 	 */
 	private Formula computedFormula;
@@ -594,7 +590,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 			return EmptyFormula.INSTANCE;
 		}
 
-		return executeInContext(
+		final Formula resultFormula = executeInContext(
 			ReferencedTypeEntityIndex.class,
 			Collections.singletonList(entityIndex),
 			ReferenceContent.ALL_REFERENCES,
@@ -608,6 +604,11 @@ public class FilterByVisitor implements ConstraintVisitor {
 				return getFormulaAndClear();
 			}
 		);
+
+		// we need to initialize formula here, because the result will be needed in internal phase
+		resultFormula.initialize(this.getInternalExecutionContext());
+
+		return resultFormula;
 	}
 
 	/**
@@ -690,11 +691,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 */
 	@Nonnull
 	public Formula getSuperSetFormula() {
-		if (this.superSetFormula == null) {
-			this.superSetFormula = applyOnIndexes(EntityIndex::getAllPrimaryKeysFormula);
-			this.superSetFormula.initialize();
-		}
-		return superSetFormula;
+		return getProcessingScope().getSuperSetFormula();
 	}
 
 	/**
@@ -951,6 +948,11 @@ public class FilterByVisitor implements ConstraintVisitor {
 		PRIVATE METHODS
 	 */
 
+	/**
+	 * Joins formulas into one OR formula.
+	 * @param formulaStream stream of formulas
+	 * @return joined formula
+	 */
 	@Nonnull
 	private Formula joinFormulas(@Nonnull Stream<Formula> formulaStream) {
 		final Formula[] formulas = formulaStream
@@ -1071,6 +1073,10 @@ public class FilterByVisitor implements ConstraintVisitor {
 		 * Contains set of indexes, that should be used for accessing final indexes.
 		 */
 		private List<T> indexes;
+		/**
+		 * Superset formula with all primary keys present in indexes.
+		 */
+		private Formula superSetFormula;
 
 		private static void examineChildren(
 			@Nonnull Consumer<FilterConstraint> lambda,
@@ -1286,6 +1292,27 @@ public class FilterByVisitor implements ConstraintVisitor {
 		@Nullable
 		public Stream<Optional<AttributeValue>> getAttributeValueStream(@Nonnull EntityContract entitySchema, @Nonnull String attributeName, @Nullable Locale locale) {
 			return attributeValueAccessor.apply(entitySchema, attributeName, locale);
+		}
+
+		/**
+		 * Calculates and returns super-set formula (i.e. formula containing all primary keys from involved indexes)
+		 * for the current scope of the execution.
+		 *
+		 * @return super set formula
+		 */
+		@Nonnull
+		public Formula getSuperSetFormula() {
+			if (this.superSetFormula == null) {
+				this.superSetFormula = FormulaFactory.or(
+					getIndexStream()
+						.filter(EntityIndex.class::isInstance)
+						.map(EntityIndex.class::cast)
+						.map(EntityIndex::getAllPrimaryKeysFormula)
+						.filter(it -> !(it instanceof EmptyFormula))
+						.toArray(Formula[]::new)
+				);
+			}
+			return this.superSetFormula;
 		}
 	}
 

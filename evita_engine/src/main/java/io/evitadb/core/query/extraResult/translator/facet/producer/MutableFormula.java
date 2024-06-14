@@ -23,6 +23,7 @@
 
 package io.evitadb.core.query.extraResult.translator.facet.producer;
 
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.FormulaVisitor;
 import io.evitadb.core.query.algebra.facet.FacetGroupFormula;
@@ -86,8 +87,8 @@ class MutableFormula implements Formula {
 	}
 
 	@Override
-	public void initialize(@Nonnull CalculationContext calculationContext) {
-		getInnerFormula().initialize(calculationContext);
+	public void initialize(@Nonnull QueryExecutionContext executionContext) {
+		getInnerFormula().initialize(executionContext);
 	}
 
 	@Override

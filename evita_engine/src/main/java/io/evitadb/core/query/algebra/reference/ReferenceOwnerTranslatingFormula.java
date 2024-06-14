@@ -80,10 +80,10 @@ public class ReferenceOwnerTranslatingFormula extends AbstractFormula {
 		@Nonnull Formula innerFormula,
 		@Nonnull IntFunction<Bitmap> primaryKeyExpander
 	) {
-		super(innerFormula);
 		this.primaryKeyExpander = primaryKeyExpander;
 		this.referencedEntityTypeTransactionalId = referencedEntityTypeTransactionalId;
 		this.worstCardinality = worstCardinality;
+		this.initFields(innerFormula);
 	}
 
 	public ReferenceOwnerTranslatingFormula(
@@ -91,10 +91,10 @@ public class ReferenceOwnerTranslatingFormula extends AbstractFormula {
 		@Nonnull Formula innerFormula,
 		@Nonnull IntFunction<Bitmap> primaryKeyExpander
 	) {
-		super(innerFormula);
 		this.primaryKeyExpander = primaryKeyExpander;
 		this.referencedEntityTypeTransactionalId = referencedEntityGlobalIndex.getId();
 		this.worstCardinality = referencedEntityGlobalIndex.getSize();
+		this.initFields(innerFormula);
 	}
 
 	@Override

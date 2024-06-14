@@ -198,8 +198,6 @@ public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProces
 	public void visit(@Nonnull Formula formula) {
 		if (outputFormula == null) {
 			this.outputFormula = formula;
-			// we will work with estimated costs, so we need to initialize the formula
-			formula.initialize();
 		}
 		if (formula instanceof final SelectionFormula selectionFormula) {
 			expectedComputationalCosts += selectionFormula.getDelegate().getEstimatedCost();

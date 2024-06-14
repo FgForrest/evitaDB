@@ -48,11 +48,11 @@ public abstract class AbstractFormula implements Formula {
 	/**
 	 * Execution context from initialization phase.
 	 */
-	protected QueryExecutionContext context;
+	protected QueryExecutionContext executionContext;
 	/**
 	 * Contains array of inner formulas.
 	 */
-	@Getter protected final Formula[] innerFormulas;
+	@Getter protected Formula[] innerFormulas;
 	/**
 	 * Contains memoized result once {@link #computeInternal()} is invoked for the first time. Additional calls of
 	 * {@link Formula#compute()} will return this memoized result without paying the computational costs
@@ -83,39 +83,42 @@ public abstract class AbstractFormula implements Formula {
 	 */
 	private Long transactionalIdHash;
 
-	protected AbstractFormula(Formula... innerFormulas) {
+	/**
+	 * Initializes the fields of this formula. This method is called from the constructor and should be used to
+	 * initialize the fields of the formula. The method is called after the inner formulas are set.
+	 *
+	 * TOBEDONE when upgrading to Java 22 with https://openjdk.org/jeps/447, switch fields to final and do this in the constructor
+	 *
+	 * @param innerFormulas inner formulas of this formula
+	 */
+	protected void initFields(@Nonnull Formula... innerFormulas) {
 		this.innerFormulas = innerFormulas;
-	}
-
-	@Override
-	public void initialize(@Nonnull CalculationContext calculationContext) {
-		this.context = calculationContext.getExecutionContext();
-
-		for (Formula innerFormula : innerFormulas) {
-			innerFormula.initialize(calculationContext);
-		}
 		final LongStream formulaHashStream = Arrays.stream(innerFormulas)
 			.mapToLong(TransactionalDataRelatedStructure::getHash);
-		this.hash = calculationContext.getHashFunction().hashLongs(
+		this.hash = HASH_FUNCTION.hashLongs(
 			Stream.of(
 					LongStream.of(getClassId()),
 					isFormulaOrderSignificant() ? formulaHashStream : formulaHashStream.sorted(),
-					LongStream.of(includeAdditionalHash(calculationContext.getHashFunction()))
+					LongStream.of(includeAdditionalHash(HASH_FUNCTION))
 				)
 				.flatMapToLong(it -> it)
 				.toArray()
 		);
 		this.transactionalIds = gatherBitmapIdsInternal();
-		this.transactionalIdHash = calculationContext.getHashFunction().hashLongs(
+		this.transactionalIdHash = HASH_FUNCTION.hashLongs(
 			Arrays.stream(this.transactionalIds)
 				.distinct()
 				.sorted()
 				.toArray()
 		);
-		if (context != null && calculationContext.visit(CalculationType.ESTIMATED_COST, this)) {
-			this.estimatedCost = getEstimatedCostInternal(context);
-		} else {
-			this.estimatedCost = 0L;
+		this.estimatedCost = getEstimatedCostInternal();
+	}
+
+	@Override
+	public void initialize(@Nonnull QueryExecutionContext executionContext) {
+		this.executionContext = executionContext;
+		for (Formula innerFormula : innerFormulas) {
+			innerFormula.initialize(executionContext);
 		}
 	}
 
@@ -139,7 +142,7 @@ public abstract class AbstractFormula implements Formula {
 	}
 
 	@Override
-	public final long getEstimatedCost() {
+	public long getEstimatedCost() {
 		Assert.isPremiseValid(this.estimatedCost != null, "The formula must be initialized prior to calling getEstimatedCost().");
 		return this.estimatedCost;
 	}
@@ -185,11 +188,7 @@ public abstract class AbstractFormula implements Formula {
 	@Override
 	public void clearMemory() {
 		this.memoizedResult = null;
-		this.hash = null;
-		this.transactionalIds = null;
-		this.transactionalIdHash = null;
 		this.cost = null;
-		this.estimatedCost = null;
 		this.costToPerformance = null;
 	}
 
@@ -233,7 +232,7 @@ public abstract class AbstractFormula implements Formula {
 	 * sizes of referenced bitmaps multiplied by known {@link #getOperationCost()} of this operation.
 	 * This method doesn't trigger formula computation.
 	 */
-	protected long getEstimatedCostInternal(@Nonnull QueryExecutionContext context) {
+	protected long getEstimatedCostInternal() {
 		try {
 			long costs = getEstimatedBaseCost();
 			for (Formula innerFormula : innerFormulas) {

@@ -51,26 +51,20 @@ import io.evitadb.core.query.extraResult.CacheableEvitaResponseExtraResultComput
 import io.evitadb.core.query.extraResult.EvitaResponseExtraResultComputer;
 import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.dataType.array.CompositeIntArray;
-import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.TriFunction;
 import io.evitadb.index.attribute.EntityReferenceWithLocale;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
+import io.evitadb.utils.RandomUtils;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
-import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
 import java.util.*;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -96,6 +90,13 @@ public class QueryExecutionContext implements Closeable {
 	@Nonnull @Getter
 	private final QueryPlanningContext queryContext;
 	/**
+	 * This field is used only for debugging purposes when we need to compute results for different variants of
+	 * query plan. In case random function is used in the evaluation process, the variants would ultimately produce
+	 * different results. Therefore, we "freeze" the {@link Random} using Java serialization process and restore it
+	 * along with its internal state for each query plan so that the random row, stays the same for all evaluations.
+	 */
+	private final byte[] frozenRandom;
+	/**
 	 * Contains list of prefetched entities if they were considered worthwhile to prefetch -
 	 * see {@link SelectionFormula} for more information.
 	 */
@@ -110,40 +111,12 @@ public class QueryExecutionContext implements Closeable {
 	 */
 	private Map<EntityReferenceContract<EntityReference>, EntityDecorator> entityReferenceIndex;
 	/**
-	 * This field is used only for debugging purposes when we need to compute results for different variants of
-	 * query plan. In case random function is used in the evaluation process, the variants would ultimately produce
-	 * different results. Therefore, we "freeze" the {@link Random} using Java serialization process and restore it
-	 * along with its internal state for each query plan so that the random row, stays the same for all evaluations.
-	 */
-	private byte[] frozenRandom;
-	/**
 	 * Contains lazy initialized local buffer pool.
 	 */
 	private Deque<int[]> buffers;
 
 	/**
-	 * Executes code in `lambda` function with a {@link Random} object that will generate the same sequences for each
-	 * call of {@link #getRandom()} method. It also doesn't record a query telemetry.
-	 *
-	 * @see #frozenRandom for more information
-	 */
-	public <T> T executeInDryRun(@Nonnull Function<QueryExecutionContext, T> lambda) {
-		try {
-			final ByteArrayOutputStream bos = new ByteArrayOutputStream(200);
-			try (var os = new ObjectOutputStream(bos)) {
-				os.writeObject(new Random());
-				this.frozenRandom = bos.toByteArray();
-			} catch (IOException e) {
-				throw new GenericEvitaInternalError("Unexpected error during debug mode evaluation!", e);
-			}
-			return lambda.apply(this);
-		} finally {
-			this.frozenRandom = null;
-		}
-	}
-
-	/**
-	 * Returns true if the context is inside {@link #executeInDryRun(Function)} method.
+	 * Returns true if the context is inside {@link QueryPlanner#verifyConsistentResultsInAllPlans(QueryPlanningContext, List, List, QueryPlanBuilder)}  method.
 	 */
 	public boolean isDryRun() {
 		return this.frozenRandom != null;
@@ -156,15 +129,7 @@ public class QueryExecutionContext implements Closeable {
 	 */
 	@Nonnull
 	public Random getRandom() {
-		return ofNullable(frozenRandom)
-			.map(it -> {
-				try (var is = new ObjectInputStream(new ByteArrayInputStream(it))) {
-					return (Random) is.readObject();
-				} catch (IOException | ClassNotFoundException e) {
-					throw new GenericEvitaInternalError("Unexpected error during debug mode evaluation!", e);
-				}
-			})
-			.orElseGet(ThreadLocalRandom::current);
+		return RandomUtils.getRandom(this.frozenRandom);
 	}
 
 	/**

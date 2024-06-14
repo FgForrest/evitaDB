@@ -52,6 +52,7 @@ import io.evitadb.core.Catalog;
 import io.evitadb.core.EntityCollection;
 import io.evitadb.core.EvitaSession;
 import io.evitadb.core.async.Scheduler;
+import io.evitadb.core.buffer.WarmUpDataStoreMemoryBuffer;
 import io.evitadb.core.cache.NoCacheSupervisor;
 import io.evitadb.core.metric.event.storage.FileType;
 import io.evitadb.core.sequence.SequenceService;
@@ -288,7 +289,14 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		entityHeaders.add(storeCollection.flush());
 
 		// try to serialize
-		ioService.storeHeader(CatalogState.WARMING_UP, 0, 0, null, entityHeaders);
+		ioService.storeHeader(
+			CatalogState.WARMING_UP,
+			0,
+			0,
+			null,
+			entityHeaders,
+			new WarmUpDataStoreMemoryBuffer<>(ioService.getStoragePartPersistenceService(0L))
+		);
 
 		// try to deserialize again
 		final CatalogHeader catalogHeader = ioService.getCatalogHeader(0L);
@@ -475,7 +483,8 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 				2L,
 				0,
 				null,
-				Collections.emptyList()
+				Collections.emptyList(),
+				new WarmUpDataStoreMemoryBuffer<>(cps.getStoragePartPersistenceService(0L))
 			);
 		}
 
@@ -538,7 +547,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		for (int i = 0; i < 12; i++) {
 			final int catalogVersion = i + 1;
 			DefaultCatalogPersistenceService.CURRENT_TIME_MILLIS = () -> startTime.plusHours(catalogVersion).toInstant().toEpochMilli();
-			ioService.recordBootstrap(catalogVersion, catalogName, 0);
+			ioService.recordBootstrap(catalogVersion, catalogName, 0, null);
 		}
 
 		final PaginatedList<CatalogVersion> catalogVersions = ioService.getCatalogVersions(TimeFlow.FROM_OLDEST_TO_NEWEST, 1, 5);
@@ -598,7 +607,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		);
 
 		for (int i = 0; i < 12; i++) {
-			ioService.recordBootstrap(i + 1, catalogName, 0);
+			ioService.recordBootstrap(i + 1, catalogName, 0, null);
 		}
 
 		final PaginatedList<CatalogVersion> catalogVersions = ioService.getCatalogVersions(TimeFlow.FROM_NEWEST_TO_OLDEST, 1, 5);
@@ -633,7 +642,8 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		for (int i = 0; i < 12; i++) {
 			ioService.recordBootstrap(
 				i + 1, catalogName, 0,
-				timestamp.plusMinutes(i).toInstant().toEpochMilli()
+				timestamp.plusMinutes(i).toInstant().toEpochMilli(),
+				null
 			);
 		}
 
@@ -683,7 +693,8 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 				productCollection.flush(),
 				brandCollection.flush(),
 				storeCollection.flush()
-			)
+			),
+			new WarmUpDataStoreMemoryBuffer<>(ioService.getStoragePartPersistenceService(0L))
 		);
 
 		final Path dataDirectory = getTestDirectory().resolve(DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST);
@@ -737,7 +748,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		final EntityCollection entityCollection = new EntityCollection(
 			catalogSchema.getName(),
 			0L,
-			entityTypePrimaryKey,
+			CatalogState.WARMING_UP, entityTypePrimaryKey,
 			entitySchema.getName(),
 			ioService,
 			NoCacheSupervisor.INSTANCE,
@@ -785,7 +796,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		final EntityCollection collection = new EntityCollection(
 			catalogSchema.getName(),
 			0L,
-			entityCollection.getEntityTypePrimaryKey(),
+			CatalogState.WARMING_UP, entityCollection.getEntityTypePrimaryKey(),
 			schema.getName(),
 			ioService,
 			NoCacheSupervisor.INSTANCE,

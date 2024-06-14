@@ -23,6 +23,7 @@
 
 package io.evitadb.index;
 
+import io.evitadb.api.CatalogState;
 import io.evitadb.api.exception.EntityLocaleMissingException;
 import io.evitadb.api.exception.UniqueValueViolationException;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
@@ -125,7 +126,7 @@ public class CatalogIndex implements
 
 	@Nonnull
 	@Override
-	public CatalogIndex createCopyForNewCatalogAttachment() {
+	public CatalogIndex createCopyForNewCatalogAttachment(@Nonnull CatalogState catalogState) {
 		return new CatalogIndex(
 			this.version,
 			this.uniqueIndex
@@ -134,7 +135,7 @@ public class CatalogIndex implements
 				.collect(
 					Collectors.toMap(
 						Entry::getKey,
-						entry -> entry.getValue().createCopyForNewCatalogAttachment()
+						entry -> entry.getValue().createCopyForNewCatalogAttachment(catalogState)
 					)
 				)
 		);

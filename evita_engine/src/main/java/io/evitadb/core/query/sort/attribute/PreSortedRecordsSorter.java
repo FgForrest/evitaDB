@@ -102,6 +102,30 @@ public class PreSortedRecordsSorter extends AbstractRecordsSorter implements Cac
 		this.computationCallback = null;
 		this.sortedRecordsSupplier = sortedRecordsSupplier;
 		this.unknownRecordIdsSorter = null;
+
+		this.hash = HASH_FUNCTION.hashLongs(
+			Stream.of(
+					LongStream.of(CLASS_ID),
+					LongStream.of(
+						Arrays.stream(getSortedRecordsProviders())
+							.filter(SortedRecordsSupplier.class::isInstance)
+							.map(SortedRecordsSupplier.class::cast)
+							.mapToLong(SortedRecordsSupplier::getTransactionalId)
+							.toArray()
+					)
+				)
+				.flatMapToLong(Function.identity())
+				.toArray()
+		);
+		this.transactionalIds = Arrays.stream(getSortedRecordsProviders())
+			.filter(SortedRecordsSupplier.class::isInstance)
+			.map(SortedRecordsSupplier.class::cast)
+			.mapToLong(SortedRecordsSupplier::getTransactionalId)
+			.toArray();
+		this.transactionalIdHash = HASH_FUNCTION.hashLongs(this.transactionalIds);
+		this.estimatedCost = Arrays.stream(getSortedRecordsProviders())
+			.mapToInt(SortedRecordsProvider::getRecordCount)
+			.sum() * getOperationCost();
 	}
 
 	@Nonnull
@@ -136,34 +160,8 @@ public class PreSortedRecordsSorter extends AbstractRecordsSorter implements Cac
 	}
 
 	@Override
-	public void initialize(@Nonnull CalculationContext calculationContext) {
-		this.hash = calculationContext.getHashFunction().hashLongs(
-			Stream.of(
-					LongStream.of(CLASS_ID),
-					LongStream.of(
-						Arrays.stream(getSortedRecordsProviders())
-							.filter(SortedRecordsSupplier.class::isInstance)
-							.map(SortedRecordsSupplier.class::cast)
-							.mapToLong(SortedRecordsSupplier::getTransactionalId)
-							.toArray()
-					)
-				)
-				.flatMapToLong(Function.identity())
-				.toArray()
-		);
-		this.transactionalIds = Arrays.stream(getSortedRecordsProviders())
-			.filter(SortedRecordsSupplier.class::isInstance)
-			.map(SortedRecordsSupplier.class::cast)
-			.mapToLong(SortedRecordsSupplier::getTransactionalId)
-			.toArray();
-		this.transactionalIdHash = calculationContext.getHashFunction().hashLongs(this.transactionalIds);
-		if (calculationContext.visit(CalculationType.ESTIMATED_COST, this)) {
-			this.estimatedCost = Arrays.stream(getSortedRecordsProviders())
-				.mapToInt(SortedRecordsProvider::getRecordCount)
-				.sum() * getOperationCost();
-		} else {
-			this.estimatedCost = 0L;
-		}
+	public void initialize(@Nonnull QueryExecutionContext executionContext) {
+		// do nothing
 	}
 
 	@Override

@@ -27,7 +27,6 @@ import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.utils.Assert;
-import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import java.util.function.BiFunction;
@@ -39,17 +38,21 @@ import java.util.function.BiFunction;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-@RequiredArgsConstructor
 public class FormulaWrapper implements BitmapSupplier {
 	private final Formula formula;
 	private final BiFunction<QueryExecutionContext, Formula, Bitmap> firstInvocation;
 	private QueryExecutionContext executionContext;
 	private Bitmap computed;
 
+	public FormulaWrapper(@Nonnull Formula formula, @Nonnull BiFunction<QueryExecutionContext, Formula, Bitmap> firstInvocation) {
+		this.formula = formula;
+		this.firstInvocation = firstInvocation;
+	}
+
 	@Override
-	public void initialize(@Nonnull CalculationContext calculationContext) {
-		this.executionContext = calculationContext.getExecutionContext();
-		this.formula.initialize(calculationContext);
+	public void initialize(@Nonnull QueryExecutionContext executionContext) {
+		this.executionContext = executionContext;
+		this.formula.initialize(executionContext);
 	}
 
 	@Override

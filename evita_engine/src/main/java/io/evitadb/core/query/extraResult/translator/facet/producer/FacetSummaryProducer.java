@@ -684,7 +684,6 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 									.flatMap(it -> it.getFacetEntityIds().stream())
 									.toArray(Bitmap[]::new)
 							);
-							entityMatchingAnyOfGroupFacetFormula.initialize();
 							final int entityMatchingAnyOfGroupFacet = entityMatchingAnyOfGroupFacetFormula.compute().size();
 							if (entityMatchingAnyOfGroupFacet == 0) {
 								return null;

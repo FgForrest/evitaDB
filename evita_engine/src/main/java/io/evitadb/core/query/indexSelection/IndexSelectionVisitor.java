@@ -44,7 +44,6 @@ import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.hierarchy.HierarchyWithinRootTranslator;
 import io.evitadb.core.query.filter.translator.hierarchy.HierarchyWithinTranslator;
-import io.evitadb.core.query.response.TransactionalDataRelatedStructure.CalculationContext;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.CatalogIndexKey;
@@ -159,10 +158,6 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 						// if target entity has no global index present, it means that the query cannot be fulfilled
 						// we may quickly return empty result
 						targetIndexes.add(TargetIndexes.EMPTY);
-					} else {
-						requestedHierarchyNodesFormula.initialize(
-							new CalculationContext(this.queryContext.createExecutionContext())
-						);
 					}
 					// locate all hierarchy indexes
 					final Bitmap requestedHierarchyNodes = requestedHierarchyNodesFormula.compute();

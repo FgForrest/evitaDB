@@ -27,12 +27,10 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.core.cache.CacheEden;
-import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
-import io.evitadb.utils.Assert;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -51,7 +49,6 @@ import java.util.function.UnaryOperator;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-@RequiredArgsConstructor
 public class EntityComputationalObjectAdapter implements TransactionalDataRelatedStructure {
 	/**
 	 * Primary key of the entity that is requested for fetching.
@@ -76,38 +73,35 @@ public class EntityComputationalObjectAdapter implements TransactionalDataRelate
 	 */
 	@Getter private final OffsetDateTime alignedNow;
 	/**
-	 * Contains the count of requested {@link io.evitadb.api.query.require.EntityContentRequire} that control how many
-	 * containers would have to be fetched from the persistent storage in order to supply rich enough entity for
-	 * the current request. This affects the "cost" of the entity fetch that needs to be examined when determining which
-	 * entities are worth to stay in the cache.
-	 */
-	private final int requirementCount;
-	/**
-	 * Contains minimal threshold of the {@link Formula#getEstimatedCost()}  that formula needs to exceed in order to
-	 * become a cache adept, that may be potentially moved to {@link CacheEden}.
-	 */
-	private final long minimalComplexityThreshold;
-	/**
 	 * Contains memoized value of {@link #getEstimatedCost()}  of this formula.
 	 */
-	private Long estimatedCost;
+	private final Long estimatedCost;
 	/**
 	 * Contains memoized value of {@link #getCost()}  of this formula.
 	 */
-	private Long cost;
+	private final Long cost;
+
+	public EntityComputationalObjectAdapter(
+		int entityPrimaryKey,
+		@Nonnull Supplier<EntitySchemaContract> entitySchemaFetcher,
+		@Nonnull Supplier<ServerEntityDecorator> entityFetcher,
+		@Nonnull UnaryOperator<ServerEntityDecorator> entityEnricher,
+		@Nonnull OffsetDateTime alignedNow,
+		int requirementCount,
+		long minimalComplexityThreshold
+	) {
+		this.entityPrimaryKey = entityPrimaryKey;
+		this.entitySchemaFetcher = entitySchemaFetcher;
+		this.entityFetcher = entityFetcher;
+		this.entityEnricher = entityEnricher;
+		this.alignedNow = alignedNow;
+		this.estimatedCost = Math.max(minimalComplexityThreshold, requirementCount * getOperationCost());
+		this.cost = Math.max(minimalComplexityThreshold, requirementCount * getOperationCost());
+	}
 
 	@Override
-	public void initialize(@Nonnull CalculationContext calculationContext) {
-		if (calculationContext.visit(CalculationType.ESTIMATED_COST, this)) {
-			this.estimatedCost = Math.max(minimalComplexityThreshold, requirementCount * getOperationCost());
-		} else {
-			this.estimatedCost = 0L;
-		}
-		if (calculationContext.visit(CalculationType.COST, this)) {
-			this.cost = Math.max(minimalComplexityThreshold, requirementCount * getOperationCost());
-		} else {
-			this.cost = 0L;
-		}
+	public void initialize(@Nonnull QueryExecutionContext executionContext) {
+		// do nothing
 	}
 
 	@Override
@@ -128,13 +122,11 @@ public class EntityComputationalObjectAdapter implements TransactionalDataRelate
 
 	@Override
 	public long getEstimatedCost() {
-		Assert.isPremiseValid(this.estimatedCost != null, "The adapter hasn't been initialized!");
 		return this.estimatedCost;
 	}
 
 	@Override
 	public long getCost() {
-		Assert.isPremiseValid(this.cost != null, "The adapter hasn't been initialized!");
 		return this.cost;
 	}
 

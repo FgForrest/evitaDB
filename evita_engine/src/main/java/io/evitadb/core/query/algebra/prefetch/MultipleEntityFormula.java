@@ -53,6 +53,7 @@ public class MultipleEntityFormula extends AbstractFormula {
 	public MultipleEntityFormula(@Nonnull long[] transactionalIds, @Nonnull Bitmap directEntityReferences) {
 		this.transactionalIds = transactionalIds;
 		this.directEntityReferences = directEntityReferences;
+		this.initFields();
 	}
 
 	@Override

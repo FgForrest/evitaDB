@@ -78,21 +78,28 @@ public class PriceIdToEntityIdTranslateFormula extends AbstractCacheableFormula 
 	private FilteredPriceRecords filteredPriceRecords;
 
 	public PriceIdToEntityIdTranslateFormula(@Nonnull Formula delegate) {
-		super(null, delegate);
+		super(null);
+		this.initFields(delegate);
 	}
 
 	private PriceIdToEntityIdTranslateFormula(@Nullable Consumer<CacheableFormula> computationCallback, @Nonnull FilteredPriceRecords filteredPriceRecords, @Nonnull Formula delegate) {
-		super(computationCallback, delegate);
+		super(computationCallback);
 		this.filteredPriceRecords = filteredPriceRecords;
+		this.initFields(delegate);
 	}
 
 	/**
 	 * Returns delegate formula of this container.
 	 */
+	@Nonnull
 	public Formula getDelegate() {
 		return this.innerFormulas[0];
 	}
 
+	/**
+	 * Returns bitmap of price ids produced by the delegate formula.
+	 */
+	@Nonnull
 	public Bitmap getPriceIdBitmap() {
 		return getDelegate().compute();
 	}

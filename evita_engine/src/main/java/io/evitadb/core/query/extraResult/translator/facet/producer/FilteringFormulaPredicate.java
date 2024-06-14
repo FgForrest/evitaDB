@@ -81,6 +81,8 @@ public class FilteringFormulaPredicate implements IntPredicate {
 				}
 			)
 		);
+		// we need to initialize formula immediately with new execution context - the results are needed in planning phase already
+		this.filteringFormula.initialize(queryContext.getInternalExecutionContext());
 	}
 
 	@Override

@@ -112,7 +112,6 @@ public class ImpactFormulaGenerator extends AbstractFacetFormulaGenerator {
 					new FacetGroupOrFormula(referenceName, facetGroupId, new BaseBitmap(facetId), facetEntityIdsBitmap)
 			);
 			formula.accept(mutableFormulaFinderAndReplacer);
-			formula.initialize();
 			return formula;
 		} else {
 			final Formula result = super.generateFormula(
@@ -127,7 +126,6 @@ public class ImpactFormulaGenerator extends AbstractFacetFormulaGenerator {
 				new CacheKey(referenceName, negation, disjunction, conjunction, normalizedFacetGroupId) :
 				new CacheKey(null, negation, disjunction, conjunction, null);
 			this.cache.put(cacheKey, result);
-			result.initialize();
 			return result;
 		}
 	}

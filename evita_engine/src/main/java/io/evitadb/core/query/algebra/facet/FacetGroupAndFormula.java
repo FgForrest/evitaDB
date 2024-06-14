@@ -73,12 +73,12 @@ public class FacetGroupAndFormula extends AbstractFormula implements FacetGroupF
 	@Getter private final Bitmap[] bitmaps;
 
 	public FacetGroupAndFormula(@Nonnull String referenceName, @Nullable Integer facetGroupId, @Nonnull Bitmap facetIds, @Nonnull Bitmap... bitmaps) {
-		super();
 		Assert.isPremiseValid(facetIds.size() == bitmaps.length, "Expected one bitmap for each facet.");
 		this.referenceName = referenceName;
 		this.facetGroupId = facetGroupId;
 		this.facetIds = facetIds;
 		this.bitmaps = bitmaps;
+		this.initFields();
 	}
 
 	@Nonnull
@@ -151,7 +151,7 @@ public class FacetGroupAndFormula extends AbstractFormula implements FacetGroupF
 	@Override
 	public int getEstimatedCardinality() {
 		if (bitmaps == null) {
-			return Arrays.stream(this.innerFormulas).mapToInt(formula -> formula.getEstimatedCardinality()).min().orElse(0);
+			return Arrays.stream(this.innerFormulas).mapToInt(Formula::getEstimatedCardinality).min().orElse(0);
 		} else {
 			return Arrays.stream(this.bitmaps).mapToInt(Bitmap::size).min().orElse(0);
 		}
@@ -183,6 +183,6 @@ public class FacetGroupAndFormula extends AbstractFormula implements FacetGroupF
 	protected long getCostInternal() {
 		return ofNullable(this.bitmaps)
 			.map(it -> Arrays.stream(it).mapToLong(Bitmap::size).sum())
-			.orElseGet(() -> super.getCostInternal());
+			.orElseGet(super::getCostInternal);
 	}
 }

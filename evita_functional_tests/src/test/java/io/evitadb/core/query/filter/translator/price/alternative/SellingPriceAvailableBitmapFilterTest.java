@@ -128,7 +128,6 @@ class SellingPriceAvailableBitmapFilterTest {
 		final SellingPriceAvailableBitmapFilter filter = new SellingPriceAvailableBitmapFilter(null);
 		final Bitmap result = filter.filter(
 			new TestQueryExecutionContext(
-				CATALOG_SCHEMA,
 				PRODUCT_SCHEMA,
 				Query.query(
 					collection(Entities.PRODUCT),
@@ -157,7 +156,6 @@ class SellingPriceAvailableBitmapFilterTest {
 		final SellingPriceAvailableBitmapFilter filter = new SellingPriceAvailableBitmapFilter(PRICE_LIST_REFERENCE);
 		final Bitmap result = filter.filter(
 			new TestQueryExecutionContext(
-				CATALOG_SCHEMA,
 				PRODUCT_SCHEMA,
 				Query.query(
 					collection(Entities.PRODUCT),
@@ -191,7 +189,6 @@ class SellingPriceAvailableBitmapFilterTest {
 		);
 		final Bitmap result = filter.filter(
 			new TestQueryExecutionContext(
-				CATALOG_SCHEMA,
 				PRODUCT_SCHEMA,
 				Query.query(
 					collection(Entities.PRODUCT),
@@ -226,7 +223,6 @@ class SellingPriceAvailableBitmapFilterTest {
 		);
 		final Bitmap result = filter.filter(
 			new TestQueryExecutionContext(
-				CATALOG_SCHEMA,
 				PRODUCT_SCHEMA,
 				Query.query(
 					collection(Entities.PRODUCT),
@@ -256,7 +252,6 @@ class SellingPriceAvailableBitmapFilterTest {
 		final SellingPriceAvailableBitmapFilter filter = new SellingPriceAvailableBitmapFilter(PRICE_LIST_REFERENCE);
 		final Bitmap result = filter.filter(
 			new TestQueryExecutionContext(
-				CATALOG_SCHEMA,
 				PRODUCT_SCHEMA,
 				Query.query(
 					collection(Entities.PRODUCT),
@@ -286,7 +281,6 @@ class SellingPriceAvailableBitmapFilterTest {
 		final SellingPriceAvailableBitmapFilter filter = new SellingPriceAvailableBitmapFilter(PRICE_LIST_REFERENCE);
 		final Bitmap result = filter.filter(
 			new TestQueryExecutionContext(
-				CATALOG_SCHEMA,
 				PRODUCT_SCHEMA,
 				Query.query(
 					collection(Entities.PRODUCT),

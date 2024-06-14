@@ -47,12 +47,12 @@ import java.util.Arrays;
 public class CombinedFacetFormula extends AbstractFormula implements NonCacheableFormula {
 	private static final long CLASS_ID = 523840934350100709L;
 
-	public CombinedFacetFormula(Formula andFormula, Formula orFormula) {
-		super(andFormula, orFormula);
+	public CombinedFacetFormula(@Nonnull Formula andFormula, @Nonnull Formula orFormula) {
+		this.initFields(andFormula, orFormula);
 	}
 
-	private CombinedFacetFormula(Formula... innerFormulas) {
-		super(innerFormulas);
+	private CombinedFacetFormula(@Nonnull Formula... innerFormulas) {
+		this.initFields(innerFormulas);
 	}
 
 	@Nonnull

@@ -95,7 +95,7 @@ class BackgroundRunnableTaskTest implements TestConstants {
 	}
 
 	@Test
-	void shouldCorrectlyCalculateCumulatedProgress() throws ExecutionException, InterruptedException {
+	void shouldCorrectlyCalculateCumulatedProgress() {
 		final BackgroundRunnableTask task1 = new BackgroundRunnableTask(
 			"task1",
 			theTask -> sleepingUpdateTask(theTask, 2, 100)

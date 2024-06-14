@@ -32,7 +32,6 @@ import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.visitor.Accumulator;
-import io.evitadb.core.query.response.TransactionalDataRelatedStructure.CalculationContext;
 import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
 import io.evitadb.index.hierarchy.predicate.HierarchyTraversalPredicate;
 import io.evitadb.index.hierarchy.predicate.LocaleHierarchyEntityPredicate;
@@ -139,11 +138,14 @@ abstract class AbstractHierarchyStatisticsComputer {
 		} else {
 			filteringPredicate = ofNullable(hierarchyFilterPredicateProducer.apply(statisticsBase))
 				.map(it -> {
-					it.initialize(new CalculationContext(executionContext));
+					it.initializeIfNotAlreadyInitialized(executionContext);
 					return it;
 				})
 				.orElse(HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE);
 		}
+		// init the predicate
+		this.scopePredicate.initializeIfNotAlreadyInitialized(executionContext);
+		filteringPredicate.initializeIfNotAlreadyInitialized(executionContext);
 		// the language predicate is used to filter out entities that doesn't have requested language variant
 		return createStatistics(
 			executionContext,

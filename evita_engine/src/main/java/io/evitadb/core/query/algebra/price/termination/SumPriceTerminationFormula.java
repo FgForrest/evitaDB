@@ -30,6 +30,7 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.core.cache.payload.FlattenedFormula;
 import io.evitadb.core.cache.payload.FlattenedFormulaWithFilteredPricesAndFilteredOutRecords;
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.SharedBufferPool;
 import io.evitadb.core.query.algebra.AbstractCacheableFormula;
 import io.evitadb.core.query.algebra.CacheableFormula;
@@ -119,7 +120,7 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 		@Nonnull QueryPriceMode queryPriceMode,
 		@Nonnull PriceRecordPredicate pricePredicate
 	) {
-		super(null, containerFormula);
+		super(null);
 		this.pricePredicate = pricePredicate;
 		this.priceEvaluationContext = priceEvaluationContext;
 		this.queryPriceMode = queryPriceMode;
@@ -128,6 +129,7 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 		} else {
 			this.transformer = PriceRecordContract::priceWithoutTax;
 		}
+		this.initFields(containerFormula);
 	}
 
 	private SumPriceTerminationFormula(
@@ -137,7 +139,7 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 		@Nonnull QueryPriceMode queryPriceMode,
 		@Nonnull PriceRecordPredicate pricePredicate
 	) {
-		super(computationCallback, containerFormula);
+		super(computationCallback);
 		this.pricePredicate = pricePredicate;
 		this.priceEvaluationContext = priceEvaluationContext;
 		this.queryPriceMode = queryPriceMode;
@@ -146,6 +148,7 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 		} else {
 			this.transformer = PriceRecordContract::priceWithoutTax;
 		}
+		this.initFields(containerFormula);
 	}
 
 	private SumPriceTerminationFormula(
@@ -156,7 +159,7 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 		@Nonnull PriceRecordPredicate pricePredicate,
 		@Nonnull Bitmap recordsFilteredOutByPredicate
 	) {
-		super(recordsFilteredOutByPredicate, computationCallback, containerFormula);
+		super(recordsFilteredOutByPredicate, computationCallback);
 		this.pricePredicate = pricePredicate;
 		this.priceEvaluationContext = priceEvaluationContext;
 		this.queryPriceMode = queryPriceMode;
@@ -166,6 +169,7 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 			this.transformer = PriceRecordContract::priceWithoutTax;
 		}
 		this.recordsFilteredOutByPredicate = recordsFilteredOutByPredicate;
+		this.initFields(containerFormula);
 	}
 
 	@Nullable
@@ -182,9 +186,9 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 	}
 
 	@Override
-	public void initialize(@Nonnull CalculationContext calculationContext) {
-		getDelegate().initialize(calculationContext);
-		super.initialize(calculationContext);
+	public void initialize(@Nonnull QueryExecutionContext executionContext) {
+		getDelegate().initialize(executionContext);
+		super.initialize(executionContext);
 	}
 
 	@Nonnull

@@ -27,7 +27,6 @@ import io.evitadb.api.exception.EntityCollectionRequiredException;
 import io.evitadb.api.query.require.EntityRequire;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
-import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor;
@@ -35,14 +34,10 @@ import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRec
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.ResolvedFilteredPriceRecords;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.utils.Assert;
-import lombok.RequiredArgsConstructor;
 import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.List;
-
-import static java.util.Optional.ofNullable;
 
 /**
  * The formula is used only in case that the input {@link EvitaRequest} doesn't specify the entity collection it
@@ -53,7 +48,6 @@ import static java.util.Optional.ofNullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-@RequiredArgsConstructor
 public class EntityFilteringFormula extends AbstractFormula implements RequirementsDefiner, FilteredPriceRecordAccessor {
 	private static final long CLASS_ID = -1887923944737482575L;
 	/**
@@ -66,6 +60,12 @@ public class EntityFilteringFormula extends AbstractFormula implements Requireme
 	 * Contains the alternative computation based on entity contents filtering.
 	 */
 	private final EntityToBitmapFilter alternative;
+
+	public EntityFilteringFormula(@Nonnull String reason, @Nonnull EntityToBitmapFilter alternative) {
+		this.reason = reason;
+		this.alternative = alternative;
+		this.initFields();
+	}
 
 	@Override
 	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
@@ -80,19 +80,19 @@ public class EntityFilteringFormula extends AbstractFormula implements Requireme
 	@Nonnull
 	@Override
 	protected Bitmap computeInternal() {
-		Assert.isPremiseValid(this.context != null, "The formula hasn't been initialized!");
+		Assert.isPremiseValid(this.executionContext != null, "The formula hasn't been initialized!");
 		Assert.isTrue(
-			this.context.getPrefetchedEntities() != null,
+			this.executionContext.getPrefetchedEntities() != null,
 			() -> new EntityCollectionRequiredException(reason)
 		);
-		return alternative.filter(this.context);
+		return alternative.filter(this.executionContext);
 	}
 
 	@Nonnull
 	@Override
 	public FilteredPriceRecords getFilteredPriceRecords() {
-		Assert.isPremiseValid(this.context != null, "The formula hasn't been initialized!");
-		Assert.isTrue(this.context.getPrefetchedEntities() != null, () -> new EntityCollectionRequiredException("matching entities"));
+		Assert.isPremiseValid(this.executionContext != null, "The formula hasn't been initialized!");
+		Assert.isTrue(this.executionContext.getPrefetchedEntities() != null, () -> new EntityCollectionRequiredException("matching entities"));
 		return alternative instanceof FilteredPriceRecordAccessor ?
 			((FilteredPriceRecordAccessor) alternative).getFilteredPriceRecords() :
 			new ResolvedFilteredPriceRecords();
@@ -112,18 +112,16 @@ public class EntityFilteringFormula extends AbstractFormula implements Requireme
 
 	@Override
 	public int getEstimatedCardinality() {
-		Assert.isPremiseValid(this.context != null, "The formula hasn't been initialized!");
-		return ofNullable(this.context.getPrefetchedEntities())
-			.map(List::size)
-			.orElse(0);
+		// we can't know upfront - but this formula is used for scenarios where the entities are prefetched
+		// so the cost is not relevant
+		return Integer.MAX_VALUE;
 	}
 
 	@Override
-	protected long getEstimatedCostInternal(@Nonnull QueryExecutionContext context) {
-		if (alternative.getEntityRequire() == null) {
-			return 0;
-		}
-		return (1 + alternative.getEntityRequire().getRequirements().length) * 148L;
+	protected long getEstimatedCostInternal() {
+		// we can't know upfront - but this formula is used for scenarios where the entities are prefetched
+		// so the cost is not relevant
+		return Long.MAX_VALUE;
 	}
 
 	@Override
@@ -131,7 +129,7 @@ public class EntityFilteringFormula extends AbstractFormula implements Requireme
 		if (alternative.getEntityRequire() == null) {
 			return 0;
 		}
-		return (1 + alternative.getEntityRequire().getRequirements().length) * 148L;
+		return ((1 + alternative.getEntityRequire().getRequirements().length) * 148L) * compute().size();
 	}
 
 	@Override

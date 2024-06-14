@@ -136,7 +136,7 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 	/**
 	 * Contains memoized value of {@link #gatherTransactionalIds()} computed hash.
 	 */
-	private Long memoizedTransactionalIdHash;
+	private Long transactionalIdHash;
 	/**
 	 * Contains price record array that all price records that represents source records for price histogram computation.
 	 * It is initialized during {@link #compute()} method and result is memoized, so it's ensured it's computed only once.
@@ -167,13 +167,8 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 		this.filteringFormulaWithFilteredOutRecords = filteringFormulaWithFilteredOutRecords;
 		this.filteredPriceRecordAccessors = filteredPriceRecordAccessors;
 		this.priceRecordsLookupResult = priceRecordsLookupResult;
-	}
 
-	@Override
-	public void initialize(@Nonnull CalculationContext calculationContext) {
-		this.context = calculationContext.getExecutionContext();
-		this.filteringFormula.initialize(calculationContext);
-		this.hash = calculationContext.getHashFunction().hashLongs(
+		this.hash = HASH_FUNCTION.hashLongs(
 			new long[]{
 				bucketCount, behavior.ordinal(),
 				queryPriceMode.ordinal(),
@@ -181,19 +176,21 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 			}
 		);
 		this.transactionalIds = filteringFormula.gatherTransactionalIds();
-		this.memoizedTransactionalIdHash = calculationContext.getHashFunction().hashLongs(
+		this.transactionalIdHash = HASH_FUNCTION.hashLongs(
 			Arrays.stream(this.transactionalIds)
 				.distinct()
 				.sorted()
 				.toArray()
 		);
-		if (calculationContext.visit(CalculationType.ESTIMATED_COST, this)) {
-			this.estimatedCost = filteringFormula.compute().size() *
-				(filteredPriceRecordAccessors.size() / 2) *
-				getOperationCost();
-		} else {
-			this.estimatedCost = 0L;
-		}
+		this.estimatedCost = filteringFormula.getEstimatedCardinality() *
+			(filteredPriceRecordAccessors.size() / 2) *
+			getOperationCost();
+	}
+
+	@Override
+	public void initialize(@Nonnull QueryExecutionContext executionContext) {
+		this.context = executionContext;
+		this.filteringFormula.initialize(executionContext);
 	}
 
 	@Override
@@ -204,8 +201,8 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 
 	@Override
 	public long getTransactionalIdHash() {
-		Assert.isPremiseValid(this.memoizedTransactionalIdHash != null, "The computer must be initialized prior to calling getTransactionalIdHash().");
-		return this.memoizedTransactionalIdHash;
+		Assert.isPremiseValid(this.transactionalIdHash != null, "The computer must be initialized prior to calling getTransactionalIdHash().");
+		return this.transactionalIdHash;
 	}
 
 	@Nonnull

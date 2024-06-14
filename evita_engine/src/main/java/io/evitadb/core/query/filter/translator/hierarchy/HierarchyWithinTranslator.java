@@ -101,6 +101,10 @@ public class HierarchyWithinTranslator extends AbstractHierarchyTranslator<Hiera
 							targetEntitySchema.getName(),
 							() -> "Finding hierarchy parent node: " + parentFilter
 						);
+						// we need to initialize the formula with internal context,
+						// because we'll need the result in planning phase
+						hierarchyParentFormula.initialize(filterByVisitor.getInternalExecutionContext());
+
 						queryContext.setRootHierarchyNodesFormula(hierarchyParentFormula);
 
 						return FormulaFactory.or(

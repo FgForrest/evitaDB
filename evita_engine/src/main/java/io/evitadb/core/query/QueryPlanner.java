@@ -55,10 +55,10 @@ import io.evitadb.index.Index;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.RandomUtils;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.openhft.hashing.LongHashFunction;
 
@@ -432,15 +432,16 @@ public class QueryPlanner {
 	 * Method verifies that all passed `queryPlanBuilders` produce the very same result as the `mainBuilder` in
 	 * the computed response.
 	 */
-	private static void verifyConsistentResultsInAllPlans(
+	static void verifyConsistentResultsInAllPlans(
 		@Nonnull QueryPlanningContext context,
 		@Nonnull List<? extends TargetIndexes<?>> targetIndexes,
 		@Nonnull List<QueryPlanBuilder> queryPlanBuilders,
 		@Nonnull QueryPlanBuilder mainBuilder
 	) {
 		// execute the main - bitmap preferring, no caching plan
+		final byte[] frozenRandom = RandomUtils.getFrozenRandom();
 		final QueryPlan mainPlan = mainBuilder.build();
-		final EvitaResponse<EntityClassifier> mainResponse = mainPlan.executeInDryRun();
+		final EvitaResponse<EntityClassifier> mainResponse = mainPlan.execute(frozenRandom);
 
 		queryPlanBuilders
 			.stream()
@@ -467,7 +468,7 @@ public class QueryPlanner {
 						.flatMap(Function.identity())
 						.forEach(
 							cachePolicy -> {
-								final EvitaResponse<EntityClassifier> alternativeResponse = alternativeBuilder.build().executeInDryRun();
+								final EvitaResponse<EntityClassifier> alternativeResponse = alternativeBuilder.build().execute(frozenRandom);
 								Assert.isPremiseValid(
 									mainResponse.equals(alternativeResponse),
 									() -> new InconsistentResultsException(mainBuilder, mainResponse, alternativeBuilder, alternativeResponse)
@@ -489,9 +490,9 @@ public class QueryPlanner {
 	 * compared against certain superset which is the output of the computation on the same level or in the case
 	 * of the root query the entire superset of the index.
 	 */
-	@RequiredArgsConstructor
 	public static class FutureNotFormula extends AbstractFormula {
 		private static final String ERROR_TEMPORARY = "FutureNotFormula is only temporary placeholder!";
+		private static final long CLASS_ID = 497139306778809341L;
 		/**
 		 * This formula represents the real formula to compute the negated set.
 		 */
@@ -566,6 +567,11 @@ public class QueryPlanner {
 			}
 		}
 
+		public FutureNotFormula(@Nonnull Formula innerFormula) {
+			this.innerFormula = innerFormula;
+			this.initFields();
+		}
+
 		@Nonnull
 		@Override
 		public Formula getCloneWithInnerFormulas(@Nonnull Formula... innerFormulas) {
@@ -574,22 +580,22 @@ public class QueryPlanner {
 
 		@Override
 		public int getEstimatedCardinality() {
-			throw new UnsupportedOperationException(ERROR_TEMPORARY);
+			return 0;
 		}
 
 		@Override
 		public long getOperationCost() {
-			throw new UnsupportedOperationException(ERROR_TEMPORARY);
+			return 0L;
 		}
 
 		@Override
 		protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-			throw new UnsupportedOperationException(ERROR_TEMPORARY);
+			return 0L;
 		}
 
 		@Override
 		protected long getClassId() {
-			throw new UnsupportedOperationException(ERROR_TEMPORARY);
+			return CLASS_ID;
 		}
 
 		@Nonnull

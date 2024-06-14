@@ -23,7 +23,6 @@
 
 package io.evitadb.core.query.algebra.base;
 
-import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
@@ -153,12 +152,12 @@ public class JoinFormula extends AbstractFormula {
 	}
 
 	public JoinFormula(long indexTransactionId, @Nonnull Bitmap... bitmaps) {
-		super();
 		this.bitmaps = Arrays.stream(bitmaps)
 			.filter(it -> !(it instanceof EmptyBitmap))
 			.toArray(Bitmap[]::new);
 		Assert.isTrue(this.bitmaps.length > 1, "Join formula has to have at least two bitmaps - otherwise use EmptyFormula.INSTANCE or just the bitmap itself.");
 		this.indexTransactionId = new long[]{indexTransactionId};
+		this.initFields();
 	}
 
 	/**
@@ -217,7 +216,7 @@ public class JoinFormula extends AbstractFormula {
 	}
 
 	@Override
-	public long getEstimatedCostInternal(@Nonnull QueryExecutionContext context) {
+	public long getEstimatedCostInternal() {
 		try {
 			long costs = 0L;
 			for (Bitmap bitmap : bitmaps) {

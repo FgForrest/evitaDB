@@ -23,7 +23,6 @@
 
 package io.evitadb.core.query.algebra.base;
 
-import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.AbstractCacheableFormula;
 import io.evitadb.core.query.algebra.CacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
@@ -62,23 +61,26 @@ public class NotFormula extends AbstractCacheableFormula {
 	private final Bitmap subtractedBitmap;
 	private final Bitmap supersetBitmap;
 
-	protected NotFormula(@Nonnull Consumer<CacheableFormula> computationCallback, @Nonnull Formula subtractedBitmap, @Nonnull Formula supersetBitmap) {
-		super(computationCallback, subtractedBitmap, supersetBitmap);
+	protected NotFormula(@Nonnull Consumer<CacheableFormula> computationCallback, @Nonnull Formula subtractedFormula, @Nonnull Formula supersetFormula) {
+		super(computationCallback);
 		Assert.isTrue(innerFormulas.length > 1, "And formula has no sense with " + innerFormulas.length + " inner formulas!");
 		this.subtractedBitmap = null;
 		this.supersetBitmap = null;
+		this.initFields(subtractedFormula, supersetFormula);
 	}
 
-	public NotFormula(@Nonnull Formula subtractedBitmap, @Nonnull Formula supersetBitmap) {
-		super(null, subtractedBitmap, supersetBitmap);
+	public NotFormula(@Nonnull Formula subtractedFormula, @Nonnull Formula supersetFormula) {
+		super(null);
 		this.subtractedBitmap = null;
 		this.supersetBitmap = null;
+		this.initFields(subtractedFormula, supersetFormula);
 	}
 
 	public NotFormula(@Nonnull Bitmap subtractedBitmap, @Nonnull Bitmap supersetBitmap) {
 		super(null);
 		this.subtractedBitmap = subtractedBitmap;
 		this.supersetBitmap = supersetBitmap;
+		this.initFields();
 	}
 
 	@Nonnull
@@ -137,7 +139,7 @@ public class NotFormula extends AbstractCacheableFormula {
 	}
 
 	@Override
-	public long getEstimatedCostInternal(@Nonnull QueryExecutionContext context) {
+	public long getEstimatedCostInternal() {
 		if (subtractedBitmap != null && supersetBitmap != null) {
 			try {
 				long costs = subtractedBitmap.size();
@@ -147,7 +149,7 @@ public class NotFormula extends AbstractCacheableFormula {
 				return Long.MAX_VALUE;
 			}
 		} else {
-			return super.getEstimatedCostInternal(context);
+			return super.getEstimatedCostInternal();
 		}
 	}
 

@@ -30,11 +30,11 @@ import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
-import io.evitadb.core.query.response.TransactionalDataRelatedStructure.CalculationContext;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -54,7 +54,7 @@ public class Accumulator {
 	/**
 	 * Execution context that is used for initialization of the formulas.
 	 */
-	private final CalculationContext calculationContext;
+	private final QueryExecutionContext executionContext;
 	/**
 	 * Flag signalizing the entity was requested in request by {@link HierarchyWithin}
 	 */
@@ -108,10 +108,10 @@ public class Accumulator {
 	public Accumulator(
 		@Nonnull QueryExecutionContext executionContext,
 		boolean requested,
-		@Nonnull EntityClassifier entity,
+		@Nullable EntityClassifier entity,
 		@Nonnull Supplier<Formula> directlyQueriedEntitiesFormulaProducer
 	) {
-		this.calculationContext = new CalculationContext(executionContext);
+		this.executionContext = executionContext;
 		this.requested = requested;
 		this.entity = entity;
 		this.directlyQueriedEntitiesFormulaProducer = directlyQueriedEntitiesFormulaProducer;
@@ -124,7 +124,7 @@ public class Accumulator {
 		@Nonnull QueryExecutionContext executionContext,
 		@Nonnull Supplier<Formula> directlyQueriedEntitiesFormulaProducer
 	) {
-		this.calculationContext = new CalculationContext(executionContext);
+		this.executionContext = executionContext;
 		this.entity = null;
 		this.requested = false;
 		this.directlyQueriedEntitiesFormulaProducer = directlyQueriedEntitiesFormulaProducer;
@@ -194,7 +194,7 @@ public class Accumulator {
 					.flatMap(Function.identity())
 					.toArray(Formula[]::new)
 			);
-			queriedEntitiesFormula.initialize(calculationContext);
+			queriedEntitiesFormula.initialize(executionContext);
 		}
 		return queriedEntitiesFormula;
 	}
@@ -212,7 +212,7 @@ public class Accumulator {
 					)
 					.toArray(Formula[]::new)
 			);
-			directlyQueriedEntitiesFormula.initialize(calculationContext);
+			directlyQueriedEntitiesFormula.initialize(executionContext);
 		}
 		return directlyQueriedEntitiesFormula;
 	}

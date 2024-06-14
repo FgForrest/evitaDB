@@ -44,8 +44,8 @@ public class DeferredFormula extends AbstractFormula {
 	protected final BitmapSupplier retrieveLambda;
 
 	public DeferredFormula(@Nonnull BitmapSupplier retrieveLambda) {
-		super();
 		this.retrieveLambda = retrieveLambda;
+		this.initFields();
 	}
 
 	@Nonnull
@@ -55,13 +55,13 @@ public class DeferredFormula extends AbstractFormula {
 	}
 
 	@Override
-	public void initialize(@Nonnull CalculationContext calculationContext) {
-		this.retrieveLambda.initialize(calculationContext);
-		super.initialize(calculationContext);
+	public void initialize(@Nonnull QueryExecutionContext executionContext) {
+		this.retrieveLambda.initialize(executionContext);
+		super.initialize(executionContext);
 	}
 
 	@Override
-	protected long getEstimatedCostInternal(@Nonnull QueryExecutionContext context) {
+	protected long getEstimatedCostInternal() {
 		return retrieveLambda.getEstimatedCost();
 	}
 

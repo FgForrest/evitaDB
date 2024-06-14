@@ -55,8 +55,8 @@ public class UserFilterFormula extends AbstractFormula implements NonCacheableFo
 	private static final long CLASS_ID = 6890499931556487481L;
 	private List<Formula> sortedFormulasByComplexity;
 
-	public UserFilterFormula(Formula... innerFormulas) {
-		super(innerFormulas);
+	public UserFilterFormula(@Nonnull Formula... innerFormulas) {
+		this.initFields(innerFormulas);
 	}
 
 	@Nonnull
@@ -113,7 +113,7 @@ public class UserFilterFormula extends AbstractFormula implements NonCacheableFo
 
 	@Override
 	public int getEstimatedCardinality() {
-		return Arrays.stream(this.innerFormulas).mapToInt(formula -> formula.getEstimatedCardinality()).min().orElse(0);
+		return Arrays.stream(this.innerFormulas).mapToInt(Formula::getEstimatedCardinality).min().orElse(0);
 	}
 
 	@Override

@@ -486,7 +486,6 @@ class AttributeBitmapFilterTest {
 	@Nonnull
 	private TestQueryExecutionContext createTestFilterByVisitor(FilterBy filterBy, AttributeBitmapFilter filter) {
 		return new TestQueryExecutionContext(
-			catalogSchema,
 			entitySchema,
 			Query.query(
 				collection(Entities.PRODUCT),

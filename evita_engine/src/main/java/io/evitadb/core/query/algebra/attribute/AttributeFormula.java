@@ -71,9 +71,9 @@ public class AttributeFormula extends AbstractFormula implements RequirementsDef
 	}
 
 	public AttributeFormula(@Nonnull AttributeKey attributeKey, @Nonnull Formula innerFormula, @Nullable Predicate<BigDecimal> requestedPredicate) {
-		super(innerFormula);
 		this.attributeKey = attributeKey;
 		this.requestedPredicate = requestedPredicate;
+		this.initFields(innerFormula);
 	}
 
 	@Nonnull

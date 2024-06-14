@@ -93,22 +93,16 @@ public class ProgressiveCompletableFuture<T> extends CompletableFuture<T> {
 
 	@Override
 	public boolean complete(T value) {
-		final boolean complete = super.complete(value);
-		if (complete) {
-			updateProgress(100);
-			this.progressListeners.clear();
-		}
-		return complete;
+		updateProgress(100);
+		this.progressListeners.clear();
+		return super.complete(value);
 	}
 
 	@Override
 	public boolean completeExceptionally(Throwable ex) {
-		final boolean completeExceptionally = super.completeExceptionally(ex);
-		if (completeExceptionally) {
-			updateProgress(100);
-			this.progressListeners.clear();
-		}
-		return completeExceptionally;
+		updateProgress(100);
+		this.progressListeners.clear();
+		return super.completeExceptionally(ex);
 	}
 
 	/**

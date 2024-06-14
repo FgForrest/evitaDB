@@ -75,6 +75,8 @@ import io.evitadb.core.async.ObservableExecutorService;
 import io.evitadb.core.async.Scheduler;
 import io.evitadb.core.buffer.DataStoreChanges;
 import io.evitadb.core.buffer.DataStoreMemoryBuffer;
+import io.evitadb.core.buffer.TransactionalDataStoreMemoryBuffer;
+import io.evitadb.core.buffer.WarmUpDataStoreMemoryBuffer;
 import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.exception.StorageImplementationNotFoundException;
 import io.evitadb.core.metric.event.transaction.CatalogGoesLiveEvent;
@@ -187,9 +189,9 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 	/**
 	 * This instance is used to cover changes in transactional memory and persistent storage reference.
 	 *
-	 * @see DataStoreMemoryBuffer documentation
+	 * @see TransactionalDataStoreMemoryBuffer documentation
 	 */
-	private final DataStoreMemoryBuffer<CatalogIndexKey, CatalogIndex, DataStoreChanges<CatalogIndexKey, CatalogIndex>> dataStoreBuffer;
+	private final DataStoreMemoryBuffer<CatalogIndexKey, CatalogIndex> dataStoreBuffer;
 	/**
 	 * This field contains flag with TRUE value if catalog is being switched to {@link CatalogState#ALIVE} state.
 	 */
@@ -345,21 +347,16 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		this.schema = new TransactionalReference<>(new CatalogSchemaDecorator(internalCatalogSchema));
 		this.persistenceService = ServiceLoader.load(CatalogPersistenceServiceFactory.class)
 			.findFirst()
-			.map(it -> it.createNew(this, this.getSchema().getName(), storageOptions, transactionOptions, scheduler)
-			)
+			.map(it -> it.createNew(this, this.getSchema().getName(), storageOptions, transactionOptions, scheduler))
 			.orElseThrow(StorageImplementationNotFoundException::new);
 
 		final CatalogStoragePartPersistenceService storagePartPersistenceService = this.persistenceService.getStoragePartPersistenceService(catalogVersion);
 		storagePartPersistenceService.putStoragePart(catalogVersion, new CatalogSchemaStoragePart(getInternalSchema()));
-		this.persistenceService.storeHeader(
-			CatalogState.WARMING_UP, catalogVersion, 0, null,
-			Collections.emptyList()
-		);
 
 		// initialize container buffer
 		this.state = CatalogState.WARMING_UP;
 		this.versionId = new TransactionalReference<>(catalogVersion);
-		this.dataStoreBuffer = new DataStoreMemoryBuffer<>(this, storagePartPersistenceService);
+		this.dataStoreBuffer = new WarmUpDataStoreMemoryBuffer<>(storagePartPersistenceService);
 		this.cacheSupervisor = cacheSupervisor;
 		this.entityCollections = new TransactionalMap<>(createHashMap(0), EntityCollection.class, Function.identity());
 		this.entityCollectionsByPrimaryKey = new TransactionalMap<>(createHashMap(0), EntityCollection.class, Function.identity());
@@ -377,6 +374,12 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		this.newCatalogVersionConsumer = newCatalogVersionConsumer;
 		this.lastPersistedSchemaVersion = this.schema.get().version();
 		this.transactionalPipeline = createTransactionPipeline(this, transactionOptions, scheduler, transactionalExecutor, newCatalogVersionConsumer);
+
+		this.persistenceService.storeHeader(
+			CatalogState.WARMING_UP, catalogVersion, 0, null,
+			Collections.emptyList(),
+			this.dataStoreBuffer
+		);
 	}
 
 	public Catalog(
@@ -414,7 +417,9 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		this.catalogIndex = this.persistenceService.readCatalogIndex(this);
 		this.catalogIndex.attachToCatalog(null, this);
 		this.cacheSupervisor = cacheSupervisor;
-		this.dataStoreBuffer = new DataStoreMemoryBuffer<>(this, storagePartPersistenceService);
+		this.dataStoreBuffer = catalogHeader.catalogState() == CatalogState.WARMING_UP ?
+			new WarmUpDataStoreMemoryBuffer<>(storagePartPersistenceService) :
+			new TransactionalDataStoreMemoryBuffer<>(this, storagePartPersistenceService);
 
 		final Collection<CollectionFileReference> entityCollectionHeaders = catalogHeader.getEntityTypeFileIndexes();
 		final Map<String, EntityCollection> collections = createHashMap(entityCollectionHeaders.size());
@@ -428,7 +433,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 			final EntityCollection collection = new EntityCollection(
 				catalogName,
 				catalogVersion,
-				entityTypePrimaryKey,
+				catalogHeader.catalogState(), entityTypePrimaryKey,
 				entityType,
 				persistenceService,
 				cacheSupervisor,
@@ -529,7 +534,9 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 				.orElseThrow(() -> new SchemaNotFoundException(this.persistenceService.getCatalogHeader(catalogVersion).catalogName()))
 		);
 		this.schema = new TransactionalReference<>(new CatalogSchemaDecorator(catalogSchema));
-		this.dataStoreBuffer = new DataStoreMemoryBuffer<>(this, storagePartPersistenceService);
+		this.dataStoreBuffer = catalogState == CatalogState.WARMING_UP ?
+			new WarmUpDataStoreMemoryBuffer<>(storagePartPersistenceService) :
+			new TransactionalDataStoreMemoryBuffer<>(this, storagePartPersistenceService);
 		// we need to switch references working with catalog (inter index relations) to new catalog
 		// the collections are not yet used anywhere - we're still safe here
 		final Map<String, EntityCollection> newEntityCollections = CollectionUtils.createHashMap(entityCollections.size());
@@ -750,9 +757,11 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 			catalogVersion,
 			updatedSchema.getName(),
 			updatedSchema.getNameVariants(),
-			CatalogSchema._internalBuild(updatedSchema)
+			CatalogSchema._internalBuild(updatedSchema),
+			this.dataStoreBuffer
 		);
 		final long catalogVersionAfterRename = newIoService.getLastCatalogVersion();
+		final CatalogState catalogState = getCatalogState();
 		final List<EntityCollection> newCollections = this.entityCollections
 			.values()
 			.stream()
@@ -760,7 +769,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 				it -> new EntityCollection(
 					updatedSchema.getName(),
 					catalogVersionAfterRename,
-					it.getEntityTypePrimaryKey(),
+					catalogState, it.getEntityTypePrimaryKey(),
 					it.getEntityType(),
 					newIoService,
 					this.cacheSupervisor,
@@ -772,8 +781,8 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		advanceVersion(catalogVersionAfterRename);
 		return new Catalog(
 			catalogVersionAfterRename,
-			getCatalogState(),
-			this.catalogIndex.createCopyForNewCatalogAttachment(),
+			catalogState,
+			this.catalogIndex.createCopyForNewCatalogAttachment(catalogState),
 			newCollections,
 			newIoService,
 			this,
@@ -810,13 +819,13 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 			final List<EntityCollection> newCollections = this.entityCollections
 				.values()
 				.stream()
-				.map(EntityCollection::createCopyForNewCatalogAttachment)
+				.map(collection -> collection.createCopyForNewCatalogAttachment(CatalogState.ALIVE))
 				.toList();
 
 			final Catalog newCatalog = new Catalog(
 				1L,
 				CatalogState.ALIVE,
-				this.catalogIndex.createCopyForNewCatalogAttachment(),
+				this.catalogIndex.createCopyForNewCatalogAttachment(CatalogState.ALIVE),
 				newCollections,
 				this.persistenceService,
 				this,
@@ -916,7 +925,8 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 					this.versionId.getId(),
 					this.entityTypeSequence.get(),
 					null,
-					entityHeaders
+					entityHeaders,
+					this.dataStoreBuffer
 				);
 			}
 			// close all resources here, here we just hand all objects to GC
@@ -1050,7 +1060,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 			updatedServiceCollections.forEach((entityType, newPersistenceService) -> {
 				possiblyUpdatedCollections.compute(
 					entityType,
-					(entityTypeKey, entityCollection) -> entityCollection.createCopyWithNewPersistenceService(newCatalogVersionId, newPersistenceService)
+					(entityTypeKey, entityCollection) -> entityCollection.createCopyWithNewPersistenceService(newCatalogVersionId, CatalogState.ALIVE, newPersistenceService)
 				);
 			});
 		}
@@ -1117,7 +1127,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		@Nonnull CompletableFuture<Long> transactionFinalizationFuture
 	) {
 		try {
-			transactionalPipeline.offer(
+			this.transactionalPipeline.offer(
 				new ConflictResolutionTransactionTask(
 					getName(),
 					transactionId,
@@ -1194,7 +1204,8 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 				catalogVersion,
 				this.entityTypeSequence.get(),
 				lastProcessedTransaction,
-				entityHeaders
+				entityHeaders,
+				this.dataStoreBuffer
 			);
 			this.lastPersistedSchemaVersion = this.schema.get().version();
 		}
@@ -1331,7 +1342,8 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 				0L,
 				this.entityTypeSequence.get(),
 				null,
-				entityHeaders
+				entityHeaders,
+				this.dataStoreBuffer
 			);
 			this.lastPersistedSchemaVersion = this.schema.get().version();
 		}
@@ -1468,7 +1480,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		final EntityCollection newCollection = new EntityCollection(
 			this.getName(),
 			this.getVersion(),
-			this.entityTypeSequence.incrementAndGet(),
+			this.getCatalogState(), this.entityTypeSequence.incrementAndGet(),
 			createEntitySchemaMutation.getName(),
 			persistenceService,
 			cacheSupervisor,
@@ -1647,7 +1659,9 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 			);
 			this.entityCollections.put(
 				entityCollectionNameToBeReplaced,
-				entityCollectionToBeReplacedWith.createCopyWithNewPersistenceService(catalogVersion, newPersistenceService)
+				entityCollectionToBeReplacedWith.createCopyWithNewPersistenceService(
+					catalogVersion, this.getCatalogState(), newPersistenceService
+				)
 			);
 			// store catalog with a new file pointer
 			this.flush();

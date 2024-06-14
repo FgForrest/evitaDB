@@ -129,7 +129,7 @@ import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_URL;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * This test aims to test transactional behaviour of evitaDB.
+ * This test aims to test transactional behavior of evitaDB.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */

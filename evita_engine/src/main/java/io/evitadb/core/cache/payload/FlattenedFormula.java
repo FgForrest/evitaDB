@@ -23,6 +23,7 @@
 
 package io.evitadb.core.cache.payload;
 
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.FormulaVisitor;
 import io.evitadb.index.bitmap.Bitmap;
@@ -61,7 +62,7 @@ public class FlattenedFormula extends CachePayloadHeader implements Formula {
 	}
 
 	@Override
-	public void initialize(@Nonnull CalculationContext calculationContext) {
+	public void initialize(@Nonnull QueryExecutionContext executionContext) {
 
 	}
 

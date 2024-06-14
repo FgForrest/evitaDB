@@ -30,6 +30,7 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.core.cache.payload.FlattenedFormula;
 import io.evitadb.core.cache.payload.FlattenedFormulaWithFilteredPricesAndFilteredOutRecords;
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.SharedBufferPool;
 import io.evitadb.core.query.algebra.AbstractCacheableFormula;
 import io.evitadb.core.query.algebra.CacheableFormula;
@@ -117,13 +118,14 @@ public class FirstVariantPriceTerminationFormula extends AbstractCacheableFormul
 		@Nonnull QueryPriceMode queryPriceMode,
 		@Nonnull PriceRecordPredicate pricePredicate
 	) {
-		super(null, containerFormula);
+		super(null);
 		this.pricePredicate = pricePredicate;
 		this.priceEvaluationContext = priceEvaluationContext;
 		this.queryPriceMode = queryPriceMode;
 		this.priceRecordComparator = queryPriceMode == QueryPriceMode.WITH_TAX ?
 			Comparator.comparingInt(PriceRecordContract::priceWithTax) :
 			Comparator.comparingInt(PriceRecordContract::priceWithoutTax);
+		this.initFields(containerFormula);
 	}
 
 	private FirstVariantPriceTerminationFormula(
@@ -133,13 +135,14 @@ public class FirstVariantPriceTerminationFormula extends AbstractCacheableFormul
 		@Nonnull QueryPriceMode queryPriceMode,
 		@Nonnull PriceRecordPredicate pricePredicate
 	) {
-		super(computationCallback, containerFormula);
+		super(computationCallback);
 		this.pricePredicate = pricePredicate;
 		this.priceEvaluationContext = priceEvaluationContext;
 		this.queryPriceMode = queryPriceMode;
 		this.priceRecordComparator = queryPriceMode == QueryPriceMode.WITH_TAX ?
 			Comparator.comparingInt(PriceRecordContract::priceWithTax) :
 			Comparator.comparingInt(PriceRecordContract::priceWithoutTax);
+		this.initFields(containerFormula);
 	}
 
 	private FirstVariantPriceTerminationFormula(
@@ -150,7 +153,7 @@ public class FirstVariantPriceTerminationFormula extends AbstractCacheableFormul
 		@Nonnull PriceRecordPredicate pricePredicate,
 		@Nullable Bitmap recordsFilteredOutByPredicate
 	) {
-		super(recordsFilteredOutByPredicate, computationCallback, containerFormula);
+		super(recordsFilteredOutByPredicate, computationCallback);
 		this.pricePredicate = pricePredicate;
 		this.priceEvaluationContext = priceEvaluationContext;
 		this.queryPriceMode = queryPriceMode;
@@ -158,12 +161,13 @@ public class FirstVariantPriceTerminationFormula extends AbstractCacheableFormul
 			Comparator.comparingInt(PriceRecordContract::priceWithTax) :
 			Comparator.comparingInt(PriceRecordContract::priceWithoutTax);
 		this.recordsFilteredOutByPredicate = recordsFilteredOutByPredicate;
+		this.initFields(containerFormula);
 	}
 
 	@Override
-	public void initialize(@Nonnull CalculationContext calculationContext) {
-		getDelegate().initialize(calculationContext);
-		super.initialize(calculationContext);
+	public void initialize(@Nonnull QueryExecutionContext executionContext) {
+		getDelegate().initialize(executionContext);
+		super.initialize(executionContext);
 	}
 
 	@Nullable

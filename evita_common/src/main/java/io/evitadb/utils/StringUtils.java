@@ -164,7 +164,7 @@ public class StringUtils {
 	 */
 	@Nonnull
 	public static String uncapitalize(@Nonnull String string) {
-		if (string.length() == 0) {
+		if (string.isEmpty()) {
 			return string;
 		}
 
@@ -175,14 +175,14 @@ public class StringUtils {
 
 		char[] chars = string.toCharArray();
 		chars[0] = firstCharacter;
-		return new String(chars, 0, chars.length);
+		return new String(chars);
 	}
 
 	/**
 	 * Upper cases first character of the string.
 	 */
 	public static String capitalize(String string) {
-		if (string == null || string.length() == 0) {
+		if (string == null || string.isEmpty()) {
 			return string;
 		}
 
@@ -193,7 +193,7 @@ public class StringUtils {
 
 		char[] chars = string.toCharArray();
 		chars[0] = firstCharacter;
-		return new String(chars, 0, chars.length);
+		return new String(chars);
 	}
 
 	/**
@@ -863,7 +863,7 @@ public class StringUtils {
 	 * Appends `prefix`, `value` and suffix to the `sb` StringBuilder.
 	 */
 	private static void append(@Nonnull StringBuilder sb, long value, @Nonnull String prefix, @Nonnull String suffix) {
-		if (sb.length() > 0) {
+		if (!sb.isEmpty()) {
 			sb.append(" ");
 		}
 		sb.append(prefix).append(value).append(suffix);

@@ -23,7 +23,6 @@
 
 package io.evitadb.core.query.algebra.base;
 
-import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
@@ -46,9 +45,9 @@ public class ConstantFormula extends AbstractFormula {
 	@Getter private final Bitmap delegate;
 
 	public ConstantFormula(@Nonnull Bitmap delegate) {
-		super();
 		Assert.isTrue(!delegate.isEmpty(), "For empty bitmaps use EmptyFormula.INSTANCE!");
 		this.delegate = delegate;
+		this.initFields();
 	}
 
 	@Nonnull
@@ -59,7 +58,7 @@ public class ConstantFormula extends AbstractFormula {
 	}
 
 	@Override
-	public long getEstimatedCostInternal(@Nonnull QueryExecutionContext context) {
+	public long getEstimatedCostInternal() {
 		return delegate.size();
 	}
 

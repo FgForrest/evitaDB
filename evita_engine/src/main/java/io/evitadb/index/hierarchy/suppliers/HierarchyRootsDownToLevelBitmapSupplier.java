@@ -23,6 +23,7 @@
 
 package io.evitadb.index.hierarchy.suppliers;
 
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.deferred.BitmapSupplier;
 import io.evitadb.core.query.algebra.deferred.DeferredFormula;
 import io.evitadb.index.bitmap.Bitmap;
@@ -58,12 +59,13 @@ public class HierarchyRootsDownToLevelBitmapSupplier extends AbstractHierarchyBi
 		super(hierarchyIndex, transactionalId);
 		this.levels = levels;
 		this.excludedNodeTrees = excludedNodeTrees;
+		this.initFields();
 	}
 
 	@Override
-	public void initialize(@Nonnull CalculationContext calculationContext) {
-		excludedNodeTrees.initialize(calculationContext);
-		super.initialize(calculationContext);
+	public void initialize(@Nonnull QueryExecutionContext executionContext) {
+		excludedNodeTrees.initializeIfNotAlreadyInitialized(executionContext);
+		super.initialize(executionContext);
 	}
 
 	@Override

@@ -29,13 +29,13 @@ import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.AttributeSchemaAccessor;
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.deferred.DeferredFormula;
 import io.evitadb.core.query.algebra.deferred.FormulaWrapper;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
-import io.evitadb.core.query.response.TransactionalDataRelatedStructure.CalculationContext;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.hierarchy.predicate.HierarchyTraversalPredicate.SelfTraversingPredicate;
@@ -74,14 +74,19 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 	 */
 	@Getter @Nonnull private final Formula filteringFormula;
 	/**
+	 * Contains memoized value of {@link #getHash()} method.
+	 */
+	private final Long hash;
+	/**
 	 * Signalizes that the {@link HierarchyTraversalPredicate} reached a node that was marked as "stop" node and its
 	 * children should be tested by a predicate logic as "false".
 	 */
 	private boolean stopNodeEncountered;
 	/**
-	 * Contains memoized value of {@link #getHash()} method.
+	 * True if the {@link #initializeIfNotAlreadyInitialized(QueryExecutionContext)} method was called.
 	 */
-	private Long hash;
+	private boolean initialized;
+
 
 	/**
 	 * This constructor should be used from filtering translators that need to take the attributes on references
@@ -159,6 +164,7 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 					}
 				)
 			);
+			this.hash = this.filteringFormula.getHash();
 		} finally {
 			queryContext.popStep();
 		}
@@ -178,6 +184,7 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 		this.parentResult = false;
 		this.filterBy = filterBy;
 		this.filteringFormula = filteringFormula;
+		this.hash = this.filteringFormula.getHash();
 	}
 
 	/**
@@ -252,15 +259,18 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 					}
 				)
 			);
+			this.hash = this.filteringFormula.getHash();
 		} finally {
 			queryContext.popStep();
 		}
 	}
 
 	@Override
-	public void initialize(@Nonnull CalculationContext calculationContext) {
-		this.filteringFormula.initialize(calculationContext);
-		this.hash = this.filteringFormula.getHash();
+	public void initializeIfNotAlreadyInitialized(@Nonnull QueryExecutionContext executionContext) {
+		if (!this.initialized) {
+			this.filteringFormula.initialize(executionContext);
+			this.initialized = true;
+		}
 	}
 
 	@Override

@@ -81,7 +81,7 @@ public class FacetFormulaGenerator extends AbstractFacetFormulaGenerator {
 		final boolean conjunction = this.isFacetGroupConjunction.test(referenceSchema, facetGroupId);
 		final CacheKey key = new CacheKey(negation, disjunction, conjunction);
 
-		final Formula resultFormula = cache.compute(
+		return cache.compute(
 			key,
 			(cacheKey, formula) -> {
 				if (formula == null) {
@@ -99,8 +99,6 @@ public class FacetFormulaGenerator extends AbstractFacetFormulaGenerator {
 				}
 			}
 		);
-		resultFormula.initialize();
-		return resultFormula;
 	}
 
 	@Override

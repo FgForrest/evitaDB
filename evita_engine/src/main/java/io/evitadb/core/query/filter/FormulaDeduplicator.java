@@ -50,8 +50,6 @@ public class FormulaDeduplicator extends FormulaCloner implements FormulaPostPro
 
 	public FormulaDeduplicator(@Nonnull Formula originalFormula) {
 		super(new Deduplicator());
-		// we need to initialize original formula, because the deduplicator uses #getHashMethod
-		originalFormula.initialize();
 		this.originalFormula = originalFormula;
 	}
 
@@ -61,7 +59,6 @@ public class FormulaDeduplicator extends FormulaCloner implements FormulaPostPro
 		final Formula result;
 		if (this.deduplicationHappened) {
 			result = getResultClone();
-			result.initialize();
 		} else {
 			result = this.originalFormula;
 		}

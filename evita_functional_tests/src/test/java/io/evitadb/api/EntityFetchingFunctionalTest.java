@@ -2433,6 +2433,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 			.flatMap(Collection::stream)
 			.filter(it -> atLeastFirst.compareAndSet(false, true) || rnd.nextInt(10) == 0)
 			.distinct()
+			.sorted()
 			.toArray(Integer[]::new);
 
 		evita.queryCatalog(
@@ -2478,7 +2479,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 					final Set<Integer> filteredStoreIds = storeIds.stream()
 						.filter(it -> Arrays.asList(randomStores).contains(it))
 						.collect(Collectors.toSet());
-					assertEquals(filteredStoreIds.size(), references.size());
+					assertEquals(filteredStoreIds.size(), references.size(), "Product `" + product.getPrimaryKey() +"` has references to stores that are not in the filtered set: `"+product.getReferences(Entities.STORE).stream().map(ReferenceContract::getReferencedPrimaryKey).collect(Collectors.toSet())+"` vs. `"+ filteredStoreIds);
 
 					// references should be ordered by name
 					final String[] receivedOrderedNames = references.stream()

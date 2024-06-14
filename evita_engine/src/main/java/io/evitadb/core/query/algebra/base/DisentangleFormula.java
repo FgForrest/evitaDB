@@ -23,7 +23,6 @@
 
 package io.evitadb.core.query.algebra.base;
 
-import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.AbstractCacheableFormula;
 import io.evitadb.core.query.algebra.CacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
@@ -88,20 +87,23 @@ public class DisentangleFormula extends AbstractCacheableFormula implements Cach
 	private final Bitmap controlBitmap;
 
 	public DisentangleFormula(@Nonnull Formula mainBitmap, @Nonnull Formula controlBitmap) {
-		super(null, mainBitmap, controlBitmap);
+		super(null);
 		this.mainBitmap = null;
 		this.controlBitmap = null;
+		this.initFields(mainBitmap, controlBitmap);
 	}
 
 	public DisentangleFormula(@Nonnull Bitmap mainBitmap, @Nonnull Bitmap controlBitmap) {
 		super(null);
 		this.mainBitmap = mainBitmap;
 		this.controlBitmap = controlBitmap;
+		this.initFields();
 	}
 	DisentangleFormula(@Nullable Consumer<CacheableFormula> computationCallback, @Nullable Bitmap mainBitmap, @Nullable Bitmap controlBitmap, @Nullable Formula... formulas) {
-		super(computationCallback, formulas);
+		super(computationCallback);
 		this.mainBitmap = mainBitmap;
 		this.controlBitmap = controlBitmap;
+		this.initFields(formulas);
 		Assert.isTrue(
 			(ArrayUtils.isEmpty(innerFormulas) && (mainBitmap != null && controlBitmap != null)) ||
 			(innerFormulas.length == 2 && (mainBitmap == null && controlBitmap == null)),
@@ -122,7 +124,7 @@ public class DisentangleFormula extends AbstractCacheableFormula implements Cach
 	}
 
 	@Override
-	public long getEstimatedCostInternal(@Nonnull QueryExecutionContext context) {
+	public long getEstimatedCostInternal() {
 		if (mainBitmap != null && controlBitmap != null) {
 			try {
 				long costs = mainBitmap.size();
@@ -132,7 +134,7 @@ public class DisentangleFormula extends AbstractCacheableFormula implements Cach
 				return Long.MAX_VALUE;
 			}
 		} else {
-			return super.getEstimatedCostInternal(context);
+			return super.getEstimatedCostInternal();
 		}
 	}
 
@@ -211,7 +213,7 @@ public class DisentangleFormula extends AbstractCacheableFormula implements Cach
 	@Override
 	public String toString() {
 		if (mainBitmap != null && controlBitmap != null) {
-			return "DISENTANGLE: main" + mainBitmap.size() + ", control: " + controlBitmap.size() + " primary keys";
+			return "DISENTANGLE: main " + mainBitmap.size() + ", control: " + controlBitmap.size() + " primary keys";
 		} else {
 			return "DISENTANGLE";
 		}
