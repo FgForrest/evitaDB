@@ -127,7 +127,8 @@ public class RestManager {
 		systemBuildStatistics = SystemBuildStatistics.createNew(
 			instanceBuildDuration,
 			schemaBuildDuration,
-			countOpenApiSchemaLines(api.openApi())
+			countOpenApiSchemaLines(api.openApi()),
+			api.openApi().getPaths().size()
 		);
 	}
 
@@ -165,7 +166,8 @@ public class RestManager {
 			final CatalogBuildStatistics buildStatistics = CatalogBuildStatistics.createNew(
 				instanceBuildDuration,
 				schemaBuildDuration,
-				countOpenApiSchemaLines(api.openApi())
+				countOpenApiSchemaLines(api.openApi()),
+				api.openApi().getPaths().size()
 			);
 			catalogBuildStatistics.put(catalogName, buildStatistics);
 		} catch (EvitaInternalError ex) {
@@ -222,7 +224,8 @@ public class RestManager {
 		buildStatistics.refresh(
 			instanceBuildDuration,
 			schemaBuildDuration,
-			countOpenApiSchemaLines(newApi.openApi())
+			countOpenApiSchemaLines(newApi.openApi()),
+			newApi.openApi().getPaths().size()
 		);
 	}
 
@@ -241,7 +244,8 @@ public class RestManager {
 				BuildType.NEW,
 				systemBuildStatistics.instanceBuildDuration(),
 				systemBuildStatistics.schemaBuildDuration(),
-				systemBuildStatistics.schemaDslLines()
+				systemBuildStatistics.schemaDslLines(),
+				systemBuildStatistics.registeredEndpoints()
 			).commit();
 
 			systemBuildStatistics.markAsReported();
@@ -267,7 +271,8 @@ public class RestManager {
 			buildStatistics.buildCount().get() == 1 ? BuildType.NEW : BuildType.REFRESH,
 			buildStatistics.instanceBuildDuration().get(),
 			buildStatistics.schemaBuildDuration().get(),
-			buildStatistics.schemaDslLines().get()
+			buildStatistics.schemaDslLines().get(),
+			buildStatistics.registeredEndpoints().get()
 		).commit();
 	}
 
@@ -287,16 +292,19 @@ public class RestManager {
 	private record SystemBuildStatistics(@Nonnull AtomicBoolean reported,
 	                                     long instanceBuildDuration,
 	                                     long schemaBuildDuration,
-	                                     long schemaDslLines) {
+	                                     long schemaDslLines,
+	                                     long registeredEndpoints) {
 
 		public static SystemBuildStatistics createNew(long instanceBuildDuration,
 		                                              long schemaBuildDuration,
-		                                              long schemaDslLines) {
+		                                              long schemaDslLines,
+		                                              long registeredEndpoints) {
 			return new SystemBuildStatistics(
 				new AtomicBoolean(false),
 				instanceBuildDuration,
 				schemaBuildDuration,
-				schemaDslLines
+				schemaDslLines,
+				registeredEndpoints
 			);
 		}
 
@@ -308,26 +316,31 @@ public class RestManager {
 	private record CatalogBuildStatistics(@Nonnull AtomicInteger buildCount,
 										  @Nonnull AtomicLong instanceBuildDuration,
 	                                      @Nonnull AtomicLong schemaBuildDuration,
-	                                      @Nonnull AtomicLong schemaDslLines) {
+	                                      @Nonnull AtomicLong schemaDslLines,
+	                                      @Nonnull AtomicLong registeredEndpoints) {
 
 		public static CatalogBuildStatistics createNew(long instanceBuildDuration,
 		                                               long schemaBuildDuration,
-		                                               long schemaDslLines) {
+		                                               long schemaDslLines,
+		                                               long registeredEndpoints) {
 			return new CatalogBuildStatistics(
 				new AtomicInteger(1),
 				new AtomicLong(instanceBuildDuration),
 				new AtomicLong(schemaBuildDuration),
-				new AtomicLong(schemaDslLines)
+				new AtomicLong(schemaDslLines),
+				new AtomicLong(registeredEndpoints)
 			);
 		}
 
 		public void refresh(long instanceBuildDuration,
 		                    long schemaBuildDuration,
-		                    long schemaDslLines) {
+		                    long schemaDslLines,
+		                    long registeredEndpoints) {
 			this.buildCount.incrementAndGet();
 			this.instanceBuildDuration.set(instanceBuildDuration);
 			this.schemaBuildDuration.set(schemaBuildDuration);
 			this.schemaDslLines.set(schemaDslLines);
+			this.registeredEndpoints.set(registeredEndpoints);
 		}
 	}
 }
