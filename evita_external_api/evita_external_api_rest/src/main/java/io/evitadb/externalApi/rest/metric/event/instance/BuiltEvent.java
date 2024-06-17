@@ -81,18 +81,24 @@ public class BuiltEvent extends AbstractRestInstanceEvent {
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private long schemaDslLines;
 
+	@Label("Number of registered endpoints in built OpenAPI schema")
+	@ExportMetric(metricType = MetricType.GAUGE)
+	private long registeredEndpoints;
+
 	public BuiltEvent(@Nonnull RestInstanceType instanceType,
 	                  @Nonnull BuildType buildType,
 					  long instanceBuildDuration,
 	                  long schemaBuildDuration,
-	                  long schemaDslLines) {
+	                  long schemaDslLines,
+	                  long registeredEndpoints) {
 		this(
 			null,
 			instanceType,
 			buildType,
 			instanceBuildDuration,
 			schemaBuildDuration,
-			schemaDslLines
+			schemaDslLines,
+			registeredEndpoints
 		);
 	}
 
@@ -101,13 +107,15 @@ public class BuiltEvent extends AbstractRestInstanceEvent {
 	                  @Nonnull BuildType  buildType,
 					  long instanceBuildDuration,
 	                  long schemaBuildDuration,
-	                  long schemaDslLines) {
+	                  long schemaDslLines,
+	                  long registeredEndpoints) {
 		this.catalogName = catalogName;
 		this.instanceType = instanceType.name();
 		this.buildType = buildType.name();
 		this.instanceBuildDuration = instanceBuildDuration;
 		this.schemaBuildDuration = schemaBuildDuration;
 		this.schemaDslLines = schemaDslLines;
+		this.registeredEndpoints = registeredEndpoints;
 	}
 
 	/**
