@@ -21,15 +21,24 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.io;
+package io.evitadb.externalApi.rest.metric.event.instance;
+
+import io.evitadb.api.observability.annotation.EventGroup;
+import io.evitadb.core.metric.event.CustomMetricsExecutionEvent;
+import jdk.jfr.Category;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 
 /**
- * Represents semantically GraphQL instance. Defines which data it provides.
+ * Common event ancestor for events regarding REST API instances creation.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
  */
-public enum GraphQLInstanceType {
-	SYSTEM,
-	DATA,
-	SCHEMA
+@EventGroup(AbstractRestInstanceEvent.PACKAGE_NAME)
+@Category({"evitaDB", "ExternalAPI", "REST", "Instance", "Schema"})
+@RequiredArgsConstructor
+@Getter
+public abstract class AbstractRestInstanceEvent extends CustomMetricsExecutionEvent {
+
+	protected static final String PACKAGE_NAME = "io.evitadb.externalApi.rest.instance";
 }

@@ -48,6 +48,7 @@ import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer.Extra
 import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.externalApi.rest.io.JsonRestHandler;
 import io.evitadb.externalApi.rest.io.RestEndpointExecutionContext;
+import io.evitadb.externalApi.rest.metric.event.request.ExecutedEvent;
 import io.evitadb.utils.Assert;
 import io.undertow.util.Methods;
 import lombok.extern.slf4j.Slf4j;
@@ -95,11 +96,19 @@ public class QueryEntitiesHandler extends JsonRestHandler<LabApiHandlingContext>
 	@Nonnull
 	@Override
 	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
+		final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
+
 		final Query query = resolveQuery(executionContext);
 		log.debug("Generated evitaDB query for entity query is `{}`.", query);
 
-		final EvitaResponse<EntityClassifier> response = executionContext.session().query(query, EntityClassifier.class);
-		return new SuccessEndpointResponse(convertResultIntoSerializableObject(executionContext, response));
+		final EvitaResponse<EntityClassifier> response = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
+			executionContext.session().query(query, EntityClassifier.class));
+		requestExecutedEvent.finishOperationExecution();
+
+		final Object result = convertResultIntoSerializableObject(executionContext, response);
+		requestExecutedEvent.finishResultSerialization();
+
+		return new SuccessEndpointResponse(result);
 	}
 
 	@Nonnull
@@ -121,11 +130,15 @@ public class QueryEntitiesHandler extends JsonRestHandler<LabApiHandlingContext>
 	}
 
 	@Nonnull
-	protected Query resolveQuery(@Nonnull RestEndpointExecutionContext exchange) {
-		final QueryEntitiesRequestBodyDto requestData = parseRequestBody(exchange, QueryEntitiesRequestBodyDto.class);
+	protected Query resolveQuery(@Nonnull RestEndpointExecutionContext executionContext) {
+		final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
+
+		final QueryEntitiesRequestBodyDto requestData = parseRequestBody(executionContext, QueryEntitiesRequestBodyDto.class);
+		requestExecutedEvent.finishInputDeserialization();
 
 		// todo lho arguments
-		return queryParser.parseQueryUnsafe(requestData.getQuery());
+		return requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() ->
+			queryParser.parseQueryUnsafe(requestData.getQuery()));
 	}
 
 	@Nonnull

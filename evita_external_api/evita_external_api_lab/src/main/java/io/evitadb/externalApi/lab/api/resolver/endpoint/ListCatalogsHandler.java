@@ -31,6 +31,7 @@ import io.evitadb.externalApi.rest.api.system.resolver.serializer.CatalogJsonSer
 import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.externalApi.rest.io.JsonRestHandler;
 import io.evitadb.externalApi.rest.io.RestEndpointExecutionContext;
+import io.evitadb.externalApi.rest.metric.event.request.ExecutedEvent;
 import io.evitadb.utils.Assert;
 import io.undertow.util.Methods;
 
@@ -57,8 +58,17 @@ public class ListCatalogsHandler extends JsonRestHandler<LabApiHandlingContext> 
 	@Nonnull
 	@Override
 	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
-		final Collection<CatalogContract> catalogs = restHandlingContext.getEvita().getCatalogs();
-		return new SuccessEndpointResponse(convertResultIntoSerializableObject(executionContext, catalogs));
+		final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
+		requestExecutedEvent.finishInputDeserialization();
+
+		final Collection<CatalogContract> catalogs = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
+			restHandlingContext.getEvita().getCatalogs());
+		requestExecutedEvent.finishOperationExecution();
+
+		final JsonNode result = convertResultIntoSerializableObject(executionContext, catalogs);
+		requestExecutedEvent.finishResultSerialization();
+
+		return new SuccessEndpointResponse(result);
 	}
 
 	@Nonnull

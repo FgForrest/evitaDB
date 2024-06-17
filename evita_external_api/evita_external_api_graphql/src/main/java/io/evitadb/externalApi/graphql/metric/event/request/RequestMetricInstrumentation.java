@@ -34,6 +34,7 @@ import graphql.language.Document;
 import graphql.language.OperationDefinition;
 import graphql.validation.ValidationError;
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
+import io.evitadb.externalApi.graphql.metric.event.request.ExecutedEvent.ResponseStatus;
 import io.evitadb.externalApi.graphql.utils.GraphQLOperationNameResolver;
 import lombok.RequiredArgsConstructor;
 
@@ -110,6 +111,11 @@ public class RequestMetricInstrumentation extends SimplePerformantInstrumentatio
 		final ExecutedEvent requestExecutedEvent = parameters.getGraphQLContext().get(GraphQLContextKey.METRIC_EXECUTED_EVENT);
 		if (requestExecutedEvent != null) {
 			requestExecutedEvent.finishOperationExecution();
+			if (executionResult.getErrors() != null &&
+				!executionResult.getErrors().isEmpty() &&
+				ResponseStatus.OK.name().equals(requestExecutedEvent.getResponseStatus())) {
+				requestExecutedEvent.provideResponseStatus(ResponseStatus.ERROR);
+			}
 		}
 		return super.instrumentExecutionResult(executionResult, parameters, state);
 	}

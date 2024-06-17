@@ -23,15 +23,18 @@
 
 package io.evitadb.externalApi.rest.api.system.resolver.endpoint;
 
+import io.evitadb.api.CatalogContract;
 import io.evitadb.externalApi.http.EndpointResponse;
 import io.evitadb.externalApi.http.NotFoundEndpointResponse;
 import io.evitadb.externalApi.http.SuccessEndpointResponse;
 import io.evitadb.externalApi.rest.api.system.model.CatalogsHeaderDescriptor;
 import io.evitadb.externalApi.rest.io.RestEndpointExecutionContext;
+import io.evitadb.externalApi.rest.metric.event.request.ExecutedEvent;
 import io.undertow.util.Methods;
 
 import javax.annotation.Nonnull;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -48,10 +51,21 @@ public class GetCatalogHandler extends CatalogHandler {
 	@Nonnull
 	@Override
 	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
+		final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
+
 		final Map<String, Object> parameters = getParametersFromRequest(executionContext);
+		requestExecutedEvent.finishInputDeserialization();
+
 		final String catalogName = (String) parameters.get(CatalogsHeaderDescriptor.NAME.name());
-		return restHandlingContext.getEvita().getCatalogInstance(catalogName)
-			.map(it -> (EndpointResponse) new SuccessEndpointResponse(convertResultIntoSerializableObject(executionContext, it)))
+		final Optional<CatalogContract> catalog = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
+			restHandlingContext.getEvita().getCatalogInstance(catalogName));
+		requestExecutedEvent.finishOperationExecution();
+
+		final Optional<Object> result = catalog.map(it -> convertResultIntoSerializableObject(executionContext, it));
+		requestExecutedEvent.finishResultSerialization();
+
+		return result
+			.map(it -> (EndpointResponse) new SuccessEndpointResponse(it))
 			.orElse(new NotFoundEndpointResponse());
 	}
 

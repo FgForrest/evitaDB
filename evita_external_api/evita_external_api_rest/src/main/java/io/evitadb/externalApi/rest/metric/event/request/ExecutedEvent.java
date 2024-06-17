@@ -21,17 +21,16 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.metric.event.request;
+package io.evitadb.externalApi.rest.metric.event.request;
 
-import graphql.language.OperationDefinition.Operation;
 import io.evitadb.api.configuration.metric.MetricType;
 import io.evitadb.api.observability.annotation.ExportDurationMetric;
 import io.evitadb.api.observability.annotation.ExportInvocationMetric;
 import io.evitadb.api.observability.annotation.ExportMetric;
 import io.evitadb.api.observability.annotation.ExportMetricLabel;
 import io.evitadb.api.observability.annotation.HistogramSettings;
-import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
-import io.evitadb.externalApi.graphql.io.GraphQLInstanceType;
+import io.evitadb.externalApi.rest.exception.RestInternalError;
+import io.evitadb.externalApi.rest.io.RestInstanceType;
 import io.evitadb.utils.Assert;
 import jdk.jfr.Description;
 import jdk.jfr.Label;
@@ -43,17 +42,17 @@ import javax.annotation.Nullable;
 import java.util.function.Supplier;
 
 /**
- * JFR Event fired when GQL request is full executed and its response sent to client.
+ * JFR Event that is fired when a REST request is executed.
  *
- * @author Lukáš Hornych, 2024
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
  */
-@Name(AbstractGraphQLRequestEvent.PACKAGE_NAME + ".Executed")
-@Description("Event that is fired when a GraphQL request is executed.")
-@ExportInvocationMetric(label = "GraphQL request executed total")
-@ExportDurationMetric(label = "GraphQL request execution duration")
-@Label("GraphQL request executed")
+@Name(AbstractRestRequestEvent.PACKAGE_NAME + ".Executed")
+@Description("Event that is fired when a REST request is executed.")
+@ExportInvocationMetric(label = "REST request executed total")
+@ExportDurationMetric(label = "REST request execution duration")
+@Label("REST request executed")
 @Getter
-public class ExecutedEvent extends AbstractGraphQLRequestEvent {
+public class ExecutedEvent extends AbstractRestRequestEvent {
 
 	/**
 	 * Operation type specified by user in GQL request.
@@ -62,7 +61,7 @@ public class ExecutedEvent extends AbstractGraphQLRequestEvent {
 	@Name("operationType")
 	@ExportMetricLabel
 	@Nullable
-	String operationType;
+	final String operationType;
 
 	/**
 	 * The name of the catalog the transaction relates to.
@@ -71,22 +70,29 @@ public class ExecutedEvent extends AbstractGraphQLRequestEvent {
 	@Name("catalogName")
 	@ExportMetricLabel
 	@Nullable
-	String catalogName;
+	final String catalogName;
 
 	/**
-	 * Operation name specified by user in GQL request.
+	 * The name of the entity collection the transaction relates to.
 	 */
-	@Label("GraphQL operation")
-	@Name("operationName")
+	@Label("Collection")
+	@Name("entityType")
 	@ExportMetricLabel
 	@Nullable
-	String operationName;
+	final String entityType;
+
+	@Label("HTTP method")
+	@Name("httpMethod")
+	@ExportMetricLabel
+	@Nonnull
+	final String httpMethod;
 
 	@Label("Response status")
 	@Name("responseStatus")
 	@ExportMetricLabel
 	@Nonnull
 	String responseStatus = ResponseStatus.OK.name();
+
 
 	/**
 	 * Process started timestamp.
@@ -97,24 +103,6 @@ public class ExecutedEvent extends AbstractGraphQLRequestEvent {
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
 	@HistogramSettings(factor = 1.9)
 	private long inputDeserializationDurationMilliseconds;
-
-	private long preparationStarted;
-	@Label("Request execution preparation duration in milliseconds")
-	@ExportMetric(metricType = MetricType.HISTOGRAM)
-	@HistogramSettings(factor = 1.9)
-	private long preparationDurationMilliseconds;
-
-	private long parseStarted;
-	@Label("Request parsing duration in milliseconds")
-	@ExportMetric(metricType = MetricType.HISTOGRAM)
-	@HistogramSettings(factor = 1.9)
-	private long parseDurationMilliseconds;
-
-	private long validationStarted;
-	@Label("Request validation duration in milliseconds")
-	@ExportMetric(metricType = MetricType.HISTOGRAM)
-	@HistogramSettings(factor = 1.9)
-	private long validationDurationMilliseconds;
 
 	private long operationExecutionStarted;
 	@Label("Request operation execution duration in milliseconds")
@@ -148,52 +136,18 @@ public class ExecutedEvent extends AbstractGraphQLRequestEvent {
 	@HistogramSettings(factor = 1.9)
 	private long executionApiOverheadDurationMilliseconds;
 
-	@Label("Number of root fields (queries, mutations) processed within single GraphQL request")
-	@ExportMetric(metricType = MetricType.GAUGE)
-	private int rootFieldsProcessed;
-
-	public ExecutedEvent(@Nonnull GraphQLInstanceType instanceType) {
+	public ExecutedEvent(@Nonnull RestInstanceType instanceType,
+						 @Nonnull OperationType operationType,
+						 @Nullable String catalogName,
+						 @Nullable String entityType,
+	                     @Nonnull String httpMethod) {
 		super(instanceType);
+		this.operationType = operationType.name();
+		this.catalogName = catalogName;
+		this.entityType = entityType;
+		this.httpMethod = httpMethod;
 		this.begin();
 		this.processStarted = System.currentTimeMillis();
-	}
-
-	/**
-	 * Provide operation type for this event. Can be called only once.
-	 * @return this
-	 */
-	@Nonnull
-	public ExecutedEvent provideOperationType(@Nonnull Operation operationType) {
-		Assert.isPremiseValid(
-			this.operationType == null,
-			() -> new GraphQLInternalError("Operation type is already set.")
-		);
-		this.operationType = operationType.toString();
-		return this;
-	}
-
-	/**
-	 * Provide catalog name for this event. Can be called only once.
-	 * @return this
-	 */
-	@Nonnull
-	public ExecutedEvent provideCatalogName(@Nonnull String catalogName) {
-		Assert.isPremiseValid(
-			this.catalogName == null,
-			() -> new GraphQLInternalError("Catalog name is already set.")
-		);
-		this.catalogName = catalogName;
-		return this;
-	}
-
-	/**
-	 * Provide operation name for this event. Can be called only once.
-	 * @return this
-	 */
-	@Nonnull
-	public ExecutedEvent provideOperationName(@Nonnull String operationName) {
-		this.operationName = operationName;
-		return this;
 	}
 
 	/**
@@ -206,11 +160,6 @@ public class ExecutedEvent extends AbstractGraphQLRequestEvent {
 		return this;
 	}
 
-	@Nonnull
-	public ExecutedEvent provideRootFieldsProcessed(int rootFieldsProcessed) {
-		this.rootFieldsProcessed = rootFieldsProcessed;
-		return this;
-	}
 
 	/**
 	 * Measures duration of request deserialization from previous state. Should be called only once.
@@ -220,58 +169,10 @@ public class ExecutedEvent extends AbstractGraphQLRequestEvent {
 	public ExecutedEvent finishInputDeserialization() {
 		Assert.isPremiseValid(
 			this.processStarted != 0,
-			() -> new GraphQLInternalError("Process didn't started. Cannot measure input deserialization duration.")
+			() -> new RestInternalError("Process didn't started. Cannot measure input deserialization duration.")
 		);
 		final long now = System.currentTimeMillis();
 		this.inputDeserializationDurationMilliseconds = now - this.processStarted;
-		this.preparationStarted = now;
-		return this;
-	}
-
-	/**
-	 * Measures duration of preparation from previous state. Should be called only once.
-	 * @return this
-	 */
-	@Nonnull
-	public ExecutedEvent finishPreparation() {
-		Assert.isPremiseValid(
-			this.preparationStarted != 0,
-			() -> new GraphQLInternalError("Preparation didn't started. Cannot measure preparation duration.")
-		);
-		final long now = System.currentTimeMillis();
-		this.preparationDurationMilliseconds = now - this.preparationStarted;
-		this.parseStarted = now;
-		return this;
-	}
-
-	/**
-	 * Measures duration of parsing from previous state. Should be called only once.
-	 * @return this
-	 */
-	@Nonnull
-	public ExecutedEvent finishParse() {
-		Assert.isPremiseValid(
-			this.parseStarted != 0,
-			() -> new GraphQLInternalError("Parse didn't started. Cannot measure parse duration.")
-		);
-		final long now = System.currentTimeMillis();
-		this.parseDurationMilliseconds = now - this.parseStarted;
-		this.validationStarted = now;
-		return this;
-	}
-
-	/**
-	 * Measures duration of validation deserialization from previous state. Should be called only once.
-	 * @return this
-	 */
-	@Nonnull
-	public ExecutedEvent finishValidation() {
-		Assert.isPremiseValid(
-			this.validationStarted != 0,
-			() -> new GraphQLInternalError("Validation didn't started. Cannot measure validation duration.")
-		);
-		final long now = System.currentTimeMillis();
-		this.validationDurationMilliseconds = now - this.validationStarted;
 		this.operationExecutionStarted = now;
 		return this;
 	}
@@ -306,6 +207,10 @@ public class ExecutedEvent extends AbstractGraphQLRequestEvent {
 	 */
 	@Nonnull
 	public ExecutedEvent finishOperationExecution() {
+		Assert.isPremiseValid(
+			this.operationExecutionStarted != 0,
+			() -> new RestInternalError("Operation execution didn't started. Cannot measure operation execution duration.")
+		);
 		final long now = System.currentTimeMillis();
 		this.operationExecutionDurationMilliseconds = now - this.operationExecutionStarted;
 		this.resultSerializationStarted = now;
@@ -314,11 +219,14 @@ public class ExecutedEvent extends AbstractGraphQLRequestEvent {
 
 	/**
 	 * Measures duration of result serialization from previous state. Should be called only once.
-	 * If not called, it is assumed that no result serialization was done and thus it took 0 seconds.
 	 * @return this
 	 */
 	@Nonnull
 	public ExecutedEvent finishResultSerialization() {
+		Assert.isPremiseValid(
+			this.resultSerializationStarted != 0,
+			() -> new RestInternalError("Result serialization didn't started. Cannot measure result serialization duration.")
+		);
 		this.resultSerializationDurationMilliseconds = System.currentTimeMillis() - this.resultSerializationStarted;
 		return this;
 	}
@@ -333,7 +241,7 @@ public class ExecutedEvent extends AbstractGraphQLRequestEvent {
 
 		Assert.isPremiseValid(
 			this.processStarted != 0,
-			() -> new GraphQLInternalError("Process didn't started. Cannot measure execution duration duration.")
+			() -> new RestInternalError("Process didn't started. Cannot measure execution duration.")
 		);
 		if (this.operationExecutionStarted > 0 && this.operationExecutionDurationMilliseconds == 0) {
 			finishOperationExecution();
@@ -345,7 +253,14 @@ public class ExecutedEvent extends AbstractGraphQLRequestEvent {
 	}
 
 	/**
-	 * Response status of GraphQL request
+	 * Defines what will be done with the manipulated data within request.
+	 */
+	public enum OperationType {
+		QUERY, MUTATION
+	}
+
+	/**
+	 * Response status of REST request
 	 */
 	public enum ResponseStatus {
 		OK, ERROR

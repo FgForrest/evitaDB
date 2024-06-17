@@ -141,7 +141,7 @@ public class GraphQLHandler extends EndpointHandler<GraphQLEndpointExecutionCont
     @Nonnull
     protected EndpointResponse doHandleRequest(@Nonnull GraphQLEndpointExecutionContext executionContext) {
         final GraphQLRequest graphQLRequest = parseRequestBody(executionContext, GraphQLRequest.class);
-        executionContext.requestExecutedEvent().finishRequestDeserialization();
+        executionContext.requestExecutedEvent().finishInputDeserialization();
         final GraphQLResponse<?> graphQLResponse = executeRequest(executionContext, graphQLRequest);
         return new SuccessEndpointResponse(graphQLResponse);
     }

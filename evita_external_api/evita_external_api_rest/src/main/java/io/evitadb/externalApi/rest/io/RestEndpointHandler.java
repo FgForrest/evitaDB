@@ -29,12 +29,16 @@ import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.externalApi.exception.ExternalApiInvalidUsageException;
 import io.evitadb.externalApi.http.EndpointHandler;
 import io.evitadb.externalApi.http.EndpointResponse;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.CollectionRestHandlingContext;
 import io.evitadb.externalApi.rest.api.catalog.resolver.endpoint.CatalogRestHandlingContext;
 import io.evitadb.externalApi.rest.api.openApi.SchemaUtils;
 import io.evitadb.externalApi.rest.api.resolver.serializer.DataDeserializer;
+import io.evitadb.externalApi.rest.api.system.resolver.endpoint.SystemRestHandlingContext;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.externalApi.rest.exception.RestInvalidArgumentException;
 import io.evitadb.externalApi.rest.exception.RestRequiredParameterMissingException;
+import io.evitadb.externalApi.rest.metric.event.request.ExecutedEvent;
+import io.evitadb.externalApi.rest.metric.event.request.ExecutedEvent.OperationType;
 import io.swagger.v3.oas.models.Operation;
 import io.swagger.v3.oas.models.media.Schema;
 import io.swagger.v3.oas.models.parameters.Parameter;
@@ -90,7 +94,27 @@ public abstract class RestEndpointHandler<CTX extends RestHandlingContext> exten
     @Nonnull
     @Override
     protected RestEndpointExecutionContext createExecutionContext(@Nonnull HttpServerExchange serverExchange) {
-        return new RestEndpointExecutionContext(serverExchange);
+        final RestInstanceType instanceType;
+        if (restHandlingContext instanceof SystemRestHandlingContext) {
+            instanceType = RestInstanceType.SYSTEM;
+        } else if (restHandlingContext instanceof CatalogRestHandlingContext) {
+            instanceType = RestInstanceType.CATALOG;
+        } else {
+            // note: this is a bit of a hack to support lab rest API without rewriting it entirely. We will get rid of it
+            // when lab uses gRPC API
+            instanceType = RestInstanceType.LAB;
+        }
+
+        return new RestEndpointExecutionContext(
+            serverExchange,
+            new ExecutedEvent(
+                instanceType,
+                modifiesData() ? OperationType.MUTATION : OperationType.QUERY,
+                restHandlingContext instanceof CatalogRestHandlingContext catalogRestHandlingContext ? catalogRestHandlingContext.getCatalogSchema().getName() : null,
+                restHandlingContext instanceof CollectionRestHandlingContext collectionRestHandlingContext ? collectionRestHandlingContext.getEntityType() : null,
+                serverExchange.getRequestMethod().toString()
+            )
+        );
     }
 
     @Override

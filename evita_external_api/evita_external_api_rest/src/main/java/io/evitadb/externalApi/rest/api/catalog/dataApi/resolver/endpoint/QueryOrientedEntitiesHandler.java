@@ -39,6 +39,7 @@ import io.evitadb.externalApi.rest.exception.RestInvalidArgumentException;
 import io.evitadb.externalApi.rest.exception.RestRequiredParameterMissingException;
 import io.evitadb.externalApi.rest.io.JsonRestHandler;
 import io.evitadb.externalApi.rest.io.RestEndpointExecutionContext;
+import io.evitadb.externalApi.rest.metric.event.request.ExecutedEvent;
 import io.evitadb.utils.ArrayUtils;
 import io.undertow.util.Methods;
 import lombok.extern.slf4j.Slf4j;
@@ -104,24 +105,29 @@ public abstract class QueryOrientedEntitiesHandler extends JsonRestHandler<Colle
 
 	@Nonnull
 	protected Query resolveQuery(@Nonnull RestEndpointExecutionContext executionContext) {
+		final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
+
 		final QueryEntityRequestDto requestData = parseRequestBody(executionContext, QueryEntityRequestDto.class);
+		requestExecutedEvent.finishInputDeserialization();
 
-		final FilterBy filterBy = requestData.getFilterBy()
-			.map(container -> (FilterBy) filterConstraintResolver.resolve(FetchEntityRequestDescriptor.FILTER_BY.name(), container))
-			.orElse(null);
-		final OrderBy orderBy = requestData.getOrderBy()
-			.map(container -> (OrderBy) orderConstraintResolver.resolve(FetchEntityRequestDescriptor.ORDER_BY.name(), container))
-			.orElse(null);
-		final Require require = requestData.getRequire()
-			.map(container -> (Require) requireConstraintResolver.resolve(FetchEntityRequestDescriptor.REQUIRE.name(), container))
-			.orElse(null);
+		return requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() -> {
+			final FilterBy filterBy = requestData.getFilterBy()
+				.map(container -> (FilterBy) filterConstraintResolver.resolve(FetchEntityRequestDescriptor.FILTER_BY.name(), container))
+				.orElse(null);
+			final OrderBy orderBy = requestData.getOrderBy()
+				.map(container -> (OrderBy) orderConstraintResolver.resolve(FetchEntityRequestDescriptor.ORDER_BY.name(), container))
+				.orElse(null);
+			final Require require = requestData.getRequire()
+				.map(container -> (Require) requireConstraintResolver.resolve(FetchEntityRequestDescriptor.REQUIRE.name(), container))
+				.orElse(null);
 
-		return query(
-			collection(restHandlingContext.getEntityType()),
-			addLocaleIntoFilterByWhenUrlPathLocalized(executionContext, filterBy),
-			orderBy,
-			require
-		);
+			return query(
+				collection(restHandlingContext.getEntityType()),
+				addLocaleIntoFilterByWhenUrlPathLocalized(executionContext, filterBy),
+				orderBy,
+				require
+			);
+		});
 	}
 
 	@Nonnull

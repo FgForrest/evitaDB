@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -58,10 +58,13 @@ module evita.external.api.rest {
 	requires evita.external.api.core;
 	requires evita.query;
 	requires evita.engine;
+	requires jdk.jfr;
 
 	exports io.evitadb.externalApi.rest;
 	exports io.evitadb.externalApi.rest.io;
 	exports io.evitadb.externalApi.rest.configuration;
+	exports io.evitadb.externalApi.rest.metric.event.request;
+	exports io.evitadb.externalApi.rest.metric.event.instance;
 
 	// these shouldn't be publicly exported, but they are used by the lab module which extends this module
 	exports io.evitadb.externalApi.rest.api.builder to evita.external.api.lab;

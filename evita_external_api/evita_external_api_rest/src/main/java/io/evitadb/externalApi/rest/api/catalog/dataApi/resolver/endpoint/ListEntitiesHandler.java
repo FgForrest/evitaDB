@@ -31,6 +31,7 @@ import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer.Entit
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer.EntitySerializationContext;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.externalApi.rest.io.RestEndpointExecutionContext;
+import io.evitadb.externalApi.rest.metric.event.request.ExecutedEvent;
 import io.evitadb.utils.Assert;
 import lombok.extern.slf4j.Slf4j;
 
@@ -55,13 +56,19 @@ public class ListEntitiesHandler extends QueryOrientedEntitiesHandler {
 	@Nonnull
 	@Override
 	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
-		final Query query = resolveQuery(executionContext);
+		final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
 
+		final Query query = resolveQuery(executionContext);
 		log.debug("Generated evitaDB query for entity list of type `{}` is `{}`.", restHandlingContext.getEntitySchema(), query);
 
-		final List<EntityClassifier> entities = executionContext.session().queryList(query, EntityClassifier.class);
+		final List<EntityClassifier> entities = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
+			executionContext.session().queryList(query, EntityClassifier.class));
+		requestExecutedEvent.finishOperationExecution();
 
-		return new SuccessEndpointResponse(convertResultIntoSerializableObject(executionContext, entities));
+		final Object result = convertResultIntoSerializableObject(executionContext, entities);
+		requestExecutedEvent.finishResultSerialization();
+
+		return new SuccessEndpointResponse(result);
 	}
 
 	@Nonnull

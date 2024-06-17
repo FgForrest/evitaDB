@@ -23,9 +23,11 @@
 
 package io.evitadb.externalApi.lab.api.resolver.endpoint;
 
+import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.externalApi.http.EndpointResponse;
 import io.evitadb.externalApi.http.SuccessEndpointResponse;
 import io.evitadb.externalApi.rest.io.RestEndpointExecutionContext;
+import io.evitadb.externalApi.rest.metric.event.request.ExecutedEvent;
 import io.undertow.util.Methods;
 import lombok.extern.slf4j.Slf4j;
 
@@ -47,7 +49,17 @@ public class GetCatalogSchemaHandler extends CatalogSchemaHandler {
 	@Override
 	@Nonnull
 	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
-		return new SuccessEndpointResponse(convertResultIntoSerializableObject(executionContext, executionContext.session().getCatalogSchema()));
+		final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
+		requestExecutedEvent.finishInputDeserialization();
+
+		final SealedCatalogSchema catalogSchema = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
+			executionContext.session().getCatalogSchema());
+		requestExecutedEvent.finishOperationExecution();
+
+		final Object result = convertResultIntoSerializableObject(executionContext, catalogSchema);
+		requestExecutedEvent.finishResultSerialization();
+
+		return new SuccessEndpointResponse(result);
 	}
 
 	@Nonnull

@@ -49,7 +49,6 @@ public class CatalogGraphQLRefreshingObserver implements CatalogStructuralChange
 	@Override
 	public void onCatalogDelete(@Nonnull String catalogName) {
 		graphQLManager.unregisterCatalog(catalogName);
-		graphQLManager.emitObservabilityEvents(catalogName);
 	}
 
 	@Override

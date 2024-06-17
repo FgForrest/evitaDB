@@ -27,22 +27,35 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.core.CorruptedCatalog;
 import io.evitadb.core.Evita;
+import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.externalApi.http.PathNormalizingHandler;
 import io.evitadb.externalApi.rest.api.Rest;
 import io.evitadb.externalApi.rest.api.catalog.CatalogRestBuilder;
+import io.evitadb.externalApi.rest.api.openApi.OpenApiWriter;
 import io.evitadb.externalApi.rest.api.system.SystemRestBuilder;
 import io.evitadb.externalApi.rest.configuration.RestConfig;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
+import io.evitadb.externalApi.rest.io.RestInstanceType;
 import io.evitadb.externalApi.rest.io.RestRouter;
+import io.evitadb.externalApi.rest.metric.event.instance.BuiltEvent;
+import io.evitadb.externalApi.rest.metric.event.instance.BuiltEvent.BuildType;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.StringUtils;
+import io.swagger.v3.oas.models.OpenAPI;
 import io.undertow.server.HttpHandler;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
+import static io.evitadb.utils.CollectionUtils.createHashMap;
 import static io.evitadb.utils.CollectionUtils.createHashSet;
 
 /**
@@ -72,6 +85,8 @@ public class RestManager {
 	 */
 	@Nonnull private final Set<String> registeredCatalogs = createHashSet(20);
 
+	@Nonnull private SystemBuildStatistics systemBuildStatistics;
+	@Nonnull private final Map<String, CatalogBuildStatistics> catalogBuildStatistics = createHashMap(20);
 
 	public RestManager(@Nonnull Evita evita, @Nullable String exposedOn, @Nonnull RestConfig restConfig) {
 		this.evita = evita;
@@ -98,9 +113,22 @@ public class RestManager {
 	 * Builds and registers system API to manage evitaDB
 	 */
 	private void registerSystemApi() {
+		final long instanceBuildStartTime = System.currentTimeMillis();
+
 		final SystemRestBuilder systemRestBuilder = new SystemRestBuilder(exposedOn, restConfig, evita);
+		final long schemaBuildStartTime = System.currentTimeMillis();
 		final Rest api = systemRestBuilder.build();
+		final long schemaBuildDuration = System.currentTimeMillis() - schemaBuildStartTime;
+
 		restRouter.registerSystemApi(api);
+		final long instanceBuildDuration = System.currentTimeMillis() - instanceBuildStartTime;
+
+		// build metrics
+		systemBuildStatistics = SystemBuildStatistics.createNew(
+			instanceBuildDuration,
+			schemaBuildDuration,
+			countOpenApiSchemaLines(api.openApi())
+		);
 	}
 
 	/**
@@ -117,11 +145,37 @@ public class RestManager {
 			() -> new RestInternalError("Catalog `" + catalogName + "` has been already registered.")
 		);
 
-		final CatalogRestBuilder catalogRestBuilder = new CatalogRestBuilder(exposedOn, restConfig, evita, catalog);
-		final Rest api = catalogRestBuilder.build();
+		try {
+			final long instanceBuildStartTime = System.currentTimeMillis();
 
-		registeredCatalogs.add(catalogName);
-		restRouter.registerCatalogApi(catalogName, api);
+			final CatalogRestBuilder catalogRestBuilder = new CatalogRestBuilder(exposedOn, restConfig, evita, catalog);
+			final long schemaBuildStartTime = System.currentTimeMillis();
+			final Rest api = catalogRestBuilder.build();
+			final long schemaBuildDuration = System.currentTimeMillis() - schemaBuildStartTime;
+
+			registeredCatalogs.add(catalogName);
+			restRouter.registerCatalogApi(catalogName, api);
+			final long instanceBuildDuration = System.currentTimeMillis() - instanceBuildStartTime;
+
+			// build metrics
+			Assert.isPremiseValid(
+				!catalogBuildStatistics.containsKey(catalogName),
+				() -> new RestInternalError("There are already build statistics present for catalog `" + catalogName + "`.")
+			);
+			final CatalogBuildStatistics buildStatistics = CatalogBuildStatistics.createNew(
+				instanceBuildDuration,
+				schemaBuildDuration,
+				countOpenApiSchemaLines(api.openApi())
+			);
+			catalogBuildStatistics.put(catalogName, buildStatistics);
+		} catch (EvitaInternalError ex) {
+			// log and skip the catalog entirely
+			log.error("Catalog `" + catalogName + "` is corrupted and will not accessible by REST API.", ex);
+
+			// cleanup corrupted paths
+			restRouter.unregisterCatalogApi(catalogName);
+			catalogBuildStatistics.remove(catalogName);
+		}
 	}
 
 	/**
@@ -131,6 +185,7 @@ public class RestManager {
 		final boolean catalogRegistered = registeredCatalogs.remove(catalogName);
 		if (catalogRegistered) {
 			restRouter.unregisterCatalogApi(catalogName);
+			catalogBuildStatistics.remove(catalogName);
 		}
 	}
 
@@ -146,11 +201,133 @@ public class RestManager {
 			return;
 		}
 
+		final long instanceBuildStartTime = System.currentTimeMillis();
+
 		final CatalogContract catalog = evita.getCatalogInstanceOrThrowException(catalogName);
 		final CatalogRestBuilder catalogRestBuilder = new CatalogRestBuilder(exposedOn, restConfig, evita, catalog);
+		final long schemaBuildStartTime = System.currentTimeMillis();
 		final Rest newApi = catalogRestBuilder.build();
+		final long schemaBuildDuration = System.currentTimeMillis() - schemaBuildStartTime;
 
 		restRouter.unregisterCatalogApi(catalogName);
 		restRouter.registerCatalogApi(catalogName, newApi);
+		final long instanceBuildDuration = System.currentTimeMillis() - instanceBuildStartTime;
+
+		// build metrics
+		final CatalogBuildStatistics buildStatistics = catalogBuildStatistics.get(catalogName);
+		Assert.isPremiseValid(
+			buildStatistics != null,
+			() -> new RestInternalError("No build statistics found for catalog `" + catalogName + "`.")
+		);
+		buildStatistics.refresh(
+			instanceBuildDuration,
+			schemaBuildDuration,
+			countOpenApiSchemaLines(newApi.openApi())
+		);
+	}
+
+	/**
+	 * Allows emitting start events when observability facilities are already initialized.
+	 * If we didn't postpone this initialization, events would become lost.
+	 */
+	public void emitObservabilityEvents() {
+		Assert.isPremiseValid(
+			systemBuildStatistics != null,
+			() -> new RestInternalError("No build statistics for system API found.")
+		);
+		if (!systemBuildStatistics.reported().get()) {
+			new BuiltEvent(
+				RestInstanceType.SYSTEM,
+				BuildType.NEW,
+				systemBuildStatistics.instanceBuildDuration(),
+				systemBuildStatistics.schemaBuildDuration(),
+				systemBuildStatistics.schemaDslLines()
+			).commit();
+
+			systemBuildStatistics.markAsReported();
+		}
+
+		catalogBuildStatistics.keySet().forEach(this::emitObservabilityEvents);
+	}
+
+	/**
+	 * Allows emitting start events when observability facilities are already initialized.
+	 * If we didn't postpone this initialization, events would become lost.
+	 */
+	public void emitObservabilityEvents(@Nonnull String catalogName) {
+		final CatalogBuildStatistics buildStatistics = catalogBuildStatistics.get(catalogName);
+		Assert.isPremiseValid(
+			buildStatistics != null,
+			() -> new RestInternalError("No build statistics found for catalog `" + catalogName + "`.")
+		);
+
+		new BuiltEvent(
+			catalogName,
+			RestInstanceType.CATALOG,
+			buildStatistics.buildCount().get() == 1 ? BuildType.NEW : BuildType.REFRESH,
+			buildStatistics.instanceBuildDuration().get(),
+			buildStatistics.schemaBuildDuration().get(),
+			buildStatistics.schemaDslLines().get()
+		).commit();
+	}
+
+	/**
+	 * Counts lines of printed OpenAPI schema in DSL.
+	 */
+	private long countOpenApiSchemaLines(@Nonnull OpenAPI schema) {
+		final ByteArrayOutputStream out = new ByteArrayOutputStream();
+		try {
+			OpenApiWriter.toYaml(schema, out);
+		} catch (IOException e) {
+			throw new RestInternalError("Failed to count OpenAPI DSL lines.");
+		}
+		return out.toString().lines().count();
+	}
+
+	private record SystemBuildStatistics(@Nonnull AtomicBoolean reported,
+	                                     long instanceBuildDuration,
+	                                     long schemaBuildDuration,
+	                                     long schemaDslLines) {
+
+		public static SystemBuildStatistics createNew(long instanceBuildDuration,
+		                                              long schemaBuildDuration,
+		                                              long schemaDslLines) {
+			return new SystemBuildStatistics(
+				new AtomicBoolean(false),
+				instanceBuildDuration,
+				schemaBuildDuration,
+				schemaDslLines
+			);
+		}
+
+		public void markAsReported() {
+			this.reported.set(true);
+		}
+	}
+
+	private record CatalogBuildStatistics(@Nonnull AtomicInteger buildCount,
+										  @Nonnull AtomicLong instanceBuildDuration,
+	                                      @Nonnull AtomicLong schemaBuildDuration,
+	                                      @Nonnull AtomicLong schemaDslLines) {
+
+		public static CatalogBuildStatistics createNew(long instanceBuildDuration,
+		                                               long schemaBuildDuration,
+		                                               long schemaDslLines) {
+			return new CatalogBuildStatistics(
+				new AtomicInteger(1),
+				new AtomicLong(instanceBuildDuration),
+				new AtomicLong(schemaBuildDuration),
+				new AtomicLong(schemaDslLines)
+			);
+		}
+
+		public void refresh(long instanceBuildDuration,
+		                    long schemaBuildDuration,
+		                    long schemaDslLines) {
+			this.buildCount.incrementAndGet();
+			this.instanceBuildDuration.set(instanceBuildDuration);
+			this.schemaBuildDuration.set(schemaBuildDuration);
+			this.schemaDslLines.set(schemaDslLines);
+		}
 	}
 }

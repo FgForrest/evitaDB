@@ -21,24 +21,18 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.metric.event.schema;
-
-import io.evitadb.api.observability.annotation.EventGroup;
-import io.evitadb.core.metric.event.CustomMetricsExecutionEvent;
-import jdk.jfr.Category;
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
+package io.evitadb.externalApi.rest.io;
 
 /**
- * Common event ancestor for event regarding GraphQL schemas.
+ * Represents semantically REST instance. Defines which data it provides.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
  */
-@EventGroup(AbstractGraphQLSchemaEvent.PACKAGE_NAME)
-@Category({"evitaDB", "API", "GraphQL", "Schema"})
-@RequiredArgsConstructor
-@Getter
-public class AbstractGraphQLSchemaEvent extends CustomMetricsExecutionEvent {
-
-	protected static final String PACKAGE_NAME = "io.evitadb.externalApi.graphql.schema";
+public enum RestInstanceType {
+	SYSTEM,
+	CATALOG,
+	/**
+	 * Note: this is a bit of a hack, we will get rid of this when lab uses gRPC API
+	 */
+	LAB
 }
