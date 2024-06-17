@@ -66,7 +66,6 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.Gra
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.OrderConstraintSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.RequireConstraintSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.ResponseHeaderDescriptor.BucketsFieldHeaderDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.ResponseHeaderDescriptor.QueryTelemetryFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.ResponseHeaderDescriptor.RecordPageFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.ResponseHeaderDescriptor.RecordStripFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.*;
@@ -929,7 +928,6 @@ public class FullResponseObjectBuilder {
 			ExtraResultsDescriptor.QUERY_TELEMETRY
 				.to(fieldBuilderTransformer)
 				.type(nonNull(OBJECT)) // workaround because GQL doesn't support infinite recursive structures
-				.argument(QueryTelemetryFieldHeaderDescriptor.FORMATTED.to(argumentBuilderTransformer))
 				.build(),
 			new QueryTelemetryDataFetcher(QUERY_TELEMETRY_OBJECT_MAPPER)
 		);

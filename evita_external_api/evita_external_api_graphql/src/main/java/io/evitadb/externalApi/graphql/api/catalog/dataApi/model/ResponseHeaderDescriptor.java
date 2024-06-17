@@ -101,18 +101,4 @@ public interface ResponseHeaderDescriptor {
 			.type(nullable(HistogramBehavior.class))
 			.build();
 	}
-
-	/**
-	 * Descriptor of header arguments of field {@link ExtraResultsDescriptor#QUERY_TELEMETRY}.
-	 */
-	interface QueryTelemetryFieldHeaderDescriptor {
-
-		PropertyDescriptor FORMATTED = PropertyDescriptor.builder()
-			.name("formatted")
-			.description("""
-                Formats machine data like nanoseconds to human-readable formats.
-				""")
-			.type(nullable(Boolean.class))
-			.build();
-	}
 }
