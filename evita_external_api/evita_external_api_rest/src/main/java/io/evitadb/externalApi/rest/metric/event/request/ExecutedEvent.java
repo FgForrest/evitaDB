@@ -87,6 +87,12 @@ public class ExecutedEvent extends AbstractRestRequestEvent {
 	@Nonnull
 	final String httpMethod;
 
+	@Label("Operation ID")
+	@Name("operationId")
+	@ExportMetricLabel
+	@Nonnull
+	final String operationId;
+
 	@Label("Response status")
 	@Name("responseStatus")
 	@ExportMetricLabel
@@ -140,12 +146,14 @@ public class ExecutedEvent extends AbstractRestRequestEvent {
 						 @Nonnull OperationType operationType,
 						 @Nullable String catalogName,
 						 @Nullable String entityType,
-	                     @Nonnull String httpMethod) {
+	                     @Nonnull String httpMethod,
+	                     @Nonnull String operationId) {
 		super(instanceType);
 		this.operationType = operationType.name();
 		this.catalogName = catalogName;
 		this.entityType = entityType;
 		this.httpMethod = httpMethod;
+		this.operationId = operationId;
 		this.begin();
 		this.processStarted = System.currentTimeMillis();
 	}
