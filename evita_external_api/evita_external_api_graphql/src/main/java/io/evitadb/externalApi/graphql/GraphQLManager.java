@@ -394,4 +394,5 @@ public class GraphQLManager {
 			this.schemaApiSchemaDslLines.set(schemaApiSchemaDslLines);
 		}
 	}
+	
 }
