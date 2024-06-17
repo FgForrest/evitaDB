@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.metric.event.schema;
+package io.evitadb.externalApi.graphql.metric.event.instance;
 
 import io.evitadb.api.observability.annotation.EventGroup;
 import io.evitadb.core.metric.event.CustomMetricsExecutionEvent;
@@ -30,15 +30,15 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 /**
- * Common event ancestor for event regarding GraphQL schemas.
+ * Common event ancestor for events regarding GraphQL instances.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
  */
-@EventGroup(AbstractGraphQLSchemaEvent.PACKAGE_NAME)
-@Category({"evitaDB", "API", "GraphQL", "Schema"})
+@EventGroup(AbstractGraphQLInstanceEvent.PACKAGE_NAME)
+@Category({"evitaDB", "API", "GraphQL", "Instance", "Schema"})
 @RequiredArgsConstructor
 @Getter
-public class AbstractGraphQLSchemaEvent extends CustomMetricsExecutionEvent {
+public class AbstractGraphQLInstanceEvent extends CustomMetricsExecutionEvent {
 
-	protected static final String PACKAGE_NAME = "io.evitadb.externalApi.graphql.schema";
+	protected static final String PACKAGE_NAME = "io.evitadb.externalApi.graphql.instance";
 }

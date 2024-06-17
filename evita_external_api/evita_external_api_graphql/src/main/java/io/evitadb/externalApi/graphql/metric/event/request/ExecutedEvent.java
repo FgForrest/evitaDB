@@ -319,10 +319,6 @@ public class ExecutedEvent extends AbstractGraphQLRequestEvent {
 	 */
 	@Nonnull
 	public ExecutedEvent finishResultSerialization() {
-		Assert.isPremiseValid(
-			this.resultSerializationStarted != 0,
-			() -> new GraphQLInternalError("Result serialization didn't started. Cannot measure result serialization duration.")
-		);
 		this.resultSerializationDurationMilliseconds = System.currentTimeMillis() - this.resultSerializationStarted;
 		return this;
 	}

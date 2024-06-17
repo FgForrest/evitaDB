@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -59,6 +59,6 @@ public class RestProviderRegistrar implements ExternalApiProviderRegistrar<RestC
 	                                                @Nonnull RestConfig restConfiguration) {
 		final RestManager restManager = new RestManager(evita, apiOptions.exposedOn(), restConfiguration);
 		evita.registerStructuralChangeObserver(new CatalogRestRefreshingObserver(restManager));
-		return new RestProvider(restConfiguration, restManager.getRestRouter());
+		return new RestProvider(restConfiguration, restManager);
 	}
 }

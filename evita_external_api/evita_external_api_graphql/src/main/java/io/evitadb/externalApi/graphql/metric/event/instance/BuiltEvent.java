@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.metric.event.schema;
+package io.evitadb.externalApi.graphql.metric.event.instance;
 
 import io.evitadb.api.configuration.metric.MetricType;
 import io.evitadb.api.observability.annotation.ExportInvocationMetric;
@@ -42,12 +42,12 @@ import javax.annotation.Nullable;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
  */
-@Name(AbstractGraphQLSchemaEvent.PACKAGE_NAME + ".Built")
-@Description("Event that is fired when a GraphQL schema is built.")
-@ExportInvocationMetric(label = "GraphQL schema built total")
-@Label("GraphQL schema built")
+@Name(AbstractGraphQLInstanceEvent.PACKAGE_NAME + ".Built")
+@Description("Event that is fired when a GraphQL instance is built.")
+@ExportInvocationMetric(label = "GraphQL instance built total")
+@Label("GraphQL instance built")
 @Getter
-public class BuiltEvent extends AbstractGraphQLSchemaEvent {
+public class BuiltEvent extends AbstractGraphQLInstanceEvent {
 
 	@Label("Instance type")
 	@Name("instanceType")
@@ -67,38 +67,47 @@ public class BuiltEvent extends AbstractGraphQLSchemaEvent {
 	@Nullable
 	private final String catalogName;
 
+	@Label("Duration of build of a single API")
+	@ExportMetric(metricType = MetricType.HISTOGRAM)
+	@HistogramSettings(factor = 2.5)
+	private long instanceBuildDuration;
+
 	@Label("Duration of GraphQL schema build of a single API")
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
 	@HistogramSettings(factor = 2.5)
-	private long buildDuration;
+	private long schemaBuildDuration;
 
 	@Label("Number of lines in built GraphQL schema DSL")
 	@ExportMetric(metricType = MetricType.GAUGE)
-	private long dslLines;
+	private long schemaDslLines;
 
 	public BuiltEvent(@Nonnull GraphQLInstanceType instanceType,
 					  @Nonnull BuildType buildType,
-	                  long buildDuration,
-	                  long dslLines) {
+					  long instanceBuildDuration,
+	                  long schemaBuildDuration,
+	                  long schemaDslLines) {
 		this(
 			null,
 			instanceType,
 			buildType,
-			buildDuration,
-			dslLines
+			instanceBuildDuration,
+			schemaBuildDuration,
+			schemaDslLines
 		);
 	}
 
 	public BuiltEvent(@Nonnull String catalogName,
 	                  @Nonnull GraphQLInstanceType instanceType,
 					  @Nonnull BuildType buildType,
-	                  long buildDuration,
-	                  long dslLines) {
+					  long instanceBuildDuration,
+	                  long schemaBuildDuration,
+	                  long schemaDslLines) {
 		this.catalogName = catalogName;
 		this.instanceType = instanceType.name();
 		this.buildType = buildType.name();
-		this.buildDuration = buildDuration;
-		this.dslLines = dslLines;
+		this.instanceBuildDuration = instanceBuildDuration;
+		this.schemaBuildDuration = schemaBuildDuration;
+		this.schemaDslLines = schemaDslLines;
 	}
 
 	/**
