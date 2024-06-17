@@ -1,5 +1,19 @@
 ### Java Flight Recorder (JFR) Events
 
+#### API / GraphQL / Request
+
+<dl>
+  <dt><SourceClass>evita_engine/src/main/java/io/evitadb/externalApi/graphql/metric/event/request/ExecutedEvent.java</SourceClass> GraphQL request executed</dt>
+  <dd>Event that is fired when a GraphQL request is executed.</dd>
+</dl>
+
+#### API / GraphQL / Schema
+
+<dl>
+  <dt><SourceClass>evita_engine/src/main/java/io/evitadb/externalApi/graphql/metric/event/schema/BuiltEvent.java</SourceClass> GraphQL schema built</dt>
+  <dd>Event that is fired when a GraphQL schema is built.</dd>
+</dl>
+
 #### API / gRPC
 
 <dl>

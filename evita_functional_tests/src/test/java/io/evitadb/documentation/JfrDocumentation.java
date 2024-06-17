@@ -158,7 +158,7 @@ public class JfrDocumentation implements EvitaTestSupport {
 								final String description = ofNullable(field.getKey().getAnnotation(Description.class)).map(Description::value).orElse("N/A");
 								return new MetricLabel(
 									ofNullable(annotation.value()).filter(value -> !value.isBlank()).orElse(field.getKey().getName()),
-									"**" + label + "**: " + description
+									"<strong>" + label + "</strong>: " + description
 								);
 							})
 						// we care only about distinct labels
@@ -220,7 +220,7 @@ public class JfrDocumentation implements EvitaTestSupport {
 												return new Metric(
 													MetricHandler.composeMetricName(it, annotation, of(annotation.metricName()).filter(metricName -> !metricName.isBlank()).orElse(field.getKey().getName())),
 													annotation.metricType().name(),
-													"**" + label + "**: " + description,
+													"<strong>" + label + "</strong>: " + description,
 													getLabels(it, lookup)
 												);
 											}
@@ -233,15 +233,15 @@ public class JfrDocumentation implements EvitaTestSupport {
 								.forEach(
 									metric -> {
 										try {
-											writer.write("  <dt>`" + metric.name() + "` (" + metric.metricType() +  ")</dt>\n");
+											writer.write("  <dt><code>" + metric.name() + "</code> (" + metric.metricType() +  ")</dt>\n");
 											writer.write("  <dd>");
 											writer.write(metric.description());
 											// if there are labels referred by the metrics list them including link to used terms
 											if (metric.labels().length > 0) {
-												writer.write("\n**Labels:** ");
+												writer.write("<br/><br/><strong>Labels:</strong> ");
 												writer.write(Arrays.stream(metric.labels())
 													.map(label -> "<Term>" + label + "</Term>").collect(Collectors.joining(", ")));
-												writer.write("\n");
+												writer.write("<br/>");
 											}
 											writer.write("</dd>\n");
 
