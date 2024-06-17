@@ -1,17 +1,10 @@
 ### Java Flight Recorder (JFR) Events
 
-#### API / GraphQL / Request
+#### API / GraphQL / Instance / Schema
 
 <dl>
-  <dt><SourceClass>evita_engine/src/main/java/io/evitadb/externalApi/graphql/metric/event/request/ExecutedEvent.java</SourceClass> GraphQL request executed</dt>
-  <dd>Event that is fired when a GraphQL request is executed.</dd>
-</dl>
-
-#### API / GraphQL / Schema
-
-<dl>
-  <dt><SourceClass>evita_engine/src/main/java/io/evitadb/externalApi/graphql/metric/event/schema/BuiltEvent.java</SourceClass> GraphQL schema built</dt>
-  <dd>Event that is fired when a GraphQL schema is built.</dd>
+  <dt><SourceClass>evita_engine/src/main/java/io/evitadb/externalApi/graphql/metric/event/instance/BuiltEvent.java</SourceClass> GraphQL instance built</dt>
+  <dd>Event that is fired when a GraphQL instance is built.</dd>
 </dl>
 
 #### API / gRPC
@@ -28,6 +21,27 @@
   <dd>Event that is fired in regular intervals to update statistics about records waiting in anteroom.</dd>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/cache/AnteroomWastedEvent.java</SourceClass> Anteroom wasted</dt>
   <dd>Event that is fired when an entire anteroom contents were thrown away.</dd>
+</dl>
+
+#### ExternalAPI / GraphQL / Request
+
+<dl>
+  <dt><SourceClass>evita_engine/src/main/java/io/evitadb/externalApi/graphql/metric/event/request/ExecutedEvent.java</SourceClass> GraphQL request executed</dt>
+  <dd>Event that is fired when a GraphQL request is executed.</dd>
+</dl>
+
+#### ExternalAPI / REST / Instance / Schema
+
+<dl>
+  <dt><SourceClass>evita_engine/src/main/java/io/evitadb/externalApi/rest/metric/event/instance/BuiltEvent.java</SourceClass> REST API instance built</dt>
+  <dd>Event that is fired when a REST API instance is built.</dd>
+</dl>
+
+#### ExternalAPI / REST / Request
+
+<dl>
+  <dt><SourceClass>evita_engine/src/main/java/io/evitadb/externalApi/rest/metric/event/request/ExecutedEvent.java</SourceClass> REST request executed</dt>
+  <dd>Event that is fired when a REST request is executed.</dd>
 </dl>
 
 #### Query

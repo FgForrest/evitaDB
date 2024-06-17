@@ -3,44 +3,12 @@
 <UsedTerms>
   <h4>Labels used in metrics</h4>
   <dl>
-    <dt>entityType</dt>
-    <dd><strong>Entity type</strong>: N/A</dd>
-    <dt>fileType</dt>
-    <dd><strong>File type</strong>: N/A</dd>
-    <dt>name</dt>
-    <dd><strong>Logical file name</strong>: N/A</dd>
-    <dt>fileType</dt>
-    <dd><strong>File type</strong>: N/A</dd>
-    <dt>name</dt>
-    <dd><strong>Logical file name</strong>: N/A</dd>
-    <dt>fileType</dt>
-    <dd><strong>File type</strong>: N/A</dd>
-    <dt>name</dt>
-    <dd><strong>Logical file name</strong>: N/A</dd>
-    <dt>fileType</dt>
-    <dd><strong>File type</strong>: N/A</dd>
-    <dt>name</dt>
-    <dd><strong>Logical file name</strong>: N/A</dd>
-    <dt>stage</dt>
-    <dd><strong>Transaction stage</strong>: N/A</dd>
-    <dt>fileType</dt>
-    <dd><strong>File type</strong>: N/A</dd>
-    <dt>name</dt>
-    <dd><strong>Logical file name</strong>: N/A</dd>
+    <dt>buildType</dt>
+    <dd><strong>Build type</strong>: N/A</dd>
     <dt>catalogName</dt>
     <dd><strong>Catalog</strong>: N/A</dd>
     <dt>instanceType</dt>
     <dd><strong>Instance type</strong>: N/A</dd>
-    <dt>operationName</dt>
-    <dd><strong>GraphQL operation</strong>: N/A</dd>
-    <dt>operationType</dt>
-    <dd><strong>Operation type</strong>: N/A</dd>
-    <dt>responseStatus</dt>
-    <dd><strong>Response status</strong>: N/A</dd>
-    <dt>fileType</dt>
-    <dd><strong>File type</strong>: N/A</dd>
-    <dt>name</dt>
-    <dd><strong>Logical file name</strong>: N/A</dd>
     <dt>buildType</dt>
     <dd><strong>Build type</strong>: N/A</dd>
     <dt>catalogName</dt>
@@ -51,12 +19,12 @@
     <dd><strong>File type</strong>: N/A</dd>
     <dt>name</dt>
     <dd><strong>Logical file name</strong>: N/A</dd>
-    <dt>recordType</dt>
-    <dd><strong>Record type</strong>: N/A</dd>
-    <dt>entityType</dt>
-    <dd><strong>Entity type</strong>: N/A</dd>
-    <dt>prefetched</dt>
-    <dd><strong>Prefetched vs. non-prefetched query</strong>: N/A</dd>
+    <dt>fileType</dt>
+    <dd><strong>File type</strong>: N/A</dd>
+    <dt>name</dt>
+    <dd><strong>Logical file name</strong>: N/A</dd>
+    <dt>resolution</dt>
+    <dd><strong>Transaction resolution</strong>: N/A</dd>
     <dt>initiator</dt>
     <dd><strong>Initiator of the call (client or server)</strong>: N/A</dd>
     <dt>procedureName</dt>
@@ -65,20 +33,103 @@
     <dd><strong>State of the response (OK, ERROR, CANCELED)</strong>: N/A</dd>
     <dt>serviceName</dt>
     <dd><strong>Name of the service that was called</strong>: N/A</dd>
-    <dt>resolution</dt>
-    <dd><strong>Transaction resolution</strong>: N/A</dd>
-    <dt>taskName</dt>
-    <dd><strong>N/A</strong>: N/A</dd>
-    <dt>resolution</dt>
-    <dd><strong>Transaction resolution</strong>: N/A</dd>
-    <dt>taskName</dt>
-    <dd><strong>N/A</strong>: N/A</dd>
     <dt>entityType</dt>
     <dd><strong>Entity type</strong>: N/A</dd>
+    <dt>prefetched</dt>
+    <dd><strong>Prefetched vs. non-prefetched query</strong>: N/A</dd>
+    <dt>entityType</dt>
+    <dd><strong>Entity type</strong>: N/A</dd>
+    <dt>catalogName</dt>
+    <dd><strong>Catalog</strong>: N/A</dd>
+    <dt>instanceType</dt>
+    <dd><strong>Instance type</strong>: N/A</dd>
+    <dt>operationName</dt>
+    <dd><strong>GraphQL operation</strong>: N/A</dd>
+    <dt>operationType</dt>
+    <dd><strong>Operation type</strong>: N/A</dd>
+    <dt>responseStatus</dt>
+    <dd><strong>Response status</strong>: N/A</dd>
+    <dt>taskName</dt>
+    <dd><strong>N/A</strong>: N/A</dd>
+    <dt>fileType</dt>
+    <dd><strong>File type</strong>: N/A</dd>
+    <dt>name</dt>
+    <dd><strong>Logical file name</strong>: N/A</dd>
+    <dt>resolution</dt>
+    <dd><strong>Transaction resolution</strong>: N/A</dd>
+    <dt>stage</dt>
+    <dd><strong>Transaction stage</strong>: N/A</dd>
+    <dt>entityType</dt>
+    <dd><strong>Entity type</strong>: N/A</dd>
+    <dt>fileType</dt>
+    <dd><strong>File type</strong>: N/A</dd>
+    <dt>name</dt>
+    <dd><strong>Logical file name</strong>: N/A</dd>
+    <dt>fileType</dt>
+    <dd><strong>File type</strong>: N/A</dd>
+    <dt>name</dt>
+    <dd><strong>Logical file name</strong>: N/A</dd>
+    <dt>fileType</dt>
+    <dd><strong>File type</strong>: N/A</dd>
+    <dt>name</dt>
+    <dd><strong>Logical file name</strong>: N/A</dd>
+    <dt>recordType</dt>
+    <dd><strong>Record type</strong>: N/A</dd>
+    <dt>catalogName</dt>
+    <dd><strong>Catalog</strong>: N/A</dd>
+    <dt>entityType</dt>
+    <dd><strong>Collection</strong>: N/A</dd>
+    <dt>httpMethod</dt>
+    <dd><strong>HTTP method</strong>: N/A</dd>
+    <dt>instanceType</dt>
+    <dd><strong>Instance type</strong>: N/A</dd>
+    <dt>operationId</dt>
+    <dd><strong>Operation ID</strong>: N/A</dd>
+    <dt>operationType</dt>
+    <dd><strong>Operation type</strong>: N/A</dd>
+    <dt>responseStatus</dt>
+    <dd><strong>Response status</strong>: N/A</dd>
+    <dt>fileType</dt>
+    <dd><strong>File type</strong>: N/A</dd>
+    <dt>name</dt>
+    <dd><strong>Logical file name</strong>: N/A</dd>
+    <dt>taskName</dt>
+    <dd><strong>N/A</strong>: N/A</dd>
   </dl>
 </UsedTerms>
 
-#### API / GraphQL / Request
+#### API / GraphQL / Instance / Schema
+
+<dl>
+  <dt><code>io_evitadb_external_api_graphql_instance_built_instance_build_duration</code> (HISTOGRAM)</dt>
+  <dd><strong>Duration of build of a single API</strong>: N/A<br/><br/><strong>Labels:</strong> <Term>buildType</Term>, <Term>catalogName</Term>, <Term>instanceType</Term><br/></dd>
+  <dt><code>io_evitadb_external_api_graphql_instance_built_schema_build_duration</code> (HISTOGRAM)</dt>
+  <dd><strong>Duration of GraphQL schema build of a single API</strong>: N/A<br/><br/><strong>Labels:</strong> <Term>buildType</Term>, <Term>catalogName</Term>, <Term>instanceType</Term><br/></dd>
+  <dt><code>io_evitadb_external_api_graphql_instance_built_schema_dsl_lines</code> (GAUGE)</dt>
+  <dd><strong>Number of lines in built GraphQL schema DSL</strong>: N/A<br/><br/><strong>Labels:</strong> <Term>buildType</Term>, <Term>catalogName</Term>, <Term>instanceType</Term><br/></dd>
+  <dt><code>io_evitadb_external_api_graphql_instance_built_total</code> (COUNTER)</dt>
+  <dd>GraphQL instance built total<br/><br/><strong>Labels:</strong> <Term>buildType</Term>, <Term>catalogName</Term>, <Term>instanceType</Term><br/></dd>
+</dl>
+
+#### API / gRPC
+
+<dl>
+  <dt><code>io_evitadb_api_grpc_procedure_called_duration_milliseconds</code> (HISTOGRAM)</dt>
+  <dd>gRPC procedure called duration<br/><br/><strong>Labels:</strong> <Term>initiator</Term>, <Term>procedureName</Term>, <Term>responseState</Term>, <Term>serviceName</Term><br/></dd>
+  <dt><code>io_evitadb_api_grpc_procedure_called_total</code> (COUNTER)</dt>
+  <dd>gRPC procedure called total<br/><br/><strong>Labels:</strong> <Term>initiator</Term>, <Term>procedureName</Term>, <Term>responseState</Term>, <Term>serviceName</Term><br/></dd>
+</dl>
+
+#### Cache
+
+<dl>
+  <dt><code>io_evitadb_cache_anteroom_record_statistics_updated_records</code> (GAUGE)</dt>
+  <dd><strong>Number of records waiting in anteroom</strong>: N/A</dd>
+  <dt><code>io_evitadb_cache_anteroom_wasted_total</code> (COUNTER)</dt>
+  <dd>Anteroom wasted total</dd>
+</dl>
+
+#### ExternalAPI / GraphQL / Request
 
 <dl>
   <dt><code>io_evitadb_external_api_graphql_request_executed_duration_milliseconds</code> (HISTOGRAM)</dt>
@@ -105,33 +156,38 @@
   <dd><strong>Request validation duration in milliseconds</strong>: N/A<br/><br/><strong>Labels:</strong> <Term>catalogName</Term>, <Term>instanceType</Term>, <Term>operationName</Term>, <Term>operationType</Term>, <Term>responseStatus</Term><br/></dd>
 </dl>
 
-#### API / GraphQL / Schema
+#### ExternalAPI / REST / Instance / Schema
 
 <dl>
-  <dt><code>io_evitadb_external_api_graphql_schema_built_build_duration</code> (HISTOGRAM)</dt>
-  <dd><strong>Duration of GraphQL schema build of a single API</strong>: N/A<br/><br/><strong>Labels:</strong> <Term>buildType</Term>, <Term>catalogName</Term>, <Term>instanceType</Term><br/></dd>
-  <dt><code>io_evitadb_external_api_graphql_schema_built_dsl_lines</code> (GAUGE)</dt>
-  <dd><strong>Number of lines in built GraphQL schema DSL</strong>: N/A<br/><br/><strong>Labels:</strong> <Term>buildType</Term>, <Term>catalogName</Term>, <Term>instanceType</Term><br/></dd>
-  <dt><code>io_evitadb_external_api_graphql_schema_built_total</code> (COUNTER)</dt>
-  <dd>GraphQL schema built total<br/><br/><strong>Labels:</strong> <Term>buildType</Term>, <Term>catalogName</Term>, <Term>instanceType</Term><br/></dd>
+  <dt><code>io_evitadb_external_api_rest_instance_built_instance_build_duration</code> (HISTOGRAM)</dt>
+  <dd><strong>Duration of build of a single REST API</strong>: N/A<br/><br/><strong>Labels:</strong> <Term>buildType</Term>, <Term>catalogName</Term>, <Term>instanceType</Term><br/></dd>
+  <dt><code>io_evitadb_external_api_rest_instance_built_registered_endpoints</code> (GAUGE)</dt>
+  <dd><strong>Number of registered endpoints in built OpenAPI schema</strong>: N/A<br/><br/><strong>Labels:</strong> <Term>buildType</Term>, <Term>catalogName</Term>, <Term>instanceType</Term><br/></dd>
+  <dt><code>io_evitadb_external_api_rest_instance_built_schema_build_duration</code> (HISTOGRAM)</dt>
+  <dd><strong>Duration of OpenAPI schema build of a single API</strong>: N/A<br/><br/><strong>Labels:</strong> <Term>buildType</Term>, <Term>catalogName</Term>, <Term>instanceType</Term><br/></dd>
+  <dt><code>io_evitadb_external_api_rest_instance_built_schema_dsl_lines</code> (GAUGE)</dt>
+  <dd><strong>Number of lines in built OpenAPI schema DSL</strong>: N/A<br/><br/><strong>Labels:</strong> <Term>buildType</Term>, <Term>catalogName</Term>, <Term>instanceType</Term><br/></dd>
+  <dt><code>io_evitadb_external_api_rest_instance_built_total</code> (COUNTER)</dt>
+  <dd>REST API instance built total<br/><br/><strong>Labels:</strong> <Term>buildType</Term>, <Term>catalogName</Term>, <Term>instanceType</Term><br/></dd>
 </dl>
 
-#### API / gRPC
+#### ExternalAPI / REST / Request
 
 <dl>
-  <dt><code>io_evitadb_api_grpc_procedure_called_duration_milliseconds</code> (HISTOGRAM)</dt>
-  <dd>gRPC procedure called duration<br/><br/><strong>Labels:</strong> <Term>initiator</Term>, <Term>procedureName</Term>, <Term>responseState</Term>, <Term>serviceName</Term><br/></dd>
-  <dt><code>io_evitadb_api_grpc_procedure_called_total</code> (COUNTER)</dt>
-  <dd>gRPC procedure called total<br/><br/><strong>Labels:</strong> <Term>initiator</Term>, <Term>procedureName</Term>, <Term>responseState</Term>, <Term>serviceName</Term><br/></dd>
-</dl>
-
-#### Cache
-
-<dl>
-  <dt><code>io_evitadb_cache_anteroom_record_statistics_updated_records</code> (GAUGE)</dt>
-  <dd><strong>Number of records waiting in anteroom</strong>: N/A</dd>
-  <dt><code>io_evitadb_cache_anteroom_wasted_total</code> (COUNTER)</dt>
-  <dd>Anteroom wasted total</dd>
+  <dt><code>io_evitadb_external_api_rest_request_executed_duration_milliseconds</code> (HISTOGRAM)</dt>
+  <dd>REST request execution duration<br/><br/><strong>Labels:</strong> <Term>catalogName</Term>, <Term>entityType</Term>, <Term>httpMethod</Term>, <Term>instanceType</Term>, <Term>operationId</Term>, <Term>operationType</Term>, <Term>responseStatus</Term><br/></dd>
+  <dt><code>io_evitadb_external_api_rest_request_executed_execution_api_overhead_duration_milliseconds</code> (HISTOGRAM)</dt>
+  <dd><strong>Overall request execution API overhead duration in milliseconds</strong>: N/A<br/><br/><strong>Labels:</strong> <Term>catalogName</Term>, <Term>entityType</Term>, <Term>httpMethod</Term>, <Term>instanceType</Term>, <Term>operationId</Term>, <Term>operationType</Term>, <Term>responseStatus</Term><br/></dd>
+  <dt><code>io_evitadb_external_api_rest_request_executed_input_deserialization_duration_milliseconds</code> (HISTOGRAM)</dt>
+  <dd><strong>Input deserialization duration in milliseconds</strong>: N/A<br/><br/><strong>Labels:</strong> <Term>catalogName</Term>, <Term>entityType</Term>, <Term>httpMethod</Term>, <Term>instanceType</Term>, <Term>operationId</Term>, <Term>operationType</Term>, <Term>responseStatus</Term><br/></dd>
+  <dt><code>io_evitadb_external_api_rest_request_executed_internal_evitadb_input_reconstruction_duration_milliseconds</code> (HISTOGRAM)</dt>
+  <dd><strong>Duration of all internal evitaDB input (query, mutations, ...) reconstructions in milliseconds</strong>: N/A<br/><br/><strong>Labels:</strong> <Term>catalogName</Term>, <Term>entityType</Term>, <Term>httpMethod</Term>, <Term>instanceType</Term>, <Term>operationId</Term>, <Term>operationType</Term>, <Term>responseStatus</Term><br/></dd>
+  <dt><code>io_evitadb_external_api_rest_request_executed_operation_execution_duration_milliseconds</code> (HISTOGRAM)</dt>
+  <dd><strong>Request operation execution duration in milliseconds</strong>: N/A<br/><br/><strong>Labels:</strong> <Term>catalogName</Term>, <Term>entityType</Term>, <Term>httpMethod</Term>, <Term>instanceType</Term>, <Term>operationId</Term>, <Term>operationType</Term>, <Term>responseStatus</Term><br/></dd>
+  <dt><code>io_evitadb_external_api_rest_request_executed_result_serialization_duration_milliseconds</code> (HISTOGRAM)</dt>
+  <dd><strong>Request result serialization duration in milliseconds</strong>: N/A<br/><br/><strong>Labels:</strong> <Term>catalogName</Term>, <Term>entityType</Term>, <Term>httpMethod</Term>, <Term>instanceType</Term>, <Term>operationId</Term>, <Term>operationType</Term>, <Term>responseStatus</Term><br/></dd>
+  <dt><code>io_evitadb_external_api_rest_request_executed_total</code> (COUNTER)</dt>
+  <dd>REST request executed total<br/><br/><strong>Labels:</strong> <Term>catalogName</Term>, <Term>entityType</Term>, <Term>httpMethod</Term>, <Term>instanceType</Term>, <Term>operationId</Term>, <Term>operationType</Term>, <Term>responseStatus</Term><br/></dd>
 </dl>
 
 #### Query
