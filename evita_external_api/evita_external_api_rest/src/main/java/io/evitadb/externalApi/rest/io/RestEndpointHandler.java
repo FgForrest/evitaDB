@@ -112,7 +112,8 @@ public abstract class RestEndpointHandler<CTX extends RestHandlingContext> exten
                 modifiesData() ? OperationType.MUTATION : OperationType.QUERY,
                 restHandlingContext instanceof CatalogRestHandlingContext catalogRestHandlingContext ? catalogRestHandlingContext.getCatalogSchema().getName() : null,
                 restHandlingContext instanceof CollectionRestHandlingContext collectionRestHandlingContext ? collectionRestHandlingContext.getEntityType() : null,
-                serverExchange.getRequestMethod().toString()
+                serverExchange.getRequestMethod().toString(),
+                restHandlingContext.getEndpointOperation().getOperationId()
             )
         );
     }
