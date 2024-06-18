@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.store.catalog.serializer.CatalogHeaderSerializer;
 import io.evitadb.store.catalog.serializer.CatalogHeaderSerializer_2024_05;
+import io.evitadb.store.catalog.serializer.CatalogHeaderSerializer_2024_08;
 import io.evitadb.store.catalog.serializer.EntityCollectionHeaderSerializer;
 import io.evitadb.store.catalog.serializer.EntityCollectionHeaderSerializer_2024_5;
 import io.evitadb.store.dataType.serializer.EnumNameSerializer;
@@ -63,7 +64,8 @@ public class CatalogHeaderKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(
 			CatalogHeader.class,
 			new SerialVersionBasedSerializer<>(new CatalogHeaderSerializer(), CatalogHeader.class)
-				.addBackwardCompatibleSerializer(-3595987669559870397L, new CatalogHeaderSerializer_2024_05()),
+				.addBackwardCompatibleSerializer(-3595987669559870397L, new CatalogHeaderSerializer_2024_05())
+				.addBackwardCompatibleSerializer(-5987715153038480011L, new CatalogHeaderSerializer_2024_08()),
 			index++
 		);
 		kryo.register(CatalogSchema.class, new SerialVersionBasedSerializer<>(new CatalogSchemaSerializer(), CatalogSchema.class), index++);

@@ -41,6 +41,7 @@ import java.io.Serial;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 
 import static java.util.Optional.ofNullable;
 
@@ -73,20 +74,22 @@ public record CatalogHeader(
 	@Nullable WalFileReference walFileReference,
 	@Nonnull Map<String, CollectionFileReference> collectionFileIndex,
 	@Nonnull Map<Integer, Object> compressedKeys,
+	@Nonnull UUID catalogId,
 	@Nonnull String catalogName,
 	@Nonnull CatalogState catalogState,
 	int lastEntityCollectionPrimaryKey,
 	double activeRecordShare
 ) implements StoragePart {
-	@Serial private static final long serialVersionUID = -5987715153038480011L;
+	@Serial private static final long serialVersionUID = 4115945765677481853L;
 
-	public CatalogHeader(@Nonnull String catalogName) {
+	public CatalogHeader(@Nonnull UUID catalogId, @Nonnull String catalogName) {
 		this(
 			CatalogPersistenceService.STORAGE_PROTOCOL_VERSION,
 			0L,
 			null,
 			Map.of(),
 			Map.of(),
+			catalogId,
 			catalogName,
 			CatalogState.WARMING_UP,
 			0,

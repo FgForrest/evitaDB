@@ -106,4 +106,24 @@ public interface GrpcEvitaSessionResponseOrBuilder extends
    * @return The catalogState.
    */
   io.evitadb.externalApi.grpc.generated.GrpcCatalogState getCatalogState();
+
+  /**
+   * <pre>
+   * UUID of the catalog the session is bound to.
+   * </pre>
+   *
+   * <code>string catalogId = 5;</code>
+   * @return The catalogId.
+   */
+  java.lang.String getCatalogId();
+  /**
+   * <pre>
+   * UUID of the catalog the session is bound to.
+   * </pre>
+   *
+   * <code>string catalogId = 5;</code>
+   * @return The bytes for catalogId.
+   */
+  com.google.protobuf.ByteString
+      getCatalogIdBytes();
 }
