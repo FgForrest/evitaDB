@@ -146,11 +146,12 @@ public class ExternalApiServer implements AutoCloseable {
 			final CertificateType[] certificateTypes = apiOptions.endpoints()
 				.values()
 				.stream()
-				.flatMap(it -> Stream.of(
-						it.isTlsEnabled() ? CertificateType.SERVER : null,
-						it.isMtlsEnabled() ? CertificateType.CLIENT : null
-					)
-					.filter(Objects::nonNull))
+				.flatMap(
+					it -> Stream.of(
+							it.isEnabled() && it.isTlsEnabled() ? CertificateType.SERVER : null,
+							it.isEnabled() && it.isMtlsEnabled() ? CertificateType.CLIENT : null
+						).filter(Objects::nonNull)
+				)
 				.distinct()
 				.toArray(CertificateType[]::new);
 
@@ -362,7 +363,7 @@ public class ExternalApiServer implements AutoCloseable {
 			initCertificate(apiOptions, serverCertificateManager) :
 			(
 				certificateSettings.custom().certificate() != null && !certificateSettings.custom().certificate().isBlank() &&
-				certificateSettings.custom().privateKey() != null && !certificateSettings.custom().privateKey().isBlank() ?
+					certificateSettings.custom().privateKey() != null && !certificateSettings.custom().privateKey().isBlank() ?
 					new CertificatePath(
 						certificateSettings.custom().certificate(),
 						certificateSettings.custom().privateKey(),
