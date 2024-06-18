@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,11 +26,13 @@ package io.evitadb.utils;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.util.Map;
 
 import static io.evitadb.utils.NumberUtils.join;
 import static io.evitadb.utils.NumberUtils.split;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
@@ -159,5 +161,22 @@ class NumberUtilsTest {
 		assertEquals(11020, NumberUtils.convertToInt(new BigDecimal("110.20"), 2));
 		assertEquals(11020, NumberUtils.convertToInt(new BigDecimal("110.2000"), 2));
 		assertThrows(IllegalArgumentException.class, () -> NumberUtils.convertToInt(new BigDecimal("110.202"), 2));
+	}
+
+	@Test
+	void shouldCorrectlyNormalizeBigDecimalForMapKey() {
+		final Map<BigDecimal, Integer> map = Map.of(
+			NumberUtils.normalize(new BigDecimal("110.2")), 1
+		);
+
+		assertEquals(1, map.get(NumberUtils.normalize(new BigDecimal("110.2"))));
+		assertEquals(1, map.get(NumberUtils.normalize(new BigDecimal("110.200"))));
+		assertEquals(1, map.get(NumberUtils.normalize(new BigDecimal("+110.2"))));
+		assertEquals(1, map.get(NumberUtils.normalize(new BigDecimal("+0110.2"))));
+		assertEquals(1, map.get(NumberUtils.normalize(new BigDecimal("+0110.200"))));
+		assertNull(map.get(NumberUtils.normalize(new BigDecimal("-0110.200"))));
+		assertNull(map.get(NumberUtils.normalize(new BigDecimal("-00110.200"))));
+		assertNull(map.get(NumberUtils.normalize(new BigDecimal("110.0200"))));
+		assertNull(map.get(NumberUtils.normalize(new BigDecimal("1010.0200"))));
 	}
 }

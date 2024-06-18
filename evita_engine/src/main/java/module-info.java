@@ -94,7 +94,6 @@ module evita.engine {
 	requires roaringbitmap;
 	requires com.esotericsoftware.kryo;
 
-	requires jdk.httpserver;
 	requires jdk.jfr;
 
 	opens io.evitadb.core.metric.event to evita.common;
