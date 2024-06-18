@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -39,6 +39,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ArgumentsSource;
 
 import javax.annotation.Nonnull;
+import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -174,6 +175,52 @@ class SortIndexTest implements TimeBoundedTestSupport {
 	}
 
 	@Test
+	void shouldCorrectlyOrderLocalizedStrings() {
+		final SortIndex sortIndex = new SortIndex(String.class, new AttributeKey("a", new Locale("cs", "CZ")));
+		sortIndex.addRecord("c", 2);
+		sortIndex.addRecord("č", 3);
+		sortIndex.addRecord("a", 1);
+		sortIndex.addRecord("ch", 5);
+		sortIndex.addRecord("ž", 6);
+		sortIndex.addRecord("h", 4);
+		assertArrayEquals(
+			new int[]{1, 2, 3, 4, 5, 6},
+			sortIndex.getAscendingOrderRecordsSupplier().getSortedRecordIds()
+		);
+
+		sortIndex.removeRecord("č", 2);
+		sortIndex.removeRecord("h", 3);
+
+		assertArrayEquals(
+			new int[]{1, 4, 5, 6},
+			sortIndex.getAscendingOrderRecordsSupplier().getSortedRecordIds()
+		);
+	}
+
+	@Test
+	void shouldCorrectlyOrderBigDecimals() {
+		final SortIndex sortIndex = new SortIndex(BigDecimal.class, new AttributeKey("a", new Locale("cs", "CZ")));
+		sortIndex.addRecord(new BigDecimal("0.00"), 1);
+		sortIndex.addRecord(new BigDecimal("0"), 2);
+		sortIndex.addRecord(new BigDecimal("0.000"), 3);
+		sortIndex.addRecord(new BigDecimal("1.1"), 4);
+		sortIndex.addRecord(new BigDecimal("01.10"), 5);
+		sortIndex.addRecord(new BigDecimal("00002"), 6);
+		assertArrayEquals(
+			new int[]{1, 2, 3, 4, 5, 6},
+			sortIndex.getAscendingOrderRecordsSupplier().getSortedRecordIds()
+		);
+
+		sortIndex.removeRecord(new BigDecimal("0.00"), 2);
+		sortIndex.removeRecord(new BigDecimal("0"), 3);
+
+		assertArrayEquals(
+			new int[]{1, 4, 5, 6},
+			sortIndex.getAscendingOrderRecordsSupplier().getSortedRecordIds()
+		);
+	}
+
+	@Test
 	void shouldIndexCompoundRecordsAndReturnInDescendingOrder() {
 		final SortIndex sortIndex = createCompoundIndexWithBaseCardinalities();
 		assertArrayEquals(new int[]{9, 2, 3, 7, 1, 5, 4, 6, 8}, sortIndex.getDescendingOrderRecordsSupplier().getSortedRecordIds());
@@ -237,7 +284,7 @@ class SortIndexTest implements TimeBoundedTestSupport {
 		runFor(
 			input,
 			1_000,
-			new TestState(new StringBuilder(), new SortIndex(String.class, new AttributeKey("whatever"))),
+			new TestState(new StringBuilder(256), new SortIndex(String.class, new AttributeKey("whatever"))),
 			(random, testState) -> {
 				final StringBuilder ops = testState.code();
 				ops.append("final SortIndex sortIndex = new SortIndex(String.class);\n")
@@ -311,7 +358,7 @@ class SortIndexTest implements TimeBoundedTestSupport {
 				);
 
 				return new TestState(
-					new StringBuilder(),
+					new StringBuilder(512),
 					committedResult.get()
 				);
 			}
@@ -319,7 +366,7 @@ class SortIndexTest implements TimeBoundedTestSupport {
 	}
 
 	@Nonnull
-	private SortIndex createIndexWithBaseCardinalities() {
+	private static SortIndex createIndexWithBaseCardinalities() {
 		final SortIndex sortIndex = new SortIndex(String.class, new AttributeKey("a", Locale.ENGLISH));
 		sortIndex.addRecord("B", 5);
 		sortIndex.addRecord("A", 6);
@@ -333,7 +380,7 @@ class SortIndexTest implements TimeBoundedTestSupport {
 	}
 
 	@Nonnull
-	private SortIndex createCompoundIndexWithBaseCardinalities() {
+	private static SortIndex createCompoundIndexWithBaseCardinalities() {
 		final SortIndex sortIndex = new SortIndex(
 			new ComparatorSource[]{
 				new ComparatorSource(String.class, OrderDirection.ASC, OrderBehaviour.NULLS_FIRST),

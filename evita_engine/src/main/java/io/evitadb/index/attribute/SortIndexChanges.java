@@ -253,7 +253,7 @@ public class SortIndexChanges implements Serializable {
 	}
 
 	/**
-	 * Computes value index if it hasn't exist yet. Result of this method is memoized. Method computes startung index
+	 * Computes value index if it hasn't exist yet. Result of this method is memoized. Method computes starting index
 	 * (position) of the record ids block that belongs to specific value from {@link SortIndex#sortedRecordsValues} and
 	 * {@link SortIndex#valueCardinalities} information.
 	 */
