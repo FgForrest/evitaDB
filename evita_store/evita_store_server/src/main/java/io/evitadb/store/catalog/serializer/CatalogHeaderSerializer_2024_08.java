@@ -43,12 +43,11 @@ import java.util.Map;
 
 /**
  * This {@link Serializer} implementation reads/writes {@link CatalogHeader} from/to binary format.
- * TOBEDONE #538 - Remove this class in the future.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @Deprecated
-public class CatalogHeaderSerializer_2024_05 extends AbstractPersistentStorageHeaderSerializer<CatalogHeader> {
+public class CatalogHeaderSerializer_2024_08 extends AbstractPersistentStorageHeaderSerializer<CatalogHeader> {
 
 	@Override
 	public void write(Kryo kryo, Output output, CatalogHeader object) {
@@ -56,6 +55,7 @@ public class CatalogHeaderSerializer_2024_05 extends AbstractPersistentStorageHe
 		output.writeString(object.catalogName());
 		output.writeVarLong(object.version(), true);
 		output.writeVarInt(object.lastEntityCollectionPrimaryKey(), true);
+		output.writeDouble(object.activeRecordShare());
 
 		final WalFileReference walFileReference = object.walFileReference();
 		if (walFileReference != null) {
@@ -95,6 +95,7 @@ public class CatalogHeaderSerializer_2024_05 extends AbstractPersistentStorageHe
 		final String catalogName = input.readString();
 		final long version = input.readVarLong(true);
 		final int lastEntityCollectionPrimaryKey = input.readVarInt(true);
+		final double activeRecordShare = input.readDouble();
 
 		final WalFileReference walFileReference;
 		if (input.readBoolean()) {
@@ -142,7 +143,7 @@ public class CatalogHeaderSerializer_2024_05 extends AbstractPersistentStorageHe
 			catalogName,
 			catalogState,
 			lastEntityCollectionPrimaryKey,
-			1.0
+			activeRecordShare
 		);
 	}
 

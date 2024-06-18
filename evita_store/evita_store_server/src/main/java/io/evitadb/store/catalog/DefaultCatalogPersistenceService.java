@@ -694,7 +694,6 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			catalogVersion,
 			CatalogOffsetIndexStoragePartPersistenceService.create(
 				this.catalogName,
-				catalogFileName,
 				catalogFilePath,
 				this.storageOptions,
 				this.transactionOptions,
@@ -767,7 +766,6 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		final CatalogOffsetIndexStoragePartPersistenceService catalogStoragePartPersistenceService =
 			CatalogOffsetIndexStoragePartPersistenceService.create(
 				this.catalogName,
-				catalogFileName,
 				catalogFilePath,
 				this.storageOptions,
 				this.transactionOptions,
@@ -1001,6 +999,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 
 	@Override
 	public void storeHeader(
+		@Nonnull UUID catalogId,
 		@Nonnull CatalogState catalogState,
 		long catalogVersion,
 		int lastEntityCollectionPrimaryKey,
@@ -1049,6 +1048,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 						Function.identity()
 					)
 				),
+			catalogId,
 			this.catalogName,
 			catalogState,
 			lastEntityCollectionPrimaryKey
@@ -1283,6 +1283,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			newPath,
 			catalogHeader.walFileReference(),
 			catalogHeader.collectionFileIndex(),
+			catalogHeader.catalogId(),
 			catalogNameToBeReplaced,
 			catalogHeader.catalogState(),
 			catalogHeader.lastEntityCollectionPrimaryKey()
@@ -1773,7 +1774,6 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 					catalogVersion,
 					CatalogOffsetIndexStoragePartPersistenceService.create(
 						this.catalogName,
-						compactedFileName,
 						this.catalogStoragePath.resolve(compactedFileName),
 						this.storageOptions,
 						this.transactionOptions,

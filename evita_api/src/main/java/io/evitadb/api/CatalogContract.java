@@ -47,6 +47,7 @@ import java.io.Serializable;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
@@ -65,6 +66,15 @@ import java.util.stream.Stream;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public interface CatalogContract {
+
+	/**
+	 * Returns unique catalog id that doesn't change with catalog schema changes - such as renaming.
+	 * The id is assigned to the catalog when it is created and never changes.
+	 *
+	 * @return unique catalog id
+	 */
+	@Nonnull
+	UUID getCatalogId();
 
 	/**
 	 * Returns read-only catalog configuration.

@@ -190,6 +190,11 @@ public class EvitaClientSession implements EvitaSessionContract {
 	 */
 	private final UUID sessionId;
 	/**
+	 * Contains unique catalog id that doesn't change with catalog schema changes - such as renaming.
+	 * The id is assigned to the catalog when it is created and never changes.
+	 */
+	private final UUID catalogId;
+	/**
 	 * Contains information passed at the time session was created that defines its behaviour
 	 */
 	private final SessionTraits sessionTraits;
@@ -262,6 +267,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 		@Nonnull ChannelPool channelPool,
 		@Nonnull String catalogName,
 		@Nonnull CatalogState catalogState,
+		@Nonnull UUID catalogId,
 		@Nonnull UUID sessionId,
 		@Nonnull CommitBehavior commitBehaviour,
 		@Nonnull SessionTraits sessionTraits,
@@ -276,6 +282,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 		this.catalogName = catalogName;
 		this.catalogState = catalogState;
 		this.commitBehaviour = commitBehaviour;
+		this.catalogId = catalogId;
 		this.sessionId = sessionId;
 		this.sessionTraits = sessionTraits;
 		this.onTerminationCallback = onTerminationCallback;
@@ -286,6 +293,12 @@ public class EvitaClientSession implements EvitaSessionContract {
 	@Override
 	public UUID getId() {
 		return sessionId;
+	}
+
+	@Nonnull
+	@Override
+	public UUID getCatalogId() {
+		return catalogId;
 	}
 
 	@Nonnull
