@@ -34,7 +34,8 @@ import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer.Entit
 import io.evitadb.externalApi.rest.api.catalog.resolver.endpoint.CatalogRestHandlingContext;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.externalApi.rest.io.JsonRestHandler;
-import io.evitadb.externalApi.rest.io.RestEndpointExchange;
+import io.evitadb.externalApi.rest.io.RestEndpointExecutionContext;
+import io.evitadb.externalApi.rest.metric.event.request.ExecutedEvent;
 import io.evitadb.utils.Assert;
 import io.undertow.util.Methods;
 import lombok.extern.slf4j.Slf4j;
@@ -63,18 +64,26 @@ public class ListUnknownEntitiesHandler extends JsonRestHandler<CatalogRestHandl
 
 	@Override
 	@Nonnull
-	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExchange exchange) {
-		final Map<String, Object> parametersFromRequest = getParametersFromRequest(exchange);
+	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
+		final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
 
-		final Query query = Query.query(
+		final Map<String, Object> parametersFromRequest = getParametersFromRequest(executionContext);
+		requestExecutedEvent.finishInputDeserialization();
+
+		final Query query = requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() -> Query.query(
 			FilterByConstraintFromRequestQueryBuilder.buildFilterByForUnknownEntityList(parametersFromRequest, restHandlingContext.getCatalogSchema()),
 			RequireConstraintFromRequestQueryBuilder.buildRequire(parametersFromRequest)
-		);
-
+		));
 		log.debug("Generated evitaDB query for unknown entity list fetch is `{}`.", query);
 
-		final List<EntityClassifier> entities = exchange.session().queryList(query, EntityClassifier.class);
-		return new SuccessEndpointResponse(convertResultIntoSerializableObject(exchange, entities));
+		final List<EntityClassifier> entities = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
+			executionContext.session().queryList(query, EntityClassifier.class));
+		requestExecutedEvent.finishOperationExecution();
+
+		final Object result = convertResultIntoSerializableObject(executionContext, entities);
+		requestExecutedEvent.finishResultSerialization();
+
+		return new SuccessEndpointResponse(result);
 	}
 
 	@Nonnull
@@ -91,7 +100,7 @@ public class ListUnknownEntitiesHandler extends JsonRestHandler<CatalogRestHandl
 
 	@Nonnull
 	@Override
-	protected Object convertResultIntoSerializableObject(@Nonnull RestEndpointExchange exchange, @Nonnull Object entities) {
+	protected Object convertResultIntoSerializableObject(@Nonnull RestEndpointExecutionContext exchange, @Nonnull Object entities) {
 		Assert.isPremiseValid(
 			entities instanceof List,
 			() -> new RestInternalError("Expected list of entities, but got `" + entities.getClass().getName() + "`.")

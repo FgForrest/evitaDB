@@ -139,6 +139,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 	private final DataGenerator dataGenerator = new DataGenerator();
 	private final SequenceService sequenceService = new SequenceService();
 
+	private final UUID catalogId = UUID.randomUUID();
 	private final UUID transactionId = UUID.randomUUID();
 	private final Path walFile = getTestDirectory().resolve(transactionId.toString());
 	private final Kryo kryo = KryoFactory.createKryo(WalKryoConfigurer.INSTANCE);
@@ -284,7 +285,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		entityHeaders.add(storeCollection.flush());
 
 		// try to serialize
-		ioService.storeHeader(CatalogState.WARMING_UP, 0, 0, null, entityHeaders);
+		ioService.storeHeader(catalogId, CatalogState.WARMING_UP, 0, 0, null, entityHeaders);
 
 		// try to deserialize again
 		final CatalogHeader catalogHeader = ioService.getCatalogHeader(0L);
@@ -467,6 +468,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			cps.getStoragePartPersistenceService(0L)
 				.putStoragePart(0L, new CatalogSchemaStoragePart(CATALOG_SCHEMA));
 			cps.storeHeader(
+				catalogId,
 				CatalogState.ALIVE,
 				2L,
 				0,

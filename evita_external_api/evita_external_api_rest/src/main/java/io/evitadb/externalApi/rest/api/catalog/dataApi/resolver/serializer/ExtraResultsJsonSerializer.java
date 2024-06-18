@@ -256,7 +256,7 @@ public class ExtraResultsJsonSerializer {
 
 	@Nonnull
 	private JsonNode serializeQueryTelemetry(@Nonnull QueryTelemetry telemetry) {
-		return objectJsonSerializer.getObjectMapper().valueToTree(QueryTelemetryDto.from(telemetry, true));
+		return objectJsonSerializer.getObjectMapper().valueToTree(QueryTelemetryDto.from(telemetry));
 	}
 
 	@Nonnull

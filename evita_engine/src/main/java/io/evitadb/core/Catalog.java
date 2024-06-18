@@ -210,6 +210,12 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 	 */
 	private final TransactionalReference<CatalogSchemaDecorator> schema;
 	/**
+	 * Contains unique catalog id that doesn't change with catalog schema changes - such as renaming.
+	 * The id is assigned to the catalog when it is created and never changes.
+	 */
+	@Nonnull @Getter
+	private final UUID catalogId;
+	/**
 	 * Indicates state in which Catalog operates.
 	 *
 	 * @see CatalogState
@@ -344,10 +350,11 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 			)
 			.orElseThrow(StorageImplementationNotFoundException::new);
 
+		this.catalogId = UUID.randomUUID();
 		final CatalogStoragePartPersistenceService storagePartPersistenceService = this.persistenceService.getStoragePartPersistenceService(catalogVersion);
 		storagePartPersistenceService.putStoragePart(catalogVersion, new CatalogSchemaStoragePart(getInternalSchema()));
 		this.persistenceService.storeHeader(
-			CatalogState.WARMING_UP, catalogVersion, 0, null,
+			this.catalogId, CatalogState.WARMING_UP, catalogVersion, 0, null,
 			Collections.emptyList()
 		);
 
@@ -394,6 +401,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 			this.persistenceService.getLastCatalogVersion()
 		);
 		final long catalogVersion = catalogHeader.version();
+		this.catalogId = catalogHeader.catalogId();
 		this.versionId = new TransactionalReference<>(catalogVersion);
 		this.state = catalogHeader.catalogState();
 		// initialize container buffer
@@ -500,6 +508,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		@Nonnull Catalog previousCatalogVersion,
 		@Nonnull TracingContext tracingContext
 	) {
+		this.catalogId = previousCatalogVersion.catalogId;
 		this.tracingContext = tracingContext;
 		this.versionId = new TransactionalReference<>(catalogVersion);
 		this.state = catalogState;
@@ -898,6 +907,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 			if (warmingUpState && changeOccurred) {
 				// store catalog header
 				this.persistenceService.storeHeader(
+					this.catalogId,
 					getCatalogState(),
 					this.versionId.getId(),
 					this.entityTypeSequence.get(),
@@ -1176,6 +1186,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 				this.dataStoreBuffer.getTrappedIndexChanges()
 			);
 			this.persistenceService.storeHeader(
+				this.catalogId,
 				CatalogState.ALIVE,
 				catalogVersion,
 				this.entityTypeSequence.get(),
@@ -1313,6 +1324,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 				this.dataStoreBuffer.getTrappedIndexChanges()
 			);
 			this.persistenceService.storeHeader(
+				this.catalogId,
 				this.goingLive.get() ? CatalogState.ALIVE : getCatalogState(),
 				0L,
 				this.entityTypeSequence.get(),

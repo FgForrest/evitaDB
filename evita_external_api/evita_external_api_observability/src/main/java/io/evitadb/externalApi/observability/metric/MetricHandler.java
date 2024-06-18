@@ -130,6 +130,48 @@ public class MetricHandler {
 	private final ObservabilityConfig observabilityConfig;
 
 	/**
+	 * Composes the name of the metric from the event class, export metric and field name.
+	 *
+	 * @param eventClass   event class
+	 * @param exportMetric export metric annotation
+	 * @param fieldName    name of the field in the JFR event
+	 * @return composed name of the metric
+	 */
+	@Nonnull
+	public static String composeMetricName(
+		@Nonnull Class<? extends CustomMetricsExecutionEvent> eventClass,
+		@Nonnull ExportMetric exportMetric,
+		@Nonnull String fieldName
+	) {
+		final String metricName = of(exportMetric.metricName())
+			.filter(it -> !it.isBlank())
+			.orElse(fieldName);
+
+		// if the metric contains dots, it means it's already fully composed
+		return metricName.contains(".") ?
+			metricName : composeMetricName(eventClass, metricName);
+	}
+
+	/**
+	 * Creates name of the metric from the event class and metric name.
+	 *
+	 * @param eventClass event class
+	 * @param metricName name of the metric itself
+	 * @return composed name of the metric
+	 */
+	@Nonnull
+	public static String composeMetricName(
+		@Nonnull Class<? extends CustomMetricsExecutionEvent> eventClass,
+		@Nonnull String metricName
+	) {
+		return StringUtils.toSnakeCase(
+			EvitaJfrEventRegistry.getMetricsGroup(eventClass) +
+				"." + EVENT.matcher(eventClass.getSimpleName()).replaceFirst("") + "." +
+				metricName
+		);
+	}
+
+	/**
 	 * Converts the getter method into the exporter of the metric label.
 	 *
 	 * @param getter getter method
@@ -158,48 +200,6 @@ public class MetricHandler {
 		return new MetricLabelExporter(
 			of(exportMetricLabel.value()).filter(it -> !it.isBlank()).orElse(fieldName),
 			recordedEvent -> recordedEvent.getString(fieldName)
-		);
-	}
-
-	/**
-	 * Composes the name of the metric from the event class, export metric and field name.
-	 *
-	 * @param eventClass   event class
-	 * @param exportMetric export metric annotation
-	 * @param fieldName    name of the field in the JFR event
-	 * @return composed name of the metric
-	 */
-	@Nonnull
-	private static String composeMetricName(
-		@Nonnull Class<? extends CustomMetricsExecutionEvent> eventClass,
-		@Nonnull ExportMetric exportMetric,
-		@Nonnull String fieldName
-	) {
-		final String metricName = of(exportMetric.metricName())
-			.filter(it -> !it.isBlank())
-			.orElse(fieldName);
-
-		// if the metric contains dots, it means it's already fully composed
-		return metricName.contains(".") ?
-			metricName : composeMetricName(eventClass, metricName);
-	}
-
-	/**
-	 * Creates name of the metric from the event class and metric name.
-	 *
-	 * @param eventClass event class
-	 * @param metricName name of the metric itself
-	 * @return composed name of the metric
-	 */
-	@Nonnull
-	private static String composeMetricName(
-		@Nonnull Class<? extends CustomMetricsExecutionEvent> eventClass,
-		@Nonnull String metricName
-	) {
-		return StringUtils.toSnakeCase(
-			EvitaJfrEventRegistry.getMetricsGroup(eventClass) +
-				"." + EVENT.matcher(eventClass.getSimpleName()).replaceFirst("") + "." +
-				metricName
 		);
 	}
 
@@ -308,7 +308,7 @@ public class MetricHandler {
 								}
 							},
 							() -> builder.classicExponentialUpperBounds(1, 2.0, 14)
-									.unit(new Unit("milliseconds")));
+								.unit(new Unit("milliseconds")));
 					yield builder
 						.labelNames(metric.labels())
 						.help(metric.helpMessage())

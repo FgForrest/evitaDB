@@ -24,6 +24,7 @@
 package io.evitadb.core.maintenance;
 
 import io.evitadb.api.configuration.ServerOptions;
+import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.core.Evita;
 import io.evitadb.core.async.BackgroundTask;
 import io.evitadb.core.async.Scheduler;
@@ -63,19 +64,23 @@ public class SessionKiller implements Runnable {
 			evita.getActiveSessions()
 				.filter(session -> session.getInactivityDurationInSeconds() >= allowedInactivityInSeconds)
 				.forEach(session -> {
-					final String catalogName = session.getCatalogName();
+					try {
+						final String catalogName = session.getCatalogName();
 
-					// session is orphan - it may contain only part of the changes the client wanted
-					// play it safe and throw out potentially inconsistent updates
-					if (session.isTransactionOpen()) {
-						session.setRollbackOnly();
+						// session is orphan - it may contain only part of the changes the client wanted
+						// play it safe and throw out potentially inconsistent updates
+						if (session.isTransactionOpen()) {
+							session.setRollbackOnly();
+						}
+
+						evita.terminateSession(session);
+						counter.incrementAndGet();
+
+						// emit the event
+						new KilledEvent(catalogName).commit();
+					} catch (InstanceTerminatedException ex) {
+						// ignore the session was already terminated in the meantime
 					}
-
-					evita.terminateSession(session);
-					counter.incrementAndGet();
-
-					// emit the event
-					new KilledEvent(catalogName).commit();
 				});
 
 			if (counter.get() > 0) {

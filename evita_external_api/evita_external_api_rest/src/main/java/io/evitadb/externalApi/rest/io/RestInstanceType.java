@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,46 +21,18 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.http;
-
-import io.undertow.server.HttpServerExchange;
-
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
+package io.evitadb.externalApi.rest.io;
 
 /**
- * An endpoint request/response exchange. Used as context object for endpoint processing.
+ * Represents semantically REST instance. Defines which data it provides.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
  */
-public interface EndpointExchange extends AutoCloseable {
-
+public enum RestInstanceType {
+	SYSTEM,
+	CATALOG,
 	/**
-	 * Underlying HTTP server exchange
+	 * Note: this is a bit of a hack, we will get rid of this when lab uses gRPC API
 	 */
-	@Nonnull
-	HttpServerExchange serverExchange();
-
-	/**
-	 * HTTP method of the request.
-	 */
-	@Nonnull
-	String httpMethod();
-
-	/**
-	 * Parsed content type of request body, if any request body is present.
-	 */
-	@Nullable
-	String requestBodyContentType();
-
-	/**
-	 * Preferred content type of response body, if any response body is will be send.
-	 */
-	@Nullable
-	String preferredResponseContentType();
-
-	@Override
-	default void close() {
-		// do nothing
-	}
+	LAB
 }

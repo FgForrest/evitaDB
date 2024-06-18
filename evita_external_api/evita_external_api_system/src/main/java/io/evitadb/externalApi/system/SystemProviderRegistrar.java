@@ -30,7 +30,6 @@ import io.evitadb.externalApi.api.system.ProbesProvider;
 import io.evitadb.externalApi.api.system.ProbesProvider.Readiness;
 import io.evitadb.externalApi.api.system.ProbesProvider.ReadinessState;
 import io.evitadb.externalApi.api.system.model.HealthProblem;
-import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.configuration.CertificatePath;
 import io.evitadb.externalApi.configuration.CertificateSettings;
@@ -269,7 +268,7 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 		final boolean atLeastOnEndpointRequiresTls = apiOptions.endpoints()
 			.values()
 			.stream()
-			.anyMatch(AbstractApiConfiguration::isTlsEnabled);
+			.anyMatch(it -> it.isEnabled() && it.isTlsEnabled());
 		final boolean atLeastOnEndpointRequiresMtls = apiOptions.endpoints()
 			.values()
 			.stream()

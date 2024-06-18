@@ -30,7 +30,6 @@ import io.evitadb.api.EvitaContract;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.graphql.api.GraphQLBuilder;
 import io.evitadb.externalApi.graphql.api.tracing.OperationTracingInstrumentation;
-import io.evitadb.externalApi.graphql.api.system.builder.SystemGraphQLSchemaBuilder;
 import io.evitadb.externalApi.graphql.configuration.GraphQLConfig;
 import io.evitadb.externalApi.graphql.exception.EvitaDataFetcherExceptionHandler;
 import lombok.RequiredArgsConstructor;
@@ -47,15 +46,16 @@ public class SystemGraphQLBuilder implements GraphQLBuilder {
 
     @Nonnull
     private final Evita evita;
+    @Nonnull
+    private final GraphQLSchema graphQLSchema;
 
     @Override
     public GraphQL build(@Nonnull GraphQLConfig config) {
         final Instrumentation instrumentation = new OperationTracingInstrumentation();
 
-        final GraphQLSchema schema = new SystemGraphQLSchemaBuilder(config, evita).build();
         final EvitaDataFetcherExceptionHandler dataFetcherExceptionHandler = new EvitaDataFetcherExceptionHandler();
 
-        return GraphQL.newGraphQL(schema)
+        return GraphQL.newGraphQL(graphQLSchema)
             .instrumentation(instrumentation)
             .defaultDataFetcherExceptionHandler(dataFetcherExceptionHandler)
             .build();

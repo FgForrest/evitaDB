@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ import io.evitadb.externalApi.http.EndpointResponse;
 import io.evitadb.externalApi.http.MimeTypes;
 import io.evitadb.externalApi.http.SuccessEndpointResponse;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiWriter;
-import io.evitadb.externalApi.rest.io.RestEndpointExchange;
+import io.evitadb.externalApi.rest.io.RestEndpointExecutionContext;
 import io.evitadb.externalApi.rest.io.RestEndpointHandler;
 import io.evitadb.externalApi.rest.io.RestHandlingContext;
 import io.undertow.util.Methods;
@@ -53,7 +53,7 @@ public class OpenApiSpecificationHandler<C extends RestHandlingContext> extends 
 
 	@Nonnull
 	@Override
-	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExchange exchange) {
+	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
 		return new SuccessEndpointResponse(restHandlingContext.getOpenApi());
 	}
 
@@ -73,8 +73,8 @@ public class OpenApiSpecificationHandler<C extends RestHandlingContext> extends 
 	}
 
 	@Override
-	protected void writeResult(@Nonnull RestEndpointExchange exchange, @Nonnull OutputStream outputStream, @Nonnull Object openApiSpecification) {
-		final String preferredResponseMediaType = exchange.preferredResponseContentType();
+	protected void writeResult(@Nonnull RestEndpointExecutionContext executionContext, @Nonnull OutputStream outputStream, @Nonnull Object openApiSpecification) {
+		final String preferredResponseMediaType = executionContext.preferredResponseContentType();
 		try {
 			if (preferredResponseMediaType.equals(MimeTypes.APPLICATION_YAML)) {
 				OpenApiWriter.toYaml(openApiSpecification, outputStream);

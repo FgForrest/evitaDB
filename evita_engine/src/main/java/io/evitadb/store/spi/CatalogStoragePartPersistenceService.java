@@ -33,6 +33,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.nio.file.Path;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * A sub-interface of StoragePartPersistenceService that represents the persistence service extension for catalog.
@@ -55,14 +56,15 @@ public interface CatalogStoragePartPersistenceService extends StoragePartPersist
 	/**
 	 * Writes the catalog header with the specified information to the catalog.
 	 *
-	 * @param storageProtocolVersion              The storage protocol version.
-	 * @param catalogVersion                      The catalog version.
-	 * @param catalogStoragePath				  The catalog storage path, must not be null.
-	 * @param walFileLocation                     The WAL file location, may be null.
-	 * @param collectionFileReferenceIndex        The collection file reference index, must not be null.
-	 * @param catalogName                         The catalog name, must not be null.
-	 * @param catalogState                        The catalog state, must not be null.
-	 * @param lastEntityCollectionPrimaryKey      The last entity collection primary key.
+	 * @param storageProtocolVersion         The storage protocol version.
+	 * @param catalogVersion                 The catalog version.
+	 * @param catalogStoragePath             The catalog storage path, must not be null.
+	 * @param walFileLocation                The WAL file location, may be null.
+	 * @param collectionFileReferenceIndex   The collection file reference index, must not be null.
+	 * @param catalogId                      The catalog ID, which doesn't change with the catalog rename.
+	 * @param catalogName                    The catalog name, must not be null.
+	 * @param catalogState                   The catalog state, must not be null.
+	 * @param lastEntityCollectionPrimaryKey The last entity collection primary key.
 	 */
 	void writeCatalogHeader(
 		int storageProtocolVersion,
@@ -70,6 +72,7 @@ public interface CatalogStoragePartPersistenceService extends StoragePartPersist
 		@Nonnull Path catalogStoragePath,
 		@Nullable WalFileReference walFileLocation,
 		@Nonnull Map<String, CollectionFileReference> collectionFileReferenceIndex,
+		@Nonnull UUID catalogId,
 		@Nonnull String catalogName,
 		@Nonnull CatalogState catalogState,
 		int lastEntityCollectionPrimaryKey

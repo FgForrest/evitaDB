@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -39,15 +39,17 @@ public record QueryTelemetryDto(@Nonnull String operation,
 								long start,
                                 @Nonnull List<QueryTelemetryDto> steps,
                                 @Nonnull List<String> arguments,
-                                @Nonnull String spentTime) {
+                                long spentTime,
+                                @Nonnull String formattedSpentTime) {
 
-	public static QueryTelemetryDto from(@Nonnull QueryTelemetry queryTelemetry, boolean formatted) {
+	public static QueryTelemetryDto from(@Nonnull QueryTelemetry queryTelemetry) {
 		return new QueryTelemetryDto(
 			queryTelemetry.getOperation().toString(),
 			queryTelemetry.getStart(),
-			queryTelemetry.getSteps().stream().map(it -> QueryTelemetryDto.from(it, formatted)).toList(),
+			queryTelemetry.getSteps().stream().map(QueryTelemetryDto::from).toList(),
 			Arrays.stream(queryTelemetry.getArguments()).map(Object::toString).toList(),
-			formatted ? StringUtils.formatNano(queryTelemetry.getSpentTime()) : String.valueOf(queryTelemetry.getSpentTime())
+			queryTelemetry.getSpentTime(),
+			StringUtils.formatNano(queryTelemetry.getSpentTime())
 		);
 	}
 }

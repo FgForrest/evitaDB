@@ -233,10 +233,10 @@ public class ServerCertificateManager {
 
 		// Issue server and client certificates
 		if (Arrays.stream(type).anyMatch(it -> it == CertificateType.SERVER)) {
-			issueCertificate(CertificateUtils.getServerCertName(), keyPairGenerator, keyPair, x500Name, notBefore, notAfter, rootCert);
+			issueCertificate(CertificateUtils.getServerCertName(), keyPairGenerator, keyPair, x500Name, notBefore, notAfter, rootCert, CertificateType.SERVER);
 		}
 		if (Arrays.stream(type).anyMatch(it -> it == CertificateType.CLIENT)) {
-			issueCertificate(CertificateUtils.getClientCertName(), keyPairGenerator, keyPair, x500Name, notBefore, notAfter, rootCert);
+			issueCertificate(CertificateUtils.getClientCertName(), keyPairGenerator, keyPair, x500Name, notBefore, notAfter, rootCert, CertificateType.CLIENT);
 		}
 	}
 
@@ -258,7 +258,8 @@ public class ServerCertificateManager {
 		@Nonnull X500Name x500Name,
 		@Nonnull Date notBefore,
 		@Nonnull Date notAfter,
-		@Nonnull X509Certificate rootCert
+		@Nonnull X509Certificate rootCert,
+		@Nonnull CertificateType certificateType
 	) throws Exception {
 		final X500Name issuedCertSubject = new X500Name("CN=" + certificateName);
 		final BigInteger issuedCertSerialNum = new BigInteger(Long.toString(new SecureRandom().nextLong()));
@@ -285,6 +286,15 @@ public class ServerCertificateManager {
 		// Add Issuer cert identifier as Extension
 		issuedCertBuilder.addExtension(Extension.authorityKeyIdentifier, false, issuedCertExtUtils.createAuthorityKeyIdentifier(rootCert));
 		issuedCertBuilder.addExtension(Extension.subjectKeyIdentifier, false, issuedCertExtUtils.createSubjectKeyIdentifier(csr.getSubjectPublicKeyInfo()));
+
+		if (certificateType == CertificateType.SERVER) {
+			// Add DNS name to the cert to be used for SSL
+			issuedCertBuilder.addExtension(Extension.subjectAlternativeName, false, new DERSequence(new ASN1Encodable[]{
+				new GeneralName(GeneralName.dNSName, InetAddress.getLocalHost().getHostName()),
+				new GeneralName(GeneralName.iPAddress, InetAddress.getLocalHost().getHostAddress()),
+				new GeneralName(GeneralName.dNSName, "localhost")
+			}));
+		}
 
 		// Add intended key usage extension if needed
 		issuedCertBuilder.addExtension(Extension.keyUsage, false, new KeyUsage(KeyUsage.keyEncipherment | KeyUsage.digitalSignature));

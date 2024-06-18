@@ -45,7 +45,7 @@ public class StopLoggingHandler extends LoggingEndpointHandler {
 
 	@Nonnull
 	@Override
-	protected EndpointResponse doHandleRequest(@Nonnull LoggingEndpointExchange exchange) {
+	protected EndpointResponse doHandleRequest(@Nonnull LoggingEndpointExecutionContext executionContext) {
 		return new SuccessEndpointResponse(manager.stop());
 	}
 

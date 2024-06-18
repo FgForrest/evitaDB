@@ -58,6 +58,7 @@ import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -340,7 +341,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 				nonFlushedBlockObserver,
 				historyKeptObserver
 			);
-			final CatalogHeader newHeader = new CatalogHeader(catalogName);
+			final CatalogHeader newHeader = new CatalogHeader(UUID.randomUUID(), catalogName);
 			newOffsetIndex.put(0L, newHeader);
 			catalogHeaderConsumer.accept(newHeader);
 			return newOffsetIndex;
@@ -408,6 +409,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 		@Nonnull Path catalogStoragePath,
 		@Nullable WalFileReference walFileLocation,
 		@Nonnull Map<String, CollectionFileReference> collectionFileReferenceIndex,
+		@Nonnull UUID catalogId,
 		@Nonnull String catalogName,
 		@Nonnull CatalogState catalogState,
 		int lastEntityCollectionPrimaryKey
@@ -418,6 +420,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 			walFileLocation,
 			collectionFileReferenceIndex,
 			offsetIndex.getCompressedKeys(),
+			catalogId,
 			catalogName,
 			catalogState,
 			lastEntityCollectionPrimaryKey,

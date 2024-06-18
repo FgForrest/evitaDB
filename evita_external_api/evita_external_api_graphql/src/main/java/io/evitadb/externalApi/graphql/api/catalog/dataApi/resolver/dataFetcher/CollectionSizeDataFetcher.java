@@ -29,6 +29,7 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
 import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.ReadDataFetcher;
+import io.evitadb.externalApi.graphql.metric.event.request.ExecutedEvent;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -46,7 +47,9 @@ public class CollectionSizeDataFetcher implements DataFetcher<Integer>, ReadData
 	@Nonnull
 	@Override
 	public Integer get(@Nonnull DataFetchingEnvironment environment) {
+		final ExecutedEvent requestExecutedEvent = environment.getGraphQlContext().get(GraphQLContextKey.METRIC_EXECUTED_EVENT);
+
 		final EvitaSessionContract evitaSession = environment.getGraphQlContext().get(GraphQLContextKey.EVITA_SESSION);
-		return evitaSession.getEntityCollectionSize(entitySchema.getName());
+		return requestExecutedEvent.measureInternalEvitaDBExecution(() -> evitaSession.getEntityCollectionSize(entitySchema.getName()));
 	}
 }

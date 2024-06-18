@@ -42,10 +42,12 @@ import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.UUID;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 /**
  * This test verifies that data stored in older versions of evitaDB are still readable by the current version.
@@ -118,5 +120,12 @@ public class EvitaBackwardCompatibilityTest implements EvitaTestSupport {
 		final SystemStatus status = evita.getSystemStatus();
 		assertEquals(0, status.catalogsCorrupted());
 		assertEquals(1, status.catalogsOk());
+
+		// check the catalog has its own id
+		final UUID catalogId = evita.queryCatalog(
+			"evita",
+			EvitaSessionContract::getCatalogId
+		);
+		assertNotNull(catalogId);
 	}
 }

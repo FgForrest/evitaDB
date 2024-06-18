@@ -411,6 +411,7 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 			final SessionFlags[] flags = getSessionFlags(sessionType, rollbackTransactions);
 			final EvitaSessionContract session = evita.createSession(new SessionTraits(catalogName, flags));
 			responseObserver.onNext(GrpcEvitaSessionResponse.newBuilder()
+				.setCatalogId(session.getCatalogId().toString())
 				.setSessionId(session.getId().toString())
 				.setCatalogState(toGrpcCatalogState(session.getCatalogState()))
 				.setSessionType(sessionType)

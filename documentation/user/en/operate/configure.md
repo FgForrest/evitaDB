@@ -53,7 +53,12 @@ cache:                                            # [see Cache configuration](#c
 
 api:                                              # [see API configuration](#api-configuration)
   exposedOn: null
-  ioThreads: 4
+  ioThreads: null
+  idleTimeoutInMillis: 2K
+  requestTimeoutInMillis: 2K
+  parseTimeoutInMillis: 1K
+  keepAlive: true
+  maxEntitySizeInBytes: 2MB
   accessLog: false
   certificate:                                    # [see TLS configuration](#tls-configuration) 
     generateAndUseSelfSigned: true
@@ -574,11 +579,6 @@ is resolved.
 This section of the configuration allows you to selectively enable, disable, and tweak specific APIs.
 
 <dl>
-    <dt>ioThreads</dt>
-    <dd>
-        <p>**Default:** `4`</p>
-        <p>Defines the number of IO threads that will be used by Undertow for accept and send HTTP payload.</p>
-    </dd>
     <dt>exposedOn</dt>
     <dd>
         <p>When evitaDB is running in a Docker container and the ports are exposed on the host systems 
@@ -586,6 +586,42 @@ This section of the configuration allows you to selectively enable, disable, and
            evitaDB is available on that host system. By specifying the `exposedOn` property you can specify
            the name (without port) of the host system host name that will be used by all API endpoints without
            specific `exposedHost` configuration property to use that host name and appropriate port.</p>
+    </dd>
+    <dt>ioThreads</dt>
+    <dd>
+        <p>**Default:** `number of CPUs * 2`</p>
+        <p>Defines the number of IO threads that will be used by Undertow for accept and send HTTP payload.</p>
+    </dd>
+    <dt>idleTimeoutInMillis</dt>
+    <dd>
+        <p>**Default:** `2K`</p>
+        <p>The amount of time a connection can be idle for before it is timed out. An idle connection is a connection 
+            that has had no data transfer in the idle timeout period. Note that this is a fairly coarse grained approach,
+            and small values will cause problems for requests with a long processing time.</p>
+    </dd>
+    <dt>requestTimeoutInMillis</dt>
+    <dd>
+        <p>**Default:** `2K`</p>
+        <p>The amount of time a connection can sit idle without processing a request, before it is closed by the server.</p>
+    </dd>
+    <dt>parseTimeoutInMillis</dt>
+    <dd>
+        <p>**Default:** `1K`</p>
+        <p>How long a request can spend in the parsing phase before it is timed out. This timer is started when the first
+            bytes of a request are read, and finishes once all the headers have been parsed.</p>
+    </dd>
+    <dt>keepAlive</dt>
+    <dd>
+        <p>**Default:** `true`</p>
+        <p>If this is true then a Connection: keep-alive header will be added to responses, even when it is not strictly 
+            required by the specification.</p>
+    </dd>
+    <dt>maxEntitySizeInBytes</dt>
+    <dd>
+        <p>**Default:** `2MB`</p>
+        <p>The default maximum size of a request entity. If entity body is larger than this limit then a IOException 
+            will be thrown at some point when reading the request (on the first read for fixed length requests, when too 
+            much data has been read for chunked requests).</p>
     </dd>
     <dt>accessLog</dt>
     <dd>

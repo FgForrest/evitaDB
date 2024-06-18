@@ -282,6 +282,12 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		return id;
 	}
 
+	@Nonnull
+	@Override
+	public UUID getCatalogId() {
+		return getCatalog().getCatalogId();
+	}
+
 	@Interruptible
 	@Traced
 	@Nonnull

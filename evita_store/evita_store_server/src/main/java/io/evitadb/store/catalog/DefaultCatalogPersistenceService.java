@@ -1098,6 +1098,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 
 	@Override
 	public void storeHeader(
+		@Nonnull UUID catalogId,
 		@Nonnull CatalogState catalogState,
 		long catalogVersion,
 		int lastEntityCollectionPrimaryKey,
@@ -1146,6 +1147,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 						Function.identity()
 					)
 				),
+			catalogId,
 			this.catalogName,
 			catalogState,
 			lastEntityCollectionPrimaryKey
@@ -1386,6 +1388,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			newPath,
 			catalogHeader.walFileReference(),
 			catalogHeader.collectionFileIndex(),
+			catalogHeader.catalogId(),
 			catalogNameToBeReplaced,
 			catalogHeader.catalogState(),
 			catalogHeader.lastEntityCollectionPrimaryKey()

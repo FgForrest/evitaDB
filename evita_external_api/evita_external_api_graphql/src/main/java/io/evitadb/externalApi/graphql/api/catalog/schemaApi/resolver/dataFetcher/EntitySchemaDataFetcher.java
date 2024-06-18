@@ -29,6 +29,7 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
 import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.ReadDataFetcher;
+import io.evitadb.externalApi.graphql.metric.event.request.ExecutedEvent;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -47,7 +48,8 @@ public class EntitySchemaDataFetcher implements DataFetcher<EntitySchemaContract
 	@Nonnull
 	@Override
 	public EntitySchemaContract get(@Nonnull DataFetchingEnvironment environment) {
+		final ExecutedEvent requestExecutedEvent = environment.getGraphQlContext().get(GraphQLContextKey.METRIC_EXECUTED_EVENT);
 		final EvitaSessionContract evitaSession = environment.getGraphQlContext().get(GraphQLContextKey.EVITA_SESSION);
-		return evitaSession.getEntitySchemaOrThrow(entityType);
+		return requestExecutedEvent.measureInternalEvitaDBExecution(() -> evitaSession.getEntitySchemaOrThrow(entityType));
 	}
 }

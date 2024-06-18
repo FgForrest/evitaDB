@@ -93,7 +93,6 @@ module evita.engine {
 	requires roaringbitmap;
 	requires com.esotericsoftware.kryo;
 
-	requires jdk.httpserver;
 	requires jdk.jfr;
 	requires net.bytebuddy;
 

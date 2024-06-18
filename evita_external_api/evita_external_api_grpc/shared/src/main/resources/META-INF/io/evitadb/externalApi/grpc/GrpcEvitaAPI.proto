@@ -45,6 +45,8 @@ message GrpcEvitaSessionResponse {
   GrpcCommitBehavior commitBehaviour = 3;
   // State of the catalog after the session was created.
   GrpcCatalogState catalogState = 4;
+  // UUID of the catalog the session is bound to.
+  string catalogId = 5;
 }
 
 // Request to terminate a session.

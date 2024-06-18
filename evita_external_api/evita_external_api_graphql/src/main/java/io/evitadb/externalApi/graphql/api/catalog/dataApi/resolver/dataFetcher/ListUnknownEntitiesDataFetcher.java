@@ -55,6 +55,7 @@ import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.ReadDataFetcher;
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidArgumentException;
 import io.evitadb.externalApi.graphql.exception.GraphQLQueryResolvingInternalError;
+import io.evitadb.externalApi.graphql.metric.event.request.ExecutedEvent;
 import io.evitadb.utils.Assert;
 import lombok.extern.slf4j.Slf4j;
 
@@ -140,36 +141,40 @@ public class ListUnknownEntitiesDataFetcher implements DataFetcher<DataFetcherRe
     @Override
     public DataFetcherResult<List<SealedEntity>> get(@Nonnull DataFetchingEnvironment environment) {
         final Arguments arguments = Arguments.from(environment, catalogSchema);
+        final ExecutedEvent requestExecutedEvent = environment.getGraphQlContext().get(GraphQLContextKey.METRIC_EXECUTED_EVENT);
 
-        final FilterBy filterBy = buildFilterBy(arguments);
-        final Require require = buildInitialRequire(environment, arguments);
-        final Query query = query(
-            filterBy,
-            require
-        );
+        final Query query = requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() -> {
+            final FilterBy filterBy = buildFilterBy(arguments);
+            final Require require = buildInitialRequire(environment, arguments);
+            return query(
+                filterBy,
+                require
+            );
+        });
         log.debug("Generated evitaDB query for single unknown entity fetch `{}`.", query);
 
         final EvitaSessionContract evitaSession = environment.getGraphQlContext().get(GraphQLContextKey.EVITA_SESSION);
 
-        final List<SealedEntity> entityReferences = evitaSession.queryList(query, SealedEntity.class);
-        final List<SealedEntity> loadedEntities;
-        if (entityReferences.isEmpty()) {
-            loadedEntities = List.of();
-        } else {
-            loadedEntities = entityReferences.stream()
-                .map(it -> {
-                    final String entityType = it.getType();
-                    final Optional<EntityContentRequire[]> contentRequires = buildEnrichingRequires(environment, entityType);
-                    if (contentRequires.isEmpty()) {
-                        log.debug("Skipping enriching entity reference `{}`. Target entity not requested.", it);
-                        return it;
-                    } else {
-                        log.debug("Enriching entity reference `{}` with `{}`.", it, Arrays.toString(contentRequires.get()));
-                        return evitaSession.enrichEntity(it, contentRequires.get());
-                    }
-                })
-                .toList();
-        }
+        final List<SealedEntity> loadedEntities = requestExecutedEvent.measureInternalEvitaDBExecution(() -> {
+            final List<SealedEntity> entityReferences = evitaSession.queryList(query, SealedEntity.class);
+            if (entityReferences.isEmpty()) {
+                return List.of();
+            } else {
+                return entityReferences.stream()
+                    .map(it -> {
+                        final String entityType = it.getType();
+                        final Optional<EntityContentRequire[]> contentRequires = buildEnrichingRequires(environment, entityType);
+                        if (contentRequires.isEmpty()) {
+                            log.debug("Skipping enriching entity reference `{}`. Target entity not requested.", it);
+                            return it;
+                        } else {
+                            log.debug("Enriching entity reference `{}` with `{}`.", it, Arrays.toString(contentRequires.get()));
+                            return evitaSession.enrichEntity(it, contentRequires.get());
+                        }
+                    })
+                    .toList();
+            }
+        });
 
         final DataFetcherResult.Builder<List<SealedEntity>> resultBuilder = DataFetcherResult.<List<SealedEntity>>newResult()
             .data(loadedEntities);

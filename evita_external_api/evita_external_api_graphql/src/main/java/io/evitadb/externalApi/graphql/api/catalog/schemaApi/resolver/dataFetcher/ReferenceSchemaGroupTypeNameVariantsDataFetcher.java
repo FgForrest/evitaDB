@@ -29,6 +29,7 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
+import io.evitadb.externalApi.graphql.metric.event.request.ExecutedEvent;
 import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.ReadDataFetcher;
 import io.evitadb.utils.NamingConvention;
 
@@ -47,6 +48,8 @@ public class ReferenceSchemaGroupTypeNameVariantsDataFetcher implements DataFetc
 	@Nullable
 	@Override
 	public Map<NamingConvention, String> get(@Nonnull DataFetchingEnvironment environment) {
+		final ExecutedEvent requestExecutedEvent = environment.getGraphQlContext().get(GraphQLContextKey.METRIC_EXECUTED_EVENT);
+
 		final ReferenceSchemaContract referenceSchema = environment.getSource();
 		if (referenceSchema.getReferencedGroupType() == null) {
 			return null;
@@ -54,7 +57,8 @@ public class ReferenceSchemaGroupTypeNameVariantsDataFetcher implements DataFetc
 
 		return referenceSchema.getGroupTypeNameVariants(entityType -> {
 			final EvitaSessionContract evitaSession = environment.getGraphQlContext().get(GraphQLContextKey.EVITA_SESSION);
-			return evitaSession.getEntitySchemaOrThrow(entityType);
+			return requestExecutedEvent.measureInternalEvitaDBExecution(() ->
+				evitaSession.getEntitySchemaOrThrow(entityType));
 		});
 	}
 }

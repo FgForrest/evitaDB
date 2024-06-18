@@ -144,7 +144,7 @@ public final class GrpcEvitaAPI {
       "uest\022\023\n\013catalogName\030\001 \001(\t\022Q\n\016commitBehav" +
       "ior\030\002 \001(\01629.io.evitadb.externalApi.grpc." +
       "generated.GrpcCommitBehavior\022\016\n\006dryRun\030\003" +
-      " \001(\010\"\235\002\n\030GrpcEvitaSessionResponse\022\021\n\tses" +
+      " \001(\010\"\260\002\n\030GrpcEvitaSessionResponse\022\021\n\tses" +
       "sionId\030\001 \001(\t\022K\n\013sessionType\030\002 \001(\01626.io.e" +
       "vitadb.externalApi.grpc.generated.GrpcSe" +
       "ssionType\022R\n\017commitBehaviour\030\003 \001(\01629.io." +
@@ -249,7 +249,7 @@ public final class GrpcEvitaAPI {
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcEvitaSessionResponse_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcEvitaSessionResponse_descriptor,
-        new java.lang.String[] { "SessionId", "SessionType", "CommitBehaviour", "CatalogState", });
+        new java.lang.String[] { "SessionId", "SessionType", "CommitBehaviour", "CatalogState", "CatalogId", });
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcEvitaSessionTerminationRequest_descriptor =
       getDescriptor().getMessageTypes().get(3);
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcEvitaSessionTerminationRequest_fieldAccessorTable = new

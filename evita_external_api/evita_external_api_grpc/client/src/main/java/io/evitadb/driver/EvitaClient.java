@@ -385,6 +385,7 @@ public class EvitaClient implements EvitaContract {
 			this.channelPool,
 			traits.catalogName(),
 			EvitaEnumConverter.toCatalogState(grpcResponse.getCatalogState()),
+			UUIDUtil.uuid(grpcResponse.getCatalogId()),
 			UUIDUtil.uuid(grpcResponse.getSessionId()),
 			EvitaEnumConverter.toCommitBehavior(grpcResponse.getCommitBehaviour()),
 			traits,

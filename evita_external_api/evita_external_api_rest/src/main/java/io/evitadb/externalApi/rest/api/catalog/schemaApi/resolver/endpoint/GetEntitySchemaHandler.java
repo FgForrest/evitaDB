@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,15 +23,18 @@
 
 package io.evitadb.externalApi.rest.api.catalog.schemaApi.resolver.endpoint;
 
+import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.externalApi.http.EndpointResponse;
 import io.evitadb.externalApi.http.NotFoundEndpointResponse;
 import io.evitadb.externalApi.http.SuccessEndpointResponse;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.CollectionRestHandlingContext;
-import io.evitadb.externalApi.rest.io.RestEndpointExchange;
+import io.evitadb.externalApi.rest.io.RestEndpointExecutionContext;
+import io.evitadb.externalApi.rest.metric.event.request.ExecutedEvent;
 import io.undertow.util.Methods;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -48,9 +51,16 @@ public class GetEntitySchemaHandler extends EntitySchemaHandler {
 
 	@Override
 	@Nonnull
-	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExchange exchange) {
-		return exchange.session().getEntitySchema(restHandlingContext.getEntityType())
-			.map(it -> (EndpointResponse) new SuccessEndpointResponse(convertResultIntoSerializableObject(exchange, it)))
+	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
+		final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
+		requestExecutedEvent.finishInputDeserialization();
+
+		final Optional<SealedEntitySchema> entitySchema = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
+			executionContext.session().getEntitySchema(restHandlingContext.getEntityType()));
+		requestExecutedEvent.finishOperationExecution();
+
+		return entitySchema
+			.map(it -> (EndpointResponse) new SuccessEndpointResponse(convertResultIntoSerializableObject(executionContext, it)))
 			.orElse(new NotFoundEndpointResponse());
 	}
 

@@ -114,7 +114,15 @@ public class EvitaJfrEventRegistry {
 		AnteroomWastedEvent.class,
 
 		// api - gRPC
-		ProcedureCalledEvent.class
+		ProcedureCalledEvent.class,
+
+		// api - GraphQL
+		io.evitadb.externalApi.graphql.metric.event.request.ExecutedEvent.class,
+		io.evitadb.externalApi.graphql.metric.event.instance.BuiltEvent.class,
+
+		// api - REST
+		io.evitadb.externalApi.rest.metric.event.request.ExecutedEvent.class,
+		io.evitadb.externalApi.rest.metric.event.instance.BuiltEvent.class
 	);
 	private static final Map<String, Class<? extends CustomMetricsExecutionEvent>> EVENT_MAP;
 	private static final Map<String, Set<Class<? extends CustomMetricsExecutionEvent>>> EVENT_MAP_BY_PACKAGE;

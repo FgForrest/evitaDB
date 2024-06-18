@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -34,7 +34,8 @@ import io.evitadb.externalApi.rest.api.catalog.resolver.mutation.RestMutationObj
 import io.evitadb.externalApi.rest.api.catalog.resolver.mutation.RestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.rest.api.catalog.schemaApi.dto.CreateOrUpdateEntitySchemaRequestData;
 import io.evitadb.externalApi.rest.exception.RestInvalidArgumentException;
-import io.evitadb.externalApi.rest.io.RestEndpointExchange;
+import io.evitadb.externalApi.rest.io.RestEndpointExecutionContext;
+import io.evitadb.externalApi.rest.metric.event.request.ExecutedEvent;
 import io.undertow.util.Methods;
 import lombok.extern.slf4j.Slf4j;
 
@@ -69,20 +70,30 @@ public class UpdateCatalogSchemaHandler extends CatalogSchemaHandler {
 
 	@Override
 	@Nonnull
-	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExchange exchange) {
-		final CreateOrUpdateEntitySchemaRequestData requestData = parseRequestBody(exchange, CreateOrUpdateEntitySchemaRequestData.class);
+	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
+		final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
 
-		final List<LocalCatalogSchemaMutation> schemaMutations = new LinkedList<>();
-		final JsonNode inputMutations = requestData.getMutations()
-			.orElseThrow(() -> new RestInvalidArgumentException("Mutations are not set in request data."));
-		for (Iterator<JsonNode> schemaMutationsIterator = inputMutations.elements(); schemaMutationsIterator.hasNext(); ) {
-			schemaMutations.addAll(mutationAggregateResolver.convert(schemaMutationsIterator.next()));
-		}
+		final CreateOrUpdateEntitySchemaRequestData requestData = parseRequestBody(executionContext, CreateOrUpdateEntitySchemaRequestData.class);
+		requestExecutedEvent.finishInputDeserialization();
 
-		final CatalogSchemaContract updatedCatalogSchema = exchange.session().updateAndFetchCatalogSchema(
-			schemaMutations.toArray(LocalCatalogSchemaMutation[]::new)
-		);
-		return new SuccessEndpointResponse(convertResultIntoSerializableObject(exchange, updatedCatalogSchema));
+		final List<LocalCatalogSchemaMutation> schemaMutations = requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() -> {
+			final List<LocalCatalogSchemaMutation> convertedSchemaMutations = new LinkedList<>();
+			final JsonNode inputMutations = requestData.getMutations()
+				.orElseThrow(() -> new RestInvalidArgumentException("Mutations are not set in request data."));
+			for (Iterator<JsonNode> schemaMutationsIterator = inputMutations.elements(); schemaMutationsIterator.hasNext(); ) {
+				convertedSchemaMutations.addAll(mutationAggregateResolver.convert(schemaMutationsIterator.next()));
+			}
+			return convertedSchemaMutations;
+		});
+
+		final CatalogSchemaContract updatedCatalogSchema = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
+			executionContext.session().updateAndFetchCatalogSchema(schemaMutations.toArray(LocalCatalogSchemaMutation[]::new)));
+		requestExecutedEvent.finishOperationExecution();
+
+		final Object result = convertResultIntoSerializableObject(executionContext, updatedCatalogSchema);
+		requestExecutedEvent.finishResultSerialization();
+
+		return new SuccessEndpointResponse(result);
 	}
 
 	@Nonnull

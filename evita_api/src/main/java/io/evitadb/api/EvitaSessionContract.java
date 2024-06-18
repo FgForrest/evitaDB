@@ -119,6 +119,15 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	UUID getId();
 
 	/**
+	 * Returns unique catalog id that doesn't change with catalog schema changes - such as renaming.
+	 * The id is assigned to the catalog when it is created and never changes.
+	 *
+	 * @return unique catalog id
+	 */
+	@Nonnull
+	UUID getCatalogId();
+
+	/**
 	 * Returns catalog schema of the catalog this session is connected to.
 	 */
 	@Nonnull

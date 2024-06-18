@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,7 +27,8 @@ import io.evitadb.api.CatalogContract;
 import io.evitadb.externalApi.http.EndpointResponse;
 import io.evitadb.externalApi.http.SuccessEndpointResponse;
 import io.evitadb.externalApi.rest.api.system.dto.CreateCatalogRequestDto;
-import io.evitadb.externalApi.rest.io.RestEndpointExchange;
+import io.evitadb.externalApi.rest.io.RestEndpointExecutionContext;
+import io.evitadb.externalApi.rest.metric.event.request.ExecutedEvent;
 import io.undertow.util.Methods;
 
 import javax.annotation.Nonnull;
@@ -51,13 +52,22 @@ public class CreateCatalogHandler extends CatalogHandler {
 
 	@Nonnull
 	@Override
-	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExchange exchange) {
-		final CreateCatalogRequestDto requestBody = parseRequestBody(exchange, CreateCatalogRequestDto.class);
+	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
+		final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
 
-		restHandlingContext.getEvita().defineCatalog(requestBody.name());
-		final CatalogContract newCatalog = restHandlingContext.getEvita().getCatalogInstanceOrThrowException(requestBody.name());
+		final CreateCatalogRequestDto requestBody = parseRequestBody(executionContext, CreateCatalogRequestDto.class);
+		requestExecutedEvent.finishInputDeserialization();
 
-		return new SuccessEndpointResponse(convertResultIntoSerializableObject(exchange, newCatalog));
+		final CatalogContract newCatalog = requestExecutedEvent.measureInternalEvitaDBExecution(() -> {
+			restHandlingContext.getEvita().defineCatalog(requestBody.name());
+			return restHandlingContext.getEvita().getCatalogInstanceOrThrowException(requestBody.name());
+		});
+		requestExecutedEvent.finishOperationExecution();
+
+		final Object result = convertResultIntoSerializableObject(executionContext, newCatalog);
+		requestExecutedEvent.finishResultSerialization();
+
+		return new SuccessEndpointResponse(result);
 	}
 
 	@Nonnull

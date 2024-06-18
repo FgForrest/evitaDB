@@ -49,6 +49,7 @@ import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.spi.model.storageParts.index.SortIndexStoragePart;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.NumberUtils;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
@@ -58,12 +59,14 @@ import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
 import java.lang.reflect.Array;
+import java.math.BigDecimal;
 import java.text.Normalizer;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.UnaryOperator;
 
 import static io.evitadb.utils.Assert.isTrue;
@@ -218,14 +221,13 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 	private static <T> UnaryOperator<T> createNormalizerFor(@Nonnull ComparatorSource[] comparatorBase) {
 		@SuppressWarnings("unchecked")
 		final UnaryOperator<T>[] normalizers = new UnaryOperator[comparatorBase.length];
-		boolean atLeastOneStringFound = false;
+		boolean atLeastOneNormalizerFound = false;
 		for (int i = 0; i < comparatorBase.length; i++) {
-			if (String.class.isAssignableFrom(comparatorBase[i].type())) {
-				atLeastOneStringFound = true;
-				normalizers[i] = createStringNormalizer(comparatorBase[i]);
-			}
+			final Optional<UnaryOperator<T>> normalizer = createNormalizerFor(comparatorBase[i]);
+			normalizers[i] = normalizer.orElseGet(UnaryOperator::identity);
+			atLeastOneNormalizerFound = atLeastOneNormalizerFound || normalizer.isPresent();
 		}
-		return atLeastOneStringFound ?
+		return atLeastOneNormalizerFound ?
 			new ComparableArrayNormalizer<>(normalizers) : UnaryOperator.identity();
 	}
 
@@ -236,11 +238,13 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 	 */
 	@SuppressWarnings("unchecked")
 	@Nonnull
-	private static <T> UnaryOperator<T> createStringNormalizer(@Nonnull ComparatorSource comparatorBase) {
+	private static <T> Optional<UnaryOperator<T>> createNormalizerFor(@Nonnull ComparatorSource comparatorBase) {
 		if (String.class.isAssignableFrom(comparatorBase.type())) {
-			return text -> text == null ? null : (T) Normalizer.normalize(String.valueOf(text), Normalizer.Form.NFD);
+			return Optional.of(text -> text == null ? null : (T) Normalizer.normalize(String.valueOf(text), Normalizer.Form.NFD));
+		} else if (BigDecimal.class.isAssignableFrom(comparatorBase.type())) {
+			return Optional.of(value -> value == null ? null : (T) NumberUtils.normalize((BigDecimal) value));
 		} else {
-			return UnaryOperator.identity();
+			return Optional.empty();
 		}
 	}
 
@@ -259,7 +263,7 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 			)
 		};
 		this.attributeKey = attributeKey;
-		this.normalizer = createStringNormalizer(this.comparatorBase[0]);
+		this.normalizer = createNormalizerFor(this.comparatorBase[0]).orElseGet(UnaryOperator::identity);
 		this.comparator = createComparatorFor(this.attributeKey.locale(), this.comparatorBase[0]);
 		this.sortedRecords = new TransactionalUnorderedIntArray();
 		//noinspection rawtypes
@@ -302,7 +306,7 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 		}
 		this.attributeKey = attributeKey;
 		if (this.comparatorBase.length == 1) {
-			this.normalizer = createStringNormalizer(this.comparatorBase[0]);
+			this.normalizer = createNormalizerFor(this.comparatorBase[0]).orElseGet(UnaryOperator::identity);;
 			this.comparator = createComparatorFor(this.attributeKey.locale(), this.comparatorBase[0]);
 		} else {
 			this.normalizer = createNormalizerFor(this.comparatorBase);

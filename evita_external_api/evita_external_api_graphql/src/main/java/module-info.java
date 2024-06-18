@@ -44,6 +44,8 @@ module evita.external.api.graphql {
 	exports io.evitadb.externalApi.graphql;
 	exports io.evitadb.externalApi.graphql.io;
 	exports io.evitadb.externalApi.graphql.configuration;
+	exports io.evitadb.externalApi.graphql.metric.event.request;
+	exports io.evitadb.externalApi.graphql.metric.event.instance;
 
 	exports io.evitadb.externalApi.graphql.api.catalog.dataApi.model to evita.test.support;
 	exports io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity to evita.test.support;
@@ -56,6 +58,8 @@ module evita.external.api.graphql {
 	requires com.fasterxml.jackson.databind;
 	requires undertow.core;
 	requires net.bytebuddy;
+	requires com.graphqljava;
+	requires jdk.jfr;
 
 	requires evita.api;
 	requires evita.common;

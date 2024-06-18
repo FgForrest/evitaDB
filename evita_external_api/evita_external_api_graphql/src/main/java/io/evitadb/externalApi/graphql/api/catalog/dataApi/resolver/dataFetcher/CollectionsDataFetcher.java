@@ -28,6 +28,7 @@ import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
 import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.ReadDataFetcher;
+import io.evitadb.externalApi.graphql.metric.event.request.ExecutedEvent;
 
 import javax.annotation.Nonnull;
 import java.util.Set;
@@ -42,7 +43,9 @@ public class CollectionsDataFetcher implements DataFetcher<Set<String>>, ReadDat
     @Nonnull
     @Override
     public Set<String> get(@Nonnull DataFetchingEnvironment environment) {
+        final ExecutedEvent requestExecutedEvent = environment.getGraphQlContext().get(GraphQLContextKey.METRIC_EXECUTED_EVENT);
+
         final EvitaSessionContract evitaSession = environment.getGraphQlContext().get(GraphQLContextKey.EVITA_SESSION);
-        return evitaSession.getAllEntityTypes();
+        return requestExecutedEvent.measureInternalEvitaDBExecution(evitaSession::getAllEntityTypes);
     }
 }
