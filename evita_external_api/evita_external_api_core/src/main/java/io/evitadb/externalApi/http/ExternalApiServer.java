@@ -146,11 +146,12 @@ public class ExternalApiServer implements AutoCloseable {
 			final CertificateType[] certificateTypes = apiOptions.endpoints()
 				.values()
 				.stream()
-				.flatMap(it -> Stream.of(
-						it.isTlsEnabled() ? CertificateType.SERVER : null,
-						it.isMtlsEnabled() ? CertificateType.CLIENT : null
-					)
-					.filter(Objects::nonNull))
+				.flatMap(
+					it -> Stream.of(
+							it.isEnabled() && it.isTlsEnabled() ? CertificateType.SERVER : null,
+							it.isEnabled() && it.isMtlsEnabled() ? CertificateType.CLIENT : null
+						).filter(Objects::nonNull)
+				)
 				.distinct()
 				.toArray(CertificateType[]::new);
 
@@ -362,7 +363,7 @@ public class ExternalApiServer implements AutoCloseable {
 			initCertificate(apiOptions, serverCertificateManager) :
 			(
 				certificateSettings.custom().certificate() != null && !certificateSettings.custom().certificate().isBlank() &&
-				certificateSettings.custom().privateKey() != null && !certificateSettings.custom().privateKey().isBlank() ?
+					certificateSettings.custom().privateKey() != null && !certificateSettings.custom().privateKey().isBlank() ?
 					new CertificatePath(
 						certificateSettings.custom().certificate(),
 						certificateSettings.custom().privateKey(),
@@ -453,7 +454,7 @@ public class ExternalApiServer implements AutoCloseable {
 					/*
 						IO threads represent separate thread pool, this is enforced by Undertow.
 					 */
-					.setWorkerIoThreads(apiOptions.ioThreadsAsInt())
+					.setWorkerIoThreads(apiOptions.ioThreads())
 					.setWorkerName("Undertow XNIO worker.")
 					.build()
 			)
@@ -471,19 +472,24 @@ public class ExternalApiServer implements AutoCloseable {
 				grained approach, and small values will cause problems for requests with a long processing time.
 				(milliseconds)
 			 */
-			.setServerOption(UndertowOptions.IDLE_TIMEOUT, 20 * 1000)
+			.setServerOption(UndertowOptions.IDLE_TIMEOUT, apiOptions.idleTimeoutInMillis())
 			/*
 				How long a request can spend in the parsing phase before it is timed out. This timer is started when
 				the first bytes of a request are read, and finishes once all the headers have been parsed.
 				(milliseconds)
 			 */
-			.setServerOption(UndertowOptions.REQUEST_PARSE_TIMEOUT, 1000)
+			.setServerOption(UndertowOptions.REQUEST_PARSE_TIMEOUT, apiOptions.parseTimeoutInMillis())
 			/*
 				The amount of time a connection can sit idle without processing a request, before it is closed by
 				the server.
 				(milliseconds)
 			 */
-			.setServerOption(UndertowOptions.NO_REQUEST_TIMEOUT, 1000)
+			.setServerOption(UndertowOptions.NO_REQUEST_TIMEOUT, apiOptions.requestTimeoutInMillis())
+			/*
+			    If this is true then a Connection: keep-alive header will be added to responses, even when it is not strictly required by
+			    the specification.
+			 */
+			.setServerOption(UndertowOptions.ALWAYS_SET_KEEP_ALIVE, apiOptions.keepAlive())
 			/*
 				The default maximum size of a request entity. If entity body is larger than this limit then a
 				java.io.IOException will be thrown at some point when reading the request (on the first read for fixed
@@ -491,7 +497,7 @@ public class ExternalApiServer implements AutoCloseable {
 				 size, it is possible for a handler to override this for an individual request by calling
 				 io.undertow.server.HttpServerExchange.setMaxEntitySize(long size). Defaults to unlimited.
 			 */
-			.setServerOption(UndertowOptions.MAX_ENTITY_SIZE, 2_097_152L);
+			.setServerOption(UndertowOptions.MAX_ENTITY_SIZE, apiOptions.maxEntitySizeInBytes());
 
 		final AccessLogReceiver accessLogReceiver = apiOptions.accessLog() ? new Slf4JAccessLogReceiver() : new NoopAccessLogReceiver();
 

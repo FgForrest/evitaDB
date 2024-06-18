@@ -41,7 +41,12 @@ cache:
 
 api:
   exposedOn: ${api.exposedOn:null}
-  ioThreads: ${api.ioThreads:4}
+  ioThreads: ${api.ioThreads:null}
+  idleTimeoutInMillis: ${api.idleTimeoutInMillis:2K}
+  requestTimeoutInMillis: ${api.requestTimeoutInMillis:2K}
+  parseTimeoutInMillis: ${api.parseTimeoutInMillis:1K}
+  keepAlive: ${api.keepAlive:true}
+  maxEntitySizeInBytes: ${api.maxEntitySizeInBytes:2MB}
   accessLog: ${api.accessLog:false}
   certificate:
     generateAndUseSelfSigned: ${api.certificate.generateAndUseSelfSigned:true}
