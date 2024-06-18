@@ -165,7 +165,7 @@ private static final long serialVersionUID = 0L;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs =
+      com.google.protobuf.ByteString bs = 
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
       version_ = s;
@@ -185,7 +185,7 @@ private static final long serialVersionUID = 0L;
       getVersionBytes() {
     java.lang.Object ref = version_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b =
+      com.google.protobuf.ByteString b = 
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
       version_ = b;
@@ -264,7 +264,7 @@ private static final long serialVersionUID = 0L;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs =
+      com.google.protobuf.ByteString bs = 
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
       instanceId_ = s;
@@ -284,7 +284,7 @@ private static final long serialVersionUID = 0L;
       getInstanceIdBytes() {
     java.lang.Object ref = instanceId_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b =
+      com.google.protobuf.ByteString b = 
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
       instanceId_ = b;
@@ -762,7 +762,7 @@ private static final long serialVersionUID = 0L;
         getVersionBytes() {
       java.lang.Object ref = version_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b =
+        com.google.protobuf.ByteString b = 
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
         version_ = b;
@@ -785,7 +785,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
     throw new NullPointerException();
   }
-
+  
       version_ = value;
       onChanged();
       return this;
@@ -799,7 +799,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearVersion() {
-
+      
       version_ = getDefaultInstance().getVersion();
       onChanged();
       return this;
@@ -819,7 +819,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   checkByteStringIsUtf8(value);
-
+      
       version_ = value;
       onChanged();
       return this;
@@ -940,7 +940,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime startedAt = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder getStartedAtBuilder() {
-
+      
       onChanged();
       return getStartedAtFieldBuilder().getBuilder();
     }
@@ -967,7 +967,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime startedAt = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder> 
         getStartedAtFieldBuilder() {
       if (startedAtBuilder_ == null) {
         startedAtBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -1003,7 +1003,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setUptime(long value) {
-
+      
       uptime_ = value;
       onChanged();
       return this;
@@ -1017,7 +1017,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearUptime() {
-
+      
       uptime_ = 0L;
       onChanged();
       return this;
@@ -1056,7 +1056,7 @@ private static final long serialVersionUID = 0L;
         getInstanceIdBytes() {
       java.lang.Object ref = instanceId_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b =
+        com.google.protobuf.ByteString b = 
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
         instanceId_ = b;
@@ -1079,7 +1079,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
     throw new NullPointerException();
   }
-
+  
       instanceId_ = value;
       onChanged();
       return this;
@@ -1093,7 +1093,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearInstanceId() {
-
+      
       instanceId_ = getDefaultInstance().getInstanceId();
       onChanged();
       return this;
@@ -1113,7 +1113,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   checkByteStringIsUtf8(value);
-
+      
       instanceId_ = value;
       onChanged();
       return this;
@@ -1142,7 +1142,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setCatalogsCorrupted(int value) {
-
+      
       catalogsCorrupted_ = value;
       onChanged();
       return this;
@@ -1156,7 +1156,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearCatalogsCorrupted() {
-
+      
       catalogsCorrupted_ = 0;
       onChanged();
       return this;
@@ -1185,7 +1185,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setCatalogsOk(int value) {
-
+      
       catalogsOk_ = value;
       onChanged();
       return this;
@@ -1199,7 +1199,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearCatalogsOk() {
-
+      
       catalogsOk_ = 0;
       onChanged();
       return this;

@@ -37,7 +37,7 @@ public interface GrpcBigDecimalNumberRangeArrayOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange value = 1;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange>
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange> 
       getValueList();
   /**
    * <pre>
@@ -62,7 +62,7 @@ public interface GrpcBigDecimalNumberRangeArrayOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange value = 1;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeOrBuilder>
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeOrBuilder> 
       getValueOrBuilderList();
   /**
    * <pre>
