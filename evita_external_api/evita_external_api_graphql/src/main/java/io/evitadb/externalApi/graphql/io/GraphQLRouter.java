@@ -164,7 +164,7 @@ public class GraphQLRouter implements HttpHandler {
 				new CorsFilter(
 					new GraphQLExceptionHandler(
 						objectMapper,
-						new GraphQLHandler(objectMapper, evita, registeredApi.instanceType(), registeredApi.graphQLReference())
+						new GraphQLHandler(objectMapper, registeredApi.instanceType(), registeredApi.graphQLReference())
 					),
 					graphQLConfig.getAllowedOrigins()
 				)

@@ -490,6 +490,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 					.map(it -> new WalFileReference(catalogName, it.fileIndex(), it.fileLocation()))
 					.orElse(null),
 				catalogHeader.collectionFileIndex(),
+				catalogHeader.catalogId(),
 				catalogName,
 				catalogHeader.catalogState(),
 				catalogHeader.lastEntityCollectionPrimaryKey()
@@ -1830,6 +1831,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 											)
 										),
 									catalogHeader.compressedKeys(),
+									catalogHeader.catalogId(),
 									catalogHeader.catalogName(),
 									catalogHeader.catalogState(),
 									catalogHeader.lastEntityCollectionPrimaryKey(),

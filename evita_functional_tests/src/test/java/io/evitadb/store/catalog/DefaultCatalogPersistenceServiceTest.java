@@ -641,6 +641,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 
 		// try to serialize
 		ioService.storeHeader(
+			catalogId,
 			CatalogState.WARMING_UP,
 			0L, 0, null,
 			Arrays.asList(

@@ -34,7 +34,6 @@ import graphql.execution.UnknownOperationException;
 import graphql.schema.CoercingParseValueException;
 import graphql.schema.CoercingSerializeException;
 import io.evitadb.api.observability.trace.TracingBlockReference;
-import io.evitadb.core.Evita;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
@@ -91,22 +90,20 @@ public class GraphQLHandler extends EndpointHandler<GraphQLEndpointExecutionCont
     @Nonnull
     private final ExternalApiTracingContext<Object> tracingContext;
     @Nonnull
-    private final EvitaConfiguration evitaConfiguration;
-    @Nonnull
     private final GraphQLInstanceType instanceType;
     @Nonnull
     private final AtomicReference<GraphQL> graphQL;
 
-    public GraphQLHandler(@Nonnull ObjectMapper objectMapper,
-                          @Nonnull Evita evita,
-                          @Nonnull GraphQLInstanceType instanceType,
-                          @Nonnull AtomicReference<GraphQL> graphQL) {
-        this.objectMapper = objectMapper;
-        this.tracingContext = ExternalApiTracingContextProvider.getContext();
-        this.evitaConfiguration = evita.getConfiguration();
-        this.instanceType = instanceType;
-        this.graphQL = graphQL;
-    }
+	public GraphQLHandler(
+		@Nonnull ObjectMapper objectMapper,
+		@Nonnull GraphQLInstanceType instanceType,
+		@Nonnull AtomicReference<GraphQL> graphQL
+	) {
+		this.objectMapper = objectMapper;
+		this.tracingContext = ExternalApiTracingContextProvider.getContext();
+		this.instanceType = instanceType;
+		this.graphQL = graphQL;
+	}
 
     @Override
     public void handleRequest(HttpServerExchange serverExchange) {
