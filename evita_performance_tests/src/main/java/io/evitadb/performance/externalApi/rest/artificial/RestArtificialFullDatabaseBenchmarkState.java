@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,7 +27,6 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.externalApi.configuration.ApiOptions;
-import io.evitadb.externalApi.configuration.CertificateSettings;
 import io.evitadb.externalApi.http.ExternalApiServer;
 import io.evitadb.externalApi.rest.RestProvider;
 import io.evitadb.externalApi.rest.RestProviderRegistrar;
@@ -39,7 +38,6 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.TearDown;
 
 import java.util.Collections;
-import java.util.Map;
 
 /**
  * Base state class for {@link RestArtificialEntitiesBenchmark} benchmark.
@@ -87,7 +85,9 @@ public class RestArtificialFullDatabaseBenchmarkState extends RestArtificialBenc
 		// start rest server
 		server = new ExternalApiServer(
 			this.evita,
-			new ApiOptions(null, null, false, new CertificateSettings.Builder().build(), Map.of(RestProvider.CODE, new RestConfig())),
+			ApiOptions.builder()
+				.enable(RestProvider.CODE, new RestConfig())
+				.build(),
 			Collections.singleton(new RestProviderRegistrar())
 		);
 		server.start();
