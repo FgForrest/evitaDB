@@ -291,7 +291,7 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	 * Restores catalog from uploaded backup binary file into a new catalog.
 	 *
 	 * @param responseObserver observer on which errors might be thrown and result returned
-	 * @see EvitaContract#restoreCatalog(String, InputStream)
+	 * @see EvitaContract#restoreCatalog(String, long, InputStream)
 	 */
 	@Override
 	public StreamObserver<GrpcRestoreCatalogRequest> restoreCatalog(StreamObserver<GrpcRestoreCatalogResponse> responseObserver) {
@@ -341,7 +341,11 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 						try {
 							outputStream.close();
 							Assert.isPremiseValid(catalogNameToRestore != null, "Catalog name to restore must be provided.");
-							evita.restoreCatalog(catalogNameToRestore, Files.newInputStream(finalBackupFilePath, StandardOpenOption.READ));
+							evita.restoreCatalog(
+								catalogNameToRestore,
+								Files.size(finalBackupFilePath),
+								Files.newInputStream(finalBackupFilePath, StandardOpenOption.READ)
+							);
 							responseObserver.onNext(GrpcRestoreCatalogResponse.newBuilder().setRead(bytesRead.get()).build());
 							responseObserver.onCompleted();
 						} catch (Exception e) {

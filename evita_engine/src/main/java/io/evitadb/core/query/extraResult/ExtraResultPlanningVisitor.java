@@ -47,7 +47,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.EntityCollection;
 import io.evitadb.core.query.AttributeSchemaAccessor;
 import io.evitadb.core.query.PrefetchRequirementCollector;
-import io.evitadb.core.query.QueryContext;
+import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.facet.UserFilterFormula;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaCloner;
@@ -141,7 +141,7 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	/**
 	 * Reference to the query context that allows to access entity bodies, indexes, original request and much more.
 	 */
-	@Delegate @Getter private final QueryContext queryContext;
+	@Delegate @Getter private final QueryPlanningContext queryContext;
 	/**
 	 * This instance contains the {@link io.evitadb.index.Index} set that is used to resolve passed query filter.
 	 */
@@ -200,7 +200,7 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	private Set<Formula> userFilterFormula;
 
 	public ExtraResultPlanningVisitor(
-		@Nonnull QueryContext queryContext,
+		@Nonnull QueryPlanningContext queryContext,
 		@Nonnull TargetIndexes<?> indexSetToUse,
 		@Nonnull PrefetchRequirementCollector prefetchRequirementCollector,
 		@Nonnull Formula filteringFormula,
@@ -376,60 +376,58 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 			);
 			// we have to create and trap the nested query context here to carry it along with the sorter
 			// otherwise the sorter will target and use the incorrectly originally queried (prefetched) entities
-			try (
-				final QueryContext nestedQueryContext = entityCollection.createQueryContext(
-					queryContext,
-					queryContext.getEvitaRequest().deriveCopyWith(
-						entityType,
-						null,
-						new OrderBy(orderBy.getChildren()),
-						queryContext.getLocale()
-					),
-					queryContext.getEvitaSession()
-				)
-			) {
-				final GlobalEntityIndex entityIndex = entityCollection.getGlobalIndexIfExists().orElse(null);
-				final Sorter sorter;
-				if (entityIndex == null) {
-					sorter = NoSorter.INSTANCE;
-				} else {
-					// create a visitor
-					final OrderByVisitor orderByVisitor = new OrderByVisitor(
-						nestedQueryContext,
-						Collections.emptyList(),
-						prefetchRequirementCollector,
-						filteringFormula
-					);
-					// now analyze the filter by in a nested context with exchanged primary entity index
-					sorter = orderByVisitor.executeInContext(
-						new EntityIndex[]{entityIndex},
-						entityType,
-						locale,
-						new AttributeSchemaAccessor(nestedQueryContext.getCatalogSchema(), entityCollection.getSchema()),
-						EntityAttributeExtractor.INSTANCE,
-						() -> {
-							for (OrderConstraint innerConstraint : orderBy.getChildren()) {
-								innerConstraint.accept(orderByVisitor);
-							}
-							// create a deferred sorter that will log the execution time to query telemetry
-							return new DeferredSorter(
-								orderByVisitor.getSorter(),
-								theSorter -> {
-									try {
-										nestedQueryContext.pushStep(QueryPhase.EXECUTION_SORT_AND_SLICE, stepDescriptionSupplier);
-										return theSorter.getAsInt();
-									} finally {
-										nestedQueryContext.popStep();
-									}
-								}
-							);
+			final QueryPlanningContext nestedQueryContext = entityCollection.createQueryContext(
+				queryContext,
+				queryContext.getEvitaRequest().deriveCopyWith(
+					entityType,
+					null,
+					new OrderBy(orderBy.getChildren()),
+					queryContext.getLocale()
+				),
+				queryContext.getEvitaSession()
+			);
+
+			final GlobalEntityIndex entityIndex = entityCollection.getGlobalIndexIfExists().orElse(null);
+			final Sorter sorter;
+			if (entityIndex == null) {
+				sorter = NoSorter.INSTANCE;
+			} else {
+				// create a visitor
+				final OrderByVisitor orderByVisitor = new OrderByVisitor(
+					nestedQueryContext,
+					Collections.emptyList(),
+					prefetchRequirementCollector,
+					filteringFormula
+				);
+				// now analyze the filter by in a nested context with exchanged primary entity index
+				sorter = orderByVisitor.executeInContext(
+					new EntityIndex[]{entityIndex},
+					entityType,
+					locale,
+					new AttributeSchemaAccessor(nestedQueryContext.getCatalogSchema(), entityCollection.getSchema()),
+					EntityAttributeExtractor.INSTANCE,
+					() -> {
+						for (OrderConstraint innerConstraint : orderBy.getChildren()) {
+							innerConstraint.accept(orderByVisitor);
 						}
-					);
-				}
-				return new NestedContextSorter(
-					nestedQueryContext, sorter
+						// create a deferred sorter that will log the execution time to query telemetry
+						return new DeferredSorter(
+							orderByVisitor.getSorter(),
+							theSorter -> {
+								try {
+									nestedQueryContext.pushStep(QueryPhase.EXECUTION_SORT_AND_SLICE, stepDescriptionSupplier);
+									return theSorter.getAsInt();
+								} finally {
+									nestedQueryContext.popStep();
+								}
+							}
+						);
+					}
 				);
 			}
+			return new NestedContextSorter(
+				nestedQueryContext.createExecutionContext(), sorter
+			);
 		} finally {
 			queryContext.popStep();
 		}

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -37,7 +37,7 @@ import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.core.EvitaSession;
 import io.evitadb.core.query.AttributeSchemaAccessor;
-import io.evitadb.core.query.filter.translator.TestFilterByVisitor;
+import io.evitadb.core.query.filter.translator.TestQueryExecutionContext;
 import io.evitadb.core.query.filter.translator.attribute.AttributeBetweenTranslator;
 import io.evitadb.core.query.filter.translator.attribute.AttributeContainsTranslator;
 import io.evitadb.core.query.filter.translator.attribute.AttributeEndsWithTranslator;
@@ -484,9 +484,8 @@ class AttributeBitmapFilterTest {
 	}
 
 	@Nonnull
-	private TestFilterByVisitor createTestFilterByVisitor(FilterBy filterBy, AttributeBitmapFilter filter) {
-		return new TestFilterByVisitor(
-			catalogSchema,
+	private TestQueryExecutionContext createTestFilterByVisitor(FilterBy filterBy, AttributeBitmapFilter filter) {
+		return new TestQueryExecutionContext(
 			entitySchema,
 			Query.query(
 				collection(Entities.PRODUCT),

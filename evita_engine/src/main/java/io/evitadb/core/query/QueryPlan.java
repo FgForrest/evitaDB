@@ -42,6 +42,7 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.prefetch.PrefetchFormulaVisitor;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.response.EntityFetchAwareDecorator;
+import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
 import io.evitadb.core.query.sort.ConditionalSorter;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.core.query.sort.utils.SortUtils;
@@ -74,7 +75,7 @@ public class QueryPlan {
 	/**
 	 * Reference to the query context that allows to access entity bodies, indexes, original request and much more.
 	 */
-	@Delegate private final QueryContext queryContext;
+	@Delegate private final QueryPlanningContext queryContext;
 	/**
 	 * Source index description of this query plan.
 	 */
@@ -90,7 +91,7 @@ public class QueryPlan {
 	 * Optional visitor that collected information about target entities so that they can
 	 * be fetched upfront and filtered/ordered by their properties.
 	 */
-	@Nullable
+	@Nonnull
 	private final PrefetchFormulaVisitor prefetchFormulaVisitor;
 	/**
 	 * Contains prepared sorter implementation that takes output of the filtering process and sorts the entity
@@ -126,14 +127,14 @@ public class QueryPlan {
 	 */
 	@Nonnull
 	private static int[] sortAndSliceResult(
-		@Nonnull QueryContext queryContext,
+		@Nonnull QueryExecutionContext queryContext,
 		int totalRecordCount,
 		@Nonnull Formula filteringFormula,
 		@Nonnull Sorter sorter
 	) {
 		final EvitaRequest evitaRequest = queryContext.getEvitaRequest();
 		final int firstRecordOffset = evitaRequest.getFirstRecordOffset(totalRecordCount);
-		sorter = ConditionalSorter.getFirstApplicableSorter(sorter, queryContext);
+		sorter = ConditionalSorter.getFirstApplicableSorter(queryContext, sorter);
 		final int[] result = new int[Math.min(totalRecordCount, evitaRequest.getLimit())];
 		final int peak = sorter.sortAndSlice(
 			queryContext, filteringFormula,
@@ -151,129 +152,142 @@ public class QueryPlan {
 	 */
 	@Nonnull
 	public <S extends Serializable, T extends EvitaResponse<S>> T execute() {
-		this.queryContext.pushStep(QueryPhase.EXECUTION);
+		return execute(null);
+	}
 
-		try {
-			// prefetch the entities to allow using them in filtering / sorting in next step
-			ofNullable(this.prefetchFormulaVisitor)
-				.ifPresent(it -> {
-					final Runnable prefetchLambda = it.createPrefetchLambdaIfNeededOrWorthwhile(this.queryContext);
-					if (prefetchLambda != null) {
-						this.queryContext.pushStep(QueryPhase.EXECUTION_PREFETCH);
-						try {
-							this.prefetched = true;
-							prefetchLambda.run();
-						} finally {
-							this.queryContext.popStep();
-						}
-					}
-				});
+	/**
+	 * This method will {@link Formula#compute()} the filtered result, applies ordering and cuts out the requested page.
+	 * Method is expected to be called only once per request.
+	 *
+	 * @param frozenRandom the frozen random state to use (non-null for deterministic results, null for random results)
+	 * @see io.evitadb.utils.RandomUtils#getFrozenRandom()
+	 */
+	@Nonnull
+	public <S extends Serializable, T extends EvitaResponse<S>> T execute(@Nullable byte[] frozenRandom) {
+		try (final QueryExecutionContext executionContext = this.queryContext.createExecutionContext(frozenRandom)) {
+			executionContext.pushStep(QueryPhase.EXECUTION);
 
-			this.queryContext.pushStep(QueryPhase.EXECUTION_FILTER);
 			try {
-				// this call triggers the filtering computation and cause memoization of results
-				this.totalRecordCount = this.filter.compute().size();
-			} finally {
-				this.queryContext.popStep();
-			}
-
-			this.queryContext.pushStep(QueryPhase.EXECUTION_SORT_AND_SLICE);
-			try {
-				this.primaryKeys = sortAndSliceResult(
-					this.queryContext, this.totalRecordCount,
-					this.filter, this.sorter
-				);
-			} finally {
-				popStep();
-			}
-
-			final T result;
-			final EvitaRequest evitaRequest = this.queryContext.getEvitaRequest();
-			// if full entity bodies are requested
-			if (evitaRequest.isRequiresEntity()) {
-				this.queryContext.pushStep(QueryPhase.FETCHING);
-				try {
-					if (this.queryContext.isRequiresBinaryForm()) {
-						// transform PKs to rich SealedEntities
-						final DataChunk<BinaryEntity> dataChunk = evitaRequest.createDataChunk(
-							this.totalRecordCount,
-							this.queryContext.fetchBinaryEntities(this.primaryKeys)
-						);
-
-						// this may produce ClassCast exception if client assigns variable to different result than requests
-						//noinspection unchecked
-						result = (T) new EvitaBinaryEntityResponse(
-							evitaRequest.getQuery(),
-							dataChunk,
-							// fabricate extra results
-							fabricateExtraResults(dataChunk)
-						);
-					} else {
-						// transform PKs to rich SealedEntities
-						final DataChunk<SealedEntity> dataChunk = evitaRequest.createDataChunk(
-							this.totalRecordCount,
-							this.queryContext.fetchEntities(this.primaryKeys)
-						);
-
-						// this may produce ClassCast exception if client assigns variable to different result than requests
-						//noinspection unchecked
-						result = (T) new EvitaEntityResponse<>(
-							evitaRequest.getQuery(),
-							dataChunk,
-							// fabricate extra results
-							fabricateExtraResults(dataChunk)
-						);
+				// prefetch the entities to allow using them in filtering / sorting in next step
+				final Runnable prefetchLambda = this.prefetchFormulaVisitor.createPrefetchLambdaIfNeededOrWorthwhile(executionContext);
+				if (prefetchLambda != null) {
+					executionContext.pushStep(QueryPhase.EXECUTION_PREFETCH);
+					try {
+						this.prefetched = true;
+						prefetchLambda.run();
+					} finally {
+						executionContext.popStep();
 					}
-				} finally {
-					this.queryContext.popStep();
 				}
-			} else {
-				// this may produce ClassCast exception if client assigns variable to different result than requests
-				final DataChunk<EntityReference> dataChunk = evitaRequest.createDataChunk(
-					this.totalRecordCount,
-					Arrays.stream(this.primaryKeys)
-						// returns simple reference to the entity (i.e. primary key and type of the entity)
-						// TOBEDONE JNO - we should return a reference including the actual entity version information
-						// so that the client might implement its local cache
-						.mapToObj(this.queryContext::translateToEntityReference)
-						.collect(Collectors.toList())
-				);
 
-				// this may produce ClassCast exception if client assigns variable to different result than requests
-				//noinspection unchecked
-				result = (T) new EvitaEntityReferenceResponse(
-					evitaRequest.getQuery(),
-					dataChunk,
-					// fabricate extra results
-					fabricateExtraResults(dataChunk)
-				);
-			}
+				executionContext.pushStep(QueryPhase.EXECUTION_FILTER);
+				try {
+					// this call triggers the filtering computation and cause memoization of results
+					this.filter.initialize(executionContext);
+					this.totalRecordCount = this.filter.compute().size();
+				} finally {
+					executionContext.popStep();
+				}
 
-			ofNullable(this.queryContext.getQueryFinishedEvent())
-				.ifPresent(it -> {
-					int ioFetchCount = 0;
-					int ioFetchedSizeBytes = 0;
-					for (S record : result.getRecordData()) {
-						if (record instanceof EntityFetchAwareDecorator efad) {
-							ioFetchCount += efad.getIoFetchCount();
-							ioFetchedSizeBytes += efad.getIoFetchedBytes();
+				executionContext.pushStep(QueryPhase.EXECUTION_SORT_AND_SLICE);
+				try {
+					this.initSorter(executionContext);
+					this.primaryKeys = sortAndSliceResult(
+						executionContext, this.totalRecordCount,
+						this.filter, this.sorter
+					);
+				} finally {
+					popStep();
+				}
+
+				final T result;
+				final EvitaRequest evitaRequest = executionContext.getEvitaRequest();
+				// if full entity bodies are requested
+				if (evitaRequest.isRequiresEntity()) {
+					executionContext.pushStep(QueryPhase.FETCHING);
+					try {
+						if (executionContext.isRequiresBinaryForm()) {
+							// transform PKs to rich SealedEntities
+							final DataChunk<BinaryEntity> dataChunk = evitaRequest.createDataChunk(
+								this.totalRecordCount,
+								executionContext.fetchBinaryEntities(this.primaryKeys)
+							);
+
+							// this may produce ClassCast exception if client assigns variable to different result than requests
+							//noinspection unchecked
+							result = (T) new EvitaBinaryEntityResponse(
+								evitaRequest.getQuery(),
+								dataChunk,
+								// fabricate extra results
+								fabricateExtraResults(executionContext, dataChunk)
+							);
+						} else {
+							// transform PKs to rich SealedEntities
+							final DataChunk<SealedEntity> dataChunk = evitaRequest.createDataChunk(
+								this.totalRecordCount,
+								executionContext.fetchEntities(this.primaryKeys)
+							);
+
+							// this may produce ClassCast exception if client assigns variable to different result than requests
+							//noinspection unchecked
+							result = (T) new EvitaEntityResponse<>(
+								evitaRequest.getQuery(),
+								dataChunk,
+								// fabricate extra results
+								fabricateExtraResults(executionContext, dataChunk)
+							);
 						}
+					} finally {
+						executionContext.popStep();
 					}
-					it.finish(
-						this.prefetched,
-						this.filter.getEstimatedCardinality(),
-						this.primaryKeys == null ? 0 : this.primaryKeys.length,
+				} else {
+					// this may produce ClassCast exception if client assigns variable to different result than requests
+					final DataChunk<EntityReference> dataChunk = evitaRequest.createDataChunk(
 						this.totalRecordCount,
-						ioFetchCount,
-						ioFetchedSizeBytes,
-						this.filter.getEstimatedCost(),
-						this.filter.getCost()
-					).commit();
-				});
+						Arrays.stream(this.primaryKeys)
+							// returns simple reference to the entity (i.e. primary key and type of the entity)
+							// TOBEDONE JNO - we should return a reference including the actual entity version information
+							// so that the client might implement its local cache
+							.mapToObj(executionContext::translateToEntityReference)
+							.collect(Collectors.toList())
+					);
 
-			return result;
-		} finally {
-			this.queryContext.popStep();
+					// this may produce ClassCast exception if client assigns variable to different result than requests
+					//noinspection unchecked
+					result = (T) new EvitaEntityReferenceResponse(
+						evitaRequest.getQuery(),
+						dataChunk,
+						// fabricate extra results
+						fabricateExtraResults(executionContext, dataChunk)
+					);
+				}
+
+				ofNullable(this.queryContext.getQueryFinishedEvent())
+					.ifPresent(it -> {
+						int ioFetchCount = 0;
+						int ioFetchedSizeBytes = 0;
+						for (S record : result.getRecordData()) {
+							if (record instanceof EntityFetchAwareDecorator efad) {
+								ioFetchCount += efad.getIoFetchCount();
+								ioFetchedSizeBytes += efad.getIoFetchedBytes();
+							}
+						}
+						it.finish(
+							this.prefetched,
+							this.filter.getEstimatedCardinality(),
+							this.primaryKeys == null ? 0 : this.primaryKeys.length,
+							this.totalRecordCount,
+							ioFetchCount,
+							ioFetchedSizeBytes,
+							this.filter.getEstimatedCost(),
+							this.filter.getCost()
+						).commit();
+					});
+
+				return result;
+			} finally {
+				executionContext.popStep();
+			}
 		}
 	}
 
@@ -283,33 +297,33 @@ public class QueryPlan {
 	 * call. This method is expected to be called only once, though.
 	 */
 	@Nonnull
-	public EvitaResponseExtraResult[] fabricateExtraResults(@Nonnull DataChunk<? extends Serializable> dataChunk) {
+	public EvitaResponseExtraResult[] fabricateExtraResults(@Nonnull QueryExecutionContext executionContext, @Nonnull DataChunk<? extends Serializable> dataChunk) {
 		final LinkedList<EvitaResponseExtraResult> extraResults = new LinkedList<>();
 		if (!extraResultProducers.isEmpty()) {
-			queryContext.pushStep(QueryPhase.EXTRA_RESULTS_FABRICATION);
+			executionContext.pushStep(QueryPhase.EXTRA_RESULTS_FABRICATION);
 			try {
 				for (ExtraResultProducer extraResultProducer : extraResultProducers) {
 					// register sub-step for each fabricator so that we can track which were the costly ones
-					queryContext.pushStep(
+					executionContext.pushStep(
 						EXTRA_RESULT_ITEM_FABRICATION,
 						extraResultProducer.getClass().getSimpleName()
 					);
 					try {
-						final EvitaResponseExtraResult extraResult = extraResultProducer.fabricate(dataChunk.getData());
+						final EvitaResponseExtraResult extraResult = extraResultProducer.fabricate(executionContext, dataChunk.getData());
 						if (extraResult != null) {
 							extraResults.add(extraResult);
 						}
 					} finally {
-						queryContext.popStep();
+						executionContext.popStep();
 					}
 				}
 			} finally {
-				queryContext.popStep();
+				executionContext.popStep();
 			}
 		}
 
-		if (queryContext.getEvitaRequest().isQueryTelemetryRequested()) {
-			extraResults.add(queryContext.finalizeAndGetTelemetry());
+		if (executionContext.getEvitaRequest().isQueryTelemetryRequested()) {
+			extraResults.add(executionContext.finalizeAndGetTelemetry());
 		}
 
 		return extraResults.toArray(EvitaResponseExtraResult[]::new);
@@ -368,5 +382,19 @@ public class QueryPlan {
 			new SpanAttribute("estimatedComplexity", queryFinishedEvent.getEstimatedComplexity()),
 			new SpanAttribute("complexity", queryFinishedEvent.getRealComplexity())
 		};
+	}
+
+	/**
+	 * Method initializes sorter and all its nested sorters.
+	 * @param executionContext the execution context to use
+	 */
+	private void initSorter(@Nonnull QueryExecutionContext executionContext) {
+		Sorter theSorter = this.sorter;
+		while (theSorter != null) {
+			if (theSorter instanceof TransactionalDataRelatedStructure tdrs) {
+				tdrs.initialize(executionContext);
+			}
+			theSorter = theSorter.getNextSorter();
+		}
 	}
 }

@@ -21,15 +21,14 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.job;
+package io.evitadb.api.task;
+
+import java.io.Serializable;
 
 /**
- * This enumeration contains listing of all job types.
+ * This interface marks a class as a result of a job.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public enum JobType {
-
-	BACKUP, RESTORE
-
+public interface JobResult extends Serializable {
 }

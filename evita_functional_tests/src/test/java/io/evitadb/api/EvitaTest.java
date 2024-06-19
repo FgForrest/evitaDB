@@ -54,6 +54,7 @@ import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
+import io.evitadb.api.task.ProgressiveCompletableFuture;
 import io.evitadb.core.Evita;
 import io.evitadb.core.exception.AttributeNotFilterableException;
 import io.evitadb.core.exception.AttributeNotSortableException;
@@ -82,7 +83,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import java.io.BufferedInputStream;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -93,6 +97,7 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntFunction;
@@ -1669,14 +1674,22 @@ class EvitaTest implements EvitaTestSupport {
 	}
 
 	@Test
-	void shouldCreateBackupAndRestoreCatalog() {
-		/* TODO JNO - make backup/restore work again */
-		/*setupCatalogWithProductAndCategory();
+	void shouldCreateBackupAndRestoreCatalog() throws IOException, ExecutionException, InterruptedException {
+		setupCatalogWithProductAndCategory();
 
-		final ByteArrayOutputStream baos = new ByteArrayOutputStream(64_000);
-		evita.backupCatalog(TEST_CATALOG, baos);
+		final ProgressiveCompletableFuture<Path> backupPathFuture = evita.backupCatalog(TEST_CATALOG, null, true);
+		final Path backupPath = backupPathFuture.join();
 
-		evita.restoreCatalog(TEST_CATALOG + "_restored", new ByteArrayInputStream(baos.toByteArray()));
+		assertTrue(backupPath.toFile().exists());
+
+		final ProgressiveCompletableFuture<Void> future = evita.restoreCatalog(
+			TEST_CATALOG + "_restored",
+			Files.size(backupPath),
+			new BufferedInputStream(new FileInputStream(backupPath.toFile()))
+		);
+
+		// wait for the restore to finish
+		future.get();
 
 		evita.queryCatalog(TEST_CATALOG,
 			session -> {
@@ -1703,22 +1716,30 @@ class EvitaTest implements EvitaTestSupport {
 							});
 						}
 					});
-			});*/
+			});
 	}
 
 	@Test
-	void shouldCreateBackupAndRestoreTransactionalCatalog() {
-		/* TODO JNO - make backup/restore work again */
-		/*setupCatalogWithProductAndCategory();
+	void shouldCreateBackupAndRestoreTransactionalCatalog() throws IOException, ExecutionException, InterruptedException {
+		setupCatalogWithProductAndCategory();
 
 		evita.queryCatalog(TEST_CATALOG, session -> {
 			session.goLiveAndClose();
 		});
 
-		final ByteArrayOutputStream baos = new ByteArrayOutputStream(64_000);
-		evita.backupCatalog(TEST_CATALOG, baos);
+		final ProgressiveCompletableFuture<Path> backupPathFuture = evita.backupCatalog(TEST_CATALOG, null, true);
+		final Path backupPath = backupPathFuture.join();
 
-		evita.restoreCatalog(TEST_CATALOG + "_restored", new ByteArrayInputStream(baos.toByteArray()));
+		assertTrue(backupPath.toFile().exists());
+
+		final ProgressiveCompletableFuture<Void> future = evita.restoreCatalog(
+			TEST_CATALOG + "_restored",
+			Files.size(backupPath),
+			new BufferedInputStream(new FileInputStream(backupPath.toFile()))
+		);
+
+		// wait for the restore to finish
+		future.get();
 
 		evita.queryCatalog(TEST_CATALOG,
 			session -> {
@@ -1745,7 +1766,7 @@ class EvitaTest implements EvitaTestSupport {
 							});
 						}
 					});
-			});*/
+			});
 	}
 
 	private void doRenameCatalog(@Nonnull CatalogState catalogState) {

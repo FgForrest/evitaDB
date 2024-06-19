@@ -24,8 +24,8 @@
 package io.evitadb.core.query.filter.translator.entity.alternative;
 
 import io.evitadb.api.query.require.EntityRequire;
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.prefetch.EntityToBitmapFilter;
-import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
@@ -49,15 +49,15 @@ public class LocaleEntityToBitmapFilter implements EntityToBitmapFilter {
 
 	@Nonnull
 	@Override
-	public Bitmap filter(@Nonnull FilterByVisitor filterByVisitor) {
-		final List<ServerEntityDecorator> entities = filterByVisitor.getPrefetchedEntities();
+	public Bitmap filter(@Nonnull QueryExecutionContext context) {
+		final List<ServerEntityDecorator> entities = context.getPrefetchedEntities();
 		if (entities == null) {
 			return EmptyBitmap.INSTANCE;
 		} else {
 			return new BaseBitmap(
 				entities.stream()
 					.filter(it -> it.getLocales().contains(locale))
-					.mapToInt(filterByVisitor::translateEntity)
+					.mapToInt(context::translateEntity)
 					.toArray()
 			);
 		}

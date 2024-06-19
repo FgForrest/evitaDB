@@ -23,6 +23,7 @@
 
 package io.evitadb.core.query.extraResult.translator.facet.producer;
 
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.FormulaVisitor;
 import io.evitadb.core.query.algebra.facet.FacetGroupFormula;
@@ -86,8 +87,8 @@ class MutableFormula implements Formula {
 	}
 
 	@Override
-	public void initialize(@Nonnull CalculationContext calculationContext) {
-		getInnerFormula().initialize(calculationContext);
+	public void initialize(@Nonnull QueryExecutionContext executionContext) {
+		getInnerFormula().initialize(executionContext);
 	}
 
 	@Override
@@ -156,11 +157,6 @@ class MutableFormula implements Formula {
 	}
 
 	@Override
-	public void initializeAgain(@Nonnull CalculationContext calculationContext) {
-		getInnerFormula().initializeAgain(calculationContext);
-	}
-
-	@Override
 	public int getEstimatedCardinality() {
 		return getInnerFormula().getEstimatedCardinality();
 	}
@@ -192,7 +188,7 @@ class MutableFormula implements Formula {
 	}
 
 	/**
-	 * Method allows to calculate {@link #compute()} result based only on {@link #delegate}, suppressing combination
+	 * Method allows to calculate {@link Formula#compute()} result based only on {@link #delegate}, suppressing combination
 	 * with {@link #pivot} formula even if this is set.
 	 *
 	 * @param lambda the lambda to be executed

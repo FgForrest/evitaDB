@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 
 package io.evitadb.index.hierarchy.suppliers;
 
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.deferred.BitmapSupplier;
 import io.evitadb.core.query.algebra.deferred.DeferredFormula;
 import io.evitadb.index.bitmap.Bitmap;
@@ -58,12 +59,13 @@ public class HierarchyRootsDownToLevelBitmapSupplier extends AbstractHierarchyBi
 		super(hierarchyIndex, transactionalId);
 		this.levels = levels;
 		this.excludedNodeTrees = excludedNodeTrees;
+		this.initFields();
 	}
 
 	@Override
-	public void initialize(@Nonnull CalculationContext calculationContext) {
-		excludedNodeTrees.initialize(calculationContext);
-		super.initialize(calculationContext);
+	public void initialize(@Nonnull QueryExecutionContext executionContext) {
+		excludedNodeTrees.initializeIfNotAlreadyInitialized(executionContext);
+		super.initialize(executionContext);
 	}
 
 	@Override
@@ -76,14 +78,16 @@ public class HierarchyRootsDownToLevelBitmapSupplier extends AbstractHierarchyBi
 		);
 	}
 
+	@Nonnull
 	@Override
-	public Bitmap get() {
+	protected Bitmap getInternal() {
 		return hierarchyIndex.listHierarchyNodesFromRootDownTo(levels, excludedNodeTrees);
 	}
 
 	@Override
 	public int getEstimatedCardinality() {
-		return hierarchyIndex.getHierarchyNodeCountFromRootDownTo(levels, excludedNodeTrees);
+		/* we don't use excluded node trees here, because it would trigger the formula computation */
+		return hierarchyIndex.getHierarchyNodeCountFromRootDownTo(levels, HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE);
 	}
 
 	@Override

@@ -68,6 +68,7 @@ import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
+import io.evitadb.api.task.ProgressiveCompletableFuture;
 import io.evitadb.core.async.Interruptible;
 import io.evitadb.core.exception.CatalogCorruptedException;
 import io.evitadb.core.metric.event.query.EntityEnrichEvent;
@@ -88,6 +89,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serializable;
+import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.Collections;
@@ -1175,10 +1177,8 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	@Traced
 	@Nonnull
 	@Override
-	public UUID backupCatalog(@Nullable OffsetDateTime pastMoment, boolean includingWAL) throws PastDataNotAvailableException {
-		/* TODO JNO - implement me */
-		/*getCatalog().backup(outputStream);*/
-		return null;
+	public ProgressiveCompletableFuture<Path> backupCatalog(@Nullable OffsetDateTime pastMoment, boolean includingWAL) throws TemporalDataNotAvailableException {
+		return getCatalog().backup(pastMoment, includingWAL);
 	}
 
 	@Nonnull

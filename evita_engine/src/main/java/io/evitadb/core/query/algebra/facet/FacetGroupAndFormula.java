@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -73,12 +73,12 @@ public class FacetGroupAndFormula extends AbstractFormula implements FacetGroupF
 	@Getter private final Bitmap[] bitmaps;
 
 	public FacetGroupAndFormula(@Nonnull String referenceName, @Nullable Integer facetGroupId, @Nonnull Bitmap facetIds, @Nonnull Bitmap... bitmaps) {
-		super();
 		Assert.isPremiseValid(facetIds.size() == bitmaps.length, "Expected one bitmap for each facet.");
 		this.referenceName = referenceName;
 		this.facetGroupId = facetGroupId;
 		this.facetIds = facetIds;
 		this.bitmaps = bitmaps;
+		this.initFields();
 	}
 
 	@Nonnull

@@ -30,6 +30,7 @@ import io.evitadb.api.requestResponse.extraResult.Histogram;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.attribute.AttributeFormula;
 import io.evitadb.core.query.algebra.base.AndFormula;
@@ -39,8 +40,6 @@ import io.evitadb.core.query.algebra.facet.UserFilterFormula;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaCloner;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder.LookUp;
-import io.evitadb.core.query.extraResult.CacheableExtraResultProducer;
-import io.evitadb.core.query.extraResult.ExtraResultCacheAccessor;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.extraResult.translator.histogram.FilterFormulaAttributeOptimizeVisitor;
 import io.evitadb.core.query.extraResult.translator.histogram.cache.CacheableHistogramContract;
@@ -76,7 +75,7 @@ import static java.util.Optional.ofNullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class AttributeHistogramProducer implements CacheableExtraResultProducer {
+public class AttributeHistogramProducer implements ExtraResultProducer {
 	/**
 	 * Type of the queried entity - {@link EntitySchema#getName()}.
 	 */
@@ -97,11 +96,6 @@ public class AttributeHistogramProducer implements CacheableExtraResultProducer 
 	 */
 	@Nonnull private final Formula filterFormula;
 	/**
-	 * Provides access to the default extra result computer logic that allows to store or withdraw extra results
-	 * from cache.
-	 */
-	@Nonnull private final ExtraResultCacheAccessor extraResultCacheAccessor;
-	/**
 	 * Contains list of requests for attribute histograms. Requests contain all data necessary for histogram computation.
 	 */
 	private final Map<String, AttributeHistogramRequest> histogramRequests;
@@ -110,31 +104,13 @@ public class AttributeHistogramProducer implements CacheableExtraResultProducer 
 		@Nonnull String entityType,
 		int bucketCount,
 		@Nonnull HistogramBehavior behavior,
-		@Nonnull Formula filterFormula,
-		@Nonnull ExtraResultCacheAccessor extraResultCacheAccessor
+		@Nonnull Formula filterFormula
 	) {
 		this.entityType = entityType;
 		this.bucketCount = bucketCount;
 		this.behavior = behavior;
 		this.filterFormula = filterFormula;
-		this.extraResultCacheAccessor = extraResultCacheAccessor;
 		this.histogramRequests = new HashMap<>();
-	}
-
-	private AttributeHistogramProducer(
-		@Nonnull String entityType,
-		int bucketCount,
-		@Nonnull HistogramBehavior behavior,
-		@Nonnull Formula filterFormula,
-		@Nonnull ExtraResultCacheAccessor extraResultCacheAccessor,
-		@Nonnull Map<String, AttributeHistogramRequest> histogramRequests
-	) {
-		this.entityType = entityType;
-		this.bucketCount = bucketCount;
-		this.behavior = behavior;
-		this.filterFormula = filterFormula;
-		this.extraResultCacheAccessor = extraResultCacheAccessor;
-		this.histogramRequests = histogramRequests;
 	}
 
 	/**
@@ -330,7 +306,7 @@ public class AttributeHistogramProducer implements CacheableExtraResultProducer 
 	/**
 	 * Adds a request for histogram computation passing all data necessary for the computation.
 	 * Method doesn't compute the histogram - just registers the requirement to be resolved later
-	 * in the {@link ExtraResultProducer#fabricate(List)} )}  method.
+	 * in the {@link ExtraResultProducer#fabricate(QueryExecutionContext, List)} )}  method.
 	 */
 	public void addAttributeHistogramRequest(
 		@Nonnull AttributeSchemaContract attributeSchema,
@@ -356,7 +332,7 @@ public class AttributeHistogramProducer implements CacheableExtraResultProducer 
 
 	@Nullable
 	@Override
-	public <T extends Serializable> EvitaResponseExtraResult fabricate(@Nonnull List<T> entities) {
+	public <T extends Serializable> EvitaResponseExtraResult fabricate(@Nonnull QueryExecutionContext context, @Nonnull List<T> entities) {
 		// create optimized formula that offers best memoized intermediate results reuse
 		final Formula optimizedFormula = FilterFormulaAttributeOptimizeVisitor.optimize(filterFormula, histogramRequests.keySet());
 
@@ -391,10 +367,7 @@ public class AttributeHistogramProducer implements CacheableExtraResultProducer 
 						histogramRequest.getAttributeName(),
 						optimizedFormula, bucketCount, behavior, histogramRequest
 					);
-					final CacheableHistogramContract optimalHistogram = extraResultCacheAccessor.analyse(
-						entityType,
-						computer
-					).compute();
+					final CacheableHistogramContract optimalHistogram = context.analyse(computer).compute();
 					if (optimalHistogram == CacheableHistogramContract.EMPTY) {
 						return null;
 					} else {
@@ -426,14 +399,6 @@ public class AttributeHistogramProducer implements CacheableExtraResultProducer 
 		} else {
 			return "attributes " + histogramRequests.keySet().stream().map(it -> '`' + it + '`').collect(Collectors.joining(" ,")) +" histogram";
 		}
-	}
-
-	@Nonnull
-	@Override
-	public AttributeHistogramProducer cloneInstance(@Nonnull ExtraResultCacheAccessor cacheAccessor) {
-		return new AttributeHistogramProducer(
-			entityType, bucketCount, behavior, filterFormula, cacheAccessor, histogramRequests
-		);
 	}
 
 	/**

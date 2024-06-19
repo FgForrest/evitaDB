@@ -31,14 +31,15 @@ import io.evitadb.api.SessionTraits;
 import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.exception.InstanceTerminatedException;
-import io.evitadb.api.exception.PastDataNotAvailableException;
+import io.evitadb.api.exception.TemporalDataNotAvailableException;
 import io.evitadb.api.exception.TransactionException;
-import io.evitadb.api.job.JobStatus;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.system.SystemStatus;
+import io.evitadb.api.task.JobStatus;
+import io.evitadb.api.task.ProgressiveCompletableFuture;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.driver.config.EvitaClientConfiguration;
 import io.evitadb.driver.exception.EvitaClientTimedOutException;
@@ -84,6 +85,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
+import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateEncodingException;
 import java.time.Duration;
@@ -666,7 +668,11 @@ public class EvitaClient implements EvitaContract {
 
 	@Nonnull
 	@Override
-	public UUID backupCatalog(@Nonnull String catalogName, @Nullable OffsetDateTime pastMoment, boolean includingWAL) throws PastDataNotAvailableException {
+	public ProgressiveCompletableFuture<Path> backupCatalog(
+		@Nonnull String catalogName,
+		@Nullable OffsetDateTime pastMoment,
+		boolean includingWAL
+	) throws TemporalDataNotAvailableException {
 		assertActive();
 		try (final EvitaSessionContract session = this.createReadOnlySession(catalogName)) {
 			/*session.backupCatalog(outputStream);*/
@@ -678,7 +684,11 @@ public class EvitaClient implements EvitaContract {
 
 	@Nonnull
 	@Override
-	public UUID restoreCatalog(@Nonnull String catalogName, @Nonnull InputStream inputStream) throws UnexpectedIOException {
+	public ProgressiveCompletableFuture<Void> restoreCatalog(
+		@Nonnull String catalogName,
+		long totalBytesExpected,
+		@Nonnull InputStream inputStream
+	) throws UnexpectedIOException {
 		assertActive();
 
 		executeWithAsyncEvitaService(

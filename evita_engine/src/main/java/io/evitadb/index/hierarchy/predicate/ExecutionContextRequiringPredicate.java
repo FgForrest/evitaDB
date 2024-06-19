@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,29 +21,28 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.query.extraResult;
+package io.evitadb.index.hierarchy.predicate;
 
-import io.evitadb.core.query.QueryContext;
-import lombok.RequiredArgsConstructor;
+import io.evitadb.core.query.QueryExecutionContext;
 
 import javax.annotation.Nonnull;
 
 /**
- * This implementation will consult the evitaDB cache whether there is a cached result for the given computer and if
- * it is, it's returned instead of the input computer.
+ * Shared interface for making initialization of the predicates working with the formulas.
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@RequiredArgsConstructor
-public class CacheSupervisorExtraResultAccessor implements ExtraResultCacheAccessor {
-	private final QueryContext queryContext;
+sealed interface ExecutionContextRequiringPredicate permits HierarchyFilteringPredicate, HierarchyTraversalPredicate {
 
-	@Nonnull
-	@Override
-	public <U, T extends CacheableEvitaResponseExtraResultComputer<U>> EvitaResponseExtraResultComputer<U> analyse(@Nonnull String entityType, @Nonnull T computer) {
-		return queryContext.getCacheSupervisor().analyse(
-			queryContext.getEvitaSession(), entityType, computer
-		);
+	/**
+	 * Method needs to be called before the first call of the test method of the predicate.
+	 * Implementations must be prepared that the method might be called multiple times and ensure only
+	 * first initialization will be performed.
+	 *
+	 * @param executionContext the context for the query execution
+	 */
+	default void initializeIfNotAlreadyInitialized(@Nonnull QueryExecutionContext executionContext) {
+		// do nothing by default
 	}
 
 }

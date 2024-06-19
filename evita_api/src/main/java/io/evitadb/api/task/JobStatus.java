@@ -21,26 +21,23 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.exception;
+package io.evitadb.api.task;
 
-import io.evitadb.exception.EvitaInvalidUsageException;
-import lombok.Getter;
-
-import java.io.Serial;
+import java.io.Serializable;
 import java.time.OffsetDateTime;
 
 /**
- * Exception thrown when the user requests data from a time in the past that is not available.
+ * TODO JNO - document me
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public class PastDataNotAvailableException extends EvitaInvalidUsageException {
-	@Serial private static final long serialVersionUID = 2157655513551186466L;
-	@Getter private final OffsetDateTime offsetDateTime;
-
-	public PastDataNotAvailableException(OffsetDateTime offsetDateTime) {
-		super("The latest data available is from " + offsetDateTime + ".");
-		this.offsetDateTime = offsetDateTime;
-	}
-
+public record JobStatus<S extends JobSettings, T extends JobResult>(
+	JobType jobType,
+	OffsetDateTime issued,
+	OffsetDateTime started,
+	OffsetDateTime finished,
+	int progress,
+	S settings,
+	T result
+) implements Serializable {
 }

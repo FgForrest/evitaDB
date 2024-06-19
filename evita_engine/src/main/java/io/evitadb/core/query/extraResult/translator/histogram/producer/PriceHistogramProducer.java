@@ -26,7 +26,8 @@ package io.evitadb.core.query.extraResult.translator.histogram.producer;
 import io.evitadb.api.query.require.HistogramBehavior;
 import io.evitadb.api.requestResponse.EvitaResponseExtraResult;
 import io.evitadb.api.requestResponse.extraResult.PriceHistogram;
-import io.evitadb.core.query.QueryContext;
+import io.evitadb.core.query.QueryExecutionContext;
+import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.facet.UserFilterFormula;
@@ -34,8 +35,6 @@ import io.evitadb.core.query.algebra.price.FilteredOutPriceRecordAccessor;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordsLookupResult;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaCloner;
-import io.evitadb.core.query.extraResult.CacheableExtraResultProducer;
-import io.evitadb.core.query.extraResult.ExtraResultCacheAccessor;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.extraResult.translator.histogram.cache.CacheableHistogramContract;
 import io.evitadb.index.price.model.priceRecord.PriceRecord;
@@ -60,7 +59,7 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @RequiredArgsConstructor
-public class PriceHistogramProducer implements CacheableExtraResultProducer {
+public class PriceHistogramProducer implements ExtraResultProducer {
 	/**
 	 * Bucket count contains desired count of histogram columns=buckets. Output histogram bucket count must never exceed
 	 * this value, but might be optimized to lower count when there are big gaps between columns.
@@ -74,7 +73,7 @@ public class PriceHistogramProducer implements CacheableExtraResultProducer {
 	/**
 	 * Reference to the query context that allows to access entity bodies.
 	 */
-	@Nonnull private final QueryContext queryContext;
+	@Nonnull private final QueryPlanningContext queryContext;
 	/**
 	 * Contains filtering formula tree that was used to produce results so that computed sub-results can be used for
 	 * sorting.
@@ -90,15 +89,10 @@ public class PriceHistogramProducer implements CacheableExtraResultProducer {
 	 * We can reuse already computed data in this producer and save precious ticks.
 	 */
 	@Nullable private final FilteredPriceRecordsLookupResult priceRecordsLookupResult;
-	/**
-	 * Provides access to the default extra result computer logic that allows to store or withdraw extra results
-	 * from cache.
-	 */
-	@Nonnull private final ExtraResultCacheAccessor extraResultCacheAccessor;
 
 	@Nullable
 	@Override
-	public <T extends Serializable> EvitaResponseExtraResult fabricate(@Nonnull List<T> entities) {
+	public <T extends Serializable> EvitaResponseExtraResult fabricate(@Nonnull QueryExecutionContext context, @Nonnull List<T> entities) {
 		// contains flag whether there was at least one formula with price predicate that filtered out some entity pks
 		final AtomicBoolean filteredRecordsFound = new AtomicBoolean();
 		final AtomicReference<Predicate<BigDecimal>> requestedPricePredicate = new AtomicReference<>();
@@ -113,10 +107,7 @@ public class PriceHistogramProducer implements CacheableExtraResultProducer {
 			filteredRecordsFound.get() ? formulaWithFilteredOutResults : null,
 			filteredPriceRecordAccessors, priceRecordsLookupResult
 		);
-		final CacheableHistogramContract optimalHistogram = extraResultCacheAccessor.analyse(
-			queryContext.getSchema().getName(),
-			computer
-		).compute();
+		final CacheableHistogramContract optimalHistogram = context.analyse(computer).compute();
 		if (optimalHistogram == CacheableHistogramContract.EMPTY) {
 			return null;
 		} else {
@@ -142,7 +133,7 @@ public class PriceHistogramProducer implements CacheableExtraResultProducer {
 	 */
 	@Nonnull
 	private Formula getFormulaWithFilteredOutResults(@Nonnull AtomicReference<Predicate<BigDecimal>> requestedPricePredicate, @Nonnull AtomicBoolean filteredRecordsFound) {
-		final Formula result = FormulaCloner.clone(
+		return FormulaCloner.clone(
 			filteringFormula, (formulaCloner, theFormula) -> {
 				if (theFormula instanceof UserFilterFormula) {
 					// we need to reconstruct the user filter formula
@@ -171,7 +162,6 @@ public class PriceHistogramProducer implements CacheableExtraResultProducer {
 				}
 			}
 		);
-		return result;
 	}
 
 	@Nonnull
@@ -180,11 +170,4 @@ public class PriceHistogramProducer implements CacheableExtraResultProducer {
 		return "price histogram";
 	}
 
-	@Nonnull
-	@Override
-	public ExtraResultProducer cloneInstance(@Nonnull ExtraResultCacheAccessor cacheAccessor) {
-		return new PriceHistogramProducer(
-			bucketCount, behavior, queryContext, filteringFormula, filteredPriceRecordAccessors, priceRecordsLookupResult, cacheAccessor
-		);
-	}
 }

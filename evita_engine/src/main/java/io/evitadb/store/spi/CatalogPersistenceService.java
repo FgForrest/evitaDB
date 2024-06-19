@@ -27,6 +27,7 @@ import io.evitadb.api.CatalogContract;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.exception.EntityTypeAlreadyPresentInCatalogSchemaException;
+import io.evitadb.api.exception.TemporalDataNotAvailableException;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.system.CatalogVersion;
@@ -36,12 +37,15 @@ import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.EntityCollection;
 import io.evitadb.core.buffer.DataStoreIndexChanges;
+import io.evitadb.core.buffer.DataStoreMemoryBuffer;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.InvalidClassifierFormatException;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.CatalogIndexKey;
+import io.evitadb.index.EntityIndex;
+import io.evitadb.index.EntityIndexKey;
 import io.evitadb.store.exception.InvalidStoragePathException;
 import io.evitadb.store.spi.exception.DirectoryNotEmptyException;
 import io.evitadb.store.spi.model.CatalogHeader;
@@ -51,12 +55,14 @@ import io.evitadb.utils.StringUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.io.OutputStream;
+import java.nio.file.Path;
+import java.time.OffsetDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.IntConsumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
@@ -151,6 +157,7 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 
 	/**
 	 * Returns the index and entity type primary key extracted from the given entity collection data store file name.
+	 *
 	 * @param fileName the name of the entity collection data store file
 	 * @return the index and entity type primary key extracted from the entity collection data store file name
 	 */
@@ -226,7 +233,7 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 
 	/**
 	 * Returns {@link CatalogHeader} that is used for this service. The header is initialized in the instance constructor
-	 * and (because it's immutable) is exchanged with each {@link #storeHeader(UUID, CatalogState, long, int, TransactionMutation, List)}  method call.
+	 * and (because it's immutable) is exchanged with each {@link #storeHeader(UUID, CatalogState, long, int, TransactionMutation, List, DataStoreMemoryBuffer)}   method call.
 	 *
 	 * @param catalogVersion the version of the catalog
 	 * @return the header of the catalog
@@ -268,7 +275,8 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 		long catalogVersion,
 		int lastEntityCollectionPrimaryKey,
 		@Nullable TransactionMutation lastProcessedTransaction,
-		@Nonnull List<EntityCollectionHeader> entityHeaders
+		@Nonnull List<EntityCollectionHeader> entityHeaders,
+		@Nonnull DataStoreMemoryBuffer<CatalogIndexKey, CatalogIndex> dataStoreBuffer
 	) throws InvalidStoragePathException, DirectoryNotEmptyException, UnexpectedIOException;
 
 	/**
@@ -296,7 +304,8 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	Optional<EntityCollectionPersistenceService> flush(
 		long catalogVersion,
 		@Nonnull HeaderInfoSupplier headerInfoSupplier,
-		@Nonnull EntityCollectionHeader entityCollectionHeader
+		@Nonnull EntityCollectionHeader entityCollectionHeader,
+		@Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex> dataStoreBuffer
 	);
 
 	/**
@@ -362,7 +371,8 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 		long catalogVersion,
 		@Nonnull String catalogNameToBeReplaced,
 		@Nonnull Map<NamingConvention, String> catalogNameVariationsToBeReplaced,
-		@Nonnull CatalogSchema catalogSchema
+		@Nonnull CatalogSchema catalogSchema,
+		@Nonnull DataStoreMemoryBuffer<CatalogIndexKey, CatalogIndex> dataStoreMemoryBuffer
 	);
 
 	/**
@@ -433,7 +443,7 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	/**
 	 * We need to forget all volatile data when the data written to catalog aren't going to be committed (incorporated
 	 * in the final state). Usually the data written by {@link #getStoragePartPersistenceService(long)}  are immediately
-	 * written to the disk and are volatile until {@link #storeHeader(UUID, CatalogState, long, int, TransactionMutation, List)}
+	 * written to the disk and are volatile until {@link #storeHeader(UUID, CatalogState, long, int, TransactionMutation, List, DataStoreMemoryBuffer)}
 	 * is called. But those data can be read within particular transaction from the volatile storage and we need to
 	 * forget them when the transaction is rolled back.
 	 */
@@ -473,17 +483,25 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	/**
 	 * Creates a backup of the specified catalog and returns an InputStream to read the binary data of the zip file.
 	 *
-	 * @param outputStream an OutputStream to write the binary data of the zip file
-	 * @throws UnexpectedIOException if an I/O error occurs during reading the catalog contents
+	 * @param id              the id of the backup process
+	 * @param pastMoment      leave null for creating backup for actual dataset, or specify past moment to create backup for
+	 *                        the dataset as it was at that moment
+	 * @param includingWAL    if true, the backup will include the Write-Ahead Log (WAL) file and when the catalog is
+	 *                        restored, it'll replay the WAL contents locally to bring the catalog to the current state
+	 * @param progressUpdater a consumer that will be called with the progress of the backup operation
+	 * @return path to the file where the backup was created
+	 * @throws TemporalDataNotAvailableException when the past data is not available
 	 */
-	void backup(@Nonnull OutputStream outputStream) throws UnexpectedIOException;
+	@Nonnull
+	Path backup(@Nonnull UUID id, @Nullable OffsetDateTime pastMoment, boolean includingWAL, @Nonnull IntConsumer progressUpdater) throws TemporalDataNotAvailableException;
 
 	/**
 	 * Method closes this persistence service and also all {@link EntityCollectionPersistenceService} that were created
 	 * via. {@link #getOrCreateEntityCollectionPersistenceService(long, String, int)}.
 	 *
-	 * You need to call {@link #storeHeader(CatalogState, long, int, TransactionMutation, List)}  or {@link #flushTrappedUpdates(long, DataStoreIndexChanges)}
-	 * before this method is called, or you will lose your data in memory buffers.
+	 * You need to call {@link #storeHeader(CatalogState, long, int, TransactionMutation, List, DataStoreMemoryBuffer)}
+	 * or {@link #flushTrappedUpdates(long, DataStoreIndexChanges)} before this method is called, or you will lose your
+	 * data in memory buffers.
 	 */
 	@Override
 	void close();

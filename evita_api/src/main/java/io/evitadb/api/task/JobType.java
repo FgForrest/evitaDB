@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,25 +21,15 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.query.extraResult;
-
-import javax.annotation.Nonnull;
+package io.evitadb.api.task;
 
 /**
- * Interface allows {@link ExtraResultProducer} to access the possibly cached result of the computer.
+ * This enumeration contains listing of all job types.
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public interface ExtraResultCacheAccessor {
+public enum JobType {
 
-	/**
-	 * Analyzes the input formula for cacheable / cached formulas and replaces them with appropriate counterparts (only
-	 * if cache is enabled).
-	 */
-	@Nonnull
-	<U, T extends CacheableEvitaResponseExtraResultComputer<U>> EvitaResponseExtraResultComputer<U> analyse(
-		@Nonnull String entityType,
-		@Nonnull T computer
-	);
+	BACKUP, RESTORE
 
 }

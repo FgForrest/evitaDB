@@ -21,23 +21,14 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.job;
+package io.evitadb.api.task;
 
 import java.io.Serializable;
-import java.time.OffsetDateTime;
 
 /**
  * TODO JNO - document me
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public record JobStatus<S extends JobSettings, T extends JobResult>(
-	JobType jobType,
-	OffsetDateTime issued,
-	OffsetDateTime started,
-	OffsetDateTime finished,
-	int progress,
-	S settings,
-	T result
-) implements Serializable {
+public interface JobSettings extends Serializable {
 }

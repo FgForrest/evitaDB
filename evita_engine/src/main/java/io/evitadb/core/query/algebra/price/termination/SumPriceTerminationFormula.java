@@ -30,6 +30,7 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.core.cache.payload.FlattenedFormula;
 import io.evitadb.core.cache.payload.FlattenedFormulaWithFilteredPricesAndFilteredOutRecords;
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.SharedBufferPool;
 import io.evitadb.core.query.algebra.AbstractCacheableFormula;
 import io.evitadb.core.query.algebra.CacheableFormula;
@@ -101,12 +102,12 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 	 */
 	private final ToIntFunction<PriceRecordContract> transformer;
 	/**
-	 * Contains array of price records that links to the price ids produced by {@link #compute()} method. This array
-	 * is available once the {@link #compute()} method has been called.
+	 * Contains array of price records that links to the price ids produced by {@link Formula#compute()} method. This array
+	 * is available once the {@link Formula#compute()} method has been called.
 	 */
 	private FilteredPriceRecords filteredPriceRecords;
 	/**
-	 * Bitmap is initialized (non-null) after {@link #compute()} method is called and contains set of entity primary
+	 * Bitmap is initialized (non-null) after {@link Formula#compute()} method is called and contains set of entity primary
 	 * keys that were excluded due to {@link #pricePredicate} query. This information is reused in
 	 * {@link PriceHistogramProducer} to avoid duplicate computation - price histogram must not take price predicate
 	 * into an account.
@@ -119,7 +120,7 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 		@Nonnull QueryPriceMode queryPriceMode,
 		@Nonnull PriceRecordPredicate pricePredicate
 	) {
-		super(null, containerFormula);
+		super(null);
 		this.pricePredicate = pricePredicate;
 		this.priceEvaluationContext = priceEvaluationContext;
 		this.queryPriceMode = queryPriceMode;
@@ -128,6 +129,7 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 		} else {
 			this.transformer = PriceRecordContract::priceWithoutTax;
 		}
+		this.initFields(containerFormula);
 	}
 
 	private SumPriceTerminationFormula(
@@ -137,7 +139,7 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 		@Nonnull QueryPriceMode queryPriceMode,
 		@Nonnull PriceRecordPredicate pricePredicate
 	) {
-		super(computationCallback, containerFormula);
+		super(computationCallback);
 		this.pricePredicate = pricePredicate;
 		this.priceEvaluationContext = priceEvaluationContext;
 		this.queryPriceMode = queryPriceMode;
@@ -146,6 +148,7 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 		} else {
 			this.transformer = PriceRecordContract::priceWithoutTax;
 		}
+		this.initFields(containerFormula);
 	}
 
 	private SumPriceTerminationFormula(
@@ -156,7 +159,7 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 		@Nonnull PriceRecordPredicate pricePredicate,
 		@Nonnull Bitmap recordsFilteredOutByPredicate
 	) {
-		super(recordsFilteredOutByPredicate, computationCallback, containerFormula);
+		super(recordsFilteredOutByPredicate, computationCallback);
 		this.pricePredicate = pricePredicate;
 		this.priceEvaluationContext = priceEvaluationContext;
 		this.queryPriceMode = queryPriceMode;
@@ -166,6 +169,7 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 			this.transformer = PriceRecordContract::priceWithoutTax;
 		}
 		this.recordsFilteredOutByPredicate = recordsFilteredOutByPredicate;
+		this.initFields(containerFormula);
 	}
 
 	@Nullable
@@ -182,9 +186,9 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 	}
 
 	@Override
-	public void initialize(@Nonnull CalculationContext calculationContext) {
-		getDelegate().initialize(calculationContext);
-		super.initialize(calculationContext);
+	public void initialize(@Nonnull QueryExecutionContext executionContext) {
+		getDelegate().initialize(executionContext);
+		super.initialize(executionContext);
 	}
 
 	@Nonnull

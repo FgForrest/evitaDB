@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -67,7 +67,7 @@ public class SiblingsStatisticsComputer extends AbstractSiblingsStatisticsComput
 	@Nonnull
 	protected OptionalInt getParentNodeId(@Nonnull HierarchyProducerContext context) {
 		if (context.hierarchyFilter() instanceof HierarchyWithin) {
-			final Bitmap hierarchyNodes = context.queryContext().getRootHierarchyNodes();
+			final Bitmap hierarchyNodes = context.rootHierarchyNodesSupplier().get();
 			Assert.isTrue(
 				hierarchyNodes.size() == 1,
 				"In order to generate sibling hierarchy statistics the HierarchyWithin filter must select exactly " +

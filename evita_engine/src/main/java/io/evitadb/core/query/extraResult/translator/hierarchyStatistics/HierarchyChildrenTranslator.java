@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -54,7 +54,16 @@ public class HierarchyChildrenTranslator
 		final Optional<HierarchyStatistics> statistics = children.getStatistics();
 		final HierarchyProducerContext context = producer.getContext(children.getName());
 		final HierarchyTraversalPredicate scopePredicate = children.getStopAt()
-			.map(it -> stopAtConstraintToPredicate(TraversalDirection.TOP_DOWN, it, context.queryContext(), context.entityIndex(), context.entitySchema(), context.referenceSchema()))
+			.map(
+				it -> stopAtConstraintToPredicate(
+					TraversalDirection.TOP_DOWN,
+					it,
+					extraResultPlanningVisitor.getQueryContext(),
+					context.entityIndex(),
+					context.entitySchema(),
+					context.referenceSchema()
+				)
+			)
 			.orElse(HierarchyTraversalPredicate.NEVER_STOP_PREDICATE);
 		producer.addComputer(
 			children.getName(),

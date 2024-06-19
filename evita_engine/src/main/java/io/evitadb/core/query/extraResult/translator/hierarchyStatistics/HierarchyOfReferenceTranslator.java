@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -58,7 +58,7 @@ import static java.util.Optional.ofNullable;
  * This implementation of {@link RequireConstraintTranslator} converts {@link HierarchyOfSelf} to
  * {@link HierarchyStatisticsProducer}. The producer instance has all pointer necessary to compute result.
  * All operations in this translator are relatively cheap comparing to final result computation, that is deferred to
- * {@link ExtraResultProducer#fabricate(List)} method.
+ * {@link ExtraResultProducer#fabricate(io.evitadb.core.query.QueryExecutionContext, List)} method.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -110,6 +110,7 @@ public class HierarchyOfReferenceTranslator
 
 				// the request is more complex
 				hierarchyStatisticsProducer.interpret(
+					extraResultPlanner.getQueryContext()::getRootHierarchyNodes,
 					entitySchema,
 					referenceSchema,
 					extraResultPlanner.getAttributeSchemaAccessor().withReferenceSchemaAccessor(referenceName),

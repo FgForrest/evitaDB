@@ -23,6 +23,7 @@
 
 package io.evitadb.index;
 
+import io.evitadb.api.CatalogState;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.CatalogRelatedDataStructure;
@@ -130,7 +131,7 @@ public class ReducedEntityIndex extends EntityIndex
 
 	@Nonnull
 	@Override
-	public ReducedEntityIndex createCopyForNewCatalogAttachment() {
+	public ReducedEntityIndex createCopyForNewCatalogAttachment(@Nonnull CatalogState catalogState) {
 		return new ReducedEntityIndex(
 			this.primaryKey, this.indexKey, this.version,
 			this.entityIds, this.entityIdsByLanguage,
@@ -142,7 +143,7 @@ public class ReducedEntityIndex extends EntityIndex
 			this.originalAttributeIndexes,
 			this.originalPriceIndexes,
 			this.originalFacetIndexes,
-			this.priceIndex.createCopyForNewCatalogAttachment()
+			this.priceIndex.createCopyForNewCatalogAttachment(catalogState)
 		);
 	}
 

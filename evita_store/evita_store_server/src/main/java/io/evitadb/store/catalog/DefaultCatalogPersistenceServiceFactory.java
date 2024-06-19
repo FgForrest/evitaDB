@@ -26,6 +26,7 @@ package io.evitadb.store.catalog;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TransactionOptions;
+import io.evitadb.core.async.BackgroundCallableTask;
 import io.evitadb.core.async.Scheduler;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.store.exception.InvalidStoragePathException;
@@ -33,6 +34,7 @@ import io.evitadb.store.spi.CatalogPersistenceService;
 import io.evitadb.store.spi.CatalogPersistenceServiceFactory;
 import io.evitadb.store.spi.exception.DirectoryNotEmptyException;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.CountingInputStream;
 
 import javax.annotation.Nonnull;
 import java.io.IOException;
@@ -84,54 +86,63 @@ public class DefaultCatalogPersistenceServiceFactory implements CatalogPersisten
 
 	@Nonnull
 	@Override
-	public Path restoreCatalogTo(
+	public BackgroundCallableTask<Path> restoreCatalogTo(
 		@Nonnull String catalogName,
 		@Nonnull StorageOptions storageOptions,
+		long totalBytesExpected,
 		@Nonnull InputStream inputStream
 	) throws DirectoryNotEmptyException, InvalidStoragePathException {
-		// unzip contents of the stream
-		try (final ZipInputStream zipInputStream = new ZipInputStream(inputStream)) {
-			final Path storagePath = DefaultCatalogPersistenceService.pathForCatalog(catalogName, storageOptions.storageDirectoryOrDefault());
-			DefaultCatalogPersistenceService.verifyDirectory(storagePath, true);
+		return new BackgroundCallableTask<>(
+			catalogName,
+			"Restore catalog `" + catalogName + "`",
+			task -> {
+				// unzip contents of the stream
+				final CountingInputStream cis = new CountingInputStream(inputStream);
+				try (final ZipInputStream zipInputStream = new ZipInputStream(cis)) {
+					final Path storagePath = DefaultCatalogPersistenceService.pathForCatalog(catalogName, storageOptions.storageDirectoryOrDefault());
+					DefaultCatalogPersistenceService.verifyDirectory(storagePath, true);
 
-			ZipEntry entry = zipInputStream.getNextEntry();
-			Assert.isPremiseValid(entry.isDirectory(), "First entry in the zip file must be a directory!");
-			// last character is always a slash
-			final String directoryName = entry.getName().substring(0, entry.getName().length() - 1);
-			// allocate buffer for reading
-			final ByteBuffer buffer = ByteBuffer.allocate(16_384);
-			while ((entry = zipInputStream.getNextEntry()) != null) {
-				// get the name of the file in the zip and create the file in the storage
-				final String fileName = getFileNameWithCatalogRename(entry.getName(), directoryName, catalogName);
-				final Path entryPath = storagePath.resolve(fileName);
-				try (final FileChannel fileChannel = FileChannel.open(entryPath, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)) {
-					// read the file from the zip and write it to the storage
-					int bytesRead;
-					while ((bytesRead = zipInputStream.read(buffer.array())) != -1) {
-						buffer.limit(bytesRead);
-						while (buffer.hasRemaining()) {
-							fileChannel.write(buffer);
+					ZipEntry entry = zipInputStream.getNextEntry();
+					Assert.isPremiseValid(entry.isDirectory(), "First entry in the zip file must be a directory!");
+					// last character is always a slash
+					final String directoryName = entry.getName().substring(0, entry.getName().length() - 1);
+					// allocate buffer for reading
+					final ByteBuffer buffer = ByteBuffer.allocate(16_384);
+					while ((entry = zipInputStream.getNextEntry()) != null) {
+						// get the name of the file in the zip and create the file in the storage
+						final String fileName = getFileNameWithCatalogRename(entry.getName(), directoryName, catalogName);
+						final Path entryPath = storagePath.resolve(fileName);
+						try (final FileChannel fileChannel = FileChannel.open(entryPath, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)) {
+							// read the file from the zip and write it to the storage
+							int bytesRead;
+							while ((bytesRead = zipInputStream.read(buffer.array())) != -1) {
+								buffer.limit(bytesRead);
+								while (buffer.hasRemaining()) {
+									fileChannel.write(buffer);
+								}
+								buffer.clear();
+								task.updateProgress((int)((cis.getCount() * 100L) / totalBytesExpected));
+							}
 						}
-						buffer.clear();
 					}
+					// write file marking the catalog as restored
+					Assert.isPremiseValid(
+						storagePath.resolve(CatalogPersistenceService.RESTORE_FLAG).toFile().createNewFile(),
+						() -> new UnexpectedIOException(
+							"Unexpected exception occurred while restoring catalog " + catalogName + ": unable to create restore flag file!",
+							"Unexpected exception occurred while restoring catalog - unable to create restore flag file!"
+						)
+					);
+					return storagePath;
+				} catch (IOException e) {
+					throw new UnexpectedIOException(
+						"Unexpected exception occurred while restoring catalog: " + e.getMessage(),
+						"Unexpected exception occurred while restoring catalog!",
+						e
+					);
 				}
 			}
-			// write file marking the catalog as restored
-			Assert.isPremiseValid(
-				storagePath.resolve(CatalogPersistenceService.RESTORE_FLAG).toFile().createNewFile(),
-				() -> new UnexpectedIOException(
-					"Unexpected exception occurred while restoring catalog " + catalogName + ": unable to create restore flag file!",
-					"Unexpected exception occurred while restoring catalog - unable to create restore flag file!"
-				)
-			);
-			return storagePath;
-		} catch (IOException e) {
-			throw new UnexpectedIOException(
-				"Unexpected exception occurred while restoring catalog: " + e.getMessage(),
-				"Unexpected exception occurred while restoring catalog!",
-				e
-			);
-		}
+		);
 	}
 
 	/**

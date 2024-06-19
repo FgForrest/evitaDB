@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 
 package io.evitadb.core.query.algebra.deferred;
 
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.index.bitmap.Bitmap;
@@ -43,8 +44,8 @@ public class DeferredFormula extends AbstractFormula {
 	protected final BitmapSupplier retrieveLambda;
 
 	public DeferredFormula(@Nonnull BitmapSupplier retrieveLambda) {
-		super();
 		this.retrieveLambda = retrieveLambda;
+		this.initFields();
 	}
 
 	@Nonnull
@@ -54,9 +55,9 @@ public class DeferredFormula extends AbstractFormula {
 	}
 
 	@Override
-	public void initialize(@Nonnull CalculationContext calculationContext) {
-		retrieveLambda.initialize(calculationContext);
-		super.initialize(calculationContext);
+	public void initialize(@Nonnull QueryExecutionContext executionContext) {
+		this.retrieveLambda.initialize(executionContext);
+		super.initialize(executionContext);
 	}
 
 	@Override

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,25 +21,28 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.query.extraResult;
+package io.evitadb.utils;
 
-import lombok.RequiredArgsConstructor;
+import org.junit.jupiter.api.Test;
 
-import javax.annotation.Nonnull;
+import java.util.Random;
+import java.util.stream.Stream;
+
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 
 /**
- * This implementation returns the input computer without any caching.
+ * This test verifies the functionality of the {@link RandomUtils} class.
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@RequiredArgsConstructor
-public class CacheDisabledExtraResultAccessor implements ExtraResultCacheAccessor {
-	public static final CacheDisabledExtraResultAccessor INSTANCE = new CacheDisabledExtraResultAccessor();
+class RandomUtilsTest {
 
-	@Nonnull
-	@Override
-	public <U, T extends CacheableEvitaResponseExtraResultComputer<U>> EvitaResponseExtraResultComputer<U> analyse(@Nonnull String entityType, @Nonnull T computer) {
-		return computer;
+	@Test
+	void shouldGenerateSameRowOfRandomResults() {
+		final byte[] frozenRandom = RandomUtils.getFrozenRandom();
+		final int[] randomArray1 = Stream.generate(() -> RandomUtils.getRandom(frozenRandom)).limit(1000).mapToInt(Random::nextInt).toArray();
+		final int[] randomArray2 = Stream.generate(() -> RandomUtils.getRandom(frozenRandom)).limit(1000).mapToInt(Random::nextInt).toArray();
+		assertArrayEquals(randomArray1, randomArray2);
 	}
 
 }

@@ -26,7 +26,7 @@ package io.evitadb.core.cache;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.requestResponse.data.structure.BinaryEntity;
-import io.evitadb.core.async.BackgroundTask;
+import io.evitadb.core.async.BackgroundRunnableTask;
 import io.evitadb.core.async.Scheduler;
 import io.evitadb.core.cache.model.CacheRecordAdept;
 import io.evitadb.core.cache.model.CacheRecordType;
@@ -442,7 +442,7 @@ public class CacheAnteroom {
 				this.cacheEden.evaluateAdepts();
 			} else {
 				this.scheduler.execute(
-					new BackgroundTask("Eden cache gatekeeper", this.cacheEden::evaluateAdepts)
+					new BackgroundRunnableTask("Eden cache gatekeeper", this.cacheEden::evaluateAdepts)
 				);
 			}
 		} catch (RuntimeException e) {

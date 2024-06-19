@@ -25,6 +25,7 @@ package io.evitadb.core.query.algebra.price.termination;
 
 import io.evitadb.core.cache.payload.FlattenedFormula;
 import io.evitadb.core.cache.payload.FlattenedFormulaWithFilteredPricesAndFilteredOutRecords;
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.SharedBufferPool;
 import io.evitadb.core.query.algebra.AbstractCacheableFormula;
 import io.evitadb.core.query.algebra.CacheableFormula;
@@ -86,12 +87,12 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 	 */
 	@Getter private final PriceRecordPredicate pricePredicate;
 	/**
-	 * Contains array of price records that links to the price ids produced by {@link #compute()} method. This array
-	 * is available once the {@link #compute()} method has been called.
+	 * Contains array of price records that links to the price ids produced by {@link Formula#compute()} method. This array
+	 * is available once the {@link Formula#compute()} method has been called.
 	 */
 	private ResolvedFilteredPriceRecords filteredPriceRecords;
 	/**
-	 * Bitmap is initialized (non-null) after {@link #compute()} method is called and contains set of entity primary
+	 * Bitmap is initialized (non-null) after {@link Formula#compute()} method is called and contains set of entity primary
 	 * keys that were excluded due to {@link #pricePredicate} query. This information is reused in
 	 * {@link PriceHistogramProducer} to avoid duplicate computation - price histogram must not take price predicate
 	 * into an account.
@@ -103,9 +104,10 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 		@Nonnull PriceEvaluationContext priceEvaluationContext,
 		@Nonnull PriceRecordPredicate pricePredicate
 	) {
-		super(null, containerFormula);
+		super(null);
 		this.priceEvaluationContext = priceEvaluationContext;
 		this.pricePredicate = pricePredicate;
+		this.initFields(containerFormula);
 	}
 
 	private PlainPriceTerminationFormulaWithPriceFilter(
@@ -114,9 +116,10 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 		@Nonnull PriceEvaluationContext priceEvaluationContext,
 		@Nonnull PriceRecordPredicate pricePredicate
 	) {
-		super(computationCallback, containerFormula);
+		super(computationCallback);
 		this.pricePredicate = pricePredicate;
 		this.priceEvaluationContext = priceEvaluationContext;
+		this.initFields(containerFormula);
 	}
 
 	private PlainPriceTerminationFormulaWithPriceFilter(
@@ -126,10 +129,11 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 		@Nonnull PriceRecordPredicate pricePredicate,
 		@Nonnull Bitmap recordsFilteredOutByPredicate
 	) {
-		super(recordsFilteredOutByPredicate, computationCallback, containerFormula);
+		super(recordsFilteredOutByPredicate, computationCallback);
 		this.pricePredicate = pricePredicate;
 		this.priceEvaluationContext = priceEvaluationContext;
 		this.recordsFilteredOutByPredicate = recordsFilteredOutByPredicate;
+		this.initFields(containerFormula);
 	}
 
 	@Nullable
@@ -141,14 +145,15 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 	/**
 	 * Returns delegate formula of this container.
 	 */
+	@Nonnull
 	public Formula getDelegate() {
 		return this.innerFormulas[0];
 	}
 
 	@Override
-	public void initialize(@Nonnull CalculationContext calculationContext) {
-		getDelegate().initialize(calculationContext);
-		super.initialize(calculationContext);
+	public void initialize(@Nonnull QueryExecutionContext executionContextt) {
+		getDelegate().initialize(executionContext);
+		super.initialize(executionContext);
 	}
 
 	@Nonnull

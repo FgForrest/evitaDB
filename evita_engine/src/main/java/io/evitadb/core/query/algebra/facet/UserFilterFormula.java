@@ -55,8 +55,8 @@ public class UserFilterFormula extends AbstractFormula implements NonCacheableFo
 	private static final long CLASS_ID = 6890499931556487481L;
 	private List<Formula> sortedFormulasByComplexity;
 
-	public UserFilterFormula(Formula... innerFormulas) {
-		super(innerFormulas);
+	public UserFilterFormula(@Nonnull Formula... innerFormulas) {
+		this.initFields(innerFormulas);
 	}
 
 	@Nonnull
@@ -73,9 +73,6 @@ public class UserFilterFormula extends AbstractFormula implements NonCacheableFo
 	@Override
 	protected long getCostInternal() {
 		long cost = 0L;
-		if (this.sortedFormulasByComplexity == null) {
-			initialize(CalculationContext.NO_CACHING_INSTANCE);
-		}
 		for (Formula innerFormula : this.sortedFormulasByComplexity) {
 			final Bitmap innerResult = innerFormula.compute();
 			cost += innerFormula.getCost() + innerResult.size() * getOperationCost();
@@ -89,9 +86,6 @@ public class UserFilterFormula extends AbstractFormula implements NonCacheableFo
 	@Override
 	protected long getCostToPerformanceInternal() {
 		long costToPerformance = 0L;
-		if (this.sortedFormulasByComplexity == null) {
-			initialize(CalculationContext.NO_CACHING_INSTANCE);
-		}
 		for (Formula innerFormula : this.sortedFormulasByComplexity) {
 			final Bitmap innerResult = innerFormula.compute();
 			if (innerResult == EmptyBitmap.INSTANCE) {

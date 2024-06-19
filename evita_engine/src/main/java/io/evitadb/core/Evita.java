@@ -39,9 +39,8 @@ import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.exception.CatalogAlreadyPresentException;
 import io.evitadb.api.exception.CatalogNotFoundException;
 import io.evitadb.api.exception.InstanceTerminatedException;
-import io.evitadb.api.exception.PastDataNotAvailableException;
 import io.evitadb.api.exception.ReadOnlyException;
-import io.evitadb.api.job.JobStatus;
+import io.evitadb.api.exception.TemporalDataNotAvailableException;
 import io.evitadb.api.observability.trace.TracingContext;
 import io.evitadb.api.observability.trace.TracingContextProvider;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
@@ -55,6 +54,10 @@ import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchem
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaNameMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.RemoveCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.system.SystemStatus;
+import io.evitadb.api.task.JobStatus;
+import io.evitadb.api.task.ProgressiveCompletableFuture;
+import io.evitadb.core.async.BackgroundCallableTask;
+import io.evitadb.core.async.BackgroundRunnableTask;
 import io.evitadb.core.async.ObservableExecutorService;
 import io.evitadb.core.async.ObservableThreadExecutor;
 import io.evitadb.core.async.Scheduler;
@@ -93,9 +96,7 @@ import java.util.*;
 import java.util.Map.Entry;
 import java.util.ServiceLoader.Provider;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -134,7 +135,7 @@ public final class Evita implements EvitaContract {
 	/**
 	 * Keeps information about currently active sessions.
 	 */
-	private final Map<String, SessionRegistry> activeSessions = new ConcurrentHashMap<>();
+	private final Map<String, SessionRegistry> activeSessions = CollectionUtils.createConcurrentHashMap(512);
 	/**
 	 * Formula supervisor is an entry point to the Evita cache. The idea is that each {@link Formula} can be identified by
 	 * its {@link Formula#getHash()} method and when the supervisor identifies that certain formula
@@ -254,23 +255,16 @@ public final class Evita implements EvitaContract {
 		this.tracingContext = TracingContextProvider.getContext();
 		final Path[] directories = FileUtils.listDirectories(configuration.storage().storageDirectoryOrDefault());
 		this.catalogs = CollectionUtils.createConcurrentHashMap(directories.length);
-		final CountDownLatch startUpLatch = new CountDownLatch(directories.length);
-		for (Path directory : directories) {
-			this.serviceExecutor.execute(
-				() -> {
-					try {
-						loadCatalog(directory.toFile().getName());
-					} finally {
-						startUpLatch.countDown();
-					}
-				}
-			);
-		}
 
 		try {
-			startUpLatch.await();
+			CompletableFuture.allOf(
+				Arrays.stream(directories)
+					.map(dir -> loadCatalog(dir.toFile().getName()))
+					.toArray(ProgressiveCompletableFuture[]::new)
+			).get();
 			this.active = true;
-		} catch (InterruptedException ex) {
+		} catch (Exception ex) {
+			log.error("EvitaDB failed to start!", ex);
 			// terminate evitaDB - it has not properly started
 			this.closeInternal();
 		}
@@ -537,7 +531,7 @@ public final class Evita implements EvitaContract {
 
 	@Nonnull
 	@Override
-	public UUID backupCatalog(@Nonnull String catalogName, @Nullable OffsetDateTime pastMoment, boolean includingWAL) throws PastDataNotAvailableException {
+	public ProgressiveCompletableFuture<Path> backupCatalog(@Nonnull String catalogName, @Nullable OffsetDateTime pastMoment, boolean includingWAL) throws TemporalDataNotAvailableException {
 		assertActive();
 		try (final EvitaSessionContract session = this.createSession(new SessionTraits(catalogName))) {
 			return session.backupCatalog(pastMoment, includingWAL);
@@ -546,13 +540,19 @@ public final class Evita implements EvitaContract {
 
 	@Nonnull
 	@Override
-	public UUID restoreCatalog(@Nonnull String catalogName, @Nonnull InputStream inputStream) throws UnexpectedIOException {
+	public ProgressiveCompletableFuture<Void> restoreCatalog(
+		@Nonnull String catalogName,
+		long totalBytesExpected,
+		@Nonnull InputStream inputStream
+	) throws UnexpectedIOException {
 		assertActive();
-		Catalog.restoreCatalogTo(catalogName, this.configuration.storage(), inputStream);
-		// finally, try to load catalog from the disk
-		loadCatalog(catalogName);
-		/* TODO JNO - implement me */
-		return null;
+
+		final BackgroundCallableTask<Path> restoreTask = Catalog.restoreCatalogTo(
+			catalogName, this.configuration.storage(), totalBytesExpected, inputStream
+		);
+		return this.serviceExecutor.submit(restoreTask)
+			// finally, try to load catalog from the disk
+			.andThen(path -> loadCatalog(catalogName));
 	}
 
 	@Nonnull
@@ -649,37 +649,59 @@ public final class Evita implements EvitaContract {
 	 *
 	 * @param catalogName name of the catalog
 	 */
-	private void loadCatalog(@Nonnull String catalogName) {
-		try {
-			final long start = System.nanoTime();
-			final CatalogContract catalog = new Catalog(
+	@Nonnull
+	private ProgressiveCompletableFuture<Void> loadCatalog(@Nonnull String catalogName) {
+		return this.serviceExecutor.submit(
+			new BackgroundCallableTask<>(
 				catalogName,
-				this.cacheSupervisor,
-				this.configuration.storage(),
-				this.configuration.transaction(),
-				this.reflectionLookup,
-				this.serviceExecutor,
-				this.transactionExecutor,
-				this::replaceCatalogReference,
-				this.tracingContext
-			);
-			log.info("Catalog {} fully loaded in: {}", catalogName, StringUtils.formatNano(System.nanoTime() - start));
-			// this will be one day used in more clever way, when entire catalog loading will be split into
-			// multiple smaller tasks and done asynchronously after the startup (along with catalog loading / unloading feature)
-			catalog.processWriteAheadLog(
-				updatedCatalog -> this.catalogs.put(catalogName, updatedCatalog)
-			);
-		} catch (Throwable ex) {
-			log.error("Catalog {} is corrupted!", catalogName);
-			this.catalogs.put(
-				catalogName,
-				new CorruptedCatalog(
-					catalogName,
-					configuration.storage().storageDirectoryOrDefault().resolve(catalogName),
-					ex
-				)
-			);
-		}
+				"Loading catalog " + catalogName + " from disk...",
+				() -> {
+					final long start = System.nanoTime();
+					final Catalog theCatalog = new Catalog(
+						catalogName,
+						this.cacheSupervisor,
+						this.configuration.storage(),
+						this.configuration.transaction(),
+						this.reflectionLookup,
+						this.serviceExecutor,
+						this.transactionExecutor,
+						this::replaceCatalogReference,
+						this.tracingContext
+					);
+					log.info("Catalog {} fully loaded in: {}", catalogName, StringUtils.formatNano(System.nanoTime() - start));
+					return theCatalog;
+				},
+				exception -> {
+					log.error("Catalog {} is corrupted!", catalogName);
+					return new CorruptedCatalog(
+						catalogName,
+						configuration.storage().storageDirectoryOrDefault().resolve(catalogName),
+						exception
+					);
+				}
+			)
+		).andThen(
+			catalog -> {
+				if (catalog instanceof CorruptedCatalog) {
+					this.catalogs.put(catalogName, catalog);
+					return ProgressiveCompletableFuture.completed();
+				} else {
+					return this.serviceExecutor.submit(
+						new BackgroundRunnableTask(
+							catalogName,
+							"Processing write ahead log of " + catalogName + "...",
+							() -> {
+								// this will be one day used in more clever way, when entire catalog loading will be split into
+								// multiple smaller tasks and done asynchronously after the startup (along with catalog loading / unloading feature)
+								catalog.processWriteAheadLog(
+									updatedCatalog -> this.catalogs.put(catalogName, updatedCatalog)
+								);
+							}
+						)
+					);
+				}
+			}
+		);
 	}
 
 	/**

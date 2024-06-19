@@ -26,7 +26,7 @@ package io.evitadb.core.maintenance;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.core.Evita;
-import io.evitadb.core.async.BackgroundTask;
+import io.evitadb.core.async.BackgroundRunnableTask;
 import io.evitadb.core.async.Scheduler;
 import io.evitadb.core.metric.event.session.KilledEvent;
 import lombok.extern.slf4j.Slf4j;
@@ -50,7 +50,7 @@ public class SessionKiller implements Runnable {
 		this.allowedInactivityInSeconds = allowedInactivityInSeconds;
 		this.evita = evita;
 		scheduler.scheduleAtFixedRate(
-			new BackgroundTask("Session killer", this),
+			new BackgroundRunnableTask("Session killer", this),
 			Math.min(60, allowedInactivityInSeconds),
 			Math.min(60, allowedInactivityInSeconds),
 			TimeUnit.SECONDS

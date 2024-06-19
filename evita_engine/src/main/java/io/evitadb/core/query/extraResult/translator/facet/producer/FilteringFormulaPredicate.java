@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ package io.evitadb.core.query.extraResult.translator.facet.producer;
 
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
-import io.evitadb.core.query.QueryContext;
+import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.deferred.DeferredFormula;
 import io.evitadb.core.query.algebra.deferred.FormulaWrapper;
@@ -56,14 +56,14 @@ public class FilteringFormulaPredicate implements IntPredicate {
 	@Getter @Nonnull private final Formula filteringFormula;
 
 	public FilteringFormulaPredicate(
-		@Nonnull QueryContext queryContext,
+		@Nonnull QueryPlanningContext queryContext,
 		@Nonnull FilterBy filterBy,
 		@Nonnull String entityType,
 		@Nonnull Supplier<String> stepDescriptionSupplier
 	) {
 		this.filterBy = filterBy;
 		// create a deferred formula that will log the execution time to query telemetry
-		filteringFormula = new DeferredFormula(
+		this.filteringFormula = new DeferredFormula(
 			new FormulaWrapper(
 				createFormulaForTheFilter(
 					queryContext,
@@ -71,16 +71,18 @@ public class FilteringFormulaPredicate implements IntPredicate {
 					entityType,
 					stepDescriptionSupplier
 				),
-				formula -> {
+				(executionContext, formula) -> {
 					try {
-						queryContext.pushStep(QueryPhase.EXECUTION_FILTER_NESTED_QUERY, stepDescriptionSupplier);
+						executionContext.pushStep(QueryPhase.EXECUTION_FILTER_NESTED_QUERY, stepDescriptionSupplier);
 						return formula.compute();
 					} finally {
-						queryContext.popStep();
+						executionContext.popStep();
 					}
 				}
 			)
 		);
+		// we need to initialize formula immediately with new execution context - the results are needed in planning phase already
+		this.filteringFormula.initialize(queryContext.getInternalExecutionContext());
 	}
 
 	@Override

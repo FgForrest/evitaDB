@@ -49,6 +49,7 @@ import io.evitadb.api.requestResponse.system.CatalogVersionDescriptor;
 import io.evitadb.api.requestResponse.system.CatalogVersionDescriptor.TransactionChanges;
 import io.evitadb.api.requestResponse.system.TimeFlow;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
+import io.evitadb.api.task.ProgressiveCompletableFuture;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.Evita;
 import io.evitadb.core.EvitaSession;
@@ -89,7 +90,6 @@ import org.mockito.Mockito;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
-import java.io.OutputStream;
 import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -129,7 +129,7 @@ import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_URL;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * This test aims to test transactional behaviour of evitaDB.
+ * This test aims to test transactional behavior of evitaDB.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
@@ -337,7 +337,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 			) {
 				Thread.onSpinWait();
 			}
-			// no submit the lambda
+			// now submit the lambda
 			service.submit(
 				() -> applyOnceWhileWaiting.accept(evita)
 			);
@@ -1162,22 +1162,18 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 				.build()
 		);
 
-		final Path backupFile = Files.createTempFile(getTestDirectory(), "backup", ".tmp");
+		final AtomicReference<ProgressiveCompletableFuture<Path>> lastBackupProcess = new AtomicReference<>();
 		final Set<PkWithCatalogVersion> insertedPrimaryKeysAndAssociatedTxs = automaticallyGenerateEntitiesInParallel(
 			evita, productSchema, theEvita -> {
-				try (OutputStream outputStream = Files.newOutputStream(backupFile)) {
-					/* TODO JNO - make backup/restore work again */
-					/*theEvita.backupCatalog(TEST_CATALOG, outputStream);*/
-				} catch (IOException e) {
-					fail("Backup failed!", e);
-				}
+				lastBackupProcess.set(theEvita.backupCatalog(TEST_CATALOG, null, true));
 			}
 		);
 
-		assertTrue(backupFile.toFile().exists(), "Backup file does not exist!");
+		final Path backupFilePath = lastBackupProcess.get().get();
+		assertTrue(backupFilePath.toFile().exists(), "Backup file does not exist!");
 
 		final String restoredCatalogName = TEST_CATALOG + "_restored";
-		evita.restoreCatalog(restoredCatalogName, Files.newInputStream(backupFile));
+		evita.restoreCatalog(restoredCatalogName, Files.size(backupFilePath), Files.newInputStream(backupFilePath));
 
 		final long originalCatalogVersion = evita.queryCatalog(
 			TEST_CATALOG,

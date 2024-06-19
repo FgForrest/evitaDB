@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,7 +28,7 @@ import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.HierarchyFilterConstraint;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.core.query.QueryContext;
+import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
@@ -56,13 +56,13 @@ import java.util.stream.StreamSupport;
 public abstract class AbstractHierarchyTranslator<T extends FilterConstraint> implements FilteringConstraintTranslator<T>, SelfTraversingTranslator {
 
 	/**
-	 * Creates a hierarchy exclusion predicate if the exclusion filter is defined and stores it to {@link QueryContext}
+	 * Creates a hierarchy exclusion predicate if the exclusion filter is defined and stores it to {@link QueryPlanningContext}
 	 * for later use.
 	 */
 	@Nullable
 	protected static HierarchyFilteringPredicate createAndStoreHavingPredicate(
 		@Nullable Integer parentId,
-		@Nonnull QueryContext queryContext,
+		@Nonnull QueryPlanningContext queryContext,
 		@Nullable FilterBy havingFilter,
 		@Nullable FilterBy exclusionFilter,
 		@Nullable ReferenceSchemaContract referenceSchema
@@ -118,7 +118,7 @@ public abstract class AbstractHierarchyTranslator<T extends FilterConstraint> im
 		final TargetIndexes<?> targetIndexes = filterByVisitor.findTargetIndexSet(hierarchyWithinConstraint);
 		if (targetIndexes == null) {
 			final Formula hierarchyNodesFormula = hierarchyNodesFormulaSupplier.get();
-			final QueryContext queryContext = filterByVisitor.getQueryContext();
+			final QueryPlanningContext queryContext = filterByVisitor.getQueryContext();
 			return FormulaFactory.or(
 				StreamSupport.stream(hierarchyNodesFormula.compute().spliterator(), false)
 					.map(
