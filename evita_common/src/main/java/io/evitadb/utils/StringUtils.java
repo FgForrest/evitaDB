@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -147,6 +147,7 @@ public class StringUtils {
 	 * Formats value in nanoseconds (used for measuring elapsed time) to human readable format.
 	 * Nanoseconds are omitted when at least second is printed.
 	 */
+	@Nonnull
 	public static String formatNano(long nanoSeconds) {
 		return formatNano(nanoSeconds, true);
 	}
@@ -155,6 +156,7 @@ public class StringUtils {
 	 * Formats value in nanoseconds (used for measuring elapsed time) to human readable format.
 	 * Nanoseconds are not omitted and printed every time - even if nano spans days.
 	 */
+	@Nonnull
 	public static String formatPreciseNano(long nanoSeconds) {
 		return formatNano(nanoSeconds, false);
 	}
@@ -162,9 +164,9 @@ public class StringUtils {
 	/**
 	 * Lower cases first character of the string.
 	 */
-	@Nonnull
-	public static String uncapitalize(@Nonnull String string) {
-		if (string.isEmpty()) {
+	@Nullable
+	public static String uncapitalize(@Nullable String string) {
+		if (string == null || string.isEmpty()) {
 			return string;
 		}
 
@@ -181,7 +183,8 @@ public class StringUtils {
 	/**
 	 * Upper cases first character of the string.
 	 */
-	public static String capitalize(String string) {
+	@Nullable
+	public static String capitalize(@Nullable String string) {
 		if (string == null || string.isEmpty()) {
 			return string;
 		}
@@ -378,6 +381,7 @@ public class StringUtils {
 	/**
 	 * Returns MD5 hash of the passed string.
 	 */
+	@Nonnull
 	public static String hashChars(@Nonnull String string) {
 		try {
 			final MessageDigest md5 = MessageDigest.getInstance("MD5");
@@ -390,10 +394,11 @@ public class StringUtils {
 
 	/**
 	 * Returns `theText` padded with `padCharacter` to the requested size.
-	 * @param theText
-	 * @param padCharacter
-	 * @param requestedSize
-	 * @return
+	 *
+	 * @param theText       to repeat
+	 * @param padCharacter  padding character
+	 * @param requestedSize requested total size
+	 * @return padded string
 	 */
 	@Nonnull
 	public static String rightPad(@Nonnull String theText, @Nonnull String padCharacter, int requestedSize) {
@@ -401,14 +406,16 @@ public class StringUtils {
 	}
 
 	/**
+	 * Method taken from Java - String. See copyright notice for JDK.
+	 *
 	 * Returns a string whose value is the passed string, with escape sequences
 	 * translated as if in a string literal.
 	 * Base code borrowed from {@link String#translateEscapes()} and extended to support unicode escape sequences.
 	 *
-	 * @throws IllegalArgumentException when an escape sequence is malformed.
-	 *
 	 * @return String with escape sequences translated.
+	 * @throws IllegalArgumentException when an escape sequence is malformed.
 	 */
+	@Nonnull
 	public static String translateEscapes(@Nonnull String s) {
 		if (s.isEmpty()) {
 			return "";
@@ -418,7 +425,7 @@ public class StringUtils {
 		int from = 0;
 		int to = 0;
 		while (from < length) {
-			char[] ch = { chars[from++] };
+			char[] ch = {chars[from++]};
 			if (ch[0] == '\\') {
 				ch[0] = from < length ? chars[from++] : '\0';
 				switch (ch[0]) {
@@ -450,8 +457,14 @@ public class StringUtils {
 					case '\\':
 						// as is
 						break;
-					case '0': case '1': case '2': case '3':
-					case '4': case '5': case '6': case '7':
+					case '0':
+					case '1':
+					case '2':
+					case '3':
+					case '4':
+					case '5':
+					case '6':
+					case '7':
 						int limit = Integer.min(from + (ch[0] <= '3' ? 2 : 1), length);
 						int code = ch[0] - '0';
 						while (from < limit) {
@@ -462,7 +475,7 @@ public class StringUtils {
 							from++;
 							code = (code << 3) | (ch[0] - '0');
 						}
-						ch[0] = (char)code;
+						ch[0] = (char) code;
 						break;
 					case '\n':
 						continue;
@@ -474,7 +487,7 @@ public class StringUtils {
 					default: {
 						String msg = String.format(
 							"Invalid escape sequence: \\%c \\\\u%04X",
-							ch[0], (int)ch[0]);
+							ch[0], (int) ch[0]);
 						throw new IllegalArgumentException(msg);
 					}
 				}
@@ -489,6 +502,8 @@ public class StringUtils {
 	}
 
 	/**
+	 * Method taken from Apache Commons - StringUtils. See copyright notice for Apache Commons.
+	 *
 	 * <p>
 	 * Replaces all occurrences of Strings within another String.
 	 * </p>
@@ -514,17 +529,14 @@ public class StringUtils {
 	 *  StringUtils.replaceEach("abcde", new String[]{"ab", "d"}, new String[]{"d", "t"})  = "dcte"
 	 * </pre>
 	 *
-	 * @param text
-	 *            text to search and replace in, no-op if null
-	 * @param searchList
-	 *            the Strings to search for, no-op if null
-	 * @param replacementList
-	 *            the Strings to replace them with, no-op if null
+	 * @param text            text to search and replace in, no-op if null
+	 * @param searchList      the Strings to search for, no-op if null
+	 * @param replacementList the Strings to replace them with, no-op if null
 	 * @return the text with any replacements processed, {@code null} if
-	 *         null String input
-	 * @throws IllegalArgumentException
-	 *             if the lengths of the arrays are not the same (null is ok,
-	 *             and/or size 0)
+	 * null String input
+	 * @throws IllegalArgumentException if the lengths of the arrays are not the same (null is ok,
+	 *                                  and/or size 0)
+	 * @see org.apache.commons.lang3.StringUtils#replaceEach(String, String[], String[])
 	 * @since 2.4
 	 */
 	public static String replaceEach(final String text, final String[] searchList, final String[] replacementList) {
@@ -533,6 +545,7 @@ public class StringUtils {
 
 	/**
 	 * Formats duration to human readable format.
+	 *
 	 * @param duration duration to be formatted
 	 * @return formatted duration
 	 */
@@ -592,6 +605,8 @@ public class StringUtils {
 	}
 
 	/**
+	 * Method taken from Apache Commons - StringUtils. See copyright notice for Apache Commons.
+	 *
 	 * <p>
 	 * Replace all occurrences of Strings within another String.
 	 * This is a private recursive helper method for {@link #replaceEach(String, String[], String[])} and
@@ -620,29 +635,30 @@ public class StringUtils {
 	 *  StringUtils.replaceEach("abcde", new String[]{"ab", "d"}, new String[]{"d", "ab"}, *, *) = IllegalStateException
 	 * </pre>
 	 *
-	 * @param text
-	 *            text to search and replace in, no-op if null
-	 * @param searchList
-	 *            the Strings to search for, no-op if null
-	 * @param replacementList
-	 *            the Strings to replace them with, no-op if null
-	 * @param repeat if true, then replace repeatedly
-	 *       until there are no more possible replacements or timeToLive < 0
-	 * @param timeToLive
-	 *            if less than 0 then there is a circular reference and endless
-	 *            loop
+	 * @param text            text to search and replace in, no-op if null
+	 * @param searchList      the Strings to search for, no-op if null
+	 * @param replacementList the Strings to replace them with, no-op if null
+	 * @param repeat          if true, then replace repeatedly
+	 *                        until there are no more possible replacements or timeToLive < 0
+	 * @param timeToLive      if less than 0 then there is a circular reference and endless
+	 *                        loop
 	 * @return the text with any replacements processed, {@code null} if
-	 *         null String input
-	 * @throws IllegalStateException
-	 *             if the search is repeating and there is an endless loop due
-	 *             to outputs of one being inputs to another
-	 * @throws IllegalArgumentException
-	 *             if the lengths of the arrays are not the same (null is ok,
-	 *             and/or size 0)
+	 * null String input
+	 * @throws IllegalStateException    if the search is repeating and there is an endless loop due
+	 *                                  to outputs of one being inputs to another
+	 * @throws IllegalArgumentException if the lengths of the arrays are not the same (null is ok,
+	 *                                  and/or size 0)
+	 * @see org.apache.commons.lang3.StringUtils#replaceEach(String, String[], String[], boolean, int)
 	 * @since 2.4
 	 */
+	@Nonnull
 	private static String replaceEach(
-		final String text, final String[] searchList, final String[] replacementList, final boolean repeat, final int timeToLive) {
+		@Nullable final String text,
+		@Nullable final String[] searchList,
+		@Nullable final String[] replacementList,
+		final boolean repeat,
+		final int timeToLive
+	) {
 
 		// mchyzer Performance note: This creates very few new objects (one major goal)
 		// let me know if there are performance requests, we can create a harness to measure
@@ -774,50 +790,20 @@ public class StringUtils {
 	 */
 
 	/**
-	 * Method will repeat `padCharacters` to the start of `currentString` until `expectedLength` is reached.
-	 */
-	@Nonnull
-	private static String leftPad(char padCharacter, int expectedLength, @Nonnull String currentString) {
-		final int padCount = expectedLength - currentString.length();
-		return padCount > 0 ? repeat(padCharacter, padCount) + currentString : currentString;
-	}
-
-	/**
-	 * Repeats pad character `expectedLength` times
-	 */
-	private static String repeat(char padCharacter, int expectedLength) {
-		return String.valueOf(padCharacter).repeat(Math.max(0, expectedLength));
-	}
-
-	/**
-	 * Method will remove all zeroes at the end of the `string`.
-	 */
-	@Nonnull
-	private static String stripTrailingZeroes(@Nonnull String string) {
-		final char[] stringChars = string.toCharArray();
-		for (int i = stringChars.length - 1; i >= 0; i--) {
-			char character = stringChars[i];
-			if (character != '0') {
-				return string.substring(0, i + 1);
-			}
-		}
-		return "";
-	}
-
-	/**
 	 * Formats value in nanoseconds (used for measuring elapsed time) to human-readable format.
 	 */
+	@Nonnull
 	private static String formatNano(long nanoSeconds, boolean omitNanoIfPossible) {
-		final StringBuilder sb = new StringBuilder();
+		final StringBuilder sb = new StringBuilder(128);
 		long seconds = nanoSeconds / 1000000000;
 		long days = seconds / (3600 * 24);
-		appendIfNonZero(sb, days, "", "d");
+		appendIfNonZero(sb, days, "d");
 		seconds -= (days * 3600 * 24);
 		long hours = seconds / 3600;
-		appendIfNonZero(sb, hours, "", "h");
+		appendIfNonZero(sb, hours, "h");
 		seconds -= (hours * 3600);
 		long minutes = seconds / 60;
-		appendIfNonZero(sb, minutes, "", "m");
+		appendIfNonZero(sb, minutes, "m");
 
 		seconds -= (minutes * 60);
 		final boolean emptyWithoutSeconds = sb.isEmpty() && seconds == 0;
@@ -833,7 +819,7 @@ public class StringUtils {
 				append(sb, seconds, "", suffix);
 			}
 		} else {
-			appendIfNonZero(sb, seconds, "", "s");
+			appendIfNonZero(sb, seconds, "s");
 		}
 
 		return sb.toString();
@@ -842,17 +828,18 @@ public class StringUtils {
 	/**
 	 * Appends `prefix`, `value` and suffix to the `sb` StringBuilder when `value` is greater than zero.
 	 */
-	private static void appendIfNonZero(@Nonnull StringBuilder sb, long value, @Nonnull String prefix, @Nonnull String suffix) {
+	private static void appendIfNonZero(@Nonnull StringBuilder sb, long value, @Nonnull String suffix) {
 		if (value > 0) {
-			append(sb, value, prefix, suffix);
+			append(sb, value, "", suffix);
 		}
 	}
 
 	/**
 	 * Envelopes `value` with `prefix` and suffix when `value` is greater than zero.
 	 */
+	@Nonnull
 	private static String getIfNonZero(long value, @Nonnull String prefix, @Nonnull String suffix) {
-		final StringBuilder sb = new StringBuilder();
+		final StringBuilder sb = new StringBuilder(prefix.length() + 1 + suffix.length());
 		if (value > 0) {
 			append(sb, value, prefix, suffix);
 		}
