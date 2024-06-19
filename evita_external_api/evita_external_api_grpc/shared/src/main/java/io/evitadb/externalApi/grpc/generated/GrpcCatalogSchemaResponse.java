@@ -592,7 +592,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema catalogSchema = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema.Builder getCatalogSchemaBuilder() {
-
+      
       onChanged();
       return getCatalogSchemaFieldBuilder().getBuilder();
     }
@@ -619,7 +619,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema catalogSchema = 1;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema, io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema.Builder, io.evitadb.externalApi.grpc.generated.GrpcCatalogSchemaOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema, io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema.Builder, io.evitadb.externalApi.grpc.generated.GrpcCatalogSchemaOrBuilder> 
         getCatalogSchemaFieldBuilder() {
       if (catalogSchemaBuilder_ == null) {
         catalogSchemaBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<

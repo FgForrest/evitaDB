@@ -66,7 +66,7 @@ public interface GrpcQueryTelemetryOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry steps = 3;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry>
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry> 
       getStepsList();
   /**
    * <pre>
@@ -91,7 +91,7 @@ public interface GrpcQueryTelemetryOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry steps = 3;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryOrBuilder>
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryOrBuilder> 
       getStepsOrBuilderList();
   /**
    * <pre>

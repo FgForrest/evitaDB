@@ -37,7 +37,7 @@ public interface GrpcDisallowCurrencyInEntitySchemaMutationOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCurrency currencies = 1;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcCurrency>
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcCurrency> 
       getCurrenciesList();
   /**
    * <pre>
@@ -62,7 +62,7 @@ public interface GrpcDisallowCurrencyInEntitySchemaMutationOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCurrency currencies = 1;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcCurrencyOrBuilder>
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcCurrencyOrBuilder> 
       getCurrenciesOrBuilderList();
   /**
    * <pre>

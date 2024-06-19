@@ -104,7 +104,7 @@ public interface GrpcDeleteEntityRequestOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 4;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcQueryParam>
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcQueryParam> 
       getPositionalQueryParamsList();
   /**
    * <pre>
@@ -129,7 +129,7 @@ public interface GrpcDeleteEntityRequestOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 4;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcQueryParamOrBuilder>
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcQueryParamOrBuilder> 
       getPositionalQueryParamsOrBuilderList();
   /**
    * <pre>
