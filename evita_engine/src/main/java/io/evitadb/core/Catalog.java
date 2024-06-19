@@ -32,7 +32,6 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.StorageOptions;
-import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.api.exception.CollectionNotFoundException;
 import io.evitadb.api.exception.ConcurrentSchemaUpdateException;
 import io.evitadb.api.exception.InvalidMutationException;
@@ -86,15 +85,13 @@ import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.sequence.SequenceService;
 import io.evitadb.core.sequence.SequenceType;
+import io.evitadb.core.transaction.TransactionManager;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.core.transaction.stage.AbstractTransactionStage;
-import io.evitadb.core.transaction.stage.CatalogSnapshotPropagationTransactionStage;
-import io.evitadb.core.transaction.stage.ConflictResolutionTransactionStage;
 import io.evitadb.core.transaction.stage.ConflictResolutionTransactionStage.ConflictResolutionTransactionTask;
 import io.evitadb.core.transaction.stage.TrunkIncorporationTransactionStage;
-import io.evitadb.core.transaction.stage.WalAppendingTransactionStage;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.CatalogIndex;
@@ -237,13 +234,9 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 	 */
 	@Getter private final ProxyFactory proxyFactory;
 	/**
-	 * Reference to the current {@link EvitaConfiguration#storage()} settings.
+	 * Reference to the current {@link EvitaConfiguration} settings.
 	 */
-	private final StorageOptions storageOptions;
-	/**
-	 * Reference to the current {@link EvitaConfiguration#transaction()} settings.
-	 */
-	private final TransactionOptions transactionOptions;
+	private final EvitaConfiguration evitaConfiguration;
 	/**
 	 * Reference to the shared transactional executor service that provides carrier threads for transaction processing.
 	 */
@@ -266,10 +259,9 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 	 **/
 	private final TracingContext tracingContext;
 	/**
-	 * Java {@link java.util.concurrent.Flow} implementation that allows to process transactional tasks in
-	 * asynchronous reactive manner.
+	 * Transaction manager used for processing the transactions.
 	 */
-	private final SubmissionPublisher<ConflictResolutionTransactionTask> transactionalPipeline;
+	private final TransactionManager transactionManager;
 	/**
 	 * Last persisted schema version of the catalog.
 	 */
@@ -278,10 +270,10 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 	/**
 	 * Verifies whether the catalog name could be used for a new catalog.
 	 *
-	 * @param catalogName the name of the catalog
-	 * @param storageOptions the storage options
+	 * @param catalogName        the name of the catalog
+	 * @param storageOptions     the storage options
 	 * @param totalBytesExpected the total bytes expected to be read from the input stream
-	 * @param inputStream the input stream with the catalog data
+	 * @param inputStream        the input stream with the catalog data
 	 * @return future that will be completed with path where the content of the catalog was restored
 	 */
 	public static BackgroundCallableTask<Path> restoreCatalogTo(
@@ -289,53 +281,17 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		@Nonnull StorageOptions storageOptions,
 		long totalBytesExpected,
 		@Nonnull InputStream inputStream
-		) {
+	) {
 		return ServiceLoader.load(CatalogPersistenceServiceFactory.class)
 			.findFirst()
 			.map(it -> it.restoreCatalogTo(catalogName, storageOptions, totalBytesExpected, inputStream))
 			.orElseThrow(() -> new IllegalStateException("IO service is unexpectedly not available!"));
 	}
 
-	/**
-	 * Creates a transaction pipeline for transaction processing consisting of 4 stages:
-	 *
-	 * - conflict resolution (and catalog version sequence number assignment)
-	 * - WAL appending (writing {@link IsolatedWalPersistenceService} to the shared catalog WAL)
-	 * - trunk incorporation (applying transaction from shared WAL in order to the shared catalog view)
-	 * - catalog snapshot propagation (propagating new catalog version to the "live view" of the evitaDB engine)
-	 *
-	 * @param catalog                   the catalog instance
-	 * @param transactionOptions        the options for the transaction
-	 * @param scheduler           the executor service for async processing
-	 * @param newCatalogVersionConsumer the consumer to handle new catalog versions
-	 * @return the submission publisher for conflict resolution transaction tasks
-	 */
-	@Nonnull
-	private static SubmissionPublisher<ConflictResolutionTransactionTask> createTransactionPipeline(
-		@Nonnull Catalog catalog,
-		@Nonnull TransactionOptions transactionOptions,
-		@Nonnull Scheduler scheduler,
-		@Nonnull ObservableExecutorService transactionalExecutor,
-		@Nonnull Consumer<Catalog> newCatalogVersionConsumer
-	) {
-		final SubmissionPublisher<ConflictResolutionTransactionTask> txPublisher = new SubmissionPublisher<>(transactionalExecutor, transactionOptions.maxQueueSize());
-		final ConflictResolutionTransactionStage stage1 = new ConflictResolutionTransactionStage(transactionalExecutor, transactionOptions.maxQueueSize(), catalog);
-		final WalAppendingTransactionStage stage2 = new WalAppendingTransactionStage(transactionalExecutor, transactionOptions.maxQueueSize(), catalog, stage1::notifyCatalogVersionDropped);
-		final TrunkIncorporationTransactionStage stage3 = new TrunkIncorporationTransactionStage(scheduler, transactionOptions.maxQueueSize(), catalog, transactionOptions.flushFrequencyInMillis());
-		final CatalogSnapshotPropagationTransactionStage stage4 = new CatalogSnapshotPropagationTransactionStage(newCatalogVersionConsumer);
-
-		txPublisher.subscribe(stage1);
-		stage1.subscribe(stage2);
-		stage2.subscribe(stage3);
-		stage3.subscribe(stage4);
-		return txPublisher;
-	}
-
 	public Catalog(
 		@Nonnull CatalogSchemaContract catalogSchema,
 		@Nonnull CacheSupervisor cacheSupervisor,
-		@Nonnull StorageOptions storageOptions,
-		@Nonnull TransactionOptions transactionOptions,
+		@Nonnull EvitaConfiguration evitaConfiguration,
 		@Nonnull ReflectionLookup reflectionLookup,
 		@Nonnull Scheduler scheduler,
 		@Nonnull ObservableExecutorService transactionalExecutor,
@@ -353,7 +309,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		this.schema = new TransactionalReference<>(new CatalogSchemaDecorator(internalCatalogSchema));
 		this.persistenceService = ServiceLoader.load(CatalogPersistenceServiceFactory.class)
 			.findFirst()
-			.map(it -> it.createNew(this, this.getSchema().getName(), storageOptions, transactionOptions, scheduler))
+			.map(it -> it.createNew(this, this.getSchema().getName(), evitaConfiguration.storage(), evitaConfiguration.transaction(), scheduler))
 			.orElseThrow(StorageImplementationNotFoundException::new);
 
 		this.catalogId = UUID.randomUUID();
@@ -374,13 +330,15 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		this.catalogIndex = new CatalogIndex();
 		this.catalogIndex.attachToCatalog(null, this);
 		this.proxyFactory = ProxyFactory.createInstance(reflectionLookup);
-		this.storageOptions = storageOptions;
-		this.transactionOptions = transactionOptions;
+		this.evitaConfiguration = evitaConfiguration;
 		this.scheduler = scheduler;
 		this.transactionalExecutor = transactionalExecutor;
 		this.newCatalogVersionConsumer = newCatalogVersionConsumer;
 		this.lastPersistedSchemaVersion = this.schema.get().version();
-		this.transactionalPipeline = createTransactionPipeline(this, transactionOptions, scheduler, transactionalExecutor, newCatalogVersionConsumer);
+		this.transactionManager = new TransactionManager(
+			this, evitaConfiguration.server(), evitaConfiguration.transaction(), scheduler,
+			transactionalExecutor, newCatalogVersionConsumer
+		);
 
 		this.persistenceService.storeHeader(
 			this.catalogId, CatalogState.WARMING_UP, catalogVersion, 0, null,
@@ -392,8 +350,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 	public Catalog(
 		@Nonnull String catalogName,
 		@Nonnull CacheSupervisor cacheSupervisor,
-		@Nonnull StorageOptions storageOptions,
-		@Nonnull TransactionOptions transactionOptions,
+		@Nonnull EvitaConfiguration evitaConfiguration,
 		@Nonnull ReflectionLookup reflectionLookup,
 		@Nonnull Scheduler scheduler,
 		@Nonnull ObservableExecutorService transactionalExecutor,
@@ -403,7 +360,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		this.tracingContext = tracingContext;
 		this.persistenceService = ServiceLoader.load(CatalogPersistenceServiceFactory.class)
 			.findFirst()
-			.map(it -> it.load(this, catalogName, storageOptions, transactionOptions, scheduler))
+			.map(it -> it.load(this, catalogName, evitaConfiguration.storage(), evitaConfiguration.transaction(), scheduler))
 			.orElseThrow(() -> new IllegalStateException("IO service is unexpectedly not available!"));
 		final CatalogHeader catalogHeader = this.persistenceService.getCatalogHeader(
 			this.persistenceService.getLastCatalogVersion()
@@ -482,13 +439,15 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 				)
 		);
 		this.proxyFactory = ProxyFactory.createInstance(reflectionLookup);
-		this.storageOptions = storageOptions;
-		this.transactionOptions = transactionOptions;
+		this.evitaConfiguration = evitaConfiguration;
 		this.scheduler = scheduler;
 		this.transactionalExecutor = transactionalExecutor;
 		this.newCatalogVersionConsumer = newCatalogVersionConsumer;
 		this.lastPersistedSchemaVersion = this.schema.get().version();
-		this.transactionalPipeline = createTransactionPipeline(this, transactionOptions, scheduler, transactionalExecutor, newCatalogVersionConsumer);
+		this.transactionManager = new TransactionManager(
+			this, evitaConfiguration.server(), evitaConfiguration.transaction(), scheduler,
+			transactionalExecutor, newCatalogVersionConsumer
+		);
 	}
 
 	Catalog(
@@ -527,12 +486,11 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		this.cacheSupervisor = previousCatalogVersion.cacheSupervisor;
 		this.entityTypeSequence = previousCatalogVersion.entityTypeSequence;
 		this.proxyFactory = previousCatalogVersion.proxyFactory;
-		this.storageOptions = previousCatalogVersion.storageOptions;
-		this.transactionOptions = previousCatalogVersion.transactionOptions;
+		this.evitaConfiguration = previousCatalogVersion.evitaConfiguration;
 		this.scheduler = previousCatalogVersion.scheduler;
 		this.transactionalExecutor = previousCatalogVersion.transactionalExecutor;
 		this.newCatalogVersionConsumer = previousCatalogVersion.newCatalogVersionConsumer;
-		this.transactionalPipeline = previousCatalogVersion.transactionalPipeline;
+		this.transactionManager = previousCatalogVersion.transactionManager;
 
 		catalogIndex.attachToCatalog(null, this);
 		final StoragePartPersistenceService storagePartPersistenceService = persistenceService.getStoragePartPersistenceService(catalogVersion);
@@ -969,7 +927,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 			return empty();
 		} else if (expectedType.isInstance(entityIndex)) {
 			//noinspection unchecked
-			return of((T)entityIndex);
+			return of((T) entityIndex);
 		} else {
 			throw new IllegalArgumentException("Expected index of type " + expectedType.getName() + " but got " + entityIndex.getClass().getName());
 		}
@@ -1137,26 +1095,32 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		@Nonnull CompletableFuture<Long> transactionFinalizationFuture
 	) {
 		try {
-			this.transactionalPipeline.offer(
-				new ConflictResolutionTransactionTask(
-					getName(),
-					transactionId,
-					walPersistenceService.getMutationCount(),
-					walPersistenceService.getMutationSizeInBytes(),
-					walPersistenceService.getWalReference(),
-					commitBehaviour,
-					transactionFinalizationFuture
-				),
-				(subscriber, task) -> {
-					transactionFinalizationFuture.completeExceptionally(
-						new TransactionException(
-							"Conflict resolution transaction queue is full! Transaction cannot be processed at the moment."
-						)
-					);
-					return false;
-				}
-			);
+			transactionManager.getTransactionalPublisher(
+					this, this.evitaConfiguration.server(), this.evitaConfiguration.transaction(),
+					this.scheduler, this.transactionalExecutor, this.newCatalogVersionConsumer
+				)
+				.offer(
+					new ConflictResolutionTransactionTask(
+						getName(),
+						transactionId,
+						walPersistenceService.getMutationCount(),
+						walPersistenceService.getMutationSizeInBytes(),
+						walPersistenceService.getWalReference(),
+						commitBehaviour,
+						transactionFinalizationFuture
+					),
+					(subscriber, task) -> {
+						transactionManager.invalidateTransactionalPublisher();
+						transactionFinalizationFuture.completeExceptionally(
+							new TransactionException(
+								"Conflict resolution transaction queue is full! Transaction cannot be processed at the moment."
+							)
+						);
+						return false;
+					}
+				);
 		} catch (Exception e) {
+			transactionManager.invalidateTransactionalPublisher();
 			if (e.getCause() instanceof TransactionException txException) {
 				throw txException;
 			} else {
@@ -1253,7 +1217,10 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 	 * This method is used to indicate that a catalog is currently available in the live view.
 	 */
 	public void notifyCatalogPresentInLiveView() {
-		SubmissionPublisher<?> current = this.transactionalPipeline;
+		SubmissionPublisher<?> current = transactionManager.getTransactionalPublisher(
+			this, this.evitaConfiguration.server(), this.evitaConfiguration.transaction(),
+			this.scheduler, this.transactionalExecutor, this.newCatalogVersionConsumer
+		);
 		while (current != null) {
 			//noinspection unchecked
 			final List<Subscriber<?>> subscribers = (List<Subscriber<?>>) current.getSubscribers();
@@ -1282,27 +1249,6 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 	 */
 	public void emitDeleteObservabilityEvents() {
 		this.persistenceService.emitDeleteObservabilityEvents();
-	}
-
-	/**
-	 * Informs transactional pipeline jobs that the catalog version has advanced due to external reasons (such as
-	 * catalog renaming).
-	 */
-	private void advanceVersion(long catalogVersion) {
-		SubmissionPublisher<?> current = this.transactionalPipeline;
-		while (current != null) {
-			//noinspection unchecked
-			final List<Subscriber<?>> subscribers = (List<Subscriber<?>>) current.getSubscribers();
-			Assert.isPremiseValid(subscribers.size() == 1, "Only one subscriber is expected!");
-			for (Subscriber<?> subscriber : subscribers) {
-				if (subscriber instanceof AbstractTransactionStage<?, ?> stage) {
-					stage.advanceVersion(catalogVersion);
-					current = stage;
-				} else {
-					current = null;
-				}
-			}
-		}
 	}
 
 	/**
@@ -1372,7 +1318,10 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 	 */
 	@Nonnull
 	private TrunkIncorporationTransactionStage getTrunkIncorporationStage() {
-		SubmissionPublisher<?> current = this.transactionalPipeline;
+		SubmissionPublisher<?> current = transactionManager.getTransactionalPublisher(
+			this, this.evitaConfiguration.server(), this.evitaConfiguration.transaction(),
+			this.scheduler, this.transactionalExecutor, this.newCatalogVersionConsumer
+		);
 		while (current != null) {
 			//noinspection unchecked
 			final List<Subscriber<?>> subscribers = (List<Subscriber<?>>) current.getSubscribers();
@@ -1390,6 +1339,30 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		throw new GenericEvitaInternalError(
 			"TrunkIncorporationTransactionStage is not present in the transactional pipeline!"
 		);
+	}
+
+	/**
+	 * Informs transactional pipeline jobs that the catalog version has advanced due to external reasons (such as
+	 * catalog renaming).
+	 */
+	private void advanceVersion(long catalogVersion) {
+		SubmissionPublisher<?> current = transactionManager.getTransactionalPublisher(
+			this, this.evitaConfiguration.server(), this.evitaConfiguration.transaction(),
+			this.scheduler, this.transactionalExecutor, this.newCatalogVersionConsumer
+		);
+		while (current != null) {
+			//noinspection unchecked
+			final List<Subscriber<?>> subscribers = (List<Subscriber<?>>) current.getSubscribers();
+			Assert.isPremiseValid(subscribers.size() == 1, "Only one subscriber is expected!");
+			for (Subscriber<?> subscriber : subscribers) {
+				if (subscriber instanceof AbstractTransactionStage<?, ?> stage) {
+					stage.advanceVersion(catalogVersion);
+					current = stage;
+				} else {
+					current = null;
+				}
+			}
+		}
 	}
 
 	/**

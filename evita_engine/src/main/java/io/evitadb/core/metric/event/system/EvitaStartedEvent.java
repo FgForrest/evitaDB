@@ -104,10 +104,6 @@ public class EvitaStartedEvent extends AbstractSystemCatalogEvent {
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private final int transactionMemoryRegions;
 
-	@Label("Maximal count of commited transactions in queue")
-	@ExportMetric(metricType = MetricType.GAUGE)
-	private final int transactionMaxQueueSize;
-
 	@Label("Maximal write-ahead log file size in Bytes")
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private final long walMaxFileSizeBytes;
@@ -152,7 +148,6 @@ public class EvitaStartedEvent extends AbstractSystemCatalogEvent {
 		this.transactionMemoryRegions = transactionConfiguration.transactionMemoryRegionCount();
 		this.walMaxFileSizeBytes = transactionConfiguration.walFileSizeBytes();
 		this.walMaxFileCountKept = transactionConfiguration.walFileCountKept();
-		this.transactionMaxQueueSize = transactionConfiguration.maxQueueSize();
 
 		final CacheOptions cacheConfiguration = configuration.cache();
 		this.cacheReevaluationSeconds = cacheConfiguration.reevaluateEachSeconds();

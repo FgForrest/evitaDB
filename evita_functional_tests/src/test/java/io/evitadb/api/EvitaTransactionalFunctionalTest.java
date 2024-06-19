@@ -1128,7 +1128,6 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 				.storage(originalConfiguration.storage())
 				.transaction(
 					TransactionOptions.builder()
-						.maxQueueSize(16_384)
 						.build()
 				)
 				.server(originalConfiguration.server())
@@ -1154,7 +1153,6 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 				.storage(originalConfiguration.storage())
 				.transaction(
 					TransactionOptions.builder()
-						.maxQueueSize(16_384)
 						.build()
 				)
 				.server(originalConfiguration.server())
@@ -1240,7 +1238,6 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 					TransactionOptions.builder()
 						.walFileSizeBytes(4_096)
 						.walFileCountKept(2)
-						.maxQueueSize(16_384)
 						.build()
 				)
 				.server(

@@ -660,8 +660,7 @@ public final class Evita implements EvitaContract {
 					final Catalog theCatalog = new Catalog(
 						catalogName,
 						this.cacheSupervisor,
-						this.configuration.storage(),
-						this.configuration.transaction(),
+						this.configuration,
 						this.reflectionLookup,
 						this.serviceExecutor,
 						this.transactionExecutor,
@@ -746,8 +745,7 @@ public final class Evita implements EvitaContract {
 					return new Catalog(
 						catalogSchema,
 						this.cacheSupervisor,
-						this.configuration.storage(),
-						this.configuration.transaction(),
+						this.configuration,
 						this.reflectionLookup,
 						this.serviceExecutor,
 						this.transactionExecutor,

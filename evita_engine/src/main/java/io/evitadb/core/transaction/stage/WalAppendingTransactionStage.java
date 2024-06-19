@@ -64,9 +64,10 @@ public final class WalAppendingTransactionStage
 		@Nonnull Executor executor,
 		int maxBufferCapacity,
 		@Nonnull Catalog catalog,
-		@Nonnull IntConsumer catalogVersionCompensator
+		@Nonnull IntConsumer catalogVersionCompensator,
+		@Nonnull Runnable onException
 	) {
-		super(executor, maxBufferCapacity, catalog);
+		super(executor, maxBufferCapacity, catalog, onException);
 		this.catalogVersionCompensator = catalogVersionCompensator;
 	}
 
@@ -77,7 +78,6 @@ public final class WalAppendingTransactionStage
 
 	@Override
 	protected void handleNext(@Nonnull WalAppendingTransactionTask task) {
-
 		// emit queue event
 		task.transactionQueuedEvent().finish().commit();
 
@@ -124,7 +124,7 @@ public final class WalAppendingTransactionStage
 
 	@Override
 	protected void handleException(@Nonnull WalAppendingTransactionTask task, @Nonnull Throwable ex) {
-		catalogVersionCompensator.accept(1);
+		this.catalogVersionCompensator.accept(1);
 		super.handleException(task, ex);
 	}
 

@@ -65,9 +65,10 @@ public final class ConflictResolutionTransactionStage
 	public ConflictResolutionTransactionStage(
 		@Nonnull Executor executor,
 		int maxBufferCapacity,
-		@Nonnull Catalog catalog
+		@Nonnull Catalog catalog,
+		@Nonnull Runnable onException
 	) {
-		super(executor, maxBufferCapacity, catalog);
+		super(executor, maxBufferCapacity, catalog, onException);
 		this.catalogVersion = new AtomicLong(catalog.getVersion());
 	}
 

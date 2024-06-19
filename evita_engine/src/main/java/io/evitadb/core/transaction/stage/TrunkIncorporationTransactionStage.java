@@ -129,9 +129,10 @@ public final class TrunkIncorporationTransactionStage
 		@Nonnull Executor executor,
 		int maxBufferCapacity,
 		@Nonnull Catalog catalog,
-		long timeoutInMillis
+		long timeoutInMillis,
+		@Nonnull Runnable onException
 	) {
-		super(executor, maxBufferCapacity, catalog);
+		super(executor, maxBufferCapacity, catalog, onException);
 		this.catalog = catalog;
 		this.timeout = timeoutInMillis * 1_000_000;
 		this.lastFinalizedCatalogVersion = catalog.getVersion();

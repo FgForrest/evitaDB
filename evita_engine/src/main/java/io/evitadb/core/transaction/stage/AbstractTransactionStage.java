@@ -75,10 +75,15 @@ public sealed abstract class AbstractTransactionStage<T extends TransactionTask,
 	 * Contains TRUE if the processor has been completed and does not accept any more data.
 	 */
 	@Getter private boolean completed;
+	/**
+	 * Handler that is called on any exception.
+	 */
+	@Nonnull private final Runnable onException;
 
-	protected AbstractTransactionStage(@Nonnull Executor executor, int maxBufferCapacity, @Nonnull Catalog catalog) {
+	protected AbstractTransactionStage(@Nonnull Executor executor, int maxBufferCapacity, @Nonnull Catalog catalog, @Nonnull Runnable onException) {
 		super(executor, maxBufferCapacity);
 		this.liveCatalog = new AtomicReference<>(catalog);
+		this.onException = onException;
 	}
 
 	@Override
@@ -99,7 +104,7 @@ public sealed abstract class AbstractTransactionStage<T extends TransactionTask,
 		} catch (Throwable ex) {
 			handleException(task, ex);
 		}
-		subscription.request(1);
+		this.subscription.request(1);
 	}
 
 	/**
@@ -113,6 +118,7 @@ public sealed abstract class AbstractTransactionStage<T extends TransactionTask,
 		if (future != null) {
 			future.completeExceptionally(ex);
 		}
+		onException.run();
 	}
 
 	@Override
