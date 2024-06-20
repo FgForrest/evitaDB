@@ -260,6 +260,11 @@ public class TransactionManager {
 		);
 		this.lastAssignedCatalogVersion.set(catalogVersion);
 		Assert.isPremiseValid(
+			this.lastWrittenCatalogVersion.get() <= catalogVersion,
+			"Unexpected catalog version " + catalogVersion + " vs. " + this.lastWrittenCatalogVersion + "!"
+		);
+		this.lastWrittenCatalogVersion.set(catalogVersion);
+		Assert.isPremiseValid(
 			this.lastFinalizedCatalogVersion.get() <= catalogVersion,
 			"Unexpected catalog version " + catalogVersion + " vs. " + this.lastFinalizedCatalogVersion + "!"
 		);
@@ -341,7 +346,7 @@ public class TransactionManager {
 		this.lastAssignedCatalogVersion.updateAndGet(current -> Math.max(current, livingCatalog.getVersion()));
 		this.livingCatalog.set(livingCatalog);
 
-		if (this.lastFinalizedCatalogVersion.getAndUpdate(current -> Math.max(current, livingCatalog.getVersion())) < livingCatalog.getVersion()) {
+		if (this.lastFinalizedCatalogVersion.getAndUpdate(current -> Math.max(current, livingCatalog.getVersion())) <= livingCatalog.getVersion()) {
 			this.lastFinalizedCatalog.set(livingCatalog);
 		}
 	}

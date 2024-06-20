@@ -50,6 +50,7 @@ import java.util.concurrent.Executor;
 @Slf4j
 public final class WalAppendingTransactionStage
 	extends AbstractTransactionStage<WalAppendingTransactionTask, TrunkIncorporationTransactionTask> {
+	private int droppedCatalogVersions;
 
 	public WalAppendingTransactionStage(
 		@Nonnull Executor executor,
@@ -62,7 +63,7 @@ public final class WalAppendingTransactionStage
 
 	@Override
 	protected void handleException(@Nonnull WalAppendingTransactionTask task, @Nonnull Throwable ex) {
-		this.transactionManager.notifyCatalogVersionDropped(1);
+		this.transactionManager.notifyCatalogVersionDropped(this.droppedCatalogVersions);
 		super.handleException(task, ex);
 	}
 
@@ -73,6 +74,8 @@ public final class WalAppendingTransactionStage
 
 	@Override
 	protected void handleNext(@Nonnull WalAppendingTransactionTask task) {
+		this.droppedCatalogVersions = 1;
+
 		// emit queue event
 		task.transactionQueuedEvent().finish().commit();
 
@@ -86,6 +89,8 @@ public final class WalAppendingTransactionStage
 		// create WALL appending event
 		final TransactionAppendedToWalEvent event = new TransactionAppendedToWalEvent(task.catalogName());
 
+		log.debug("Appending transaction {} to WAL for catalog {}.", task.transactionId(), task.catalogName());
+
 		// append WAL and discard the contents of the isolated WAL
 		final long writtenLength = this.transactionManager.getLivingCatalog()
 			.appendWalAndDiscard(
@@ -98,6 +103,10 @@ public final class WalAppendingTransactionStage
 				),
 				task.walReference()
 			);
+
+		// now the WAL is safely written - no version is lost
+		this.droppedCatalogVersions = 0;
+
 		// and continue with trunk incorporation
 		push(
 			task,

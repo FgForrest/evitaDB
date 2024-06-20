@@ -1408,7 +1408,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 							entityBuilder.upsertVia(session);
 						},
 						// fast track - we don't wait for anything (to cause as much "churn" as we can)
-						CommitBehavior.WAIT_FOR_CONFLICT_RESOLUTION
+						CommitBehavior.WAIT_FOR_WAL_PERSISTENCE
 					).get();
 
 					if (expectedLastVersion - 1000 > lastWaitCatalogVersion) {
