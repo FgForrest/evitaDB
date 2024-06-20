@@ -317,14 +317,15 @@ public class ObservableThreadExecutor implements ObservableExecutorService {
 	 */
 	private void cancelTimedOutTasks() {
 		// go through the entire queue, but only once
-		final ArrayList<ObservableTask> buffer = new ArrayList<>(512);
+		final int bufferSize = 512;
+		final ArrayList<ObservableTask> buffer = new ArrayList<>(bufferSize);
 		final int queueSize = this.queue.size();
 		int timedOutTasks = 0;
 		for (int i = 0; i < queueSize; i++) {
 			// initialize threshold for entire batch only once
 			final long threshold = System.currentTimeMillis() - this.timeoutInMilliseconds;
 			// effectively withdraw first block of tasks from the queue
-			this.queue.drainTo(buffer, buffer.size());
+			this.queue.drainTo(buffer, bufferSize);
 			// now go through all of them
 			final Iterator<ObservableTask> it = buffer.iterator();
 			while (it.hasNext()) {

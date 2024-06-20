@@ -1167,7 +1167,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		final OffsetIndexDescriptor offsetIndexDescriptor = getStoragePartPersistenceService().copySnapshotTo(catalogVersion, outputStream);
 		final EntityCollectionHeader currentHeader = getEntityCollectionHeader();
 		final Path catalogStoragePath = this.entityCollectionFile.getParent();
-		return createEntityCollectionHeader(
+		final EntityCollectionHeader theHeader = createEntityCollectionHeader(
 			catalogVersion,
 			catalogStoragePath,
 			offsetIndexDescriptor,
@@ -1179,6 +1179,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 				offsetIndexDescriptor.fileLocation()
 			)
 		);
+		return theHeader;
 	}
 
 	@Override

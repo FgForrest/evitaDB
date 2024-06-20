@@ -32,6 +32,7 @@ import io.evitadb.core.Catalog;
 import io.evitadb.core.Transaction;
 import io.evitadb.core.metric.event.transaction.TransactionIncorporatedToTrunkEvent;
 import io.evitadb.core.metric.event.transaction.TransactionQueuedEvent;
+import io.evitadb.core.transaction.TransactionManager;
 import io.evitadb.core.transaction.TransactionTrunkFinalizer;
 import io.evitadb.core.transaction.stage.TrunkIncorporationTransactionStage.TrunkIncorporationTransactionTask;
 import io.evitadb.core.transaction.stage.TrunkIncorporationTransactionStage.UpdatedCatalogTransactionTask;
@@ -39,7 +40,6 @@ import io.evitadb.core.transaction.stage.mutation.VerifiedEntityRemoveMutation;
 import io.evitadb.core.transaction.stage.mutation.VerifiedEntityUpsertMutation;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
-import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -81,20 +81,6 @@ public final class TrunkIncorporationTransactionStage
 	 * Contemporary collector of commit timestamps of processed transactions.
 	 */
 	private final ArrayList<OffsetDateTime> processed = new ArrayList<>(64);
-	/**
-	 * Contains reference to the current catalog snapshot this task will be building upon. The catalog is being exchanged
-	 * regularly and the instance of the TrunkIncorporationTransactionStage is not recreated - i.e. stays the same for
-	 * different catalog versions and is propagated throughout the whole lifetime of the "logical" catalog.
-	 *
-	 * This catalog is replaced with new version each time {@link #handleNext(TrunkIncorporationTransactionTask)} is
-	 * finished.
-	 */
-	@Getter
-	private Catalog catalog;
-	/**
-	 * Contains the ID of the last finalized transaction. This is used to skip already processed transaction.
-	 */
-	private long lastFinalizedCatalogVersion;
 
 	/**
 	 * Creates a new transaction based on the given parameters.
@@ -128,14 +114,12 @@ public final class TrunkIncorporationTransactionStage
 	public TrunkIncorporationTransactionStage(
 		@Nonnull Executor executor,
 		int maxBufferCapacity,
-		@Nonnull Catalog catalog,
+		@Nonnull TransactionManager transactionManager,
 		long timeoutInMillis,
 		@Nonnull Runnable onException
 	) {
-		super(executor, maxBufferCapacity, catalog, onException);
-		this.catalog = catalog;
+		super(executor, maxBufferCapacity, transactionManager, onException);
 		this.timeout = timeoutInMillis * 1_000_000;
-		this.lastFinalizedCatalogVersion = catalog.getVersion();
 	}
 
 	/**
@@ -155,18 +139,21 @@ public final class TrunkIncorporationTransactionStage
 		int localMutationCount = 0;
 		this.processed.clear();
 
+		Catalog latestCatalog = this.transactionManager.getLastFinalizedCatalog();
 		Stream<Mutation> committedMutationStream = null;
 		try {
 			// prepare finalizer that doesn't finish the catalog automatically but on demand
-			final TransactionTrunkFinalizer transactionHandler = new TransactionTrunkFinalizer(this.catalog);
+			final TransactionTrunkFinalizer transactionHandler = new TransactionTrunkFinalizer(latestCatalog);
 			// read the mutations from the WAL since the current task version
 			// if the transaction failed we need to replay it again
+			final long lastFinalizedCatalogVersion = this.transactionManager.getLastFinalizedCatalogVersion();
+			final long nextExpectedCatalogVersion = lastFinalizedCatalogVersion + 1;
 			if (alive) {
-				committedMutationStream = this.catalog
-					.getCommittedLiveMutationStream(Math.min(nextCatalogVersion, this.lastFinalizedCatalogVersion + 1));
+				committedMutationStream = latestCatalog
+					.getCommittedLiveMutationStream(Math.min(nextCatalogVersion, nextExpectedCatalogVersion));
 			} else {
-				committedMutationStream = this.catalog
-					.getCommittedMutationStream(Math.min(nextCatalogVersion, this.lastFinalizedCatalogVersion + 1));
+				committedMutationStream = latestCatalog
+					.getCommittedMutationStream(Math.min(nextCatalogVersion, nextExpectedCatalogVersion));
 			}
 			final Iterator<Mutation> mutationIterator = committedMutationStream.iterator();
 			if (!mutationIterator.hasNext()) {
@@ -183,12 +170,12 @@ public final class TrunkIncorporationTransactionStage
 					final TransactionMutation transactionMutation = (TransactionMutation) leadingMutation;
 					TransactionMutation finalLastTransaction = lastTransaction;
 					Assert.isPremiseValid(
-						transactionMutation.getCatalogVersion() == this.lastFinalizedCatalogVersion + 1 ||
+						transactionMutation.getCatalogVersion() == nextExpectedCatalogVersion ||
 							(lastTransaction != null && transactionMutation.getCatalogVersion() == lastTransaction.getCatalogVersion() + 1),
 						() -> new GenericEvitaInternalError(
 							"Unexpected catalog version! " +
 								"Transaction mutation catalog version: " + (finalLastTransaction == null ? transactionMutation.getCatalogVersion() : finalLastTransaction.getCatalogVersion()) + ", " +
-								"last finalized catalog version: " + this.lastFinalizedCatalogVersion + "."
+								"last finalized catalog version: " + lastFinalizedCatalogVersion + "."
 						)
 
 					);
@@ -216,7 +203,7 @@ public final class TrunkIncorporationTransactionStage
 					System.currentTimeMillis() - start < timeoutMs &&
 						mutationIterator.hasNext() &&
 						// and the next transaction is fully written by previous stage
-						this.catalog.getLastCatalogVersionInMutationStream() > lastTransaction.getCatalogVersion()
+						latestCatalog.getLastCatalogVersionInMutationStream() > lastTransaction.getCatalogVersion()
 				);
 
 				log.debug(
@@ -226,16 +213,18 @@ public final class TrunkIncorporationTransactionStage
 			}
 
 			// we've run out of mutation, or the timeout has been exceeded, create a new catalog version now
-			this.catalog = commitChangesToSharedCatalog(lastTransaction, transaction, transactionHandler);
+			// and update the last finalized transaction ID and catalog version
+			latestCatalog = commitChangesToSharedCatalog(lastTransaction, transaction, transactionHandler);
+			this.transactionManager.updateLastFinalizedDatalog(
+				latestCatalog,
+				lastTransaction.getCatalogVersion()
+			);
 
-			// update the last finalized transaction ID and catalog version
-			this.lastFinalizedCatalogVersion = lastTransaction.getCatalogVersion();
-
-			log.debug("Finalizing catalog: {}", this.lastFinalizedCatalogVersion);
+			log.debug("Finalizing catalog: {}", lastTransaction.getCatalogVersion());
 
 		} catch (RuntimeException ex) {
 			// we need to forget about the data written to disk, but not yet propagated to indexes (volatile data)
-			this.catalog.forgetVolatileData();
+			latestCatalog.forgetVolatileData();
 
 			// rethrow the exception - we will have to re-try the transaction
 			throw ex;
@@ -250,6 +239,7 @@ public final class TrunkIncorporationTransactionStage
 			transaction.getTransactionId(),
 			atomicMutationCount,
 			localMutationCount,
+			latestCatalog,
 			this.processed.toArray(OffsetDateTime[]::new)
 		);
 		this.processed.trimToSize();
@@ -263,19 +253,20 @@ public final class TrunkIncorporationTransactionStage
 
 	@Override
 	protected void handleNext(@Nonnull TrunkIncorporationTransactionTask task) {
-		if (task.catalogVersion() <= this.lastFinalizedCatalogVersion) {
+		if (task.catalogVersion() <= this.transactionManager.getLastFinalizedCatalogVersion()) {
 			// the transaction has been already processed
 			if (task.future() != null) {
 				// we can't mark transaction as processed until it's propagated to the "live view"
 				waitUntilLiveVersionReaches(task.catalogVersion());
 				task.future().complete(task.catalogVersion());
 			}
+			log.info("Skipping version " + task.catalogVersion() + " as it has been already processed.");
 		} else {
 			// emit queue event
 			task.transactionQueuedEvent().finish().commit();
 
-			final TransactionIncorporatedToTrunkEvent event = new TransactionIncorporatedToTrunkEvent(this.catalog.getName());
-			final long lastCatalogVersionInLiveView = this.catalog.getVersion();
+			final TransactionIncorporatedToTrunkEvent event = new TransactionIncorporatedToTrunkEvent(this.transactionManager.getCatalogName());
+			final long lastCatalogVersionInLiveView = this.transactionManager.getLivingCatalog().getVersion();
 			processTransactions(
 				task.catalogVersion(), this.timeout, true
 			)
@@ -288,7 +279,7 @@ public final class TrunkIncorporationTransactionStage
 						push(
 							task,
 							new UpdatedCatalogTransactionTask(
-								this.catalog,
+								result.catalog(),
 								result.lastTransactionId(),
 								task.commitBehaviour(),
 								task.future(),
@@ -308,7 +299,7 @@ public final class TrunkIncorporationTransactionStage
 						terminate(
 							task,
 							new UpdatedCatalogTransactionTask(
-								this.catalog,
+								this.transactionManager.getLastFinalizedCatalog(),
 								task.transactionId(),
 								task.commitBehaviour(),
 								task.future(),
@@ -323,29 +314,6 @@ public final class TrunkIncorporationTransactionStage
 							0
 						).commit();
 					});
-		}
-	}
-
-	@Override
-	public void advanceVersion(long catalogVersion) {
-		Assert.isPremiseValid(
-			this.lastFinalizedCatalogVersion <= catalogVersion,
-			"Unexpected catalog version " + catalogVersion + " vs. " + this.lastFinalizedCatalogVersion + "!"
-		);
-		if (this.lastFinalizedCatalogVersion < catalogVersion) {
-			this.lastFinalizedCatalogVersion = catalogVersion;
-		}
-	}
-
-	@Override
-	public void updateCatalogReference(@Nonnull Catalog catalog) {
-		super.updateCatalogReference(catalog);
-		if (catalog.getVersion() > this.catalog.getVersion()) {
-			this.catalog = catalog;
-			// at this moment, the catalog transitions from non-transactional to transactional state
-			if (this.lastFinalizedCatalogVersion == 0L) {
-				this.lastFinalizedCatalogVersion = catalog.getVersion();
-			}
 		}
 	}
 
@@ -364,7 +332,8 @@ public final class TrunkIncorporationTransactionStage
 		return Transaction.executeInTransactionIfProvided(
 			transaction,
 			() -> {
-				this.catalog.setVersion(transactionMutation.getCatalogVersion());
+				final Catalog lastFinalizedCatalog = this.transactionManager.getLastFinalizedCatalog();
+				lastFinalizedCatalog.setVersion(transactionMutation.getCatalogVersion());
 				// init mutation counter
 				int atomicMutationCount = 0;
 				int localMutationCount = 0;
@@ -373,13 +342,13 @@ public final class TrunkIncorporationTransactionStage
 					log.debug("Processing mutation: {}", mutation);
 					atomicMutationCount++;
 					if (mutation instanceof EntityUpsertMutation entityUpsertMutation) {
-						catalog.applyMutation(new VerifiedEntityUpsertMutation(entityUpsertMutation));
+						lastFinalizedCatalog.applyMutation(new VerifiedEntityUpsertMutation(entityUpsertMutation));
 						localMutationCount += entityUpsertMutation.getLocalMutations().size();
 					} else if (mutation instanceof EntityRemoveMutation entityRemoveMutation) {
-						catalog.applyMutation(new VerifiedEntityRemoveMutation(entityRemoveMutation));
+						lastFinalizedCatalog.applyMutation(new VerifiedEntityRemoveMutation(entityRemoveMutation));
 						localMutationCount += entityRemoveMutation.getLocalMutations().size();
 					} else {
-						catalog.applyMutation(mutation);
+						lastFinalizedCatalog.applyMutation(mutation);
 						localMutationCount++;
 					}
 				}
@@ -403,7 +372,7 @@ public final class TrunkIncorporationTransactionStage
 	 * @param transactionHandler      The handler responsible for finalizing the transaction.
 	 */
 	@Nonnull
-	private Catalog commitChangesToSharedCatalog(
+	private static Catalog commitChangesToSharedCatalog(
 		@Nonnull TransactionMutation lastTransactionMutation,
 		@Nonnull Transaction transaction,
 		@Nonnull TransactionTrunkFinalizer transactionHandler
@@ -412,7 +381,7 @@ public final class TrunkIncorporationTransactionStage
 			transaction,
 			() -> {
 				try {
-					log.debug("Materializing catalog version: {}", this.lastFinalizedCatalogVersion);
+					log.debug("Materializing catalog version: {}", lastTransactionMutation.getCatalogVersion());
 					return transactionHandler.commitCatalogChanges(
 						lastTransactionMutation.getCatalogVersion(),
 						lastTransactionMutation
@@ -431,7 +400,7 @@ public final class TrunkIncorporationTransactionStage
 	 * @param lastCatalogVersionInLiveView The catalog version to wait for in the "live view".
 	 */
 	private void waitUntilLiveVersionReaches(long lastCatalogVersionInLiveView) {
-		while (this.liveCatalog.get().getVersion() < lastCatalogVersionInLiveView) {
+		while (this.transactionManager.getLivingCatalog().getVersion() < lastCatalogVersionInLiveView) {
 			// wait until the catalog version is propagated to the "live view"
 			Thread.onSpinWait();
 		}
@@ -501,12 +470,14 @@ public final class TrunkIncorporationTransactionStage
 	 * @param lastTransactionId                  the ID of the last processed transaction
 	 * @param processedAtomicMutations           the number of processed atomic mutations
 	 * @param processedLocalMutations            the number of processed local mutations
+	 * @param catalog                            the catalog after the processing
 	 * @param commitTimesOfProcessedTransactions commit times of all processed transactions
 	 */
-	record ProcessResult(
+	public record ProcessResult(
 		@Nonnull UUID lastTransactionId,
 		int processedAtomicMutations,
 		int processedLocalMutations,
+		@Nonnull Catalog catalog,
 		@Nonnull OffsetDateTime[] commitTimesOfProcessedTransactions
 	) {
 	}

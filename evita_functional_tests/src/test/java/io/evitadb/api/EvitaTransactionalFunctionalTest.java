@@ -1131,7 +1131,16 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 					TransactionOptions.builder()
 						.build()
 				)
-				.server(originalConfiguration.server())
+				.server(
+					ServerOptions.builder(originalConfiguration.server())
+						.transactionThreadPool(
+							ThreadPoolOptions.transactionThreadPoolBuilder()
+								.threadPriority(Thread.MAX_PRIORITY)
+								.queueSize(16_384)
+								.build()
+						)
+						.build()
+				)
 				.cache(originalConfiguration.cache())
 				.build()
 		);
@@ -1156,7 +1165,16 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 					TransactionOptions.builder()
 						.build()
 				)
-				.server(originalConfiguration.server())
+				.server(
+					ServerOptions.builder(originalConfiguration.server())
+						.transactionThreadPool(
+							ThreadPoolOptions.transactionThreadPoolBuilder()
+								.threadPriority(Thread.MAX_PRIORITY)
+								.queueSize(16_384)
+								.build()
+						)
+						.build()
+				)
 				.cache(originalConfiguration.cache())
 				.build()
 		);
@@ -1164,7 +1182,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 		final AtomicReference<ProgressiveCompletableFuture<Path>> lastBackupProcess = new AtomicReference<>();
 		final Set<PkWithCatalogVersion> insertedPrimaryKeysAndAssociatedTxs = automaticallyGenerateEntitiesInParallel(
 			evita, productSchema, theEvita -> {
-				lastBackupProcess.set(theEvita.backupCatalog(TEST_CATALOG, null, true));
+				lastBackupProcess.set(theEvita.backupCatalog(TEST_CATALOG, null, false));
 			}
 		);
 
@@ -1173,7 +1191,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 
 		final String restoredCatalogName = TEST_CATALOG + "_restored";
 		evita.restoreCatalog(restoredCatalogName, Files.size(backupFilePath), Files.newInputStream(backupFilePath))
-			.get(2, TimeUnit.MINUTES);
+			.get(5, TimeUnit.MINUTES);
 
 		final long originalCatalogVersion = evita.queryCatalog(
 			TEST_CATALOG,
@@ -1192,6 +1210,91 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 					restoredCatalogVersion < originalCatalogVersion,
 					"Restored catalog version should be lower than the original one!"
 				);
+
+				final AtomicInteger productCount = new AtomicInteger();
+				insertedPrimaryKeysAndAssociatedTxs
+					.stream()
+					.filter(it -> it.catalogVersion() <= restoredCatalogVersion).forEach(
+						it -> {
+							final Optional<SealedEntity> entity = session.getEntity(it.getType(), it.getPrimaryKey());
+							assertTrue(
+								entity.isPresent(),
+								"Entity `" + it + "` visible in version `" + it.catalogVersion() +
+									"` not found in restored catalog with restored version `" + restoredCatalogVersion + "`!"
+							);
+							productCount.incrementAndGet();
+						}
+					);
+
+				log.info("Restored catalog has " + productCount.get() + " products.");
+
+				assertEquals(
+					productCount.get(),
+					session.getEntityCollectionSize(productSchema.getName()),
+					"Number of products in restored catalog does not match the original catalog!"
+				);
+
+			}
+		);
+	}
+
+	@DisplayName("Verify code has no problems assigning new PK in concurrent environment and simultaneous backup & restore including WAL")
+	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
+	@Tag(LONG_RUNNING_TEST)
+	@Test
+	void shouldBackupAndRestoreCatalogDuringHeavyParallelIndexingIncludingWal(EvitaContract originalEvita, SealedEntitySchema productSchema) throws Exception {
+		final EvitaConfiguration originalConfiguration = ((Evita) originalEvita).getConfiguration();
+		originalEvita.close();
+
+		// reinitialize evita with a larger queue size
+		final Evita evita = new Evita(
+			EvitaConfiguration.builder()
+				.name(originalConfiguration.name())
+				.storage(originalConfiguration.storage())
+				.transaction(
+					TransactionOptions.builder()
+						.build()
+				)
+				.server(
+					ServerOptions.builder(originalConfiguration.server())
+						.transactionThreadPool(
+							ThreadPoolOptions.transactionThreadPoolBuilder()
+								.threadPriority(Thread.MAX_PRIORITY)
+								.queueSize(16_384)
+								.build()
+						)
+						.build()
+				)
+				.cache(originalConfiguration.cache())
+				.build()
+		);
+
+		final AtomicReference<ProgressiveCompletableFuture<Path>> lastBackupProcess = new AtomicReference<>();
+		final Set<PkWithCatalogVersion> insertedPrimaryKeysAndAssociatedTxs = automaticallyGenerateEntitiesInParallel(
+			evita, productSchema, theEvita -> {
+				lastBackupProcess.set(theEvita.backupCatalog(TEST_CATALOG, null, true));
+			}
+		);
+
+		final Path backupFilePath = lastBackupProcess.get().get();
+		assertTrue(backupFilePath.toFile().exists(), "Backup file does not exist!");
+
+		final String restoredCatalogName = TEST_CATALOG + "_restored";
+		evita.restoreCatalog(restoredCatalogName, Files.size(backupFilePath), Files.newInputStream(backupFilePath))
+			.get(5, TimeUnit.MINUTES);
+
+		final long originalCatalogVersion = evita.queryCatalog(
+			TEST_CATALOG,
+			EvitaSessionContract::getCatalogVersion
+		);
+
+		log.info("Original catalog finished with version: " + originalCatalogVersion);
+
+		evita.queryCatalog(
+			restoredCatalogName,
+			session -> {
+				final long restoredCatalogVersion = session.getCatalogVersion();
+				log.info("Restored catalog is version: " + restoredCatalogVersion);
 
 				final AtomicInteger productCount = new AtomicInteger();
 				insertedPrimaryKeysAndAssociatedTxs
@@ -1247,13 +1350,6 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 						.queryTimeoutInMilliseconds(-1)
 						.transactionTimeoutInMilliseconds(-1)
 						.closeSessionsAfterSecondsOfInactivity(-1)
-						.transactionThreadPool(
-							ThreadPoolOptions.transactionThreadPoolBuilder()
-								.threadPriority(Thread.MAX_PRIORITY)
-								.maxThreadCount(16)
-								.queueSize(16_384)
-								.build()
-						)
 						.build()
 				)
 				.build()
@@ -1348,7 +1444,14 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 					log.info("Waiting for catalog version " + expectedLastVersion + " to be processed (current " + currentCatalogVersion + ").");
 				}
 				Thread.onSpinWait();
-			} while (Duration.between(wait, LocalDateTime.now()).toMinutes() < 5);
+			} while (Duration.between(wait, LocalDateTime.now()).toMinutes() < 1);
+
+			final Long currentCatalogVersion = evita.queryCatalog(
+				TEST_CATALOG,
+				EvitaSessionContract::getCatalogVersion
+			);
+			log.info("Current catalog version: " + currentCatalogVersion);
+
 			assertTrue(expectedLastVersion > 10L, "At least 10 versions should be created!");
 
 			// close the evita

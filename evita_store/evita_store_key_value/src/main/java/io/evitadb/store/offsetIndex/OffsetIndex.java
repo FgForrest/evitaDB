@@ -770,7 +770,8 @@ public class OffsetIndex {
 								this,
 								randomAccessFileInputStream,
 								outputStream, catalogVersion,
-								overriddenEntries
+								overriddenEntries,
+								this.volatileValues
 							);
 							return new OffsetIndexDescriptor(
 								this.fileOffsetDescriptor.version() + 1,
@@ -1562,7 +1563,7 @@ public class OffsetIndex {
 	 * level).
 	 */
 	@RequiredArgsConstructor
-	private static class VolatileValues {
+	static class VolatileValues {
 		/**
 		 * Contains catalog version which can be purged from {@link #historicalVersions} and {@link #volatileValues}
 		 * on the next promotion.
@@ -2208,7 +2209,7 @@ public class OffsetIndex {
 	 * @param removed        true if the value was removed in the past
 	 * @param addedInFuture  true if the value was added in future versions
 	 */
-	private record VolatileValueInformation(
+	protected record VolatileValueInformation(
 		@Nonnull VersionedValue versionedValue,
 		boolean removed,
 		boolean addedInFuture

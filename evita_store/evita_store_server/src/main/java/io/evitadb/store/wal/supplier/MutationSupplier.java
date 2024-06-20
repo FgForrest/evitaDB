@@ -95,13 +95,11 @@ public final class MutationSupplier extends AbstractMutationSupplier {
 					// nevertheless, the condition is here to prevent the observable input from reading the next transaction mutation
 					// if there is not enough data already written is actually ok for real-world scenarios - we want to fast play transactions
 					// in the WAL only when there is a lot of them to be read and processed
-					final long requiredLength = this.filePosition + this.transactionMutation.getTransactionSpan().recordLength() +
-						(avoidPartiallyFilledBuffer ? this.observableInput.getBuffer().length : 0);
+					final long requiredLength = this.filePosition + this.transactionMutation.getTransactionSpan().recordLength();
 					if (
 						avoidPartiallyFilledBuffer ?
 							// for partially filled buffer we require much more data to be written or the fact that reader explicitly requested the catalog version
-							currentFileLength >= requiredLength + 4096 ||
-								(this.transactionMutation.getCatalogVersion() == this.requestedCatalogVersion && currentFileLength >= requiredLength) :
+							this.transactionMutation.getCatalogVersion() == this.requestedCatalogVersion && currentFileLength >= requiredLength :
 							// otherwise we require just the entire transaction to be written
 							currentFileLength >= requiredLength
 					) {

@@ -30,6 +30,8 @@ import io.evitadb.store.kryo.ObservableInput;
 import io.evitadb.store.kryo.ObservableOutput;
 import io.evitadb.store.model.FileLocation;
 import io.evitadb.store.offsetIndex.OffsetIndex.FileOffsetIndexStatistics;
+import io.evitadb.store.offsetIndex.OffsetIndex.VolatileValueInformation;
+import io.evitadb.store.offsetIndex.OffsetIndex.VolatileValues;
 import io.evitadb.store.offsetIndex.exception.CorruptedRecordException;
 import io.evitadb.store.offsetIndex.exception.IncompleteSerializationException;
 import io.evitadb.store.offsetIndex.model.RecordKey;
@@ -49,6 +51,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.zip.CRC32C;
@@ -219,7 +222,8 @@ public class OffsetIndexSerializationService {
 		@Nonnull ObservableInput<RandomAccessFileInputStream> inputStream,
 		@Nonnull OutputStream outputStream,
 		long catalogVersion,
-		@Nonnull Map<RecordKey, byte[]> valuesToOverride
+		@Nonnull Map<RecordKey, byte[]> valuesToOverride,
+		@Nonnull VolatileValues volatileValues
 	) {
 		// we don't close neither input stream nor the output stream
 		// input stream is still used in callee and the output stream is managed by the callee
@@ -237,7 +241,21 @@ public class OffsetIndexSerializationService {
 		final Iterator<Entry<RecordKey, FileLocation>> it = entries.iterator();
 		while (it.hasNext()) {
 			final Entry<RecordKey, FileLocation> entry = it.next();
-			final FileLocation fileLocation = entry.getValue();
+			final Optional<VolatileValueInformation> volatileValueInfoRef = volatileValues.getVolatileValueInformation(
+				catalogVersion, entry.getKey()
+			);
+
+			final FileLocation fileLocation;
+			if (volatileValueInfoRef.isPresent()) {
+				final VolatileValueInformation volatileValue = volatileValueInfoRef.get();
+				if (volatileValue.removed() || volatileValue.addedInFuture()) {
+					continue;
+				} else {
+					fileLocation = volatileValue.versionedValue().fileLocation();
+				}
+			} else {
+				fileLocation = entry.getValue();
+			}
 
 			final StorageRecord<byte[]> theRecord = StorageRecord.read(
 				inputStream,

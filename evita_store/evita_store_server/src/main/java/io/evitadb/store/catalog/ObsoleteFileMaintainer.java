@@ -322,7 +322,7 @@ public class ObsoleteFileMaintainer implements CatalogVersionBeyondTheHorizonLis
 				.filter(file -> getIndexFromCatalogFileName(file.getName()) < firstUsedCatalogDataFileIndex)
 				.forEach(file -> {
 					if (file.delete()) {
-						log.info("Deleted obsolete catalog file `{}`", file.getAbsolutePath());
+						log.debug("Deleted obsolete catalog file `{}`", file.getAbsolutePath());
 					} else {
 						log.warn("Could not delete obsolete catalog file `{}`", file.getAbsolutePath());
 					}
@@ -339,7 +339,7 @@ public class ObsoleteFileMaintainer implements CatalogVersionBeyondTheHorizonLis
 				})
 				.forEach(file -> {
 					if (file.delete()) {
-						log.info("Deleted obsolete entity collection file `{}`", file.getAbsolutePath());
+						log.debug("Deleted obsolete entity collection file `{}`", file.getAbsolutePath());
 					} else {
 						log.warn("Could not delete entity collection file `{}`", file.getAbsolutePath());
 					}

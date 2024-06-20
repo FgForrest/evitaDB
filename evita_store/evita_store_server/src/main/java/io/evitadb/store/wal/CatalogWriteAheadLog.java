@@ -1050,13 +1050,16 @@ public class CatalogWriteAheadLog implements Closeable {
 					break;
 				}
 			}
-			this.pendingRemovals.removeAll(toRemove);
-			// call the listener to remove the obsolete files
-			if (firstCatalogVersionToBeKept > -1) {
-				this.onWalPurgeCallback.purgeFilesUpTo(firstCatalogVersionToBeKept);
+
+			if (!toRemove.isEmpty()) {
+				this.pendingRemovals.removeAll(toRemove);
+				// call the listener to remove the obsolete files
+				if (firstCatalogVersionToBeKept > -1) {
+					this.onWalPurgeCallback.purgeFilesUpTo(firstCatalogVersionToBeKept);
+				}
+				// now trim the bootstrap record file
+				this.bootstrapFileTrimmer.accept(firstCommitTimestamp);
 			}
-			// now trim the bootstrap record file
-			this.bootstrapFileTrimmer.accept(firstCommitTimestamp);
 
 			return -1;
 		}
@@ -1127,13 +1130,8 @@ public class CatalogWriteAheadLog implements Closeable {
 					}
 
 					previousLastCatalogVersion = lastCatalogVersion;
-				} catch (FileNotFoundException e) {
-					// the file was deleted in the meantime
-				} catch (IOException e) {
-					throw new WriteAheadLogCorruptedException(
-						"Failed to read `" + oldWalFile.getAbsolutePath() + "`!",
-						"Failed to read WAL file!", e
-					);
+				} catch (Exception e) {
+					// the file was deleted in the meantime or is being currently written to
 				}
 			}
 		}
@@ -1245,7 +1243,7 @@ public class CatalogWriteAheadLog implements Closeable {
 								final TransactionMutation firstTransactionMutation = getFirstTransactionMutationFromWalFile(walFile);
 								try {
 									if (walFile.delete()) {
-										log.info("Deleted WAL file `" + walFile + "`!");
+										log.debug("Deleted WAL file `" + walFile + "`!");
 									} else {
 										// don't throw exception - this is not so critical so that we should stop accepting new mutations
 										log.error("Failed to delete WAL file `" + walFile + "`!");

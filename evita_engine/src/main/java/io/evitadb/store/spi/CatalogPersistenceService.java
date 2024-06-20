@@ -499,7 +499,7 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	 * Method closes this persistence service and also all {@link EntityCollectionPersistenceService} that were created
 	 * via. {@link #getOrCreateEntityCollectionPersistenceService(long, String, int)}.
 	 *
-	 * You need to call {@link #storeHeader(CatalogState, long, int, TransactionMutation, List, DataStoreMemoryBuffer)}
+	 * You need to call {@link #storeHeader(UUID, CatalogState, long, int, TransactionMutation, List, DataStoreMemoryBuffer)}
 	 * or {@link #flushTrappedUpdates(long, DataStoreIndexChanges)} before this method is called, or you will lose your
 	 * data in memory buffers.
 	 */

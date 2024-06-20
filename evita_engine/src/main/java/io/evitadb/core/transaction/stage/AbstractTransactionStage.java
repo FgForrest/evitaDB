@@ -24,7 +24,7 @@
 package io.evitadb.core.transaction.stage;
 
 import io.evitadb.api.exception.TransactionException;
-import io.evitadb.core.Catalog;
+import io.evitadb.core.transaction.TransactionManager;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -36,7 +36,6 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.Flow;
 import java.util.concurrent.Flow.Subscription;
 import java.util.concurrent.SubmissionPublisher;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiPredicate;
 
 /**
@@ -55,9 +54,9 @@ public sealed abstract class AbstractTransactionStage<T extends TransactionTask,
 	permits ConflictResolutionTransactionStage, WalAppendingTransactionStage, TrunkIncorporationTransactionStage {
 
 	/**
-	 * Represents reference to the currently active catalog version in the "live view" of the evitaDB engine.
+	 * Reference to transactional manager which is a singleton per catalog, and maintains
 	 */
-	protected final AtomicReference<Catalog> liveCatalog;
+	protected final TransactionManager transactionManager;
 	/**
 	 * The subscription variable represents a subscription to a reactive stream.
 	 * It is used to manage the flow of data from the publisher to the subscriber.
@@ -80,9 +79,9 @@ public sealed abstract class AbstractTransactionStage<T extends TransactionTask,
 	 */
 	@Nonnull private final Runnable onException;
 
-	protected AbstractTransactionStage(@Nonnull Executor executor, int maxBufferCapacity, @Nonnull Catalog catalog, @Nonnull Runnable onException) {
+	protected AbstractTransactionStage(@Nonnull Executor executor, int maxBufferCapacity, @Nonnull TransactionManager transactionManager, @Nonnull Runnable onException) {
 		super(executor, maxBufferCapacity);
-		this.liveCatalog = new AtomicReference<>(catalog);
+		this.transactionManager = transactionManager;
 		this.onException = onException;
 	}
 
@@ -96,7 +95,7 @@ public sealed abstract class AbstractTransactionStage<T extends TransactionTask,
 	public final void onNext(T task) {
 		try {
 			Assert.isPremiseValid(
-				Objects.equals(this.liveCatalog.get().getName(), task.catalogName()),
+				Objects.equals(this.transactionManager.getCatalogName(), task.catalogName()),
 				"Catalog name mismatch!"
 			);
 			// delegate handling logic to the concrete implementation
@@ -124,7 +123,7 @@ public sealed abstract class AbstractTransactionStage<T extends TransactionTask,
 	@Override
 	public final void onError(Throwable throwable) {
 		log.error(
-			"Fatal error! Error propagated outside catalog `" + this.liveCatalog.get().getName() + "` transaction stage! " +
+			"Fatal error! Error propagated outside catalog `" + this.transactionManager.getCatalogName() + "` transaction stage! " +
 				"This is unexpected and effectively stops transaction processing!",
 			throwable
 		);
@@ -132,25 +131,8 @@ public sealed abstract class AbstractTransactionStage<T extends TransactionTask,
 
 	@Override
 	public final void onComplete() {
-		log.debug("Transaction stage completed for catalog `" + this.liveCatalog.get().getName() + "`!");
+		log.debug("Transaction stage completed for catalog `" + this.transactionManager.getCatalogName() + "`!");
 		this.completed = true;
-	}
-
-	/**
-	 * Informs transactional pipeline jobs that the catalog version has advanced due to external reasons (such as
-	 * catalog renaming).
-	 */
-	public void advanceVersion(long catalogVersion) {
-		// do nothing
-	}
-
-	/**
-	 * Method is called when new catalog version is propagated to the "live view" in evitaDB engine.
-	 *
-	 * @param catalog The new catalog version.
-	 */
-	public void updateCatalogReference(@Nonnull Catalog catalog) {
-		this.liveCatalog.set(catalog);
 	}
 
 	/**
