@@ -96,7 +96,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
-import java.util.function.LongConsumer;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static io.evitadb.store.spi.CatalogPersistenceService.WAL_FILE_SUFFIX;
@@ -213,6 +213,14 @@ public class CatalogWriteAheadLog implements Closeable {
 	 */
 	private final List<PendingRemoval> pendingRemovals = new CopyOnWriteArrayList<>();
 	/**
+	 * Callback to be called when the WAL file is purged.
+	 */
+	private final WalPurgeCallback onWalPurgeCallback;
+	/**
+	 * Contains the last processed catalog version that analysed and added to pending removals.
+	 */
+	private long purgeProcessedCatalogVersion;
+	/**
 	 * The index of the WAL file incremented each time the WAL file is rotated.
 	 */
 	@Getter(AccessLevel.PACKAGE)
@@ -234,10 +242,6 @@ public class CatalogWriteAheadLog implements Closeable {
 	 * Field contains current size of the WAL file the records are appended to in Bytes.
 	 */
 	private long currentWalFileSize;
-	/**
-	 * Callback to be called when the WAL file is purged.
-	 */
-	private final LongConsumer onWalPurgeCallback;
 
 	/**
 	 * Method checks if the WAL file is complete and if not, it truncates it. The non-complete WAL file record is
@@ -387,6 +391,7 @@ public class CatalogWriteAheadLog implements Closeable {
 
 	/**
 	 * Returns the first and last catalog versions found in the given WAL file.
+	 *
 	 * @param walFile the WAL file to read from
 	 * @return the first and last catalog versions found in the WAL file
 	 */
@@ -541,7 +546,7 @@ public class CatalogWriteAheadLog implements Closeable {
 		@Nonnull TransactionOptions transactionOptions,
 		@Nonnull Scheduler scheduler,
 		@Nonnull Consumer<OffsetDateTime> bootstrapFileTrimmer,
-		@Nonnull LongConsumer onWalPurgeCallback
+		@Nonnull WalPurgeCallback onWalPurgeCallback
 	) {
 		this.processedCatalogVersion = new AtomicLong(catalogVersion);
 		final int[] firstAndLastWalFileIndex = getFirstAndLastWalFileIndex(catalogStoragePath, catalogName);
@@ -599,34 +604,6 @@ public class CatalogWriteAheadLog implements Closeable {
 				"Failed to open WAL file!",
 				e
 			);
-		}
-	}
-
-	/**
-	 * Removes the obsolete WAL files from the catalog storage path.
-	 */
-	private long removeWalFiles() {
-		synchronized (this.pendingRemovals) {
-			final long catalogVersion = this.processedCatalogVersion.get();
-			final Set<PendingRemoval> toRemove = new HashSet<>(64);
-
-			long lastPuredCatalogVersion = -1;
-			for (PendingRemoval pendingRemoval : this.pendingRemovals) {
-				if (pendingRemoval.catalogVersion <= catalogVersion) {
-					pendingRemoval.runnable().run();
-					toRemove.add(pendingRemoval);
-					lastPuredCatalogVersion = pendingRemoval.catalogVersion;
-				} else {
-					break;
-				}
-			}
-			this.pendingRemovals.removeAll(toRemove);
-			// call the listener to remove the obsolete files
-			if (lastPuredCatalogVersion > -1) {
-				this.onWalPurgeCallback.accept(lastPuredCatalogVersion + 1);
-			}
-
-			return -1;
 		}
 	}
 
@@ -1052,6 +1029,40 @@ public class CatalogWriteAheadLog implements Closeable {
 	}
 
 	/**
+	 * Removes the obsolete WAL files from the catalog storage path.
+	 */
+	private long removeWalFiles() {
+		synchronized (this.pendingRemovals) {
+			final long catalogVersion = this.processedCatalogVersion.get();
+			final Set<PendingRemoval> toRemove = new HashSet<>(64);
+
+			long firstCatalogVersionToBeKept = -1;
+			OffsetDateTime firstCommitTimestamp = null;
+			for (PendingRemoval pendingRemoval : this.pendingRemovals) {
+				if (pendingRemoval.catalogVersion() <= catalogVersion) {
+					final TransactionMutation firstTxMutationFromRemovedFile = pendingRemoval.removeLambda().get();
+					toRemove.add(pendingRemoval);
+					if (pendingRemoval.catalogVersion() > firstCatalogVersionToBeKept) {
+						firstCatalogVersionToBeKept = pendingRemoval.catalogVersion();
+						firstCommitTimestamp = firstTxMutationFromRemovedFile.getCommitTimestamp();
+					}
+				} else {
+					break;
+				}
+			}
+			this.pendingRemovals.removeAll(toRemove);
+			// call the listener to remove the obsolete files
+			if (firstCatalogVersionToBeKept > -1) {
+				this.onWalPurgeCallback.purgeFilesUpTo(firstCatalogVersionToBeKept);
+			}
+			// now trim the bootstrap record file
+			this.bootstrapFileTrimmer.accept(firstCommitTimestamp);
+
+			return -1;
+		}
+	}
+
+	/**
 	 * Finds the index of a write-ahead log (WAL) file associated with a given catalog version.
 	 *
 	 * @param catalogVersion The catalog version to search for.
@@ -1229,8 +1240,9 @@ public class CatalogWriteAheadLog implements Closeable {
 					try {
 						final FirstAndLastCatalogVersions versionsFromWalFile = getFirstAndLastCatalogVersionsFromWalFile(walFile);
 						final PendingRemoval pendingRemoval = new PendingRemoval(
-							versionsFromWalFile.lastCatalogVersion(),
+							versionsFromWalFile.lastCatalogVersion() + 1,
 							() -> {
+								final TransactionMutation firstTransactionMutation = getFirstTransactionMutationFromWalFile(walFile);
 								try {
 									if (walFile.delete()) {
 										log.info("Deleted WAL file `" + walFile + "`!");
@@ -1241,6 +1253,7 @@ public class CatalogWriteAheadLog implements Closeable {
 								} catch (Exception ex) {
 									log.error("Failed to delete WAL file `" + walFile + "`!", ex);
 								}
+								return firstTransactionMutation;
 							}
 						);
 						if (!this.pendingRemovals.contains(pendingRemoval)) {
@@ -1252,13 +1265,6 @@ public class CatalogWriteAheadLog implements Closeable {
 						// the file was deleted in the meantime
 					}
 				}
-
-				// now check the date and time of the leading transaction of the oldest WAL file
-				final TransactionMutation firstMutation = getFirstTransactionMutationFromWalFile(
-					walFiles[walFiles.length - this.walFileCountKept]
-				);
-				firstCommitTimestamp = firstMutation.getCommitTimestamp();
-				this.bootstrapFileTrimmer.accept(firstCommitTimestamp);
 			}
 
 		} catch (IOException e) {
@@ -1364,6 +1370,25 @@ public class CatalogWriteAheadLog implements Closeable {
 	}
 
 	/**
+	 * Interface that allows to look up for the active files for the given catalog version and to remove the files up to
+	 * the given active files.
+	 */
+	public interface WalPurgeCallback {
+
+		WalPurgeCallback NO_OP = activeFiles -> {
+			// do nothing
+		};
+
+		/**
+		 * Purges the files up to the given active files.
+		 *
+		 * @param firstActiveCatalogVersion the first catalog version that needs to be kept
+		 */
+		void purgeFilesUpTo(long firstActiveCatalogVersion);
+
+	}
+
+	/**
 	 * Contains first and last catalog versions found in current WAL file.
 	 *
 	 * @param firstCatalogVersion first catalog version
@@ -1377,12 +1402,14 @@ public class CatalogWriteAheadLog implements Closeable {
 
 	/**
 	 * Record that holds information about pending removal of the WAL file.
+	 *
 	 * @param catalogVersion the catalog version that needs to be processed before the removal
-	 * @param runnable the runnable that performs the file removal
+	 * @param removeLambda   the removeLambda that performs the file removal
+	 *                       and returns first transaction mutation in the removed file
 	 */
 	private record PendingRemoval(
 		long catalogVersion,
-		@Nonnull Runnable runnable
+		@Nonnull Supplier<TransactionMutation> removeLambda
 	) {
 
 		@Override

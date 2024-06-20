@@ -107,6 +107,7 @@ import io.evitadb.store.spi.model.reference.WalFileReference;
 import io.evitadb.store.spi.model.storageParts.index.CatalogIndexStoragePart;
 import io.evitadb.store.spi.model.storageParts.index.GlobalUniqueIndexStoragePart;
 import io.evitadb.store.wal.CatalogWriteAheadLog;
+import io.evitadb.store.wal.CatalogWriteAheadLog.WalPurgeCallback;
 import io.evitadb.store.wal.WalKryoConfigurer;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -137,7 +138,6 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntConsumer;
-import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
@@ -589,7 +589,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		@Nonnull TransactionOptions transactionOptions,
 		@Nonnull Scheduler scheduler,
 		@Nonnull Consumer<OffsetDateTime> bootstrapFileTrimFunction,
-		@Nonnull LongConsumer onWalPurgeCallback
+		@Nonnull Supplier<WalPurgeCallback> onWalPurgeCallback
 	) {
 		WalFileReference currentWalFileRef = catalogHeader.walFileReference();
 		if (catalogHeader.catalogState() == CatalogState.ALIVE && currentWalFileRef == null) {
@@ -624,7 +624,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				walFileReference -> new CatalogWriteAheadLog(
 					catalogVersion, catalogName, catalogStoragePath, catalogKryoPool,
 					storageOptions, transactionOptions, scheduler,
-					bootstrapFileTrimFunction, onWalPurgeCallback
+					bootstrapFileTrimFunction, onWalPurgeCallback.get()
 				)
 			)
 			.orElse(null);
@@ -650,7 +650,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		@Nonnull TransactionOptions transactionOptions,
 		@Nonnull Scheduler scheduler,
 		@Nonnull Consumer<OffsetDateTime> bootstrapFileTrimFunction,
-		@Nonnull LongConsumer onWalPurgeCallback,
+		@Nonnull Supplier<WalPurgeCallback> onWalPurgeCallback,
 		@Nonnull Path catalogFilePath,
 		@Nonnull Pool<Kryo> kryoPool
 	) {
@@ -662,7 +662,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			new CatalogWriteAheadLog(
 				catalogVersion, catalogName, catalogFilePath, kryoPool,
 				storageOptions, transactionOptions, scheduler,
-				bootstrapFileTrimFunction, onWalPurgeCallback
+				bootstrapFileTrimFunction, onWalPurgeCallback.get()
 			);
 	}
 
@@ -816,8 +816,10 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		this.catalogWal = createWalIfAnyWalFilePresent(
 			catalogVersion, catalogName,
 			storageOptions, transactionOptions, scheduler,
-			this::trimBootstrapFile, this.obsoleteFileMaintainer::firstAvailableCatalogVersionChanged,
-			this.catalogStoragePath, this.catalogKryoPool
+			this::trimBootstrapFile,
+			this.obsoleteFileMaintainer::createWalPurgeCallback,
+			this.catalogStoragePath,
+			this.catalogKryoPool
 		);
 
 		final String catalogFileName = getCatalogDataStoreFileName(catalogName, lastCatalogBootstrap.catalogFileIndex());
@@ -895,7 +897,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		final long catalogVersion = this.bootstrapUsed.catalogVersion();
 		this.catalogWal = createWalIfAnyWalFilePresent(
 			catalogVersion, catalogName, storageOptions, transactionOptions, scheduler,
-			this::trimBootstrapFile, this.obsoleteFileMaintainer::firstAvailableCatalogVersionChanged,
+			this::trimBootstrapFile, this.obsoleteFileMaintainer::createWalPurgeCallback,
 			this.catalogStoragePath, this.catalogKryoPool
 		);
 
@@ -1385,7 +1387,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 					this.bootstrapUsed.catalogVersion(), this.catalogName, this.catalogStoragePath, catalogHeader, this.catalogKryoPool,
 					this.storageOptions, this.transactionOptions, this.scheduler,
 					this::trimBootstrapFile,
-					this.obsoleteFileMaintainer::firstAvailableCatalogVersionChanged
+					this.obsoleteFileMaintainer::createWalPurgeCallback
 				);
 			}
 			Assert.isPremiseValid(

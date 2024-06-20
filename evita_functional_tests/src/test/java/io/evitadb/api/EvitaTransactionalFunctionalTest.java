@@ -31,6 +31,7 @@ import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.StorageOptions;
+import io.evitadb.api.configuration.ThreadPoolOptions;
 import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.api.exception.RollbackException;
 import io.evitadb.api.query.QueryConstraints;
@@ -1171,7 +1172,8 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 		assertTrue(backupFilePath.toFile().exists(), "Backup file does not exist!");
 
 		final String restoredCatalogName = TEST_CATALOG + "_restored";
-		evita.restoreCatalog(restoredCatalogName, Files.size(backupFilePath), Files.newInputStream(backupFilePath));
+		evita.restoreCatalog(restoredCatalogName, Files.size(backupFilePath), Files.newInputStream(backupFilePath))
+			.get(2, TimeUnit.MINUTES);
 
 		final long originalCatalogVersion = evita.queryCatalog(
 			TEST_CATALOG,
@@ -1245,6 +1247,13 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 						.queryTimeoutInMilliseconds(-1)
 						.transactionTimeoutInMilliseconds(-1)
 						.closeSessionsAfterSecondsOfInactivity(-1)
+						.transactionThreadPool(
+							ThreadPoolOptions.transactionThreadPoolBuilder()
+								.threadPriority(Thread.MAX_PRIORITY)
+								.maxThreadCount(16)
+								.queueSize(16_384)
+								.build()
+						)
 						.build()
 				)
 				.build()

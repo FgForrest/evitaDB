@@ -103,7 +103,9 @@ public class CatalogSnapshotPropagationTransactionStage implements Flow.Subscrib
 			}
 		} catch (Throwable ex) {
 			log.error("Error while processing snapshot propagating task for catalog `" + catalogName + "`!", ex);
-			task.future().completeExceptionally(ex);
+			if (task.future() != null) {
+				task.future().completeExceptionally(ex);
+			}
 		}
 
 		// emit the event

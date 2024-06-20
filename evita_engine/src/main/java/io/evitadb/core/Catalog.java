@@ -1221,10 +1221,10 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 			this, this.evitaConfiguration.server(), this.evitaConfiguration.transaction(),
 			this.scheduler, this.transactionalExecutor, this.newCatalogVersionConsumer
 		);
-		while (current != null) {
+		while (current != null && !current.isClosed()) {
 			//noinspection unchecked
 			final List<Subscriber<?>> subscribers = (List<Subscriber<?>>) current.getSubscribers();
-			Assert.isPremiseValid(subscribers.size() == 1, "Only one subscriber is expected!");
+			Assert.isPremiseValid(current.isClosed() || subscribers.size() == 1, "Only one subscriber is expected, " + subscribers.size() + " found!");
 			for (Subscriber<?> subscriber : subscribers) {
 				if (subscriber instanceof AbstractTransactionStage<?, ?> stage) {
 					stage.updateCatalogReference(this);
@@ -1322,10 +1322,10 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 			this, this.evitaConfiguration.server(), this.evitaConfiguration.transaction(),
 			this.scheduler, this.transactionalExecutor, this.newCatalogVersionConsumer
 		);
-		while (current != null) {
+		while (current != null && !current.isClosed()) {
 			//noinspection unchecked
 			final List<Subscriber<?>> subscribers = (List<Subscriber<?>>) current.getSubscribers();
-			Assert.isPremiseValid(subscribers.size() == 1, "Only one subscriber is expected!");
+			Assert.isPremiseValid(current.isClosed() || subscribers.size() == 1, "Only one subscriber is expected, " + subscribers.size() + " found!");
 			for (Subscriber<?> subscriber : subscribers) {
 				if (subscriber instanceof TrunkIncorporationTransactionStage stage) {
 					return stage;
