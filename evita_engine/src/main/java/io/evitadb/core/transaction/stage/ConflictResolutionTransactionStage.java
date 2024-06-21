@@ -39,6 +39,7 @@ import javax.annotation.concurrent.NotThreadSafe;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.function.Consumer;
 
 /**
  * Represents a transaction stage responsible for resolving conflicts during a transaction and assigning a new
@@ -59,7 +60,7 @@ public final class ConflictResolutionTransactionStage
 		@Nonnull Executor executor,
 		int maxBufferCapacity,
 		@Nonnull TransactionManager transactionManager,
-		@Nonnull Runnable onException
+		@Nonnull Consumer<TransactionTask> onException
 	) {
 		super(executor, maxBufferCapacity, transactionManager, onException);
 	}
@@ -82,8 +83,9 @@ public final class ConflictResolutionTransactionStage
 
 		final TransactionAcceptedEvent event = new TransactionAcceptedEvent(task.catalogName());
 
-		// identify conflicts with other transaction
-		// TOBEDONE JNO #503 - implement conflict resolution
+		// identify conflicts with other transactions
+		this.transactionManager.identifyConflicts();
+
 		// assign new catalog version
 		push(
 			task,
@@ -119,6 +121,7 @@ public final class ConflictResolutionTransactionStage
 	 * @param commitBehaviour requested stage to wait for during commit
 	 * @param future the future to complete when the transaction propagates to requested stage
 	 */
+	@NonRepeatableTask
 	public record ConflictResolutionTransactionTask(
 		@Nonnull String catalogName,
 		@Nonnull UUID transactionId,

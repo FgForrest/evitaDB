@@ -217,10 +217,6 @@ public class CatalogWriteAheadLog implements Closeable {
 	 */
 	private final WalPurgeCallback onWalPurgeCallback;
 	/**
-	 * Contains the last processed catalog version that analysed and added to pending removals.
-	 */
-	private long purgeProcessedCatalogVersion;
-	/**
 	 * The index of the WAL file incremented each time the WAL file is rotated.
 	 */
 	@Getter(AccessLevel.PACKAGE)

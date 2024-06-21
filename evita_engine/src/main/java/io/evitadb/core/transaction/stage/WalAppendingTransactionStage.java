@@ -36,10 +36,12 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.annotation.concurrent.NotThreadSafe;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.function.Consumer;
 
 /**
  * Represents a stage in a catalog processing pipeline that appends isolated write-ahead log (WAL) entries to a shared
@@ -48,6 +50,7 @@ import java.util.concurrent.Executor;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @Slf4j
+@NotThreadSafe
 public final class WalAppendingTransactionStage
 	extends AbstractTransactionStage<WalAppendingTransactionTask, TrunkIncorporationTransactionTask> {
 	private int droppedCatalogVersions;
@@ -56,7 +59,7 @@ public final class WalAppendingTransactionStage
 		@Nonnull Executor executor,
 		int maxBufferCapacity,
 		@Nonnull TransactionManager transactionManager,
-		@Nonnull Runnable onException
+		@Nonnull Consumer<TransactionTask> onException
 	) {
 		super(executor, maxBufferCapacity, transactionManager, onException);
 	}
@@ -92,17 +95,16 @@ public final class WalAppendingTransactionStage
 		log.debug("Appending transaction {} to WAL for catalog {}.", task.transactionId(), task.catalogName());
 
 		// append WAL and discard the contents of the isolated WAL
-		final long writtenLength = this.transactionManager.getLivingCatalog()
-			.appendWalAndDiscard(
-				new TransactionMutation(
-					task.transactionId(),
-					task.catalogVersion(),
-					task.mutationCount(),
-					task.walSizeInBytes(),
-					OffsetDateTime.now()
-				),
-				task.walReference()
-			);
+		final long writtenLength = this.transactionManager.appendWalAndDiscard(
+			new TransactionMutation(
+				task.transactionId(),
+				task.catalogVersion(),
+				task.mutationCount(),
+				task.walSizeInBytes(),
+				OffsetDateTime.now()
+			),
+			task.walReference()
+		);
 
 		// now the WAL is safely written - no version is lost
 		this.droppedCatalogVersions = 0;
@@ -140,6 +142,7 @@ public final class WalAppendingTransactionStage
 	 * @param commitBehaviour requested stage to wait for during commit
 	 * @param future          the future to complete when the transaction propagates to requested stage
 	 */
+	@NonRepeatableTask
 	public record WalAppendingTransactionTask(
 		@Nonnull String catalogName,
 		long catalogVersion,

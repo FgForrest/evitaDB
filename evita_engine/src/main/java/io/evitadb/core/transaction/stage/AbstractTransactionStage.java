@@ -37,6 +37,7 @@ import java.util.concurrent.Flow;
 import java.util.concurrent.Flow.Subscription;
 import java.util.concurrent.SubmissionPublisher;
 import java.util.function.BiPredicate;
+import java.util.function.Consumer;
 
 /**
  * Abstract class representing a transaction stage in a catalog processing pipeline.
@@ -77,9 +78,14 @@ public sealed abstract class AbstractTransactionStage<T extends TransactionTask,
 	/**
 	 * Handler that is called on any exception.
 	 */
-	@Nonnull private final Runnable onException;
+	@Nonnull private final Consumer<TransactionTask> onException;
 
-	protected AbstractTransactionStage(@Nonnull Executor executor, int maxBufferCapacity, @Nonnull TransactionManager transactionManager, @Nonnull Runnable onException) {
+	protected AbstractTransactionStage(
+		@Nonnull Executor executor,
+		int maxBufferCapacity,
+		@Nonnull TransactionManager transactionManager,
+		@Nonnull Consumer<TransactionTask> onException
+	) {
 		super(executor, maxBufferCapacity);
 		this.transactionManager = transactionManager;
 		this.onException = onException;
@@ -117,7 +123,7 @@ public sealed abstract class AbstractTransactionStage<T extends TransactionTask,
 		if (future != null) {
 			future.completeExceptionally(ex);
 		}
-		onException.run();
+		onException.accept(task);
 	}
 
 	@Override
@@ -161,11 +167,20 @@ public sealed abstract class AbstractTransactionStage<T extends TransactionTask,
 		this.stageHandoff = offer(
 			targetTask,
 			(subscriber, theTask) -> {
-				final TransactionException exception = new TransactionException(
-					"Transaction task future is null! " +
-						"Cannot complete the task " + getName() + " - some committed data will be lost, " +
-						"and no one will be informed about it!"
-				);
+				final String text = targetTask.getClass().isAnnotationPresent(NonRepeatableTask.class) ?
+					" - some committed data will be lost" : "";
+				final TransactionException exception;
+				if (sourceTask.future() != null && targetTask.future() == null) {
+					exception = new TransactionException(
+						"The task " + getName() + " is completed, but cannot push " + targetTask.getClass().getSimpleName() +
+							" to next stage" + text + "."
+					);
+				} else {
+					exception = new TransactionException(
+						"The task " + getName() + " is completed, but cannot push " + targetTask.getClass().getSimpleName() +
+							text + " to next stage and no one will be informed about it!"
+					);
+				}
 				handleException(sourceTask, exception);
 				return false;
 			}

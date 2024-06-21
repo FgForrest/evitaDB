@@ -331,8 +331,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		this.newCatalogVersionConsumer = newCatalogVersionConsumer;
 		this.lastPersistedSchemaVersion = this.schema.get().version();
 		this.transactionManager = new TransactionManager(
-			this, evitaConfiguration.server(), evitaConfiguration.transaction(), scheduler,
-			transactionalExecutor, newCatalogVersionConsumer
+			this, evitaConfiguration, scheduler, transactionalExecutor, newCatalogVersionConsumer
 		);
 
 		this.persistenceService.storeHeader(
@@ -440,8 +439,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		this.newCatalogVersionConsumer = newCatalogVersionConsumer;
 		this.lastPersistedSchemaVersion = this.schema.get().version();
 		this.transactionManager = new TransactionManager(
-			this, evitaConfiguration.server(), evitaConfiguration.transaction(), scheduler,
-			transactionalExecutor, newCatalogVersionConsumer
+			this, evitaConfiguration, scheduler, transactionalExecutor, newCatalogVersionConsumer
 		);
 	}
 
@@ -813,8 +811,6 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 				transactionMutation -> {
 					final long start = System.nanoTime();
 					final Catalog catalog = this.transactionManager.processWriteAheadLog(
-						this.evitaConfiguration.server(), this.evitaConfiguration.transaction(),
-						this.scheduler, this.transactionalExecutor, this.newCatalogVersionConsumer,
 						transactionMutation.getCatalogVersion(), Long.MAX_VALUE, false
 					);
 					this.persistenceService.purgeAllObsoleteFiles();
@@ -1095,8 +1091,6 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 	) {
 		try {
 			this.transactionManager.commit(
-				this.evitaConfiguration.server(), this.evitaConfiguration.transaction(),
-				this.scheduler, this.transactionalExecutor, this.newCatalogVersionConsumer,
 				transactionId, commitBehaviour, walPersistenceService, transactionFinalizationFuture
 			);
 		} catch (Exception e) {

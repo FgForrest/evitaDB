@@ -24,20 +24,20 @@
 package io.evitadb.core.transaction.stage;
 
 import io.evitadb.api.TransactionContract.CommitBehavior;
-import io.evitadb.core.Catalog;
 import io.evitadb.core.metric.event.transaction.NewCatalogVersionPropagatedEvent;
 import io.evitadb.core.metric.event.transaction.TransactionProcessedEvent;
+import io.evitadb.core.transaction.TransactionManager;
 import io.evitadb.core.transaction.stage.TrunkIncorporationTransactionStage.UpdatedCatalogTransactionTask;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import javax.annotation.concurrent.NotThreadSafe;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.concurrent.Flow;
 import java.util.concurrent.Flow.Subscription;
-import java.util.function.Consumer;
 
 /**
  * The CatalogSnapshotPropagationTransactionStage class is a subscriber implementation that processes
@@ -49,6 +49,7 @@ import java.util.function.Consumer;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @Slf4j
+@NotThreadSafe
 public class CatalogSnapshotPropagationTransactionStage implements Flow.Subscriber<UpdatedCatalogTransactionTask> {
 	/**
 	 * The name of the catalog the processor is bound to. Each catalog has its own transaction processor.
@@ -62,19 +63,18 @@ public class CatalogSnapshotPropagationTransactionStage implements Flow.Subscrib
 	 */
 	private Flow.Subscription subscription;
 	/**
-	 * Contains lambda function that accepts newly created catalog instance and propagates it to the "live view" of
-	 * the evitaDB engine, to be used by subsequent requests to the catalog.
+	 * Reference to transactional manager which is a singleton per catalog, and maintains
 	 */
-	private final Consumer<Catalog> newCatalogVersionConsumer;
+	private final TransactionManager transactionManager;
 	/**
 	 * Contains TRUE if the processor has been completed and does not accept any more data.
 	 */
 	@Getter private boolean completed;
 
 	public CatalogSnapshotPropagationTransactionStage(
-		@Nonnull Consumer<Catalog> newCatalogVersionConsumer
+		@Nonnull TransactionManager transactionManager
 	) {
-		this.newCatalogVersionConsumer = newCatalogVersionConsumer;
+		this.transactionManager = transactionManager;
 	}
 
 	@Override
@@ -91,7 +91,7 @@ public class CatalogSnapshotPropagationTransactionStage implements Flow.Subscrib
 		final NewCatalogVersionPropagatedEvent event = new NewCatalogVersionPropagatedEvent(task.catalogName());
 		try {
 			this.catalogName = task.catalogName();
-			this.newCatalogVersionConsumer.accept(task.catalog());
+			this.transactionManager.propagateCatalogSnapshot(task.catalog());
 			if (task.future() != null) {
 				log.debug("Snapshot propagating task for catalog `" + catalogName + "` completed (" + task.catalog().getEntityTypes() + ")!");
 				task.future().complete(task.catalogVersion());
