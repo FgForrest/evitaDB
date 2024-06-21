@@ -23,19 +23,27 @@
 
 package io.evitadb.externalApi.observability.logging;
 
-import io.evitadb.externalApi.http.EndpointExchange;
-import io.undertow.server.HttpServerExchange;
+import com.linecorp.armeria.common.AggregatedHttpRequest;
+import com.linecorp.armeria.common.AggregationOptions;
+import com.linecorp.armeria.common.HttpObject;
+import com.linecorp.armeria.common.HttpRequest;
+import com.linecorp.armeria.common.RequestHeaders;
+import com.linecorp.armeria.common.stream.SubscriptionOption;
+import io.evitadb.externalApi.http.EndpointRequest;
+import io.netty.util.concurrent.EventExecutor;
+import org.reactivestreams.Subscriber;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.concurrent.CompletableFuture;
 
 /**
- * Implementation of {@link EndpointExchange} for Observation API.
+ * Implementation of {@link EndpointRequest} for Observation API.
  *
  * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
  */
-public record LoggingEndpointExchange(@Nonnull HttpServerExchange serverExchange,
+public record LoggingEndpointExchange(@Nonnull HttpRequest httpRequest,
                                       @Nonnull String httpMethod,
                                       @Nullable String requestBodyContentType,
-                                      @Nullable String preferredResponseContentType) implements EndpointExchange {
+                                      @Nullable String preferredResponseContentType) implements EndpointRequest {
 };

@@ -23,10 +23,10 @@
 
 package io.evitadb.externalApi.graphql;
 
+import com.linecorp.armeria.server.HttpService;
 import io.evitadb.externalApi.graphql.configuration.GraphQLConfig;
 import io.evitadb.externalApi.http.ExternalApiProvider;
 import io.evitadb.utils.NetworkUtils;
-import io.undertow.server.HttpHandler;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
@@ -53,7 +53,7 @@ public class GraphQLProvider implements ExternalApiProvider<GraphQLConfig> {
 
     @Nonnull
     @Getter
-    private final HttpHandler apiHandler;
+    private final HttpService apiHandler;
 
     /**
      * Contains url that was at least once found reachable.

@@ -76,4 +76,8 @@ module evita.external.api.core {
 	requires evita.query;
 	requires org.bouncycastle.provider;
 	requires org.bouncycastle.pkix;
+	requires com.linecorp.armeria;
+	requires io.netty.codec.http2;
+	requires io.netty.transport;
+	requires io.netty.handler;
 }

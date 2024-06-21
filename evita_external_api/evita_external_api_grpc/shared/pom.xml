@@ -185,16 +185,6 @@ $1package io.evitadb.externalApi.grpc.generated;
 		</dependency>
 
 		<dependency>
-			<groupId>io.grpc</groupId>
-			<artifactId>grpc-netty</artifactId>
-			<version>${grpc.version}</version>
-		</dependency>
-		<dependency>
-			<groupId>io.netty</groupId>
-			<artifactId>netty-handler</artifactId>
-			<version>${nettyHandler.version}</version>
-		</dependency>
-		<dependency>
 			<groupId>com.fasterxml.jackson.core</groupId>
 			<artifactId>jackson-databind</artifactId>
 			<version>${jackson.version}</version>

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -56,7 +56,7 @@ import java.util.stream.Collectors;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public abstract class EndpointHandler<E extends EndpointExchange> implements HttpHandler {
+public abstract class EndpointHandler<E extends EndpointRequest> implements HttpHandler {
 
 	private static final String CONTENT_TYPE_CHARSET = "; charset=UTF-8";
 
@@ -266,8 +266,9 @@ public abstract class EndpointHandler<E extends EndpointExchange> implements Htt
 			})
 			.orElse(StandardCharsets.UTF_8);
 
-		final String body;
-		try (final InputStream is = exchange.serverExchange().getInputStream();
+		return "";
+		/*final String body;
+		try (final InputStream is = exchange.httpRequest().getInputStream();
 		     final InputStreamReader isr = new InputStreamReader(is, bodyCharset);
 		     final BufferedReader bf = new BufferedReader(isr)) {
 			body = bf.lines().collect(Collectors.joining("\n"));
@@ -279,7 +280,7 @@ public abstract class EndpointHandler<E extends EndpointExchange> implements Htt
 			!body.trim().isEmpty(),
 			() -> createInvalidUsageException("Request's body contains no data.")
 		);
-		return body;
+		return body;*/
 	}
 
 	/**
@@ -302,15 +303,15 @@ public abstract class EndpointHandler<E extends EndpointExchange> implements Htt
 	}
 
 	private void sendEmptySuccessResponse(@Nonnull E exchange) {
-		exchange.serverExchange().setStatusCode(StatusCodes.NO_CONTENT);
-		exchange.serverExchange().endExchange();
+		//exchange.httpRequest().setStatusCode(StatusCodes.NO_CONTENT);
+		//exchange.httpRequest().endExchange();
 	}
 
 	private void sendSuccessResponseWithBody(@Nonnull E exchange, @Nonnull Object result) {
-		exchange.serverExchange().setStatusCode(StatusCodes.OK);
-		exchange.serverExchange().getResponseHeaders().put(Headers.CONTENT_TYPE, exchange.preferredResponseContentType() + CONTENT_TYPE_CHARSET);
-		writeResult(exchange, exchange.serverExchange().getOutputStream(), result);
-		exchange.serverExchange().endExchange();
+		//exchange.httpRequest().setStatusCode(StatusCodes.OK);
+		//exchange.httpRequest().getResponseHeaders().put(Headers.CONTENT_TYPE, exchange.preferredResponseContentType() + CONTENT_TYPE_CHARSET);
+		//writeResult(exchange, exchange.httpRequest().getOutputStream(), result);
+		//exchange.httpRequest().endExchange();
 	}
 
 }

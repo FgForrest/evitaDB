@@ -85,6 +85,9 @@ module evita.external.api.observability {
 	requires java.sql;
 	requires evita.external.api.grpc;
 	requires io.prometheus.metrics.model;
+	requires com.linecorp.armeria;
+	requires io.netty.common;
+	requires org.reactivestreams;
 
 	exports io.evitadb.externalApi.observability.configuration;
 	exports io.evitadb.externalApi.observability.trace;

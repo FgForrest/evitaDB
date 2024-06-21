@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,6 +23,10 @@
 
 package io.evitadb.externalApi.http;
 
+import com.linecorp.armeria.common.HttpRequest;
+import com.linecorp.armeria.common.HttpResponse;
+import com.linecorp.armeria.common.HttpStatus;
+import com.linecorp.armeria.server.HttpService;
 import io.evitadb.exception.EvitaError;
 import io.undertow.server.HttpHandler;
 import io.undertow.server.HttpServerExchange;
@@ -39,7 +43,7 @@ import javax.annotation.Nonnull;
 @Slf4j
 public class FallbackExceptionHandler extends ExternalApiExceptionHandler {
 
-    public FallbackExceptionHandler(@Nonnull HttpHandler next) {
+    public FallbackExceptionHandler(@Nonnull HttpService next) {
         super(next);
     }
 
@@ -50,12 +54,12 @@ public class FallbackExceptionHandler extends ExternalApiExceptionHandler {
     }
 
     @Override
-    protected void renderError(@Nonnull EvitaError evitaError, @Nonnull HttpServerExchange exchange) {
+    protected HttpResponse renderError(@Nonnull EvitaError evitaError, @Nonnull HttpRequest request) {
         log.error(
-            "Unhandled Evita external API exception on URL `" + exchange.getRequestURL() + "`: error code {}, message {}",
+            "Unhandled Evita external API exception on URL `" + request.path() + "`: error code {}, message {}",
             evitaError.getErrorCode(),
             evitaError.getPrivateMessage()
         );
-        setResponse(exchange, StatusCodes.INTERNAL_SERVER_ERROR, MimeTypes.TEXT_PLAIN, null);
+        return buildResponse(HttpStatus.INTERNAL_SERVER_ERROR.code(), MimeTypes.TEXT_PLAIN, null);
     }
 }

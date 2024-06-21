@@ -24,6 +24,8 @@
 package io.evitadb.externalApi.observability;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.linecorp.armeria.common.HttpMethod;
+import com.linecorp.armeria.server.file.FileService;
 import io.evitadb.core.Evita;
 import io.evitadb.core.metric.event.CustomMetricsExecutionEvent;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -40,6 +42,8 @@ import io.evitadb.externalApi.observability.logging.StartLoggingHandler;
 import io.evitadb.externalApi.observability.logging.StopLoggingHandler;
 import io.evitadb.externalApi.observability.metric.EvitaJfrEventRegistry;
 import io.evitadb.externalApi.observability.metric.MetricHandler;
+import io.evitadb.externalApi.utils.PathHandlingService;
+import io.evitadb.externalApi.utils.Router;
 import io.evitadb.utils.Assert;
 import io.prometheus.metrics.exporter.servlet.jakarta.PrometheusMetricsServlet;
 import io.undertow.Handlers;
@@ -67,6 +71,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
@@ -119,7 +124,7 @@ public class ObservabilityManager {
 	/**
 	 * Router for observability endpoints.
 	 */
-	private final PathHandler observabilityRouter = Handlers.path();
+	private final PathHandlingService observabilityRouter = new PathHandlingService();
 	/**
 	 * Observability API config.
 	 */
@@ -317,8 +322,8 @@ public class ObservabilityManager {
 	 * Gets {@link HttpHandler} for observability endpoints.
 	 */
 	@Nonnull
-	public HttpHandler getObservabilityRouter() {
-		return new PathNormalizingHandler(observabilityRouter);
+	public PathHandlingService getObservabilityRouter() {
+		return observabilityRouter;
 	}
 
 	/**
@@ -335,7 +340,7 @@ public class ObservabilityManager {
 				)
 			);
 		}
-		final ResourceHandler resourceHandler;
+		/*final ResourceHandler resourceHandler;
 		try (FileResourceManager resourceManager = new FileResourceManager(RECORDING_FILE_DIRECTORY_PATH.toFile(), 100)) {
 			resourceHandler = new ResourceHandler((exchange, path) -> {
 				if (("/" + DUMP_FILE_NAME).equals(path)) {
@@ -344,10 +349,11 @@ public class ObservabilityManager {
 					return null;
 				}
 			});
-			observabilityRouter.addPrefixPath("/", resourceHandler);
 		} catch (IOException e) {
 			throw new GenericEvitaInternalError(e.getMessage(), e);
-		}
+		}*/
+		observabilityRouter.addExactPath("/" + DUMP_FILE_NAME, FileService.of(RECORDING_FILE_DIRECTORY_PATH));
+
 	}
 
 	/**
@@ -365,18 +371,19 @@ public class ObservabilityManager {
 		final DeploymentManager servletDeploymentManager = Servlets.defaultContainer().addDeployment(servletBuilder);
 		servletDeploymentManager.deploy();
 
-		try {
-			observabilityRouter.addPrefixPath("/" + METRICS_SUFFIX, servletDeploymentManager.start());
-		} catch (ServletException e) {
-			throw new GenericEvitaInternalError("Unable to add routing to Prometheus scraping servlet.");
-		}
+		//try {
+		//	observabilityRouter.addPrefixPath("/" + METRICS_SUFFIX, servletDeploymentManager.start());
+		//	//todo tpz: impl
+		//} catch (ServletException e) {
+		//	throw new GenericEvitaInternalError("Unable to add routing to Prometheus scraping servlet.");
+		//}
 	}
 
 	/**
 	 * Registers endpoints for controlling JFR recording.
 	 */
 	private void registerJfrControlEndpoints() {
-		observabilityRouter.addExactPath("/start",
+		/*observabilityRouter.addExactPath("/start",
 			new BlockingHandler(
 				new CorsFilter(
 					new ObservabilityExceptionHandler(
@@ -397,6 +404,7 @@ public class ObservabilityManager {
 					config.getAllowedOrigins()
 				)
 			)
-		);
+		);*/
+		//todo tpz: impl
 	}
 }

@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.observability.io;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.linecorp.armeria.server.HttpService;
 import io.evitadb.externalApi.http.JsonApiExceptionHandler;
 import io.evitadb.externalApi.observability.ObservabilityProvider;
 import io.undertow.server.HttpHandler;
@@ -39,7 +40,7 @@ import javax.annotation.Nonnull;
 @Slf4j
 public class ObservabilityExceptionHandler extends JsonApiExceptionHandler {
 
-	public ObservabilityExceptionHandler(@Nonnull ObjectMapper objectMapper, @Nonnull HttpHandler next) {
+	public ObservabilityExceptionHandler(@Nonnull ObjectMapper objectMapper, @Nonnull HttpService next) {
 		super(objectMapper, next);
 	}
 

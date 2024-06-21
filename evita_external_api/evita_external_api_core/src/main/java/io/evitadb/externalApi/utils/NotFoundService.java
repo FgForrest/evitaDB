@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,31 +21,21 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.log;
+package io.evitadb.externalApi.utils;
 
-import io.undertow.server.handlers.accesslog.AccessLogReceiver;
-import lombok.extern.slf4j.Slf4j;
-import org.slf4j.Marker;
-import org.slf4j.MarkerFactory;
+import com.linecorp.armeria.common.HttpRequest;
+import com.linecorp.armeria.common.HttpResponse;
+import com.linecorp.armeria.common.HttpStatus;
+import com.linecorp.armeria.common.MediaType;
+import com.linecorp.armeria.server.HttpService;
+import com.linecorp.armeria.server.ServiceRequestContext;
 
-/**
- * Logs access log messages to Slf4J logger marked with `ACCESS_LOG` and `UNDERTOW_ACCESS_LOG`.
- *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
- */
-@Slf4j
-public class Slf4JAccessLogReceiver implements AccessLogReceiver {
+import javax.annotation.Nonnull;
 
-	/**
-	 * Marks Undertow's access log messages to differentiate them from access log messages from other web servers.
-	 */
-	private static final Marker UNDERTOW_ACCESS_LOG_MARKER = MarkerFactory.getMarker("UNDERTOW_ACCESS_LOG");
-
+public class NotFoundService implements HttpService {
+	@Nonnull
 	@Override
-	public void logMessage(String message) {
-		log.atInfo()
-			.addMarker(AccessLogMarker.getInstance())
-			.addMarker(UNDERTOW_ACCESS_LOG_MARKER)
-			.log(message);
+	public HttpResponse serve(@Nonnull ServiceRequestContext ctx, @Nonnull HttpRequest req) {
+		return HttpResponse.of(HttpStatus.NOT_FOUND, MediaType.PLAIN_TEXT, "404 Not Found: The requested resource could not be found.");
 	}
 }

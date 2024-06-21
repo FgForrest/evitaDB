@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint;
 
+import com.linecorp.armeria.common.HttpMethod;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.EntityFetch;
@@ -41,7 +42,6 @@ import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.mutation.RestEnt
 import io.evitadb.externalApi.rest.exception.RestInvalidArgumentException;
 import io.evitadb.externalApi.rest.io.RestEndpointExchange;
 import io.evitadb.utils.Assert;
-import io.undertow.util.Methods;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -118,7 +118,7 @@ public class UpsertEntityHandler extends EntityHandler<CollectionRestHandlingCon
 	@Nonnull
 	@Override
 	public Set<String> getSupportedHttpMethods() {
-		return Set.of(withPrimaryKeyInPath ? Methods.PUT_STRING : Methods.POST_STRING);
+		return Set.of(withPrimaryKeyInPath ? HttpMethod.PUT.name() : HttpMethod.POST.name());
 	}
 
 	@Nonnull

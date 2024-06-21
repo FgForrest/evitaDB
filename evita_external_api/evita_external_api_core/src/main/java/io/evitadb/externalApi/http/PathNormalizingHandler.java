@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,6 +23,10 @@
 
 package io.evitadb.externalApi.http;
 
+import com.linecorp.armeria.common.HttpRequest;
+import com.linecorp.armeria.common.HttpResponse;
+import com.linecorp.armeria.server.HttpService;
+import com.linecorp.armeria.server.ServiceRequestContext;
 import io.undertow.server.HttpHandler;
 import io.undertow.server.HttpServerExchange;
 import lombok.RequiredArgsConstructor;
@@ -37,16 +41,16 @@ import javax.annotation.Nonnull;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @RequiredArgsConstructor
-public class PathNormalizingHandler implements HttpHandler {
+public class PathNormalizingHandler implements HttpService {
 
-	@Nonnull private final HttpHandler next;
+	@Nonnull private final HttpService next;
 
 	@Override
-	public void handleRequest(@Nonnull HttpServerExchange exchange) throws Exception {
-		if (exchange.getRequestURI().endsWith("/")) {
-			exchange.setRequestURI(exchange.getRequestURI().substring(0, exchange.getRequestURI().length() - 1));
-			exchange.setRelativePath(exchange.getRelativePath().substring(0, exchange.getRelativePath().length() - 1));
+	public HttpResponse serve(ServiceRequestContext ctx, HttpRequest req) throws Exception {
+		if (!req.path().isEmpty() && req.path().charAt(req.path().length() - 1) == '/') {
+			final String path = req.path().substring(0, req.path().length() - 1);
+			//todo tpz solve
 		}
-		next.handleRequest(exchange);
+		return next.serve(ctx, req);
 	}
 }

@@ -24,23 +24,23 @@
 package io.evitadb.externalApi.graphql.io;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.linecorp.armeria.common.HttpHeaderNames;
+import com.linecorp.armeria.common.HttpMethod;
+import com.linecorp.armeria.common.HttpRequest;
+import com.linecorp.armeria.common.HttpResponse;
+import com.linecorp.armeria.server.HttpService;
+import com.linecorp.armeria.server.ServiceRequestContext;
 import graphql.GraphQL;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.graphql.configuration.GraphQLConfig;
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import io.evitadb.externalApi.http.AdditionalHeaders;
-import io.evitadb.externalApi.http.CorsFilter;
-import io.evitadb.externalApi.http.CorsPreflightHandler;
+import io.evitadb.externalApi.http.CorsFilterServiceDecorator;
+import io.evitadb.externalApi.http.CorsPreflightService;
+import io.evitadb.externalApi.utils.PathHandlingService;
+import io.evitadb.externalApi.utils.RoutingHandlerService;
 import io.evitadb.externalApi.utils.UriPath;
 import io.evitadb.utils.Assert;
-import io.undertow.Handlers;
-import io.undertow.server.HttpHandler;
-import io.undertow.server.HttpServerExchange;
-import io.undertow.server.RoutingHandler;
-import io.undertow.server.handlers.BlockingHandler;
-import io.undertow.server.handlers.PathHandler;
-import io.undertow.util.Headers;
-import io.undertow.util.Methods;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -56,7 +56,7 @@ import static io.evitadb.utils.CollectionUtils.createConcurrentHashMap;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
  */
 @RequiredArgsConstructor
-public class GraphQLRouter implements HttpHandler {
+public class GraphQLRouter implements HttpService {
 
 	public static final String SYSTEM_PREFIX = "system";
 	private static final UriPath SYSTEM_PATH = UriPath.of("/", SYSTEM_PREFIX);
@@ -74,13 +74,14 @@ public class GraphQLRouter implements HttpHandler {
 	@Nonnull private final Evita evita;
 	@Nonnull private final GraphQLConfig graphQLConfig;
 
-	private final PathHandler delegateRouter = Handlers.path();
+	private final PathHandlingService delegateRouter = new PathHandlingService();
 	private boolean systemApiRegistered = false;
 	@Nonnull private final Map<String, RegisteredCatalog> registeredCatalogs = createConcurrentHashMap(20);
 
+	@Nonnull
 	@Override
-	public void handleRequest(HttpServerExchange httpServerExchange) throws Exception {
-		delegateRouter.handleRequest(httpServerExchange);
+	public HttpResponse serve(@Nonnull ServiceRequestContext ctx, @Nonnull HttpRequest req) throws Exception {
+		return delegateRouter.serve(ctx, req);
 	}
 
 	/**
@@ -92,7 +93,7 @@ public class GraphQLRouter implements HttpHandler {
 			() -> new GraphQLInternalError("System API has been already registered.")
 		);
 
-		final RoutingHandler apiRouter = Handlers.routing();
+		final RoutingHandlerService apiRouter = new RoutingHandlerService();
 		registerApi(
 			apiRouter,
 			new RegisteredApi(SYSTEM_API_PATH, new AtomicReference<>(systemApi))
@@ -111,7 +112,7 @@ public class GraphQLRouter implements HttpHandler {
 			() -> new GraphQLInternalError("Catalog `" + catalogName + "` has been already registered.")
 		);
 
-		final RoutingHandler apiRouter = Handlers.routing();
+		final RoutingHandlerService apiRouter = new RoutingHandlerService();
 
 		final RegisteredApi registeredDataApi = new RegisteredApi(
 			DATA_API_PATH,
@@ -157,54 +158,51 @@ public class GraphQLRouter implements HttpHandler {
 	/**
 	 * Registers all needed endpoints for a single API into a passed router.
 	 */
-	private void registerApi(@Nonnull RoutingHandler apiRouter, @Nonnull RegisteredApi registeredApi) {
+	private void registerApi(@Nonnull RoutingHandlerService apiRouter, @Nonnull RegisteredApi registeredApi) {
 		// actual GraphQL query handler
 		apiRouter.add(
-			Methods.POST,
+			HttpMethod.POST,
 			registeredApi.path().toString(),
-			new BlockingHandler(
-				new CorsFilter(
-					new GraphQLExceptionHandler(
-						objectMapper,
-						new GraphQLHandler(objectMapper, evita, registeredApi.graphQLReference())
-					),
+			new GraphQLExceptionHandler(
+				objectMapper,
+				new GraphQLHandler(objectMapper, evita, registeredApi.graphQLReference())
+			).decorate(
+				new CorsFilterServiceDecorator(
 					graphQLConfig.getAllowedOrigins()
-				)
+				).createDecorator()
 			)
 		);
 		// GraphQL schema handler
 		apiRouter.add(
-			Methods.GET,
+			HttpMethod.GET,
 			registeredApi.path().toString(),
-			new BlockingHandler(
-				new CorsFilter(
-					new GraphQLExceptionHandler(
-						objectMapper,
-						new GraphQLSchemaHandler(registeredApi.graphQLReference())
-					),
+			new GraphQLExceptionHandler(
+				objectMapper,
+				new GraphQLSchemaHandler(registeredApi.graphQLReference())
+			).decorate(
+				new CorsFilterServiceDecorator(
 					graphQLConfig.getAllowedOrigins()
-				)
+				).createDecorator()
 			)
 		);
 		// CORS pre-flight handler for the GraphQL handler
 		apiRouter.add(
-			Methods.OPTIONS,
+			HttpMethod.OPTIONS,
 			registeredApi.path().toString(),
-			new BlockingHandler(
-				new CorsFilter(
-					new CorsPreflightHandler(
-						graphQLConfig.getAllowedOrigins(),
-						Set.of(Methods.GET_STRING, Methods.POST_STRING),
-						Set.of(
-							Headers.CONTENT_TYPE_STRING,
-							Headers.ACCEPT_STRING,
-							// default headers for tracing that are allowed on every endpoint by default
-							AdditionalHeaders.OPENTELEMETRY_TRACEPARENT_STRING,
-							AdditionalHeaders.EVITADB_CLIENTID_HEADER_STRING
-						)
-					),
-					graphQLConfig.getAllowedOrigins()
+			new CorsPreflightService(
+				graphQLConfig.getAllowedOrigins(),
+				Set.of(HttpMethod.GET.name(), HttpMethod.POST.name()),
+				Set.of(
+					HttpHeaderNames.CONTENT_TYPE.toString(),
+					HttpHeaderNames.ACCEPT.toString(),
+					// default headers for tracing that are allowed on every endpoint by default
+					AdditionalHeaders.OPENTELEMETRY_TRACEPARENT_STRING,
+					AdditionalHeaders.EVITADB_CLIENTID_HEADER_STRING
 				)
+			).decorate(
+				new CorsFilterServiceDecorator(
+					graphQLConfig.getAllowedOrigins()
+				).createDecorator()
 			)
 		);
 	}

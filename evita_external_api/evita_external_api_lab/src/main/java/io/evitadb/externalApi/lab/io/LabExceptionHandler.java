@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.lab.io;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.linecorp.armeria.server.HttpService;
 import io.evitadb.externalApi.lab.LabProvider;
 import io.evitadb.externalApi.rest.io.RestExceptionHandler;
 import io.undertow.server.HttpHandler;
@@ -39,7 +40,7 @@ import javax.annotation.Nonnull;
 @Slf4j
 public class LabExceptionHandler extends RestExceptionHandler {
 
-    public LabExceptionHandler(@Nonnull ObjectMapper objectMapper, @Nonnull HttpHandler next) {
+    public LabExceptionHandler(@Nonnull ObjectMapper objectMapper, @Nonnull HttpService next) {
         super(objectMapper, next);
     }
 

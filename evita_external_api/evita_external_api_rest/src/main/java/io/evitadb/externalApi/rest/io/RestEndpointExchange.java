@@ -23,35 +23,37 @@
 
 package io.evitadb.externalApi.rest.io;
 
+import com.linecorp.armeria.common.AggregatedHttpRequest;
+import com.linecorp.armeria.common.AggregationOptions;
+import com.linecorp.armeria.common.HttpObject;
+import com.linecorp.armeria.common.HttpRequest;
+import com.linecorp.armeria.common.RequestHeaders;
+import com.linecorp.armeria.common.stream.SubscriptionOption;
 import io.evitadb.api.EvitaSessionContract;
-import io.evitadb.externalApi.http.EndpointExchange;
+import io.evitadb.externalApi.http.EndpointRequest;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.utils.Assert;
-import io.undertow.server.HttpServerExchange;
+import io.netty.util.concurrent.EventExecutor;
 import lombok.RequiredArgsConstructor;
+import org.reactivestreams.Subscriber;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.concurrent.CompletableFuture;
 
 /**
- * Implementation of {@link EndpointExchange} for REST API.
+ * Implementation of {@link EndpointRequest} for REST API.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @RequiredArgsConstructor
-public class RestEndpointExchange implements EndpointExchange {
+public class RestEndpointExchange implements EndpointRequest {
 
-	@Nonnull private final HttpServerExchange serverExchange;
+	@Nonnull private final HttpRequest httpRequest;
 	@Nullable private EvitaSessionContract session;
 	@Nonnull private final String httpMethod;
 	@Nullable private final String requestBodyContentType;
 	@Nullable private final String preferredResponseContentType;
-
-	@Nonnull
-	@Override
-	public HttpServerExchange serverExchange() {
-		return serverExchange;
-	}
 
 	@Nonnull
 	public EvitaSessionContract session() {
@@ -88,6 +90,12 @@ public class RestEndpointExchange implements EndpointExchange {
 
 	@Nonnull
 	@Override
+	public HttpRequest httpRequest() {
+		return httpRequest;
+	}
+
+	@Nonnull
+	@Override
 	public String httpMethod() {
 		return httpMethod;
 	}
@@ -102,11 +110,5 @@ public class RestEndpointExchange implements EndpointExchange {
 	@Override
 	public String preferredResponseContentType() {
 		return preferredResponseContentType;
-	}
-
-	@Override
-	public void close() {
-		// the session may not be properly closed in case of exception during request handling
-		closeSessionIfOpen();
 	}
 }

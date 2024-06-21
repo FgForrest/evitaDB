@@ -23,12 +23,11 @@
 
 package io.evitadb.externalApi.rest.io;
 
+import com.linecorp.armeria.server.HttpService;
 import io.evitadb.externalApi.configuration.ApiWithOriginControl;
 import io.evitadb.externalApi.http.AdditionalHeaders;
-import io.evitadb.externalApi.http.CorsPreflightHandler;
-import io.undertow.server.HttpHandler;
-import io.undertow.server.handlers.BlockingHandler;
-import io.undertow.util.Headers;
+
+import io.evitadb.externalApi.http.CorsPreflightService;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -68,17 +67,15 @@ public class CorsEndpoint {
 	                        boolean supportsResponseContentType) {
 		allowedMethods.addAll(supportedHttpMethods);
 		if (supportsRequestContentType) {
-			allowedHeaders.add(Headers.CONTENT_TYPE_STRING);
+			allowedHeaders.add("Content-Type");
 		}
 		if (supportsResponseContentType) {
-			allowedHeaders.add(Headers.ACCEPT_STRING);
+			allowedHeaders.add("Accept");
 		}
 	}
 
 	@Nonnull
-	public HttpHandler toHandler() {
-		return new BlockingHandler(
-			new CorsPreflightHandler(allowedOrigins, allowedMethods, allowedHeaders)
-		);
+	public HttpService toService() {
+		return new CorsPreflightService(allowedOrigins, allowedMethods, allowedHeaders);
 	}
 }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,6 +23,11 @@
 
 package io.evitadb.externalApi.rest.api.resolver.endpoint;
 
+import com.linecorp.armeria.common.HttpData;
+import com.linecorp.armeria.common.HttpMethod;
+import com.linecorp.armeria.common.HttpResponse;
+import com.linecorp.armeria.common.HttpResponseWriter;
+import io.evitadb.externalApi.http.AbstractHttpService;
 import io.evitadb.externalApi.http.EndpointResponse;
 import io.evitadb.externalApi.http.MimeTypes;
 import io.evitadb.externalApi.http.SuccessEndpointResponse;
@@ -30,11 +35,16 @@ import io.evitadb.externalApi.rest.api.openApi.OpenApiWriter;
 import io.evitadb.externalApi.rest.io.RestEndpointExchange;
 import io.evitadb.externalApi.rest.io.RestEndpointHandler;
 import io.evitadb.externalApi.rest.io.RestHandlingContext;
-import io.undertow.util.Methods;
+import io.netty.channel.EventLoop;
 
 import javax.annotation.Nonnull;
+import java.io.BufferedOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.PipedInputStream;
+import java.io.PipedOutputStream;
+import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
@@ -60,7 +70,7 @@ public class OpenApiSpecificationHandler<C extends RestHandlingContext> extends 
 	@Nonnull
 	@Override
 	public Set<String> getSupportedHttpMethods() {
-		return Set.of(Methods.GET_STRING);
+		return Set.of(HttpMethod.GET.name());
 	}
 
 	@Nonnull
@@ -73,8 +83,13 @@ public class OpenApiSpecificationHandler<C extends RestHandlingContext> extends 
 	}
 
 	@Override
-	protected void writeResult(@Nonnull RestEndpointExchange exchange, @Nonnull OutputStream outputStream, @Nonnull Object openApiSpecification) {
-		final String preferredResponseMediaType = exchange.preferredResponseContentType();
+	protected void writeResponse(
+		@Nonnull RestEndpointExchange exchange,
+		@Nonnull HttpResponseWriter responseWriter,
+		@Nonnull Object openApiSpecification
+	) {
+		final String preferredResponseMediaType = exchange.httpRequest().contentType().type();
+		final PipedOutputStream outputStream = new PipedOutputStream();
 		try {
 			if (preferredResponseMediaType.equals(MimeTypes.APPLICATION_YAML)) {
 				OpenApiWriter.toYaml(openApiSpecification, outputStream);
@@ -82,6 +97,15 @@ public class OpenApiSpecificationHandler<C extends RestHandlingContext> extends 
 				OpenApiWriter.toJson(openApiSpecification, outputStream);
 			} else {
 				throw createInternalError("Should never happen!");
+			}
+			try (PipedInputStream inputStream = new PipedInputStream(outputStream)) {
+				responseWriter.whenConsumed().thenRun(() -> {
+					try {
+						processInputStreamInChunks(inputStream, responseWriter);
+					} catch (IOException e) {
+						throw new RuntimeException(e);
+					}
+				});
 			}
 		} catch (IOException e) {
 			throw createInternalError("Could not serialize OpenAPI specification: " + e.getMessage());

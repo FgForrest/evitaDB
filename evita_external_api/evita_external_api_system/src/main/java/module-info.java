@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -40,7 +40,6 @@ module evita.external.api.system {
 	requires static jsr305;
 	requires static lombok;
 	requires org.slf4j;
-	requires undertow.core;
 
 	requires evita.api;
 	requires evita.common;
@@ -51,6 +50,7 @@ module evita.external.api.system {
 	requires com.fasterxml.jackson.databind;
 	requires java.management;
 	requires org.bouncycastle.provider;
+	requires com.linecorp.armeria;
 
 	exports io.evitadb.externalApi.system.configuration;
 	exports io.evitadb.externalApi.system;

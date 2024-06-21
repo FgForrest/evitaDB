@@ -23,6 +23,15 @@
 
 package io.evitadb.externalApi.system;
 
+import com.linecorp.armeria.common.HttpHeaderNames;
+import com.linecorp.armeria.common.HttpResponse;
+import com.linecorp.armeria.common.HttpResponseBuilder;
+import com.linecorp.armeria.common.HttpStatus;
+import com.linecorp.armeria.common.MediaType;
+import com.linecorp.armeria.server.file.FileService;
+import com.linecorp.armeria.server.file.FileServiceBuilder;
+import com.linecorp.armeria.server.file.HttpFile;
+import com.linecorp.armeria.server.file.HttpFileBuilder;
 import io.evitadb.api.requestResponse.system.SystemStatus;
 import io.evitadb.core.Evita;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -34,21 +43,14 @@ import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.configuration.CertificatePath;
 import io.evitadb.externalApi.configuration.CertificateSettings;
 import io.evitadb.externalApi.http.CorsFilter;
+import io.evitadb.externalApi.http.CorsFilterServiceDecorator;
 import io.evitadb.externalApi.http.ExternalApiProvider;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
 import io.evitadb.externalApi.http.ExternalApiServer;
 import io.evitadb.externalApi.system.configuration.SystemConfig;
+import io.evitadb.externalApi.utils.PathHandlingService;
 import io.evitadb.utils.CertificateUtils;
 import io.evitadb.utils.StringUtils;
-import io.undertow.Handlers;
-import io.undertow.server.HttpServerExchange;
-import io.undertow.server.handlers.BlockingHandler;
-import io.undertow.server.handlers.PathHandler;
-import io.undertow.server.handlers.resource.FileResourceManager;
-import io.undertow.server.handlers.resource.ResourceHandler;
-import io.undertow.server.handlers.resource.ResourceManager;
-import io.undertow.util.Headers;
-import io.undertow.util.StatusCodes;
 
 import javax.annotation.Nonnull;
 import java.io.File;
@@ -77,22 +79,21 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 	/**
 	 * Prints the status of the APIs as a JSON string.
 	 *
-	 * @param exchange  the HTTP server exchange
+	 * @param builder  http response builder
 	 * @param readiness the readiness of the APIs
 	 */
-	private static void printApiStatus(
-		@Nonnull HttpServerExchange exchange,
+	private static HttpResponse printApiStatus(
+		@Nonnull HttpResponseBuilder builder,
 		@Nonnull Readiness readiness
 	) {
-		exchange.getResponseSender().send("{\n" +
+		return builder.content(MediaType.JSON, "{\n" +
 			"\t\"status\": \"" + readiness.state().name() + "\",\n" +
 			"\t\"apis\": {\n" +
 			Arrays.stream(readiness.apiStates())
 				.map(entry -> "\t\t\"" + entry.apiCode() + "\": \"" + (entry.isReady() ? "ready" : "not ready") + "\"")
 				.collect(Collectors.joining(",\n")) + "\n" +
 			"\t}\n" +
-			"}"
-		);
+			"}").build();
 	}
 
 	/**
@@ -198,22 +199,18 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 			fileName = certificate.substring(lastSeparatorIndex);
 		}
 
-		final PathHandler router = Handlers.path();
+		final PathHandlingService router = new PathHandlingService();
 		router.addExactPath(
 			"/" + ENDPOINT_SERVER_NAME,
-			exchange -> {
-				exchange.setStatusCode(StatusCodes.OK);
-				exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, "text/plain");
-				exchange.getResponseSender().send(evita.getConfiguration().name());
-			}
+			(ctx, req) -> HttpResponse.of(HttpStatus.OK, MediaType.PLAIN_TEXT, evita.getConfiguration().name())
 		);
 
 		router.addExactPath(
 			"/" + ENDPOINT_SYSTEM_STATUS,
-			exchange -> {
-				exchange.setStatusCode(StatusCodes.OK);
-				exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, "application/json");
-				exchange.getResponseSender().send(
+			(ctx, req) -> {
+				return HttpResponse.of(
+					HttpStatus.OK,
+					MediaType.JSON,
 					renderStatus(
 						evita.getConfiguration().name(),
 						evita.getSystemStatus(),
@@ -230,19 +227,18 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 			.toList();
 		router.addExactPath(
 			"/" + ENDPOINT_SYSTEM_LIVENESS,
-			exchange -> {
-				exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, "application/json");
+			(ctx, req) -> {
 				final Set<HealthProblem> healthProblems = probes
 					.stream()
 					.flatMap(it -> it.getHealthProblems(evita, externalApiServer, enabledEndPoints).stream())
 					.collect(Collectors.toSet());
 
 				if (healthProblems.isEmpty()) {
-					exchange.setStatusCode(StatusCodes.OK);
-					exchange.getResponseSender().send("{\"status\": \"healthy\"}");
+					return HttpResponse.of(HttpStatus.OK, MediaType.JSON, "{\"status\": \"healthy\"}");
 				} else {
-					exchange.setStatusCode(StatusCodes.SERVICE_UNAVAILABLE);
-					exchange.getResponseSender().send(
+					return HttpResponse.of(
+						HttpStatus.SERVICE_UNAVAILABLE,
+						MediaType.JSON,
 						"{\"status\": \"unhealthy\", \"problems\": [" +
 							healthProblems.stream()
 								.sorted()
@@ -256,83 +252,83 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 
 		router.addExactPath(
 			"/" + ENDPOINT_SYSTEM_READINESS,
-			exchange -> {
-				exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, "application/json");
+			(ctx, req) -> {
 				if (evita.isActive()) {
 					final Optional<Readiness> readiness = probes
 						.stream()
 						.map(it -> it.getReadiness(evita, externalApiServer, enabledEndPoints))
 						.findFirst();
 
+					final HttpResponseBuilder responseBuilder = HttpResponse.builder()
+						.header(HttpHeaderNames.CACHE_CONTROL, "no-store, no-cache, must-revalidate, max-age=0");
 					if (readiness.map(it -> it.state() == ReadinessState.READY).orElse(false)) {
-						exchange.setStatusCode(StatusCodes.OK);
-						printApiStatus(exchange, readiness.get());
+						responseBuilder.status(HttpStatus.OK);
+						return printApiStatus(responseBuilder, readiness.get());
 					} else if (readiness.isPresent()) {
-						exchange.setStatusCode(StatusCodes.SERVICE_UNAVAILABLE);
-						printApiStatus(exchange, readiness.get());
+						responseBuilder.status(HttpStatus.SERVICE_UNAVAILABLE);
+						return printApiStatus(responseBuilder, readiness.get());
 					} else {
-						exchange.setStatusCode(StatusCodes.SERVICE_UNAVAILABLE);
-						exchange.getResponseSender().send("{\"status\": \"" + ReadinessState.UNKNOWN.name() + "\"}");
+						return HttpResponse.of(HttpStatus.SERVICE_UNAVAILABLE, MediaType.JSON, "{\"status\": \"" + ReadinessState.UNKNOWN.name() + "\"}");
 					}
 				} else {
-					exchange.setStatusCode(StatusCodes.SERVICE_UNAVAILABLE);
-					exchange.getResponseSender().send("{\"status\": \"" + ReadinessState.SHUTDOWN.name() + "\"}");
+					return HttpResponse.of(HttpStatus.SERVICE_UNAVAILABLE, MediaType.JSON, "{\"status\": \""+ReadinessState.SHUTDOWN.name()+"\"}");
 				}
 			}
 		);
 
-		final ResourceHandler fileSystemHandler;
-		try (ResourceManager resourceManager = new FileResourceManager(file, 100)) {
-			fileSystemHandler = new ResourceHandler(
-				(exchange, path) -> {
-					if (("/" + fileName).equals(path)) {
-						return resourceManager.getResource(fileName);
-					} else if (("/" + CertificateUtils.getGeneratedServerCertificateFileName()).equals(path) && certificateSettings.generateAndUseSelfSigned()) {
-						return resourceManager.getResource(CertificateUtils.getGeneratedServerCertificateFileName());
-					} else if (("/" + CertificateUtils.getGeneratedClientCertificateFileName()).equals(path) && certificateSettings.generateAndUseSelfSigned()) {
-						return resourceManager.getResource(CertificateUtils.getGeneratedClientCertificateFileName());
-					} else if (("/" + CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName()).equals(path) && certificateSettings.generateAndUseSelfSigned()) {
-						return resourceManager.getResource(CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName());
-					} else {
-						return null;
-					}
-				}
-			);
-			router.addPrefixPath("/", fileSystemHandler);
+		router.addExactPath("/" + fileName, (ctx, req) -> {
+			final FileServiceBuilder fsb = FileService.builder(file);
+			fsb.serveCompressedFiles(true);
+			fsb.autoDecompress(true);
+			final FileService fileService = fsb.build();
+			return fileService.serve(ctx, req);
+		});
 
-			return new SystemProvider(
-				systemConfig,
-				new BlockingHandler(
-					new CorsFilter(
-						router,
-						systemConfig.getAllowedOrigins()
-					)
-				),
+		router.addExactPath("/" + CertificateUtils.getGeneratedServerCertificateFileName(), (ctx, req) -> {
+			final HttpFileBuilder hfb = HttpFile.builder(new File(file, CertificateUtils.getGeneratedServerCertificateFileName()));
+			final HttpFile httpFile = hfb.build();
+			return httpFile.asService().serve(ctx, req);
+		});
+
+		router.addExactPath("/" + CertificateUtils.getGeneratedClientCertificateFileName(), (ctx, req) -> {
+			final HttpFileBuilder hfb = HttpFile.builder(new File(file, CertificateUtils.getGeneratedClientCertificateFileName()));
+			final HttpFile httpFile = hfb.build();
+			return httpFile.asService().serve(ctx, req);
+		});
+
+		router.addExactPath("/" + CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName(), (ctx, req) -> {
+			final HttpFileBuilder hfb = HttpFile.builder(new File(file, CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName()));
+			final HttpFile httpFile = hfb.build();
+			return httpFile.asService().serve(ctx, req);
+		});
+
+		return new SystemProvider(
+			systemConfig,
+			router.decorate(
+				new CorsFilterServiceDecorator(systemConfig.getAllowedOrigins()).createDecorator()
+			),
+			Arrays.stream(systemConfig.getBaseUrls(apiOptions.exposedOn()))
+				.map(it -> it + ENDPOINT_SERVER_NAME)
+				.toArray(String[]::new),
+			Arrays.stream(systemConfig.getBaseUrls(apiOptions.exposedOn()))
+				.map(it -> it + fileName)
+				.toArray(String[]::new),
+			certificateSettings.generateAndUseSelfSigned() ?
 				Arrays.stream(systemConfig.getBaseUrls(apiOptions.exposedOn()))
-					.map(it -> it + ENDPOINT_SERVER_NAME)
-					.toArray(String[]::new),
+					.map(it -> it + CertificateUtils.getGeneratedServerCertificateFileName())
+					.toArray(String[]::new) :
+				new String[0],
+			certificateSettings.generateAndUseSelfSigned() ?
 				Arrays.stream(systemConfig.getBaseUrls(apiOptions.exposedOn()))
-					.map(it -> it + fileName)
-					.toArray(String[]::new),
-				certificateSettings.generateAndUseSelfSigned() ?
-					Arrays.stream(systemConfig.getBaseUrls(apiOptions.exposedOn()))
-						.map(it -> it + CertificateUtils.getGeneratedServerCertificateFileName())
-						.toArray(String[]::new) :
-					new String[0],
-				certificateSettings.generateAndUseSelfSigned() ?
-					Arrays.stream(systemConfig.getBaseUrls(apiOptions.exposedOn()))
-						.map(it -> it + CertificateUtils.getGeneratedClientCertificateFileName())
-						.toArray(String[]::new) :
-					new String[0],
-				certificateSettings.generateAndUseSelfSigned() ?
-					Arrays.stream(systemConfig.getBaseUrls(apiOptions.exposedOn()))
-						.map(it -> it + CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName())
-						.toArray(String[]::new) :
-					new String[0]
-			);
-		} catch (IOException e) {
-			throw new GenericEvitaInternalError(e.getMessage(), e);
-		}
+					.map(it -> it + CertificateUtils.getGeneratedClientCertificateFileName())
+					.toArray(String[]::new) :
+				new String[0],
+			certificateSettings.generateAndUseSelfSigned() ?
+				Arrays.stream(systemConfig.getBaseUrls(apiOptions.exposedOn()))
+					.map(it -> it + CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName())
+					.toArray(String[]::new) :
+				new String[0]
+		);
 	}
 
 }

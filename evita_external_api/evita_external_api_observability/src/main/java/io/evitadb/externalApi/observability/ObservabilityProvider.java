@@ -25,6 +25,8 @@ package io.evitadb.externalApi.observability;
 
 import io.evitadb.externalApi.http.ExternalApiProvider;
 import io.evitadb.externalApi.observability.configuration.ObservabilityConfig;
+import io.evitadb.externalApi.utils.PathHandlingService;
+import io.evitadb.externalApi.utils.Router;
 import io.evitadb.utils.NetworkUtils;
 import io.undertow.server.HttpHandler;
 import lombok.Getter;
@@ -63,7 +65,7 @@ public class ObservabilityProvider implements ExternalApiProvider<ObservabilityC
 	private String reachableUrl;
 
 	@Nonnull
-	public HttpHandler getApiHandler() {
+	public PathHandlingService getApiHandler() {
 		return observabilityManager.getObservabilityRouter();
 	}
 

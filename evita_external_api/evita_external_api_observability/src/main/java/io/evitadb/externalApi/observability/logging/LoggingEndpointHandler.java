@@ -24,9 +24,12 @@
 package io.evitadb.externalApi.observability.logging;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.linecorp.armeria.common.HttpRequest;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.externalApi.exception.ExternalApiInvalidUsageException;
+import io.evitadb.externalApi.http.AbstractHttpService;
 import io.evitadb.externalApi.http.EndpointHandler;
+import io.evitadb.externalApi.http.EndpointRequest;
 import io.evitadb.externalApi.http.MimeTypes;
 import io.evitadb.externalApi.observability.ObservabilityManager;
 import io.evitadb.externalApi.observability.exception.ObservabilityInternalError;
@@ -44,9 +47,9 @@ import java.util.List;
 /**
  * Generic HTTP request handler for processing Observability API requests and responses.
  *
- * @author Tomáš Pozler, FG Forrest a.s. (c) 202č
+ * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
  */
-public abstract class LoggingEndpointHandler extends EndpointHandler<LoggingEndpointExchange> {
+public abstract class LoggingEndpointHandler<E extends EndpointRequest> extends AbstractHttpService<E> {
 	protected static final LinkedHashSet<String> DEFAULT_SUPPORTED_CONTENT_TYPES = new LinkedHashSet<>(List.of(MimeTypes.APPLICATION_JSON));
 	protected final ObservabilityManager manager;
 
@@ -56,13 +59,13 @@ public abstract class LoggingEndpointHandler extends EndpointHandler<LoggingEndp
 
 	@Nonnull
 	@Override
-	protected LoggingEndpointExchange createEndpointExchange(
-		@Nonnull HttpServerExchange serverExchange,
+	protected E createEndpointExchange(
+		@Nonnull HttpRequest httpRequest,
 		@Nonnull String method,
 		@Nullable String requestBodyMediaType,
 		@Nullable String preferredResponseMediaType) {
-		return new LoggingEndpointExchange(
-			serverExchange,
+		return (E) new LoggingEndpointExchange(
+			httpRequest,
 			method,
 			requestBodyMediaType,
 			preferredResponseMediaType
@@ -94,7 +97,7 @@ public abstract class LoggingEndpointHandler extends EndpointHandler<LoggingEndp
 	 * Tries to parse input request body JSON into data class.
 	 */
 	@Nonnull
-	protected <T> T parseRequestBody(@Nonnull LoggingEndpointExchange exchange, @Nonnull Class<T> dataClass) {
+	protected <T> T parseRequestBody(@Nonnull E exchange, @Nonnull Class<T> dataClass) {
 		final String content = readRawRequestBody(exchange);
 		Assert.isTrue(
 			!content.trim().isEmpty(),
@@ -108,7 +111,7 @@ public abstract class LoggingEndpointHandler extends EndpointHandler<LoggingEndp
 		}
 	}
 
-	@Override
+	/*@Override
 	protected void writeResult(@Nonnull LoggingEndpointExchange exchange, @Nonnull OutputStream outputStream, @Nonnull Object result) {
 		try {
 			manager.getObjectMapper().writeValue(outputStream, result);
@@ -118,5 +121,5 @@ public abstract class LoggingEndpointHandler extends EndpointHandler<LoggingEndp
 				"Could not provide response data.", e
 			);
 		}
-	}
+	}*/
 }

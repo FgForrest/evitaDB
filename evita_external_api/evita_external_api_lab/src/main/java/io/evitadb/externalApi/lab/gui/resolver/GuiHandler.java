@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,8 +24,15 @@
 package io.evitadb.externalApi.lab.gui.resolver;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.linecorp.armeria.common.HttpHeaderNames;
+import com.linecorp.armeria.common.HttpRequest;
+import com.linecorp.armeria.common.HttpResponse;
+import com.linecorp.armeria.server.HttpService;
+import com.linecorp.armeria.server.ServiceRequestContext;
+import com.linecorp.armeria.server.file.FileService;
+import com.linecorp.armeria.server.file.FileServiceBuilder;
+import com.linecorp.armeria.server.file.HttpFile;
 import io.evitadb.externalApi.configuration.ApiOptions;
-import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.externalApi.graphql.GraphQLProvider;
 import io.evitadb.externalApi.graphql.configuration.GraphQLConfig;
 import io.evitadb.externalApi.lab.LabManager;
@@ -34,18 +41,15 @@ import io.evitadb.externalApi.lab.configuration.LabConfig;
 import io.evitadb.externalApi.lab.gui.dto.EvitaDBConnection;
 import io.evitadb.externalApi.rest.RestProvider;
 import io.evitadb.externalApi.rest.configuration.RestConfig;
-import io.undertow.server.HttpServerExchange;
-import io.undertow.server.handlers.resource.ClassPathResourceManager;
-import io.undertow.server.handlers.resource.Resource;
-import io.undertow.server.handlers.resource.ResourceHandler;
-import io.undertow.server.handlers.resource.ResourceManager;
-import io.undertow.server.handlers.resource.ResourceSupplier;
-import io.undertow.util.Headers;
+import io.evitadb.externalApi.utils.PathHandlingService;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Base64;
 import java.util.Base64.Encoder;
 import java.util.List;
@@ -57,7 +61,7 @@ import java.util.regex.Pattern;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class GuiHandler extends ResourceHandler {
+public class GuiHandler implements HttpService {
 
 	private static final Encoder BASE_64_ENCODER = Base64.getEncoder();
 
@@ -80,36 +84,42 @@ public class GuiHandler extends ResourceHandler {
 		@Nonnull ApiOptions apiOptions,
 		@Nonnull ObjectMapper objectMapper
 	) {
-		try (final ResourceManager rm = new ClassPathResourceManager(GuiHandler.class.getClassLoader(), "META-INF/lab/gui/dist")) {
-			return new GuiHandler(new GuiResourceSupplier(rm), labConfig, serverName, apiOptions, objectMapper);
-		} catch (IOException e) {
-			throw new ExternalApiInternalError("Failed to load GUI resources.", e);
-		}
+		final FileServiceBuilder fileServiceBuilder = FileService.builder(ClassLoader.getSystemClassLoader(), "META-INF/lab/gui/dist");
+		return new GuiHandler(labConfig, serverName, apiOptions, objectMapper);
 	}
 
-	private GuiHandler(@Nonnull ResourceSupplier resourceSupplier,
-	                   @Nonnull LabConfig labConfig,
+	private GuiHandler(@Nonnull LabConfig labConfig,
 	                   @Nonnull String serverName,
 	                   @Nonnull ApiOptions apiOptions,
 	                   @Nonnull ObjectMapper objectMapper) {
-		super(resourceSupplier);
 		this.labConfig = labConfig;
 		this.serverName = serverName;
 		this.apiOptions = apiOptions;
 		this.objectMapper = objectMapper;
 	}
 
+	@Nonnull
 	@Override
-	public void handleRequest(HttpServerExchange exchange) throws Exception {
-		passServerName(exchange);
-		passReadOnlyFlag(exchange);
-		passPreconfiguredEvitaDBConnections(exchange);
-		super.handleRequest(exchange);
+	public HttpResponse serve(@Nonnull ServiceRequestContext ctx, @Nonnull HttpRequest req) throws Exception {
+		passServerName(ctx);
+		passReadOnlyFlag(ctx);
+		passPreconfiguredEvitaDBConnections(ctx);
+		final String path = req.path();
+		final PathHandlingService router = new PathHandlingService();
+		final Path fsPath = Paths.get("META-INF/lab/gui/dist");
+		if (path.isEmpty() || path.equals("/index.html")) {
+			router.addExactPath("/", (c, r) -> HttpFile.of(fsPath.resolve(Paths.get("/index.html"))).asService().serve(c, r));
+		} else if (ROOT_ASSETS_PATTERN.matcher(path).matches()) {
+			router.addExactPath("/" + path, (c, r) -> HttpFile.of(fsPath.resolve(Paths.get(path.substring(1)))).asService().serve(c, r));
+		} else if (ASSETS_PATTERN.matcher(path).matches()) {
+			router.addExactPath("/" + path, (c, r) -> HttpFile.of(fsPath.resolve(Paths.get(path))).asService().serve(c, r));
+		}
+		return router.serve(ctx, req);
 	}
 
-	private void passServerName(@Nonnull HttpServerExchange exchange) {
-		exchange.getResponseHeaders().add(
-			Headers.SET_COOKIE,
+	private void passServerName(@Nonnull ServiceRequestContext ctx) {
+		ctx.addAdditionalResponseHeader(
+			HttpHeaderNames.SET_COOKIE,
 			createCookie(EVITALAB_SERVER_NAME_COOKIE, serverName)
 		);
 	}
@@ -118,10 +128,10 @@ public class GuiHandler extends ResourceHandler {
 	 * Sends a {@link #EVITALAB_READONLY_COOKIE} cookie to the evitaLab with {@link GuiConfig#isReadOnly()} flag.
 	 * If true, the evitaLab GUI will be in read-only mode.
 	 */
-	private void passReadOnlyFlag(@Nonnull HttpServerExchange exchange) {
+	private void passReadOnlyFlag(@Nonnull ServiceRequestContext ctx) {
 		if (labConfig.getGui().isReadOnly()) {
-			exchange.getResponseHeaders().add(
-				Headers.SET_COOKIE,
+			ctx.addAdditionalResponseHeader(
+				HttpHeaderNames.SET_COOKIE,
 				createCookie(EVITALAB_READONLY_COOKIE, "true")
 			);
 		}
@@ -131,12 +141,12 @@ public class GuiHandler extends ResourceHandler {
 	 * Sends a {@link #EVITALAB_PRECONFIGURED_CONNECTIONS_COOKIE} cookie to the evitaLab with preconfigured
 	 * evitaDB connections.
 	 */
-	private void passPreconfiguredEvitaDBConnections(@Nonnull HttpServerExchange exchange) throws IOException {
+	private void passPreconfiguredEvitaDBConnections(@Nonnull ServiceRequestContext ctx) throws IOException {
 		final List<EvitaDBConnection> preconfiguredConnections = resolvePreconfiguredEvitaDBConnections();
 		final String serializedSelfConnection = objectMapper.writeValueAsString(preconfiguredConnections);
 
-		exchange.getResponseHeaders().add(
-			Headers.SET_COOKIE,
+		ctx.addAdditionalResponseHeader(
+			HttpHeaderNames.SET_COOKIE,
 			createCookie(EVITALAB_PRECONFIGURED_CONNECTIONS_COOKIE, serializedSelfConnection)
 		);
 	}
@@ -161,28 +171,7 @@ public class GuiHandler extends ResourceHandler {
 	}
 
 	@Nonnull
-	private String createCookie(@Nonnull String name, @Nonnull String value) {
+	private static String createCookie(@Nonnull String name, @Nonnull String value) {
 		return name + "=" + BASE_64_ENCODER.encodeToString(value.getBytes(StandardCharsets.UTF_8)) + ";SameSite=Strict";
-	}
-
-	@RequiredArgsConstructor
-	private static class GuiResourceSupplier implements ResourceSupplier {
-
-		@Nonnull private final ResourceManager resourceManager;
-
-		@Override
-		public Resource getResource(HttpServerExchange exchange, String path) throws IOException {
-			if (path == null) {
-				return null;
-			} else if (path.isEmpty() || path.equals("/index.html")) {
-				return resourceManager.getResource("index.html");
-			} else if (ROOT_ASSETS_PATTERN.matcher(path).matches()) {
-				return resourceManager.getResource(path.substring(1));
-			} else if (ASSETS_PATTERN.matcher(path).matches()) {
-				return resourceManager.getResource(path);
-			} else {
-				return null;
-			}
-		}
 	}
 }

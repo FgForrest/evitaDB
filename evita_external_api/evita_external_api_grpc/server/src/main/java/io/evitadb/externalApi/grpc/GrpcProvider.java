@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,16 +23,16 @@
 
 package io.evitadb.externalApi.grpc;
 
-import com.linecorp.armeria.server.Server;
+import com.linecorp.armeria.server.HttpService;
+import io.evitadb.externalApi.configuration.MtlsConfiguration;
 import io.evitadb.externalApi.grpc.configuration.GrpcConfig;
-import io.evitadb.externalApi.grpc.exception.GrpcServerStartFailedException;
 import io.evitadb.externalApi.http.ExternalApiProvider;
 import io.evitadb.utils.NetworkUtils;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
-import java.io.IOException;
+import javax.annotation.Nullable;
 import java.util.function.Predicate;
 
 /**
@@ -50,8 +50,9 @@ public class GrpcProvider implements ExternalApiProvider<GrpcConfig> {
 	@Getter
 	private final GrpcConfig configuration;
 
+	@Nonnull
 	@Getter
-	private final Server server;
+	private final HttpService apiHandler;
 
 	/**
 	 * Contains url that was at least once found reachable.
@@ -64,28 +65,10 @@ public class GrpcProvider implements ExternalApiProvider<GrpcConfig> {
 		return CODE;
 	}
 
+	@Nullable
 	@Override
-	public boolean isManagedByUndertow() {
-		return false;
-	}
-
-	@Override
-	public void afterStart() {
-		try {
-			server.closeOnJvmShutdown();
-			server.start().join();
-		} catch (Exception e) {
-			throw new GrpcServerStartFailedException(
-				"Failed to start gRPC server due to: " + e.getMessage(),
-				"Failed to start gRPC server.",
-				e
-			);
-		}
-	}
-
-	@Override
-	public void beforeStop() {
-		server.stop();
+	public MtlsConfiguration mtlsConfiguration() {
+		return this.configuration.getMtlsConfiguration();
 	}
 
 	@Override

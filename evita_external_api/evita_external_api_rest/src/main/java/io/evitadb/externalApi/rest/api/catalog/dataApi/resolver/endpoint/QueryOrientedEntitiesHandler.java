@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,13 +23,15 @@
 
 package io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint;
 
+import com.linecorp.armeria.common.HttpMethod;
+import com.linecorp.armeria.common.HttpRequest;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.filter.EntityLocaleEquals;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.require.Require;
-import io.evitadb.externalApi.http.EndpointExchange;
+import io.evitadb.externalApi.http.EndpointRequest;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.dto.QueryEntityRequestDto;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.FetchEntityRequestDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.FetchEntityEndpointHeaderDescriptor;
@@ -41,7 +43,6 @@ import io.evitadb.externalApi.rest.exception.RestRequiredParameterMissingExcepti
 import io.evitadb.externalApi.rest.io.JsonRestHandler;
 import io.evitadb.externalApi.rest.io.RestEndpointExchange;
 import io.evitadb.utils.ArrayUtils;
-import io.undertow.util.Methods;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -88,7 +89,7 @@ public abstract class QueryOrientedEntitiesHandler extends JsonRestHandler<Colle
 	@Nonnull
 	@Override
 	public Set<String> getSupportedHttpMethods() {
-		return Set.of(Methods.POST_STRING);
+		return Set.of(HttpMethod.POST.name());
 	}
 
 	@Nonnull
@@ -126,9 +127,9 @@ public abstract class QueryOrientedEntitiesHandler extends JsonRestHandler<Colle
 	}
 
 	@Nonnull
-	protected FilterBy addLocaleIntoFilterByWhenUrlPathLocalized(@Nonnull EndpointExchange exchange, @Nullable FilterBy filterBy) {
+	protected FilterBy addLocaleIntoFilterByWhenUrlPathLocalized(@Nonnull EndpointRequest request, @Nullable FilterBy filterBy) {
 		if (restHandlingContext.isLocalized()) {
-			final Map<String, Object> parametersFromRequest = getParametersFromRequest(exchange);
+			final Map<String, Object> parametersFromRequest = getParametersFromRequest(request);
 			final Locale locale = (Locale) parametersFromRequest.get(FetchEntityEndpointHeaderDescriptor.LOCALE.name());
 			if (locale == null) {
 				throw new RestRequiredParameterMissingException("Missing LOCALE in URL path.");

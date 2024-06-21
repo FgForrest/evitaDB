@@ -1,0 +1,333 @@
+/*
+ *
+ *                         _ _        ____  ____
+ *               _____   _(_) |_ __ _|  _ \| __ )
+ *              / _ \ \ / / | __/ _` | | | |  _ \
+ *             |  __/\ V /| | || (_| | |_| | |_) |
+ *              \___| \_/ |_|\__\__,_|____/|____/
+ *
+ *   Copyright (c) 2024
+ *
+ *   Licensed under the Business Source License, Version 1.1 (the "License");
+ *   you may not use this file except in compliance with the License.
+ *   You may obtain a copy of the License at
+ *
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
+ *
+ *   Unless required by applicable law or agreed to in writing, software
+ *   distributed under the License is distributed on an "AS IS" BASIS,
+ *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *   See the License for the specific language governing permissions and
+ *   limitations under the License.
+ */
+
+package io.evitadb.externalApi.utils;
+
+import com.linecorp.armeria.common.HttpMethod;
+import com.linecorp.armeria.common.HttpRequest;
+import com.linecorp.armeria.common.HttpResponse;
+import com.linecorp.armeria.common.RequestHeadersBuilder;
+import com.linecorp.armeria.server.DecoratingHttpServiceFunction;
+import com.linecorp.armeria.server.HttpService;
+import com.linecorp.armeria.server.HttpServiceWithRoutes;
+import com.linecorp.armeria.server.Route;
+import com.linecorp.armeria.server.ServiceRequestContext;
+import com.linecorp.armeria.server.ServiceWithRoutes;
+import com.linecorp.armeria.server.cors.CorsService;
+import io.undertow.predicate.Predicate;
+import io.undertow.util.PathTemplate;
+import io.undertow.util.PathTemplateMatcher;
+
+import javax.annotation.Nonnull;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Function;
+
+/**
+ * A Handler that handles the common case of routing via path template and method name.
+ *
+ * @author Stuart Douglas
+ */
+public class RoutingHandlerService implements HttpService {
+
+	// Matcher objects grouped by http methods.
+	private final Map<HttpMethod, PathTemplateMatcher<RoutingHandlerService.RoutingMatch>> matches = new CopyOnWriteMap<>();
+	// Matcher used to find if this instance contains matches for any http method for a path.
+	// This matcher is used to report if this instance can match a path for one of the http methods.
+	private final PathTemplateMatcher<RoutingHandlerService.RoutingMatch> allMethodsMatcher = new PathTemplateMatcher<>();
+
+	private final Map<HttpServiceWithRoutes, Function<? super HttpService, CorsService>> servicesWithRoutes = new HashMap<>(8);
+
+	// Handler called when no match was found and invalid method handler can't be invoked.
+	private volatile HttpService fallbackHandler = new NotFoundService();
+	// Handler called when this instance can not match the http method but can match another http method.
+	// For example: For an exchange the POST method is not matched by this instance but at least one http method is
+	// matched for the same exchange.
+	// If this handler is null the fallbackHandler will be used.
+	private volatile HttpService invalidMethodHandler = new MethodNotAllowedService();
+
+	// If this is true then path matches will be added to the query parameters for easy access by later handlers.
+	private final boolean rewriteQueryParameters;
+
+	public RoutingHandlerService(boolean rewriteQueryParameters) {
+		this.rewriteQueryParameters = rewriteQueryParameters;
+	}
+
+	public RoutingHandlerService() {
+		this.rewriteQueryParameters = true;
+	}
+
+	@Nonnull
+	@Override
+	public HttpResponse serve(@Nonnull ServiceRequestContext ctx, @Nonnull HttpRequest req) throws Exception {
+		if (ctx.rpcRequest() != null) {
+			for (Entry<HttpServiceWithRoutes, Function<? super HttpService, CorsService>> service : servicesWithRoutes.entrySet()) {
+				for (Route route : service.getKey().routes()) {
+					if (route.paths().contains(ctx.path())) {
+						return service.getKey().decorate(service.getValue()).serve(ctx, req);
+					}
+				}
+			}
+		}
+		final String normalizedPath = req.path().isEmpty() ? "/" : req.path();
+		PathTemplateMatcher<RoutingHandlerService.RoutingMatch> matcher = matches.get(req.method());
+		if (matcher == null) {
+			return handleNoMatch(ctx, req);
+		}
+		PathTemplateMatcher.PathMatchResult<RoutingHandlerService.RoutingMatch> match = matcher.match(normalizedPath);
+		if (match == null) {
+			return handleNoMatch(ctx, req);
+		}
+
+		final RequestHeadersBuilder headersBuilder = req.headers().toBuilder();
+
+		//exchange.putAttachment(PathTemplateMatch.ATTACHMENT_KEY, match);
+		//headersBuilder.
+		//todo tpz: handle
+		if (rewriteQueryParameters) {
+			for (Map.Entry<String, String> entry : match.getParameters().entrySet()) {
+				headersBuilder.add(entry.getKey(), entry.getValue());
+			}
+		}
+
+		final HttpRequest newRequest = req.withHeaders(headersBuilder.build());
+
+		for (RoutingHandlerService.HandlerHolder handler : match.getValue().predicatedHandlers) {
+			/*if (handler.predicate.resolve()) {
+				return handler.handler.serve(ctx, newRequest);
+			}*/
+			//todo tpz: handle predicate
+		}
+		if (match.getValue().defaultHandler != null) {
+			return match.getValue().defaultHandler.serve(ctx, newRequest);
+		} else {
+			return fallbackHandler.serve(ctx, newRequest);
+		}
+	}
+
+	/**
+	 * Handles the case in with a match was not found for the http method but might exist for another http method.
+	 * For example: POST not matched for a path but at least one match exists for same path.
+	 *
+	 * @param ctx The context of the request.
+	 * @param req The request that was not matched.
+	 * @throws Exception
+	 */
+	private HttpResponse handleNoMatch(final @Nonnull ServiceRequestContext ctx, final @Nonnull HttpRequest req) throws Exception {
+		// if invalidMethodHandler is null we fail fast without matching with allMethodsMatcher
+		if (invalidMethodHandler != null && allMethodsMatcher.match(req.method().toString()) != null) {
+			return invalidMethodHandler.serve(ctx, req);
+		}
+		return fallbackHandler.serve(ctx, req);
+	}
+
+	public synchronized RoutingHandlerService add(final String method, final String template, HttpService handler) {
+		return add(HttpMethod.tryParse(method), template, handler);
+	}
+
+	public synchronized RoutingHandlerService add(HttpMethod method, String template, HttpService handler) {
+		PathTemplateMatcher<RoutingHandlerService.RoutingMatch> matcher = matches.get(method);
+		if (matcher == null) {
+			matches.put(method, matcher = new PathTemplateMatcher<>());
+		}
+		RoutingHandlerService.RoutingMatch res = matcher.get(template);
+		if (res == null) {
+			matcher.add(template, res = new RoutingHandlerService.RoutingMatch());
+		}
+		if (allMethodsMatcher.match(template) == null) {
+			allMethodsMatcher.add(template, res);
+		}
+		res.defaultHandler = handler;
+		return this;
+	}
+
+	public synchronized RoutingHandlerService add(final HttpServiceWithRoutes httpServiceWithRoutes, final Function<? super HttpService, CorsService> decoratingHttpServiceFunction) {
+		servicesWithRoutes.put(httpServiceWithRoutes, decoratingHttpServiceFunction);
+		return this;
+	}
+
+	public synchronized RoutingHandlerService get(final String template, HttpService handler) {
+		return add(HttpMethod.GET, template, handler);
+	}
+
+	public synchronized RoutingHandlerService post(final String template, HttpService handler) {
+		return add(HttpMethod.POST, template, handler);
+	}
+
+	public synchronized RoutingHandlerService put(final String template, HttpService handler) {
+		return add(HttpMethod.PUT, template, handler);
+	}
+
+	public synchronized RoutingHandlerService delete(final String template, HttpService handler) {
+		return add(HttpMethod.DELETE, template, handler);
+	}
+
+	public synchronized RoutingHandlerService add(final String method, final String template, Predicate predicate, HttpService handler) {
+		return add(HttpMethod.tryParse(method), template, predicate, handler);
+	}
+
+	public synchronized RoutingHandlerService add(HttpMethod method, String template, Predicate predicate, HttpService handler) {
+		PathTemplateMatcher<RoutingHandlerService.RoutingMatch> matcher = matches.get(method);
+		if (matcher == null) {
+			matches.put(method, matcher = new PathTemplateMatcher<>());
+		}
+		RoutingHandlerService.RoutingMatch res = matcher.get(template);
+		if (res == null) {
+			matcher.add(template, res = new RoutingHandlerService.RoutingMatch());
+		}
+		if (allMethodsMatcher.match(template) == null) {
+			allMethodsMatcher.add(template, res);
+		}
+		res.predicatedHandlers.add(new RoutingHandlerService.HandlerHolder(predicate, handler));
+		return this;
+	}
+
+	public synchronized RoutingHandlerService get(final String template, Predicate predicate, HttpService handler) {
+		return add(HttpMethod.GET, template, predicate, handler);
+	}
+
+	public synchronized RoutingHandlerService post(final String template, Predicate predicate, HttpService handler) {
+		return add(HttpMethod.POST, template, predicate, handler);
+	}
+
+	public synchronized RoutingHandlerService put(final String template, Predicate predicate, HttpService handler) {
+		return add(HttpMethod.PUT, template, predicate, handler);
+	}
+
+	public synchronized RoutingHandlerService delete(final String template, Predicate predicate, HttpService handler) {
+		return add(HttpMethod.DELETE, template, predicate, handler);
+	}
+
+	public synchronized RoutingHandlerService addAll(RoutingHandlerService routingHandler) {
+		for (Entry<HttpMethod, PathTemplateMatcher<RoutingHandlerService.RoutingMatch>> entry : routingHandler.getMatches().entrySet()) {
+			HttpMethod method = entry.getKey();
+			PathTemplateMatcher<RoutingHandlerService.RoutingMatch> matcher = matches.get(method);
+			if (matcher == null) {
+				matches.put(method, matcher = new PathTemplateMatcher<>());
+			}
+			matcher.addAll(entry.getValue());
+			// If we use allMethodsMatcher.addAll() we can have duplicate
+			// PathTemplates which we want to ignore here so it does not crash.
+			for (PathTemplate template : entry.getValue().getPathTemplates()) {
+				if (allMethodsMatcher.match(template.getTemplateString()) == null) {
+					allMethodsMatcher.add(template, new RoutingHandlerService.RoutingMatch());
+				}
+			}
+		}
+		return this;
+	}
+
+	/**
+	 *
+	 * Removes the specified route from the handler
+	 *
+	 * @param method The method to remove
+	 * @param path the path tempate to remove
+	 * @return this handler
+	 */
+	public RoutingHandlerService remove(HttpMethod method, String path) {
+		PathTemplateMatcher<RoutingHandlerService.RoutingMatch> handler = matches.get(method);
+		if(handler != null) {
+			handler.remove(path);
+		}
+		return this;
+	}
+
+
+	/**
+	 *
+	 * Removes the specified route from the handler
+	 *
+	 * @param path the path tempate to remove
+	 * @return this handler
+	 */
+	public RoutingHandlerService remove(String path) {
+		allMethodsMatcher.remove(path);
+		return this;
+	}
+
+	Map<HttpMethod, PathTemplateMatcher<RoutingHandlerService.RoutingMatch>> getMatches() {
+		return matches;
+	}
+
+	/**
+	 * @return Handler called when no match was found and invalid method handler can't be invoked.
+	 */
+	public HttpService getFallbackHandler() {
+		return fallbackHandler;
+	}
+
+	/**
+	 * @param fallbackHandler Handler that will be called when no match was found and invalid method handler can't be
+	 * invoked.
+	 * @return This instance.
+	 */
+	public RoutingHandlerService setFallbackHandler(HttpService fallbackHandler) {
+		this.fallbackHandler = fallbackHandler;
+		return this;
+	}
+
+	/**
+	 * @return Handler called when this instance can not match the http method but can match another http method.
+	 */
+	public HttpService getInvalidMethodHandler() {
+		return invalidMethodHandler;
+	}
+
+	/**
+	 * Sets the handler called when this instance can not match the http method but can match another http method.
+	 * For example: For an exchange the POST method is not matched by this instance but at least one http method matched
+	 * for the exchange.
+	 * If this handler is null the fallbackHandler will be used.
+	 *
+	 * @param invalidMethodHandler Handler that will be called when this instance can not match the http method but can
+	 * match another http method.
+	 * @return This instance.
+	 */
+	public RoutingHandlerService setInvalidMethodHandler(HttpService invalidMethodHandler) {
+		this.invalidMethodHandler = invalidMethodHandler;
+		return this;
+	}
+
+	private static class RoutingMatch {
+
+		final List<RoutingHandlerService.HandlerHolder> predicatedHandlers = new CopyOnWriteArrayList<>();
+		volatile HttpService defaultHandler;
+
+	}
+
+	private static class HandlerHolder {
+		final Predicate predicate;
+		final HttpService handler;
+
+		private HandlerHolder(Predicate predicate, HttpService handler) {
+			this.predicate = predicate;
+			this.handler = handler;
+		}
+	}
+
+}

@@ -119,6 +119,7 @@
 		<nettyHandler.version>4.1.100.Final</nettyHandler.version>
 		<swagger.version>2.2.15</swagger.version>
 		<undertow.version>2.3.13.Final</undertow.version>
+		<armeria.version>1.28.4</armeria.version>
 		<prometheus.version>1.3.1</prometheus.version>
 		<xnio.version>3.8.14.Final</xnio.version>
 	</properties>

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.graphql;
 
+import com.linecorp.armeria.server.HttpService;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.graphql.api.catalog.CatalogGraphQLRefreshingObserver;
@@ -30,7 +31,6 @@ import io.evitadb.externalApi.graphql.configuration.GraphQLConfig;
 import io.evitadb.externalApi.http.ExternalApiProvider;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
 import io.evitadb.externalApi.http.ExternalApiServer;
-import io.undertow.server.HttpHandler;
 
 import javax.annotation.Nonnull;
 
@@ -59,7 +59,7 @@ public class GraphQLProviderRegistrar implements ExternalApiProviderRegistrar<Gr
     public ExternalApiProvider<GraphQLConfig> register(@Nonnull Evita evita, @Nonnull ExternalApiServer externalApiServer, @Nonnull ApiOptions apiOptions, @Nonnull GraphQLConfig graphQLConfig) {
         final GraphQLManager graphQLManager = new GraphQLManager(evita, graphQLConfig);
         evita.registerStructuralChangeObserver(new CatalogGraphQLRefreshingObserver(graphQLManager));
-        final HttpHandler apiHandler = graphQLManager.getGraphQLRouter();
+        final HttpService apiHandler = graphQLManager.getGraphQLRouter();
         return new GraphQLProvider(graphQLConfig, apiHandler);
     }
 }

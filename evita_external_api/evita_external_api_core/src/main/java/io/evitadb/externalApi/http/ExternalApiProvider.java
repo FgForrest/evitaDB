@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,7 +23,10 @@
 
 package io.evitadb.externalApi.http;
 
+import com.linecorp.armeria.server.HttpService;
 import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
+import io.evitadb.externalApi.configuration.MtlsConfiguration;
+import io.evitadb.externalApi.utils.Router;
 import io.undertow.server.HttpHandler;
 
 import javax.annotation.Nonnull;
@@ -55,7 +58,7 @@ public interface ExternalApiProvider<T extends AbstractApiConfiguration> {
 	 * @return HTTP handler that is responsible for processing all requests addressed to this API
 	 */
 	@Nullable
-	default HttpHandler getApiHandler() {
+	default HttpService getApiHandler() {
 		return null;
 	}
 
@@ -87,5 +90,15 @@ public interface ExternalApiProvider<T extends AbstractApiConfiguration> {
 	 * @return TRUE if the API is ready to accept requests
 	 */
 	boolean isReady();
+
+	/**
+	 * Returns mTLS configuration for the API. If the API does not support mTLS, the method should return NULL.
+	 *
+	 * @return mTLS configuration for the API
+	 */
+	@Nullable
+	default MtlsConfiguration mtlsConfiguration() {
+		return null;
+	}
 
 }

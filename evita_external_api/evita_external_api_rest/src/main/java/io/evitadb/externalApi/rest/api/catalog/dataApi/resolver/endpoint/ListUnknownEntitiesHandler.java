@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint;
 
+import com.linecorp.armeria.common.HttpMethod;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.externalApi.http.EndpointResponse;
@@ -36,7 +37,6 @@ import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.externalApi.rest.io.JsonRestHandler;
 import io.evitadb.externalApi.rest.io.RestEndpointExchange;
 import io.evitadb.utils.Assert;
-import io.undertow.util.Methods;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -80,7 +80,7 @@ public class ListUnknownEntitiesHandler extends JsonRestHandler<CatalogRestHandl
 	@Nonnull
 	@Override
 	public Set<String> getSupportedHttpMethods() {
-		return Set.of(Methods.GET_STRING);
+		return Set.of(HttpMethod.GET.name());
 	}
 
 	@Nonnull

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -52,7 +52,7 @@ module evita.external.api.graphql {
 	requires static lombok;
 	requires org.slf4j;
 	requires com.fasterxml.jackson.databind;
-	requires undertow.core;
+	//requires undertow.core;
 	requires com.graphqljava;
 
 	requires evita.api;
@@ -60,5 +60,8 @@ module evita.external.api.graphql {
 	requires evita.query;
 	requires evita.engine;
 	requires evita.external.api.core;
+	requires com.linecorp.armeria;
+	requires org.reactivestreams;
+	requires io.netty.common;
 
 }

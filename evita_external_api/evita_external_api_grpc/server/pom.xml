@@ -52,23 +52,18 @@
 		</dependency>
 		<dependency>
 			<groupId>com.linecorp.armeria</groupId>
-			<artifactId>armeria</artifactId>
-			<version>1.28.4</version>
-		</dependency>
-		<dependency>
-			<groupId>com.linecorp.armeria</groupId>
 			<artifactId>armeria-grpc</artifactId>
-			<version>1.28.4</version>
+			<version>${armeria.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>com.linecorp.armeria</groupId>
 			<artifactId>armeria-grpc-protocol</artifactId>
-			<version>1.28.4</version>
+			<version>${armeria.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>com.linecorp.armeria</groupId>
 			<artifactId>armeria-protobuf</artifactId>
-			<version>1.28.4</version>
+			<version>${armeria.version}</version>
 		</dependency>
 	</dependencies>
 </project>

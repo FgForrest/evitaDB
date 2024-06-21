@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,12 +23,12 @@
 
 package io.evitadb.externalApi.rest.api.catalog.schemaApi.resolver.endpoint;
 
+import com.linecorp.armeria.common.HttpMethod;
 import io.evitadb.externalApi.http.EndpointResponse;
 import io.evitadb.externalApi.http.NotFoundEndpointResponse;
 import io.evitadb.externalApi.http.SuccessEndpointResponse;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.CollectionRestHandlingContext;
 import io.evitadb.externalApi.rest.io.RestEndpointExchange;
-import io.undertow.util.Methods;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -57,6 +57,6 @@ public class GetEntitySchemaHandler extends EntitySchemaHandler {
 	@Nonnull
 	@Override
 	public Set<String> getSupportedHttpMethods() {
-		return Set.of(Methods.GET_STRING);
+		return Set.of(HttpMethod.GET.name());
 	}
 }

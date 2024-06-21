@@ -25,6 +25,7 @@ package io.evitadb.externalApi.grpc.utils;
 
 import com.linecorp.armeria.common.HttpMethod;
 import com.linecorp.armeria.common.grpc.GrpcSerializationFormats;
+import com.linecorp.armeria.server.Route;
 import com.linecorp.armeria.server.Server;
 import com.linecorp.armeria.server.ServerBuilder;
 import com.linecorp.armeria.server.cors.CorsService;
@@ -33,7 +34,6 @@ import com.linecorp.armeria.common.grpc.protocol.GrpcHeaderNames;
 import com.linecorp.armeria.server.grpc.GrpcService;
 import com.linecorp.armeria.server.grpc.GrpcServiceBuilder;
 import io.evitadb.core.Evita;
-import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.certificate.ServerCertificateManager;
 import io.evitadb.externalApi.configuration.ApiOptions;
@@ -43,21 +43,10 @@ import io.evitadb.externalApi.configuration.MtlsConfiguration;
 import io.evitadb.externalApi.grpc.configuration.GrpcConfig;
 import io.evitadb.externalApi.grpc.services.EvitaService;
 import io.evitadb.externalApi.grpc.services.EvitaSessionService;
-import io.evitadb.externalApi.grpc.services.interceptors.AccessLogInterceptor;
 import io.evitadb.externalApi.grpc.services.interceptors.GlobalExceptionHandlerInterceptor;
 import io.evitadb.externalApi.grpc.services.interceptors.ObservabilityInterceptor;
 import io.evitadb.externalApi.grpc.services.interceptors.ServerSessionInterceptor;
-import io.evitadb.externalApi.trace.ExternalApiTracingContextProvider;
 import io.evitadb.utils.CertificateUtils;
-import io.grpc.ManagedChannel;
-import io.grpc.Server;
-import io.grpc.ServerCredentials;
-import io.grpc.ServerInterceptor;
-import io.grpc.TlsServerCredentials;
-import io.grpc.netty.NettyServerBuilder;
-import io.grpc.ServerInterceptor;
-import io.grpc.protobuf.services.ProtoReflectionService;
-import io.netty.handler.ssl.ClientAuth;
 import io.grpc.protobuf.services.ProtoReflectionService;
 import io.netty.handler.ssl.ClientAuth;
 import lombok.Getter;
@@ -112,23 +101,15 @@ public class GrpcServer {
 			.port(hosts[0].port(), HTTP, HTTPS)
 			.tls(new File(certificatePath.certificate()), new File(certificatePath.privateKey()), certificatePath.privateKeyPassword());
 
-		GrpcServiceBuilder grpcServiceBuilder = GrpcService.builder()
+		final GrpcServiceBuilder grpcServiceBuilder = GrpcService.builder()
 			.addService(new EvitaService(evita))
-			.addService(new EvitaSessionService())
+			.addService(new EvitaSessionService(evita))
 			.addService(ProtoReflectionService.newInstance())
 			.intercept(new ServerSessionInterceptor(evita))
 			.intercept(new GlobalExceptionHandlerInterceptor())
 			.intercept(new ObservabilityInterceptor(apiOptions.accessLog()))
 			.supportedSerializationFormats(GrpcSerializationFormats.values())
 			.enableUnframedRequests(true);
-
-		if (apiOptions.accessLog()) {
-			grpcServiceBuilder = grpcServiceBuilder.intercept(new AccessLogInterceptor());
-		}
-		final ServerInterceptor serverInterceptor = ExternalApiTracingContextProvider.getContext().getServerInterceptor(ServerInterceptor.class);
-		if (serverInterceptor != null) {
-			grpcServiceBuilder = grpcServiceBuilder.intercept(serverInterceptor);
-		}
 
 		final GrpcService grpcService = grpcServiceBuilder.build();
 
@@ -173,9 +154,10 @@ public class GrpcServer {
 						e
 					);
 				}
-			})
-			.blockingTaskExecutor(evita.getExecutor(), true)
-			.service(grpcService, corsBuilder.newDecorator());
+			}
+		)
+		.blockingTaskExecutor(evita.getExecutor(), true)
+		.service(grpcService, corsBuilder.newDecorator());
 
 		server = serverBuilder.build();
 	}

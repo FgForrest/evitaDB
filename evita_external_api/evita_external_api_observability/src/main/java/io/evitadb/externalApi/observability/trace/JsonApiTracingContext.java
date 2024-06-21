@@ -23,9 +23,12 @@
 
 package io.evitadb.externalApi.observability.trace;
 
+import com.linecorp.armeria.common.HttpRequest;
+import com.linecorp.armeria.common.RequestHeaders;
 import io.evitadb.api.observability.trace.TracingContext;
 import io.evitadb.api.observability.trace.TracingContext.SpanAttribute;
 import io.evitadb.externalApi.utils.ExternalApiTracingContext;
+import io.netty.util.AsciiString;
 import io.opentelemetry.context.Context;
 import io.opentelemetry.context.Scope;
 import io.opentelemetry.context.propagation.TextMapGetter;
@@ -45,26 +48,26 @@ import static java.util.Optional.ofNullable;
  *
  * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
  */
-public class JsonApiTracingContext implements ExternalApiTracingContext<HttpServerExchange> {
+public class JsonApiTracingContext implements ExternalApiTracingContext<HttpRequest> {
 	private static final String CLIENT_ID_HEADER = "X-EvitaDB-ClientID";
 	/**
 	 * Getter for extracting information from Undertow {@link HeaderMap}.
 	 */
 	@Nonnull
-	private static final TextMapGetter<HeaderMap> CONTEXT_GETTER =
+	private static final TextMapGetter<RequestHeaders> CONTEXT_GETTER =
 		new TextMapGetter<>() {
 			@Override
-			public Iterable<String> keys(HeaderMap headers) {
-				return headers.getHeaderNames()
+			public Iterable<String> keys(RequestHeaders headers) {
+				return headers.names()
 					.stream()
-					.map(HttpString::toString)
+					.map(AsciiString::toString)
 					.collect(Collectors.toList());
 			}
 
 			@Override
-			public String get(@Nullable HeaderMap headers, @Nonnull String s) {
+			public String get(@Nullable RequestHeaders headers, @Nonnull String s) {
 				return ofNullable(headers)
-					.map(it -> it.getFirst(s))
+					.map(it -> it.get(s))
 					.orElse(null);
 			}
 		};
@@ -77,7 +80,7 @@ public class JsonApiTracingContext implements ExternalApiTracingContext<HttpServ
 	@Override
 	public void executeWithinBlock(
 		@Nonnull String protocolName,
-		@Nonnull HttpServerExchange context,
+		@Nonnull HttpRequest context,
 		@Nonnull Runnable runnable,
 		@Nullable SpanAttribute... attributes
 	) {
@@ -97,7 +100,7 @@ public class JsonApiTracingContext implements ExternalApiTracingContext<HttpServ
 	@Override
 	public <T> T executeWithinBlock(
 		@Nonnull String protocolName,
-		@Nonnull HttpServerExchange context,
+		@Nonnull HttpRequest context,
 		@Nonnull Supplier<T> lambda,
 		@Nullable SpanAttribute... attributes
 	) {
@@ -116,7 +119,7 @@ public class JsonApiTracingContext implements ExternalApiTracingContext<HttpServ
 	@Override
 	public void executeWithinBlock(
 		@Nonnull String protocolName,
-		@Nonnull HttpServerExchange context,
+		@Nonnull HttpRequest context,
 		@Nonnull Runnable runnable,
 		@Nullable Supplier<SpanAttribute[]> attributes
 	) {
@@ -136,7 +139,7 @@ public class JsonApiTracingContext implements ExternalApiTracingContext<HttpServ
 	@Override
 	public <T> T executeWithinBlock(
 		@Nonnull String protocolName,
-		@Nonnull HttpServerExchange context,
+		@Nonnull HttpRequest context,
 		@Nonnull Supplier<T> lambda,
 		@Nullable Supplier<SpanAttribute[]> attributes
 	) {
@@ -153,7 +156,7 @@ public class JsonApiTracingContext implements ExternalApiTracingContext<HttpServ
 	}
 
 	@Override
-	public void executeWithinBlock(@Nonnull String protocolName, @Nonnull HttpServerExchange context, @Nonnull Runnable runnable) {
+	public void executeWithinBlock(@Nonnull String protocolName, @Nonnull HttpRequest context, @Nonnull Runnable runnable) {
 		if (!OpenTelemetryTracerSetup.isTracingEnabled()) {
 			runnable.run();
 			return;
@@ -168,7 +171,7 @@ public class JsonApiTracingContext implements ExternalApiTracingContext<HttpServ
 
 	@Nullable
 	@Override
-	public <T> T executeWithinBlock(@Nonnull String protocolName, @Nonnull HttpServerExchange context, @Nonnull Supplier<T> lambda) {
+	public <T> T executeWithinBlock(@Nonnull String protocolName, @Nonnull HttpRequest context, @Nonnull Supplier<T> lambda) {
 		if (!OpenTelemetryTracerSetup.isTracingEnabled()) {
 			return lambda.get();
 		}
@@ -185,15 +188,15 @@ public class JsonApiTracingContext implements ExternalApiTracingContext<HttpServ
 	 * the extracted traceId, the clientId is also extracted and injected into the received context.
 	 */
 	@Nonnull
-	private Context extractContextFromHeaders(@Nonnull String protocolName, @Nonnull HttpServerExchange exchange) {
-		final HeaderMap headers = exchange.getRequestHeaders();
+	private Context extractContextFromHeaders(@Nonnull String protocolName, @Nonnull HttpRequest exchange) {
+		final RequestHeaders headers = exchange.headers();
 		final Context context = OpenTelemetryTracerSetup.getOpenTelemetry()
 			.getPropagators()
 			.getTextMapPropagator()
 			.extract(Context.current(), headers, CONTEXT_GETTER);
 		final String clientId = convertClientId(
 			protocolName,
-			headers.getFirst(CLIENT_ID_HEADER)
+			headers.get(CLIENT_ID_CONTEXT_KEY_NAME)
 		);
 		return context.with(OpenTelemetryTracerSetup.CONTEXT_KEY, clientId);
 	}

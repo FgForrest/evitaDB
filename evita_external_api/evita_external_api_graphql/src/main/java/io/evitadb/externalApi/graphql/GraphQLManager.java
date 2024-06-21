@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.graphql;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.linecorp.armeria.server.HttpService;
 import graphql.GraphQL;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.core.CorruptedCatalog;
@@ -39,7 +40,6 @@ import io.evitadb.externalApi.graphql.io.GraphQLRouter;
 import io.evitadb.externalApi.http.PathNormalizingHandler;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.StringUtils;
-import io.undertow.server.HttpHandler;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -90,7 +90,7 @@ public class GraphQLManager {
 	}
 
 	@Nonnull
-	public HttpHandler getGraphQLRouter() {
+	public HttpService getGraphQLRouter() {
 		return new PathNormalizingHandler(graphQLRouter);
 	}
 

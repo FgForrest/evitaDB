@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,6 +23,16 @@
 
 package io.evitadb.externalApi.graphql.io;
 
+import com.linecorp.armeria.common.AggregatedHttpRequest;
+import com.linecorp.armeria.common.AggregationOptions;
+import com.linecorp.armeria.common.HttpData;
+import com.linecorp.armeria.common.HttpMethod;
+import com.linecorp.armeria.common.HttpObject;
+import com.linecorp.armeria.common.HttpRequest;
+import com.linecorp.armeria.common.HttpResponse;
+import com.linecorp.armeria.common.HttpResponseWriter;
+import com.linecorp.armeria.common.RequestHeaders;
+import com.linecorp.armeria.common.stream.SubscriptionOption;
 import graphql.GraphQL;
 import graphql.schema.GraphQLSchema;
 import graphql.schema.idl.SchemaPrinter;
@@ -32,14 +42,14 @@ import io.evitadb.externalApi.exception.ExternalApiInvalidUsageException;
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidUsageException;
 import io.evitadb.externalApi.graphql.io.GraphQLSchemaHandler.GraphQLEndpointExchange;
-import io.evitadb.externalApi.http.EndpointExchange;
-import io.evitadb.externalApi.http.EndpointHandler;
+import io.evitadb.externalApi.http.AbstractHttpService;
+import io.evitadb.externalApi.http.EndpointRequest;
 import io.evitadb.externalApi.http.EndpointResponse;
 import io.evitadb.externalApi.http.SuccessEndpointResponse;
 import io.evitadb.utils.Assert;
-import io.undertow.server.HttpServerExchange;
-import io.undertow.util.Methods;
+import io.netty.util.concurrent.EventExecutor;
 import lombok.extern.slf4j.Slf4j;
+import org.reactivestreams.Subscriber;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -47,6 +57,7 @@ import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.util.LinkedHashSet;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.utils.CollectionUtils.createLinkedHashSet;
@@ -58,7 +69,7 @@ import static io.evitadb.utils.CollectionUtils.createLinkedHashSet;
  * @author Lukáš Hornych, FG Forrest a.s. 2023
  */
 @Slf4j
-public class GraphQLSchemaHandler extends EndpointHandler<GraphQLEndpointExchange> {
+public class GraphQLSchemaHandler extends AbstractHttpService<GraphQLEndpointExchange> {
 
     private static final Set<String> IMPLICIT_DIRECTIVES = Set.of("deprecated", "skip", "include", "specifiedBy");
 
@@ -75,11 +86,11 @@ public class GraphQLSchemaHandler extends EndpointHandler<GraphQLEndpointExchang
 
     @Nonnull
     @Override
-    protected GraphQLEndpointExchange createEndpointExchange(@Nonnull HttpServerExchange serverExchange,
+    protected GraphQLEndpointExchange createEndpointExchange(@Nonnull HttpRequest httpRequest,
                                                                      @Nonnull String httpMethod,
                                                                      @Nullable String requestBodyMediaType,
                                                                      @Nullable String preferredResponseMediaType) {
-        return new GraphQLEndpointExchange(serverExchange, httpMethod, requestBodyMediaType, preferredResponseMediaType);
+        return new GraphQLEndpointExchange(httpRequest, httpMethod, requestBodyMediaType, preferredResponseMediaType);
     }
 
     @Override
@@ -112,7 +123,7 @@ public class GraphQLSchemaHandler extends EndpointHandler<GraphQLEndpointExchang
     @Nonnull
     @Override
     public Set<String> getSupportedHttpMethods() {
-        return Set.of(Methods.GET_STRING);
+        return Set.of(HttpMethod.GET.name());
     }
 
     @Nonnull
@@ -123,21 +134,21 @@ public class GraphQLSchemaHandler extends EndpointHandler<GraphQLEndpointExchang
         return mediaTypes;
     }
 
-
     @Override
-    protected void writeResult(@Nonnull GraphQLEndpointExchange exchange, @Nonnull OutputStream outputStream, @Nonnull Object response) {
+    protected void writeResponse(@Nonnull GraphQLEndpointExchange exchange, @Nonnull HttpResponseWriter responseWriter, @Nonnull Object response) {
         Assert.isPremiseValid(
             response instanceof GraphQLSchema,
             () -> new GraphQLInternalError("Expected response to be instance of GraphQLSchema, but was `" + response.getClass().getName() + "`.")
         );
-        final String printedSchema = schemaPrinter.print((GraphQLSchema) response);
-        try (PrintWriter writer = new PrintWriter(outputStream)) {
-            writer.write(printedSchema);
-        }
+
+        final String schema = schemaPrinter.print((GraphQLSchema) response);
+        responseWriter.write(HttpData.ofUtf8(schema));
     }
 
-    protected record GraphQLEndpointExchange(@Nonnull HttpServerExchange serverExchange,
+    protected record GraphQLEndpointExchange(@Nonnull HttpRequest httpRequest,
                                              @Nonnull String httpMethod,
                                              @Nullable String requestBodyContentType,
-                                             @Nullable String preferredResponseContentType) implements EndpointExchange {}
+                                             @Nullable String preferredResponseContentType) implements EndpointRequest {
+
+    }
 }

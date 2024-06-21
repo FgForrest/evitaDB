@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,12 +23,12 @@
 
 package io.evitadb.externalApi.rest;
 
+import com.linecorp.armeria.server.HttpService;
 import io.evitadb.externalApi.http.ExternalApiProvider;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiSystemEndpoint;
 import io.evitadb.externalApi.rest.api.system.model.LivenessDescriptor;
 import io.evitadb.externalApi.rest.configuration.RestConfig;
 import io.evitadb.utils.NetworkUtils;
-import io.undertow.server.HttpHandler;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
@@ -51,7 +51,7 @@ public class RestProvider implements ExternalApiProvider<RestConfig> {
 
 	@Nonnull
 	@Getter
-	private final HttpHandler apiHandler;
+	private final HttpService apiHandler;
 
 	/**
 	 * Contains url that was at least once found reachable.

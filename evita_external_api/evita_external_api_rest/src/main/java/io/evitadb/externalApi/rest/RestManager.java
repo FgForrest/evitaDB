@@ -24,6 +24,9 @@
 package io.evitadb.externalApi.rest;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.linecorp.armeria.server.HttpService;
+import com.linecorp.armeria.server.Route;
+import com.linecorp.armeria.server.ServerBuilder;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.core.CorruptedCatalog;
 import io.evitadb.core.Evita;
@@ -34,9 +37,9 @@ import io.evitadb.externalApi.rest.api.system.SystemRestBuilder;
 import io.evitadb.externalApi.rest.configuration.RestConfig;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.externalApi.rest.io.RestRouter;
+import io.evitadb.externalApi.utils.Router;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.StringUtils;
-import io.undertow.server.HttpHandler;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -89,7 +92,7 @@ public class RestManager {
 	}
 
 	@Nonnull
-	public HttpHandler getRestRouter() {
+	public HttpService getRestRouter() {
 		return new PathNormalizingHandler(restRouter);
 	}
 

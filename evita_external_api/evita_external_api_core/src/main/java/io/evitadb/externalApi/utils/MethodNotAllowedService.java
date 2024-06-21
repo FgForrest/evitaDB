@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,18 +21,21 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.log;
+package io.evitadb.externalApi.utils;
 
-import io.undertow.server.handlers.accesslog.AccessLogReceiver;
+import com.linecorp.armeria.common.HttpRequest;
+import com.linecorp.armeria.common.HttpResponse;
+import com.linecorp.armeria.common.HttpStatus;
+import com.linecorp.armeria.common.MediaType;
+import com.linecorp.armeria.server.HttpService;
+import com.linecorp.armeria.server.ServiceRequestContext;
 
-/**
- * Access log receiver that discards and access log.
- *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
- */
-public class NoopAccessLogReceiver implements AccessLogReceiver {
+import javax.annotation.Nonnull;
+
+public class MethodNotAllowedService implements HttpService {
+	@Nonnull
 	@Override
-	public void logMessage(String message) {
-		// discard all log messages
+	public HttpResponse serve(@Nonnull ServiceRequestContext ctx, @Nonnull HttpRequest req) {
+		return HttpResponse.of(HttpStatus.METHOD_NOT_ALLOWED, MediaType.PLAIN_TEXT, "405 Method Not Allowed: The requested method is not supported.");
 	}
 }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,6 +24,8 @@
 package io.evitadb.externalApi.rest.io;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.linecorp.armeria.common.HttpData;
+import com.linecorp.armeria.common.HttpResponseWriter;
 import io.evitadb.externalApi.http.MimeTypes;
 import io.evitadb.externalApi.rest.exception.OpenApiInternalError;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
@@ -68,9 +70,9 @@ public abstract class JsonRestHandler<CTX extends RestHandlingContext> extends R
 	}
 
 	@Override
-	protected void writeResult(@Nonnull RestEndpointExchange exchange, @Nonnull OutputStream outputStream, @Nonnull Object result) {
+	protected void writeResponse(@Nonnull RestEndpointExchange exchange, @Nonnull HttpResponseWriter responseWriter, @Nonnull Object result) {
 		try {
-			restHandlingContext.getObjectMapper().writeValue(outputStream, result);
+			responseWriter.write(HttpData.ofUtf8(restHandlingContext.getObjectMapper().writeValueAsString(result)));
 		} catch (IOException e) {
 			throw new OpenApiInternalError(
 				"Could not serialize Java object response to JSON: " + e.getMessage(),

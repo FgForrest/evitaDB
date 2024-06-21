@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,12 +26,15 @@ package io.evitadb.externalApi.grpc.configuration;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
+import io.evitadb.externalApi.configuration.ApiWithSpecificPrefix;
 import io.evitadb.externalApi.configuration.MtlsConfiguration;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.List;
+
+import static java.util.Optional.ofNullable;
 
 /**
  * gRPC API specific configuration.
@@ -41,7 +44,8 @@ import java.util.List;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class GrpcConfig extends AbstractApiConfiguration {
+public class GrpcConfig extends AbstractApiConfiguration implements ApiWithSpecificPrefix {
+	private static final String BASE_GRPC_PATH = "grpc";
 	/**
 	 * Port on which will server be run and on which will channel be opened.
 	 */
@@ -55,19 +59,29 @@ public class GrpcConfig extends AbstractApiConfiguration {
 	public GrpcConfig() {
 		super(true, LOCALHOST + ":" + DEFAULT_GRPC_PORT);
 		mtlsConfiguration = new MtlsConfiguration(false, List.of());
+		this.prefix = BASE_GRPC_PATH;
 	}
 
 	public GrpcConfig(@Nonnull String host) {
 		super(true, host);
 		mtlsConfiguration = new MtlsConfiguration(false, List.of());
+		this.prefix = BASE_GRPC_PATH;
 	}
 
 	@JsonCreator
 	public GrpcConfig(@Nullable @JsonProperty("enabled") Boolean enabled,
 	                  @Nonnull @JsonProperty("host") String host,
 	                  @Nullable @JsonProperty("exposedHost") String exposedHost,
+	                  @Nullable @JsonProperty("prefix") String prefix,
 	                  @Nonnull @JsonProperty("mTLS") MtlsConfiguration mtlsConfiguration) {
 		super(enabled, host, exposedHost, true);
 		this.mtlsConfiguration = mtlsConfiguration;
+		this.prefix = ofNullable(prefix).orElse(BASE_GRPC_PATH);
 	}
+
+	/**
+	 * Controls the prefix gRPC API will react on.
+	 * Default value is `grpc`.
+	 */
+	@Getter private final String prefix;
 }
