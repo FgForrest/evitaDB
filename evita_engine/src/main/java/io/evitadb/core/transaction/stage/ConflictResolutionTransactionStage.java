@@ -39,7 +39,7 @@ import javax.annotation.concurrent.NotThreadSafe;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 
 /**
  * Represents a transaction stage responsible for resolving conflicts during a transaction and assigning a new
@@ -60,7 +60,7 @@ public final class ConflictResolutionTransactionStage
 		@Nonnull Executor executor,
 		int maxBufferCapacity,
 		@Nonnull TransactionManager transactionManager,
-		@Nonnull Consumer<TransactionTask> onException
+		@Nonnull BiConsumer<TransactionTask, Throwable> onException
 	) {
 		super(executor, maxBufferCapacity, transactionManager, onException);
 	}

@@ -291,7 +291,7 @@ class CatalogWriteAheadLogIntegrationTest {
 	}
 
 	private void createCachedSupplierReadAndVerifyFrom(Map<Long, List<Mutation>> txInMutations, int[] aFewTransactions, int index) {
-		final MutationSupplier supplier = wal.createSupplier(index + 1, false);
+		final MutationSupplier supplier = wal.createSupplier(index + 1, null);
 		assertEquals(1, supplier.getTransactionsRead());
 		readAndVerifyWal(txInMutations, aFewTransactions, index);
 	}

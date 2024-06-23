@@ -1680,11 +1680,11 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 
 	@Nonnull
 	@Override
-	public Stream<Mutation> getCommittedLiveMutationStream(long catalogVersion) {
+	public Stream<Mutation> getCommittedLiveMutationStream(long startCatalogVersion, long requestedCatalogVersion) {
 		if (this.catalogWal == null) {
 			return Stream.empty();
 		} else {
-			return this.catalogWal.getCommittedMutationStreamAvoidingPartiallyWrittenBuffer(catalogVersion);
+			return this.catalogWal.getCommittedMutationStreamAvoidingPartiallyWrittenBuffer(startCatalogVersion, requestedCatalogVersion);
 		}
 	}
 
@@ -1825,9 +1825,12 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	@Nonnull
 	@Override
 	public Path backup(@Nonnull UUID id, @Nullable OffsetDateTime pastMoment, boolean includingWAL, @Nonnull IntConsumer progressUpdater) throws TemporalDataNotAvailableException {
-		final long catalogVersion = pastMoment == null ?
-			this.bootstrapUsed.catalogVersion() :
-			getCatalogBootstrapForSpecificMoment(this.catalogName, this.storageOptions, pastMoment).catalogVersion();
+		final CatalogBootstrap bootstrapToUse = pastMoment == null ?
+			this.bootstrapUsed : getCatalogBootstrapForSpecificMoment(this.catalogName, this.storageOptions, pastMoment);
+		final long catalogVersion = bootstrapToUse.catalogVersion();
+
+		// first store all the active contents of the entity collection data files
+		final CatalogHeader catalogHeader = fetchCatalogHeader(bootstrapToUse);
 
 		final Path backupFolder = this.transactionOptions.transactionWorkDirectory().resolve("backup");
 		if (!backupFolder.toFile().exists()) {
@@ -1838,8 +1841,6 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			zipOutputStream.putNextEntry(new ZipEntry(this.catalogName + "/"));
 			zipOutputStream.closeEntry();
 
-			// first store all the active contents of the entity collection data files
-			final CatalogHeader catalogHeader = getCatalogHeader(catalogVersion);
 			final Map<String, EntityCollectionHeader> entityHeaders = CollectionUtils.createHashMap(
 				catalogHeader.getEntityTypeFileIndexes().size()
 			);
@@ -2530,16 +2531,21 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	private DataFilesBulkInfo fetchDataFilesInfo(long catalogVersion) {
 		return getCatalogBootstrapRecordStream(this.catalogName, this.storageOptions)
 			.filter(it -> it.catalogVersion() == catalogVersion)
-			.map(it -> {
-				final String catalogFileName = getCatalogDataStoreFileName(catalogName, it.catalogFileIndex());
-				final Path catalogFilePath = this.catalogStoragePath.resolve(catalogFileName);
-				return new DataFilesBulkInfo(
-					it,
-					readCatalogHeader(catalogFilePath, it, this.recordTypeRegistry)
-				);
-			})
+			.map(it -> new DataFilesBulkInfo(it, fetchCatalogHeader(it)))
 			.findFirst()
 			.orElse(null);
+	}
+
+	/**
+	 * Fetches the catalog header for the given catalog bootstrap record.
+	 * @param bootstrap bootstrap record
+	 * @return the catalog header
+	 */
+	@Nonnull
+	private CatalogHeader fetchCatalogHeader(@Nonnull CatalogBootstrap bootstrap) {
+		final String catalogFileName = getCatalogDataStoreFileName(catalogName, bootstrap.catalogFileIndex());
+		final Path catalogFilePath = this.catalogStoragePath.resolve(catalogFileName);
+		return readCatalogHeader(catalogFilePath, bootstrap, this.recordTypeRegistry);
 	}
 
 	/**

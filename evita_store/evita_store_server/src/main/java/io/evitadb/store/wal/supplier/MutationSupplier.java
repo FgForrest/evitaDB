@@ -45,6 +45,7 @@ public final class MutationSupplier extends AbstractMutationSupplier {
 
 	public MutationSupplier(
 		long catalogVersion,
+		long requestedCatalogVersion,
 		@Nonnull String catalogName,
 		@Nonnull Path catalogStoragePath,
 		int walFileIndex,
@@ -58,7 +59,7 @@ public final class MutationSupplier extends AbstractMutationSupplier {
 			walFileIndex, catalogKryoPool, transactionLocationsCache,
 			avoidPartiallyFilledBuffer, onClose
 		);
-		this.requestedCatalogVersion = catalogVersion;
+		this.requestedCatalogVersion = requestedCatalogVersion;
 	}
 
 	@Override
@@ -98,8 +99,8 @@ public final class MutationSupplier extends AbstractMutationSupplier {
 					final long requiredLength = this.filePosition + this.transactionMutation.getTransactionSpan().recordLength();
 					if (
 						avoidPartiallyFilledBuffer ?
-							// for partially filled buffer we require much more data to be written or the fact that reader explicitly requested the catalog version
-							this.transactionMutation.getCatalogVersion() == this.requestedCatalogVersion && currentFileLength >= requiredLength :
+							// for partially filled buffer we stop reading the transaction mutation when the requested catalog version is reached
+							this.transactionMutation.getCatalogVersion() <= this.requestedCatalogVersion && currentFileLength >= requiredLength :
 							// otherwise we require just the entire transaction to be written
 							currentFileLength >= requiredLength
 					) {

@@ -39,7 +39,7 @@ import java.time.OffsetDateTime;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 
 /**
  * This stage of transaction processing reads the changes recorded in the WAL and applies them to the last snapshot
@@ -67,7 +67,7 @@ public final class TrunkIncorporationTransactionStage
 		int maxBufferCapacity,
 		@Nonnull TransactionManager transactionManager,
 		long timeoutInMillis,
-		@Nonnull Consumer<TransactionTask> onException
+		@Nonnull BiConsumer<TransactionTask, Throwable> onException
 	) {
 		super(executor, maxBufferCapacity, transactionManager, onException);
 		this.timeout = timeoutInMillis * 1_000_000;

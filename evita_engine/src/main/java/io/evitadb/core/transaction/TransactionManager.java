@@ -44,6 +44,7 @@ import io.evitadb.core.transaction.stage.TrunkIncorporationTransactionStage;
 import io.evitadb.core.transaction.stage.TrunkIncorporationTransactionStage.TrunkIncorporationTransactionTask;
 import io.evitadb.core.transaction.stage.TrunkIncorporationTransactionStage.UpdatedCatalogTransactionTask;
 import io.evitadb.core.transaction.stage.WalAppendingTransactionStage;
+import io.evitadb.core.transaction.stage.WalAppendingTransactionStage.WalAppendingTransactionTask;
 import io.evitadb.core.transaction.stage.mutation.VerifiedEntityRemoveMutation;
 import io.evitadb.core.transaction.stage.mutation.VerifiedEntityUpsertMutation;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -59,7 +60,9 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.SubmissionPublisher;
 import java.util.concurrent.TimeUnit;
@@ -134,6 +137,10 @@ public class TransactionManager {
 	 * emergency situation when some of the tasks was not processed.
 	 */
 	private final DelayedAsyncTask walDrainingTask;
+	/**
+	 * Queue that contains versions that are to be drained from the WAL by scheduled task if not processed.
+	 */
+	private final BlockingQueue<Long> versionsToDrain = new LinkedBlockingQueue<>();
 	/**
 	 * Lock used for conflict resolution.
 	 */
@@ -244,7 +251,7 @@ public class TransactionManager {
 			catalog.getName(), "WAL draining task",
 			scheduler,
 			this::drainWal,
-			0, TimeUnit.MILLISECONDS
+			500, TimeUnit.MILLISECONDS
 		);
 		// init the publisher
 		getTransactionalPublisher();
@@ -330,12 +337,16 @@ public class TransactionManager {
 	 * In such a situation, the submission publisher is automatically closed and needs to be recreated from scratch.
 	 * This is design decision form the authors of the {@link java.util.concurrent.Flow} API.
 	 */
-	public void invalidateTransactionalPublisher(@Nonnull TransactionTask task) {
+	public void invalidateTransactionalPublisher(@Nonnull TransactionTask task, @Nonnull Throwable ex) {
 		synchronized (this.transactionalPipeline) {
 			ofNullable(this.transactionalPipeline.getAndSet(null))
 				.ifPresent(SubmissionPublisher::close);
 
-			if (task instanceof TrunkIncorporationTransactionTask || task instanceof UpdatedCatalogTransactionTask) {
+			if ((task instanceof WalAppendingTransactionTask && ex.getCause() instanceof RejectedExecutionException) ||
+				task instanceof TrunkIncorporationTransactionTask ||
+				task instanceof UpdatedCatalogTransactionTask
+			) {
+				this.versionsToDrain.add(task.catalogVersion());
 				this.walDrainingTask.schedule();
 			}
 		}
@@ -485,7 +496,7 @@ public class TransactionManager {
 	 */
 	public void identifyConflicts() {
 		try {
-			if (this.conflictResolutionLock.tryLock(this.configuration.server().transactionTimeoutInMilliseconds(), TimeUnit.MILLISECONDS)) {
+			if (this.conflictResolutionLock.tryLock(0, TimeUnit.MILLISECONDS)) {
 				// TOBEDONE JNO #503 - implement conflict resolution
 			} else {
 				throw new TransactionTimedOutException("Conflict resolution lock timed out!");
@@ -493,7 +504,9 @@ public class TransactionManager {
 		} catch (InterruptedException e) {
 			throw new GenericEvitaInternalError("Conflict resolution lock interrupted!", e);
 		} finally {
-			this.conflictResolutionLock.unlock();
+			if (this.conflictResolutionLock.isHeldByCurrentThread()) {
+				this.conflictResolutionLock.unlock();
+			}
 		}
 	}
 
@@ -509,7 +522,7 @@ public class TransactionManager {
 		@Nonnull OffHeapWithFileBackupReference walReference
 	) {
 		try {
-			if (this.walAppendingLock.tryLock(this.configuration.server().transactionTimeoutInMilliseconds(), TimeUnit.MILLISECONDS)) {
+			if (this.walAppendingLock.tryLock(0, TimeUnit.MILLISECONDS)) {
 				Assert.isPremiseValid(
 					this.lastWrittenCatalogVersion.get() + 1 == transactionMutation.getCatalogVersion(),
 					"Transaction cannot be written to the WAL out of order. " +
@@ -526,7 +539,9 @@ public class TransactionManager {
 		} catch (InterruptedException e) {
 			throw new GenericEvitaInternalError("WAL appending lock interrupted!", e);
 		} finally {
-			this.walAppendingLock.unlock();
+			if (this.walAppendingLock.isHeldByCurrentThread()) {
+				this.walAppendingLock.unlock();
+			}
 		}
 	}
 
@@ -541,8 +556,9 @@ public class TransactionManager {
 	@Nonnull
 	public Optional<ProcessResult> processTransactions(long nextCatalogVersion, long timeoutMs, boolean alive) {
 		try {
-			if (this.trunkIncorporationLock.tryLock(this.configuration.server().transactionTimeoutInMilliseconds(), TimeUnit.MILLISECONDS)) {
-				TransactionMutation lastTransactionMutation = null;
+			if (this.trunkIncorporationLock.tryLock(0, TimeUnit.MILLISECONDS)) {
+				long firstTransactionId = -1;
+				TransactionMutation lastTransactionMutation;
 				Transaction lastTransaction = null;
 				final Catalog newCatalog;
 
@@ -562,7 +578,7 @@ public class TransactionManager {
 					// if the transaction failed we need to replay it again
 					final long readFromVersion = Math.max(lastFinalizedVersion + 1, 2);
 					if (alive) {
-						committedMutationStream = latestCatalog.getCommittedLiveMutationStream(readFromVersion);
+						committedMutationStream = latestCatalog.getCommittedLiveMutationStream(readFromVersion, nextCatalogVersion);
 					} else {
 						committedMutationStream = latestCatalog.getCommittedMutationStream(readFromVersion);
 					}
@@ -578,6 +594,7 @@ public class TransactionManager {
 							Mutation leadingMutation = mutationIterator.next();
 							// the first mutation of the transaction bulk must be transaction mutation
 							Assert.isPremiseValid(leadingMutation instanceof TransactionMutation, "First mutation must be transaction mutation!");
+							firstTransactionId = firstTransactionId == -1 ? ((TransactionMutation) leadingMutation).getCatalogVersion() : firstTransactionId;
 
 							final TransactionMutation transactionMutation = (TransactionMutation) leadingMutation;
 							long finalNextExpectedCatalogVersion = nextExpectedCatalogVersion;
@@ -668,7 +685,9 @@ public class TransactionManager {
 		} catch (InterruptedException e) {
 			throw new GenericEvitaInternalError("Trunk incorporation lock interrupted!", e);
 		} finally {
-			this.trunkIncorporationLock.unlock();
+			if (this.trunkIncorporationLock.isHeldByCurrentThread()) {
+				this.trunkIncorporationLock.unlock();
+			}
 		}
 	}
 
@@ -679,7 +698,7 @@ public class TransactionManager {
 	 */
 	public void propagateCatalogSnapshot(@Nonnull Catalog newCatalogVersion) {
 		try {
-			if (this.catalogPropagationLock.tryLock(this.configuration.server().transactionTimeoutInMilliseconds(), TimeUnit.MILLISECONDS)) {
+			if (this.catalogPropagationLock.tryLock(0, TimeUnit.MILLISECONDS)) {
 				this.newCatalogVersionConsumer.accept(newCatalogVersion);
 			} else {
 				throw new TransactionTimedOutException("Catalog propagation lock timed out!");
@@ -687,7 +706,9 @@ public class TransactionManager {
 		} catch (InterruptedException e) {
 			throw new GenericEvitaInternalError("Catalog propagation lock interrupted!", e);
 		} finally {
-			this.catalogPropagationLock.unlock();
+			if (this.catalogPropagationLock.isHeldByCurrentThread()) {
+				this.catalogPropagationLock.unlock();
+			}
 		}
 	}
 
@@ -738,19 +759,33 @@ public class TransactionManager {
 
 	/**
 	 * Sends the task simulating the WAL stage finalization with tasks that drains entire contents of the WAL in
-	 * the trunk incorporation stage.
+	 * the trunk incorporation stage. This should handle the situation when last transaction was not processed due
+	 * to queues being full. When no other transaction comes the WAL will forever contain more records than are
+	 * incorporated in the catalog.
 	 */
 	private long drainWal() {
-		final long theLastWrittenCatalogVersion = getLastWrittenCatalogVersion();
 		final long theLastFinalizedCatalogVersion = getLastFinalizedCatalogVersion();
-		if (theLastWrittenCatalogVersion > theLastFinalizedCatalogVersion) {
-			this.processTransactions(
-				theLastWrittenCatalogVersion,
-				this.configuration.transaction().flushFrequencyInMillis(),
-				true
-			);
+		try {
+			Long catalogVersionToDrain = this.versionsToDrain.poll(0, TimeUnit.MILLISECONDS);
+			while (catalogVersionToDrain != null) {
+				if (catalogVersionToDrain > theLastFinalizedCatalogVersion) {
+					try {
+						this.processTransactions(
+							catalogVersionToDrain,
+							this.configuration.transaction().flushFrequencyInMillis(),
+							true
+						);
+					} catch (TransactionTimedOutException ex) {
+						// reschedule again
+						return 0;
+					}
+				}
+				catalogVersionToDrain = this.versionsToDrain.poll(0, TimeUnit.MILLISECONDS);
+			}
+		} catch (InterruptedException e) {
+			// do nothing
 		}
-		// always pause the task
+		// pause the task
 		return -1;
 	}
 

@@ -427,11 +427,12 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	 * the catalog to the given version. This method differs from {@link #getCommittedMutationStream(long)} in that
 	 * it expects the WAL is being actively written to and the returned stream may be potentially infinite.
 	 *
-	 * @param catalogVersion version of the catalog to start the stream with
+	 * @param startCatalogVersion             the catalog version to start reading from
+	 * @param requestedCatalogVersion         the minimal catalog version to finish reading
 	 * @return a stream containing committed mutations
 	 */
 	@Nonnull
-	Stream<Mutation> getCommittedLiveMutationStream(long catalogVersion);
+	Stream<Mutation> getCommittedLiveMutationStream(long startCatalogVersion, long requestedCatalogVersion);
 
 	/**
 	 * Retrieves the last catalog version written in the WAL stream.

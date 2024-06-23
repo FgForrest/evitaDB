@@ -1111,12 +1111,13 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 	 * from {@link #getCommittedMutationStream(long)} in that it expects the WAL is being actively written to and
 	 * the returned stream may be potentially infinite.
 	 *
-	 * @param catalogVersion The catalog version to start the stream from
+	 * @param startCatalogVersion     the catalog version to start reading from
+	 * @param requestedCatalogVersion the minimal catalog version to finish reading
 	 * @return The stream of committed mutations since the given catalogVersion
 	 */
 	@Nonnull
-	public Stream<Mutation> getCommittedLiveMutationStream(long catalogVersion) {
-		return this.persistenceService.getCommittedLiveMutationStream(catalogVersion);
+	public Stream<Mutation> getCommittedLiveMutationStream(long startCatalogVersion, long requestedCatalogVersion) {
+		return this.persistenceService.getCommittedLiveMutationStream(startCatalogVersion, requestedCatalogVersion);
 	}
 
 	/**

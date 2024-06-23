@@ -41,7 +41,7 @@ import java.time.OffsetDateTime;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 
 /**
  * Represents a stage in a catalog processing pipeline that appends isolated write-ahead log (WAL) entries to a shared
@@ -59,7 +59,7 @@ public final class WalAppendingTransactionStage
 		@Nonnull Executor executor,
 		int maxBufferCapacity,
 		@Nonnull TransactionManager transactionManager,
-		@Nonnull Consumer<TransactionTask> onException
+		@Nonnull BiConsumer<TransactionTask, Throwable> onException
 	) {
 		super(executor, maxBufferCapacity, transactionManager, onException);
 	}
