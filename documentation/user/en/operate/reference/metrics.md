@@ -3,12 +3,6 @@
 <UsedTerms>
   <h4>Labels used in metrics</h4>
   <dl>
-    <dt>taskName</dt>
-    <dd><strong>N/A</strong>: N/A</dd>
-    <dt>fileType</dt>
-    <dd><strong>File type</strong>: N/A</dd>
-    <dt>name</dt>
-    <dd><strong>Logical file name</strong>: N/A</dd>
     <dt>fileType</dt>
     <dd><strong>File type</strong>: N/A</dd>
     <dt>name</dt>
@@ -99,6 +93,12 @@
     <dd><strong>Logical file name</strong>: N/A</dd>
     <dt>recordType</dt>
     <dd><strong>Record type</strong>: N/A</dd>
+    <dt>taskName</dt>
+    <dd><strong>N/A</strong>: N/A</dd>
+    <dt>fileType</dt>
+    <dd><strong>File type</strong>: N/A</dd>
+    <dt>name</dt>
+    <dd><strong>Logical file name</strong>: N/A</dd>
   </dl>
 </UsedTerms>
 

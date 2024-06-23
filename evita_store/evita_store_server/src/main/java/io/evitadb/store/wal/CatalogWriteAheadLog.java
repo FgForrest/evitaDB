@@ -1036,7 +1036,7 @@ public class CatalogWriteAheadLog implements Closeable {
 	/**
 	 * Removes the obsolete WAL files from the catalog storage path.
 	 */
-	private long removeWalFiles() {
+	long removeWalFiles() {
 		synchronized (this.pendingRemovals) {
 			final long catalogVersion = this.processedCatalogVersion.get();
 			final Set<PendingRemoval> toRemove = new HashSet<>(64);

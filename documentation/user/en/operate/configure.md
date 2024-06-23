@@ -39,7 +39,6 @@ transaction:                                      # [see Transaction configurati
   transactionMemoryRegionCount: 256
   walFileSizeBytes: 16MB
   walFileCountKept: 8
-  maxQueueSize: 1K
   flushFrequencyInMillis: 1s
 
 cache:                                            # [see Cache configuration](#cache-configuration)
@@ -488,12 +487,6 @@ This section contains configuration options for the storage layer of the databas
         <p>**Default:** `8`</p>
         <p>Number of WAL files to keep. Increase this number in combination with `walFileSizeBytes` if you want to
             keep longer history of changes.</p>
-    </dd>
-    <dt>maxQueueSize</dt>
-    <dd>
-        <p>**Default:** `1K`</p>
-        <p>Size of the catalog queue for parallel transaction. If there are more transaction than the number of free 
-            threads in the pool, the transaction are queued. If the queue is full, the transaction is rejected.</p>
     </dd>
     <dt>flushFrequencyInMillis</dt>
     <dd>

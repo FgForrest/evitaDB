@@ -251,10 +251,12 @@ class CatalogWriteAheadLogIntegrationTest {
 
 		final OffsetDateTime initialTimestamp = OffsetDateTime.now();
 		writeWal(bigOffHeapMemoryManager, transactionSizes, initialTimestamp);
+		this.wal.walProcessedUntil(Long.MAX_VALUE);
+		this.wal.removeWalFiles();
 
-		assertEquals(2, offsetConsumer.getCatalogVersions().size());
-		assertEquals(initialTimestamp.plusMinutes(1), offsetConsumer.getCatalogVersions().get(0));
-		assertEquals(initialTimestamp.plusMinutes(2), offsetConsumer.getCatalogVersions().get(1));
+		// only one call would occur with the latest version possible
+		assertEquals(1, offsetConsumer.getCatalogVersions().size());
+		assertEquals(3, offsetConsumer.getCatalogVersions().get(0));
 	}
 
 	@Nonnull
@@ -271,7 +273,7 @@ class CatalogWriteAheadLogIntegrationTest {
 				.build(),
 			Mockito.mock(Scheduler.class),
 			offsetConsumer,
-			null
+			firstActiveCatalogVersion -> {}
 		);
 	}
 
@@ -286,7 +288,7 @@ class CatalogWriteAheadLogIntegrationTest {
 			TransactionOptions.builder().walFileSizeBytes(Long.MAX_VALUE).build(),
 			Mockito.mock(Scheduler.class),
 			offsetConsumer,
-			null
+			firstActiveCatalogVersion -> {}
 		);
 	}
 

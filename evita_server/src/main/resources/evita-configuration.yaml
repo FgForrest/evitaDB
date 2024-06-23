@@ -38,7 +38,6 @@ transaction:
   transactionMemoryRegionCount: ${transaction.memoryRegionCount:256}
   walFileSizeBytes: ${transaction.walFilSize:16M}
   walFileCountKept: ${transaction.walFileCountKept:8}
-  maxQueueSize: ${transaction.maxQueueSize:1024}
   flushFrequencyInMillis: ${transaction.flushFrequencyInMillis:1000}
 
 cache:

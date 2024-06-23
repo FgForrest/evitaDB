@@ -470,17 +470,19 @@ public class TransactionManager {
 	 */
 	public void notifyCatalogPresentInLiveView(@Nonnull Catalog livingCatalog) {
 		final Catalog theLivingCatalog = getLivingCatalog();
-		Assert.isPremiseValid(
-			theLivingCatalog.getVersion() < livingCatalog.getVersion(),
-			"Catalog versions must be in order! " +
-				"Expected " + theLivingCatalog.getVersion() + ", got " + livingCatalog.getVersion() + "."
-		);
-		final long theLastFinalizedVersion = getLastFinalizedCatalogVersion();
-		Assert.isPremiseValid(
-			theLastFinalizedVersion >= livingCatalog.getVersion(),
-			"Catalog versions must be in order! " +
-				"Expected " + theLastFinalizedVersion + ", got " + livingCatalog.getVersion() + "."
-		);
+		if (livingCatalog.getVersion() > 0L) {
+			Assert.isPremiseValid(
+				theLivingCatalog.getVersion() < livingCatalog.getVersion(),
+				"Catalog versions must be in order! " +
+					"Expected " + theLivingCatalog.getVersion() + ", got " + livingCatalog.getVersion() + "."
+			);
+			final long theLastFinalizedVersion = getLastFinalizedCatalogVersion();
+			Assert.isPremiseValid(
+				theLastFinalizedVersion >= livingCatalog.getVersion(),
+				"Catalog versions must be in order! " +
+					"Expected " + theLastFinalizedVersion + ", got " + livingCatalog.getVersion() + "."
+			);
+		}
 		this.lastAssignedCatalogVersion.updateAndGet(current -> Math.max(current, livingCatalog.getVersion()));
 		this.livingCatalog.set(livingCatalog);
 
