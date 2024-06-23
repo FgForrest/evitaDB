@@ -1116,7 +1116,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 		assertTrue(firstIndexOfCatalogDataFile(catalogPath) > 0);
 		assertTrue(firstIndexOfCollectionDataFile(catalogPath, Entities.PRODUCT) > 0);
 
-		log.info("Checking time-travel data.");
+		evita.close();
 	}
 
 	@DisplayName("Verify code has no problems assigning new PK in concurrent environment")
