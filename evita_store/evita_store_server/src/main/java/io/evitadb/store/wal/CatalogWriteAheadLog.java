@@ -1045,6 +1045,7 @@ public class CatalogWriteAheadLog implements Closeable {
 			for (PendingRemoval pendingRemoval : this.pendingRemovals) {
 				if (pendingRemoval.catalogVersion() <= catalogVersion) {
 					toRemove.add(pendingRemoval);
+					pendingRemoval.removeLambda().run();
 					if (pendingRemoval.catalogVersion() > firstCatalogVersionToBeKept) {
 						firstCatalogVersionToBeKept = pendingRemoval.catalogVersion();
 					}
