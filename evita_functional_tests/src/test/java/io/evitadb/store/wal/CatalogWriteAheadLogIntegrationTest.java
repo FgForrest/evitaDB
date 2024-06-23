@@ -77,7 +77,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.function.Consumer;
+import java.util.function.LongConsumer;
 import java.util.stream.Collectors;
 
 import static io.evitadb.store.spi.CatalogPersistenceService.WAL_FILE_SUFFIX;
@@ -111,7 +111,7 @@ class CatalogWriteAheadLogIntegrationTest {
 	private final OffHeapMemoryManager noOffHeapMemoryManager = new OffHeapMemoryManager(TEST_CATALOG, 0, 0);
 	private final OffHeapMemoryManager bigOffHeapMemoryManager = new OffHeapMemoryManager(TEST_CATALOG, 10_000_000, 128);
 	private final int[] txSizes = new int[]{2000, 3000, 4000, 5000, 7000, 9000, 1_000};
-	private final MockOffsetConsumer offsetConsumer = new MockOffsetConsumer();
+	private final MockCatalogVersionConsumer offsetConsumer = new MockCatalogVersionConsumer();
 	private CatalogWriteAheadLog wal;
 
 	@BeforeEach
@@ -252,9 +252,9 @@ class CatalogWriteAheadLogIntegrationTest {
 		final OffsetDateTime initialTimestamp = OffsetDateTime.now();
 		writeWal(bigOffHeapMemoryManager, transactionSizes, initialTimestamp);
 
-		assertEquals(2, offsetConsumer.getOffsets().size());
-		assertEquals(initialTimestamp.plusMinutes(1), offsetConsumer.getOffsets().get(0));
-		assertEquals(initialTimestamp.plusMinutes(2), offsetConsumer.getOffsets().get(1));
+		assertEquals(2, offsetConsumer.getCatalogVersions().size());
+		assertEquals(initialTimestamp.plusMinutes(1), offsetConsumer.getCatalogVersions().get(0));
+		assertEquals(initialTimestamp.plusMinutes(2), offsetConsumer.getCatalogVersions().get(1));
 	}
 
 	@Nonnull
@@ -453,13 +453,14 @@ class CatalogWriteAheadLogIntegrationTest {
 		assertEquals(transactionSizes.length - (transactionSizes.length - startIndex) + 1, txRead);
 	}
 
-	private static class MockOffsetConsumer implements Consumer<OffsetDateTime> {
-		@Getter private final List<OffsetDateTime> offsets = new LinkedList<>();
+	private static class MockCatalogVersionConsumer implements LongConsumer {
+		@Getter private final List<Long> catalogVersions = new LinkedList<>();
 
 		@Override
-		public void accept(OffsetDateTime offsetDateTime) {
-			offsets.add(offsetDateTime);
+		public void accept(long value) {
+			this.catalogVersions.add(value);
 		}
+
 	}
 
 }

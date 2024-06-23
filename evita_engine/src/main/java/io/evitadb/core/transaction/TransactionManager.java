@@ -60,9 +60,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.SubmissionPublisher;
 import java.util.concurrent.TimeUnit;
@@ -138,9 +136,9 @@ public class TransactionManager {
 	 */
 	private final DelayedAsyncTask walDrainingTask;
 	/**
-	 * Queue that contains versions that are to be drained from the WAL by scheduled task if not processed.
+	 * Variable that contains last version to be drained from the WAL by scheduled task if not processed.
 	 */
-	private final BlockingQueue<Long> versionsToDrain = new LinkedBlockingQueue<>();
+	private final AtomicLong versionToDrain = new AtomicLong();
 	/**
 	 * Lock used for conflict resolution.
 	 */
@@ -251,7 +249,7 @@ public class TransactionManager {
 			catalog.getName(), "WAL draining task",
 			scheduler,
 			this::drainWal,
-			500, TimeUnit.MILLISECONDS
+			1000, TimeUnit.MILLISECONDS
 		);
 		// init the publisher
 		getTransactionalPublisher();
@@ -346,7 +344,7 @@ public class TransactionManager {
 				task instanceof TrunkIncorporationTransactionTask ||
 				task instanceof UpdatedCatalogTransactionTask
 			) {
-				this.versionsToDrain.add(task.catalogVersion());
+				this.versionToDrain.updateAndGet(operand -> Math.max(operand, task.catalogVersion()));
 				this.walDrainingTask.schedule();
 			}
 		}
@@ -765,25 +763,18 @@ public class TransactionManager {
 	 */
 	private long drainWal() {
 		final long theLastFinalizedCatalogVersion = getLastFinalizedCatalogVersion();
-		try {
-			Long catalogVersionToDrain = this.versionsToDrain.poll(0, TimeUnit.MILLISECONDS);
-			while (catalogVersionToDrain != null) {
-				if (catalogVersionToDrain > theLastFinalizedCatalogVersion) {
-					try {
-						this.processTransactions(
-							catalogVersionToDrain,
-							this.configuration.transaction().flushFrequencyInMillis(),
-							true
-						);
-					} catch (TransactionTimedOutException ex) {
-						// reschedule again
-						return 0;
-					}
-				}
-				catalogVersionToDrain = this.versionsToDrain.poll(0, TimeUnit.MILLISECONDS);
+		final long catalogVersionToDrain = this.versionToDrain.getAndSet(0L);
+		if (catalogVersionToDrain > 0L && catalogVersionToDrain > theLastFinalizedCatalogVersion) {
+			try {
+				this.processTransactions(
+					catalogVersionToDrain,
+					this.configuration.transaction().flushFrequencyInMillis(),
+					true
+				);
+			} catch (TransactionTimedOutException ex) {
+				// reschedule again
+				return 0;
 			}
-		} catch (InterruptedException e) {
-			// do nothing
 		}
 		// pause the task
 		return -1;

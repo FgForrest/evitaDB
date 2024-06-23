@@ -88,6 +88,7 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	String ENTITY_COLLECTION_FILE_SUFFIX = ".collection";
 	String WAL_FILE_SUFFIX = ".wal";
 	String RESTORE_FLAG = ".restored";
+	Pattern GENERIC_ENTITY_COLLECTION_PATTERN = Pattern.compile(".*-(\\d+)_(\\d+)" + ENTITY_COLLECTION_FILE_SUFFIX);
 
 	/**
 	 * Returns name of the bootstrap file that contains lead information to fetching the catalog header in fixed record
@@ -163,8 +164,7 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	 */
 	@Nonnull
 	static EntityTypePrimaryKeyAndFileIndex getEntityPrimaryKeyAndIndexFromEntityCollectionFileName(@Nonnull String fileName) {
-		final Pattern genericEntityCollectionPattern = Pattern.compile(".*-(\\d+)_(\\d+)" + ENTITY_COLLECTION_FILE_SUFFIX);
-		final Matcher matcher = genericEntityCollectionPattern.matcher(fileName);
+		final Matcher matcher = GENERIC_ENTITY_COLLECTION_PATTERN.matcher(fileName);
 		if (matcher.matches()) {
 			return new EntityTypePrimaryKeyAndFileIndex(
 				Integer.parseInt(matcher.group(1)),

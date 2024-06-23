@@ -95,8 +95,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Consumer;
-import java.util.function.Supplier;
+import java.util.function.LongConsumer;
 import java.util.stream.Stream;
 
 import static io.evitadb.store.spi.CatalogPersistenceService.WAL_FILE_SUFFIX;
@@ -206,7 +205,7 @@ public class CatalogWriteAheadLog implements Closeable {
 	/**
 	 * This lambda allows trimming the bootstrap file to the given date.
 	 */
-	private final Consumer<OffsetDateTime> bootstrapFileTrimmer;
+	private final LongConsumer bootstrapFileTrimmer;
 	/**
 	 * List of pending removals of WAL files that should be removed, but could not be removed yet because the WAL
 	 * records in them were not yet processed.
@@ -541,7 +540,7 @@ public class CatalogWriteAheadLog implements Closeable {
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull TransactionOptions transactionOptions,
 		@Nonnull Scheduler scheduler,
-		@Nonnull Consumer<OffsetDateTime> bootstrapFileTrimmer,
+		@Nonnull LongConsumer bootstrapFileTrimmer,
 		@Nonnull WalPurgeCallback onWalPurgeCallback
 	) {
 		this.processedCatalogVersion = new AtomicLong(catalogVersion);
@@ -1043,14 +1042,11 @@ public class CatalogWriteAheadLog implements Closeable {
 			final Set<PendingRemoval> toRemove = new HashSet<>(64);
 
 			long firstCatalogVersionToBeKept = -1;
-			OffsetDateTime firstCommitTimestamp = null;
 			for (PendingRemoval pendingRemoval : this.pendingRemovals) {
 				if (pendingRemoval.catalogVersion() <= catalogVersion) {
-					final TransactionMutation firstTxMutationFromRemovedFile = pendingRemoval.removeLambda().get();
 					toRemove.add(pendingRemoval);
 					if (pendingRemoval.catalogVersion() > firstCatalogVersionToBeKept) {
 						firstCatalogVersionToBeKept = pendingRemoval.catalogVersion();
-						firstCommitTimestamp = firstTxMutationFromRemovedFile.getCommitTimestamp();
 					}
 				} else {
 					break;
@@ -1064,7 +1060,7 @@ public class CatalogWriteAheadLog implements Closeable {
 					this.onWalPurgeCallback.purgeFilesUpTo(firstCatalogVersionToBeKept);
 				}
 				// now trim the bootstrap record file
-				this.bootstrapFileTrimmer.accept(firstCommitTimestamp);
+				this.bootstrapFileTrimmer.accept(firstCatalogVersionToBeKept);
 			}
 
 			return -1;
@@ -1246,7 +1242,6 @@ public class CatalogWriteAheadLog implements Closeable {
 						final PendingRemoval pendingRemoval = new PendingRemoval(
 							versionsFromWalFile.lastCatalogVersion() + 1,
 							() -> {
-								final TransactionMutation firstTransactionMutation = getFirstTransactionMutationFromWalFile(walFile);
 								try {
 									if (walFile.delete()) {
 										log.debug("Deleted WAL file `" + walFile + "`!");
@@ -1257,7 +1252,6 @@ public class CatalogWriteAheadLog implements Closeable {
 								} catch (Exception ex) {
 									log.error("Failed to delete WAL file `" + walFile + "`!", ex);
 								}
-								return firstTransactionMutation;
 							}
 						);
 						if (!this.pendingRemovals.contains(pendingRemoval)) {
@@ -1414,7 +1408,7 @@ public class CatalogWriteAheadLog implements Closeable {
 	 */
 	private record PendingRemoval(
 		long catalogVersion,
-		@Nonnull Supplier<TransactionMutation> removeLambda
+		@Nonnull Runnable removeLambda
 	) {
 
 		@Override

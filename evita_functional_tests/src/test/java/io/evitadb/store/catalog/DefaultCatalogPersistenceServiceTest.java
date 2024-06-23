@@ -181,15 +181,15 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 
 	private static void trimAndCheck(
 		@Nonnull DefaultCatalogPersistenceService ioService,
-		@Nonnull OffsetDateTime toTimestamp,
+		long sinceCatalogVersion,
 		int expectedVersion,
 		int expectedCount
 	) {
-		ioService.trimBootstrapFile(toTimestamp);
+		ioService.trimBootstrapFile(sinceCatalogVersion);
 
 		final PaginatedList<CatalogVersion> catalogVersions = ioService.getCatalogVersions(TimeFlow.FROM_OLDEST_TO_NEWEST, 1, 20);
 		final CatalogVersion firstRecord = catalogVersions.getData().get(0);
-		assertTrue(toTimestamp.isAfter(firstRecord.timestamp()));
+		assertTrue(sinceCatalogVersion == firstRecord.version());
 		assertEquals(expectedVersion, firstRecord.version());
 		assertEquals(expectedCount, catalogVersions.getTotalRecordCount());
 	}
@@ -654,9 +654,9 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		assertEquals(0, catalogVersions0.getData().get(0).version());
 		assertEquals(13, catalogVersions0.getTotalRecordCount());
 
-		trimAndCheck(ioService, timestamp.plusMinutes(3).plusSeconds(1), 4, 9);
-		trimAndCheck(ioService, timestamp.plusMinutes(6), 7, 6);
-		trimAndCheck(ioService, timestamp.plusMinutes(8).minusSeconds(1), 8, 5);
+		trimAndCheck(ioService, 4, 4, 9);
+		trimAndCheck(ioService, 7, 7, 6);
+		trimAndCheck(ioService, 8, 8, 5);
 	}
 
 	/*

@@ -91,7 +91,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 	 * @param catalogFilePath        The file path of the catalog.
 	 * @param storageOptions         The storage options.
 	 * @param transactionOptions     The transaction options.
-	 * @param lastCatalogBootstrap   The last catalog bootstrap.
+	 * @param catalogBootstrap   The last catalog bootstrap.
 	 * @param recordRegistry         The record type registry for offset index.
 	 * @param offHeapMemoryManager   The off-heap memory manager.
 	 * @param observableOutputKeeper The observable output keeper.
@@ -104,7 +104,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 		@Nonnull Path catalogFilePath,
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull TransactionOptions transactionOptions,
-		@Nonnull CatalogBootstrap lastCatalogBootstrap,
+		@Nonnull CatalogBootstrap catalogBootstrap,
 		@Nonnull OffsetIndexRecordTypeRegistry recordRegistry,
 		@Nonnull OffHeapMemoryManager offHeapMemoryManager,
 		@Nonnull ObservableOutputKeeper observableOutputKeeper,
@@ -115,12 +115,12 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 		final AtomicReference<CatalogHeader> catalogHeaderRef = new AtomicReference<>();
 		final OffsetIndex offsetIndex = loadOffsetIndex(
 			catalogName, catalogFilePath, storageOptions,
-			lastCatalogBootstrap, recordRegistry, observableOutputKeeper,
+			catalogBootstrap, recordRegistry, observableOutputKeeper,
 			kryoFactory, nonFlushedBlockObserver, historyKeptObserver,
 			catalogHeaderRef::set
 		);
 		return new CatalogOffsetIndexStoragePartPersistenceService(
-			lastCatalogBootstrap.catalogVersion(),
+			catalogBootstrap.catalogVersion(),
 			catalogHeaderRef.get(),
 			transactionOptions,
 			offsetIndex,
@@ -296,7 +296,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 	 * @param catalogName            The name of the catalog.
 	 * @param catalogFilePath        The file path of the catalog.
 	 * @param storageOptions         The storage options.
-	 * @param lastCatalogBootstrap   The last catalog bootstrap.
+	 * @param catalogBootstrap   The last catalog bootstrap.
 	 * @param recordRegistry         The record type registry for offset index.
 	 * @param observableOutputKeeper The observable output keeper.
 	 * @param kryoFactory            The factory to create Kryo instances.
@@ -308,7 +308,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 		@Nonnull String catalogName,
 		@Nonnull Path catalogFilePath,
 		@Nonnull StorageOptions storageOptions,
-		@Nonnull CatalogBootstrap lastCatalogBootstrap,
+		@Nonnull CatalogBootstrap catalogBootstrap,
 		@Nonnull OffsetIndexRecordTypeRegistry recordRegistry,
 		@Nonnull ObservableOutputKeeper observableOutputKeeper,
 		@Nonnull Function<VersionedKryoKeyInputs, VersionedKryo> kryoFactory,
@@ -316,11 +316,11 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 		@Nullable Consumer<Optional<OffsetDateTime>> historyKeptObserver,
 		@Nonnull Consumer<CatalogHeader> catalogHeaderConsumer
 	) {
-		final FileLocation fileLocation = lastCatalogBootstrap.fileLocation();
+		final FileLocation fileLocation = catalogBootstrap.fileLocation();
 		if (fileLocation == null) {
 			// create new offset index
 			final OffsetIndex newOffsetIndex = new OffsetIndex(
-				lastCatalogBootstrap.catalogVersion(),
+				catalogBootstrap.catalogVersion(),
 				new OffsetIndexDescriptor(
 					0L,
 					null,
@@ -348,7 +348,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 		} else {
 			// load existing offset index
 			return new OffsetIndex(
-				lastCatalogBootstrap.catalogVersion(),
+				catalogBootstrap.catalogVersion(),
 				catalogFilePath,
 				fileLocation,
 				storageOptions,
