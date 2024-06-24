@@ -23,11 +23,11 @@
 
 package io.evitadb.externalApi.rest.api.resolver.endpoint;
 
+import com.linecorp.armeria.common.ContextAwareEventLoop;
 import com.linecorp.armeria.common.HttpData;
 import com.linecorp.armeria.common.HttpMethod;
-import com.linecorp.armeria.common.HttpResponse;
+import com.linecorp.armeria.common.HttpObject;
 import com.linecorp.armeria.common.HttpResponseWriter;
-import io.evitadb.externalApi.http.AbstractHttpService;
 import io.evitadb.externalApi.http.EndpointResponse;
 import io.evitadb.externalApi.http.MimeTypes;
 import io.evitadb.externalApi.http.SuccessEndpointResponse;
@@ -38,13 +38,12 @@ import io.evitadb.externalApi.rest.io.RestHandlingContext;
 import io.netty.channel.EventLoop;
 
 import javax.annotation.Nonnull;
-import java.io.BufferedOutputStream;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
-import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
@@ -86,10 +85,10 @@ public class OpenApiSpecificationHandler<C extends RestHandlingContext> extends 
 	protected void writeResponse(
 		@Nonnull RestEndpointExchange exchange,
 		@Nonnull HttpResponseWriter responseWriter,
-		@Nonnull Object openApiSpecification
-	) {
-		final String preferredResponseMediaType = exchange.httpRequest().contentType().type();
-		final PipedOutputStream outputStream = new PipedOutputStream();
+		@Nonnull Object openApiSpecification,
+		@Nonnull EventLoop eventLoop) {
+		final String preferredResponseMediaType = exchange.preferredResponseContentType();
+		final ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
 		try {
 			if (preferredResponseMediaType.equals(MimeTypes.APPLICATION_YAML)) {
 				OpenApiWriter.toYaml(openApiSpecification, outputStream);
@@ -98,15 +97,10 @@ public class OpenApiSpecificationHandler<C extends RestHandlingContext> extends 
 			} else {
 				throw createInternalError("Should never happen!");
 			}
-			try (PipedInputStream inputStream = new PipedInputStream(outputStream)) {
-				responseWriter.whenConsumed().thenRun(() -> {
-					try {
-						processInputStreamInChunks(inputStream, responseWriter);
-					} catch (IOException e) {
-						throw new RuntimeException(e);
-					}
-				});
-			}
+			responseWriter.write(HttpData.copyOf(outputStream.toByteArray()));
+			/*responseWriter.whenConsumed().thenRun(() ->
+				streamData(eventLoop, responseWriter, new ByteArrayInputStream(outputStream.toByteArray()))
+			);*/
 		} catch (IOException e) {
 			throw createInternalError("Could not serialize OpenAPI specification: " + e.getMessage());
 		}

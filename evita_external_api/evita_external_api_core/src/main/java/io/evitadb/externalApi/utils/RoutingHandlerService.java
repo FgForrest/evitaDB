@@ -60,8 +60,6 @@ public class RoutingHandlerService implements HttpService {
 	// This matcher is used to report if this instance can match a path for one of the http methods.
 	private final PathTemplateMatcher<RoutingHandlerService.RoutingMatch> allMethodsMatcher = new PathTemplateMatcher<>();
 
-	private final Map<HttpServiceWithRoutes, Function<? super HttpService, CorsService>> servicesWithRoutes = new HashMap<>(8);
-
 	// Handler called when no match was found and invalid method handler can't be invoked.
 	private volatile HttpService fallbackHandler = new NotFoundService();
 	// Handler called when this instance can not match the http method but can match another http method.
@@ -84,15 +82,6 @@ public class RoutingHandlerService implements HttpService {
 	@Nonnull
 	@Override
 	public HttpResponse serve(@Nonnull ServiceRequestContext ctx, @Nonnull HttpRequest req) throws Exception {
-		if (ctx.rpcRequest() != null) {
-			for (Entry<HttpServiceWithRoutes, Function<? super HttpService, CorsService>> service : servicesWithRoutes.entrySet()) {
-				for (Route route : service.getKey().routes()) {
-					if (route.paths().contains(ctx.path())) {
-						return service.getKey().decorate(service.getValue()).serve(ctx, req);
-					}
-				}
-			}
-		}
 		final String normalizedPath = req.path().isEmpty() ? "/" : req.path();
 		PathTemplateMatcher<RoutingHandlerService.RoutingMatch> matcher = matches.get(req.method());
 		if (matcher == null) {
@@ -162,11 +151,6 @@ public class RoutingHandlerService implements HttpService {
 			allMethodsMatcher.add(template, res);
 		}
 		res.defaultHandler = handler;
-		return this;
-	}
-
-	public synchronized RoutingHandlerService add(final HttpServiceWithRoutes httpServiceWithRoutes, final Function<? super HttpService, CorsService> decoratingHttpServiceFunction) {
-		servicesWithRoutes.put(httpServiceWithRoutes, decoratingHttpServiceFunction);
 		return this;
 	}
 

@@ -45,7 +45,7 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public class GrpcConfig extends AbstractApiConfiguration implements ApiWithSpecificPrefix {
-	private static final String BASE_GRPC_PATH = "grpc";
+	private static final String BASE_GRPC_PATH = "";
 	/**
 	 * Port on which will server be run and on which will channel be opened.
 	 */

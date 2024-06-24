@@ -23,14 +23,7 @@
 
 package io.evitadb.externalApi.http;
 
-import com.linecorp.armeria.common.HttpData;
-import com.linecorp.armeria.common.HttpHeaderNames;
-import com.linecorp.armeria.common.HttpRequest;
-import com.linecorp.armeria.common.HttpResponse;
-import com.linecorp.armeria.common.HttpResponseWriter;
-import com.linecorp.armeria.common.HttpStatus;
-import com.linecorp.armeria.common.MediaType;
-import com.linecorp.armeria.common.ResponseHeaders;
+import com.linecorp.armeria.common.*;
 import com.linecorp.armeria.server.HttpService;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
@@ -42,9 +35,9 @@ import io.undertow.util.StatusCodes;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.nio.charset.Charset;
 import java.nio.charset.IllegalCharsetNameException;
 import java.nio.charset.StandardCharsets;
@@ -53,14 +46,11 @@ import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 public abstract class AbstractHttpService<E extends EndpointRequest> implements HttpService {
-	private static final int STREAM_FRAMES_TO_READ = 8192;
+	private static final int STREAM_CHUNK_SIZE = 8192;
 	private static final String CONTENT_TYPE_CHARSET = "; charset=UTF-8";
 
 	@Nonnull
@@ -91,7 +81,7 @@ public abstract class AbstractHttpService<E extends EndpointRequest> implements 
 				final HttpResponseWriter responseWriter = HttpResponse.streaming();
 				ctx.addAdditionalResponseHeader(HttpHeaderNames.CONTENT_TYPE, getPreferredResponseContentType(req) + CONTENT_TYPE_CHARSET);
 				responseWriter.write(ResponseHeaders.of(HttpStatus.OK));
-				writeResponse(exchange, responseWriter, result);
+				writeResponse(exchange, responseWriter, result, ctx.eventLoop());
 				if (responseWriter.isOpen()) {
 					responseWriter.close();
 				}
@@ -275,26 +265,23 @@ public abstract class AbstractHttpService<E extends EndpointRequest> implements 
 			})
 			.orElse(StandardCharsets.UTF_8);
 
-		final AtomicReference<String> resultsRef = new AtomicReference<>();
-		exchange.httpRequest()
+		return exchange.httpRequest()
 			.aggregate()
 			.thenApply(r -> {
 				try (HttpData data = r.content()) {
 					try (InputStream inputStream = data.toInputStream()) {
-						final byte[] buffer = new byte[AbstractHttpService.STREAM_FRAMES_TO_READ];
+						final byte[] buffer = new byte[AbstractHttpService.STREAM_CHUNK_SIZE];
 						final StringBuilder stringBuilder = new StringBuilder(64);
 						int bytesRead;
 						while ((bytesRead = inputStream.read(buffer)) != -1) {
 							stringBuilder.append(new String(buffer, 0, bytesRead, bodyCharset));
 						}
-						resultsRef.set(stringBuilder.toString());
 						return stringBuilder.toString();
 					} catch (IOException e) {
 						throw new RuntimeException(e);
 					}
 				}
-			});
-		return resultsRef.get();
+			}).join();
 	}
 
 	/**
@@ -308,26 +295,27 @@ public abstract class AbstractHttpService<E extends EndpointRequest> implements 
 	/**
 	 * Serializes a result object into the preferred media type.
 	 *
-	 * @param exchange API request data
+	 * @param exchange       API request data
 	 * @param responseWriter response writer to write the response to
-	 * @param result result data from handler to serialize to the response
+	 * @param result         result data from handler to serialize to the response
 	 */
-	protected void writeResponse(@Nonnull E exchange, @Nonnull HttpResponseWriter responseWriter, @Nonnull Object result) {
+	protected void writeResponse(@Nonnull E exchange, @Nonnull HttpResponseWriter responseWriter, @Nonnull Object result, @Nonnull EventLoop eventExecutor) {
 		throw createInternalError("Cannot serialize response body because handler doesn't support it.");
 	}
 
-	protected void processInputStreamInChunks(@Nonnull InputStream inputStream, @Nonnull HttpResponseWriter responseWriter) throws IOException {
-		byte[] buffer = new byte[AbstractHttpService.STREAM_FRAMES_TO_READ];
+	protected void streamData(@Nonnull EventLoop executor, @Nonnull HttpResponseWriter writer, @Nonnull ByteArrayInputStream inputStream) {
+		byte[] buffer = new byte[STREAM_CHUNK_SIZE];
 		int bytesRead;
-
-		while ((bytesRead = inputStream.read(buffer)) != -1) {
-			// If the bytesRead is less than chunkSize, only process the read bytes
-			if (bytesRead < AbstractHttpService.STREAM_FRAMES_TO_READ) {
-				buffer = Arrays.copyOf(buffer, bytesRead);
+		try {
+			if ((bytesRead = inputStream.read(buffer)) != -1) {
+				writer.write(HttpData.wrap(buffer, 0, bytesRead));
+				writer.whenConsumed().thenRun(() -> executor.schedule(() -> streamData(executor, writer, inputStream),
+					100, TimeUnit.MILLISECONDS)); // Adjust interval as needed
+			} else {
+				writer.close();
 			}
-			if (!responseWriter.tryWrite(HttpData.wrap(buffer))) {
-				responseWriter.close();
-			}
+		} catch (IOException e) {
+			writer.close(e);
 		}
 	}
 }

@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.rest.io;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.linecorp.armeria.common.ContextAwareEventLoop;
 import com.linecorp.armeria.common.HttpData;
 import com.linecorp.armeria.common.HttpResponseWriter;
 import io.evitadb.externalApi.http.MimeTypes;
@@ -31,10 +32,10 @@ import io.evitadb.externalApi.rest.exception.OpenApiInternalError;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.externalApi.rest.exception.RestInvalidArgumentException;
 import io.evitadb.utils.Assert;
+import io.netty.channel.EventLoop;
 
 import javax.annotation.Nonnull;
 import java.io.IOException;
-import java.io.OutputStream;
 import java.util.LinkedHashSet;
 import java.util.List;
 
@@ -70,7 +71,7 @@ public abstract class JsonRestHandler<CTX extends RestHandlingContext> extends R
 	}
 
 	@Override
-	protected void writeResponse(@Nonnull RestEndpointExchange exchange, @Nonnull HttpResponseWriter responseWriter, @Nonnull Object result) {
+	protected void writeResponse(@Nonnull RestEndpointExchange exchange, @Nonnull HttpResponseWriter responseWriter, @Nonnull Object result, @Nonnull EventLoop eventExecutors) {
 		try {
 			responseWriter.write(HttpData.ofUtf8(restHandlingContext.getObjectMapper().writeValueAsString(result)));
 		} catch (IOException e) {

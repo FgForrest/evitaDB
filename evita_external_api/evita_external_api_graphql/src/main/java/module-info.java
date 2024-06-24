@@ -63,5 +63,6 @@ module evita.external.api.graphql {
 	requires com.linecorp.armeria;
 	requires org.reactivestreams;
 	requires io.netty.common;
+	requires io.netty.transport;
 
 }

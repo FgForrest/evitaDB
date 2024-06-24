@@ -23,13 +23,27 @@
 
 package io.evitadb.externalApi.grpc;
 
+import com.linecorp.armeria.common.HttpMethod;
+import com.linecorp.armeria.common.grpc.GrpcSerializationFormats;
+import com.linecorp.armeria.common.grpc.protocol.GrpcHeaderNames;
+import com.linecorp.armeria.server.cors.CorsService;
+import com.linecorp.armeria.server.cors.CorsServiceBuilder;
+import com.linecorp.armeria.server.grpc.GrpcService;
+import com.linecorp.armeria.server.grpc.GrpcServiceBuilder;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.grpc.configuration.GrpcConfig;
+import io.evitadb.externalApi.grpc.services.EvitaService;
+import io.evitadb.externalApi.grpc.services.EvitaSessionService;
+import io.evitadb.externalApi.grpc.services.interceptors.GlobalExceptionHandlerInterceptor;
+import io.evitadb.externalApi.grpc.services.interceptors.ObservabilityInterceptor;
+import io.evitadb.externalApi.grpc.services.interceptors.ServerSessionInterceptor;
 import io.evitadb.externalApi.http.ExternalApiProvider;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
 
 import io.evitadb.externalApi.http.ExternalApiServer;
+import io.grpc.protobuf.services.ProtoReflectionService;
+
 import javax.annotation.Nonnull;
 
 /**
@@ -54,7 +68,31 @@ public class GrpcProviderRegistrar implements ExternalApiProviderRegistrar<GrpcC
 	@Nonnull
 	@Override
 	public ExternalApiProvider<GrpcConfig> register(@Nonnull Evita evita, @Nonnull ExternalApiServer externalApiServer, @Nonnull ApiOptions apiOptions, @Nonnull GrpcConfig grpcAPIConfig) {
-		final GrpcManager grpcManager = new GrpcManager(evita, apiOptions, grpcAPIConfig);
-		return new GrpcProvider(grpcAPIConfig, grpcManager.getGrpcRouter());
+		final GrpcServiceBuilder grpcServiceBuilder = GrpcService.builder()
+			.addService(new EvitaService(evita))
+			.addService(new EvitaSessionService(evita))
+			.addService(ProtoReflectionService.newInstance())
+			.intercept(new ServerSessionInterceptor(evita))
+			.intercept(new GlobalExceptionHandlerInterceptor())
+			.intercept(new ObservabilityInterceptor(apiOptions.accessLog()))
+			.supportedSerializationFormats(GrpcSerializationFormats.values())
+			.enableHttpJsonTranscoding(true)
+			.enableUnframedRequests(true);
+
+		final CorsServiceBuilder corsBuilder =
+			CorsService.builderForAnyOrigin()
+				.allowRequestMethods(HttpMethod.POST) // Allow POST method.
+				// Allow Content-type and X-GRPC-WEB headers.
+				.allowAllRequestHeaders(true)
+				/*.allowAllRequestHeaders(HttpHeaderNames.CONTENT_TYPE,
+						HttpHeaderNames.of("X-GRPC-WEB"), "X-User-Agent")*/
+				// Expose trailers of the HTTP response to the client.
+				.exposeHeaders(GrpcHeaderNames.GRPC_STATUS,
+					GrpcHeaderNames.GRPC_MESSAGE,
+					GrpcHeaderNames.ARMERIA_GRPC_THROWABLEPROTO_BIN);
+
+		final GrpcService grpcService = grpcServiceBuilder.build();
+
+		return new GrpcProvider(grpcAPIConfig, corsBuilder.build(grpcService));
 	}
 }

@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.http;
 
+import com.linecorp.armeria.server.HttpService;
 import com.linecorp.armeria.server.Server;
 import com.linecorp.armeria.server.ServerBuilder;
 import io.evitadb.core.Evita;
@@ -43,7 +44,6 @@ import io.evitadb.utils.ConsoleWriter;
 import io.evitadb.utils.ConsoleWriter.ConsoleColor;
 import io.evitadb.utils.ConsoleWriter.ConsoleDecoration;
 import io.evitadb.utils.StringUtils;
-import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.handler.ssl.ClientAuth;
 import io.undertow.Undertow;
 import lombok.Getter;
@@ -398,15 +398,19 @@ public class ExternalApiServer implements AutoCloseable {
 		@Nonnull ApiOptions apiOptions,
 		@Nonnull ServerCertificateManager serverCertificateManager
 	) throws CertificateException, UnrecoverableKeyException, KeyStoreException, IOException, NoSuchAlgorithmException {
-		/*final EnhancedQueueExecutor executor = evita.getExecutor();
-		serverBuilder
+		final EnhancedQueueExecutor executor = evita.getExecutor();
+		serverBuilder.blockingTaskExecutor(executor, true);
+		serverBuilder.workerGroup(8);
+		serverBuilder.serviceWorkerGroup(8);
+		/*serverBuilder
 			.workerGroup(
-				new NioEventLoopGroup(
+				new DefaultEventLoopGroup(
 					apiOptions.ioThreadsAsInt(),
 					executor
 				),
 				true
 			);*/
+		/*
 		//todo tpz: handle if needed
 			/*.channelOption()
 			*//*
@@ -459,7 +463,7 @@ public class ExternalApiServer implements AutoCloseable {
 					continue;
 				}*/
 				if (!tlsSetup) {
-					setupAndRegisterPortsAndTls(serverBuilder, certificatePath, apiOptions, registeredApiProvider.mtlsConfiguration(), host.port());
+					setupAndRegisterPortsAndTls(serverBuilder, certificatePath, host.port());
 					tlsSetup = true;
 				}
 				//final PathHandlingService hostRouter;
@@ -539,10 +543,24 @@ public class ExternalApiServer implements AutoCloseable {
 					continue;
 				}
 
-				mainRouter.addPrefixPath(
-					((ApiWithSpecificPrefix) configuration).getPrefix(),
-					registeredApiProvider.getApiHandler()
-				);
+				final String prefix = ((ApiWithSpecificPrefix) configuration).getPrefix();
+				final HttpService apiHandler = registeredApiProvider.getApiHandler();
+
+				if (registeredApiProvider.mtlsConfiguration() != null) {
+					serverBuilder.serviceUnder(
+						// always will be only gRPC API
+						"/" + prefix,
+						apiHandler
+					);
+				} else {
+					mainRouter.addPrefixPath(
+						prefix,
+						apiHandler
+					);
+				}
+
+
+				//customizeTlsAndRegisterGrpcService(serverBuilder, apiOptions, registeredApiProvider.mtlsConfiguration());
 			}
 			ConsoleWriter.write(
 				StringUtils.rightPad("API `" + registeredApiProvider.getCode() + "` listening on ", " ", PADDING_START_UP)
@@ -567,14 +585,18 @@ public class ExternalApiServer implements AutoCloseable {
 	private static void setupAndRegisterPortsAndTls(
 		@Nonnull ServerBuilder serverBuilder,
 		@Nonnull CertificatePath certificatePath,
-		@Nonnull ApiOptions apiOptions,
-		@Nullable MtlsConfiguration mtlsConfiguration,
 		int port
 	) throws CertificateException, UnrecoverableKeyException, KeyStoreException, IOException, NoSuchAlgorithmException {
 		serverBuilder.tls(createKeyManagerFactory(certificatePath, CertificateFactory.getInstance("X.509")));
 		serverBuilder.https(port);
 		serverBuilder.http(port);
+	}
 
+	private static void customizeTlsAndRegisterGrpcService(
+		@Nonnull ServerBuilder serverBuilder,
+		@Nonnull ApiOptions apiOptions,
+		@Nullable MtlsConfiguration mtlsConfiguration
+	) {
 		if (mtlsConfiguration != null) {
 			serverBuilder.tlsCustomizer(t -> {
 				try {

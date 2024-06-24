@@ -30,7 +30,6 @@ import io.evitadb.externalApi.http.ExternalApiProvider;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
 import io.evitadb.externalApi.http.ExternalApiServer;
 import io.evitadb.externalApi.lab.configuration.LabConfig;
-import io.undertow.server.HttpHandler;
 
 import javax.annotation.Nonnull;
 

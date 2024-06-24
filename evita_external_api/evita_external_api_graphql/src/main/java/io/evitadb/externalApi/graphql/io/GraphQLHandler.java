@@ -25,7 +25,6 @@ package io.evitadb.externalApi.graphql.io;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linecorp.armeria.common.*;
-import com.linecorp.armeria.common.stream.SubscriptionOption;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import graphql.ExecutionInput;
 import graphql.ExecutionResult;
@@ -55,17 +54,14 @@ import io.evitadb.externalApi.http.MimeTypes;
 import io.evitadb.externalApi.http.SuccessEndpointResponse;
 import io.evitadb.externalApi.trace.ExternalApiTracingContextProvider;
 import io.evitadb.externalApi.utils.ExternalApiTracingContext;
-import io.netty.util.concurrent.EventExecutor;
+import io.netty.channel.EventLoop;
 import lombok.extern.slf4j.Slf4j;
-import org.reactivestreams.Subscriber;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
-import java.io.OutputStream;
 import java.util.LinkedHashSet;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -122,7 +118,7 @@ public class GraphQLHandler extends AbstractHttpService<GraphQLEndpointExchange>
 
     @Nonnull
     @Override
-    public HttpResponse serve(@Nonnull ServiceRequestContext ctx, @Nonnull HttpRequest req) throws Exception {
+    public HttpResponse serve(@Nonnull ServiceRequestContext ctx, @Nonnull HttpRequest req) {
         return this.tracingContext.executeWithinBlock(
             "GraphQL",
             req,
@@ -248,7 +244,7 @@ public class GraphQLHandler extends AbstractHttpService<GraphQLEndpointExchange>
     }
 
     @Override
-    protected void writeResponse(@Nonnull GraphQLEndpointExchange exchange, @Nonnull HttpResponseWriter responseWriter, @Nonnull Object response) {
+    protected void writeResponse(@Nonnull GraphQLEndpointExchange exchange, @Nonnull HttpResponseWriter responseWriter, @Nonnull Object response, @Nonnull EventLoop eventExecutors) {
         try {
             responseWriter.write(HttpData.ofUtf8(objectMapper.writeValueAsString(response)));
         } catch (IOException e) {
