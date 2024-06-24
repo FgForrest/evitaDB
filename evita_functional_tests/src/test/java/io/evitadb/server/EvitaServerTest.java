@@ -297,7 +297,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 			output = Pattern.compile("(\"startedAt\": \")(.+?)\"").matcher(output).replaceAll("$1VARIABLE\"");
 			output = Pattern.compile("(\"uptime\": )(\\d+?)").matcher(output).replaceAll("$1VARIABLE");
 			output = Pattern.compile("(\"uptimeForHuman\": \")(.+?)\"").matcher(output).replaceAll("$1VARIABLE\"");
-			output = Pattern.compile("(//)([a-zA-Z]+:[0-9]+)(/)").matcher(output).replaceAll("$1VARIABLE$3");
+			output = Pattern.compile("(//)(.+:[0-9]+)(/)").matcher(output).replaceAll("$1VARIABLE$3");
 			assertEquals(
 				"""
 				{
