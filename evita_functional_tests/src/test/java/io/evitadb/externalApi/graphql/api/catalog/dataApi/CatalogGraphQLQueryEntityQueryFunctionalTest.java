@@ -1200,6 +1200,94 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return custom multiple prices for sale flag for master products")
+	void shouldReturnCustomMultiplePricesForSaleForMasterProducts(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+		final var entities1 = findEntitiesWithPrice(originalProductEntities, 2);
+
+		final var expectedBody1 = createBasicPageResponse(entities1, entity -> createEntityDtoWithMultiplePricesForSaleAvailable(entity, false));
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    queryProduct(
+	                        filterBy: {
+		                        attributeCodeInSet: ["%s", "%s"]
+	                        }
+                        ) {
+                            __typename
+	                        recordPage {
+	                            __typename
+	                            data {
+	                                primaryKey
+			                        type
+		                            multiplePricesForSaleAvailable(currency: CZK, priceLists: "basic")
+	                            }
+	                        }
+	                    }
+	                }
+					""",
+				entities1.get(0).getAttribute(ATTRIBUTE_CODE),
+				entities1.get(1).getAttribute(ATTRIBUTE_CODE)
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(PRODUCT_QUERY_PATH, equalTo(expectedBody1));
+
+		final var entities2 = findEntities(
+			originalProductEntities,
+			it -> it.getPriceInnerRecordHandling().equals(PriceInnerRecordHandling.LOWEST_PRICE) &&
+				it.getPrices(CURRENCY_CZK)
+					.stream()
+					.filter(PriceContract::sellable)
+					.map(PriceContract::innerRecordId)
+					.distinct()
+					.count() > 1,
+			2
+		);
+
+		final List<String> priceLists = entities2.stream()
+			.flatMap(it -> it.getPrices(CURRENCY_CZK).stream().map(PriceContract::priceList))
+			.distinct()
+			.toList();
+		assertTrue(priceLists.size() > 1);
+
+		final var expectedBody2 = createBasicPageResponse(entities2, entity -> createEntityDtoWithMultiplePricesForSaleAvailable(entity, true));
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    queryProduct(
+	                        filterBy: {
+		                        entityPrimaryKeyInSet: [%d, %d]
+	                        }
+                        ) {
+                            __typename
+	                        recordPage {
+	                            __typename
+	                            data {
+	                                primaryKey
+			                        type
+			                        multiplePricesForSaleAvailable(currency: CZK, priceLists: %s)
+	                            }
+	                        }
+	                    }
+	                }
+					""",
+				entities2.get(0).getPrimaryKey(),
+				entities2.get(1).getPrimaryKey(),
+				serializeStringArrayToQueryString(priceLists)
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(PRODUCT_QUERY_PATH, equalTo(expectedBody2));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should filter products by non-existent price")
 	void shouldFilterProductsByNonExistentPrice(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final List<SealedEntity> entities = findEntitiesWithPrice(originalProductEntities, 2);

@@ -247,6 +247,15 @@ public abstract class CatalogGraphQLDataEndpointFunctionalTest extends GraphQLEn
 	}
 
 	@Nonnull
+	protected Map<String, Object> createEntityDtoWithMultiplePricesForSaleAvailable(@Nonnull SealedEntity entity, boolean multiplePricesForSaleAvailable) {
+		return map()
+			.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
+			.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
+			.e(GraphQLEntityDescriptor.MULTIPLE_PRICES_FOR_SALE_AVAILABLE.name(), multiplePricesForSaleAvailable)
+			.build();
+	}
+
+	@Nonnull
 	protected Map<String, Object> createEntityDtoWithPrice(@Nonnull SealedEntity entity) {
 		return createEntityDtoWithPrice(entity, CURRENCY_CZK, PRICE_LIST_BASIC);
 	}
