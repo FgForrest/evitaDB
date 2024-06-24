@@ -33,6 +33,7 @@ import io.undertow.util.Methods;
 import javax.annotation.Nonnull;
 import java.util.LinkedHashSet;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Stops recording of JFR events and stores them in a file that is available via Observability API.
@@ -47,8 +48,8 @@ public class StopLoggingHandler extends LoggingEndpointHandler<EndpointRequest> 
 
 	@Nonnull
 	@Override
-	protected EndpointResponse doHandleRequest(@Nonnull EndpointRequest httpRequest) {
-		return new SuccessEndpointResponse(manager.stop());
+	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull EndpointRequest httpRequest) {
+		return CompletableFuture.supplyAsync(() -> new SuccessEndpointResponse(manager.stop()));
 	}
 
 	@Nonnull

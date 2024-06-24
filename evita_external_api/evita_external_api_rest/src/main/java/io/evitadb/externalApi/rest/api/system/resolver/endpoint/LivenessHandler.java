@@ -33,6 +33,7 @@ import io.evitadb.externalApi.rest.io.RestEndpointExchange;
 import javax.annotation.Nonnull;
 import java.util.LinkedHashSet;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Returns information about liveness of REST API.
@@ -47,8 +48,8 @@ public class LivenessHandler extends JsonRestHandler<SystemRestHandlingContext> 
 
 	@Nonnull
 	@Override
-	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExchange exchange) {
-		return new SuccessEndpointResponse(new LivenessDto(true));
+	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
+		return CompletableFuture.supplyAsync(() -> new SuccessEndpointResponse(new LivenessDto(true)));
 	}
 
 	@Nonnull

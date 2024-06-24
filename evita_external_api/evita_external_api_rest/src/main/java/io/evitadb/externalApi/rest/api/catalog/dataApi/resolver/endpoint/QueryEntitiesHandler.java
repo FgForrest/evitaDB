@@ -45,6 +45,7 @@ import io.evitadb.utils.Assert;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Handles request for entities with full query, i.e. require constraint can contain not only basic fetch constraints but
@@ -71,13 +72,15 @@ public class QueryEntitiesHandler extends QueryOrientedEntitiesHandler {
 
 	@Override
 	@Nonnull
-	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExchange exchange) {
-		final Query query = resolveQuery(exchange);
-		log.debug("Generated evitaDB query for entity query of type `{}` is `{}`.", restHandlingContext.getEntitySchema(), query);
+	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
+		return resolveQuery(exchange)
+			.thenApply(query -> {
+				log.debug("Generated evitaDB query for entity query of type `{}` is `{}`.", restHandlingContext.getEntitySchema(), query);
 
-		final EvitaResponse<EntityClassifier> response = exchange.session().query(query, EntityClassifier.class);
+				final EvitaResponse<EntityClassifier> response = exchange.session().query(query, EntityClassifier.class);
 
-		return new SuccessEndpointResponse(convertResultIntoSerializableObject(exchange, response));
+				return new SuccessEndpointResponse(convertResultIntoSerializableObject(exchange, response));
+			});
 	}
 
 	@Nonnull

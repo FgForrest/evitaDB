@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,14 +23,15 @@
 
 package io.evitadb.externalApi.lab.api.resolver.endpoint;
 
+import com.linecorp.armeria.common.HttpMethod;
 import io.evitadb.externalApi.http.EndpointResponse;
 import io.evitadb.externalApi.http.SuccessEndpointResponse;
 import io.evitadb.externalApi.rest.io.RestEndpointExchange;
-import io.undertow.util.Methods;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Handles request for fetching entity schema
@@ -46,13 +47,13 @@ public class GetCatalogSchemaHandler extends CatalogSchemaHandler {
 
 	@Override
 	@Nonnull
-	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExchange exchange) {
-		return new SuccessEndpointResponse(convertResultIntoSerializableObject(exchange, exchange.session().getCatalogSchema()));
+	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
+		return CompletableFuture.supplyAsync(() -> new SuccessEndpointResponse(convertResultIntoSerializableObject(exchange, exchange.session().getCatalogSchema())));
 	}
 
 	@Nonnull
 	@Override
 	public Set<String> getSupportedHttpMethods() {
-		return Set.of(Methods.GET_STRING);
+		return Set.of(HttpMethod.GET.name());
 	}
 }

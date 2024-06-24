@@ -38,6 +38,7 @@ import lombok.extern.slf4j.Slf4j;
 import javax.annotation.Nonnull;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Handle requests for unknown entity when entity is identified only by its URL or Code.
@@ -53,7 +54,7 @@ public class GetUnknownEntityHandler extends EntityHandler<CatalogRestHandlingCo
 
 	@Override
 	@Nonnull
-	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExchange exchange) {
+	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
 		final Map<String, Object> parametersFromRequest = getParametersFromRequest(exchange);
 
 		final Query query = Query.query(
@@ -63,10 +64,10 @@ public class GetUnknownEntityHandler extends EntityHandler<CatalogRestHandlingCo
 
 		log.debug("Generated evitaDB query for single unknown entity fetch is `{}`.", query);
 
-		return exchange.session()
+		return CompletableFuture.supplyAsync(() -> exchange.session()
 			.queryOne(query, EntityClassifier.class)
 			.map(it -> (EndpointResponse) new SuccessEndpointResponse(convertResultIntoSerializableObject(exchange, it)))
-			.orElse(new NotFoundEndpointResponse());
+			.orElse(new NotFoundEndpointResponse()));
 	}
 
 	@Nonnull

@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.graphql.io;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linecorp.armeria.common.*;
 import com.linecorp.armeria.server.ServiceRequestContext;
@@ -62,6 +63,7 @@ import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.LinkedHashSet;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -135,10 +137,12 @@ public class GraphQLHandler extends AbstractHttpService<GraphQLEndpointExchange>
 
     @Override
     @Nonnull
-    protected EndpointResponse doHandleRequest(@Nonnull GraphQLEndpointExchange exchange) {
-        final GraphQLRequest graphQLRequest = parseRequestBody(exchange, GraphQLRequest.class);
-        final GraphQLResponse<?> graphQLResponse = executeRequest(graphQLRequest);
-        return new SuccessEndpointResponse(graphQLResponse);
+    protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull GraphQLEndpointExchange exchange) {
+        return parseRequestBody(exchange, GraphQLRequest.class)
+            .thenApply(graphQLRequest -> {
+                final GraphQLResponse<?> graphQLResponse = executeRequest(graphQLRequest);
+                return new SuccessEndpointResponse(graphQLResponse);
+            });
     }
 
     @Nonnull
@@ -185,16 +189,21 @@ public class GraphQLHandler extends AbstractHttpService<GraphQLEndpointExchange>
 
     @Nonnull
     @Override
-    protected <T> T parseRequestBody(@Nonnull GraphQLEndpointExchange exchange, @Nonnull Class<T> dataClass) {
-        final String rawBody = readRawRequestBody(exchange);
+    protected <T> CompletableFuture<T> parseRequestBody(@Nonnull GraphQLEndpointExchange exchange, @Nonnull Class<T> dataClass) {
         try {
-            return objectMapper.readValue(rawBody, dataClass);
-        } catch (IOException e) {
-            if (e.getCause() instanceof EvitaInternalError internalError) {
-                throw internalError;
-            } else if (e.getCause() instanceof EvitaInvalidUsageException invalidUsageException) {
-                throw invalidUsageException;
-            }
+            return readRawRequestBody(exchange).thenApply(body -> {
+	            try {
+		            return objectMapper.readValue(body, dataClass);
+	            } catch (IOException e) {
+                    if (e.getCause() instanceof EvitaInternalError internalError) {
+                        throw internalError;
+                    } else if (e.getCause() instanceof EvitaInvalidUsageException invalidUsageException) {
+                        throw invalidUsageException;
+                    }
+                    throw new HttpExchangeException(HttpStatus.UNSUPPORTED_MEDIA_TYPE.code(), "Invalid request body format. Expected JSON object.");
+                }
+            });
+        } catch (EvitaInternalError | EvitaInvalidUsageException e) {
             throw new HttpExchangeException(HttpStatus.UNSUPPORTED_MEDIA_TYPE.code(), "Invalid request body format. Expected JSON object.");
         }
     }

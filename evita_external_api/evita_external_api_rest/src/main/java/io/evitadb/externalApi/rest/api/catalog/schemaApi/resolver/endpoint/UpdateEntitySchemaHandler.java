@@ -44,6 +44,7 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Handles update request for entity schema.
@@ -70,22 +71,23 @@ public class UpdateEntitySchemaHandler extends EntitySchemaHandler {
 
 	@Override
 	@Nonnull
-	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExchange exchange) {
-		final CreateOrUpdateEntitySchemaRequestData requestData = parseRequestBody(exchange, CreateOrUpdateEntitySchemaRequestData.class);
+	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
+		return parseRequestBody(exchange, CreateOrUpdateEntitySchemaRequestData.class)
+			.thenApply(requestData -> {
+				final List<EntitySchemaMutation> schemaMutations = new LinkedList<>();
+				final JsonNode inputMutations = requestData.getMutations()
+					.orElseThrow(() -> new RestInvalidArgumentException("Mutations are not set in request data."));
+				for (Iterator<JsonNode> schemaMutationsIterator = inputMutations.elements(); schemaMutationsIterator.hasNext(); ) {
+					schemaMutations.addAll(mutationAggregateResolver.convert(schemaMutationsIterator.next()));
+				}
+				final ModifyEntitySchemaMutation entitySchemaMutation = new ModifyEntitySchemaMutation(
+					restHandlingContext.getEntityType(),
+					schemaMutations.toArray(EntitySchemaMutation[]::new)
+				);
 
-		final List<EntitySchemaMutation> schemaMutations = new LinkedList<>();
-		final JsonNode inputMutations = requestData.getMutations()
-			.orElseThrow(() -> new RestInvalidArgumentException("Mutations are not set in request data."));
-		for (Iterator<JsonNode> schemaMutationsIterator = inputMutations.elements(); schemaMutationsIterator.hasNext(); ) {
-			schemaMutations.addAll(mutationAggregateResolver.convert(schemaMutationsIterator.next()));
-		}
-		final ModifyEntitySchemaMutation entitySchemaMutation = new ModifyEntitySchemaMutation(
-			restHandlingContext.getEntityType(),
-			schemaMutations.toArray(EntitySchemaMutation[]::new)
-		);
-
-		final EntitySchemaContract updatedEntitySchema = exchange.session().updateAndFetchEntitySchema(entitySchemaMutation);
-		return new SuccessEndpointResponse(convertResultIntoSerializableObject(exchange, updatedEntitySchema));
+				final EntitySchemaContract updatedEntitySchema = exchange.session().updateAndFetchEntitySchema(entitySchemaMutation);
+				return new SuccessEndpointResponse(convertResultIntoSerializableObject(exchange, updatedEntitySchema));
+			});
 	}
 
 	@Nonnull

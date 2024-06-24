@@ -43,6 +43,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Generic HTTP request handler for processing Observability API requests and responses.
@@ -97,18 +98,20 @@ public abstract class LoggingEndpointHandler<E extends EndpointRequest> extends 
 	 * Tries to parse input request body JSON into data class.
 	 */
 	@Nonnull
-	protected <T> T parseRequestBody(@Nonnull E exchange, @Nonnull Class<T> dataClass) {
-		final String content = readRawRequestBody(exchange);
-		Assert.isTrue(
-			!content.trim().isEmpty(),
-			() -> createInvalidUsageException("Request's body contains no data.")
-		);
+	protected <T> CompletableFuture<T> parseRequestBody(@Nonnull E exchange, @Nonnull Class<T> dataClass) {
+		return readRawRequestBody(exchange)
+			.thenApply(content -> {
+				Assert.isTrue(
+					!content.trim().isEmpty(),
+					() -> createInvalidUsageException("Request's body contains no data.")
+				);
 
-		try {
-			return manager.getObjectMapper().readValue(content, dataClass);
-		} catch (JsonProcessingException e) {
-			throw createInternalError("Could not parse request body: ", e);
-		}
+				try {
+					return manager.getObjectMapper().readValue(content, dataClass);
+				} catch (JsonProcessingException e) {
+					throw createInternalError("Could not parse request body: ", e);
+				}
+			});
 	}
 
 	/*@Override

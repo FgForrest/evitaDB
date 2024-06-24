@@ -33,6 +33,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Handles request for fetching entity schema
@@ -48,10 +49,10 @@ public class GetEntitySchemaHandler extends EntitySchemaHandler {
 
 	@Override
 	@Nonnull
-	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExchange exchange) {
-		return exchange.session().getEntitySchema(restHandlingContext.getEntityType())
+	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
+		return CompletableFuture.supplyAsync(() -> exchange.session().getEntitySchema(restHandlingContext.getEntityType())
 			.map(it -> (EndpointResponse) new SuccessEndpointResponse(convertResultIntoSerializableObject(exchange, it)))
-			.orElse(new NotFoundEndpointResponse());
+			.orElse(new NotFoundEndpointResponse()));
 	}
 
 	@Nonnull

@@ -46,6 +46,7 @@ import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -66,30 +67,33 @@ public abstract class AbstractHttpService<E extends EndpointRequest> implements 
 		);
 
 		beforeRequestHandled(exchange);
-		final EndpointResponse response = doHandleRequest(exchange);
-		afterRequestHandled(exchange, response);
+		return HttpResponse.of(doHandleRequest(exchange)
+			.thenApply(response -> {
+				afterRequestHandled(exchange, response);
 
-		if (response instanceof NotFoundEndpointResponse) {
-			throw new HttpExchangeException(StatusCodes.NOT_FOUND, "Requested resource wasn't found.");
-		} else if (response instanceof SuccessEndpointResponse successResponse) {
-			final Object result = successResponse.getResult();
-			if (result == null) {
-				return HttpResponse.builder()
-					.status(StatusCodes.NO_CONTENT)
-					.build();
-			} else {
-				final HttpResponseWriter responseWriter = HttpResponse.streaming();
-				ctx.addAdditionalResponseHeader(HttpHeaderNames.CONTENT_TYPE, getPreferredResponseContentType(req) + CONTENT_TYPE_CHARSET);
-				responseWriter.write(ResponseHeaders.of(HttpStatus.OK));
-				writeResponse(exchange, responseWriter, result, ctx.eventLoop());
-				if (responseWriter.isOpen()) {
-					responseWriter.close();
+				if (response instanceof NotFoundEndpointResponse) {
+					throw new HttpExchangeException(StatusCodes.NOT_FOUND, "Requested resource wasn't found.");
+				} else if (response instanceof SuccessEndpointResponse successResponse) {
+					final Object result = successResponse.getResult();
+					if (result == null) {
+						return HttpResponse.builder()
+							.status(StatusCodes.NO_CONTENT)
+							.build();
+					} else {
+						final HttpResponseWriter responseWriter = HttpResponse.streaming();
+						ctx.addAdditionalResponseHeader(HttpHeaderNames.CONTENT_TYPE, getPreferredResponseContentType(req) + CONTENT_TYPE_CHARSET);
+						responseWriter.write(ResponseHeaders.of(HttpStatus.OK));
+						writeResponse(exchange, responseWriter, result, ctx.eventLoop());
+						if (responseWriter.isOpen()) {
+							responseWriter.close();
+						}
+						return responseWriter;
+					}
+				} else {
+					throw createInternalError("Unsupported response `" + response.getClass().getName() + "`.");
 				}
-				return responseWriter;
-			}
-		} else {
-			throw createInternalError("Unsupported response `" + response.getClass().getName() + "`.");
-		}
+			})
+		);
 	}
 
 	/**
@@ -119,7 +123,7 @@ public abstract class AbstractHttpService<E extends EndpointRequest> implements 
 	 * Actual endpoint logic.
 	 */
 	@Nonnull
-	protected abstract EndpointResponse doHandleRequest(@Nonnull E exchange);
+	protected abstract CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull E exchange);
 
 	@Nonnull
 	protected abstract <T extends ExternalApiInternalError> T createInternalError(@Nonnull String message);
@@ -238,7 +242,7 @@ public abstract class AbstractHttpService<E extends EndpointRequest> implements 
 	 * Reads request body into raw string.
 	 */
 	@Nonnull
-	protected String readRawRequestBody(@Nonnull E exchange) {
+	protected CompletableFuture<String> readRawRequestBody(@Nonnull E exchange) {
 		Assert.isPremiseValid(
 			!getSupportedRequestContentTypes().isEmpty(),
 			() -> createInternalError("Handler doesn't support reading of request body.")
@@ -281,14 +285,14 @@ public abstract class AbstractHttpService<E extends EndpointRequest> implements 
 						throw new RuntimeException(e);
 					}
 				}
-			}).join();
+			});
 	}
 
 	/**
 	 * Tries to parse input request body JSON into data class.
 	 */
 	@Nonnull
-	protected <T> T parseRequestBody(@Nonnull E exchange, @Nonnull Class<T> dataClass) {
+	protected <T> CompletableFuture<T> parseRequestBody(@Nonnull E exchange, @Nonnull Class<T> dataClass) {
 		throw createInternalError("Cannot parse request body because handler doesn't support it.");
 	}
 

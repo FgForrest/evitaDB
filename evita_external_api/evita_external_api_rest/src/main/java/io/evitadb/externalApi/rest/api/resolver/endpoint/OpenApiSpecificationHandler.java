@@ -46,6 +46,7 @@ import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
 import java.util.LinkedHashSet;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 
 import static io.evitadb.utils.CollectionUtils.createLinkedHashSet;
 
@@ -62,8 +63,8 @@ public class OpenApiSpecificationHandler<C extends RestHandlingContext> extends 
 
 	@Nonnull
 	@Override
-	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExchange exchange) {
-		return new SuccessEndpointResponse(restHandlingContext.getOpenApi());
+	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
+		return CompletableFuture.supplyAsync(() -> new SuccessEndpointResponse(restHandlingContext.getOpenApi()));
 	}
 
 	@Nonnull

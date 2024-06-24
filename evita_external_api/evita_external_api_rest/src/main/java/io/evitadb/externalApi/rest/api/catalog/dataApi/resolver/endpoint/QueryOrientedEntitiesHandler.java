@@ -52,6 +52,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.api.query.Query.query;
@@ -105,25 +106,26 @@ public abstract class QueryOrientedEntitiesHandler extends JsonRestHandler<Colle
 	}
 
 	@Nonnull
-	protected Query resolveQuery(@Nonnull RestEndpointExchange exchange) {
-		final QueryEntityRequestDto requestData = parseRequestBody(exchange, QueryEntityRequestDto.class);
+	protected CompletableFuture<Query> resolveQuery(@Nonnull RestEndpointExchange exchange) {
+		return parseRequestBody(exchange, QueryEntityRequestDto.class)
+			.thenApply(requestData -> {
+				final FilterBy filterBy = requestData.getFilterBy()
+					.map(container -> (FilterBy) filterConstraintResolver.resolve(FetchEntityRequestDescriptor.FILTER_BY.name(), container))
+					.orElse(null);
+				final OrderBy orderBy = requestData.getOrderBy()
+					.map(container -> (OrderBy) orderConstraintResolver.resolve(FetchEntityRequestDescriptor.ORDER_BY.name(), container))
+					.orElse(null);
+				final Require require = requestData.getRequire()
+					.map(container -> (Require) requireConstraintResolver.resolve(FetchEntityRequestDescriptor.REQUIRE.name(), container))
+					.orElse(null);
 
-		final FilterBy filterBy = requestData.getFilterBy()
-			.map(container -> (FilterBy) filterConstraintResolver.resolve(FetchEntityRequestDescriptor.FILTER_BY.name(), container))
-			.orElse(null);
-		final OrderBy orderBy = requestData.getOrderBy()
-			.map(container -> (OrderBy) orderConstraintResolver.resolve(FetchEntityRequestDescriptor.ORDER_BY.name(), container))
-			.orElse(null);
-		final Require require = requestData.getRequire()
-			.map(container -> (Require) requireConstraintResolver.resolve(FetchEntityRequestDescriptor.REQUIRE.name(), container))
-			.orElse(null);
-
-		return query(
-			collection(restHandlingContext.getEntityType()),
-			addLocaleIntoFilterByWhenUrlPathLocalized(exchange, filterBy),
-			orderBy,
-			require
-		);
+				return query(
+					collection(restHandlingContext.getEntityType()),
+					addLocaleIntoFilterByWhenUrlPathLocalized(exchange, filterBy),
+					orderBy,
+					require
+				);
+			});
 	}
 
 	@Nonnull

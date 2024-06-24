@@ -45,6 +45,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.LinkedHashSet;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.utils.CollectionUtils.createLinkedHashSet;
@@ -82,8 +83,8 @@ public class GraphQLSchemaHandler extends AbstractHttpService<GraphQLEndpointExc
 
     @Override
     @Nonnull
-    protected EndpointResponse doHandleRequest(@Nonnull GraphQLEndpointExchange exchange) {
-        return new SuccessEndpointResponse(graphQL.get().getGraphQLSchema());
+    protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull GraphQLEndpointExchange exchange) {
+        return CompletableFuture.supplyAsync(() -> new SuccessEndpointResponse(graphQL.get().getGraphQLSchema()));
     }
 
     @Nonnull

@@ -38,6 +38,7 @@ import javax.annotation.Nonnull;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Deletes single evitaDB catalog by its name.
@@ -57,21 +58,23 @@ public class DeleteCatalogHandler extends JsonRestHandler<SystemRestHandlingCont
 
 	@Nonnull
 	@Override
-	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExchange exchange) {
+	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
 		final Map<String, Object> parameters = getParametersFromRequest(exchange);
 
 		final String catalogName = (String) parameters.get(CatalogsHeaderDescriptor.NAME.name());
-		final Optional<CatalogContract> catalog = restHandlingContext.getEvita().getCatalogInstance(catalogName);
-		if (catalog.isEmpty()) {
-			return new NotFoundEndpointResponse();
-		}
+		return CompletableFuture.supplyAsync(() -> {
+			final Optional<CatalogContract> catalog = restHandlingContext.getEvita().getCatalogInstance(catalogName);
+			if (catalog.isEmpty()) {
+				return new NotFoundEndpointResponse();
+			}
 
-		final boolean deleted = restHandlingContext.getEvita().deleteCatalogIfExists(catalog.get().getName());
-		Assert.isPremiseValid(
-			deleted,
-			() -> new RestInternalError("Could not delete catalog `" + catalog.get().getName() + "`, even though it should exist.")
-		);
-		return new SuccessEndpointResponse();
+			final boolean deleted = restHandlingContext.getEvita().deleteCatalogIfExists(catalog.get().getName());
+			Assert.isPremiseValid(
+				deleted,
+				() -> new RestInternalError("Could not delete catalog `" + catalog.get().getName() + "`, even though it should exist.")
+			);
+			return new SuccessEndpointResponse();
+		});
 	}
 
 	@Nonnull

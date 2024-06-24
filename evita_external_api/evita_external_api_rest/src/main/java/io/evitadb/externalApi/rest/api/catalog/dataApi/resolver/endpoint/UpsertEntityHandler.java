@@ -49,6 +49,7 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -85,34 +86,35 @@ public class UpsertEntityHandler extends EntityHandler<CollectionRestHandlingCon
 
 	@Override
 	@Nonnull
-	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExchange exchange) {
-		final UpsertEntityUpsertRequestDto requestData = parseRequestBody(exchange, UpsertEntityUpsertRequestDto.class);
+	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
+		return parseRequestBody(exchange, UpsertEntityUpsertRequestDto.class)
+			.thenApply(requestData -> {
+				if (withPrimaryKeyInPath) {
+					final Map<String, Object> parametersFromRequest = getParametersFromRequest(exchange);
+					Assert.isTrue(
+						parametersFromRequest.containsKey(DeleteEntityEndpointHeaderDescriptor.PRIMARY_KEY.name()),
+						() -> new RestInvalidArgumentException("Primary key is not present in request's URL path.")
+					);
+					requestData.setPrimaryKey((Integer) parametersFromRequest.get(DeleteEntityEndpointHeaderDescriptor.PRIMARY_KEY.name()));
+				}
 
-		if (withPrimaryKeyInPath) {
-			final Map<String, Object> parametersFromRequest = getParametersFromRequest(exchange);
-			Assert.isTrue(
-				parametersFromRequest.containsKey(DeleteEntityEndpointHeaderDescriptor.PRIMARY_KEY.name()),
-				() -> new RestInvalidArgumentException("Primary key is not present in request's URL path.")
-			);
-			requestData.setPrimaryKey((Integer) parametersFromRequest.get(DeleteEntityEndpointHeaderDescriptor.PRIMARY_KEY.name()));
-		}
+				final EntityMutation entityMutation = mutationResolver.convert(
+					requestData.getPrimaryKey()
+						.orElse(null),
+					requestData.getEntityExistence()
+						.orElseThrow(() -> new RestInvalidArgumentException("EntityExistence is not set in request data.")),
+					requestData.getMutations()
+						.orElseThrow(() -> new RestInvalidArgumentException("Mutations are not set in request data."))
+				);
 
-		final EntityMutation entityMutation = mutationResolver.convert(
-			requestData.getPrimaryKey()
-				.orElse(null),
-			requestData.getEntityExistence()
-				.orElseThrow(() -> new RestInvalidArgumentException("EntityExistence is not set in request data.")),
-			requestData.getMutations()
-				.orElseThrow(() -> new RestInvalidArgumentException("Mutations are not set in request data."))
-		);
+				final EntityContentRequire[] requires = getEntityContentRequires(requestData).orElse(null);
 
-		final EntityContentRequire[] requires = getEntityContentRequires(requestData).orElse(null);
+				final EntityClassifier upsertedEntity = requestData.getRequire().isPresent()
+					? exchange.session().upsertAndFetchEntity(entityMutation, requires)
+					: exchange.session().upsertEntity(entityMutation);
 
-		final EntityClassifier upsertedEntity = requestData.getRequire().isPresent()
-			? exchange.session().upsertAndFetchEntity(entityMutation, requires)
-			: exchange.session().upsertEntity(entityMutation);
-
-		return new SuccessEndpointResponse(convertResultIntoSerializableObject(exchange, upsertedEntity));
+				return new SuccessEndpointResponse(convertResultIntoSerializableObject(exchange, upsertedEntity));
+			});
 	}
 
 	@Nonnull

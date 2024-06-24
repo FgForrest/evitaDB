@@ -32,6 +32,7 @@ import io.evitadb.externalApi.rest.io.RestEndpointExchange;
 
 import javax.annotation.Nonnull;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Create and returns new evitaDB catalog.
@@ -51,13 +52,14 @@ public class CreateCatalogHandler extends CatalogHandler {
 
 	@Nonnull
 	@Override
-	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExchange exchange) {
-		final CreateCatalogRequestDto requestBody = parseRequestBody(exchange, CreateCatalogRequestDto.class);
+	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
+		return parseRequestBody(exchange, CreateCatalogRequestDto.class)
+			.thenApply(requestBody -> {
+				restHandlingContext.getEvita().defineCatalog(requestBody.name());
+				final CatalogContract newCatalog = restHandlingContext.getEvita().getCatalogInstanceOrThrowException(requestBody.name());
 
-		restHandlingContext.getEvita().defineCatalog(requestBody.name());
-		final CatalogContract newCatalog = restHandlingContext.getEvita().getCatalogInstanceOrThrowException(requestBody.name());
-
-		return new SuccessEndpointResponse(convertResultIntoSerializableObject(exchange, newCatalog));
+				return new SuccessEndpointResponse(convertResultIntoSerializableObject(exchange, newCatalog));
+			});
 	}
 
 	@Nonnull

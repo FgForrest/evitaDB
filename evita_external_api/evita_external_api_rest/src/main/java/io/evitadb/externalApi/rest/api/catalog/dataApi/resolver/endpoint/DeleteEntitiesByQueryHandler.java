@@ -44,6 +44,7 @@ import lombok.extern.slf4j.Slf4j;
 import javax.annotation.Nonnull;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 
 import static io.evitadb.api.query.QueryConstraints.entityFetch;
 import static io.evitadb.api.query.QueryConstraints.require;
@@ -70,26 +71,28 @@ public class DeleteEntitiesByQueryHandler extends QueryOrientedEntitiesHandler {
 
 	@Override
 	@Nonnull
-	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExchange exchange) {
-		Query query = resolveQuery(exchange);
-		if (QueryUtils.findRequire(query, EntityFetch.class, SeparateEntityContentRequireContainer.class) == null) {
-			query = Query.query(
-				query.getCollection(),
-				query.getFilterBy(),
-				query.getOrderBy(),
-				require(
-					ArrayUtils.mergeArrays(
-						Optional.ofNullable(query.getRequire()).map(ConstraintContainer::getChildren).orElse(new RequireConstraint[0]),
-						new RequireConstraint[] { entityFetch() }
-					)
-				)
-			);
-		}
-		log.debug("Generated evitaDB query for deletion of entity list of type `{}` is `{}`.", restHandlingContext.getEntitySchema(), query);
+	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
+		return resolveQuery(exchange)
+			.thenApply(query -> {
+				if (QueryUtils.findRequire(query, EntityFetch.class, SeparateEntityContentRequireContainer.class) == null) {
+					query = Query.query(
+						query.getCollection(),
+						query.getFilterBy(),
+						query.getOrderBy(),
+						require(
+							ArrayUtils.mergeArrays(
+								Optional.ofNullable(query.getRequire()).map(ConstraintContainer::getChildren).orElse(new RequireConstraint[0]),
+								new RequireConstraint[] { entityFetch() }
+							)
+						)
+					);
+				}
+				log.debug("Generated evitaDB query for deletion of entity list of type `{}` is `{}`.", restHandlingContext.getEntitySchema(), query);
 
-		final SealedEntity[] deletedEntities = exchange.session().deleteSealedEntitiesAndReturnBodies(query);
+				final SealedEntity[] deletedEntities = exchange.session().deleteSealedEntitiesAndReturnBodies(query);
 
-		return new SuccessEndpointResponse(convertResultIntoSerializableObject(exchange, deletedEntities));
+				return new SuccessEndpointResponse(convertResultIntoSerializableObject(exchange, deletedEntities));
+			});
 	}
 
 	@Nonnull

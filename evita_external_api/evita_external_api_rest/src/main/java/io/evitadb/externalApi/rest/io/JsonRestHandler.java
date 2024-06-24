@@ -38,6 +38,7 @@ import javax.annotation.Nonnull;
 import java.io.IOException;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * {@link RestEndpointHandler} that uses JSON as a request and response body format.
@@ -56,18 +57,20 @@ public abstract class JsonRestHandler<CTX extends RestHandlingContext> extends R
 	 * Tries to parse input request body JSON into data class.
 	 */
 	@Nonnull
-	protected <T> T parseRequestBody(@Nonnull RestEndpointExchange exchange, @Nonnull Class<T> dataClass) {
-		final String content = readRawRequestBody(exchange);
-		Assert.isTrue(
-			!content.trim().isEmpty(),
-			() -> new RestInvalidArgumentException("Request's body contains no data.")
-		);
+	protected <T> CompletableFuture<T> parseRequestBody(@Nonnull RestEndpointExchange exchange, @Nonnull Class<T> dataClass) {
+		return readRawRequestBody(exchange)
+			.thenApply(content -> {
+				Assert.isTrue(
+					!content.trim().isEmpty(),
+					() -> new RestInvalidArgumentException("Request's body contains no data.")
+				);
 
-		try {
-			return restHandlingContext.getObjectMapper().readValue(content, dataClass);
-		} catch (JsonProcessingException e) {
-			throw new RestInternalError("Could not parse request body: ", e);
-		}
+				try {
+					return restHandlingContext.getObjectMapper().readValue(content, dataClass);
+				} catch (JsonProcessingException e) {
+					throw new RestInternalError("Could not parse request body: ", e);
+				}
+			});
 	}
 
 	@Override

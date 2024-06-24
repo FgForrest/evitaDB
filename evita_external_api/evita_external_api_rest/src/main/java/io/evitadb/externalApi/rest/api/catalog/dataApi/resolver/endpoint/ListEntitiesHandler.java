@@ -36,6 +36,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Handles queries for list of entities.
@@ -54,14 +55,15 @@ public class ListEntitiesHandler extends QueryOrientedEntitiesHandler {
 
 	@Nonnull
 	@Override
-	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExchange exchange) {
-		final Query query = resolveQuery(exchange);
+	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
+		return resolveQuery(exchange)
+			.thenApply(query -> {
+				log.debug("Generated evitaDB query for entity list of type `{}` is `{}`.", restHandlingContext.getEntitySchema(), query);
 
-		log.debug("Generated evitaDB query for entity list of type `{}` is `{}`.", restHandlingContext.getEntitySchema(), query);
+				final List<EntityClassifier> entities = exchange.session().queryList(query, EntityClassifier.class);
 
-		final List<EntityClassifier> entities = exchange.session().queryList(query, EntityClassifier.class);
-
-		return new SuccessEndpointResponse(convertResultIntoSerializableObject(exchange, entities));
+				return new SuccessEndpointResponse(convertResultIntoSerializableObject(exchange, entities));
+			});
 	}
 
 	@Nonnull

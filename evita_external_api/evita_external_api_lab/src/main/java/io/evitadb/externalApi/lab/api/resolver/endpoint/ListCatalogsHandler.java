@@ -38,6 +38,7 @@ import javax.annotation.Nonnull;
 import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Returns all known evitaDB catalogs.
@@ -56,9 +57,9 @@ public class ListCatalogsHandler extends JsonRestHandler<LabApiHandlingContext> 
 
 	@Nonnull
 	@Override
-	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExchange exchange) {
+	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
 		final Collection<CatalogContract> catalogs = restHandlingContext.getEvita().getCatalogs();
-		return new SuccessEndpointResponse(convertResultIntoSerializableObject(exchange, catalogs));
+		return CompletableFuture.supplyAsync(() -> new SuccessEndpointResponse(convertResultIntoSerializableObject(exchange, catalogs)));
 	}
 
 	@Nonnull

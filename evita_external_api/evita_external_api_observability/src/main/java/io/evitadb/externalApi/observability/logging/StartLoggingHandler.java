@@ -32,6 +32,7 @@ import io.undertow.util.Methods;
 import javax.annotation.Nonnull;
 import java.util.LinkedHashSet;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Starts recording of JFR events.
@@ -45,10 +46,12 @@ public class StartLoggingHandler extends LoggingEndpointHandler<LoggingEndpointE
 
 	@Nonnull
 	@Override
-	protected EndpointResponse doHandleRequest(@Nonnull LoggingEndpointExchange exchange) {
-		final String[] allowedEvents = parseRequestBody(exchange, String[].class);
-		manager.start(allowedEvents);
-		return new SuccessEndpointResponse();
+	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull LoggingEndpointExchange exchange) {
+		return parseRequestBody(exchange, String[].class)
+			.thenApply(allowedEvents -> {
+				manager.start(allowedEvents);
+				return new SuccessEndpointResponse();
+			});
 	}
 
 	@Nonnull

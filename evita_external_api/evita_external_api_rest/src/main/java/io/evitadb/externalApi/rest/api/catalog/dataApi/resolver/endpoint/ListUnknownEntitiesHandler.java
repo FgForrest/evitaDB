@@ -44,6 +44,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Handles requests for multiple unknown entities identified by their URLs or codes.
@@ -63,7 +64,7 @@ public class ListUnknownEntitiesHandler extends JsonRestHandler<CatalogRestHandl
 
 	@Override
 	@Nonnull
-	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExchange exchange) {
+	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
 		final Map<String, Object> parametersFromRequest = getParametersFromRequest(exchange);
 
 		final Query query = Query.query(
@@ -74,7 +75,7 @@ public class ListUnknownEntitiesHandler extends JsonRestHandler<CatalogRestHandl
 		log.debug("Generated evitaDB query for unknown entity list fetch is `{}`.", query);
 
 		final List<EntityClassifier> entities = exchange.session().queryList(query, EntityClassifier.class);
-		return new SuccessEndpointResponse(convertResultIntoSerializableObject(exchange, entities));
+		return CompletableFuture.supplyAsync(() -> new SuccessEndpointResponse(convertResultIntoSerializableObject(exchange, entities)));
 	}
 
 	@Nonnull

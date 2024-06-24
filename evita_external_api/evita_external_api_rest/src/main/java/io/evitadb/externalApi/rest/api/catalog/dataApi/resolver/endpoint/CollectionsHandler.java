@@ -37,6 +37,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * This handler is used to get list of names (and counts) of existing collections withing one catalog.
@@ -51,7 +52,7 @@ public class CollectionsHandler extends JsonRestHandler<CatalogRestHandlingConte
 
 	@Nonnull
 	@Override
-	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExchange exchange) {
+	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
 		final Map<String, Object> parametersFromRequest = getParametersFromRequest(exchange);
 		final Boolean withCounts = (Boolean) parametersFromRequest.get(CollectionsEndpointHeaderDescriptor.ENTITY_COUNT.name());
 
@@ -64,7 +65,7 @@ public class CollectionsHandler extends JsonRestHandler<CatalogRestHandlingConte
 			))
 			.toList();
 
-		return new SuccessEndpointResponse(convertResultIntoSerializableObject(exchange, collections));
+		return CompletableFuture.supplyAsync(() -> new SuccessEndpointResponse(convertResultIntoSerializableObject(exchange, collections)));
 	}
 
 	@Nonnull

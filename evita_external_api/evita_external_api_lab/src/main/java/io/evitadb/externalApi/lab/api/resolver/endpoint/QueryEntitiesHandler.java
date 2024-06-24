@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.lab.api.resolver.endpoint;
 
+import com.linecorp.armeria.common.HttpMethod;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.Query;
@@ -49,7 +50,6 @@ import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.externalApi.rest.io.JsonRestHandler;
 import io.evitadb.externalApi.rest.io.RestEndpointExchange;
 import io.evitadb.utils.Assert;
-import io.undertow.util.Methods;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -58,6 +58,7 @@ import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Returns entities by passed query.
@@ -94,18 +95,20 @@ public class QueryEntitiesHandler extends JsonRestHandler<LabApiHandlingContext>
 
 	@Nonnull
 	@Override
-	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExchange exchange) {
-		final Query query = resolveQuery(exchange);
-		log.debug("Generated evitaDB query for entity query is `{}`.", query);
+	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
+		return resolveQuery(exchange)
+			.thenApply(query -> {
+				log.debug("Generated evitaDB query for entity query is `{}`.", query);
 
-		final EvitaResponse<EntityClassifier> response = exchange.session().query(query, EntityClassifier.class);
-		return new SuccessEndpointResponse(convertResultIntoSerializableObject(exchange, response));
+				final EvitaResponse<EntityClassifier> response = exchange.session().query(query, EntityClassifier.class);
+				return new SuccessEndpointResponse(convertResultIntoSerializableObject(exchange, response));
+			});
 	}
 
 	@Nonnull
 	@Override
 	public Set<String> getSupportedHttpMethods() {
-		return Set.of(Methods.POST_STRING);
+		return Set.of(HttpMethod.POST.name());
 	}
 
 	@Nonnull
@@ -121,11 +124,13 @@ public class QueryEntitiesHandler extends JsonRestHandler<LabApiHandlingContext>
 	}
 
 	@Nonnull
-	protected Query resolveQuery(@Nonnull RestEndpointExchange exchange) {
-		final QueryEntitiesRequestBodyDto requestData = parseRequestBody(exchange, QueryEntitiesRequestBodyDto.class);
+	protected CompletableFuture<Query> resolveQuery(@Nonnull RestEndpointExchange exchange) {
+		return parseRequestBody(exchange, QueryEntitiesRequestBodyDto.class)
+			.thenApply(requestData -> {
+				// todo lho arguments
+				return queryParser.parseQueryUnsafe(requestData.getQuery());
+			});
 
-		// todo lho arguments
-		return queryParser.parseQueryUnsafe(requestData.getQuery());
 	}
 
 	@Nonnull

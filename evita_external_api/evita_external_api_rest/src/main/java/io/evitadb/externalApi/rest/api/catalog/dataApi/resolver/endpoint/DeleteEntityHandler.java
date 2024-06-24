@@ -38,6 +38,7 @@ import lombok.extern.slf4j.Slf4j;
 import javax.annotation.Nonnull;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Handles single entity delete request.
@@ -58,7 +59,7 @@ public class DeleteEntityHandler extends EntityHandler<CollectionRestHandlingCon
 
 	@Override
 	@Nonnull
-	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExchange exchange) {
+	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
 		final Map<String, Object> parametersFromRequest = getParametersFromRequest(exchange);
 
 		Assert.isTrue(
@@ -68,14 +69,14 @@ public class DeleteEntityHandler extends EntityHandler<CollectionRestHandlingCon
 
 		final EntityContentRequire[] entityContentRequires = RequireConstraintFromRequestQueryBuilder.getEntityContentRequires(parametersFromRequest);
 
-		return exchange.session()
+		return CompletableFuture.supplyAsync(() -> exchange.session()
 			.deleteEntity(
 				restHandlingContext.getEntityType(),
 				(Integer) parametersFromRequest.get(DeleteEntityEndpointHeaderDescriptor.PRIMARY_KEY.name()),
 				entityContentRequires
 			)
 			.map(it -> (EndpointResponse) new SuccessEndpointResponse(convertResultIntoSerializableObject(exchange, it)))
-			.orElse(new NotFoundEndpointResponse());
+			.orElse(new NotFoundEndpointResponse()));
 	}
 
 	@Nonnull

@@ -43,6 +43,7 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Handles update request for catalog schema.
@@ -69,20 +70,21 @@ public class UpdateCatalogSchemaHandler extends CatalogSchemaHandler {
 
 	@Override
 	@Nonnull
-	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExchange exchange) {
-		final CreateOrUpdateEntitySchemaRequestData requestData = parseRequestBody(exchange, CreateOrUpdateEntitySchemaRequestData.class);
+	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
+		return parseRequestBody(exchange, CreateOrUpdateEntitySchemaRequestData.class)
+			.thenApply(requestData -> {
+				final List<LocalCatalogSchemaMutation> schemaMutations = new LinkedList<>();
+				final JsonNode inputMutations = requestData.getMutations()
+					.orElseThrow(() -> new RestInvalidArgumentException("Mutations are not set in request data."));
+				for (Iterator<JsonNode> schemaMutationsIterator = inputMutations.elements(); schemaMutationsIterator.hasNext(); ) {
+					schemaMutations.addAll(mutationAggregateResolver.convert(schemaMutationsIterator.next()));
+				}
 
-		final List<LocalCatalogSchemaMutation> schemaMutations = new LinkedList<>();
-		final JsonNode inputMutations = requestData.getMutations()
-			.orElseThrow(() -> new RestInvalidArgumentException("Mutations are not set in request data."));
-		for (Iterator<JsonNode> schemaMutationsIterator = inputMutations.elements(); schemaMutationsIterator.hasNext(); ) {
-			schemaMutations.addAll(mutationAggregateResolver.convert(schemaMutationsIterator.next()));
-		}
-
-		final CatalogSchemaContract updatedCatalogSchema = exchange.session().updateAndFetchCatalogSchema(
-			schemaMutations.toArray(LocalCatalogSchemaMutation[]::new)
-		);
-		return new SuccessEndpointResponse(convertResultIntoSerializableObject(exchange, updatedCatalogSchema));
+				final CatalogSchemaContract updatedCatalogSchema = exchange.session().updateAndFetchCatalogSchema(
+					schemaMutations.toArray(LocalCatalogSchemaMutation[]::new)
+				);
+				return new SuccessEndpointResponse(convertResultIntoSerializableObject(exchange, updatedCatalogSchema));
+			});
 	}
 
 	@Nonnull
