@@ -26,6 +26,9 @@ package io.evitadb.externalApi.http;
 import com.linecorp.armeria.server.HttpService;
 import com.linecorp.armeria.server.Server;
 import com.linecorp.armeria.server.ServerBuilder;
+import com.linecorp.armeria.server.VirtualHostBuilder;
+import com.linecorp.armeria.server.docs.DocService;
+import com.linecorp.armeria.server.docs.DocServiceFilter;
 import io.evitadb.core.Evita;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -73,15 +76,7 @@ import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.ServiceLoader;
+import java.util.*;
 import java.util.ServiceLoader.Provider;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -454,18 +449,32 @@ public class ExternalApiServer implements AutoCloseable {
 		//final SSLContext sslContext = configureSSLContext(certificatePath, serverCertificateManager);
 		//final Map<HostKey, PathHandlingService> setupHosts = createHashMap(10);
 		final PathHandlingService mainRouter = new PathHandlingService();
-		boolean tlsSetup = false;
+		final Map<String, VirtualHostBuilder> hosts = new HashMap<>(4);
 		for (ExternalApiProvider<?> registeredApiProvider : registeredApiProviders.values()) {
 			final AbstractApiConfiguration configuration = apiOptions.endpoints().get(registeredApiProvider.getCode());
 			for (HostDefinition host : configuration.getHost()) {
+				final VirtualHostBuilder virtualHostBuilder = serverBuilder.virtualHost(host.hostName());
+				if (!hosts.containsKey(host.hostName())) {
+					hosts.put(
+						host.hostName(),
+						virtualHostBuilder
+					);
+
+					serverBuilder.http(host.port());
+					serverBuilder.https(host.port());
+
+					virtualHostBuilder.tls(createKeyManagerFactory(certificatePath, CertificateFactory.getInstance("X.509")));
+				}
+
 				//final HostKey hostKey = new HostKey(host, configuration.isTlsEnabled());
 				/*if (!registeredApiProvider.isManagedByUndertow() || registeredApiProvider.getApiHandler() == null) {
 					continue;
 				}*/
-				if (!tlsSetup) {
+
+				/*if (!tlsSetup) {
 					setupAndRegisterPortsAndTls(serverBuilder, certificatePath, host.port());
 					tlsSetup = true;
-				}
+				}*/
 				//final PathHandlingService hostRouter;
 				//if (setupHosts.containsKey(hostKey)) {
 				//	hostRouter = setupHosts.get(hostKey);
@@ -545,22 +554,38 @@ public class ExternalApiServer implements AutoCloseable {
 
 				final String prefix = ((ApiWithSpecificPrefix) configuration).getPrefix();
 				final HttpService apiHandler = registeredApiProvider.getApiHandler();
+				final DocService docService = DocService.builder()
+					.exclude(DocServiceFilter.ofServiceName("grpc.reflection.v1alpha.ServerReflection"))
+					.build();
 
 				if (registeredApiProvider.mtlsConfiguration() != null) {
-					serverBuilder.serviceUnder(
+					virtualHostBuilder.serviceUnder(
 						// always will be only gRPC API
 						"/" + prefix,
 						apiHandler
 					);
+					virtualHostBuilder.serviceUnder(
+						// always will be only gRPC API docs
+						"/docs",
+						docService
+					);
+					serverBuilder.defaultVirtualHost().serviceUnder(
+						// always will be only gRPC API
+						"/" + prefix,
+						apiHandler
+					);
+					serverBuilder.defaultVirtualHost().serviceUnder(
+						// always will be only gRPC API docs
+						"/docs",
+						docService
+					);
+					customizeTls(virtualHostBuilder, apiOptions, registeredApiProvider.mtlsConfiguration());
 				} else {
 					mainRouter.addPrefixPath(
 						prefix,
 						apiHandler
 					);
 				}
-
-
-				//customizeTlsAndRegisterGrpcService(serverBuilder, apiOptions, registeredApiProvider.mtlsConfiguration());
 			}
 			ConsoleWriter.write(
 				StringUtils.rightPad("API `" + registeredApiProvider.getCode() + "` listening on ", " ", PADDING_START_UP)
@@ -579,26 +604,25 @@ public class ExternalApiServer implements AutoCloseable {
 				consoleOutput.writeToConsole();
 			}
 		}
-		serverBuilder.service("glob:/**", mainRouter);
+
+		hosts.forEach((hostName, virtualHost) -> virtualHost.service("glob:/**", mainRouter));
+		serverBuilder.defaultVirtualHost().service("glob:/**", mainRouter);
 	}
 
 	private static void setupAndRegisterPortsAndTls(
-		@Nonnull ServerBuilder serverBuilder,
-		@Nonnull CertificatePath certificatePath,
-		int port
+		@Nonnull VirtualHostBuilder virtualHostBuilder,
+		@Nonnull CertificatePath certificatePath
 	) throws CertificateException, UnrecoverableKeyException, KeyStoreException, IOException, NoSuchAlgorithmException {
-		serverBuilder.tls(createKeyManagerFactory(certificatePath, CertificateFactory.getInstance("X.509")));
-		serverBuilder.https(port);
-		serverBuilder.http(port);
+		virtualHostBuilder.tls(createKeyManagerFactory(certificatePath, CertificateFactory.getInstance("X.509")));
 	}
 
-	private static void customizeTlsAndRegisterGrpcService(
-		@Nonnull ServerBuilder serverBuilder,
+	private static void customizeTls(
+		@Nonnull VirtualHostBuilder virtualHostBuilder,
 		@Nonnull ApiOptions apiOptions,
 		@Nullable MtlsConfiguration mtlsConfiguration
 	) {
 		if (mtlsConfiguration != null) {
-			serverBuilder.tlsCustomizer(t -> {
+			virtualHostBuilder.tlsCustomizer(t -> {
 				try {
 					if (Boolean.TRUE.equals(mtlsConfiguration.enabled())) {
 						if (apiOptions.certificate().generateAndUseSelfSigned()) {
