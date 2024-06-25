@@ -203,23 +203,30 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 
 	@Creator(suffix = SUFFIX_ALL)
 	public ReferenceContent() {
-		super();
+		super(
+			new Serializable[] { ManagedReferencesBehaviour.ANY }
+		);
 	}
 
 	public ReferenceContent(@Nonnull String... referenceName) {
-		super(referenceName);
+		super(
+			ArrayUtils.mergeArrays(
+				new Serializable[] { ManagedReferencesBehaviour.ANY },
+				referenceName
+			)
+		);
 	}
 
 	public ReferenceContent(@Nonnull String referenceName, @Nullable AttributeContent attributeContent) {
 		super(
-			referenceName,
-			ofNullable(attributeContent).orElse(new AttributeContent())
-		);
+			new Serializable[] { ManagedReferencesBehaviour.ANY, referenceName },
+			ofNullable(attributeContent).orElse(new AttributeContent()));
 	}
 
 	@Creator(suffix = SUFFIX_ALL_WITH_ATTRIBUTES)
 	public ReferenceContent(@Nullable AttributeContent attributeContent) {
 		super(
+			new Serializable[] { ManagedReferencesBehaviour.ANY },
 			ofNullable(attributeContent).orElse(new AttributeContent())
 		);
 	}
@@ -229,7 +236,14 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 		@Nullable EntityFetch entityRequirement,
 		@Nullable EntityGroupFetch groupEntityRequirement
 	) {
-		super(referenceNames, entityRequirement, groupEntityRequirement);
+		super(
+			ArrayUtils.mergeArrays(
+				new Serializable[] { ManagedReferencesBehaviour.ANY },
+				referenceNames
+			),
+			entityRequirement,
+			groupEntityRequirement
+		);
 	}
 
 	@Creator
@@ -241,7 +255,10 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 		@Nullable EntityGroupFetch entityGroupFetch
 	) {
 		super(
-			ofNullable(referenceName).map(it -> (Serializable[]) new String[]{it}).orElse(NO_ARGS),
+			ArrayUtils.mergeArrays(
+				new Serializable[] { ManagedReferencesBehaviour.ANY },
+				ofNullable(referenceName).map(it -> new Serializable[]{it}).orElse(NO_ARGS)
+			),
 			new RequireConstraint[]{entityFetch, entityGroupFetch}, filterBy, orderBy
 		);
 	}
@@ -256,7 +273,10 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 		@Nullable EntityGroupFetch entityGroupFetch
 	) {
 		super(
-			ofNullable(referenceName).map(it -> (Serializable[])new String[] { it }).orElse(NO_ARGS),
+			ArrayUtils.mergeArrays(
+				new Serializable[] { ManagedReferencesBehaviour.ANY },
+				ofNullable(referenceName).map(it -> new Serializable[]{it}).orElse(NO_ARGS)
+			),
 			new RequireConstraint[] {
 				ofNullable(attributeContent).orElse(new AttributeContent()),
 				entityFetch,
@@ -268,11 +288,16 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 	}
 
 	public ReferenceContent(@Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
-		super(entityRequirement, groupEntityRequirement);
+		super(
+			new Serializable[] { ManagedReferencesBehaviour.ANY},
+			entityRequirement,
+			groupEntityRequirement
+		);
 	}
 
 	public ReferenceContent(@Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
 		super(
+			new Serializable[] { ManagedReferencesBehaviour.ANY},
 			ofNullable(attributeContent).orElse(new AttributeContent()),
 			entityRequirement,
 			groupEntityRequirement
@@ -484,6 +509,14 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 	 */
 	public boolean isAllRequested() {
 		return ArrayUtils.isEmpty(getReferenceNames());
+	}
+
+	@Nonnull
+	@Override
+	public Serializable[] getArgumentsExcludingDefaults() {
+		return Arrays.stream(super.getArgumentsExcludingDefaults())
+			.filter(it -> it != ManagedReferencesBehaviour.ANY)
+			.toArray(Serializable[]::new);
 	}
 
 	@Nonnull
