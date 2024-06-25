@@ -112,7 +112,7 @@ public abstract class BaseConstraint<T extends Constraint<T>> implements Constra
 	public String toString() {
 		return getName() +
 			ARG_OPENING +
-			Arrays.stream(arguments)
+			Arrays.stream(getArgumentsExcludingDefaults())
 				.filter(it -> !(this instanceof ConstraintWithSuffix cws) || !cws.isArgumentImplicitForSuffix(it))
 				.map(BaseConstraint::convertToString)
 				.collect(Collectors.joining(",")) +

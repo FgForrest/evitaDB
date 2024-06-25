@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -103,7 +103,7 @@ class HierarchyParentsTest {
 		assertEquals("parents('megaMenu',entityFetch(attributeContentAll(),hierarchyContent(),associatedDataContentAll(),priceContentAll(),referenceContentAllWithAttributes(),dataInLocalesAll()))", hierarchyParents2.toString());
 
 		final HierarchyParents hierarchyParents3 = parents("megaMenu", statistics());
-		assertEquals("parents('megaMenu',statistics(WITHOUT_USER_FILTER))", hierarchyParents3.toString());
+		assertEquals("parents('megaMenu',statistics())", hierarchyParents3.toString());
 
 		final HierarchyParents hierarchyParents4 = parents("megaMenu", siblings());
 		assertEquals("parents('megaMenu',siblings())", hierarchyParents4.toString());

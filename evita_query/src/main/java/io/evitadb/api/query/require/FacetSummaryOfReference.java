@@ -285,6 +285,14 @@ public class FacetSummaryOfReference extends AbstractRequireConstraintContainer 
 
 	@Nonnull
 	@Override
+	public Serializable[] getArgumentsExcludingDefaults() {
+		return Arrays.stream(super.getArgumentsExcludingDefaults())
+			.filter(it -> it != FacetStatisticsDepth.COUNTS)
+			.toArray(Serializable[]::new);
+	}
+
+	@Nonnull
+	@Override
 	public RequireConstraint getCopyWithNewChildren(@Nonnull RequireConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
 		return new FacetSummaryOfReference(getArguments(), children, additionalChildren);
 	}
