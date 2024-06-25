@@ -32,6 +32,7 @@ import io.evitadb.api.query.parser.ParserFactory;
 import io.evitadb.api.query.parser.error.EvitaQLInvalidQueryError;
 import io.evitadb.api.query.require.EmptyHierarchicalEntityBehaviour;
 import io.evitadb.api.query.require.HistogramBehavior;
+import io.evitadb.api.query.require.ManagedReferencesBehaviour;
 import io.evitadb.api.query.require.PriceContent;
 import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.query.require.QueryPriceMode;
@@ -755,6 +756,454 @@ class EvitaQLRequireConstraintVisitorTest {
 	}
 
 	@Test
+	void shouldParseReferenceContentConstraintWithExistingBehaviour() {
+		final RequireConstraint constraint1 = parseRequireConstraintUnsafe("referenceContent(EXISTING, 'a')");
+		assertEquals(referenceContent(ManagedReferencesBehaviour.EXISTING, "a"), constraint1);
+
+		final RequireConstraint constraint1a = parseRequireConstraintUnsafe("referenceContentWithAttributes(EXISTING, 'a', attributeContent('order'))");
+		assertEquals(
+			referenceContentWithAttributes(
+				ManagedReferencesBehaviour.EXISTING, "a",
+				attributeContent("order")
+			),
+			constraint1a
+		);
+
+		final RequireConstraint constraint1b = parseRequireConstraintUnsafe("referenceContentWithAttributes(EXISTING, 'a')");
+		assertEquals(referenceContentWithAttributes(ManagedReferencesBehaviour.EXISTING, "a"), constraint1b);
+
+		final RequireConstraint constraint1c = parseRequireConstraintUnsafe("referenceContentAllWithAttributes(EXISTING)");
+		assertEquals(referenceContentAllWithAttributes(ManagedReferencesBehaviour.EXISTING), constraint1c);
+
+		final RequireConstraint constraint1d = parseRequireConstraintUnsafe("referenceContentAllWithAttributes(EXISTING, attributeContent('a'))");
+		assertEquals(referenceContentAllWithAttributes(ManagedReferencesBehaviour.EXISTING, attributeContent("a")), constraint1d);
+
+		final RequireConstraint constraint2 = parseRequireConstraintUnsafe("referenceContent(EXISTING, 'a','b','c')");
+		assertEquals(referenceContent(ManagedReferencesBehaviour.EXISTING, "a", "b", "c"), constraint2);
+
+		final RequireConstraint constraint3 = parseRequireConstraintUnsafe("referenceContent (  EXISTING,   'a' , 'b'  , 'c' )");
+		assertEquals(referenceContent(ManagedReferencesBehaviour.EXISTING, "a", "b", "c"), constraint3);
+
+		final RequireConstraint constraint6 = parseRequireConstraintUnsafe("referenceContent(EXISTING, 'BRAND', 'CATEGORY','stock')");
+		assertEquals(referenceContent(ManagedReferencesBehaviour.EXISTING, "BRAND", "CATEGORY", "stock"), constraint6);
+
+		final RequireConstraint constraint7 = parseRequireConstraintUnsafe("referenceContent(EXISTING, 'a', filterBy(attributeEqualsTrue('code')), entityFetch(attributeContentAll()))");
+		assertEquals(
+			referenceContent(
+				ManagedReferencesBehaviour.EXISTING,
+				"a",
+				filterBy(attributeEqualsTrue("code")),
+				entityFetch(attributeContentAll())
+			),
+			constraint7
+		);
+
+		final RequireConstraint constraint8 = parseRequireConstraint("referenceContent(?, ?)", ManagedReferencesBehaviour.EXISTING, "a");
+		assertEquals(referenceContent(ManagedReferencesBehaviour.EXISTING, "a"), constraint8);
+
+		final RequireConstraint constraint9 = parseRequireConstraint("referenceContent(@mrb, @et)", Map.of("mrb", ManagedReferencesBehaviour.EXISTING, "et", "a"));
+		assertEquals(referenceContent(ManagedReferencesBehaviour.EXISTING, "a"), constraint9);
+
+		final RequireConstraint constraint10 = parseRequireConstraint("referenceContent(?, ?)", ManagedReferencesBehaviour.EXISTING, List.of("a", "b"));
+		assertEquals(referenceContent(ManagedReferencesBehaviour.EXISTING, "a", "b"), constraint10);
+
+		final RequireConstraint constraint11 = parseRequireConstraint("referenceContent(@mrb, @et)", Map.of("mrb", ManagedReferencesBehaviour.EXISTING, "et", List.of("a", "b")));
+		assertEquals(referenceContent(ManagedReferencesBehaviour.EXISTING, "a", "b"), constraint11);
+
+		final RequireConstraint constraint12 = parseRequireConstraint("referenceContent(?,?,?)", ManagedReferencesBehaviour.EXISTING, "a", "b");
+		assertEquals(referenceContent(ManagedReferencesBehaviour.EXISTING, "a", "b"), constraint12);
+
+		final RequireConstraint constraint13 = parseRequireConstraint("referenceContent(@mrb,@et1,@et2)", Map.of("mrb", ManagedReferencesBehaviour.EXISTING, "et1", "a", "et2", "b"));
+		assertEquals(referenceContent(ManagedReferencesBehaviour.EXISTING, "a", "b"), constraint13);
+
+		final RequireConstraint constraint14 = parseRequireConstraint(
+			"referenceContent(?, ?,filterBy(attributeEquals('code',?)),entityFetch(attributeContent(?)))",
+			ManagedReferencesBehaviour.EXISTING,
+			"a",
+			"some",
+			"code"
+		);
+		assertEquals(
+			referenceContent(
+				ManagedReferencesBehaviour.EXISTING, "a",
+				filterBy(attributeEquals("code", "some")),
+				entityFetch(attributeContent("code"))
+			),
+			constraint14
+		);
+
+		final RequireConstraint constraint15 = parseRequireConstraintUnsafe("referenceContentAll(EXISTING)");
+		assertEquals(referenceContentAll(ManagedReferencesBehaviour.EXISTING), constraint15);
+
+		final RequireConstraint constraint16 = parseRequireConstraintUnsafe("referenceContentAll ( EXISTING )");
+		assertEquals(referenceContentAll(ManagedReferencesBehaviour.EXISTING), constraint16);
+
+		final RequireConstraint constraint17 = parseRequireConstraintUnsafe("referenceContent(EXISTING, 'a', entityFetch(attributeContentAll()))");
+		assertEquals(
+			referenceContent(
+				ManagedReferencesBehaviour.EXISTING,
+				"a",
+				entityFetch(attributeContentAll())
+			),
+			constraint17
+		);
+
+		final RequireConstraint constraint18 = parseRequireConstraintUnsafe("referenceContent(EXISTING, 'a', 'b', entityFetch(attributeContentAll()))");
+		assertEquals(
+			referenceContent(
+				ManagedReferencesBehaviour.EXISTING,
+				new String[] {"a", "b"},
+				entityFetch(attributeContentAll())
+			),
+			constraint18
+		);
+
+		final RequireConstraint constraint19 = parseRequireConstraintUnsafe("referenceContent(EXISTING, 'a', 'b', entityFetch(attributeContentAll()), entityGroupFetch())");
+		assertEquals(
+			referenceContent(
+				ManagedReferencesBehaviour.EXISTING,
+				new String[] {"a", "b"},
+				entityFetch(attributeContentAll()),
+				entityGroupFetch()
+			),
+			constraint19
+		);
+
+		final RequireConstraint constraint20 = parseRequireConstraintUnsafe("referenceContent(EXISTING, 'a', 'b', entityGroupFetch())");
+		assertEquals(
+			referenceContent(
+				ManagedReferencesBehaviour.EXISTING,
+				new String[] {"a", "b"},
+				entityGroupFetch()
+			),
+			constraint20
+		);
+
+		final RequireConstraint constraint21 = parseRequireConstraintUnsafe("referenceContent(EXISTING, 'a', filterBy(attributeEqualsTrue('code')), entityFetch(attributeContentAll()), entityGroupFetch())");
+		assertEquals(
+			referenceContent(
+				ManagedReferencesBehaviour.EXISTING,
+				"a",
+				filterBy(attributeEqualsTrue("code")),
+				entityFetch(attributeContentAll()),
+				entityGroupFetch()
+			),
+			constraint21
+		);
+
+		final RequireConstraint constraint21a = parseRequireConstraintUnsafe("referenceContentWithAttributes(EXISTING, 'a', filterBy(attributeEqualsTrue('code')), attributeContent('order'), entityFetch(attributeContentAll()), entityGroupFetch())");
+		assertEquals(
+			referenceContentWithAttributes(
+				ManagedReferencesBehaviour.EXISTING,
+				"a",
+				filterBy(attributeEqualsTrue("code")),
+				attributeContent("order"),
+				entityFetch(attributeContentAll()),
+				entityGroupFetch()
+			),
+			constraint21a
+		);
+
+		final RequireConstraint constraint21b = parseRequireConstraintUnsafe("referenceContentWithAttributes(EXISTING, 'a', filterBy(attributeEqualsTrue('code')), entityFetch(attributeContentAll()), entityGroupFetch())");
+		assertEquals(
+			referenceContentWithAttributes(
+				ManagedReferencesBehaviour.EXISTING,
+				"a",
+				filterBy(attributeEqualsTrue("code")),
+				entityFetch(attributeContentAll()),
+				entityGroupFetch()
+			),
+			constraint21b
+		);
+
+		final RequireConstraint constraint21c = parseRequireConstraintUnsafe("referenceContentAllWithAttributes(EXISTING, entityFetch(attributeContentAll()), entityGroupFetch())");
+		assertEquals(
+			referenceContentAllWithAttributes(
+				ManagedReferencesBehaviour.EXISTING,
+				entityFetch(attributeContentAll()),
+				entityGroupFetch()
+			),
+			constraint21c
+		);
+
+		final RequireConstraint constraint21d = parseRequireConstraintUnsafe("referenceContentAllWithAttributes(EXISTING, attributeContent('a'), entityFetch(attributeContentAll()), entityGroupFetch())");
+		assertEquals(
+			referenceContentAllWithAttributes(
+				ManagedReferencesBehaviour.EXISTING,
+				attributeContent("a"),
+				entityFetch(attributeContentAll()),
+				entityGroupFetch()
+			),
+			constraint21d
+		);
+
+		final RequireConstraint constraint22 = parseRequireConstraintUnsafe("referenceContent(EXISTING, 'a', filterBy(attributeEqualsTrue('code')), entityGroupFetch(attributeContentAll()))");
+		assertEquals(
+			referenceContent(
+				ManagedReferencesBehaviour.EXISTING,
+				"a",
+				filterBy(attributeEqualsTrue("code")),
+				entityGroupFetch(attributeContentAll())
+			),
+			constraint22
+		);
+
+		final RequireConstraint constraint22a = parseRequireConstraintUnsafe("referenceContentWithAttributes(EXISTING, 'a', filterBy(attributeEqualsTrue('code')), attributeContent('order'), entityGroupFetch(attributeContentAll()))");
+		assertEquals(
+			referenceContentWithAttributes(
+				ManagedReferencesBehaviour.EXISTING,
+				"a",
+				filterBy(attributeEqualsTrue("code")),
+				attributeContent("order"),
+				entityGroupFetch(attributeContentAll())
+			),
+			constraint22a
+		);
+
+		final RequireConstraint constraint22b = parseRequireConstraintUnsafe("referenceContentWithAttributes(EXISTING, 'a', filterBy(attributeEqualsTrue('code')), entityGroupFetch(attributeContentAll()))");
+		assertEquals(
+			referenceContentWithAttributes(
+				ManagedReferencesBehaviour.EXISTING,
+				"a",
+				filterBy(attributeEqualsTrue("code")),
+				entityGroupFetch(attributeContentAll())
+			),
+			constraint22b
+		);
+
+		final RequireConstraint constraint22c = parseRequireConstraintUnsafe("referenceContentAllWithAttributes(EXISTING, entityGroupFetch(attributeContentAll()))");
+		assertEquals(
+			referenceContentAllWithAttributes(
+				ManagedReferencesBehaviour.EXISTING,
+				entityGroupFetch(attributeContentAll())
+			),
+			constraint22c
+		);
+
+		final RequireConstraint constraint22d = parseRequireConstraintUnsafe("referenceContentAllWithAttributes(EXISTING, attributeContent('a'), entityGroupFetch(attributeContentAll()))");
+		assertEquals(
+			referenceContentAllWithAttributes(
+				ManagedReferencesBehaviour.EXISTING,
+				attributeContent("a"),
+				entityGroupFetch(attributeContentAll())
+			),
+			constraint22d
+		);
+
+		final RequireConstraint constraint23 = parseRequireConstraintUnsafe("referenceContentAll(EXISTING, entityFetch(priceContentRespectingFilter()), entityGroupFetch(attributeContentAll()))");
+		assertEquals(
+			QueryConstraints.referenceContentAll(
+				ManagedReferencesBehaviour.EXISTING,
+				entityFetch(priceContentRespectingFilter()),
+				entityGroupFetch(attributeContentAll())
+			),
+			constraint23
+		);
+
+		final RequireConstraint constraint24 = parseRequireConstraintUnsafe("referenceContentAll(EXISTING, entityFetch(priceContentRespectingFilter()))");
+		assertEquals(
+			QueryConstraints.referenceContentAll(
+				ManagedReferencesBehaviour.EXISTING,
+				entityFetch(priceContentRespectingFilter())
+			),
+			constraint24
+		);
+
+		final RequireConstraint constraint25 = parseRequireConstraintUnsafe("referenceContentAll(EXISTING, entityGroupFetch(priceContentRespectingFilter()))");
+		assertEquals(
+			QueryConstraints.referenceContentAll(
+				ManagedReferencesBehaviour.EXISTING,
+				entityGroupFetch(priceContentRespectingFilter())
+			),
+			constraint25
+		);
+
+		final RequireConstraint constraint26 = parseRequireConstraint(
+			"referenceContent(?,?,filterBy(attributeEquals('code',?)),entityFetch(attributeContent(?)),entityGroupFetch(attributeContent(?)))",
+			ManagedReferencesBehaviour.EXISTING,
+			"a",
+			"some",
+			"code",
+			"name"
+		);
+		assertEquals(
+			referenceContent(
+				ManagedReferencesBehaviour.EXISTING,
+				"a",
+				filterBy(attributeEquals("code", "some")),
+				entityFetch(attributeContent("code")),
+				entityGroupFetch(attributeContent("name"))
+			),
+			constraint26
+		);
+
+		final RequireConstraint constraint27 = parseRequireConstraint("referenceContent(?, ?, entityFetch(attributeContent(?)))", ManagedReferencesBehaviour.EXISTING, "a", "b");
+		assertEquals(
+			referenceContent(
+				ManagedReferencesBehaviour.EXISTING,
+				"a",
+				entityFetch(attributeContent("b"))
+			),
+			constraint27
+		);
+
+		final RequireConstraint constraint28 = parseRequireConstraintUnsafe("referenceContent(EXISTING, 'a', orderBy(attributeNatural('code')), entityFetch(attributeContentAll()))");
+		assertEquals(
+			referenceContent(
+				ManagedReferencesBehaviour.EXISTING,
+				"a",
+				orderBy(attributeNatural("code")),
+				entityFetch(attributeContentAll())
+			),
+			constraint28
+		);
+
+		final RequireConstraint constraint28a = parseRequireConstraintUnsafe("referenceContentWithAttributes(EXISTING, 'a', orderBy(attributeNatural('code')), attributeContent('order'), entityFetch(attributeContentAll()))");
+		assertEquals(
+			referenceContentWithAttributes(
+				ManagedReferencesBehaviour.EXISTING,
+				"a",
+				orderBy(attributeNatural("code")),
+				attributeContent("order"),
+				entityFetch(attributeContentAll())
+			),
+			constraint28a
+		);
+
+		final RequireConstraint constraint28b = parseRequireConstraintUnsafe("referenceContentWithAttributes(EXISTING, 'a', orderBy(attributeNatural('code')), entityFetch(attributeContentAll()))");
+		assertEquals(
+			referenceContentWithAttributes(
+				ManagedReferencesBehaviour.EXISTING,
+				"a",
+				orderBy(attributeNatural("code")),
+				entityFetch(attributeContentAll())
+			),
+			constraint28b
+		);
+
+		final RequireConstraint constraint28c = parseRequireConstraintUnsafe("referenceContentAllWithAttributes(EXISTING, entityFetch(attributeContentAll()))");
+		assertEquals(
+			referenceContentAllWithAttributes(
+				ManagedReferencesBehaviour.EXISTING,
+				entityFetch(attributeContentAll())
+			),
+			constraint28c
+		);
+
+		final RequireConstraint constraint28d = parseRequireConstraintUnsafe("referenceContentAllWithAttributes(EXISTING, attributeContent('a'), entityFetch(attributeContentAll()))");
+		assertEquals(
+			referenceContentAllWithAttributes(
+				ManagedReferencesBehaviour.EXISTING,
+				attributeContent("a"),
+				entityFetch(attributeContentAll())
+			),
+			constraint28d
+		);
+
+		final RequireConstraint constraint29 = parseRequireConstraintUnsafe("referenceContent(EXISTING, 'a', filterBy(attributeEqualsTrue('code')), orderBy(attributeNatural('code')), entityFetch(attributeContentAll()))");
+		assertEquals(
+			referenceContent(
+				ManagedReferencesBehaviour.EXISTING,
+				"a",
+				filterBy(attributeEquals("code", true)),
+				orderBy(attributeNatural("code")),
+				entityFetch(attributeContentAll())
+			),
+			constraint29
+		);
+
+		final RequireConstraint constraint29a = parseRequireConstraintUnsafe("referenceContentWithAttributes(EXISTING, 'a', filterBy(attributeEqualsTrue('code')), orderBy(attributeNatural('code')), attributeContent('order'), entityFetch(attributeContentAll()))");
+		assertEquals(
+			referenceContentWithAttributes(
+				ManagedReferencesBehaviour.EXISTING,
+				"a",
+				filterBy(attributeEquals("code", true)),
+				orderBy(attributeNatural("code")),
+				attributeContent("order"),
+				entityFetch(attributeContentAll())
+			),
+			constraint29a
+		);
+
+		final RequireConstraint constraint29b = parseRequireConstraintUnsafe("referenceContentWithAttributes(EXISTING, 'a', filterBy(attributeEqualsTrue('code')), orderBy(attributeNatural('code')), entityFetch(attributeContentAll()))");
+		assertEquals(
+			referenceContentWithAttributes(
+				ManagedReferencesBehaviour.EXISTING,
+				"a",
+				filterBy(attributeEquals("code", true)),
+				orderBy(attributeNatural("code")),
+				entityFetch(attributeContentAll())
+			),
+			constraint29b
+		);
+
+		final RequireConstraint constraint30 = parseRequireConstraintUnsafe("referenceContent(EXISTING, 'a', filterBy(attributeEqualsTrue('code')), orderBy(attributeNatural('code')))");
+		assertEquals(
+			referenceContent(
+				ManagedReferencesBehaviour.EXISTING,
+				"a",
+				filterBy(attributeEquals("code", true)),
+				orderBy(attributeNatural("code"))
+			),
+			constraint30
+		);
+
+		final RequireConstraint constraint30a = parseRequireConstraintUnsafe("referenceContentWithAttributes(EXISTING, 'a', filterBy(attributeEqualsTrue('code')), orderBy(attributeNatural('code')), attributeContent('order'))");
+		assertEquals(
+			referenceContentWithAttributes(
+				ManagedReferencesBehaviour.EXISTING,
+				"a",
+				filterBy(attributeEquals("code", true)),
+				orderBy(attributeNatural("code")),
+				attributeContent("order")
+			),
+			constraint30a
+		);
+
+		final RequireConstraint constraint30b = parseRequireConstraintUnsafe("referenceContentWithAttributes(EXISTING, 'a', filterBy(attributeEqualsTrue('code')), orderBy(attributeNatural('code')))");
+		assertEquals(
+			referenceContentWithAttributes(
+				ManagedReferencesBehaviour.EXISTING,
+				"a",
+				filterBy(attributeEquals("code", true)),
+				orderBy(attributeNatural("code"))
+			),
+			constraint30b
+		);
+
+		final RequireConstraint constraint31 = parseRequireConstraintUnsafe("referenceContent(EXISTING, 'a', orderBy(attributeNatural('code')))");
+		assertEquals(
+			referenceContent(
+				ManagedReferencesBehaviour.EXISTING,
+				"a",
+				orderBy(attributeNatural("code"))
+			),
+			constraint31
+		);
+
+		final RequireConstraint constraint31a = parseRequireConstraintUnsafe("referenceContentWithAttributes(EXISTING, 'a', orderBy(attributeNatural('code')), attributeContent('order'))");
+		assertEquals(
+			referenceContentWithAttributes(
+				ManagedReferencesBehaviour.EXISTING,
+				"a",
+				orderBy(attributeNatural("code")),
+				attributeContent("order")
+			),
+			constraint31a
+		);
+
+		final RequireConstraint constraint31b = parseRequireConstraintUnsafe("referenceContentWithAttributes(EXISTING, 'a', orderBy(attributeNatural('code')))");
+		assertEquals(
+			referenceContentWithAttributes(
+				ManagedReferencesBehaviour.EXISTING,
+				"a",
+				orderBy(attributeNatural("code"))
+			),
+			constraint31b
+		);
+	}
+
+		@Test
 	void shouldNotParseReferenceContentConstraint() {
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("referenceContent"));
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("referenceContent(attributeContentAll(),'a')"));

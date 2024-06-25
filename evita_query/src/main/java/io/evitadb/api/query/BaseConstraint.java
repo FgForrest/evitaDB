@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -58,7 +58,7 @@ public abstract class BaseConstraint<T extends Constraint<T>> implements Constra
 	protected BaseConstraint(@Nonnull Serializable... arguments) {
 		super();
 		this.name = getDefaultName();
-		if (Arrays.stream(arguments).anyMatch(it -> it != EvitaDataTypes.toSupportedType(it))) {
+		if (Arrays.stream(arguments).anyMatch(it -> it != null && !EvitaDataTypes.isSupportedTypeOrItsArrayOrEnum(it.getClass()))) {
 			this.arguments = Arrays.stream(arguments)
 				.map(EvitaDataTypes::toSupportedType)
 				.toArray(Serializable[]::new);

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -44,6 +44,7 @@ class ReferenceContentTest {
 		assertTrue(referenceContent1.getOrderBy().isEmpty());
 		assertTrue(referenceContent1.getEntityRequirement().isEmpty());
 		assertTrue(referenceContent1.getGroupEntityRequirement().isEmpty());
+		assertEquals(ManagedReferencesBehaviour.ANY, referenceContent1.getManagedReferencesBehaviour());
 
 		final ReferenceContent referenceContent2 = referenceContent("a");
 		assertArrayEquals(new String[] {"a"}, referenceContent2.getReferenceNames());
@@ -51,6 +52,7 @@ class ReferenceContentTest {
 		assertTrue(referenceContent2.getOrderBy().isEmpty());
 		assertTrue(referenceContent2.getEntityRequirement().isEmpty());
 		assertTrue(referenceContent2.getGroupEntityRequirement().isEmpty());
+		assertEquals(ManagedReferencesBehaviour.ANY, referenceContent2.getManagedReferencesBehaviour());
 
 		final ReferenceContent referenceContent3 = referenceContent(
 				"a",
@@ -61,6 +63,7 @@ class ReferenceContentTest {
 		assertTrue(referenceContent3.getOrderBy().isEmpty());
 		assertTrue(referenceContent3.getEntityRequirement().isEmpty());
 		assertTrue(referenceContent3.getGroupEntityRequirement().isEmpty());
+		assertEquals(ManagedReferencesBehaviour.ANY, referenceContent3.getManagedReferencesBehaviour());
 
 		final ReferenceContent referenceContent4 = referenceContent(
 				"a",
@@ -72,6 +75,7 @@ class ReferenceContentTest {
 		assertTrue(referenceContent4.getOrderBy().isEmpty());
 		assertEquals(entityFetch(), referenceContent4.getEntityRequirement().orElse(null));
 		assertTrue(referenceContent4.getGroupEntityRequirement().isEmpty());
+		assertEquals(ManagedReferencesBehaviour.ANY, referenceContent4.getManagedReferencesBehaviour());
 
 		final ReferenceContent referenceContent5 = referenceContent("a", "b");
 		assertArrayEquals(new String[] {"a", "b"}, referenceContent5.getReferenceNames());
@@ -79,6 +83,7 @@ class ReferenceContentTest {
 		assertTrue(referenceContent5.getOrderBy().isEmpty());
 		assertTrue(referenceContent5.getEntityRequirement().isEmpty());
 		assertTrue(referenceContent5.getGroupEntityRequirement().isEmpty());
+		assertEquals(ManagedReferencesBehaviour.ANY, referenceContent5.getManagedReferencesBehaviour());
 
 		final ReferenceContent referenceContent6 = QueryConstraints.referenceContentAll(entityFetch());
 		assertArrayEquals(new String[0], referenceContent6.getReferenceNames());
@@ -86,6 +91,7 @@ class ReferenceContentTest {
 		assertTrue(referenceContent6.getOrderBy().isEmpty());
 		assertEquals(entityFetch(), referenceContent6.getEntityRequirement().orElse(null));
 		assertTrue(referenceContent6.getGroupEntityRequirement().isEmpty());
+		assertEquals(ManagedReferencesBehaviour.ANY, referenceContent6.getManagedReferencesBehaviour());
 
 		final ReferenceContent referenceContent7 = referenceContent(new String[] {"a", "b"}, entityFetch(attributeContentAll()));
 		assertArrayEquals(new String[] {"a", "b"}, referenceContent7.getReferenceNames());
@@ -93,6 +99,7 @@ class ReferenceContentTest {
 		assertTrue(referenceContent7.getOrderBy().isEmpty());
 		assertEquals(entityFetch(attributeContentAll()), referenceContent7.getEntityRequirement().orElse(null));
 		assertTrue(referenceContent7.getGroupEntityRequirement().isEmpty());
+		assertEquals(ManagedReferencesBehaviour.ANY, referenceContent7.getManagedReferencesBehaviour());
 
 		final ReferenceContent referenceContent8 = referenceContent("a");
 		assertArrayEquals(new String[] {"a"}, referenceContent8.getReferenceNames());
@@ -100,6 +107,7 @@ class ReferenceContentTest {
 		assertTrue(referenceContent8.getOrderBy().isEmpty());
 		assertTrue(referenceContent8.getEntityRequirement().isEmpty());
 		assertTrue(referenceContent8.getGroupEntityRequirement().isEmpty());
+		assertEquals(ManagedReferencesBehaviour.ANY, referenceContent8.getManagedReferencesBehaviour());
 
 		final ReferenceContent referenceContent9 = referenceContent(new String[] {"a", "b"}, entityGroupFetch(attributeContentAll()));
 		assertArrayEquals(new String[] {"a", "b"}, referenceContent9.getReferenceNames());
@@ -107,6 +115,7 @@ class ReferenceContentTest {
 		assertTrue(referenceContent9.getOrderBy().isEmpty());
 		assertTrue(referenceContent9.getEntityRequirement().isEmpty());
 		assertEquals(entityGroupFetch(attributeContentAll()), referenceContent9.getGroupEntityRequirement().orElse(null));
+		assertEquals(ManagedReferencesBehaviour.ANY, referenceContent9.getManagedReferencesBehaviour());
 
 		final ReferenceContent referenceContent10 = referenceContent(new String[] {"a", "b"}, entityFetch(associatedDataContentAll()), entityGroupFetch(attributeContentAll()));
 		assertArrayEquals(new String[] {"a", "b"}, referenceContent10.getReferenceNames());
@@ -114,6 +123,7 @@ class ReferenceContentTest {
 		assertTrue(referenceContent10.getOrderBy().isEmpty());
 		assertEquals(entityFetch(associatedDataContentAll()), referenceContent10.getEntityRequirement().orElse(null));
 		assertEquals(entityGroupFetch(attributeContentAll()), referenceContent10.getGroupEntityRequirement().orElse(null));
+		assertEquals(ManagedReferencesBehaviour.ANY, referenceContent10.getManagedReferencesBehaviour());
 
 		final ReferenceContent referenceContent11 = referenceContent(
 			"a",
@@ -124,6 +134,7 @@ class ReferenceContentTest {
 		assertTrue(referenceContent11.getOrderBy().isPresent());
 		assertTrue(referenceContent11.getEntityRequirement().isEmpty());
 		assertTrue(referenceContent11.getGroupEntityRequirement().isEmpty());
+		assertEquals(ManagedReferencesBehaviour.ANY, referenceContent11.getManagedReferencesBehaviour());
 
 		final ReferenceContent referenceContent12 = referenceContent(
 			"a",
@@ -135,6 +146,7 @@ class ReferenceContentTest {
 		assertTrue(referenceContent12.getOrderBy().isPresent());
 		assertEquals(entityFetch(), referenceContent12.getEntityRequirement().orElse(null));
 		assertTrue(referenceContent12.getGroupEntityRequirement().isEmpty());
+		assertEquals(ManagedReferencesBehaviour.ANY, referenceContent12.getManagedReferencesBehaviour());
 
 		final ReferenceContent referenceContent13 = referenceContent(
 			"a",
@@ -147,6 +159,7 @@ class ReferenceContentTest {
 		assertTrue(referenceContent13.getOrderBy().isPresent());
 		assertEquals(entityFetch(), referenceContent13.getEntityRequirement().orElse(null));
 		assertTrue(referenceContent13.getGroupEntityRequirement().isEmpty());
+		assertEquals(ManagedReferencesBehaviour.ANY, referenceContent13.getManagedReferencesBehaviour());
 
 		final ReferenceContent referenceContent14 = referenceContent(
 			"a",
@@ -160,6 +173,7 @@ class ReferenceContentTest {
 		assertTrue(referenceContent14.getOrderBy().isPresent());
 		assertEquals(entityFetch(), referenceContent14.getEntityRequirement().orElse(null));
 		assertEquals(entityGroupFetch(), referenceContent14.getGroupEntityRequirement().orElse(null));
+		assertEquals(ManagedReferencesBehaviour.ANY, referenceContent14.getManagedReferencesBehaviour());
 
 		final ReferenceContent referenceContent15 = referenceContent(
 			"a",
@@ -171,14 +185,16 @@ class ReferenceContentTest {
 		assertTrue(referenceContent15.getOrderBy().isPresent());
 		assertTrue(referenceContent15.getEntityRequirement().isEmpty());
 		assertTrue(referenceContent15.getGroupEntityRequirement().isEmpty());
+		assertEquals(ManagedReferencesBehaviour.ANY, referenceContent15.getManagedReferencesBehaviour());
 
-		final ReferenceContent referenceContentWithAttributes1 = referenceContentWithAttributes("a", entityFetch());
-		assertArrayEquals(new String[] {"a"}, referenceContentWithAttributes1.getReferenceNames());
-		assertTrue(referenceContentWithAttributes1.getFilterBy().isEmpty());
-		assertTrue(referenceContentWithAttributes1.getOrderBy().isEmpty());
-		assertEquals(attributeContentAll(), referenceContentWithAttributes1.getAttributeContent().orElse(null));
-		assertEquals(entityFetch(), referenceContentWithAttributes1.getEntityRequirement().orElse(null));
-		assertTrue(referenceContentWithAttributes1.getGroupEntityRequirement().isEmpty());
+		final ReferenceContent referenceContent16 = referenceContentWithAttributes("a", entityFetch());
+		assertArrayEquals(new String[] {"a"}, referenceContent16.getReferenceNames());
+		assertTrue(referenceContent16.getFilterBy().isEmpty());
+		assertTrue(referenceContent16.getOrderBy().isEmpty());
+		assertEquals(attributeContentAll(), referenceContent16.getAttributeContent().orElse(null));
+		assertEquals(entityFetch(), referenceContent16.getEntityRequirement().orElse(null));
+		assertTrue(referenceContent16.getGroupEntityRequirement().isEmpty());
+		assertEquals(ManagedReferencesBehaviour.ANY, referenceContent16.getManagedReferencesBehaviour());
 	}
 
 	@Test
@@ -234,15 +250,56 @@ class ReferenceContentTest {
 	}
 
 	@Test
+	void shouldToStringReturnExpectedFormatWithExistingReferencesOnly() {
+		final ReferenceContent referenceContent1 = referenceContent(ManagedReferencesBehaviour.EXISTING, "a", "b");
+		assertEquals("referenceContent(EXISTING,'a','b')", referenceContent1.toString());
+
+		final ReferenceContent referenceContent2 = referenceContent(ManagedReferencesBehaviour.EXISTING,"a", filterBy(entityPrimaryKeyInSet(1)));
+		assertEquals("referenceContent(EXISTING,'a',filterBy(entityPrimaryKeyInSet(1)))", referenceContent2.toString());
+
+		final ReferenceContent referenceContent3 = referenceContent(ManagedReferencesBehaviour.EXISTING,"a", filterBy(entityPrimaryKeyInSet(1)), entityFetch(attributeContentAll()));
+		assertEquals("referenceContent(EXISTING,'a',filterBy(entityPrimaryKeyInSet(1)),entityFetch(attributeContentAll()))", referenceContent3.toString());
+
+		final ReferenceContent referenceContent4 = referenceContentAll(ManagedReferencesBehaviour.EXISTING,entityFetch(attributeContentAll()));
+		assertEquals("referenceContentAll(EXISTING,entityFetch(attributeContentAll()))", referenceContent4.toString());
+
+		final ReferenceContent referenceContent5 = referenceContent(ManagedReferencesBehaviour.EXISTING,new String[]{"a", "b"}, entityFetch(attributeContentAll()));
+		assertEquals("referenceContent(EXISTING,'a','b',entityFetch(attributeContentAll()))", referenceContent5.toString());
+
+		final ReferenceContent referenceContent6 = referenceContent(ManagedReferencesBehaviour.EXISTING,new String[]{"a", "b"}, entityFetch(attributeContentAll()), entityGroupFetch(associatedDataContentAll()));
+		assertEquals("referenceContent(EXISTING,'a','b',entityFetch(attributeContentAll()),entityGroupFetch(associatedDataContentAll()))", referenceContent6.toString());
+
+		final ReferenceContent referenceContent7 = referenceContent(ManagedReferencesBehaviour.EXISTING,"a", filterBy(entityPrimaryKeyInSet(1)), entityFetch(attributeContentAll()), entityGroupFetch(associatedDataContentAll()));
+		assertEquals("referenceContent(EXISTING,'a',filterBy(entityPrimaryKeyInSet(1)),entityFetch(attributeContentAll()),entityGroupFetch(associatedDataContentAll()))", referenceContent7.toString());
+
+		final ReferenceContent referenceContent8 = referenceContent(ManagedReferencesBehaviour.EXISTING,"a", filterBy(entityPrimaryKeyInSet(1)), orderBy(attributeNatural("code")), entityFetch(attributeContentAll()), entityGroupFetch(associatedDataContentAll()));
+		assertEquals("referenceContent(EXISTING,'a',filterBy(entityPrimaryKeyInSet(1)),orderBy(attributeNatural('code',ASC)),entityFetch(attributeContentAll()),entityGroupFetch(associatedDataContentAll()))", referenceContent8.toString());
+
+		final ReferenceContent referenceContent9 = referenceContent(ManagedReferencesBehaviour.EXISTING,"a", orderBy(attributeNatural("code")));
+		assertEquals("referenceContent(EXISTING,'a',orderBy(attributeNatural('code',ASC)))", referenceContent9.toString());
+
+		final ReferenceContent referenceContentWithAttributes1 = referenceContentWithAttributes(ManagedReferencesBehaviour.EXISTING,"a", entityFetch(attributeContentAll()));
+		assertEquals("referenceContentWithAttributes(EXISTING,'a',entityFetch(attributeContentAll()))", referenceContentWithAttributes1.toString());
+
+		final ReferenceContent referenceContentWithAttributes2 = referenceContentAllWithAttributes(ManagedReferencesBehaviour.EXISTING);
+		assertEquals("referenceContentAllWithAttributes(EXISTING)", referenceContentWithAttributes2.toString());
+
+		final ReferenceContent referenceContentWithAttributes3 = referenceContentAllWithAttributes(ManagedReferencesBehaviour.EXISTING, attributeContent("a"));
+		assertEquals("referenceContentAllWithAttributes(EXISTING,attributeContent('a'))", referenceContentWithAttributes3.toString());
+	}
+
+	@Test
 	void shouldConformToEqualsAndHashContract() {
 		assertNotSame(referenceContent("a", "b"), referenceContent("a", "b"));
 		assertEquals(referenceContent("a", "b"), referenceContent("a", "b"));
 		assertEquals(referenceContent("a", filterBy(entityPrimaryKeyInSet(1)), entityFetch(attributeContentAll())), referenceContent("a", filterBy(entityPrimaryKeyInSet(1)), entityFetch(attributeContentAll())));
 		assertNotEquals(referenceContent("a", "b"), referenceContent("a", "e"));
+		assertNotEquals(referenceContent("a", "b"), referenceContent(ManagedReferencesBehaviour.EXISTING,"a", "b"));
 		assertNotEquals(referenceContent("a", "b"), referenceContent("a"));
 		assertNotEquals(referenceContent("a", filterBy(entityPrimaryKeyInSet(1))), referenceContent("a", entityFetch()));
 		assertEquals(referenceContent("a", "b").hashCode(), referenceContent("a", "b").hashCode());
 		assertNotEquals(referenceContent("a", "b").hashCode(), referenceContent("a", "e").hashCode());
+		assertNotEquals(referenceContent("a", "b").hashCode(), referenceContent(ManagedReferencesBehaviour.EXISTING, "a", "b").hashCode());
 		assertEquals(referenceContent("a", filterBy(entityPrimaryKeyInSet(1)), entityFetch()).hashCode(), referenceContent("a", filterBy(entityPrimaryKeyInSet(1)), entityFetch()).hashCode());
 		assertEquals(referenceContent("a", orderBy(attributeNatural("code")), entityFetch()).hashCode(), referenceContent("a", orderBy(attributeNatural("code")), entityFetch()).hashCode());
 		assertNotEquals(referenceContent("a", "b").hashCode(), referenceContent("a").hashCode());
