@@ -174,6 +174,14 @@ public class HierarchyStatistics extends AbstractRequireConstraintLeaf implement
 
 	@Nonnull
 	@Override
+	public Serializable[] getArgumentsExcludingDefaults() {
+		return Arrays.stream(super.getArgumentsExcludingDefaults())
+			.filter(it -> it != StatisticsBase.WITHOUT_USER_FILTER)
+			.toArray(Serializable[]::new);
+	}
+
+	@Nonnull
+	@Override
 	public RequireConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
 		Assert.isTrue(
 			Arrays.stream(newArguments).anyMatch(StatisticsBase.class::isInstance),

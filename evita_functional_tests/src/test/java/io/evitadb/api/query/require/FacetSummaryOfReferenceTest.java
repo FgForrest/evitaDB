@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -138,11 +138,11 @@ class FacetSummaryOfReferenceTest {
 
 	@Test
 	void shouldToStringReturnExpectedFormat() {
-		assertEquals("facetSummaryOfReference('parameter',COUNTS)", facetSummaryOfReference("parameter").toString());
+		assertEquals("facetSummaryOfReference('parameter')", facetSummaryOfReference("parameter").toString());
 		assertEquals("facetSummaryOfReference('parameter',IMPACT,entityFetch())", facetSummaryOfReference("parameter", FacetStatisticsDepth.IMPACT, entityFetch()).toString());
 		assertEquals("facetSummaryOfReference('parameter',IMPACT,entityFetch(attributeContent('code')),entityGroupFetch())", facetSummaryOfReference("parameter", FacetStatisticsDepth.IMPACT, entityFetch(attributeContent("code")), entityGroupFetch()).toString());
 		assertEquals(
-			"facetSummaryOfReference('parameter',COUNTS,filterBy(entityPrimaryKeyInSet(1)),filterGroupBy(entityPrimaryKeyInSet(2)),orderBy(attributeNatural('code',ASC)),orderGroupBy(attributeNatural('code',ASC)))",
+			"facetSummaryOfReference('parameter',filterBy(entityPrimaryKeyInSet(1)),filterGroupBy(entityPrimaryKeyInSet(2)),orderBy(attributeNatural('code',ASC)),orderGroupBy(attributeNatural('code',ASC)))",
 			facetSummaryOfReference(
 				"parameter",
 				FacetStatisticsDepth.COUNTS,
