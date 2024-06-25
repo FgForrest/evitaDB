@@ -1,0 +1,268 @@
+query {
+  queryProduct(
+    filterBy: {
+      and: [
+        {
+          hierarchyCategoriesWithin: {
+            ofParent: {
+              attributeCodeEquals: "laptops"
+            }
+            with: {
+              excluding: {
+                attributeNameContains: "forbidden"
+              }
+            }
+          }
+        },
+        {
+          entityLocaleEquals: cs,
+          attributeCodeStartsWith: "m",
+          attributeCatalogNumberIs: NOT_NULL,
+          attributeBatteryLifeBetween: ["0.0", "100.0"],
+          priceInCurrency: CZK,
+          priceInPriceLists: "basic"
+        },
+        {
+          or: [
+            {
+              referenceGroupsHaving: {
+                attributeAssignmentValidityInRangeNow: true,
+                entityHaving: {
+                  attributeValidityInRangeNow: true
+                  referenceTagsHaving: [
+                    {
+                      entityHaving: {
+                        attributeCodeStartsWith: "for"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+            {
+              userFilter: [
+                {
+                  facetParameterValuesHaving: {
+                    attributeVariantEquals: true
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    orderBy: [
+      {
+        attributeCodeNatural: DESC
+      },
+      {
+        priceNatural: ASC,
+      },
+      {
+        referenceGroupsProperty: {
+          attributeOrderInGroupNatural: DESC
+        }
+      }
+    ],
+    require: {
+      priceType: WITHOUT_TAX,
+      facetBrandGroupsConjunction: {
+        filterBy: {
+          attributeChangedGreaterThan: "2024-06-24T13:13:13+01:00"
+        }
+      },
+      facetStocksGroupsNegation: {
+        filterBy: {
+          entityPrimaryKeyInSet: [123]
+        }
+      }
+    }
+  ) {
+    recordPage(number: 1, size: 10) {
+      data {
+        primaryKey
+        priceForSale {
+          priceWithTax
+          priceWithoutTax
+          accompanyingPrice(priceLists: "reference") {
+            priceWithTax
+            priceWithoutTax
+          }
+        }
+        alternativePrice: priceForSale(priceLists: "vip", currency: EUR, locale: cs) {
+          priceWithTax(formatted: true, withCurrency: true)
+        }
+        groups {
+          attributes {
+            orderInGroup
+          }
+          referencedPrimaryKey
+          referencedEntity {
+            primaryKey
+            allLocales
+            tags {
+              referencedPrimaryKey
+              referencedEntity {
+                categories {
+                  referencedEntity {
+                    primaryKey
+                    type
+                    version
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+      hasNext
+      last
+      totalRecordCount
+    }
+    extraResults {
+      attributeHistogram {
+        width {
+          min
+          buckets(requestedCount: 20) {
+            occurrences
+          }
+        },
+        batteryCapacity {
+          max
+          buckets(requestedCount: 25) {
+            threshold
+          }
+        }
+      }
+      priceHistogram {
+        overallCount
+        buckets(requestedCount: 5, behavior: OPTIMIZED) {
+          requested
+          occurrences
+          threshold
+        }
+      },
+      queryTelemetry
+      facetSummary {
+        parameterValues(filterGroupBy: {
+          attributeChangedGreaterThan: "2000-10-10T20:20:20+01:00"
+        }, orderGroupBy: {
+          attributeCodeNatural: DESC
+        }) {
+          count
+          groupEntity {
+            primaryKey
+            attributes {
+              name
+              inputWidgetType
+              description
+            }
+            locales
+          },
+          facetStatistics(filterBy: {
+            attributeChangedLessThan: "2100-10-10T20:20:20+01:00"
+          },
+            orderBy: {
+              attributeNameSetInFilter: true
+            }) {
+            count
+            impact {
+              hasSense
+            }
+            requested
+            facetEntity {
+              attributes {
+                name
+                descriptionShort
+              }
+            }
+          }
+        }
+      }
+      hierarchy {
+        categories(emptyHierarchicalEntityBehaviour: LEAVE_EMPTY, orderBy: {
+          attributeCodeNatural: DESC
+        }) {
+          megaMenu: fromRoot(
+            stopAt: {
+              level: 2
+            }
+          ) {
+            level
+            entity {
+              primaryKey
+              attributes {
+                code
+              }
+            }
+            requested
+            queriedEntityCount
+            childrenCount
+          }
+          sideMenu1: fromNode(
+            node: {
+              filterBy: {
+                attributeCodeEquals: "portables"
+              }
+            }
+            stopAt: {
+              distance: 1
+            }
+          ) {
+            level
+            entity {
+              primaryKey
+              attributes {
+                code
+              }
+            }
+            requested
+            queriedEntityCount
+            childrenCount
+          }
+          directChildren: children(
+            stopAt: {
+              distance: 1
+            }
+          ) {
+            level
+            entity {
+              primaryKey
+              attributes {
+                code
+              }
+            }
+            requested
+          }
+          directParent: parents(
+            stopAt: {
+              distance: 1
+            }
+          ) {
+            level
+            entity {
+              primaryKey
+              attributes {
+                code
+              }
+            }
+            requested
+          }
+          audioSiblings: siblings {
+            level
+            entity {
+              primaryKey
+              attributes {
+                code
+              }
+            }
+            requested
+            queriedEntityCount
+            childrenCount
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,255 @@
+{
+  "filterBy": {
+	"and": [
+	  {
+		"hierarchyCategoriesWithin": {
+		  "ofParent": {
+			"attributeCodeEquals": "laptops"
+		  },
+		  "with": {
+			"excluding": [{
+			  "attributeNameContains": "forbidden"
+			}]
+		  }
+		}
+	  },
+	  {
+		"entityLocaleEquals": "cs",
+		"attributeCodeStartsWith": "m",
+		"attributeCatalogNumberIs": "NOT_NULL",
+		"attributeBatteryLifeBetween": ["0.0", "100.0"],
+		"priceInCurrency": "CZK",
+		"priceInPriceLists": ["basic"]
+	  },
+	  {
+		"or": [
+		  {
+			"referenceGroupsHaving": [{
+			  "attributeAssignmentValidityInRangeNow": true,
+			  "entityHaving": {
+				"attributeValidityInRangeNow": true,
+				"referenceTagsHaving": [
+				  {
+					"entityHaving": {
+					  "attributeCodeStartsWith": "for"
+					}
+				  }
+				]
+			  }
+			}]
+		  },
+		  {
+			"userFilter": [
+			  {
+				"facetParameterValuesHaving": [{
+				  "attributeVariantEquals": true
+				}]
+			  }
+			]
+		  }
+		]
+	  }
+	]
+  },
+  "orderBy": [
+	{
+	  "attributeCodeNatural": "DESC"
+	},
+	{
+	  "priceNatural": "ASC"
+	},
+	{
+	  "referenceGroupsProperty": [{
+		"attributeOrderInGroupNatural": "DESC"
+	  }]
+	}
+  ],
+  "require": {
+	"priceType": "WITHOUT_TAX",
+	"facetBrandGroupsConjunction": {
+	  "filterBy": {
+		"attributeChangedGreaterThan": "2024-06-24T13:13:13+01:00"
+	  }
+	},
+	"facetStocksGroupsNegation": {
+	  "filterBy": {
+		"entityPrimaryKeyInSet": [123]
+	  }
+	},
+	"page": {
+	  "number": 1,
+	  "size": 10
+	},
+	"entityFetch": {
+	  "attributeContent" : [
+		"code"
+	  ],
+	  "priceContentRespectingFilter" : [
+		"reference"
+	  ],
+	  "priceContentAll": true,
+	  "referenceGroupsContentWithAttributes": {
+		"attributeContent": ["orderInGroup"],
+		"entityFetch": {
+		  "referenceTagsContent": {
+			"entityFetch": {
+			  "referenceCategoriesContent": {
+				"entityFetch": {}
+			  }
+			}
+		  }
+		}
+	  }
+	},
+	"attributeHistogram": {
+	  "requestedBucketCount" : 20,
+	  "behavior" : "STANDARD",
+	  "attributeNames" : [
+		"width",
+		"height"
+	  ]
+	},
+	"priceHistogram": {
+	  "requestedBucketCount" : 10,
+	  "behavior" : "OPTIMIZED"
+	},
+	"queryTelemetry": true,
+	"facetParameterValuesSummary": {
+	  "statisticsDepth": "IMPACT",
+	  "filterGroupBy": {
+		"attributeChangedGreaterThan": "2000-10-10T20:20:20+01:00"
+	  },
+	  "orderGroupBy": [{
+		"attributeCodeNatural": "DESC"
+	  }],
+	  "filterBy": {
+		"attributeChangedLessThan": "2100-10-10T20:20:20+01:00"
+	  },
+	  "orderBy": [{
+		"attributeNameSetInFilter": true
+	  }],
+	  "requirements": {
+		"entityGroupFetch": {
+		  "attributeContent": ["name", "inputWidgetType", "description"]
+		},
+		"entityFetch": {
+		  "attributeContent": ["name", "descriptionShort"]
+		}
+	  }
+	},
+	"hierarchyCategoriesOfReference": {
+	  "emptyHierarchicalEntityBehaviour": "REMOVE_EMPTY",
+	  "requirements": [
+		{
+		  "fromRoot" : {
+			"outputName" : "megaMenu",
+			"entityFetch" : {
+			  "attributeContent" : [
+				"code"
+			  ]
+			},
+			"requirements" : {
+			  "stopAt" : {
+				"level" : 2
+			  },
+			  "statistics" : {
+				"statisticsBase" : "WITHOUT_USER_FILTER",
+				"statisticsType" : [
+				  "CHILDREN_COUNT",
+				  "QUERIED_ENTITY_COUNT"
+				]
+			  }
+			}
+		  }
+		},
+		{
+		  "fromNode" : {
+			"outputName" : "sideMenu1",
+			"node" : {
+			  "filterBy" : {
+				"attributeCodeEquals" : "portables"
+			  }
+			},
+			"entityFetch" : {
+			  "attributeContent" : [
+				"code"
+			  ]
+			},
+			"requirements" : {
+			  "stopAt" : {
+				"distance" : 1
+			  },
+			  "statistics" : {
+				"statisticsBase" : "WITHOUT_USER_FILTER",
+				"statisticsType" : [
+				  "CHILDREN_COUNT",
+				  "QUERIED_ENTITY_COUNT"
+				]
+			  }
+			}
+		  }
+		},
+		{
+		  "children" : {
+			"outputName" : "subcategories",
+			"entityFetch" : {
+			  "attributeContent" : [
+				"code"
+			  ]
+			},
+			"requirements" : {
+			  "stopAt" : {
+				"distance" : 1
+			  },
+			  "statistics" : {
+				"statisticsBase" : "WITHOUT_USER_FILTER",
+				"statisticsType" : [
+				  "CHILDREN_COUNT",
+				  "QUERIED_ENTITY_COUNT"
+				]
+			  }
+			}
+		  }
+		},
+		{
+		  "parents" : {
+			"outputName" : "parentAxis",
+			"entityFetch" : {
+			  "attributeContent" : [
+				"code"
+			  ]
+			},
+			"requirements" : {
+			  "statistics" : {
+				"statisticsBase" : "WITHOUT_USER_FILTER",
+				"statisticsType" : [
+				  "CHILDREN_COUNT",
+				  "QUERIED_ENTITY_COUNT"
+				]
+			  }
+			}
+		  }
+		},
+		{
+		  "siblings" : {
+			"outputName" : "audioSiblings",
+			"entityFetch" : {
+			  "attributeContent" : [
+				"code"
+			  ]
+			},
+			"requirements" : {
+			  "statistics" : {
+				"statisticsBase" : "WITHOUT_USER_FILTER",
+				"statisticsType" : [
+				  "CHILDREN_COUNT",
+				  "QUERIED_ENTITY_COUNT"
+				]
+			  }
+			}
+		  }
+		}
+	  ]
+	}
+  }
+}
