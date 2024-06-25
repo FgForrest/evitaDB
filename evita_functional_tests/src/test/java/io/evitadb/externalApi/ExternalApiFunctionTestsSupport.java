@@ -33,9 +33,12 @@ import io.evitadb.core.Evita;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import io.evitadb.test.Entities;
+import org.apache.commons.io.IOUtils;
 
 import javax.annotation.Nonnull;
+import java.io.IOException;
 import java.io.Serializable;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -59,6 +62,13 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 public interface ExternalApiFunctionTestsSupport {
+
+	default String readFromClasspath(String path) throws IOException {
+		return IOUtils.toString(
+			Objects.requireNonNull(ExternalApiFunctionTestsSupport.class.getClassLoader().getResourceAsStream(path)),
+			StandardCharsets.UTF_8
+		);
+	}
 
 	/**
 	 * Returns value of "random" value in the dataset.

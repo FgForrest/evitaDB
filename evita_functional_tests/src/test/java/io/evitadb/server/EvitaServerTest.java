@@ -297,6 +297,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 			output = Pattern.compile("(\"startedAt\": \")(.+?)\"").matcher(output).replaceAll("$1VARIABLE\"");
 			output = Pattern.compile("(\"uptime\": )(\\d+?)").matcher(output).replaceAll("$1VARIABLE");
 			output = Pattern.compile("(\"uptimeForHuman\": \")(.+?)\"").matcher(output).replaceAll("$1VARIABLE\"");
+			output = Pattern.compile("(//)(.+:[0-9]+)(/)").matcher(output).replaceAll("$1VARIABLE$3");
 			assertEquals(
 				"""
 				{
@@ -311,32 +312,32 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 				   "apis": [
 				      {
 				         "system": [
-				            "http://jnonb:5556/system/"
+				            "http://VARIABLE/system/"
 				         ]
 				      },
 				      {
 				         "graphQL": [
-				            "https://jnonb:5557/gql/"
+				            "https://VARIABLE/gql/"
 				         ]
 				      },
 				      {
 				         "rest": [
-				            "https://jnonb:5555/rest/"
+				            "https://VARIABLE/rest/"
 				         ]
 				      },
 				      {
 				         "gRPC": [
-				            "https://jnonb:5560/"
+				            "https://VARIABLE/"
 				         ]
 				      },
 				      {
 				         "lab": [
-				            "https://jnonb:5558/lab/"
+				            "https://VARIABLE/lab/"
 				         ]
 				      },
 				      {
 				         "observability": [
-				            "http://jnonb:5559/observability/"
+				            "http://VARIABLE/observability/"
 				         ]
 				      }
 				   ]

@@ -54,15 +54,7 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.Ord
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.RequireConstraintSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GlobalEntityDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GraphQLEntityDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.AccompanyingPriceFieldHeaderDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.AssociatedDataFieldHeaderDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.AttributesFieldHeaderDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.ParentsFieldHeaderDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PriceFieldHeaderDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PriceForSaleDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PriceForSaleFieldHeaderDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PricesFieldHeaderDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.ReferenceFieldHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.*;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.BigDecimalDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.EntityDtoTypeResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.entity.*;
@@ -353,6 +345,15 @@ public class EntityObjectBuilder {
 		return new BuiltFieldDescriptor(
 			GraphQLEntityDescriptor.MULTIPLE_PRICES_FOR_SALE_AVAILABLE
 				.to(fieldBuilderTransformer)
+				.argument(MultiplePricesForSaleAvailableFieldHeaderDescriptor.PRICE_LISTS
+					.to(argumentBuilderTransformer))
+				.argument(MultiplePricesForSaleAvailableFieldHeaderDescriptor.CURRENCY
+					.to(argumentBuilderTransformer)
+					.type(typeRef(CURRENCY_ENUM.name())))
+				.argument(MultiplePricesForSaleAvailableFieldHeaderDescriptor.VALID_IN
+					.to(argumentBuilderTransformer))
+				.argument(MultiplePricesForSaleAvailableFieldHeaderDescriptor.VALID_NOW
+					.to(argumentBuilderTransformer))
 				.build(),
 			new MultiplePricesForSaleAvailableDataFetcher()
 		);
