@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@
 package io.evitadb.api.query.parser;
 
 /**
- * Mode of parsing query/query. Changes how individual values, classifiers and constraints are parsed.
+ * Mode of parsing query/query. Changes how individual values and constraints are parsed.
  * The default mode should be the {@link #SAFE} in most cases. The {@link #UNSAFE} should be used only in edge cases.
  * <p>
  * Currently, only use of mode is to decide whether literal values are allowed, which are allowed only in {@link #UNSAFE}

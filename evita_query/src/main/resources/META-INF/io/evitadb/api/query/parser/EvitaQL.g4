@@ -16,7 +16,6 @@ headConstraintListUnit : headConstraintList EOF ;
 filterConstraintListUnit : filterConstraintList EOF ;
 orderConstraintListUnit : orderConstraintList EOF ;
 requireConstraintListUnit : requireConstraintList EOF ;
-classifierTokenUnit : classifierToken EOF ;
 valueTokenUnit : valueToken EOF ;
 
 
@@ -146,7 +145,7 @@ requireConstraint
     | 'dataInLocales'                       args = valueListArgs                                            # dataInLocalesConstraint
     | 'facetSummary'                        (emptyArgs | args = facetSummary1Args)                          # facetSummary1Constraint
     | 'facetSummary'                        args = facetSummary2Args                                        # facetSummary2Constraint
-    | 'facetSummaryOfReference'             args = facetSummaryOfReference1Args                             # facetSummaryOfReference1Constraint
+    | 'facetSummaryOfReference'             args = classifierArgs                                           # facetSummaryOfReference1Constraint
     | 'facetSummaryOfReference'             args = facetSummaryOfReference2Args                             # facetSummaryOfReference2Constraint
     | 'facetGroupsConjunction'              args = classifierWithOptionalFilterConstraintArgs               # facetGroupsConjunctionConstraint
     | 'facetGroupsDisjunction'              args = classifierWithOptionalFilterConstraintArgs               # facetGroupsDisjunctionConstraint
@@ -203,17 +202,17 @@ requireConstraintArgs :                             argsOpening requirement = re
 
 requireConstraintListArgs :                         argsOpening requirements += requireConstraint (ARGS_DELIMITER requirements += requireConstraint)* argsClosing ;
 
-classifierArgs :                                    argsOpening classifier = classifierToken argsClosing ;
+classifierArgs :                                    argsOpening classifier = valueToken argsClosing ;
 
-classifierWithValueArgs :                           argsOpening classifier = classifierToken ARGS_DELIMITER value = valueToken argsClosing ;
+classifierWithValueArgs :                           argsOpening classifier = valueToken ARGS_DELIMITER value = valueToken argsClosing ;
 
-classifierWithOptionalValueArgs :                   argsOpening classifier = classifierToken (ARGS_DELIMITER value = valueToken)? argsClosing ;
+classifierWithOptionalValueArgs :                   argsOpening classifier = valueToken (ARGS_DELIMITER value = valueToken)? argsClosing ;
 
-classifierWithValueListArgs :                       argsOpening classifier = classifierToken ARGS_DELIMITER values = variadicValueTokens argsClosing ;
+classifierWithValueListArgs :                       argsOpening classifier = valueToken ARGS_DELIMITER values = variadicValueTokens argsClosing ;
 
-classifierWithOptionalValueListArgs :               argsOpening classifier = classifierToken (ARGS_DELIMITER values = variadicValueTokens)? argsClosing ;
+classifierWithOptionalValueListArgs :               argsOpening classifier = valueToken (ARGS_DELIMITER values = variadicValueTokens)? argsClosing ;
 
-classifierWithBetweenValuesArgs :                   argsOpening classifier = classifierToken ARGS_DELIMITER valueFrom = valueToken ARGS_DELIMITER valueTo = valueToken argsClosing ;
+classifierWithBetweenValuesArgs :                   argsOpening classifier = valueToken ARGS_DELIMITER valueFrom = valueToken ARGS_DELIMITER valueTo = valueToken argsClosing ;
 
 valueArgs :                                         argsOpening value = valueToken argsClosing ;
 
@@ -221,25 +220,25 @@ valueListArgs :                                     argsOpening values = variadi
 
 betweenValuesArgs :                                 argsOpening valueFrom = valueToken ARGS_DELIMITER valueTo = valueToken argsClosing ;
 
-classifierListArgs :                                argsOpening classifiers = variadicClassifierTokens argsClosing ;
+classifierListArgs :                                argsOpening classifiers = variadicValueTokens argsClosing ;
 
-classifierWithFilterConstraintArgs :                argsOpening classifier = classifierToken ARGS_DELIMITER filter = filterConstraint argsClosing ;
+classifierWithFilterConstraintArgs :                argsOpening classifier = valueToken ARGS_DELIMITER filter = filterConstraint argsClosing ;
 
-classifierWithOptionalFilterConstraintArgs :        argsOpening classifier = classifierToken (ARGS_DELIMITER filter = filterConstraint)? argsClosing ;
+classifierWithOptionalFilterConstraintArgs :        argsOpening classifier = valueToken (ARGS_DELIMITER filter = filterConstraint)? argsClosing ;
 
-classifierWithOrderConstraintListArgs :             argsOpening classifier = classifierToken (ARGS_DELIMITER constrains += orderConstraint)+ argsClosing ;
+classifierWithOrderConstraintListArgs :             argsOpening classifier = valueToken (ARGS_DELIMITER constrains += orderConstraint)+ argsClosing ;
 
 valueWithRequireConstraintListArgs:                 argsOpening value = valueToken (ARGS_DELIMITER requirements += requireConstraint)* argsClosing ;
 
-hierarchyWithinConstraintArgs :                     argsOpening classifier = classifierToken ARGS_DELIMITER ofParent = filterConstraint (ARGS_DELIMITER constrains += filterConstraint)* argsClosing ;
+hierarchyWithinConstraintArgs :                     argsOpening classifier = valueToken ARGS_DELIMITER ofParent = filterConstraint (ARGS_DELIMITER constrains += filterConstraint)* argsClosing ;
 
 hierarchyWithinSelfConstraintArgs :                 argsOpening ofParent = filterConstraint (ARGS_DELIMITER constrains += filterConstraint)* argsClosing ;
 
-hierarchyWithinRootConstraintArgs :                 argsOpening (classifier = classifierToken | (classifier = classifierToken (ARGS_DELIMITER constrains += filterConstraint)*)) argsClosing ;
+hierarchyWithinRootConstraintArgs :                 argsOpening (classifier = valueToken | (classifier = valueToken (ARGS_DELIMITER constrains += filterConstraint)*)) argsClosing ;
 
 hierarchyWithinRootSelfConstraintArgs :             argsOpening constrains += filterConstraint (ARGS_DELIMITER constrains += filterConstraint)* argsClosing ;
 
-attributeSetExactArgs :                             argsOpening attributeName = classifierToken ARGS_DELIMITER attributeValues = variadicValueTokens argsClosing ;
+attributeSetExactArgs :                             argsOpening attributeName = valueToken ARGS_DELIMITER attributeValues = variadicValueTokens argsClosing ;
 
 pageConstraintArgs :                                argsOpening pageNumber = valueToken ARGS_DELIMITER pageSize = valueToken argsClosing ;
 
@@ -247,33 +246,33 @@ stripConstraintArgs :                               argsOpening offset = valueTo
 
 priceContentArgs :                                  argsOpening contentMode = valueToken (ARGS_DELIMITER priceLists = variadicValueTokens)? argsClosing ;
 
-singleRefReferenceContent1Args :                    argsOpening (managedReferencesBehaviour = valueToken ARGS_DELIMITER)? classifier = classifierToken (ARGS_DELIMITER requirement = requireConstraint)? argsClosing ;
-singleRefReferenceContent2Args :                    argsOpening (managedReferencesBehaviour = valueToken ARGS_DELIMITER)? classifier = classifierToken ARGS_DELIMITER facetEntityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint argsClosing ;
+singleRefReferenceContent1Args :                    argsOpening (managedReferencesBehaviour = valueToken ARGS_DELIMITER)? classifier = valueToken (ARGS_DELIMITER requirement = requireConstraint)? argsClosing ;
+singleRefReferenceContent2Args :                    argsOpening (managedReferencesBehaviour = valueToken ARGS_DELIMITER)? classifier = valueToken ARGS_DELIMITER facetEntityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint argsClosing ;
 
-singleRefReferenceContent3Args :                    argsOpening (managedReferencesBehaviour = valueToken ARGS_DELIMITER)? classifier = classifierToken ARGS_DELIMITER filterBy = filterConstraint (ARGS_DELIMITER requirement = requireConstraint)? argsClosing ;
-singleRefReferenceContent4Args :                    argsOpening (managedReferencesBehaviour = valueToken ARGS_DELIMITER)? classifier = classifierToken ARGS_DELIMITER filterBy = filterConstraint ARGS_DELIMITER facetEntityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint argsClosing ;
+singleRefReferenceContent3Args :                    argsOpening (managedReferencesBehaviour = valueToken ARGS_DELIMITER)? classifier = valueToken ARGS_DELIMITER filterBy = filterConstraint (ARGS_DELIMITER requirement = requireConstraint)? argsClosing ;
+singleRefReferenceContent4Args :                    argsOpening (managedReferencesBehaviour = valueToken ARGS_DELIMITER)? classifier = valueToken ARGS_DELIMITER filterBy = filterConstraint ARGS_DELIMITER facetEntityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint argsClosing ;
 
-singleRefReferenceContent5Args :                    argsOpening (managedReferencesBehaviour = valueToken ARGS_DELIMITER)? classifier = classifierToken ARGS_DELIMITER orderBy = orderConstraint (ARGS_DELIMITER requirement = requireConstraint)? argsClosing ;
-singleRefReferenceContent6Args :                    argsOpening (managedReferencesBehaviour = valueToken ARGS_DELIMITER)? classifier = classifierToken ARGS_DELIMITER orderBy = orderConstraint ARGS_DELIMITER facetEntityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint argsClosing ;
+singleRefReferenceContent5Args :                    argsOpening (managedReferencesBehaviour = valueToken ARGS_DELIMITER)? classifier = valueToken ARGS_DELIMITER orderBy = orderConstraint (ARGS_DELIMITER requirement = requireConstraint)? argsClosing ;
+singleRefReferenceContent6Args :                    argsOpening (managedReferencesBehaviour = valueToken ARGS_DELIMITER)? classifier = valueToken ARGS_DELIMITER orderBy = orderConstraint ARGS_DELIMITER facetEntityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint argsClosing ;
 
-singleRefReferenceContent7Args :                    argsOpening (managedReferencesBehaviour = valueToken ARGS_DELIMITER)? classifier = classifierToken ARGS_DELIMITER filterBy = filterConstraint ARGS_DELIMITER orderBy = orderConstraint (ARGS_DELIMITER requirement = requireConstraint)? argsClosing ;
-singleRefReferenceContent8Args :                    argsOpening (managedReferencesBehaviour = valueToken ARGS_DELIMITER)? classifier = classifierToken ARGS_DELIMITER filterBy = filterConstraint ARGS_DELIMITER orderBy = orderConstraint ARGS_DELIMITER facetEntityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint argsClosing ;
+singleRefReferenceContent7Args :                    argsOpening (managedReferencesBehaviour = valueToken ARGS_DELIMITER)? classifier = valueToken ARGS_DELIMITER filterBy = filterConstraint ARGS_DELIMITER orderBy = orderConstraint (ARGS_DELIMITER requirement = requireConstraint)? argsClosing ;
+singleRefReferenceContent8Args :                    argsOpening (managedReferencesBehaviour = valueToken ARGS_DELIMITER)? classifier = valueToken ARGS_DELIMITER filterBy = filterConstraint ARGS_DELIMITER orderBy = orderConstraint ARGS_DELIMITER facetEntityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint argsClosing ;
 
-singleRefReferenceContentWithAttributes1Args :      argsOpening (managedReferencesBehaviour = valueToken ARGS_DELIMITER)? classifier = classifierToken ARGS_DELIMITER requirement1 = requireConstraint ARGS_DELIMITER requirement2 = requireConstraint argsClosing ;
-singleRefReferenceContentWithAttributes2Args :      argsOpening (managedReferencesBehaviour = valueToken ARGS_DELIMITER)? classifier = classifierToken ARGS_DELIMITER attributeContent = requireConstraint ARGS_DELIMITER facetEntityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint argsClosing ;
+singleRefReferenceContentWithAttributes1Args :      argsOpening (managedReferencesBehaviour = valueToken ARGS_DELIMITER)? classifier = valueToken ARGS_DELIMITER requirement1 = requireConstraint ARGS_DELIMITER requirement2 = requireConstraint argsClosing ;
+singleRefReferenceContentWithAttributes2Args :      argsOpening (managedReferencesBehaviour = valueToken ARGS_DELIMITER)? classifier = valueToken ARGS_DELIMITER attributeContent = requireConstraint ARGS_DELIMITER facetEntityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint argsClosing ;
 
-singleRefReferenceContentWithAttributes3Args :      argsOpening (managedReferencesBehaviour = valueToken ARGS_DELIMITER)? classifier = classifierToken ARGS_DELIMITER filterBy = filterConstraint ARGS_DELIMITER requirement1 = requireConstraint ARGS_DELIMITER requirement2 = requireConstraint argsClosing ;
-singleRefReferenceContentWithAttributes4Args :      argsOpening (managedReferencesBehaviour = valueToken ARGS_DELIMITER)? classifier = classifierToken ARGS_DELIMITER filterBy = filterConstraint ARGS_DELIMITER attributeContent = requireConstraint ARGS_DELIMITER facetEntityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint argsClosing ;
+singleRefReferenceContentWithAttributes3Args :      argsOpening (managedReferencesBehaviour = valueToken ARGS_DELIMITER)? classifier = valueToken ARGS_DELIMITER filterBy = filterConstraint ARGS_DELIMITER requirement1 = requireConstraint ARGS_DELIMITER requirement2 = requireConstraint argsClosing ;
+singleRefReferenceContentWithAttributes4Args :      argsOpening (managedReferencesBehaviour = valueToken ARGS_DELIMITER)? classifier = valueToken ARGS_DELIMITER filterBy = filterConstraint ARGS_DELIMITER attributeContent = requireConstraint ARGS_DELIMITER facetEntityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint argsClosing ;
 
-singleRefReferenceContentWithAttributes5Args :      argsOpening (managedReferencesBehaviour = valueToken ARGS_DELIMITER)? classifier = classifierToken ARGS_DELIMITER orderBy = orderConstraint ARGS_DELIMITER requirement1 = requireConstraint ARGS_DELIMITER requirement2 = requireConstraint argsClosing ;
-singleRefReferenceContentWithAttributes6Args :      argsOpening (managedReferencesBehaviour = valueToken ARGS_DELIMITER)? classifier = classifierToken ARGS_DELIMITER orderBy = orderConstraint ARGS_DELIMITER attributeContent = requireConstraint ARGS_DELIMITER facetEntityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint argsClosing ;
+singleRefReferenceContentWithAttributes5Args :      argsOpening (managedReferencesBehaviour = valueToken ARGS_DELIMITER)? classifier = valueToken ARGS_DELIMITER orderBy = orderConstraint ARGS_DELIMITER requirement1 = requireConstraint ARGS_DELIMITER requirement2 = requireConstraint argsClosing ;
+singleRefReferenceContentWithAttributes6Args :      argsOpening (managedReferencesBehaviour = valueToken ARGS_DELIMITER)? classifier = valueToken ARGS_DELIMITER orderBy = orderConstraint ARGS_DELIMITER attributeContent = requireConstraint ARGS_DELIMITER facetEntityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint argsClosing ;
 
-singleRefReferenceContentWithAttributes7Args :      argsOpening (managedReferencesBehaviour = valueToken ARGS_DELIMITER)? classifier = classifierToken ARGS_DELIMITER filterBy = filterConstraint ARGS_DELIMITER orderBy = orderConstraint ARGS_DELIMITER requirement1 = requireConstraint ARGS_DELIMITER requirement2 = requireConstraint argsClosing ;
-singleRefReferenceContentWithAttributes8Args :      argsOpening (managedReferencesBehaviour = valueToken ARGS_DELIMITER)? classifier = classifierToken ARGS_DELIMITER filterBy = filterConstraint ARGS_DELIMITER orderBy = orderConstraint ARGS_DELIMITER attributeContent = requireConstraint ARGS_DELIMITER facetEntityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint argsClosing ;
+singleRefReferenceContentWithAttributes7Args :      argsOpening (managedReferencesBehaviour = valueToken ARGS_DELIMITER)? classifier = valueToken ARGS_DELIMITER filterBy = filterConstraint ARGS_DELIMITER orderBy = orderConstraint ARGS_DELIMITER requirement1 = requireConstraint ARGS_DELIMITER requirement2 = requireConstraint argsClosing ;
+singleRefReferenceContentWithAttributes8Args :      argsOpening (managedReferencesBehaviour = valueToken ARGS_DELIMITER)? classifier = valueToken ARGS_DELIMITER filterBy = filterConstraint ARGS_DELIMITER orderBy = orderConstraint ARGS_DELIMITER attributeContent = requireConstraint ARGS_DELIMITER facetEntityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint argsClosing ;
 
 multipleRefsReferenceContentArgs :                  argsOpening (
-                                                        ((managedReferencesBehaviour = valueToken ARGS_DELIMITER)? classifiers = variadicClassifierTokens (ARGS_DELIMITER requirement = requireConstraint)?) |
-                                                        ((managedReferencesBehaviour = valueToken ARGS_DELIMITER)? classifiers = variadicClassifierTokens ARGS_DELIMITER facetEntityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint)
+                                                        ((managedReferencesBehaviour = valueToken ARGS_DELIMITER)? classifiers = variadicValueTokens (ARGS_DELIMITER requirement = requireConstraint)?) |
+                                                        ((managedReferencesBehaviour = valueToken ARGS_DELIMITER)? classifiers = variadicValueTokens ARGS_DELIMITER facetEntityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint)
                                                     ) argsClosing ;
 
 allRefsReferenceContentArgs :                       argsOpening (
@@ -299,9 +298,7 @@ facetSummary1Args :                                 argsOpening depth = valueTok
 
 facetSummary2Args :                                 argsOpening depth = valueToken (ARGS_DELIMITER filter = facetSummaryFilterArgs)? (ARGS_DELIMITER order = facetSummaryOrderArgs)? (ARGS_DELIMITER requirements = facetSummaryRequirementsArgs)? argsClosing ;
 
-facetSummaryOfReference1Args :                      argsOpening referenceName = classifierToken argsClosing ;
-
-facetSummaryOfReference2Args :                      argsOpening referenceName = classifierToken ARGS_DELIMITER depth = valueToken (ARGS_DELIMITER filter = facetSummaryFilterArgs)? (ARGS_DELIMITER order = facetSummaryOrderArgs)? (ARGS_DELIMITER requirements = facetSummaryRequirementsArgs)? argsClosing ;
+facetSummaryOfReference2Args :                      argsOpening referenceName = valueToken ARGS_DELIMITER depth = valueToken (ARGS_DELIMITER filter = facetSummaryFilterArgs)? (ARGS_DELIMITER order = facetSummaryOrderArgs)? (ARGS_DELIMITER requirements = facetSummaryRequirementsArgs)? argsClosing ;
 
 facetSummaryRequirementsArgs :                      (
                                                         (requirement = requireConstraint) |
@@ -324,45 +321,29 @@ priceHistogramArgs :                                argsOpening requestedBucketC
 
 hierarchyStatisticsArgs :                           argsOpening settings = variadicValueTokens argsClosing ;
 
-hierarchyRequireConstraintArgs :                    argsOpening outputName = classifierToken (ARGS_DELIMITER requirements += requireConstraint)* argsClosing ;
+hierarchyRequireConstraintArgs :                    argsOpening outputName = valueToken (ARGS_DELIMITER requirements += requireConstraint)* argsClosing ;
 
-hierarchyFromNodeArgs :                             argsOpening outputName = classifierToken ARGS_DELIMITER node = requireConstraint (ARGS_DELIMITER requirements += requireConstraint)* argsClosing ;
+hierarchyFromNodeArgs :                             argsOpening outputName = valueToken ARGS_DELIMITER node = requireConstraint (ARGS_DELIMITER requirements += requireConstraint)* argsClosing ;
 
 fullHierarchyOfSelfArgs :                           argsOpening orderBy = orderConstraint (ARGS_DELIMITER requirements += requireConstraint)+ argsClosing;
 
 // todo lho support for multiple reference names
 
-basicHierarchyOfReferenceArgs :                     argsOpening referenceName = classifierToken (ARGS_DELIMITER requirements += requireConstraint)+ argsClosing ;
+basicHierarchyOfReferenceArgs :                     argsOpening referenceName = valueToken (ARGS_DELIMITER requirements += requireConstraint)+ argsClosing ;
 
-basicHierarchyOfReferenceWithBehaviourArgs :        argsOpening referenceName = classifierToken ARGS_DELIMITER emptyHierarchicalEntityBehaviour = valueToken (ARGS_DELIMITER requirements += requireConstraint)+ argsClosing ;
+basicHierarchyOfReferenceWithBehaviourArgs :        argsOpening referenceName = valueToken ARGS_DELIMITER emptyHierarchicalEntityBehaviour = valueToken (ARGS_DELIMITER requirements += requireConstraint)+ argsClosing ;
 
-fullHierarchyOfReferenceArgs :                      argsOpening referenceName = classifierToken ARGS_DELIMITER orderBy = orderConstraint (ARGS_DELIMITER requirements += requireConstraint)+ argsClosing ;
+fullHierarchyOfReferenceArgs :                      argsOpening referenceName = valueToken ARGS_DELIMITER orderBy = orderConstraint (ARGS_DELIMITER requirements += requireConstraint)+ argsClosing ;
 
-fullHierarchyOfReferenceWithBehaviourArgs :         argsOpening referenceName = classifierToken ARGS_DELIMITER emptyHierarchicalEntityBehaviour = valueToken ARGS_DELIMITER orderBy = orderConstraint (ARGS_DELIMITER requirements += requireConstraint)+ argsClosing ;
+fullHierarchyOfReferenceWithBehaviourArgs :         argsOpening referenceName = valueToken ARGS_DELIMITER emptyHierarchicalEntityBehaviour = valueToken ARGS_DELIMITER orderBy = orderConstraint (ARGS_DELIMITER requirements += requireConstraint)+ argsClosing ;
 
 
 /**
- * Parameters for classifiers and values
+ * Parameters values
  */
 
 positionalParameter : POSITIONAL_PARAMETER ;
 namedParameter : NAMED_PARAMETER ;
-
-/**
- * Classifier rule representing classifier types supported by Evita
- */
-
-variadicClassifierTokens
-    : positionalParameter                                                                                 # positionalParameterVariadicClassifierTokens
-    | namedParameter                                                                                      # namedParameterVariadicClassifierTokens
-    | classifierTokens += classifierToken (ARGS_DELIMITER classifierTokens += classifierToken)*           # explicitVariadicClassifierTokens
-    ;
-
-classifierToken
-    : positionalParameter                                                                                 # positionalParameterClassifierToken
-    | namedParameter                                                                                      # namedParameterClassifierToken
-    | STRING                                                                                              # stringClassifierToken
-    ;
 
 
 /**
@@ -395,7 +376,7 @@ valueToken
 
 
 /**
- * Value, classifier and misc tokens
+ * Value and misc tokens
  */
 
 // special generic literal that is resolved to actual value after parsing from external queue of values

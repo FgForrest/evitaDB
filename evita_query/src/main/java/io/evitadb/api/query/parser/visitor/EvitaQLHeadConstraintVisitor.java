@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -40,14 +40,14 @@ import javax.annotation.Nonnull;
  */
 public class EvitaQLHeadConstraintVisitor extends EvitaQLBaseConstraintVisitor<HeadConstraint> {
 
-    protected final EvitaQLClassifierTokenVisitor classifierTokenVisitor = new EvitaQLClassifierTokenVisitor();
+    protected final EvitaQLValueTokenVisitor stringValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(String.class);
 
     @Override
     public HeadConstraint visitCollectionConstraint(@Nonnull EvitaQLParser.CollectionConstraintContext ctx) {
         return parse(
             ctx,
             () -> new Collection(
-                ctx.args.classifier.accept(classifierTokenVisitor).asSingleClassifier()
+                ctx.args.classifier.accept(stringValueTokenVisitor).asString()
             )
         );
     }
