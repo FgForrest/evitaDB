@@ -728,7 +728,7 @@ public class ExistingEntityBuilder implements EntityBuilder {
 										final AttributeKey attributeKey = attributeMutation.getAttributeKey();
 										if (attributeMutation instanceof UpsertAttributeMutation upsertAttributeMutation) {
 											final boolean attributeSameAsPreviousOne = this.baseEntity.getReference(referenceAttributeMutation.getReferenceKey())
-												.flatMap(ref -> ref.getAttributeValue(attributeKey))
+												.flatMap(ref -> ref.getAttributeSchema(attributeKey.attributeName()).isPresent() ? ref.getAttributeValue(attributeKey) : Optional.empty())
 												.map(attribute -> Objects.equals(attribute.value(), upsertAttributeMutation.getAttributeValue()))
 												.orElse(false);
 											return !attributeSameAsPreviousOne;
@@ -758,21 +758,23 @@ public class ExistingEntityBuilder implements EntityBuilder {
 		);
 		final ReferenceKey referenceKey = new ReferenceKey(referenceName, referencedPrimaryKey);
 		Assert.isTrue(getReference(referenceName, referencedPrimaryKey).isPresent(), "There's no reference of type " + referenceName + " and primary key " + referencedPrimaryKey + "!");
+
+		// remove possibly added / updated reference mutation
+		this.referenceMutations.remove(referenceKey);
+
 		final Optional<ReferenceContract> theReference = baseEntity.getReferenceWithoutSchemaCheck(referenceKey)
 			.filter(referencePredicate);
-		Assert.isTrue(
-			theReference.isPresent(),
-			"Reference to " + referenceName + " and primary key " + referenceKey +
-				" is not present on the entity " + baseEntity.getType() + " and id " +
-				baseEntity.getPrimaryKey() + "!"
-		);
-		this.referenceMutations.put(
-			referenceKey,
-			Collections.singletonList(
-				new RemoveReferenceMutation(referenceKey)
-			)
-		);
-		this.removedReferences.add(referenceKey);
+		if (theReference.isPresent()) {
+			// if the reference was part of the previous entity version we build upon, remove it as-well
+			this.referenceMutations.put(
+				referenceKey,
+				Collections.singletonList(
+					new RemoveReferenceMutation(referenceKey)
+				)
+			);
+			this.removedReferences.add(referenceKey);
+		}
+
 		return this;
 	}
 
