@@ -62,7 +62,7 @@ The visualization is organized in the same way as the facet summary itself:
 
 ```evitaql-syntax
 facetSummary(
-    argument:enum(COUNTS|IMPACT),
+    argument:enum(COUNTS|IMPACT)?,
     filterConstraint:filterBy,
     filterConstraint:filterGroupBy,
     orderConstraint:orderBy,
@@ -73,7 +73,7 @@ facetSummary(
 ```
 
 <dl>
-    <dt>argument:enum(COUNTS|IMPACT)</dt>
+    <dt>argument:enum(COUNTS|IMPACT)?</dt>
     <dd>
         <p>**Default:** `COUNTS`</p>
 
