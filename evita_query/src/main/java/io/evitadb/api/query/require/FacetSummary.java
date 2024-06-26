@@ -194,12 +194,10 @@ public class FacetSummary extends AbstractRequireConstraintContainer
 		super(
 			new Serializable[]{statisticsDepth},
 			requirements,
-			new Constraint<?>[]{
-				filterBy,
-				filterGroupBy,
-				orderBy,
-				orderGroupBy
-			}
+			filterBy,
+			filterGroupBy,
+			orderBy,
+			orderGroupBy
 		);
 		Assert.isTrue(
 			requirements.length <= 2,
@@ -298,6 +296,14 @@ public class FacetSummary extends AbstractRequireConstraintContainer
 	@Override
 	public boolean isApplicable() {
 		return true;
+	}
+
+	@Nonnull
+	@Override
+	public Serializable[] getArgumentsExcludingDefaults() {
+		return Arrays.stream(super.getArgumentsExcludingDefaults())
+			.filter(it -> it != FacetStatisticsDepth.COUNTS)
+			.toArray(Serializable[]::new);
 	}
 
 	@Nonnull

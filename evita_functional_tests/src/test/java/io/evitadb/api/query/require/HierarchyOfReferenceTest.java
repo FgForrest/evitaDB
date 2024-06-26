@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -84,7 +84,7 @@ class HierarchyOfReferenceTest {
 			"brand", fromRoot("megaMenu")
 		);
 		assertEquals(
-			"hierarchyOfReference('brand',REMOVE_EMPTY,fromRoot('megaMenu'))",
+			"hierarchyOfReference('brand',fromRoot('megaMenu'))",
 			hierarchyStatisticsOfReference.toString()
 		);
 
@@ -92,7 +92,7 @@ class HierarchyOfReferenceTest {
 			"brand", orderBy(attributeNatural("name")), fromRoot("megaMenu")
 		);
 		assertEquals(
-			"hierarchyOfReference('brand',REMOVE_EMPTY,orderBy(attributeNatural('name',ASC)),fromRoot('megaMenu'))",
+			"hierarchyOfReference('brand',orderBy(attributeNatural('name',ASC)),fromRoot('megaMenu'))",
 			hierarchyStatisticsOfReference2.toString()
 		);
 	}

@@ -142,6 +142,14 @@ public class AttributeHistogram extends AbstractRequireConstraintLeaf implements
 
 	@Nonnull
 	@Override
+	public Serializable[] getArgumentsExcludingDefaults() {
+		return Arrays.stream(super.getArgumentsExcludingDefaults())
+			.filter(it -> it != HistogramBehavior.STANDARD)
+			.toArray(Serializable[]::new);
+	}
+
+	@Nonnull
+	@Override
 	public RequireConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
 		return new AttributeHistogram(newArguments);
 	}

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -86,7 +86,7 @@ class HierarchyFromNodeTest {
 		assertEquals("fromNode('megaMenu',node(filterBy(entityPrimaryKeyInSet(1))),entityFetch(attributeContentAll(),hierarchyContent(),associatedDataContentAll(),priceContentAll(),referenceContentAllWithAttributes(),dataInLocalesAll()))", hierarchyFromNode2.toString());
 
 		final HierarchyFromNode hierarchyFromNode3 = fromNode("megaMenu", NODE_REF, statistics());
-		assertEquals("fromNode('megaMenu',node(filterBy(entityPrimaryKeyInSet(1))),statistics(WITHOUT_USER_FILTER))", hierarchyFromNode3.toString());
+		assertEquals("fromNode('megaMenu',node(filterBy(entityPrimaryKeyInSet(1))),statistics())", hierarchyFromNode3.toString());
 	}
 
 	@Test

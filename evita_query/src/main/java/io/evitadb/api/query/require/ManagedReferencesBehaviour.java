@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,27 +21,26 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.query.parser;
+package io.evitadb.api.query.require;
 
 /**
- * Mode of parsing query/query. Changes how individual values and constraints are parsed.
- * The default mode should be the {@link #SAFE} in most cases. The {@link #UNSAFE} should be used only in edge cases.
- * <p>
- * Currently, only use of mode is to decide whether literal values are allowed, which are allowed only in {@link #UNSAFE}
- * for to prevent attacks described <a href="https://owasp.org/www-pdf-archive/GOD16-NOSQL.pdf">here</a>.
+ * This enumeration controls behavior of the {@link ReferenceContent} related to managed entities.
+ * If the target entity is not (yet) present in the database and {@link ManagedReferencesBehaviour#EXISTING} is set,
+ * the reference will not be returned as if it does not exist.
+ * If {@link ManagedReferencesBehaviour#ANY} is set (default behavior), the reference will be returned if defined regardless
+ * of its target entity existence.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public enum ParseMode {
+public enum ManagedReferencesBehaviour {
 
 	/**
-	 * Should be default mode in most cases.
-	 * Safe mode allows values passed only via parameters.
+	 * The reference to managed entity will always be returned regardless of the target entity existence.
 	 */
-	SAFE,
+	ANY,
 	/**
-	 * Should be used ONLY IN EDGE CASES as this is not safe when passing arguments from client.
-	 * Unsafe mode allows both literal values and parameters.
+	 * The reference to managed entity will be returned only if the target entity exists in the database.
 	 */
-	UNSAFE
+	EXISTING
+
 }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -579,65 +579,6 @@ public interface QueryParser {
 			parseRequireConstraintList(requireConstraintList, namedArguments, positionalArguments).toArray(EMPTY_REQUIRE_CONSTRAINT_ARRAY)
 		);
 	}
-
-    /*
-        CLASSIFIER
-     */
-
-	/**
-	 * Creates actual classifier for any supported literal or parameter in string representation in {@code classifier}.
-	 * <p>
-	 * <b>Note: </b> that unlike `parseQuery` and `parseConstraint` methods, `parseClassifier` runs in {@link io.evitadb.api.query.parser.ParseMode#UNSAFE}
-	 * because in this case for safe mode you don't need parser altogether.
-	 *
-	 * @param classifier string representation of classifier
-	 * @return parsed classifier
-	 */
-	@Nonnull
-	String parseClassifier(@Nonnull String classifier);
-
-	/**
-	 * Creates actual classifier for any supported literal or parameter in string representation in {@code classifier}. All parameters will be replaced
-	 * with {@code positionalArguments}.
-	 * <p>
-	 * <b>Note: </b> that unlike `parseQuery` and `parseConstraint` methods, `parseClassifier` runs in {@link io.evitadb.api.query.parser.ParseMode#UNSAFE}
-	 * because in this case for safe mode you don't need parser altogether.
-	 *
-	 * @param classifier         string representation of classifier
-	 * @param positionalArgument positional arguments for passed query
-	 * @return parsed classifier
-	 */
-	@Nonnull
-	String parseClassifier(@Nonnull String classifier, @Nonnull Object positionalArgument);
-
-	/**
-	 * Creates actual classifier for any supported literal or parameter in string representation in {@code classifier}. All parameters will be replaced
-	 * with {@code namedArguments}.
-	 * <p>
-	 * <b>Note: </b> that unlike `parseQuery` and `parseConstraint` methods, `parseClassifier` runs in {@link io.evitadb.api.query.parser.ParseMode#UNSAFE}
-	 * because in this case for safe mode you don't need parser altogether.
-	 *
-	 * @param classifier     string representation of classifier
-	 * @param namedArguments named arguments for passed query
-	 * @return parsed classifier
-	 */
-	@Nonnull
-	String parseClassifier(@Nonnull String classifier, @Nonnull Map<String, Object> namedArguments);
-
-	/**
-	 * Creates actual classifier for any supported literal or parameter in string representation in {@code classifier}. All parameters will be replaced
-	 * either by {@code namedArguments} or {@code positionalArguments}.
-	 * <p>
-	 * <b>Note: </b> that unlike `parseQuery` and `parseConstraint` methods, `parseClassifier` runs in {@link io.evitadb.api.query.parser.ParseMode#UNSAFE}
-	 * because in this case for safe mode you don't need parser altogether.
-	 *
-	 * @param classifier         string representation of classifier
-	 * @param namedArguments     named arguments for passed query
-	 * @param positionalArgument positional arguments for passed query
-	 * @return parsed classifier
-	 */
-	@Nonnull
-	String parseClassifier(@Nonnull String classifier, @Nonnull Map<String, Object> namedArguments, @Nonnull Object positionalArgument);
 
     /*
         VALUE

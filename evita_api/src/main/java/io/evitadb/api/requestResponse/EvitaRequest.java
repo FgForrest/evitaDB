@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -131,6 +131,7 @@ public class EvitaRequest {
 		@Nullable AttributeContent attributeContent
 	) {
 		return new RequirementContext(
+			referenceContent.getManagedReferencesBehaviour(),
 			new AttributeRequest(
 				attributeContent == null ? Collections.emptySet() : attributeContent.getAttributeNamesAsSet(),
 				attributeContent != null
@@ -955,22 +956,31 @@ public class EvitaRequest {
 	 * Simple DTO that allows collection of {@link ReferenceContent} inner constraints related to fetching the entity
 	 * and group entity for fast access in this evita request instance.
 	 *
-	 * @param attributeRequest requested attributes for the entity reference
-	 * @param entityFetch      requirements related to fetching related entity
-	 * @param entityGroupFetch requirements related to fetching related entity group
-	 * @param filterBy         filtering constraints for entities
-	 * @param orderBy          ordering constraints for entities
+	 * @param managedReferencesBehaviour controls behaviour of excluding missing managed references
+	 * @param attributeRequest           requested attributes for the entity reference
+	 * @param entityFetch                requirements related to fetching related entity
+	 * @param entityGroupFetch           requirements related to fetching related entity group
+	 * @param filterBy                   filtering constraints for entities
+	 * @param orderBy                    ordering constraints for entities
 	 */
 	public record RequirementContext(
+		@Nonnull ManagedReferencesBehaviour managedReferencesBehaviour,
 		@Nonnull AttributeRequest attributeRequest,
 		@Nullable EntityFetch entityFetch,
 		@Nullable EntityGroupFetch entityGroupFetch,
 		@Nullable FilterBy filterBy,
 		@Nullable OrderBy orderBy
 	) {
+
+		/**
+		 * Returns true if the settings require initialization of referenced entities.
+		 * @return true if the settings require initialization of referenced entities
+		 */
 		public boolean requiresInit() {
-			return entityFetch != null || entityGroupFetch != null || filterBy != null || orderBy != null;
+			return managedReferencesBehaviour != ManagedReferencesBehaviour.ANY ||
+				entityFetch != null || entityGroupFetch != null || filterBy != null || orderBy != null;
 		}
+
 	}
 
 	/**
@@ -991,14 +1001,14 @@ public class EvitaRequest {
 		/**
 		 * Represents a request for all attributes to be fetched.
 		 */
-		public static final AttributeRequest FULL = new AttributeRequest(Collections.emptySet(), true);
+		public static final AttributeRequest ALL = new AttributeRequest(Collections.emptySet(), true);
 	}
 
 	/**
 	 * Wraps the information whether the facet group was altered by a refinement constraint and if so, whether
 	 * filterBy constraint was provided or not.
 	 *
-	 * @param filterBy    filterBy constraint that was provided by the refinement constraint
+	 * @param filterBy filterBy constraint that was provided by the refinement constraint
 	 */
 	public record FacetFilterBy(
 		@Nullable FilterBy filterBy

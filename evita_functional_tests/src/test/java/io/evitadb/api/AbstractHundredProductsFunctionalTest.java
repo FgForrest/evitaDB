@@ -35,6 +35,7 @@ import io.evitadb.test.generator.DataGenerator;
 import io.evitadb.test.generator.DataGenerator.Labels;
 import io.evitadb.test.generator.DataGenerator.ReferencedFileSet;
 
+import javax.annotation.Nonnull;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
@@ -64,21 +65,27 @@ public class AbstractHundredProductsFunctionalTest {
 	private static final int SEED = 40;
 	private final DataGenerator dataGenerator = new DataGenerator();
 
+	@Nonnull
+	protected BiFunction<String, Faker, Integer> getRandomEntityPicker(EvitaSessionContract session) {
+		return (entityType, faker) -> {
+			final int entityCount = session.getEntityCollectionSize(entityType);
+			final int primaryKey = entityCount == 0 ? 0 : faker.random().nextInt(1, entityCount);
+			return primaryKey == 0 ? null : primaryKey;
+		};
+	}
+
 	DataCarrier setUp(Evita evita) {
 		return evita.updateCatalog(TEST_CATALOG, session -> {
-			final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> {
-				final int entityCount = session.getEntityCollectionSize(entityType);
-				final int primaryKey = entityCount == 0 ? 0 : faker.random().nextInt(1, entityCount);
-				return primaryKey == 0 ? null : primaryKey;
-			};
+			final BiFunction<String, Faker, Integer> randomEntityPicker = getRandomEntityPicker(session);
 
-			dataGenerator.generateEntities(
+			final List<EntityReference> storedPriceLists = dataGenerator.generateEntities(
 					dataGenerator.getSamplePriceListSchema(session),
 					randomEntityPicker,
 					SEED
 				)
-				.limit(4)
-				.forEach(session::upsertEntity);
+				.limit(20)
+				.map(session::upsertEntity)
+				.toList();
 
 			final List<EntityReference> storedCategories = dataGenerator.generateEntities(
 					dataGenerator.getSampleCategorySchema(
@@ -244,6 +251,7 @@ public class AbstractHundredProductsFunctionalTest {
 				tuple("originalParameters", parameters),
 				tuple("originalStores", stores),
 				tuple("originalCategories", categories),
+				tuple("originalPriceLists", storedPriceLists),
 				tuple("categoryHierarchy", dataGenerator.getHierarchy(Entities.CATEGORY))
 			);
 		});
