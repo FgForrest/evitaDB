@@ -376,7 +376,10 @@ public class EvitaClient implements EvitaContract {
 			this.channelPool,
 			traits.catalogName(),
 			EvitaEnumConverter.toCatalogState(grpcResponse.getCatalogState()),
-			ofNullable(grpcResponse.getCatalogId()).map(UUIDUtil::uuid).orElseGet(UUIDUtil::randomUUID),
+			ofNullable(grpcResponse.getCatalogId())
+				.filter(it -> !it.isBlank())
+				.map(UUIDUtil::uuid)
+				.orElseGet(UUIDUtil::randomUUID),
 			UUIDUtil.uuid(grpcResponse.getSessionId()),
 			EvitaEnumConverter.toCommitBehavior(grpcResponse.getCommitBehaviour()),
 			traits,
