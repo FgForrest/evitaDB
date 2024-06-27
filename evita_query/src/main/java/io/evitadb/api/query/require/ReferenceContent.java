@@ -268,8 +268,8 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 	@Creator(suffix = SUFFIX_WITH_ATTRIBUTES)
 	public ReferenceContent(
 		@Nonnull @Classifier String referenceName,
-		@Nullable @Child(domain = ConstraintDomain.INLINE_REFERENCE) FilterBy filterBy,
-		@Nullable @Child(domain = ConstraintDomain.INLINE_REFERENCE) OrderBy orderBy,
+		@Nullable @AdditionalChild(domain = ConstraintDomain.INLINE_REFERENCE) FilterBy filterBy,
+		@Nullable @AdditionalChild(domain = ConstraintDomain.INLINE_REFERENCE) OrderBy orderBy,
 		@Nullable AttributeContent attributeContent,
 		@Nullable EntityFetch entityFetch,
 		@Nullable EntityGroupFetch entityGroupFetch
