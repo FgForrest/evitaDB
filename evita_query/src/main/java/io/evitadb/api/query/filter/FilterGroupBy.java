@@ -66,7 +66,7 @@ import java.io.Serializable;
 	name = "filterGroupBy",
 	shortDescription = "The container encapsulating filter constraint limiting the facet groups returned in facet summary.",
 	userDocsLink = "/documentation/query/basics#filter-by",
-	supportedIn = ConstraintDomain.REFERENCE
+	supportedIn = { ConstraintDomain.REFERENCE, ConstraintDomain.INLINE_REFERENCE }
 )
 public class FilterGroupBy extends AbstractFilterConstraintContainer implements GenericConstraint<FilterConstraint> {
 	@Serial private static final long serialVersionUID = -209752332976848423L;

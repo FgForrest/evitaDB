@@ -64,7 +64,7 @@ import java.util.Arrays;
 	name = "exact",
 	shortDescription = "The constraint sorts returned entities by ordering of the values specified in arguments.",
 	userDocsLink = "/documentation/query/ordering/constant#exact-entity-primary-key-order",
-	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE }
+	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE, ConstraintDomain.INLINE_REFERENCE }
 )
 public class EntityPrimaryKeyExact extends AbstractOrderConstraintLeaf implements EntityConstraint<OrderConstraint> {
 	@Serial private static final long serialVersionUID = -8627803791652731430L;

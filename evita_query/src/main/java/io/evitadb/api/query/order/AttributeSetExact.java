@@ -67,7 +67,7 @@ import java.util.Arrays;
 	name = "setExact",
 	shortDescription = "The constraint sorts returned entities by ordering of the values specified in arguments matching the entity attribute of specified name.",
 	userDocsLink = "/documentation/query/ordering/constant#exact-entity-attribute-value-order",
-	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE },
+	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE, ConstraintDomain.INLINE_REFERENCE },
 	supportedValues = @ConstraintSupportedValues(allTypesSupported = true)
 )
 public class AttributeSetExact extends AbstractOrderConstraintLeaf implements AttributeConstraint<OrderConstraint> {

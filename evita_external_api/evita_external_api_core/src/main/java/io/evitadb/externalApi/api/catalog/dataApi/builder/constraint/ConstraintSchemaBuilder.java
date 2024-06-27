@@ -945,7 +945,7 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 				.filter(getAttributeSchemaFilter())
 				.toList();
 		}
-		if (dataLocator instanceof final ReferenceDataLocator referenceDataLocator) {
+		if (dataLocator instanceof final AbstractReferenceDataLocator referenceDataLocator) {
 			final ReferenceSchemaContract reference = sharedContext.getEntitySchemaOrThrowException(referenceDataLocator.entityType())
 				.getReference(referenceDataLocator.referenceName())
 				.orElseThrow(() -> createSchemaBuildingError(

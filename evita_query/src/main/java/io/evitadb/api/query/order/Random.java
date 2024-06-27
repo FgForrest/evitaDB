@@ -52,7 +52,7 @@ import java.io.Serializable;
 	name = "random",
 	shortDescription = "The constraint sorts returned entities randomly.",
 	userDocsLink = "/documentation/query/ordering/random#random",
-	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE }
+	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE, ConstraintDomain.INLINE_REFERENCE }
 )
 public class Random extends AbstractOrderConstraintLeaf implements GenericConstraint<OrderConstraint> {
 

@@ -39,7 +39,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.HierarchyDataLocator;
-import io.evitadb.externalApi.api.catalog.dataApi.constraint.ReferenceDataLocator;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.InlineReferenceDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.model.AssociatedDataDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
@@ -622,7 +622,7 @@ public class EntityObjectBuilder {
 					default -> throw new GraphQLSchemaBuildingError("Unsupported version `" + version + "`.");
 				};
 
-				final ReferenceDataLocator referenceDataLocator = new ReferenceDataLocator(
+				final InlineReferenceDataLocator referenceDataLocator = new InlineReferenceDataLocator(
 					collectionBuildingContext.getSchema().getName(),
 					referenceSchema.getName()
 				);

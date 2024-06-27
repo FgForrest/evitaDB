@@ -36,7 +36,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.HierarchyDataLocator;
-import io.evitadb.externalApi.api.catalog.dataApi.constraint.ReferenceDataLocator;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.InlineReferenceDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesProviderDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GraphQLEntityDescriptor;
@@ -408,7 +408,7 @@ public class EntityFetchRequireResolver {
 
 		return Optional.ofNullable(
 			(FilterBy) filterConstraintResolver.resolve(
-				new ReferenceDataLocator(currentEntitySchema.getName(), fieldsForReferenceHolder.referenceSchema().getName()),
+				new InlineReferenceDataLocator(currentEntitySchema.getName(), fieldsForReferenceHolder.referenceSchema().getName()),
 				ReferenceFieldHeaderDescriptor.FILTER_BY.name(),
 				fields.get(0).getArguments().get(ReferenceFieldHeaderDescriptor.FILTER_BY.name())
 			)
@@ -431,7 +431,7 @@ public class EntityFetchRequireResolver {
 
 		return Optional.ofNullable(
 			(OrderBy) orderConstraintResolver.resolve(
-				new ReferenceDataLocator(currentEntitySchema.getName(), fieldsForReferenceHolder.referenceSchema().getName()),
+				new InlineReferenceDataLocator(currentEntitySchema.getName(), fieldsForReferenceHolder.referenceSchema().getName()),
 				ReferenceFieldHeaderDescriptor.ORDER_BY.name(),
 				fieldsForReferenceHolder.fields().get(0).getArguments().get(ReferenceFieldHeaderDescriptor.ORDER_BY.name())
 			)

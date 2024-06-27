@@ -65,7 +65,7 @@ import java.io.Serializable;
 	name = "startsWith",
 	shortDescription = "Compares value of the attribute with passed value and checks if the text value of that attributes starts with passed text. (case-sensitive)",
 	userDocsLink = "/documentation/query/filtering/string#attribute-starts-with",
-	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE },
+	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE, ConstraintDomain.INLINE_REFERENCE },
 	supportedValues = @ConstraintSupportedValues(
 		supportedTypes = String.class,
 		arraysSupported = true

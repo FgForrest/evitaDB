@@ -28,15 +28,16 @@ import io.evitadb.api.query.descriptor.ConstraintDomain;
 import javax.annotation.Nonnull;
 
 /**
- * Specifies how to get data from reference.
+ * Specifies how to get data from reference. Equivalent of {@link ReferenceDataLocator} but for inline references, i.e.
+ * standalone filter and order clauses on reference properties, not in the main query.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public record ReferenceDataLocator(@Nonnull String entityType, @Nonnull String referenceName) implements AbstractReferenceDataLocator {
+public record InlineReferenceDataLocator(@Nonnull String entityType, @Nonnull String referenceName) implements AbstractReferenceDataLocator {
 
 	@Nonnull
 	@Override
 	public ConstraintDomain targetDomain() {
-		return ConstraintDomain.REFERENCE;
+		return ConstraintDomain.INLINE_REFERENCE;
 	}
 }
