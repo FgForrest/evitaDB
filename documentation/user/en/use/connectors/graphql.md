@@ -167,9 +167,9 @@ standard tools. However, below are our recommendations for tools etc. that we us
 
 ### Recommended IDEs
 
-We've developed our own GUI tool called [evitaLab](https://evitadb.io/blog/09-our-new-web-client-evitalab) which supports GraphQL with usefull tools (e.g. data visualisations).
+We've developed our own GUI tool called [evitaLab](https://evitadb.io/blog/09-our-new-web-client-evitalab) which supports GraphQL with useful tools (e.g. data visualisations).
 It also has other useful tools for exploring evitaDB instances, not just using GraphQL API.
-Therefore, this is our recommened chose of IDE for our APIs.
+Therefore, this is our recommended chose of IDE for our APIs.
 
 However if you want to use a generic GraphQL tool, we have recommendations for that too.
 During development, we have come across and tried several tools for consuming GraphQL APIs, but there are only a few that we can recommend.
@@ -187,8 +187,9 @@ If you are looking for a web-based client that you can integrate into your appli
 
 The basic idea of using the IDE is to first fetch the GraphQL API schema from one of the above-mentioned URLs that are
 exposed by evitaDB. Then explore the API schema using the IDE's docs/API schema explorer and start typing a query or mutation to send to the server.
-In case of e.g. the [Altair](https://altairgraphql.dev/) you don't even need to explore the API schema manually because
-Altair has, like many others, has a code-completion in its editor based on the retrieved API schema.
+In case of e.g. the [evitaLab](https://evitadb.io/blog/09-our-new-web-client-evitalab) or [Altair](https://altairgraphql.dev/) 
+you don't even need to explore the API schema manually because they provide, like many others, a code-completion in their editors
+based on the retrieved API schema.
 
 ### Recommended client libraries
 

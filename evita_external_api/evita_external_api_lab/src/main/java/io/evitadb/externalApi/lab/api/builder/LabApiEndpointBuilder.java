@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,10 +27,16 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.CatalogSchemaDescripto
 import io.evitadb.externalApi.api.system.model.CatalogUnionDescriptor;
 import io.evitadb.externalApi.lab.api.model.CatalogsHeaderDescriptor;
 import io.evitadb.externalApi.lab.api.model.GenericResponseDescriptor;
+import io.evitadb.externalApi.lab.api.model.OpenApiSchemaDiffResponseDescriptor;
 import io.evitadb.externalApi.lab.api.model.QueryEntitiesRequestBodyDescriptor;
+import io.evitadb.externalApi.lab.api.model.SchemaDiffRequestBodyDescriptor;
+import io.evitadb.externalApi.lab.api.model.GraphQLSchemaDiffResponseDescriptor;
 import io.evitadb.externalApi.lab.api.openApi.OpenApiLabApiEndpoint;
 import io.evitadb.externalApi.lab.api.resolver.endpoint.GetCatalogSchemaHandler;
+import io.evitadb.externalApi.lab.api.resolver.endpoint.GraphQLSchemaDiffHandler;
 import io.evitadb.externalApi.lab.api.resolver.endpoint.ListCatalogsHandler;
+import io.evitadb.externalApi.lab.api.resolver.endpoint.OpenApiSchemaDiffHandler;
+import io.evitadb.externalApi.lab.api.resolver.endpoint.QueryEntitiesHandler;
 import io.evitadb.externalApi.lab.api.resolver.endpoint.LivenessHandler;
 import io.evitadb.externalApi.lab.api.resolver.endpoint.QueryEntitiesHandler;
 import io.evitadb.externalApi.rest.api.dataType.DataTypesConverter;
@@ -43,10 +49,7 @@ import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 
-import static io.evitadb.externalApi.lab.api.openApi.OpenApiLabApiEndpoint.DATA_API_URL_PREFIX;
-import static io.evitadb.externalApi.lab.api.openApi.OpenApiLabApiEndpoint.SCHEMA_API_URL_PREFIX;
-import static io.evitadb.externalApi.lab.api.openApi.OpenApiLabApiEndpoint.SYSTEM_API_URL_PREFIX;
-import static io.evitadb.externalApi.lab.api.openApi.OpenApiLabApiEndpoint.newLabApiEndpoint;
+import static io.evitadb.externalApi.lab.api.openApi.OpenApiLabApiEndpoint.*;
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiArray.arrayOf;
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiNonNull.nonNull;
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference.typeRefTo;
@@ -131,6 +134,38 @@ public class LabApiEndpointBuilder {
 			.requestBody(typeRefTo(QueryEntitiesRequestBodyDescriptor.THIS.name()))
 			.successResponse(nonNull(typeRefTo(GenericResponseDescriptor.THIS.name())))
 			.handler(QueryEntitiesHandler::new)
+			.build();
+	}
+
+	@Nonnull
+	public OpenApiLabApiEndpoint buildGraphQLSchemaDiffEndpoint() {
+		return newLabApiEndpoint()
+			.path(p -> p
+				.staticItem(TOOLS_API_URL_PREFIX)
+				.staticItem("api-schema-diff")
+				.staticItem("graphql"))
+			.method(HttpMethod.POST)
+			.operationId("getGraphQLSchemaDiff")
+			.description("Returns diff of different GraphQL schemas.")
+			.requestBody(typeRefTo(SchemaDiffRequestBodyDescriptor.THIS.name()))
+			.successResponse(nonNull(typeRefTo(GraphQLSchemaDiffResponseDescriptor.THIS.name())))
+			.handler(GraphQLSchemaDiffHandler::new)
+			.build();
+	}
+
+	@Nonnull
+	public OpenApiLabApiEndpoint buildOpenApiSchemaDiffEndpoint() {
+		return newLabApiEndpoint()
+			.path(p -> p
+				.staticItem(TOOLS_API_URL_PREFIX)
+				.staticItem("api-schema-diff")
+				.staticItem("openapi"))
+			.method(HttpMethod.POST)
+			.operationId("getOpenApiSchemaDiff")
+			.description("Returns diff of different OpenAPI schemas.")
+			.requestBody(typeRefTo(SchemaDiffRequestBodyDescriptor.THIS.name()))
+			.successResponse(nonNull(typeRefTo(OpenApiSchemaDiffResponseDescriptor.THIS.name())))
+			.handler(OpenApiSchemaDiffHandler::new)
 			.build();
 	}
 }

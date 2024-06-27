@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,23 +21,27 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.http;
+package io.evitadb.externalApi.lab.tools.diff;
 
-import lombok.AccessLevel;
-import lombok.NoArgsConstructor;
+import org.apache.commons.io.IOUtils;
+
+import javax.annotation.Nonnull;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.Objects;
 
 /**
- * HTTP MIME types supported by external APIs.
- * Main goal is to not copy-paste string HTTP content types in handlers.
+ * TODO lho docs
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
+ * @author Lukáš Hornych, 2024
  */
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class MimeTypes {
+public abstract class SchemaDifferTest {
 
-    public static final String ALL = "*/*";
-    public static final String TEXT_PLAIN = "text/plain";
-    public static final String APPLICATION_JSON = "application/json";
-    public static final String APPLICATION_YAML = "application/yaml";
-    public static final String MULTIPART_FORM_DATA = "multipart/form-data";
+	@Nonnull
+	protected static String readFromClasspath(@Nonnull String path) throws IOException {
+		return IOUtils.toString(
+			Objects.requireNonNull(SchemaDifferTest.class.getClassLoader().getResourceAsStream("testData/" + path)),
+			StandardCharsets.UTF_8
+		);
+	}
 }

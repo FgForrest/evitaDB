@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -34,7 +34,11 @@ import io.evitadb.externalApi.lab.api.builder.GenericEntitySchemaObjectBuilder;
 import io.evitadb.externalApi.lab.api.builder.GenericFullResponseObjectBuilder;
 import io.evitadb.externalApi.lab.api.builder.LabApiBuildingContext;
 import io.evitadb.externalApi.lab.api.builder.LabApiEndpointBuilder;
+import io.evitadb.externalApi.lab.api.model.GraphQLSchemaDiffResponseDescriptor;
+import io.evitadb.externalApi.lab.api.model.GraphQLSchemaDiffResponseDescriptor.ChangeDescriptor;
+import io.evitadb.externalApi.lab.api.model.OpenApiSchemaDiffResponseDescriptor;
 import io.evitadb.externalApi.lab.api.model.QueryEntitiesRequestBodyDescriptor;
+import io.evitadb.externalApi.lab.api.model.SchemaDiffRequestBodyDescriptor;
 import io.evitadb.externalApi.lab.configuration.LabConfig;
 import io.evitadb.externalApi.rest.api.Rest;
 import io.evitadb.externalApi.rest.api.builder.FinalRestBuilder;
@@ -129,6 +133,13 @@ public class LabApiBuilder extends FinalRestBuilder<LabApiBuildingContext> {
 		// schema api
 		catalogSchemaObjectBuilder.buildCommonTypes();
 		entitySchemaObjectBuilder.buildCommonTypes();
+
+		// tools api
+		buildingContext.registerType(SchemaDiffRequestBodyDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(GraphQLSchemaDiffResponseDescriptor.ChangeDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(GraphQLSchemaDiffResponseDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(OpenApiSchemaDiffResponseDescriptor.ChangeDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(OpenApiSchemaDiffResponseDescriptor.THIS.to(objectBuilderTransformer).build());
 	}
 
 	private void buildEndpoints() {
@@ -141,6 +152,10 @@ public class LabApiBuilder extends FinalRestBuilder<LabApiBuildingContext> {
 
 		// schema api
 		buildingContext.registerEndpoint(endpointBuilder.buildGetCatalogSchemaEndpoint());
+
+		// tools api
+		buildingContext.registerEndpoint(endpointBuilder.buildGraphQLSchemaDiffEndpoint());
+		buildingContext.registerEndpoint(endpointBuilder.buildOpenApiSchemaDiffEndpoint());
 	}
 
 	@Nonnull

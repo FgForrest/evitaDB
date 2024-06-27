@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ package io.evitadb.externalApi.http;
 
 import io.evitadb.exception.EvitaError;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
+import io.evitadb.externalApi.exception.ExternalApiInvalidUsageException;
 import io.undertow.server.HttpHandler;
 import io.undertow.server.HttpServerExchange;
 import io.undertow.util.Headers;
@@ -72,8 +73,15 @@ public abstract class ExternalApiExceptionHandler implements HttpHandler {
             if (evitaError instanceof final ExternalApiInternalError externalApiInternalError) {
                 // log any API internal errors that Evita cannot handle because they are outside of Evita execution
                 log.error(
-                    "Internal Evita " + getExternalApiCode() + " API error occurred in " + externalApiInternalError.getErrorCode() + ": " + externalApiInternalError.getPrivateMessage(),
+                    "Internal evitaDB " + getExternalApiCode() + " API error occurred in " + externalApiInternalError.getErrorCode() + ": " + externalApiInternalError.getPrivateMessage(),
                     externalApiInternalError
+                );
+            } else if (evitaError instanceof final ExternalApiInvalidUsageException externalApiInvalidUsageException) {
+                // todo lho validate that this is correct
+                // log any invalid usage errors too so we can debug user errors
+                log.error(
+                    "evitaDB " + getExternalApiCode() + " API client error occurred in " + externalApiInvalidUsageException.getErrorCode() + ": " + externalApiInvalidUsageException.getPrivateMessage(),
+                    externalApiInvalidUsageException
                 );
             }
             handleError(evitaError, exchange);

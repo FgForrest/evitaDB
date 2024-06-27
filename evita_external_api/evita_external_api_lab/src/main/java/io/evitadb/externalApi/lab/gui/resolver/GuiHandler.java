@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -64,6 +64,7 @@ public class GuiHandler extends ResourceHandler {
 	private static final String EVITALAB_SERVER_NAME_COOKIE = "evitalab_servername";
 	private static final String EVITALAB_READONLY_COOKIE = "evitalab_readonly";
 	private static final String EVITALAB_PRECONFIGURED_CONNECTIONS_COOKIE = "evitalab_pconnections";
+	private static final String EVITALAB_API_COMPATIBILITY_SERVER_COOKIE = "evitalab_apicompatibilityserver";
 
 	private static final Pattern ASSETS_PATTERN = Pattern.compile("/assets/([a-zA-Z0-9\\-]+/)*[a-zA-Z0-9\\-]+\\.[a-z0-9]+");
 	private static final Pattern ROOT_ASSETS_PATTERN = Pattern.compile("(/logo)?/[a-zA-Z0-9\\-]+\\.[a-z0-9]+");
@@ -104,6 +105,7 @@ public class GuiHandler extends ResourceHandler {
 		passServerName(exchange);
 		passReadOnlyFlag(exchange);
 		passPreconfiguredEvitaDBConnections(exchange);
+		passApiCompatibilityServer(exchange);
 		super.handleRequest(exchange);
 	}
 
@@ -158,6 +160,24 @@ public class GuiHandler extends ResourceHandler {
 			Optional.ofNullable(graphQLConfig).map(it -> it.getBaseUrls(apiOptions.exposedOn())[0]).orElse(null)
 		);
 		return List.of(selfConnection);
+	}
+
+	/**
+	 * Sends a {@link #EVITALAB_API_COMPATIBILITY_SERVER_COOKIE} cookie to the evitaLab with the API compatibility server
+	 * base URL.
+	 */
+	private void passApiCompatibilityServer(@Nonnull HttpServerExchange exchange) {
+		final String apiCompatibilityServer = resolveApiCompatibilityServer();
+		exchange.getResponseHeaders().add(
+			Headers.SET_COOKIE,
+			createCookie(EVITALAB_API_COMPATIBILITY_SERVER_COOKIE, apiCompatibilityServer)
+		);
+	}
+
+	@Nonnull
+	private String resolveApiCompatibilityServer() {
+		return Optional.ofNullable(labConfig.getGui().getApiCompatibilityServer())
+			.orElse(labConfig.getBaseUrls(apiOptions.exposedOn())[0] + LabManager.LAB_API_URL_PREFIX);
 	}
 
 	@Nonnull

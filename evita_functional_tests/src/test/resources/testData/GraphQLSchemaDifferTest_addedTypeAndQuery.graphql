@@ -1,0 +1,32 @@
+directive @format (
+  format: String
+) on FIELD_DEFINITION
+
+type Query {
+  getProduct(filter: ProductFilter): Product
+  getCategory(id: ID!): Category
+  getGroup(id: ID!): Group
+}
+
+input ProductFilter {
+  id: ID
+  name: String
+}
+
+type Product {
+  id: ID!
+  name: String!
+  price: Float!
+  description: String @deprecated(reason: "Use detail instead")
+  detail: String
+}
+
+type Category {
+  id: ID!
+  name: String!
+}
+
+type Group {
+  id: ID!
+  name: String!
+}

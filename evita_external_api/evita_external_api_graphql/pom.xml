@@ -31,7 +31,7 @@
     <parent>
         <groupId>io.evitadb</groupId>
         <artifactId>evita_external_api</artifactId>
-        <version>2024.9-SNAPSHOT</version>
+        <version>10.1-SNAPSHOT</version>
     </parent>
 
     <dependencies>
@@ -61,7 +61,7 @@
         <dependency>
             <groupId>com.graphql-java</groupId>
             <artifactId>graphql-java</artifactId>
-            <version>21.1</version>
+            <version>21.3</version>
         </dependency>
 
     </dependencies>

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.lab.api;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.SealedEntity;
@@ -31,6 +32,8 @@ import io.evitadb.externalApi.ExternalApiFunctionTestsSupport;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.NameVariantsDescriptor;
 import io.evitadb.externalApi.api.system.model.CatalogDescriptor;
 import io.evitadb.externalApi.lab.LabProvider;
+import io.evitadb.externalApi.lab.api.dto.SchemaDiffRequestBodyDto;
+import io.evitadb.externalApi.lab.tools.diff.SchemaDifferTest;
 import io.evitadb.externalApi.rest.api.system.model.LivenessDescriptor;
 import io.evitadb.externalApi.rest.api.testSuite.RestEndpointFunctionalTest;
 import io.evitadb.server.EvitaServer;
@@ -41,14 +44,18 @@ import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.tester.LabApiTester;
 import io.evitadb.test.tester.RestTester.Request;
 import io.evitadb.utils.NamingConvention;
+import org.apache.commons.io.IOUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static io.evitadb.api.query.Query.query;
@@ -62,6 +69,7 @@ import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_NAME;
 import static io.evitadb.test.generator.DataGenerator.CZECH_LOCALE;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
@@ -70,6 +78,8 @@ import static org.hamcrest.Matchers.notNullValue;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 class LabApiEndpointFunctionalTest extends RestEndpointFunctionalTest implements ExternalApiFunctionTestsSupport {
+
+	private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
 	private static final String LAB_API_URL = "api";
 	public static final String LAB_API_THOUSAND_PRODUCTS = "LabApiThousandProducts";
@@ -194,6 +204,43 @@ class LabApiEndpointFunctionalTest extends RestEndpointFunctionalTest implements
 			.body("recordPage.data", equalTo(createEntityDtos(entities)));
 	}
 
+	@Test
+	@UseDataSet(LAB_API_THOUSAND_PRODUCTS)
+	@DisplayName("Should return diff of two GraphQL schemas")
+	void shouldReturnDiffOfTwoGraphQLSchemas(Evita evita, LabApiTester tester) throws IOException {
+		final SchemaDiffRequestBodyDto requestBody = new SchemaDiffRequestBodyDto(
+			readFromClasspath("GraphQLSchemaDifferTest_baseSchema.graphql"),
+			readFromClasspath("GraphQLSchemaDifferTest_addedTypeAndQuery.graphql")
+		);
+
+		tester.test(LAB_API_URL)
+			.urlPathSuffix("/tools/api-schema-diff/graphql")
+			.httpMethod(Request.METHOD_POST)
+			.requestBody(OBJECT_MAPPER.writeValueAsString(requestBody))
+			.executeAndExpectOkAndThen()
+			.body("breakingChanges", hasSize(equalTo(0)))
+			.body("nonBreakingChanges", hasSize(equalTo(2)))
+			.body("unclassifiedChanges", hasSize(equalTo(0)));
+	}
+
+	@Test
+	@UseDataSet(LAB_API_THOUSAND_PRODUCTS)
+	@DisplayName("Should return diff of two OpenApi schemas")
+	void shouldReturnDiffOfTwoOpenApiSchemas(Evita evita, LabApiTester tester) throws IOException {
+		final SchemaDiffRequestBodyDto requestBody = new SchemaDiffRequestBodyDto(
+			readFromClasspath("OpenApiSchemaDifferTest_baseSchema.json"),
+			readFromClasspath("OpenApiSchemaDifferTest_addedEndpoint.json")
+		);
+
+		tester.test(LAB_API_URL)
+			.urlPathSuffix("/tools/api-schema-diff/openapi")
+			.httpMethod(Request.METHOD_POST)
+			.requestBody(OBJECT_MAPPER.writeValueAsString(requestBody))
+			.executeAndExpectOkAndThen()
+			.body("breakingChanges", hasSize(equalTo(0)))
+			.body("nonBreakingChanges", hasSize(equalTo(1)));
+	}
+
 	@Nonnull
 	private static Map<String, Object> createCatalogDto(@Nonnull CatalogContract catalog) {
 		return map()
@@ -210,5 +257,13 @@ class LabApiEndpointFunctionalTest extends RestEndpointFunctionalTest implements
 			.e(CatalogDescriptor.ENTITY_TYPES.name(), new ArrayList<>(catalog.getEntityTypes()))
 			.e(CatalogDescriptor.CORRUPTED.name(), false)
 			.build();
+	}
+
+	@Nonnull
+	protected static String readFromClasspath(@Nonnull String path) throws IOException {
+		return IOUtils.toString(
+			Objects.requireNonNull(SchemaDifferTest.class.getClassLoader().getResourceAsStream("testData/" + path)),
+			StandardCharsets.UTF_8
+		);
 	}
 }

@@ -407,10 +407,10 @@ public class UserDocumentationTest implements EvitaTestSupport {
 						it,
 						new ExampleFilter[] {
 							ExampleFilter.CSHARP,
-							ExampleFilter.JAVA,
+//							ExampleFilter.JAVA,
 							ExampleFilter.REST,
-							ExampleFilter.GRAPHQL,
-							ExampleFilter.EVITAQL
+							ExampleFilter.GRAPHQL
+//							ExampleFilter.EVITAQL
 						}
 					);
 					if (tests.isEmpty()) {

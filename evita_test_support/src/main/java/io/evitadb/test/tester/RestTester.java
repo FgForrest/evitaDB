@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,6 +25,8 @@ package io.evitadb.test.tester;
 
 import io.evitadb.externalApi.http.MimeTypes;
 import io.evitadb.test.tester.RestTester.Request;
+import io.evitadb.utils.Assert;
+import io.evitadb.utils.StringUtils;
 import io.restassured.http.Header;
 import io.restassured.response.Response;
 import io.restassured.response.ValidatableResponse;
@@ -82,6 +84,7 @@ public class RestTester extends JsonExternalApiTester<Request> {
 		}
 
 		final String fullUrl = baseUrl + "/" + request.getCatalogName() + (request.getUrlPathSuffix() != null ? request.getUrlPathSuffix() : "");
+		Assert.isPremiseValid(request.httpMethod != null, "HTTP method must be set for request");
 		final Response response = switch (request.httpMethod) {
 			case Request.METHOD_GET -> requestSpecification.when().get(fullUrl);
 			case Request.METHOD_PUT -> requestSpecification.when().put(fullUrl);

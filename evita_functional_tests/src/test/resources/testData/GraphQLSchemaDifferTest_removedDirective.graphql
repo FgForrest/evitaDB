@@ -1,0 +1,22 @@
+type Query {
+  getProduct(filter: ProductFilter): Product
+  getCategory(id: ID!): Category
+}
+
+input ProductFilter {
+  id: ID
+  name: String
+}
+
+type Product {
+  id: ID!
+  name: String!
+  price: Float!
+  description: String @deprecated(reason: "Use detail instead")
+  detail: String
+}
+
+type Category {
+  id: ID!
+  name: String!
+}

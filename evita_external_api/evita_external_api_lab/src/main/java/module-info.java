@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -37,6 +37,8 @@ module evita.external.api.lab {
 
 	exports io.evitadb.externalApi.lab.configuration;
 	exports io.evitadb.externalApi.lab;
+	opens io.evitadb.externalApi.lab.tools.schemaDiff.openApi to com.fasterxml.jackson.databind;
+	opens io.evitadb.externalApi.lab.tools.schemaDiff.graphql to com.fasterxml.jackson.databind;
 
 	requires static jsr305;
 	requires static lombok;
@@ -51,4 +53,8 @@ module evita.external.api.lab {
 	requires io.swagger.v3.oas.models;
 	requires evita.api;
 	requires evita.query;
+	requires com.graphqljava;
+	requires openapi.diff.core;
+	requires swagger.parser.v3;
+	requires swagger.parser.core;
 }

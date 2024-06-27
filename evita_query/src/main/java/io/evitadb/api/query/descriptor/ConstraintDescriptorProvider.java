@@ -143,12 +143,11 @@ public class ConstraintDescriptorProvider {
 	                                                 @Nullable String suffix) {
 		return getConstraints(constraintClass)
 			.stream()
-			.filter(it -> {
-				return it.creator()
-					.suffix()
-					.map(it2 -> it2.equals(suffix))
-					.orElse(suffix == null);
-			})
+			// todo lho ignore case
+			.filter(it -> it.creator()
+				.suffix()
+				.map(it2 -> it2.equals(suffix))
+				.orElse(suffix == null))
 			.findFirst()
 			.orElseThrow(() ->
 				new GenericEvitaInternalError("Unknown constraint `" + constraintClass.getName() + "` with suffix `" + suffix + "`. Is it properly registered?"));

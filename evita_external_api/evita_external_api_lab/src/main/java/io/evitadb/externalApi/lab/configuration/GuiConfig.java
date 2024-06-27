@@ -42,20 +42,31 @@ public class GuiConfig {
 	@Getter private final boolean enabled;
 	@Getter private final boolean readOnly;
 	@Getter @Nullable private final List<EvitaDBConnection> preconfiguredConnections;
+	@Getter private final String apiCompatibilityServer;
 
 	public GuiConfig() {
 		this.enabled = true;
 		this.readOnly = false;
 		this.preconfiguredConnections = null;
+		this.apiCompatibilityServer = null;
+	}
+
+	public GuiConfig(boolean enabled) {
+		this.enabled = enabled;
+		this.readOnly = false;
+		this.preconfiguredConnections = null;
+		this.apiCompatibilityServer = null;
 	}
 
 	@JsonCreator
 	public GuiConfig(@Nullable @JsonProperty("enabled") Boolean enabled,
 	                 @Nullable @JsonProperty("readOnly") Boolean readOnly,
-	                 @Nullable @JsonProperty("preconfiguredConnections") List<EvitaDBConnection> preconfiguredConnections) {
+	                 @Nullable @JsonProperty("preconfiguredConnections") List<EvitaDBConnection> preconfiguredConnections,
+	                 @Nullable @JsonProperty("apiCompatibilityServer") String apiCompatibilityServer) {
 		this.enabled = Optional.ofNullable(enabled).orElse(true);
 		this.readOnly = Optional.ofNullable(readOnly).orElse(false);
 		this.preconfiguredConnections = preconfiguredConnections;
+		this.apiCompatibilityServer = apiCompatibilityServer;
 	}
 
 }
