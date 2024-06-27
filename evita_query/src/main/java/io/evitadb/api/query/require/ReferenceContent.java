@@ -30,7 +30,9 @@ import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.ReferenceConstraint;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
+import io.evitadb.api.query.descriptor.annotation.AdditionalChild;
 import io.evitadb.api.query.descriptor.annotation.AliasForParameter;
+import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.Classifier;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
@@ -249,8 +251,8 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 	@Creator
 	public ReferenceContent(
 		@Nonnull @Classifier String referenceName,
-		@Nullable FilterBy filterBy,
-		@Nullable OrderBy orderBy,
+		@Nullable @AdditionalChild(domain = ConstraintDomain.INLINE_REFERENCE) FilterBy filterBy,
+		@Nullable @AdditionalChild(domain = ConstraintDomain.INLINE_REFERENCE) OrderBy orderBy,
 		@Nullable EntityFetch entityFetch,
 		@Nullable EntityGroupFetch entityGroupFetch
 	) {
@@ -266,8 +268,8 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 	@Creator(suffix = SUFFIX_WITH_ATTRIBUTES)
 	public ReferenceContent(
 		@Nonnull @Classifier String referenceName,
-		@Nullable FilterBy filterBy,
-		@Nullable OrderBy orderBy,
+		@Nullable @Child(domain = ConstraintDomain.INLINE_REFERENCE) FilterBy filterBy,
+		@Nullable @Child(domain = ConstraintDomain.INLINE_REFERENCE) OrderBy orderBy,
 		@Nullable AttributeContent attributeContent,
 		@Nullable EntityFetch entityFetch,
 		@Nullable EntityGroupFetch entityGroupFetch
