@@ -84,7 +84,7 @@ import java.io.Serializable;
     name = "natural",
     shortDescription = "The constraint sorts returned entities by natural ordering of the values in the specified attribute.",
     userDocsLink = "/documentation/query/ordering/comparable#attribute-natural",
-    supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE },
+    supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE, ConstraintDomain.INLINE_REFERENCE },
     supportedValues = @ConstraintSupportedValues(allTypesSupported = true)
 )
 public class AttributeNatural extends AbstractOrderConstraintLeaf implements AttributeConstraint<OrderConstraint> {

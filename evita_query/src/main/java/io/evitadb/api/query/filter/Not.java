@@ -95,7 +95,7 @@ import java.io.Serializable;
 	name = "not",
 	shortDescription = "The container that behaves as [logical NOT](https://en.wikipedia.org/wiki/Negation) for the inner constraint.",
 	userDocsLink = "/documentation/query/filtering/logical#not",
-	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE }
+	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE, ConstraintDomain.INLINE_REFERENCE }
 )
 public class Not extends AbstractFilterConstraintContainer implements GenericConstraint<FilterConstraint> {
 	@Serial private static final long serialVersionUID = 7151549459608672988L;
