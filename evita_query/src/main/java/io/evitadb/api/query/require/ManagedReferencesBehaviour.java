@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,22 +21,26 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.api.catalog.dataApi.constraint;
-
-import io.evitadb.api.query.descriptor.ConstraintDomain;
-
-import javax.annotation.Nonnull;
+package io.evitadb.api.query.require;
 
 /**
- * Specifies how to get data from reference.
+ * This enumeration controls behavior of the {@link ReferenceContent} related to managed entities.
+ * If the target entity is not (yet) present in the database and {@link ManagedReferencesBehaviour#EXISTING} is set,
+ * the reference will not be returned as if it does not exist.
+ * If {@link ManagedReferencesBehaviour#ANY} is set (default behavior), the reference will be returned if defined regardless
+ * of its target entity existence.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public record ReferenceDataLocator(@Nonnull String entityType, @Nonnull String referenceName) implements AbstractReferenceDataLocator {
+public enum ManagedReferencesBehaviour {
 
-	@Nonnull
-	@Override
-	public ConstraintDomain targetDomain() {
-		return ConstraintDomain.REFERENCE;
-	}
+	/**
+	 * The reference to managed entity will always be returned regardless of the target entity existence.
+	 */
+	ANY,
+	/**
+	 * The reference to managed entity will be returned only if the target entity exists in the database.
+	 */
+	EXISTING
+
 }

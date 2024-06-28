@@ -34,6 +34,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.Arrays;
 
 /**
  * The `priceHistogram` is computed from the price for sale. The interval related constraints - i.e. {@link AttributeBetween}
@@ -76,11 +77,11 @@ public class PriceHistogram extends AbstractRequireConstraintLeaf implements Pri
 
 	@Creator
 	public PriceHistogram(int requestedBucketCount, @Nullable HistogramBehavior behavior) {
-		super(new Serializable[]{requestedBucketCount, behavior == null ? HistogramBehavior.STANDARD : behavior});
+		super(requestedBucketCount, behavior == null ? HistogramBehavior.STANDARD : behavior);
 	}
 
 	public PriceHistogram(int requestedBucketCount) {
-		super(new Serializable[]{requestedBucketCount, HistogramBehavior.STANDARD});
+		super(requestedBucketCount, HistogramBehavior.STANDARD);
 	}
 
 	/**
@@ -102,6 +103,14 @@ public class PriceHistogram extends AbstractRequireConstraintLeaf implements Pri
 	@Nonnull
 	public HistogramBehavior getBehavior() {
 		return (HistogramBehavior) getArguments()[1];
+	}
+
+	@Nonnull
+	@Override
+	public Serializable[] getArgumentsExcludingDefaults() {
+		return Arrays.stream(super.getArgumentsExcludingDefaults())
+			.filter(it -> it != HistogramBehavior.STANDARD)
+			.toArray(Serializable[]::new);
 	}
 
 	@Nonnull

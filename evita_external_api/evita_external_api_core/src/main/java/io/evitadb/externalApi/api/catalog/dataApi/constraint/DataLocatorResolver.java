@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -44,7 +44,7 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class DataLocatorResolver {
 
-	private static final Set<ConstraintDomain> CONSTRAINT_DOMAINS_WITH_REFERENCE = Set.of(ConstraintDomain.REFERENCE, ConstraintDomain.HIERARCHY, ConstraintDomain.HIERARCHY_TARGET, ConstraintDomain.FACET);
+	private static final Set<ConstraintDomain> CONSTRAINT_DOMAINS_WITH_REFERENCE = Set.of(ConstraintDomain.REFERENCE, ConstraintDomain.INLINE_REFERENCE, ConstraintDomain.HIERARCHY, ConstraintDomain.HIERARCHY_TARGET, ConstraintDomain.FACET);
 
 	@Nonnull private final CatalogSchemaContract catalogSchema;
 
@@ -79,6 +79,13 @@ public class DataLocatorResolver {
 						() -> new ExternalApiInternalError("Child domain `" + ConstraintDomain.REFERENCE + "` requires explicit reference name.")
 					);
 					yield Optional.of(new ReferenceDataLocator(childEntityType, childReferenceName));
+				}
+				case INLINE_REFERENCE -> {
+					Assert.isPremiseValid(
+						childReferenceName != null,
+						() -> new ExternalApiInternalError("Child domain `" + ConstraintDomain.INLINE_REFERENCE + "` requires explicit reference name.")
+					);
+					yield Optional.of(new InlineReferenceDataLocator(childEntityType, childReferenceName));
 				}
 				case HIERARCHY -> {
 					Assert.isPremiseValid(
@@ -212,7 +219,7 @@ public class DataLocatorResolver {
 				} else {
 					// if reference constraint doesn't have classifier, it means it is either in another reference container or it is some more general constraint
 					if (constraintDescriptor.propertyType().equals(ConstraintPropertyType.REFERENCE)) {
-						if (parentDataLocator instanceof ReferenceDataLocator ||
+						if (parentDataLocator instanceof AbstractReferenceDataLocator ||
 							parentDataLocator instanceof EntityDataLocator) {
 							yield parentDataLocator;
 						}

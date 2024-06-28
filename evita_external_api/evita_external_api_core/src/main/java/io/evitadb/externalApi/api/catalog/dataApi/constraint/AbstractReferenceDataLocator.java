@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,20 +23,14 @@
 
 package io.evitadb.externalApi.api.catalog.dataApi.constraint;
 
-import io.evitadb.api.query.descriptor.ConstraintDomain;
-
 import javax.annotation.Nonnull;
 
 /**
- * Specifies how to get data from reference.
+ * Ancestor for different types of reference data locators.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
  */
-public record ReferenceDataLocator(@Nonnull String entityType, @Nonnull String referenceName) implements AbstractReferenceDataLocator {
-
-	@Nonnull
-	@Override
-	public ConstraintDomain targetDomain() {
-		return ConstraintDomain.REFERENCE;
-	}
+public interface AbstractReferenceDataLocator extends DataLocatorWithReference {
+	@Nonnull String entityType();
+	@Nonnull String referenceName();
 }

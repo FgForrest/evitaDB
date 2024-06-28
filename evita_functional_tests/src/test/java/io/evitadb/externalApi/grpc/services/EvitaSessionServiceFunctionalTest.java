@@ -1331,6 +1331,7 @@ class EvitaSessionServiceFunctionalTest {
 		params.add(convertQueryParam(1));
 		params.add(convertQueryParam(1));
 		params.add(convertQueryParam(20));
+		params.add(convertQueryParam("children"));
 
 		final String stringQuery = """
 			query(
@@ -1341,7 +1342,7 @@ class EvitaSessionServiceFunctionalTest {
 				require(
 					page(?, ?),
 					hierarchyOfSelf(
-						children('children')
+						children(?)
 					)
 				)
 			)
@@ -1394,6 +1395,7 @@ class EvitaSessionServiceFunctionalTest {
 		params.add(convertQueryParam(Entities.CATEGORY));
 		params.add(convertQueryParam(1));
 		params.add(convertQueryParam(Integer.MAX_VALUE));
+		params.add(convertQueryParam("megaMenu"));
 
 		final String stringQuery = """
 			query(
@@ -1403,7 +1405,7 @@ class EvitaSessionServiceFunctionalTest {
 					entityFetch(),
 					hierarchyOfSelf(
 						fromRoot(
-							'megaMenu',
+							?,
 							entityFetch(attributeContentAll())
 						)
 					)

@@ -248,14 +248,16 @@ final class SessionRegistry {
 		 * Handles arguments printing.
 		 */
 		@Nonnull
-		private static String printArguments(@Nonnull Method method, @Nonnull Object[] args) {
+		private static String printArguments(@Nonnull Method method, @Nullable Object[] args) {
 			final StringBuilder sb = new StringBuilder(256);
-			for (int i = 0; i < args.length; i++) {
-				Object arg = args[i];
-				if (i > 0) {
-					sb.append("|");
+			if (args != null) {
+				for (int i = 0; i < args.length; i++) {
+					Object arg = args[i];
+					if (i > 0) {
+						sb.append("|");
+					}
+					sb.append(method.getParameters()[i].getName()).append("=").append(arg);
 				}
-				sb.append(method.getParameters()[i].getName()).append("=").append(arg);
 			}
 			return sb.toString();
 		}

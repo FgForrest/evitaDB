@@ -432,6 +432,8 @@ public class DataGenerator {
 				initialCount = genericFaker.random().nextInt(8);
 			} else if (Entities.PARAMETER.equals(referencedType)) {
 				initialCount = genericFaker.random().nextInt(16);
+			} else if (Entities.PRICE_LIST.equals(referencedType)) {
+				initialCount = genericFaker.random().nextInt(10);
 			} else {
 				initialCount = 1;
 			}

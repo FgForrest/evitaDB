@@ -23,9 +23,11 @@
 
 package io.evitadb.api;
 
+import com.github.javafaker.Faker;
 import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.exception.*;
 import io.evitadb.api.query.order.OrderDirection;
+import io.evitadb.api.query.require.ManagedReferencesBehaviour;
 import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.AttributesAvailabilityChecker;
@@ -221,6 +223,27 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 	@Override
 	DataCarrier setUp(Evita evita) {
 		return super.setUp(evita);
+	}
+
+	@Nonnull
+	@Override
+	protected BiFunction<String, Faker, Integer> getRandomEntityPicker(EvitaSessionContract session) {
+		return (entityType, faker) -> {
+			if (Entities.PRICE_LIST.equals(entityType)) {
+				final int entityCount = session.getEntityCollectionSize(entityType);
+				if (faker.bool().bool()) {
+					final int primaryKey = entityCount == 0 ? 0 : faker.random().nextInt(1, entityCount);
+					return primaryKey == 0 ? null : primaryKey;
+				} else {
+					// return reference to non existing entity
+					return faker.random().nextInt(entityCount + 1, entityCount + 1000);
+				}
+			} else {
+				final int entityCount = session.getEntityCollectionSize(entityType);
+				final int primaryKey = entityCount == 0 ? 0 : faker.random().nextInt(1, entityCount);
+				return primaryKey == 0 ? null : primaryKey;
+			}
+		};
 	}
 
 	@DisplayName("Should check existence of the entity")
@@ -1155,7 +1178,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 				final List<PriceContract> filteredPrices = it.getPrices()
 					.stream()
 					.filter(PriceContract::sellable)
-					.filter(price -> Objects.equals(price.priceList(), PRICE_LIST_VIP))
+					.filter(price -> Objects.equals(price.priceList(), PRICE_LIST_B2B))
 					.toList();
 				return filteredPrices.stream().map(PriceContract::currency).anyMatch(CURRENCY_EUR::equals) &&
 					filteredPrices.stream().map(PriceContract::currency).noneMatch(CURRENCY_USD::equals);
@@ -1171,7 +1194,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 						filterBy(
 							and(
 								entityPrimaryKeyInSet(entitiesMatchingTheRequirements),
-								priceInPriceLists(PRICE_LIST_VIP),
+								priceInPriceLists(PRICE_LIST_B2B),
 								priceInCurrency(CURRENCY_EUR)
 							)
 						),
@@ -2102,9 +2125,9 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 
 				final SealedEntity product = productByPk.getRecordData().get(0);
 				assertNotNull(product);
-				assertTrue(product.getPrices().size() > 0);
-				assertTrue(product.getAttributeValues().size() > 0);
-				assertTrue(product.getAssociatedDataValues().size() > 0);
+				assertFalse(product.getPrices().isEmpty());
+				assertFalse(product.getAttributeValues().isEmpty());
+				assertFalse(product.getAssociatedDataValues().isEmpty());
 
 				final SealedEntity limitedToBody = session.enrichOrLimitEntity(product);
 				assertThrows(ContextMissingException.class, limitedToBody::getPrices);
@@ -2114,7 +2137,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 				assertThrows(ContextMissingException.class, limitedToBody::getAssociatedDataValues);
 
 				final SealedEntity limitedToBodyAndPrices = session.enrichOrLimitEntity(product, priceContentRespectingFilter());
-				assertTrue(limitedToBodyAndPrices.getPrices().size() > 0);
+				assertFalse(limitedToBodyAndPrices.getPrices().isEmpty());
 				assertTrue(limitedToBodyAndPrices.getPrices().size() < product.getPrices().size());
 				assertFalse(limitedToBodyAndPrices.attributesAvailable());
 				assertThrows(ContextMissingException.class, limitedToBodyAndPrices::getAttributeValues);
@@ -2123,7 +2146,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 
 				final SealedEntity limitedToAttributes = session.enrichOrLimitEntity(product, attributeContent(), dataInLocalesAll());
 				assertThrows(ContextMissingException.class, limitedToAttributes::getPrices);
-				assertTrue(limitedToAttributes.getAttributeValues().size() > 0);
+				assertFalse(limitedToAttributes.getAttributeValues().isEmpty());
 				assertFalse(limitedToAttributes.associatedDataAvailable());
 				assertThrows(ContextMissingException.class, limitedToAttributes::getAssociatedDataValues);
 
@@ -2131,7 +2154,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 				assertThrows(ContextMissingException.class, limitedToAssociatedData::getPrices);
 				assertFalse(limitedToAssociatedData.attributesAvailable());
 				assertThrows(ContextMissingException.class, limitedToAssociatedData::getAttributeValues);
-				assertTrue(limitedToAssociatedData.getAssociatedDataValues().size() > 0);
+				assertFalse(limitedToAssociatedData.getAssociatedDataValues().isEmpty());
 
 				return null;
 			}
@@ -2274,13 +2297,15 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 				assertFalse(product.getReferences().isEmpty());
 
 				final Collection<ReferenceContract> priceLists = product.getReferences(Entities.PRICE_LIST);
-				assertTrue(priceLists.size() > 0);
+				assertFalse(priceLists.isEmpty());
 
+				boolean atLeastOnePriceListBodyFound = false;
 				for (ReferenceContract priceList : priceLists) {
 					final Optional<SealedEntity> referencedEntity = priceList.getReferencedEntity();
-					assertTrue(referencedEntity.isPresent());
-					assertFalse(referencedEntity.get().getAttributeValues().isEmpty());
+					atLeastOnePriceListBodyFound = atLeastOnePriceListBodyFound || referencedEntity.isPresent();
+					referencedEntity.ifPresent(sealedEntity -> assertFalse(sealedEntity.getAttributeValues().isEmpty()));
 				}
+				assertTrue(atLeastOnePriceListBodyFound, "At least one price list body should have been found");
 
 				return null;
 			}
@@ -3047,6 +3072,255 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 		);
 	}
 
+	@DisplayName("References should be returned even if referenced entity doesn't exist")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldFetchEvenMissingReferences(Evita evita, List<SealedEntity> originalProducts, List<EntityReference> originalPriceLists) {
+		final Set<Integer> existingPriceLists = originalPriceLists.stream()
+			.map(EntityReference::getPrimaryKey)
+			.collect(Collectors.toSet());
+
+		final SealedEntity productWithMissingPriceLists = originalProducts.stream()
+			.filter(it -> {
+				final Collection<ReferenceContract> references = it.getReferences(Entities.PRICE_LIST);
+				return references.stream().anyMatch(x -> existingPriceLists.contains(x.getReferencedPrimaryKey())) &&
+					references.stream().anyMatch(x -> !existingPriceLists.contains(x.getReferencedPrimaryKey()));
+			})
+			.findFirst()
+			.orElseThrow();
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> productByPk = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							and(
+								entityPrimaryKeyInSet(productWithMissingPriceLists.getPrimaryKey())
+							)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							entityFetch(
+								referenceContentWithAttributes(Entities.PRICE_LIST)
+							)
+						)
+					),
+					SealedEntity.class
+				);
+
+				assertEquals(1, productByPk.getRecordData().size());
+				assertEquals(1, productByPk.getTotalRecordCount());
+
+				assertEquals(
+					productWithMissingPriceLists.getReferences(Entities.PRICE_LIST).size(),
+					productByPk.getRecordData().get(0).getReferences(Entities.PRICE_LIST).size()
+				);
+
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("References should be returned even if referenced entity bodies doesn't exist")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldFetchEvenMissingReferenceBodies(Evita evita, List<SealedEntity> originalProducts, List<EntityReference> originalPriceLists) {
+		final Set<Integer> existingPriceLists = originalPriceLists.stream()
+			.map(EntityReference::getPrimaryKey)
+			.collect(Collectors.toSet());
+
+		final SealedEntity productWithMissingPriceLists = originalProducts.stream()
+			.filter(it -> {
+				final Collection<ReferenceContract> references = it.getReferences(Entities.PRICE_LIST);
+				return references.stream().anyMatch(x -> existingPriceLists.contains(x.getReferencedPrimaryKey())) &&
+					references.stream().anyMatch(x -> !existingPriceLists.contains(x.getReferencedPrimaryKey()));
+			})
+			.findFirst()
+			.orElseThrow();
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> productByPk = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							and(
+								entityPrimaryKeyInSet(productWithMissingPriceLists.getPrimaryKey())
+							)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							entityFetch(
+								referenceContentWithAttributes(Entities.PRICE_LIST, entityFetchAll())
+							)
+						)
+					),
+					SealedEntity.class
+				);
+
+				assertEquals(1, productByPk.getRecordData().size());
+				assertEquals(1, productByPk.getTotalRecordCount());
+
+				final SealedEntity returnedProduct = productByPk.getRecordData().get(0);
+				assertEquals(
+					productWithMissingPriceLists.getReferences(Entities.PRICE_LIST).size(),
+					returnedProduct.getReferences(Entities.PRICE_LIST).size()
+				);
+
+				assertEquals(
+					productWithMissingPriceLists.getReferences(Entities.PRICE_LIST)
+						.stream()
+						.filter(it -> existingPriceLists.contains(it.getReferencedPrimaryKey()))
+						.count(),
+					returnedProduct.getReferences(Entities.PRICE_LIST).stream()
+						.filter(it -> it.getReferencedEntity().isPresent())
+						.count()
+				);
+
+				assertEquals(
+					productWithMissingPriceLists.getReferences(Entities.PRICE_LIST)
+						.stream()
+						.filter(it -> !existingPriceLists.contains(it.getReferencedPrimaryKey()))
+						.count(),
+					returnedProduct.getReferences(Entities.PRICE_LIST).stream()
+						.filter(it -> it.getReferencedEntity().isEmpty())
+						.count()
+				);
+
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("References should be returned only if referenced entity exists")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldFetchOnlyExistingReferences(Evita evita, List<SealedEntity> originalProducts, List<EntityReference> originalPriceLists) {
+		final Set<Integer> existingPriceLists = originalPriceLists.stream()
+			.map(EntityReference::getPrimaryKey)
+			.collect(Collectors.toSet());
+
+		final SealedEntity productWithMissingPriceLists = originalProducts.stream()
+			.filter(it -> {
+				final Collection<ReferenceContract> references = it.getReferences(Entities.PRICE_LIST);
+				return references.stream().anyMatch(x -> existingPriceLists.contains(x.getReferencedPrimaryKey())) &&
+					references.stream().anyMatch(x -> !existingPriceLists.contains(x.getReferencedPrimaryKey()));
+			})
+			.findFirst()
+			.orElseThrow();
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> productByPk = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							and(
+								entityPrimaryKeyInSet(productWithMissingPriceLists.getPrimaryKey())
+							)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							entityFetch(
+								referenceContentWithAttributes(ManagedReferencesBehaviour.EXISTING, Entities.PRICE_LIST)
+							)
+						)
+					),
+					SealedEntity.class
+				);
+
+				assertEquals(1, productByPk.getRecordData().size());
+				assertEquals(1, productByPk.getTotalRecordCount());
+
+				assertEquals(
+					productWithMissingPriceLists.getReferences(Entities.PRICE_LIST)
+						.stream()
+						.filter(it -> existingPriceLists.contains(it.getReferencedPrimaryKey()))
+						.count(),
+					productByPk.getRecordData().get(0).getReferences(Entities.PRICE_LIST).size()
+				);
+
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("References should be returned only if referenced entity bodies exists")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldFetchOnlyExistingReferenceBodies(Evita evita, List<SealedEntity> originalProducts, List<EntityReference> originalPriceLists) {
+		final Set<Integer> existingPriceLists = originalPriceLists.stream()
+			.map(EntityReference::getPrimaryKey)
+			.collect(Collectors.toSet());
+
+		final SealedEntity productWithMissingPriceLists = originalProducts.stream()
+			.filter(it -> {
+				final Collection<ReferenceContract> references = it.getReferences(Entities.PRICE_LIST);
+				return references.stream().anyMatch(x -> existingPriceLists.contains(x.getReferencedPrimaryKey())) &&
+					references.stream().anyMatch(x -> !existingPriceLists.contains(x.getReferencedPrimaryKey()));
+			})
+			.findFirst()
+			.orElseThrow();
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> productByPk = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							and(
+								entityPrimaryKeyInSet(productWithMissingPriceLists.getPrimaryKey())
+							)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							entityFetch(
+								referenceContentWithAttributes(ManagedReferencesBehaviour.EXISTING, Entities.PRICE_LIST, entityFetchAll())
+							)
+						)
+					),
+					SealedEntity.class
+				);
+
+				assertEquals(1, productByPk.getRecordData().size());
+				assertEquals(1, productByPk.getTotalRecordCount());
+
+				final SealedEntity returnedProduct = productByPk.getRecordData().get(0);
+				assertEquals(
+					productWithMissingPriceLists.getReferences(Entities.PRICE_LIST)
+						.stream()
+						.filter(it -> existingPriceLists.contains(it.getReferencedPrimaryKey()))
+						.count(),
+					returnedProduct.getReferences(Entities.PRICE_LIST).size()
+				);
+
+				assertEquals(
+					productWithMissingPriceLists.getReferences(Entities.PRICE_LIST)
+						.stream()
+						.filter(it -> existingPriceLists.contains(it.getReferencedPrimaryKey()))
+						.count(),
+					returnedProduct.getReferences(Entities.PRICE_LIST).stream()
+						.filter(it -> it.getReferencedEntity().isPresent())
+						.count()
+				);
+
+				assertEquals(
+					0,
+					returnedProduct.getReferences(Entities.PRICE_LIST).stream()
+						.filter(it -> it.getReferencedEntity().isEmpty())
+						.count()
+				);
+
+				return null;
+			}
+		);
+	}
+
 	@DisplayName("References can be eagerly deeply fetched in binary form")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
@@ -3171,7 +3445,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 
 				assertEquals(theParentPk, productByPk.getRecordData().get(0).getParentEntity().orElseThrow().getPrimaryKey());
 				final EntityClassifierWithParent parentEntity = productByPk.getRecordData().get(0).getParentEntity().orElseThrow();
-				assertTrue(parentEntity instanceof EntityReferenceWithParent);
+				assertInstanceOf(EntityReferenceWithParent.class, parentEntity);
 				assertEquals(theParentPk, ((EntityReferenceWithParent) parentEntity).getPrimaryKey());
 				return null;
 			}
@@ -3292,6 +3566,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 
 				boolean atLeastOnPriceListFound = false;
 				Optional<EntityClassifierWithParent> parentEntityRef = returnedEntity.getParentEntity();
+				boolean atLeastOnePriceListBodyFound = false;
 				while (parentEntityRef.isPresent()) {
 					final EntityClassifierWithParent parentEntity = parentEntityRef.get();
 					assertInstanceOf(SealedEntity.class, parentEntity);
@@ -3299,11 +3574,12 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 					if (!references.isEmpty()) {
 						atLeastOnPriceListFound = true;
 						assertEquals(1, references.size());
-						assertTrue(references.iterator().next().getReferencedEntity().isPresent());
+						atLeastOnePriceListBodyFound = atLeastOnePriceListBodyFound || references.stream().anyMatch(it -> it.getReferencedEntity().isPresent());
 						parentEntityRef = parentEntity.getParentEntity();
 					}
 				}
 				assertTrue(atLeastOnPriceListFound, "At least one price list should be found in the hierarchy");
+				assertTrue(atLeastOnePriceListBodyFound, "At least one price list body should be found in the hierarchy");
 
 				return null;
 			}
@@ -3682,7 +3958,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 						)
 					)
 				);
-				assertTrue(products.getRecordData().size() > 0);
+				assertFalse(products.getRecordData().isEmpty());
 				assertTrue(products.getTotalRecordCount() > 0);
 
 				final ReferenceContract categoryReference = products.getRecordData().get(0).getReference(Entities.CATEGORY, theChildPk).orElseThrow();
@@ -3728,7 +4004,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 						)
 					)
 				);
-				assertTrue(products.getRecordData().size() > 0);
+				assertFalse(products.getRecordData().isEmpty());
 				assertTrue(products.getTotalRecordCount() > 0);
 
 				final ReferenceContract categoryReference = products.getRecordData().get(0).getReference(Entities.CATEGORY, theChildPk).orElseThrow();
@@ -3774,7 +4050,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 						)
 					)
 				);
-				assertTrue(products.getRecordData().size() > 0);
+				assertFalse(products.getRecordData().isEmpty());
 				assertTrue(products.getTotalRecordCount() > 0);
 
 				final ReferenceContract categoryReference = products.getRecordData().get(0).getReference(Entities.CATEGORY, theChildPk).orElseThrow();
@@ -3834,7 +4110,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 						)
 					)
 				);
-				assertTrue(products.getRecordData().size() > 0);
+				assertFalse(products.getRecordData().isEmpty());
 				assertTrue(products.getTotalRecordCount() > 0);
 
 				final ReferenceContract categoryReference = products.getRecordData().get(0).getReference(Entities.CATEGORY, theChildPk).orElseThrow();
@@ -3875,7 +4151,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 						)
 					)
 				);
-				assertTrue(products.getRecordData().size() > 0);
+				assertFalse(products.getRecordData().isEmpty());
 				assertTrue(products.getTotalRecordCount() > 0);
 
 				final ReferenceContract categoryReference = products.getRecordData().get(0).getReference(Entities.CATEGORY, theChildPk).orElseThrow();
@@ -3922,7 +4198,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 						)
 					)
 				);
-				assertTrue(products.getRecordData().size() > 0);
+				assertFalse(products.getRecordData().isEmpty());
 				assertTrue(products.getTotalRecordCount() > 0);
 
 				final ReferenceContract categoryReference = products.getRecordData().get(0).getReference(Entities.CATEGORY, theChildPk).orElseThrow();
@@ -3984,30 +4260,43 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 				final SealedEntity referencedCategory = categoryReference.getReferencedEntity().orElseThrow();
 				assertEquals(theParentPk, referencedCategory.getParentEntity().orElseThrow().getPrimaryKey());
 
-				boolean atLeastOnPriceListFound = false;
+				boolean atLeastOnePriceListFound = false;
+				boolean atLeastOnePriceListBodyFound = false;
 				for (SealedEntity returnedEntity : products.getRecordData()) {
 					final Collection<ReferenceContract> referencedCategories = returnedEntity.getReferences(Entities.CATEGORY);
 					for (ReferenceContract category : referencedCategories) {
 						final Optional<SealedEntity> referencedEntity = category.getReferencedEntity();
 						if (referencedEntity.isPresent()) {
+							final int[] parents = categoryHierarchy.getParentItems(String.valueOf(referencedEntity.get().getPrimaryKey()))
+								.stream()
+								.map(HierarchyItem::getCode)
+								.mapToInt(Integer::parseInt)
+								.toArray();
 							Optional<EntityClassifierWithParent> parentEntityRef = referencedEntity.get().getParentEntity();
+							int level = parents.length;
 							while (parentEntityRef.isPresent()) {
 								final EntityClassifierWithParent parentEntity = parentEntityRef.get();
-								assertInstanceOf(SealedEntity.class, parentEntity);
-								final Collection<ReferenceContract> references = ((SealedEntity) parentEntity).getReferences(Entities.PRICE_LIST);
-								if (!references.isEmpty()) {
-									atLeastOnPriceListFound = true;
-									assertEquals(1, references.size());
-									assertTrue(references.iterator().next().getReferencedEntity().isPresent());
-									parentEntityRef = parentEntity.getParentEntity();
+								if (level >= 2) {
+									assertInstanceOf(SealedEntity.class, parentEntity);
+									final Collection<ReferenceContract> references = ((SealedEntity) parentEntity).getReferences(Entities.PRICE_LIST);
+									if (!references.isEmpty()) {
+										atLeastOnePriceListFound = true;
+										assertEquals(1, references.size());
+										atLeastOnePriceListBodyFound = atLeastOnePriceListBodyFound || references.stream().anyMatch(it -> it.getReferencedEntity().isPresent());
+									}
+								} else {
+									assertInstanceOf(EntityReferenceWithParent.class, parentEntity);
 								}
+								parentEntityRef = parentEntity.getParentEntity();
+								level--;
 							}
 						}
 
 					}
 				}
 
-				assertTrue(atLeastOnPriceListFound, "At least one price list should be found in the hierarchy");
+				assertTrue(atLeastOnePriceListFound, "At least one price list should be found in the hierarchy");
+				assertTrue(atLeastOnePriceListBodyFound, "At least one price list body should be found in the hierarchy");
 				return null;
 			}
 		);
@@ -4044,7 +4333,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 						)
 					)
 				);
-				assertTrue(products.getRecordData().size() > 0);
+				assertFalse(products.getRecordData().isEmpty());
 				assertTrue(products.getTotalRecordCount() > 0);
 
 				final ReferenceContract categoryReference = products.getRecordData().get(0).getReference(Entities.CATEGORY, theChildPk).orElseThrow();
@@ -4106,7 +4395,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 						)
 					)
 				);
-				assertTrue(products.getRecordData().size() > 0);
+				assertFalse(products.getRecordData().isEmpty());
 				assertTrue(products.getTotalRecordCount() > 0);
 
 				final ReferenceContract categoryReference = products.getRecordData().get(0).getReference(Entities.CATEGORY, theChildPk).orElseThrow();
@@ -4598,9 +4887,9 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 	void shouldThrowExceptionWhenAccessingNonFetchedPricesAndNotFilteredPrices(Evita evita, List<SealedEntity> originalProducts) {
 		final SealedEntity exampleProduct = originalProducts.stream()
 			.filter(
-				it -> it.getPrices(CURRENCY_USD, PRICE_LIST_BASIC).size() > 0 &&
-					it.getPrices(CURRENCY_USD, PRICE_LIST_REFERENCE).size() > 0 &&
-					it.getPrices(CURRENCY_USD, PRICE_LIST_VIP).size() > 0
+				it -> !it.getPrices(CURRENCY_USD, PRICE_LIST_BASIC).isEmpty() &&
+					!it.getPrices(CURRENCY_USD, PRICE_LIST_REFERENCE).isEmpty() &&
+					!it.getPrices(CURRENCY_USD, PRICE_LIST_VIP).isEmpty()
 			)
 			.findFirst()
 			.orElseThrow();

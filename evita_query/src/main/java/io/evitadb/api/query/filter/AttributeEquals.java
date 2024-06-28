@@ -66,7 +66,7 @@ import java.io.Serializable;
 	name = "equals",
 	shortDescription = "Compares value of the attribute with passed value and checks if they are both equal.",
 	userDocsLink = "/documentation/query/filtering/comparable#attribute-equals",
-	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE },
+	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE, ConstraintDomain.INLINE_REFERENCE },
 	supportedValues = @ConstraintSupportedValues(allTypesSupported = true, arraysSupported = true)
 )
 public class AttributeEquals extends AbstractAttributeFilterConstraintLeaf implements IndexUsingConstraint {

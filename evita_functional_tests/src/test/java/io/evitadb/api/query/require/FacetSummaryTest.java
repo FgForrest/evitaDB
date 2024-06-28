@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -134,11 +134,11 @@ class FacetSummaryTest {
 
 	@Test
 	void shouldToStringReturnExpectedFormat() {
-		assertEquals("facetSummary(COUNTS)", facetSummary().toString());
+		assertEquals("facetSummary()", facetSummary().toString());
 		assertEquals("facetSummary(IMPACT,entityFetch())", facetSummary(FacetStatisticsDepth.IMPACT, entityFetch()).toString());
 		assertEquals("facetSummary(IMPACT,entityFetch(attributeContent('code')),entityGroupFetch())", facetSummary(FacetStatisticsDepth.IMPACT, entityFetch(attributeContent("code")), entityGroupFetch()).toString());
 		assertEquals(
-			"facetSummary(COUNTS,filterBy(entityPrimaryKeyInSet(1)),filterGroupBy(entityPrimaryKeyInSet(2)),orderBy(attributeNatural('code',ASC)),orderGroupBy(attributeNatural('code',ASC)))",
+			"facetSummary(filterBy(entityPrimaryKeyInSet(1)),filterGroupBy(entityPrimaryKeyInSet(2)),orderBy(attributeNatural('code',ASC)),orderGroupBy(attributeNatural('code',ASC)))",
 			facetSummary(
 				FacetStatisticsDepth.COUNTS,
 				filterBy(entityPrimaryKeyInSet(1)),

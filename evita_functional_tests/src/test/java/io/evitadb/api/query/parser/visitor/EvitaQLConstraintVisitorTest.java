@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,6 +29,7 @@ import io.evitadb.api.query.HeadConstraint;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.parser.ParseContext;
+import io.evitadb.api.query.parser.ParseMode;
 import io.evitadb.api.query.parser.ParserExecutor;
 import io.evitadb.api.query.parser.ParserFactory;
 import io.evitadb.api.query.parser.error.EvitaQLInvalidQueryError;
@@ -48,31 +49,31 @@ class EvitaQLConstraintVisitorTest {
 
     @Test
     void shouldDelegateToHeadConstraintVisitor() {
-        final Constraint<?> constraint = parseConstraint("collection('col')");
+        final Constraint<?> constraint = parseConstraintUnsafe("collection('col')");
         assertTrue(HeadConstraint.class.isAssignableFrom(constraint.getClass()));
     }
 
     @Test
     void shouldDelegateToFilterConstraintVisitor() {
-        final Constraint<?> constraint = parseConstraint("attributeEqualsTrue('name')");
+        final Constraint<?> constraint = parseConstraintUnsafe("attributeEqualsTrue('name')");
         assertTrue(FilterConstraint.class.isAssignableFrom(constraint.getClass()));
     }
 
     @Test
     void shouldDelegateToOrderConstraintVisitor() {
-        final Constraint<?> constraint = parseConstraint("attributeNatural('name')");
+        final Constraint<?> constraint = parseConstraintUnsafe("attributeNatural('name')");
         assertTrue(OrderConstraint.class.isAssignableFrom(constraint.getClass()));
     }
 
     @Test
     void shouldDelegateToRequireConstraintVisitor() {
-        final Constraint<?> constraint = parseConstraint("attributeContentAll()");
+        final Constraint<?> constraint = parseConstraintUnsafe("attributeContentAll()");
         assertTrue(RequireConstraint.class.isAssignableFrom(constraint.getClass()));
     }
 
     @Test
     void shouldNotDelegateToAnyVisitor() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseConstraint("nonExistingConstraint()"));
+        assertThrows(EvitaQLInvalidQueryError.class, () -> parseConstraintUnsafe("nonExistingConstraint()"));
     }
 
 
@@ -82,9 +83,11 @@ class EvitaQLConstraintVisitorTest {
      * @param string string to parse
      * @return parsed query
      */
-    private Constraint<?> parseConstraint(@Nonnull String string) {
+    private Constraint<?> parseConstraintUnsafe(@Nonnull String string) {
+        final ParseContext context = new ParseContext();
+        context.setMode(ParseMode.UNSAFE);
         return ParserExecutor.execute(
-            new ParseContext(),
+            context,
             () -> ParserFactory.getParser(string).constraint().accept(new EvitaQLConstraintVisitor())
         );
     }

@@ -62,7 +62,7 @@ import java.io.Serializable;
 	name = "is",
 	shortDescription = "The constraint if value of the attribute is same as passed special value.",
 	userDocsLink = "/documentation/query/filtering/comparable#attribute-is",
-	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE },
+	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE, ConstraintDomain.INLINE_REFERENCE },
 	supportedValues = @ConstraintSupportedValues(
 		allTypesSupported = true,
 		arraysSupported = true,
