@@ -35,7 +35,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
-import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -107,17 +106,6 @@ public class Page extends AbstractRequireConstraintLeaf implements GenericConstr
 	@Override
 	public boolean isApplicable() {
 		return isArgumentsNonNull() && getArguments().length == 2;
-	}
-
-	@Nonnull
-	@Override
-	public Serializable[] getArgumentsExcludingDefaults() {
-		final Serializable[] arguments = getArguments();
-		if (arguments.length == 2 && Objects.equals(arguments[0], 1) && Objects.equals(arguments[1], 20)) {
-			return new Serializable[0];
-		} else {
-			return arguments;
-		}
 	}
 
 	@Nonnull

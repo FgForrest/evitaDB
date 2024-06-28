@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -159,7 +159,7 @@ public class ParseContext {
 	 * Supported argument data types are: evita data types, enums, arrays of evita data types and enums, iterables of
 	 * evita data types or enums.
 	 */
-	private boolean isArgumentDataTypeSupported(@Nonnull Object argument) {
+	private static boolean isArgumentDataTypeSupported(@Nonnull Object argument) {
 		if (EvitaDataTypes.isSupportedTypeOrItsArray(argument.getClass())) {
 			return true;
 		}
