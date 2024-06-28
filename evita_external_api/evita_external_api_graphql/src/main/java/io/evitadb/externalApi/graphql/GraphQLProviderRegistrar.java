@@ -31,6 +31,7 @@ import io.evitadb.externalApi.graphql.configuration.GraphQLConfig;
 import io.evitadb.externalApi.http.ExternalApiProvider;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
 import io.evitadb.externalApi.http.ExternalApiServer;
+import io.evitadb.externalApi.utils.HttpServiceSslCheckingDecorator;
 
 import javax.annotation.Nonnull;
 
@@ -60,6 +61,6 @@ public class GraphQLProviderRegistrar implements ExternalApiProviderRegistrar<Gr
         final GraphQLManager graphQLManager = new GraphQLManager(evita, graphQLConfig);
         evita.registerStructuralChangeObserver(new CatalogGraphQLRefreshingObserver(graphQLManager));
         final HttpService apiHandler = graphQLManager.getGraphQLRouter();
-        return new GraphQLProvider(graphQLConfig, apiHandler);
+        return new GraphQLProvider(graphQLConfig, new HttpServiceSslCheckingDecorator(apiHandler, getApiHandlerPortSslValidatingFunction(graphQLConfig)));
     }
 }

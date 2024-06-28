@@ -62,10 +62,8 @@ module evita.external.api.observability {
 
 	requires io.prometheus.metrics.core;
 	requires io.prometheus.metrics.instrumentation.jvm;
-	requires io.prometheus.metrics.exporter.servlet.jakarta;
 
 	requires undertow.servlet;
-	requires jakarta.servlet;
 	requires jdk.jfr;
 	requires jboss.threads;
 	requires io.grpc;
@@ -83,11 +81,12 @@ module evita.external.api.observability {
 	requires net.bytebuddy;
 	requires org.bouncycastle.provider;
 	requires java.sql;
-	requires evita.external.api.grpc;
 	requires io.prometheus.metrics.model;
 	requires com.linecorp.armeria;
 	requires io.netty.common;
 	requires org.reactivestreams;
+	requires evita.external.api.grpc;
+	requires io.prometheus.metrics.exporter.common;
 
 	exports io.evitadb.externalApi.observability.configuration;
 	exports io.evitadb.externalApi.observability.trace;

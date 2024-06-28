@@ -65,7 +65,6 @@ module evita.external.api.core {
 	requires jboss.threads;
 	requires undertow.core;
 	requires undertow.servlet;
-	requires jakarta.servlet;
 	requires com.fasterxml.jackson.databind;
 	requires xnio.api;
 	requires zero.allocation.hashing;

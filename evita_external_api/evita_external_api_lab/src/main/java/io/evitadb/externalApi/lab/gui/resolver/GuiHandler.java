@@ -84,7 +84,6 @@ public class GuiHandler implements HttpService {
 		@Nonnull ApiOptions apiOptions,
 		@Nonnull ObjectMapper objectMapper
 	) {
-		final FileServiceBuilder fileServiceBuilder = FileService.builder(ClassLoader.getSystemClassLoader(), "META-INF/lab/gui/dist");
 		return new GuiHandler(labConfig, serverName, apiOptions, objectMapper);
 	}
 
@@ -104,17 +103,21 @@ public class GuiHandler implements HttpService {
 		passServerName(ctx);
 		passReadOnlyFlag(ctx);
 		passPreconfiguredEvitaDBConnections(ctx);
-		final String path = req.path();
-		final PathHandlingService router = new PathHandlingService();
-		final Path fsPath = Paths.get("META-INF/lab/gui/dist");
-		if (path.isEmpty() || path.equals("/index.html")) {
-			router.addExactPath("/", (c, r) -> HttpFile.of(fsPath.resolve(Paths.get("/index.html"))).asService().serve(c, r));
-		} else if (ROOT_ASSETS_PATTERN.matcher(path).matches()) {
-			router.addExactPath("/" + path, (c, r) -> HttpFile.of(fsPath.resolve(Paths.get(path.substring(1)))).asService().serve(c, r));
-		} else if (ASSETS_PATTERN.matcher(path).matches()) {
-			router.addExactPath("/" + path, (c, r) -> HttpFile.of(fsPath.resolve(Paths.get(path))).asService().serve(c, r));
+
+		final String path;
+		if (ctx.query() == null) {
+			path = req.path();
+		} else {
+			path = req.path().replace("?" + ctx.query(), "");
 		}
-		return router.serve(ctx, req);
+		final ClassLoader classLoader = getClass().getClassLoader();
+		final Path fsPath = Paths.get("META-INF/lab/gui/dist");
+		if (path.isEmpty() || path.equals("/") || path.equals("/index.html")) {
+			return HttpFile.of(classLoader, fsPath.resolve("index.html").toString()).asService().serve(ctx, req);
+		} else if (ROOT_ASSETS_PATTERN.matcher(path).matches() || ASSETS_PATTERN.matcher(path).matches()) {
+			return HttpFile.of(classLoader, fsPath.resolve(Paths.get(path.substring(1))).toString()).asService().serve(ctx, req);
+		}
+		return HttpResponse.of(404);
 	}
 
 	private void passServerName(@Nonnull ServiceRequestContext ctx) {

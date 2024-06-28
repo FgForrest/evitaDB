@@ -105,7 +105,7 @@ public class GrpcServer {
 			.addService(new EvitaService(evita))
 			.addService(new EvitaSessionService(evita))
 			.addService(ProtoReflectionService.newInstance())
-			.intercept(new ServerSessionInterceptor(evita))
+			.intercept(new ServerSessionInterceptor(evita, config.getTlsMode()))
 			.intercept(new GlobalExceptionHandlerInterceptor())
 			.intercept(new ObservabilityInterceptor(apiOptions.accessLog()))
 			.supportedSerializationFormats(GrpcSerializationFormats.values())

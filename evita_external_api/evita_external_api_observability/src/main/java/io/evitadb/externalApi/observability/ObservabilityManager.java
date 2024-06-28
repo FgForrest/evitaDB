@@ -32,6 +32,7 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.http.CorsFilter;
+import io.evitadb.externalApi.http.CorsFilterServiceDecorator;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
 import io.evitadb.externalApi.http.PathNormalizingHandler;
 import io.evitadb.externalApi.observability.agent.ErrorMonitor;
@@ -42,10 +43,10 @@ import io.evitadb.externalApi.observability.logging.StartLoggingHandler;
 import io.evitadb.externalApi.observability.logging.StopLoggingHandler;
 import io.evitadb.externalApi.observability.metric.EvitaJfrEventRegistry;
 import io.evitadb.externalApi.observability.metric.MetricHandler;
+import io.evitadb.externalApi.observability.metric.PrometheusMetricsHttpService;
 import io.evitadb.externalApi.utils.PathHandlingService;
 import io.evitadb.externalApi.utils.Router;
 import io.evitadb.utils.Assert;
-import io.prometheus.metrics.exporter.servlet.jakarta.PrometheusMetricsServlet;
 import io.undertow.Handlers;
 import io.undertow.Undertow;
 import io.undertow.server.HttpHandler;
@@ -56,7 +57,6 @@ import io.undertow.server.handlers.resource.ResourceHandler;
 import io.undertow.servlet.Servlets;
 import io.undertow.servlet.api.DeploymentInfo;
 import io.undertow.servlet.api.DeploymentManager;
-import jakarta.servlet.ServletException;
 import jdk.jfr.EventType;
 import jdk.jfr.FlightRecorder;
 import jdk.jfr.Recording;
@@ -70,9 +70,11 @@ import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.net.MalformedURLException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -360,7 +362,7 @@ public class ObservabilityManager {
 	 * Creates and registers Prometheus scraping servlet for metrics publishing.
 	 */
 	private void createAndRegisterPrometheusServlet() {
-		final DeploymentInfo servletBuilder = Servlets.deployment()
+		/*final DeploymentInfo servletBuilder = Servlets.deployment()
 			.setClassLoader(Undertow.class.getClassLoader())
 			.setDeploymentName(METRICS_SUFFIX + "-deployment")
 			.setContextPath(METRICS_PATH)
@@ -369,7 +371,12 @@ public class ObservabilityManager {
 			);
 
 		final DeploymentManager servletDeploymentManager = Servlets.defaultContainer().addDeployment(servletBuilder);
-		servletDeploymentManager.deploy();
+		servletDeploymentManager.deploy();*/
+
+		observabilityRouter.addPrefixPath(
+			"/" + METRICS_SUFFIX,
+			new PrometheusMetricsHttpService()
+		);
 
 		//try {
 		//	observabilityRouter.addPrefixPath("/" + METRICS_SUFFIX, servletDeploymentManager.start());
@@ -383,28 +390,21 @@ public class ObservabilityManager {
 	 * Registers endpoints for controlling JFR recording.
 	 */
 	private void registerJfrControlEndpoints() {
-		/*observabilityRouter.addExactPath("/start",
-			new BlockingHandler(
-				new CorsFilter(
-					new ObservabilityExceptionHandler(
-						objectMapper,
-						new StartLoggingHandler(this)
-					),
-					config.getAllowedOrigins()
-				)
+		observabilityRouter.addExactPath("/start",
+			new ObservabilityExceptionHandler(
+				objectMapper,
+				new StartLoggingHandler(this)
+			).decorate(
+				new CorsFilterServiceDecorator(config.getAllowedOrigins()).createDecorator()
 			)
 		);
 		observabilityRouter.addExactPath("/stop",
-			new BlockingHandler(
-				new CorsFilter(
-					new ObservabilityExceptionHandler(
-						objectMapper,
-						new StopLoggingHandler(this)
-					),
-					config.getAllowedOrigins()
-				)
+			new ObservabilityExceptionHandler(
+				objectMapper,
+				new StopLoggingHandler(this)
+			).decorate(
+				new CorsFilterServiceDecorator(config.getAllowedOrigins()).createDecorator()
 			)
-		);*/
-		//todo tpz: impl
+		);
 	}
 }

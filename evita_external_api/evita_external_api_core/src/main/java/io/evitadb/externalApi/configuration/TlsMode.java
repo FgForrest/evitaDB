@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,39 +23,26 @@
 
 package io.evitadb.externalApi.configuration;
 
-import io.evitadb.utils.NetworkUtils;
+import javax.annotation.Nullable;
+import java.util.Arrays;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
-import javax.annotation.Nonnull;
-import java.net.InetAddress;
+public enum TlsMode {
+	RELAXED,
+	FORCE_TLS,
+	FORCE_NO_TLS;
 
-/**
- * Defines a host and port combination.
- *
- * @param host defines the hostname and port the endpoints will listen on
- * @param port defines the port API endpoint will listen on
- *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
- */
-public record HostDefinition(
-	@Nonnull InetAddress host,
-	int port
-) {
+	private static final Map<String, TlsMode> lookup =
+		Arrays.stream(values())
+			.collect(Collectors.toMap(Enum::name, Function.identity()));
 
-	/**
-	 * Returns human comprehensible host name of the configured host.
-	 */
-	@Nonnull
-	public String hostName() {
-		return NetworkUtils.getHostName(host);
-	}
-
-	@Nonnull
-	public String hostNameWithPort() {
-		return hostName() + ":" + port;
-	}
-
-	@Nonnull
-	public String hostWithPort() {
-		return host.getHostAddress() + ":" + port;
+	public static TlsMode getByName(@Nullable String name) {
+		if (name == null) {
+			return RELAXED;
+		}
+		final TlsMode mode = lookup.get(name);
+		return mode == null ? RELAXED : mode;
 	}
 }

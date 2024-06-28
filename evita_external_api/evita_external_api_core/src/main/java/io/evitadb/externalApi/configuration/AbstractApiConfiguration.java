@@ -71,7 +71,7 @@ public abstract class AbstractApiConfiguration {
 	 * flag is to allow accessing the system API, from where the client obtains to access all of evita's APIs. All of
 	 * evita's APIs are always secured at least by TLS encryption, in gRPC is also an option to use mTLS.
 	 */
-	@Getter private final boolean tlsEnabled;
+	@Getter private final TlsMode tlsMode;
 
 	private static InetAddress getByName(@Nonnull String host) {
 		try {
@@ -106,7 +106,7 @@ public abstract class AbstractApiConfiguration {
 
 	protected AbstractApiConfiguration() {
 		this.enabled = true;
-		this.tlsEnabled = true;
+		this.tlsMode = TlsMode.RELAXED;
 		this.exposedHost = null;
 		this.host = new HostDefinition[]{
 			new HostDefinition(getByName("0.0.0.0"), DEFAULT_PORT)
@@ -119,18 +119,18 @@ public abstract class AbstractApiConfiguration {
 	 *                (IPv4) host. Multiple values can be delimited by comma. Example: `localhost:5555,168.12.45.44:5556`
 	 */
 	protected AbstractApiConfiguration(@Nullable Boolean enabled, @Nonnull String host) {
-		this(enabled, host, null, true);
+		this(enabled, host, null, null);
 	}
 
 	/**
 	 * @param enabled    enables the particular API
 	 * @param host       defines the hostname and port the endpoints will listen on, use constant `localhost` for loopback
 	 *                   (IPv4) host. Multiple values can be delimited by comma. Example: `localhost:5555,168.12.45.44:5556`
-	 * @param tlsEnabled allows the API to run with TLS encryption
+	 * @param tlsMode    allows the API to run with TLS encryption
 	 */
-	protected AbstractApiConfiguration(@Nullable Boolean enabled, @Nonnull String host, @Nonnull String exposedHost, @Nullable Boolean tlsEnabled) {
+	protected AbstractApiConfiguration(@Nullable Boolean enabled, @Nonnull String host, @Nonnull String exposedHost, @Nullable String tlsMode) {
 		this.enabled = ofNullable(enabled).orElse(true);
-		this.tlsEnabled = ofNullable(tlsEnabled).orElse(true);
+		this.tlsMode = TlsMode.getByName(tlsMode);
 		this.host = Arrays.stream(host.split(","))
 			.map(AbstractApiConfiguration::parseHost)
 			.toArray(HostDefinition[]::new);
@@ -155,8 +155,8 @@ public abstract class AbstractApiConfiguration {
 				Arrays.stream(getHost())
 					.map(it -> it.hostName() + ":" + it.port())
 			)
-			.map(it -> (isTlsEnabled() ? "https://" : "http://") + it +
-				(this instanceof ApiWithSpecificPrefix withSpecificPrefix ? "/" + withSpecificPrefix.getPrefix() + "/" : ""))
+			.map(it -> (getTlsMode() == TlsMode.FORCE_NO_TLS ? "http://" : "https://") + it +
+				(this instanceof ApiWithSpecificPrefix withSpecificPrefix ? "/" + withSpecificPrefix.getPrefix() + "/" : "/"))
 			.toArray(String[]::new);
 	}
 }

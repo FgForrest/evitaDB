@@ -42,6 +42,8 @@ cache:
 api:
   exposedOn: ${api.exposedOn:null}
   ioThreads: ${api.ioThreads:4}
+  workerGroupThreads: ${api.workerGroupThreads:4}
+  serviceWorkerGroupThreads: ${api.serviceWorkerGroupThreads:4}
   accessLog: ${api.accessLog:false}
   certificate:
     generateAndUseSelfSigned: ${api.certificate.generateAndUseSelfSigned:true}
@@ -53,34 +55,36 @@ api:
   endpoints:
     system:
       enabled: ${api.endpoints.system.enabled:true}
-      host: ${api.endpoints.system.host:localhost:5555}
+      host: ${api.endpoints.system.host:localhost:5557}
       exposedHost: ${api.endpoints.system.exposedHost:null}
-      tlsEnabled: ${api.endpoints.system.tlsEnabled:false}
+      tlsMode: ${api.endpoints.system.tlsMode:FORCE_NO_TLS}
       allowedOrigins: ${api.endpoints.system.allowedOrigins:null}
     graphQL:
       enabled: ${api.endpoints.graphQL.enabled:true}
       host: ${api.endpoints.graphQL.host:localhost:5555}
       exposedHost: ${api.endpoints.graphQL.exposedHost:null}
-      tlsEnabled: ${api.endpoints.graphQL.tlsEnabled:true}
+      tlsMode: ${api.endpoints.graphQL.tlsMode:FORCE_TLS}
       allowedOrigins: ${api.endpoints.graphQL.allowedOrigins:null}
       parallelize: ${api.endpoints.graphQL.parallelize:true}
     rest:
       enabled: ${api.endpoints.rest.enabled:true}
       host: ${api.endpoints.rest.host:localhost:5555}
       exposedHost: ${api.endpoints.rest.exposedHost:null}
-      tlsEnabled: ${api.endpoints.rest.tlsEnabled:true}
+      tlsMode: ${api.endpoints.rest.tlsMode:FORCE_TLS}
       allowedOrigins: ${api.endpoints.rest.allowedOrigins:null}
     gRPC:
       enabled: ${api.endpoints.gRPC.enabled:true}
       host: ${api.endpoints.gRPC.host:localhost:5555}
       exposedHost: ${api.endpoints.gRPC.exposedHost:null}
+      tlsMode: ${api.endpoints.gRPC.tlsMode:RELAXED}
+      allowedOrigins: ${api.endpoints.gRPC.allowedOrigins:null}
       mTLS:
         enabled: ${api.endpoints.gRPC.mTLS.enabled:false}
         allowedClientCertificatePaths: ${api.endpoints.gRPC.mTLS.allowedClientCertificatesPaths:[]}
     lab:
       enabled: ${api.endpoints.lab.enabled:true}
-      host: ${api.endpoints.lab.host:localhost:5555}
-      tlsEnabled: ${api.endpoints.lab.tlsEnabled:true}
+      host: ${api.endpoints.lab.host:localhost:5556}
+      tlsMode: ${api.endpoints.lab.tlsMode:FORCE_TLS}
       allowedOrigins: ${api.endpoints.lab.allowedOrigins:null}
       gui:
         enabled: ${api.endpoints.lab.gui.enabled:true}
@@ -88,9 +92,9 @@ api:
         preconfiguredConnections: !include ${api.endpoints.lab.gui.preconfiguredConnections:null}
     observability:
       enabled: ${api.endpoints.observability.enabled:true}
-      host: ${api.endpoints.observability.host:localhost:5555}
+      host: ${api.endpoints.observability.host:localhost:5557}
       exposedHost: ${api.endpoints.observability.exposedHost:null}
-      tlsEnabled: ${api.endpoints.observability.tlsEnabled:false}
+      tlsMode: ${api.endpoints.observability.tlsMode:FORCE_NO_TLS}
       allowedOrigins: ${api.endpoints.observability.allowedOrigins:null}
       tracing:
         endpoint: ${api.endpoints.observability.tracing.endpoint:null}

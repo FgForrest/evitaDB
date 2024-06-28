@@ -52,6 +52,8 @@ import static java.util.Optional.ofNullable;
 public record ApiOptions(
 	@Nonnull String exposedOn,
 	@Nullable Integer ioThreads,
+	@Nullable Integer workerGroupThreads,
+	@Nullable Integer serviceWorkerGroupThreads,
 	boolean accessLog,
 	@Nonnull CertificateSettings certificate,
 	@Nonnull Map<String, AbstractApiConfiguration> endpoints
@@ -65,7 +67,7 @@ public record ApiOptions(
 	}
 
 	public ApiOptions() {
-		this(null, null, false, new CertificateSettings(), new HashMap<>(8));
+		this(null, null, null, null, false, new CertificateSettings(), new HashMap<>(8));
 	}
 
 	/**
@@ -87,6 +89,24 @@ public record ApiOptions(
 	}
 
 	/**
+	 * Returns set {@link #workerGroupThreads} or returns a default value.
+	 */
+	public int workerGroupThreadsAsInt() {
+		return ofNullable(workerGroupThreads)
+			// double the value of available processors (recommended by Netty configuration)
+			.orElseGet(() -> Runtime.getRuntime().availableProcessors() << 1);
+	}
+
+	/**
+	 * Returns set {@link #serviceWorkerGroupThreads} or returns a default value.
+	 */
+	public int serviceWorkerGroupThreadsAsInt() {
+		return ofNullable(serviceWorkerGroupThreads)
+			// double the value of available processors (recommended by Netty configuration)
+			.orElseGet(() -> Runtime.getRuntime().availableProcessors() << 1);
+	}
+
+	/**
 	 * Standard builder pattern implementation.
 	 */
 	@ToString
@@ -96,6 +116,8 @@ public record ApiOptions(
 		private CertificateSettings certificate;
 		@Nullable private String exposedOn;
 		@Nullable private Integer ioThreads;
+		@Nullable private Integer workerGroupThreads;
+		@Nullable private Integer serviceWorkerGroupThreads;
 		private boolean accessLog;
 
 		Builder() {
@@ -121,6 +143,18 @@ public record ApiOptions(
 		@Nonnull
 		public ApiOptions.Builder ioThreads(int ioThreads) {
 			this.ioThreads = ioThreads;
+			return this;
+		}
+
+		@Nonnull
+		public ApiOptions.Builder workerGroupThreads(int workerGroupThreads) {
+			this.workerGroupThreads = ioThreads;
+			return this;
+		}
+
+		@Nonnull
+		public ApiOptions.Builder serviceWorkerGroupThreads(int serviceWorkerGroupThreads) {
+			this.serviceWorkerGroupThreads = ioThreads;
 			return this;
 		}
 
@@ -170,7 +204,7 @@ public record ApiOptions(
 		@Nonnull
 		public ApiOptions build() {
 			return new ApiOptions(
-				exposedOn, ioThreads, accessLog, certificate, enabledProviders
+				exposedOn, ioThreads, workerGroupThreads, serviceWorkerGroupThreads, accessLog, certificate, enabledProviders
 			);
 		}
 	}

@@ -371,7 +371,10 @@
 						<artifactId>maven-surefire-plugin</artifactId>
 						<configuration>
 							<excludedGroups>integration,longRunning,documentation</excludedGroups>
+							<!--
+							// TODO tpz: uncomment
 							<parallel>all</parallel>
+-->
 							<useUnlimitedThreads>true</useUnlimitedThreads>
 						</configuration>
 					</plugin>

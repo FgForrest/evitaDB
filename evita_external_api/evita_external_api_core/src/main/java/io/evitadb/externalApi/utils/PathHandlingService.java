@@ -26,13 +26,17 @@ package io.evitadb.externalApi.utils;
 import com.linecorp.armeria.common.HttpRequest;
 import com.linecorp.armeria.common.HttpResponse;
 import com.linecorp.armeria.common.HttpStatus;
+import com.linecorp.armeria.common.MediaType;
 import com.linecorp.armeria.common.RequestHeadersBuilder;
 import com.linecorp.armeria.server.HttpService;
+import com.linecorp.armeria.server.Server;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
+import java.net.InetSocketAddress;
 import java.util.Map.Entry;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 

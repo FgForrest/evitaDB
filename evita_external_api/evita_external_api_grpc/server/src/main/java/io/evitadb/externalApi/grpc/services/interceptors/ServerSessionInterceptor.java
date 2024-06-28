@@ -28,11 +28,13 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.core.Evita;
 import io.evitadb.core.EvitaInternalSessionContract;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.externalApi.configuration.TlsMode;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.UUIDUtil;
 import io.grpc.Context;
 import io.grpc.Contexts;
+import io.grpc.Grpc;
 import io.grpc.Metadata;
 import io.grpc.ServerCall;
 import io.grpc.ServerCallHandler;
@@ -42,6 +44,7 @@ import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.net.ssl.SSLSession;
 import java.util.Optional;
 import java.util.Set;
 
@@ -93,6 +96,11 @@ public class ServerSessionInterceptor implements ServerInterceptor {
 	private final Evita evita;
 
 	/**
+	 * Flag indicating whether TLS is enabled.
+	 */
+	private final TlsMode tlsMode;
+
+	/**
 	 * This method is intercepting calls to gRPC services. If client provided session type and sessionId in metadata, an attempt
 	 * for getting matching session will occur. If session is not found and is required by endpoint, then
 	 * unauthenticated status will be returned to the client.
@@ -109,6 +117,24 @@ public class ServerSessionInterceptor implements ServerInterceptor {
 		if (serverCall.getMethodDescriptor().getServiceName().equals("grpc.reflection.v1alpha.ServerReflection")) {
 			return serverCallHandler.startCall(serverCall, metadata);
 		}
+		if (tlsMode != TlsMode.RELAXED) {
+			final SSLSession sslSession = serverCall.getAttributes().get(Grpc.TRANSPORT_ATTR_SSL_SESSION);
+			if (sslSession != null && tlsMode == TlsMode.FORCE_NO_TLS) {
+				final Status status = Status.UNAUTHENTICATED
+					.withCause(new EvitaInvalidUsageException("TLS is not required for this endpoint."))
+					.withDescription("TLS is not required for this endpoint.");
+				serverCall.close(status, metadata);
+				return new ServerCall.Listener<>() {};
+			}
+			if (sslSession == null && tlsMode == TlsMode.FORCE_TLS) {
+				final Status status = Status.UNAUTHENTICATED
+					.withCause(new EvitaInvalidUsageException("TLS is required for this endpoint."))
+					.withDescription("TLS is required for this endpoint.");
+				serverCall.close(status, metadata);
+				return new ServerCall.Listener<>() {};
+			}
+		}
+
 		final Metadata.Key<String> catalogNameMetadata = Metadata.Key.of(CATALOG_NAME_HEADER, Metadata.ASCII_STRING_MARSHALLER);
 		final Metadata.Key<String> sessionMetadata = Metadata.Key.of(SESSION_ID_HEADER, Metadata.ASCII_STRING_MARSHALLER);
 		final String catalogName = metadata.get(catalogNameMetadata);

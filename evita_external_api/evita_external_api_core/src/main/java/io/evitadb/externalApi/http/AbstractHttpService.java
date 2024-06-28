@@ -232,10 +232,11 @@ public abstract class AbstractHttpService<E extends EndpointRequest> implements 
 
 	@Nullable
 	private static Set<String> parseAcceptHeaders(@Nonnull HttpRequest request) {
-		return request.headers().accept()
+		final Set<String> acceptHeaders = request.headers().accept()
 			.stream()
 			.map(MediaType::toString)
 			.collect(Collectors.toUnmodifiableSet());
+		return acceptHeaders.isEmpty() ? null : acceptHeaders;
 	}
 
 	/**

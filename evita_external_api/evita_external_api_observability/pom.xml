@@ -108,7 +108,7 @@
 		</dependency>
 		<dependency>
 			<groupId>io.prometheus</groupId>
-			<artifactId>prometheus-metrics-exporter-servlet-jakarta</artifactId>
+			<artifactId>prometheus-metrics-exporter-common</artifactId>
 			<version>${prometheus.version}</version>
 		</dependency>
 		<dependency>
@@ -133,10 +133,9 @@
 			</exclusions>
 		</dependency>
 		<dependency>
-			<groupId>io.evitadb</groupId>
+			<groupId>${project.parent.groupId}</groupId>
 			<artifactId>evita_external_api_grpc</artifactId>
-			<version>2024.6-SNAPSHOT</version>
-			<scope>compile</scope>
+			<version>${project.parent.version}</version>
 		</dependency>
 	</dependencies>
 

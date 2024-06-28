@@ -74,7 +74,8 @@ public class GrpcProvider implements ExternalApiProvider<GrpcConfig> {
 	@Override
 	public boolean isReady() {
 		final Predicate<String> isReady = url -> {
-			final int responseCode = NetworkUtils.getHttpStatusCode(url, "GET", "application/grpc")
+			final String getCatalogMethodPath = "io.evitadb.externalApi.grpc.generated.EvitaService/GetCatalogNames";
+			final int responseCode = NetworkUtils.getHttpStatusCode(url + getCatalogMethodPath, "GET", "application/grpc")
 				.orElse(-1);
 			// we are interested in 405 Method Not Allowed which signals gRPC server is running
 			return responseCode == 405;

@@ -24,10 +24,13 @@
 package io.evitadb.externalApi.system;
 
 import com.linecorp.armeria.common.HttpHeaderNames;
+import com.linecorp.armeria.common.HttpRequest;
 import com.linecorp.armeria.common.HttpResponse;
 import com.linecorp.armeria.common.HttpResponseBuilder;
 import com.linecorp.armeria.common.HttpStatus;
 import com.linecorp.armeria.common.MediaType;
+import com.linecorp.armeria.server.HttpService;
+import com.linecorp.armeria.server.ServiceRequestContext;
 import com.linecorp.armeria.server.file.FileService;
 import com.linecorp.armeria.server.file.FileServiceBuilder;
 import com.linecorp.armeria.server.file.HttpFile;
@@ -51,6 +54,7 @@ import io.evitadb.externalApi.system.configuration.SystemConfig;
 import io.evitadb.externalApi.utils.PathHandlingService;
 import io.evitadb.utils.CertificateUtils;
 import io.evitadb.utils.StringUtils;
+import jdk.jfr.Frequency;
 
 import javax.annotation.Nonnull;
 import java.io.File;
@@ -79,7 +83,7 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 	/**
 	 * Prints the status of the APIs as a JSON string.
 	 *
-	 * @param builder  http response builder
+	 * @param builder   http response builder
 	 * @param readiness the readiness of the APIs
 	 */
 	private static HttpResponse printApiStatus(
@@ -207,17 +211,15 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 
 		router.addExactPath(
 			"/" + ENDPOINT_SYSTEM_STATUS,
-			(ctx, req) -> {
-				return HttpResponse.of(
-					HttpStatus.OK,
-					MediaType.JSON,
-					renderStatus(
-						evita.getConfiguration().name(),
-						evita.getSystemStatus(),
-						apiOptions
-					)
-				);
-			}
+			(ctx, req) -> HttpResponse.of(
+				HttpStatus.OK,
+				MediaType.JSON,
+				renderStatus(
+					evita.getConfiguration().name(),
+					evita.getSystemStatus(),
+					apiOptions
+				)
+			)
 		);
 
 		final String[] enabledEndPoints = getEnabledApiEndpoints(apiOptions);
@@ -271,35 +273,29 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 						return HttpResponse.of(HttpStatus.SERVICE_UNAVAILABLE, MediaType.JSON, "{\"status\": \"" + ReadinessState.UNKNOWN.name() + "\"}");
 					}
 				} else {
-					return HttpResponse.of(HttpStatus.SERVICE_UNAVAILABLE, MediaType.JSON, "{\"status\": \""+ReadinessState.SHUTDOWN.name()+"\"}");
+					return HttpResponse.of(HttpStatus.SERVICE_UNAVAILABLE, MediaType.JSON, "{\"status\": \"" + ReadinessState.SHUTDOWN.name() + "\"}");
 				}
 			}
 		);
 
 		router.addExactPath("/" + fileName, (ctx, req) -> {
-			final FileServiceBuilder fsb = FileService.builder(file);
-			fsb.serveCompressedFiles(true);
-			fsb.autoDecompress(true);
-			final FileService fileService = fsb.build();
-			return fileService.serve(ctx, req);
+			ctx.addAdditionalResponseHeader(HttpHeaderNames.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\"");
+			return HttpFile.of(new File(file, fileName)).asService().serve(ctx, req);
 		});
 
 		router.addExactPath("/" + CertificateUtils.getGeneratedServerCertificateFileName(), (ctx, req) -> {
-			final HttpFileBuilder hfb = HttpFile.builder(new File(file, CertificateUtils.getGeneratedServerCertificateFileName()));
-			final HttpFile httpFile = hfb.build();
-			return httpFile.asService().serve(ctx, req);
+			ctx.addAdditionalResponseHeader(HttpHeaderNames.CONTENT_DISPOSITION, "attachment; filename=\"" + CertificateUtils.getGeneratedServerCertificateFileName() + "\"");
+			return HttpFile.of(new File(file, CertificateUtils.getGeneratedServerCertificateFileName())).asService().serve(ctx, req);
 		});
 
 		router.addExactPath("/" + CertificateUtils.getGeneratedClientCertificateFileName(), (ctx, req) -> {
-			final HttpFileBuilder hfb = HttpFile.builder(new File(file, CertificateUtils.getGeneratedClientCertificateFileName()));
-			final HttpFile httpFile = hfb.build();
-			return httpFile.asService().serve(ctx, req);
+			ctx.addAdditionalResponseHeader(HttpHeaderNames.CONTENT_DISPOSITION, "attachment; filename=\"" + CertificateUtils.getGeneratedClientCertificateFileName() + "\"");
+			return HttpFile.of(new File(file, CertificateUtils.getGeneratedClientCertificateFileName())).asService().serve(ctx, req);
 		});
 
-		router.addExactPath("/" + CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName(), (ctx, req) -> {
-			final HttpFileBuilder hfb = HttpFile.builder(new File(file, CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName()));
-			final HttpFile httpFile = hfb.build();
-			return httpFile.asService().serve(ctx, req);
+		router.addExactPath("/" + CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName(), (ctx, req) ->{
+			ctx.addAdditionalResponseHeader(HttpHeaderNames.CONTENT_DISPOSITION, "attachment; filename=\"" + CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName() + "\"");
+			return HttpFile.of(new File(file, CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName())).asService().serve(ctx, req);
 		});
 
 		return new SystemProvider(
@@ -330,5 +326,4 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 				new String[0]
 		);
 	}
-
 }

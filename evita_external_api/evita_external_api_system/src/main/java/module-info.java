@@ -51,6 +51,7 @@ module evita.external.api.system {
 	requires java.management;
 	requires org.bouncycastle.provider;
 	requires com.linecorp.armeria;
+	requires jdk.jfr;
 
 	exports io.evitadb.externalApi.system.configuration;
 	exports io.evitadb.externalApi.system;

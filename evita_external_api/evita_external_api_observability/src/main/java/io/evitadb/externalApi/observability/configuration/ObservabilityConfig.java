@@ -63,7 +63,7 @@ public class ObservabilityConfig extends AbstractApiConfiguration implements Api
 	@Getter @Nullable private final List<String> allowedEvents;
 
 	public ObservabilityConfig() {
-		super(true, "0.0.0.0:" + DEFAULT_OBSERVABILITY_PORT, null, false);
+		super(true, "0.0.0.0:" + DEFAULT_OBSERVABILITY_PORT, null, null);
 		this.prefix = BASE_OBSERVABILITY_PATH;
 		this.allowedOrigins = null;
 		this.tracing = new TracingConfig();
@@ -71,7 +71,7 @@ public class ObservabilityConfig extends AbstractApiConfiguration implements Api
 	}
 
 	public ObservabilityConfig(@Nonnull String host) {
-		super(true, host, null, false);
+		super(true, host, null, null);
 		this.prefix = BASE_OBSERVABILITY_PATH;
 		this.allowedOrigins = null;
 		this.tracing = new TracingConfig();
@@ -82,12 +82,12 @@ public class ObservabilityConfig extends AbstractApiConfiguration implements Api
 	public ObservabilityConfig(@Nullable @JsonProperty("enabled") Boolean enabled,
 	                           @Nonnull @JsonProperty("host") String host,
 	                           @Nullable @JsonProperty("exposedHost") String exposedHost,
-	                           @Nullable @JsonProperty("tlsEnabled") Boolean tlsEnabled,
+	                           @Nullable @JsonProperty("tlsMode") String tlsMode,
 	                           @Nullable @JsonProperty("prefix") String prefix,
 	                           @Nullable @JsonProperty("allowedOrigins") String allowedOrigins,
 							   @Nullable @JsonProperty("tracing") TracingConfig tracing,
 	                           @Nullable @JsonProperty("allowedEvents") List<String> allowedEvents) {
-		super(enabled, host, exposedHost, tlsEnabled);
+		super(enabled, host, exposedHost, tlsMode);
 		this.prefix = Optional.ofNullable(prefix).orElse(BASE_OBSERVABILITY_PATH);
 		if (allowedOrigins == null) {
 			this.allowedOrigins = null;

@@ -39,6 +39,7 @@ import io.evitadb.externalApi.configuration.ApiWithSpecificPrefix;
 import io.evitadb.externalApi.configuration.CertificatePath;
 import io.evitadb.externalApi.configuration.HostDefinition;
 import io.evitadb.externalApi.configuration.MtlsConfiguration;
+import io.evitadb.externalApi.configuration.TlsMode;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.externalApi.utils.PathHandlingService;
 import io.evitadb.utils.Assert;
@@ -78,6 +79,7 @@ import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.util.*;
 import java.util.ServiceLoader.Provider;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -395,8 +397,8 @@ public class ExternalApiServer implements AutoCloseable {
 	) throws CertificateException, UnrecoverableKeyException, KeyStoreException, IOException, NoSuchAlgorithmException {
 		final EnhancedQueueExecutor executor = evita.getExecutor();
 		serverBuilder.blockingTaskExecutor(executor, true);
-		serverBuilder.workerGroup(8);
-		serverBuilder.serviceWorkerGroup(8);
+		serverBuilder.workerGroup(apiOptions.workerGroupThreadsAsInt());
+		serverBuilder.serviceWorkerGroup(apiOptions.serviceWorkerGroupThreadsAsInt());
 		/*serverBuilder
 			.workerGroup(
 				new DefaultEventLoopGroup(
@@ -448,22 +450,38 @@ public class ExternalApiServer implements AutoCloseable {
 
 		//final SSLContext sslContext = configureSSLContext(certificatePath, serverCertificateManager);
 		//final Map<HostKey, PathHandlingService> setupHosts = createHashMap(10);
-		final PathHandlingService mainRouter = new PathHandlingService();
-		final Map<String, VirtualHostBuilder> hosts = new HashMap<>(4);
+		final Map<HostDefinition, HostDefinitionVirtualHosts> hosts = createHashMap(8);
 		for (ExternalApiProvider<?> registeredApiProvider : registeredApiProviders.values()) {
 			final AbstractApiConfiguration configuration = apiOptions.endpoints().get(registeredApiProvider.getCode());
 			for (HostDefinition host : configuration.getHost()) {
-				final VirtualHostBuilder virtualHostBuilder = serverBuilder.virtualHost(host.hostName());
-				if (!hosts.containsKey(host.hostName())) {
+				final HostDefinitionVirtualHosts hostDefinitionVirtualHosts;
+				if (!hosts.containsKey(host)) {
+					final PathHandlingService pathHandlingService = new PathHandlingService();
+
+					hostDefinitionVirtualHosts = new HostDefinitionVirtualHosts(serverBuilder, host, pathHandlingService);
 					hosts.put(
-						host.hostName(),
-						virtualHostBuilder
+						host,
+						hostDefinitionVirtualHosts
 					);
 
-					serverBuilder.http(host.port());
-					serverBuilder.https(host.port());
+					hostDefinitionVirtualHosts.applyToAll(virtualHostBuilder -> {
+						try {
+							virtualHostBuilder.virtualHostBuilder.tls(createKeyManagerFactory(certificatePath, CertificateFactory.getInstance("X.509")));
+						} catch (KeyStoreException | IOException | NoSuchAlgorithmException | CertificateException |
+						         UnrecoverableKeyException e) {
+							throw new RuntimeException(e);
+						}
+					});
+				} else {
+					hostDefinitionVirtualHosts = hosts.get(host);
+				}
 
-					virtualHostBuilder.tls(createKeyManagerFactory(certificatePath, CertificateFactory.getInstance("X.509")));
+				final TlsMode tlsMode = configuration.getTlsMode();
+				if (tlsMode == TlsMode.FORCE_NO_TLS || tlsMode == TlsMode.RELAXED) {
+					serverBuilder.http(host.port());
+				}
+				if (tlsMode == TlsMode.FORCE_TLS || tlsMode == TlsMode.RELAXED) {
+					serverBuilder.https(host.port());
 				}
 
 				//final HostKey hostKey = new HostKey(host, configuration.isTlsEnabled());
@@ -482,7 +500,7 @@ public class ExternalApiServer implements AutoCloseable {
 				//	hostRouter = new PathHandlingService();
 				//	setupHosts.put(hostKey, hostRouter);
 
-					//todo tpz: fallback handler impl
+				//todo tpz: fallback handler impl
 					/*
 					// we want to support GZIP/deflate compression options for large payloads
 					// source https://stackoverflow.com/questions/28295752/compressing-undertow-server-responses#28329810
@@ -507,84 +525,40 @@ public class ExternalApiServer implements AutoCloseable {
 					} else {
 						serverBuilder.http(host.port());
 					}*/
-
-					/*final MtlsConfiguration mtlsConfiguration = registeredApiProvider.mtlsConfiguration();
-					if (mtlsConfiguration != null) {
-						serverBuilder.tlsCustomizer(t -> {
-							try {
-								if (Boolean.TRUE.equals(mtlsConfiguration.enabled())) {
-									if (apiOptions.certificate().generateAndUseSelfSigned()) {
-										t.trustManager(
-											apiOptions.certificate().getFolderPath()
-												.resolve(CertificateUtils.getGeneratedRootCaCertificateFileName())
-												.toFile()
-										);
-									}
-									t.clientAuth(ClientAuth.REQUIRE);
-									final CertificateFactory cf = CertificateFactory.getInstance("X.509");
-									for (String clientCert : mtlsConfiguration.allowedClientCertificatePaths()) {
-										t.trustManager(new FileInputStream(clientCert));
-										try (InputStream in = new FileInputStream(clientCert)) {
-											log.info("Whitelisted client's certificate fingerprint: {}", CertificateUtils.getCertificateFingerprint(cf.generateCertificate(in)));
-										}
-									}
-								} else {
-									t.clientAuth(ClientAuth.OPTIONAL);
-								}
-							} catch (Exception e) {
-								throw new GenericEvitaInternalError(
-									"Failed to create gRPC server credentials with provided certificate and private key: " + e.getMessage(),
-									"Failed to create gRPC server credentials with provided certificate and private key.",
-									e
-								);
-							}
-						});
-					}*/
 				//}
-
-				Assert.isPremiseValid(
-					configuration instanceof ApiWithSpecificPrefix,
-					() -> new ExternalApiInternalError("Cannot register path because API has no prefix specified.")
-				);
 
 				if (registeredApiProvider.getApiHandler() == null) {
 					System.out.println("API handler is null for " + registeredApiProvider.getCode() + " API. Skipping registration.");
 					continue;
 				}
 
-				final String prefix = ((ApiWithSpecificPrefix) configuration).getPrefix();
 				final HttpService apiHandler = registeredApiProvider.getApiHandler();
 				final DocService docService = DocService.builder()
 					.exclude(DocServiceFilter.ofServiceName("grpc.reflection.v1alpha.ServerReflection"))
 					.build();
 
 				if (registeredApiProvider.mtlsConfiguration() != null) {
-					virtualHostBuilder.serviceUnder(
-						// always will be only gRPC API
-						"/" + prefix,
-						apiHandler
-					);
-					virtualHostBuilder.serviceUnder(
-						// always will be only gRPC API docs
-						"/docs",
-						docService
-					);
-					serverBuilder.defaultVirtualHost().serviceUnder(
-						// always will be only gRPC API
-						"/" + prefix,
-						apiHandler
-					);
-					serverBuilder.defaultVirtualHost().serviceUnder(
-						// always will be only gRPC API docs
-						"/docs",
-						docService
-					);
-					customizeTls(virtualHostBuilder, apiOptions, registeredApiProvider.mtlsConfiguration());
+					hostDefinitionVirtualHosts.applyToAll(virtualHostBuilder -> {
+						virtualHostBuilder.virtualHostBuilder.serviceUnder(
+							// always will be only gRPC API
+							"/",
+							apiHandler
+						);
+						virtualHostBuilder.virtualHostBuilder.serviceUnder(
+							// always will be only gRPC API docs
+							"/docs",
+							docService
+						);
+						customizeTls(virtualHostBuilder.virtualHostBuilder, apiOptions, registeredApiProvider.mtlsConfiguration());
+					});
 				} else {
-					mainRouter.addPrefixPath(
+					final String prefix = ((ApiWithSpecificPrefix) configuration).getPrefix();
+					final VirtualHostBuilderWithRouter virtualHostBuilderWithRouter = hostDefinitionVirtualHosts.getVirtualHostBuilderWithRouter(host);
+					virtualHostBuilderWithRouter.pathHandlingService.addPrefixPath(
 						prefix,
 						apiHandler
 					);
+					customizeTls(virtualHostBuilderWithRouter.virtualHostBuilder, apiOptions, registeredApiProvider.mtlsConfiguration());
 				}
 			}
 			ConsoleWriter.write(
@@ -605,15 +579,13 @@ public class ExternalApiServer implements AutoCloseable {
 			}
 		}
 
-		hosts.forEach((hostName, virtualHost) -> virtualHost.service("glob:/**", mainRouter));
-		serverBuilder.defaultVirtualHost().service("glob:/**", mainRouter);
-	}
-
-	private static void setupAndRegisterPortsAndTls(
-		@Nonnull VirtualHostBuilder virtualHostBuilder,
-		@Nonnull CertificatePath certificatePath
-	) throws CertificateException, UnrecoverableKeyException, KeyStoreException, IOException, NoSuchAlgorithmException {
-		virtualHostBuilder.tls(createKeyManagerFactory(certificatePath, CertificateFactory.getInstance("X.509")));
+		hosts.forEach(
+			(hostDefinition, hostBuilderWithRouter) ->
+				hostBuilderWithRouter.applyToAll(virtualHostBuilder ->
+					virtualHostBuilder.virtualHostBuilder.service("glob:/**", hostBuilderWithRouter.getVirtualHostBuilderWithRouter(hostDefinition).pathHandlingService)
+				)
+		);
+		//serverBuilder.defaultVirtualHost().service("glob:/**", mainRouter);
 	}
 
 	private static void customizeTls(
@@ -621,39 +593,65 @@ public class ExternalApiServer implements AutoCloseable {
 		@Nonnull ApiOptions apiOptions,
 		@Nullable MtlsConfiguration mtlsConfiguration
 	) {
-		if (mtlsConfiguration != null) {
-			virtualHostBuilder.tlsCustomizer(t -> {
-				try {
-					if (Boolean.TRUE.equals(mtlsConfiguration.enabled())) {
-						if (apiOptions.certificate().generateAndUseSelfSigned()) {
-							t.trustManager(
-								apiOptions.certificate().getFolderPath()
-									.resolve(CertificateUtils.getGeneratedRootCaCertificateFileName())
-									.toFile()
-							);
-						}
-						t.clientAuth(ClientAuth.REQUIRE);
-						final CertificateFactory cf = CertificateFactory.getInstance("X.509");
-						for (String clientCert : mtlsConfiguration.allowedClientCertificatePaths()) {
-							t.trustManager(new FileInputStream(clientCert));
-							try (InputStream in = new FileInputStream(clientCert)) {
-								log.info("Whitelisted client's certificate fingerprint: {}", CertificateUtils.getCertificateFingerprint(cf.generateCertificate(in)));
-							}
-						}
-					} else {
-						t.clientAuth(ClientAuth.OPTIONAL);
-					}
-				} catch (Exception e) {
-					throw new GenericEvitaInternalError(
-						"Failed to create gRPC server credentials with provided certificate and private key: " + e.getMessage(),
-						"Failed to create gRPC server credentials with provided certificate and private key.",
-						e
+		virtualHostBuilder.tlsCustomizer(t -> {
+			try {
+				if (apiOptions.certificate().generateAndUseSelfSigned()) {
+					t.trustManager(
+						apiOptions.certificate().getFolderPath()
+							.resolve(CertificateUtils.getGeneratedRootCaCertificateFileName())
+							.toFile()
 					);
 				}
-			});
+				if (mtlsConfiguration != null && Boolean.TRUE.equals(mtlsConfiguration.enabled())) {
+					t.clientAuth(ClientAuth.REQUIRE);
+					final CertificateFactory cf = CertificateFactory.getInstance("X.509");
+					for (String clientCert : mtlsConfiguration.allowedClientCertificatePaths()) {
+						t.trustManager(new FileInputStream(clientCert));
+						try (InputStream in = new FileInputStream(clientCert)) {
+							log.info("Whitelisted client's certificate fingerprint: {}", CertificateUtils.getCertificateFingerprint(cf.generateCertificate(in)));
+						}
+					}
+				} else {
+					t.clientAuth(ClientAuth.OPTIONAL);
+				}
+			} catch (Exception e) {
+				throw new GenericEvitaInternalError(
+					"Failed to create gRPC server credentials with provided certificate and private key: " + e.getMessage(),
+					"Failed to create gRPC server credentials with provided certificate and private key.",
+					e
+				);
+			}
+		});
+	}
+
+	private static class HostDefinitionVirtualHosts {
+		private static final String GLOBAL_IP_WILDCARD = "0.0.0.0";
+		private static final String LOCALHOST = "localhost";
+		private static final String LOOPBACK = "127.0.0.1";
+
+		private final Map<String, VirtualHostBuilderWithRouter> setupHosts = createHashMap(10);
+
+		public HostDefinitionVirtualHosts(ServerBuilder serverBuilder, HostDefinition hostDefinition, PathHandlingService pathHandlingService) {
+			if (GLOBAL_IP_WILDCARD.equals(hostDefinition.host().getHostAddress())) {
+				final String localhostWithPort = LOCALHOST + ":" + hostDefinition.port();
+				final String loopbackWithPort = LOOPBACK + ":" + hostDefinition.port();
+				setupHosts.put(hostDefinition.hostNameWithPort(), new VirtualHostBuilderWithRouter(serverBuilder.virtualHost(hostDefinition.hostNameWithPort()), pathHandlingService));
+				setupHosts.put(localhostWithPort, new VirtualHostBuilderWithRouter(serverBuilder.virtualHost(localhostWithPort), pathHandlingService));
+				setupHosts.put(loopbackWithPort, new VirtualHostBuilderWithRouter(serverBuilder.virtualHost(loopbackWithPort), pathHandlingService));
+			}
+			setupHosts.put(hostDefinition.hostWithPort(), new VirtualHostBuilderWithRouter(serverBuilder.virtualHost(hostDefinition.hostWithPort()), pathHandlingService));
+		}
+
+		public VirtualHostBuilderWithRouter getVirtualHostBuilderWithRouter(HostDefinition hostDefinition) {
+			return setupHosts.get(hostDefinition.hostNameWithPort());
+		}
+
+		public void applyToAll(@Nonnull Consumer<VirtualHostBuilderWithRouter> function) {
+			setupHosts.values().forEach(function);
 		}
 	}
 
-	private record HostKey(HostDefinition host, boolean ssl) {
+	private record VirtualHostBuilderWithRouter(@Nonnull VirtualHostBuilder virtualHostBuilder,
+	                                            @Nonnull PathHandlingService pathHandlingService) {
 	}
 }

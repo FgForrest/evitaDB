@@ -72,15 +72,20 @@ public class GrpcProviderRegistrar implements ExternalApiProviderRegistrar<GrpcC
 			.addService(new EvitaService(evita))
 			.addService(new EvitaSessionService(evita))
 			.addService(ProtoReflectionService.newInstance())
-			.intercept(new ServerSessionInterceptor(evita))
+			.intercept(new ServerSessionInterceptor(evita, grpcAPIConfig.getTlsMode()))
 			.intercept(new GlobalExceptionHandlerInterceptor())
 			.intercept(new ObservabilityInterceptor(apiOptions.accessLog()))
 			.supportedSerializationFormats(GrpcSerializationFormats.values())
 			.enableHttpJsonTranscoding(true)
 			.enableUnframedRequests(true);
 
-		final CorsServiceBuilder corsBuilder =
-			CorsService.builderForAnyOrigin()
+		final CorsServiceBuilder corsBuilder;
+		if (grpcAPIConfig.getAllowedOrigins() == null) {
+			corsBuilder = CorsService.builderForAnyOrigin();
+		} else {
+			corsBuilder = CorsService.builder(grpcAPIConfig.getAllowedOrigins());
+		}
+			corsBuilder
 				.allowRequestMethods(HttpMethod.POST) // Allow POST method.
 				// Allow Content-type and X-GRPC-WEB headers.
 				.allowAllRequestHeaders(true)
