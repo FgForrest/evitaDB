@@ -21,14 +21,29 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.task;
+package io.evitadb.api.exception;
 
-import java.io.Serializable;
+import io.evitadb.exception.EvitaInvalidUsageException;
+import lombok.Getter;
+
+import javax.annotation.Nonnull;
+import java.io.Serial;
+import java.util.UUID;
 
 /**
- * This interface marks a class as a result of a job.
+ * Exception is thrown when a task with the given ID is not found.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public interface JobResult extends Serializable {
+public class TaskNotFoundException extends EvitaInvalidUsageException {
+	@Serial private static final long serialVersionUID = 6188715534953413955L;
+	@Getter private final UUID taskId;
+
+	public TaskNotFoundException(@Nonnull UUID taskId) {
+		super(
+			"Task not found: " + taskId,
+			"Task not found."
+		);
+		this.taskId = taskId;
+	}
 }

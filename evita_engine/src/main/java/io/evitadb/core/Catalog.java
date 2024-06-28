@@ -40,6 +40,7 @@ import io.evitadb.api.exception.SchemaAlteringException;
 import io.evitadb.api.exception.SchemaNotFoundException;
 import io.evitadb.api.exception.TemporalDataNotAvailableException;
 import io.evitadb.api.exception.TransactionException;
+import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.observability.trace.TracingContext;
 import io.evitadb.api.proxy.ProxyFactory;
 import io.evitadb.api.requestResponse.EvitaRequest;
@@ -68,8 +69,7 @@ import io.evitadb.api.requestResponse.system.CatalogVersion;
 import io.evitadb.api.requestResponse.system.CatalogVersionDescriptor;
 import io.evitadb.api.requestResponse.system.TimeFlow;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
-import io.evitadb.api.task.ProgressiveCompletableFuture;
-import io.evitadb.core.async.BackgroundCallableTask;
+import io.evitadb.api.task.Task;
 import io.evitadb.core.async.ObservableExecutorService;
 import io.evitadb.core.async.Scheduler;
 import io.evitadb.core.buffer.DataStoreChanges;
@@ -78,6 +78,7 @@ import io.evitadb.core.buffer.TransactionalDataStoreMemoryBuffer;
 import io.evitadb.core.buffer.WarmUpDataStoreMemoryBuffer;
 import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.exception.StorageImplementationNotFoundException;
+import io.evitadb.core.file.ExportFileService;
 import io.evitadb.core.metric.event.transaction.CatalogGoesLiveEvent;
 import io.evitadb.core.query.QueryPlan;
 import io.evitadb.core.query.QueryPlanner;
@@ -124,7 +125,6 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.InputStream;
 import java.io.Serializable;
-import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.util.*;
 import java.util.Map.Entry;
@@ -271,7 +271,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 	 * @param inputStream        the input stream with the catalog data
 	 * @return future that will be completed with path where the content of the catalog was restored
 	 */
-	public static BackgroundCallableTask<Path> restoreCatalogTo(
+	public static Task<?, Void> createRestoreCatalogTask(
 		@Nonnull String catalogName,
 		@Nonnull StorageOptions storageOptions,
 		long totalBytesExpected,
@@ -289,6 +289,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		@Nonnull EvitaConfiguration evitaConfiguration,
 		@Nonnull ReflectionLookup reflectionLookup,
 		@Nonnull Scheduler scheduler,
+		@Nonnull ExportFileService exportFileService,
 		@Nonnull ObservableExecutorService transactionalExecutor,
 		@Nonnull Consumer<Catalog> newCatalogVersionConsumer,
 		@Nonnull TracingContext tracingContext
@@ -304,7 +305,15 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		this.schema = new TransactionalReference<>(new CatalogSchemaDecorator(internalCatalogSchema));
 		this.persistenceService = ServiceLoader.load(CatalogPersistenceServiceFactory.class)
 			.findFirst()
-			.map(it -> it.createNew(this, this.getSchema().getName(), evitaConfiguration.storage(), evitaConfiguration.transaction(), scheduler))
+			.map(
+				it -> it.createNew(
+					this, this.getSchema().getName(),
+					evitaConfiguration.storage(),
+					evitaConfiguration.transaction(),
+					scheduler,
+					exportFileService
+				)
+			)
 			.orElseThrow(StorageImplementationNotFoundException::new);
 
 		this.catalogId = UUID.randomUUID();
@@ -347,6 +356,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		@Nonnull EvitaConfiguration evitaConfiguration,
 		@Nonnull ReflectionLookup reflectionLookup,
 		@Nonnull Scheduler scheduler,
+		@Nonnull ExportFileService exportFileService,
 		@Nonnull ObservableExecutorService transactionalExecutor,
 		@Nonnull Consumer<Catalog> newCatalogVersionConsumer,
 		@Nonnull TracingContext tracingContext
@@ -354,7 +364,15 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		this.tracingContext = tracingContext;
 		this.persistenceService = ServiceLoader.load(CatalogPersistenceServiceFactory.class)
 			.findFirst()
-			.map(it -> it.load(this, catalogName, evitaConfiguration.storage(), evitaConfiguration.transaction(), scheduler))
+			.map(
+				it -> it.load(
+					this, catalogName,
+					evitaConfiguration.storage(),
+					evitaConfiguration.transaction(),
+					scheduler,
+					exportFileService
+				)
+			)
 			.orElseThrow(() -> new IllegalStateException("IO service is unexpectedly not available!"));
 		final CatalogHeader catalogHeader = this.persistenceService.getCatalogHeader(
 			this.persistenceService.getLastCatalogVersion()
@@ -847,17 +865,10 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 
 	@Nonnull
 	@Override
-	public ProgressiveCompletableFuture<Path> backup(@Nullable OffsetDateTime pastMoment, boolean includingWAL) throws TemporalDataNotAvailableException {
-		final String catalogName = getName();
-		return this.scheduler.submit(
-			new BackgroundCallableTask<>(
-				catalogName,
-				"Backup catalog `" + catalogName + "` at " +
-					ofNullable(pastMoment).map(OffsetDateTime::toString).orElse("current moment") +
-					(includingWAL ? " including WAL" : ""),
-				task -> this.persistenceService.backup(task.getId(), pastMoment, includingWAL, task::updateProgress)
-			)
-		);
+	public CompletableFuture<FileForFetch> backup(@Nullable OffsetDateTime pastMoment, boolean includingWAL) throws TemporalDataNotAvailableException {
+		final Task<?, FileForFetch> backupTask = this.persistenceService.createBackupTask(pastMoment, includingWAL);
+		this.scheduler.submit(backupTask);
+		return backupTask.getFutureResult();
 	}
 
 	@Override

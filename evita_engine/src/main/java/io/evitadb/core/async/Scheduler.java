@@ -24,23 +24,23 @@
 package io.evitadb.core.async;
 
 import io.evitadb.api.configuration.ThreadPoolOptions;
-import io.evitadb.api.task.ProgressiveCompletableFuture;
+import io.evitadb.api.task.Task;
+import io.evitadb.api.task.TaskStatus;
+import io.evitadb.api.task.TaskStatus.State;
+import io.evitadb.dataType.PaginatedList;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
-import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
+import java.util.Optional;
+import java.util.UUID;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
 
 /**
  * Scheduler spins up a new {@link ScheduledThreadPoolExecutor} that regularly executes Evita maintenance jobs such as
@@ -62,34 +62,56 @@ public class Scheduler implements ObservableExecutorService {
 	 * Counter monitoring the number of tasks rejected by the executor service.
 	 */
 	private final AtomicLong rejectedTaskCount = new AtomicLong();
+	/**
+	 * Queue that holds the tasks that are currently being executed or waiting to be executed. It could also contain
+	 * already finished tasks that are subject to be removed.
+	 */
+	private final ArrayBlockingQueue<Task<?, ?>> queue;
+	/**
+	 * Rejected execution handler that is called when the queue is full and a new task cannot be added.
+	 */
+	private final EvitaRejectingExecutorHandler rejectingExecutorHandler;
 
 	public Scheduler(@Nonnull ThreadPoolOptions options) {
+		this.rejectingExecutorHandler = new EvitaRejectingExecutorHandler("service", this.rejectedTaskCount::incrementAndGet);
 		final ScheduledThreadPoolExecutor theExecutor = new ScheduledThreadPoolExecutor(
 			options.maxThreadCount(),
 			new EvitaThreadFactory(options.threadPriority()),
-			new EvitaRejectingExecutorHandler("service", this.rejectedTaskCount::incrementAndGet)
+			this.rejectingExecutorHandler
 		);
 		theExecutor.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
 		theExecutor.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
 		this.executorService = theExecutor;
+		// create queue with double the size of the configured queue size to have some breathing room
+		this.queue = new ArrayBlockingQueue<>(options.queueSize() << 1);
+		// schedule automatic purging task
+		new DelayedAsyncTask(
+			null,
+			"Scheduler queue purging task",
+			this,
+			this::purgeFinishedTasks,
+			1, TimeUnit.MINUTES
+		).schedule();
 	}
 
 	/**
 	 * This constructor is used only in tests.
+	 *
 	 * @param executorService to be used for scheduling tasks
 	 */
 	public Scheduler(@Nonnull ScheduledExecutorService executorService) {
 		this.executorService = executorService;
+		this.queue = new ArrayBlockingQueue<>(64);
+		this.rejectingExecutorHandler = null;
 	}
 
 	/**
 	 * Method schedules execution of `runnable` after `initialDelay` with frequency of `period`.
 	 *
-	 * @param runnable    the task to be executed
+	 * @param runnable     the task to be executed
 	 * @param initialDelay the initial delay before the first execution
 	 * @param period       the period between subsequent executions
 	 * @param timeUnit     the time unit of the initialDelay and period parameters
-	 *
 	 * @throws NullPointerException       if the runnable or timeUnit parameter is null
 	 * @throws RejectedExecutionException if the task cannot be scheduled for execution
 	 */
@@ -108,10 +130,10 @@ public class Scheduler implements ObservableExecutorService {
 	/**
 	 * Schedules the execution of a {@link Runnable} task after a specified delay.
 	 *
-	 * @param lambda The task to be executed.
-	 * @param delay The amount of time to delay the execution.
+	 * @param lambda     The task to be executed.
+	 * @param delay      The amount of time to delay the execution.
 	 * @param delayUnits The time unit of the delay parameter.
-	 * @throws NullPointerException if the lambda or delayUnits parameter is null.
+	 * @throws NullPointerException       if the lambda or delayUnits parameter is null.
 	 * @throws RejectedExecutionException if the task cannot be scheduled for execution.
 	 */
 	public void schedule(@Nonnull Runnable lambda, long delay, @Nonnull TimeUnit delayUnits) {
@@ -125,7 +147,7 @@ public class Scheduler implements ObservableExecutorService {
 	 * will be executed "as soon as possible".
 	 *
 	 * @param runnable the runnable task to be executed
-	 * @throws NullPointerException if the runnable parameter is null
+	 * @throws NullPointerException       if the runnable parameter is null
 	 * @throws RejectedExecutionException if the task cannot be submitted for execution
 	 */
 	@Override
@@ -170,20 +192,6 @@ public class Scheduler implements ObservableExecutorService {
 	@Override
 	public boolean awaitTermination(long timeout, @Nonnull TimeUnit unit) throws InterruptedException {
 		return executorService.awaitTermination(timeout, unit);
-	}
-
-	@Nonnull
-	public <T> ProgressiveCompletableFuture<T> submit(@Nonnull BackgroundCallableTask<T> task) {
-		this.executorService.submit(task);
-		this.submittedTaskCount.incrementAndGet();
-		return task.getFuture();
-	}
-
-	@Nonnull
-	public ProgressiveCompletableFuture<Void> submit(@Nonnull BackgroundRunnableTask task) {
-		this.executorService.submit(task);
-		this.submittedTaskCount.incrementAndGet();
-		return task.getFuture();
 	}
 
 	@Nonnull
@@ -239,6 +247,128 @@ public class Scheduler implements ObservableExecutorService {
 		final T result = executorService.invokeAny(tasks, timeout, unit);
 		this.submittedTaskCount.incrementAndGet();
 		return result;
+	}
+
+	@Nonnull
+	public <T> CompletableFuture<T> submit(@Nonnull Task<?, T> task) {
+		addTaskToQueue(task);
+		this.executorService.submit(task::execute);
+		this.submittedTaskCount.incrementAndGet();
+		return task.getFutureResult();
+	}
+
+	/**
+	 * Returns a paginated list of all tasks that are currently in the queue - either waiting to be executed or
+	 * currently running, or recently finished.
+	 *
+	 * @param page     the page number (starting from 1)
+	 * @param pageSize the size of the page
+	 * @return the paginated list of tasks
+	 */
+	@Nonnull
+	public PaginatedList<TaskStatus<?, ?>> getJobStatuses(int page, int pageSize) {
+		return new PaginatedList<>(
+			page, pageSize, this.queue.size(),
+			this.queue.stream()
+				.skip(PaginatedList.getFirstItemNumberForPage(page, pageSize))
+				.limit(pageSize)
+				.map(Task::getStatus)
+				.collect(Collectors.toCollection(ArrayList::new))
+		);
+	}
+
+	/**
+	 * Returns job status for the specified jobId or empty if the job is not found.
+	 * @param jobId jobId of the job
+	 * @return job status
+	 */
+	@Nonnull
+	public Optional<TaskStatus<?, ?>> getJobStatus(@Nonnull UUID jobId) {
+		return this.queue.stream()
+			.filter(it -> it.getStatus().taskId().equals(jobId))
+			.findFirst()
+			.map(Task::getStatus);
+	}
+
+	/**
+	 * Cancels the job with the specified jobId. If the job is waiting in the queue, it will be removed from the queue.
+	 * If the job is already running, it must support cancelling to be interrupted and canceled.
+	 *
+	 * @param jobId jobId of the job
+	 * @return true if the job was found and cancellation triggered, false if the job was not found
+	 */
+	public boolean cancelJob(@Nonnull UUID jobId) {
+		return this.queue.stream()
+			.filter(it -> it.getStatus().taskId().equals(jobId))
+			.findFirst()
+			.map(theJob -> {
+				theJob.cancel();
+				return true;
+			})
+			.orElse(false);
+	}
+
+	/**
+	 * Wraps the task into an observable task and adds it to the queue. Returns the same type as the input argument
+	 * to allow for fluent chaining.
+	 *
+	 * @param task the task to add
+	 * @param <T>  the type of the task
+	 * @return the task that was added and wrapped
+	 */
+	@Nonnull
+	private <T extends Task<?, ?>> T addTaskToQueue(@Nonnull T task) {
+		try {
+			// add the task to the queue
+			this.queue.add(task);
+		} catch (IllegalStateException e) {
+			// this means the queue is full, so we need to remove some tasks
+			this.purgeFinishedTasks();
+			// and try adding the task again
+			try {
+				this.queue.add(task);
+			} catch (IllegalStateException exceptionAgain) {
+				// and this should never happen since queue was cleared of finished and timed out tasks and its size
+				// is double the configured size
+				if (this.rejectingExecutorHandler != null) {
+					this.rejectingExecutorHandler.rejectedExecution();
+				}
+				task.fail(exceptionAgain);
+				throw exceptionAgain;
+			}
+		}
+		return task;
+	}
+
+	/**
+	 * Iterates over all tasks in {@link #queue} in a batch manner and removes all finished tasks. Tasks that are
+	 * still waiting or running are added to the tail of the queue again.
+	 */
+	private long purgeFinishedTasks() {
+		// go through the entire queue, but only once
+		final int bufferSize = 512;
+		final ArrayList<Task<?, ?>> buffer = new ArrayList<>(bufferSize);
+		final int queueSize = this.queue.size();
+		for (int i = 0; i < queueSize; i++) {
+			// effectively withdraw first block of tasks from the queue
+			this.queue.drainTo(buffer, bufferSize);
+			// now go through all of them
+			final Iterator<Task<?, ?>> it = buffer.iterator();
+			while (it.hasNext()) {
+				final Task<?, ?> task = it.next();
+				final State taskState = task.getStatus().state();
+				if (taskState == State.FINISHED || taskState == State.FAILED) {
+					// if task is finished, remove it from the queue
+					it.remove();
+				}
+			}
+			// add the remaining tasks back to the queue in an effective way
+			this.queue.addAll(buffer);
+			// clear the buffer for the next iteration
+			buffer.clear();
+		}
+		// plan to next standard time
+		return 0L;
 	}
 
 	/**

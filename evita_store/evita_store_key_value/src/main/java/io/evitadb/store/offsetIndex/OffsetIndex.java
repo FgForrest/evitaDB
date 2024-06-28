@@ -82,6 +82,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.IntConsumer;
 import java.util.function.LongConsumer;
 import java.util.stream.Collectors;
 
@@ -721,12 +722,14 @@ public class OffsetIndex {
 	 * the caller is responsible for closing the stream.
 	 *
 	 * @param outputStream   target output stream to write the copy to
+	 * @param progressConsumer consumer that will be called with the progress of the copy
 	 * @param catalogVersion will be propagated to {@link StorageRecord#transactionId()}
 	 * @return result containing the file location and the file descriptor actual when the copy was made
 	 */
 	@Nonnull
 	public OffsetIndexDescriptor copySnapshotTo(
 		@Nonnull OutputStream outputStream,
+		@Nullable IntConsumer progressConsumer,
 		long catalogVersion,
 		@Nullable StoragePart... updatedStorageParts
 	) {
@@ -769,9 +772,11 @@ public class OffsetIndex {
 							final FileLocationAndWrittenBytes locationAndWrittenBytes = OffsetIndexSerializationService.copySnapshotTo(
 								this,
 								randomAccessFileInputStream,
-								outputStream, catalogVersion,
+								outputStream,
+								catalogVersion,
 								overriddenEntries,
-								this.volatileValues
+								this.volatileValues,
+								progressConsumer
 							);
 							return new OffsetIndexDescriptor(
 								this.fileOffsetDescriptor.version() + 1,
@@ -954,7 +959,7 @@ public class OffsetIndex {
 	@Nonnull
 	public OffsetIndexDescriptor compact(@Nonnull Path newFilePath) {
 		try (final FileOutputStream fos = new FileOutputStream(newFilePath.toFile())) {
-			return copySnapshotTo(fos, this.keyCatalogVersion);
+			return copySnapshotTo(fos, null, this.keyCatalogVersion);
 		} catch (IOException e) {
 			throw new UnexpectedIOException(
 				"Error occurred while compacting the snapshot to the new file: " + e.getMessage(),

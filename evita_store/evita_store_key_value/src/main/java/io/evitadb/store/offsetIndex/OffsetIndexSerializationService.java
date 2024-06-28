@@ -54,6 +54,7 @@ import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.IntConsumer;
 import java.util.zip.CRC32C;
 
 import static java.util.Optional.ofNullable;
@@ -223,7 +224,8 @@ public class OffsetIndexSerializationService {
 		@Nonnull OutputStream outputStream,
 		long catalogVersion,
 		@Nonnull Map<RecordKey, byte[]> valuesToOverride,
-		@Nonnull VolatileValues volatileValues
+		@Nonnull VolatileValues volatileValues,
+		@Nullable IntConsumer progressConsumer
 	) {
 		// we don't close neither input stream nor the output stream
 		// input stream is still used in callee and the output stream is managed by the callee
@@ -238,6 +240,7 @@ public class OffsetIndexSerializationService {
 		}
 		final Collection<Entry<RecordKey, FileLocation>> entries = offsetIndex.getEntries();
 		final Collection<VersionedValue> nonFlushedValues = new ArrayList<>(entries.size());
+		int counter = 0;
 		final Iterator<Entry<RecordKey, FileLocation>> it = entries.iterator();
 		while (it.hasNext()) {
 			final Entry<RecordKey, FileLocation> entry = it.next();
@@ -271,6 +274,10 @@ public class OffsetIndexSerializationService {
 					return payload;
 				}
 			);
+			counter++;
+			if (progressConsumer != null) {
+				progressConsumer.accept(counter);
+			}
 
 			// finally, register non-flushed value
 			final RecordKey key = entry.getKey();
@@ -302,6 +309,7 @@ public class OffsetIndexSerializationService {
 		@Nullable FileLocation lastFileOffsetIndexLocation,
 		@Nonnull StorageOptions storageOptions
 	) {
+		final int totalEntryCount = nonFlushedEntries.size();
 		final Iterator<VersionedValue> entries = nonFlushedEntries.iterator();
 
 		// start with full buffer

@@ -23,34 +23,30 @@
 
 package io.evitadb.core.async;
 
-import io.evitadb.api.task.ProgressiveCompletableFuture;
 import io.evitadb.test.TestConstants;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ForkJoinPool;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * This test verifies behavior of the {@link BackgroundCallableTask} class.
+ * This test verifies behavior of the {@link ClientCallableTask} class.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-class BackgroundCallableTaskTest implements TestConstants {
+class ClientCallableTaskTest implements TestConstants {
 
 	@Test
 	void shouldCombineBackgroundTasksUsingFutures() throws ExecutionException, InterruptedException {
-		final BackgroundCallableTask<Integer> task1 = new BackgroundCallableTask<>("task1", task -> 1);
-		final BackgroundCallableTask<Integer> task2 = new BackgroundCallableTask<>("task2", task -> 2);
-		final CompletableFuture<Integer> result = task1.getFuture().thenCombine(task2.getFuture(), Integer::sum);
+		final ClientCallableTask<Void, Integer> task1 = new ClientCallableTask<>("task1", null, task -> 1);
+		final ClientCallableTask<Void, Integer> task2 = new ClientCallableTask<>("task2", null, task -> 2);
+		final CompletableFuture<Integer> result = task1.getFutureResult().thenCombine(task2.getFutureResult(), Integer::sum);
 
 		assertEquals(1, task1.execute());
 		assertEquals(2, task2.execute());
@@ -59,9 +55,9 @@ class BackgroundCallableTaskTest implements TestConstants {
 
 	@Test
 	void shouldCombineBackgroundTasksUsingFuturesAndExecutor() throws ExecutionException, InterruptedException {
-		final BackgroundCallableTask<Integer> task1 = new BackgroundCallableTask<>("task1", task -> 1);
-		final BackgroundCallableTask<Integer> task2 = new BackgroundCallableTask<>("task2", task -> 2);
-		final CompletableFuture<Integer> result = task1.getFuture().thenCombine(task2.getFuture(), Integer::sum);
+		final ClientCallableTask<Void, Integer> task1 = new ClientCallableTask<>("task1", null, task -> 1);
+		final ClientCallableTask<Void, Integer> task2 = new ClientCallableTask<>("task2", null, task -> 2);
+		final CompletableFuture<Integer> result = task1.getFutureResult().thenCombine(task2.getFutureResult(), Integer::sum);
 
 		ForkJoinPool.commonPool().invokeAll(Arrays.asList(task1, task2));
 
@@ -70,8 +66,8 @@ class BackgroundCallableTaskTest implements TestConstants {
 
 	@Test
 	void shouldPropagateInformationAboutProgress() throws ExecutionException, InterruptedException {
-		final BackgroundCallableTask<Integer> task = new BackgroundCallableTask<>(
-			"task",
+		final ClientCallableTask<Void, Integer> task = new ClientCallableTask<>(
+			"task", null,
 			theTask -> sleepingUpdateTask(theTask, 100, 2)
 		);
 
@@ -86,7 +82,7 @@ class BackgroundCallableTaskTest implements TestConstants {
 
 		final ArrayList<Integer> progress = new ArrayList<>();
 		do {
-			final int theProgress = task.getProgress();
+			final int theProgress = task.getStatus().progress();
 			if (progress.isEmpty() || progress.get(progress.size() - 1) < theProgress) {
 				progress.add(theProgress);
 			}
@@ -96,44 +92,7 @@ class BackgroundCallableTaskTest implements TestConstants {
 		assertFalse(progress.isEmpty());
 	}
 
-	@Test
-	void shouldCorrectlyCalculateCumulatedProgress() throws ExecutionException, InterruptedException {
-		final BackgroundCallableTask<Integer> task1 = new BackgroundCallableTask<>(
-			"task1",
-			theTask -> sleepingUpdateTask(theTask, 2, 100)
-		);
-
-		final BackgroundCallableTask<Integer> task2 = new BackgroundCallableTask<>(
-			"task2",
-			theTask -> sleepingUpdateTask(theTask, 2, 100)
-		);
-
-		final ProgressiveCompletableFuture<Integer> finalFuture = task1.getFuture().andThen(result -> task2.getFuture());
-		final ForkJoinPool forkJoinPool = new ForkJoinPool(1);
-		forkJoinPool.submit(task1);
-		forkJoinPool.submit(task2);
-
-		final ArrayList<Integer> progress = new ArrayList<>();
-		do {
-			final int theProgress = finalFuture.getProgress();
-			if (theProgress > -1 && (progress.isEmpty() || progress.get(progress.size() - 1) < theProgress)) {
-				progress.add(theProgress);
-			}
-		} while (!finalFuture.isDone());
-
-		assertEquals(1, finalFuture.get());
-		assertEquals(100, finalFuture.getProgress());
-		assertFalse(progress.isEmpty());
-		final Set<Integer> allowedTicks = new HashSet<>(5);
-		for (int i = 0; i <= 4; i++) {
-			allowedTicks.add(i * 25);
-		}
-		for (Integer progressTick : progress) {
-			assertTrue(allowedTicks.contains(progressTick), "Progress should be divisible by 4, but is " + progressTick);
-		}
-	}
-
-	private int sleepingUpdateTask(BackgroundCallableTask<Integer> theTask, int ticks, int waitMillis) {
+	private int sleepingUpdateTask(ClientCallableTask<Void, Integer> theTask, int ticks, int waitMillis) {
 		try {
 			for (int i = 0; i < ticks; i++) {
 				theTask.updateProgress(i * (100 / ticks));

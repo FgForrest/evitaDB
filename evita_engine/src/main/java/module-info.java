@@ -35,6 +35,7 @@ module evita.engine {
 	exports io.evitadb.core.cache;
 	exports io.evitadb.core.cache.model;
 	exports io.evitadb.core.cache.payload;
+	exports io.evitadb.core.file;
 	exports io.evitadb.core.metric.event;
 	exports io.evitadb.core.metric.event.cache;
 	exports io.evitadb.core.metric.event.query;

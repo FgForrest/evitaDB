@@ -38,9 +38,11 @@ import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.exception.CatalogAlreadyPresentException;
 import io.evitadb.api.exception.CatalogNotFoundException;
+import io.evitadb.api.exception.FileForFetchNotFoundException;
 import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.exception.ReadOnlyException;
 import io.evitadb.api.exception.TemporalDataNotAvailableException;
+import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.observability.trace.TracingContext;
 import io.evitadb.api.observability.trace.TracingContextProvider;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
@@ -54,18 +56,19 @@ import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchem
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaNameMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.RemoveCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.system.SystemStatus;
-import io.evitadb.api.task.JobStatus;
-import io.evitadb.api.task.ProgressiveCompletableFuture;
-import io.evitadb.core.async.BackgroundCallableTask;
-import io.evitadb.core.async.BackgroundRunnableTask;
+import io.evitadb.api.task.Task;
+import io.evitadb.api.task.TaskStatus;
+import io.evitadb.core.async.ClientRunnableTask;
 import io.evitadb.core.async.ObservableExecutorService;
 import io.evitadb.core.async.ObservableThreadExecutor;
 import io.evitadb.core.async.Scheduler;
+import io.evitadb.core.async.SequentialTask;
+import io.evitadb.core.async.SessionKiller;
 import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.cache.HeapMemoryCacheSupervisor;
 import io.evitadb.core.cache.NoCacheSupervisor;
 import io.evitadb.core.exception.CatalogCorruptedException;
-import io.evitadb.core.maintenance.SessionKiller;
+import io.evitadb.core.file.ExportFileService;
 import io.evitadb.core.metric.event.storage.EvitaDBCompositionChangedEvent;
 import io.evitadb.core.metric.event.system.EvitaStartedEvent;
 import io.evitadb.core.query.algebra.Formula;
@@ -87,9 +90,12 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Closeable;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.*;
@@ -179,6 +185,10 @@ public final class Evita implements EvitaContract {
 	@Getter
 	private final Scheduler serviceExecutor;
 	/**
+	 * File service that maintains exported files and purges them eventually.
+	 */
+	private final ExportFileService exportFileService;
+	/**
 	 * Temporary storage that keeps catalog being removed reference so that onDelete callback can still access it.
 	 */
 	private final ThreadLocal<CatalogContract> removedCatalog = new ThreadLocal<>();
@@ -236,6 +246,7 @@ public final class Evita implements EvitaContract {
 			this.serviceExecutor, configuration.server().transactionTimeoutInMilliseconds()
 		);
 
+		this.exportFileService = new ExportFileService(configuration.storage());
 		this.sessionKiller = of(configuration.server().closeSessionsAfterSecondsOfInactivity())
 			.filter(it -> it > 0)
 			.map(it -> new SessionKiller(it, this, this.serviceExecutor))
@@ -259,8 +270,9 @@ public final class Evita implements EvitaContract {
 		try {
 			CompletableFuture.allOf(
 				Arrays.stream(directories)
-					.map(dir -> loadCatalog(dir.toFile().getName()))
-					.toArray(ProgressiveCompletableFuture[]::new)
+					.map(dir -> createLoadCatalogTask(dir.toFile().getName()))
+					.map(this.serviceExecutor::submit)
+					.toArray(CompletableFuture[]::new)
 			).get();
 			this.active = true;
 		} catch (Exception ex) {
@@ -531,7 +543,11 @@ public final class Evita implements EvitaContract {
 
 	@Nonnull
 	@Override
-	public ProgressiveCompletableFuture<Path> backupCatalog(@Nonnull String catalogName, @Nullable OffsetDateTime pastMoment, boolean includingWAL) throws TemporalDataNotAvailableException {
+	public CompletableFuture<FileForFetch> backupCatalog(
+		@Nonnull String catalogName,
+		@Nullable OffsetDateTime pastMoment,
+		boolean includingWAL
+	) throws TemporalDataNotAvailableException {
 		assertActive();
 		try (final EvitaSessionContract session = this.createSession(new SessionTraits(catalogName))) {
 			return session.backupCatalog(pastMoment, includingWAL);
@@ -540,41 +556,84 @@ public final class Evita implements EvitaContract {
 
 	@Nonnull
 	@Override
-	public ProgressiveCompletableFuture<Void> restoreCatalog(
+	public CompletableFuture<Void> restoreCatalog(
 		@Nonnull String catalogName,
 		long totalBytesExpected,
 		@Nonnull InputStream inputStream
 	) throws UnexpectedIOException {
 		assertActive();
-
-		final BackgroundCallableTask<Path> restoreTask = Catalog.restoreCatalogTo(
-			catalogName, this.configuration.storage(), totalBytesExpected, inputStream
+		return this.serviceExecutor.submit(
+			new SequentialTask<>(
+				catalogName,
+				"Restore catalog " + catalogName + " from backup.",
+				Catalog.createRestoreCatalogTask(
+					catalogName, this.configuration.storage(), totalBytesExpected, inputStream
+				),
+				createLoadCatalogTask(catalogName)
+			)
 		);
-		return this.serviceExecutor.submit(restoreTask)
-			// finally, try to load catalog from the disk
-			.andThen(path -> loadCatalog(catalogName));
 	}
 
 	@Nonnull
 	@Override
-	public PaginatedList<JobStatus<?, ?>> getJobStatuses(int page, int pageSize) {
-		return null;
+	public CompletableFuture<Void> restoreCatalog(@Nonnull String catalogName, @Nonnull UUID fileId) throws FileForFetchNotFoundException {
+		assertActive();
+		final FileForFetch file = this.exportFileService.getFile(fileId);
+		try {
+			return this.serviceExecutor.submit(
+				new SequentialTask<>(
+					catalogName,
+					"Restore catalog " + catalogName + " from backup.",
+					Catalog.createRestoreCatalogTask(
+						catalogName, this.configuration.storage(),
+						file.totalSizeInBytes(),
+						Files.newInputStream(file.path(), StandardOpenOption.READ)
+					),
+					createLoadCatalogTask(catalogName)
+				)
+			);
+		} catch (IOException e) {
+			throw new FileForFetchNotFoundException(fileId);
+		}
 	}
 
 	@Nonnull
 	@Override
-	public Optional<JobStatus<?, ?>> getJobStatus(@Nonnull UUID jobId) {
-		return Optional.empty();
+	public PaginatedList<TaskStatus<?, ?>> listTaskStatuses(int page, int pageSize) {
+		assertActive();
+		return this.serviceExecutor.getJobStatuses(page, pageSize);
+	}
+
+	@Nonnull
+	@Override
+	public Optional<TaskStatus<?, ?>> getTaskStatus(@Nonnull UUID jobId) {
+		assertActive();
+		return this.serviceExecutor.getJobStatus(jobId);
 	}
 
 	@Override
-	public boolean cancelJob(@Nonnull UUID jobId) {
-		return false;
+	public boolean cancelTask(@Nonnull UUID jobId) {
+		assertActive();
+		return this.serviceExecutor.cancelJob(jobId);
+	}
+
+	@Nonnull
+	@Override
+	public PaginatedList<FileForFetch> listFilesToFetch(int page, int pageSize, @Nullable String origin) {
+		assertActive();
+		return this.exportFileService.listFilesToFetch(page, pageSize, origin);
 	}
 
 	@Override
-	public void writeFile(@Nonnull UUID fileId, @Nonnull OutputStream outputStream) {
+	public void fetchFile(@Nonnull UUID fileId, @Nonnull OutputStream outputStream) throws FileForFetchNotFoundException, UnexpectedIOException {
+		assertActive();
+		this.exportFileService.fetchFile(fileId, outputStream);
+	}
 
+	@Override
+	public void deleteFile(@Nonnull UUID fileId) throws FileForFetchNotFoundException {
+		assertActive();
+		this.exportFileService.deleteFile(fileId);
 	}
 
 	@Nonnull
@@ -650,55 +709,41 @@ public final class Evita implements EvitaContract {
 	 * @param catalogName name of the catalog
 	 */
 	@Nonnull
-	private ProgressiveCompletableFuture<Void> loadCatalog(@Nonnull String catalogName) {
-		return this.serviceExecutor.submit(
-			new BackgroundCallableTask<>(
-				catalogName,
-				"Loading catalog " + catalogName + " from disk...",
-				() -> {
-					final long start = System.nanoTime();
-					final Catalog theCatalog = new Catalog(
-						catalogName,
-						this.cacheSupervisor,
-						this.configuration,
-						this.reflectionLookup,
-						this.serviceExecutor,
-						this.transactionExecutor,
-						this::replaceCatalogReference,
-						this.tracingContext
-					);
-					log.info("Catalog {} fully loaded in: {}", catalogName, StringUtils.formatNano(System.nanoTime() - start));
-					return theCatalog;
-				},
-				exception -> {
-					log.error("Catalog {} is corrupted!", catalogName);
-					return new CorruptedCatalog(
+	private Task<Void, Void> createLoadCatalogTask(@Nonnull String catalogName) {
+		return new ClientRunnableTask<>(
+			catalogName,
+			"Loading catalog " + catalogName + " from disk...",
+			null,
+			() -> {
+				final long start = System.nanoTime();
+				final Catalog theCatalog = new Catalog(
+					catalogName,
+					this.cacheSupervisor,
+					this.configuration,
+					this.reflectionLookup,
+					this.serviceExecutor,
+					this.exportFileService,
+					this.transactionExecutor,
+					this::replaceCatalogReference,
+					this.tracingContext
+				);
+				log.info("Catalog {} fully loaded in: {}", catalogName, StringUtils.formatNano(System.nanoTime() - start));
+				// this will be one day used in more clever way, when entire catalog loading will be split into
+				// multiple smaller tasks and done asynchronously after the startup (along with catalog loading / unloading feature)
+				theCatalog.processWriteAheadLog(
+					updatedCatalog -> this.catalogs.put(catalogName, updatedCatalog)
+				);
+			},
+			exception -> {
+				log.error("Catalog {} is corrupted!", catalogName, exception);
+				this.catalogs.put(
+					catalogName,
+					new CorruptedCatalog(
 						catalogName,
 						configuration.storage().storageDirectoryOrDefault().resolve(catalogName),
 						exception
-					);
-				}
-			)
-		).andThen(
-			catalog -> {
-				if (catalog instanceof CorruptedCatalog) {
-					this.catalogs.put(catalogName, catalog);
-					return ProgressiveCompletableFuture.completed();
-				} else {
-					return this.serviceExecutor.submit(
-						new BackgroundRunnableTask(
-							catalogName,
-							"Processing write ahead log of " + catalogName + "...",
-							() -> {
-								// this will be one day used in more clever way, when entire catalog loading will be split into
-								// multiple smaller tasks and done asynchronously after the startup (along with catalog loading / unloading feature)
-								catalog.processWriteAheadLog(
-									updatedCatalog -> this.catalogs.put(catalogName, updatedCatalog)
-								);
-							}
-						)
-					);
-				}
+					)
+				);
 			}
 		);
 	}
@@ -748,6 +793,7 @@ public final class Evita implements EvitaContract {
 						this.configuration,
 						this.reflectionLookup,
 						this.serviceExecutor,
+						this.exportFileService,
 						this.transactionExecutor,
 						this::replaceCatalogReference,
 						this.tracingContext

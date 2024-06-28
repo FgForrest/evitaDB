@@ -34,6 +34,7 @@ import io.evitadb.api.exception.EntityTypeAlreadyPresentInCatalogSchemaException
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.UnexpectedResultCountException;
 import io.evitadb.api.exception.UnexpectedResultException;
+import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.mock.MockCatalogStructuralChangeObserver;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
@@ -54,7 +55,6 @@ import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
-import io.evitadb.api.task.ProgressiveCompletableFuture;
 import io.evitadb.core.Evita;
 import io.evitadb.core.exception.AttributeNotFilterableException;
 import io.evitadb.core.exception.AttributeNotSortableException;
@@ -96,6 +96,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -1677,12 +1678,12 @@ class EvitaTest implements EvitaTestSupport {
 	void shouldCreateBackupAndRestoreCatalog() throws IOException, ExecutionException, InterruptedException {
 		setupCatalogWithProductAndCategory();
 
-		final ProgressiveCompletableFuture<Path> backupPathFuture = evita.backupCatalog(TEST_CATALOG, null, true);
-		final Path backupPath = backupPathFuture.join();
+		final CompletableFuture<FileForFetch> backupPathFuture = evita.backupCatalog(TEST_CATALOG, null, true);
+		final Path backupPath = backupPathFuture.join().path();
 
 		assertTrue(backupPath.toFile().exists());
 
-		final ProgressiveCompletableFuture<Void> future = evita.restoreCatalog(
+		final CompletableFuture<Void> future = evita.restoreCatalog(
 			TEST_CATALOG + "_restored",
 			Files.size(backupPath),
 			new BufferedInputStream(new FileInputStream(backupPath.toFile()))
@@ -1727,12 +1728,12 @@ class EvitaTest implements EvitaTestSupport {
 			session.goLiveAndClose();
 		});
 
-		final ProgressiveCompletableFuture<Path> backupPathFuture = evita.backupCatalog(TEST_CATALOG, null, true);
-		final Path backupPath = backupPathFuture.join();
+		final CompletableFuture<FileForFetch> backupPathFuture = evita.backupCatalog(TEST_CATALOG, null, true);
+		final Path backupPath = backupPathFuture.join().path();
 
 		assertTrue(backupPath.toFile().exists());
 
-		final ProgressiveCompletableFuture<Void> future = evita.restoreCatalog(
+		final CompletableFuture<Void> future = evita.restoreCatalog(
 			TEST_CATALOG + "_restored",
 			Files.size(backupPath),
 			new BufferedInputStream(new FileInputStream(backupPath.toFile()))
@@ -1974,6 +1975,7 @@ class EvitaTest implements EvitaTestSupport {
 			.storage(
 				StorageOptions.builder()
 					.storageDirectory(getEvitaTestDirectory())
+					.exportDirectory(getEvitaTestDirectory())
 					.timeTravelEnabled(false)
 					.build()
 			)

@@ -34,6 +34,7 @@ import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.ThreadPoolOptions;
 import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.api.exception.RollbackException;
+import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.query.QueryConstraints;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
@@ -50,7 +51,6 @@ import io.evitadb.api.requestResponse.system.CatalogVersionDescriptor;
 import io.evitadb.api.requestResponse.system.CatalogVersionDescriptor.TransactionChanges;
 import io.evitadb.api.requestResponse.system.TimeFlow;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
-import io.evitadb.api.task.ProgressiveCompletableFuture;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.Evita;
 import io.evitadb.core.EvitaSession;
@@ -1184,14 +1184,14 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 				.build()
 		);
 
-		final AtomicReference<ProgressiveCompletableFuture<Path>> lastBackupProcess = new AtomicReference<>();
+		final AtomicReference<CompletableFuture<FileForFetch>> lastBackupProcess = new AtomicReference<>();
 		final Set<PkWithCatalogVersion> insertedPrimaryKeysAndAssociatedTxs = automaticallyGenerateEntitiesInParallel(
 			evita, productSchema, theEvita -> {
 				lastBackupProcess.set(theEvita.backupCatalog(TEST_CATALOG, null, false));
 			}
 		);
 
-		final Path backupFilePath = lastBackupProcess.get().get();
+		final Path backupFilePath = lastBackupProcess.get().get().path();
 		assertTrue(backupFilePath.toFile().exists(), "Backup file does not exist!");
 
 		final String restoredCatalogName = TEST_CATALOG + "_restored";
@@ -1274,14 +1274,14 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 				.build()
 		);
 
-		final AtomicReference<ProgressiveCompletableFuture<Path>> lastBackupProcess = new AtomicReference<>();
+		final AtomicReference<CompletableFuture<FileForFetch>> lastBackupProcess = new AtomicReference<>();
 		final Set<PkWithCatalogVersion> insertedPrimaryKeysAndAssociatedTxs = automaticallyGenerateEntitiesInParallel(
 			evita, productSchema, theEvita -> {
 				lastBackupProcess.set(theEvita.backupCatalog(TEST_CATALOG, null, true));
 			}
 		);
 
-		final Path backupFilePath = lastBackupProcess.get().get();
+		final Path backupFilePath = lastBackupProcess.get().get().path();
 		assertTrue(backupFilePath.toFile().exists(), "Backup file does not exist!");
 
 		final String restoredCatalogName = TEST_CATALOG + "_restored";
@@ -1501,7 +1501,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 							log.info("Bootstrap record: " + record);
 							// create backup from each point in time
 							final Path backupPath = restartedEvita.backupCatalog(TEST_CATALOG, record.timestamp(), false)
-								.get(2, TimeUnit.MINUTES);
+								.get(2, TimeUnit.MINUTES).path();
 							// restore it to unique new catalog
 							final String restoredCatalogName = TEST_CATALOG + "_restored_" + record.catalogVersion();
 							try (final InputStream inputStream = Files.newInputStream(backupPath)) {

@@ -26,15 +26,17 @@ package io.evitadb.api;
 import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.exception.CatalogAlreadyPresentException;
+import io.evitadb.api.exception.FileForFetchNotFoundException;
 import io.evitadb.api.exception.InstanceTerminatedException;
+import io.evitadb.api.exception.TaskNotFoundException;
 import io.evitadb.api.exception.TemporalDataNotAvailableException;
 import io.evitadb.api.exception.TransactionException;
+import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.system.SystemStatus;
-import io.evitadb.api.task.JobStatus;
-import io.evitadb.api.task.ProgressiveCompletableFuture;
+import io.evitadb.api.task.TaskStatus;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -45,7 +47,6 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.util.Optional;
 import java.util.Set;
@@ -362,7 +363,7 @@ public interface EvitaContract extends AutoCloseable {
 	/**
 	 * Creates a backup of the specified catalog and returns an InputStream to read the binary data of the zip file.
 	 *
-	 * @param catalogName the name of the catalog to backup
+	 * @param catalogName  the name of the catalog to backup
 	 * @param pastMoment   leave null for creating backup for actual dataset, or specify past moment to create backup for
 	 *                     the dataset as it was at that moment
 	 * @param includingWAL if true, the backup will include the Write-Ahead Log (WAL) file and when the catalog is
@@ -371,55 +372,98 @@ public interface EvitaContract extends AutoCloseable {
 	 * @throws TemporalDataNotAvailableException when the past data is not available
 	 */
 	@Nonnull
-	ProgressiveCompletableFuture<Path> backupCatalog(@Nonnull String catalogName, @Nullable OffsetDateTime pastMoment, boolean includingWAL) throws TemporalDataNotAvailableException;
+	CompletableFuture<FileForFetch> backupCatalog(@Nonnull String catalogName, @Nullable OffsetDateTime pastMoment, boolean includingWAL) throws TemporalDataNotAvailableException;
 
 	/**
 	 * Restores a catalog from the provided InputStream which contains the binary data of a previously backed up zip
 	 * file. The input stream is closed within the method.
 	 *
-	 * @param catalogName the name of the catalog to restore
+	 * @param catalogName        the name of the catalog to restore
 	 * @param totalBytesExpected total bytes expected to be read from the input stream
-	 * @param inputStream an InputStream to read the binary data of the zip file
+	 * @param inputStream        an InputStream to read the binary data of the zip file
 	 * @return jobId of the restore process
 	 * @throws UnexpectedIOException if an I/O error occurs
 	 */
 	@Nonnull
-	ProgressiveCompletableFuture<Void> restoreCatalog(
+	CompletableFuture<Void> restoreCatalog(
 		@Nonnull String catalogName,
 		long totalBytesExpected,
 		@Nonnull InputStream inputStream
 	) throws UnexpectedIOException;
 
 	/**
-	 * TODO JNO - document me
-	 * @param page
-	 * @param pageSize
-	 * @return
+	 * Restores a catalog from the provided InputStream which contains the binary data of a previously backed up zip
+	 * file. The input stream is closed within the method.
+	 *
+	 * @param catalogName the name of the catalog to restore
+	 * @param fileId      fileId of the file containing the binary data of the zip file
+	 * @return jobId of the restore process
+	 * @throws UnexpectedIOException if an I/O error occurs
 	 */
 	@Nonnull
-	PaginatedList<JobStatus<?, ?>> getJobStatuses(int page, int pageSize);
+	CompletableFuture<Void> restoreCatalog(
+		@Nonnull String catalogName,
+		@Nonnull UUID fileId
+	) throws FileForFetchNotFoundException;
 
 	/**
-	 * TODO JNO - document me
-	 * @param jobId
-	 * @return
+	 * Returns list of jobs that are currently running or have been finished recently in paginated fashion.
+	 *
+	 * @param page     page number (1-based)
+	 * @param pageSize number of items per page
+	 * @return list of jobs
 	 */
 	@Nonnull
-	Optional<JobStatus<?, ?>> getJobStatus(@Nonnull UUID jobId);
+	PaginatedList<TaskStatus<?, ?>> listTaskStatuses(int page, int pageSize);
 
 	/**
-	 * TODO JNO - document me
-	 * @param jobId
-	 * @return
+	 * Returns job status for the specified jobId or empty if the job is not found.
+	 *
+	 * @param jobId jobId of the job
+	 * @return job status
+	 * @throws TaskNotFoundException if the job with the specified jobId is not found
 	 */
-	boolean cancelJob(@Nonnull UUID jobId);
+	@Nonnull
+	Optional<TaskStatus<?, ?>> getTaskStatus(@Nonnull UUID jobId) throws TaskNotFoundException;
 
 	/**
-	 * TODO JNO - document me
-	 * @param fileId
-	 * @param outputStream
+	 * Cancels the job with the specified jobId. If the job is waiting in the queue, it will be removed from the queue.
+	 * If the job is already running, it must support cancelling to be interrupted and canceled.
+	 *
+	 * @param jobId jobId of the job
+	 * @return true if the job was found and cancellation triggered, false if the job was not found
+	 * @throws TaskNotFoundException if the job with the specified jobId is not found
 	 */
-	void writeFile(@Nonnull UUID fileId, @Nonnull OutputStream outputStream);
+	boolean cancelTask(@Nonnull UUID jobId) throws TaskNotFoundException;
+
+	/**
+	 * Returns list of files that are available for download.
+	 *
+	 * @param page     page number (1-based)
+	 * @param pageSize number of items per page
+	 * @param origin   optional origin of the files (derived from {@link TaskStatus#taskType()}), passing non-null value
+	 *                 in this argument filters the returned files to only those that are related to the specified origin
+	 * @return list of files
+	 */
+	@Nonnull
+	PaginatedList<FileForFetch> listFilesToFetch(int page, int pageSize, @Nullable String origin);
+
+	/**
+	 * Writes contents of the file with the specified fileId to the provided OutputStream.
+	 *
+	 * @param fileId       fileId of the file
+	 * @param outputStream OutputStream to write the file contents to
+	 * @throws FileForFetchNotFoundException if the file with the specified fileId is not found
+	 */
+	void fetchFile(@Nonnull UUID fileId, @Nonnull OutputStream outputStream) throws FileForFetchNotFoundException, UnexpectedIOException;
+
+	/**
+	 * Removes file with the specified fileId from the storage.
+	 *
+	 * @param fileId fileId of the file
+	 * @throws FileForFetchNotFoundException if the file with the specified fileId is not found
+	 */
+	void deleteFile(@Nonnull UUID fileId) throws FileForFetchNotFoundException;
 
 	/**
 	 * Retrieves the current system status of the EvitaDB server.

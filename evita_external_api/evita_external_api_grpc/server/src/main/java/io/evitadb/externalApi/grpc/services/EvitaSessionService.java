@@ -23,7 +23,6 @@
 
 package io.evitadb.externalApi.grpc.services;
 
-import com.google.protobuf.ByteString;
 import com.google.protobuf.Empty;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.CatalogState;
@@ -274,10 +273,11 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 
 				// send the backup file to the client - read it by chunks of 64KB
 				try (final InputStream inputStream = Files.newInputStream(backupFilePath)) {
-					final GrpcBackupCatalogResponse response = GrpcBackupCatalogResponse.newBuilder()
+					/* TODO JNO - alter implementation */
+					/*final GrpcBackupCatalogResponse response = GrpcBackupCatalogResponse.newBuilder()
 						.setBackupFile(ByteString.readFrom(inputStream, 65_536))
-						.build();
-					responseObserver.onNext(response);
+						.build();*/
+					/*responseObserver.onNext(response);*/
 				}
 				responseObserver.onCompleted();
 			} catch (IOException e) {

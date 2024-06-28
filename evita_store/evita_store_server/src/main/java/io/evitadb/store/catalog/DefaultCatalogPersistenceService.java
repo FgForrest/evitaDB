@@ -32,6 +32,7 @@ import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.api.exception.CollectionNotFoundException;
 import io.evitadb.api.exception.EntityTypeAlreadyPresentInCatalogSchemaException;
 import io.evitadb.api.exception.TemporalDataNotAvailableException;
+import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -43,6 +44,7 @@ import io.evitadb.api.requestResponse.system.CatalogVersion;
 import io.evitadb.api.requestResponse.system.CatalogVersionDescriptor;
 import io.evitadb.api.requestResponse.system.TimeFlow;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
+import io.evitadb.api.task.Task;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.CatalogVersionBeyondTheHorizonListener;
 import io.evitadb.core.EntityCollection;
@@ -50,6 +52,7 @@ import io.evitadb.core.async.Scheduler;
 import io.evitadb.core.buffer.DataStoreIndexChanges;
 import io.evitadb.core.buffer.DataStoreMemoryBuffer;
 import io.evitadb.core.buffer.WarmUpDataStoreMemoryBuffer;
+import io.evitadb.core.file.ExportFileService;
 import io.evitadb.core.metric.event.storage.CatalogStatisticsEvent;
 import io.evitadb.core.metric.event.storage.DataFileCompactEvent;
 import io.evitadb.core.metric.event.storage.FileType;
@@ -69,6 +72,7 @@ import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.attribute.GlobalUniqueIndex;
 import io.evitadb.store.catalog.ObsoleteFileMaintainer.DataFilesBulkInfo;
 import io.evitadb.store.catalog.model.CatalogBootstrap;
+import io.evitadb.store.catalog.task.BackupTask;
 import io.evitadb.store.entity.model.schema.CatalogSchemaStoragePart;
 import io.evitadb.store.exception.InvalidFileNameException;
 import io.evitadb.store.exception.InvalidStoragePathException;
@@ -79,7 +83,6 @@ import io.evitadb.store.kryo.VersionedKryo;
 import io.evitadb.store.kryo.VersionedKryoFactory;
 import io.evitadb.store.kryo.VersionedKryoKeyInputs;
 import io.evitadb.store.model.FileLocation;
-import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.offsetIndex.OffsetIndex.NonFlushedBlock;
 import io.evitadb.store.offsetIndex.OffsetIndexDescriptor;
 import io.evitadb.store.offsetIndex.exception.UnexpectedCatalogContentsException;
@@ -120,7 +123,6 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.io.BufferedOutputStream;
 import java.io.Closeable;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -136,7 +138,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
-import java.util.function.IntConsumer;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
@@ -144,8 +145,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipOutputStream;
 
 import static io.evitadb.store.catalog.CatalogOffsetIndexStoragePartPersistenceService.readCatalogHeader;
 import static io.evitadb.store.spi.CatalogPersistenceService.*;
@@ -189,6 +188,10 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	 */
 	private final OffHeapMemoryManager offHeapMemoryManager;
 	/**
+	 * The export file service instance that is used for backing-up data from the catalog.
+	 */
+	private final ExportFileService exportFileService;
+	/**
 	 * The name of the catalog that maps to {@link EntitySchema#getName()}.
 	 */
 	@Nonnull
@@ -213,7 +216,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	/**
 	 * Contains information about storage configuration options.
 	 */
-	@Nonnull
+	@Getter @Nonnull
 	private final StorageOptions storageOptions;
 	/**
 	 * Contains information about transaction configuration options.
@@ -346,6 +349,31 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		} catch (InvalidPathException ex) {
 			throw new InvalidFileNameException("Name `" + catalogName + "` cannot be converted a valid file name: " + ex.getMessage() + "! Please rename the catalog.");
 		}
+	}
+
+	/**
+	 * Serializes the bootstrap record to the output and returns the {@link StorageRecord}.
+	 *
+	 * @param output          the output to write the record to
+	 * @param bootstrapRecord the bootstrap record to serialize
+	 * @return the {@link StorageRecord} with the serialized bootstrap record
+	 */
+	@Nonnull
+	public static StorageRecord<CatalogBootstrap> serializeBootstrapRecord(
+		@Nonnull ObservableOutput<?> output,
+		@Nonnull CatalogBootstrap bootstrapRecord
+	) {
+		return new StorageRecord<>(
+			output, bootstrapRecord.catalogVersion(), true,
+			theOutput -> {
+				theOutput.writeLong(bootstrapRecord.catalogVersion());
+				theOutput.writeInt(bootstrapRecord.catalogFileIndex());
+				theOutput.writeLong(bootstrapRecord.timestamp().toInstant().toEpochMilli());
+				theOutput.writeLong(bootstrapRecord.fileLocation().startingPosition());
+				theOutput.writeInt(bootstrapRecord.fileLocation().recordLength());
+				return bootstrapRecord;
+			}
+		);
 	}
 
 	/**
@@ -698,31 +726,6 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	}
 
 	/**
-	 * Serializes the bootstrap record to the output and returns the {@link StorageRecord}.
-	 *
-	 * @param output          the output to write the record to
-	 * @param bootstrapRecord the bootstrap record to serialize
-	 * @return the {@link StorageRecord} with the serialized bootstrap record
-	 */
-	@Nonnull
-	private static StorageRecord<CatalogBootstrap> serializeBootstrapRecord(
-		@Nonnull ObservableOutput<?> output,
-		@Nonnull CatalogBootstrap bootstrapRecord
-	) {
-		return new StorageRecord<>(
-			output, bootstrapRecord.catalogVersion(), true,
-			theOutput -> {
-				theOutput.writeLong(bootstrapRecord.catalogVersion());
-				theOutput.writeInt(bootstrapRecord.catalogFileIndex());
-				theOutput.writeLong(bootstrapRecord.timestamp().toInstant().toEpochMilli());
-				theOutput.writeLong(bootstrapRecord.fileLocation().startingPosition());
-				theOutput.writeInt(bootstrapRecord.fileLocation().recordLength());
-				return bootstrapRecord;
-			}
-		);
-	}
-
-	/**
 	 * Copies the bootstrap record to the specified file handle.
 	 *
 	 * @param newBootstrapHandle The handle to the file where the bootstrap record will be copied.
@@ -778,11 +781,13 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		@Nonnull String catalogName,
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull TransactionOptions transactionOptions,
-		@Nonnull Scheduler scheduler
+		@Nonnull Scheduler scheduler,
+		@Nonnull ExportFileService exportFileService
 	) {
 		this.storageOptions = storageOptions;
 		this.transactionOptions = transactionOptions;
 		this.scheduler = scheduler;
+		this.exportFileService = exportFileService;
 		this.offHeapMemoryManager = new OffHeapMemoryManager(
 			catalogName,
 			transactionOptions.transactionMemoryBufferLimitSizeBytes(),
@@ -858,11 +863,13 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		@Nonnull String catalogName,
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull TransactionOptions transactionOptions,
-		@Nonnull Scheduler scheduler
+		@Nonnull Scheduler scheduler,
+		@Nonnull ExportFileService exportFileService
 	) {
 		this.storageOptions = storageOptions;
 		this.transactionOptions = transactionOptions;
 		this.scheduler = scheduler;
+		this.exportFileService = exportFileService;
 		this.offHeapMemoryManager = new OffHeapMemoryManager(
 			catalogName,
 			transactionOptions.transactionMemoryBufferLimitSizeBytes(),
@@ -955,6 +962,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		this.recordTypeRegistry = previous.recordTypeRegistry;
 		this.observableOutputKeeper = previous.observableOutputKeeper;
 		this.offHeapMemoryManager = previous.offHeapMemoryManager;
+		this.exportFileService = previous.exportFileService;
 		this.catalogName = catalogName;
 		this.catalogStoragePath = catalogStoragePath;
 		this.bootstrapWriteHandle = new AtomicReference<>(bootstrapWriteHandle);
@@ -1572,7 +1580,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			// now copy living snapshot of the entity collection to a new file
 			Assert.isPremiseValid(newFile.createNewFile(), "Cannot create new entity collection file: `" + newFilePath + "`!");
 			try (final FileOutputStream fos = new FileOutputStream(newFile)) {
-				newEntityCollectionHeader = entityPersistenceService.copySnapshotTo(catalogVersion, newEntityTypeFileIndex, fos);
+				newEntityCollectionHeader = entityPersistenceService.copySnapshotTo(catalogVersion, newEntityTypeFileIndex, fos, null);
 			}
 		} catch (RuntimeException | IOException ex) {
 			// delete non-finished damaged file if exists
@@ -1806,161 +1814,13 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 
 	@Nonnull
 	@Override
-	public Path backup(@Nonnull UUID id, @Nullable OffsetDateTime pastMoment, boolean includingWAL, @Nonnull IntConsumer progressUpdater) throws TemporalDataNotAvailableException {
-		final CatalogBootstrap bootstrapToUse = pastMoment == null ?
+	public Task<?, FileForFetch> createBackupTask(@Nullable OffsetDateTime pastMoment, boolean includingWAL) throws TemporalDataNotAvailableException {
+		final CatalogBootstrap bootstrapRecord = pastMoment == null ?
 			this.bootstrapUsed : getCatalogBootstrapForSpecificMoment(this.catalogName, this.storageOptions, pastMoment);
-		final long catalogVersion = bootstrapToUse.catalogVersion();
-
-		final Path backupFolder = this.transactionOptions.transactionWorkDirectory().resolve("backup");
-		if (!backupFolder.toFile().exists()) {
-			Assert.isPremiseValid(backupFolder.toFile().mkdirs(), "Failed to create backup folder `" + backupFolder + "`!");
-		}
-		final Path backupFile = backupFolder.resolve(id + ".zip");
-
-		try (final Closeables closeables = new Closeables()) {
-			final CatalogOffsetIndexStoragePartPersistenceService catalogPersistenceService = pastMoment == null ?
-				getStoragePartPersistenceService(catalogVersion) :
-				closeables.add(createCatalogOffsetIndexStoragePartService(bootstrapToUse));
-
-			try (ZipOutputStream zipOutputStream = new ZipOutputStream(new BufferedOutputStream(new FileOutputStream(backupFile.toFile())))) {
-				zipOutputStream.putNextEntry(new ZipEntry(this.catalogName + "/"));
-				zipOutputStream.closeEntry();
-
-				// first store all the active contents of the entity collection data files
-				final CatalogHeader catalogHeader = catalogPersistenceService.getCatalogHeader(catalogVersion);
-				final Map<String, EntityCollectionHeader> entityHeaders = CollectionUtils.createHashMap(
-					catalogHeader.getEntityTypeFileIndexes().size()
-				);
-				for (CollectionFileReference entityTypeFileIndex : catalogHeader.getEntityTypeFileIndexes()) {
-					final String entityDataFileName = CatalogPersistenceService.getEntityCollectionDataStoreFileName(
-						entityTypeFileIndex.entityType(),
-						entityTypeFileIndex.entityTypePrimaryKey(),
-						0
-					);
-					zipOutputStream.putNextEntry(new ZipEntry(this.catalogName + "/" + entityDataFileName));
-					final DefaultEntityCollectionPersistenceService entityCollectionPersistenceService = pastMoment == null ?
-						getOrCreateEntityCollectionPersistenceService(
-							catalogVersion, entityTypeFileIndex.entityType(), entityTypeFileIndex.entityTypePrimaryKey()
-						) :
-						closeables.add(
-							createEntityCollectionPersistenceService(catalogPersistenceService.getStoragePart(catalogVersion, 1, EntityCollectionHeader.class))
-						);
-					final EntityCollectionHeader newEntityCollectionHeader = entityCollectionPersistenceService.copySnapshotTo(
-						catalogVersion,
-						new CollectionFileReference(
-							entityTypeFileIndex.entityType(),
-							entityTypeFileIndex.entityTypePrimaryKey(),
-							0,
-							entityTypeFileIndex.fileLocation()
-						),
-						zipOutputStream
-					);
-					entityHeaders.put(
-						entityTypeFileIndex.entityType(),
-						newEntityCollectionHeader
-					);
-					zipOutputStream.closeEntry();
-				}
-
-				// then write the active contents of the catalog file
-				final String catalogDataStoreFileName = CatalogPersistenceService.getCatalogDataStoreFileName(this.catalogName, 0);
-				zipOutputStream.putNextEntry(new ZipEntry(this.catalogName + "/" + catalogDataStoreFileName));
-
-				final OffsetIndexDescriptor catalogDataFileDescriptor = catalogPersistenceService
-					.copySnapshotTo(
-						catalogVersion, zipOutputStream,
-						Stream.concat(
-								Stream.of(
-									new CatalogHeader(
-										STORAGE_PROTOCOL_VERSION,
-										catalogHeader.version() + 1,
-										catalogHeader.walFileReference(),
-										entityHeaders.values().stream()
-											.map(
-												it -> new CollectionFileReference(
-													it.entityType(),
-													it.entityTypePrimaryKey(),
-													it.entityTypeFileIndex(),
-													it.fileLocation()
-												)
-											)
-											.collect(
-												Collectors.toMap(
-													CollectionFileReference::entityType,
-													Function.identity()
-												)
-											),
-										catalogHeader.compressedKeys(),
-										catalogHeader.catalogId(),
-										catalogHeader.catalogName(),
-										catalogHeader.catalogState(),
-										catalogHeader.lastEntityCollectionPrimaryKey(),
-										1.0 // all entries are active
-									)
-								),
-								entityHeaders.values().stream()
-							)
-							.map(StoragePart.class::cast)
-							.toArray(StoragePart[]::new)
-					);
-				zipOutputStream.closeEntry();
-
-				// store the WAL file with all records written after the catalog version
-				if (includingWAL) {
-					try (final Stream<Path> walFileStream = Files.list(catalogStoragePath)) {
-						walFileStream
-							.filter(it -> it.getFileName().toString().endsWith(WAL_FILE_SUFFIX))
-							.forEach(walFile -> {
-								try {
-									zipOutputStream.putNextEntry(new ZipEntry(this.catalogName + "/" + walFile.getFileName()));
-									Files.copy(walFile, zipOutputStream);
-									zipOutputStream.closeEntry();
-								} catch (IOException e) {
-									throw new UnexpectedIOException(
-										"Failed to backup WAL file `" + walFile + "`!",
-										"Failed to backup WAL file!",
-										e
-									);
-								}
-							});
-					}
-				}
-
-				// finally, store the catalog bootstrap
-				final String bootstrapFileName = getCatalogBootstrapFileName(this.catalogName);
-				zipOutputStream.putNextEntry(new ZipEntry(this.catalogName + "/" + bootstrapFileName));
-				// store used bootstrap
-				final ObservableOutput<ZipOutputStream> boostrapOutput = new ObservableOutput<>(
-					zipOutputStream,
-					CatalogBootstrap.BOOTSTRAP_RECORD_SIZE,
-					CatalogBootstrap.BOOTSTRAP_RECORD_SIZE << 1,
-					0L
-				);
-				final StorageRecord<CatalogBootstrap> catalogBootstrapStorageRecord = serializeBootstrapRecord(
-					boostrapOutput,
-					new CatalogBootstrap(
-						catalogVersion,
-						0,
-						OffsetDateTime.now(),
-						catalogDataFileDescriptor.fileLocation()
-					)
-				);
-				boostrapOutput.flush();
-				Assert.isPremiseValid(
-					catalogBootstrapStorageRecord.fileLocation().recordLength() == CatalogBootstrap.BOOTSTRAP_RECORD_SIZE,
-					"Unexpected bootstrap record size: " + catalogBootstrapStorageRecord.fileLocation().recordLength()
-				);
-				zipOutputStream.closeEntry();
-			} catch (IOException e) {
-				throw new UnexpectedIOException(
-					"Failed to backup catalog `" + this.catalogName + "`!",
-					"Failed to backup catalog!",
-					e
-				);
-			}
-		}
-
-		return backupFile;
+		return new BackupTask(
+			this.catalogName, pastMoment, includingWAL,
+			bootstrapRecord, this.exportFileService, this
+		);
 	}
 
 	@Override
@@ -2019,6 +1879,55 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	}
 
 	/**
+	 * Creates new instance of the catalog offset index storage part persistence service for the specified catalog
+	 * version (header).
+	 *
+	 * @param catalogBootstrap the catalog header
+	 * @return the new instance of the catalog offset index storage part persistence service
+	 */
+	@Nonnull
+	public CatalogOffsetIndexStoragePartPersistenceService createCatalogOffsetIndexStoragePartService(
+		@Nonnull CatalogBootstrap catalogBootstrap
+	) {
+		return CatalogOffsetIndexStoragePartPersistenceService.create(
+			this.catalogName,
+			this.catalogStoragePath.resolve(getCatalogDataStoreFileName(this.catalogName, catalogBootstrap.catalogFileIndex())),
+			this.storageOptions,
+			this.transactionOptions,
+			catalogBootstrap,
+			this.recordTypeRegistry,
+			this.offHeapMemoryManager,
+			this.observableOutputKeeper,
+			VERSIONED_KRYO_FACTORY,
+			nonFlushedBlock -> this.reportNonFlushedContents(catalogName, nonFlushedBlock),
+			oldestRecordTimestamp -> reportOldestHistoricalRecord(catalogName, oldestRecordTimestamp.orElse(null))
+		);
+	}
+
+	/**
+	 * Creates new instance of the entity collection persistence service for the specified entity type.
+	 *
+	 * @param entityCollectionHeader the entity collection header
+	 * @return the new instance of the entity collection persistence service
+	 */
+	@Nonnull
+	public DefaultEntityCollectionPersistenceService createEntityCollectionPersistenceService(
+		@Nonnull EntityCollectionHeader entityCollectionHeader
+	) {
+		return new DefaultEntityCollectionPersistenceService(
+			this.bootstrapUsed.catalogVersion(),
+			this.catalogName,
+			this.catalogStoragePath,
+			entityCollectionHeader,
+			this.storageOptions,
+			this.transactionOptions,
+			this.offHeapMemoryManager,
+			this.observableOutputKeeper,
+			this.recordTypeRegistry
+		);
+	}
+
+	/**
 	 * Records a bootstrap in the catalog.
 	 *
 	 * @param catalogVersion        the version of the catalog
@@ -2072,7 +1981,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			final String compactedFileName = getCatalogDataStoreFileName(newCatalogName, newCatalogFileIndex);
 			final OffsetIndexDescriptor compactedDescriptor;
 			try (final FileOutputStream fos = new FileOutputStream(this.catalogStoragePath.resolve(compactedFileName).toFile())) {
-				compactedDescriptor = storagePartPersistenceService.copySnapshotTo(catalogVersion, fos);
+				compactedDescriptor = storagePartPersistenceService.copySnapshotTo(catalogVersion, fos, null);
 			} catch (IOException e) {
 				throw new UnexpectedIOException(
 					"Error occurred while compacting catalog data file: " + e.getMessage(),
@@ -2242,55 +2151,6 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			// emit the event
 			event.finish().commit();
 		}
-	}
-
-	/**
-	 * Creates new instance of the catalog offset index storage part persistence service for the specified catalog
-	 * version (header).
-	 *
-	 * @param catalogBootstrap the catalog header
-	 * @return the new instance of the catalog offset index storage part persistence service
-	 */
-	@Nonnull
-	private CatalogOffsetIndexStoragePartPersistenceService createCatalogOffsetIndexStoragePartService(
-		@Nonnull CatalogBootstrap catalogBootstrap
-	) {
-		return CatalogOffsetIndexStoragePartPersistenceService.create(
-			this.catalogName,
-			this.catalogStoragePath.resolve(getCatalogDataStoreFileName(this.catalogName, catalogBootstrap.catalogFileIndex())),
-			this.storageOptions,
-			this.transactionOptions,
-			catalogBootstrap,
-			this.recordTypeRegistry,
-			this.offHeapMemoryManager,
-			this.observableOutputKeeper,
-			VERSIONED_KRYO_FACTORY,
-			nonFlushedBlock -> this.reportNonFlushedContents(catalogName, nonFlushedBlock),
-			oldestRecordTimestamp -> reportOldestHistoricalRecord(catalogName, oldestRecordTimestamp.orElse(null))
-		);
-	}
-
-	/**
-	 * Creates new instance of the entity collection persistence service for the specified entity type.
-	 *
-	 * @param entityCollectionHeader the entity collection header
-	 * @return the new instance of the entity collection persistence service
-	 */
-	@Nonnull
-	private DefaultEntityCollectionPersistenceService createEntityCollectionPersistenceService(
-		@Nonnull EntityCollectionHeader entityCollectionHeader
-	) {
-		return new DefaultEntityCollectionPersistenceService(
-			this.bootstrapUsed.catalogVersion(),
-			this.catalogName,
-			this.catalogStoragePath,
-			entityCollectionHeader,
-			this.storageOptions,
-			this.transactionOptions,
-			this.offHeapMemoryManager,
-			this.observableOutputKeeper,
-			this.recordTypeRegistry
-		);
 	}
 
 	/**
@@ -2633,34 +2493,4 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		}
 	}
 
-	/**
-	 * Closeable objects aggregator.
-	 */
-	private static class Closeables implements AutoCloseable {
-		private final List<AutoCloseable> closeables = new LinkedList<>();
-
-		/**
-		 * Adds a new closeable to the list of closeables that are closed when this object is closed.
-		 *
-		 * @param item the closeable to add
-		 * @param <T>  the type of the closeable
-		 * @return the same closeable
-		 */
-		@Nonnull
-		public <T extends Closeable> T add(@Nonnull T item) {
-			this.closeables.add(item);
-			return item;
-		}
-
-		@Override
-		public void close() {
-			closeables.forEach(it -> {
-				try {
-					it.close();
-				} catch (Exception e) {
-					log.error("Failed to close resource!", e);
-				}
-			});
-		}
-	}
 }

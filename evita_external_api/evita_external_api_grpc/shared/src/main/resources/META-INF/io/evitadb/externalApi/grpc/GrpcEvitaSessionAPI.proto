@@ -229,8 +229,8 @@ message GrpcGoLiveAndCloseResponse {
 
 // Response to a catalog backup request.
 message GrpcBackupCatalogResponse {
-  // Binary contents of the backup file.
-  bytes backupFile = 1;
+  // the id of the task that is used to backup the catalog and getting its progress
+  GrpcUuid taskId = 1;
 }
 
 // Request for acquiring the list of all entity types.

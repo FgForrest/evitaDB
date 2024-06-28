@@ -26,6 +26,7 @@ package io.evitadb.core.async;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -36,11 +37,11 @@ import java.util.function.Function;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @Slf4j
-public class BackgroundRunnableTask extends AbstractBackgroundTask<Void> implements Runnable {
+public class ClientRunnableTask<S> extends AbstractClientTask<S, Void> implements Runnable {
 	/**
 	 * The actual logic wrapped in a lambda that is executed by the task.
 	 */
-	private final Consumer<BackgroundRunnableTask> runnableWithProgress;
+	private final Consumer<ClientRunnableTask<S>> runnableWithProgress;
 
 	/**
 	 * Transforms {@link Consumer<Throwable>} to {@link Function<Throwable, Void>} that can be used as an exception handler.
@@ -54,43 +55,43 @@ public class BackgroundRunnableTask extends AbstractBackgroundTask<Void> impleme
 		};
 	}
 
-	public BackgroundRunnableTask(@Nonnull String catalogName, @Nonnull String taskName, @Nonnull Runnable runnable) {
-		super(catalogName, taskName);
+	public ClientRunnableTask(@Nonnull String catalogName, @Nonnull String taskName, @Nullable S settings, @Nonnull Runnable runnable) {
+		super(catalogName, taskName, settings);
 		this.runnableWithProgress = task -> runnable.run();
 	}
 
-	public BackgroundRunnableTask(@Nonnull String taskName, @Nonnull Runnable runnable) {
-		super(taskName);
+	public ClientRunnableTask(@Nonnull String taskName, @Nullable S settings, @Nonnull Runnable runnable) {
+		super(taskName, settings);
 		this.runnableWithProgress = task -> runnable.run();
 	}
 
-	public BackgroundRunnableTask(@Nonnull String catalogName, @Nonnull String taskName, @Nonnull Runnable runnable, @Nonnull Consumer<Throwable> exceptionHandler) {
-		super(catalogName, taskName, wrapExceptionHandler(exceptionHandler));
+	public ClientRunnableTask(@Nonnull String catalogName, @Nonnull String taskName, @Nullable S settings, @Nonnull Runnable runnable, @Nonnull Consumer<Throwable> exceptionHandler) {
+		super(catalogName, taskName, settings, wrapExceptionHandler(exceptionHandler));
 		this.runnableWithProgress = task -> runnable.run();
 	}
 
-	public BackgroundRunnableTask(@Nonnull String taskName, @Nonnull Runnable runnable, @Nonnull Consumer<Throwable> exceptionHandler) {
-		super(taskName, wrapExceptionHandler(exceptionHandler));
+	public ClientRunnableTask(@Nonnull String taskName, @Nullable S settings, @Nonnull Runnable runnable, @Nonnull Consumer<Throwable> exceptionHandler) {
+		super(taskName, settings, wrapExceptionHandler(exceptionHandler));
 		this.runnableWithProgress = task -> runnable.run();
 	}
 
-	public BackgroundRunnableTask(@Nonnull String catalogName, @Nonnull String taskName, @Nonnull Consumer<BackgroundRunnableTask> runnableWithProgress) {
-		super(catalogName, taskName);
+	public ClientRunnableTask(@Nonnull String catalogName, @Nonnull String taskName, @Nullable S settings, @Nonnull Consumer<ClientRunnableTask<S>> runnableWithProgress) {
+		super(catalogName, taskName, settings);
 		this.runnableWithProgress = runnableWithProgress;
 	}
 
-	public BackgroundRunnableTask(@Nonnull String taskName, @Nonnull Consumer<BackgroundRunnableTask> runnableWithProgress) {
-		super(taskName);
+	public ClientRunnableTask(@Nonnull String taskName, @Nullable S settings, @Nonnull Consumer<ClientRunnableTask<S>> runnableWithProgress) {
+		super(taskName, settings);
 		this.runnableWithProgress = runnableWithProgress;
 	}
 
-	public BackgroundRunnableTask(@Nonnull String catalogName, @Nonnull String taskName, @Nonnull Consumer<BackgroundRunnableTask> runnableWithProgress, @Nonnull Consumer<Throwable> exceptionHandler) {
-		super(catalogName, taskName, wrapExceptionHandler(exceptionHandler));
+	public ClientRunnableTask(@Nonnull String catalogName, @Nonnull String taskName, @Nullable S settings, @Nonnull Consumer<ClientRunnableTask<S>> runnableWithProgress, @Nonnull Consumer<Throwable> exceptionHandler) {
+		super(catalogName, taskName, settings, wrapExceptionHandler(exceptionHandler));
 		this.runnableWithProgress = runnableWithProgress;
 	}
 
-	public BackgroundRunnableTask(@Nonnull String taskName, @Nonnull Consumer<BackgroundRunnableTask> runnableWithProgress, @Nonnull Consumer<Throwable> exceptionHandler) {
-		super(taskName, wrapExceptionHandler(exceptionHandler));
+	public ClientRunnableTask(@Nonnull String taskName, @Nullable S settings, @Nonnull Consumer<ClientRunnableTask<S>> runnableWithProgress, @Nonnull Consumer<Throwable> exceptionHandler) {
+		super(taskName, settings, wrapExceptionHandler(exceptionHandler));
 		this.runnableWithProgress = runnableWithProgress;
 	}
 

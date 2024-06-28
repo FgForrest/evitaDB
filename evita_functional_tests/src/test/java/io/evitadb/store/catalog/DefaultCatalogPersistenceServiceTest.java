@@ -54,6 +54,7 @@ import io.evitadb.core.EvitaSession;
 import io.evitadb.core.async.Scheduler;
 import io.evitadb.core.buffer.WarmUpDataStoreMemoryBuffer;
 import io.evitadb.core.cache.NoCacheSupervisor;
+import io.evitadb.core.file.ExportFileService;
 import io.evitadb.core.metric.event.storage.FileType;
 import io.evitadb.core.sequence.SequenceService;
 import io.evitadb.dataType.PaginatedList;
@@ -265,7 +266,8 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			SEALED_CATALOG_SCHEMA.getName(),
 			getStorageOptions(),
 			getTransactionOptions(),
-			Mockito.mock(Scheduler.class)
+			Mockito.mock(Scheduler.class),
+			Mockito.mock(ExportFileService.class)
 		);
 
 		ioService.getStoragePartPersistenceService(0L)
@@ -325,7 +327,8 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 					RENAMED_CATALOG,
 					getStorageOptions(),
 					getTransactionOptions(),
-					Mockito.mock(Scheduler.class)
+					Mockito.mock(Scheduler.class),
+					Mockito.mock(ExportFileService.class)
 				)) {
 					// do nothing
 				}
@@ -343,7 +346,8 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			RENAMED_CATALOG,
 			getStorageOptions(),
 			getTransactionOptions(),
-			Mockito.mock(Scheduler.class)
+			Mockito.mock(Scheduler.class),
+			Mockito.mock(ExportFileService.class)
 		)) {
 			final long lastCatalogVersion = persistenceService.getLastCatalogVersion();
 			final CatalogHeader catalogHeader = persistenceService.getCatalogHeader(lastCatalogVersion);
@@ -364,12 +368,15 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		assertThrows(
 			InvalidClassifierFormatException.class,
 			() -> {
-				try (var cps = new DefaultCatalogPersistenceService(
-					SEALED_CATALOG_SCHEMA.getName(),
-					getStorageOptions(),
-					getTransactionOptions(),
-					Mockito.mock(Scheduler.class)
-				)) {
+				try (
+					var cps = new DefaultCatalogPersistenceService(
+						SEALED_CATALOG_SCHEMA.getName(),
+						getStorageOptions(),
+						getTransactionOptions(),
+						Mockito.mock(Scheduler.class),
+						Mockito.mock(ExportFileService.class)
+					)
+				) {
 					cps.verifyEntityType(
 						Collections.emptyList(),
 						"→"
@@ -384,12 +391,15 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		assertThrows(
 			EntityTypeAlreadyPresentInCatalogSchemaException.class,
 			() -> {
-				try (var cps = new DefaultCatalogPersistenceService(
-					SEALED_CATALOG_SCHEMA.getName(),
-					getStorageOptions(),
-					getTransactionOptions(),
-					Mockito.mock(Scheduler.class)
-				)) {
+				try (
+					var cps = new DefaultCatalogPersistenceService(
+						SEALED_CATALOG_SCHEMA.getName(),
+						getStorageOptions(),
+						getTransactionOptions(),
+						Mockito.mock(Scheduler.class),
+						Mockito.mock(ExportFileService.class)
+					)
+				) {
 					final EntityCollection mockCollection = mock(EntityCollection.class);
 					when(mockCollection.getEntityType()).thenReturn("a");
 					when(mockCollection.getSchema()).thenReturn(new EntitySchemaDecorator(() -> SEALED_CATALOG_SCHEMA, EntitySchema._internalBuild("a")));
@@ -405,24 +415,30 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 	@Test
 	void shouldRefuseDuplicateCatalogName() {
 		//noinspection EmptyTryBlock
-		try (var ignored1 = new DefaultCatalogPersistenceService(
-			SEALED_CATALOG_SCHEMA.getName(),
-			getStorageOptions(),
-			getTransactionOptions(),
-			Mockito.mock(Scheduler.class)
-		)) {
+		try (
+			var ignored1 = new DefaultCatalogPersistenceService(
+				SEALED_CATALOG_SCHEMA.getName(),
+				getStorageOptions(),
+				getTransactionOptions(),
+				Mockito.mock(Scheduler.class),
+				Mockito.mock(ExportFileService.class)
+			)
+		) {
 		}
 
 		assertThrows(
 			DirectoryNotEmptyException.class,
 			() -> {
 				//noinspection EmptyTryBlock
-				try (var ignored2 = new DefaultCatalogPersistenceService(
-					CATALOG_SCHEMA.getName(),
-					getStorageOptions(),
-					getTransactionOptions(),
-					Mockito.mock(Scheduler.class)
-				)) {
+				try (
+					var ignored2 = new DefaultCatalogPersistenceService(
+						CATALOG_SCHEMA.getName(),
+						getStorageOptions(),
+						getTransactionOptions(),
+						Mockito.mock(Scheduler.class),
+						Mockito.mock(ExportFileService.class)
+					)
+				) {
 				}
 			}
 		);
@@ -433,13 +449,16 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		shouldSerializeAndDeserializeCatalogHeader();
 
 		final Path catalogDirectory = getStorageOptions().storageDirectoryOrDefault().resolve(TEST_CATALOG);
-		try (var cps = new DefaultCatalogPersistenceService(
-			Mockito.mock(CatalogContract.class),
-			TEST_CATALOG,
-			getStorageOptions(),
-			getTransactionOptions(),
-			Mockito.mock(Scheduler.class)
-		)) {
+		try (
+			var cps = new DefaultCatalogPersistenceService(
+				Mockito.mock(CatalogContract.class),
+				TEST_CATALOG,
+				getStorageOptions(),
+				getTransactionOptions(),
+				Mockito.mock(Scheduler.class),
+				Mockito.mock(ExportFileService.class)
+			)
+		) {
 			assertTrue(catalogDirectory.toFile().exists());
 			assertTrue(countFiles(catalogDirectory) > 0);
 			cps.delete();
@@ -449,12 +468,15 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 
 	@Test
 	void shouldReturnDefaultHeaderOnEmptyDirectory() {
-		try (var cps = new DefaultCatalogPersistenceService(
-			SEALED_CATALOG_SCHEMA.getName(),
-			getStorageOptions(),
-			getTransactionOptions(),
-			Mockito.mock(Scheduler.class)
-		)) {
+		try (
+			var cps = new DefaultCatalogPersistenceService(
+				SEALED_CATALOG_SCHEMA.getName(),
+				getStorageOptions(),
+				getTransactionOptions(),
+				Mockito.mock(Scheduler.class),
+				Mockito.mock(ExportFileService.class)
+			)
+		) {
 			final CatalogHeader header = cps.getCatalogHeader(0L);
 			assertNotNull(header);
 			assertEquals(CatalogState.WARMING_UP, header.catalogState());
@@ -472,12 +494,15 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		final String catalogName = SEALED_CATALOG_SCHEMA.getName();
 
 		// first switch to the transactional mode
-		try (var cps = new DefaultCatalogPersistenceService(
-			catalogName,
-			getStorageOptions(),
-			getTransactionOptions(),
-			Mockito.mock(Scheduler.class)
-		)) {
+		try (
+			var cps = new DefaultCatalogPersistenceService(
+				catalogName,
+				getStorageOptions(),
+				getTransactionOptions(),
+				Mockito.mock(Scheduler.class),
+				Mockito.mock(ExportFileService.class)
+			)
+		) {
 			cps.getStoragePartPersistenceService(0L)
 				.putStoragePart(0L, new CatalogSchemaStoragePart(CATALOG_SCHEMA));
 			cps.storeHeader(
@@ -496,13 +521,16 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		);
 
 		// and then write to the WAL
-		try (var cps = new DefaultCatalogPersistenceService(
-			Mockito.mock(CatalogContract.class),
-			catalogName,
-			getStorageOptions(),
-			getTransactionOptions(),
-			Mockito.mock(Scheduler.class)
-		)) {
+		try (
+			var cps = new DefaultCatalogPersistenceService(
+				Mockito.mock(CatalogContract.class),
+				catalogName,
+				getStorageOptions(),
+				getTransactionOptions(),
+				Mockito.mock(Scheduler.class),
+				Mockito.mock(ExportFileService.class)
+			)
+		) {
 			cps.appendWalAndDiscard(
 				2L,
 				writtenTransactionMutation,
@@ -544,7 +572,8 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			catalogName,
 			storageOptions,
 			getTransactionOptions(),
-			Mockito.mock(Scheduler.class)
+			Mockito.mock(Scheduler.class),
+			Mockito.mock(ExportFileService.class)
 		);
 
 		for (int i = 0; i < 12; i++) {
@@ -606,7 +635,8 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			catalogName,
 			getStorageOptions(),
 			getTransactionOptions(),
-			Mockito.mock(Scheduler.class)
+			Mockito.mock(Scheduler.class),
+			Mockito.mock(ExportFileService.class)
 		);
 
 		for (int i = 0; i < 12; i++) {
@@ -638,7 +668,8 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			catalogName,
 			getStorageOptions(),
 			getTransactionOptions(),
-			Mockito.mock(Scheduler.class)
+			Mockito.mock(Scheduler.class),
+			Mockito.mock(ExportFileService.class)
 		);
 
 		final OffsetDateTime timestamp = OffsetDateTime.now();
@@ -669,7 +700,8 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			SEALED_CATALOG_SCHEMA.getName(),
 			getStorageOptions(),
 			getTransactionOptions(),
-			Mockito.mock(Scheduler.class)
+			Mockito.mock(Scheduler.class),
+			Mockito.mock(ExportFileService.class)
 		);
 
 		ioService.getStoragePartPersistenceService(0L)
@@ -726,9 +758,11 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 	private StorageOptions getStorageOptions() {
 		return new StorageOptions(
 			getTestDirectory().resolve(DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST),
+			getTestDirectory().resolve(DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST),
 			60, 60,
 			StorageOptions.DEFAULT_OUTPUT_BUFFER_SIZE, 1,
-			true, 1.0, 0L, false
+			true, 1.0, 0L, false,
+			Long.MAX_VALUE, Long.MAX_VALUE
 		);
 	}
 

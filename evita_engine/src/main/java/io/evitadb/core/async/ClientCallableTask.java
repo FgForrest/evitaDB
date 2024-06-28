@@ -38,11 +38,11 @@ import java.util.function.Function;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @Slf4j
-public class BackgroundCallableTask<V> extends AbstractBackgroundTask<V> implements Callable<V> {
+public class ClientCallableTask<S, T> extends AbstractClientTask<S, T> implements Callable<T> {
 	/**
 	 * The actual logic wrapped in a lambda that is executed by the task with progress tracking.
 	 */
-	private final Function<BackgroundCallableTask<V>, V> callableWithProgress;
+	private final Function<ClientCallableTask<S, T>, T> callableWithProgress;
 
 	/**
 	 * Wraps the given {@link Callable} and logs any exceptions that occur during its execution.
@@ -73,53 +73,53 @@ public class BackgroundCallableTask<V> extends AbstractBackgroundTask<V> impleme
 		}
 	}
 
-	public BackgroundCallableTask(@Nonnull String catalogName, @Nonnull String taskName, @Nonnull Callable<V> callable) {
-		super(catalogName, taskName);
-		this.callableWithProgress = intConsumer -> wrapCallable(catalogName, getTaskName(), callable);
+	public ClientCallableTask(@Nonnull String catalogName, @Nonnull String taskName, @Nullable S settings, @Nonnull Callable<T> callable) {
+		super(catalogName, taskName, settings);
+		this.callableWithProgress = intConsumer -> wrapCallable(catalogName, taskName, callable);
 	}
 
-	public BackgroundCallableTask(@Nonnull String taskName, @Nonnull Callable<V> callable) {
-		super(taskName);
+	public ClientCallableTask(@Nonnull String taskName, @Nullable S settings, @Nonnull Callable<T> callable) {
+		super(taskName, settings);
 		this.callableWithProgress = intConsumer -> wrapCallable(null, taskName, callable);
 	}
 
-	public BackgroundCallableTask(@Nonnull String catalogName, @Nonnull String taskName, @Nonnull Function<BackgroundCallableTask<V>, V> callable) {
-		super(catalogName, taskName);
+	public ClientCallableTask(@Nonnull String catalogName, @Nonnull String taskName, @Nullable S settings, @Nonnull Function<ClientCallableTask<S, T>, T> callable) {
+		super(catalogName, taskName, settings);
 		this.callableWithProgress = callable;
 	}
 
-	public BackgroundCallableTask(@Nonnull String taskName, @Nonnull Function<BackgroundCallableTask<V>, V> callable) {
-		super(taskName);
+	public ClientCallableTask(@Nonnull String taskName, @Nullable S settings, @Nonnull Function<ClientCallableTask<S, T>, T> callable) {
+		super(taskName, settings);
 		this.callableWithProgress = callable;
 	}
 
-	public BackgroundCallableTask(@Nonnull String catalogName, @Nonnull String taskName, @Nonnull Callable<V> callable, @Nonnull Function<Throwable, V> exceptionHandler) {
-		super(catalogName, taskName, exceptionHandler);
-		this.callableWithProgress = intConsumer -> wrapCallable(catalogName, getTaskName(), callable);
+	public ClientCallableTask(@Nonnull String catalogName, @Nonnull String taskName, @Nullable S settings, @Nonnull Callable<T> callable, @Nonnull Function<Throwable, T> exceptionHandler) {
+		super(catalogName, taskName, settings, exceptionHandler);
+		this.callableWithProgress = intConsumer -> wrapCallable(catalogName, taskName, callable);
 	}
 
-	public BackgroundCallableTask(@Nonnull String taskName, @Nonnull Callable<V> callable, @Nonnull Function<Throwable, V> exceptionHandler) {
-		super(taskName, exceptionHandler);
+	public ClientCallableTask(@Nonnull String taskName, @Nullable S settings, @Nonnull Callable<T> callable, @Nonnull Function<Throwable, T> exceptionHandler) {
+		super(taskName, settings, exceptionHandler);
 		this.callableWithProgress = intConsumer -> wrapCallable(null, taskName, callable);
 	}
 
-	public BackgroundCallableTask(@Nonnull String catalogName, @Nonnull String taskName, @Nonnull Function<BackgroundCallableTask<V>, V> callable, @Nonnull Function<Throwable, V> exceptionHandler) {
-		super(catalogName, taskName, exceptionHandler);
+	public ClientCallableTask(@Nonnull String catalogName, @Nonnull String taskName, @Nullable S settings, @Nonnull Function<ClientCallableTask<S, T>, T> callable, @Nonnull Function<Throwable, T> exceptionHandler) {
+		super(catalogName, taskName, settings, exceptionHandler);
 		this.callableWithProgress = callable;
 	}
 
-	public BackgroundCallableTask(@Nonnull String taskName, @Nonnull Function<BackgroundCallableTask<V>, V> callable, @Nonnull Function<Throwable, V> exceptionHandler) {
-		super(taskName, exceptionHandler);
+	public ClientCallableTask(@Nonnull String taskName, @Nullable S settings, @Nonnull Function<ClientCallableTask<S, T>, T> callable, @Nonnull Function<Throwable, T> exceptionHandler) {
+		super(taskName, settings, exceptionHandler);
 		this.callableWithProgress = callable;
 	}
 
 	@Override
-	public V call() throws Exception {
+	public T call() throws Exception {
 		return super.execute();
 	}
 
 	@Override
-	protected V executeInternal() {
+	protected T executeInternal() {
 		return this.callableWithProgress.apply(this);
 	}
 }

@@ -27,6 +27,7 @@ import io.evitadb.utils.Assert;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.time.OffsetDateTime;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -36,8 +37,8 @@ import java.util.function.LongSupplier;
 /**
  * Represents a task that is executed asynchronously after a specified delay. The task is guarded to be scheduled only
  * once at a time or not at all. Task is scheduled by {@link #schedule()} method with constant delay. The task is paused
- * when the {@link #task} is finished and returns negative value. The task is re-scheduled when the {@link #task} returns
- * positive value. The task is re-scheduled with shorter delay when the {@link #task} returns positive value.
+ * when the {@link #lambda} is finished and returns negative value. The task is re-scheduled when the {@link #lambda} returns
+ * positive value. The task is re-scheduled with shorter delay when the {@link #lambda} returns positive value.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
@@ -64,10 +65,18 @@ public class DelayedAsyncTask {
 	 */
 	private final TimeUnit delayUnits;
 	/**
+	 * Name of the catalog that the task belongs to (may be NULL if the task is not bound to any particular catalog).
+	 */
+	private final String catalogName;
+	/**
+	 * The name of the task.
+	 */
+	private final String taskName;
+	/**
 	 * The task that is executed asynchronously after the specified delay and returns negative value when it should be
 	 * paused or positive value when it should be re-scheduled (with shortened delay).
 	 */
-	private final BackgroundRunnableTask task;
+	private final Runnable lambda;
 	/**
 	 * The next planned cache cut time - if there is scheduled action planned in the current scheduled executor service,
 	 * the time is stored here to avoid scheduling the same action multiple times.
@@ -83,7 +92,7 @@ public class DelayedAsyncTask {
 	private final AtomicBoolean reSchedule = new AtomicBoolean();
 
 	public DelayedAsyncTask(
-		@Nonnull String catalogName,
+		@Nullable String catalogName,
 		@Nonnull String taskName,
 		@Nonnull Scheduler scheduler,
 		@Nonnull LongSupplier runnable,
@@ -96,7 +105,7 @@ public class DelayedAsyncTask {
 	}
 
 	public DelayedAsyncTask(
-		@Nonnull String catalogName,
+		@Nullable String catalogName,
 		@Nonnull String taskName,
 		@Nonnull Scheduler scheduler,
 		@Nonnull LongSupplier runnable,
@@ -108,9 +117,9 @@ public class DelayedAsyncTask {
 		this.delay = delay;
 		this.delayUnits = delayUnits;
 		this.minimalSchedulingGap = minimalSchedulingGap;
-		this.task = new BackgroundRunnableTask(
-			catalogName, taskName, () -> runTask(runnable)
-		);
+		this.catalogName = catalogName;
+		this.taskName = taskName;
+		this.lambda = () -> runTask(runnable);
 	}
 
 	/**
@@ -127,7 +136,7 @@ public class DelayedAsyncTask {
 				this.minimalSchedulingGap
 			);
 			this.scheduler.schedule(
-				this.task,
+				this.lambda,
 				computedDelay,
 				TimeUnit.MILLISECONDS
 			);
@@ -161,7 +170,7 @@ public class DelayedAsyncTask {
 			this.minimalSchedulingGap
 		);
 		this.scheduler.schedule(
-			this.task,
+			this.lambda,
 			computedDelay,
 			TimeUnit.MILLISECONDS
 		);
@@ -179,7 +188,7 @@ public class DelayedAsyncTask {
 			);
 			planWithShorterDelay = runnable.getAsLong();
 		} catch (RuntimeException ex) {
-			log.error("Error while running task: {}", this.task.getTaskName(), ex);
+			log.error("Error while running task: {}", this.taskName, ex);
 			throw ex;
 		} finally {
 			Assert.isPremiseValid(

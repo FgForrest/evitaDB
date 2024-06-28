@@ -26,7 +26,7 @@ package io.evitadb.core.cache;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.CacheOptions;
 import io.evitadb.api.query.require.EntityFetch;
-import io.evitadb.core.async.BackgroundRunnableTask;
+import io.evitadb.core.async.DelayedAsyncTask;
 import io.evitadb.core.async.Scheduler;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.extraResult.CacheableEvitaResponseExtraResultComputer;
@@ -57,8 +57,18 @@ import static java.util.Optional.ofNullable;
  * @see CacheSupervisor for more information
  */
 public class HeapMemoryCacheSupervisor implements CacheSupervisor {
+	/**
+	 * Anteroom with cache adepts.
+	 */
 	private final CacheAnteroom cacheAnteroom;
+	/**
+	 * Eden cache.
+	 */
 	private final CacheEden cacheEden;
+	/**
+	 * Task that reevaluates the cache contents.
+	 */
+	private final DelayedAsyncTask reevaluationTask;
 
 	public HeapMemoryCacheSupervisor(@Nonnull CacheOptions cacheOptions, @Nonnull Scheduler scheduler) {
 		this.cacheEden = new CacheEden(
@@ -74,12 +84,19 @@ public class HeapMemoryCacheSupervisor implements CacheSupervisor {
 		);
 		// initialize function that will frequently evaluate contents of the cache, discard unused entries and introduce
 		// new ones from the CacheAnteroom
-		scheduler.scheduleAtFixedRate(
-			new BackgroundRunnableTask("Eden cache gatekeeper", this.cacheAnteroom::evaluateAssociatesSynchronouslyIfNoAdeptsWait),
-			0,
+		this.reevaluationTask = new DelayedAsyncTask(
+			null,
+			"Eden cache timed reevaluation",
+			scheduler,
+			() -> {
+				this.cacheAnteroom.evaluateAssociatesSynchronouslyIfNoAdeptsWait();
+				// plan next reevaluation in standard interval
+				return 0L;
+			},
 			cacheOptions.reevaluateEachSeconds(),
 			TimeUnit.SECONDS
 		);
+		this.reevaluationTask.schedule();
 	}
 
 	@Nonnull

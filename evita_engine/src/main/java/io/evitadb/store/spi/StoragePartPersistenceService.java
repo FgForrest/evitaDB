@@ -32,6 +32,7 @@ import javax.annotation.Nullable;
 import java.io.Closeable;
 import java.io.OutputStream;
 import java.util.UUID;
+import java.util.function.IntConsumer;
 import java.util.stream.Stream;
 
 /**
@@ -128,6 +129,15 @@ public interface StoragePartPersistenceService extends Closeable {
 	 * Counts the number of storage parts of the specified container type.
 	 *
 	 * @param catalogVersion the version of the catalog the value is read from
+	 * @param <T>           the type of the storage part container
+	 * @return the number of storage parts of the specified container type
+	 */
+	<T extends StoragePart> int countStorageParts(long catalogVersion);
+
+	/**
+	 * Counts the number of storage parts of the specified container type.
+	 *
+	 * @param catalogVersion the version of the catalog the value is read from
 	 * @param containerType the type of the storage part containers
 	 * @param <T>           the type of the storage part container
 	 * @return the number of storage parts of the specified container type
@@ -199,6 +209,7 @@ public interface StoragePartPersistenceService extends Closeable {
 	PersistentStorageDescriptor copySnapshotTo(
 		long catalogVersion,
 		@Nonnull OutputStream outputStream,
+		@Nullable IntConsumer progressConsumer,
 		@Nullable StoragePart... updatedStorageParts
 	);
 

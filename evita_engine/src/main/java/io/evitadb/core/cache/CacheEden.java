@@ -289,7 +289,7 @@ public class CacheEden {
 	 * and registers the most precious of them into the cache. It also evicts currently cached records if they become
 	 * cool enough.
 	 */
-	public void evaluateAdepts() {
+	public long evaluateAdepts() {
 		try {
 			// this method is allowed to run in one thread only
 			if (this.lock.tryLock() || this.lock.tryLock(1, TimeUnit.SECONDS)) {
@@ -425,6 +425,10 @@ public class CacheEden {
 			log.warn("Failed to acquire lock for cache re-evaluation!");
 			Thread.currentThread().interrupt();
 		}
+		// always report statistics to the observability
+		this.reportStatistics();
+		// plan with standard delay
+		return 0L;
 	}
 
 	/**

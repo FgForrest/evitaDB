@@ -39,4 +39,31 @@ public interface GrpcRestoreCatalogResponseOrBuilder extends
    * @return The read.
    */
   long getRead();
+
+  /**
+   * <pre>
+   * the id of the task that is used to restore the catalog and getting its progress
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid taskId = 2;</code>
+   * @return Whether the taskId field is set.
+   */
+  boolean hasTaskId();
+  /**
+   * <pre>
+   * the id of the task that is used to restore the catalog and getting its progress
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid taskId = 2;</code>
+   * @return The taskId.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcUuid getTaskId();
+  /**
+   * <pre>
+   * the id of the task that is used to restore the catalog and getting its progress
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid taskId = 2;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder getTaskIdOrBuilder();
 }

@@ -32,11 +32,28 @@ public interface GrpcBackupCatalogResponseOrBuilder extends
 
   /**
    * <pre>
-   * Binary contents of the backup file.
+   * the id of the task that is used to backup the catalog and getting its progress
    * </pre>
    *
-   * <code>bytes backupFile = 1;</code>
-   * @return The backupFile.
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid taskId = 1;</code>
+   * @return Whether the taskId field is set.
    */
-  com.google.protobuf.ByteString getBackupFile();
+  boolean hasTaskId();
+  /**
+   * <pre>
+   * the id of the task that is used to backup the catalog and getting its progress
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid taskId = 1;</code>
+   * @return The taskId.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcUuid getTaskId();
+  /**
+   * <pre>
+   * the id of the task that is used to backup the catalog and getting its progress
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid taskId = 1;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder getTaskIdOrBuilder();
 }

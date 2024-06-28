@@ -28,6 +28,7 @@ import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.store.exception.StorageException;
 import io.evitadb.store.model.FileLocation;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
+import io.evitadb.utils.Assert;
 import io.evitadb.utils.BitUtils;
 import lombok.Getter;
 
@@ -181,6 +182,7 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 	 */
 	public FileLocation markEnd(byte controlByte) {
 		try {
+			Assert.isPremiseValid(payloadStartPosition != -1, "Payload start position must be initialized!");
 			this.writingTail = true;
 			final Optional<CRC32C> crc32Ref = ofNullable(crc32C);
 			final byte alteredControlByte = crc32Ref.isPresent() ?

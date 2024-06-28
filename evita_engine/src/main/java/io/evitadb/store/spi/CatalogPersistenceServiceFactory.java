@@ -26,14 +26,14 @@ package io.evitadb.store.spi;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TransactionOptions;
-import io.evitadb.core.async.BackgroundCallableTask;
+import io.evitadb.core.async.ClientRunnableTask;
 import io.evitadb.core.async.Scheduler;
+import io.evitadb.core.file.ExportFileService;
 import io.evitadb.store.exception.InvalidStoragePathException;
 import io.evitadb.store.spi.exception.DirectoryNotEmptyException;
 
 import javax.annotation.Nonnull;
 import java.io.InputStream;
-import java.nio.file.Path;
 
 /**
  * This interface and layer of abstraction was introduced because we want to split data storage / serialization and
@@ -69,7 +69,8 @@ public interface CatalogPersistenceServiceFactory {
 		@Nonnull String catalogName,
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull TransactionOptions transactionOptions,
-		@Nonnull Scheduler scheduler
+		@Nonnull Scheduler scheduler,
+		@Nonnull ExportFileService exportFileService
 	);
 
 	/**
@@ -82,7 +83,8 @@ public interface CatalogPersistenceServiceFactory {
 		@Nonnull String catalogName,
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull TransactionOptions transactionOptions,
-		@Nonnull Scheduler scheduler
+		@Nonnull Scheduler scheduler,
+		@Nonnull ExportFileService exportFileService
 	);
 
 	/**
@@ -98,7 +100,7 @@ public interface CatalogPersistenceServiceFactory {
 	 * @throws InvalidStoragePathException if the storage path is invalid
 	 */
 	@Nonnull
-	BackgroundCallableTask<Path> restoreCatalogTo(
+	ClientRunnableTask<?> restoreCatalogTo(
 		@Nonnull String catalogName,
 		@Nonnull StorageOptions storageOptions,
 		long totalBytesExpected,

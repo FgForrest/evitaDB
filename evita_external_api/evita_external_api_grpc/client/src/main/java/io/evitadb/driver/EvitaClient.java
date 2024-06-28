@@ -30,16 +30,17 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.SessionTraits;
 import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.TransactionContract.CommitBehavior;
+import io.evitadb.api.exception.FileForFetchNotFoundException;
 import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.exception.TemporalDataNotAvailableException;
 import io.evitadb.api.exception.TransactionException;
+import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.system.SystemStatus;
-import io.evitadb.api.task.JobStatus;
-import io.evitadb.api.task.ProgressiveCompletableFuture;
+import io.evitadb.api.task.TaskStatus;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.driver.config.EvitaClientConfiguration;
 import io.evitadb.driver.exception.EvitaClientTimedOutException;
@@ -85,7 +86,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
-import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateEncodingException;
 import java.time.Duration;
@@ -668,7 +668,7 @@ public class EvitaClient implements EvitaContract {
 
 	@Nonnull
 	@Override
-	public ProgressiveCompletableFuture<Path> backupCatalog(
+	public CompletableFuture<FileForFetch> backupCatalog(
 		@Nonnull String catalogName,
 		@Nullable OffsetDateTime pastMoment,
 		boolean includingWAL
@@ -684,7 +684,7 @@ public class EvitaClient implements EvitaContract {
 
 	@Nonnull
 	@Override
-	public ProgressiveCompletableFuture<Void> restoreCatalog(
+	public CompletableFuture<Void> restoreCatalog(
 		@Nonnull String catalogName,
 		long totalBytesExpected,
 		@Nonnull InputStream inputStream
@@ -770,26 +770,45 @@ public class EvitaClient implements EvitaContract {
 
 	@Nonnull
 	@Override
-	public PaginatedList<JobStatus<?, ?>> getJobStatuses(int page, int pageSize) {
+	public CompletableFuture<Void> restoreCatalog(@Nonnull String catalogName, @Nonnull UUID fileId) throws FileForFetchNotFoundException {
 		/* TODO JNO - Implement me */
 		return null;
 	}
 
 	@Nonnull
 	@Override
-	public Optional<JobStatus<?, ?>> getJobStatus(@Nonnull UUID jobId) {
+	public PaginatedList<TaskStatus<?, ?>> listTaskStatuses(int page, int pageSize) {
+		/* TODO JNO - Implement me */
+		return null;
+	}
+
+	@Nonnull
+	@Override
+	public Optional<TaskStatus<?, ?>> getTaskStatus(@Nonnull UUID jobId) {
 		/* TODO JNO - Implement me */
 		return Optional.empty();
 	}
 
 	@Override
-	public boolean cancelJob(@Nonnull UUID jobId) {
+	public boolean cancelTask(@Nonnull UUID jobId) {
 		/* TODO JNO - Implement me */
 		return false;
 	}
 
+	@Nonnull
 	@Override
-	public void writeFile(@Nonnull UUID fileId, @Nonnull OutputStream outputStream) {
+	public PaginatedList<FileForFetch> listFilesToFetch(int page, int pageSize, @Nullable String origin) {
+		/* TODO JNO - Implement me */
+		return null;
+	}
+
+	@Override
+	public void fetchFile(@Nonnull UUID fileId, @Nonnull OutputStream outputStream) throws FileForFetchNotFoundException {
+		/* TODO JNO - Implement me */
+	}
+
+	@Override
+	public void deleteFile(@Nonnull UUID fileId) throws FileForFetchNotFoundException {
 		/* TODO JNO - Implement me */
 	}
 

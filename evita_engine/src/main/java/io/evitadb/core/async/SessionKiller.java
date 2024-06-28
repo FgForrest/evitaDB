@@ -21,13 +21,11 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.maintenance;
+package io.evitadb.core.async;
 
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.core.Evita;
-import io.evitadb.core.async.BackgroundRunnableTask;
-import io.evitadb.core.async.Scheduler;
 import io.evitadb.core.metric.event.session.KilledEvent;
 import lombok.extern.slf4j.Slf4j;
 
@@ -43,18 +41,35 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 @Slf4j
 public class SessionKiller implements Runnable {
+	/**
+	 * The allowed inactivity time in seconds.
+	 */
 	private final long allowedInactivityInSeconds;
+	/**
+	 * Reference to the evitaDB instance.
+	 */
 	private final Evita evita;
+	/**
+	 * The task that is scheduled to kill the sessions.
+	 */
+	private final DelayedAsyncTask killerTask;
 
 	public SessionKiller(int allowedInactivityInSeconds, @Nonnull Evita evita, @Nonnull Scheduler scheduler) {
 		this.allowedInactivityInSeconds = allowedInactivityInSeconds;
 		this.evita = evita;
-		scheduler.scheduleAtFixedRate(
-			new BackgroundRunnableTask("Session killer", this),
-			Math.min(60, allowedInactivityInSeconds),
+		this.killerTask = new DelayedAsyncTask(
+			null,
+			"Session killer",
+			scheduler,
+			() -> {
+				run();
+				// plan again according to plan
+				return 0L;
+			},
 			Math.min(60, allowedInactivityInSeconds),
 			TimeUnit.SECONDS
 		);
+		this.killerTask.schedule();
 	}
 
 	@Override

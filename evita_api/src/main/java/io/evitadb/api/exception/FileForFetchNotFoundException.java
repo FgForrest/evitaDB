@@ -21,15 +21,29 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.task;
+package io.evitadb.api.exception;
+
+import io.evitadb.exception.EvitaInvalidUsageException;
+import lombok.Getter;
+
+import javax.annotation.Nonnull;
+import java.io.Serial;
+import java.util.UUID;
 
 /**
- * This enumeration contains listing of all job types.
+ * Exception is thrown when no file with the given ID is found.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public enum JobType {
+public class FileForFetchNotFoundException extends EvitaInvalidUsageException {
+	@Serial private static final long serialVersionUID = 6188715534953413955L;
+	@Getter private final UUID fileId;
 
-	BACKUP, RESTORE
-
+	public FileForFetchNotFoundException(@Nonnull UUID fileId) {
+		super(
+			"File not found: " + fileId,
+			"File not found."
+		);
+		this.fileId = fileId;
+	}
 }

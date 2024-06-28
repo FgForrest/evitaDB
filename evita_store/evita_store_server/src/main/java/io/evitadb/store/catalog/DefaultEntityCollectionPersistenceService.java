@@ -126,6 +126,7 @@ import java.time.OffsetDateTime;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.function.IntConsumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -1129,7 +1130,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		final Path newFilePath = newReference.toFilePath(catalogStoragePath);
 		final OffsetIndexDescriptor offsetIndexDescriptor;
 		try (final FileOutputStream fos = new FileOutputStream(newFilePath.toFile())) {
-			offsetIndexDescriptor = this.storagePartPersistenceService.copySnapshotTo(catalogVersion, fos);
+			offsetIndexDescriptor = this.storagePartPersistenceService.copySnapshotTo(catalogVersion, fos, null);
 		} catch (IOException e) {
 			throw new UnexpectedIOException(
 				"Error occurred while compacting entity " + this.entityCollectionFile + " data file: " + e.getMessage(),
@@ -1162,12 +1163,13 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	public EntityCollectionHeader copySnapshotTo(
 		long catalogVersion,
 		@Nonnull CollectionFileReference fileReference,
-		@Nonnull OutputStream outputStream
+		@Nonnull OutputStream outputStream,
+		@Nullable IntConsumer progressConsumer
 	) {
-		final OffsetIndexDescriptor offsetIndexDescriptor = getStoragePartPersistenceService().copySnapshotTo(catalogVersion, outputStream);
+		final OffsetIndexDescriptor offsetIndexDescriptor = getStoragePartPersistenceService().copySnapshotTo(catalogVersion, outputStream, progressConsumer);
 		final EntityCollectionHeader currentHeader = getEntityCollectionHeader();
 		final Path catalogStoragePath = this.entityCollectionFile.getParent();
-		final EntityCollectionHeader theHeader = createEntityCollectionHeader(
+		return createEntityCollectionHeader(
 			catalogVersion,
 			catalogStoragePath,
 			offsetIndexDescriptor,
@@ -1179,7 +1181,6 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 				offsetIndexDescriptor.fileLocation()
 			)
 		);
-		return theHeader;
 	}
 
 	@Override

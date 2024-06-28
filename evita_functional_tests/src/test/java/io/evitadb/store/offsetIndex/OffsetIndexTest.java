@@ -231,7 +231,7 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 			final long finalCatalogVersion = nextCatalogVersion + 1;
 			final OffsetIndexDescriptor snapshotBootstrapDescriptor;
 			try (final FileOutputStream fos = new FileOutputStream(snapshotPath.toFile())) {
-				snapshotBootstrapDescriptor = purgedSourceOffsetIndex.copySnapshotTo(fos, finalCatalogVersion);
+				snapshotBootstrapDescriptor = purgedSourceOffsetIndex.copySnapshotTo(fos, null, finalCatalogVersion);
 			} catch (IOException e) {
 				throw new AssertionFailedError("IO exception!", e);
 			}
