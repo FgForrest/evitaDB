@@ -3,14 +3,20 @@
 <UsedTerms>
   <h4>Labels used in metrics</h4>
   <dl>
+    <dt>taskName</dt>
+    <dd><strong>N/A</strong>: N/A</dd>
+    <dt>buildType</dt>
+    <dd><strong>Build type</strong>: N/A</dd>
+    <dt>catalogName</dt>
+    <dd><strong>Catalog</strong>: N/A</dd>
+    <dt>instanceType</dt>
+    <dd><strong>Instance type</strong>: N/A</dd>
     <dt>fileType</dt>
     <dd><strong>File type</strong>: N/A</dd>
     <dt>name</dt>
     <dd><strong>Logical file name</strong>: N/A</dd>
-    <dt>taskName</dt>
-    <dd><strong>N/A</strong>: N/A</dd>
-    <dt>resolution</dt>
-    <dd><strong>Transaction resolution</strong>: N/A</dd>
+    <dt>recordType</dt>
+    <dd><strong>Record type</strong>: N/A</dd>
     <dt>catalogName</dt>
     <dd><strong>Catalog</strong>: N/A</dd>
     <dt>entityType</dt>
@@ -29,6 +35,14 @@
     <dd><strong>File type</strong>: N/A</dd>
     <dt>name</dt>
     <dd><strong>Logical file name</strong>: N/A</dd>
+    <dt>stage</dt>
+    <dd><strong>Transaction stage</strong>: N/A</dd>
+    <dt>fileType</dt>
+    <dd><strong>File type</strong>: N/A</dd>
+    <dt>name</dt>
+    <dd><strong>Logical file name</strong>: N/A</dd>
+    <dt>resolution</dt>
+    <dd><strong>Transaction resolution</strong>: N/A</dd>
     <dt>catalogName</dt>
     <dd><strong>Catalog</strong>: N/A</dd>
     <dt>instanceType</dt>
@@ -39,16 +53,10 @@
     <dd><strong>Operation type</strong>: N/A</dd>
     <dt>responseStatus</dt>
     <dd><strong>Response status</strong>: N/A</dd>
-    <dt>entityType</dt>
-    <dd><strong>Entity type</strong>: N/A</dd>
-    <dt>prefetched</dt>
-    <dd><strong>Prefetched vs. non-prefetched query</strong>: N/A</dd>
-    <dt>entityType</dt>
-    <dd><strong>Entity type</strong>: N/A</dd>
-    <dt>resolution</dt>
-    <dd><strong>Transaction resolution</strong>: N/A</dd>
-    <dt>taskName</dt>
-    <dd><strong>N/A</strong>: N/A</dd>
+    <dt>fileType</dt>
+    <dd><strong>File type</strong>: N/A</dd>
+    <dt>name</dt>
+    <dd><strong>Logical file name</strong>: N/A</dd>
     <dt>initiator</dt>
     <dd><strong>Initiator of the call (client or server)</strong>: N/A</dd>
     <dt>procedureName</dt>
@@ -61,40 +69,32 @@
     <dd><strong>File type</strong>: N/A</dd>
     <dt>name</dt>
     <dd><strong>Logical file name</strong>: N/A</dd>
-    <dt>buildType</dt>
-    <dd><strong>Build type</strong>: N/A</dd>
-    <dt>catalogName</dt>
-    <dd><strong>Catalog</strong>: N/A</dd>
-    <dt>instanceType</dt>
-    <dd><strong>Instance type</strong>: N/A</dd>
-    <dt>fileType</dt>
-    <dd><strong>File type</strong>: N/A</dd>
-    <dt>name</dt>
-    <dd><strong>Logical file name</strong>: N/A</dd>
-    <dt>recordType</dt>
-    <dd><strong>Record type</strong>: N/A</dd>
-    <dt>stage</dt>
-    <dd><strong>Transaction stage</strong>: N/A</dd>
-    <dt>fileType</dt>
-    <dd><strong>File type</strong>: N/A</dd>
-    <dt>name</dt>
-    <dd><strong>Logical file name</strong>: N/A</dd>
+    <dt>resolution</dt>
+    <dd><strong>Transaction resolution</strong>: N/A</dd>
+    <dt>taskName</dt>
+    <dd><strong>N/A</strong>: N/A</dd>
     <dt>fileType</dt>
     <dd><strong>File type</strong>: N/A</dd>
     <dt>name</dt>
     <dd><strong>Logical file name</strong>: N/A</dd>
     <dt>entityType</dt>
     <dd><strong>Entity type</strong>: N/A</dd>
-    <dt>fileType</dt>
-    <dd><strong>File type</strong>: N/A</dd>
-    <dt>name</dt>
-    <dd><strong>Logical file name</strong>: N/A</dd>
     <dt>buildType</dt>
     <dd><strong>Build type</strong>: N/A</dd>
     <dt>catalogName</dt>
     <dd><strong>Catalog</strong>: N/A</dd>
     <dt>instanceType</dt>
     <dd><strong>Instance type</strong>: N/A</dd>
+    <dt>entityType</dt>
+    <dd><strong>Entity type</strong>: N/A</dd>
+    <dt>fileType</dt>
+    <dd><strong>File type</strong>: N/A</dd>
+    <dt>name</dt>
+    <dd><strong>Logical file name</strong>: N/A</dd>
+    <dt>entityType</dt>
+    <dd><strong>Entity type</strong>: N/A</dd>
+    <dt>prefetched</dt>
+    <dd><strong>Prefetched vs. non-prefetched query</strong>: N/A</dd>
   </dl>
 </UsedTerms>
 

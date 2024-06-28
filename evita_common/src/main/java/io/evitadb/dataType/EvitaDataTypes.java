@@ -564,6 +564,13 @@ public class EvitaDataTypes {
 	}
 
 	/**
+	 * Returns true if passed class represents ANY enum or array of enums.
+	 */
+	public static boolean isEnumOrArrayOfEnums(Class<?> argType) {
+		return argType.isEnum() || (argType.isArray() && argType.getComponentType().isEnum());
+	}
+
+	/**
 	 * If passed type is a primitive type or array of primitive types, the wrapper type or array of wrapper types
 	 * is returned in response.
 	 */

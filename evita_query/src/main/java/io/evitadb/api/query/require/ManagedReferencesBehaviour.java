@@ -23,6 +23,8 @@
 
 package io.evitadb.api.query.require;
 
+import io.evitadb.dataType.SupportedEnum;
+
 /**
  * This enumeration controls behavior of the {@link ReferenceContent} related to managed entities.
  * If the target entity is not (yet) present in the database and {@link ManagedReferencesBehaviour#EXISTING} is set,
@@ -32,6 +34,7 @@ package io.evitadb.api.query.require;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
+@SupportedEnum
 public enum ManagedReferencesBehaviour {
 
 	/**
