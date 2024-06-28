@@ -293,7 +293,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 			assertTrue(status.isPresent());
 			String output = status.get();
 			output = Pattern.compile("(\"serverName\": \"evitaDB-)(.+?)\"").matcher(output).replaceAll("$1RANDOM\"");
-			output = Pattern.compile("(\"version\": \")(\\d{4}\\.\\d{1,2}(-SNAPSHOT)?)\"").matcher(output).replaceAll("$1VARIABLE\"");
+			output = Pattern.compile("(\"version\": \")((?:\\?)|(?:\\d{4}\\.\\d{1,2}(-SNAPSHOT)?))\"").matcher(output).replaceAll("$1VARIABLE\"");
 			output = Pattern.compile("(\"startedAt\": \")(.+?)\"").matcher(output).replaceAll("$1VARIABLE\"");
 			output = Pattern.compile("(\"uptime\": )(\\d+?)").matcher(output).replaceAll("$1VARIABLE");
 			output = Pattern.compile("(\"uptimeForHuman\": \")(.+?)\"").matcher(output).replaceAll("$1VARIABLE\"");
