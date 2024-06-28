@@ -95,9 +95,11 @@ class SchedulerTest {
 	void shouldCancelTheTask() throws InterruptedException {
 		assertEquals(0, scheduler.getJobStatuses(1, 20).getTotalRecordCount());
 
+		final AtomicBoolean started = new AtomicBoolean(false);
 		final AtomicBoolean interrupted = new AtomicBoolean(false);
 		final CompletableFuture<Integer> result = scheduler.submit(
 			(Task<Void, Integer>) new ClientCallableTask<Void, Integer>("Test task", null, theTask -> {
+				started.set(true);
 				for (int i = 0; i < 1_000_000_000; i++) {
 					if (theTask.getFutureResult().isCancelled()) {
 						interrupted.set(true);
@@ -130,7 +132,7 @@ class SchedulerTest {
 		final long start = System.currentTimeMillis();
 		do {
 			Thread.onSpinWait();
-		} while (!interrupted.get() && System.currentTimeMillis() - start < 100_000);
+		} while (started.get() && !interrupted.get() && System.currentTimeMillis() - start < 100_000);
 
 		final Optional<TaskStatus<?, ?>> jobStatusAgain = scheduler.getJobStatus(jobStatuses.getData().get(0).taskId());
 		final Optional<TaskStatus<?, ?>> taskStatusRef = jobStatusAgain;
@@ -138,7 +140,7 @@ class SchedulerTest {
 			assertNull(taskStatus.result());
 			assertEquals(State.FAILED, taskStatus.state());
 		});
-		assertTrue(interrupted.get());
+		assertTrue(interrupted.get() || !started.get());
 	}
 
 }

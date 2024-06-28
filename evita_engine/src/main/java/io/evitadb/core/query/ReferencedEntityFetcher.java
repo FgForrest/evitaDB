@@ -447,7 +447,9 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			if (managedReferencesBehaviour == ManagedReferencesBehaviour.EXISTING) {
 				if (targetEntityManaged) {
 					// we need to filter the referenced entity ids to only those that really exist
-					final Optional<EntityCollection> targetEntityCollection = queryContext.getEntityCollection(targetEntityType);
+					final Optional<EntityCollection> targetEntityCollection = executionContext
+						.getQueryContext()
+						.getEntityCollection(targetEntityType);
 					if (targetEntityCollection.isEmpty()) {
 						validityMappingOptional.ifPresent(ValidEntityToReferenceMapping::forbidAll);
 						result = EMPTY_INTS;
