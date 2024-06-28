@@ -400,6 +400,8 @@ message GrpcQueryParam {
     GrpcStatisticsType statisticsType = 20;
     // The histogram behavior enum value.
     GrpcHistogramBehavior histogramBehavior = 21;
+    // The managed references behaviour
+    GrpcManagedReferencesBehaviour managedReferencesBehaviour = 22;
 
     // The string array value.
     GrpcStringArray stringArrayValue = 101;
