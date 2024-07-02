@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.utils;
+package io.evitadb.externalApi.utils.path.routing;
 
 import java.util.Collection;
 import java.util.Collections;

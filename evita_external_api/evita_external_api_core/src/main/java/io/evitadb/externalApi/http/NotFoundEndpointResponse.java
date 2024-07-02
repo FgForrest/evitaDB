@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,8 +23,10 @@
 
 package io.evitadb.externalApi.http;
 
+import com.linecorp.armeria.common.HttpStatus;
+
 /**
- * Response representing {@link io.undertow.util.StatusCodes#NOT_FOUND} HTTP status code.
+ * Response representing {@link HttpStatus#NOT_FOUND} HTTP status code.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */

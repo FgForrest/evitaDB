@@ -41,7 +41,6 @@ cache:
 
 api:
   exposedOn: ${api.exposedOn:null}
-  ioThreads: ${api.ioThreads:4}
   workerGroupThreads: ${api.workerGroupThreads:4}
   serviceWorkerGroupThreads: ${api.serviceWorkerGroupThreads:4}
   accessLog: ${api.accessLog:false}
@@ -77,6 +76,7 @@ api:
       host: ${api.endpoints.gRPC.host:localhost:5555}
       exposedHost: ${api.endpoints.gRPC.exposedHost:null}
       tlsMode: ${api.endpoints.gRPC.tlsMode:RELAXED}
+      exposeDocsService: ${api.endpoints.gRPC.exposeDocsService:true}
       allowedOrigins: ${api.endpoints.gRPC.allowedOrigins:null}
       mTLS:
         enabled: ${api.endpoints.gRPC.mTLS.enabled:false}

@@ -23,9 +23,10 @@
 
 package io.evitadb.driver.pooling;
 
+import com.linecorp.armeria.client.grpc.GrpcClientBuilder;
 import io.evitadb.driver.EvitaClient;
+import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc.EvitaServiceBlockingStub;
 import io.grpc.ManagedChannel;
-import io.grpc.netty.NettyChannelBuilder;
 
 import javax.annotation.Nonnull;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -46,7 +47,7 @@ public class ChannelPool {
 	/**
 	 * The channel builder is used to create new channels while initialization or if the pool is empty.
 	 */
-	private final NettyChannelBuilder channelBuilder;
+	private final GrpcClientBuilder channelBuilder;
 
 	/**
 	 * Creates a new channel pool with the specified size.
@@ -54,11 +55,11 @@ public class ChannelPool {
 	 * @param channelBuilder the channel builder used to create new channels
 	 * @param poolSize       the size of the pool
 	 */
-	public ChannelPool(NettyChannelBuilder channelBuilder, int poolSize) {
+	public ChannelPool(GrpcClientBuilder channelBuilder, int poolSize) {
 		channels = new ConcurrentLinkedQueue<>();
 		this.channelBuilder = channelBuilder;
 		for (int i = 0; i < poolSize; i++) {
-			ManagedChannel channel = channelBuilder.build();
+			ManagedChannel channel = /*channelBuilder.build()*/null;
 			channels.add(channel);
 		}
 	}
@@ -72,7 +73,7 @@ public class ChannelPool {
 		ManagedChannel channel = channels.poll();
 		if (channel == null || channel.isShutdown() || channel.isTerminated()) {
 			// No available channel in the pool, create a new one
-			channel = this.channelBuilder.build();
+			channel = this.channelBuilder.build(null);
 		}
 		return channel;
 	}

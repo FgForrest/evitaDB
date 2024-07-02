@@ -72,6 +72,11 @@ public class GrpcProvider implements ExternalApiProvider<GrpcConfig> {
 	}
 
 	@Override
+	public boolean isDocsServiceEnabled() {
+		return configuration.isExposeDocsService();
+	}
+
+	@Override
 	public boolean isReady() {
 		final Predicate<String> isReady = url -> {
 			final String getCatalogMethodPath = "io.evitadb.externalApi.grpc.generated.EvitaService/GetCatalogNames";

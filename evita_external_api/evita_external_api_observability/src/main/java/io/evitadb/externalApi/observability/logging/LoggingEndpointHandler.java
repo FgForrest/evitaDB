@@ -28,21 +28,21 @@ import com.linecorp.armeria.common.HttpRequest;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.externalApi.exception.ExternalApiInvalidUsageException;
 import io.evitadb.externalApi.http.AbstractHttpService;
-import io.evitadb.externalApi.http.EndpointHandler;
 import io.evitadb.externalApi.http.EndpointRequest;
 import io.evitadb.externalApi.http.MimeTypes;
 import io.evitadb.externalApi.observability.ObservabilityManager;
 import io.evitadb.externalApi.observability.exception.ObservabilityInternalError;
 import io.evitadb.externalApi.observability.exception.ObservabilityInvalidUsageException;
 import io.evitadb.utils.Assert;
-import io.undertow.server.HttpServerExchange;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.util.Deque;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 /**

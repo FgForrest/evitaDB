@@ -31,7 +31,7 @@ import io.evitadb.externalApi.exception.ExternalApiInvalidUsageException;
 import io.evitadb.externalApi.exception.HttpExchangeException;
 import io.evitadb.utils.Assert;
 import io.netty.channel.EventLoop;
-import io.undertow.util.StatusCodes;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -44,19 +44,21 @@ import java.nio.charset.StandardCharsets;
 import java.nio.charset.UnsupportedCharsetException;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+@Slf4j
 public abstract class AbstractHttpService<E extends EndpointRequest> implements HttpService {
 	private static final int STREAM_CHUNK_SIZE = 8192;
 	private static final String CONTENT_TYPE_CHARSET = "; charset=UTF-8";
 
 	@Nonnull
 	@Override
-	public HttpResponse serve(@Nonnull ServiceRequestContext ctx, @Nonnull HttpRequest req) throws Exception {
+	public HttpResponse serve(@Nonnull ServiceRequestContext ctx, @Nonnull HttpRequest req) {
 		validateRequest(req);
 
 		final E exchange = createEndpointExchange(
@@ -67,21 +69,21 @@ public abstract class AbstractHttpService<E extends EndpointRequest> implements 
 		);
 
 		beforeRequestHandled(exchange);
-		return HttpResponse.of(doHandleRequest(exchange)
+		return HttpResponse.of(Objects.requireNonNull(doHandleRequest(exchange)
 			.thenApply(response -> {
 				afterRequestHandled(exchange, response);
 
 				if (response instanceof NotFoundEndpointResponse) {
-					throw new HttpExchangeException(StatusCodes.NOT_FOUND, "Requested resource wasn't found.");
+					throw new HttpExchangeException(HttpStatus.NOT_FOUND.code(), "Requested resource wasn't found.");
 				} else if (response instanceof SuccessEndpointResponse successResponse) {
 					final Object result = successResponse.getResult();
 					if (result == null) {
 						return HttpResponse.builder()
-							.status(StatusCodes.NO_CONTENT)
+							.status(HttpStatus.NO_CONTENT)
 							.build();
 					} else {
 						final HttpResponseWriter responseWriter = HttpResponse.streaming();
-						ctx.addAdditionalResponseHeader(HttpHeaderNames.CONTENT_TYPE, getPreferredResponseContentType(req) + CONTENT_TYPE_CHARSET);
+						ctx.addAdditionalResponseHeader(HttpHeaderNames.CONTENT_TYPE, exchange.preferredResponseContentType() + CONTENT_TYPE_CHARSET);
 						responseWriter.write(ResponseHeaders.of(HttpStatus.OK));
 						writeResponse(exchange, responseWriter, result, ctx.eventLoop());
 						if (responseWriter.isOpen()) {
@@ -92,7 +94,7 @@ public abstract class AbstractHttpService<E extends EndpointRequest> implements 
 				} else {
 					throw createInternalError("Unsupported response `" + response.getClass().getName() + "`.");
 				}
-			})
+			}))
 		);
 	}
 
@@ -163,7 +165,7 @@ public abstract class AbstractHttpService<E extends EndpointRequest> implements 
 	protected void validateRequest(@Nonnull HttpRequest exchange) {
 		if (!hasSupportedHttpMethod(exchange)) {
 			throw new HttpExchangeException(
-				StatusCodes.METHOD_NOT_ALLOWED,
+				HttpStatus.METHOD_NOT_ALLOWED.code(),
 				"Supported methods are " + getSupportedHttpMethods().stream().map(it -> "`" + it + "`").collect(Collectors.joining(", ")) + "."
 			);
 		}
@@ -188,7 +190,7 @@ public abstract class AbstractHttpService<E extends EndpointRequest> implements 
 			bodyContentType != null &&
 				getSupportedRequestContentTypes().stream().anyMatch(bodyContentType::startsWith),
 			() -> new HttpExchangeException(
-				StatusCodes.UNSUPPORTED_MEDIA_TYPE,
+				HttpStatus.UNSUPPORTED_MEDIA_TYPE.code(),
 				"Supported request body media types are " + getSupportedRequestContentTypes().stream().map(it -> "`" + it + "`").collect(Collectors.joining(", ")) + "."
 			)
 		);
@@ -225,7 +227,7 @@ public abstract class AbstractHttpService<E extends EndpointRequest> implements 
 		}
 
 		throw new HttpExchangeException(
-			StatusCodes.NOT_ACCEPTABLE,
+			HttpStatus.NOT_ACCEPTABLE.code(),
 			"Supported response body media types are " + getSupportedResponseContentTypes().stream().map(it -> "`" + it + "`").collect(Collectors.joining(", ")) + "."
 		);
 	}
@@ -257,7 +259,7 @@ public abstract class AbstractHttpService<E extends EndpointRequest> implements 
 			.map(charsetPart -> {
 				final String[] charsetParts = charsetPart.split("=");
 				if (charsetParts.length != 2) {
-					throw new HttpExchangeException(StatusCodes.UNSUPPORTED_MEDIA_TYPE, "Charset has invalid format");
+					throw new HttpExchangeException(HttpStatus.UNSUPPORTED_MEDIA_TYPE.code(), "Charset has invalid format");
 				}
 				return charsetParts[1].trim();
 			})
@@ -265,7 +267,7 @@ public abstract class AbstractHttpService<E extends EndpointRequest> implements 
 				try {
 					return Charset.forName(charsetName);
 				} catch (IllegalCharsetNameException | UnsupportedCharsetException ex) {
-					throw new HttpExchangeException(StatusCodes.UNSUPPORTED_MEDIA_TYPE, "Unsupported charset.");
+					throw new HttpExchangeException(HttpStatus.UNSUPPORTED_MEDIA_TYPE.code(), "Unsupported charset.");
 				}
 			})
 			.orElse(StandardCharsets.UTF_8);

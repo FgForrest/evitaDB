@@ -61,6 +61,8 @@ public class GrpcConfig extends AbstractApiConfiguration implements ApiWithOrigi
 	 * Wrapper that contains a part of configuration file that is related to mTLS settings.
 	 */
 
+	@Getter private final boolean exposeDocsService;
+
 	@Getter private final String[] allowedOrigins;
 
 	@Getter
@@ -68,6 +70,7 @@ public class GrpcConfig extends AbstractApiConfiguration implements ApiWithOrigi
 
 	public GrpcConfig() {
 		super(true, LOCALHOST + ":" + DEFAULT_GRPC_PORT);
+		this.exposeDocsService = false;
 		mtlsConfiguration = new MtlsConfiguration(false, List.of());
 		this.prefix = BASE_GRPC_PATH;
 		this.allowedOrigins = null;
@@ -75,6 +78,7 @@ public class GrpcConfig extends AbstractApiConfiguration implements ApiWithOrigi
 
 	public GrpcConfig(@Nonnull String host) {
 		super(true, host);
+		this.exposeDocsService = false;
 		mtlsConfiguration = new MtlsConfiguration(false, List.of());
 		this.prefix = BASE_GRPC_PATH;
 		this.allowedOrigins = null;
@@ -85,10 +89,12 @@ public class GrpcConfig extends AbstractApiConfiguration implements ApiWithOrigi
 	                  @Nonnull @JsonProperty("host") String host,
 	                  @Nullable @JsonProperty("exposedHost") String exposedHost,
 					  @Nullable @JsonProperty("tlsMode") String tlsMode,
+					  @Nullable @JsonProperty("exposeDocsService") Boolean exposeDocsService,
 	                  @Nullable @JsonProperty("prefix") String prefix,
 	                  @Nullable @JsonProperty("allowedOrigins") String allowedOrigins,
 	                  @Nonnull @JsonProperty("mTLS") MtlsConfiguration mtlsConfiguration) {
 		super(enabled, host, exposedHost, tlsMode);
+		this.exposeDocsService = ofNullable(exposeDocsService).orElse(false);
 		this.mtlsConfiguration = mtlsConfiguration;
 		this.prefix = ofNullable(prefix).orElse(BASE_GRPC_PATH);
 		if (allowedOrigins == null) {

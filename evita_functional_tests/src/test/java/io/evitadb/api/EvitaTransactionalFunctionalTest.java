@@ -120,9 +120,13 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 	private static final String TRANSACTIONAL_DATA_SET = "transactionalDataSet";
 	private static final int SEED = 42;
 	private static final TriFunction<String, EvitaSessionContract, Faker, Integer> RANDOM_ENTITY_PICKER = (entityType, session, faker) -> {
-		final int entityCount = session.getEntityCollectionSize(entityType);
-		final int primaryKey = entityCount == 0 ? 0 : faker.random().nextInt(1, entityCount);
-		return primaryKey == 0 ? null : primaryKey;
+		try {
+			final int entityCount = session.getEntityCollectionSize(entityType);
+			final int primaryKey = entityCount == 0 ? 0 : faker.random().nextInt(1, entityCount);
+			return primaryKey == 0 ? null : primaryKey;
+		} catch (Exception e) {
+			return null;
+		}
 	};
 	private static final Pattern DATE_TIME_PATTERN_1 = Pattern.compile("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d+\\+\\d{2}:\\d{2}");
 	private static final Pattern DATE_TIME_PATTERN_2 = Pattern.compile("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d+Z");

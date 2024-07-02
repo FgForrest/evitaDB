@@ -21,29 +21,28 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.utils;
+package io.evitadb.externalApi.utils.path;
 
 import com.linecorp.armeria.common.HttpRequest;
 import com.linecorp.armeria.common.HttpResponse;
 import com.linecorp.armeria.common.HttpStatus;
-import com.linecorp.armeria.common.MediaType;
 import com.linecorp.armeria.common.RequestHeadersBuilder;
 import com.linecorp.armeria.server.HttpService;
-import com.linecorp.armeria.server.Server;
 import com.linecorp.armeria.server.ServiceRequestContext;
+import io.evitadb.externalApi.utils.path.routing.cache.LRUCache;
+import io.evitadb.externalApi.utils.path.routing.PathMatcher;
+import io.evitadb.externalApi.utils.path.routing.PathMatcher.PathMatch;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
-import java.net.InetSocketAddress;
 import java.util.Map.Entry;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 public class PathHandlingService implements HttpService {
 	private final PathMatcher<HttpService> pathMatcher = new PathMatcher<>();
 
-	private final LRUCache<String, PathMatcher.PathMatch<HttpService>> cache;
+	private final LRUCache<String, PathMatch<HttpService>> cache;
 	@Nonnull
 	@Override
 	public HttpResponse serve(@Nonnull ServiceRequestContext ctx, @Nonnull HttpRequest req) throws Exception {
@@ -63,7 +62,6 @@ public class PathHandlingService implements HttpService {
 			cache.add(req.path(), match);
 		}
 		final RequestHeadersBuilder headersBuilder = req.headers().toBuilder().path(match.getRemaining());
-		//headersBuilder.path(match.getMatched());
 		return match.getValue().serve(ctx, req.withHeaders(headersBuilder.build()));
 	}
 

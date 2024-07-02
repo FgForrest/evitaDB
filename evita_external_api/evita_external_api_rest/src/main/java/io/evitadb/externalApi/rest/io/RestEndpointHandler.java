@@ -44,15 +44,22 @@ import io.evitadb.externalApi.rest.exception.RestRequiredParameterMissingExcepti
 import io.swagger.v3.oas.models.Operation;
 import io.swagger.v3.oas.models.media.Schema;
 import io.swagger.v3.oas.models.parameters.Parameter;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Serial;
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
+import static io.evitadb.externalApi.http.AdditionalHeaders.INTERNAL_HEADER_PREFIX;
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 
 /**
@@ -89,13 +96,7 @@ public abstract class RestEndpointHandler<CTX extends RestHandlingContext> exten
         return restHandlingContext.getTracingContext().executeWithinBlock(
             "REST",
             httpRequest,
-            () -> {
-                try {
-                    return super.serve(serviceRequestContext, httpRequest);
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
-                }
-            }
+            () -> super.serve(serviceRequestContext, httpRequest)
         );
     }
 
@@ -174,37 +175,57 @@ public abstract class RestEndpointHandler<CTX extends RestHandlingContext> exten
 
     @Nonnull
     protected Map<String, Object> getParametersFromRequest(@Nonnull EndpointRequest request) {
-        //create builder representation of query params
-        final QueryParamsBuilder queryParamsBuilder = QueryParams.fromQueryString(request.httpRequest().uri().getQuery()).toBuilder();
-
         final Operation operation = restHandlingContext.getEndpointOperation();
+        //create builder representation of query params
+        final Map<String, Deque<String>> queryParams = request.httpRequest().headers().stream()
+            .filter(header -> header.getKey().startsWith(INTERNAL_HEADER_PREFIX))
+            .collect(Collectors.toMap(
+                key -> {
+                    final String queryParamNameCaseInsensitive = key.getKey().toString().replace(INTERNAL_HEADER_PREFIX, "");
+                    return operation.getParameters().stream()
+                        .filter(parameter -> parameter.getName().equalsIgnoreCase(queryParamNameCaseInsensitive))
+                        .findFirst()
+                        .map(Parameter::getName)
+                        .orElse(queryParamNameCaseInsensitive);
+                },
+                value -> {
+                    Deque<String> deque = new ArrayDeque<>(4);
+                    deque.add(value.getValue());
+                    return deque;
+                },
+                (existingDeque, newDeque) -> {
+                    existingDeque.addAll(newDeque); return existingDeque;
+                }
+            ));
+
         final HashMap<String, Object> parameterData = createHashMap(operation.getParameters().size());
-        if(operation.getParameters() != null) {
+
+        if (operation.getParameters() != null) {
             for (Parameter parameter : operation.getParameters()) {
-                getParameterFromRequest(queryParamsBuilder, parameter).ifPresent(data -> {
+                getParameterFromRequest(queryParams, parameter).ifPresent(data -> {
                     parameterData.put(parameter.getName(), data);
-                    queryParamsBuilder.remove(parameter.getName());
+                    queryParams.remove(parameter.getName());
                 });
             }
         }
 
-        if(!queryParamsBuilder.isEmpty()) {
+        if (!queryParams.isEmpty()) {
             throw new RestInvalidArgumentException("Following parameters are not supported in this particular request, " +
-                "please look into OpenAPI schema for more information. Parameters: " + String.join(", ", queryParamsBuilder.names()));
+                "please look into OpenAPI schema for more information. Parameters: " + String.join(", ", queryParams.keySet()));
         }
         return parameterData;
     }
 
     @Nonnull
-    private Optional<Object> getParameterFromRequest(@Nonnull QueryParamsBuilder queryParameterBuilder,
+    private Optional<Object> getParameterFromRequest(@Nonnull Map<String, Deque<String>> queryParams,
                                                      @Nonnull Parameter parameter) {
-        final List<String> queryParam = queryParameterBuilder.getAll(parameter.getName());
-        if (queryParam != null) {
+        final Deque<String> queryParam = queryParams.get(parameter.getName());
+        if (queryParam != null && !queryParam.isEmpty()) {
             return Optional.ofNullable(dataDeserializer.deserializeValue(
                 getParameterSchema(parameter),
                 queryParam.toArray(String[]::new)
             ));
-        } else if(Boolean.TRUE.equals(parameter.getRequired())) {
+        } else if (Boolean.TRUE.equals(parameter.getRequired())) {
             throw new RestRequiredParameterMissingException("Required parameter " + parameter.getName() +
                 " is missing in query data (" + parameter.getIn() + ")");
         }

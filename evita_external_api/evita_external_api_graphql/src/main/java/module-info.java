@@ -52,7 +52,6 @@ module evita.external.api.graphql {
 	requires static lombok;
 	requires org.slf4j;
 	requires com.fasterxml.jackson.databind;
-	//requires undertow.core;
 	requires com.graphqljava;
 
 	requires evita.api;

@@ -25,32 +25,60 @@ package io.evitadb.externalApi.http;
 
 import com.linecorp.armeria.common.HttpRequest;
 import com.linecorp.armeria.common.HttpResponse;
+import com.linecorp.armeria.common.RequestHeaders;
 import com.linecorp.armeria.server.HttpService;
 import com.linecorp.armeria.server.ServiceRequestContext;
-import io.undertow.server.HttpHandler;
-import io.undertow.server.HttpServerExchange;
+import io.evitadb.externalApi.utils.path.RoutingHandlerService;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 
 /**
  * Normalizes request path for all subsequent handlers. Currently, it removes trailing slash if present to support
- * endpoints on URLs with and without trailing slash because the {@link io.undertow.server.RoutingHandler} doesn't
+ * endpoints on URLs with and without trailing slash because the {@link RoutingHandlerService} doesn't
  * accept multiple same URL one with slash and one without.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @RequiredArgsConstructor
 public class PathNormalizingHandler implements HttpService {
+	private static final char SLASH = '/';
+	private static final char QUESTION_MARK = '?';
 
 	@Nonnull private final HttpService next;
 
+	@Nonnull
 	@Override
-	public HttpResponse serve(ServiceRequestContext ctx, HttpRequest req) throws Exception {
-		if (!req.path().isEmpty() && req.path().charAt(req.path().length() - 1) == '/') {
-			final String path = req.path().substring(0, req.path().length() - 1);
-			//todo tpz solve
+	public HttpResponse serve(@Nonnull ServiceRequestContext ctx, HttpRequest req) throws Exception {
+		final String path;
+		if (!req.path().isEmpty() && req.path().charAt(req.path().length() - 1) == SLASH) {
+			path = req.path().substring(0, req.path().length() - 1);
+		} else if (req.path().isEmpty()) {
+			path = String.valueOf(SLASH);
+		} else if (req.path().contains(String.valueOf(QUESTION_MARK))) {
+			final String baseUrl = getStringPartBeforeOrAfterChar(req.path(), QUESTION_MARK, true);
+			if (baseUrl.charAt(baseUrl.length() - 1) == SLASH) {
+				path = baseUrl.substring(0, baseUrl.length() - 1) + QUESTION_MARK + getStringPartBeforeOrAfterChar(req.path(), QUESTION_MARK, false);
+			} else {
+				path = req.path();
+			}
+		} else {
+			return next.serve(ctx, req);
 		}
-		return next.serve(ctx, req);
+
+ 		final RequestHeaders newHeaders = req.headers().withMutations(builder -> builder.set(":path", path));
+		return next.serve(ctx, req.withHeaders(newHeaders));
+	}
+
+	private static String getStringPartBeforeOrAfterChar(@Nonnull String input, char delimiter, boolean before) {
+		int index = input.indexOf(delimiter);
+		if (index != -1) {
+			if (before) {
+				return input.substring(0, index);
+			} else {
+				return input.substring(index + 1);
+			}
+		}
+		return input; // Return the original string if the delimiter is not found
 	}
 }

@@ -27,13 +27,12 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linecorp.armeria.common.HttpRequest;
 import com.linecorp.armeria.common.HttpResponse;
+import com.linecorp.armeria.common.HttpStatus;
+import com.linecorp.armeria.common.MediaType;
 import com.linecorp.armeria.server.HttpService;
 import io.evitadb.exception.EvitaError;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.exception.HttpExchangeException;
-import io.undertow.server.HttpHandler;
-import io.undertow.server.HttpServerExchange;
-import io.undertow.util.StatusCodes;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -59,9 +58,9 @@ public abstract class JsonApiExceptionHandler extends ExternalApiExceptionHandle
 		if (evitaError instanceof final HttpExchangeException httpExchangeException) {
 			return setResponse(httpExchangeException.getStatusCode(), httpExchangeException);
 		} else if (evitaError instanceof EvitaInvalidUsageException) {
-			return setResponse(StatusCodes.BAD_REQUEST, evitaError);
+			return setResponse(HttpStatus.BAD_REQUEST.code(), evitaError);
 		} else {
-			return setResponse(StatusCodes.INTERNAL_SERVER_ERROR, evitaError);
+			return setResponse(HttpStatus.INTERNAL_SERVER_ERROR.code(), evitaError);
 		}
 	}
 
@@ -71,7 +70,7 @@ public abstract class JsonApiExceptionHandler extends ExternalApiExceptionHandle
 	private HttpResponse setResponse(int statusCode, @Nonnull EvitaError evitaError) {
 		return buildResponse(
 			statusCode,
-			MimeTypes.APPLICATION_JSON,
+			MediaType.JSON,
 			serializeError(evitaError)
 		);
 	}

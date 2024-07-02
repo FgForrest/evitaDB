@@ -27,7 +27,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linecorp.armeria.server.HttpService;
 import io.evitadb.externalApi.http.JsonApiExceptionHandler;
 import io.evitadb.externalApi.observability.ObservabilityProvider;
-import io.undertow.server.HttpHandler;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;

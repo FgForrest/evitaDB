@@ -37,7 +37,7 @@ import io.evitadb.externalApi.lab.gui.resolver.GuiHandler;
 import io.evitadb.externalApi.lab.io.LabExceptionHandler;
 import io.evitadb.externalApi.rest.api.Rest;
 import io.evitadb.externalApi.rest.io.CorsEndpoint;
-import io.evitadb.externalApi.utils.RoutingHandlerService;
+import io.evitadb.externalApi.utils.path.RoutingHandlerService;
 import io.evitadb.externalApi.utils.UriPath;
 import io.evitadb.utils.StringUtils;
 import lombok.extern.slf4j.Slf4j;
@@ -113,10 +113,9 @@ public class LabManager {
 		labRouter.add(
 			endpoint.method(),
 			path.toString(),
-			new LabExceptionHandler(
-				objectMapper,
-				endpoint.handler()
-			).decorate(
+			endpoint.handler()
+			.decorate(service -> new LabExceptionHandler(objectMapper, service))
+			.decorate(
 				new CorsFilterServiceDecorator(labConfig.getAllowedOrigins()).createDecorator()
 			)
 		);
@@ -135,10 +134,9 @@ public class LabManager {
 		labRouter.add(
 			HttpMethod.GET,
 			endpointPath.toString(),
-			new LabExceptionHandler(
-				objectMapper,
-				GuiHandler.create(labConfig, configuration.name(), apiOptions, objectMapper)
-			).decorate(
+			GuiHandler.create(labConfig, configuration.name(), apiOptions, objectMapper)
+			.decorate(service -> new LabExceptionHandler(objectMapper, service))
+			.decorate(
 				new CorsFilterServiceDecorator(labConfig.getAllowedOrigins()).createDecorator()
 			)
 		);

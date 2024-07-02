@@ -94,7 +94,7 @@ public class JavaDriverArtificialFullDatabaseBenchmarkState extends JavaDriverAr
 		server = new ExternalApiServer(
 			this.evita,
 			new ApiOptions(
-				null, null, null, null, false, new CertificateSettings.Builder().build(), Map.of(
+				null, null, null, false, new CertificateSettings.Builder().build(), Map.of(
 				SystemProvider.CODE, new SystemConfig(AbstractApiConfiguration.LOCALHOST + ":" + SystemConfig.DEFAULT_SYSTEM_PORT),
 				GrpcProvider.CODE, new GrpcConfig())
 			),

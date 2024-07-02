@@ -29,6 +29,7 @@ import com.linecorp.armeria.server.ServerBuilder;
 import com.linecorp.armeria.server.VirtualHostBuilder;
 import com.linecorp.armeria.server.docs.DocService;
 import com.linecorp.armeria.server.docs.DocServiceFilter;
+import com.linecorp.armeria.server.logging.LoggingService;
 import io.evitadb.core.Evita;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -40,8 +41,7 @@ import io.evitadb.externalApi.configuration.CertificatePath;
 import io.evitadb.externalApi.configuration.HostDefinition;
 import io.evitadb.externalApi.configuration.MtlsConfiguration;
 import io.evitadb.externalApi.configuration.TlsMode;
-import io.evitadb.externalApi.exception.ExternalApiInternalError;
-import io.evitadb.externalApi.utils.PathHandlingService;
+import io.evitadb.externalApi.utils.path.PathHandlingService;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CertificateUtils;
 import io.evitadb.utils.ConsoleWriter;
@@ -49,16 +49,13 @@ import io.evitadb.utils.ConsoleWriter.ConsoleColor;
 import io.evitadb.utils.ConsoleWriter.ConsoleDecoration;
 import io.evitadb.utils.StringUtils;
 import io.netty.handler.ssl.ClientAuth;
-import io.undertow.Undertow;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.bouncycastle.util.io.pem.PemReader;
-import org.jboss.threads.EnhancedQueueExecutor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.net.ssl.KeyManagerFactory;
-import javax.net.ssl.SSLContext;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileReader;
@@ -66,7 +63,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Path;
 import java.security.KeyFactory;
-import java.security.KeyManagementException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
@@ -79,6 +75,7 @@ import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.util.*;
 import java.util.ServiceLoader.Provider;
+import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -91,7 +88,7 @@ import static java.util.Optional.ofNullable;
 /**
  * HTTP server of external APIs. It is responsible for starting HTTP server with all configured external API providers
  * (GraphQL, REST, ...).
- * It uses {@link Undertow} server under the hood and uses {@link ExternalApiProviderRegistrar} for registering
+ * It uses Armeria;s {@link Server} server under the hood and uses {@link ExternalApiProviderRegistrar} for registering
  * each external API provider to be run on this HTTP server.
  *
  * @author Lukáš Hornych, FG Forrest a.s. 2022
@@ -100,7 +97,6 @@ import static java.util.Optional.ofNullable;
 public class ExternalApiServer implements AutoCloseable {
 
 	public static final int PADDING_START_UP = 40;
-	private final Undertow rootServer;
 	private final ServerBuilder serverBuilder = Server.builder();
 	private final Server server;
 	@Getter private final ApiOptions apiOptions;
@@ -156,41 +152,6 @@ public class ExternalApiServer implements AutoCloseable {
 			}
 		}
 		return certificatePath;
-	}
-
-	/**
-	 * Configures and returns SSLContext for the Undertow.
-	 */
-	@Nonnull
-	private static SSLContext configureSSLContext(
-		@Nonnull CertificatePath certificatePath,
-		@Nonnull ServerCertificateManager serverCertificateManager
-	) {
-		final SSLContext sslContext;
-
-		try {
-			final CertificateFactory cf = CertificateFactory.getInstance("X.509");
-			final Optional<String> rootCaFingerPrint = getRootCaCertificateFingerPrint(serverCertificateManager, cf);
-			final KeyManagerFactory keyManagerFactory = createKeyManagerFactory(certificatePath, cf);
-
-			sslContext = SSLContext.getInstance("TLS");
-			sslContext.init(keyManagerFactory.getKeyManagers(), null, null);
-
-			rootCaFingerPrint.ifPresent(it -> {
-				ConsoleWriter.write(StringUtils.rightPad("Root CA Certificate fingerprint: ", " ", PADDING_START_UP));
-				ConsoleWriter.write(it, ConsoleColor.BRIGHT_YELLOW);
-				ConsoleWriter.write("\n", ConsoleColor.WHITE);
-			});
-
-		} catch (NoSuchAlgorithmException | UnrecoverableKeyException | CertificateException | KeyStoreException |
-		         IOException | KeyManagementException e) {
-			throw new GenericEvitaInternalError(
-				"Error while creating SSL context: " + e.getMessage(),
-				"Error while creating SSL context",
-				e
-			);
-		}
-		return sslContext;
 	}
 
 	/**
@@ -322,28 +283,24 @@ public class ExternalApiServer implements AutoCloseable {
 	) {
 		this.apiOptions = apiOptions;
 
-		final Undertow.Builder rootServerBuilder = Undertow.builder();
-
 		final ServerCertificateManager serverCertificateManager = new ServerCertificateManager(apiOptions.certificate());
 		final CertificatePath certificatePath = initCertificate(apiOptions, serverCertificateManager);
 
 		this.registeredApiProviders = registerApiProviders(evita, this, apiOptions, externalApiProviders, serverBuilder);
 		if (this.registeredApiProviders.isEmpty()) {
 			log.info("No external API providers were registered. No server will be created.");
-			rootServer = null;
 			server = null;
 			return;
 		}
 
 		try {
-			configureArmeria(serverBuilder, evita, certificatePath, apiOptions, serverCertificateManager);
+			configureArmeria(serverBuilder, certificatePath, apiOptions);
 		} catch (CertificateException | UnrecoverableKeyException | KeyStoreException | IOException |
 		         NoSuchAlgorithmException e) {
 			throw new RuntimeException(e);
 		}
 
 		this.server = serverBuilder.build();
-		this.rootServer = rootServerBuilder.build();
 	}
 
 	/**
@@ -359,14 +316,17 @@ public class ExternalApiServer implements AutoCloseable {
 	 * Starts this configured HTTP server with registered APIs.
 	 */
 	public void start() {
-		if (rootServer == null) {
+		if (server == null) {
 			return;
 		}
 
-		//rootServer.start();
 		server.closeOnJvmShutdown();
-		server.start().join();
-		registeredApiProviders.values().forEach(ExternalApiProvider::afterStart);
+		try {
+			server.start().get();
+			registeredApiProviders.values().forEach(ExternalApiProvider::afterStart);
+		} catch (InterruptedException | ExecutionException e) {
+			throw new RuntimeException(e);
+		}
 	}
 
 	/**
@@ -390,66 +350,13 @@ public class ExternalApiServer implements AutoCloseable {
 
 	private void configureArmeria(
 		@Nonnull ServerBuilder serverBuilder,
-		@Nonnull Evita evita,
 		@Nonnull CertificatePath certificatePath,
-		@Nonnull ApiOptions apiOptions,
-		@Nonnull ServerCertificateManager serverCertificateManager
+		@Nonnull ApiOptions apiOptions
 	) throws CertificateException, UnrecoverableKeyException, KeyStoreException, IOException, NoSuchAlgorithmException {
-		final EnhancedQueueExecutor executor = evita.getExecutor();
-		serverBuilder.blockingTaskExecutor(executor, true);
 		serverBuilder.workerGroup(apiOptions.workerGroupThreadsAsInt());
 		serverBuilder.serviceWorkerGroup(apiOptions.serviceWorkerGroupThreadsAsInt());
-		/*serverBuilder
-			.workerGroup(
-				new DefaultEventLoopGroup(
-					apiOptions.ioThreadsAsInt(),
-					executor
-				),
-				true
-			);*/
-		/*
-		//todo tpz: handle if needed
-			/*.channelOption()
-			*//*
-				Use direct byte buffers.
-			 *//*
-			.setDirectBuffers(true)
-			*//*
-				We use recommended buffer size.
-			 *//*
-			.setBufferSize(16_384)
-			*//*
-				The amount of time a connection can be idle for before it is timed out. An idle connection is a
-				connection that has had no data transfer in the idle timeout period. Note that this is a fairly coarse
-				grained approach, and small values will cause problems for requests with a long processing time.
-				(milliseconds)
-			 *//*
-			.setServerOption(UndertowOptions.IDLE_TIMEOUT, 20 * 1000)
-			*//*
-				How long a request can spend in the parsing phase before it is timed out. This timer is started when
-				the first bytes of a request are read, and finishes once all the headers have been parsed.
-				(milliseconds)
-			 *//*
-			.setServerOption(UndertowOptions.REQUEST_PARSE_TIMEOUT, 1000)
-			*//*
-				The amount of time a connection can sit idle without processing a request, before it is closed by
-				the server.
-				(milliseconds)
-			 *//*
-			.setServerOption(UndertowOptions.NO_REQUEST_TIMEOUT, 1000)
-			*//*
-				The default maximum size of a request entity. If entity body is larger than this limit then a
-				java.io.IOException will be thrown at some point when reading the request (on the first read for fixed
-				length requests, when too much data has been read for chunked requests). This value is only the default
-				 size, it is possible for a handler to override this for an individual request by calling
-				 io.undertow.server.HttpServerExchange.setMaxEntitySize(long size). Defaults to unlimited.
-			 *//*
-			.setServerOption(UndertowOptions.MAX_ENTITY_SIZE, 2_097_152L);*/
+		serverBuilder.requestTimeoutMillis(5000);
 
-		//final AccessLogReceiver accessLogReceiver = apiOptions.accessLog() ? new Slf4JAccessLogger() : new NoopAccessLogger();
-
-		//final SSLContext sslContext = configureSSLContext(certificatePath, serverCertificateManager);
-		//final Map<HostKey, PathHandlingService> setupHosts = createHashMap(10);
 		final Map<HostDefinition, HostDefinitionVirtualHosts> hosts = createHashMap(8);
 		for (ExternalApiProvider<?> registeredApiProvider : registeredApiProviders.values()) {
 			final AbstractApiConfiguration configuration = apiOptions.endpoints().get(registeredApiProvider.getCode());
@@ -484,22 +391,6 @@ public class ExternalApiServer implements AutoCloseable {
 					serverBuilder.https(host.port());
 				}
 
-				//final HostKey hostKey = new HostKey(host, configuration.isTlsEnabled());
-				/*if (!registeredApiProvider.isManagedByUndertow() || registeredApiProvider.getApiHandler() == null) {
-					continue;
-				}*/
-
-				/*if (!tlsSetup) {
-					setupAndRegisterPortsAndTls(serverBuilder, certificatePath, host.port());
-					tlsSetup = true;
-				}*/
-				//final PathHandlingService hostRouter;
-				//if (setupHosts.containsKey(hostKey)) {
-				//	hostRouter = setupHosts.get(hostKey);
-				//} else {
-				//	hostRouter = new PathHandlingService();
-				//	setupHosts.put(hostKey, hostRouter);
-
 				//todo tpz: fallback handler impl
 					/*
 					// we want to support GZIP/deflate compression options for large payloads
@@ -511,20 +402,13 @@ public class ExternalApiServer implements AutoCloseable {
 					)
 						.setNext(fallbackHandler);*/
 
-					/*// we want to log all requests coming into the Undertow server
+					/*// we want to log all requests coming into the UTW server
 					final HttpHandler accessLogHandler = new AccessLogHandler(
 						compressionHandler,
 						accessLogReceiver,
 						"combined",
 						ExternalApiServer.class.getClassLoader()
 					);*/
-
-					/*if (configuration.isTlsEnabled()) {
-						serverBuilder.tls(createKeyManagerFactory(certificatePath, CertificateFactory.getInstance("X.509")));
-						serverBuilder.https(host.port());
-					} else {
-						serverBuilder.http(host.port());
-					}*/
 				//}
 
 				if (registeredApiProvider.getApiHandler() == null) {
@@ -544,11 +428,14 @@ public class ExternalApiServer implements AutoCloseable {
 							"/",
 							apiHandler
 						);
-						virtualHostBuilder.virtualHostBuilder.serviceUnder(
-							// always will be only gRPC API docs
-							"/docs",
-							docService
-						);
+
+						if (registeredApiProvider.isDocsServiceEnabled()) {
+							virtualHostBuilder.virtualHostBuilder.serviceUnder(
+								// always will be only gRPC API docs
+								"/docs",
+								docService
+							);
+						}
 						customizeTls(virtualHostBuilder.virtualHostBuilder, apiOptions, registeredApiProvider.mtlsConfiguration());
 					});
 				} else {
@@ -582,10 +469,13 @@ public class ExternalApiServer implements AutoCloseable {
 		hosts.forEach(
 			(hostDefinition, hostBuilderWithRouter) ->
 				hostBuilderWithRouter.applyToAll(virtualHostBuilder ->
-					virtualHostBuilder.virtualHostBuilder.service("glob:/**", hostBuilderWithRouter.getVirtualHostBuilderWithRouter(hostDefinition).pathHandlingService)
+					virtualHostBuilder.virtualHostBuilder.service(
+						"glob:/**",
+						hostBuilderWithRouter.getVirtualHostBuilderWithRouter(hostDefinition).pathHandlingService
+					)
+					.decorator(LoggingService.newDecorator())
 				)
 		);
-		//serverBuilder.defaultVirtualHost().service("glob:/**", mainRouter);
 	}
 
 	private static void customizeTls(

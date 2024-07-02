@@ -26,8 +26,6 @@ package io.evitadb.externalApi.http;
 import com.linecorp.armeria.server.HttpService;
 import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
 import io.evitadb.externalApi.configuration.MtlsConfiguration;
-import io.evitadb.externalApi.utils.Router;
-import io.undertow.server.HttpHandler;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -63,13 +61,6 @@ public interface ExternalApiProvider<T extends AbstractApiConfiguration> {
 	}
 
 	/**
-	 * Method should return true if the API is managed by the Undertow server.
-	 */
-	default boolean isManagedByUndertow() {
-		return true;
-	}
-
-	/**
 	 * Called automatically when root server has been started. Can be used e.g. initialize API provider.
 	 */
 	default void afterStart() {
@@ -101,4 +92,7 @@ public interface ExternalApiProvider<T extends AbstractApiConfiguration> {
 		return null;
 	}
 
+	default boolean isDocsServiceEnabled() {
+		return false;
+	}
 }

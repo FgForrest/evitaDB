@@ -50,7 +50,6 @@ module evita.external.api.observability {
 	requires static jsr305;
 	requires static lombok;
 	requires org.slf4j;
-	requires undertow.core;
 	requires evita.api;
 	requires evita.common;
 	requires evita.external.api.core;
@@ -63,7 +62,6 @@ module evita.external.api.observability {
 	requires io.prometheus.metrics.core;
 	requires io.prometheus.metrics.instrumentation.jvm;
 
-	requires undertow.servlet;
 	requires jdk.jfr;
 	requires jboss.threads;
 	requires io.grpc;

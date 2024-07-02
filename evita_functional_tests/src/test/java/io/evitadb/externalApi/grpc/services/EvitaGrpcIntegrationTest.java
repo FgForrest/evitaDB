@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,11 +23,12 @@
 
 package io.evitadb.externalApi.grpc.services;
 
+import com.linecorp.armeria.client.grpc.GrpcClientBuilder;
 import io.evitadb.core.Evita;
 import io.evitadb.driver.interceptor.ClientSessionInterceptor;
 import io.evitadb.driver.interceptor.ClientSessionInterceptor.SessionIdHolder;
 import io.evitadb.externalApi.grpc.GrpcProvider;
-import io.evitadb.externalApi.grpc.TestChannelCreator;
+import io.evitadb.externalApi.grpc.TestGrpcClientBuilderCreator;
 import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc;
 import io.evitadb.externalApi.grpc.generated.EvitaSessionServiceGrpc;
 import io.evitadb.externalApi.grpc.generated.GrpcEntityRequest;
@@ -70,9 +71,9 @@ public class EvitaGrpcIntegrationTest {
 	private static final String GRPC_THOUSAND_PRODUCTS = "GrpcEvitaGrpcIntegrationTest";
 
 	@DataSet(value = GRPC_THOUSAND_PRODUCTS, openWebApi = {GrpcProvider.CODE, SystemProvider.CODE}, destroyAfterClass = true)
-	ManagedChannel setUp(Evita evita, EvitaServer evitaServer) {
+	GrpcClientBuilder setUp(Evita evita, EvitaServer evitaServer) {
 		new TestDataProvider().generateEntities(evita, 1);
-		return TestChannelCreator.getChannel(new ClientSessionInterceptor(), evitaServer.getExternalApiServer());
+		return TestGrpcClientBuilderCreator.getBuilder(new ClientSessionInterceptor(), evitaServer.getExternalApiServer());
 	}
 
 	@AfterEach
@@ -81,16 +82,16 @@ public class EvitaGrpcIntegrationTest {
 	}
 
 	@OnDataSetTearDown(GRPC_THOUSAND_PRODUCTS)
-	void onDataSetTearDown(ManagedChannel channel) {
-		channel.shutdown();
+	void onDataSetTearDown(GrpcClientBuilder clientBuilder) {
+
 	}
 
 	@Test
 	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
 	@DisplayName("Should be able to get a session id from EvitaService and with its usage should be able to get valid response from EvitaSessionService")
-	void shouldBeAbleToGetSessionAndWithItCallSessionDependentMethods(ManagedChannel channel) {
-		final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = EvitaServiceGrpc.newBlockingStub(channel);
-		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
+	void shouldBeAbleToGetSessionAndWithItCallSessionDependentMethods(GrpcClientBuilder clientBuilder) {
+		final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = clientBuilder.build(EvitaServiceGrpc.EvitaServiceBlockingStub.class);
+		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = clientBuilder.build(EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub.class);
 
 		final String entityType = Entities.PRODUCT;
 		final int primaryKey = 1;

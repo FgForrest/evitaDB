@@ -30,7 +30,6 @@ import io.evitadb.api.observability.trace.TracingContextProvider;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.utils.ExternalApiTracingContext;
 import io.grpc.Metadata;
-import io.undertow.server.HttpServerExchange;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;

@@ -33,8 +33,8 @@ import io.evitadb.externalApi.http.CorsFilterServiceDecorator;
 import io.evitadb.externalApi.rest.api.Rest;
 import io.evitadb.externalApi.rest.configuration.RestConfig;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
-import io.evitadb.externalApi.utils.PathHandlingService;
-import io.evitadb.externalApi.utils.RoutingHandlerService;
+import io.evitadb.externalApi.utils.path.PathHandlingService;
+import io.evitadb.externalApi.utils.path.RoutingHandlerService;
 import io.evitadb.externalApi.utils.UriPath;
 import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
@@ -47,7 +47,7 @@ import static io.evitadb.utils.CollectionUtils.createConcurrentHashMap;
 import static io.evitadb.utils.CollectionUtils.createHashSet;
 
 /**
- * Custom Undertow router for REST APIs.
+ * Custom HTTP router for REST APIs.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
  */
@@ -129,7 +129,8 @@ public class RestRouter implements HttpService {
 		apiRouter.add(
 			endpoint.method(),
 			endpoint.path().toString(),
-			new RestExceptionHandler(objectMapper, endpoint.handler())
+			endpoint.handler()
+				.decorate(service -> new RestExceptionHandler(objectMapper, service))
 				.decorate(
 					new CorsFilterServiceDecorator(
 						restConfig.getAllowedOrigins()

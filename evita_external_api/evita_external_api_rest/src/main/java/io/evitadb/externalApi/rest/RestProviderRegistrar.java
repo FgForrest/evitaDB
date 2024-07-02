@@ -23,7 +23,6 @@
 
 package io.evitadb.externalApi.rest;
 
-import com.linecorp.armeria.server.ServerBuilder;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.http.ExternalApiProvider;
@@ -31,7 +30,7 @@ import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
 import io.evitadb.externalApi.http.ExternalApiServer;
 import io.evitadb.externalApi.rest.api.catalog.CatalogRestRefreshingObserver;
 import io.evitadb.externalApi.rest.configuration.RestConfig;
-import io.evitadb.externalApi.utils.HttpServiceSslCheckingDecorator;
+import io.evitadb.externalApi.http.HttpServiceSslCheckingDecorator;
 
 import javax.annotation.Nonnull;
 

@@ -23,19 +23,12 @@
 
 package io.evitadb.externalApi.http;
 
-import com.linecorp.armeria.common.HttpRequest;
-import com.linecorp.armeria.common.HttpResponse;
-import com.linecorp.armeria.common.HttpResponseBuilder;
-import com.linecorp.armeria.common.HttpStatus;
 import com.linecorp.armeria.server.HttpService;
-import com.linecorp.armeria.server.ServiceRequestContext;
 import com.linecorp.armeria.server.cors.CorsService;
 import com.linecorp.armeria.server.cors.CorsServiceBuilder;
-import io.undertow.server.HttpHandler;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
-import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Set;
 import java.util.function.Function;

@@ -29,8 +29,6 @@ import com.linecorp.armeria.common.HttpRequest;
 import com.linecorp.armeria.common.HttpResponse;
 import com.linecorp.armeria.server.HttpService;
 import com.linecorp.armeria.server.ServiceRequestContext;
-import com.linecorp.armeria.server.file.FileService;
-import com.linecorp.armeria.server.file.FileServiceBuilder;
 import com.linecorp.armeria.server.file.HttpFile;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.graphql.GraphQLProvider;
@@ -41,9 +39,6 @@ import io.evitadb.externalApi.lab.configuration.LabConfig;
 import io.evitadb.externalApi.lab.gui.dto.EvitaDBConnection;
 import io.evitadb.externalApi.rest.RestProvider;
 import io.evitadb.externalApi.rest.configuration.RestConfig;
-import io.evitadb.externalApi.utils.PathHandlingService;
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import java.io.IOException;

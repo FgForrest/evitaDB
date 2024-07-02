@@ -43,7 +43,6 @@ import static java.util.Optional.ofNullable;
  * This DTO record encapsulates common settings shared among all the API endpoints.
  *
  * @param exposedOn   the name of the host the APIs will be exposed on when evitaDB is running inside a container
- * @param ioThreads   defines the number of IO thread will be used by Undertow for accept and send HTTP payload
  * @param accessLog   defines whether the access logs will be enabled or not
  * @param endpoints   contains specific configuration for all the API endpoints
  * @param certificate defines the certificate settings that will be used to secure connections to the web servers providing APIs
@@ -51,7 +50,6 @@ import static java.util.Optional.ofNullable;
  */
 public record ApiOptions(
 	@Nonnull String exposedOn,
-	@Nullable Integer ioThreads,
 	@Nullable Integer workerGroupThreads,
 	@Nullable Integer serviceWorkerGroupThreads,
 	boolean accessLog,
@@ -67,7 +65,7 @@ public record ApiOptions(
 	}
 
 	public ApiOptions() {
-		this(null, null, null, null, false, new CertificateSettings(), new HashMap<>(8));
+		this(null, null, null, false, new CertificateSettings(), new HashMap<>(8));
 	}
 
 	/**
@@ -77,15 +75,6 @@ public record ApiOptions(
 	@Nullable
 	public <T extends AbstractApiConfiguration> T getEndpointConfiguration(@Nonnull String endpointCode) {
 		return (T) endpoints.get(endpointCode);
-	}
-
-	/**
-	 * Returns set {@link #ioThreads} or returns a default value.
-	 */
-	public int ioThreadsAsInt() {
-		return ofNullable(ioThreads)
-			// double the value of available processors (recommended by Undertow configuration)
-			.orElseGet(() -> Runtime.getRuntime().availableProcessors() << 1);
 	}
 
 	/**
@@ -115,7 +104,6 @@ public record ApiOptions(
 		private final Map<String, AbstractApiConfiguration> enabledProviders;
 		private CertificateSettings certificate;
 		@Nullable private String exposedOn;
-		@Nullable private Integer ioThreads;
 		@Nullable private Integer workerGroupThreads;
 		@Nullable private Integer serviceWorkerGroupThreads;
 		private boolean accessLog;
@@ -141,20 +129,14 @@ public record ApiOptions(
 		}
 
 		@Nonnull
-		public ApiOptions.Builder ioThreads(int ioThreads) {
-			this.ioThreads = ioThreads;
-			return this;
-		}
-
-		@Nonnull
 		public ApiOptions.Builder workerGroupThreads(int workerGroupThreads) {
-			this.workerGroupThreads = ioThreads;
+			this.workerGroupThreads = workerGroupThreads;
 			return this;
 		}
 
 		@Nonnull
 		public ApiOptions.Builder serviceWorkerGroupThreads(int serviceWorkerGroupThreads) {
-			this.serviceWorkerGroupThreads = ioThreads;
+			this.serviceWorkerGroupThreads = serviceWorkerGroupThreads;
 			return this;
 		}
 
@@ -204,7 +186,7 @@ public record ApiOptions(
 		@Nonnull
 		public ApiOptions build() {
 			return new ApiOptions(
-				exposedOn, ioThreads, workerGroupThreads, serviceWorkerGroupThreads, accessLog, certificate, enabledProviders
+				exposedOn, workerGroupThreads, serviceWorkerGroupThreads, accessLog, certificate, enabledProviders
 			);
 		}
 	}

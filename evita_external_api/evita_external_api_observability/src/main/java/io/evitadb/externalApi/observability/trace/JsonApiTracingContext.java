@@ -32,9 +32,6 @@ import io.netty.util.AsciiString;
 import io.opentelemetry.context.Context;
 import io.opentelemetry.context.Scope;
 import io.opentelemetry.context.propagation.TextMapGetter;
-import io.undertow.server.HttpServerExchange;
-import io.undertow.util.HeaderMap;
-import io.undertow.util.HttpString;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -51,7 +48,7 @@ import static java.util.Optional.ofNullable;
 public class JsonApiTracingContext implements ExternalApiTracingContext<HttpRequest> {
 	private static final String CLIENT_ID_HEADER = "X-EvitaDB-ClientID";
 	/**
-	 * Getter for extracting information from Undertow {@link HeaderMap}.
+	 * Getter for extracting information from Armeria's {@link RequestHeaders}.
 	 */
 	@Nonnull
 	private static final TextMapGetter<RequestHeaders> CONTEXT_GETTER =

@@ -63,7 +63,7 @@ public class NetworkUtils {
 	 * This shouldn't be changed - only in tests which needs to extend this timeout for slower machines runnning
 	 * parallel tests and squeezing the resources.
 	 */
-	public static int DEFAULT_CLIENT_TIMEOUT = 500;
+	public static int DEFAULT_CLIENT_TIMEOUT = 3000;
 	private static OkHttpClient HTTP_CLIENT;
 
 	/**

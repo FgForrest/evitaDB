@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -56,7 +56,7 @@ import static io.swagger.v3.oas.models.PathItem.HttpMethod.*;
 /**
  * Single REST endpoint with schema description and handler builder for building collection-specific endpoints
  * (for specific catalog and entity type). It combines {@link io.swagger.v3.oas.models.PathItem},
- * {@link Operation} and {@link io.undertow.server.HttpHandler} into one place with useful defaults.
+ * {@link Operation} and {@link com.linecorp.armeria.server.HttpService} into one place with useful defaults.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  * @see OpenApiCatalogEndpoint

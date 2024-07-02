@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,17 +23,23 @@
 
 package io.evitadb.externalApi.grpc;
 
+import com.linecorp.armeria.client.ClientFactory;
+import com.linecorp.armeria.client.ClientFactoryBuilder;
+import com.linecorp.armeria.client.grpc.GrpcClientBuilder;
+import com.linecorp.armeria.client.grpc.GrpcClients;
+import com.linecorp.armeria.common.grpc.GrpcSerializationFormats;
 import io.evitadb.driver.certificate.ClientCertificateManager.Builder;
 import io.evitadb.driver.interceptor.ClientSessionInterceptor;
 import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.configuration.CertificateSettings;
+import io.evitadb.externalApi.configuration.TlsMode;
+import io.evitadb.externalApi.grpc.configuration.GrpcConfig;
 import io.evitadb.externalApi.http.ExternalApiServer;
 import io.evitadb.externalApi.system.SystemProvider;
 import io.evitadb.utils.Assert;
 import io.grpc.ClientInterceptor;
 import io.grpc.ManagedChannel;
-import io.grpc.netty.NettyChannelBuilder;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
@@ -46,7 +52,7 @@ import java.nio.file.Path;
  * @author Tomáš Pozler, 2022
  */
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
-public class TestChannelCreator {
+public class TestGrpcClientBuilderCreator {
 
 	/**
 	 * Builds (first call) or gets the channel instance.
@@ -54,7 +60,7 @@ public class TestChannelCreator {
 	 * @param interceptor       instance of {@link ClientInterceptor} for passing metadata containing session information
 	 * @param externalApiServer where gRPC service listens on
 	 */
-	public static ManagedChannel getChannel(@Nonnull ClientSessionInterceptor interceptor, @Nonnull ExternalApiServer externalApiServer) {
+	public static GrpcClientBuilder getBuilder(@Nonnull ClientSessionInterceptor interceptor, @Nonnull ExternalApiServer externalApiServer) {
 		final ApiOptions apiOptions = externalApiServer.getApiOptions();
 		final int grpcPort = apiOptions.getEndpointConfiguration(GrpcProvider.CODE).getHost()[0].port();
 		final CertificateSettings certificate = apiOptions.certificate();
@@ -65,14 +71,28 @@ public class TestChannelCreator {
 			Assert.notNull(systemEndpoint, "System endpoint is not enabled!");
 			builder.useGeneratedCertificate(true, systemEndpoint.getHost()[0].hostName(), systemEndpoint.getHost()[0].port());
 		}
-		return NettyChannelBuilder.forAddress("localhost", grpcPort)
-			.sslContext(
-				builder
-					.build()
-					.buildClientSslContext()
-			)
-			.intercept(interceptor)
-			.build();
+
+		final GrpcConfig grpcConfig = apiOptions.getEndpointConfiguration(GrpcProvider.CODE);
+
+		final ClientFactoryBuilder clientFactoryBuilder = ClientFactory.builder()
+			.useHttp1Pipelining(true)
+			.idleTimeoutMillis(10000, true)
+			.maxNumRequestsPerConnection(1000)
+			.maxNumEventLoopsPerEndpoint(10);
+
+		final String uriScheme;
+		if (grpcConfig.getTlsMode() != TlsMode.FORCE_NO_TLS) {
+			clientFactoryBuilder.tlsCustomizer(builder.build()::buildClientSslContext);
+			uriScheme = "https";
+		} else {
+			uriScheme = "http";
+		}
+
+		return GrpcClients.builder(uriScheme + "://" + "localhost:" + grpcPort + "/")
+			.factory(clientFactoryBuilder.build())
+			.serializationFormat(GrpcSerializationFormats.PROTO)
+			.responseTimeoutMillis(10000)
+			.intercept(interceptor);
 	}
 
 }

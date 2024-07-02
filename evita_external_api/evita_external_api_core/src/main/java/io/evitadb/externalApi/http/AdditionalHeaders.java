@@ -23,12 +23,11 @@
 
 package io.evitadb.externalApi.http;
 
-import io.undertow.util.HttpString;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
 /**
- * Additional list of HTTP headers that are not supported by {@link io.undertow.util.Headers}.
+ * Additional list of HTTP headers that are not supported by {@link com.linecorp.armeria.common.HttpHeaders}.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
@@ -41,9 +40,5 @@ public class AdditionalHeaders {
 	public static final String OPENTELEMETRY_TRACEPARENT_STRING = "traceparent";
 	public static final String EVITADB_CLIENTID_HEADER_STRING = "X-EvitaDB-ClientID";
 
-	public static final HttpString ACCESS_CONTROL_ALLOW_ORIGIN = new HttpString(ACCESS_CONTROL_ALLOW_ORIGIN_STRING);
-	public static final HttpString ACCESS_CONTROL_ALLOW_METHODS = new HttpString(ACCESS_CONTROL_ALLOW_METHODS_STRING);
-	public static final HttpString ACCESS_CONTROL_ALLOW_HEADERS = new HttpString(ACCESS_CONTROL_ALLOW_HEADERS_STRING);
-	public static final HttpString OPENTELEMETRY_TRACEPARENT = new HttpString(OPENTELEMETRY_TRACEPARENT_STRING);
-	public static final HttpString EVITADB_CLIENTID_HEADER = new HttpString(EVITADB_CLIENTID_HEADER_STRING);
+	public static final String INTERNAL_HEADER_PREFIX = "internal_";
 }

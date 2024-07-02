@@ -43,7 +43,9 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Deque;
 import java.util.LinkedHashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
@@ -75,9 +77,9 @@ public class GraphQLSchemaHandler extends AbstractHttpService<GraphQLEndpointExc
     @Nonnull
     @Override
     protected GraphQLEndpointExchange createEndpointExchange(@Nonnull HttpRequest httpRequest,
-                                                                     @Nonnull String httpMethod,
-                                                                     @Nullable String requestBodyMediaType,
-                                                                     @Nullable String preferredResponseMediaType) {
+                                                             @Nonnull String httpMethod,
+                                                             @Nullable String requestBodyMediaType,
+                                                             @Nullable String preferredResponseMediaType) {
         return new GraphQLEndpointExchange(httpRequest, httpMethod, requestBodyMediaType, preferredResponseMediaType);
     }
 

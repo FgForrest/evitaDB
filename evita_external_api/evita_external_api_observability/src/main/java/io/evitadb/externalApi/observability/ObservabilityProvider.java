@@ -25,10 +25,8 @@ package io.evitadb.externalApi.observability;
 
 import io.evitadb.externalApi.http.ExternalApiProvider;
 import io.evitadb.externalApi.observability.configuration.ObservabilityConfig;
-import io.evitadb.externalApi.utils.PathHandlingService;
-import io.evitadb.externalApi.utils.Router;
+import io.evitadb.externalApi.utils.path.PathHandlingService;
 import io.evitadb.utils.NetworkUtils;
-import io.undertow.server.HttpHandler;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 

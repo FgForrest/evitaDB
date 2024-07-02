@@ -26,11 +26,9 @@ package io.evitadb.externalApi.http;
 import com.linecorp.armeria.common.HttpRequest;
 import com.linecorp.armeria.common.HttpResponse;
 import com.linecorp.armeria.common.HttpStatus;
+import com.linecorp.armeria.common.MediaType;
 import com.linecorp.armeria.server.HttpService;
 import io.evitadb.exception.EvitaError;
-import io.undertow.server.HttpHandler;
-import io.undertow.server.HttpServerExchange;
-import io.undertow.util.StatusCodes;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -60,6 +58,6 @@ public class FallbackExceptionHandler extends ExternalApiExceptionHandler {
             evitaError.getErrorCode(),
             evitaError.getPrivateMessage()
         );
-        return buildResponse(HttpStatus.INTERNAL_SERVER_ERROR.code(), MimeTypes.TEXT_PLAIN, null);
+        return buildResponse(HttpStatus.INTERNAL_SERVER_ERROR.code(), MediaType.PLAIN_TEXT_UTF_8, null);
     }
 }

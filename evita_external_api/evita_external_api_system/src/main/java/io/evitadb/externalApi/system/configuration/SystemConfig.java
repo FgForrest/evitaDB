@@ -28,6 +28,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
 import io.evitadb.externalApi.configuration.ApiWithOriginControl;
 import io.evitadb.externalApi.configuration.ApiWithSpecificPrefix;
+import io.evitadb.externalApi.configuration.TlsMode;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 
@@ -59,13 +60,13 @@ public class SystemConfig extends AbstractApiConfiguration implements ApiWithSpe
 	@Getter private final String[] allowedOrigins;
 
 	public SystemConfig() {
-		super(true, "0.0.0.0:" + DEFAULT_SYSTEM_PORT, null, null);
+		super(true, "0.0.0.0:" + DEFAULT_SYSTEM_PORT, null, TlsMode.FORCE_NO_TLS.name());
 		this.prefix = BASE_SYSTEM_PATH;
 		this.allowedOrigins = null;
 	}
 
 	public SystemConfig(@Nonnull String host) {
-		super(true, host, null, null);
+		super(true, host, null, TlsMode.FORCE_NO_TLS.name());
 		this.prefix = BASE_SYSTEM_PATH;
 		this.allowedOrigins = null;
 	}

@@ -21,24 +21,30 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.utils;
+package io.evitadb.externalApi.utils.path.routing;
 
-import com.linecorp.armeria.common.HttpRequest;
-import com.linecorp.armeria.common.HttpResponse;
-import com.linecorp.armeria.server.HttpService;
-import com.linecorp.armeria.server.ServiceRequestContext;
-import io.evitadb.function.TriFunction;
-import lombok.RequiredArgsConstructor;
+import java.util.Map;
 
-import javax.annotation.Nonnull;
-@RequiredArgsConstructor
-public class HttpServiceSslCheckingDecorator implements HttpService {
-	private final HttpService delegate;
-	private final TriFunction<ServiceRequestContext, HttpRequest, HttpService, HttpResponse> validatorFunction;
+/**
+ * The result of a path template match.
+ *
+ * @author Stuart Douglas
+ */
+public class PathTemplateMatch {
+	private final String matchedTemplate;
+	private final Map<String, String> parameters;
 
-	@Nonnull
-	@Override
-	public HttpResponse serve(@Nonnull ServiceRequestContext ctx, @Nonnull HttpRequest req) throws Exception {
-		return validatorFunction.apply(ctx, req, delegate);
+	public PathTemplateMatch(String matchedTemplate, Map<String, String> parameters) {
+		this.matchedTemplate = matchedTemplate;
+		this.parameters = parameters;
 	}
+
+	public String getMatchedTemplate() {
+		return matchedTemplate;
+	}
+
+	public Map<String, String> getParameters() {
+		return parameters;
+	}
+
 }

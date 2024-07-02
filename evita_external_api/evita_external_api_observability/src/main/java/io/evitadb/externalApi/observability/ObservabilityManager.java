@@ -24,17 +24,14 @@
 package io.evitadb.externalApi.observability;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.linecorp.armeria.common.HttpMethod;
+import com.linecorp.armeria.server.HttpService;
 import com.linecorp.armeria.server.file.FileService;
 import io.evitadb.core.Evita;
 import io.evitadb.core.metric.event.CustomMetricsExecutionEvent;
-import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.externalApi.configuration.ApiOptions;
-import io.evitadb.externalApi.http.CorsFilter;
 import io.evitadb.externalApi.http.CorsFilterServiceDecorator;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
-import io.evitadb.externalApi.http.PathNormalizingHandler;
 import io.evitadb.externalApi.observability.agent.ErrorMonitor;
 import io.evitadb.externalApi.observability.configuration.ObservabilityConfig;
 import io.evitadb.externalApi.observability.exception.JfRException;
@@ -44,19 +41,8 @@ import io.evitadb.externalApi.observability.logging.StopLoggingHandler;
 import io.evitadb.externalApi.observability.metric.EvitaJfrEventRegistry;
 import io.evitadb.externalApi.observability.metric.MetricHandler;
 import io.evitadb.externalApi.observability.metric.PrometheusMetricsHttpService;
-import io.evitadb.externalApi.utils.PathHandlingService;
-import io.evitadb.externalApi.utils.Router;
+import io.evitadb.externalApi.utils.path.PathHandlingService;
 import io.evitadb.utils.Assert;
-import io.undertow.Handlers;
-import io.undertow.Undertow;
-import io.undertow.server.HttpHandler;
-import io.undertow.server.handlers.BlockingHandler;
-import io.undertow.server.handlers.PathHandler;
-import io.undertow.server.handlers.resource.FileResourceManager;
-import io.undertow.server.handlers.resource.ResourceHandler;
-import io.undertow.servlet.Servlets;
-import io.undertow.servlet.api.DeploymentInfo;
-import io.undertow.servlet.api.DeploymentManager;
 import jdk.jfr.EventType;
 import jdk.jfr.FlightRecorder;
 import jdk.jfr.Recording;
@@ -70,11 +56,8 @@ import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
-import java.net.MalformedURLException;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -321,7 +304,7 @@ public class ObservabilityManager {
 	}
 
 	/**
-	 * Gets {@link HttpHandler} for observability endpoints.
+	 * Gets {@link HttpService} for observability endpoints.
 	 */
 	@Nonnull
 	public PathHandlingService getObservabilityRouter() {
@@ -362,28 +345,10 @@ public class ObservabilityManager {
 	 * Creates and registers Prometheus scraping servlet for metrics publishing.
 	 */
 	private void createAndRegisterPrometheusServlet() {
-		/*final DeploymentInfo servletBuilder = Servlets.deployment()
-			.setClassLoader(Undertow.class.getClassLoader())
-			.setDeploymentName(METRICS_SUFFIX + "-deployment")
-			.setContextPath(METRICS_PATH)
-			.addServlets(
-				Servlets.servlet("MetricsServlet", PrometheusMetricsServlet.class).addMapping("/*")
-			);
-
-		final DeploymentManager servletDeploymentManager = Servlets.defaultContainer().addDeployment(servletBuilder);
-		servletDeploymentManager.deploy();*/
-
 		observabilityRouter.addPrefixPath(
 			"/" + METRICS_SUFFIX,
 			new PrometheusMetricsHttpService()
 		);
-
-		//try {
-		//	observabilityRouter.addPrefixPath("/" + METRICS_SUFFIX, servletDeploymentManager.start());
-		//	//todo tpz: impl
-		//} catch (ServletException e) {
-		//	throw new GenericEvitaInternalError("Unable to add routing to Prometheus scraping servlet.");
-		//}
 	}
 
 	/**

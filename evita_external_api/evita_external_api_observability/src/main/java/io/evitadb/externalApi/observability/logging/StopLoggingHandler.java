@@ -23,12 +23,12 @@
 
 package io.evitadb.externalApi.observability.logging;
 
+import com.linecorp.armeria.common.HttpMethod;
 import com.linecorp.armeria.common.HttpRequest;
 import io.evitadb.externalApi.http.EndpointRequest;
 import io.evitadb.externalApi.http.EndpointResponse;
 import io.evitadb.externalApi.http.SuccessEndpointResponse;
 import io.evitadb.externalApi.observability.ObservabilityManager;
-import io.undertow.util.Methods;
 
 import javax.annotation.Nonnull;
 import java.util.LinkedHashSet;
@@ -55,7 +55,7 @@ public class StopLoggingHandler extends LoggingEndpointHandler<EndpointRequest> 
 	@Nonnull
 	@Override
 	public Set<String> getSupportedHttpMethods() {
-		return Set.of(Methods.POST_STRING);
+		return Set.of(HttpMethod.POST.name());
 	}
 
 	@Nonnull

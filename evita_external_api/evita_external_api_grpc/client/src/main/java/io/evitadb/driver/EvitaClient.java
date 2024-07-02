@@ -24,6 +24,17 @@
 package io.evitadb.driver;
 
 import com.google.protobuf.Empty;
+import com.linecorp.armeria.client.ClientFactory;
+import com.linecorp.armeria.client.ClientFactoryBuilder;
+import com.linecorp.armeria.client.ClientOptionValue;
+import com.linecorp.armeria.client.ClientOptions;
+import com.linecorp.armeria.client.ConnectionPoolListener;
+import com.linecorp.armeria.client.grpc.GrpcClientBuilder;
+import com.linecorp.armeria.client.grpc.GrpcClientStubFactory;
+import com.linecorp.armeria.client.grpc.GrpcClients;
+import com.linecorp.armeria.common.SessionProtocol;
+import com.linecorp.armeria.common.grpc.GrpcSerializationFormats;
+import com.linecorp.armeria.internal.client.PooledChannel;
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.SessionTraits;
@@ -51,6 +62,7 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.InvalidEvitaVersionException;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.*;
+import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc.EvitaServiceBlockingStub;
 import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc.EvitaServiceFutureStub;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingTopLevelCatalogSchemaMutationConverter;
@@ -65,13 +77,13 @@ import io.evitadb.utils.VersionUtils.SemVer;
 import io.grpc.ManagedChannel;
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
-import io.grpc.netty.NettyChannelBuilder;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
+import java.net.InetSocketAddress;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
@@ -84,7 +96,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
@@ -124,7 +135,7 @@ public class EvitaClient implements EvitaContract {
 	 * The channel pool is used to manage the gRPC channels. The channels are created lazily and are reused for
 	 * subsequent requests. The channel pool is thread-safe.
 	 */
-	private final ChannelPool channelPool;
+	//private final ChannelPool channelPool;
 	/**
 	 * True if client is active and hasn't yet been closed.
 	 */
@@ -152,13 +163,15 @@ public class EvitaClient implements EvitaContract {
 	 */
 	private final ThreadLocal<LinkedList<Timeout>> timeout;
 
+	private final GrpcClientBuilder grpcClientBuilder;
+
 	public EvitaClient(@Nonnull EvitaClientConfiguration configuration) {
 		this(configuration, null);
 	}
 
 	public EvitaClient(
 		@Nonnull EvitaClientConfiguration configuration,
-		@Nullable Consumer<NettyChannelBuilder> grpcConfigurator
+		@Nullable Consumer<GrpcClientBuilder> grpcConfigurator
 	) {
 		this.configuration = configuration;
 		final ClientCertificateManager clientCertificateManager = new ClientCertificateManager.Builder()
@@ -173,10 +186,24 @@ public class EvitaClient implements EvitaContract {
 			.clientPrivateKeyPassword(configuration.certificateKeyPassword())
 			.build();
 
-		NettyChannelBuilder nettyChannelBuilder = NettyChannelBuilder.forAddress(configuration.host(), configuration.port())
-			.sslContext(clientCertificateManager.buildClientSslContext())
-			.executor(Executors.newCachedThreadPool())
-			.defaultLoadBalancingPolicy("round_robin")
+		final ClientFactoryBuilder clientFactoryBuilder = ClientFactory.builder()
+			.useHttp1Pipelining(true)
+			.idleTimeoutMillis(10000, true)
+			.maxNumRequestsPerConnection(1000)
+			.maxNumEventLoopsPerEndpoint(10);
+
+		final String uriScheme;
+		if (configuration.tlsEnabled()) {
+			uriScheme = "https";
+			clientFactoryBuilder.tlsCustomizer(clientCertificateManager::buildClientSslContext);
+		} else {
+			uriScheme = "http";
+		}
+
+		final GrpcClientBuilder grpcClientBuilder = GrpcClients.builder(uriScheme + "://" + configuration.host() + ":" + configuration.port() + "/")
+			.factory(clientFactoryBuilder.build())
+			.serializationFormat(GrpcSerializationFormats.PROTO)
+			.responseTimeoutMillis(10000)
 			.intercept(new ClientSessionInterceptor(configuration));
 
 		final ClientTracingContext context = getClientTracingContext(configuration);
@@ -184,13 +211,15 @@ public class EvitaClient implements EvitaContract {
 			context.setOpenTelemetry(configuration.openTelemetryInstance());
 		}
 
-		final NettyChannelBuilder finalNettyChannelBuilder = nettyChannelBuilder;
-		ofNullable(grpcConfigurator)
-			.ifPresent(it -> it.accept(finalNettyChannelBuilder));
+		grpcClientBuilder.build(EvitaServiceBlockingStub.class);
+
+		ofNullable(grpcConfigurator).ifPresent(it -> it.accept(grpcClientBuilder));
+		this.grpcClientBuilder = grpcClientBuilder;
 		this.reflectionLookup = new ReflectionLookup(configuration.reflectionLookupBehaviour());
-		this.channelPool = new ChannelPool(nettyChannelBuilder, 10);
+		//this.channelPool = new ChannelPool(grpcClientBuilder, 10);
 		this.terminationCallback = () -> {
-			try {
+			//todo tpz: handle termination
+			/*try {
 				Assert.isTrue(
 					this.channelPool.awaitTermination(configuration.timeout(), configuration.timeoutUnit()),
 					() -> new EvitaClientTimedOutException(configuration.timeout(), configuration.timeoutUnit())
@@ -198,7 +227,7 @@ public class EvitaClient implements EvitaContract {
 			} catch (InterruptedException e) {
 				// terminated
 				Thread.currentThread().interrupt();
-			}
+			}*/
 		};
 		this.timeout = ThreadLocal.withInitial(() -> {
 			final LinkedList<Timeout> timeouts = new LinkedList<>();
@@ -345,7 +374,7 @@ public class EvitaClient implements EvitaContract {
 				traits.catalogName(),
 				catalogName -> new EvitaEntitySchemaCache(catalogName, this.reflectionLookup)
 			),
-			this.channelPool,
+			this.grpcClientBuilder,
 			traits.catalogName(),
 			EvitaEnumConverter.toCatalogState(grpcResponse.getCatalogState()),
 			UUIDUtil.uuid(grpcResponse.getSessionId()),
@@ -640,7 +669,8 @@ public class EvitaClient implements EvitaContract {
 		if (active.compareAndSet(true, false)) {
 			this.activeSessions.values().forEach(EvitaSessionContract::close);
 			this.activeSessions.clear();
-			this.channelPool.shutdown();
+			// todo tpz: validate
+			//this.grpcClientBuilder.shutdown();
 			this.terminationCallback.run();
 		}
 	}
@@ -699,9 +729,8 @@ public class EvitaClient implements EvitaContract {
 	 * @return result of the applied function
 	 */
 	private <T> T executeWithEvitaService(@Nonnull AsyncCallFunction<EvitaServiceFutureStub, T> evitaServiceBlockingStub) {
-		final ManagedChannel managedChannel = this.channelPool.getChannel();
 		try {
-			return evitaServiceBlockingStub.apply(EvitaServiceGrpc.newFutureStub(managedChannel));
+			return evitaServiceBlockingStub.apply(grpcClientBuilder.build(EvitaServiceFutureStub.class));
 		} catch (StatusRuntimeException statusRuntimeException) {
 			final Code statusCode = statusRuntimeException.getStatus().getCode();
 			final String description = ofNullable(statusRuntimeException.getStatus().getDescription())
@@ -734,8 +763,6 @@ public class EvitaClient implements EvitaContract {
 				"Unexpected internal Evita error occurred.",
 				e
 			);
-		} finally {
-			this.channelPool.releaseChannel(managedChannel);
 		}
 	}
 

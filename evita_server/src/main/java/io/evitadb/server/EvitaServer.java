@@ -84,9 +84,7 @@ import static java.util.Optional.ofNullable;
  * - graphQL: web friendly JSON API optimized for direct consumption from browsers or JavaScript based server implementations
  * - REST: web friendly JSON API
  *
- * We use two different web servers - Netty for gRPC and Undertow for graphQL and REST APIs. We plan to unify all APIs
- * under Undertow 3.x version that's going to be based on Netty instead of XNIO. Currently, we at least to try reusing
- * single executor service so that there are not so many threads competing for the limited amount of CPUs.
+ * We use Armeria web servers for all APIs.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */

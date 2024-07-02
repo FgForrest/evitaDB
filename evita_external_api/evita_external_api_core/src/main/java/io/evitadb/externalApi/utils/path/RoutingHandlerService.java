@@ -21,31 +21,29 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.utils;
+package io.evitadb.externalApi.utils.path;
 
 import com.linecorp.armeria.common.HttpMethod;
 import com.linecorp.armeria.common.HttpRequest;
 import com.linecorp.armeria.common.HttpResponse;
+import com.linecorp.armeria.common.QueryParams;
 import com.linecorp.armeria.common.RequestHeadersBuilder;
-import com.linecorp.armeria.server.DecoratingHttpServiceFunction;
 import com.linecorp.armeria.server.HttpService;
-import com.linecorp.armeria.server.HttpServiceWithRoutes;
-import com.linecorp.armeria.server.Route;
 import com.linecorp.armeria.server.ServiceRequestContext;
-import com.linecorp.armeria.server.ServiceWithRoutes;
-import com.linecorp.armeria.server.cors.CorsService;
-import io.undertow.predicate.Predicate;
-import io.undertow.util.PathTemplate;
-import io.undertow.util.PathTemplateMatcher;
+import io.evitadb.externalApi.utils.path.routing.CopyOnWriteMap;
+import io.evitadb.externalApi.utils.MethodNotAllowedService;
+import io.evitadb.externalApi.utils.NotFoundService;
+import io.evitadb.externalApi.utils.path.routing.PathTemplate;
+import io.evitadb.externalApi.utils.path.routing.PathTemplateMatcher;
 
 import javax.annotation.Nonnull;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.function.Function;
+import java.util.function.Predicate;
+
+import static io.evitadb.externalApi.http.AdditionalHeaders.INTERNAL_HEADER_PREFIX;
 
 /**
  * A Handler that handles the common case of routing via path template and method name.
@@ -55,7 +53,7 @@ import java.util.function.Function;
 public class RoutingHandlerService implements HttpService {
 
 	// Matcher objects grouped by http methods.
-	private final Map<HttpMethod, PathTemplateMatcher<RoutingHandlerService.RoutingMatch>> matches = new CopyOnWriteMap<>();
+	private final Map<HttpMethod, PathTemplateMatcher<RoutingMatch>> matches = new CopyOnWriteMap<>();
 	// Matcher used to find if this instance contains matches for any http method for a path.
 	// This matcher is used to report if this instance can match a path for one of the http methods.
 	private final PathTemplateMatcher<RoutingHandlerService.RoutingMatch> allMethodsMatcher = new PathTemplateMatcher<>();
@@ -82,12 +80,11 @@ public class RoutingHandlerService implements HttpService {
 	@Nonnull
 	@Override
 	public HttpResponse serve(@Nonnull ServiceRequestContext ctx, @Nonnull HttpRequest req) throws Exception {
-		final String normalizedPath = req.path().isEmpty() ? "/" : req.path();
 		PathTemplateMatcher<RoutingHandlerService.RoutingMatch> matcher = matches.get(req.method());
 		if (matcher == null) {
 			return handleNoMatch(ctx, req);
 		}
-		PathTemplateMatcher.PathMatchResult<RoutingHandlerService.RoutingMatch> match = matcher.match(normalizedPath);
+		PathTemplateMatcher.PathMatchResult<RoutingHandlerService.RoutingMatch> match = matcher.match(getStringPartTillChar(req.path(), '?'));
 		if (match == null) {
 			return handleNoMatch(ctx, req);
 		}
@@ -95,12 +92,9 @@ public class RoutingHandlerService implements HttpService {
 		final RequestHeadersBuilder headersBuilder = req.headers().toBuilder();
 
 		//exchange.putAttachment(PathTemplateMatch.ATTACHMENT_KEY, match);
-		//headersBuilder.
-		//todo tpz: handle
 		if (rewriteQueryParameters) {
-			for (Map.Entry<String, String> entry : match.getParameters().entrySet()) {
-				headersBuilder.add(entry.getKey(), entry.getValue());
-			}
+			QueryParams.fromQueryString(ctx.query()).forEach((key, value) -> headersBuilder.add(INTERNAL_HEADER_PREFIX + key, value));
+			match.getParameters().forEach((key, value) -> headersBuilder.add(INTERNAL_HEADER_PREFIX + key, value));
 		}
 
 		final HttpRequest newRequest = req.withHeaders(headersBuilder.build());
@@ -116,6 +110,14 @@ public class RoutingHandlerService implements HttpService {
 		} else {
 			return fallbackHandler.serve(ctx, newRequest);
 		}
+	}
+
+	private static String getStringPartTillChar(@Nonnull String input, char delimiter) {
+		int index = input.indexOf(delimiter);
+		if (index != -1) {
+			return input.substring(0, index);
+		}
+		return input; // Return the original string if the delimiter is not found
 	}
 
 	/**
@@ -168,42 +170,6 @@ public class RoutingHandlerService implements HttpService {
 
 	public synchronized RoutingHandlerService delete(final String template, HttpService handler) {
 		return add(HttpMethod.DELETE, template, handler);
-	}
-
-	public synchronized RoutingHandlerService add(final String method, final String template, Predicate predicate, HttpService handler) {
-		return add(HttpMethod.tryParse(method), template, predicate, handler);
-	}
-
-	public synchronized RoutingHandlerService add(HttpMethod method, String template, Predicate predicate, HttpService handler) {
-		PathTemplateMatcher<RoutingHandlerService.RoutingMatch> matcher = matches.get(method);
-		if (matcher == null) {
-			matches.put(method, matcher = new PathTemplateMatcher<>());
-		}
-		RoutingHandlerService.RoutingMatch res = matcher.get(template);
-		if (res == null) {
-			matcher.add(template, res = new RoutingHandlerService.RoutingMatch());
-		}
-		if (allMethodsMatcher.match(template) == null) {
-			allMethodsMatcher.add(template, res);
-		}
-		res.predicatedHandlers.add(new RoutingHandlerService.HandlerHolder(predicate, handler));
-		return this;
-	}
-
-	public synchronized RoutingHandlerService get(final String template, Predicate predicate, HttpService handler) {
-		return add(HttpMethod.GET, template, predicate, handler);
-	}
-
-	public synchronized RoutingHandlerService post(final String template, Predicate predicate, HttpService handler) {
-		return add(HttpMethod.POST, template, predicate, handler);
-	}
-
-	public synchronized RoutingHandlerService put(final String template, Predicate predicate, HttpService handler) {
-		return add(HttpMethod.PUT, template, predicate, handler);
-	}
-
-	public synchronized RoutingHandlerService delete(final String template, Predicate predicate, HttpService handler) {
-		return add(HttpMethod.DELETE, template, predicate, handler);
 	}
 
 	public synchronized RoutingHandlerService addAll(RoutingHandlerService routingHandler) {

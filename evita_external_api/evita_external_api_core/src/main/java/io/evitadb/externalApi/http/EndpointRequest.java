@@ -24,7 +24,6 @@
 package io.evitadb.externalApi.http;
 
 import com.linecorp.armeria.common.HttpRequest;
-import com.linecorp.armeria.server.HttpService;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;

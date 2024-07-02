@@ -60,7 +60,7 @@ import static io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference.typeR
 
 /**
  * Single REST endpoint with schema description and handler builder. It combines {@link io.swagger.v3.oas.models.PathItem},
- * {@link Operation} and {@link io.undertow.server.HttpHandler} into one place with useful defaults. To further simplify
+ * {@link Operation} and {@link com.linecorp.armeria.server.HttpService} into one place with useful defaults. To further simplify
  * building endpoints, the {@link OpenApiCollectionEndpoint} and {@link OpenApiCatalogEndpoint} have been created with
  * built-in specific path builders and custom properties for each type of endpoint.
  *

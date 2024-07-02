@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.rest.api.openApi;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.linecorp.armeria.server.HttpService;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.EndpointHeaderDescriptor;
@@ -54,7 +55,7 @@ import static io.swagger.v3.oas.models.PathItem.HttpMethod.*;
 /**
  * Single REST endpoint with schema description and handler builder for building catalog-specific endpoints
  * (for specific catalog and entity type). It combines {@link io.swagger.v3.oas.models.PathItem},
- * {@link Operation} and {@link io.undertow.server.HttpHandler} into one place with useful defaults.
+ * {@link Operation} and {@link HttpService} into one place with useful defaults.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */

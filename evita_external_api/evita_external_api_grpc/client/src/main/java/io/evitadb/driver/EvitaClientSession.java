@@ -26,6 +26,7 @@ package io.evitadb.driver;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.protobuf.Empty;
 import com.google.protobuf.Int32Value;
+import com.linecorp.armeria.client.grpc.GrpcClientBuilder;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.SchemaPostProcessor;
@@ -175,7 +176,10 @@ public class EvitaClientSession implements EvitaSessionContract {
 	/**
 	 * Contains reference to the channel pool that is used for retrieving a channel and applying wanted login onto it.
 	 */
-	private final ChannelPool channelPool;
+	//private final ChannelPool channelPool;
+
+	private final GrpcClientBuilder grpcClientBuilder;
+
 	/**
 	 * Contains reference to the catalog name targeted by queries / mutations from this session.
 	 */
@@ -259,7 +263,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 	public EvitaClientSession(
 		@Nonnull EvitaClient evita,
 		@Nonnull EvitaEntitySchemaCache schemaCache,
-		@Nonnull ChannelPool channelPool,
+		@Nonnull GrpcClientBuilder grpcClientBuilder,
 		@Nonnull String catalogName,
 		@Nonnull CatalogState catalogState,
 		@Nonnull UUID sessionId,
@@ -272,7 +276,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 		this.reflectionLookup = evita.getReflectionLookup();
 		this.proxyFactory = schemaCache.getProxyFactory();
 		this.schemaCache = schemaCache;
-		this.channelPool = channelPool;
+		this.grpcClientBuilder = grpcClientBuilder;
 		this.catalogName = catalogName;
 		this.catalogState = catalogState;
 		this.commitBehaviour = commitBehaviour;
@@ -1521,7 +1525,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 		try {
 			return executeWithEvitaSessionService(
 				lambda,
-				EvitaSessionServiceGrpc::newFutureStub
+				() -> grpcClientBuilder.build(EvitaSessionServiceFutureStub.class)
 			).get(timeout.timeout(), timeout.timeoutUnit());
 		} catch (ExecutionException e) {
 			if (e.getCause() instanceof EvitaInvalidUsageException invalidUsageException) {
@@ -1554,7 +1558,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 	) {
 		executeWithEvitaSessionService(
 			lambda,
-			EvitaSessionServiceGrpc::newStub
+			() -> grpcClientBuilder.build(EvitaSessionServiceStub.class)
 		);
 	}
 
@@ -1569,12 +1573,11 @@ public class EvitaClientSession implements EvitaSessionContract {
 	 */
 	private <S, T> T executeWithEvitaSessionService(
 		@Nonnull AsyncCallFunction<S, T> lambda,
-		@Nonnull Function<ManagedChannel, S> stubFactory
+		@Nonnull Supplier<S> stubFactory
 	) {
-		final ManagedChannel managedChannel = this.channelPool.getChannel();
 		try {
 			SessionIdHolder.setSessionId(getCatalogName(), getId().toString());
-			return lambda.apply(stubFactory.apply(managedChannel));
+			return lambda.apply(stubFactory.get());
 		} catch (StatusRuntimeException statusRuntimeException) {
 			throw transformStatusRuntimeException(statusRuntimeException);
 		} catch (EvitaInvalidUsageException | EvitaInternalError evitaError) {
@@ -1587,7 +1590,6 @@ public class EvitaClientSession implements EvitaSessionContract {
 				e
 			);
 		} finally {
-			this.channelPool.releaseChannel(managedChannel);
 			SessionIdHolder.reset();
 		}
 	}

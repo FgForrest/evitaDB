@@ -21,10 +21,9 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.utils;
+package io.evitadb.externalApi.utils.path.routing;
 
-import io.undertow.UndertowLogger;
-import io.undertow.UndertowMessages;
+import io.evitadb.externalApi.utils.URLUtils;
 
 import java.util.Collections;
 import java.util.Comparator;
@@ -81,7 +80,6 @@ public class PathMatcher<T> {
 		if (!exactPathMatches.isEmpty()) {
 			T match = getExactPath(path);
 			if (match != null) {
-				UndertowLogger.REQUEST_LOGGER.debugf("Matched exact path %s", path);
 				return new PathMatch<>(path, "", match);
 			}
 		}
@@ -93,7 +91,6 @@ public class PathMatcher<T> {
 			if (pathLength == length) {
 				SubstringMap.SubstringMatch<T> next = paths.get(path, length);
 				if (next != null) {
-					UndertowLogger.REQUEST_LOGGER.debugf("Matched prefix path %s for path %s", next.getKey(), path);
 					return new PathMatch<>(path, "", next.getValue());
 				}
 			} else if (pathLength < length) {
@@ -102,13 +99,11 @@ public class PathMatcher<T> {
 
 					SubstringMap.SubstringMatch<T> next = paths.get(path, pathLength);
 					if (next != null) {
-						UndertowLogger.REQUEST_LOGGER.debugf("Matched prefix path %s for path %s", next.getKey(), path);
 						return new PathMatch<>(next.getKey(), path.substring(pathLength), next.getValue());
 					}
 				}
 			}
 		}
-		UndertowLogger.REQUEST_LOGGER.debugf("Matched default handler path %s", path);
 		return new PathMatch<>("", path, defaultHandler);
 	}
 
@@ -126,7 +121,7 @@ public class PathMatcher<T> {
 	 */
 	public synchronized PathMatcher addPrefixPath(final String path, final T handler) {
 		if (path.isEmpty()) {
-			throw UndertowMessages.MESSAGES.pathMustBeSpecified();
+			throw new IllegalArgumentException("Path must be specified");
 		}
 
 		final String normalizedPath = URLUtils.normalizeSlashes(path);
@@ -145,7 +140,7 @@ public class PathMatcher<T> {
 
 	public synchronized PathMatcher addExactPath(final String path, final T handler) {
 		if (path.isEmpty()) {
-			throw UndertowMessages.MESSAGES.pathMustBeSpecified();
+			throw new IllegalArgumentException("Path must be specified");
 		}
 		exactPathMatches.put(URLUtils.normalizeSlashes(path), handler);
 		return this;
@@ -198,7 +193,7 @@ public class PathMatcher<T> {
 
 	public synchronized PathMatcher removePrefixPath(final String path) {
 		if (path == null || path.isEmpty()) {
-			throw UndertowMessages.MESSAGES.pathMustBeSpecified();
+			throw new IllegalArgumentException("Path must be specified");
 		}
 
 		final String normalizedPath = URLUtils.normalizeSlashes(path);
@@ -216,7 +211,7 @@ public class PathMatcher<T> {
 
 	public synchronized PathMatcher removeExactPath(final String path) {
 		if (path == null || path.isEmpty()) {
-			throw UndertowMessages.MESSAGES.pathMustBeSpecified();
+			throw new IllegalArgumentException("Path must be specified");
 		}
 
 		exactPathMatches.remove(URLUtils.normalizeSlashes(path));

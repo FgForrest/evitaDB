@@ -37,8 +37,8 @@ import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import io.evitadb.externalApi.http.AdditionalHeaders;
 import io.evitadb.externalApi.http.CorsFilterServiceDecorator;
 import io.evitadb.externalApi.http.CorsPreflightService;
-import io.evitadb.externalApi.utils.PathHandlingService;
-import io.evitadb.externalApi.utils.RoutingHandlerService;
+import io.evitadb.externalApi.utils.path.PathHandlingService;
+import io.evitadb.externalApi.utils.path.RoutingHandlerService;
 import io.evitadb.externalApi.utils.UriPath;
 import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
@@ -51,7 +51,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static io.evitadb.utils.CollectionUtils.createConcurrentHashMap;
 
 /**
- * Custom Undertow router for GraphQL APIs.
+ * Custom HTTP router for GraphQL APIs.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
  */
@@ -163,10 +163,9 @@ public class GraphQLRouter implements HttpService {
 		apiRouter.add(
 			HttpMethod.POST,
 			registeredApi.path().toString(),
-			new GraphQLExceptionHandler(
-				objectMapper,
-				new GraphQLHandler(objectMapper, evita, registeredApi.graphQLReference())
-			).decorate(
+			new GraphQLHandler(objectMapper, evita, registeredApi.graphQLReference())
+			.decorate(service -> new GraphQLExceptionHandler(objectMapper, service))
+			.decorate(
 				new CorsFilterServiceDecorator(
 					graphQLConfig.getAllowedOrigins()
 				).createDecorator()
@@ -176,10 +175,9 @@ public class GraphQLRouter implements HttpService {
 		apiRouter.add(
 			HttpMethod.GET,
 			registeredApi.path().toString(),
-			new GraphQLExceptionHandler(
-				objectMapper,
-				new GraphQLSchemaHandler(registeredApi.graphQLReference())
-			).decorate(
+			new GraphQLSchemaHandler(registeredApi.graphQLReference())
+			.decorate(service -> new GraphQLExceptionHandler(objectMapper, service))
+			.decorate(
 				new CorsFilterServiceDecorator(
 					graphQLConfig.getAllowedOrigins()
 				).createDecorator()

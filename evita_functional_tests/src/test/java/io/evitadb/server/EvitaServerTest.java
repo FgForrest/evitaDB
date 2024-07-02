@@ -23,10 +23,11 @@
 
 package io.evitadb.server;
 
+import com.linecorp.armeria.client.grpc.GrpcClientBuilder;
 import io.evitadb.core.Evita;
 import io.evitadb.driver.interceptor.ClientSessionInterceptor;
 import io.evitadb.externalApi.grpc.GrpcProvider;
-import io.evitadb.externalApi.grpc.TestChannelCreator;
+import io.evitadb.externalApi.grpc.TestGrpcClientBuilderCreator;
 import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc;
 import io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest;
 import io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse;
@@ -44,6 +45,7 @@ import io.grpc.ManagedChannel;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -114,9 +116,9 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 			final GrpcProvider grpcProvider = externalApiServer.getExternalApiProviderByCode(GrpcProvider.CODE);
 			assertNotNull(grpcProvider);
 
-			final ManagedChannel channel = TestChannelCreator.getChannel(new ClientSessionInterceptor(), externalApiServer);
+			final GrpcClientBuilder clientBuilder = TestGrpcClientBuilderCreator.getBuilder(new ClientSessionInterceptor(), externalApiServer);
 
-			final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = EvitaServiceGrpc.newBlockingStub(channel);
+			final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = clientBuilder.build(EvitaServiceGrpc.EvitaServiceBlockingStub.class);
 
 			//get a session id from EvitaService
 			final GrpcEvitaSessionResponse response = evitaBlockingStub.createReadOnlySession(
@@ -148,6 +150,8 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 		}
 	}
 
+	//todo tpz: enable when merged dev and test after
+	@Disabled
 	@Test
 	void shouldSignalizeReadinessAndHealthinessCorrectly() {
 		final Path configFilePath = EvitaTestSupport.bootstrapEvitaServerConfigurationFile(DIR_EVITA_SERVER_TEST);

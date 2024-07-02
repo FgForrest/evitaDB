@@ -59,7 +59,6 @@ module evita.external.api.grpc {
 	requires evita.engine;
 	requires evita.external.api.core;
 	requires evita.external.api.grpc.shared;
-	requires undertow.core;
 
 	requires io.netty.handler;
 	requires io.grpc.services;
