@@ -36,6 +36,7 @@ import io.evitadb.store.spi.model.reference.CollectionFileReference;
 import io.evitadb.store.spi.model.reference.WalFileReference;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
+import io.evitadb.utils.UUIDUtil;
 
 import java.util.Collection;
 import java.util.Map;
@@ -137,6 +138,7 @@ public class CatalogHeaderSerializer_2024_05 extends AbstractPersistentStorageHe
 			walFileReference,
 			collectionFileIndex,
 			compressedKeys,
+			UUIDUtil.randomUUID(),
 			catalogName,
 			catalogState,
 			lastEntityCollectionPrimaryKey,

@@ -23,7 +23,7 @@
 
 package io.evitadb.core.transaction.stage;
 
-import io.evitadb.api.exception.TransactionTimedOutException;
+import io.evitadb.api.exception.TransactionException;
 import io.evitadb.core.Catalog;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
@@ -97,13 +97,22 @@ public sealed abstract class AbstractTransactionStage<T extends TransactionTask,
 			// delegate handling logic to the concrete implementation
 			handleNext(task);
 		} catch (Throwable ex) {
-			log.error("Error while processing " + getName() + " task for catalog `" + task.catalogName() + "`!", ex);
-			final CompletableFuture<Long> future = task.future();
-			if (future != null) {
-				future.completeExceptionally(ex);
-			}
+			handleException(task, ex);
 		}
 		subscription.request(1);
+	}
+
+	/**
+	 * Handles the exception thrown during the processing of the transaction task.
+	 * @param task The task that caused the exception.
+	 * @param ex The exception that was thrown.
+	 */
+	protected void handleException(@Nonnull T task, @Nonnull Throwable ex) {
+		log.error("Error while processing " + getName() + " task for catalog `" + task.catalogName() + "`!", ex);
+		final CompletableFuture<Long> future = task.future();
+		if (future != null) {
+			future.completeExceptionally(ex);
+		}
 	}
 
 	@Override
@@ -120,21 +129,6 @@ public sealed abstract class AbstractTransactionStage<T extends TransactionTask,
 		log.debug("Transaction stage completed for catalog `" + this.liveCatalog.get().getName() + "`!");
 		this.completed = true;
 	}
-
-	/**
-	 * Retrieves the name of the transaction stage. The name is used in logs and exceptions.
-	 *
-	 * @return The name of the transaction stage as a String.
-	 */
-	protected abstract String getName();
-
-	/**
-	 * Handles the next transaction task. It converts the source task to the target task and pushes it to the next
-	 * transaction stage. During the transformation all necessary actions are performed.
-	 *
-	 * @param task The task to be handled.
-	 */
-	protected abstract void handleNext(@Nonnull T task);
 
 	/**
 	 * Informs transactional pipeline jobs that the catalog version has advanced due to external reasons (such as
@@ -154,6 +148,21 @@ public sealed abstract class AbstractTransactionStage<T extends TransactionTask,
 	}
 
 	/**
+	 * Retrieves the name of the transaction stage. The name is used in logs and exceptions.
+	 *
+	 * @return The name of the transaction stage as a String.
+	 */
+	protected abstract String getName();
+
+	/**
+	 * Handles the next transaction task. It converts the source task to the target task and pushes it to the next
+	 * transaction stage. During the transformation all necessary actions are performed.
+	 *
+	 * @param task The task to be handled.
+	 */
+	protected abstract void handleNext(@Nonnull T task);
+
+	/**
 	 * Pushes a target task to the next transaction stage.
 	 * If the target task's future is null, it completes the future with a new catalog version.
 	 *
@@ -164,14 +173,12 @@ public sealed abstract class AbstractTransactionStage<T extends TransactionTask,
 		this.stageHandoff = offer(
 			targetTask,
 			(subscriber, theTask) -> {
-				final CompletableFuture<Long> future = theTask.future();
-				if (future != null) {
-					future.completeExceptionally(
-						new TransactionTimedOutException(
-							"Transaction timed out - capacity of WAL appender reached (`" + getMaxBufferCapacity() + "`)!"
-						)
-					);
-				}
+				final TransactionException exception = new TransactionException(
+					"Transaction task future is null! " +
+						"Cannot complete the task " + getName() + " - some committed data will be lost, " +
+						"and no one will be informed about it!"
+				);
+				handleException(sourceTask, exception);
 				return false;
 			}
 		);

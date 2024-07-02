@@ -106,6 +106,7 @@ public class MetricHandler {
 		.labelNames("api_type")
 		.help("Status of the API readiness (internal HTTP call check)")
 		.register();
+	private static final Map<String, Metric> REGISTERED_METRICS = new HashMap<>(64);
 	private static final Pattern EVENT = Pattern.compile("Event");
 	private static final Map<String, Runnable> DEFAULT_JVM_METRICS;
 	private static final String DEFAULT_JVM_METRICS_NAME = "AllMetrics";
@@ -127,6 +128,48 @@ public class MetricHandler {
 	}
 
 	private final ObservabilityConfig observabilityConfig;
+
+	/**
+	 * Composes the name of the metric from the event class, export metric and field name.
+	 *
+	 * @param eventClass   event class
+	 * @param exportMetric export metric annotation
+	 * @param fieldName    name of the field in the JFR event
+	 * @return composed name of the metric
+	 */
+	@Nonnull
+	public static String composeMetricName(
+		@Nonnull Class<? extends CustomMetricsExecutionEvent> eventClass,
+		@Nonnull ExportMetric exportMetric,
+		@Nonnull String fieldName
+	) {
+		final String metricName = of(exportMetric.metricName())
+			.filter(it -> !it.isBlank())
+			.orElse(fieldName);
+
+		// if the metric contains dots, it means it's already fully composed
+		return metricName.contains(".") ?
+			metricName : composeMetricName(eventClass, metricName);
+	}
+
+	/**
+	 * Creates name of the metric from the event class and metric name.
+	 *
+	 * @param eventClass event class
+	 * @param metricName name of the metric itself
+	 * @return composed name of the metric
+	 */
+	@Nonnull
+	public static String composeMetricName(
+		@Nonnull Class<? extends CustomMetricsExecutionEvent> eventClass,
+		@Nonnull String metricName
+	) {
+		return StringUtils.toSnakeCase(
+			EvitaJfrEventRegistry.getMetricsGroup(eventClass) +
+				"." + EVENT.matcher(eventClass.getSimpleName()).replaceFirst("") + "." +
+				metricName
+		);
+	}
 
 	/**
 	 * Converts the getter method into the exporter of the metric label.
@@ -157,48 +200,6 @@ public class MetricHandler {
 		return new MetricLabelExporter(
 			of(exportMetricLabel.value()).filter(it -> !it.isBlank()).orElse(fieldName),
 			recordedEvent -> recordedEvent.getString(fieldName)
-		);
-	}
-
-	/**
-	 * Composes the name of the metric from the event class, export metric and field name.
-	 *
-	 * @param eventClass   event class
-	 * @param exportMetric export metric annotation
-	 * @param fieldName    name of the field in the JFR event
-	 * @return composed name of the metric
-	 */
-	@Nonnull
-	private static String composeMetricName(
-		@Nonnull Class<? extends CustomMetricsExecutionEvent> eventClass,
-		@Nonnull ExportMetric exportMetric,
-		@Nonnull String fieldName
-	) {
-		final String metricName = of(exportMetric.metricName())
-			.filter(it -> !it.isBlank())
-			.orElse(fieldName);
-
-		// if the metric contains dots, it means it's already fully composed
-		return metricName.contains(".") ?
-			metricName : composeMetricName(eventClass, metricName);
-	}
-
-	/**
-	 * Creates name of the metric from the event class and metric name.
-	 *
-	 * @param eventClass event class
-	 * @param metricName name of the metric itself
-	 * @return composed name of the metric
-	 */
-	@Nonnull
-	private static String composeMetricName(
-		@Nonnull Class<? extends CustomMetricsExecutionEvent> eventClass,
-		@Nonnull String metricName
-	) {
-		return StringUtils.toSnakeCase(
-			EvitaJfrEventRegistry.getMetricsGroup(eventClass) +
-				"." + EVENT.matcher(eventClass.getSimpleName()).replaceFirst("") + "." +
-				metricName
 		);
 	}
 
@@ -307,7 +308,7 @@ public class MetricHandler {
 								}
 							},
 							() -> builder.classicExponentialUpperBounds(1, 2.0, 14)
-									.unit(new Unit("milliseconds")));
+								.unit(new Unit("milliseconds")));
 					yield builder
 						.labelNames(metric.labels())
 						.help(metric.helpMessage())
@@ -351,7 +352,6 @@ public class MetricHandler {
 			new BackgroundTask(
 				"Metric handler",
 				() -> {
-					final Map<String, Metric> registeredMetrics = new HashMap<>(64);
 					final ReflectionLookup lookup = ReflectionLookup.NO_CACHE_INSTANCE;
 					try (var recordingStream = new RecordingStream()) {
 						for (Class<? extends CustomMetricsExecutionEvent> eventClass : allowedMetrics) {
@@ -389,7 +389,7 @@ public class MetricHandler {
 									final HistogramSettings histogramSettings = lookup.getClassAnnotation(eventClass, HistogramSettings.class);
 									final Metric durationMetric = buildAndRegisterMetric(
 										new LoggedMetric(metricName, it.label(), MetricType.HISTOGRAM, histogramSettings, labelNames),
-										registeredMetrics
+										REGISTERED_METRICS
 									);
 									if (ArrayUtils.isEmpty(labelValueExporters)) {
 										chainLambda(
@@ -414,7 +414,7 @@ public class MetricHandler {
 									final String metricName = composeMetricName(eventClass, it.value());
 									final Metric invocationMetric = buildAndRegisterMetric(
 										new LoggedMetric(metricName, it.label(), MetricType.COUNTER, null, labelNames),
-										registeredMetrics
+										REGISTERED_METRICS
 									);
 									if (ArrayUtils.isEmpty(labelValueExporters)) {
 										chainLambda(lambdaRef, recordedEvent -> ((Counter) invocationMetric).inc());
@@ -468,7 +468,7 @@ public class MetricHandler {
 										histogramSettings.orElse(null),
 										labelNames
 									),
-									registeredMetrics
+									REGISTERED_METRICS
 								);
 								chainLambda(
 									lambdaRef,

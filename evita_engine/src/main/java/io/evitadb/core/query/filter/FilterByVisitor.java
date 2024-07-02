@@ -513,15 +513,16 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 * Registers new {@link FormulaPostProcessor} to the list of processors that will be called just before
 	 * IndexFilterByVisitor hands the result of its work to the calling logic.
 	 */
-	public <T extends FormulaPostProcessor> T registerFormulaPostProcessorIfNotPresent(
+	public <T extends FormulaPostProcessor> T registerFormulaPostProcessor(
 		@Nonnull Class<T> postProcessorType,
 		@Nonnull Supplier<T> formulaPostProcessorSupplier
 	) {
-		//noinspection DataFlowIssue,unchecked
-		return (T) this.postProcessors.computeIfAbsent(
+		final T value = formulaPostProcessorSupplier.get();
+		this.postProcessors.put(
 			postProcessorType,
-			aClass -> formulaPostProcessorSupplier.get()
+			value
 		);
+		return value;
 	}
 
 	/**
@@ -973,9 +974,9 @@ public class FilterByVisitor implements ConstraintVisitor {
 	private Formula constructFinalFormula(@Nonnull Formula constraintFormula) {
 		Formula finalFormula = constraintFormula;
 		final CalculationContext calculationContext = new CalculationContext();
-		if (!postProcessors.isEmpty()) {
+		if (!this.postProcessors.isEmpty()) {
 			final Set<FormulaPostProcessor> executedProcessors = CollectionUtils.createHashSet(postProcessors.size());
-			for (FormulaPostProcessor postProcessor : postProcessors.values()) {
+			for (FormulaPostProcessor postProcessor : this.postProcessors.values()) {
 				if (!executedProcessors.contains(postProcessor)) {
 					postProcessor.visit(finalFormula);
 					finalFormula = postProcessor.getPostProcessedFormula();

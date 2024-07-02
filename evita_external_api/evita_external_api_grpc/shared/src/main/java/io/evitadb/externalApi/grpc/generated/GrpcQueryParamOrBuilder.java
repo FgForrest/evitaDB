@@ -586,6 +586,34 @@ public interface GrpcQueryParamOrBuilder extends
 
   /**
    * <pre>
+   * The managed references behaviour
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcManagedReferencesBehaviour managedReferencesBehaviour = 22;</code>
+   * @return Whether the managedReferencesBehaviour field is set.
+   */
+  boolean hasManagedReferencesBehaviour();
+  /**
+   * <pre>
+   * The managed references behaviour
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcManagedReferencesBehaviour managedReferencesBehaviour = 22;</code>
+   * @return The enum numeric value on the wire for managedReferencesBehaviour.
+   */
+  int getManagedReferencesBehaviourValue();
+  /**
+   * <pre>
+   * The managed references behaviour
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcManagedReferencesBehaviour managedReferencesBehaviour = 22;</code>
+   * @return The managedReferencesBehaviour.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcManagedReferencesBehaviour getManagedReferencesBehaviour();
+
+  /**
+   * <pre>
    * The string array value.
    * </pre>
    *

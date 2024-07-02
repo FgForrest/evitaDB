@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -52,6 +52,7 @@ import io.evitadb.externalApi.graphql.api.resolver.SelectionSetAggregator;
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidArgumentException;
 import io.evitadb.externalApi.graphql.exception.GraphQLQueryResolvingInternalError;
+import io.evitadb.externalApi.graphql.metric.event.request.ExecutedEvent;
 import io.evitadb.utils.Assert;
 import lombok.extern.slf4j.Slf4j;
 
@@ -135,30 +136,34 @@ public class GetUnknownEntityDataFetcher implements DataFetcher<DataFetcherResul
     @Override
     public DataFetcherResult<SealedEntity> get(@Nonnull DataFetchingEnvironment environment) {
         final Arguments arguments = Arguments.from(environment, catalogSchema);
+        final ExecutedEvent requestExecutedEvent = environment.getGraphQlContext().get(GraphQLContextKey.METRIC_EXECUTED_EVENT);
 
-        final FilterBy filterBy = buildFilterBy(arguments);
-        final Require require = buildInitialRequire(environment);
-        final Query query = query(
-            filterBy,
-            require
-        );
+        final Query query = requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() -> {
+            final FilterBy filterBy = buildFilterBy(arguments);
+            final Require require = buildInitialRequire(environment);
+            return query(
+                filterBy,
+                require
+            );
+        });
         log.debug("Generated evitaDB query for single unknown entity fetch `{}`.", query);
 
         final EvitaSessionContract evitaSession = environment.getGraphQlContext().get(GraphQLContextKey.EVITA_SESSION);
 
-        final SealedEntity loadedEntity = evitaSession.queryOne(query, SealedEntity.class)
-            .map(it -> {
-                final String entityType = it.getType();
-                final Optional<EntityContentRequire[]> contentRequires = buildEnrichingRequires(environment, entityType);
-                if (contentRequires.isEmpty()) {
-                    log.debug("Skipping enriching entity reference `{}`. Target entity not requested.", it);
-                    return it;
-                } else {
-                    log.debug("Enriching entity reference `{}` with `{}`.", it, Arrays.toString(contentRequires.get()));
-                    return evitaSession.enrichEntity(it, contentRequires.get());
-                }
-            })
-            .orElse(null);
+        final SealedEntity loadedEntity = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
+            evitaSession.queryOne(query, SealedEntity.class)
+                .map(it -> {
+                    final String entityType = it.getType();
+                    final Optional<EntityContentRequire[]> contentRequires = buildEnrichingRequires(environment, entityType);
+                    if (contentRequires.isEmpty()) {
+                        log.debug("Skipping enriching entity reference `{}`. Target entity not requested.", it);
+                        return it;
+                    } else {
+                        log.debug("Enriching entity reference `{}` with `{}`.", it, Arrays.toString(contentRequires.get()));
+                        return evitaSession.enrichEntity(it, contentRequires.get());
+                    }
+                })
+                .orElse(null));
 
         final DataFetcherResult.Builder<SealedEntity> resultBuilder = DataFetcherResult.newResult();
         if (loadedEntity != null) {

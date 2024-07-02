@@ -40,6 +40,7 @@ import io.evitadb.api.query.order.EntityProperty;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.HierarchyContent;
+import io.evitadb.api.query.require.ManagedReferencesBehaviour;
 import io.evitadb.api.query.require.ReferenceContent;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaRequest.RequirementContext;
@@ -76,6 +77,7 @@ import io.evitadb.core.query.sort.attribute.translator.EntityNestedQueryComparat
 import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.ReducedEntityIndex;
+import io.evitadb.index.bitmap.ArrayBitmap;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
@@ -418,7 +420,10 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		@Nonnull int[] entityPrimaryKeys,
 		@Nonnull QueryContext queryContext,
 		@Nonnull ReferenceSchemaContract referenceSchema,
+		boolean targetEntityManaged,
+		@Nonnull String targetEntityType,
 		@Nonnull AtomicReference<FilterByVisitor> filterByVisitor,
+		@Nonnull ManagedReferencesBehaviour managedReferencesBehaviour,
 		@Nullable FilterBy filterBy,
 		@Nullable ValidEntityToReferenceMapping validityMapping,
 		@Nullable EntityNestedQueryComparator entityNestedQueryComparator,
@@ -438,14 +443,39 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			// if nothing was found, quickly finish
 			return EMPTY_INTS;
 		} else if (filterBy == null) {
-			// we may allow all referenced entity ids
-			validityMappingOptional.ifPresent(it -> it.restrictTo(new BaseBitmap(allReferencedEntityIds)));
+			final int[] result;
+			if (managedReferencesBehaviour == ManagedReferencesBehaviour.EXISTING) {
+				if (targetEntityManaged) {
+					// we need to filter the referenced entity ids to only those that really exist
+					final Optional<EntityCollection> targetEntityCollection = queryContext.getEntityCollection(targetEntityType);
+					if (targetEntityCollection.isEmpty()) {
+						validityMappingOptional.ifPresent(ValidEntityToReferenceMapping::forbidAll);
+						result = EMPTY_INTS;
+					} else {
+						final Formula existingOnlyReferencedIds = FormulaFactory.and(
+							new ConstantFormula(new ArrayBitmap(allReferencedEntityIds)),
+							targetEntityCollection.get().getGlobalIndex().getAllPrimaryKeysFormula()
+						);
+						final Bitmap existingReferences = existingOnlyReferencedIds.compute();
+						result = existingReferences.getArray();
+						validityMappingOptional.ifPresent(it -> it.restrictTo(existingReferences));
+					}
+				} else {
+					// target entity is not managed - we may allow all referenced entity ids
+					validityMappingOptional.ifPresent(it -> it.restrictTo(new BaseBitmap(allReferencedEntityIds)));
+					result = allReferencedEntityIds;
+				}
+			} else {
+				// we may allow all referenced entity ids
+				validityMappingOptional.ifPresent(it -> it.restrictTo(new BaseBitmap(allReferencedEntityIds)));
+				result = allReferencedEntityIds;
+			}
 			initNestedQueryComparator(
 				entityNestedQueryComparator,
 				referenceSchema,
 				queryContext
 			);
-			return allReferencedEntityIds;
+			return result;
 		} else {
 			final FilterByVisitor theFilterByVisitor = getFilterByVisitor(queryContext, filterByVisitor);
 			final List<ReducedEntityIndex> referencedEntityIndexes = theFilterByVisitor.getReferencedRecordEntityIndexes(
@@ -694,8 +724,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			.orElse(EntityClassifierWithParent.CONCEALED_ENTITY);
 
 		return ServerEntityDecorator.decorate(
-			entityDecorator.getDelegate(),
-			entityDecorator.getSchema(),
+			entityDecorator,
 			enrichedParentEntity,
 			entityDecorator.getLocalePredicate(),
 			new HierarchySerializablePredicate(true),
@@ -934,10 +963,10 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	@Override
 	public BiPredicate<Integer, ReferenceDecorator> getEntityFilter(@Nonnull ReferenceSchemaContract referenceSchema) {
 		return ofNullable(
-			ofNullable(requirementContext.get(referenceSchema.getName())).orElse(defaultRequirementContext)
+			ofNullable(this.requirementContext.get(referenceSchema.getName())).orElse(this.defaultRequirementContext)
 		)
 			.map(it -> {
-				if (it.filterBy() == null) {
+				if (it.filterBy() == null && (it.managedReferencesBehaviour() == ManagedReferencesBehaviour.ANY || !referenceSchema.isReferencedEntityTypeManaged())) {
 					return null;
 				} else {
 					final PrefetchedEntities prefetchedEntities = fetchedEntities.get(referenceSchema.getName());
@@ -1012,7 +1041,12 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 						if (referenceSchema.isReferencedGroupTypeManaged() && referenceSchema.getReferencedGroupType() != null) {
 							// if so, fetch them
 							filteredReferencedGroupEntityIds = getFilteredReferencedEntityIds(
-								entityPrimaryKey, queryContext, referenceSchema, filterByVisitor, null, null,
+								entityPrimaryKey, queryContext, referenceSchema,
+								referenceSchema.isReferencedGroupTypeManaged(),
+								referenceSchema.getReferencedGroupType(),
+								filterByVisitor,
+								requirements.managedReferencesBehaviour(),
+								null, null,
 								null, referencedEntityGroupIdsFormula
 							);
 
@@ -1038,7 +1072,13 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 						// are we requested to (are we able to) fetch the entity bodies?
 						if (referenceSchema.isReferencedEntityTypeManaged()) {
 							final int[] filteredReferencedEntityIds = getFilteredReferencedEntityIds(
-								entityPrimaryKey, queryContext, referenceSchema, filterByVisitor, requirements.filterBy(), validityMapping,
+								entityPrimaryKey, queryContext, referenceSchema,
+								referenceSchema.isReferencedEntityTypeManaged(),
+								referenceSchema.getReferencedEntityType(),
+								filterByVisitor,
+								requirements.managedReferencesBehaviour(),
+								requirements.filterBy(),
+								validityMapping,
 								orderingDescriptor
 									.map(OrderingDescriptor::nestedQueryComparator)
 									.orElse(null), referencedEntityIdsFormula

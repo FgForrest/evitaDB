@@ -49,6 +49,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.utils.CollectionUtils.createConcurrentHashMap;
+import static io.evitadb.utils.CollectionUtils.createHashMap;
 
 /**
  * Custom HTTP router for GraphQL APIs.
@@ -60,9 +61,11 @@ public class GraphQLRouter implements HttpService {
 
 	public static final String SYSTEM_PREFIX = "system";
 	private static final UriPath SYSTEM_PATH = UriPath.of("/", SYSTEM_PREFIX);
-	private static final UriPath SYSTEM_API_PATH = UriPath.of("/");
-	private static final UriPath DATA_API_PATH = UriPath.of("/");
-	private static final UriPath SCHEMA_API_PATH = UriPath.of("/", "schema");
+	private static final Map<GraphQLInstanceType, UriPath> API_PATH_MAPPING = createHashMap(
+		new Property<>(GraphQLInstanceType.SYSTEM, UriPath.of("/")),
+		new Property<>(GraphQLInstanceType.DATA, UriPath.of("/")),
+		new Property<>(GraphQLInstanceType.SCHEMA, UriPath.of("/", "schema"))
+	);
 
 	/**
 	 * Common object mapper for endpoints
@@ -96,7 +99,11 @@ public class GraphQLRouter implements HttpService {
 		final RoutingHandlerService apiRouter = new RoutingHandlerService();
 		registerApi(
 			apiRouter,
-			new RegisteredApi(SYSTEM_API_PATH, new AtomicReference<>(systemApi))
+			new RegisteredApi(
+				SYSTEM_API_PATH,
+				API_PATH_MAPPING.get(GraphQLInstanceType.SYSTEM),
+				new AtomicReference<>(systemApi)
+			)
 		);
 		delegateRouter.addPrefixPath(SYSTEM_PATH.toString(), apiRouter);
 
@@ -106,43 +113,32 @@ public class GraphQLRouter implements HttpService {
 	/**
 	 * Registers new endpoints for defined catalog.
 	 */
-	public void registerCatalogApis(@Nonnull String catalogName, @Nonnull GraphQL dataApi, @Nonnull GraphQL schemaApi) {
-		Assert.isPremiseValid(
-			!registeredCatalogs.containsKey(catalogName),
-			() -> new GraphQLInternalError("Catalog `" + catalogName + "` has been already registered.")
-		);
-
-		final RoutingHandlerService apiRouter = new RoutingHandlerService();
+	public void registerCatalogApi(@Nonnull String catalogName, @Nonnull GraphQLInstanceType instanceType, @Nonnull GraphQL api) {
+		final RegisteredCatalog registeredCatalog = registeredCatalogs.computeIfAbsent(catalogName, k -> {
+			final RoutingHandlerService apiRouter = new RoutingHandlerService();
+			delegateRouter.addPrefixPath(constructCatalogPath(catalogName).toString(), apiRouter);
+			return new RegisteredCatalog(apiRouter);
+		});
 
 		final RegisteredApi registeredDataApi = new RegisteredApi(
-			DATA_API_PATH,
-			new AtomicReference<>(dataApi)
+			instanceType,
+			API_PATH_MAPPING.get(instanceType),
+			new AtomicReference<>(api)
 		);
-		registerApi(apiRouter, registeredDataApi);
-
-		final RegisteredApi registeredSchemaApi = new RegisteredApi(
-			SCHEMA_API_PATH,
-			new AtomicReference<>(schemaApi)
-		);
-		registerApi(apiRouter, registeredSchemaApi);
-
-		delegateRouter.addPrefixPath(constructCatalogPath(catalogName).toString(), apiRouter);
-
-		final RegisteredCatalog registeredCatalog = new RegisteredCatalog(registeredDataApi, registeredSchemaApi);
-		registeredCatalogs.put(catalogName, registeredCatalog);
+		registerApi(registeredCatalog.getApiRouter(), registeredDataApi);
+		registeredCatalog.setApi(instanceType, registeredDataApi);
 	}
 
 	/**
-	 * Swaps GraphQL instances for already registered APIs for defined catalog
+	 * Swaps GraphQL instance for already registered API for defined catalog
 	 */
-	public void refreshCatalogApis(@Nonnull String catalogName, @Nonnull GraphQL newDataApi, @Nonnull GraphQL newSchemaApi) {
+	public void refreshCatalogApi(@Nonnull String catalogName, @Nonnull GraphQLInstanceType instanceType, @Nonnull GraphQL newApi) {
 		final RegisteredCatalog registeredCatalog = registeredCatalogs.get(catalogName);
 		if (registeredCatalog == null) {
 			throw new GraphQLInternalError("No catalog APIs registered for `" + catalogName + "`. Cannot refresh.");
 		}
 
-		registeredCatalog.dataApi().graphQLReference().set(newDataApi);
-		registeredCatalog.schemaApi().graphQLReference().set(newSchemaApi);
+		registeredCatalog.getApi(instanceType).graphQLReference().set(newApi);
 	}
 
 	/**
@@ -163,7 +159,7 @@ public class GraphQLRouter implements HttpService {
 		apiRouter.add(
 			HttpMethod.POST,
 			registeredApi.path().toString(),
-			new GraphQLHandler(objectMapper, evita, registeredApi.graphQLReference())
+			new GraphQLHandler(objectMapper, evita, registeredApi.instanceType())
 			.decorate(service -> new GraphQLExceptionHandler(objectMapper, service))
 			.decorate(
 				new CorsFilterServiceDecorator(
@@ -213,9 +209,54 @@ public class GraphQLRouter implements HttpService {
 		return UriPath.of("/", catalogName);
 	}
 
-	private record RegisteredCatalog(@Nonnull RegisteredApi dataApi,
-	                                 @Nonnull RegisteredApi schemaApi) {}
+	@RequiredArgsConstructor
+	private class RegisteredCatalog {
 
-	private record RegisteredApi(@Nonnull UriPath path,
+		private static final Set<GraphQLInstanceType> ALLOWED_API_INSTANCES = Set.of(GraphQLInstanceType.DATA, GraphQLInstanceType.SCHEMA);
+
+		@Getter
+		private final RoutingHandlerService apiRouter;
+		private final Map<GraphQLInstanceType, RegisteredApi> apis = createHashMap(2);
+
+		public void setApi(@Nonnull GraphQLInstanceType instanceType, @Nonnull RegisteredApi api) {
+			Assert.isPremiseValid(
+				ALLOWED_API_INSTANCES.contains(instanceType),
+				() -> new GraphQLInternalError("API `" + instanceType.name() + "` is not allowed for catalog.")
+			);
+			Assert.isPremiseValid(
+				!apis.containsKey(instanceType),
+				() -> new GraphQLInternalError("`" + instanceType.name() + "` API has been already registered.")
+			);
+			apis.put(instanceType, api);
+		}
+
+		public RegisteredApi getApi(@Nonnull GraphQLInstanceType instanceType) {
+			final RegisteredApi api = apis.get(instanceType);
+			Assert.isPremiseValid(
+				api != null,
+				() -> new GraphQLInternalError("API `" + instanceType.name() + "` has not been registered yet.")
+			);
+			return api;
+		}
+//
+//		public void setDataApi(@Nonnull RegisteredApi dataApi) {
+//			Assert.isPremiseValid(
+//				dataApi == null,
+//				() -> new GraphQLInternalError("Data API has been already registered.")
+//			);
+//			this.dataApi = dataApi;
+//		}
+//
+//		public void setSchemaApi(@Nonnull RegisteredApi schemaApi) {
+//			Assert.isPremiseValid(
+//				schemaApi == null,
+//				() -> new GraphQLInternalError("Schema API has been already registered.")
+//			);
+//			this.schemaApi = schemaApi;
+//		}
+	}
+
+	private record RegisteredApi(@Nonnull GraphQLInstanceType instanceType,
+	                             @Nonnull UriPath path,
 	                             @Nonnull AtomicReference<GraphQL> graphQLReference) {}
 }

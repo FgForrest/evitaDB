@@ -309,7 +309,8 @@ public class ResponseConverter {
 			grpcFacetStatistics.hasImpact() && grpcFacetStatistics.hasMatchCount() ?
 				new RequestImpact(
 					grpcFacetStatistics.getImpact().getValue(),
-					grpcFacetStatistics.getMatchCount().getValue()
+					grpcFacetStatistics.getMatchCount().getValue(),
+					grpcFacetStatistics.getHasSense()
 				) :
 				null
 		);

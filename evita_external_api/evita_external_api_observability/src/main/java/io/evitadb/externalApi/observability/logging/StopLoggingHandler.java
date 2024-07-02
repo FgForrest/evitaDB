@@ -48,7 +48,7 @@ public class StopLoggingHandler extends LoggingEndpointHandler<EndpointRequest> 
 
 	@Nonnull
 	@Override
-	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull EndpointRequest httpRequest) {
+	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull LoggingEndpointExecutionContext executionContext) {
 		return CompletableFuture.supplyAsync(() -> new SuccessEndpointResponse(manager.stop()));
 	}
 

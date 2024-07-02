@@ -48,7 +48,8 @@ import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer.Entit
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer.ExtraResultsJsonSerializer;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.externalApi.rest.io.JsonRestHandler;
-import io.evitadb.externalApi.rest.io.RestEndpointExchange;
+import io.evitadb.externalApi.rest.io.RestEndpointExecutionContext;
+import io.evitadb.externalApi.rest.metric.event.request.ExecutedEvent;
 import io.evitadb.utils.Assert;
 import lombok.extern.slf4j.Slf4j;
 
@@ -84,7 +85,7 @@ public class QueryEntitiesHandler extends JsonRestHandler<LabApiHandlingContext>
 
 	@Nullable
 	@Override
-	protected Optional<EvitaSessionContract> createSession(@Nonnull RestEndpointExchange exchange) {
+	protected Optional<EvitaSessionContract> createSession(@Nonnull RestEndpointExecutionContext exchange) {
 		final Map<String, Object> parameters = getParametersFromRequest(exchange);
 		final String catalogName = (String) parameters.get(CatalogsHeaderDescriptor.NAME.name());
 		final CatalogContract catalog = restHandlingContext.getEvita().getCatalogInstance(catalogName)
@@ -95,13 +96,21 @@ public class QueryEntitiesHandler extends JsonRestHandler<LabApiHandlingContext>
 
 	@Nonnull
 	@Override
-	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
+	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
+		final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
+
 		return resolveQuery(exchange)
 			.thenApply(query -> {
 				log.debug("Generated evitaDB query for entity query is `{}`.", query);
 
-				final EvitaResponse<EntityClassifier> response = exchange.session().query(query, EntityClassifier.class);
-				return new SuccessEndpointResponse(convertResultIntoSerializableObject(exchange, response));
+				final EvitaResponse<EntityClassifier> response = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
+					executionContext.session().query(query, EntityClassifier.class));
+				requestExecutedEvent.finishOperationExecution();
+
+				final Object result = convertResultIntoSerializableObject(executionContext, response);
+				requestExecutedEvent.finishResultSerialization();
+
+				return new SuccessEndpointResponse(result);
 			});
 	}
 
@@ -124,18 +133,24 @@ public class QueryEntitiesHandler extends JsonRestHandler<LabApiHandlingContext>
 	}
 
 	@Nonnull
-	protected CompletableFuture<Query> resolveQuery(@Nonnull RestEndpointExchange exchange) {
+	protected CompletableFuture<Query> resolveQuery(@Nonnull RestEndpointExecutionContext executionContext) {
+		final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
+
 		return parseRequestBody(exchange, QueryEntitiesRequestBodyDto.class)
 			.thenApply(requestData -> {
 				// todo lho arguments
-				return queryParser.parseQueryUnsafe(requestData.getQuery());
+				requestExecutedEvent.finishInputDeserialization();
+
+				// todo lho arguments
+				return requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() ->
+					queryParser.parseQueryUnsafe(requestData.getQuery()));
 			});
 
 	}
 
 	@Nonnull
 	@Override
-	protected Object convertResultIntoSerializableObject(@Nonnull RestEndpointExchange exchange, @Nonnull Object result) {
+	protected Object convertResultIntoSerializableObject(@Nonnull RestEndpointExecutionContext exchange, @Nonnull Object result) {
 		Assert.isPremiseValid(
 			result instanceof EvitaResponse,
 			() -> new RestInternalError("Expected evitaDB response, but got `" + result.getClass().getName() + "`.")
@@ -158,7 +173,7 @@ public class QueryEntitiesHandler extends JsonRestHandler<LabApiHandlingContext>
 	}
 
 	@Nonnull
-	private DataChunkDto serializeRecordPage(@Nonnull RestEndpointExchange exchange, @Nonnull EvitaResponse<EntityClassifier> response) {
+	private DataChunkDto serializeRecordPage(@Nonnull RestEndpointExecutionContext exchange, @Nonnull EvitaResponse<EntityClassifier> response) {
 		final DataChunk<EntityClassifier> recordPage = response.getRecordPage();
 
 		final EntitySerializationContext serializationContext = new EntitySerializationContext(exchange.session().getCatalogSchema());

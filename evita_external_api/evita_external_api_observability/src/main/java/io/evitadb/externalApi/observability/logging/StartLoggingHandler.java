@@ -39,14 +39,14 @@ import java.util.concurrent.CompletableFuture;
  *
  * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
  */
-public class StartLoggingHandler extends LoggingEndpointHandler<LoggingEndpointExchange> {
+public class StartLoggingHandler extends LoggingEndpointHandler {
 	public StartLoggingHandler(@Nonnull ObservabilityManager manager) {
 		super(manager);
 	}
 
 	@Nonnull
 	@Override
-	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull LoggingEndpointExchange exchange) {
+	protected EndpointResponse doHandleRequest(@Nonnull LoggingEndpointExecutionContext executionContext) {
 		return parseRequestBody(exchange, String[].class)
 			.thenApply(allowedEvents -> {
 				manager.start(allowedEvents);

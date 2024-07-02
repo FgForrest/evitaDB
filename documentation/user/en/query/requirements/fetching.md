@@ -1194,21 +1194,25 @@ flag indicating that there are multiple prices for sale available.
 
 </Note>
 
-### Price
+### Accompanying prices
 
-The `price` field returns a single specific price (even non-sellable one) based on the arguments passed: `priceList` and `currency`.
-This is useful, for example, if you want to fetch a reference non-sellable price to display next to the entity's main price for sale.
-If more than one price is found for the specified price list and currency, the first valid one is returned
-(the validity is compared either to the current date time or against the `priceValidIn` filter constraint, if present).
+There may be times when you need not only the concrete [price for sale](#prices-for-sale), but also it's accompanying prices, e.g.
+reference price (usually not sellable, but displayed for comparison because it's usually higher than the price for sale). 
+This calculation becomes quite complex when we need to handle prices with different inner record handling 
+([LOWEST_PRICE, SUM](https://evitadb.io/documentation/query/filtering/price#price-for-sale-selection-in-a-nutshell)).
+In such cases, the accompanying prices must correctly reflect the prices for sale for each inner record.
 
-The `currency` field can be omitted if there is a `priceInCurrency` constraint in the filter, but the `priceList` argument is
-required. The idea behind this is that you probably would want to use the same currency for all prices in the result, but you probably
-don't want the reference price to be in the same price list as the main price for sale price, because that would most likely
-return the same price.
+You can easily calculate these prices with the `accompanyingPrice` field within the `priceForSale` or `allPricesForSale` fields.
+This way the requested accompanying price will always refer to the parent price for sale (even a custom one). The only 
+possible argument is `priceLists`, which defines for which price lists the accompanying price should be calculated 
+(the order of the price lists defines a priority in the same way as for the `priceForSale` and `allPricesForSale` fields).
+Other parameters will be inherited from the parent price for sale request.
+
+The following query requests calculation of price for sale as well as a reference price for the calculated price for sale:
 
 <SourceCodeTabs langSpecificTabOnly>
 
-[Getting entity with price for sale as well as reference price](/documentation/user/en/query/requirements/examples/fetching/priceField.graphql)
+[Getting entity with price for sale as well as reference price](/documentation/user/en/query/requirements/examples/fetching/priceForSaleFieldWithReferencePrice.graphql)
 </SourceCodeTabs>
 
 <Note type="info">
@@ -1220,9 +1224,32 @@ return the same price.
 
 The query returns the following price for sale and reference price of the `Product` entity:
 
-<MDInclude sourceVariable="data.queryProduct.recordPage">[The result of an entity fetched with its price for sale and reference price](/documentation/user/en/query/requirements/examples/fetching/priceField.graphql.json.md)</MDInclude>
+<MDInclude sourceVariable="data.queryProduct.recordPage">[The result of an entity fetched with its price for sale and reference price](/documentation/user/en/query/requirements/examples/fetching/priceForSaleFieldWithReferencePrice.graphql.json.md)</MDInclude>
 
 As you can see, the price for sale as well as custom reference price are returned.
+
+</Note>
+
+The next query is almost identical to the previous one, except that it calculates all the prices for sale and their reference prices for
+inner records:
+
+<SourceCodeTabs langSpecificTabOnly>
+
+[Getting entity with all prices for sale as well as reference prices](/documentation/user/en/query/requirements/examples/fetching/allPricesForSaleFieldWithReferencePrices.graphql)
+</SourceCodeTabs>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### The result of an entity fetched with its prices for sale and reference prices
+</NoteTitle>
+
+The query returns the following all prices for sale and references price of the `Product` entity:
+
+<MDInclude sourceVariable="data.queryProduct.recordPage">[The result of an entity fetched with its prices for sale and reference prices](/documentation/user/en/query/requirements/examples/fetching/allPricesForSaleFieldWithReferencePrices.graphql.json.md)</MDInclude>
+
+As you can see, the prices for sale as well as custom reference prices are returned.
 
 </Note>
 
@@ -1282,6 +1309,7 @@ As you can see, the filtered price list is returned.
 
 ```evitaql-syntax
 referenceContent(
+    argument:enum(ANY|EXISTING)?,
     argument:string+,
     filterConstraint:any,
     orderConstraint:any,
@@ -1291,6 +1319,16 @@ referenceContent(
 ```
 
 <dl>
+    <dt>argument:enum(ANY|EXISTING)?</dt>
+    <dd>
+        <p>**Default:** `ANY`</p>
+
+        <p>
+        optional argument, if set to `EXISTING` only existing references to managed entities are returned;
+        the default behavior is set to `ANY`, which returns all references set to the entity, regardless of whether 
+        they point to to existing or non-existing entities (see [managed references behaviour](../requirements/reference.md#managed-references-behaviour) chapter for more details)
+        </p>
+    </dd>
     <dt>argument:string+</dt>
     <dd>
         mandatory one or more string arguments representing the names of the references to fetch for the entity;
@@ -1490,6 +1528,23 @@ As you can see, the *cellular-true*, *display-size-10-2*, *ram-memory-4*, *rom-m
 values define the product variant, while the other parameters only describe the additional properties of the product.
 
 </Note>
+
+</LS>
+
+<LS to="e,j,c,r">
+
+#### Managed References Behaviour
+
+evitaDB is meant to be a secondary database for fast read access, so it doesn't enforce foreign key constraints on
+references. This means that you can have references to entities that don't exist in evitaDB - maybe because they will be
+indexed later. In certain situations and clients, it may be cumbersome to handle references pointing to non-existent
+entities, and that's why you can instruct evitaDB to do it for you. If you set the first optional argument of
+the `referenceContent` constraint to `EXISTING`, evitaDB will ensure that only references to existing entities are
+returned.
+
+Additional filtering of these references is not free, so it's not the default behavior. Even if you fetch the entity to
+make some changes to it, you may want to see all references, even those pointing to non-existing entities. Otherwise,
+you might send unnecessary upsert mutations to the server.
 
 </LS>
 

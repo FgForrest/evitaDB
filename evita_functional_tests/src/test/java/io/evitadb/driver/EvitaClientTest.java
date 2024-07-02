@@ -426,12 +426,13 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 		assertCategoryIds(product.getCategoryIdsAsSet().stream(), expectedCategoryIds);
 		assertCategoryIds(Arrays.stream(product.getCategoryIdsAsArray()).boxed(), expectedCategoryIds);
 
-		final PriceContract[] allPricesForSale = product.getAllPricesForSale();
-		final PriceContract[] expectedAllPricesForSale = originalProduct.getAllPricesForSale().toArray(PriceContract[]::new);
-
 		if (currency == null && priceLists == null) {
 			assertThrows(ContextMissingException.class, product::getPriceForSale);
+			assertThrows(ContextMissingException.class, product::getAllPricesForSale);
 		} else {
+			final PriceContract[] allPricesForSale = product.getAllPricesForSale();
+			final List<PriceContract> originalPricesForSale = originalProduct.getAllPricesForSale(currency, null, priceLists);
+			final PriceContract[] expectedAllPricesForSale = originalPricesForSale.toArray(PriceContract[]::new);
 			assertEquals(
 				Arrays.stream(expectedAllPricesForSale)
 					.filter(it -> Objects.equals(currency, it.currency()))
@@ -445,48 +446,41 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 					.orElse(null),
 				product.getPriceForSale()
 			);
-		}
 
-		assertEquals(expectedAllPricesForSale.length, allPricesForSale.length);
-		assertArrayEquals(expectedAllPricesForSale, allPricesForSale);
+			assertEquals(expectedAllPricesForSale.length, allPricesForSale.length);
+			assertArrayEquals(expectedAllPricesForSale, allPricesForSale);
 
-		if (expectedAllPricesForSale.length > 0) {
-			final PriceContract expectedPrice = expectedAllPricesForSale[0];
-			assertEquals(
-				expectedPrice,
-				product.getPriceForSale(expectedPrice.priceList(), expectedPrice.currency())
-			);
-
-			if ((currency == null || priceLists == null) && expectedPrice.validity() != null) {
+			if (expectedAllPricesForSale.length > 0) {
+				final PriceContract expectedPrice = expectedAllPricesForSale[0];
 				assertEquals(
 					expectedPrice,
-					product.getPriceForSale(expectedPrice.priceList(), expectedPrice.currency(), expectedPrice.validity().getPreciseFrom())
+					product.getPriceForSale(expectedPrice.priceList(), expectedPrice.currency())
+				);
+
+				assertArrayEquals(
+					originalPricesForSale
+						.stream()
+						.filter(it -> it.priceList().equals(expectedPrice.priceList()))
+						.toArray(PriceContract[]::new),
+					product.getAllPricesForSale(expectedPrice.priceList())
+				);
+
+				assertArrayEquals(
+					originalPricesForSale
+						.stream()
+						.filter(it -> it.currency().equals(expectedPrice.currency()))
+						.toArray(PriceContract[]::new),
+					product.getAllPricesForSale(expectedPrice.currency())
+				);
+
+				assertArrayEquals(
+					originalPricesForSale
+						.stream()
+						.filter(it -> it.currency().equals(expectedPrice.currency()) && it.priceList().equals(expectedPrice.priceList()))
+						.toArray(PriceContract[]::new),
+					product.getAllPricesForSale(expectedPrice.priceList(), expectedPrice.currency())
 				);
 			}
-
-			assertArrayEquals(
-				originalProduct.getAllPricesForSale()
-					.stream()
-					.filter(it -> it.priceList().equals(expectedPrice.priceList()))
-					.toArray(PriceContract[]::new),
-				product.getAllPricesForSale(expectedPrice.priceList())
-			);
-
-			assertArrayEquals(
-				originalProduct.getAllPricesForSale()
-					.stream()
-					.filter(it -> it.currency().equals(expectedPrice.currency()))
-					.toArray(PriceContract[]::new),
-				product.getAllPricesForSale(expectedPrice.currency())
-			);
-
-			assertArrayEquals(
-				originalProduct.getAllPricesForSale()
-					.stream()
-					.filter(it -> it.currency().equals(expectedPrice.currency()) && it.priceList().equals(expectedPrice.priceList()))
-					.toArray(PriceContract[]::new),
-				product.getAllPricesForSale(expectedPrice.priceList(), expectedPrice.currency())
-			);
 		}
 
 		final PriceContract[] expectedAllPrices = originalProduct.getPrices().toArray(PriceContract[]::new);
@@ -1233,7 +1227,7 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 			.stream()
 			.filter(it -> !it.getReferences(Entities.CATEGORY).isEmpty())
 			.filter(it -> it.getAttributeValue(ATTRIBUTE_QUANTITY).isPresent())
-			.filter(it -> !it.getAllPricesForSale().isEmpty())
+			.filter(it -> it.getPrices().stream().anyMatch(PriceContract::sellable))
 			.findFirst()
 			.orElseThrow();
 
@@ -1244,8 +1238,8 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 					query(
 						collection(Entities.PRODUCT),
 						filterBy(
-							priceInPriceLists(someProductWithCategory.getAllPricesForSale().stream().map(PriceContract::priceList).toArray(String[]::new)),
-							priceInCurrency(someProductWithCategory.getAllPricesForSale().stream().map(PriceContract::currency).findFirst().orElseThrow()),
+							priceInPriceLists(someProductWithCategory.getPrices().stream().filter(PriceContract::sellable).map(PriceContract::priceList).toArray(String[]::new)),
+							priceInCurrency(someProductWithCategory.getPrices().stream().filter(PriceContract::sellable).map(PriceContract::currency).findFirst().orElseThrow()),
 							entityLocaleEquals(someProductWithCategory.getAllLocales().stream().findFirst().orElseThrow())
 						),
 						require(
@@ -1301,12 +1295,12 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 			.stream()
 			.filter(it -> !it.getReferences(Entities.CATEGORY).isEmpty())
 			.filter(it -> it.getAttributeValue(ATTRIBUTE_QUANTITY).isPresent())
-			.filter(it -> !it.getAllPricesForSale().isEmpty())
+			.filter(it -> it.getPrices().stream().anyMatch(PriceContract::sellable))
 			.findFirst()
 			.orElseThrow();
 
-		final String[] priceLists = someProductWithCategory.getAllPricesForSale().stream().map(PriceContract::priceList).toArray(String[]::new);
-		final Currency currency = someProductWithCategory.getAllPricesForSale().stream().map(PriceContract::currency).findFirst().orElseThrow();
+		final String[] priceLists = someProductWithCategory.getPrices().stream().filter(PriceContract::sellable).map(PriceContract::priceList).toArray(String[]::new);
+		final Currency currency = someProductWithCategory.getPrices().stream().filter(PriceContract::sellable).map(PriceContract::currency).findFirst().orElseThrow();
 		final Locale locale = someProductWithCategory.getAllLocales().stream().findFirst().orElseThrow();
 
 		final EvitaResponse<ProductInterface> result = evitaClient.queryCatalog(

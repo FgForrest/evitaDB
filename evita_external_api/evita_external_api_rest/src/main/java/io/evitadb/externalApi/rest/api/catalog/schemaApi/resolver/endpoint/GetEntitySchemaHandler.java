@@ -23,15 +23,19 @@
 
 package io.evitadb.externalApi.rest.api.catalog.schemaApi.resolver.endpoint;
 
+import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import com.linecorp.armeria.common.HttpMethod;
 import io.evitadb.externalApi.http.EndpointResponse;
 import io.evitadb.externalApi.http.NotFoundEndpointResponse;
 import io.evitadb.externalApi.http.SuccessEndpointResponse;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.CollectionRestHandlingContext;
+import io.evitadb.externalApi.rest.io.RestEndpointExecutionContext;
+import io.evitadb.externalApi.rest.metric.event.request.ExecutedEvent;
 import io.evitadb.externalApi.rest.io.RestEndpointExchange;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
@@ -49,10 +53,19 @@ public class GetEntitySchemaHandler extends EntitySchemaHandler {
 
 	@Override
 	@Nonnull
-	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
-		return CompletableFuture.supplyAsync(() -> exchange.session().getEntitySchema(restHandlingContext.getEntityType())
-			.map(it -> (EndpointResponse) new SuccessEndpointResponse(convertResultIntoSerializableObject(exchange, it)))
-			.orElse(new NotFoundEndpointResponse()));
+	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
+		final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
+		requestExecutedEvent.finishInputDeserialization();
+
+		return CompletableFuture.supplyAsync(() -> {
+			final Optional<SealedEntitySchema> entitySchema = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
+				executionContext.session().getEntitySchema(restHandlingContext.getEntityType()));
+			requestExecutedEvent.finishOperationExecution();
+
+			return entitySchema
+				.map(it -> (EndpointResponse) new SuccessEndpointResponse(convertResultIntoSerializableObject(executionContext, it)))
+				.orElse(new NotFoundEndpointResponse());
+		});
 	}
 
 	@Nonnull

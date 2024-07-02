@@ -32,7 +32,7 @@ import io.evitadb.externalApi.http.EndpointResponse;
 import io.evitadb.externalApi.http.MimeTypes;
 import io.evitadb.externalApi.http.SuccessEndpointResponse;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiWriter;
-import io.evitadb.externalApi.rest.io.RestEndpointExchange;
+import io.evitadb.externalApi.rest.io.RestEndpointExecutionContext;
 import io.evitadb.externalApi.rest.io.RestEndpointHandler;
 import io.evitadb.externalApi.rest.io.RestHandlingContext;
 import io.netty.channel.EventLoop;
@@ -63,7 +63,7 @@ public class OpenApiSpecificationHandler<C extends RestHandlingContext> extends 
 
 	@Nonnull
 	@Override
-	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
+	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
 		return CompletableFuture.supplyAsync(() -> new SuccessEndpointResponse(restHandlingContext.getOpenApi()));
 	}
 
@@ -84,11 +84,11 @@ public class OpenApiSpecificationHandler<C extends RestHandlingContext> extends 
 
 	@Override
 	protected void writeResponse(
-		@Nonnull RestEndpointExchange exchange,
+		@Nonnull RestEndpointExecutionContext executionContext,
 		@Nonnull HttpResponseWriter responseWriter,
 		@Nonnull Object openApiSpecification,
 		@Nonnull EventLoop eventLoop) {
-		final String preferredResponseMediaType = exchange.preferredResponseContentType();
+		final String preferredResponseMediaType = executionContext.preferredResponseContentType();
 		final ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
 		try {
 			if (preferredResponseMediaType.equals(MimeTypes.APPLICATION_YAML)) {

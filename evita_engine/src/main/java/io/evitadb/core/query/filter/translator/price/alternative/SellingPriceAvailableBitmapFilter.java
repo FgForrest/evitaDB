@@ -130,14 +130,14 @@ public class SellingPriceAvailableBitmapFilter implements EntityToBitmapFilter, 
 	@Nonnull
 	@Override
 	public Formula getCloneWithPricePredicateFilteredOutResults() {
-		Assert.notNull(filteredOutRecords, "Filter was not yet called on selling price bitmap filter, this is not expected!");
+		Assert.isPremiseValid(filteredOutRecords != null, "Filter was not yet called on selling price bitmap filter, this is not expected!");
 		return filteredOutRecords;
 	}
 
 	@Nonnull
 	@Override
 	public FilteredPriceRecords getFilteredPriceRecords() {
-		Assert.notNull(filteredOutRecords, "Filter was not yet called on selling price bitmap filter, this is not expected!");
+		Assert.isPremiseValid(filteredOutRecords != null, "Filter was not yet called on selling price bitmap filter, this is not expected!");
 		return filteredPriceRecords;
 	}
 
@@ -179,7 +179,7 @@ public class SellingPriceAvailableBitmapFilter implements EntityToBitmapFilter, 
 							() -> filterOutResult.add(primaryKey)
 						);
 				} else {
-					if (entity.getAllPricesForSale().stream().anyMatch(filter)) {
+					if (entity.getPrices().stream().filter(PriceContract::sellable).anyMatch(filter)) {
 						result.add(primaryKey);
 					} else {
 						filterOutResult.add(primaryKey);

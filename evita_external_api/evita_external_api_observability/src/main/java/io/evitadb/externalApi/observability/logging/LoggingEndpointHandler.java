@@ -37,6 +37,8 @@ import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.IOException;
+import java.io.OutputStream;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -46,7 +48,7 @@ import java.util.concurrent.CompletableFuture;
  *
  * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
  */
-public abstract class LoggingEndpointHandler<E extends EndpointRequest> extends EndpointService<E> {
+public abstract class LoggingEndpointHandler extends EndpointHandler<LoggingEndpointExecutionContext> {
 	protected static final LinkedHashSet<String> DEFAULT_SUPPORTED_CONTENT_TYPES = new LinkedHashSet<>(List.of(MimeTypes.APPLICATION_JSON));
 	protected final ObservabilityManager manager;
 
@@ -56,17 +58,8 @@ public abstract class LoggingEndpointHandler<E extends EndpointRequest> extends 
 
 	@Nonnull
 	@Override
-	protected E createEndpointExchange(
-		@Nonnull HttpRequest httpRequest,
-		@Nonnull String method,
-		@Nullable String requestBodyMediaType,
-		@Nullable String preferredResponseMediaType) {
-		return (E) new LoggingEndpointExchange(
-			httpRequest,
-			method,
-			requestBodyMediaType,
-			preferredResponseMediaType
-		);
+	protected LoggingEndpointExecutionContext createExecutionContext(@Nonnull HttpRequest httpRequest) {
+		return new LoggingEndpointExecutionContext(httpRequest);
 	}
 
 	@Nonnull
@@ -94,7 +87,7 @@ public abstract class LoggingEndpointHandler<E extends EndpointRequest> extends 
 	 * Tries to parse input request body JSON into data class.
 	 */
 	@Nonnull
-	protected <T> CompletableFuture<T> parseRequestBody(@Nonnull E exchange, @Nonnull Class<T> dataClass) {
+	protected <T> CompletableFuture<T> parseRequestBody(@Nonnull LoggingEndpointExecutionContext exchange, @Nonnull Class<T> dataClass) {
 		return readRawRequestBody(exchange)
 			.thenApply(content -> {
 				Assert.isTrue(
@@ -110,8 +103,8 @@ public abstract class LoggingEndpointHandler<E extends EndpointRequest> extends 
 			});
 	}
 
-	/*@Override
-	protected void writeResult(@Nonnull LoggingEndpointExchange exchange, @Nonnull OutputStream outputStream, @Nonnull Object result) {
+	@Override
+	protected void writeResult(@Nonnull LoggingEndpointExecutionContext executionContext, @Nonnull OutputStream outputStream, @Nonnull Object result) {
 		try {
 			manager.getObjectMapper().writeValue(outputStream, result);
 		} catch (IOException e) {
@@ -120,5 +113,5 @@ public abstract class LoggingEndpointHandler<E extends EndpointRequest> extends 
 				"Could not provide response data.", e
 			);
 		}
-	}*/
+	}
 }

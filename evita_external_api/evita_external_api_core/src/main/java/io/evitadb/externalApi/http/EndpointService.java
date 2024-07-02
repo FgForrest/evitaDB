@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -51,14 +51,22 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+/**
+ * Base implementation of {@link HttpService} for handling endpoints logic with content negotiation, request and response
+ * bodies serialization and so on.
+ *
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
+ * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
+ */
 @Slf4j
-public abstract class EndpointService<E extends EndpointRequest> implements HttpService {
+public abstract class EndpointHandler<C extends EndpointExecutionContext> implements HttpService {
 	private static final int STREAM_CHUNK_SIZE = 8192;
 	private static final String CONTENT_TYPE_CHARSET = "; charset=UTF-8";
 
 	@Nonnull
 	@Override
 	public HttpResponse serve(@Nonnull ServiceRequestContext ctx, @Nonnull HttpRequest req) {
+		final C executionContext = createExecutionContext(serverExchange);
 		validateRequest(req);
 
 		final E exchange = createEndpointExchange(
@@ -68,58 +76,60 @@ public abstract class EndpointService<E extends EndpointRequest> implements Http
 			getPreferredResponseContentType(req).orElse(null)
 		);
 
-		beforeRequestHandled(exchange);
-		return HttpResponse.of(Objects.requireNonNull(doHandleRequest(exchange)
+		beforeRequestHandled(executionContext);
+		return HttpResponse.of(Objects.requireNonNull(doHandleRequest(executionContext)
 			.thenApply(response -> {
-				afterRequestHandled(exchange, response);
+				try {
+					afterRequestHandled(executionContext, response);
 
-				if (response instanceof NotFoundEndpointResponse) {
-					throw new HttpExchangeException(HttpStatus.NOT_FOUND.code(), "Requested resource wasn't found.");
-				} else if (response instanceof SuccessEndpointResponse successResponse) {
-					final Object result = successResponse.getResult();
-					if (result == null) {
-						return HttpResponse.builder()
-							.status(HttpStatus.NO_CONTENT)
-							.build();
-					} else {
-						final HttpResponseWriter responseWriter = HttpResponse.streaming();
-						ctx.addAdditionalResponseHeader(HttpHeaderNames.CONTENT_TYPE, exchange.preferredResponseContentType() + CONTENT_TYPE_CHARSET);
-						responseWriter.write(ResponseHeaders.of(HttpStatus.OK));
-						writeResponse(exchange, responseWriter, result, ctx.eventLoop());
-						if (responseWriter.isOpen()) {
-							responseWriter.close();
+					if (response instanceof NotFoundEndpointResponse) {
+						throw new HttpExchangeException(HttpStatus.NOT_FOUND.code(), "Requested resource wasn't found.");
+					} else if (response instanceof SuccessEndpointResponse successResponse) {
+						final Object result = successResponse.getResult();
+						if (result == null) {
+							return HttpResponse.builder()
+								.status(HttpStatus.NO_CONTENT)
+								.build();
+						} else {
+							final HttpResponseWriter responseWriter = HttpResponse.streaming();
+							ctx.addAdditionalResponseHeader(HttpHeaderNames.CONTENT_TYPE, exchange.preferredResponseContentType() + CONTENT_TYPE_CHARSET);
+							responseWriter.write(ResponseHeaders.of(HttpStatus.OK));
+							writeResponse(exchange, responseWriter, result, ctx.eventLoop());
+							if (responseWriter.isOpen()) {
+								responseWriter.close();
+							}
+							return responseWriter;
 						}
-						return responseWriter;
+					} else {
+						throw createInternalError("Unsupported response `" + response.getClass().getName() + "`.");
 					}
-				} else {
-					throw createInternalError("Unsupported response `" + response.getClass().getName() + "`.");
+				} catch (Exception e) {
+					executionContext.notifyError(e);
+					throw e;
 				}
 			}).whenComplete((response, throwable) -> {
-				exchange.close();
+				executionContext.close();
 			})
 		));
 	}
 
 	/**
-	 * Creates new instance of endpoint exchange for given HTTP server exchange.
+	 * Creates new instance of endpoint execution context for given HTTP request.
 	 */
 	@Nonnull
-	protected abstract E createEndpointExchange(@Nonnull HttpRequest serverExchange,
-	                                            @Nonnull String method,
-	                                            @Nullable String requestBodyMediaType,
-	                                            @Nullable String preferredResponseMediaType);
+	protected abstract C createExecutionContext(@Nonnull HttpRequest httpRequest);
 
 	/**
 	 * Hook method called before actual endpoint handling logic is executed. Default implementation does nothing.
 	 */
-	protected void beforeRequestHandled(@Nonnull E exchange) {
+	protected void beforeRequestHandled(@Nonnull C executionContext) {
 		// default implementation does nothing
 	}
 
 	/**
 	 * Hook method called after actual endpoint handling logic is executed. Default implementation does nothing.
 	 */
-	protected void afterRequestHandled(@Nonnull E exchange, @Nonnull EndpointResponse response) {
+	protected void afterRequestHandled(@Nonnull C executionContext, @Nonnull EndpointResponse response) {
 		// default implementation does nothing
 	}
 
@@ -127,7 +137,7 @@ public abstract class EndpointService<E extends EndpointRequest> implements Http
 	 * Actual endpoint logic.
 	 */
 	@Nonnull
-	protected abstract CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull E exchange);
+	protected abstract CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull C executionContext);
 
 	@Nonnull
 	protected abstract <T extends ExternalApiInternalError> T createInternalError(@Nonnull String message);
@@ -181,13 +191,13 @@ public abstract class EndpointService<E extends EndpointRequest> implements Http
 	 * Validates that request body (if any) has supported media type and if so, returns it.
 	 */
 	@Nonnull
-	private Optional<String> getRequestBodyContentType(@Nonnull HttpRequest request) {
+	private Optional<String> resolveRequestBodyContentType(@Nonnull C executionContext) {
 		if (getSupportedRequestContentTypes().isEmpty()) {
 			// we can ignore all content type headers because we don't accept any request body
 			return Optional.empty();
 		}
 
-		final String bodyContentType = request.headers().contentType().toString();
+		final String bodyContentType = executionContext.httpRequest().headers().contentType().toString();
 		Assert.isTrue(
 			bodyContentType != null &&
 				getSupportedRequestContentTypes().stream().anyMatch(bodyContentType::startsWith),
@@ -205,13 +215,13 @@ public abstract class EndpointService<E extends EndpointRequest> implements Http
 	 * preferred one by order of {@link #getSupportedResponseContentTypes().
 	 */
 	@Nonnull
-	private Optional<String> getPreferredResponseContentType(@Nonnull HttpRequest request) {
+	private Optional<String> resolvePreferredResponseContentType(@Nonnull C executionContext) {
 		if (getSupportedResponseContentTypes().isEmpty()) {
 			// we can ignore any accept headers because we will not return any body
 			return Optional.empty();
 		}
 
-		final Set<String> acceptHeaders = parseAcceptHeaders(request);
+		final Set<String> acceptHeaders = parseAcceptHeaders(executionContext);
 		if (acceptHeaders == null) {
 			// missing accept header means that client supports all media types
 			return Optional.of(getSupportedResponseContentTypes().iterator().next());
@@ -235,8 +245,8 @@ public abstract class EndpointService<E extends EndpointRequest> implements Http
 	}
 
 	@Nullable
-	private static Set<String> parseAcceptHeaders(@Nonnull HttpRequest request) {
-		final Set<String> acceptHeaders = request.headers().accept()
+	private static Set<String> parseAcceptHeaders(@Nonnull C executionContext) {
+		final Set<String> acceptHeaders = executionContext.httpRequest().request.headers().accept()
 			.stream()
 			.map(MediaType::toString)
 			.collect(Collectors.toUnmodifiableSet());
@@ -247,13 +257,13 @@ public abstract class EndpointService<E extends EndpointRequest> implements Http
 	 * Reads request body into raw string.
 	 */
 	@Nonnull
-	protected CompletableFuture<String> readRawRequestBody(@Nonnull E exchange) {
+	protected String readRawRequestBody(@Nonnull C executionContext) {
 		Assert.isPremiseValid(
 			!getSupportedRequestContentTypes().isEmpty(),
 			() -> createInternalError("Handler doesn't support reading of request body.")
 		);
 
-		final String bodyContentType = exchange.httpRequest().contentType().toString();
+		final String bodyContentType = executionContext.httpRequest().contentType().toString();
 		final Charset bodyCharset = Arrays.stream(bodyContentType.split(";"))
 			.map(String::trim)
 			.filter(part -> part.startsWith("charset"))
@@ -297,18 +307,21 @@ public abstract class EndpointService<E extends EndpointRequest> implements Http
 	 * Tries to parse input request body JSON into data class.
 	 */
 	@Nonnull
-	protected <T> CompletableFuture<T> parseRequestBody(@Nonnull E exchange, @Nonnull Class<T> dataClass) {
+	protected <T> CompletableFuture<T> parseRequestBody(@Nonnull C executionContext, @Nonnull Class<T> dataClass) {
 		throw createInternalError("Cannot parse request body because handler doesn't support it.");
 	}
 
 	/**
 	 * Serializes a result object into the preferred media type.
 	 *
+	 * @param executionContext      endpoint exchange
+	 * @param outputStream  output stream to write serialized data to
+	 * @param result        result data from handler to write to response
 	 * @param exchange       API request data
 	 * @param responseWriter response writer to write the response to
 	 * @param result         result data from handler to serialize to the response
 	 */
-	protected void writeResponse(@Nonnull E exchange, @Nonnull HttpResponseWriter responseWriter, @Nonnull Object result, @Nonnull EventLoop eventExecutor) {
+	protected void writeResponse(@Nonnull C executionContext, @Nonnull HttpResponseWriter responseWriter, @Nonnull Object result, @Nonnull EventLoop eventExecutor) {
 		throw createInternalError("Cannot serialize response body because handler doesn't support it.");
 	}
 

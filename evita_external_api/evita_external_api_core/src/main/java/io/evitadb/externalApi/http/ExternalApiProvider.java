@@ -61,6 +61,13 @@ public interface ExternalApiProvider<T extends AbstractApiConfiguration> {
 	}
 
 	/**
+	 * Called automatically when entire server is done initializing but not started yet.
+	 */
+	default void afterAllInitialized() {
+		// do nothing
+	}
+
+	/**
 	 * Called automatically when root server has been started. Can be used e.g. initialize API provider.
 	 */
 	default void afterStart() {

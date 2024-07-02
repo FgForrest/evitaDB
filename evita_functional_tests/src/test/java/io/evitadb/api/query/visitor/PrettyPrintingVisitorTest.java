@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -34,8 +34,6 @@ import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.query.filter.AttributeSpecialValue.NOT_NULL;
 import static io.evitadb.api.query.filter.AttributeSpecialValue.NULL;
 import static io.evitadb.api.query.order.OrderDirection.ASC;
-import static io.evitadb.api.query.require.EmptyHierarchicalEntityBehaviour.REMOVE_EMPTY;
-import static io.evitadb.api.query.require.StatisticsBase.WITHOUT_USER_FILTER;
 import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -269,13 +267,12 @@ class PrettyPrintingVisitorTest {
 					require(
 						hierarchyOfReference(
 							?,
-							?,
 							fromRoot(
 								?,
 								entityFetch(
 									attributeContentAll()
 								),
-								statistics(?)
+								statistics()
 							)
 						),
 						page(?, ?)
@@ -288,7 +285,7 @@ class PrettyPrintingVisitorTest {
 				"PRODUCT",
 				"a", "b", "def", NOT_NULL, "c", 1, 78, "utr", true, "d", 1, "e", 1,
 				"x", ASC,
-				"CATEGORY", REMOVE_EMPTY, "megaMenu", WITHOUT_USER_FILTER, 1, 100
+				"CATEGORY", "megaMenu", 1, 100
 			},
 			result.parameters().toArray(new Serializable[0])
 		);

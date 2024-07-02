@@ -47,7 +47,6 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.system.SystemStatus;
-import io.evitadb.driver.certificate.ClientCertificateManager;
 import io.evitadb.driver.config.EvitaClientConfiguration;
 import io.evitadb.driver.exception.EvitaClientTimedOutException;
 import io.evitadb.driver.exception.IncompatibleClientException;
@@ -60,6 +59,7 @@ import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.InvalidEvitaVersionException;
+import io.evitadb.externalApi.grpc.certificate.ClientCertificateManager;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc.EvitaServiceBlockingStub;
@@ -69,6 +69,7 @@ import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingTop
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.SchemaMutationConverter;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.CertificateUtils;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.ReflectionLookup;
 import io.evitadb.utils.UUIDUtil;
@@ -84,6 +85,8 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.net.InetSocketAddress;
+import java.security.NoSuchAlgorithmException;
+import java.security.cert.CertificateEncodingException;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
@@ -195,7 +198,27 @@ public class EvitaClient implements EvitaContract {
 		final String uriScheme;
 		if (configuration.tlsEnabled()) {
 			uriScheme = "https";
-			clientFactoryBuilder.tlsCustomizer(clientCertificateManager::buildClientSslContext);
+			clientFactoryBuilder.tlsCustomizer(tlsCustomizer -> {
+				clientCertificateManager.buildSslContext(
+					(certificateType, certificate) -> {
+						try {
+							switch (certificateType) {
+								case SERVER ->
+									log.info("Server's CA certificate fingerprint: {}", CertificateUtils.getCertificateFingerprint(certificate));
+								case CLIENT ->
+									log.info("Client's certificate fingerprint: {}", CertificateUtils.getCertificateFingerprint(certificate));
+							}
+						} catch (NoSuchAlgorithmException | CertificateEncodingException e) {
+							throw new GenericEvitaInternalError(
+								"Failed to get certificate fingerprint.",
+								"Failed to get certificate fingerprint: " + e.getMessage(),
+								e
+							);
+						}
+					}
+				);
+				//todo tpz: accept it?
+			});
 		} else {
 			uriScheme = "http";
 		}
@@ -377,6 +400,10 @@ public class EvitaClient implements EvitaContract {
 			this.grpcClientBuilder,
 			traits.catalogName(),
 			EvitaEnumConverter.toCatalogState(grpcResponse.getCatalogState()),
+			ofNullable(grpcResponse.getCatalogId())
+				.filter(it -> !it.isBlank())
+				.map(UUIDUtil::uuid)
+				.orElseGet(UUIDUtil::randomUUID),
 			UUIDUtil.uuid(grpcResponse.getSessionId()),
 			EvitaEnumConverter.toCommitBehavior(grpcResponse.getCommitBehaviour()),
 			traits,

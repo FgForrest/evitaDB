@@ -29,6 +29,7 @@ import com.linecorp.armeria.client.grpc.GrpcClients;
 import com.linecorp.armeria.common.grpc.GrpcSerializationFormats;
 import io.evitadb.driver.certificate.ClientCertificateManager;
 import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
+import io.evitadb.externalApi.grpc.certificate.ClientCertificateManager;
 import io.evitadb.externalApi.grpc.configuration.GrpcConfig;
 import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc;
 import io.evitadb.externalApi.grpc.generated.EvitaSessionServiceGrpc;

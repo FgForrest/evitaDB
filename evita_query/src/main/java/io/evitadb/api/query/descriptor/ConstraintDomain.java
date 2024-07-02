@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -63,8 +63,15 @@ public enum ConstraintDomain {
 	/**
 	 * Reference domain should contain all constraints that can filter or order by reference properties (reference attributes, ...).
 	 * Usually linked to {@link ConstraintPropertyType#REFERENCE}.
+	 * Unlike the {@link #INLINE_REFERENCE} this one should be used for same purposes but for the main query.
 	 */
 	REFERENCE,
+	/**
+	 * Inline reference domain should contain all constraints that can filter or order by reference properties (reference attributes, ...)
+	 * of an inline reference, i.e. filter or order clause on a property, not in the main query.
+	 * Usually linked to {@link ConstraintPropertyType#REFERENCE}.
+	 */
+	INLINE_REFERENCE,
 	/**
 	 * Hierarchy domain should contain all constraints that can filter or order by hierarchy reference properties or
 	 * specify some additional inner rules (direct relation, ...).

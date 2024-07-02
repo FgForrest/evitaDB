@@ -727,7 +727,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 	void shouldReturnEntityByGlobalAttributeEqualToStringAndPriceConstraintAndSortByPrice(Evita evita, List<SealedEntity> originalProductEntities) {
 		final SealedEntity selectedEntity = originalProductEntities
 			.stream()
-			.filter(it -> !it.getAllPricesForSale().isEmpty())
+			.filter(it -> it.getPrices().stream().anyMatch(PriceContract::sellable))
 			.findFirst()
 			.orElseThrow();
 		final PriceContract firstPrice = selectedEntity.getPrices()

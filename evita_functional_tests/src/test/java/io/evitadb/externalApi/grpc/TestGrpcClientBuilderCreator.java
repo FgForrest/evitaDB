@@ -35,6 +35,7 @@ import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.configuration.CertificateSettings;
 import io.evitadb.externalApi.configuration.TlsMode;
 import io.evitadb.externalApi.grpc.configuration.GrpcConfig;
+import io.evitadb.externalApi.grpc.certificate.ClientCertificateManager.Builder;
 import io.evitadb.externalApi.http.ExternalApiServer;
 import io.evitadb.externalApi.system.SystemProvider;
 import io.evitadb.utils.Assert;

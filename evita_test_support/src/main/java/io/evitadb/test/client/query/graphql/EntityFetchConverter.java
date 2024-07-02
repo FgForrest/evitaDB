@@ -38,7 +38,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.api.ExternalApiNamingConventions;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.HierarchyDataLocator;
-import io.evitadb.externalApi.api.catalog.dataApi.constraint.ReferenceDataLocator;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.InlineReferenceDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesProviderDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
@@ -349,7 +349,7 @@ public class EntityFetchConverter extends RequireConverter {
 
 						entityFieldsBuilder.addObjectField(
 							StringUtils.toCamelCase(additionalPriceList),
-							EntityDescriptor.PRICE,
+							GraphQLEntityDescriptor.PRICE,
 							pricesBuilder -> {
 								pricesBuilder.addPrimitiveField(PriceDescriptor.PRICE_WITHOUT_TAX, getPriceValueFieldArguments(locale));
 								pricesBuilder.addPrimitiveField(PriceDescriptor.PRICE_WITH_TAX, getPriceValueFieldArguments(locale));
@@ -516,7 +516,7 @@ public class EntityFetchConverter extends RequireConverter {
 			return new ArgumentSupplier[0];
 		}
 
-		final ReferenceDataLocator referenceDataLocator = new ReferenceDataLocator(entityType, referenceName);
+		final InlineReferenceDataLocator referenceDataLocator = new InlineReferenceDataLocator(entityType, referenceName);
 		final List<ArgumentSupplier> arguments = new ArrayList<>(2);
 
 		if (referenceContent.getFilterBy().isPresent()) {

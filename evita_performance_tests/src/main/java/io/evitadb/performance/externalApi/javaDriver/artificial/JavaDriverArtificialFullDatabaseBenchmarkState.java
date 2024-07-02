@@ -30,7 +30,6 @@ import io.evitadb.driver.EvitaClient;
 import io.evitadb.driver.config.EvitaClientConfiguration;
 import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
 import io.evitadb.externalApi.configuration.ApiOptions;
-import io.evitadb.externalApi.configuration.CertificateSettings;
 import io.evitadb.externalApi.grpc.GrpcProvider;
 import io.evitadb.externalApi.grpc.GrpcProviderRegistrar;
 import io.evitadb.externalApi.grpc.configuration.GrpcConfig;
@@ -47,7 +46,6 @@ import org.openjdk.jmh.annotations.TearDown;
 
 import java.nio.file.Path;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Base state class for {@link JavaDriverArtificialEntitiesBenchmark} benchmark.
@@ -93,11 +91,10 @@ public class JavaDriverArtificialFullDatabaseBenchmarkState extends JavaDriverAr
 		// start grpc server and system api
 		server = new ExternalApiServer(
 			this.evita,
-			new ApiOptions(
-				null, null, null, false, new CertificateSettings.Builder().build(), Map.of(
-				SystemProvider.CODE, new SystemConfig(AbstractApiConfiguration.LOCALHOST + ":" + SystemConfig.DEFAULT_SYSTEM_PORT),
-				GrpcProvider.CODE, new GrpcConfig())
-			),
+			ApiOptions.builder()
+				.enable(SystemProvider.CODE, new SystemConfig(AbstractApiConfiguration.LOCALHOST + ":" + SystemConfig.DEFAULT_SYSTEM_PORT))
+				.enable(GrpcProvider.CODE, new GrpcConfig())
+				.build(),
 			List.of(new SystemProviderRegistrar(), new GrpcProviderRegistrar())
 		);
 		server.start();

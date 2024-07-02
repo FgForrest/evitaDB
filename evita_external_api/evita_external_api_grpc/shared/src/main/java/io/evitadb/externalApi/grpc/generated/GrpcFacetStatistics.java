@@ -137,6 +137,11 @@ private static final long serialVersionUID = 0L;
 
             break;
           }
+          case 56: {
+
+            hasSense_ = input.readBool();
+            break;
+          }
           default: {
             if (!parseUnknownField(
                 input, unknownFields, extensionRegistry, tag)) {
@@ -354,6 +359,24 @@ private static final long serialVersionUID = 0L;
     return getMatchCount();
   }
 
+  public static final int HASSENSE_FIELD_NUMBER = 7;
+  private boolean hasSense_;
+  /**
+   * <pre>
+   * Selection has sense - TRUE if there is at least one entity still present in the result if
+   * the query is altered by adding this facet to filtering query. In case of OR relation between
+   * facets it's also true only if there is at least one entity present in the result when all other
+   * facets in the same group are removed and only this facet is requested.
+   * </pre>
+   *
+   * <code>bool hasSense = 7;</code>
+   * @return The hasSense.
+   */
+  @java.lang.Override
+  public boolean getHasSense() {
+    return hasSense_;
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -385,6 +408,9 @@ private static final long serialVersionUID = 0L;
     }
     if (matchCount_ != null) {
       output.writeMessage(6, getMatchCount());
+    }
+    if (hasSense_ != false) {
+      output.writeBool(7, hasSense_);
     }
     unknownFields.writeTo(output);
   }
@@ -418,6 +444,10 @@ private static final long serialVersionUID = 0L;
     if (matchCount_ != null) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(6, getMatchCount());
+    }
+    if (hasSense_ != false) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeBoolSize(7, hasSense_);
     }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
@@ -458,6 +488,8 @@ private static final long serialVersionUID = 0L;
       if (!getMatchCount()
           .equals(other.getMatchCount())) return false;
     }
+    if (getHasSense()
+        != other.getHasSense()) return false;
     if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
@@ -490,6 +522,9 @@ private static final long serialVersionUID = 0L;
       hash = (37 * hash) + MATCHCOUNT_FIELD_NUMBER;
       hash = (53 * hash) + getMatchCount().hashCode();
     }
+    hash = (37 * hash) + HASSENSE_FIELD_NUMBER;
+    hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
+        getHasSense());
     hash = (29 * hash) + unknownFields.hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -655,6 +690,8 @@ private static final long serialVersionUID = 0L;
         matchCount_ = null;
         matchCountBuilder_ = null;
       }
+      hasSense_ = false;
+
       return this;
     }
 
@@ -703,6 +740,7 @@ private static final long serialVersionUID = 0L;
       } else {
         result.matchCount_ = matchCountBuilder_.build();
       }
+      result.hasSense_ = hasSense_;
       onBuilt();
       return result;
     }
@@ -768,6 +806,9 @@ private static final long serialVersionUID = 0L;
       }
       if (other.hasMatchCount()) {
         mergeMatchCount(other.getMatchCount());
+      }
+      if (other.getHasSense() != false) {
+        setHasSense(other.getHasSense());
       }
       this.mergeUnknownFields(other.unknownFields);
       onChanged();
@@ -1511,6 +1552,58 @@ private static final long serialVersionUID = 0L;
         matchCount_ = null;
       }
       return matchCountBuilder_;
+    }
+
+    private boolean hasSense_ ;
+    /**
+     * <pre>
+     * Selection has sense - TRUE if there is at least one entity still present in the result if
+     * the query is altered by adding this facet to filtering query. In case of OR relation between
+     * facets it's also true only if there is at least one entity present in the result when all other
+     * facets in the same group are removed and only this facet is requested.
+     * </pre>
+     *
+     * <code>bool hasSense = 7;</code>
+     * @return The hasSense.
+     */
+    @java.lang.Override
+    public boolean getHasSense() {
+      return hasSense_;
+    }
+    /**
+     * <pre>
+     * Selection has sense - TRUE if there is at least one entity still present in the result if
+     * the query is altered by adding this facet to filtering query. In case of OR relation between
+     * facets it's also true only if there is at least one entity present in the result when all other
+     * facets in the same group are removed and only this facet is requested.
+     * </pre>
+     *
+     * <code>bool hasSense = 7;</code>
+     * @param value The hasSense to set.
+     * @return This builder for chaining.
+     */
+    public Builder setHasSense(boolean value) {
+      
+      hasSense_ = value;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Selection has sense - TRUE if there is at least one entity still present in the result if
+     * the query is altered by adding this facet to filtering query. In case of OR relation between
+     * facets it's also true only if there is at least one entity present in the result when all other
+     * facets in the same group are removed and only this facet is requested.
+     * </pre>
+     *
+     * <code>bool hasSense = 7;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearHasSense() {
+      
+      hasSense_ = false;
+      onChanged();
+      return this;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

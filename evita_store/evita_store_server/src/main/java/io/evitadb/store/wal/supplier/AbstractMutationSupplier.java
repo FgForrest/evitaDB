@@ -37,6 +37,7 @@ import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Closeable;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -55,7 +56,7 @@ import static java.util.Optional.ofNullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-abstract sealed class AbstractMutationSupplier implements Supplier<Mutation>, AutoCloseable
+abstract sealed class AbstractMutationSupplier implements Supplier<Mutation>, Closeable
 	permits MutationSupplier, ReverseMutationSupplier {
 	/**
 	 * The Kryo pool for serializing {@link TransactionMutation} (given by outside).
@@ -134,7 +135,7 @@ abstract sealed class AbstractMutationSupplier implements Supplier<Mutation>, Au
 		this.transactionLocationsCache = transactionLocationsCache;
 		this.avoidPartiallyFilledBuffer = avoidPartiallyFilledBuffer;
 		this.onClose = onClose;
-		if (walFile.length() == 0) {
+		if (!this.walFile.exists() || this.walFile.length() < 4) {
 			this.catalogKryoPool = catalogKryoPool;
 			this.kryo = null;
 			this.observableInput = null;

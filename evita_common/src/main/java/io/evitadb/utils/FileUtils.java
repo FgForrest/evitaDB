@@ -29,6 +29,7 @@ import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
@@ -190,25 +191,31 @@ public class FileUtils {
 	 */
 	public static long getDirectorySize(@Nonnull Path directory) {
 		// calculate size of all bytes in particular directory
-		try (final Stream<Path> walk = Files.walk(directory);) {
-			return walk
-				.filter(Files::isRegularFile)
-				.mapToLong(it -> {
-					try {
-						return Files.size(it);
-					} catch (IOException e) {
-						throw new UnexpectedIOException(
-							"Failed to get size of file: " + it,
-							"Failed to get size of file!", e
-						);
-					}
-				})
-				.sum();
-		} catch (IOException e) {
-			throw new UnexpectedIOException(
-				"Failed to calculate size of directory: " + directory,
-				"Failed to calculate size of directory!", e
-			);
+		Exception ex = null;
+		// we implement a retry logic - the walker fails to calculate folder size when file is removed during the walk
+		for (int i = 0; i < 5; i++) {
+			try (final Stream<Path> walk = Files.walk(directory);) {
+				return walk
+					.filter(Files::isRegularFile)
+					.mapToLong(it -> {
+						try {
+							return Files.size(it);
+						} catch (IOException e) {
+							throw new UnexpectedIOException(
+								"Failed to get size of file: " + it,
+								"Failed to get size of file!", e
+							);
+						}
+					})
+					.sum();
+			} catch (UnexpectedIOException | IOException | UncheckedIOException e) {
+				ex = e;
+			}
 		}
+
+		throw new UnexpectedIOException(
+			"Failed to calculate size of directory: " + directory,
+			"Failed to calculate size of directory!", ex
+		);
 	}
 }

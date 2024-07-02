@@ -27,6 +27,7 @@ import com.linecorp.armeria.server.HttpService;
 import io.evitadb.externalApi.http.ExternalApiProviderWithConsoleOutput;
 import io.evitadb.externalApi.http.ExternalApiServer;
 import io.evitadb.externalApi.system.configuration.SystemConfig;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.ConsoleWriter;
 import io.evitadb.utils.ConsoleWriter.ConsoleColor;
 import io.evitadb.utils.ConsoleWriter.ConsoleDecoration;
@@ -97,53 +98,63 @@ public class SystemProvider implements ExternalApiProviderWithConsoleOutput<Syst
 			ConsoleWriter.write(serverNameUrl, ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);
 		}
 		ConsoleWriter.write("\n", ConsoleColor.WHITE);
-		ConsoleWriter.write(StringUtils.rightPad("   - CA certificate served at: ", " ", ExternalApiServer.PADDING_START_UP));
-		for (int i = 0; i < rootCertificateUrls.length; i++) {
-			final String rootCertificateUrl = rootCertificateUrls[i];
-			if (i > 0) {
-				ConsoleWriter.write(", ", ConsoleColor.WHITE);
+		if (!ArrayUtils.isEmpty(rootCertificateUrls)) {
+			ConsoleWriter.write(StringUtils.rightPad("   - CA certificate served at: ", " ", ExternalApiServer.PADDING_START_UP));
+			for (int i = 0; i < rootCertificateUrls.length; i++) {
+				final String rootCertificateUrl = rootCertificateUrls[i];
+				if (i > 0) {
+					ConsoleWriter.write(", ", ConsoleColor.WHITE);
+				}
+				ConsoleWriter.write(rootCertificateUrl, ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);
 			}
-			ConsoleWriter.write(rootCertificateUrl, ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);
+			ConsoleWriter.write("\n", ConsoleColor.WHITE);
 		}
-		ConsoleWriter.write("\n", ConsoleColor.WHITE);
-		ConsoleWriter.write(StringUtils.rightPad("   - server certificate served at: ", " ", ExternalApiServer.PADDING_START_UP));
-		for (int i = 0; i < serverCertificateUrls.length; i++) {
-			final String serverCertificateUrl = serverCertificateUrls[i];
-			if (i > 0) {
-				ConsoleWriter.write(", ", ConsoleColor.WHITE);
+		if (!ArrayUtils.isEmpty(serverCertificateUrls)) {
+			ConsoleWriter.write(StringUtils.rightPad("   - server certificate served at: ", " ", ExternalApiServer.PADDING_START_UP));
+			for (int i = 0; i < serverCertificateUrls.length; i++) {
+				final String serverCertificateUrl = serverCertificateUrls[i];
+				if (i > 0) {
+					ConsoleWriter.write(", ", ConsoleColor.WHITE);
+				}
+				ConsoleWriter.write(serverCertificateUrl, ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);
 			}
-			ConsoleWriter.write(serverCertificateUrl, ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);
+			ConsoleWriter.write("\n", ConsoleColor.WHITE);
 		}
-		ConsoleWriter.write("\n", ConsoleColor.WHITE);
-		ConsoleWriter.write(StringUtils.rightPad("   - client certificate served at: ", " ", ExternalApiServer.PADDING_START_UP));
-		for (int i = 0; i < clientCertificateUrls.length; i++) {
-			final String clientCertificateUrl = clientCertificateUrls[i];
-			if (i > 0) {
-				ConsoleWriter.write(", ", ConsoleColor.WHITE);
+		if (!ArrayUtils.isEmpty(clientCertificateUrls)) {
+			ConsoleWriter.write(StringUtils.rightPad("   - client certificate served at: ", " ", ExternalApiServer.PADDING_START_UP));
+			for (int i = 0; i < clientCertificateUrls.length; i++) {
+				final String clientCertificateUrl = clientCertificateUrls[i];
+				if (i > 0) {
+					ConsoleWriter.write(", ", ConsoleColor.WHITE);
+				}
+				ConsoleWriter.write(clientCertificateUrl, ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);
 			}
-			ConsoleWriter.write(clientCertificateUrl, ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);
+			ConsoleWriter.write("\n", ConsoleColor.WHITE);
 		}
-		ConsoleWriter.write("\n", ConsoleColor.WHITE);
-		ConsoleWriter.write(StringUtils.rightPad("   - client private key served at: ", " ", ExternalApiServer.PADDING_START_UP));
-		for (int i = 0; i < clientPrivateKeyUrls.length; i++) {
-			final String clientPrivateKeyUrl = clientPrivateKeyUrls[i];
-			if (i > 0) {
-				ConsoleWriter.write(", ", ConsoleColor.WHITE);
+		if (!ArrayUtils.isEmpty(clientPrivateKeyUrls)) {
+			ConsoleWriter.write(StringUtils.rightPad("   - client private key served at: ", " ", ExternalApiServer.PADDING_START_UP));
+			for (int i = 0; i < clientPrivateKeyUrls.length; i++) {
+				final String clientPrivateKeyUrl = clientPrivateKeyUrls[i];
+				if (i > 0) {
+					ConsoleWriter.write(", ", ConsoleColor.WHITE);
+				}
+				ConsoleWriter.write(clientPrivateKeyUrl, ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);
 			}
-			ConsoleWriter.write(clientPrivateKeyUrl, ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);
+			ConsoleWriter.write("\n", ConsoleColor.WHITE);
 		}
-		ConsoleWriter.write("\n", ConsoleColor.WHITE);
-		ConsoleWriter.write("""
-                
-                ************************* WARNING!!! *************************
-                You use mTLS with automatically generated client certificate.
-                This is not safe for production environments!
-                Supply the certificate for production manually and set `useGeneratedCertificate` to false.
-                ************************* WARNING!!! *************************
-                
-                """,
-			ConsoleColor.BRIGHT_RED, ConsoleDecoration.BOLD
-		);
+		if (!ArrayUtils.isEmpty(clientCertificateUrls)) {
+			ConsoleWriter.write("""
+					
+					************************* WARNING!!! *************************
+					You use mTLS with automatically generated client certificate.
+					This is not safe for production environments!
+					Supply the certificate for production manually and set `useGeneratedCertificate` to false.
+					************************* WARNING!!! *************************
+					
+					""",
+				ConsoleColor.BRIGHT_RED, ConsoleDecoration.BOLD
+			);
+		}
 	}
 
 	@Override

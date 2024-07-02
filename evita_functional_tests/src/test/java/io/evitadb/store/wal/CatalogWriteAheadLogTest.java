@@ -65,6 +65,7 @@ class CatalogWriteAheadLogTest {
 	};
 	private final WalFileReference walFileReference = new WalFileReference(TEST_CATALOG, 0, null);
 	private final CatalogWriteAheadLog tested = new CatalogWriteAheadLog(
+		0L,
 		TEST_CATALOG,
 		walDirectory,
 		catalogKryoPool,

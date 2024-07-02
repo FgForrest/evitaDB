@@ -39,7 +39,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.HierarchyDataLocator;
-import io.evitadb.externalApi.api.catalog.dataApi.constraint.ReferenceDataLocator;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.InlineReferenceDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.model.AssociatedDataDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
@@ -54,13 +54,7 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.Ord
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.RequireConstraintSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GlobalEntityDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GraphQLEntityDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.AssociatedDataFieldHeaderDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.AttributesFieldHeaderDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.ParentsFieldHeaderDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PriceFieldHeaderDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PriceForSaleFieldHeaderDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PricesFieldHeaderDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.ReferenceFieldHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.*;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.BigDecimalDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.EntityDtoTypeResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.entity.*;
@@ -140,8 +134,11 @@ public class EntityObjectBuilder {
 			new EntityDtoTypeResolver(buildingContext.getEntityTypeToEntityObject())
 		);
 		buildingContext.registerType(EntityDescriptor.THIS_REFERENCE.to(objectBuilderTransformer).build());
-		buildingContext.registerType(buildPriceObject());
-		buildingContext.registerType(buildGlobal());
+		buildingContext.registerType(buildGlobalEntity());
+		if (!buildingContext.getSupportedCurrencies().isEmpty()) {
+			buildingContext.registerType(buildPriceObject());
+			buildingContext.registerType(buildPriceForSaleObject());
+		}
 	}
 
 	@Nonnull
@@ -253,7 +250,7 @@ public class EntityObjectBuilder {
 	}
 
 	@Nonnull
-	private GraphQLObjectType buildGlobal() {
+	private GraphQLObjectType buildGlobalEntity() {
 		final CatalogSchemaContract catalogSchema = buildingContext.getSchema();
 
 		final GraphQLObjectType.Builder globalEntityObjectBuilder = GlobalEntityDescriptor.THIS.to(objectBuilderTransformer);
@@ -324,7 +321,10 @@ public class EntityObjectBuilder {
 	private BuiltFieldDescriptor buildEntityPriceForSaleField() {
 		final GraphQLFieldDefinition field = GraphQLEntityDescriptor.PRICE_FOR_SALE
 			.to(fieldBuilderTransformer)
+			// todo #538: deprecated, remove
 			.argument(PriceForSaleFieldHeaderDescriptor.PRICE_LIST
+				.to(argumentBuilderTransformer))
+			.argument(PriceForSaleFieldHeaderDescriptor.PRICE_LISTS
 				.to(argumentBuilderTransformer))
 			.argument(PriceForSaleFieldHeaderDescriptor.CURRENCY
 				.to(argumentBuilderTransformer)
@@ -346,6 +346,15 @@ public class EntityObjectBuilder {
 		return new BuiltFieldDescriptor(
 			GraphQLEntityDescriptor.MULTIPLE_PRICES_FOR_SALE_AVAILABLE
 				.to(fieldBuilderTransformer)
+				.argument(MultiplePricesForSaleAvailableFieldHeaderDescriptor.PRICE_LISTS
+					.to(argumentBuilderTransformer))
+				.argument(MultiplePricesForSaleAvailableFieldHeaderDescriptor.CURRENCY
+					.to(argumentBuilderTransformer)
+					.type(typeRef(CURRENCY_ENUM.name())))
+				.argument(MultiplePricesForSaleAvailableFieldHeaderDescriptor.VALID_IN
+					.to(argumentBuilderTransformer))
+				.argument(MultiplePricesForSaleAvailableFieldHeaderDescriptor.VALID_NOW
+					.to(argumentBuilderTransformer))
 				.build(),
 			new MultiplePricesForSaleAvailableDataFetcher()
 		);
@@ -355,7 +364,10 @@ public class EntityObjectBuilder {
 	private BuiltFieldDescriptor buildEntityAllPricesForSaleField() {
 		final GraphQLFieldDefinition field = GraphQLEntityDescriptor.ALL_PRICES_FOR_SALE
 			.to(fieldBuilderTransformer)
+			// todo #538: deprecated, remove
 			.argument(PriceForSaleFieldHeaderDescriptor.PRICE_LIST
+				.to(argumentBuilderTransformer))
+			.argument(PriceForSaleFieldHeaderDescriptor.PRICE_LISTS
 				.to(argumentBuilderTransformer))
 			.argument(PriceForSaleFieldHeaderDescriptor.CURRENCY
 				.to(argumentBuilderTransformer)
@@ -372,6 +384,7 @@ public class EntityObjectBuilder {
 		return new BuiltFieldDescriptor(field, new AllPricesForSaleDataFetcher());
 	}
 
+	// todo #538: deprecated, remove
 	@Nonnull
 	private BuiltFieldDescriptor buildEntityPriceField() {
 		final GraphQLFieldDefinition field = GraphQLEntityDescriptor.PRICE
@@ -609,7 +622,7 @@ public class EntityObjectBuilder {
 					default -> throw new GraphQLSchemaBuildingError("Unsupported version `" + version + "`.");
 				};
 
-				final ReferenceDataLocator referenceDataLocator = new ReferenceDataLocator(
+				final InlineReferenceDataLocator referenceDataLocator = new InlineReferenceDataLocator(
 					collectionBuildingContext.getSchema().getName(),
 					referenceSchema.getName()
 				);
@@ -758,6 +771,40 @@ public class EntityObjectBuilder {
 		}
 	}
 
+
+	@Nonnull
+	private GraphQLObjectType buildPriceForSaleObject() {
+		buildingContext.registerDataFetcher(
+			PriceForSaleDescriptor.THIS,
+			PriceForSaleDescriptor.PRICE_WITH_TAX,
+			new PriceBigDecimalDataFetcher(PriceForSaleDescriptor.PRICE_WITH_TAX.name())
+		);
+		buildingContext.registerDataFetcher(
+			PriceForSaleDescriptor.THIS,
+			PriceForSaleDescriptor.PRICE_WITHOUT_TAX,
+			new PriceBigDecimalDataFetcher(PriceForSaleDescriptor.PRICE_WITHOUT_TAX.name())
+		);
+		buildingContext.registerDataFetcher(
+			PriceForSaleDescriptor.THIS,
+			PriceForSaleDescriptor.TAX_RATE,
+			new PriceBigDecimalDataFetcher(PriceForSaleDescriptor.TAX_RATE.name())
+		);
+		buildingContext.registerDataFetcher(
+			PriceForSaleDescriptor.THIS,
+			PriceForSaleDescriptor.ACCOMPANYING_PRICE,
+			new AccompanyingPriceDataFetcher()
+		);
+
+		return PriceForSaleDescriptor.THIS
+			.to(objectBuilderTransformer)
+			.field(PriceForSaleDescriptor.PRICE_WITHOUT_TAX.to(fieldBuilderTransformer.with(priceFieldDecorator)))
+			.field(PriceForSaleDescriptor.PRICE_WITH_TAX.to(fieldBuilderTransformer.with(priceFieldDecorator)))
+			.field(PriceForSaleDescriptor.TAX_RATE.to(fieldBuilderTransformer.with(priceFieldDecorator)))
+			.field(PriceForSaleDescriptor.ACCOMPANYING_PRICE.to(fieldBuilderTransformer)
+				.argument(AccompanyingPriceFieldHeaderDescriptor.PRICE_LISTS
+					.to(argumentBuilderTransformer)))
+			.build();
+	}
 
 	@Nonnull
 	private GraphQLObjectType buildPriceObject() {

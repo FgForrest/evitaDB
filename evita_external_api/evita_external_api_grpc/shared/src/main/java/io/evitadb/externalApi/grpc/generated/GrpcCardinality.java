@@ -180,7 +180,7 @@ public enum GrpcCardinality
   }
   public static final com.google.protobuf.Descriptors.EnumDescriptor
       getDescriptor() {
-    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(15);
+    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(16);
   }
 
   private static final GrpcCardinality[] VALUES = values();

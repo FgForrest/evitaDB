@@ -29,11 +29,17 @@ import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.MultiplePricesForSaleAvailableFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.EntityQueryContext;
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
+import io.evitadb.externalApi.graphql.exception.GraphQLInvalidArgumentException;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.time.OffsetDateTime;
+import java.util.Currency;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Finds out whether there are multiple unique prices which the entity could be sold for.
@@ -48,7 +54,11 @@ public class MultiplePricesForSaleAvailableDataFetcher implements DataFetcher<Bo
         final EntityDecorator entity = environment.getSource();
         final EntityQueryContext context = environment.getLocalContext();
 
-        final List<PriceContract> allPricesForSale = entity.getAllPricesForSale();
+        final String[] priceLists = resolveDesiredPricesLists(environment, context);
+        final Currency currency = resolveDesiredCurrency(environment, context);
+        final OffsetDateTime validIn = resolveDesiredValidIn(environment, entity, context);
+
+        final List<PriceContract> allPricesForSale = entity.getAllPricesForSale(currency, validIn, priceLists);
         if (allPricesForSale.size() <= 1) {
             return false;
         }
@@ -74,12 +84,40 @@ public class MultiplePricesForSaleAvailableDataFetcher implements DataFetcher<Bo
                 .distinct()
                 .count();
             hasMultiplePricesForSale = uniquePriceValuesCount > 1;
-        } else if (priceInnerRecordHandling.equals(PriceInnerRecordHandling.SUM)) {
-            hasMultiplePricesForSale = allPricesForSale.size() > 1;
         } else {
             hasMultiplePricesForSale = false;
         }
 
         return hasMultiplePricesForSale;
+    }
+
+    @Nonnull
+    protected String[] resolveDesiredPricesLists(@Nonnull DataFetchingEnvironment environment,
+                                                 @Nonnull EntityQueryContext context) {
+        return Optional.ofNullable((List<String>) environment.getArgument(MultiplePricesForSaleAvailableFieldHeaderDescriptor.PRICE_LISTS.name()))
+            .map(it -> it.toArray(String[]::new))
+            .or(() -> Optional.ofNullable(context.getDesiredPriceInPriceLists()))
+            .orElseThrow(() -> new GraphQLInvalidArgumentException("Missing price list argument. You can use `" + MultiplePricesForSaleAvailableFieldHeaderDescriptor.PRICE_LISTS.name() + "` parameter for specifying custom price list."));
+    }
+
+    @Nonnull
+    protected Currency resolveDesiredCurrency(@Nonnull DataFetchingEnvironment environment,
+                                              @Nonnull EntityQueryContext context) {
+        return Optional.ofNullable((Currency) environment.getArgument(MultiplePricesForSaleAvailableFieldHeaderDescriptor.CURRENCY.name()))
+            .or(() -> Optional.ofNullable(context.getDesiredPriceInCurrency()))
+            .orElseThrow(() -> new GraphQLInvalidArgumentException("Missing `currency` argument. You can use `" + MultiplePricesForSaleAvailableFieldHeaderDescriptor.CURRENCY.name() + "` parameter for specifying custom currency."));
+    }
+
+    @Nullable
+    protected OffsetDateTime resolveDesiredValidIn(@Nonnull DataFetchingEnvironment environment,
+                                                   @Nonnull EntityDecorator entity,
+                                                   @Nonnull EntityQueryContext context) {
+        return Optional.ofNullable((OffsetDateTime) environment.getArgument(MultiplePricesForSaleAvailableFieldHeaderDescriptor.VALID_IN.name()))
+            .or(() -> Optional.ofNullable((Boolean) environment.getArgument(MultiplePricesForSaleAvailableFieldHeaderDescriptor.VALID_NOW.name()))
+                .map(validNow -> validNow ? entity.getAlignedNow() : null))
+            .or(() -> Optional.ofNullable(context.getDesiredPriceValidIn()))
+            .or(() -> Optional.of(context.isDesiredPriceValidInNow())
+                .map(validNow -> validNow ? entity.getAlignedNow() : null))
+            .orElse(null);
     }
 }

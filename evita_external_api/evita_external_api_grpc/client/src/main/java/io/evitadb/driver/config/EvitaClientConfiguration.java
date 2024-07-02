@@ -25,7 +25,7 @@ package io.evitadb.driver.config;
 
 import io.evitadb.dataType.data.ReflectionCachingBehaviour;
 import io.evitadb.driver.EvitaClient;
-import io.evitadb.driver.certificate.ClientCertificateManager;
+import io.evitadb.externalApi.grpc.certificate.ClientCertificateManager;
 import io.evitadb.utils.ReflectionLookup;
 import lombok.ToString;
 

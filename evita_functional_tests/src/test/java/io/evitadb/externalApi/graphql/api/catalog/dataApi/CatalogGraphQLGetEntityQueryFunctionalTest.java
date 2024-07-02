@@ -23,6 +23,8 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.dataApi;
 
+import io.evitadb.api.query.require.PriceContentMode;
+import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
@@ -50,6 +52,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Predicate;
 
 import static io.evitadb.api.query.Query.query;
@@ -1177,7 +1180,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 	void shouldReturnAllPricesForSaleForMasterProduct(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final var entity = findEntity(
 			originalProductEntities,
-			it -> !it.getPriceInnerRecordHandling().equals(PriceInnerRecordHandling.NONE) &&
+			it -> it.getPriceInnerRecordHandling().equals(PriceInnerRecordHandling.LOWEST_PRICE) &&
 				it.getPrices(CURRENCY_CZK)
 					.stream()
 					.filter(PriceContract::sellable)
@@ -1224,6 +1227,77 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
 			.body(GET_PRODUCT_PATH, equalTo(expectedBody));
+	}
+
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return custom multiple prices for sale flag for master products")
+	void shouldReturnCustomMultiplePricesForSaleForMasterProducts(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+		final var entity1 = findEntityWithPrice(originalProductEntities);
+
+		final var expectedBody1 = createEntityDtoWithMultiplePricesForSaleAvailable(entity1, false);
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    getProduct(
+	                        code: "%s"
+                        ) {
+                            primaryKey
+	                        type
+                            multiplePricesForSaleAvailable(currency: CZK, priceLists: "basic")
+	                    }
+	                }
+					""",
+				(String) entity1.getAttribute(ATTRIBUTE_CODE)
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(GET_PRODUCT_PATH, equalTo(expectedBody1));
+
+		final var entity2 = findEntity(
+			originalProductEntities,
+			it -> it.getPriceInnerRecordHandling().equals(PriceInnerRecordHandling.LOWEST_PRICE) &&
+				it.getPrices(CURRENCY_CZK)
+					.stream()
+					.filter(PriceContract::sellable)
+					.map(PriceContract::innerRecordId)
+					.distinct()
+					.count() > 1
+		);
+
+		final List<String> priceLists = entity2.getPrices(CURRENCY_CZK)
+			.stream()
+			.map(PriceContract::priceList)
+			.distinct()
+			.toList();
+		assertTrue(priceLists.size() > 1);
+
+		final var expectedBody2 = createEntityDtoWithMultiplePricesForSaleAvailable(entity2, true);
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    getProduct(
+	                        primaryKey: %d
+                        ) {
+                            primaryKey
+	                        type
+	                        multiplePricesForSaleAvailable(currency: CZK, priceLists: %s)
+	                    }
+	                }
+					""",
+				entity2.getPrimaryKey(),
+				serializeStringArrayToQueryString(priceLists)
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(GET_PRODUCT_PATH, equalTo(expectedBody2));
 	}
 
 	@Test
@@ -1373,6 +1447,356 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			.executeAndThen()
 			.statusCode(200)
 			.body(ERRORS_PATH, hasSize(greaterThan(0)));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return accompanying prices for single price for sale")
+	void shouldReturnAccompanyingPricesForSinglePriceForSale(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+		final Integer desiredEntity = originalProductEntities.stream()
+			.filter(entity ->
+				entity.getPrices(CURRENCY_CZK).stream()
+					.anyMatch(price -> price.priceList().equals(PRICE_LIST_BASIC)) &&
+					entity.getPrices(CURRENCY_CZK).stream()
+						.anyMatch(price -> price.priceList().equals(PRICE_LIST_REFERENCE)) &&
+					entity.getPrices(CURRENCY_CZK).stream()
+						.anyMatch(price -> price.priceList().equals(PRICE_LIST_VIP)))
+			.map(entity -> entity.getPrimaryKey())
+			.findFirst()
+			.orElseThrow();
+
+		final EvitaResponse<SealedEntity> exampleResponse = queryEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					entityPrimaryKeyInSet(desiredEntity),
+					priceInPriceLists(PRICE_LIST_BASIC),
+					priceInCurrency(CURRENCY_CZK)
+				),
+				require(
+					page(1, 1),
+					entityFetch(
+						priceContent(PriceContentMode.RESPECTING_FILTER, PRICE_LIST_REFERENCE, PRICE_LIST_VIP)
+					)
+				)
+			),
+			SealedEntity.class
+		);
+
+		final Map<String, Object> expectedBody = Optional.of(exampleResponse.getRecordData().get(0))
+			.map(this::createEntityDtoWithAccompanyingPricesForSinglePriceForSale)
+			.orElseThrow();
+
+		tester.test(TEST_CATALOG)
+			.document("""
+				query {
+					getProduct(
+						primaryKey: %d,
+						priceInPriceLists: "basic",
+						priceInCurrency: CZK
+					) {
+						primaryKey
+						type
+						priceForSale {
+							__typename
+							priceWithTax
+							accompanyingPrice(priceLists: "reference") {
+								__typename
+								priceWithTax
+							}
+							vipPrice: accompanyingPrice(priceLists: "vip") {
+								__typename
+								priceWithTax
+							}
+						}
+					}
+				}
+				""",
+				desiredEntity)
+			.executeAndExpectOkAndThen()
+			.body(GET_PRODUCT_PATH, equalTo(expectedBody));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return accompanying prices for single custom price for sale")
+	void shouldReturnAccompanyingPricesForSingleCustomPriceForSale(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+		final Integer desiredEntity = originalProductEntities.stream()
+			.filter(entity ->
+				entity.getPrices(CURRENCY_CZK).stream()
+					.anyMatch(price -> price.priceList().equals(PRICE_LIST_BASIC)) &&
+					entity.getPrices(CURRENCY_CZK).stream()
+						.anyMatch(price -> price.priceList().equals(PRICE_LIST_REFERENCE)) &&
+					entity.getPrices(CURRENCY_CZK).stream()
+						.anyMatch(price -> price.priceList().equals(PRICE_LIST_VIP)))
+			.map(entity -> entity.getPrimaryKey())
+			.findFirst()
+			.orElseThrow();
+
+		final EvitaResponse<SealedEntity> exampleResponse = queryEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					entityPrimaryKeyInSet(desiredEntity)
+				),
+				require(
+					entityFetch(
+						priceContentAll()
+					)
+				)
+			),
+			SealedEntity.class
+		);
+
+		final Map<String, Object> expectedBody = Optional.of(exampleResponse.getRecordData().get(0))
+			.map(this::createEntityDtoWithAccompanyingPricesForSinglePriceForSale)
+			.orElseThrow();
+
+		tester.test(TEST_CATALOG)
+			.document("""
+				query {
+					getProduct(
+						primaryKey: %d
+					) {
+						primaryKey
+						type
+						priceForSale(priceLists: "basic", currency: CZK) {
+							__typename
+							priceWithTax
+							accompanyingPrice(priceLists: "reference") {
+								__typename
+								priceWithTax
+							}
+							vipPrice: accompanyingPrice(priceLists: "vip") {
+								__typename
+								priceWithTax
+							}
+						}
+					}
+				}
+				""",
+				desiredEntity)
+			.executeAndExpectOkAndThen()
+			.body(GET_PRODUCT_PATH, equalTo(expectedBody));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return accompanying prices for all prices for sale")
+	void shouldReturnAccompanyingPricesForAllPricesForSale(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+		final Integer desiredEntity = originalProductEntities.stream()
+			.filter(entity ->
+				entity.getPriceInnerRecordHandling().equals(PriceInnerRecordHandling.LOWEST_PRICE) &&
+					entity.getPrices(CURRENCY_CZK).stream()
+						.anyMatch(price -> price.priceList().equals(PRICE_LIST_BASIC)) &&
+					entity.getPrices(CURRENCY_CZK).stream()
+						.anyMatch(price -> price.priceList().equals(PRICE_LIST_REFERENCE)) &&
+					entity.getPrices(CURRENCY_CZK).stream()
+						.anyMatch(price -> price.priceList().equals(PRICE_LIST_VIP)))
+			.map(entity -> entity.getPrimaryKey())
+			.findFirst()
+			.orElseThrow();
+
+		final EvitaResponse<SealedEntity> exampleResponse = queryEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					entityPrimaryKeyInSet(desiredEntity),
+					priceInPriceLists(PRICE_LIST_BASIC),
+					priceInCurrency(CURRENCY_CZK)
+				),
+				require(
+					entityFetch(
+						priceContent(PriceContentMode.RESPECTING_FILTER, PRICE_LIST_REFERENCE, PRICE_LIST_VIP)
+					)
+				)
+			),
+			SealedEntity.class
+		);
+
+		final Map<String, Object> expectedBody = Optional.of(exampleResponse.getRecordData().get(0))
+			.map(this::createEntityDtoWithAccompanyingPricesForAllPricesForSale)
+			.orElseThrow();
+
+		tester.test(TEST_CATALOG)
+			.document("""
+				query {
+					getProduct(
+						primaryKey: %d,
+						priceInPriceLists: "basic",
+						priceInCurrency: CZK
+					) {
+						primaryKey
+						type
+						allPricesForSale {
+							__typename
+							priceWithTax
+							accompanyingPrice(priceLists: "reference") {
+								__typename
+								priceWithTax
+							}
+							vipPrice: accompanyingPrice(priceLists: "vip") {
+								__typename
+								priceWithTax
+							}
+						}
+					}
+				}
+				""",
+				desiredEntity)
+			.executeAndExpectOkAndThen()
+			.body(GET_PRODUCT_PATH, equalTo(expectedBody));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return accompanying prices for all custom prices for sale")
+	void shouldReturnAccompanyingPricesForAllCustomPricesForSale(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+		final Integer desiredEntity = originalProductEntities.stream()
+			.filter(entity ->
+				entity.getPriceInnerRecordHandling().equals(PriceInnerRecordHandling.LOWEST_PRICE) &&
+					entity.getPrices(CURRENCY_CZK).stream()
+						.anyMatch(price -> price.priceList().equals(PRICE_LIST_BASIC)) &&
+					entity.getPrices(CURRENCY_CZK).stream()
+						.anyMatch(price -> price.priceList().equals(PRICE_LIST_REFERENCE)) &&
+					entity.getPrices(CURRENCY_CZK).stream()
+						.anyMatch(price -> price.priceList().equals(PRICE_LIST_VIP)))
+			.map(entity -> entity.getPrimaryKey())
+			.findFirst()
+			.orElseThrow();
+
+		final EvitaResponse<SealedEntity> exampleResponse = queryEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					entityPrimaryKeyInSet(desiredEntity)
+				),
+				require(
+					entityFetch(
+						priceContentAll()
+					)
+				)
+			),
+			SealedEntity.class
+		);
+
+		final Map<String, Object> expectedBody = Optional.of(exampleResponse.getRecordData().get(0))
+			.map(this::createEntityDtoWithAccompanyingPricesForAllPricesForSale)
+			.orElseThrow();
+
+		tester.test(TEST_CATALOG)
+			.document("""
+				query {
+					getProduct(
+						primaryKey: %d
+					) {
+						primaryKey
+						type
+						allPricesForSale(priceLists: "basic", currency: CZK) {
+							__typename
+							priceWithTax
+							accompanyingPrice(priceLists: "reference") {
+								__typename
+								priceWithTax
+							}
+							vipPrice: accompanyingPrice(priceLists: "vip") {
+								__typename
+								priceWithTax
+							}
+						}
+					}
+				}
+				""",
+				desiredEntity)
+			.executeAndExpectOkAndThen()
+			.body(GET_PRODUCT_PATH, equalTo(expectedBody));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return error for accompanying prices without price lists in single price for sale")
+	void shouldReturnErrorForAccompanyingPricesWithoutPriceListsInSinglePriceForSale(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+		final Integer desiredEntity = originalProductEntities.stream()
+			.filter(entity ->
+				entity.getPrices(CURRENCY_CZK).stream()
+					.anyMatch(price -> price.priceList().equals(PRICE_LIST_BASIC)) &&
+					entity.getPrices(CURRENCY_CZK).stream()
+						.anyMatch(price -> price.priceList().equals(PRICE_LIST_REFERENCE)) &&
+					entity.getPrices(CURRENCY_CZK).stream()
+						.anyMatch(price -> price.priceList().equals(PRICE_LIST_VIP)))
+			.map(entity -> entity.getPrimaryKey())
+			.findFirst()
+			.orElseThrow();
+
+		tester.test(TEST_CATALOG)
+			.document("""
+				query {
+					getProduct(
+						primaryKey: %s,
+						priceInPriceLists: "basic",
+						priceInCurrency: CZK
+					) {
+						primaryKey
+						type
+						priceForSale {
+							__typename
+							priceWithTax
+							accompanyingPrice {
+								__typename
+								priceWithTax
+							}
+						}
+					}
+				}
+				""",
+				desiredEntity)
+			.executeAndExpectErrorsAndThen();
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return error for accompanying prices without price lists in all prices for sale")
+	void shouldReturnErrorForAccompanyingPricesWithoutPriceListsInAllPricesForSale(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+		final Integer desiredEntity = originalProductEntities.stream()
+			.filter(entity ->
+				entity.getPriceInnerRecordHandling().equals(PriceInnerRecordHandling.LOWEST_PRICE) &&
+					entity.getPrices(CURRENCY_CZK).stream()
+						.anyMatch(price -> price.priceList().equals(PRICE_LIST_BASIC)) &&
+					entity.getPrices(CURRENCY_CZK).stream()
+						.anyMatch(price -> price.priceList().equals(PRICE_LIST_REFERENCE)) &&
+					entity.getPrices(CURRENCY_CZK).stream()
+						.anyMatch(price -> price.priceList().equals(PRICE_LIST_VIP)))
+			.map(entity -> entity.getPrimaryKey())
+			.findFirst()
+			.orElseThrow();
+
+		tester.test(TEST_CATALOG)
+			.document("""
+				query {
+					getProduct(
+						primaryKey: %s,
+						priceInPriceLists: "basic",
+						priceInCurrency: CZK
+					) {
+						primaryKey
+						type
+						allPricesForSale {
+							__typename
+							priceWithTax
+							accompanyingPrice {
+								__typename
+								priceWithTax
+							}
+						}
+					}
+				}
+				""",
+				desiredEntity)
+			.executeAndExpectErrorsAndThen();
 	}
 
 	@Test

@@ -26,13 +26,12 @@ package io.evitadb.externalApi.graphql.io;
 import com.linecorp.armeria.common.*;
 import graphql.GraphQL;
 import graphql.schema.GraphQLSchema;
-import graphql.schema.idl.SchemaPrinter;
-import graphql.schema.idl.SchemaPrinter.Options;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.externalApi.exception.ExternalApiInvalidUsageException;
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidUsageException;
 import io.evitadb.externalApi.graphql.io.GraphQLSchemaHandler.GraphQLEndpointExchange;
+import io.evitadb.externalApi.graphql.utils.GraphQLSchemaPrinter;
 import io.evitadb.externalApi.http.EndpointService;
 import io.evitadb.externalApi.http.EndpointRequest;
 import io.evitadb.externalApi.http.EndpointResponse;
@@ -42,6 +41,8 @@ import io.netty.channel.EventLoop;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import java.io.OutputStream;
+import java.io.PrintWriter;
 import javax.annotation.Nullable;
 import java.util.LinkedHashSet;
 import java.util.Set;
@@ -57,33 +58,26 @@ import static io.evitadb.utils.CollectionUtils.createLinkedHashSet;
  * @author Lukáš Hornych, FG Forrest a.s. 2023
  */
 @Slf4j
-public class GraphQLSchemaHandler extends EndpointService<GraphQLEndpointExchange> {
+public class GraphQLSchemaHandler extends EndpointService<GraphQLSchemaEndpointExecutionContext> {
 
     private static final Set<String> IMPLICIT_DIRECTIVES = Set.of("deprecated", "skip", "include", "specifiedBy");
 
     @Nonnull
-    private final SchemaPrinter schemaPrinter;
-    @Nonnull
     private final AtomicReference<GraphQL> graphQL;
 
     public GraphQLSchemaHandler(@Nonnull AtomicReference<GraphQL> graphQL) {
-        this.schemaPrinter = new SchemaPrinter(Options.defaultOptions()
-            .includeDirectives(directive -> !IMPLICIT_DIRECTIVES.contains(directive)));
         this.graphQL = graphQL;
     }
 
     @Nonnull
     @Override
-    protected GraphQLEndpointExchange createEndpointExchange(@Nonnull HttpRequest httpRequest,
-                                                             @Nonnull String httpMethod,
-                                                             @Nullable String requestBodyMediaType,
-                                                             @Nullable String preferredResponseMediaType) {
-        return new GraphQLEndpointExchange(httpRequest, httpMethod, requestBodyMediaType, preferredResponseMediaType);
+    protected GraphQLSchemaEndpointExecutionContext createExecutionContext(@Nonnull HttpRequest httpRequest) {
+        return new GraphQLSchemaEndpointExecutionContext(httpRequest);
     }
 
     @Override
     @Nonnull
-    protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull GraphQLEndpointExchange exchange) {
+    protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull GraphQLSchemaEndpointExecutionContext executionContext) {
         return CompletableFuture.supplyAsync(() -> new SuccessEndpointResponse(graphQL.get().getGraphQLSchema()));
     }
 
@@ -123,20 +117,12 @@ public class GraphQLSchemaHandler extends EndpointService<GraphQLEndpointExchang
     }
 
     @Override
-    protected void writeResponse(@Nonnull GraphQLEndpointExchange exchange, @Nonnull HttpResponseWriter responseWriter, @Nonnull Object response, @Nonnull EventLoop eventExecutors) {
+    protected void writeResponse(@Nonnull GraphQLSchemaEndpointExecutionContext executionContext, @Nonnull HttpResponseWriter responseWriter, @Nonnull Object response, @Nonnull EventLoop eventExecutors) {
         Assert.isPremiseValid(
             response instanceof GraphQLSchema,
             () -> new GraphQLInternalError("Expected response to be instance of GraphQLSchema, but was `" + response.getClass().getName() + "`.")
         );
-
-        final String schema = schemaPrinter.print((GraphQLSchema) response);
-        responseWriter.write(HttpData.ofUtf8(schema));
-    }
-
-    protected record GraphQLEndpointExchange(@Nonnull HttpRequest httpRequest,
-                                             @Nonnull String httpMethod,
-                                             @Nullable String requestBodyContentType,
-                                             @Nullable String preferredResponseContentType) implements EndpointRequest {
-
+        final String printedSchema = schemaPrinter.print((GraphQLSchema) response);
+	    responseWriter.write(HttpData.ofUtf8(schema));
     }
 }

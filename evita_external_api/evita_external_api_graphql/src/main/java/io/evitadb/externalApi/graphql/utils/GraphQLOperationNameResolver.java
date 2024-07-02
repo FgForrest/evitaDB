@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.observability.logging;
+package io.evitadb.externalApi.graphql.utils;
 
 import com.linecorp.armeria.common.AggregatedHttpRequest;
 import com.linecorp.armeria.common.AggregationOptions;
@@ -32,6 +32,9 @@ import com.linecorp.armeria.common.stream.SubscriptionOption;
 import io.evitadb.externalApi.http.EndpointRequest;
 import io.netty.util.concurrent.EventExecutor;
 import org.reactivestreams.Subscriber;
+import graphql.language.OperationDefinition;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -41,11 +44,15 @@ import java.util.concurrent.CompletableFuture;
 
 /**
  * Implementation of {@link EndpointRequest} for Observation API.
+ * TODO lho docs
  *
- * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
+ * @author Lukáš Hornych, 2024
  */
-public record LoggingEndpointExchange(@Nonnull HttpRequest httpRequest,
-                                      @Nonnull String httpMethod,
-                                      @Nullable String requestBodyContentType,
-                                      @Nullable String preferredResponseContentType) implements EndpointRequest {
-};
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
+public class GraphQLOperationNameResolver {
+
+	@Nonnull
+	public static String resolve(@Nonnull OperationDefinition operationDefinition) {
+		return operationDefinition.getName() != null ? operationDefinition.getName() : "<unnamed>";
+	}
+}

@@ -159,4 +159,12 @@ public abstract class AbstractApiConfiguration {
 				(this instanceof ApiWithSpecificPrefix withSpecificPrefix ? "/" + withSpecificPrefix.getPrefix() + "/" : "/"))
 			.toArray(String[]::new);
 	}
+
+	/**
+	 * Returns true if particular API has mutual TLS enabled.
+	 * @return true if mutual TLS is enabled
+	 */
+	public boolean isMtlsEnabled() {
+		return false;
+	}
 }

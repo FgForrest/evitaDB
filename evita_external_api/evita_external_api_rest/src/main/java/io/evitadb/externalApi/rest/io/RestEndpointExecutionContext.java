@@ -31,7 +31,10 @@ import com.linecorp.armeria.common.RequestHeaders;
 import com.linecorp.armeria.common.stream.SubscriptionOption;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.externalApi.http.EndpointRequest;
+import io.evitadb.externalApi.http.EndpointExecutionContext;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
+import io.evitadb.externalApi.rest.metric.event.request.ExecutedEvent;
+import io.evitadb.externalApi.rest.metric.event.request.ExecutedEvent.ResponseStatus;
 import io.evitadb.utils.Assert;
 import io.netty.util.concurrent.EventExecutor;
 import lombok.RequiredArgsConstructor;
@@ -44,18 +47,30 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * Implementation of {@link EndpointRequest} for REST API.
+ * Implementation of {@link EndpointExecutionContext} for REST API.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @RequiredArgsConstructor
-public class RestEndpointExchange implements EndpointRequest {
+public class RestEndpointExecutionContext extends EndpointExecutionContext {
 
-	@Nonnull private final HttpRequest httpRequest;
+	@Nonnull private final ExecutedEvent requestExecutedEvent;
+
 	@Nullable private EvitaSessionContract session;
-	@Nonnull private final String httpMethod;
-	@Nullable private final String requestBodyContentType;
-	@Nullable private final String preferredResponseContentType;
+
+	@Nullable private String requestBodyContentType;
+	@Nullable private String preferredResponseContentType;
+
+	public RestEndpointExecutionContext(@Nonnull HttpRequest httpRequest,
+	                                    @Nonnull ExecutedEvent requestExecutedEvent) {
+		super(httpRequest);
+		this.requestExecutedEvent = requestExecutedEvent;
+	}
+
+	@Nonnull
+	public ExecutedEvent requestExecutedEvent() {
+		return requestExecutedEvent;
+	}
 
 	@Nonnull
 	public EvitaSessionContract session() {
@@ -73,7 +88,7 @@ public class RestEndpointExchange implements EndpointRequest {
 	/**
 	 * Sets a session for this exchange. Can be set only once to avoid overwriting errors.
 	 */
-	public void session(@Nonnull EvitaSessionContract session) {
+	public void provideSession(@Nonnull EvitaSessionContract session) {
 		Assert.isPremiseValid(
 			this.session == null,
 			() -> new RestInternalError("Session cannot overwritten when already set.")
@@ -102,15 +117,40 @@ public class RestEndpointExchange implements EndpointRequest {
 		return httpMethod;
 	}
 
-	@Nullable
 	@Override
-	public String requestBodyContentType() {
-		return requestBodyContentType;
+	public void provideRequestBodyContentType(@Nonnull String contentType) {
+		Assert.isPremiseValid(
+			this.requestBodyContentType == null,
+			() -> new RestInternalError("Request body content type already provided.")
+		);
+		requestBodyContentType = contentType;
+	}
+
+	@Override
+	public void providePreferredResponseContentType(@Nonnull String contentType) {
+		Assert.isPremiseValid(
+			preferredResponseContentType == null,
+			() -> new RestInternalError("Preferred response content type already provided.")
+		);
+		preferredResponseContentType = contentType;
 	}
 
 	@Nullable
 	@Override
 	public String preferredResponseContentType() {
 		return preferredResponseContentType;
+	}
+
+	@Override
+	public void notifyError(@Nonnull Exception e) {
+		requestExecutedEvent.provideResponseStatus(ResponseStatus.ERROR);
+	}
+
+	@Override
+	public void close() {
+		// the session may not be properly closed in case of exception during request handling
+		closeSessionIfOpen();
+
+		requestExecutedEvent.finish().commit();
 	}
 }

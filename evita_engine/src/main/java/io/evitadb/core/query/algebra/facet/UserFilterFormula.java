@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,13 +29,18 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.NonCacheableFormula;
 import io.evitadb.core.query.algebra.NonCacheableFormulaScope;
 import io.evitadb.core.query.algebra.base.AndFormula;
+import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
+import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import net.openhft.hashing.LongHashFunction;
 import org.roaringbitmap.RoaringBitmap;
 
 import javax.annotation.Nonnull;
 import java.util.Arrays;
+import java.util.Comparator;
+import java.util.List;
 
 /**
  * This formula has almost identical implementation as {@link AndFormula} but it accepts only set of
@@ -48,6 +53,7 @@ import java.util.Arrays;
  */
 public class UserFilterFormula extends AbstractFormula implements NonCacheableFormula, NonCacheableFormulaScope {
 	private static final long CLASS_ID = 6890499931556487481L;
+	private List<Formula> sortedFormulasByComplexity;
 
 	public UserFilterFormula(Formula... innerFormulas) {
 		super(innerFormulas);
@@ -64,10 +70,51 @@ public class UserFilterFormula extends AbstractFormula implements NonCacheableFo
 		return 15;
 	}
 
+	@Override
+	protected long getCostInternal() {
+		long cost = 0L;
+		if (this.sortedFormulasByComplexity == null) {
+			initialize(CalculationContext.NO_CACHING_INSTANCE);
+		}
+		for (Formula innerFormula : this.sortedFormulasByComplexity) {
+			final Bitmap innerResult = innerFormula.compute();
+			cost += innerFormula.getCost() + innerResult.size() * getOperationCost();
+			if (innerResult == EmptyBitmap.INSTANCE) {
+				break;
+			}
+		}
+		return cost;
+	}
+
+	@Override
+	protected long getCostToPerformanceInternal() {
+		long costToPerformance = 0L;
+		if (this.sortedFormulasByComplexity == null) {
+			initialize(CalculationContext.NO_CACHING_INSTANCE);
+		}
+		for (Formula innerFormula : this.sortedFormulasByComplexity) {
+			final Bitmap innerResult = innerFormula.compute();
+			if (innerResult == EmptyBitmap.INSTANCE) {
+				break;
+			}
+			costToPerformance += innerFormula.getCostToPerformanceRatio();
+		}
+		return costToPerformance + getCost() / Math.max(1, compute().size());
+	}
+
 	@Nonnull
 	@Override
 	protected Bitmap computeInternal() {
-		return RoaringBitmapBackedBitmap.and(getRoaringBitmaps());
+		final Bitmap theResult;
+		final RoaringBitmap[] theBitmaps = getRoaringBitmaps();
+		if (theBitmaps.length == 0 || Arrays.stream(theBitmaps).anyMatch(RoaringBitmap::isEmpty)) {
+			theResult = EmptyBitmap.INSTANCE;
+		} else if (theBitmaps.length == 1) {
+			theResult = new BaseBitmap(theBitmaps[0]);
+		} else {
+			theResult = RoaringBitmapBackedBitmap.and(theBitmaps);
+		}
+		return theResult.isEmpty() ? EmptyBitmap.INSTANCE : theResult;
 	}
 
 	@Override
@@ -94,10 +141,25 @@ public class UserFilterFormula extends AbstractFormula implements NonCacheableFo
 		PRIVATE METHODS
 	 */
 
+	@Nonnull
 	private RoaringBitmap[] getRoaringBitmaps() {
-		return Arrays.stream(getInnerFormulas())
-			.map(Formula::compute)
-			.map(RoaringBitmapBackedBitmap::getRoaringBitmap)
-			.toArray(RoaringBitmap[]::new);
+		if (this.sortedFormulasByComplexity == null) {
+			this.sortedFormulasByComplexity = Arrays.stream(getInnerFormulas())
+				.sorted(Comparator.comparingLong(TransactionalDataRelatedStructure::getEstimatedCost))
+				.toList();
+		}
+		final RoaringBitmap[] theBitmaps = new RoaringBitmap[this.sortedFormulasByComplexity.size()];
+		// go from the cheapest formula to the more expensive and compute one by one
+		for (int i = 0; i < this.sortedFormulasByComplexity.size(); i++) {
+			final Formula formula = this.sortedFormulasByComplexity.get(i);
+			final Bitmap computedBitmap = formula.compute();
+			// if you encounter formula that returns nothing immediately return nothing - hence AND
+			if (computedBitmap.isEmpty()) {
+				return new RoaringBitmap[0];
+			} else {
+				theBitmaps[i] = RoaringBitmapBackedBitmap.getRoaringBitmap(computedBitmap);
+			}
+		}
+		return theBitmaps;
 	}
 }

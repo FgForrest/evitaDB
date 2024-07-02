@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -34,6 +34,7 @@ import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.LocalCatal
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
 import io.evitadb.externalApi.graphql.api.catalog.resolver.mutation.GraphQLMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.model.UpdateCatalogSchemaQueryHeaderDescriptor;
+import io.evitadb.externalApi.graphql.metric.event.request.ExecutedEvent;
 
 import javax.annotation.Nonnull;
 import java.util.List;
@@ -57,15 +58,18 @@ public class UpdateCatalogSchemaMutatingDataFetcher implements DataFetcher<Catal
 	@Nonnull
 	@Override
 	public CatalogSchemaContract get(@Nonnull DataFetchingEnvironment environment) throws Exception {
+		final ExecutedEvent requestExecutedEvent = environment.getGraphQlContext().get(GraphQLContextKey.METRIC_EXECUTED_EVENT);
 		final Arguments arguments = Arguments.from(environment);
 
-		final LocalCatalogSchemaMutation[] schemaMutations = arguments.mutations()
-			.stream()
-			.flatMap(m -> mutationAggregateResolver.convert(m).stream())
-			.toArray(LocalCatalogSchemaMutation[]::new);
+		final LocalCatalogSchemaMutation[] schemaMutations = requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() ->
+			arguments.mutations()
+				.stream()
+				.flatMap(m -> mutationAggregateResolver.convert(m).stream())
+				.toArray(LocalCatalogSchemaMutation[]::new));
 
 		final EvitaSessionContract evitaSession = environment.getGraphQlContext().get(GraphQLContextKey.EVITA_SESSION);
-		return evitaSession.updateAndFetchCatalogSchema(schemaMutations);
+		return requestExecutedEvent.measureInternalEvitaDBExecution(() ->
+			evitaSession.updateAndFetchCatalogSchema(schemaMutations));
 	}
 
 	/**

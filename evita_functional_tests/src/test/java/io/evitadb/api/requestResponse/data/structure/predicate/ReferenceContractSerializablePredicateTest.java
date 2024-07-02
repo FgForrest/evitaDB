@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.data.structure.predicate;
 
+import io.evitadb.api.query.require.ManagedReferencesBehaviour;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaRequest.AttributeRequest;
 import io.evitadb.api.requestResponse.EvitaRequest.RequirementContext;
@@ -64,7 +65,7 @@ class ReferenceContractSerializablePredicateTest {
 			.stream()
 			.collect(Collectors.toMap(
 					Function.identity(),
-					it -> new RequirementContext(AttributeRequest.EMPTY, null, null, null, null)
+					it -> new RequirementContext(ManagedReferencesBehaviour.ANY, AttributeRequest.EMPTY, null, null, null, null)
 				)
 			);
 	}
@@ -84,7 +85,7 @@ class ReferenceContractSerializablePredicateTest {
 	@Nonnull
 	private static RequirementContext createRequirementContext(String... attributes) {
 		return new RequirementContext(
-			new AttributeRequest(Set.of(attributes), true),
+			ManagedReferencesBehaviour.ANY, new AttributeRequest(Set.of(attributes), true),
 			null, null, null, null
 		);
 	}

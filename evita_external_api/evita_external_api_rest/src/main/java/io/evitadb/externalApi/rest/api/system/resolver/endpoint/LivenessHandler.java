@@ -29,6 +29,8 @@ import io.evitadb.externalApi.http.SuccessEndpointResponse;
 import io.evitadb.externalApi.rest.api.system.dto.LivenessDto;
 import io.evitadb.externalApi.rest.io.JsonRestHandler;
 import io.evitadb.externalApi.rest.io.RestEndpointExchange;
+import io.evitadb.externalApi.rest.io.RestEndpointExecutionContext;
+import io.evitadb.externalApi.rest.metric.event.request.ExecutedEvent;
 
 import javax.annotation.Nonnull;
 import java.util.LinkedHashSet;
@@ -49,7 +51,16 @@ public class LivenessHandler extends JsonRestHandler<SystemRestHandlingContext> 
 	@Nonnull
 	@Override
 	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
-		return CompletableFuture.supplyAsync(() -> new SuccessEndpointResponse(new LivenessDto(true)));
+		return CompletableFuture.supplyAsync(() -> {
+			final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
+			requestExecutedEvent.finishInputDeserialization();
+
+			final LivenessDto result = new LivenessDto(true);
+			requestExecutedEvent.finishOperationExecution();
+			requestExecutedEvent.finishResultSerialization();
+
+			return new SuccessEndpointResponse(result);
+		});
 	}
 
 	@Nonnull

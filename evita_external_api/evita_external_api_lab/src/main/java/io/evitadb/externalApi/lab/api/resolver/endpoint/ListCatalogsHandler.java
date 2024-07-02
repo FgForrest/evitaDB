@@ -31,7 +31,8 @@ import io.evitadb.externalApi.http.SuccessEndpointResponse;
 import io.evitadb.externalApi.rest.api.system.resolver.serializer.CatalogJsonSerializer;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.externalApi.rest.io.JsonRestHandler;
-import io.evitadb.externalApi.rest.io.RestEndpointExchange;
+import io.evitadb.externalApi.rest.io.RestEndpointExecutionContext;
+import io.evitadb.externalApi.rest.metric.event.request.ExecutedEvent;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -57,9 +58,19 @@ public class ListCatalogsHandler extends JsonRestHandler<LabApiHandlingContext> 
 
 	@Nonnull
 	@Override
-	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
-		final Collection<CatalogContract> catalogs = restHandlingContext.getEvita().getCatalogs();
-		return CompletableFuture.supplyAsync(() -> new SuccessEndpointResponse(convertResultIntoSerializableObject(exchange, catalogs)));
+	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
+		final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
+		requestExecutedEvent.finishInputDeserialization();
+
+		final Collection<CatalogContract> catalogs = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
+			restHandlingContext.getEvita().getCatalogs());
+		requestExecutedEvent.finishOperationExecution();
+		return CompletableFuture.supplyAsync(() -> {
+			final JsonNode result = convertResultIntoSerializableObject(executionContext, catalogs);
+			requestExecutedEvent.finishResultSerialization();
+
+			return new SuccessEndpointResponse(result);
+		});
 	}
 
 	@Nonnull
@@ -76,7 +87,7 @@ public class ListCatalogsHandler extends JsonRestHandler<LabApiHandlingContext> 
 
 	@Nonnull
 	@Override
-	protected JsonNode convertResultIntoSerializableObject(@Nonnull RestEndpointExchange exchange, @Nonnull Object catalogs) {
+	protected JsonNode convertResultIntoSerializableObject(@Nonnull RestEndpointExecutionContext exchange, @Nonnull Object catalogs) {
 		Assert.isPremiseValid(
 			catalogs instanceof Collection,
 			() -> new RestInternalError("Expected collection of catalogs, but got `" + catalogs.getClass().getName() + "`.")

@@ -30,7 +30,8 @@ import io.evitadb.externalApi.http.SuccessEndpointResponse;
 import io.evitadb.externalApi.rest.api.system.resolver.serializer.CatalogJsonSerializer;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.externalApi.rest.io.JsonRestHandler;
-import io.evitadb.externalApi.rest.io.RestEndpointExchange;
+import io.evitadb.externalApi.rest.io.RestEndpointExecutionContext;
+import io.evitadb.externalApi.rest.metric.event.request.ExecutedEvent;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -56,9 +57,20 @@ public class ListCatalogsHandler extends JsonRestHandler<SystemRestHandlingConte
 
 	@Nonnull
 	@Override
-	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
-		final Collection<CatalogContract> catalogs = restHandlingContext.getEvita().getCatalogs();
-		return CompletableFuture.supplyAsync(() -> new SuccessEndpointResponse(convertResultIntoSerializableObject(exchange, catalogs)));
+	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
+		final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
+		requestExecutedEvent.finishInputDeserialization();
+
+		return CompletableFuture.supplyAsync(() -> {
+			final Collection<CatalogContract> catalogs = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
+				restHandlingContext.getEvita().getCatalogs());
+			requestExecutedEvent.finishOperationExecution();
+
+			final Object result = convertResultIntoSerializableObject(executionContext, catalogs);
+			requestExecutedEvent.finishResultSerialization();
+
+			return new SuccessEndpointResponse(result);
+		});
 	}
 
 	@Nonnull
@@ -75,7 +87,7 @@ public class ListCatalogsHandler extends JsonRestHandler<SystemRestHandlingConte
 
 	@Nonnull
 	@Override
-	protected Object convertResultIntoSerializableObject(@Nonnull RestEndpointExchange exchange, @Nonnull Object catalogs) {
+	protected Object convertResultIntoSerializableObject(@Nonnull RestEndpointExecutionContext exchange, @Nonnull Object catalogs) {
 		// Collection<CatalogContract>
 		Assert.isPremiseValid(
 			catalogs instanceof Collection,

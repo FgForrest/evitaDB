@@ -61,10 +61,13 @@ module evita.external.api.rest {
 	requires org.reactivestreams;
 	requires io.netty.common;
 	requires io.netty.transport;
+	requires jdk.jfr;
 
 	exports io.evitadb.externalApi.rest;
 	exports io.evitadb.externalApi.rest.io;
 	exports io.evitadb.externalApi.rest.configuration;
+	exports io.evitadb.externalApi.rest.metric.event.request;
+	exports io.evitadb.externalApi.rest.metric.event.instance;
 
 	// these shouldn't be publicly exported, but they are used by the lab module which extends this module
 	exports io.evitadb.externalApi.rest.api.builder to evita.external.api.lab;

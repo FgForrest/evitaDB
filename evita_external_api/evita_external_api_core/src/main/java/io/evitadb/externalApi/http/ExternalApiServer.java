@@ -34,14 +34,20 @@ import io.evitadb.core.Evita;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.certificate.ServerCertificateManager;
+import io.evitadb.externalApi.certificate.ServerCertificateManager.CertificateType;
 import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.configuration.ApiWithSpecificPrefix;
 import io.evitadb.externalApi.configuration.CertificatePath;
+import io.evitadb.externalApi.configuration.CertificateSettings;
 import io.evitadb.externalApi.configuration.HostDefinition;
 import io.evitadb.externalApi.configuration.MtlsConfiguration;
 import io.evitadb.externalApi.configuration.TlsMode;
 import io.evitadb.externalApi.utils.path.PathHandlingService;
+import io.evitadb.externalApi.exception.ExternalApiInternalError;
+import io.evitadb.externalApi.log.NoopAccessLogReceiver;
+import io.evitadb.externalApi.log.Slf4JAccessLogReceiver;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CertificateUtils;
 import io.evitadb.utils.ConsoleWriter;
@@ -74,11 +80,22 @@ import java.security.cert.CertificateFactory;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.ServiceLoader;
 import java.util.ServiceLoader.Provider;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 import static java.util.Optional.empty;
@@ -115,36 +132,54 @@ public class ExternalApiServer implements AutoCloseable {
 	}
 
 	@Nonnull
-	public static CertificatePath initCertificate(final @Nonnull ApiOptions apiOptions, final @Nonnull ServerCertificateManager serverCertificateManager) {
-		final CertificatePath certificatePath = ServerCertificateManager.getCertificatePath(apiOptions.certificate());
-		if (certificatePath.certificate() == null || certificatePath.privateKey() == null) {
-			throw new GenericEvitaInternalError("Either certificate path or its private key path is not set");
-		}
+	public static CertificatePath initCertificate(
+		final @Nonnull ApiOptions apiOptions,
+		final @Nonnull ServerCertificateManager serverCertificateManager
+	) {
+		final CertificatePath certificatePath = ServerCertificateManager.getCertificatePath(apiOptions.certificate())
+			.orElseThrow(() -> new GenericEvitaInternalError("Either certificate path or its private key path is not set"));
 		final File certificateFile = new File(certificatePath.certificate());
 		final File certificateKeyFile = new File(certificatePath.privateKey());
 		if (apiOptions.certificate().generateAndUseSelfSigned()) {
-			final Path certificateFolderPath = serverCertificateManager.getCertificateFolderPath();
-			if (!certificateFolderPath.toFile().exists()) {
-				Assert.isTrue(
-					certificateFolderPath.toFile().mkdirs(),
-					() -> "Cannot create certificate folder path: `" + certificateFolderPath + "`"
-				);
-			}
-			final File rootCaFile = serverCertificateManager.getRootCaCertificatePath().toFile();
-			if (!certificateFile.exists() && !certificateKeyFile.exists() && !rootCaFile.exists()) {
-				try {
-					serverCertificateManager.generateSelfSignedCertificate();
-				} catch (Exception e) {
-					throw new GenericEvitaInternalError(
-						"Failed to generate self-signed certificate: " + e.getMessage(),
-						"Failed to generate self-signed certificate",
-						e
+			final CertificateType[] certificateTypes = apiOptions.endpoints()
+				.values()
+				.stream()
+				.flatMap(
+					it -> Stream.of(
+							it.isEnabled() && it.isTlsEnabled() ? CertificateType.SERVER : null,
+							it.isEnabled() && it.isMtlsEnabled() ? CertificateType.CLIENT : null
+						).filter(Objects::nonNull)
+				)
+				.distinct()
+				.toArray(CertificateType[]::new);
+
+			// if no end-point requires any certificate skip generation
+			if (ArrayUtils.isEmpty(certificateTypes)) {
+				log.info("No end-point is configured to use TLS or mTLS. Skipping certificate generation regardless `generateAndUseSelfSigned` is set to true.");
+			} else {
+				final Path certificateFolderPath = serverCertificateManager.getCertificateFolderPath();
+				if (!certificateFolderPath.toFile().exists()) {
+					Assert.isTrue(
+						certificateFolderPath.toFile().mkdirs(),
+						() -> "Cannot create certificate folder path: `" + certificateFolderPath + "`"
 					);
 				}
-			} else if (!certificateFile.exists() || !certificateKeyFile.exists() || !rootCaFile.exists()) {
-				throw new EvitaInvalidUsageException("One of essential certificate files is missing. Please either " +
-					"provide all of these files or delete all files in the configured certificate folder and try again."
-				);
+				final File rootCaFile = serverCertificateManager.getRootCaCertificatePath().toFile();
+				if (!certificateFile.exists() && !certificateKeyFile.exists() && !rootCaFile.exists()) {
+					try {
+						serverCertificateManager.generateSelfSignedCertificate(certificateTypes);
+					} catch (Exception e) {
+						throw new GenericEvitaInternalError(
+							"Failed to generate self-signed certificate: " + e.getMessage(),
+							"Failed to generate self-signed certificate",
+							e
+						);
+					}
+				} else if (!certificateFile.exists() || !certificateKeyFile.exists() || !rootCaFile.exists()) {
+					throw new EvitaInvalidUsageException("One of the essential certificate files is missing. Please either " +
+						"provide all of these files or delete all files in the configured certificate folder and try again."
+					);
+				}
 			}
 		} else {
 			if (!certificateFile.exists() || !certificateKeyFile.exists()) {
@@ -242,6 +277,7 @@ public class ExternalApiServer implements AutoCloseable {
 		@SuppressWarnings("rawtypes") @Nonnull Collection<ExternalApiProviderRegistrar> externalApiProviders,
 		@Nonnull ServerBuilder serverBuilder
 	) {
+		//noinspection rawtypes
 		return (Map) externalApiProviders
 			.stream()
 			.sorted(Comparator.comparingInt(ExternalApiProviderRegistrar::getOrder))
@@ -283,8 +319,21 @@ public class ExternalApiServer implements AutoCloseable {
 	) {
 		this.apiOptions = apiOptions;
 
-		final ServerCertificateManager serverCertificateManager = new ServerCertificateManager(apiOptions.certificate());
-		final CertificatePath certificatePath = initCertificate(apiOptions, serverCertificateManager);
+		final Undertow.Builder rootServerBuilder = Undertow.builder();
+
+		final CertificateSettings certificateSettings = apiOptions.certificate();
+		final ServerCertificateManager serverCertificateManager = new ServerCertificateManager(certificateSettings);
+		final CertificatePath certificatePath = certificateSettings.generateAndUseSelfSigned() ?
+			initCertificate(apiOptions, serverCertificateManager) :
+			(
+				certificateSettings.custom().certificate() != null && !certificateSettings.custom().certificate().isBlank() &&
+					certificateSettings.custom().privateKey() != null && !certificateSettings.custom().privateKey().isBlank() ?
+					new CertificatePath(
+						certificateSettings.custom().certificate(),
+						certificateSettings.custom().privateKey(),
+						certificateSettings.custom().privateKeyPassword()
+					) : null
+			);
 
 		this.registeredApiProviders = registerApiProviders(evita, this, apiOptions, externalApiProviders, serverBuilder);
 		if (this.registeredApiProviders.isEmpty()) {
@@ -301,6 +350,7 @@ public class ExternalApiServer implements AutoCloseable {
 		}
 
 		this.server = serverBuilder.build();
+		registeredApiProviders.values().forEach(ExternalApiProvider::afterAllInitialized);
 	}
 
 	/**
@@ -341,6 +391,7 @@ public class ExternalApiServer implements AutoCloseable {
 		try {
 			registeredApiProviders.values().forEach(ExternalApiProvider::beforeStop);
 			server.stop();
+			//TODO tpz await termination with 5s
 			//server.blockUntilShutdown();
 			ConsoleWriter.write("External APIs stopped.\n");
 		} catch (Exception ex) {
@@ -461,7 +512,7 @@ public class ExternalApiServer implements AutoCloseable {
 			}
 			ConsoleWriter.write("\n", ConsoleColor.WHITE);
 
-			if (registeredApiProvider instanceof ExternalApiProviderWithConsoleOutput consoleOutput) {
+			if (registeredApiProvider instanceof ExternalApiProviderWithConsoleOutput<?> consoleOutput) {
 				consoleOutput.writeToConsole();
 			}
 		}
@@ -470,10 +521,10 @@ public class ExternalApiServer implements AutoCloseable {
 			(hostDefinition, hostBuilderWithRouter) ->
 				hostBuilderWithRouter.applyToAll(virtualHostBuilder ->
 					virtualHostBuilder.virtualHostBuilder.service(
-						"glob:/**",
-						hostBuilderWithRouter.getVirtualHostBuilderWithRouter(hostDefinition).pathHandlingService
-					)
-					.decorator(LoggingService.newDecorator())
+							"glob:/**",
+							hostBuilderWithRouter.getVirtualHostBuilderWithRouter(hostDefinition).pathHandlingService
+						)
+						.decorator(LoggingService.newDecorator())
 				)
 		);
 	}

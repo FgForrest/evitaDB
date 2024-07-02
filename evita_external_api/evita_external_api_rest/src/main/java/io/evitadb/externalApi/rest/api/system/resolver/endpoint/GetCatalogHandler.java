@@ -23,15 +23,19 @@
 
 package io.evitadb.externalApi.rest.api.system.resolver.endpoint;
 
+import io.evitadb.api.CatalogContract;
 import com.linecorp.armeria.common.HttpMethod;
 import io.evitadb.externalApi.http.EndpointResponse;
 import io.evitadb.externalApi.http.NotFoundEndpointResponse;
 import io.evitadb.externalApi.http.SuccessEndpointResponse;
 import io.evitadb.externalApi.rest.api.system.model.CatalogsHeaderDescriptor;
+import io.evitadb.externalApi.rest.io.RestEndpointExecutionContext;
+import io.evitadb.externalApi.rest.metric.event.request.ExecutedEvent;
 import io.evitadb.externalApi.rest.io.RestEndpointExchange;
 
 import javax.annotation.Nonnull;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
@@ -48,12 +52,25 @@ public class GetCatalogHandler extends CatalogHandler {
 
 	@Nonnull
 	@Override
-	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
+	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
+		final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
+
 		final Map<String, Object> parameters = getParametersFromRequest(exchange);
+		requestExecutedEvent.finishInputDeserialization();
+
 		final String catalogName = (String) parameters.get(CatalogsHeaderDescriptor.NAME.name());
-		return CompletableFuture.supplyAsync(() -> restHandlingContext.getEvita().getCatalogInstance(catalogName)
-			.map(it -> (EndpointResponse) new SuccessEndpointResponse(convertResultIntoSerializableObject(exchange, it)))
-			.orElse(new NotFoundEndpointResponse()));
+		return CompletableFuture.supplyAsync(() -> {
+			final Optional<CatalogContract> catalog = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
+				restHandlingContext.getEvita().getCatalogInstance(catalogName));
+			requestExecutedEvent.finishOperationExecution();
+
+			final Optional<Object> result = catalog.map(it -> convertResultIntoSerializableObject(executionContext, it));
+			requestExecutedEvent.finishResultSerialization();
+
+			return result
+				.map(it -> (EndpointResponse) new SuccessEndpointResponse(it))
+				.orElse(new NotFoundEndpointResponse());
+		});
 	}
 
 	@Nonnull

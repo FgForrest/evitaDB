@@ -41,7 +41,8 @@ import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.Requi
 import io.evitadb.externalApi.rest.exception.RestInvalidArgumentException;
 import io.evitadb.externalApi.rest.exception.RestRequiredParameterMissingException;
 import io.evitadb.externalApi.rest.io.JsonRestHandler;
-import io.evitadb.externalApi.rest.io.RestEndpointExchange;
+import io.evitadb.externalApi.rest.io.RestEndpointExecutionContext;
+import io.evitadb.externalApi.rest.metric.event.request.ExecutedEvent;
 import io.evitadb.utils.ArrayUtils;
 import lombok.extern.slf4j.Slf4j;
 
@@ -106,32 +107,37 @@ public abstract class QueryOrientedEntitiesHandler extends JsonRestHandler<Colle
 	}
 
 	@Nonnull
-	protected CompletableFuture<Query> resolveQuery(@Nonnull RestEndpointExchange exchange) {
-		return parseRequestBody(exchange, QueryEntityRequestDto.class)
+	protected CompletableFuture<Query> resolveQuery(@Nonnull RestEndpointExecutionContext executionContext) {
+		final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
+		return parseRequestBody(executionContext, QueryEntityRequestDto.class)
 			.thenApply(requestData -> {
-				final FilterBy filterBy = requestData.getFilterBy()
-					.map(container -> (FilterBy) filterConstraintResolver.resolve(FetchEntityRequestDescriptor.FILTER_BY.name(), container))
-					.orElse(null);
-				final OrderBy orderBy = requestData.getOrderBy()
-					.map(container -> (OrderBy) orderConstraintResolver.resolve(FetchEntityRequestDescriptor.ORDER_BY.name(), container))
-					.orElse(null);
-				final Require require = requestData.getRequire()
-					.map(container -> (Require) requireConstraintResolver.resolve(FetchEntityRequestDescriptor.REQUIRE.name(), container))
-					.orElse(null);
+				requestExecutedEvent.finishInputDeserialization();
 
-				return query(
-					collection(restHandlingContext.getEntityType()),
-					addLocaleIntoFilterByWhenUrlPathLocalized(exchange, filterBy),
-					orderBy,
-					require
-				);
+				return requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() -> {
+					final FilterBy filterBy = requestData.getFilterBy()
+						.map(container -> (FilterBy) filterConstraintResolver.resolve(FetchEntityRequestDescriptor.FILTER_BY.name(), container))
+						.orElse(null);
+					final OrderBy orderBy = requestData.getOrderBy()
+						.map(container -> (OrderBy) orderConstraintResolver.resolve(FetchEntityRequestDescriptor.ORDER_BY.name(), container))
+						.orElse(null);
+					final Require require = requestData.getRequire()
+						.map(container -> (Require) requireConstraintResolver.resolve(FetchEntityRequestDescriptor.REQUIRE.name(), container))
+						.orElse(null);
+
+					return query(
+						collection(restHandlingContext.getEntityType()),
+						addLocaleIntoFilterByWhenUrlPathLocalized(executionContext, filterBy),
+						orderBy,
+						require
+					);
+				});
 			});
 	}
 
 	@Nonnull
-	protected FilterBy addLocaleIntoFilterByWhenUrlPathLocalized(@Nonnull EndpointRequest request, @Nullable FilterBy filterBy) {
+	protected FilterBy addLocaleIntoFilterByWhenUrlPathLocalized(@Nonnull RestEndpointExecutionContext executionContext, @Nullable FilterBy filterBy) {
 		if (restHandlingContext.isLocalized()) {
-			final Map<String, Object> parametersFromRequest = getParametersFromRequest(request);
+			final Map<String, Object> parametersFromRequest = getParametersFromRequest(executionContext);
 			final Locale locale = (Locale) parametersFromRequest.get(FetchEntityEndpointHeaderDescriptor.LOCALE.name());
 			if (locale == null) {
 				throw new RestRequiredParameterMissingException("Missing LOCALE in URL path.");

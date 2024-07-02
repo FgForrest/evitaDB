@@ -30,6 +30,8 @@ import io.evitadb.externalApi.rest.api.catalog.dataApi.dto.CollectionPointer;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.CollectionsEndpointHeaderDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.resolver.endpoint.CatalogRestHandlingContext;
 import io.evitadb.externalApi.rest.io.JsonRestHandler;
+import io.evitadb.externalApi.rest.io.RestEndpointExecutionContext;
+import io.evitadb.externalApi.rest.metric.event.request.ExecutedEvent;
 import io.evitadb.externalApi.rest.io.RestEndpointExchange;
 
 import javax.annotation.Nonnull;
@@ -53,19 +55,30 @@ public class CollectionsHandler extends JsonRestHandler<CatalogRestHandlingConte
 	@Nonnull
 	@Override
 	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
+		final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
+
 		final Map<String, Object> parametersFromRequest = getParametersFromRequest(exchange);
 		final Boolean withCounts = (Boolean) parametersFromRequest.get(CollectionsEndpointHeaderDescriptor.ENTITY_COUNT.name());
 
-		final List<CollectionPointer> collections = exchange.session()
-			.getAllEntityTypes()
-			.stream()
-			.map(entityType -> new CollectionPointer(
-				entityType,
-				withCounts != null && withCounts ? exchange.session().getEntityCollectionSize(entityType) : null
-			))
-			.toList();
+		requestExecutedEvent.finishInputDeserialization();
 
-		return CompletableFuture.supplyAsync(() -> new SuccessEndpointResponse(convertResultIntoSerializableObject(exchange, collections)));
+		final List<CollectionPointer> collections = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
+			executionContext.session()
+				.getAllEntityTypes()
+				.stream()
+				.map(entityType -> new CollectionPointer(
+					entityType,
+					withCounts != null && withCounts ? executionContext.session().getEntityCollectionSize(entityType) : null
+				))
+				.toList());
+		requestExecutedEvent.finishOperationExecution();
+
+		return CompletableFuture.supplyAsync(() -> {
+			final Object result = convertResultIntoSerializableObject(executionContext, collections);
+			requestExecutedEvent.finishResultSerialization();
+
+			return new SuccessEndpointResponse(result);
+		});
 	}
 
 	@Nonnull

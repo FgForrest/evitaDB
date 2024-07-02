@@ -206,6 +206,12 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 	 */
 	private final TransactionalReference<CatalogSchemaDecorator> schema;
 	/**
+	 * Contains unique catalog id that doesn't change with catalog schema changes - such as renaming.
+	 * The id is assigned to the catalog when it is created and never changes.
+	 */
+	@Nonnull @Getter
+	private final UUID catalogId;
+	/**
 	 * Indicates state in which Catalog operates.
 	 *
 	 * @see CatalogState
@@ -281,7 +287,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 	) {
 		final SubmissionPublisher<ConflictResolutionTransactionTask> txPublisher = new SubmissionPublisher<>(scheduler, transactionOptions.maxQueueSize());
 		final ConflictResolutionTransactionStage stage1 = new ConflictResolutionTransactionStage(scheduler, transactionOptions.maxQueueSize(), catalog);
-		final WalAppendingTransactionStage stage2 = new WalAppendingTransactionStage(scheduler, transactionOptions.maxQueueSize(), catalog);
+		final WalAppendingTransactionStage stage2 = new WalAppendingTransactionStage(scheduler, transactionOptions.maxQueueSize(), catalog, stage1::notifyCatalogVersionDropped);
 		final TrunkIncorporationTransactionStage stage3 = new TrunkIncorporationTransactionStage(scheduler, transactionOptions.maxQueueSize(), catalog, transactionOptions.flushFrequencyInMillis());
 		final CatalogSnapshotPropagationTransactionStage stage4 = new CatalogSnapshotPropagationTransactionStage(newCatalogVersionConsumer);
 
@@ -317,10 +323,11 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 			)
 			.orElseThrow(StorageImplementationNotFoundException::new);
 
+		this.catalogId = UUID.randomUUID();
 		final CatalogStoragePartPersistenceService storagePartPersistenceService = this.persistenceService.getStoragePartPersistenceService(catalogVersion);
 		storagePartPersistenceService.putStoragePart(catalogVersion, new CatalogSchemaStoragePart(getInternalSchema()));
 		this.persistenceService.storeHeader(
-			CatalogState.WARMING_UP, catalogVersion, 0, null,
+			this.catalogId, CatalogState.WARMING_UP, catalogVersion, 0, null,
 			Collections.emptyList()
 		);
 
@@ -366,6 +373,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 			this.persistenceService.getLastCatalogVersion()
 		);
 		final long catalogVersion = catalogHeader.version();
+		this.catalogId = catalogHeader.catalogId();
 		this.versionId = new TransactionalReference<>(catalogVersion);
 		this.state = catalogHeader.catalogState();
 		// initialize container buffer
@@ -471,6 +479,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		@Nonnull Catalog previousCatalogVersion,
 		@Nonnull TracingContext tracingContext
 	) {
+		this.catalogId = previousCatalogVersion.catalogId;
 		this.tracingContext = tracingContext;
 		this.versionId = new TransactionalReference<>(catalogVersion);
 		this.state = catalogState;
@@ -862,6 +871,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 			if (warmingUpState && changeOccurred) {
 				// store catalog header
 				this.persistenceService.storeHeader(
+					this.catalogId,
 					getCatalogState(),
 					this.versionId.getId(),
 					this.entityTypeSequence.get(),
@@ -1065,7 +1075,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		@Nonnull CompletableFuture<Long> transactionFinalizationFuture
 	) {
 		try {
-			transactionalPipeline.submit(
+			transactionalPipeline.offer(
 				new ConflictResolutionTransactionTask(
 					getName(),
 					transactionId,
@@ -1074,7 +1084,15 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 					walPersistenceService.getWalReference(),
 					commitBehaviour,
 					transactionFinalizationFuture
-				)
+				),
+				(subscriber, task) -> {
+					transactionFinalizationFuture.completeExceptionally(
+						new TransactionException(
+							"Conflict resolution transaction queue is full! Transaction cannot be processed at the moment."
+						)
+					);
+					return false;
+				}
 			);
 		} catch (Exception e) {
 			if (e.getCause() instanceof TransactionException txException) {
@@ -1130,6 +1148,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 				this.dataStoreBuffer.getTrappedIndexChanges()
 			);
 			this.persistenceService.storeHeader(
+				this.catalogId,
 				CatalogState.ALIVE,
 				catalogVersion,
 				this.entityTypeSequence.get(),
@@ -1193,6 +1212,13 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 	 */
 	public void emitStartObservabilityEvents() {
 		this.persistenceService.emitStartObservabilityEvents();
+	}
+
+	/**
+	 * Method for internal use. Allows to emit events clearing the information about deleted catalog.
+	 */
+	public void emitDeleteObservabilityEvents() {
+		this.persistenceService.emitDeleteObservabilityEvents();
 	}
 
 	/**
@@ -1260,6 +1286,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 				this.dataStoreBuffer.getTrappedIndexChanges()
 			);
 			this.persistenceService.storeHeader(
+				this.catalogId,
 				this.goingLive.get() ? CatalogState.ALIVE : getCatalogState(),
 				0L,
 				this.entityTypeSequence.get(),

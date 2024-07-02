@@ -39,6 +39,7 @@ import io.evitadb.utils.CollectionUtils;
 
 import java.util.Collection;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * This {@link Serializer} implementation reads/writes {@link CatalogHeader} from/to binary format.
@@ -51,6 +52,7 @@ public class CatalogHeaderSerializer extends AbstractPersistentStorageHeaderSeri
 	public void write(Kryo kryo, Output output, CatalogHeader object) {
 		output.writeVarInt(object.storageProtocolVersion(), true);
 		output.writeString(object.catalogName());
+		kryo.writeObject(output, object.catalogId());
 		output.writeVarLong(object.version(), true);
 		output.writeVarInt(object.lastEntityCollectionPrimaryKey(), true);
 		output.writeDouble(object.activeRecordShare());
@@ -91,6 +93,7 @@ public class CatalogHeaderSerializer extends AbstractPersistentStorageHeaderSeri
 			)
 		);
 		final String catalogName = input.readString();
+		final UUID catalogId = kryo.readObject(input, UUID.class);
 		final long version = input.readVarLong(true);
 		final int lastEntityCollectionPrimaryKey = input.readVarInt(true);
 		final double activeRecordShare = input.readDouble();
@@ -137,6 +140,7 @@ public class CatalogHeaderSerializer extends AbstractPersistentStorageHeaderSeri
 			walFileReference,
 			collectionFileIndex,
 			compressedKeys,
+			catalogId,
 			catalogName,
 			catalogState,
 			lastEntityCollectionPrimaryKey,

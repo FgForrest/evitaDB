@@ -25,7 +25,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>io.evitadb</groupId>
 	<artifactId>evita_root</artifactId>
-	<version>2024.6-SNAPSHOT</version>
+	<version>2024.9-SNAPSHOT</version>
 	<packaging>pom</packaging>
 	<name>evitaDB - Root &amp; modules aggregator</name>
 	<url>https://evitadb.io</url>
@@ -464,10 +464,7 @@
 					<jdkToolchain>
 						<version>${java.version}</version>
 					</jdkToolchain>
-<!--
-					TODO TPZ: revert
--->
-					<argLine>-Xmx4g -Duser.country=US, -Duser.language=us -Dfile.encoding=${project.build.sourceEncoding} --add-opens java.base/java.lang.invoke=ALL-UNNAMED --add-opens java.base/java.lang.invoke=ALL-UNNAMED --add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.math=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED</argLine>
+					<argLine>${surefireArgLine} -Xmx4g -Duser.country=US, -Duser.language=us -Dfile.encoding=${project.build.sourceEncoding} --add-opens java.base/java.lang.invoke=ALL-UNNAMED --add-opens java.base/java.lang.invoke=ALL-UNNAMED --add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.math=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED</argLine>
 				</configuration>
 			</plugin>
 			<plugin>

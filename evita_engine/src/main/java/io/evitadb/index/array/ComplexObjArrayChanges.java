@@ -600,7 +600,7 @@ class ComplexObjArrayChanges<T extends TransactionalObject<T, ?> & Comparable<T>
 		// there is already insertion recorded for requested position
 		final T[] insertedValuesBefore = insertedValues[index];
 		// compute internal place for the newly added record
-		final InsertionPosition innerPosition = ArrayUtils.computeInsertPositionOfObjInOrderedArray(recordId, insertedValuesBefore);
+		final InsertionPosition innerPosition = ArrayUtils.computeInsertPositionOfObjInOrderedArray(recordId, insertedValuesBefore, comparator);
 		if (innerPosition.alreadyPresent()) {
 			// there already is existing record on the place - if we have combined combine the objects, otherwise ignore action
 			if (combiner != null) {
@@ -740,7 +740,7 @@ class ComplexObjArrayChanges<T extends TransactionalObject<T, ?> & Comparable<T>
 				ofNullable(reducedValue).ifPresent(TransactionalObject::removeLayer);
 
 				// remove the record from the insertion set
-				final T[] insertedValuesAfter = ArrayUtils.removeRecordFromOrderedArray(recordId, insertedValuesBefore);
+				final T[] insertedValuesAfter = ArrayUtils.removeRecordFromOrderedArray(recordId, insertedValuesBefore, comparator);
 				insertedValues[insertionIndex] = insertedValuesAfter;
 
 				// if there are no records at the insertion set left after record removal

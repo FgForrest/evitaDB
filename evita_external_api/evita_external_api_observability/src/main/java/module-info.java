@@ -79,6 +79,9 @@ module evita.external.api.observability {
 	requires net.bytebuddy;
 	requires org.bouncycastle.provider;
 	requires java.sql;
+	requires evita.external.api.grpc;
+	requires evita.external.api.graphql;
+	requires evita.external.api.rest;
 	requires io.prometheus.metrics.model;
 	requires com.linecorp.armeria;
 	requires io.netty.common;

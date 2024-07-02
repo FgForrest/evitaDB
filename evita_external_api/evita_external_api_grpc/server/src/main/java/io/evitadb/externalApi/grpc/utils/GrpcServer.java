@@ -57,6 +57,9 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStream;
 import java.security.cert.CertificateFactory;
+import java.util.Optional;
+
+import static java.util.Optional.empty;
 
 import static com.linecorp.armeria.common.SessionProtocol.HTTPS;
 import static com.linecorp.armeria.common.SessionProtocol.HTTP;
@@ -93,71 +96,55 @@ public class GrpcServer {
 	 */
 	private void setUpServer(@Nonnull Evita evita, @Nonnull ApiOptions apiOptions, @Nonnull GrpcConfig config) {
 		final HostDefinition[] hosts = config.getHost();
-		final CertificatePath certificatePath = ServerCertificateManager.getCertificatePath(apiOptions.certificate());
-		if (certificatePath.certificate() == null || certificatePath.privateKey() == null) {
-			throw new GenericEvitaInternalError("Certificate path is not set.");
-		}
-		final ServerBuilder serverBuilder = Server.builder()
-			.port(hosts[0].port(), HTTP, HTTPS)
-			.tls(new File(certificatePath.certificate()), new File(certificatePath.privateKey()), certificatePath.privateKeyPassword());
+		final Optional<CertificatePath> optionalCertificatePath = config.isTlsEnabled() ?
+			ServerCertificateManager.getCertificatePath(apiOptions.certificate()) : empty();
 
-		final GrpcServiceBuilder grpcServiceBuilder = GrpcService.builder()
+		final NettyServerBuilder serverBuilder;
+		if (optionalCertificatePath.isPresent()) {
+			final ServerCredentials tlsServerCredentials;
+			try {
+				final CertificatePath certificatePath = optionalCertificatePath.get();
+				final TlsServerCredentials.Builder tlsServerCredentialsBuilder = TlsServerCredentials.newBuilder();
+				tlsServerCredentialsBuilder.keyManager(new File(certificatePath.certificate()), new File(certificatePath.privateKey()), certificatePath.privateKeyPassword());
+				final MtlsConfiguration mtlsConfiguration = config.getMtlsConfiguration();
+				if (mtlsConfiguration != null && Boolean.TRUE.equals(mtlsConfiguration.enabled())) {
+					if (apiOptions.certificate().generateAndUseSelfSigned()) {
+						tlsServerCredentialsBuilder.trustManager(
+							apiOptions.certificate().getFolderPath()
+								.resolve(CertificateUtils.getGeneratedRootCaCertificateFileName())
+								.toFile()
+						);
+					}
+					tlsServerCredentialsBuilder.clientAuth(TlsServerCredentials.ClientAuth.REQUIRE);
+					final CertificateFactory cf = CertificateFactory.getInstance("X.509");
+					for (String clientCert : mtlsConfiguration.allowedClientCertificatePaths()) {
+						tlsServerCredentialsBuilder.trustManager(new FileInputStream(clientCert));
+						try (InputStream in = new FileInputStream(clientCert)) {
+							log.info("Whitelisted client's certificate fingerprint: {}", CertificateUtils.getCertificateFingerprint(cf.generateCertificate(in)));
+						}
+					}
+				} else {
+					tlsServerCredentialsBuilder.clientAuth(TlsServerCredentials.ClientAuth.OPTIONAL);
+				}
+				tlsServerCredentials = tlsServerCredentialsBuilder.build();
+			} catch (Exception e) {
+				throw new GenericEvitaInternalError(
+					"Failed to create gRPC server credentials with provided certificate and private key: " + e.getMessage(),
+					"Failed to create gRPC server credentials with provided certificate and private key.",
+					e
+				);
+			}
+			serverBuilder = NettyServerBuilder.forAddress(new InetSocketAddress(hosts[0].host(), hosts[0].port()), tlsServerCredentials);
+		} else {
+			serverBuilder = NettyServerBuilder.forAddress(new InetSocketAddress(hosts[0].host(), hosts[0].port()));
+		}
+		serverBuilder
+			.executor(evita.getExecutor())
 			.addService(new EvitaService(evita))
 			.addService(new EvitaSessionService(evita))
-			.addService(ProtoReflectionService.newInstance())
-			.intercept(new ServerSessionInterceptor(evita, config.getTlsMode()))
-			.intercept(new GlobalExceptionHandlerInterceptor())
 			.intercept(new ObservabilityInterceptor(apiOptions.accessLog()))
-			.supportedSerializationFormats(GrpcSerializationFormats.values())
-			.enableUnframedRequests(true);
-
-		final GrpcService grpcService = grpcServiceBuilder.build();
-
-		final CorsServiceBuilder corsBuilder =
-			CorsService.builderForAnyOrigin()
-				.allowRequestMethods(HttpMethod.POST) // Allow POST method.
-				// Allow Content-type and X-GRPC-WEB headers.
-				.allowAllRequestHeaders(true)
-				/*.allowAllRequestHeaders(HttpHeaderNames.CONTENT_TYPE,
-						HttpHeaderNames.of("X-GRPC-WEB"), "X-User-Agent")*/
-				// Expose trailers of the HTTP response to the client.
-				.exposeHeaders(GrpcHeaderNames.GRPC_STATUS,
-					GrpcHeaderNames.GRPC_MESSAGE,
-					GrpcHeaderNames.ARMERIA_GRPC_THROWABLEPROTO_BIN);
-
-		serverBuilder.tlsCustomizer(t -> {
-				try {
-					final MtlsConfiguration mtlsConfiguration = config.getMtlsConfiguration();
-					if (mtlsConfiguration != null && Boolean.TRUE.equals(mtlsConfiguration.enabled())) {
-						if (apiOptions.certificate().generateAndUseSelfSigned()) {
-							t.trustManager(
-								apiOptions.certificate().getFolderPath()
-									.resolve(CertificateUtils.getGeneratedRootCaCertificateFileName())
-									.toFile()
-							);
-						}
-						t.clientAuth(ClientAuth.REQUIRE);
-						final CertificateFactory cf = CertificateFactory.getInstance("X.509");
-						for (String clientCert : mtlsConfiguration.allowedClientCertificatePaths()) {
-							t.trustManager(new FileInputStream(clientCert));
-							try (InputStream in = new FileInputStream(clientCert)) {
-								log.info("Whitelisted client's certificate fingerprint: {}", CertificateUtils.getCertificateFingerprint(cf.generateCertificate(in)));
-							}
-						}
-					} else {
-						t.clientAuth(ClientAuth.OPTIONAL);
-					}
-				} catch (Exception e) {
-					throw new GenericEvitaInternalError(
-						"Failed to create gRPC server credentials with provided certificate and private key: " + e.getMessage(),
-						"Failed to create gRPC server credentials with provided certificate and private key.",
-						e
-					);
-				}
-			}
-		)
-		.blockingTaskExecutor(evita.getExecutor(), true)
-		.service(grpcService, corsBuilder.newDecorator());
+			.intercept(new ServerSessionInterceptor(evita))
+			.intercept(new GlobalExceptionHandlerInterceptor());
 
 		server = serverBuilder.build();
 	}

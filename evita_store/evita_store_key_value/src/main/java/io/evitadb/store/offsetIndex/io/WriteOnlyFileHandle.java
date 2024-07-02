@@ -300,7 +300,15 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 
 	@Override
 	public void close() {
-		this.observableOutputKeeper.close(this.targetFile);
+		try {
+			this.handleLock.lockInterruptibly();
+			this.observableOutputKeeper.close(this.targetFile);
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+			throw new StorageException("Failed to close file due to interrupt!");
+		} finally {
+			this.handleLock.unlock();
+		}
 	}
 
 	@Override

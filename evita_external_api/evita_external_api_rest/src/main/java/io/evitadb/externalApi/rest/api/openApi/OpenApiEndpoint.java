@@ -116,9 +116,9 @@ public abstract class OpenApiEndpoint<HC extends RestHandlingContext> {
 	 */
 	@Nonnull
 	public abstract RestEndpointHandler<HC> toHandler(@Nonnull ObjectMapper objectMapper,
-	                                                     @Nonnull Evita evita,
-	                                                     @Nonnull OpenAPI openApi,
-	                                                     @Nonnull Map<String, Class<? extends Enum<?>>> enumMapping);
+	                                                  @Nonnull Evita evita,
+	                                                  @Nonnull OpenAPI openApi,
+	                                                  @Nonnull Map<String, Class<? extends Enum<?>>> enumMapping);
 
 	/**
 	 * Build {@link Operation} describing this endpoint in OpenAPI.

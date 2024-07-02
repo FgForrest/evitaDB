@@ -81,12 +81,6 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	String WAL_FILE_SUFFIX = ".wal";
 
 	/**
-	 * Method for internal use - allows emitting start events when observability facilities are already initialized.
-	 * If we didn't postpone this initialization, events would become lost.
-	 */
-	void emitStartObservabilityEvents();
-
-	/**
 	 * Returns name of the bootstrap file that contains lead information to fetching the catalog header in fixed record
 	 * size format. This file can be traversed by jumping on expected offsets.
 	 */
@@ -160,6 +154,17 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	}
 
 	/**
+	 * Method for internal use - allows emitting start events when observability facilities are already initialized.
+	 * If we didn't postpone this initialization, events would become lost.
+	 */
+	void emitStartObservabilityEvents();
+
+	/**
+	 * Method for internal use. Allows to emit events clearing the information about deleted catalog.
+	 */
+	void emitDeleteObservabilityEvents();
+
+	/**
 	 * Retrieves the {@link CatalogStoragePartPersistenceService} associated with this {@link CatalogPersistenceService}.
 	 *
 	 * @param catalogVersion the version of the catalog
@@ -177,7 +182,7 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 
 	/**
 	 * Returns {@link CatalogHeader} that is used for this service. The header is initialized in the instance constructor
-	 * and (because it's immutable) is exchanged with each {@link #storeHeader(CatalogState, long, int, TransactionMutation, List)}  method call.
+	 * and (because it's immutable) is exchanged with each {@link #storeHeader(UUID, CatalogState, long, int, TransactionMutation, List)}  method call.
 	 *
 	 * @param catalogVersion the version of the catalog
 	 * @return the header of the catalog
@@ -203,6 +208,7 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	/**
 	 * Serializes all {@link EntityCollection} of the catalog to the persistent storage.
 	 *
+	 * @param catalogId                      the id of the catalog which doesn't change with catalog rename
 	 * @param catalogState                   the state of the catalog
 	 * @param catalogVersion                 the version of the catalog
 	 * @param lastEntityCollectionPrimaryKey the last primary key of the entity collection
@@ -213,6 +219,7 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	 * @throws UnexpectedIOException       in case of any unknown IOException
 	 */
 	void storeHeader(
+		@Nonnull UUID catalogId,
 		@Nonnull CatalogState catalogState,
 		long catalogVersion,
 		int lastEntityCollectionPrimaryKey,
@@ -382,7 +389,7 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	/**
 	 * We need to forget all volatile data when the data written to catalog aren't going to be committed (incorporated
 	 * in the final state). Usually the data written by {@link #getStoragePartPersistenceService(long)}  are immediately
-	 * written to the disk and are volatile until {@link #storeHeader(CatalogState, long, int, TransactionMutation, List)}
+	 * written to the disk and are volatile until {@link #storeHeader(UUID, CatalogState, long, int, TransactionMutation, List)}
 	 * is called. But those data can be read within particular transaction from the volatile storage and we need to
 	 * forget them when the transaction is rolled back.
 	 */

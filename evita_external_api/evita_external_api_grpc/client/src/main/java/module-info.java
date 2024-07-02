@@ -6,7 +6,6 @@ module evita.java.driver {
 
 	exports io.evitadb.driver;
 	exports io.evitadb.driver.config;
-	exports io.evitadb.driver.certificate;
 	exports io.evitadb.driver.trace;
 
 	requires static jsr305;

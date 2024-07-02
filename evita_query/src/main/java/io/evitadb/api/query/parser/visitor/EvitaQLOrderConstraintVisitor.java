@@ -50,7 +50,7 @@ import java.util.Optional;
  */
 public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseConstraintVisitor<OrderConstraint> {
 
-	protected final EvitaQLClassifierTokenVisitor classifierTokenVisitor = new EvitaQLClassifierTokenVisitor();
+	protected final EvitaQLValueTokenVisitor stringValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(String.class);
 	protected final EvitaQLValueTokenVisitor comparableValueTokenVisitor = EvitaQLValueTokenVisitor.withComparableTypesAllowed();
 	protected final EvitaQLValueTokenVisitor intValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(
 		byte.class,
@@ -106,7 +106,7 @@ public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseConstraintVisitor<
 		return parse(
 			ctx,
 			() -> {
-				final String attributeName = ctx.args.classifier.accept(classifierTokenVisitor).asSingleClassifier();
+				final String attributeName = ctx.args.classifier.accept(stringValueTokenVisitor).asString();
 				if (ctx.args.value == null) {
 					return new AttributeNatural(attributeName);
 				} else {
@@ -126,7 +126,7 @@ public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseConstraintVisitor<
 		return parse(
 			ctx,
 			() -> new AttributeSetExact(
-				ctx.args.attributeName.accept(classifierTokenVisitor).asSingleClassifier(),
+				ctx.args.attributeName.accept(stringValueTokenVisitor).asString(),
 				ctx.args.attributeValues.accept(comparableValueTokenVisitor).asSerializableArray()
 			)
 		);
@@ -137,7 +137,7 @@ public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseConstraintVisitor<
 		return parse(
 			ctx,
 			() -> new AttributeSetInFilter(
-				ctx.args.classifier.accept(classifierTokenVisitor).asSingleClassifier()
+				ctx.args.classifier.accept(stringValueTokenVisitor).asString()
 			)
 		);
 	}
@@ -170,7 +170,7 @@ public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseConstraintVisitor<
 		return parse(
 			ctx,
 			() -> new ReferenceProperty(
-				ctx.args.classifier.accept(classifierTokenVisitor).asSingleClassifier(),
+				ctx.args.classifier.accept(stringValueTokenVisitor).asString(),
 				ctx.args.constrains
 					.stream()
 					.map(c -> visitChildConstraint(c, OrderConstraint.class))

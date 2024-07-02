@@ -61,6 +61,7 @@ public class GraphQLProviderRegistrar implements ExternalApiProviderRegistrar<Gr
         final GraphQLManager graphQLManager = new GraphQLManager(evita, graphQLConfig);
         evita.registerStructuralChangeObserver(new CatalogGraphQLRefreshingObserver(graphQLManager));
         final HttpService apiHandler = graphQLManager.getGraphQLRouter();
+		//pass decorator to manager and use it there
         return new GraphQLProvider(graphQLConfig, new HttpServiceSslCheckingDecorator(apiHandler, getApiHandlerPortSslValidatingFunction(graphQLConfig)));
     }
 }

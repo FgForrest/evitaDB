@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -61,7 +61,7 @@ class AttributeHistogramTest {
 	@Test
 	void shouldToStringReturnExpectedFormat() {
 		final AttributeHistogram attributeHistogram = attributeHistogram(20, "a", "b");
-		assertEquals("attributeHistogram(20,STANDARD,'a','b')", attributeHistogram.toString());
+		assertEquals("attributeHistogram(20,'a','b')", attributeHistogram.toString());
 
 		final AttributeHistogram attributeHistogram2 = attributeHistogram(20, HistogramBehavior.OPTIMIZED, "a", "b");
 		assertEquals("attributeHistogram(20,OPTIMIZED,'a','b')", attributeHistogram2.toString());

@@ -21,20 +21,27 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.api.catalog;
+package io.evitadb.externalApi.graphql.api.tracing;
 
+import graphql.ExecutionResult;
 import graphql.execution.ExecutionContext;
+import graphql.execution.instrumentation.InstrumentationContext;
 import graphql.execution.instrumentation.InstrumentationState;
 import graphql.execution.instrumentation.SimplePerformantInstrumentation;
-import graphql.execution.instrumentation.parameters.InstrumentationExecutionParameters;
+import graphql.execution.instrumentation.parameters.InstrumentationExecuteOperationParameters;
 import graphql.language.OperationDefinition;
+
 import io.evitadb.api.observability.trace.TracingBlockReference;
 import io.evitadb.api.observability.trace.TracingContext;
 import io.evitadb.api.observability.trace.TracingContext.SpanAttribute;
 import io.evitadb.api.observability.trace.TracingContextProvider;
+import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
+import io.evitadb.externalApi.graphql.utils.GraphQLOperationNameResolver;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.NotThreadSafe;
+
+import static graphql.execution.instrumentation.SimpleInstrumentationContext.noOp;
 
 /**
  * Handles tracing the GraphQL operations.
@@ -53,11 +60,11 @@ public class OperationTracingInstrumentation extends SimplePerformantInstrumenta
 
     @Nonnull
     @Override
-    public ExecutionContext instrumentExecutionContext(@Nonnull ExecutionContext executionContext,
-                                                       @Nonnull InstrumentationExecutionParameters parameters,
-                                                       @Nonnull InstrumentationState state) {
+    public InstrumentationContext<ExecutionResult> beginExecuteOperation(@Nonnull InstrumentationExecuteOperationParameters parameters,
+                                                                         @Nonnull InstrumentationState state) {
+        final ExecutionContext executionContext = parameters.getExecutionContext();
         final OperationDefinition.Operation operation = executionContext.getOperationDefinition().getOperation();
-        final String operationName = executionContext.getOperationDefinition().getName() != null ? executionContext.getOperationDefinition().getName() : "<unnamed>";
+        final String operationName = GraphQLOperationNameResolver.resolve(executionContext.getOperationDefinition());
 
         // this block is closed in GraphQLHandler because instrumentation doesn't provide way of executing code
         // in same thread as this callback (if parallel query execution is used), which is needed by the tracing tooling
@@ -70,6 +77,6 @@ public class OperationTracingInstrumentation extends SimplePerformantInstrumenta
             executionContext.getGraphQLContext().put(GraphQLContextKey.OPERATION_TRACING_BLOCK, blockReference);
         }
 
-        return executionContext;
+        return noOp();
     }
 }

@@ -31,7 +31,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.module.paramnames.ParameterNamesModule;
+import io.evitadb.api.configuration.CacheOptions;
 import io.evitadb.api.configuration.EvitaConfiguration;
+import io.evitadb.api.configuration.ServerOptions;
+import io.evitadb.api.configuration.StorageOptions;
+import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
 import io.evitadb.externalApi.configuration.ApiOptions;
@@ -41,6 +45,7 @@ import io.evitadb.server.configuration.EvitaServerConfiguration;
 import io.evitadb.server.exception.ConfigurationParseException;
 import io.evitadb.server.yaml.AbstractClassDeserializer;
 import io.evitadb.server.yaml.EvitaConstructor;
+import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.ConsoleWriter;
 import io.evitadb.utils.ConsoleWriter.ConsoleColor;
@@ -60,17 +65,23 @@ import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Optional.ofNullable;
 
@@ -90,13 +101,9 @@ import static java.util.Optional.ofNullable;
  */
 public class EvitaServer {
 	/**
-	 * Name of the argument for specification of evita configuration file path.
+	 * Name of the argument for specification of evita configuration directory.
 	 */
-	public static final String OPTION_EVITA_CONFIGURATION_FILE = "configFile";
-	/**
-	 * Default name of the evita configuration file relative to the "working directory".
-	 */
-	public static final String DEFAULT_EVITA_CONFIGURATION_FILE = "evita-configuration.yaml";
+	public static final String OPTION_EVITA_CONFIGURATION_DIR = "configDir";
 	/**
 	 * Pattern for matching Java arguments `-Dname=value`
 	 */
@@ -105,6 +112,14 @@ public class EvitaServer {
 	 * Pattern for matching Unix like arguments `--name=value`
 	 */
 	private static final Pattern OPTION_GNU_ARGUMENT = Pattern.compile("--(\\S+)=(\\S+)");
+	/**
+	 * Pattern for matching simple arguments `name=value`
+	 */
+	private static final Pattern OPTION_SIMPLE_ARGUMENT = Pattern.compile("(\\S+)=(\\S+)");
+	/**
+	 * Classpath location of the default evita configuration file.
+	 */
+	private static final String DEFAULT_EVITA_CONFIGURATION = "/evita-configuration.yaml";
 	/**
 	 * Logger.
 	 */
@@ -143,11 +158,11 @@ public class EvitaServer {
 
 		final String logMsg = initLog();
 
-		final Path configFilePath = ofNullable(options.get(OPTION_EVITA_CONFIGURATION_FILE))
+		final Path configDirPath = ofNullable(options.get(OPTION_EVITA_CONFIGURATION_DIR))
 			.map(it -> Paths.get("").resolve(it))
-			.orElseGet(() -> Paths.get("").resolve(DEFAULT_EVITA_CONFIGURATION_FILE));
+			.orElseGet(() -> Paths.get(""));
 
-		final EvitaServer evitaServer = new EvitaServer(configFilePath, logMsg, options);
+		final EvitaServer evitaServer = new EvitaServer(configDirPath, logMsg, options);
 		final ShutdownSequence shutdownSequence = new ShutdownSequence(evitaServer);
 		Runtime.getRuntime().addShutdownHook(new Thread(shutdownSequence));
 		evitaServer.run();
@@ -156,6 +171,7 @@ public class EvitaServer {
 	/**
 	 * Initializes the file from the specified location.
 	 */
+	@Nonnull
 	private static String initLog() {
 		String logMsg;
 		if (System.getProperty(ContextInitializer.CONFIG_FILE_PROPERTY) == null) {
@@ -172,7 +188,7 @@ public class EvitaServer {
 			}
 		}
 		// and then initialize logger so that `logback.configurationFile` argument might apply
-		getLog();
+		Assert.isPremiseValid(getLog() != null, () -> "Logger should be initialized here.");
 		return logMsg;
 	}
 
@@ -184,10 +200,13 @@ public class EvitaServer {
 		for (String arg : args) {
 			final Matcher javaArgMatcher = OPTION_JAVA_ARGUMENT.matcher(arg.trim());
 			final Matcher gnuArgMatcher = OPTION_GNU_ARGUMENT.matcher(arg.trim());
+			final Matcher simpleArgMatcher = OPTION_SIMPLE_ARGUMENT.matcher(arg.trim());
 			if (javaArgMatcher.matches()) {
 				map.put(javaArgMatcher.group(1), javaArgMatcher.group(2));
 			} else if (gnuArgMatcher.matches()) {
 				map.put(gnuArgMatcher.group(1), gnuArgMatcher.group(2));
+			} else if (simpleArgMatcher.matches()) {
+				map.put(simpleArgMatcher.group(1), simpleArgMatcher.group(2));
 			}
 		}
 		return map;
@@ -204,7 +223,7 @@ public class EvitaServer {
 				variable -> ofNullable(arguments.get(variable))
 					.orElseGet(
 						() -> ofNullable(System.getProperty(variable))
-							.orElseGet(() -> System.getenv(variable))
+							.orElseGet(() -> System.getenv(transformEnvironmentVariable(variable)))
 					)
 			)
 		);
@@ -212,6 +231,19 @@ public class EvitaServer {
 		stringSubstitutor.setEnableUndefinedVariableException(false);
 		stringSubstitutor.setValueDelimiter(':');
 		return stringSubstitutor;
+	}
+
+	/**
+	 * Linux operating systems don't allow dots in the environment variable names. Other systems in the industry
+	 * follow mechanism that transform such variables to upper-case, replace dots with underscores and prepend the
+	 * variable with the name of the application in upper-case. This method tries to mimic this behavior.
+	 *
+	 * @param variableName original variable name with dots
+	 * @return transformed variable name
+	 */
+	@Nullable
+	private static String transformEnvironmentVariable(@Nonnull String variableName) {
+		return "EVITADB_" + variableName.toUpperCase().replace('.', '_');
 	}
 
 	/**
@@ -226,18 +258,117 @@ public class EvitaServer {
 	}
 
 	/**
-	 * Constructor that initializes the EvitaServer.
+	 * Method merges multiple YAML files into a single configuration. Values from the last file override the previous
+	 * ones.
+	 *
+	 * @param yamlMapper        YAML mapper to use
+	 * @param stringSubstitutor variable substitutor to use
+	 * @param readerFactory     lambda function that creates a reader from an input stream
+	 * @param configDirLocation location of the configuration directory
+	 * @param files             list of files to merge in the correct order
+	 * @return merged configuration
+	 * @throws IOException if an I/O error occurs
 	 */
-	public EvitaServer(@Nonnull Path configFileLocation, @Nonnull Map<String, String> arguments) {
-		this(configFileLocation, null, arguments);
+	@Nonnull
+	private static EvitaServerConfiguration mergeYamlFiles(
+		@Nonnull ObjectMapper yamlMapper,
+		@Nonnull StringSubstitutor stringSubstitutor,
+		@Nonnull Function<InputStream, Reader> readerFactory,
+		@Nonnull Path configDirLocation,
+		@Nonnull Path... files
+	) throws IOException {
+		final AtomicReference<Yaml> yamlParser = new AtomicReference<>();
+		yamlParser.set(
+			new Yaml(
+				new EvitaConstructor(
+					yamlParser,
+					stringSubstitutor,
+					configDirLocation
+				)
+			)
+		);
+
+		try {
+			// iterate over all files in the directory and merge them into a single configuration
+			Map<String, Object> finalYaml = yamlParser.get().load(
+				readerFactory.apply(EvitaServer.class.getResourceAsStream(DEFAULT_EVITA_CONFIGURATION))
+			);
+			for (Path file : files) {
+				final Map<String, Object> loadedYaml = yamlParser.get().load(readerFactory.apply(new FileInputStream(file.toFile())));
+				finalYaml = combine(finalYaml, loadedYaml);
+			}
+
+			// if the final configuration is null, return default configuration, otherwise convert it to the object
+			return finalYaml == null ?
+				new EvitaServerConfiguration(
+					"evitaDB",
+					ServerOptions.builder().build(),
+					StorageOptions.builder().build(),
+					TransactionOptions.builder().build(),
+					CacheOptions.builder().build(),
+					ApiOptions.builder().build()
+				) :
+				yamlMapper.convertValue(finalYaml, EvitaServerConfiguration.class);
+		} catch (IOException e) {
+			throw new ConfigurationParseException(
+				"Failed to parse configuration files in folder `" + configDirLocation + "` due to: " + e.getMessage() + ".",
+				"Failed to parse configuration files.", e
+			);
+		}
+	}
+
+	/**
+	 * Method combines two maps into a single map. If the same key is present in both maps, the value from the second map
+	 * overrides the value from the first map. If the value is a map, the method is called recursively.
+	 *
+	 * @param base  base map
+	 * @param delta map with keys and values that should override the base map
+	 * @return combined map
+	 */
+	@Nonnull
+	private static Map<String, Object> combine(
+		@Nonnull Map<String, Object> base,
+		@Nonnull Map<String, Object> delta
+	) {
+		final Map<String, Object> combined = CollectionUtils.createHashMap(base.size() + delta.size());
+		combined.putAll(base);
+		for (Entry<String, Object> entry : delta.entrySet()) {
+			if (combined.containsKey(entry.getKey())) {
+				final Object existingValue = combined.get(entry.getKey());
+				final Object newValue = entry.getValue();
+				if (existingValue instanceof Map && newValue instanceof Map) {
+					//noinspection unchecked
+					combined.put(
+						entry.getKey(),
+						combine(
+							(Map<String, Object>) combined.get(entry.getKey()),
+							(Map<String, Object>) entry.getValue()
+						)
+					);
+				} else {
+					combined.put(entry.getKey(), entry.getValue());
+				}
+			} else {
+				combined.put(entry.getKey(), entry.getValue());
+			}
+		}
+		return combined;
 	}
 
 	/**
 	 * Constructor that initializes the EvitaServer.
 	 */
-	public EvitaServer(@Nonnull Path configFileLocation, @Nullable String logInitializationStatus, @Nonnull Map<String, String> arguments) {
+	public EvitaServer(@Nonnull Path configDirLocation, @Nonnull Map<String, String> arguments) {
+		this(configDirLocation, null, arguments);
+	}
+
+	/**
+	 * Constructor that initializes the EvitaServer.
+	 */
+	public EvitaServer(@Nonnull Path configDirLocation, @Nullable String logInitializationStatus, @Nonnull Map<String, String> arguments) {
 		this.externalApiProviders = ExternalApiServer.gatherExternalApiProviders();
-		final EvitaServerConfiguration evitaServerConfig = parseConfiguration(configFileLocation, arguments);
+		final EvitaServerConfigurationWithLogFilesListing evitaServerConfigurationWithLogFilesListing = parseConfiguration(configDirLocation, arguments);
+		final EvitaServerConfiguration evitaServerConfig = evitaServerConfigurationWithLogFilesListing.configuration();
 		this.evitaConfiguration = new EvitaConfiguration(
 			evitaServerConfig.name(),
 			evitaServerConfig.server(),
@@ -265,7 +396,8 @@ public class EvitaServer {
 		ConsoleWriter.write("Visit us at: ");
 		ConsoleWriter.write("https://evitadb.io", ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);
 		ConsoleWriter.write("\n\n", ConsoleColor.WHITE);
-		ConsoleWriter.write("Log config used: " + System.getProperty(ContextInitializer.CONFIG_FILE_PROPERTY) + ofNullable(logInitializationStatus).map(it -> " (" + it + ")").orElse("") + "", ConsoleColor.DARK_GRAY);
+		ConsoleWriter.write("Log config used: " + System.getProperty(ContextInitializer.CONFIG_FILE_PROPERTY) + ofNullable(logInitializationStatus).map(it -> " (" + it + ")").orElse("") + "\n", ConsoleColor.DARK_GRAY);
+		ConsoleWriter.write("Config files used:\n   - DEFAULT (on classpath)\n" + Arrays.stream(evitaServerConfigurationWithLogFilesListing.configFilesApplied()).map(it -> "   - " + it.toAbsolutePath()).collect(Collectors.joining("\n")), ConsoleColor.DARK_GRAY);
 		ConsoleWriter.write("\n", ConsoleColor.WHITE);
 
 		ConsoleWriter.write("Server name: ", ConsoleColor.WHITE);
@@ -307,43 +439,65 @@ public class EvitaServer {
 	}
 
 	/**
-	 * Method parses contents of `configFileLocation` YAML file using `arguments` for variable replacement and returns
-	 * the loaded configuration as a result.
+	 * Method parses contents of `configDirLocation` YAML files in alphabetical order and applies contents of the latter
+	 * files to the former ones. The method allows using `arguments` for variable replacement and returns the loaded
+	 * configuration as a result.
 	 */
 	@Nonnull
-	private EvitaServerConfiguration parseConfiguration(@Nonnull Path configFileLocation, @Nonnull Map<String, String> arguments) throws ConfigurationParseException {
+	private EvitaServerConfigurationWithLogFilesListing parseConfiguration(
+		@Nonnull Path configDirLocation,
+		@Nonnull Map<String, String> arguments
+	) throws ConfigurationParseException {
 		final StringSubstitutor stringSubstitutor = createStringSubstitutor(arguments);
-
-		final AtomicReference<Yaml> yamlParser = new AtomicReference<>();
-		yamlParser.set(new Yaml(new EvitaConstructor(yamlParser, stringSubstitutor, configFileLocation)));
 
 		final ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
 		yamlMapper.registerModule(createAbstractApiConfigModule());
 		yamlMapper.registerModule(new ParameterNamesModule());
 		yamlMapper.addHandler(new SpecialConfigInputFormatsHandler());
 
+		final Path[] configFiles;
 		final EvitaServerConfiguration evitaServerConfig;
 		try (
-			final Reader reader = new StringSubstitutorReader(
-				new InputStreamReader(
-					new BufferedInputStream(
-						new FileInputStream(
-							configFileLocation.toFile()
-						)
-					), StandardCharsets.UTF_8
-				),
-				stringSubstitutor
-			)
+			final Stream<Path> filesInDirectory = configDirLocation.toFile().exists() ?
+				Files.list(configDirLocation) : Stream.empty()
 		) {
-			final Map<String, Object> parsedYaml = yamlParser.get().load(reader);
-			evitaServerConfig = yamlMapper.convertValue(parsedYaml, EvitaServerConfiguration.class);
+			configFiles = filesInDirectory
+				.filter(Files::isRegularFile)
+				.filter(it -> {
+					final String fileName = it.getFileName().toString().toLowerCase();
+					return fileName.endsWith(".yaml") || fileName.endsWith(".yml");
+				})
+				.map(Path::toAbsolutePath)
+				.map(Path::normalize)
+				.sorted()
+				.toArray(Path[]::new);
+			evitaServerConfig = mergeYamlFiles(
+				yamlMapper,
+				stringSubstitutor,
+				stream -> new StringSubstitutorReader(
+					new InputStreamReader(
+						new BufferedInputStream(stream), StandardCharsets.UTF_8
+					),
+					stringSubstitutor
+				),
+				configDirLocation,
+				// list all files in the directory and filter only the YAML files
+				// then sort them alphabetically and convert them to array
+				// finally pass the array to the `mergeYamlFiles` method
+				// to merge them into a single configuration
+				// (the last file has the highest priority and overrides the previous ones)
+				configFiles
+			);
 		} catch (IOException e) {
 			throw new ConfigurationParseException(
-				"Failed to parse configuration file `" + configFileLocation + "` due to: " + e.getMessage() + ".",
-				"Failed to parse configuration file.", e
+				"Failed to parse configuration files from directory `" + configDirLocation + "` due to: " + e.getMessage() + ".",
+				"Failed to parse configuration files.", e
 			);
 		}
-		return evitaServerConfig;
+		return new EvitaServerConfigurationWithLogFilesListing(
+			evitaServerConfig,
+			configFiles
+		);
 	}
 
 	/**
@@ -362,6 +516,18 @@ public class EvitaServer {
 		}
 		module.addDeserializer(AbstractApiConfiguration.class, deserializer);
 		return module;
+	}
+
+	/**
+	 * Record contains final configuration and list of configuration files that were applied.
+	 *
+	 * @param configuration      final configuration
+	 * @param configFilesApplied list of configuration files that were applied
+	 */
+	private record EvitaServerConfigurationWithLogFilesListing(
+		@Nonnull EvitaServerConfiguration configuration,
+		@Nonnull Path[] configFilesApplied
+	) {
 	}
 
 	/**

@@ -57,7 +57,7 @@ public abstract class JsonRestHandler<CTX extends RestHandlingContext> extends R
 	 * Tries to parse input request body JSON into data class.
 	 */
 	@Nonnull
-	protected <T> CompletableFuture<T> parseRequestBody(@Nonnull RestEndpointExchange exchange, @Nonnull Class<T> dataClass) {
+	protected <T> CompletableFuture<T> parseRequestBody(@Nonnull RestEndpointExecutionContext exchange, @Nonnull Class<T> dataClass) {
 		return readRawRequestBody(exchange)
 			.thenApply(content -> {
 				Assert.isTrue(
@@ -74,7 +74,7 @@ public abstract class JsonRestHandler<CTX extends RestHandlingContext> extends R
 	}
 
 	@Override
-	protected void writeResponse(@Nonnull RestEndpointExchange exchange, @Nonnull HttpResponseWriter responseWriter, @Nonnull Object result, @Nonnull EventLoop eventExecutors) {
+	protected void writeResponse(@Nonnull RestEndpointExecutionContext executionContext, @Nonnull HttpResponseWriter responseWriter, @Nonnull Object result, @Nonnull EventLoop eventExecutors) {
 		try {
 			responseWriter.write(HttpData.ofUtf8(restHandlingContext.getObjectMapper().writeValueAsString(result)));
 		} catch (IOException e) {
@@ -94,7 +94,7 @@ public abstract class JsonRestHandler<CTX extends RestHandlingContext> extends R
 	 * @return result object read to be serialized
 	 */
 	@Nonnull
-	protected Object convertResultIntoSerializableObject(@Nonnull RestEndpointExchange exchange, @Nonnull Object result) {
+	protected Object convertResultIntoSerializableObject(@Nonnull RestEndpointExecutionContext exchange, @Nonnull Object result) {
 		return result;
 	}
 }

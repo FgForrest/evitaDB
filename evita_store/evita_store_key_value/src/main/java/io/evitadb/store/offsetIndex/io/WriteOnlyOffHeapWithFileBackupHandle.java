@@ -215,8 +215,7 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 	@Nonnull
 	public OffHeapWithFileBackupReference toReadOffHeapWithFileBackupReference() {
 		// sync to disk first
-		execute("flush", () -> {
-		}, (o) -> null, true);
+		execute("flush", () -> {}, (o) -> null, true);
 
 		if (offHeapMemoryOutput != null) {
 			final ByteBuffer byteBuffer = offHeapMemoryOutput.getOutputStream().getByteBuffer();

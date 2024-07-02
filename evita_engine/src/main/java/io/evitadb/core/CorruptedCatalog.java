@@ -53,6 +53,7 @@ import java.nio.file.Path;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
@@ -77,6 +78,12 @@ public final class CorruptedCatalog implements CatalogContract {
 
 	@Override
 	public @Nonnull CatalogSchemaContract updateSchema(@Nonnull LocalCatalogSchemaMutation... schemaMutation) throws SchemaAlteringException {
+		throw new CatalogCorruptedException(this);
+	}
+
+	@Nonnull
+	@Override
+	public UUID getCatalogId() {
 		throw new CatalogCorruptedException(this);
 	}
 

@@ -33,6 +33,7 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.function.Predicate;
 
 /**
@@ -48,10 +49,8 @@ public class RestProvider implements ExternalApiProvider<RestConfig> {
 	@Nonnull
 	@Getter
 	private final RestConfig configuration;
-
 	@Nonnull
-	@Getter
-	private final HttpService apiHandler;
+	private final RestManager restManager;
 
 	/**
 	 * Contains url that was at least once found reachable.
@@ -62,6 +61,17 @@ public class RestProvider implements ExternalApiProvider<RestConfig> {
 	@Override
 	public String getCode() {
 		return CODE;
+	}
+
+	@Nullable
+	@Override
+	public HttpHandler getApiHandler() {
+		return restManager.getRestRouter();
+	}
+
+	@Override
+	public void afterAllInitialized() {
+		restManager.emitObservabilityEvents();
 	}
 
 	@Override

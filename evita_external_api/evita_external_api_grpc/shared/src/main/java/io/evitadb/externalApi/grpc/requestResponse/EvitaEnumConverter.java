@@ -30,6 +30,7 @@ import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.EmptyHierarchicalEntityBehaviour;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.query.require.HistogramBehavior;
+import io.evitadb.api.query.require.ManagedReferencesBehaviour;
 import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.query.require.StatisticsBase;
@@ -287,6 +288,20 @@ public class EvitaEnumConverter {
 	}
 
 	/**
+	 * Converts {@link StatisticsType} to {@link GrpcStatisticsType}.
+	 *
+	 * @param statisticsType the {@link StatisticsType} to be converted
+	 * @return the converted {@link GrpcStatisticsType}
+	 */
+	@Nonnull
+	public static GrpcStatisticsType toGrpcStatisticsType(@Nonnull StatisticsType statisticsType) {
+		return switch (statisticsType) {
+			case CHILDREN_COUNT -> GrpcStatisticsType.CHILDREN_COUNT;
+			case QUERIED_ENTITY_COUNT -> GrpcStatisticsType.QUERIED_ENTITY_COUNT;
+		};
+	}
+
+	/**
 	 * Converts {@link GrpcHistogramBehavior} to {@link HistogramBehavior}.
 	 *
 	 * @param grpcHistogramBehavior the {@link GrpcHistogramBehavior} to be converted
@@ -303,20 +318,6 @@ public class EvitaEnumConverter {
 	}
 
 	/**
-	 * Converts {@link StatisticsType} to {@link GrpcStatisticsType}.
-	 *
-	 * @param statisticsType the {@link StatisticsType} to be converted
-	 * @return the converted {@link GrpcStatisticsType}
-	 */
-	@Nonnull
-	public static GrpcStatisticsType toGrpcStatisticsType(@Nonnull StatisticsType statisticsType) {
-		return switch (statisticsType) {
-			case CHILDREN_COUNT -> GrpcStatisticsType.CHILDREN_COUNT;
-			case QUERIED_ENTITY_COUNT -> GrpcStatisticsType.QUERIED_ENTITY_COUNT;
-		};
-	}
-
-	/**
 	 * Converts {@link HistogramBehavior} to {@link GrpcHistogramBehavior}.
 	 *
 	 * @param histogramBehavior the {@link HistogramBehavior} to be converted
@@ -327,6 +328,36 @@ public class EvitaEnumConverter {
 		return switch (histogramBehavior) {
 			case STANDARD -> GrpcHistogramBehavior.STANDARD;
 			case OPTIMIZED -> GrpcHistogramBehavior.OPTIMIZED;
+		};
+	}
+
+	/**
+	 * Converts {@link GrpcManagedReferencesBehaviour} to {@link ManagedReferencesBehaviour}.
+	 *
+	 * @param grpcManagedReferencesBehaviour the {@link GrpcManagedReferencesBehaviour} to be converted
+	 * @return the converted {@link ManagedReferencesBehaviour}
+	 * @throws EvitaInternalError if the given grpcManagedReferencesBehaviour is unrecognized
+	 */
+	@Nonnull
+	public static ManagedReferencesBehaviour toManagedReferencesBehaviour(@Nonnull GrpcManagedReferencesBehaviour grpcManagedReferencesBehaviour) {
+		return switch (grpcManagedReferencesBehaviour.getNumber()) {
+			case 0 -> ManagedReferencesBehaviour.ANY;
+			case 1 -> ManagedReferencesBehaviour.EXISTING;
+			default -> throw new GenericEvitaInternalError("Unrecognized remote histogram behavior: " + grpcManagedReferencesBehaviour);
+		};
+	}
+
+	/**
+	 * Converts {@link ManagedReferencesBehaviour} to {@link GrpcManagedReferencesBehaviour}.
+	 *
+	 * @param managedReferencesBehaviour the {@link ManagedReferencesBehaviour} to be converted
+	 * @return the converted {@link GrpcManagedReferencesBehaviour}
+	 */
+	@Nonnull
+	public static GrpcManagedReferencesBehaviour toGrpcManagedReferencesBehaviour(@Nonnull ManagedReferencesBehaviour managedReferencesBehaviour) {
+		return switch (managedReferencesBehaviour) {
+			case ANY -> GrpcManagedReferencesBehaviour.ANY;
+			case EXISTING -> GrpcManagedReferencesBehaviour.EXISTING;
 		};
 	}
 

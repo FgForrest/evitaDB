@@ -29,7 +29,7 @@ import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer.Entit
 import io.evitadb.externalApi.rest.api.catalog.resolver.endpoint.CatalogRestHandlingContext;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.externalApi.rest.io.JsonRestHandler;
-import io.evitadb.externalApi.rest.io.RestEndpointExchange;
+import io.evitadb.externalApi.rest.io.RestEndpointExecutionContext;
 import io.evitadb.utils.Assert;
 import lombok.extern.slf4j.Slf4j;
 
@@ -60,7 +60,7 @@ public abstract class EntityHandler<CTX extends CatalogRestHandlingContext> exte
 
 	@Nonnull
 	@Override
-	protected Object convertResultIntoSerializableObject(@Nonnull RestEndpointExchange exchange, @Nonnull Object deletedEntity) {
+	protected Object convertResultIntoSerializableObject(@Nonnull RestEndpointExecutionContext exchange, @Nonnull Object deletedEntity) {
 		Assert.isPremiseValid(
 			deletedEntity instanceof EntityClassifier,
 			() -> new RestInternalError("Entity must be instance of EntityClassifier, but got `" + deletedEntity.getClass().getName() + "`.")

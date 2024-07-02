@@ -23,9 +23,12 @@
 
 package io.evitadb.externalApi.lab.api.resolver.endpoint;
 
+import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import com.linecorp.armeria.common.HttpMethod;
 import io.evitadb.externalApi.http.EndpointResponse;
 import io.evitadb.externalApi.http.SuccessEndpointResponse;
+import io.evitadb.externalApi.rest.io.RestEndpointExecutionContext;
+import io.evitadb.externalApi.rest.metric.event.request.ExecutedEvent;
 import io.evitadb.externalApi.rest.io.RestEndpointExchange;
 import lombok.extern.slf4j.Slf4j;
 
@@ -47,8 +50,19 @@ public class GetCatalogSchemaHandler extends CatalogSchemaHandler {
 
 	@Override
 	@Nonnull
-	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
-		return CompletableFuture.supplyAsync(() -> new SuccessEndpointResponse(convertResultIntoSerializableObject(exchange, exchange.session().getCatalogSchema())));
+	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
+		final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
+		requestExecutedEvent.finishInputDeserialization();
+
+		final SealedCatalogSchema catalogSchema = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
+			executionContext.session().getCatalogSchema());
+		requestExecutedEvent.finishOperationExecution();
+		return CompletableFuture.supplyAsync(() -> {
+			final Object result = convertResultIntoSerializableObject(executionContext, catalogSchema);
+			requestExecutedEvent.finishResultSerialization();
+
+			return new SuccessEndpointResponse(result);
+		});
 	}
 
 	@Nonnull
