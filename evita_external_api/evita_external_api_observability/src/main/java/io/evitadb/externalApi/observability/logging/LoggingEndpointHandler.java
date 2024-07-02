@@ -27,7 +27,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.linecorp.armeria.common.HttpRequest;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.externalApi.exception.ExternalApiInvalidUsageException;
-import io.evitadb.externalApi.http.AbstractHttpService;
+import io.evitadb.externalApi.http.EndpointService;
 import io.evitadb.externalApi.http.EndpointRequest;
 import io.evitadb.externalApi.http.MimeTypes;
 import io.evitadb.externalApi.observability.ObservabilityManager;
@@ -37,12 +37,8 @@ import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.io.IOException;
-import java.io.OutputStream;
-import java.util.Deque;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -50,7 +46,7 @@ import java.util.concurrent.CompletableFuture;
  *
  * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
  */
-public abstract class LoggingEndpointHandler<E extends EndpointRequest> extends AbstractHttpService<E> {
+public abstract class LoggingEndpointHandler<E extends EndpointRequest> extends EndpointService<E> {
 	protected static final LinkedHashSet<String> DEFAULT_SUPPORTED_CONTENT_TYPES = new LinkedHashSet<>(List.of(MimeTypes.APPLICATION_JSON));
 	protected final ObservabilityManager manager;
 

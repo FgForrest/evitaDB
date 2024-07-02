@@ -33,7 +33,7 @@ import io.evitadb.externalApi.exception.ExternalApiInvalidUsageException;
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidUsageException;
 import io.evitadb.externalApi.graphql.io.GraphQLSchemaHandler.GraphQLEndpointExchange;
-import io.evitadb.externalApi.http.AbstractHttpService;
+import io.evitadb.externalApi.http.EndpointService;
 import io.evitadb.externalApi.http.EndpointRequest;
 import io.evitadb.externalApi.http.EndpointResponse;
 import io.evitadb.externalApi.http.SuccessEndpointResponse;
@@ -43,9 +43,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.Deque;
 import java.util.LinkedHashSet;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
@@ -59,7 +57,7 @@ import static io.evitadb.utils.CollectionUtils.createLinkedHashSet;
  * @author Lukáš Hornych, FG Forrest a.s. 2023
  */
 @Slf4j
-public class GraphQLSchemaHandler extends AbstractHttpService<GraphQLEndpointExchange> {
+public class GraphQLSchemaHandler extends EndpointService<GraphQLEndpointExchange> {
 
     private static final Set<String> IMPLICIT_DIRECTIVES = Set.of("deprecated", "skip", "include", "specifiedBy");
 

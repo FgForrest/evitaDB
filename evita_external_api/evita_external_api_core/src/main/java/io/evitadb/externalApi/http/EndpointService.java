@@ -52,7 +52,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @Slf4j
-public abstract class AbstractHttpService<E extends EndpointRequest> implements HttpService {
+public abstract class EndpointService<E extends EndpointRequest> implements HttpService {
 	private static final int STREAM_CHUNK_SIZE = 8192;
 	private static final String CONTENT_TYPE_CHARSET = "; charset=UTF-8";
 
@@ -94,8 +94,10 @@ public abstract class AbstractHttpService<E extends EndpointRequest> implements 
 				} else {
 					throw createInternalError("Unsupported response `" + response.getClass().getName() + "`.");
 				}
-			}))
-		);
+			}).whenComplete((response, throwable) -> {
+				exchange.close();
+			})
+		));
 	}
 
 	/**
@@ -277,7 +279,7 @@ public abstract class AbstractHttpService<E extends EndpointRequest> implements 
 			.thenApply(r -> {
 				try (HttpData data = r.content()) {
 					try (InputStream inputStream = data.toInputStream()) {
-						final byte[] buffer = new byte[AbstractHttpService.STREAM_CHUNK_SIZE];
+						final byte[] buffer = new byte[EndpointService.STREAM_CHUNK_SIZE];
 						final StringBuilder stringBuilder = new StringBuilder(64);
 						int bytesRead;
 						while ((bytesRead = inputStream.read(buffer)) != -1) {

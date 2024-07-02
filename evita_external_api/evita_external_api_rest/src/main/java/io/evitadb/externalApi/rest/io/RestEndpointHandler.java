@@ -25,14 +25,12 @@ package io.evitadb.externalApi.rest.io;
 
 import com.linecorp.armeria.common.HttpRequest;
 import com.linecorp.armeria.common.HttpResponse;
-import com.linecorp.armeria.common.QueryParams;
-import com.linecorp.armeria.common.QueryParamsBuilder;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.externalApi.exception.ExternalApiInvalidUsageException;
-import io.evitadb.externalApi.http.AbstractHttpService;
+import io.evitadb.externalApi.http.EndpointService;
 import io.evitadb.externalApi.http.EndpointRequest;
 import io.evitadb.externalApi.http.EndpointResponse;
 import io.evitadb.externalApi.rest.api.catalog.resolver.endpoint.CatalogRestHandlingContext;
@@ -44,18 +42,14 @@ import io.evitadb.externalApi.rest.exception.RestRequiredParameterMissingExcepti
 import io.swagger.v3.oas.models.Operation;
 import io.swagger.v3.oas.models.media.Schema;
 import io.swagger.v3.oas.models.parameters.Parameter;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.io.Serial;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -68,7 +62,7 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
 @Slf4j
-public abstract class RestEndpointHandler<CTX extends RestHandlingContext> extends AbstractHttpService<RestEndpointExchange> {
+public abstract class RestEndpointHandler<CTX extends RestHandlingContext> extends EndpointService<RestEndpointExchange> {
 
     @Nonnull
     protected final CTX restHandlingContext;

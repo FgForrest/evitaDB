@@ -23,7 +23,6 @@
 
 package io.evitadb.externalApi.graphql.io;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linecorp.armeria.common.*;
 import com.linecorp.armeria.server.ServiceRequestContext;
@@ -48,7 +47,7 @@ import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidUsageException;
 import io.evitadb.externalApi.graphql.io.GraphQLHandler.GraphQLEndpointExchange;
-import io.evitadb.externalApi.http.AbstractHttpService;
+import io.evitadb.externalApi.http.EndpointService;
 import io.evitadb.externalApi.http.EndpointRequest;
 import io.evitadb.externalApi.http.EndpointResponse;
 import io.evitadb.externalApi.http.MimeTypes;
@@ -61,9 +60,7 @@ import lombok.extern.slf4j.Slf4j;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
-import java.util.Deque;
 import java.util.LinkedHashSet;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -80,7 +77,7 @@ import static io.evitadb.utils.CollectionUtils.createLinkedHashSet;
  * @author Lukáš Hornych, FG Forrest a.s. 2022
  */
 @Slf4j
-public class GraphQLHandler extends AbstractHttpService<GraphQLEndpointExchange> {
+public class GraphQLHandler extends EndpointService<GraphQLEndpointExchange> {
 
     /**
      * Set of GraphQL exceptions that are caused by invalid user input and thus shouldn't return server error.
