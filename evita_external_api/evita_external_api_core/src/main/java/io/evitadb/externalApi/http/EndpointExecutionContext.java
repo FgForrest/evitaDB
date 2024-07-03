@@ -23,13 +23,9 @@
 
 package io.evitadb.externalApi.http;
 
-<<<<<<<< HEAD:evita_external_api/evita_external_api_core/src/main/java/io/evitadb/externalApi/http/EndpointRequest.java
 import com.linecorp.armeria.common.HttpRequest;
-========
-import io.undertow.server.HttpServerExchange;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
->>>>>>>> refs/heads/dev:evita_external_api/evita_external_api_core/src/main/java/io/evitadb/externalApi/http/EndpointExecutionContext.java
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -39,26 +35,17 @@ import javax.annotation.Nullable;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
  */
-<<<<<<<< HEAD:evita_external_api/evita_external_api_core/src/main/java/io/evitadb/externalApi/http/EndpointRequest.java
-public interface EndpointRequest extends AutoCloseable {
-========
 @RequiredArgsConstructor(access = AccessLevel.PROTECTED)
 public abstract class EndpointExecutionContext implements AutoCloseable {
-
-	@Nonnull private final HttpServerExchange serverExchange;
->>>>>>>> refs/heads/dev:evita_external_api/evita_external_api_core/src/main/java/io/evitadb/externalApi/http/EndpointExecutionContext.java
+	@Nonnull private final HttpRequest httpRequest;
 
 	/**
-	 * Underlying HTTP server exchange
+	 * Underlying HTTP request
 	 */
 	@Nonnull
-<<<<<<<< HEAD:evita_external_api/evita_external_api_core/src/main/java/io/evitadb/externalApi/http/EndpointRequest.java
-	HttpRequest httpRequest();
-========
-	public HttpServerExchange serverExchange() {
-		return serverExchange;
+	public HttpRequest httpRequest() {
+		return httpRequest;
 	}
->>>>>>>> refs/heads/dev:evita_external_api/evita_external_api_core/src/main/java/io/evitadb/externalApi/http/EndpointExecutionContext.java
 
 	/**
 	 * Provides request body content type for the execution. Can be called only once.

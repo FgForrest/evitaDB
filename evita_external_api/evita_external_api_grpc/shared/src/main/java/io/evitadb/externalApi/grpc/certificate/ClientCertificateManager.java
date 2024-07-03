@@ -225,15 +225,15 @@ public class ClientCertificateManager {
 	 *
 	 * @return built {@link SslContext} for client
 	 */
-	public SslContext buildClientSslContext(
-		@Nullable BiConsumer<CertificateType, Certificate> onCertificateLoaded
+	public void buildClientSslContext(
+		@Nullable BiConsumer<CertificateType, Certificate> onCertificateLoaded,
+		@Nonnull SslContextBuilder sslContextBuilder
 	) {
 		try {
 			final Path usedCertificatePath = getUsedRootCaCertificatePath();
 			final TrustManager trustManagerTrustingProvidedRootCertificate = usedCertificatePath == null ?
 				null : getTrustManager(usedCertificatePath, onCertificateLoaded);
-			final SslContextBuilder sslContextBuilder = SslContextBuilder.forClient()
-				.applicationProtocolConfig(
+			sslContextBuilder.applicationProtocolConfig(
 					new ApplicationProtocolConfig(
 						Protocol.ALPN,
 						SelectorFailureBehavior.NO_ADVERTISE,
@@ -250,7 +250,6 @@ public class ClientCertificateManager {
 			} else if (usedCertificatePath != null && usedCertificatePath.toFile().exists()) {
 				sslContextBuilder.trustManager(new File(usedCertificatePath.toUri()));
 			}
-			return sslContextBuilder.build();
 		} catch (Exception e) {
 			throw new EvitaInvalidUsageException("Failed to initialize EvitaClient", e);
 		}

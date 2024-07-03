@@ -96,10 +96,10 @@ public class QueryEntitiesHandler extends JsonRestHandler<LabApiHandlingContext>
 
 	@Nonnull
 	@Override
-	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
+	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
 		final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
 
-		return resolveQuery(exchange)
+		return resolveQuery(executionContext)
 			.thenApply(query -> {
 				log.debug("Generated evitaDB query for entity query is `{}`.", query);
 
@@ -136,7 +136,7 @@ public class QueryEntitiesHandler extends JsonRestHandler<LabApiHandlingContext>
 	protected CompletableFuture<Query> resolveQuery(@Nonnull RestEndpointExecutionContext executionContext) {
 		final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
 
-		return parseRequestBody(exchange, QueryEntitiesRequestBodyDto.class)
+		return parseRequestBody(executionContext, QueryEntitiesRequestBodyDto.class)
 			.thenApply(requestData -> {
 				// todo lho arguments
 				requestExecutedEvent.finishInputDeserialization();

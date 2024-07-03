@@ -28,15 +28,11 @@ import com.linecorp.armeria.client.grpc.GrpcClientBuilder;
 import io.evitadb.core.Evita;
 import io.evitadb.driver.EvitaClient;
 import io.evitadb.driver.config.EvitaClientConfiguration;
+import io.evitadb.driver.interceptor.ClientSessionInterceptor;
 import io.evitadb.externalApi.graphql.GraphQLProvider;
 import io.evitadb.externalApi.grpc.GrpcProvider;
 import io.evitadb.externalApi.grpc.TestGrpcClientBuilderCreator;
 import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc;
-import io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest;
-import io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse;
-import io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionTerminationRequest;
-import io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionTerminationResponse;
-import io.evitadb.externalApi.grpc.generated.GrpcSessionType;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
 import io.evitadb.externalApi.http.ExternalApiServer;
 import io.evitadb.externalApi.observability.ObservabilityProvider;
@@ -127,6 +123,10 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 					.systemApiPort(servicePorts.get(SystemProvider.CODE))
 					.build()
 			);
+
+			final ExternalApiServer externalApiServer = evitaServer.getExternalApiServer();
+			final GrpcProvider grpcProvider = externalApiServer.getExternalApiProviderByCode(GrpcProvider.CODE);
+			assertNotNull(grpcProvider);
 
 			final GrpcClientBuilder clientBuilder = TestGrpcClientBuilderCreator.getBuilder(new ClientSessionInterceptor(), externalApiServer);
 			final EvitaSessionContract session = evitaClient.createReadWriteSession(TEST_CATALOG);

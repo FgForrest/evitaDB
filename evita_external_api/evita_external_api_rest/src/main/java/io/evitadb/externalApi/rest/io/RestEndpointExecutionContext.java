@@ -23,35 +23,22 @@
 
 package io.evitadb.externalApi.rest.io;
 
-import com.linecorp.armeria.common.AggregatedHttpRequest;
-import com.linecorp.armeria.common.AggregationOptions;
-import com.linecorp.armeria.common.HttpObject;
 import com.linecorp.armeria.common.HttpRequest;
-import com.linecorp.armeria.common.RequestHeaders;
-import com.linecorp.armeria.common.stream.SubscriptionOption;
 import io.evitadb.api.EvitaSessionContract;
-import io.evitadb.externalApi.http.EndpointRequest;
 import io.evitadb.externalApi.http.EndpointExecutionContext;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.externalApi.rest.metric.event.request.ExecutedEvent;
 import io.evitadb.externalApi.rest.metric.event.request.ExecutedEvent.ResponseStatus;
 import io.evitadb.utils.Assert;
-import io.netty.util.concurrent.EventExecutor;
-import lombok.RequiredArgsConstructor;
-import org.reactivestreams.Subscriber;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.Deque;
-import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 
 /**
  * Implementation of {@link EndpointExecutionContext} for REST API.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-@RequiredArgsConstructor
 public class RestEndpointExecutionContext extends EndpointExecutionContext {
 
 	@Nonnull private final ExecutedEvent requestExecutedEvent;
@@ -105,16 +92,10 @@ public class RestEndpointExecutionContext extends EndpointExecutionContext {
 		}
 	}
 
-	@Nonnull
+	@Nullable
 	@Override
-	public HttpRequest httpRequest() {
-		return httpRequest;
-	}
-
-	@Nonnull
-	@Override
-	public String httpMethod() {
-		return httpMethod;
+	public String requestBodyContentType() {
+		return requestBodyContentType;
 	}
 
 	@Override

@@ -67,7 +67,7 @@ public class GraphQLProvider implements ExternalApiProvider<GraphQLConfig> {
 
 	@Nullable
 	@Override
-	public HttpHandler getApiHandler() {
+	public HttpService getApiHandler() {
 		return graphQLManager.getGraphQLRouter();
 	}
 

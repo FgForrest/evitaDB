@@ -62,10 +62,10 @@ public class UpdateCatalogHandler extends CatalogHandler {
 
 	@Nonnull
 	@Override
-	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
+	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
 		final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
-		final Map<String, Object> parameters = getParametersFromRequest(exchange);
-		return parseRequestBody(exchange, UpdateCatalogRequestDto.class)
+		final Map<String, Object> parameters = getParametersFromRequest(executionContext);
+		return parseRequestBody(executionContext, UpdateCatalogRequestDto.class)
 			.thenApply(requestBody -> {
 				requestExecutedEvent.finishInputDeserialization();
 

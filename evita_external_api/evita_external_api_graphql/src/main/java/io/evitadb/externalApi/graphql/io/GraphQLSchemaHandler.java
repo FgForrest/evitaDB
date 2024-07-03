@@ -30,10 +30,8 @@ import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.externalApi.exception.ExternalApiInvalidUsageException;
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidUsageException;
-import io.evitadb.externalApi.graphql.io.GraphQLSchemaHandler.GraphQLEndpointExchange;
 import io.evitadb.externalApi.graphql.utils.GraphQLSchemaPrinter;
 import io.evitadb.externalApi.http.EndpointService;
-import io.evitadb.externalApi.http.EndpointRequest;
 import io.evitadb.externalApi.http.EndpointResponse;
 import io.evitadb.externalApi.http.SuccessEndpointResponse;
 import io.evitadb.utils.Assert;
@@ -41,9 +39,6 @@ import io.netty.channel.EventLoop;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
-import java.io.OutputStream;
-import java.io.PrintWriter;
-import javax.annotation.Nullable;
 import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -122,7 +117,7 @@ public class GraphQLSchemaHandler extends EndpointService<GraphQLSchemaEndpointE
             response instanceof GraphQLSchema,
             () -> new GraphQLInternalError("Expected response to be instance of GraphQLSchema, but was `" + response.getClass().getName() + "`.")
         );
-        final String printedSchema = schemaPrinter.print((GraphQLSchema) response);
-	    responseWriter.write(HttpData.ofUtf8(schema));
+        final String printedSchema = GraphQLSchemaPrinter.print((GraphQLSchema) response);
+	    responseWriter.write(HttpData.ofUtf8(printedSchema));
     }
 }

@@ -24,8 +24,6 @@
 package io.evitadb.externalApi.observability.logging;
 
 import com.linecorp.armeria.common.HttpMethod;
-import com.linecorp.armeria.common.HttpRequest;
-import io.evitadb.externalApi.http.EndpointRequest;
 import io.evitadb.externalApi.http.EndpointResponse;
 import io.evitadb.externalApi.http.SuccessEndpointResponse;
 import io.evitadb.externalApi.observability.ObservabilityManager;
@@ -40,7 +38,7 @@ import java.util.concurrent.CompletableFuture;
  *
  * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
  */
-public class StopLoggingHandler extends LoggingEndpointHandler<EndpointRequest> {
+public class StopLoggingHandler extends LoggingEndpointHandler {
 
 	public StopLoggingHandler(ObservabilityManager manager) {
 		super(manager);

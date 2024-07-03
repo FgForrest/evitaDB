@@ -23,16 +23,16 @@
 
 package io.evitadb.externalApi.observability.logging;
 
+import com.linecorp.armeria.common.HttpRequest;
 import io.evitadb.externalApi.http.EndpointExecutionContext;
 import io.evitadb.externalApi.observability.exception.ObservabilityInternalError;
 import io.evitadb.utils.Assert;
-import io.undertow.server.HttpServerExchange;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 /**
- * Implementation of {@link EndpointExchange} for Observation API.
+ * Implementation of {@link EndpointExecutionContext} for Observation API.
  *
  * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
  */
@@ -41,8 +41,8 @@ public class LoggingEndpointExecutionContext extends EndpointExecutionContext {
 	@Nullable private String requestBodyContentType;
 	@Nullable private String preferredResponseContentType;
 
-	public LoggingEndpointExecutionContext(@Nonnull HttpServerExchange serverExchange) {
-		super(serverExchange);
+	public LoggingEndpointExecutionContext(@Nonnull HttpRequest httpRequest) {
+		super(httpRequest);
 	}
 
 	@Override

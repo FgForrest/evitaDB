@@ -47,7 +47,8 @@ import static java.util.Optional.ofNullable;
  * @param endpoints   contains specific configuration for all the API endpoints
  * @param certificate defines the certificate settings that will be used to secure connections to the web servers providing APIs
  * @param exposedOn              the name of the host the APIs will be exposed on when evitaDB is running inside a container
- * @param ioThreads              defines the number of IO thread will be used by Undertow for accept and send HTTP payload
+ * @param workerGroupThreads              defines the number of IO threads
+ * @param serviceWorkerGroupThreads              defines the number of threads for execution of service logic
  * @param idleTimeoutInMillis    The amount of time a connection can be idle for before it is timed out. An idle connection is a
  *                               connection that has had no data transfer in the idle timeout period. Note that this is a fairly coarse
  *                               grained approach, and small values will cause problems for requests with a long processing time.
@@ -67,8 +68,8 @@ import static java.util.Optional.ofNullable;
  */
 public record ApiOptions(
 	@Nonnull String exposedOn,
-	@Nullable Integer workerGroupThreads,
-	@Nullable Integer serviceWorkerGroupThreads,
+	int workerGroupThreads,
+	int serviceWorkerGroupThreads,
 	int idleTimeoutInMillis,
 	int requestTimeoutInMillis,
 	int parseTimeoutInMillis,
@@ -78,6 +79,8 @@ public record ApiOptions(
 	@Nonnull CertificateSettings certificate,
 	@Nonnull Map<String, AbstractApiConfiguration> endpoints
 ) {
+	public static final int DEFAULT_WORKER_GROUP_THREADS = Runtime.getRuntime().availableProcessors();
+	public static final int DEFAULT_SERVICE_WORKER_GROUP_THREADS = Runtime.getRuntime().availableProcessors() << 1;
 	public static final int DEFAULT_IDLE_TIMEOUT = 20 * 1000;
 	public static final int DEFAULT_PARSE_TIMEOUT = 1000;
 	public static final int DEFAULT_REQUEST_TIMEOUT = 1000;
@@ -99,6 +102,8 @@ public record ApiOptions(
 		@Nonnull Map<String, AbstractApiConfiguration> endpoints
 	) {
 		this.exposedOn = exposedOn;
+		this.workerGroupThreads = workerGroupThreads <= 0 ? DEFAULT_WORKER_GROUP_THREADS : workerGroupThreads;
+		this.serviceWorkerGroupThreads = serviceWorkerGroupThreads <= 0 ? DEFAULT_SERVICE_WORKER_GROUP_THREADS : serviceWorkerGroupThreads;
 		this.idleTimeoutInMillis = idleTimeoutInMillis <= 0 ? DEFAULT_IDLE_TIMEOUT : idleTimeoutInMillis;
 		this.requestTimeoutInMillis = requestTimeoutInMillis <= 0 ? DEFAULT_REQUEST_TIMEOUT : requestTimeoutInMillis;
 		this.parseTimeoutInMillis = parseTimeoutInMillis <= 0 ? DEFAULT_PARSE_TIMEOUT : parseTimeoutInMillis;
@@ -107,12 +112,12 @@ public record ApiOptions(
 		this.accessLog = accessLog;
 		this.certificate = certificate;
 		this.endpoints = endpoints;
+
 	}
 
 	public ApiOptions() {
-		this(null, null, null, false, new CertificateSettings(), new HashMap<>(8));
 		this(
-			null, DEFAULT_IO_THREADS, DEFAULT_IDLE_TIMEOUT, DEFAULT_REQUEST_TIMEOUT, DEFAULT_PARSE_TIMEOUT,
+			null, DEFAULT_WORKER_GROUP_THREADS, DEFAULT_SERVICE_WORKER_GROUP_THREADS, DEFAULT_IDLE_TIMEOUT, DEFAULT_REQUEST_TIMEOUT, DEFAULT_PARSE_TIMEOUT,
 			DEFAULT_KEEP_ALIVE, DEFAULT_MAX_ENTITY_SIZE, false,
 			new CertificateSettings(), new HashMap<>(8)
 		);
@@ -133,7 +138,7 @@ public record ApiOptions(
 	public int workerGroupThreadsAsInt() {
 		return ofNullable(workerGroupThreads)
 			// double the value of available processors (recommended by Netty configuration)
-			.orElseGet(() -> Runtime.getRuntime().availableProcessors() << 1);
+			.orElse(DEFAULT_WORKER_GROUP_THREADS);
 	}
 
 	/**
@@ -142,7 +147,7 @@ public record ApiOptions(
 	public int serviceWorkerGroupThreadsAsInt() {
 		return ofNullable(serviceWorkerGroupThreads)
 			// double the value of available processors (recommended by Netty configuration)
-			.orElseGet(() -> Runtime.getRuntime().availableProcessors() << 1);
+			.orElse(DEFAULT_SERVICE_WORKER_GROUP_THREADS);
 	}
 
 	/**
@@ -159,8 +164,8 @@ public record ApiOptions(
 		private long maxEntitySizeInBytes = DEFAULT_MAX_ENTITY_SIZE;
 		private CertificateSettings certificate;
 		@Nullable private String exposedOn;
-		@Nullable private Integer workerGroupThreads;
-		@Nullable private Integer serviceWorkerGroupThreads;
+		private int workerGroupThreads = DEFAULT_WORKER_GROUP_THREADS;
+		private int serviceWorkerGroupThreads = DEFAULT_SERVICE_WORKER_GROUP_THREADS;
 		private boolean accessLog;
 
 		Builder() {
@@ -192,6 +197,7 @@ public record ApiOptions(
 		@Nonnull
 		public ApiOptions.Builder serviceWorkerGroupThreads(int serviceWorkerGroupThreads) {
 			this.serviceWorkerGroupThreads = serviceWorkerGroupThreads;
+			return this;
 		}
 
 		@Nonnull

@@ -32,7 +32,6 @@ import io.evitadb.externalApi.rest.api.catalog.resolver.endpoint.CatalogRestHand
 import io.evitadb.externalApi.rest.io.JsonRestHandler;
 import io.evitadb.externalApi.rest.io.RestEndpointExecutionContext;
 import io.evitadb.externalApi.rest.metric.event.request.ExecutedEvent;
-import io.evitadb.externalApi.rest.io.RestEndpointExchange;
 
 import javax.annotation.Nonnull;
 import java.util.LinkedHashSet;
@@ -54,10 +53,10 @@ public class CollectionsHandler extends JsonRestHandler<CatalogRestHandlingConte
 
 	@Nonnull
 	@Override
-	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
+	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
 		final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
 
-		final Map<String, Object> parametersFromRequest = getParametersFromRequest(exchange);
+		final Map<String, Object> parametersFromRequest = getParametersFromRequest(executionContext);
 		final Boolean withCounts = (Boolean) parametersFromRequest.get(CollectionsEndpointHeaderDescriptor.ENTITY_COUNT.name());
 
 		requestExecutedEvent.finishInputDeserialization();

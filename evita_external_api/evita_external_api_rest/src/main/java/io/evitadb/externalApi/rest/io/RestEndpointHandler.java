@@ -31,7 +31,6 @@ import io.evitadb.core.Evita;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.externalApi.exception.ExternalApiInvalidUsageException;
 import io.evitadb.externalApi.http.EndpointService;
-import io.evitadb.externalApi.http.EndpointRequest;
 import io.evitadb.externalApi.http.EndpointResponse;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.CollectionRestHandlingContext;
 import io.evitadb.externalApi.rest.api.catalog.resolver.endpoint.CatalogRestHandlingContext;
@@ -113,13 +112,13 @@ public abstract class RestEndpointHandler<CTX extends RestHandlingContext> exten
         }
 
         return new RestEndpointExecutionContext(
-            serverExchange,
+            httpRequest,
             new ExecutedEvent(
                 instanceType,
                 modifiesData() ? OperationType.MUTATION : OperationType.QUERY,
                 restHandlingContext instanceof CatalogRestHandlingContext catalogRestHandlingContext ? catalogRestHandlingContext.getCatalogSchema().getName() : null,
                 restHandlingContext instanceof CollectionRestHandlingContext collectionRestHandlingContext ? collectionRestHandlingContext.getEntityType() : null,
-                serverExchange.getRequestMethod().toString(),
+                httpRequest.method().name(),
                 restHandlingContext.getEndpointOperation().getOperationId()
             )
         );
@@ -186,12 +185,9 @@ public abstract class RestEndpointHandler<CTX extends RestHandlingContext> exten
 
     @Nonnull
     protected Map<String, Object> getParametersFromRequest(@Nonnull RestEndpointExecutionContext context) {
-        //create copy of parameters
-        final Map<String, Deque<String>> parameters = new HashMap<>(context.httpRequest().serverExchange().getQueryParameters());
-
         final Operation operation = restHandlingContext.getEndpointOperation();
         //create builder representation of query params
-        final Map<String, Deque<String>> queryParams = request.httpRequest().headers().stream()
+        final Map<String, Deque<String>> queryParams = context.httpRequest().headers().stream()
             .filter(header -> header.getKey().startsWith(INTERNAL_HEADER_PREFIX))
             .collect(Collectors.toMap(
                 key -> {

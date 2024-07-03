@@ -30,7 +30,6 @@ import io.evitadb.externalApi.rest.api.system.dto.LivenessDto;
 import io.evitadb.externalApi.rest.io.JsonRestHandler;
 import io.evitadb.externalApi.rest.io.RestEndpointExecutionContext;
 import io.evitadb.externalApi.rest.metric.event.request.ExecutedEvent;
-import io.evitadb.externalApi.rest.io.RestEndpointExchange;
 
 import javax.annotation.Nonnull;
 import java.util.LinkedHashSet;

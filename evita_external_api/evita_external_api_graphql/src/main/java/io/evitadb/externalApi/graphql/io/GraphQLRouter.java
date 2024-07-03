@@ -41,6 +41,8 @@ import io.evitadb.externalApi.utils.path.PathHandlingService;
 import io.evitadb.externalApi.utils.path.RoutingHandlerService;
 import io.evitadb.externalApi.utils.UriPath;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.CollectionUtils.Property;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -100,7 +102,7 @@ public class GraphQLRouter implements HttpService {
 		registerApi(
 			apiRouter,
 			new RegisteredApi(
-				SYSTEM_API_PATH,
+				GraphQLInstanceType.SYSTEM,
 				API_PATH_MAPPING.get(GraphQLInstanceType.SYSTEM),
 				new AtomicReference<>(systemApi)
 			)
@@ -159,7 +161,7 @@ public class GraphQLRouter implements HttpService {
 		apiRouter.add(
 			HttpMethod.POST,
 			registeredApi.path().toString(),
-			new GraphQLHandler(objectMapper, evita, registeredApi.instanceType())
+			new GraphQLHandler(objectMapper, evita, registeredApi.instanceType(), registeredApi.graphQLReference())
 			.decorate(service -> new GraphQLExceptionHandler(objectMapper, service))
 			.decorate(
 				new CorsFilterServiceDecorator(

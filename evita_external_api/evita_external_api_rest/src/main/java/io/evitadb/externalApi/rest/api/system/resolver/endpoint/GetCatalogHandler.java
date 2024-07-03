@@ -31,7 +31,6 @@ import io.evitadb.externalApi.http.SuccessEndpointResponse;
 import io.evitadb.externalApi.rest.api.system.model.CatalogsHeaderDescriptor;
 import io.evitadb.externalApi.rest.io.RestEndpointExecutionContext;
 import io.evitadb.externalApi.rest.metric.event.request.ExecutedEvent;
-import io.evitadb.externalApi.rest.io.RestEndpointExchange;
 
 import javax.annotation.Nonnull;
 import java.util.Map;
@@ -55,7 +54,7 @@ public class GetCatalogHandler extends CatalogHandler {
 	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
 		final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
 
-		final Map<String, Object> parameters = getParametersFromRequest(exchange);
+		final Map<String, Object> parameters = getParametersFromRequest(executionContext);
 		requestExecutedEvent.finishInputDeserialization();
 
 		final String catalogName = (String) parameters.get(CatalogsHeaderDescriptor.NAME.name());

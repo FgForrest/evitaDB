@@ -65,7 +65,7 @@ public class DeleteEntityHandler extends EntityHandler<CollectionRestHandlingCon
 	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
 		final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
 
-		final Map<String, Object> parametersFromRequest = getParametersFromRequest(exchange);
+		final Map<String, Object> parametersFromRequest = getParametersFromRequest(executionContext);
 		Assert.isTrue(
 			parametersFromRequest.containsKey(DeleteEntityEndpointHeaderDescriptor.PRIMARY_KEY.name()),
 			() -> new RestInvalidArgumentException("Primary key wasn't found in URL.")
@@ -75,20 +75,22 @@ public class DeleteEntityHandler extends EntityHandler<CollectionRestHandlingCon
 		final EntityContentRequire[] entityContentRequires = requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() ->
 			RequireConstraintFromRequestQueryBuilder.getEntityContentRequires(parametersFromRequest));
 
-		final Optional<SealedEntity> deletedEntity = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
-			executionContext.session().deleteEntity(
-				restHandlingContext.getEntityType(),
-				(Integer) parametersFromRequest.get(DeleteEntityEndpointHeaderDescriptor.PRIMARY_KEY.name()),
-				entityContentRequires
-			));
-		requestExecutedEvent.finishOperationExecution();
+		return CompletableFuture.supplyAsync(() -> {
+			final Optional<SealedEntity> deletedEntity = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
+				executionContext.session().deleteEntity(
+					restHandlingContext.getEntityType(),
+					(Integer) parametersFromRequest.get(DeleteEntityEndpointHeaderDescriptor.PRIMARY_KEY.name()),
+					entityContentRequires
+				));
+			requestExecutedEvent.finishOperationExecution();
 
-		final Optional<Object> result = deletedEntity.map(it -> convertResultIntoSerializableObject(executionContext, it));
-		requestExecutedEvent.finishResultSerialization();
+			final Optional<Object> result = deletedEntity.map(it -> convertResultIntoSerializableObject(executionContext, it));
+			requestExecutedEvent.finishResultSerialization();
 
-		return result
-			.map(it -> (EndpointResponse) new SuccessEndpointResponse(result))
-			.orElse(new NotFoundEndpointResponse());
+			return result
+				.map(it -> (EndpointResponse) new SuccessEndpointResponse(result))
+				.orElse(new NotFoundEndpointResponse());
+		});
 	}
 
 	@Nonnull

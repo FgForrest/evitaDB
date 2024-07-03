@@ -28,7 +28,6 @@ import com.linecorp.armeria.client.ClientFactoryBuilder;
 import com.linecorp.armeria.client.grpc.GrpcClientBuilder;
 import com.linecorp.armeria.client.grpc.GrpcClients;
 import com.linecorp.armeria.common.grpc.GrpcSerializationFormats;
-import io.evitadb.driver.certificate.ClientCertificateManager.Builder;
 import io.evitadb.driver.interceptor.ClientSessionInterceptor;
 import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
 import io.evitadb.externalApi.configuration.ApiOptions;
@@ -83,7 +82,7 @@ public class TestGrpcClientBuilderCreator {
 
 		final String uriScheme;
 		if (grpcConfig.getTlsMode() != TlsMode.FORCE_NO_TLS) {
-			clientFactoryBuilder.tlsCustomizer(builder.build()::buildClientSslContext);
+			clientFactoryBuilder.tlsCustomizer(tlsCustomizer -> builder.build().buildClientSslContext(null, tlsCustomizer));
 			uriScheme = "https";
 		} else {
 			uriScheme = "http";

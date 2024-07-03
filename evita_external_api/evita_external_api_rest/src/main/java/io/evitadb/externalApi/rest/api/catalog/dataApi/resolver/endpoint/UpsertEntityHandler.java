@@ -89,7 +89,7 @@ public class UpsertEntityHandler extends EntityHandler<CollectionRestHandlingCon
 	@Nonnull
 	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
 		final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
-		return parseRequestBody(exchange, UpsertEntityUpsertRequestDto.class)
+		return parseRequestBody(executionContext, UpsertEntityUpsertRequestDto.class)
 			.thenApply(requestData -> {
 				if (withPrimaryKeyInPath) {
 					final Map<String, Object> parametersFromRequest = getParametersFromRequest(executionContext);

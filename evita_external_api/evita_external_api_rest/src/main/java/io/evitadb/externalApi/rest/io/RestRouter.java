@@ -65,7 +65,6 @@ public class RestRouter implements HttpService {
 
 	@Nonnull private final Set<String> registeredApis = createHashSet(20);
 
-
 	/**
 	 * Registers new system API.
 	 */

@@ -33,7 +33,6 @@ import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.Filte
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.RequireConstraintFromRequestQueryBuilder;
 import io.evitadb.externalApi.rest.io.RestEndpointExecutionContext;
 import io.evitadb.externalApi.rest.metric.event.request.ExecutedEvent;
-import io.evitadb.externalApi.rest.io.RestEndpointExchange;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;

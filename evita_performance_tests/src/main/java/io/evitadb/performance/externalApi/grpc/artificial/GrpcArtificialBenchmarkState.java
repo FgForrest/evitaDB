@@ -27,7 +27,6 @@ import com.linecorp.armeria.client.ClientFactory;
 import com.linecorp.armeria.client.grpc.GrpcClientBuilder;
 import com.linecorp.armeria.client.grpc.GrpcClients;
 import com.linecorp.armeria.common.grpc.GrpcSerializationFormats;
-import io.evitadb.driver.certificate.ClientCertificateManager;
 import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
 import io.evitadb.externalApi.grpc.certificate.ClientCertificateManager;
 import io.evitadb.externalApi.grpc.configuration.GrpcConfig;
@@ -38,11 +37,7 @@ import io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest;
 import io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse;
 import io.evitadb.externalApi.system.configuration.SystemConfig;
 import io.evitadb.performance.artificial.AbstractArtificialBenchmarkState;
-import io.grpc.ManagedChannel;
-import io.netty.handler.ssl.SslContext;
-import io.netty.handler.ssl.SslContextBuilder;
 
-import java.util.concurrent.Executors;
 import java.util.function.Supplier;
 
 /**
@@ -74,7 +69,7 @@ public abstract class GrpcArtificialBenchmarkState extends AbstractArtificialBen
 				.idleTimeoutMillis(10000, true)
 				.maxNumRequestsPerConnection(1000)
 				.maxNumEventLoopsPerEndpoint(10)
-				.tlsCustomizer(clientCertificateManager::buildClientSslContext)
+				.tlsCustomizer(tlsCustomizer -> clientCertificateManager.buildClientSslContext(null, tlsCustomizer))
 				.build();
 
 			//todo tpz: add tls and scheme conditions

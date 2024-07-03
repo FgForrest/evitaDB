@@ -44,9 +44,6 @@ import io.evitadb.externalApi.configuration.HostDefinition;
 import io.evitadb.externalApi.configuration.MtlsConfiguration;
 import io.evitadb.externalApi.configuration.TlsMode;
 import io.evitadb.externalApi.utils.path.PathHandlingService;
-import io.evitadb.externalApi.exception.ExternalApiInternalError;
-import io.evitadb.externalApi.log.NoopAccessLogReceiver;
-import io.evitadb.externalApi.log.Slf4JAccessLogReceiver;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CertificateUtils;
@@ -146,7 +143,7 @@ public class ExternalApiServer implements AutoCloseable {
 				.stream()
 				.flatMap(
 					it -> Stream.of(
-							it.isEnabled() && it.isTlsEnabled() ? CertificateType.SERVER : null,
+							it.isEnabled() && it.getTlsMode() != TlsMode.FORCE_NO_TLS ? CertificateType.SERVER : null,
 							it.isEnabled() && it.isMtlsEnabled() ? CertificateType.CLIENT : null
 						).filter(Objects::nonNull)
 				)
@@ -318,8 +315,6 @@ public class ExternalApiServer implements AutoCloseable {
 		@SuppressWarnings("rawtypes") @Nonnull Collection<ExternalApiProviderRegistrar> externalApiProviders
 	) {
 		this.apiOptions = apiOptions;
-
-		final Undertow.Builder rootServerBuilder = Undertow.builder();
 
 		final CertificateSettings certificateSettings = apiOptions.certificate();
 		final ServerCertificateManager serverCertificateManager = new ServerCertificateManager(certificateSettings);

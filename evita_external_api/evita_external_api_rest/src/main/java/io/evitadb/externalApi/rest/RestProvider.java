@@ -65,7 +65,7 @@ public class RestProvider implements ExternalApiProvider<RestConfig> {
 
 	@Nullable
 	@Override
-	public HttpHandler getApiHandler() {
+	public HttpService getApiHandler() {
 		return restManager.getRestRouter();
 	}
 

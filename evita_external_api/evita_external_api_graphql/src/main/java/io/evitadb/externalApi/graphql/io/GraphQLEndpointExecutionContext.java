@@ -23,12 +23,12 @@
 
 package io.evitadb.externalApi.graphql.io;
 
+import com.linecorp.armeria.common.HttpRequest;
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import io.evitadb.externalApi.graphql.metric.event.request.ExecutedEvent;
 import io.evitadb.externalApi.graphql.metric.event.request.ExecutedEvent.ResponseStatus;
 import io.evitadb.externalApi.http.EndpointExecutionContext;
 import io.evitadb.utils.Assert;
-import io.undertow.server.HttpServerExchange;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -45,9 +45,9 @@ class GraphQLEndpointExecutionContext extends EndpointExecutionContext {
 	@Nullable private String requestBodyContentType;
 	@Nullable private String preferredResponseContentType;
 
-	public GraphQLEndpointExecutionContext(@Nonnull HttpServerExchange serverExchange,
+	public GraphQLEndpointExecutionContext(@Nonnull HttpRequest httpRequest,
 	                                       @Nonnull ExecutedEvent requestExecutedEvent) {
-		super(serverExchange);
+		super(httpRequest);
 		this.requestExecutedEvent = requestExecutedEvent;
 	}
 

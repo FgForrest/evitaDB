@@ -26,15 +26,9 @@ package io.evitadb.driver;
 import com.google.protobuf.Empty;
 import com.linecorp.armeria.client.ClientFactory;
 import com.linecorp.armeria.client.ClientFactoryBuilder;
-import com.linecorp.armeria.client.ClientOptionValue;
-import com.linecorp.armeria.client.ClientOptions;
-import com.linecorp.armeria.client.ConnectionPoolListener;
 import com.linecorp.armeria.client.grpc.GrpcClientBuilder;
-import com.linecorp.armeria.client.grpc.GrpcClientStubFactory;
 import com.linecorp.armeria.client.grpc.GrpcClients;
-import com.linecorp.armeria.common.SessionProtocol;
 import com.linecorp.armeria.common.grpc.GrpcSerializationFormats;
-import com.linecorp.armeria.internal.client.PooledChannel;
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.SessionTraits;
@@ -48,10 +42,8 @@ import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutat
 import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.system.SystemStatus;
 import io.evitadb.driver.config.EvitaClientConfiguration;
-import io.evitadb.driver.exception.EvitaClientTimedOutException;
 import io.evitadb.driver.exception.IncompatibleClientException;
 import io.evitadb.driver.interceptor.ClientSessionInterceptor;
-import io.evitadb.driver.pooling.ChannelPool;
 import io.evitadb.driver.trace.ClientTracingContext;
 import io.evitadb.driver.trace.ClientTracingContextProvider;
 import io.evitadb.driver.trace.DefaultClientTracingContext;
@@ -68,14 +60,12 @@ import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingTopLevelCatalogSchemaMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.SchemaMutationConverter;
 import io.evitadb.utils.ArrayUtils;
-import io.evitadb.utils.Assert;
 import io.evitadb.utils.CertificateUtils;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.ReflectionLookup;
 import io.evitadb.utils.UUIDUtil;
 import io.evitadb.utils.VersionUtils;
 import io.evitadb.utils.VersionUtils.SemVer;
-import io.grpc.ManagedChannel;
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 import lombok.Getter;
@@ -84,7 +74,6 @@ import lombok.extern.slf4j.Slf4j;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
-import java.net.InetSocketAddress;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateEncodingException;
 import java.time.Duration;
@@ -199,7 +188,7 @@ public class EvitaClient implements EvitaContract {
 		if (configuration.tlsEnabled()) {
 			uriScheme = "https";
 			clientFactoryBuilder.tlsCustomizer(tlsCustomizer -> {
-				clientCertificateManager.buildSslContext(
+				clientCertificateManager.buildClientSslContext(
 					(certificateType, certificate) -> {
 						try {
 							switch (certificateType) {
@@ -215,9 +204,9 @@ public class EvitaClient implements EvitaContract {
 								e
 							);
 						}
-					}
+					},
+					tlsCustomizer
 				);
-				//todo tpz: accept it?
 			});
 		} else {
 			uriScheme = "http";

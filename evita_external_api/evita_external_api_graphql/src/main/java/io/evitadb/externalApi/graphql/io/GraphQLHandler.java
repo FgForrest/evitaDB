@@ -47,10 +47,7 @@ import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidUsageException;
 import io.evitadb.externalApi.graphql.metric.event.request.ExecutedEvent;
-import io.evitadb.externalApi.http.EndpointHandler;
-import io.evitadb.externalApi.graphql.io.GraphQLHandler.GraphQLEndpointExchange;
 import io.evitadb.externalApi.http.EndpointService;
-import io.evitadb.externalApi.http.EndpointRequest;
 import io.evitadb.externalApi.http.EndpointResponse;
 import io.evitadb.externalApi.http.MimeTypes;
 import io.evitadb.externalApi.http.SuccessEndpointResponse;
@@ -122,8 +119,8 @@ public class GraphQLHandler extends EndpointService<GraphQLEndpointExecutionCont
     /**
      * Process every request with tracing context, so we can classify it in evitaDB.
      */
-    private HttpResponse instrumentRequest(@Nonnull ServiceRequestContext ctx, @Nonnull HttpRequest httpRequest) {
-        this.tracingContext.executeWithinBlock(
+    private HttpResponse instrumentRequest(@Nonnull ServiceRequestContext ctx, @Nonnull HttpRequest req) {
+        return this.tracingContext.executeWithinBlock(
             "GraphQL",
             req,
             () -> super.serve(ctx, req)
@@ -145,7 +142,7 @@ public class GraphQLHandler extends EndpointService<GraphQLEndpointExecutionCont
         return parseRequestBody(executionContext, GraphQLRequest.class)
             .thenApply(graphQLRequest -> {
 	            executionContext.requestExecutedEvent().finishInputDeserialization();
-                final GraphQLResponse<?> graphQLResponse = executeRequest(graphQLRequest);
+                final GraphQLResponse<?> graphQLResponse = executeRequest(executionContext, graphQLRequest);
                 return new SuccessEndpointResponse(graphQLResponse);
             });
     }
@@ -196,7 +193,7 @@ public class GraphQLHandler extends EndpointService<GraphQLEndpointExecutionCont
     @Override
     protected <T> CompletableFuture<T> parseRequestBody(@Nonnull GraphQLEndpointExecutionContext executionContext, @Nonnull Class<T> dataClass) {
         try {
-            return readRawRequestBody(exchange).thenApply(body -> {
+            return readRawRequestBody(executionContext).thenApply(body -> {
 	            try {
 		            return objectMapper.readValue(body, dataClass);
 	            } catch (IOException e) {

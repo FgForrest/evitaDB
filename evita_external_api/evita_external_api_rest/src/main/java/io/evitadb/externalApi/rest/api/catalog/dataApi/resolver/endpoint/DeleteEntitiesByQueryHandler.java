@@ -72,10 +72,10 @@ public class DeleteEntitiesByQueryHandler extends QueryOrientedEntitiesHandler {
 
 	@Override
 	@Nonnull
-	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
+	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
 		final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
 
-		return resolveQuery(exchange)
+		return resolveQuery(executionContext)
 			.thenApply(query -> {
 				final Query finalQuery = requestExecutedEvent.measureInternalEvitaDBExecution(() -> {
 					if (QueryUtils.findRequire(query, EntityFetch.class, SeparateEntityContentRequireContainer.class) == null) {

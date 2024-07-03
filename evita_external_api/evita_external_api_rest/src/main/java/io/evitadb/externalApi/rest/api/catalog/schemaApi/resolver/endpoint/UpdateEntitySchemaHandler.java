@@ -36,7 +36,6 @@ import io.evitadb.externalApi.rest.api.catalog.resolver.mutation.RestMutationObj
 import io.evitadb.externalApi.rest.api.catalog.resolver.mutation.RestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.rest.api.catalog.schemaApi.dto.CreateOrUpdateEntitySchemaRequestData;
 import io.evitadb.externalApi.rest.exception.RestInvalidArgumentException;
-import io.evitadb.externalApi.rest.io.RestEndpointExchange;
 import io.evitadb.externalApi.rest.io.RestEndpointExecutionContext;
 import io.evitadb.externalApi.rest.metric.event.request.ExecutedEvent;
 import lombok.extern.slf4j.Slf4j;
@@ -75,7 +74,7 @@ public class UpdateEntitySchemaHandler extends EntitySchemaHandler {
 	@Nonnull
 	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
 		final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
-		return parseRequestBody(exchange, CreateOrUpdateEntitySchemaRequestData.class)
+		return parseRequestBody(executionContext, CreateOrUpdateEntitySchemaRequestData.class)
 			.thenApply(requestData -> {
 				requestExecutedEvent.finishInputDeserialization();
 

@@ -98,6 +98,6 @@ public class GrpcProviderRegistrar implements ExternalApiProviderRegistrar<GrpcC
 
 		final GrpcService grpcService = grpcServiceBuilder.build();
 
-		return new GrpcProvider(grpcAPIConfig, corsBuilder.build(grpcService));
+		return new GrpcProvider(evita.getConfiguration().name(), apiOptions, grpcAPIConfig, corsBuilder.build(grpcService));
 	}
 }

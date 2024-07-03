@@ -28,7 +28,6 @@ import io.evitadb.api.CatalogContract;
 import io.evitadb.externalApi.http.EndpointResponse;
 import io.evitadb.externalApi.http.SuccessEndpointResponse;
 import io.evitadb.externalApi.rest.api.system.dto.CreateCatalogRequestDto;
-import io.evitadb.externalApi.rest.io.RestEndpointExchange;
 import io.evitadb.externalApi.rest.io.RestEndpointExecutionContext;
 import io.evitadb.externalApi.rest.metric.event.request.ExecutedEvent;
 
@@ -58,7 +57,6 @@ public class CreateCatalogHandler extends CatalogHandler {
 		final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
 		return parseRequestBody(executionContext, CreateCatalogRequestDto.class)
 			.thenApply(requestBody -> {
-				final CreateCatalogRequestDto requestBody = parseRequestBody(executionContext, CreateCatalogRequestDto.class);
 				requestExecutedEvent.finishInputDeserialization();
 
 				final CatalogContract newCatalog = requestExecutedEvent.measureInternalEvitaDBExecution(() -> {

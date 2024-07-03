@@ -59,22 +59,18 @@ import java.util.stream.Collectors;
  * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
  */
 @Slf4j
-public abstract class EndpointHandler<C extends EndpointExecutionContext> implements HttpService {
+public abstract class EndpointService<C extends EndpointExecutionContext> implements HttpService {
 	private static final int STREAM_CHUNK_SIZE = 8192;
 	private static final String CONTENT_TYPE_CHARSET = "; charset=UTF-8";
 
 	@Nonnull
 	@Override
 	public HttpResponse serve(@Nonnull ServiceRequestContext ctx, @Nonnull HttpRequest req) {
-		final C executionContext = createExecutionContext(serverExchange);
+		final C executionContext = createExecutionContext(req);
 		validateRequest(req);
 
-		final E exchange = createEndpointExchange(
-			req,
-			req.method().toString(),
-			getRequestBodyContentType(req).orElse(null),
-			getPreferredResponseContentType(req).orElse(null)
-		);
+		executionContext.provideRequestBodyContentType(resolveRequestBodyContentType(executionContext).orElse(null));
+		executionContext.providePreferredResponseContentType(resolvePreferredResponseContentType(executionContext).orElse(null));
 
 		beforeRequestHandled(executionContext);
 		return HttpResponse.of(Objects.requireNonNull(doHandleRequest(executionContext)
@@ -92,9 +88,9 @@ public abstract class EndpointHandler<C extends EndpointExecutionContext> implem
 								.build();
 						} else {
 							final HttpResponseWriter responseWriter = HttpResponse.streaming();
-							ctx.addAdditionalResponseHeader(HttpHeaderNames.CONTENT_TYPE, exchange.preferredResponseContentType() + CONTENT_TYPE_CHARSET);
+							ctx.addAdditionalResponseHeader(HttpHeaderNames.CONTENT_TYPE, executionContext.preferredResponseContentType() + CONTENT_TYPE_CHARSET);
 							responseWriter.write(ResponseHeaders.of(HttpStatus.OK));
-							writeResponse(exchange, responseWriter, result, ctx.eventLoop());
+							writeResponse(executionContext, responseWriter, result, ctx.eventLoop());
 							if (responseWriter.isOpen()) {
 								responseWriter.close();
 							}
@@ -245,8 +241,8 @@ public abstract class EndpointHandler<C extends EndpointExecutionContext> implem
 	}
 
 	@Nullable
-	private static Set<String> parseAcceptHeaders(@Nonnull C executionContext) {
-		final Set<String> acceptHeaders = executionContext.httpRequest().request.headers().accept()
+	private Set<String> parseAcceptHeaders(@Nonnull C executionContext) {
+		final Set<String> acceptHeaders = executionContext.httpRequest().headers().accept()
 			.stream()
 			.map(MediaType::toString)
 			.collect(Collectors.toUnmodifiableSet());
@@ -257,7 +253,7 @@ public abstract class EndpointHandler<C extends EndpointExecutionContext> implem
 	 * Reads request body into raw string.
 	 */
 	@Nonnull
-	protected String readRawRequestBody(@Nonnull C executionContext) {
+	protected CompletableFuture<String> readRawRequestBody(@Nonnull C executionContext) {
 		Assert.isPremiseValid(
 			!getSupportedRequestContentTypes().isEmpty(),
 			() -> createInternalError("Handler doesn't support reading of request body.")
@@ -284,7 +280,7 @@ public abstract class EndpointHandler<C extends EndpointExecutionContext> implem
 			})
 			.orElse(StandardCharsets.UTF_8);
 
-		return exchange.httpRequest()
+		return executionContext.httpRequest()
 			.aggregate()
 			.thenApply(r -> {
 				try (HttpData data = r.content()) {
@@ -315,11 +311,9 @@ public abstract class EndpointHandler<C extends EndpointExecutionContext> implem
 	 * Serializes a result object into the preferred media type.
 	 *
 	 * @param executionContext      endpoint exchange
-	 * @param outputStream  output stream to write serialized data to
-	 * @param result        result data from handler to write to response
-	 * @param exchange       API request data
 	 * @param responseWriter response writer to write the response to
 	 * @param result         result data from handler to serialize to the response
+	 * @param eventExecutor event executor to schedule response writing
 	 */
 	protected void writeResponse(@Nonnull C executionContext, @Nonnull HttpResponseWriter responseWriter, @Nonnull Object result, @Nonnull EventLoop eventExecutor) {
 		throw createInternalError("Cannot serialize response body because handler doesn't support it.");

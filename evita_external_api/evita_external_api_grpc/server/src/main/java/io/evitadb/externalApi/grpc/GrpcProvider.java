@@ -24,33 +24,21 @@
 package io.evitadb.externalApi.grpc;
 
 import com.google.protobuf.Empty;
-import io.evitadb.externalApi.certificate.ServerCertificateManager;
 import io.evitadb.externalApi.configuration.ApiOptions;
-import io.evitadb.externalApi.configuration.CertificatePath;
-import io.evitadb.externalApi.configuration.CertificateSettings;
-import io.evitadb.externalApi.configuration.HostDefinition;
-import io.evitadb.externalApi.grpc.certificate.ClientCertificateManager;
 import com.linecorp.armeria.server.HttpService;
 import io.evitadb.externalApi.configuration.MtlsConfiguration;
 import io.evitadb.externalApi.grpc.configuration.GrpcConfig;
-import io.evitadb.externalApi.grpc.exception.GrpcServerStartFailedException;
 import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc;
 import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc.EvitaServiceFutureStub;
 import io.evitadb.externalApi.grpc.generated.GrpcEvitaServerStatusResponse;
 import io.evitadb.externalApi.http.ExternalApiProvider;
-import io.evitadb.utils.CertificateUtils;
 import io.grpc.ManagedChannel;
-import io.grpc.Server;
-import io.grpc.netty.NettyChannelBuilder;
 import io.evitadb.utils.NetworkUtils;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
-import java.io.IOException;
-import java.nio.file.Path;
-import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -122,15 +110,10 @@ public class GrpcProvider implements ExternalApiProvider<GrpcConfig> {
 					return true;
 				}
 			}
+			return false;
 		} else {
-			if (isReady(this.channel)) {
-				return true;
-			} else {
-				this.channel = null;
-			}
+			return isReady.test(this.reachableUrl);
 		}
-		return false;
-
 		/*
 
 		if (this.channel == null) {
@@ -184,6 +167,7 @@ public class GrpcProvider implements ExternalApiProvider<GrpcConfig> {
 		return false;
 
 		 */
+
 	}
 
 	/**

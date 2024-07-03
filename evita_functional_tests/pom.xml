@@ -106,6 +106,12 @@
 		</dependency>
 		<dependency>
 			<groupId>${project.parent.groupId}</groupId>
+			<artifactId>evita_external_api_observability</artifactId>
+			<version>${project.parent.version}</version>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>${project.parent.groupId}</groupId>
 			<artifactId>evita_server</artifactId>
 			<version>${project.parent.version}</version>
 			<scope>test</scope>
