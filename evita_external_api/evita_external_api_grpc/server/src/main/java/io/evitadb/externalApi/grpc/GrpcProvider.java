@@ -24,26 +24,24 @@
 package io.evitadb.externalApi.grpc;
 
 import com.google.protobuf.Empty;
+import com.linecorp.armeria.client.ClientFactory;
+import com.linecorp.armeria.client.ClientFactoryBuilder;
+import com.linecorp.armeria.client.grpc.GrpcClientBuilder;
+import com.linecorp.armeria.client.grpc.GrpcClients;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import com.linecorp.armeria.server.HttpService;
+import io.evitadb.externalApi.configuration.HostDefinition;
 import io.evitadb.externalApi.configuration.MtlsConfiguration;
+import io.evitadb.externalApi.configuration.TlsMode;
 import io.evitadb.externalApi.grpc.configuration.GrpcConfig;
-import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc;
-import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc.EvitaServiceFutureStub;
-import io.evitadb.externalApi.grpc.generated.GrpcEvitaServerStatusResponse;
+import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc.EvitaServiceBlockingStub;
 import io.evitadb.externalApi.http.ExternalApiProvider;
-import io.grpc.ManagedChannel;
-import io.evitadb.utils.NetworkUtils;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import javax.annotation.Nullable;
-import java.util.function.Predicate;
 
 /**
  * Descriptor of external API provider that provides gRPC API.
@@ -93,97 +91,33 @@ public class GrpcProvider implements ExternalApiProvider<GrpcConfig> {
 		return configuration.isExposeDocsService();
 	}
 
+	private GrpcClientBuilder grpcClientBuilder;
+
+	private final ClientFactoryBuilder clientFactoryBuilder = ClientFactory.builder()
+		.useHttp1Pipelining(true)
+		.idleTimeoutMillis(10000, true)
+		.tlsNoVerify()
+		.maxNumRequestsPerConnection(1000)
+		.maxNumEventLoopsPerEndpoint(10);
+
 	@Override
 	public boolean isReady() {
-		final Predicate<String> isReady = url -> {
-			final String getCatalogMethodPath = "io.evitadb.externalApi.grpc.generated.EvitaService/GetCatalogNames";
-			final int responseCode = NetworkUtils.getHttpStatusCode(url + getCatalogMethodPath, "GET", "application/grpc")
-				.orElse(-1);
-			// we are interested in 405 Method Not Allowed which signals gRPC server is running
-			return responseCode == 405;
-		};
-		final String[] baseUrls = this.configuration.getBaseUrls(configuration.getExposedHost());
-		if (this.reachableUrl == null) {
-			for (String baseUrl : baseUrls) {
-				if (isReady.test(baseUrl)) {
-					this.reachableUrl = baseUrl;
-					return true;
-				}
-			}
-			return false;
-		} else {
-			return isReady.test(this.reachableUrl);
-		}
-		/*
+		for (HostDefinition hostDefinition : this.configuration.getHost()) {
+			final String uriScheme = configuration.getTlsMode() != TlsMode.FORCE_NO_TLS ? "https" : "http";
 
-		if (this.channel == null) {
-			for (HostDefinition hostDefinition : this.configuration.getHost()) {
-				NettyChannelBuilder nettyChannelBuilder = NettyChannelBuilder.forAddress(hostDefinition.hostName(), hostDefinition.port());
-				final CertificateSettings certificateSettings = apiOptions.certificate();
-				if (!certificateSettings.generateAndUseSelfSigned() && configuration.isMtlsEnabled()) {
-					log.error(
-						"Cannot check readiness of the gRPC API on the server side if mTLS is enabled currently." +
-						"The client private key is missing."
-					);
-					return false;
-				}
-				final Optional<CertificatePath> certificatePaths = ServerCertificateManager.getCertificatePath(certificateSettings);
-				if (configuration.isTlsEnabled() && certificatePaths.isPresent()) {
-					final CertificatePath paths = certificatePaths.get();
-					final Path folderPath = certificateSettings.getFolderPath().toAbsolutePath().normalize();
-					final ClientCertificateManager clientCertificateManager = new ClientCertificateManager.Builder()
-						.usingTrustedRootCaCertificate(certificateSettings.generateAndUseSelfSigned())
-						// this will prevent attempt to download certificates (we use certificates directly from the server)
-						.dontUseGeneratedCertificate()
-						.serverName(serverName)
-						.mtls(configuration.isMtlsEnabled())
-						.rootCaCertificateFilePath(Path.of(paths.certificate()))
-						.certificateClientFolderPath(folderPath)
-						.clientCertificateFilePath(folderPath.resolve(CertificateUtils.getGeneratedClientCertificateFileName()))
-						.clientPrivateKeyFilePath(folderPath.resolve(CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName()))
-						.build();
-					nettyChannelBuilder.sslContext(clientCertificateManager.buildClientSslContext(null));
-				} else {
-					nettyChannelBuilder.usePlaintext();
-				}
-				final ManagedChannel examinedChannel = nettyChannelBuilder.build();
+			int attempts = 5;
+			while (attempts-- > 0) {
 				try {
-					if (isReady(examinedChannel)) {
-						return true;
-					}
-				} finally {
-					if (examinedChannel != null && !examinedChannel.isShutdown()) {
-						examinedChannel.shutdown();
-					}
+					final EvitaServiceBlockingStub evitaService = GrpcClients.builder(uriScheme + "://" + hostDefinition.hostWithPort() + "/")
+						.factory(clientFactoryBuilder.build())
+						.responseTimeoutMillis(3000)
+						.build(EvitaServiceBlockingStub.class);
+					return evitaService.serverStatus(Empty.newBuilder().build()).getUptime() > 0;
+				} catch (Exception e) {
+					log.error("Error while checking if gRPC server is ready", e);
 				}
-			}
-		} else {
-			if (isReady(this.channel)) {
-				return true;
-			} else {
-				this.channel = null;
 			}
 		}
 		return false;
-
-		 */
-
 	}
-
-	/**
-	 * Returns true if the channel is ready or idle.
-	 * @param channel channel to check
-	 * @return true if the channel is ready or idle
-	 */
-	private static boolean isReady(@Nonnull ManagedChannel channel) {
-		final EvitaServiceFutureStub evitaService = EvitaServiceGrpc.newFutureStub(channel);
-		try {
-			final GrpcEvitaServerStatusResponse response = evitaService.serverStatus(Empty.newBuilder().build())
-				.get(1, TimeUnit.SECONDS);
-			return response.isInitialized();
-		} catch (InterruptedException | ExecutionException | TimeoutException e) {
-			return false;
-		}
-	}
-
 }

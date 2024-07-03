@@ -29,6 +29,7 @@ import com.linecorp.armeria.server.ServerBuilder;
 import com.linecorp.armeria.server.VirtualHostBuilder;
 import com.linecorp.armeria.server.docs.DocService;
 import com.linecorp.armeria.server.docs.DocServiceFilter;
+import com.linecorp.armeria.server.logging.AccessLogWriter;
 import com.linecorp.armeria.server.logging.LoggingService;
 import io.evitadb.core.Evita;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -403,6 +404,10 @@ public class ExternalApiServer implements AutoCloseable {
 		serverBuilder.serviceWorkerGroup(apiOptions.serviceWorkerGroupThreadsAsInt());
 		serverBuilder.requestTimeoutMillis(5000);
 
+		if (apiOptions.accessLog()) {
+			serverBuilder.accessLogWriter(AccessLogWriter.combined(), true);
+		}
+
 		final Map<HostDefinition, HostDefinitionVirtualHosts> hosts = createHashMap(8);
 		for (ExternalApiProvider<?> registeredApiProvider : registeredApiProviders.values()) {
 			final AbstractApiConfiguration configuration = apiOptions.endpoints().get(registeredApiProvider.getCode());
@@ -478,7 +483,7 @@ public class ExternalApiServer implements AutoCloseable {
 						if (registeredApiProvider.isDocsServiceEnabled()) {
 							virtualHostBuilder.virtualHostBuilder.serviceUnder(
 								// always will be only gRPC API docs
-								"/docs",
+								"/grpc/docs",
 								docService
 							);
 						}

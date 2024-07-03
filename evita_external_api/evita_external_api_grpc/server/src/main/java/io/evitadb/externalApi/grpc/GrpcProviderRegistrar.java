@@ -85,16 +85,16 @@ public class GrpcProviderRegistrar implements ExternalApiProviderRegistrar<GrpcC
 		} else {
 			corsBuilder = CorsService.builder(grpcAPIConfig.getAllowedOrigins());
 		}
-			corsBuilder
-				.allowRequestMethods(HttpMethod.POST) // Allow POST method.
-				// Allow Content-type and X-GRPC-WEB headers.
-				.allowAllRequestHeaders(true)
-				/*.allowAllRequestHeaders(HttpHeaderNames.CONTENT_TYPE,
-						HttpHeaderNames.of("X-GRPC-WEB"), "X-User-Agent")*/
-				// Expose trailers of the HTTP response to the client.
-				.exposeHeaders(GrpcHeaderNames.GRPC_STATUS,
-					GrpcHeaderNames.GRPC_MESSAGE,
-					GrpcHeaderNames.ARMERIA_GRPC_THROWABLEPROTO_BIN);
+		corsBuilder
+			.allowRequestMethods(HttpMethod.POST) // Allow POST method.
+			// Allow Content-type and X-GRPC-WEB headers.
+			.allowAllRequestHeaders(true)
+			/*.allowAllRequestHeaders(HttpHeaderNames.CONTENT_TYPE,
+					HttpHeaderNames.of("X-GRPC-WEB"), "X-User-Agent")*/
+			// Expose trailers of the HTTP response to the client.
+			.exposeHeaders(GrpcHeaderNames.GRPC_STATUS,
+				GrpcHeaderNames.GRPC_MESSAGE,
+				GrpcHeaderNames.ARMERIA_GRPC_THROWABLEPROTO_BIN);
 
 		final GrpcService grpcService = grpcServiceBuilder.build();
 
