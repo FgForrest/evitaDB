@@ -118,7 +118,8 @@ public class ClientTaskTracker implements Closeable {
 			// we need to add the task to the queue and track its status - unless it's already GCed
 			final ClientTask<S, T> taskToTrack = new ClientTask<>(
 				taskStatus,
-				() -> evitaClient::cancelTask
+				() -> evitaClient::cancelTask,
+				() -> evitaClient::getTaskStatus
 			);
 			final boolean added = this.tasks.offer(new WeakReference<>(taskToTrack));
 			if (!added) {

@@ -115,14 +115,19 @@ public class ExportFileService {
 	 */
 	@Nonnull
 	public PaginatedList<FileForFetch> listFilesToFetch(int page, int pageSize, @Nullable String origin) {
-		final List<FileForFetch> filePage = this.files.stream()
-			.filter(it -> origin == null || (it.origin() != null && Arrays.asList(it.origin()).contains(origin)))
+		final List<FileForFetch> filteredFiles = origin == null ?
+			this.files :
+			this.files.stream()
+				.filter(it -> it.origin() != null && Arrays.asList(it.origin()).contains(origin))
+				.toList();
+		final List<FileForFetch> filePage = filteredFiles
+			.stream()
 			.skip(PaginatedList.getFirstItemNumberForPage(page, pageSize))
 			.limit(pageSize)
 			.toList();
 		return new PaginatedList<>(
 			page, pageSize,
-			this.files.size(),
+			filePage.size(),
 			filePage
 		);
 	}
@@ -258,7 +263,6 @@ public class ExportFileService {
 		try {
 			final FileForFetch file = getFile(fileId)
 				.orElseThrow(() -> new FileForFetchNotFoundException(fileId));
-			;
 			Files.delete(file.metadataPath(storageOptions.exportDirectory()));
 			Files.delete(file.path(storageOptions.exportDirectory()));
 			this.files.remove(file);
@@ -275,6 +279,7 @@ public class ExportFileService {
 
 	/**
 	 * Returns input stream to read the file contents.
+	 *
 	 * @param file file to read
 	 * @return input stream to read the file contents
 	 * @throws IOException if the file cannot be read
@@ -324,6 +329,7 @@ public class ExportFileService {
 		@Nonnull CompletableFuture<FileForFetch> fileForFetchFuture,
 		@Nonnull OutputStream outputStream
 	) {
+
 	}
 
 	/**

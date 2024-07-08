@@ -60,10 +60,10 @@ abstract class AbstractServerTask<S, T> implements ServerTask<S, T> {
 	/**
 	 * This future can be returned to a client to join the future in its pipeline.
 	 */
-	private final CompletableFuture<T> future;
+	private final ServerTaskCompletableFuture<T> future;
 
 	public AbstractServerTask(@Nonnull String taskName, @Nullable S settings) {
-		this.future = new CompletableFuture<>();
+		this.future = new ServerTaskCompletableFuture<>();
 		this.status = new AtomicReference<>(
 			new TaskStatus<>(
 				this.getClass().getSimpleName(),
@@ -84,7 +84,7 @@ abstract class AbstractServerTask<S, T> implements ServerTask<S, T> {
 	}
 
 	public AbstractServerTask(@Nonnull String catalogName, @Nonnull String taskName, @Nullable S settings) {
-		this.future = new CompletableFuture<>();
+		this.future = new ServerTaskCompletableFuture<>();
 		this.status = new AtomicReference<>(
 			new TaskStatus<>(
 				this.getClass().getSimpleName(),
@@ -105,7 +105,7 @@ abstract class AbstractServerTask<S, T> implements ServerTask<S, T> {
 	}
 
 	public AbstractServerTask(@Nonnull String taskName, @Nullable S settings, @Nonnull Function<Throwable, T> exceptionHandler) {
-		this.future = new CompletableFuture<>();
+		this.future = new ServerTaskCompletableFuture<>();
 		this.status = new AtomicReference<>(
 			new TaskStatus<>(
 				this.getClass().getSimpleName(),
@@ -126,7 +126,7 @@ abstract class AbstractServerTask<S, T> implements ServerTask<S, T> {
 	}
 
 	public AbstractServerTask(@Nonnull String catalogName, @Nonnull String taskName, @Nullable S settings, @Nonnull Function<Throwable, T> exceptionHandler) {
-		this.future = new CompletableFuture<>();
+		this.future = new ServerTaskCompletableFuture<>();
 		this.status = new AtomicReference<>(
 			new TaskStatus<>(
 				this.getClass().getSimpleName(),
@@ -175,7 +175,7 @@ abstract class AbstractServerTask<S, T> implements ServerTask<S, T> {
 			final BackgroundTaskFinishedEvent finishedEvent = new BackgroundTaskFinishedEvent(theStatus.catalogName(), theStatus.taskName());
 			try {
 				final T result = this.executeInternal();
-				if (this.future.isDone() || this.future.isCancelled()) {
+				if (this.future.isDone()) {
 					return null;
 				} else {
 					this.status.updateAndGet(
@@ -213,16 +213,10 @@ abstract class AbstractServerTask<S, T> implements ServerTask<S, T> {
 
 	@Override
 	public boolean cancel() {
-		if (!(this.future.isDone() || this.future.isCancelled())) {
-			this.future.cancel(true);
-			this.status.updateAndGet(
-				currentStatus -> currentStatus.transitionToFailed(
-					new CancellationException("Task was canceled.")
-				)
-			);
-			return true;
-		} else {
+		if (this.future.isDone() || this.future.isCancelled()) {
 			return false;
+		} else {
+			return this.future.cancel(true);
 		}
 	}
 
@@ -253,5 +247,26 @@ abstract class AbstractServerTask<S, T> implements ServerTask<S, T> {
 	 * @return the result of the task
 	 */
 	protected abstract T executeInternal();
+
+	/**
+	 * This class is used to keep {@link ServerTask} alive as long as someone keeps a reference to the future. Task
+	 * must not be ever garbage collected while the future is still referenced. That's why this inner class is not
+	 * static.
+	 * @param <X>
+	 */
+	@SuppressWarnings("InnerClassMayBeStatic")
+	private class ServerTaskCompletableFuture<X> extends CompletableFuture<X> {
+
+		@Override
+		public boolean cancel(boolean mayInterruptIfRunning) {
+			final boolean cancelled = super.cancel(mayInterruptIfRunning);
+			AbstractServerTask.this.status.updateAndGet(
+				currentStatus -> currentStatus.transitionToFailed(
+					new CancellationException("Task was canceled.")
+				)
+			);
+			return cancelled;
+		}
+	}
 
 }

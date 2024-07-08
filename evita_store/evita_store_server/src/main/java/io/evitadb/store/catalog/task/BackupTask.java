@@ -140,69 +140,77 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 			this.getClass().getSimpleName()
 		);
 
-		try (final Closeables closeables = new Closeables()) {
-			final CatalogOffsetIndexStoragePartPersistenceService catalogPersistenceService = thePastMoment == null ?
-				this.catalogPersistenceService.getStoragePartPersistenceService(catalogVersion) :
-				closeables.add(this.catalogPersistenceService.createCatalogOffsetIndexStoragePartService(this.bootstrapRecord));
+		try {
+			try (final Closeables closeables = new Closeables()) {
+				final CatalogOffsetIndexStoragePartPersistenceService catalogPersistenceService = thePastMoment == null ?
+					this.catalogPersistenceService.getStoragePartPersistenceService(catalogVersion) :
+					closeables.add(this.catalogPersistenceService.createCatalogOffsetIndexStoragePartService(this.bootstrapRecord));
 
-			try (ZipOutputStream zipOutputStream = new ZipOutputStream(new BufferedOutputStream(exportFileHandle.outputStream()))) {
-				zipOutputStream.putNextEntry(new ZipEntry(this.catalogName + "/"));
-				zipOutputStream.closeEntry();
+				try (ZipOutputStream zipOutputStream = new ZipOutputStream(new BufferedOutputStream(exportFileHandle.outputStream()))) {
+					zipOutputStream.putNextEntry(new ZipEntry(this.catalogName + "/"));
+					zipOutputStream.closeEntry();
 
-				// first store all the active contents of the entity collection data files
-				final CatalogHeader catalogHeader = catalogPersistenceService.getCatalogHeader(catalogVersion);
-				final Map<String, EntityCollectionHeader> entityHeaders = CollectionUtils.createHashMap(
-					catalogHeader.getEntityTypeFileIndexes().size()
-				);
+					// first store all the active contents of the entity collection data files
+					final CatalogHeader catalogHeader = catalogPersistenceService.getCatalogHeader(catalogVersion);
+					final Map<String, EntityCollectionHeader> entityHeaders = CollectionUtils.createHashMap(
+						catalogHeader.getEntityTypeFileIndexes().size()
+					);
 
-				// collect all entity collection services and calculate total record count to backup
-				final ServicesAndStatistics servicesAndStatistics = getServicesAndStatistics(
-					catalogVersion, thePastMoment, theIncludingWAL, catalogPersistenceService, catalogHeader, closeables
-				);
+					// collect all entity collection services and calculate total record count to backup
+					final ServicesAndStatistics servicesAndStatistics = getServicesAndStatistics(
+						catalogVersion, thePastMoment, theIncludingWAL, catalogPersistenceService, catalogHeader, closeables
+					);
 
-				int backedUpRecords = 0;
-				for (CollectionFileReference entityTypeFileIndex : catalogHeader.getEntityTypeFileIndexes()) {
-					backedUpRecords = backupEntityCollectionDataFile(
-						catalogVersion, backedUpRecords, entityTypeFileIndex, zipOutputStream, servicesAndStatistics,
-						entityHeaders
+					int backedUpRecords = 0;
+					for (CollectionFileReference entityTypeFileIndex : catalogHeader.getEntityTypeFileIndexes()) {
+						backedUpRecords = backupEntityCollectionDataFile(
+							catalogVersion, backedUpRecords, entityTypeFileIndex, zipOutputStream, servicesAndStatistics,
+							entityHeaders
+						);
+					}
+
+					// then write the active contents of the catalog file
+					final String catalogDataStoreFileName = CatalogPersistenceService.getCatalogDataStoreFileName(this.catalogName, 0);
+					zipOutputStream.putNextEntry(new ZipEntry(this.catalogName + "/" + catalogDataStoreFileName));
+
+					final OffsetIndexDescriptor catalogDataFileDescriptor = backupCatalogDataFile(
+						catalogVersion, backedUpRecords, catalogPersistenceService, zipOutputStream,
+						servicesAndStatistics, catalogHeader, entityHeaders
+					);
+					backedUpRecords += servicesAndStatistics.catalogServiceRecordCount();
+
+					// store the WAL file with all records written after the catalog version
+					if (theIncludingWAL) {
+						backupWAL(backedUpRecords, servicesAndStatistics, zipOutputStream);
+					}
+
+					// finally, store the catalog bootstrap
+					backupBootstrapRecord(catalogVersion, zipOutputStream, catalogDataFileDescriptor);
+				} catch (IOException e) {
+					throw new UnexpectedIOException(
+						"Failed to backup catalog `" + this.catalogName + "`!",
+						"Failed to backup catalog!",
+						e
 					);
 				}
-
-				// then write the active contents of the catalog file
-				final String catalogDataStoreFileName = CatalogPersistenceService.getCatalogDataStoreFileName(this.catalogName, 0);
-				zipOutputStream.putNextEntry(new ZipEntry(this.catalogName + "/" + catalogDataStoreFileName));
-
-				final OffsetIndexDescriptor catalogDataFileDescriptor = backupCatalogDataFile(
-					catalogVersion, backedUpRecords, catalogPersistenceService, zipOutputStream,
-					servicesAndStatistics, catalogHeader, entityHeaders
-				);
-				backedUpRecords += servicesAndStatistics.catalogServiceRecordCount();
-
-				// store the WAL file with all records written after the catalog version
-				if (theIncludingWAL) {
-					backupWAL(backedUpRecords, servicesAndStatistics, zipOutputStream);
-				}
-
-				// finally, store the catalog bootstrap
-				backupBootstrapRecord(catalogVersion, zipOutputStream, catalogDataFileDescriptor);
-			} catch (IOException e) {
-				throw new UnexpectedIOException(
-					"Failed to backup catalog `" + this.catalogName + "`!",
-					"Failed to backup catalog!",
-					e
-				);
 			}
+
+			log.info("Backup of catalog `{}` at version {} completed.", this.catalogName, catalogVersion);
+
+			return ofNullable(exportFileHandle.fileForFetchFuture().getNow(null))
+				.orElseThrow(
+					() -> new GenericEvitaInternalError(
+						"File for fetch should be generated in close method and" +
+							" should be already available by now."
+					)
+				);
+		} catch (RuntimeException exception) {
+			// remove the files
+			ofNullable(exportFileHandle.fileForFetchFuture().getNow(null))
+				.ifPresent(it -> this.exportFileService.deleteFile(it.fileId()));
+
+			throw exception;
 		}
-
-		log.info("Backup of catalog `{}` at version {} completed.", this.catalogName, catalogVersion);
-
-		return ofNullable(exportFileHandle.fileForFetchFuture().getNow(null))
-			.orElseThrow(
-				() -> new GenericEvitaInternalError(
-					"File for fetch should be generated in close method and" +
-						" should be already available by now."
-				)
-			);
 	}
 
 	/**

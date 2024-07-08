@@ -210,6 +210,13 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 					// to avoid closing sessions when you stop at breakpoint
 					ServerOptions.builder()
 						.closeSessionsAfterSecondsOfInactivity(-1)
+						.serviceThreadPool(
+							ThreadPoolOptions.serviceThreadPoolBuilder()
+								.minThreadCount(1)
+								.maxThreadCount(1)
+								.queueSize(10_000)
+								.build()
+						)
 						.requestThreadPool(
 							ThreadPoolOptions.requestThreadPoolBuilder()
 								.queueSize(10_000)

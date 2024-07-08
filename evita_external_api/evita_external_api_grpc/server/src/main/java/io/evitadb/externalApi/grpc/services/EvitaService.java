@@ -25,7 +25,6 @@ package io.evitadb.externalApi.grpc.services;
 
 import com.google.protobuf.ByteString;
 import com.google.protobuf.Empty;
-import com.google.protobuf.StringValue;
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.SessionTraits;
@@ -515,7 +514,7 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 		final PaginatedList<FileForFetch> filesToFetch = evita.listFilesToFetch(
 			request.getPageNumber(),
 			request.getPageSize(),
-			Optional.ofNullable(request.getOrigin()).map(StringValue::getValue).orElse(null)
+			request.hasOrigin() ? request.getOrigin().getValue() : null
 		);
 
 		final GrpcFilesToFetchResponse.Builder builder = GrpcFilesToFetchResponse.newBuilder();

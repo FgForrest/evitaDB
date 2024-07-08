@@ -135,17 +135,16 @@ public class SequentialTask<T> implements ServerTask<Void, T> {
 	@Override
 	public boolean cancel() {
 		if (!(this.futureResult.isDone() || this.futureResult.isCancelled())) {
+			boolean canceled = false;
 			for (Task<?, ?> step : steps) {
-				final State state = step.getStatus().state();
-				if (state == State.QUEUED) {
-					step.cancel();
-				}
+				//noinspection NonShortCircuitBooleanExpression
+				canceled |= step.cancel();
 			}
 			this.status.updateAndGet(
 				current -> current.transitionToFailed(new CancellationException("Task was canceled."))
 			);
 			this.futureResult.cancel(true);
-			return true;
+			return canceled;
 		} else {
 			return false;
 		}
@@ -155,10 +154,7 @@ public class SequentialTask<T> implements ServerTask<Void, T> {
 	public void fail(@Nonnull Exception exception) {
 		if (!(this.futureResult.isDone() || this.futureResult.isCancelled())) {
 			for (ServerTask<?, ?> step : steps) {
-				final State state = step.getStatus().state();
-				if (state == State.QUEUED) {
-					step.fail(exception);
-				}
+				step.fail(exception);
 			}
 			this.status.updateAndGet(current -> current.transitionToFailed(exception));
 			this.futureResult.completeExceptionally(exception);

@@ -60,6 +60,9 @@ import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.task.Task;
+import io.evitadb.api.task.TaskStatus;
+import io.evitadb.api.task.TaskStatus.State;
+import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.driver.config.EvitaClientConfiguration;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -82,6 +85,7 @@ import io.evitadb.utils.CertificateUtils;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.ReflectionLookup;
 import lombok.extern.slf4j.Slf4j;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -95,10 +99,14 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -921,6 +929,93 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 				return session.getEntityCollectionSize(Entities.PRODUCT);
 			})
 		);
+	}
+
+	@Test
+	@UseDataSet(value = EVITA_CLIENT_DATA_SET, destroyAfterTest = true)
+	void shouldListAndCancelTasks(EvitaClient evitaClient) {
+		final int numberOfTasks = 20;
+		ExecutorService executorService = Executors.newFixedThreadPool(numberOfTasks);
+
+		// Step 2: Generate backup tasks using the custom executor
+		final List<CompletableFuture<CompletableFuture<FileForFetch>>> backupTasks = Stream.generate(
+				() -> CompletableFuture.supplyAsync(
+					() -> evitaClient.backupCatalog(TEST_CATALOG, null, true),
+					executorService
+				)
+			)
+			.limit(numberOfTasks)
+			.toList();
+
+		// Optional: Wait for all tasks to complete
+		CompletableFuture.allOf(backupTasks.toArray(new CompletableFuture[0])).join();
+		executorService.shutdown();
+
+		evitaClient.listTaskStatuses(1, numberOfTasks);
+
+		// cancel 7 of them immediately
+		final List<Boolean> cancellationResult = Stream.concat(
+				evitaClient.listTaskStatuses(1, 1)
+					.getData()
+					.stream()
+					.map(it -> evitaClient.cancelTask(it.taskId())),
+				backupTasks.subList(3, numberOfTasks - 1)
+					.stream()
+					.map(task -> task.getNow(null).cancel(true))
+			)
+			.toList();
+
+		// wait for all task to complete
+		assertThrows(
+			ExecutionException.class,
+			() -> CompletableFuture.allOf(
+				backupTasks.stream().map(it -> it.getNow(null)).toArray(CompletableFuture[]::new)
+			).get(3, TimeUnit.MINUTES)
+		);
+
+		final PaginatedList<TaskStatus<?, ?>> taskStatuses = evitaClient.listTaskStatuses(1, numberOfTasks);
+		assertEquals(numberOfTasks, taskStatuses.getTotalRecordCount());
+		final int cancelled = cancellationResult.stream().mapToInt(b -> b ? 1 : 0).sum();
+		assertEquals(backupTasks.size() - cancelled, taskStatuses.getData().stream().filter(task -> task.state() == State.FINISHED).count());
+		assertEquals(cancelled, taskStatuses.getData().stream().filter(task -> task.state() == State.FAILED).count());
+
+		// fetch all tasks by their ids
+		evitaClient.getTaskStatuses(
+			taskStatuses.getData().stream().map(TaskStatus::taskId).toArray(UUID[]::new)
+		).forEach(Assertions::assertNotNull);
+
+		// fetch tasks individually
+		taskStatuses.getData().forEach(task -> assertNotNull(evitaClient.getTaskStatus(task.taskId())));
+
+		// list exported files
+		final PaginatedList<FileForFetch> exportedFiles = evitaClient.listFilesToFetch(1, numberOfTasks, null);
+		// some task might have finished even if cancelled (if they were cancelled in terminal phase)
+		assertTrue(exportedFiles.getTotalRecordCount() >= backupTasks.size() - cancelled);
+		exportedFiles.getData().forEach(file -> assertTrue(file.totalSizeInBytes() > 0));
+
+		// get all files by their ids
+		exportedFiles.getData().forEach(file -> assertNotNull(evitaClient.getFileToFetch(file.fileId())));
+
+		// fetch all of them
+		exportedFiles.getData().forEach(
+			file -> {
+				try (final InputStream inputStream = evitaClient.fetchFile(file.fileId())) {
+					final Path tempFile = Files.createTempFile(String.valueOf(file.fileId()), ".zip");
+					Files.copy(inputStream, tempFile, StandardCopyOption.REPLACE_EXISTING);
+					assertTrue(tempFile.toFile().exists());
+					assertEquals(file.totalSizeInBytes(), Files.size(tempFile));
+					Files.delete(tempFile);
+				} catch (IOException e) {
+					fail(e);
+				}
+			});
+
+		// delete them
+		exportedFiles.getData().forEach(file -> evitaClient.deleteFile(file.fileId()));
+
+		// list them again and there should be none of them
+		final PaginatedList<FileForFetch> exportedFilesAfterDeletion = evitaClient.listFilesToFetch(1, numberOfTasks, null);
+		assertEquals(0, exportedFilesAfterDeletion.getTotalRecordCount());
 	}
 
 	@Test

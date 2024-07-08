@@ -32,6 +32,7 @@ import java.io.Serializable;
 import java.io.StringWriter;
 import java.time.OffsetDateTime;
 import java.util.UUID;
+import java.util.concurrent.CancellationException;
 
 /**
  * This record provides the status of a task, including telemetry information and access to its progress, settings,
@@ -72,7 +73,7 @@ public record TaskStatus<S, T>(
 	 */
 	@Nonnull
 	public State state() {
-		if (exceptionWithStackTrace != null) {
+		if (exceptionWithStackTrace != null || publicExceptionMessage != null) {
 			return State.FAILED;
 		} else if (finished != null) {
 			return State.FINISHED;
@@ -170,6 +171,15 @@ public record TaskStatus<S, T>(
 		final StringWriter sw = new StringWriter(512);
 		exception.printStackTrace(new PrintWriter(sw));
 
+		final String publicException;
+		if (exception instanceof EvitaError evitaError) {
+			publicException = evitaError.getPublicMessage();
+		} else if (exception instanceof CancellationException) {
+			publicException = "Task was cancelled.";
+		} else {
+			publicException = "Task failed for unknown reasons.";
+		}
+
 		return new TaskStatus<>(
 			this.taskType,
 			this.taskName,
@@ -181,7 +191,7 @@ public record TaskStatus<S, T>(
 			100,
 			this.settings,
 			null,
-			exception instanceof EvitaError evitaError ? evitaError.getPublicMessage() : "Task failed for unknown reasons.",
+			publicException,
 			exception.getClass().getName() + ": " + exception.getMessage() + "\n" + sw
 		);
 	}

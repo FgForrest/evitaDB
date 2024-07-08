@@ -276,6 +276,7 @@ public class Scheduler implements ObservableExecutorService {
 		return new PaginatedList<>(
 			page, pageSize, this.queue.size(),
 			this.queue.stream()
+				.sorted((o1, o2) -> o2.getStatus().issued().compareTo(o1.getStatus().issued()))
 				.skip(PaginatedList.getFirstItemNumberForPage(page, pageSize))
 				.limit(pageSize)
 				.map(Task::getStatus)
@@ -323,10 +324,7 @@ public class Scheduler implements ObservableExecutorService {
 		return this.queue.stream()
 			.filter(it -> it.getStatus().taskId().equals(jobId))
 			.findFirst()
-			.map(theJob -> {
-				theJob.cancel();
-				return true;
-			})
+			.map(Task::cancel)
 			.orElse(false);
 	}
 

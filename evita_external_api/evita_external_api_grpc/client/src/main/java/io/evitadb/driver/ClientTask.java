@@ -29,10 +29,12 @@ import io.evitadb.api.task.TaskStatus.State;
 import io.evitadb.driver.exception.TaskFailedException;
 
 import javax.annotation.Nonnull;
+import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -44,31 +46,36 @@ import java.util.function.Supplier;
 public class ClientTask<S, T> implements Task<S, T> {
 	private final AtomicReference<TaskStatus<S, T>> status;
 	private final ClientTaskCompletableFuture<T> result;
-	private final Consumer<UUID> cancellationLambda;
+	private final Function<UUID, Boolean> cancellationLambda;
+	private final Function<UUID, Optional<TaskStatus<?, ?>>> stateUpdater;
 
 	public ClientTask(
 		@Nonnull TaskStatus<S, T> status,
-		@Nonnull Supplier<Consumer<UUID>> cancellationLambdaFactory
+		@Nonnull Supplier<Function<UUID, Boolean>> cancellationLambdaFactory,
+		@Nonnull Supplier<Function<UUID, Optional<TaskStatus<?, ?>>>> stateUpdater
 	) {
 		this.status = new AtomicReference<>(status);
 		this.result = new ClientTaskCompletableFuture<>();
 		if (status.state() == State.FINISHED) {
 			this.result.complete(status.result());
 			this.cancellationLambda = null;
+			this.stateUpdater = null;
 		} else if (status.state() == State.FAILED) {
 			this.result.completeExceptionally(
 				new TaskFailedException(status.publicExceptionMessage())
 			);
 			this.cancellationLambda = null;
+			this.stateUpdater = null;
 		} else {
 			this.cancellationLambda = cancellationLambdaFactory.get();
+			this.stateUpdater = stateUpdater.get();
 		}
 	}
 
 	public ClientTask(
 		@Nonnull TaskStatus<S, T> status
 	) {
-		this(status, () -> null);
+		this(status, () -> null, () -> null);
 	}
 
 	@Nonnull
@@ -88,29 +95,41 @@ public class ClientTask<S, T> implements Task<S, T> {
 		if (this.result.isDone() || this.result.isCancelled() || this.cancellationLambda == null) {
 			return false;
 		} else {
-			this.result.cancel(true);
-			this.cancellationLambda.accept(this.status.get().taskId());
-			return true;
+			final boolean cancelled = this.result.cancel(true);
+			if (cancelled) {
+				refreshStatus();
+			}
+			return cancelled;
 		}
 	}
 
+	/**
+	 * Discards task locally (the server task is not cancelled).
+	 */
 	public void discard() {
 		this.result.cancel(true);
 	}
 
+	/**
+	 * Returns true if the task is finished or cancelled.
+	 *
+	 * @return True if the task is finished or cancelled.
+	 */
 	public boolean isCompleted() {
 		return this.result.isDone() || this.result.isCancelled() || this.status.get().finished() != null;
 	}
 
+	/**
+	 * Updates internal status of the task according to new external state.
+	 * @param status The new status of the task.
+	 */
 	public void updateStatus(@Nonnull TaskStatus<?, ?> status) {
 		//noinspection unchecked
 		final TaskStatus<S, T> theStatus = (TaskStatus<S, T>) status;
 		this.status.set(theStatus);
 		if (theStatus.state() == State.FINISHED) {
-			System.out.println("Finishing " + status.taskId());
 			this.result.complete(theStatus.result());
 		} else if (theStatus.state() == State.FAILED) {
-			System.out.println("Failing " + status.taskId());
 			this.result.completeExceptionally(
 				new TaskFailedException(theStatus.publicExceptionMessage())
 			);
@@ -118,14 +137,37 @@ public class ClientTask<S, T> implements Task<S, T> {
 	}
 
 	/**
+	 * Refreshes the status of the task internally.
+	 */
+	private void refreshStatus() {
+		this.stateUpdater.apply(this.status.get().taskId())
+			.ifPresentOrElse(
+				this::updateStatus,
+				() -> this.updateStatus(this.status.get().transitionToFailed(new CancellationException("Task was canceled.")))
+			);
+	}
+
+	/**
 	 * This class is used to keep {@link ClientTask} alive as long as someone keeps a reference to the future. Task
 	 * must not be ever garbage collected while the future is still referenced. That's why this inner class is not
 	 * static.
-	 * @param <X>
 	 */
 	@SuppressWarnings("InnerClassMayBeStatic")
 	private class ClientTaskCompletableFuture<X> extends CompletableFuture<X> {
 
+		@Override
+		public boolean cancel(boolean mayInterruptIfRunning) {
+			if (ClientTask.this.result.isDone() || ClientTask.this.result.isCancelled() || ClientTask.this.cancellationLambda == null) {
+				return false;
+			} else {
+				final Boolean canceledOnServer = ClientTask.this.cancellationLambda.apply(ClientTask.this.status.get().taskId());
+				super.cancel(mayInterruptIfRunning);
+				if (canceledOnServer) {
+					ClientTask.this.refreshStatus();
+				}
+				return canceledOnServer;
+			}
+		}
 	}
 
 }
