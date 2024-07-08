@@ -160,12 +160,12 @@ public class JfrDocumentation implements EvitaTestSupport {
 									ofNullable(annotation.value()).filter(value -> !value.isBlank()).orElse(field.getKey().getName()),
 									"<strong>" + label + "</strong>: " + description
 								);
-							})
-						// we care only about distinct labels
-						.distinct()
-						// sort labels by name
-						.sorted(Comparator.comparing(MetricLabel::name));
+							});
 				})
+				// we care only about distinct labels
+				.distinct()
+				// sort labels by name
+				.sorted(Comparator.comparing(MetricLabel::name))
 				.toList();
 
 			// write used terms section for each of it
