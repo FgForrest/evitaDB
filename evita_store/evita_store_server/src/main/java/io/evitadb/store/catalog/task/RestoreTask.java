@@ -34,6 +34,7 @@ import io.evitadb.store.spi.CatalogPersistenceService;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CountingInputStream;
 import io.evitadb.utils.UUIDUtil;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import java.io.BufferedInputStream;
@@ -55,6 +56,7 @@ import java.util.zip.ZipInputStream;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
+@Slf4j
 public class RestoreTask extends ClientRunnableTask<RestoreSettings> {
 	private final StorageOptions storageOptions;
 
@@ -115,6 +117,9 @@ public class RestoreTask extends ClientRunnableTask<RestoreSettings> {
 		// unzip contents of the stream
 		final TaskStatus<RestoreSettings, Void> status = getStatus();
 		final String catalogName = status.catalogName();
+
+		log.info("Restoring catalog `{}` from file `{}`.", catalogName, status.settings().fileName());
+
 		final Path inputFile = this.storageOptions.exportDirectory().resolve(status.settings().fileName());
 		try (
 			final CountingInputStream cis = new CountingInputStream(
@@ -153,6 +158,8 @@ public class RestoreTask extends ClientRunnableTask<RestoreSettings> {
 					"Unexpected exception occurred while restoring catalog - unable to create restore flag file!"
 				)
 			);
+
+			log.info("Catalog `{}` restored from file `{}`.", catalogName, status.settings().fileName());
 		} catch (IOException e) {
 			throw new UnexpectedIOException(
 				"Unexpected exception occurred while restoring catalog: " + e.getMessage(),

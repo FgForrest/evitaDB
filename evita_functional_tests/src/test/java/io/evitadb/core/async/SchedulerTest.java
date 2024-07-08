@@ -24,7 +24,7 @@
 package io.evitadb.core.async;
 
 import io.evitadb.api.configuration.ThreadPoolOptions;
-import io.evitadb.api.task.Task;
+import io.evitadb.api.task.ServerTask;
 import io.evitadb.api.task.TaskStatus;
 import io.evitadb.api.task.TaskStatus.State;
 import io.evitadb.dataType.PaginatedList;
@@ -61,25 +61,25 @@ class SchedulerTest {
 
 	@Test
 	void shouldRegisterTask() {
-		assertEquals(0, scheduler.getJobStatuses(1, 20).getTotalRecordCount());
+		assertEquals(0, scheduler.listJobStatuses(1, 20).getTotalRecordCount());
 
 		scheduler.submit(
-			(Task<?, ?>) new ClientRunnableTask<>("Test task", null, () -> {
+			(ServerTask<?, ?>) new ClientRunnableTask<>("Test task", null, () -> {
 			})
 		);
 
-		assertEquals(1, scheduler.getJobStatuses(1, 20).getTotalRecordCount());
+		assertEquals(1, scheduler.listJobStatuses(1, 20).getTotalRecordCount());
 	}
 
 	@Test
 	void shouldGetStatusOfTheTask() throws ExecutionException, InterruptedException {
-		assertEquals(0, scheduler.getJobStatuses(1, 20).getTotalRecordCount());
+		assertEquals(0, scheduler.listJobStatuses(1, 20).getTotalRecordCount());
 
 		final CompletableFuture<Integer> result = scheduler.submit(
-			(Task<?, Integer>) new ClientCallableTask<>("Test task", null, () -> 5)
+			(ServerTask<?, Integer>) new ClientCallableTask<>("Test task", null, () -> 5)
 		);
 
-		final PaginatedList<TaskStatus<?, ?>> jobStatuses = scheduler.getJobStatuses(1, 20);
+		final PaginatedList<TaskStatus<?, ?>> jobStatuses = scheduler.listJobStatuses(1, 20);
 		assertEquals(1, jobStatuses.getTotalRecordCount());
 
 		assertEquals(5, result.get());
@@ -93,12 +93,12 @@ class SchedulerTest {
 
 	@Test
 	void shouldCancelTheTask() throws InterruptedException {
-		assertEquals(0, scheduler.getJobStatuses(1, 20).getTotalRecordCount());
+		assertEquals(0, scheduler.listJobStatuses(1, 20).getTotalRecordCount());
 
 		final AtomicBoolean started = new AtomicBoolean(false);
 		final AtomicBoolean interrupted = new AtomicBoolean(false);
 		final CompletableFuture<Integer> result = scheduler.submit(
-			(Task<Void, Integer>) new ClientCallableTask<Void, Integer>("Test task", null, theTask -> {
+			(ServerTask<Void, Integer>) new ClientCallableTask<Void, Integer>("Test task", null, theTask -> {
 				started.set(true);
 				for (int i = 0; i < 1_000_000_000; i++) {
 					if (theTask.getFutureResult().isCancelled()) {
@@ -111,7 +111,7 @@ class SchedulerTest {
 			})
 		);
 
-		final PaginatedList<TaskStatus<?, ?>> jobStatuses = scheduler.getJobStatuses(1, 20);
+		final PaginatedList<TaskStatus<?, ?>> jobStatuses = scheduler.listJobStatuses(1, 20);
 		assertEquals(1, jobStatuses.getTotalRecordCount());
 
 		final Optional<TaskStatus<?, ?>> jobStatus = scheduler.getJobStatus(jobStatuses.getData().get(0).taskId());

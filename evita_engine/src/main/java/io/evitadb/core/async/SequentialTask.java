@@ -23,6 +23,7 @@
 
 package io.evitadb.core.async;
 
+import io.evitadb.api.task.ServerTask;
 import io.evitadb.api.task.Task;
 import io.evitadb.api.task.TaskStatus;
 import io.evitadb.api.task.TaskStatus.State;
@@ -45,14 +46,14 @@ import static java.util.Optional.ofNullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public class SequentialTask<T> implements Task<Void, T> {
+public class SequentialTask<T> implements ServerTask<Void, T> {
 	private final String taskName;
 	private final AtomicReference<TaskStatus<Void, T>> status;
-	private final Task<?, ?>[] steps;
+	private final ServerTask<?, ?>[] steps;
 	private final AtomicReference<Task<?, ?>> currentStep;
 	private final CompletableFuture<T> futureResult;
 
-	public SequentialTask(@Nullable String catalogName, @Nonnull String taskName, @Nonnull Task<?, ?> step1, @Nonnull Task<?, T> step2) {
+	public SequentialTask(@Nullable String catalogName, @Nonnull String taskName, @Nonnull ServerTask<?, ?> step1, @Nonnull ServerTask<?, T> step2) {
 		this.taskName = taskName;
 		this.status = new AtomicReference<>(
 			new TaskStatus<>(
@@ -66,11 +67,12 @@ public class SequentialTask<T> implements Task<Void, T> {
 				0,
 				null,
 				null,
+				null,
 				null
 			)
 		);
 		this.currentStep = new AtomicReference<>();
-		this.steps = new Task[]{step1, step2};
+		this.steps = new ServerTask[]{step1, step2};
 		this.futureResult = new CompletableFuture<>();
 	}
 
@@ -104,7 +106,7 @@ public class SequentialTask<T> implements Task<Void, T> {
 			try {
 				this.status.updateAndGet(TaskStatus::transitionToStarted);
 
-				for (Task<?, ?> step : steps) {
+				for (ServerTask<?, ?> step : steps) {
 					if (step.getStatus().state() == State.QUEUED) {
 						this.currentStep.set(step);
 						step.execute();
@@ -131,7 +133,7 @@ public class SequentialTask<T> implements Task<Void, T> {
 	}
 
 	@Override
-	public void cancel() {
+	public boolean cancel() {
 		if (!(this.futureResult.isDone() || this.futureResult.isCancelled())) {
 			for (Task<?, ?> step : steps) {
 				final State state = step.getStatus().state();
@@ -143,13 +145,16 @@ public class SequentialTask<T> implements Task<Void, T> {
 				current -> current.transitionToFailed(new CancellationException("Task was canceled."))
 			);
 			this.futureResult.cancel(true);
+			return true;
+		} else {
+			return false;
 		}
 	}
 
 	@Override
 	public void fail(@Nonnull Exception exception) {
 		if (!(this.futureResult.isDone() || this.futureResult.isCancelled())) {
-			for (Task<?, ?> step : steps) {
+			for (ServerTask<?, ?> step : steps) {
 				final State state = step.getStatus().state();
 				if (state == State.QUEUED) {
 					step.fail(exception);

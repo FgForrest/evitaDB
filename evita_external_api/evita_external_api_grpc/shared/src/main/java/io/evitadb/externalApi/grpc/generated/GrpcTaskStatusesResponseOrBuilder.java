@@ -55,43 +55,43 @@ public interface GrpcTaskStatusesResponseOrBuilder extends
    * Collection of task statuses.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatuses = 3;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 3;</code>
    */
   java.util.List<io.evitadb.externalApi.grpc.generated.GrpcTaskStatus>
-      getTaskStatusesList();
+      getTaskStatusList();
   /**
    * <pre>
    * Collection of task statuses.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatuses = 3;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 3;</code>
    */
-  io.evitadb.externalApi.grpc.generated.GrpcTaskStatus getTaskStatuses(int index);
+  io.evitadb.externalApi.grpc.generated.GrpcTaskStatus getTaskStatus(int index);
   /**
    * <pre>
    * Collection of task statuses.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatuses = 3;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 3;</code>
    */
-  int getTaskStatusesCount();
+  int getTaskStatusCount();
   /**
    * <pre>
    * Collection of task statuses.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatuses = 3;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 3;</code>
    */
   java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcTaskStatusOrBuilder>
-      getTaskStatusesOrBuilderList();
+      getTaskStatusOrBuilderList();
   /**
    * <pre>
    * Collection of task statuses.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatuses = 3;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 3;</code>
    */
-  io.evitadb.externalApi.grpc.generated.GrpcTaskStatusOrBuilder getTaskStatusesOrBuilder(
+  io.evitadb.externalApi.grpc.generated.GrpcTaskStatusOrBuilder getTaskStatusOrBuilder(
       int index);
 
   /**

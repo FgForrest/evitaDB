@@ -24,35 +24,28 @@
 package io.evitadb.api.task;
 
 import javax.annotation.Nonnull;
-import java.util.concurrent.CompletableFuture;
+import javax.annotation.Nullable;
 
 /**
- * Interface for different tasks that can be executed in the background service. It represents an instance of single
- * task execution with particular settings executed by the service thread pool with lower priority on the background.
+ * Extension of the {@link Task} interface that is used on the server side. It provides methods to execute and fail
+ * the task (this cannot be done on client).
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public interface Task<S, T> {
+public interface ServerTask<S, T> extends Task<S, T> {
 
 	/**
-	 * Returns actual status of the task, telemetry information and access to its progress, settings and result.
-	 * @return The status of the task.
+	 * Executes the task and returns the result.
+	 * @return The result of the task.
 	 */
-	@Nonnull
-	TaskStatus<S, T> getStatus();
+	@Nullable
+	T execute();
 
 	/**
-	 * Returns the future result of the task. The future is completed when the task is finished.
-	 * @return The future result of the task.
-	 */
-	@Nonnull
-	CompletableFuture<T> getFutureResult();
-
-	/**
-	 * Cancels the task.
+	 * Terminates the task using passed exception.
 	 *
-	 * @return True if the task was successfully canceled, false if the task is already finished or canceled.
+	 * @param exception The exception that caused the task to be cancelled.
 	 */
-	boolean cancel();
+	void fail(@Nonnull Exception exception);
 
 }

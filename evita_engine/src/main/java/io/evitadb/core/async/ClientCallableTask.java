@@ -38,7 +38,7 @@ import java.util.function.Function;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @Slf4j
-public class ClientCallableTask<S, T> extends AbstractClientTask<S, T> implements Callable<T> {
+public class ClientCallableTask<S, T> extends AbstractServerTask<S, T> implements Callable<T> {
 	/**
 	 * The actual logic wrapped in a lambda that is executed by the task with progress tracking.
 	 */

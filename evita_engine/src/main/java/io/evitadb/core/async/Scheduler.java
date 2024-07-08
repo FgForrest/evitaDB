@@ -24,6 +24,7 @@
 package io.evitadb.core.async;
 
 import io.evitadb.api.configuration.ThreadPoolOptions;
+import io.evitadb.api.task.ServerTask;
 import io.evitadb.api.task.Task;
 import io.evitadb.api.task.TaskStatus;
 import io.evitadb.api.task.TaskStatus.State;
@@ -31,8 +32,12 @@ import io.evitadb.dataType.PaginatedList;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import java.time.OffsetDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
@@ -50,6 +55,7 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 public class Scheduler implements ObservableExecutorService {
+	private static final int FINISHED_TASKS_KEEP_INTERVAL_MILLIS = 120_000;
 	/**
 	 * Java based scheduled executor service.
 	 */
@@ -66,7 +72,7 @@ public class Scheduler implements ObservableExecutorService {
 	 * Queue that holds the tasks that are currently being executed or waiting to be executed. It could also contain
 	 * already finished tasks that are subject to be removed.
 	 */
-	private final ArrayBlockingQueue<Task<?, ?>> queue;
+	private final ArrayBlockingQueue<ServerTask<?, ?>> queue;
 	/**
 	 * Rejected execution handler that is called when the queue is full and a new task cannot be added.
 	 */
@@ -250,7 +256,7 @@ public class Scheduler implements ObservableExecutorService {
 	}
 
 	@Nonnull
-	public <T> CompletableFuture<T> submit(@Nonnull Task<?, T> task) {
+	public <T> CompletableFuture<T> submit(@Nonnull ServerTask<?, T> task) {
 		addTaskToQueue(task);
 		this.executorService.submit(task::execute);
 		this.submittedTaskCount.incrementAndGet();
@@ -266,7 +272,7 @@ public class Scheduler implements ObservableExecutorService {
 	 * @return the paginated list of tasks
 	 */
 	@Nonnull
-	public PaginatedList<TaskStatus<?, ?>> getJobStatuses(int page, int pageSize) {
+	public PaginatedList<TaskStatus<?, ?>> listJobStatuses(int page, int pageSize) {
 		return new PaginatedList<>(
 			page, pageSize, this.queue.size(),
 			this.queue.stream()
@@ -275,6 +281,22 @@ public class Scheduler implements ObservableExecutorService {
 				.map(Task::getStatus)
 				.collect(Collectors.toCollection(ArrayList::new))
 		);
+	}
+
+	/**
+	 * Returns job statuses for the requested job ids. If the job with the specified jobId is not found, it is not
+	 * included in the returned collection.
+	 *
+	 * @param jobId jobId of the job
+	 * @return collection of job statuses
+	 */
+	public Collection<TaskStatus<?, ?>> getJobStatuses(@Nonnull UUID... jobId) {
+		final HashSet<UUID> uuids = new HashSet<>(Arrays.asList(jobId));
+		return this.queue
+			.stream()
+			.filter(it -> uuids.contains(it.getStatus().taskId()))
+			.map(it -> (TaskStatus<?,?>)it.getStatus())
+			.collect(Collectors.toCollection(ArrayList::new));
 	}
 
 	/**
@@ -317,7 +339,7 @@ public class Scheduler implements ObservableExecutorService {
 	 * @return the task that was added and wrapped
 	 */
 	@Nonnull
-	private <T extends Task<?, ?>> T addTaskToQueue(@Nonnull T task) {
+	private <T extends ServerTask<?, ?>> T addTaskToQueue(@Nonnull T task) {
 		try {
 			// add the task to the queue
 			this.queue.add(task);
@@ -347,18 +369,20 @@ public class Scheduler implements ObservableExecutorService {
 	private long purgeFinishedTasks() {
 		// go through the entire queue, but only once
 		final int bufferSize = 512;
-		final ArrayList<Task<?, ?>> buffer = new ArrayList<>(bufferSize);
+		final ArrayList<ServerTask<?, ?>> buffer = new ArrayList<>(bufferSize);
 		final int queueSize = this.queue.size();
+		final OffsetDateTime threshold = OffsetDateTime.now().minus(FINISHED_TASKS_KEEP_INTERVAL_MILLIS, ChronoUnit.MILLIS);
 		for (int i = 0; i < queueSize; i++) {
 			// effectively withdraw first block of tasks from the queue
 			this.queue.drainTo(buffer, bufferSize);
 			// now go through all of them
-			final Iterator<Task<?, ?>> it = buffer.iterator();
+			final Iterator<ServerTask<?, ?>> it = buffer.iterator();
 			while (it.hasNext()) {
 				final Task<?, ?> task = it.next();
-				final State taskState = task.getStatus().state();
-				if (taskState == State.FINISHED || taskState == State.FAILED) {
-					// if task is finished, remove it from the queue
+				final TaskStatus<?, ?> status = task.getStatus();
+				final State taskState = status.state();
+				if ((taskState == State.FINISHED || taskState == State.FAILED) && status.finished().isBefore(threshold)) {
+					// if task is finished and it's defense period has perished, remove it from the queue
 					it.remove();
 				}
 			}

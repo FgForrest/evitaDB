@@ -37,7 +37,7 @@ import java.util.function.Function;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @Slf4j
-public class ClientRunnableTask<S> extends AbstractClientTask<S, Void> implements Runnable {
+public class ClientRunnableTask<S> extends AbstractServerTask<S, Void> implements Runnable {
 	/**
 	 * The actual logic wrapped in a lambda that is executed by the task.
 	 */

@@ -128,16 +128,6 @@ public final class GrpcEvitaAPI {
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcUpdateEvitaRequest_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
-    internal_static_io_evitadb_externalApi_grpc_generated_GrpcFile_descriptor;
-  static final
-    com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
-      internal_static_io_evitadb_externalApi_grpc_generated_GrpcFile_fieldAccessorTable;
-  static final com.google.protobuf.Descriptors.Descriptor
-    internal_static_io_evitadb_externalApi_grpc_generated_GrpcTaskStatus_descriptor;
-  static final
-    com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
-      internal_static_io_evitadb_externalApi_grpc_generated_GrpcTaskStatus_fieldAccessorTable;
-  static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcTaskStatusesRequest_descriptor;
   static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
@@ -147,6 +137,16 @@ public final class GrpcEvitaAPI {
   static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcTaskStatusesResponse_fieldAccessorTable;
+  static final com.google.protobuf.Descriptors.Descriptor
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcSpecifiedTaskStatusesRequest_descriptor;
+  static final
+    com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
+      internal_static_io_evitadb_externalApi_grpc_generated_GrpcSpecifiedTaskStatusesRequest_fieldAccessorTable;
+  static final com.google.protobuf.Descriptors.Descriptor
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcSpecifiedTaskStatusesResponse_descriptor;
+  static final
+    com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
+      internal_static_io_evitadb_externalApi_grpc_generated_GrpcSpecifiedTaskStatusesResponse_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcTaskStatusRequest_descriptor;
   static final
@@ -178,6 +178,16 @@ public final class GrpcEvitaAPI {
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcFilesToFetchResponse_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcFileToFetchRequest_descriptor;
+  static final
+    com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
+      internal_static_io_evitadb_externalApi_grpc_generated_GrpcFileToFetchRequest_fieldAccessorTable;
+  static final com.google.protobuf.Descriptors.Descriptor
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcFileToFetchResponse_descriptor;
+  static final
+    com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
+      internal_static_io_evitadb_externalApi_grpc_generated_GrpcFileToFetchResponse_fieldAccessorTable;
+  static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcFetchFileRequest_descriptor;
   static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
@@ -187,6 +197,16 @@ public final class GrpcEvitaAPI {
   static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcFetchFileResponse_fieldAccessorTable;
+  static final com.google.protobuf.Descriptors.Descriptor
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcDeleteFileToFetchRequest_descriptor;
+  static final
+    com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
+      internal_static_io_evitadb_externalApi_grpc_generated_GrpcDeleteFileToFetchRequest_fieldAccessorTable;
+  static final com.google.protobuf.Descriptors.Descriptor
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcDeleteFileToFetchResponse_descriptor;
+  static final
+    com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
+      internal_static_io_evitadb_externalApi_grpc_generated_GrpcDeleteFileToFetchResponse_fieldAccessorTable;
 
   public static com.google.protobuf.Descriptors.FileDescriptor
       getDescriptor() {
@@ -236,62 +256,54 @@ public final class GrpcEvitaAPI {
       "\"\177\n\'GrpcRestoreCatalogFromServerFileRequ" +
       "est\022\023\n\013catalogName\030\001 \001(\t\022?\n\006fileId\030\002 \001(\013" +
       "2/.io.evitadb.externalApi.grpc.generated" +
-      ".GrpcUuid\"k\n\032GrpcRestoreCatalogResponse\022" +
-      "\014\n\004read\030\001 \001(\003\022?\n\006taskId\030\002 \001(\0132/.io.evita" +
-      "db.externalApi.grpc.generated.GrpcUuid\"7" +
-      "\n GrpcDeleteCatalogIfExistsRequest\022\023\n\013ca" +
-      "talogName\030\001 \001(\t\"4\n!GrpcDeleteCatalogIfEx" +
-      "istsResponse\022\017\n\007success\030\001 \001(\010\"{\n\026GrpcUpd" +
-      "ateEvitaRequest\022a\n\017schemaMutations\030\001 \003(\013" +
-      "2H.io.evitadb.externalApi.grpc.generated" +
-      ".GrpcTopLevelCatalogSchemaMutation\"\351\001\n\010G" +
-      "rpcFile\022?\n\006fileId\030\001 \001(\0132/.io.evitadb.ext" +
-      "ernalApi.grpc.generated.GrpcUuid\022\014\n\004name" +
-      "\030\002 \001(\t\0221\n\013description\030\003 \001(\0132\034.google.pro" +
-      "tobuf.StringValue\022\023\n\013contentType\030\004 \001(\t\022\030" +
-      "\n\020totalSizeInBytes\030\005 \001(\003\022,\n\006origin\030\006 \001(\013" +
-      "2\034.google.protobuf.StringValue\"\370\004\n\016GrpcT" +
-      "askStatus\022\020\n\010taskType\030\001 \001(\t\022\020\n\010taskName\030" +
-      "\002 \001(\t\022?\n\006taskId\030\003 \001(\0132/.io.evitadb.exter" +
-      "nalApi.grpc.generated.GrpcUuid\0221\n\013catalo" +
-      "gName\030\004 \001(\0132\034.google.protobuf.StringValu" +
-      "e\022I\n\006issued\030\005 \001(\01329.io.evitadb.externalA" +
-      "pi.grpc.generated.GrpcOffsetDateTime\022J\n\007" +
-      "started\030\006 \001(\01329.io.evitadb.externalApi.g" +
-      "rpc.generated.GrpcOffsetDateTime\022K\n\010fini" +
-      "shed\030\007 \001(\01329.io.evitadb.externalApi.grpc" +
-      ".generated.GrpcOffsetDateTime\022\020\n\010progres" +
-      "s\030\010 \001(\005\022.\n\010settings\030\t \001(\0132\034.google.proto" +
-      "buf.StringValue\022,\n\004text\030\n \001(\0132\034.google.p" +
-      "rotobuf.StringValueH\000\022?\n\004file\030\013 \001(\0132/.io" +
-      ".evitadb.externalApi.grpc.generated.Grpc" +
-      "FileH\000\022/\n\texception\030\014 \001(\0132\034.google.proto" +
-      "buf.StringValueB\010\n\006result\"?\n\027GrpcTaskSta" +
-      "tusesRequest\022\022\n\npageNumber\030\001 \001(\005\022\020\n\010page" +
-      "Size\030\002 \001(\005\"\253\001\n\030GrpcTaskStatusesResponse\022" +
-      "\020\n\010pageSize\030\001 \001(\005\022\022\n\npageNumber\030\002 \001(\005\022K\n" +
-      "\014taskStatuses\030\003 \003(\01325.io.evitadb.externa" +
-      "lApi.grpc.generated.GrpcTaskStatus\022\034\n\024to" +
-      "talNumberOfRecords\030\004 \001(\005\"X\n\025GrpcTaskStat" +
-      "usRequest\022?\n\006taskId\030\001 \001(\0132/.io.evitadb.e" +
-      "xternalApi.grpc.generated.GrpcUuid\"c\n\026Gr" +
-      "pcTaskStatusResponse\022I\n\ntaskStatus\030\001 \001(\013" +
-      "25.io.evitadb.externalApi.grpc.generated" +
-      ".GrpcTaskStatus\"X\n\025GrpcCancelTaskRequest" +
-      "\022?\n\006taskId\030\001 \001(\0132/.io.evitadb.externalAp" +
-      "i.grpc.generated.GrpcUuid\")\n\026GrpcCancelT" +
-      "askResponse\022\017\n\007success\030\001 \001(\010\"m\n\027GrpcFile" +
-      "sToFetchRequest\022\022\n\npageNumber\030\001 \001(\005\022\020\n\010p" +
-      "ageSize\030\002 \001(\005\022,\n\006origin\030\003 \001(\0132\034.google.p" +
-      "rotobuf.StringValue\"\245\001\n\030GrpcFilesToFetch" +
-      "Response\022\020\n\010pageSize\030\001 \001(\005\022\022\n\npageNumber" +
-      "\030\002 \001(\005\022E\n\014filesToFetch\030\003 \003(\0132/.io.evitad" +
-      "b.externalApi.grpc.generated.GrpcFile\022\034\n" +
-      "\024totalNumberOfRecords\030\004 \001(\005\"W\n\024GrpcFetch" +
-      "FileRequest\022?\n\006fileId\030\001 \001(\0132/.io.evitadb" +
-      ".externalApi.grpc.generated.GrpcUuid\"G\n\025" +
-      "GrpcFetchFileResponse\022\024\n\014fileContents\030\001 " +
-      "\001(\014\022\030\n\020totalSizeInBytes\030\002 \001(\0032\376\025\n\014EvitaS" +
+      ".GrpcUuid\"o\n\032GrpcRestoreCatalogResponse\022" +
+      "\014\n\004read\030\001 \001(\003\022C\n\004task\030\002 \001(\01325.io.evitadb" +
+      ".externalApi.grpc.generated.GrpcTaskStat" +
+      "us\"7\n GrpcDeleteCatalogIfExistsRequest\022\023" +
+      "\n\013catalogName\030\001 \001(\t\"4\n!GrpcDeleteCatalog" +
+      "IfExistsResponse\022\017\n\007success\030\001 \001(\010\"{\n\026Grp" +
+      "cUpdateEvitaRequest\022a\n\017schemaMutations\030\001" +
+      " \003(\0132H.io.evitadb.externalApi.grpc.gener" +
+      "ated.GrpcTopLevelCatalogSchemaMutation\"?" +
+      "\n\027GrpcTaskStatusesRequest\022\022\n\npageNumber\030" +
+      "\001 \001(\005\022\020\n\010pageSize\030\002 \001(\005\"\251\001\n\030GrpcTaskStat" +
+      "usesResponse\022\020\n\010pageSize\030\001 \001(\005\022\022\n\npageNu" +
+      "mber\030\002 \001(\005\022I\n\ntaskStatus\030\003 \003(\01325.io.evit" +
+      "adb.externalApi.grpc.generated.GrpcTaskS" +
+      "tatus\022\034\n\024totalNumberOfRecords\030\004 \001(\005\"d\n G" +
+      "rpcSpecifiedTaskStatusesRequest\022@\n\007taskI" +
+      "ds\030\001 \003(\0132/.io.evitadb.externalApi.grpc.g" +
+      "enerated.GrpcUuid\"n\n!GrpcSpecifiedTaskSt" +
+      "atusesResponse\022I\n\ntaskStatus\030\001 \003(\01325.io." +
+      "evitadb.externalApi.grpc.generated.GrpcT" +
+      "askStatus\"X\n\025GrpcTaskStatusRequest\022?\n\006ta" +
+      "skId\030\001 \001(\0132/.io.evitadb.externalApi.grpc" +
+      ".generated.GrpcUuid\"c\n\026GrpcTaskStatusRes" +
+      "ponse\022I\n\ntaskStatus\030\001 \001(\01325.io.evitadb.e" +
+      "xternalApi.grpc.generated.GrpcTaskStatus" +
+      "\"X\n\025GrpcCancelTaskRequest\022?\n\006taskId\030\001 \001(" +
+      "\0132/.io.evitadb.externalApi.grpc.generate" +
+      "d.GrpcUuid\")\n\026GrpcCancelTaskResponse\022\017\n\007" +
+      "success\030\001 \001(\010\"m\n\027GrpcFilesToFetchRequest" +
+      "\022\022\n\npageNumber\030\001 \001(\005\022\020\n\010pageSize\030\002 \001(\005\022," +
+      "\n\006origin\030\003 \001(\0132\034.google.protobuf.StringV" +
+      "alue\"\245\001\n\030GrpcFilesToFetchResponse\022\020\n\010pag" +
+      "eSize\030\001 \001(\005\022\022\n\npageNumber\030\002 \001(\005\022E\n\014files" +
+      "ToFetch\030\003 \003(\0132/.io.evitadb.externalApi.g" +
+      "rpc.generated.GrpcFile\022\034\n\024totalNumberOfR" +
+      "ecords\030\004 \001(\005\"Y\n\026GrpcFileToFetchRequest\022?" +
+      "\n\006fileId\030\001 \001(\0132/.io.evitadb.externalApi." +
+      "grpc.generated.GrpcUuid\"_\n\027GrpcFileToFet" +
+      "chResponse\022D\n\013fileToFetch\030\001 \001(\0132/.io.evi" +
+      "tadb.externalApi.grpc.generated.GrpcFile" +
+      "\"W\n\024GrpcFetchFileRequest\022?\n\006fileId\030\001 \001(\013" +
+      "2/.io.evitadb.externalApi.grpc.generated" +
+      ".GrpcUuid\"G\n\025GrpcFetchFileResponse\022\024\n\014fi" +
+      "leContents\030\001 \001(\014\022\030\n\020totalSizeInBytes\030\002 \001" +
+      "(\003\"_\n\034GrpcDeleteFileToFetchRequest\022?\n\006fi" +
+      "leId\030\001 \001(\0132/.io.evitadb.externalApi.grpc" +
+      ".generated.GrpcUuid\"0\n\035GrpcDeleteFileToF" +
+      "etchResponse\022\017\n\007success\030\001 \001(\0102\321\031\n\014EvitaS" +
       "ervice\022l\n\014ServerStatus\022\026.google.protobuf" +
       ".Empty\032D.io.evitadb.externalApi.grpc.gen" +
       "erated.GrpcEvitaServerStatusResponse\022\230\001\n" +
@@ -332,37 +344,49 @@ public final class GrpcEvitaAPI {
       "\022\227\001\n\016RestoreCatalog\022@.io.evitadb.externa" +
       "lApi.grpc.generated.GrpcRestoreCatalogRe" +
       "quest\032A.io.evitadb.externalApi.grpc.gene" +
-      "rated.GrpcRestoreCatalogResponse(\001\022\263\001\n\034R" +
+      "rated.GrpcRestoreCatalogResponse(\001\022\261\001\n\034R" +
       "estoreCatalogFromServerFile\022N.io.evitadb" +
       ".externalApi.grpc.generated.GrpcRestoreC" +
       "atalogFromServerFileRequest\032A.io.evitadb" +
       ".externalApi.grpc.generated.GrpcRestoreC" +
-      "atalogResponse(\001\022\252\001\n\025DeleteCatalogIfExis" +
-      "ts\022G.io.evitadb.externalApi.grpc.generat" +
-      "ed.GrpcDeleteCatalogIfExistsRequest\032H.io" +
-      ".evitadb.externalApi.grpc.generated.Grpc" +
-      "DeleteCatalogIfExistsResponse\022_\n\006Update\022" +
-      "=.io.evitadb.externalApi.grpc.generated." +
-      "GrpcUpdateEvitaRequest\032\026.google.protobuf" +
-      ".Empty\022\223\001\n\020ListTaskStatuses\022>.io.evitadb" +
-      ".externalApi.grpc.generated.GrpcTaskStat" +
-      "usesRequest\032?.io.evitadb.externalApi.grp" +
-      "c.generated.GrpcTaskStatusesResponse\022\214\001\n" +
-      "\rGetTaskStatus\022<.io.evitadb.externalApi." +
-      "grpc.generated.GrpcTaskStatusRequest\032=.i" +
+      "atalogResponse\022\252\001\n\025DeleteCatalogIfExists" +
+      "\022G.io.evitadb.externalApi.grpc.generated" +
+      ".GrpcDeleteCatalogIfExistsRequest\032H.io.e" +
+      "vitadb.externalApi.grpc.generated.GrpcDe" +
+      "leteCatalogIfExistsResponse\022_\n\006Update\022=." +
+      "io.evitadb.externalApi.grpc.generated.Gr" +
+      "pcUpdateEvitaRequest\032\026.google.protobuf.E" +
+      "mpty\022\223\001\n\020ListTaskStatuses\022>.io.evitadb.e" +
+      "xternalApi.grpc.generated.GrpcTaskStatus" +
+      "esRequest\032?.io.evitadb.externalApi.grpc." +
+      "generated.GrpcTaskStatusesResponse\022\214\001\n\rG" +
+      "etTaskStatus\022<.io.evitadb.externalApi.gr" +
+      "pc.generated.GrpcTaskStatusRequest\032=.io." +
+      "evitadb.externalApi.grpc.generated.GrpcT" +
+      "askStatusResponse\022\244\001\n\017GetTaskStatuses\022G." +
+      "io.evitadb.externalApi.grpc.generated.Gr" +
+      "pcSpecifiedTaskStatusesRequest\032H.io.evit" +
+      "adb.externalApi.grpc.generated.GrpcSpeci" +
+      "fiedTaskStatusesResponse\022\211\001\n\nCancelTask\022" +
+      "<.io.evitadb.externalApi.grpc.generated." +
+      "GrpcCancelTaskRequest\032=.io.evitadb.exter" +
+      "nalApi.grpc.generated.GrpcCancelTaskResp" +
+      "onse\022\223\001\n\020ListFilesToFetch\022>.io.evitadb.e" +
+      "xternalApi.grpc.generated.GrpcFilesToFet" +
+      "chRequest\032?.io.evitadb.externalApi.grpc." +
+      "generated.GrpcFilesToFetchResponse\022\217\001\n\016G" +
+      "etFileToFetch\022=.io.evitadb.externalApi.g" +
+      "rpc.generated.GrpcFileToFetchRequest\032>.i" +
       "o.evitadb.externalApi.grpc.generated.Grp" +
-      "cTaskStatusResponse\022\211\001\n\nCancelTask\022<.io." +
-      "evitadb.externalApi.grpc.generated.GrpcC" +
-      "ancelTaskRequest\032=.io.evitadb.externalAp" +
-      "i.grpc.generated.GrpcCancelTaskResponse\022" +
-      "\223\001\n\020ListFilesToFetch\022>.io.evitadb.extern" +
-      "alApi.grpc.generated.GrpcFilesToFetchReq" +
-      "uest\032?.io.evitadb.externalApi.grpc.gener" +
-      "ated.GrpcFilesToFetchResponse\022\206\001\n\tFetchF" +
-      "ile\022;.io.evitadb.externalApi.grpc.genera" +
-      "ted.GrpcFetchFileRequest\032<.io.evitadb.ex" +
-      "ternalApi.grpc.generated.GrpcFetchFileRe" +
-      "sponseB\014P\001\252\002\007EvitaDBb\006proto3"
+      "cFileToFetchResponse\022\210\001\n\tFetchFile\022;.io." +
+      "evitadb.externalApi.grpc.generated.GrpcF" +
+      "etchFileRequest\032<.io.evitadb.externalApi" +
+      ".grpc.generated.GrpcFetchFileResponse0\001\022" +
+      "\227\001\n\nDeleteFile\022C.io.evitadb.externalApi." +
+      "grpc.generated.GrpcDeleteFileToFetchRequ" +
+      "est\032D.io.evitadb.externalApi.grpc.genera" +
+      "ted.GrpcDeleteFileToFetchResponseB\014P\001\252\002\007" +
+      "EvitaDBb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,
@@ -462,7 +486,7 @@ public final class GrpcEvitaAPI {
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcRestoreCatalogResponse_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcRestoreCatalogResponse_descriptor,
-        new java.lang.String[] { "Read", "TaskId", });
+        new java.lang.String[] { "Read", "Task", });
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcDeleteCatalogIfExistsRequest_descriptor =
       getDescriptor().getMessageTypes().get(15);
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcDeleteCatalogIfExistsRequest_fieldAccessorTable = new
@@ -481,30 +505,30 @@ public final class GrpcEvitaAPI {
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcUpdateEvitaRequest_descriptor,
         new java.lang.String[] { "SchemaMutations", });
-    internal_static_io_evitadb_externalApi_grpc_generated_GrpcFile_descriptor =
-      getDescriptor().getMessageTypes().get(18);
-    internal_static_io_evitadb_externalApi_grpc_generated_GrpcFile_fieldAccessorTable = new
-      com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
-        internal_static_io_evitadb_externalApi_grpc_generated_GrpcFile_descriptor,
-        new java.lang.String[] { "FileId", "Name", "Description", "ContentType", "TotalSizeInBytes", "Origin", });
-    internal_static_io_evitadb_externalApi_grpc_generated_GrpcTaskStatus_descriptor =
-      getDescriptor().getMessageTypes().get(19);
-    internal_static_io_evitadb_externalApi_grpc_generated_GrpcTaskStatus_fieldAccessorTable = new
-      com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
-        internal_static_io_evitadb_externalApi_grpc_generated_GrpcTaskStatus_descriptor,
-        new java.lang.String[] { "TaskType", "TaskName", "TaskId", "CatalogName", "Issued", "Started", "Finished", "Progress", "Settings", "Text", "File", "Exception", "Result", });
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcTaskStatusesRequest_descriptor =
-      getDescriptor().getMessageTypes().get(20);
+      getDescriptor().getMessageTypes().get(18);
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcTaskStatusesRequest_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcTaskStatusesRequest_descriptor,
         new java.lang.String[] { "PageNumber", "PageSize", });
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcTaskStatusesResponse_descriptor =
-      getDescriptor().getMessageTypes().get(21);
+      getDescriptor().getMessageTypes().get(19);
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcTaskStatusesResponse_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcTaskStatusesResponse_descriptor,
-        new java.lang.String[] { "PageSize", "PageNumber", "TaskStatuses", "TotalNumberOfRecords", });
+        new java.lang.String[] { "PageSize", "PageNumber", "TaskStatus", "TotalNumberOfRecords", });
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcSpecifiedTaskStatusesRequest_descriptor =
+      getDescriptor().getMessageTypes().get(20);
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcSpecifiedTaskStatusesRequest_fieldAccessorTable = new
+      com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
+        internal_static_io_evitadb_externalApi_grpc_generated_GrpcSpecifiedTaskStatusesRequest_descriptor,
+        new java.lang.String[] { "TaskIds", });
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcSpecifiedTaskStatusesResponse_descriptor =
+      getDescriptor().getMessageTypes().get(21);
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcSpecifiedTaskStatusesResponse_fieldAccessorTable = new
+      com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
+        internal_static_io_evitadb_externalApi_grpc_generated_GrpcSpecifiedTaskStatusesResponse_descriptor,
+        new java.lang.String[] { "TaskStatus", });
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcTaskStatusRequest_descriptor =
       getDescriptor().getMessageTypes().get(22);
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcTaskStatusRequest_fieldAccessorTable = new
@@ -541,18 +565,42 @@ public final class GrpcEvitaAPI {
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcFilesToFetchResponse_descriptor,
         new java.lang.String[] { "PageSize", "PageNumber", "FilesToFetch", "TotalNumberOfRecords", });
-    internal_static_io_evitadb_externalApi_grpc_generated_GrpcFetchFileRequest_descriptor =
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcFileToFetchRequest_descriptor =
       getDescriptor().getMessageTypes().get(28);
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcFileToFetchRequest_fieldAccessorTable = new
+      com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
+        internal_static_io_evitadb_externalApi_grpc_generated_GrpcFileToFetchRequest_descriptor,
+        new java.lang.String[] { "FileId", });
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcFileToFetchResponse_descriptor =
+      getDescriptor().getMessageTypes().get(29);
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcFileToFetchResponse_fieldAccessorTable = new
+      com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
+        internal_static_io_evitadb_externalApi_grpc_generated_GrpcFileToFetchResponse_descriptor,
+        new java.lang.String[] { "FileToFetch", });
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcFetchFileRequest_descriptor =
+      getDescriptor().getMessageTypes().get(30);
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcFetchFileRequest_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcFetchFileRequest_descriptor,
         new java.lang.String[] { "FileId", });
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcFetchFileResponse_descriptor =
-      getDescriptor().getMessageTypes().get(29);
+      getDescriptor().getMessageTypes().get(31);
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcFetchFileResponse_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcFetchFileResponse_descriptor,
         new java.lang.String[] { "FileContents", "TotalSizeInBytes", });
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcDeleteFileToFetchRequest_descriptor =
+      getDescriptor().getMessageTypes().get(32);
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcDeleteFileToFetchRequest_fieldAccessorTable = new
+      com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
+        internal_static_io_evitadb_externalApi_grpc_generated_GrpcDeleteFileToFetchRequest_descriptor,
+        new java.lang.String[] { "FileId", });
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcDeleteFileToFetchResponse_descriptor =
+      getDescriptor().getMessageTypes().get(33);
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcDeleteFileToFetchResponse_fieldAccessorTable = new
+      com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
+        internal_static_io_evitadb_externalApi_grpc_generated_GrpcDeleteFileToFetchResponse_descriptor,
+        new java.lang.String[] { "Success", });
     com.google.protobuf.EmptyProto.getDescriptor();
     io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor();
     io.evitadb.externalApi.grpc.generated.GrpcEvitaDataTypes.getDescriptor();

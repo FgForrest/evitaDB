@@ -36,6 +36,7 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBu
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.system.SystemStatus;
+import io.evitadb.api.task.Task;
 import io.evitadb.api.task.TaskStatus;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.exception.EvitaInternalError;
@@ -46,8 +47,8 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.time.OffsetDateTime;
+import java.util.Collection;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -385,7 +386,7 @@ public interface EvitaContract extends AutoCloseable {
 	 * @throws UnexpectedIOException if an I/O error occurs
 	 */
 	@Nonnull
-	CompletableFuture<Void> restoreCatalog(
+	Task<?, Void> restoreCatalog(
 		@Nonnull String catalogName,
 		long totalBytesExpected,
 		@Nonnull InputStream inputStream
@@ -401,7 +402,7 @@ public interface EvitaContract extends AutoCloseable {
 	 * @throws UnexpectedIOException if an I/O error occurs
 	 */
 	@Nonnull
-	CompletableFuture<Void> restoreCatalog(
+	Task<?, Void> restoreCatalog(
 		@Nonnull String catalogName,
 		@Nonnull UUID fileId
 	) throws FileForFetchNotFoundException;
@@ -427,6 +428,16 @@ public interface EvitaContract extends AutoCloseable {
 	Optional<TaskStatus<?, ?>> getTaskStatus(@Nonnull UUID jobId) throws TaskNotFoundException;
 
 	/**
+	 * Returns job statuses for the requested job ids. If the job with the specified jobId is not found, it is not
+	 * included in the returned collection.
+	 *
+	 * @param jobId jobId of the job
+	 * @return collection of job statuses
+	 */
+	@Nonnull
+	Collection<TaskStatus<?, ?>> getTaskStatuses(@Nonnull UUID... jobId);
+
+	/**
 	 * Cancels the job with the specified jobId. If the job is waiting in the queue, it will be removed from the queue.
 	 * If the job is already running, it must support cancelling to be interrupted and canceled.
 	 *
@@ -449,13 +460,23 @@ public interface EvitaContract extends AutoCloseable {
 	PaginatedList<FileForFetch> listFilesToFetch(int page, int pageSize, @Nullable String origin);
 
 	/**
+	 * Returns file with the specified fileId that is available for download or empty if the file is not found.
+	 *
+	 * @param fileId fileId of the file
+	 * @return file to fetch
+	 */
+	@Nonnull
+	Optional<FileForFetch> getFileToFetch(@Nonnull UUID fileId);
+
+	/**
 	 * Writes contents of the file with the specified fileId to the provided OutputStream.
 	 *
-	 * @param fileId       fileId of the file
-	 * @param outputStream OutputStream to write the file contents to
+	 * @param fileId fileId of the file
+	 * @return the input stream to read data from
 	 * @throws FileForFetchNotFoundException if the file with the specified fileId is not found
 	 */
-	void fetchFile(@Nonnull UUID fileId, @Nonnull OutputStream outputStream) throws FileForFetchNotFoundException, UnexpectedIOException;
+	@Nonnull
+	InputStream fetchFile(@Nonnull UUID fileId) throws FileForFetchNotFoundException, UnexpectedIOException;
 
 	/**
 	 * Removes file with the specified fileId from the storage.

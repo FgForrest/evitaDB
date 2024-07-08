@@ -32,28 +32,28 @@ public interface GrpcBackupCatalogResponseOrBuilder extends
 
   /**
    * <pre>
-   * the id of the task that is used to backup the catalog and getting its progress
+   * the task that is used to backup the catalog and getting its progress
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid taskId = 1;</code>
-   * @return Whether the taskId field is set.
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 1;</code>
+   * @return Whether the taskStatus field is set.
    */
-  boolean hasTaskId();
+  boolean hasTaskStatus();
   /**
    * <pre>
-   * the id of the task that is used to backup the catalog and getting its progress
+   * the task that is used to backup the catalog and getting its progress
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid taskId = 1;</code>
-   * @return The taskId.
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 1;</code>
+   * @return The taskStatus.
    */
-  io.evitadb.externalApi.grpc.generated.GrpcUuid getTaskId();
+  io.evitadb.externalApi.grpc.generated.GrpcTaskStatus getTaskStatus();
   /**
    * <pre>
-   * the id of the task that is used to backup the catalog and getting its progress
+   * the task that is used to backup the catalog and getting its progress
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid taskId = 1;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 1;</code>
    */
-  io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder getTaskIdOrBuilder();
+  io.evitadb.externalApi.grpc.generated.GrpcTaskStatusOrBuilder getTaskStatusOrBuilder();
 }

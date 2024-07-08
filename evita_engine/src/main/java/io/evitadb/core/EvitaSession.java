@@ -69,6 +69,7 @@ import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
+import io.evitadb.api.task.Task;
 import io.evitadb.core.async.Interruptible;
 import io.evitadb.core.exception.CatalogCorruptedException;
 import io.evitadb.core.metric.event.query.EntityEnrichEvent;
@@ -1176,7 +1177,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	@Traced
 	@Nonnull
 	@Override
-	public CompletableFuture<FileForFetch> backupCatalog(@Nullable OffsetDateTime pastMoment, boolean includingWAL) throws TemporalDataNotAvailableException {
+	public Task<?, FileForFetch> backupCatalog(@Nullable OffsetDateTime pastMoment, boolean includingWAL) throws TemporalDataNotAvailableException {
 		return getCatalog().backup(pastMoment, includingWAL);
 	}
 

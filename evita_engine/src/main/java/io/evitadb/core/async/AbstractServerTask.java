@@ -23,12 +23,13 @@
 
 package io.evitadb.core.async;
 
-import io.evitadb.api.task.Task;
+import io.evitadb.api.task.ServerTask;
 import io.evitadb.api.task.TaskStatus;
 import io.evitadb.api.task.TaskStatus.State;
 import io.evitadb.core.metric.event.system.BackgroundTaskFinishedEvent;
 import io.evitadb.core.metric.event.system.BackgroundTaskStartedEvent;
 import io.evitadb.utils.UUIDUtil;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -44,7 +45,8 @@ import java.util.function.Function;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-abstract class AbstractClientTask<S, T> implements Task<S, T> {
+@Slf4j
+abstract class AbstractServerTask<S, T> implements ServerTask<S, T> {
 	/**
 	 * Contains the actual status of the task.
 	 */
@@ -60,7 +62,7 @@ abstract class AbstractClientTask<S, T> implements Task<S, T> {
 	 */
 	private final CompletableFuture<T> future;
 
-	public AbstractClientTask(@Nonnull String taskName, @Nullable S settings) {
+	public AbstractServerTask(@Nonnull String taskName, @Nullable S settings) {
 		this.future = new CompletableFuture<>();
 		this.status = new AtomicReference<>(
 			new TaskStatus<>(
@@ -74,13 +76,14 @@ abstract class AbstractClientTask<S, T> implements Task<S, T> {
 				0,
 				settings,
 				null,
+				null,
 				null
 			)
 		);
 		this.exceptionHandler = null;
 	}
 
-	public AbstractClientTask(@Nonnull String catalogName, @Nonnull String taskName, @Nullable S settings) {
+	public AbstractServerTask(@Nonnull String catalogName, @Nonnull String taskName, @Nullable S settings) {
 		this.future = new CompletableFuture<>();
 		this.status = new AtomicReference<>(
 			new TaskStatus<>(
@@ -94,13 +97,14 @@ abstract class AbstractClientTask<S, T> implements Task<S, T> {
 				0,
 				settings,
 				null,
+				null,
 				null
 			)
 		);
 		this.exceptionHandler = null;
 	}
 
-	public AbstractClientTask(@Nonnull String taskName, @Nullable S settings, @Nonnull Function<Throwable, T> exceptionHandler) {
+	public AbstractServerTask(@Nonnull String taskName, @Nullable S settings, @Nonnull Function<Throwable, T> exceptionHandler) {
 		this.future = new CompletableFuture<>();
 		this.status = new AtomicReference<>(
 			new TaskStatus<>(
@@ -113,6 +117,7 @@ abstract class AbstractClientTask<S, T> implements Task<S, T> {
 				null,
 				0,
 				settings,
+				null,
 				null,
 				null
 			)
@@ -120,7 +125,7 @@ abstract class AbstractClientTask<S, T> implements Task<S, T> {
 		this.exceptionHandler = exceptionHandler;
 	}
 
-	public AbstractClientTask(@Nonnull String catalogName, @Nonnull String taskName, @Nullable S settings, @Nonnull Function<Throwable, T> exceptionHandler) {
+	public AbstractServerTask(@Nonnull String catalogName, @Nonnull String taskName, @Nullable S settings, @Nonnull Function<Throwable, T> exceptionHandler) {
 		this.future = new CompletableFuture<>();
 		this.status = new AtomicReference<>(
 			new TaskStatus<>(
@@ -133,6 +138,7 @@ abstract class AbstractClientTask<S, T> implements Task<S, T> {
 				null,
 				0,
 				settings,
+				null,
 				null,
 				null
 			)
@@ -172,13 +178,14 @@ abstract class AbstractClientTask<S, T> implements Task<S, T> {
 				if (this.future.isDone() || this.future.isCancelled()) {
 					return null;
 				} else {
-					this.future.complete(result);
 					this.status.updateAndGet(
 						currentStatus -> currentStatus.transitionToFinished(result)
 					);
+					this.future.complete(result);
 					return result;
 				}
 			} catch (Throwable e) {
+				log.error("Task failed: {}", theStatus.taskName(), e);
 				this.status.updateAndGet(
 					currentStatus -> currentStatus.transitionToFailed(e)
 				);
@@ -205,7 +212,7 @@ abstract class AbstractClientTask<S, T> implements Task<S, T> {
 	}
 
 	@Override
-	public void cancel() {
+	public boolean cancel() {
 		if (!(this.future.isDone() || this.future.isCancelled())) {
 			this.future.cancel(true);
 			this.status.updateAndGet(
@@ -213,6 +220,9 @@ abstract class AbstractClientTask<S, T> implements Task<S, T> {
 					new CancellationException("Task was canceled.")
 				)
 			);
+			return true;
+		} else {
+			return false;
 		}
 	}
 

@@ -69,7 +69,7 @@ import io.evitadb.api.requestResponse.system.CatalogVersion;
 import io.evitadb.api.requestResponse.system.CatalogVersionDescriptor;
 import io.evitadb.api.requestResponse.system.TimeFlow;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
-import io.evitadb.api.task.Task;
+import io.evitadb.api.task.ServerTask;
 import io.evitadb.core.async.ObservableExecutorService;
 import io.evitadb.core.async.Scheduler;
 import io.evitadb.core.buffer.DataStoreChanges;
@@ -271,7 +271,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 	 * @param inputStream        the input stream with the catalog data
 	 * @return future that will be completed with path where the content of the catalog was restored
 	 */
-	public static Task<?, Void> createRestoreCatalogTask(
+	public static ServerTask<?, Void> createRestoreCatalogTask(
 		@Nonnull String catalogName,
 		@Nonnull StorageOptions storageOptions,
 		long totalBytesExpected,
@@ -865,10 +865,10 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 
 	@Nonnull
 	@Override
-	public CompletableFuture<FileForFetch> backup(@Nullable OffsetDateTime pastMoment, boolean includingWAL) throws TemporalDataNotAvailableException {
-		final Task<?, FileForFetch> backupTask = this.persistenceService.createBackupTask(pastMoment, includingWAL);
+	public ServerTask<?, FileForFetch> backup(@Nullable OffsetDateTime pastMoment, boolean includingWAL) throws TemporalDataNotAvailableException {
+		final ServerTask<?, FileForFetch> backupTask = this.persistenceService.createBackupTask(pastMoment, includingWAL);
 		this.scheduler.submit(backupTask);
-		return backupTask.getFutureResult();
+		return backupTask;
 	}
 
 	@Override

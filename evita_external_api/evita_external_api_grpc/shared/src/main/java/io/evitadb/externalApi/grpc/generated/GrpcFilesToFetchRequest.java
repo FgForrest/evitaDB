@@ -28,7 +28,7 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * Request to list task statuses in paginated form.
+ * Request to list files to fetch in paginated form.
  * </pre>
  *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcFilesToFetchRequest}
@@ -385,7 +385,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Request to list task statuses in paginated form.
+   * Request to list files to fetch in paginated form.
    * </pre>
    *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcFilesToFetchRequest}

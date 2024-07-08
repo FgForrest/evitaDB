@@ -56,6 +56,7 @@ import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchem
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaNameMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.RemoveCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.system.SystemStatus;
+import io.evitadb.api.task.ServerTask;
 import io.evitadb.api.task.Task;
 import io.evitadb.api.task.TaskStatus;
 import io.evitadb.core.async.ClientRunnableTask;
@@ -92,10 +93,7 @@ import javax.annotation.concurrent.ThreadSafe;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.*;
@@ -550,48 +548,49 @@ public final class Evita implements EvitaContract {
 	) throws TemporalDataNotAvailableException {
 		assertActive();
 		try (final EvitaSessionContract session = this.createSession(new SessionTraits(catalogName))) {
-			return session.backupCatalog(pastMoment, includingWAL);
+			return session.backupCatalog(pastMoment, includingWAL).getFutureResult();
 		}
 	}
 
 	@Nonnull
 	@Override
-	public CompletableFuture<Void> restoreCatalog(
+	public Task<?, Void> restoreCatalog(
 		@Nonnull String catalogName,
 		long totalBytesExpected,
 		@Nonnull InputStream inputStream
 	) throws UnexpectedIOException {
 		assertActive();
-		return this.serviceExecutor.submit(
-			new SequentialTask<>(
-				catalogName,
-				"Restore catalog " + catalogName + " from backup.",
-				Catalog.createRestoreCatalogTask(
-					catalogName, this.configuration.storage(), totalBytesExpected, inputStream
-				),
-				createLoadCatalogTask(catalogName)
-			)
+		final SequentialTask<Void> task = new SequentialTask<>(
+			catalogName,
+			"Restore catalog " + catalogName + " from backup.",
+			Catalog.createRestoreCatalogTask(
+				catalogName, this.configuration.storage(), totalBytesExpected, inputStream
+			),
+			createLoadCatalogTask(catalogName)
 		);
+		this.serviceExecutor.submit(task);
+		return task;
 	}
 
 	@Nonnull
 	@Override
-	public CompletableFuture<Void> restoreCatalog(@Nonnull String catalogName, @Nonnull UUID fileId) throws FileForFetchNotFoundException {
+	public Task<?, Void> restoreCatalog(@Nonnull String catalogName, @Nonnull UUID fileId) throws FileForFetchNotFoundException {
 		assertActive();
-		final FileForFetch file = this.exportFileService.getFile(fileId);
+		final FileForFetch file = this.exportFileService.getFile(fileId)
+			.orElseThrow(() -> new FileForFetchNotFoundException(fileId));
 		try {
-			return this.serviceExecutor.submit(
-				new SequentialTask<>(
-					catalogName,
-					"Restore catalog " + catalogName + " from backup.",
-					Catalog.createRestoreCatalogTask(
-						catalogName, this.configuration.storage(),
-						file.totalSizeInBytes(),
-						Files.newInputStream(file.path(), StandardOpenOption.READ)
-					),
-					createLoadCatalogTask(catalogName)
-				)
+			final SequentialTask<Void> task = new SequentialTask<>(
+				catalogName,
+				"Restore catalog " + catalogName + " from backup.",
+				Catalog.createRestoreCatalogTask(
+					catalogName, this.configuration.storage(),
+					file.totalSizeInBytes(),
+					this.exportFileService.createInputStream(file)
+				),
+				createLoadCatalogTask(catalogName)
 			);
+			this.serviceExecutor.submit(task);
+			return task;
 		} catch (IOException e) {
 			throw new FileForFetchNotFoundException(fileId);
 		}
@@ -601,7 +600,7 @@ public final class Evita implements EvitaContract {
 	@Override
 	public PaginatedList<TaskStatus<?, ?>> listTaskStatuses(int page, int pageSize) {
 		assertActive();
-		return this.serviceExecutor.getJobStatuses(page, pageSize);
+		return this.serviceExecutor.listJobStatuses(page, pageSize);
 	}
 
 	@Nonnull
@@ -609,6 +608,13 @@ public final class Evita implements EvitaContract {
 	public Optional<TaskStatus<?, ?>> getTaskStatus(@Nonnull UUID jobId) {
 		assertActive();
 		return this.serviceExecutor.getJobStatus(jobId);
+	}
+
+	@Nonnull
+	@Override
+	public Collection<TaskStatus<?, ?>> getTaskStatuses(@Nonnull UUID... jobId) {
+		assertActive();
+		return this.serviceExecutor.getJobStatuses(jobId);
 	}
 
 	@Override
@@ -624,10 +630,17 @@ public final class Evita implements EvitaContract {
 		return this.exportFileService.listFilesToFetch(page, pageSize, origin);
 	}
 
+	@Nonnull
 	@Override
-	public void fetchFile(@Nonnull UUID fileId, @Nonnull OutputStream outputStream) throws FileForFetchNotFoundException, UnexpectedIOException {
+	public Optional<FileForFetch> getFileToFetch(@Nonnull UUID fileId) {
+		return this.exportFileService.getFile(fileId);
+	}
+
+	@Nonnull
+	@Override
+	public InputStream fetchFile(@Nonnull UUID fileId) throws FileForFetchNotFoundException, UnexpectedIOException {
 		assertActive();
-		this.exportFileService.fetchFile(fileId, outputStream);
+		return this.exportFileService.fetchFile(fileId);
 	}
 
 	@Override
@@ -709,7 +722,7 @@ public final class Evita implements EvitaContract {
 	 * @param catalogName name of the catalog
 	 */
 	@Nonnull
-	private Task<Void, Void> createLoadCatalogTask(@Nonnull String catalogName) {
+	private ServerTask<Void, Void> createLoadCatalogTask(@Nonnull String catalogName) {
 		return new ClientRunnableTask<>(
 			catalogName,
 			"Loading catalog " + catalogName + " from disk...",

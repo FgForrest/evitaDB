@@ -321,11 +321,11 @@ public class ObservableThreadExecutor implements ObservableExecutorService {
 		final ArrayList<ObservableTask> buffer = new ArrayList<>(bufferSize);
 		final int queueSize = this.queue.size();
 		int timedOutTasks = 0;
-		for (int i = 0; i < queueSize; i++) {
+		for (int i = 0; i < queueSize;) {
 			// initialize threshold for entire batch only once
 			final long threshold = System.currentTimeMillis() - this.timeoutInMilliseconds;
 			// effectively withdraw first block of tasks from the queue
-			this.queue.drainTo(buffer, bufferSize);
+			i += this.queue.drainTo(buffer, bufferSize);
 			// now go through all of them
 			final Iterator<ObservableTask> it = buffer.iterator();
 			while (it.hasNext()) {

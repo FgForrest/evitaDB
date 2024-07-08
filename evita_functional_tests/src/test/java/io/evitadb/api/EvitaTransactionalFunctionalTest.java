@@ -1191,12 +1191,12 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 			}
 		);
 
-		final Path backupFilePath = lastBackupProcess.get().get().path();
+		final Path backupFilePath = lastBackupProcess.get().get().path(evita.getConfiguration().storage().exportDirectory());
 		assertTrue(backupFilePath.toFile().exists(), "Backup file does not exist!");
 
 		final String restoredCatalogName = TEST_CATALOG + "_restored";
 		evita.restoreCatalog(restoredCatalogName, Files.size(backupFilePath), Files.newInputStream(backupFilePath))
-			.get(5, TimeUnit.MINUTES);
+			.getFutureResult().get(5, TimeUnit.MINUTES);
 
 		final long originalCatalogVersion = evita.queryCatalog(
 			TEST_CATALOG,
@@ -1281,12 +1281,12 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 			}
 		);
 
-		final Path backupFilePath = lastBackupProcess.get().get().path();
+		final Path backupFilePath = lastBackupProcess.get().get().path(evita.getConfiguration().storage().exportDirectory());
 		assertTrue(backupFilePath.toFile().exists(), "Backup file does not exist!");
 
 		final String restoredCatalogName = TEST_CATALOG + "_restored";
 		evita.restoreCatalog(restoredCatalogName, Files.size(backupFilePath), Files.newInputStream(backupFilePath))
-			.get(5, TimeUnit.MINUTES);
+			.getFutureResult().get(5, TimeUnit.MINUTES);
 
 		final long originalCatalogVersion = evita.queryCatalog(
 			TEST_CATALOG,
@@ -1501,12 +1501,12 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 							log.info("Bootstrap record: " + record);
 							// create backup from each point in time
 							final Path backupPath = restartedEvita.backupCatalog(TEST_CATALOG, record.timestamp(), false)
-								.get(2, TimeUnit.MINUTES).path();
+								.get(2, TimeUnit.MINUTES).path(evita.getConfiguration().storage().exportDirectory());
 							// restore it to unique new catalog
 							final String restoredCatalogName = TEST_CATALOG + "_restored_" + record.catalogVersion();
 							try (final InputStream inputStream = Files.newInputStream(backupPath)) {
 								restartedEvita.restoreCatalog(restoredCatalogName, Files.size(backupPath), inputStream)
-									.get(2, TimeUnit.MINUTES);
+									.getFutureResult().get(2, TimeUnit.MINUTES);
 							}
 							// connect to it and check existence of the first record
 							ofNullable(versionedEntities.get(record.catalogVersion())).ifPresent(

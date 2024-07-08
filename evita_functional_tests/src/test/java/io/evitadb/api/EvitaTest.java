@@ -1679,7 +1679,7 @@ class EvitaTest implements EvitaTestSupport {
 		setupCatalogWithProductAndCategory();
 
 		final CompletableFuture<FileForFetch> backupPathFuture = evita.backupCatalog(TEST_CATALOG, null, true);
-		final Path backupPath = backupPathFuture.join().path();
+		final Path backupPath = backupPathFuture.join().path(evita.getConfiguration().storage().exportDirectory());
 
 		assertTrue(backupPath.toFile().exists());
 
@@ -1687,7 +1687,7 @@ class EvitaTest implements EvitaTestSupport {
 			TEST_CATALOG + "_restored",
 			Files.size(backupPath),
 			new BufferedInputStream(new FileInputStream(backupPath.toFile()))
-		);
+		).getFutureResult();
 
 		// wait for the restore to finish
 		future.get();
@@ -1729,7 +1729,7 @@ class EvitaTest implements EvitaTestSupport {
 		});
 
 		final CompletableFuture<FileForFetch> backupPathFuture = evita.backupCatalog(TEST_CATALOG, null, true);
-		final Path backupPath = backupPathFuture.join().path();
+		final Path backupPath = backupPathFuture.join().path(evita.getConfiguration().storage().exportDirectory());
 
 		assertTrue(backupPath.toFile().exists());
 
@@ -1737,7 +1737,7 @@ class EvitaTest implements EvitaTestSupport {
 			TEST_CATALOG + "_restored",
 			Files.size(backupPath),
 			new BufferedInputStream(new FileInputStream(backupPath.toFile()))
-		);
+		).getFutureResult();
 
 		// wait for the restore to finish
 		future.get();

@@ -28,7 +28,7 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * Response to a task statuses request.
+ * Response to a get files to fetch request.
  * </pre>
  *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcFilesToFetchResponse}
@@ -433,7 +433,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Response to a task statuses request.
+   * Response to a get files to fetch request.
    * </pre>
    *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcFilesToFetchResponse}

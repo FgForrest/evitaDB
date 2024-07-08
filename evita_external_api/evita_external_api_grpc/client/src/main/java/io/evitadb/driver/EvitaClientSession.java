@@ -75,6 +75,7 @@ import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
+import io.evitadb.api.task.Task;
 import io.evitadb.dataType.DataChunk;
 import io.evitadb.driver.config.EvitaClientConfiguration;
 import io.evitadb.driver.exception.EvitaClientServerCallException;
@@ -85,10 +86,11 @@ import io.evitadb.driver.requestResponse.schema.ClientCatalogSchemaDecorator;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
-import io.evitadb.exception.UnexpectedIOException;
+import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.EvitaSessionServiceGrpc.EvitaSessionServiceFutureStub;
 import io.evitadb.externalApi.grpc.generated.EvitaSessionServiceGrpc.EvitaSessionServiceStub;
+import io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogRequest.Builder;
 import io.evitadb.externalApi.grpc.query.QueryConverter;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.externalApi.grpc.requestResponse.ResponseConverter;
@@ -135,6 +137,7 @@ import static io.evitadb.api.query.QueryConstraints.entityFetch;
 import static io.evitadb.api.query.QueryConstraints.require;
 import static io.evitadb.api.requestResponse.schema.ClassSchemaAnalyzer.extractEntityTypeFromClass;
 import static io.evitadb.driver.EvitaClient.ERROR_MESSAGE_PATTERN;
+import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toTaskStatus;
 import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toUuid;
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
@@ -166,6 +169,10 @@ public class EvitaClientSession implements EvitaSessionContract {
 	 * Evita instance this session is connected to.
 	 */
 	@Getter private final EvitaClient evita;
+	/**
+	 * Service class used for tracking tasks on the server side.
+	 */
+	private final ClientTaskTracker clientTaskTracker;
 	/**
 	 * Reflection lookup is used to speed up reflection operation by memoizing the results for examined classes.
 	 */
@@ -266,6 +273,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 
 	public EvitaClientSession(
 		@Nonnull EvitaClient evita,
+		@Nonnull ClientTaskTracker clientTaskTracker,
 		@Nonnull EvitaEntitySchemaCache schemaCache,
 		@Nonnull ChannelPool channelPool,
 		@Nonnull String catalogName,
@@ -278,6 +286,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 		@Nonnull Timeout timeout
 		) {
 		this.evita = evita;
+		this.clientTaskTracker = clientTaskTracker;
 		this.reflectionLookup = evita.getReflectionLookup();
 		this.proxyFactory = schemaCache.getProxyFactory();
 		this.schemaCache = schemaCache;
@@ -1274,62 +1283,28 @@ public class EvitaClientSession implements EvitaSessionContract {
 
 	@Nonnull
 	@Override
-	public CompletableFuture<FileForFetch> backupCatalog(@Nullable OffsetDateTime pastMoment, boolean includingWAL) throws TemporalDataNotAvailableException {
+	public Task<?, FileForFetch> backupCatalog(@Nullable OffsetDateTime pastMoment, boolean includingWAL) throws TemporalDataNotAvailableException {
 		assertActive();
-		final CompletableFuture<Void> result = new CompletableFuture<>();
-		executeWithAsyncEvitaSessionService(
-			evitaSessionService -> {
-				evitaSessionService.backupCatalog(
-					Empty.newBuilder().build(),
-					new StreamObserver<>() {
-						@Override
-						public void onNext(GrpcBackupCatalogResponse grpcBackupCatalogResponse) {
-							try {
-								/*grpcBackupCatalogResponse.getBackupFile().writeTo(outputStream);*/
-							} catch (Exception ex) {
-								result.completeExceptionally(
-									new UnexpectedIOException(
-										"Unexpected exception occurred while backing up the catalog: " + ex.getMessage(),
-										"Unexpected exception occurred while backing up the catalog!",
-										ex
-									)
-								);
-							}
-						}
+		return executeInTransactionIfPossible(session -> {
+			final GrpcBackupCatalogResponse grpcResponse = executeWithBlockingEvitaSessionService(
+				evitaSessionService ->
+				{
+					final Builder builder = GrpcBackupCatalogRequest.newBuilder();
+					ofNullable(pastMoment)
+						.ifPresent(pm -> builder.setPastMoment(EvitaDataTypesConverter.toGrpcOffsetDateTime(pm)));
+					return evitaSessionService.backupCatalog(
+						builder
+							.setIncludingWAL(includingWAL)
+							.build()
+					);
+				}
+			);
 
-						@Override
-						public void onError(Throwable throwable) {
-							result.completeExceptionally(
-								new UnexpectedIOException(
-									"Unexpected exception occurred while backing up the catalog: " + throwable.getMessage(),
-									"Unexpected exception occurred while backing up the catalog!",
-									throwable
-								)
-							);
-						}
-
-						@Override
-						public void onCompleted() {
-							result.complete(null);
-						}
-					}
-				);
-				return null;
-			}
-		);
-		// wait for result and rethrow original exception if available
-		try {
-			result.join();
-		} catch (RuntimeException ex) {
-			if (ex.getCause() instanceof RuntimeException runtimeException) {
-				throw runtimeException;
-			} else {
-				throw ex;
-			}
-		}
-
-		/* TODO JNO - alter implementation */
-		return null;
+			//noinspection unchecked
+			return (Task<?, FileForFetch>) this.clientTaskTracker.createTask(
+				toTaskStatus(grpcResponse.getTaskStatus())
+			);
+		});
 	}
 
 	@Nonnull

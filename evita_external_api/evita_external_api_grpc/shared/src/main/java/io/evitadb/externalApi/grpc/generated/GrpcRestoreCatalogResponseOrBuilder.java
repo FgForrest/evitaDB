@@ -42,28 +42,28 @@ public interface GrpcRestoreCatalogResponseOrBuilder extends
 
   /**
    * <pre>
-   * the id of the task that is used to restore the catalog and getting its progress
+   * the task that is used to restore the catalog and getting its progress
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid taskId = 2;</code>
-   * @return Whether the taskId field is set.
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus task = 2;</code>
+   * @return Whether the task field is set.
    */
-  boolean hasTaskId();
+  boolean hasTask();
   /**
    * <pre>
-   * the id of the task that is used to restore the catalog and getting its progress
+   * the task that is used to restore the catalog and getting its progress
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid taskId = 2;</code>
-   * @return The taskId.
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus task = 2;</code>
+   * @return The task.
    */
-  io.evitadb.externalApi.grpc.generated.GrpcUuid getTaskId();
+  io.evitadb.externalApi.grpc.generated.GrpcTaskStatus getTask();
   /**
    * <pre>
-   * the id of the task that is used to restore the catalog and getting its progress
+   * the task that is used to restore the catalog and getting its progress
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid taskId = 2;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus task = 2;</code>
    */
-  io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder getTaskIdOrBuilder();
+  io.evitadb.externalApi.grpc.generated.GrpcTaskStatusOrBuilder getTaskOrBuilder();
 }

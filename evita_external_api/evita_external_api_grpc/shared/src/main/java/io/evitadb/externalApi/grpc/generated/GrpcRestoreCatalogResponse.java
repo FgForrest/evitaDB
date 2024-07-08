@@ -81,14 +81,14 @@ private static final long serialVersionUID = 0L;
             break;
           }
           case 18: {
-            io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder subBuilder = null;
-            if (taskId_ != null) {
-              subBuilder = taskId_.toBuilder();
+            io.evitadb.externalApi.grpc.generated.GrpcTaskStatus.Builder subBuilder = null;
+            if (task_ != null) {
+              subBuilder = task_.toBuilder();
             }
-            taskId_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcUuid.parser(), extensionRegistry);
+            task_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcTaskStatus.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom(taskId_);
-              taskId_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom(task_);
+              task_ = subBuilder.buildPartial();
             }
 
             break;
@@ -140,42 +140,42 @@ private static final long serialVersionUID = 0L;
     return read_;
   }
 
-  public static final int TASKID_FIELD_NUMBER = 2;
-  private io.evitadb.externalApi.grpc.generated.GrpcUuid taskId_;
+  public static final int TASK_FIELD_NUMBER = 2;
+  private io.evitadb.externalApi.grpc.generated.GrpcTaskStatus task_;
   /**
    * <pre>
-   * the id of the task that is used to restore the catalog and getting its progress
+   * the task that is used to restore the catalog and getting its progress
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid taskId = 2;</code>
-   * @return Whether the taskId field is set.
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus task = 2;</code>
+   * @return Whether the task field is set.
    */
   @java.lang.Override
-  public boolean hasTaskId() {
-    return taskId_ != null;
+  public boolean hasTask() {
+    return task_ != null;
   }
   /**
    * <pre>
-   * the id of the task that is used to restore the catalog and getting its progress
+   * the task that is used to restore the catalog and getting its progress
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid taskId = 2;</code>
-   * @return The taskId.
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus task = 2;</code>
+   * @return The task.
    */
   @java.lang.Override
-  public io.evitadb.externalApi.grpc.generated.GrpcUuid getTaskId() {
-    return taskId_ == null ? io.evitadb.externalApi.grpc.generated.GrpcUuid.getDefaultInstance() : taskId_;
+  public io.evitadb.externalApi.grpc.generated.GrpcTaskStatus getTask() {
+    return task_ == null ? io.evitadb.externalApi.grpc.generated.GrpcTaskStatus.getDefaultInstance() : task_;
   }
   /**
    * <pre>
-   * the id of the task that is used to restore the catalog and getting its progress
+   * the task that is used to restore the catalog and getting its progress
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid taskId = 2;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus task = 2;</code>
    */
   @java.lang.Override
-  public io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder getTaskIdOrBuilder() {
-    return getTaskId();
+  public io.evitadb.externalApi.grpc.generated.GrpcTaskStatusOrBuilder getTaskOrBuilder() {
+    return getTask();
   }
 
   private byte memoizedIsInitialized = -1;
@@ -195,8 +195,8 @@ private static final long serialVersionUID = 0L;
     if (read_ != 0L) {
       output.writeInt64(1, read_);
     }
-    if (taskId_ != null) {
-      output.writeMessage(2, getTaskId());
+    if (task_ != null) {
+      output.writeMessage(2, getTask());
     }
     unknownFields.writeTo(output);
   }
@@ -211,9 +211,9 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeInt64Size(1, read_);
     }
-    if (taskId_ != null) {
+    if (task_ != null) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(2, getTaskId());
+        .computeMessageSize(2, getTask());
     }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
@@ -232,10 +232,10 @@ private static final long serialVersionUID = 0L;
 
     if (getRead()
         != other.getRead()) return false;
-    if (hasTaskId() != other.hasTaskId()) return false;
-    if (hasTaskId()) {
-      if (!getTaskId()
-          .equals(other.getTaskId())) return false;
+    if (hasTask() != other.hasTask()) return false;
+    if (hasTask()) {
+      if (!getTask()
+          .equals(other.getTask())) return false;
     }
     if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
@@ -251,9 +251,9 @@ private static final long serialVersionUID = 0L;
     hash = (37 * hash) + READ_FIELD_NUMBER;
     hash = (53 * hash) + com.google.protobuf.Internal.hashLong(
         getRead());
-    if (hasTaskId()) {
-      hash = (37 * hash) + TASKID_FIELD_NUMBER;
-      hash = (53 * hash) + getTaskId().hashCode();
+    if (hasTask()) {
+      hash = (37 * hash) + TASK_FIELD_NUMBER;
+      hash = (53 * hash) + getTask().hashCode();
     }
     hash = (29 * hash) + unknownFields.hashCode();
     memoizedHashCode = hash;
@@ -394,11 +394,11 @@ private static final long serialVersionUID = 0L;
       super.clear();
       read_ = 0L;
 
-      if (taskIdBuilder_ == null) {
-        taskId_ = null;
+      if (taskBuilder_ == null) {
+        task_ = null;
       } else {
-        taskId_ = null;
-        taskIdBuilder_ = null;
+        task_ = null;
+        taskBuilder_ = null;
       }
       return this;
     }
@@ -427,10 +427,10 @@ private static final long serialVersionUID = 0L;
     public io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogResponse buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogResponse result = new io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogResponse(this);
       result.read_ = read_;
-      if (taskIdBuilder_ == null) {
-        result.taskId_ = taskId_;
+      if (taskBuilder_ == null) {
+        result.task_ = task_;
       } else {
-        result.taskId_ = taskIdBuilder_.build();
+        result.task_ = taskBuilder_.build();
       }
       onBuilt();
       return result;
@@ -483,8 +483,8 @@ private static final long serialVersionUID = 0L;
       if (other.getRead() != 0L) {
         setRead(other.getRead());
       }
-      if (other.hasTaskId()) {
-        mergeTaskId(other.getTaskId());
+      if (other.hasTask()) {
+        mergeTask(other.getTask());
       }
       this.mergeUnknownFields(other.unknownFields);
       onChanged();
@@ -558,159 +558,159 @@ private static final long serialVersionUID = 0L;
       return this;
     }
 
-    private io.evitadb.externalApi.grpc.generated.GrpcUuid taskId_;
+    private io.evitadb.externalApi.grpc.generated.GrpcTaskStatus task_;
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcUuid, io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder, io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder> taskIdBuilder_;
+        io.evitadb.externalApi.grpc.generated.GrpcTaskStatus, io.evitadb.externalApi.grpc.generated.GrpcTaskStatus.Builder, io.evitadb.externalApi.grpc.generated.GrpcTaskStatusOrBuilder> taskBuilder_;
     /**
      * <pre>
-     * the id of the task that is used to restore the catalog and getting its progress
+     * the task that is used to restore the catalog and getting its progress
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid taskId = 2;</code>
-     * @return Whether the taskId field is set.
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus task = 2;</code>
+     * @return Whether the task field is set.
      */
-    public boolean hasTaskId() {
-      return taskIdBuilder_ != null || taskId_ != null;
+    public boolean hasTask() {
+      return taskBuilder_ != null || task_ != null;
     }
     /**
      * <pre>
-     * the id of the task that is used to restore the catalog and getting its progress
+     * the task that is used to restore the catalog and getting its progress
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid taskId = 2;</code>
-     * @return The taskId.
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus task = 2;</code>
+     * @return The task.
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcUuid getTaskId() {
-      if (taskIdBuilder_ == null) {
-        return taskId_ == null ? io.evitadb.externalApi.grpc.generated.GrpcUuid.getDefaultInstance() : taskId_;
+    public io.evitadb.externalApi.grpc.generated.GrpcTaskStatus getTask() {
+      if (taskBuilder_ == null) {
+        return task_ == null ? io.evitadb.externalApi.grpc.generated.GrpcTaskStatus.getDefaultInstance() : task_;
       } else {
-        return taskIdBuilder_.getMessage();
+        return taskBuilder_.getMessage();
       }
     }
     /**
      * <pre>
-     * the id of the task that is used to restore the catalog and getting its progress
+     * the task that is used to restore the catalog and getting its progress
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid taskId = 2;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus task = 2;</code>
      */
-    public Builder setTaskId(io.evitadb.externalApi.grpc.generated.GrpcUuid value) {
-      if (taskIdBuilder_ == null) {
+    public Builder setTask(io.evitadb.externalApi.grpc.generated.GrpcTaskStatus value) {
+      if (taskBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        taskId_ = value;
+        task_ = value;
         onChanged();
       } else {
-        taskIdBuilder_.setMessage(value);
+        taskBuilder_.setMessage(value);
       }
 
       return this;
     }
     /**
      * <pre>
-     * the id of the task that is used to restore the catalog and getting its progress
+     * the task that is used to restore the catalog and getting its progress
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid taskId = 2;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus task = 2;</code>
      */
-    public Builder setTaskId(
-        io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder builderForValue) {
-      if (taskIdBuilder_ == null) {
-        taskId_ = builderForValue.build();
+    public Builder setTask(
+        io.evitadb.externalApi.grpc.generated.GrpcTaskStatus.Builder builderForValue) {
+      if (taskBuilder_ == null) {
+        task_ = builderForValue.build();
         onChanged();
       } else {
-        taskIdBuilder_.setMessage(builderForValue.build());
+        taskBuilder_.setMessage(builderForValue.build());
       }
 
       return this;
     }
     /**
      * <pre>
-     * the id of the task that is used to restore the catalog and getting its progress
+     * the task that is used to restore the catalog and getting its progress
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid taskId = 2;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus task = 2;</code>
      */
-    public Builder mergeTaskId(io.evitadb.externalApi.grpc.generated.GrpcUuid value) {
-      if (taskIdBuilder_ == null) {
-        if (taskId_ != null) {
-          taskId_ =
-            io.evitadb.externalApi.grpc.generated.GrpcUuid.newBuilder(taskId_).mergeFrom(value).buildPartial();
+    public Builder mergeTask(io.evitadb.externalApi.grpc.generated.GrpcTaskStatus value) {
+      if (taskBuilder_ == null) {
+        if (task_ != null) {
+          task_ =
+            io.evitadb.externalApi.grpc.generated.GrpcTaskStatus.newBuilder(task_).mergeFrom(value).buildPartial();
         } else {
-          taskId_ = value;
+          task_ = value;
         }
         onChanged();
       } else {
-        taskIdBuilder_.mergeFrom(value);
+        taskBuilder_.mergeFrom(value);
       }
 
       return this;
     }
     /**
      * <pre>
-     * the id of the task that is used to restore the catalog and getting its progress
+     * the task that is used to restore the catalog and getting its progress
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid taskId = 2;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus task = 2;</code>
      */
-    public Builder clearTaskId() {
-      if (taskIdBuilder_ == null) {
-        taskId_ = null;
+    public Builder clearTask() {
+      if (taskBuilder_ == null) {
+        task_ = null;
         onChanged();
       } else {
-        taskId_ = null;
-        taskIdBuilder_ = null;
+        task_ = null;
+        taskBuilder_ = null;
       }
 
       return this;
     }
     /**
      * <pre>
-     * the id of the task that is used to restore the catalog and getting its progress
+     * the task that is used to restore the catalog and getting its progress
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid taskId = 2;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus task = 2;</code>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder getTaskIdBuilder() {
+    public io.evitadb.externalApi.grpc.generated.GrpcTaskStatus.Builder getTaskBuilder() {
 
       onChanged();
-      return getTaskIdFieldBuilder().getBuilder();
+      return getTaskFieldBuilder().getBuilder();
     }
     /**
      * <pre>
-     * the id of the task that is used to restore the catalog and getting its progress
+     * the task that is used to restore the catalog and getting its progress
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid taskId = 2;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus task = 2;</code>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder getTaskIdOrBuilder() {
-      if (taskIdBuilder_ != null) {
-        return taskIdBuilder_.getMessageOrBuilder();
+    public io.evitadb.externalApi.grpc.generated.GrpcTaskStatusOrBuilder getTaskOrBuilder() {
+      if (taskBuilder_ != null) {
+        return taskBuilder_.getMessageOrBuilder();
       } else {
-        return taskId_ == null ?
-            io.evitadb.externalApi.grpc.generated.GrpcUuid.getDefaultInstance() : taskId_;
+        return task_ == null ?
+            io.evitadb.externalApi.grpc.generated.GrpcTaskStatus.getDefaultInstance() : task_;
       }
     }
     /**
      * <pre>
-     * the id of the task that is used to restore the catalog and getting its progress
+     * the task that is used to restore the catalog and getting its progress
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid taskId = 2;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus task = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcUuid, io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder, io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder>
-        getTaskIdFieldBuilder() {
-      if (taskIdBuilder_ == null) {
-        taskIdBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
-            io.evitadb.externalApi.grpc.generated.GrpcUuid, io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder, io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder>(
-                getTaskId(),
+        io.evitadb.externalApi.grpc.generated.GrpcTaskStatus, io.evitadb.externalApi.grpc.generated.GrpcTaskStatus.Builder, io.evitadb.externalApi.grpc.generated.GrpcTaskStatusOrBuilder>
+        getTaskFieldBuilder() {
+      if (taskBuilder_ == null) {
+        taskBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcTaskStatus, io.evitadb.externalApi.grpc.generated.GrpcTaskStatus.Builder, io.evitadb.externalApi.grpc.generated.GrpcTaskStatusOrBuilder>(
+                getTask(),
                 getParentForChildren(),
                 isClean());
-        taskId_ = null;
+        task_ = null;
       }
-      return taskIdBuilder_;
+      return taskBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

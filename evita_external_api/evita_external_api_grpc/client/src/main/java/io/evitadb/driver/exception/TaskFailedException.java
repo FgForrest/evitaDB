@@ -21,38 +21,26 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.task;
+package io.evitadb.driver.exception;
+
+import io.evitadb.exception.EvitaInternalError;
+import lombok.Getter;
 
 import javax.annotation.Nonnull;
-import java.util.concurrent.CompletableFuture;
+import java.io.Serial;
 
 /**
- * Interface for different tasks that can be executed in the background service. It represents an instance of single
- * task execution with particular settings executed by the service thread pool with lower priority on the background.
+ * This exception mimics the exception on the server side that led to the task failure.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public interface Task<S, T> {
+public class TaskFailedException extends EvitaInternalError {
+	@Serial private static final long serialVersionUID = -924561482725475119L;
+	@Getter private final String exceptionWithStackTrace;
 
-	/**
-	 * Returns actual status of the task, telemetry information and access to its progress, settings and result.
-	 * @return The status of the task.
-	 */
-	@Nonnull
-	TaskStatus<S, T> getStatus();
-
-	/**
-	 * Returns the future result of the task. The future is completed when the task is finished.
-	 * @return The future result of the task.
-	 */
-	@Nonnull
-	CompletableFuture<T> getFutureResult();
-
-	/**
-	 * Cancels the task.
-	 *
-	 * @return True if the task was successfully canceled, false if the task is already finished or canceled.
-	 */
-	boolean cancel();
+	public TaskFailedException(@Nonnull String exception) {
+		super(exception);
+		this.exceptionWithStackTrace = exception;
+	}
 
 }

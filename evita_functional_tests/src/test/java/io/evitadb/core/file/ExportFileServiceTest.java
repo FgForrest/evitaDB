@@ -34,8 +34,8 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -84,7 +84,7 @@ class ExportFileServiceTest implements EvitaTestSupport {
 		assertArrayEquals(new String[] {"A", "B"}, fileForFetch.origin());
 
 		// verify the file content
-		assertEquals("testFileContent", Files.readString(fileForFetch.path(), StandardCharsets.UTF_8));
+		assertEquals("testFileContent", Files.readString(fileForFetch.path(storageOptions.exportDirectory()), StandardCharsets.UTF_8));
 	}
 
 	@Test
@@ -160,11 +160,10 @@ class ExportFileServiceTest implements EvitaTestSupport {
 	void shouldFetchFile() throws IOException {
 		final FileForFetch storedFile = writeFile("testFile.txt", "A,B");
 
-		final ByteArrayOutputStream bos = new ByteArrayOutputStream();
-		this.exportFileService.fetchFile(storedFile.fileId(), bos);
-
-		final String content = bos.toString(StandardCharsets.UTF_8);
-		assertEquals("testFileContent", content);
+		try (final InputStream inputStream = this.exportFileService.fetchFile(storedFile.fileId())) {
+			final String content = new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
+			assertEquals("testFileContent", content);
+		}
 	}
 
 	@Nullable

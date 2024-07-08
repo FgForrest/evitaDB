@@ -66,6 +66,7 @@ import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
+import io.evitadb.api.task.Task;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -1008,7 +1009,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * @throws TemporalDataNotAvailableException when the past data is not available
 	 */
 	@Nonnull
-	CompletableFuture<FileForFetch> backupCatalog(@Nullable OffsetDateTime pastMoment, boolean includingWAL) throws TemporalDataNotAvailableException;
+	Task<?, FileForFetch> backupCatalog(@Nullable OffsetDateTime pastMoment, boolean includingWAL) throws TemporalDataNotAvailableException;
 
 	/**
 	 * Default implementation uses ID for comparing two sessions (and to distinguish one session from another).

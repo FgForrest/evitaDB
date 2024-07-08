@@ -44,7 +44,7 @@ import io.evitadb.api.requestResponse.system.CatalogVersion;
 import io.evitadb.api.requestResponse.system.CatalogVersionDescriptor;
 import io.evitadb.api.requestResponse.system.TimeFlow;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
-import io.evitadb.api.task.Task;
+import io.evitadb.api.task.ServerTask;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.CatalogVersionBeyondTheHorizonListener;
 import io.evitadb.core.EntityCollection;
@@ -1814,7 +1814,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 
 	@Nonnull
 	@Override
-	public Task<?, FileForFetch> createBackupTask(@Nullable OffsetDateTime pastMoment, boolean includingWAL) throws TemporalDataNotAvailableException {
+	public ServerTask<?, FileForFetch> createBackupTask(@Nullable OffsetDateTime pastMoment, boolean includingWAL) throws TemporalDataNotAvailableException {
 		final CatalogBootstrap bootstrapRecord = pastMoment == null ?
 			this.bootstrapUsed : getCatalogBootstrapForSpecificMoment(this.catalogName, this.storageOptions, pastMoment);
 		return new BackupTask(

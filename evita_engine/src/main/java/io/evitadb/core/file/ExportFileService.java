@@ -38,6 +38,7 @@ import java.io.Closeable;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -83,6 +84,22 @@ public class ExportFileService {
 	 */
 	private List<FileForFetch> files;
 
+	/**
+	 * Parses metadata file and creates {@link FileForFetch} instance.
+	 *
+	 * @param metadataFile Path to the metadata file.
+	 * @return {@link FileForFetch} instance or empty if the file is not valid.
+	 */
+	@Nonnull
+	private static Optional<FileForFetch> toFileForFetch(@Nonnull Path metadataFile) {
+		try {
+			final List<String> metadataLines = Files.readAllLines(metadataFile, StandardCharsets.UTF_8);
+			return of(FileForFetch.fromLines(metadataLines));
+		} catch (Exception e) {
+			return empty();
+		}
+	}
+
 	public ExportFileService(@Nonnull StorageOptions storageOptions) {
 		this.storageOptions = storageOptions;
 		this.initFilesForFetch();
@@ -108,6 +125,19 @@ public class ExportFileService {
 			this.files.size(),
 			filePage
 		);
+	}
+
+	/**
+	 * Returns file with the specified fileId that is available for download or empty if the file is not found.
+	 *
+	 * @param fileId fileId of the file
+	 * @return file to fetch
+	 */
+	@Nonnull
+	public Optional<FileForFetch> getFile(@Nonnull UUID fileId) {
+		return this.files.stream()
+			.filter(it -> it.fileId().equals(fileId))
+			.findFirst();
 	}
 
 	/**
@@ -158,7 +188,6 @@ public class ExportFileService {
 							final FileForFetch fileForFetch = new FileForFetch(
 								fileId,
 								fileName,
-								finalFilePath,
 								description,
 								contentType,
 								Files.size(finalFilePath),
@@ -196,36 +225,22 @@ public class ExportFileService {
 	}
 
 	/**
-	 * Returns file to fetch by its ID or throws exception if the file is not found.
+	 * Copies contents of the file to the output stream or throws exception if the file is not found.
 	 *
 	 * @param fileId file ID
-	 * @return file to fetch
+	 * @return the inputstream to read contents from
 	 * @throws FileForFetchNotFoundException if the file is not found
 	 */
 	@Nonnull
-	public FileForFetch getFile(@Nonnull UUID fileId) {
-		return this.files.stream()
-			.filter(it -> it.fileId().equals(fileId))
-			.findFirst()
-			.orElseThrow(() -> new FileForFetchNotFoundException(fileId));
-	}
-
-	/**
-	 * Copies contents of the file to the output stream or throws exception if the file is not found.
-	 *
-	 * @param fileId       file ID
-	 * @param outputStream output stream
-	 * @throws FileForFetchNotFoundException if the file is not found
-	 */
-	public void fetchFile(@Nonnull UUID fileId, @Nonnull OutputStream outputStream) {
-		try (outputStream) {
-			final FileForFetch file = getFile(fileId);
-			Files.copy(file.path(), outputStream);
-			outputStream.flush();
+	public InputStream fetchFile(@Nonnull UUID fileId) throws FileForFetchNotFoundException {
+		try {
+			final FileForFetch file = getFile(fileId)
+				.orElseThrow(() -> new FileForFetchNotFoundException(fileId));
+			return Files.newInputStream(file.path(storageOptions.exportDirectory()), StandardOpenOption.READ);
 		} catch (IOException e) {
 			throw new UnexpectedIOException(
-				"Failed to copy the file to the output stream: " + e.getMessage(),
-				"Failed to copy the file to the output stream.",
+				"Failed to open the designated file: " + e.getMessage(),
+				"Failed to open the designated file.",
 				e
 			);
 		}
@@ -238,12 +253,14 @@ public class ExportFileService {
 	 * @throws FileForFetchNotFoundException if the file is not found
 	 * @throws UnexpectedIOException         if the file cannot be deleted
 	 */
-	public void deleteFile(@Nonnull UUID fileId) {
+	public void deleteFile(@Nonnull UUID fileId) throws FileForFetchNotFoundException {
 		lock.lock();
 		try {
-			final FileForFetch file = getFile(fileId);
-			Files.delete(file.metadataPath());
-			Files.delete(file.path());
+			final FileForFetch file = getFile(fileId)
+				.orElseThrow(() -> new FileForFetchNotFoundException(fileId));
+			;
+			Files.delete(file.metadataPath(storageOptions.exportDirectory()));
+			Files.delete(file.path(storageOptions.exportDirectory()));
 			this.files.remove(file);
 		} catch (IOException e) {
 			throw new UnexpectedIOException(
@@ -257,19 +274,14 @@ public class ExportFileService {
 	}
 
 	/**
-	 * Parses metadata file and creates {@link FileForFetch} instance.
-	 *
-	 * @param metadataFile Path to the metadata file.
-	 * @return {@link FileForFetch} instance or empty if the file is not valid.
+	 * Returns input stream to read the file contents.
+	 * @param file file to read
+	 * @return input stream to read the file contents
+	 * @throws IOException if the file cannot be read
 	 */
 	@Nonnull
-	private Optional<FileForFetch> toFileForFetch(@Nonnull Path metadataFile) {
-		try {
-			final List<String> metadataLines = Files.readAllLines(metadataFile, StandardCharsets.UTF_8);
-			return of(FileForFetch.fromLines(metadataLines, storageOptions.exportDirectory()));
-		} catch (Exception e) {
-			return empty();
-		}
+	public InputStream createInputStream(@Nonnull FileForFetch file) throws IOException {
+		return Files.newInputStream(file.path(storageOptions.exportDirectory()), StandardOpenOption.READ);
 	}
 
 	/**
@@ -282,7 +294,7 @@ public class ExportFileService {
 				try (final Stream<Path> fileStream = Files.list(this.storageOptions.exportDirectory())) {
 					this.files = fileStream
 						.filter(it -> !it.toFile().getName().endsWith(FileForFetch.METADATA_EXTENSION))
-						.map(this::toFileForFetch)
+						.map(ExportFileService::toFileForFetch)
 						.flatMap(Optional::stream)
 						.sorted(Comparator.comparing(FileForFetch::created).reversed())
 						.collect(Collectors.toCollection(ArrayList::new));

@@ -23,6 +23,8 @@
 
 package io.evitadb.api.task;
 
+import io.evitadb.exception.EvitaError;
+
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.PrintWriter;
@@ -59,6 +61,7 @@ public record TaskStatus<S, T>(
 	int progress,
 	@Nonnull S settings,
 	@Nullable T result,
+	@Nullable String publicExceptionMessage,
 	@Nullable String exceptionWithStackTrace
 ) implements Serializable {
 
@@ -100,6 +103,7 @@ public record TaskStatus<S, T>(
 				progress,
 				this.settings,
 				this.result,
+				this.publicExceptionMessage,
 				this.exceptionWithStackTrace
 			);
 		} else {
@@ -125,6 +129,7 @@ public record TaskStatus<S, T>(
 			0,
 			this.settings,
 			this.result,
+			this.publicExceptionMessage,
 			this.exceptionWithStackTrace
 		);
 	}
@@ -148,6 +153,7 @@ public record TaskStatus<S, T>(
 			100,
 			this.settings,
 			result,
+			null,
 			null
 		);
 	}
@@ -175,6 +181,7 @@ public record TaskStatus<S, T>(
 			100,
 			this.settings,
 			null,
+			exception instanceof EvitaError evitaError ? evitaError.getPublicMessage() : "Task failed for unknown reasons.",
 			exception.getClass().getName() + ": " + exception.getMessage() + "\n" + sw
 		);
 	}

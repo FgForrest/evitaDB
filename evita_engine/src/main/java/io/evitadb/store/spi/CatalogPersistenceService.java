@@ -35,7 +35,7 @@ import io.evitadb.api.requestResponse.system.CatalogVersion;
 import io.evitadb.api.requestResponse.system.CatalogVersionDescriptor;
 import io.evitadb.api.requestResponse.system.TimeFlow;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
-import io.evitadb.api.task.Task;
+import io.evitadb.api.task.ServerTask;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.EntityCollection;
 import io.evitadb.core.buffer.DataStoreIndexChanges;
@@ -492,7 +492,7 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	 * @throws TemporalDataNotAvailableException when the past data is not available
 	 */
 	@Nonnull
-	Task<?, FileForFetch> createBackupTask(@Nullable OffsetDateTime pastMoment, boolean includingWAL) throws TemporalDataNotAvailableException;
+	ServerTask<?, FileForFetch> createBackupTask(@Nullable OffsetDateTime pastMoment, boolean includingWAL) throws TemporalDataNotAvailableException;
 
 	/**
 	 * Method closes this persistence service and also all {@link EntityCollectionPersistenceService} that were created

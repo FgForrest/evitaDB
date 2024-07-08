@@ -40,6 +40,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.system.SystemStatus;
+import io.evitadb.api.task.Task;
 import io.evitadb.api.task.TaskStatus;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.driver.config.EvitaClientConfiguration;
@@ -60,6 +61,7 @@ import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc.EvitaServiceFutureStub;
 import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc.EvitaServiceStub;
+import io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesRequest.Builder;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingTopLevelCatalogSchemaMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.SchemaMutationConverter;
@@ -82,23 +84,19 @@ import lombok.extern.slf4j.Slf4j;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.nio.ByteBuffer;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateEncodingException;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.temporal.ChronoUnit;
-import java.util.Arrays;
-import java.util.LinkedHashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -106,12 +104,15 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
+import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toGrpcUuid;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -174,6 +175,10 @@ public class EvitaClient implements EvitaContract {
 	 * Executor service used for asynchronous operations.
 	 */
 	private final ExecutorService executor;
+	/**
+	 * Client task tracker is used to track the tasks and their status.
+	 */
+	private final ClientTaskTracker clientTaskTracker;
 
 	@Nonnull
 	private static ClientTracingContext getClientTracingContext(@Nonnull EvitaClientConfiguration configuration) {
@@ -267,6 +272,9 @@ public class EvitaClient implements EvitaContract {
 			return timeouts;
 		});
 		this.active.set(true);
+		this.clientTaskTracker = new ClientTaskTracker(
+			this, configuration.trackedTaskLimit(), 2000
+		);
 
 		try {
 			final SystemStatus systemStatus = this.getSystemStatus();
@@ -380,6 +388,7 @@ public class EvitaClient implements EvitaContract {
 		}
 		final EvitaClientSession evitaClientSession = new EvitaClientSession(
 			this,
+			this.clientTaskTracker,
 			this.entitySchemaCache.computeIfAbsent(
 				traits.catalogName(),
 				catalogName -> new EvitaEntitySchemaCache(catalogName, this.reflectionLookup)
@@ -677,27 +686,26 @@ public class EvitaClient implements EvitaContract {
 		boolean includingWAL
 	) throws TemporalDataNotAvailableException {
 		assertActive();
-		try (final EvitaSessionContract session = this.createReadOnlySession(catalogName)) {
-			/*session.backupCatalog(outputStream);*/
+		try (final EvitaSessionContract session = this.createReadWriteSession(catalogName)) {
+			final Task<?, FileForFetch> resultTask = session.backupCatalog(pastMoment, includingWAL);
+			return resultTask.getFutureResult();
 		}
-
-		// TODO JNO - alter implementation
-		return null;
 	}
 
 	@Nonnull
 	@Override
-	public CompletableFuture<Void> restoreCatalog(
+	public Task<?, Void> restoreCatalog(
 		@Nonnull String catalogName,
 		long totalBytesExpected,
 		@Nonnull InputStream inputStream
 	) throws UnexpectedIOException {
 		assertActive();
 
-		executeWithAsyncEvitaService(
+		return executeWithAsyncEvitaService(
 			evitaService -> {
-				final CompletableFuture<Void> result = new CompletableFuture<>();
+				final CompletableFuture<TaskStatus<?, ?>> result = new CompletableFuture<>();
 				final AtomicLong bytesSent = new AtomicLong(0);
+				final AtomicReference<TaskStatus<?, ?>> taskStatus = new AtomicReference<>();
 				final StreamObserver<GrpcRestoreCatalogRequest> requestObserver = evitaService.restoreCatalog(
 					new StreamObserver<>() {
 						final AtomicLong bytesReceived = new AtomicLong(0);
@@ -705,6 +713,9 @@ public class EvitaClient implements EvitaContract {
 						@Override
 						public void onNext(GrpcRestoreCatalogResponse value) {
 							bytesReceived.accumulateAndGet(value.getRead(), Math::max);
+							if (value.hasTask()) {
+								taskStatus.set(EvitaDataTypesConverter.toTaskStatus(value.getTask()));
+							}
 						}
 
 						@Override
@@ -716,7 +727,7 @@ public class EvitaClient implements EvitaContract {
 						@Override
 						public void onCompleted() {
 							if (bytesSent.get() == bytesReceived.get()) {
-								result.complete(null);
+								result.complete(taskStatus.get());
 							} else {
 								result.completeExceptionally(
 									new UnexpectedIOException(
@@ -754,65 +765,252 @@ public class EvitaClient implements EvitaContract {
 					throw new RuntimeException(e);
 				}
 
-				// wait for result and rethrow original exception if available
-				try {
-					return result.join();
-				} catch (RuntimeException ex) {
-					if (ex.getCause() instanceof RuntimeException runtimeException) {
-						throw runtimeException;
-					} else {
-						throw ex;
-					}
-				}
+				//noinspection unchecked
+				return (Task<?, Void>) clientTaskTracker.createTask(
+					Objects.requireNonNull(result.get())
+				);
 			}
 		);
-
-		// TODO JNO - ALTER IMPLEMENTATION
-		return null;
 	}
 
 	@Nonnull
 	@Override
-	public CompletableFuture<Void> restoreCatalog(@Nonnull String catalogName, @Nonnull UUID fileId) throws FileForFetchNotFoundException {
-		/* TODO JNO - Implement me */
-		return null;
+	public Task<?, Void> restoreCatalog(@Nonnull String catalogName, @Nonnull UUID fileId) throws FileForFetchNotFoundException {
+		assertActive();
+
+		final GrpcRestoreCatalogResponse response = executeWithEvitaService(
+			evitaService -> {
+				final Timeout timeoutToUse = this.timeout.get().peek();
+				return evitaService.restoreCatalogFromServerFile(
+					GrpcRestoreCatalogFromServerFileRequest.newBuilder()
+						.setFileId(toGrpcUuid(fileId))
+						.setCatalogName(catalogName)
+						.build()
+				).get(timeoutToUse.timeout(), timeoutToUse.timeoutUnit());
+			}
+		);
+
+		//noinspection unchecked
+		return (Task<?, Void>) this.clientTaskTracker.createTask(
+			EvitaDataTypesConverter.toTaskStatus(response.getTask())
+		);
 	}
 
 	@Nonnull
 	@Override
 	public PaginatedList<TaskStatus<?, ?>> listTaskStatuses(int page, int pageSize) {
-		/* TODO JNO - Implement me */
-		return null;
+		assertActive();
+
+		final GrpcTaskStatusesResponse response = executeWithEvitaService(
+			evitaService -> {
+				final Timeout timeoutToUse = this.timeout.get().peek();
+				return evitaService.listTaskStatuses(
+					GrpcTaskStatusesRequest.newBuilder()
+						.setPageNumber(page)
+						.setPageSize(pageSize)
+						.build()
+				).get(timeoutToUse.timeout(), timeoutToUse.timeoutUnit());
+			}
+		);
+
+		return new PaginatedList<>(
+			response.getPageNumber(),
+			response.getPageSize(),
+			response.getTotalNumberOfRecords(),
+			response.getTaskStatusList()
+				.stream()
+				.map(EvitaDataTypesConverter::toTaskStatus)
+				.collect(Collectors.toCollection(ArrayList::new))
+		);
 	}
 
 	@Nonnull
 	@Override
 	public Optional<TaskStatus<?, ?>> getTaskStatus(@Nonnull UUID jobId) {
-		/* TODO JNO - Implement me */
-		return Optional.empty();
+		assertActive();
+
+		final GrpcTaskStatusResponse response = executeWithEvitaService(
+			evitaService -> {
+				final Timeout timeoutToUse = this.timeout.get().peek();
+				return evitaService.getTaskStatus(
+					GrpcTaskStatusRequest.newBuilder()
+						.setTaskId(toGrpcUuid(jobId))
+						.build()
+				).get(timeoutToUse.timeout(), timeoutToUse.timeoutUnit());
+			}
+		);
+
+		return response.hasTaskStatus() ?
+			Optional.of(EvitaDataTypesConverter.toTaskStatus(response.getTaskStatus())) : Optional.empty();
+	}
+
+	@Nonnull
+	@Override
+	public Collection<TaskStatus<?, ?>> getTaskStatuses(@Nonnull UUID... jobId) {
+		assertActive();
+
+		final GrpcSpecifiedTaskStatusesResponse response = executeWithEvitaService(
+			evitaService -> {
+				final Timeout timeoutToUse = this.timeout.get().peek();
+				final Builder builder = GrpcSpecifiedTaskStatusesRequest.newBuilder();
+				for (UUID id : jobId) {
+					builder.addTaskIds(toGrpcUuid(id));
+				}
+				return evitaService.getTaskStatuses(
+					builder.build()
+				).get(timeoutToUse.timeout(), timeoutToUse.timeoutUnit());
+			}
+		);
+
+		return response.getTaskStatusList()
+				.stream()
+				.map(EvitaDataTypesConverter::toTaskStatus)
+				.collect(Collectors.toCollection(ArrayList::new));
 	}
 
 	@Override
 	public boolean cancelTask(@Nonnull UUID jobId) {
-		/* TODO JNO - Implement me */
-		return false;
+		assertActive();
+
+		final GrpcCancelTaskResponse response = executeWithEvitaService(
+			evitaService -> {
+				final Timeout timeoutToUse = this.timeout.get().peek();
+				return evitaService.cancelTask(
+					GrpcCancelTaskRequest.newBuilder()
+						.setTaskId(toGrpcUuid(jobId))
+						.build()
+				).get(timeoutToUse.timeout(), timeoutToUse.timeoutUnit());
+			}
+		);
+
+		return response.getSuccess();
 	}
 
 	@Nonnull
 	@Override
 	public PaginatedList<FileForFetch> listFilesToFetch(int page, int pageSize, @Nullable String origin) {
-		/* TODO JNO - Implement me */
-		return null;
+		assertActive();
+
+		final GrpcFilesToFetchResponse response = executeWithEvitaService(
+			evitaService -> {
+				final Timeout timeoutToUse = this.timeout.get().peek();
+				return evitaService.listFilesToFetch(
+					GrpcFilesToFetchRequest.newBuilder()
+						.setPageNumber(page)
+						.setPageSize(pageSize)
+						.build()
+				).get(timeoutToUse.timeout(), timeoutToUse.timeoutUnit());
+			}
+		);
+
+		return new PaginatedList<>(
+			response.getPageNumber(),
+			response.getPageSize(),
+			response.getTotalNumberOfRecords(),
+			response.getFilesToFetchList()
+				.stream()
+				.map(EvitaDataTypesConverter::toFileForFetch)
+				.collect(Collectors.toCollection(ArrayList::new))
+		);
 	}
 
+	@Nonnull
 	@Override
-	public void fetchFile(@Nonnull UUID fileId, @Nonnull OutputStream outputStream) throws FileForFetchNotFoundException {
-		/* TODO JNO - Implement me */
+	public Optional<FileForFetch> getFileToFetch(@Nonnull UUID fileId) {
+		assertActive();
+
+		final GrpcFileToFetchResponse response = executeWithEvitaService(
+			evitaService -> {
+				final Timeout timeoutToUse = this.timeout.get().peek();
+				return evitaService.getFileToFetch(
+					GrpcFileToFetchRequest.newBuilder()
+						.setFileId(toGrpcUuid(fileId))
+						.build()
+				).get(timeoutToUse.timeout(), timeoutToUse.timeoutUnit());
+			}
+		);
+
+		return response.hasFileToFetch() ?
+			Optional.of(EvitaDataTypesConverter.toFileForFetch(response.getFileToFetch())) : Optional.empty();
+	}
+
+	@Nonnull
+	@Override
+	public InputStream fetchFile(@Nonnull UUID fileId) throws FileForFetchNotFoundException, UnexpectedIOException {
+		assertActive();
+		try {
+			// Create a temporary file
+			Path tempFile = Files.createTempFile("downloadedFile", ".tmp");
+			CompletableFuture<Void> downloadFuture = new CompletableFuture<>();
+
+			// Download the file asynchronously
+			executeWithAsyncEvitaService(evitaService -> {
+				evitaService.fetchFile(
+					GrpcFetchFileRequest.newBuilder().setFileId(toGrpcUuid(fileId)).build(),
+					new StreamObserver<>() {
+						@Override
+						public void onNext(GrpcFetchFileResponse response) {
+							try {
+								// Write chunks to the temporary file
+								Files.write(tempFile, response.getFileContents().toByteArray(), StandardOpenOption.APPEND);
+							} catch (IOException e) {
+								onError(e);
+							}
+						}
+
+						@Override
+						public void onError(Throwable t) {
+							downloadFuture.completeExceptionally(t);
+						}
+
+						@Override
+						public void onCompleted() {
+							downloadFuture.complete(null);
+						}
+					}
+				);
+				return null;
+			});
+
+			// Wait for the download to complete
+			downloadFuture.join();
+
+			// Return an InputStream for the temporary file
+			return new FileInputStream(tempFile.toFile()) {
+				@Override
+				public void close() throws IOException {
+					super.close();
+					// Cleanup - delete the temporary file after reading
+					Files.deleteIfExists(tempFile);
+				}
+			};
+		} catch (IOException e) {
+			throw new UnexpectedIOException(
+				"Failed to create temporary file or write to it: " + e.getMessage(),
+				"Failed to create temporary file or write to it",
+				e
+			);
+		}
 	}
 
 	@Override
 	public void deleteFile(@Nonnull UUID fileId) throws FileForFetchNotFoundException {
-		/* TODO JNO - Implement me */
+		assertActive();
+
+		final GrpcDeleteFileToFetchResponse response = executeWithEvitaService(
+			evitaService -> {
+				final Timeout timeoutToUse = this.timeout.get().peek();
+				return evitaService.deleteFile(
+					GrpcDeleteFileToFetchRequest.newBuilder()
+						.setFileId(toGrpcUuid(fileId))
+						.build()
+				).get(timeoutToUse.timeout(), timeoutToUse.timeoutUnit());
+			}
+		);
+
+		if (!response.getSuccess()) {
+			throw new FileForFetchNotFoundException(fileId);
+		}
 	}
 
 	@Nonnull
@@ -852,6 +1050,7 @@ public class EvitaClient implements EvitaContract {
 		if (active.compareAndSet(true, false)) {
 			this.activeSessions.values().forEach(EvitaSessionContract::close);
 			this.activeSessions.clear();
+			this.clientTaskTracker.close();
 			this.channelPool.shutdown();
 			this.terminationCallback.run();
 		}
@@ -907,7 +1106,7 @@ public class EvitaClient implements EvitaContract {
 	 * from a channel pool.
 	 *
 	 * @param lambda function that holds a logic passed by the caller
-	 * @param <T>                      return type of the function
+	 * @param <T>    return type of the function
 	 * @return result of the applied function
 	 */
 	private <T> T executeWithEvitaService(@Nonnull AsyncCallFunction<EvitaServiceFutureStub, T> lambda) {

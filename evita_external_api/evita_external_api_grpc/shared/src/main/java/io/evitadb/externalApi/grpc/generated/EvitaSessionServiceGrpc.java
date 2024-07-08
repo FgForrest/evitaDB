@@ -199,27 +199,27 @@ public final class EvitaSessionServiceGrpc {
     return getGoLiveAndCloseMethod;
   }
 
-  private static volatile io.grpc.MethodDescriptor<com.google.protobuf.Empty,
+  private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogRequest,
       io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogResponse> getBackupCatalogMethod;
 
   @io.grpc.stub.annotations.RpcMethod(
       fullMethodName = SERVICE_NAME + '/' + "BackupCatalog",
-      requestType = com.google.protobuf.Empty.class,
+      requestType = io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogRequest.class,
       responseType = io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogResponse.class,
       methodType = io.grpc.MethodDescriptor.MethodType.UNARY)
-  public static io.grpc.MethodDescriptor<com.google.protobuf.Empty,
+  public static io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogRequest,
       io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogResponse> getBackupCatalogMethod() {
-    io.grpc.MethodDescriptor<com.google.protobuf.Empty, io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogResponse> getBackupCatalogMethod;
+    io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogRequest, io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogResponse> getBackupCatalogMethod;
     if ((getBackupCatalogMethod = EvitaSessionServiceGrpc.getBackupCatalogMethod) == null) {
       synchronized (EvitaSessionServiceGrpc.class) {
         if ((getBackupCatalogMethod = EvitaSessionServiceGrpc.getBackupCatalogMethod) == null) {
           EvitaSessionServiceGrpc.getBackupCatalogMethod = getBackupCatalogMethod =
-              io.grpc.MethodDescriptor.<com.google.protobuf.Empty, io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogResponse>newBuilder()
+              io.grpc.MethodDescriptor.<io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogRequest, io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogResponse>newBuilder()
               .setType(io.grpc.MethodDescriptor.MethodType.UNARY)
               .setFullMethodName(generateFullMethodName(SERVICE_NAME, "BackupCatalog"))
               .setSampledToLocalTracing(true)
               .setRequestMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
-                  com.google.protobuf.Empty.getDefaultInstance()))
+                  io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogRequest.getDefaultInstance()))
               .setResponseMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
                   io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogResponse.getDefaultInstance()))
               .setSchemaDescriptor(new EvitaSessionServiceMethodDescriptorSupplier("BackupCatalog"))
@@ -930,7 +930,7 @@ public final class EvitaSessionServiceGrpc {
      * Procedure used to backup an existing catalog.
      * </pre>
      */
-    public void backupCatalog(com.google.protobuf.Empty request,
+    public void backupCatalog(io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogResponse> responseObserver) {
       io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getBackupCatalogMethod(), responseObserver);
     }
@@ -1166,7 +1166,7 @@ public final class EvitaSessionServiceGrpc {
             getBackupCatalogMethod(),
             io.grpc.stub.ServerCalls.asyncUnaryCall(
               new MethodHandlers<
-                com.google.protobuf.Empty,
+                io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogRequest,
                 io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogResponse>(
                   this, METHODID_BACKUP_CATALOG)))
           .addMethod(
@@ -1388,7 +1388,7 @@ public final class EvitaSessionServiceGrpc {
      * Procedure used to backup an existing catalog.
      * </pre>
      */
-    public void backupCatalog(com.google.protobuf.Empty request,
+    public void backupCatalog(io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogResponse> responseObserver) {
       io.grpc.stub.ClientCalls.asyncUnaryCall(
           getChannel().newCall(getBackupCatalogMethod(), getCallOptions()), request, responseObserver);
@@ -1681,7 +1681,7 @@ public final class EvitaSessionServiceGrpc {
      * Procedure used to backup an existing catalog.
      * </pre>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogResponse backupCatalog(com.google.protobuf.Empty request) {
+    public io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogResponse backupCatalog(io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogRequest request) {
       return io.grpc.stub.ClientCalls.blockingUnaryCall(
           getChannel(), getBackupCatalogMethod(), getCallOptions(), request);
     }
@@ -1960,7 +1960,7 @@ public final class EvitaSessionServiceGrpc {
      * </pre>
      */
     public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogResponse> backupCatalog(
-        com.google.protobuf.Empty request) {
+        io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogRequest request) {
       return io.grpc.stub.ClientCalls.futureUnaryCall(
           getChannel().newCall(getBackupCatalogMethod(), getCallOptions()), request);
     }
@@ -2239,7 +2239,7 @@ public final class EvitaSessionServiceGrpc {
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseResponse>) responseObserver);
           break;
         case METHODID_BACKUP_CATALOG:
-          serviceImpl.backupCatalog((com.google.protobuf.Empty) request,
+          serviceImpl.backupCatalog((io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogResponse>) responseObserver);
           break;
         case METHODID_CLOSE:

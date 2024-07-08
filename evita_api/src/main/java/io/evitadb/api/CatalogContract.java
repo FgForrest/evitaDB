@@ -42,6 +42,7 @@ import io.evitadb.api.requestResponse.system.CatalogVersion;
 import io.evitadb.api.requestResponse.system.CatalogVersionDescriptor;
 import io.evitadb.api.requestResponse.system.TimeFlow;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
+import io.evitadb.api.task.ServerTask;
 import io.evitadb.dataType.PaginatedList;
 
 import javax.annotation.Nonnull;
@@ -52,7 +53,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
@@ -326,7 +326,7 @@ public interface CatalogContract {
 	 * @throws TemporalDataNotAvailableException when the past data is not available
 	 */
 	@Nonnull
-	CompletableFuture<FileForFetch> backup(@Nullable OffsetDateTime pastMoment, boolean includingWAL) throws TemporalDataNotAvailableException;
+	ServerTask<?, FileForFetch> backup(@Nullable OffsetDateTime pastMoment, boolean includingWAL) throws TemporalDataNotAvailableException;
 
 	/**
 	 * Terminates catalog instance and frees all claimed resources. Prepares catalog instance to be garbage collected.

@@ -30,6 +30,7 @@ import io.evitadb.api.observability.annotation.ExportInvocationMetric;
 import io.evitadb.api.observability.annotation.ExportMetric;
 import io.evitadb.api.observability.annotation.ExportMetricLabel;
 import io.evitadb.api.observability.annotation.HistogramSettings;
+import io.evitadb.api.task.ServerTask;
 import io.evitadb.api.task.Task;
 import io.evitadb.core.Evita;
 import io.evitadb.core.async.ClientRunnableTask;
@@ -350,7 +351,7 @@ public class MetricHandler {
 		final Set<Class<? extends CustomMetricsExecutionEvent>> allowedMetrics = getAllowedEventSet();
 
 		final MetricTask metricTask = new MetricTask(allowedMetrics);
-		scheduler.submit((Task<?,?>) metricTask);
+		scheduler.submit((ServerTask<?,?>) metricTask);
 
 		try {
 			metricTask.getInitialized()

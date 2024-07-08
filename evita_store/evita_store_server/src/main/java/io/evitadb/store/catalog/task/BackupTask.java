@@ -120,6 +120,8 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 		final boolean theIncludingWAL = settings.includingWAL();
 		final long catalogVersion = this.bootstrapRecord.catalogVersion();
 
+		log.info("Starting backup of catalog `{}` at version {}.", this.catalogName, catalogVersion);
+
 		final Path backupFolder = this.catalogPersistenceService.getStorageOptions().exportDirectoryOrDefault();
 		if (!backupFolder.toFile().exists()) {
 			Assert.isPremiseValid(backupFolder.toFile().mkdirs(), "Failed to create backup folder `" + backupFolder + "`!");
@@ -191,6 +193,9 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 				);
 			}
 		}
+
+		log.info("Backup of catalog `{}` at version {} completed.", this.catalogName, catalogVersion);
+
 		return ofNullable(exportFileHandle.fileForFetchFuture().getNow(null))
 			.orElseThrow(
 				() -> new GenericEvitaInternalError(

@@ -53,7 +53,6 @@ import java.util.UUID;
 public record FileForFetch(
 	@Nonnull UUID fileId,
 	@Nonnull String name,
-	@Nonnull Path path,
 	@Nullable String description,
 	@Nonnull String contentType,
 	long totalSizeInBytes,
@@ -64,12 +63,25 @@ public record FileForFetch(
 	public static final String METADATA_EXTENSION = ".metadata";
 
 	/**
-	 * Returns path to the metadata file.
+	 * Returns path to the metadata file in target directory.
+	 *
+	 * @param directory Target directory.
 	 * @return Path to the metadata file.
 	 */
 	@Nonnull
-	public Path metadataPath() {
-		return path.getParent().resolve(fileId + METADATA_EXTENSION);
+	public Path metadataPath(@Nonnull Path directory) {
+		return directory.resolve(fileId + METADATA_EXTENSION);
+	}
+
+	/**
+	 * Returns path to the file contents in target directory.
+	 *
+	 * @param directory Target directory.
+	 * @return Path to the file contents in target directory.
+	 */
+	@Nonnull
+	public Path path(@Nonnull Path directory) {
+		return directory.resolve(fileId + FileUtils.getFileExtension(name).map(it -> "." + it).orElse(""));
 	}
 
 	/**
@@ -77,23 +89,18 @@ public record FileForFetch(
 	 * Might throw exception and in that case metadata file is corrupted.
 	 *
 	 * @param metadataLines   Lines of the metadata file.
-	 * @param exportDirectory Directory where the file is stored.
 	 * @return New instance of the record.
 	 */
 	@Nonnull
-	public static FileForFetch fromLines(
-		@Nonnull List<String> metadataLines,
-		@Nonnull Path exportDirectory
-	) {
+	public static FileForFetch fromLines(@Nonnull List<String> metadataLines) {
 		return new FileForFetch(
 			UUIDUtil.uuid(metadataLines.get(0)),
 			metadataLines.get(1),
-			exportDirectory.resolve(metadataLines.get(2)),
+			metadataLines.get(2),
 			metadataLines.get(3),
-			metadataLines.get(4),
-			Long.parseLong(metadataLines.get(5)),
-			OffsetDateTime.parse(metadataLines.get(6), DateTimeFormatter.ISO_OFFSET_DATE_TIME),
-			metadataLines.get(7).split(",")
+			Long.parseLong(metadataLines.get(4)),
+			OffsetDateTime.parse(metadataLines.get(5), DateTimeFormatter.ISO_OFFSET_DATE_TIME),
+			metadataLines.get(6).split(",")
 		);
 	}
 
@@ -105,7 +112,6 @@ public record FileForFetch(
 		return Arrays.asList(
 			fileId.toString(),
 			name,
-			fileId + FileUtils.getFileExtension(name).map(it -> "." + it).orElse(""),
 			description,
 			contentType,
 			Long.toString(totalSizeInBytes),
