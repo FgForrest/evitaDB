@@ -91,7 +91,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 	 * @param catalogFilePath        The file path of the catalog.
 	 * @param storageOptions         The storage options.
 	 * @param transactionOptions     The transaction options.
-	 * @param catalogBootstrap   The last catalog bootstrap.
+	 * @param catalogBootstrap       The last catalog bootstrap.
 	 * @param recordRegistry         The record type registry for offset index.
 	 * @param offHeapMemoryManager   The off-heap memory manager.
 	 * @param observableOutputKeeper The observable output keeper.
@@ -296,7 +296,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 	 * @param catalogName            The name of the catalog.
 	 * @param catalogFilePath        The file path of the catalog.
 	 * @param storageOptions         The storage options.
-	 * @param catalogBootstrap   The last catalog bootstrap.
+	 * @param catalogBootstrap       The last catalog bootstrap.
 	 * @param recordRegistry         The record type registry for offset index.
 	 * @param observableOutputKeeper The observable output keeper.
 	 * @param kryoFactory            The factory to create Kryo instances.

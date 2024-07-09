@@ -28,13 +28,10 @@ import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.CatalogState;
-import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.store.model.FileLocation;
-import io.evitadb.store.spi.CatalogPersistenceService;
 import io.evitadb.store.spi.model.CatalogHeader;
 import io.evitadb.store.spi.model.reference.CollectionFileReference;
 import io.evitadb.store.spi.model.reference.WalFileReference;
-import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 
 import java.util.Collection;
@@ -85,13 +82,6 @@ public class CatalogHeaderSerializer extends AbstractPersistentStorageHeaderSeri
 	@Override
 	public CatalogHeader read(Kryo kryo, Input input, Class<? extends CatalogHeader> type) {
 		final int storageProtocolVersion = input.readVarInt(true);
-		Assert.isPremiseValid(
-			storageProtocolVersion == CatalogPersistenceService.STORAGE_PROTOCOL_VERSION,
-			() -> new UnexpectedIOException(
-				"Unexpected storage protocol version: " + storageProtocolVersion,
-				"Unexpected storage protocol version."
-			)
-		);
 		final String catalogName = input.readString();
 		final UUID catalogId = kryo.readObject(input, UUID.class);
 		final long version = input.readVarLong(true);

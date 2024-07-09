@@ -82,7 +82,7 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	 *
 	 * This means that the data needs to be converted from old to new protocol version first.
 	 */
-	int STORAGE_PROTOCOL_VERSION = 1;
+	int STORAGE_PROTOCOL_VERSION = 2;
 	String BOOT_FILE_SUFFIX = ".boot";
 	String CATALOG_FILE_SUFFIX = ".catalog";
 	String ENTITY_COLLECTION_FILE_SUFFIX = ".collection";
@@ -403,7 +403,7 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	 * the catalog to the given version. The stream goes through all the mutations in this transaction and continues
 	 * forward with next transaction after that until the end of the WAL.
 	 *
-	 * DO NOT USE THIS METHOD if the WAL is being actively written to. Use {@link #getCommittedLiveMutationStream(long)}
+	 * DO NOT USE THIS METHOD if the WAL is being actively written to. Use {@link #getCommittedLiveMutationStream(long, long)}
 	 *
 	 * @param catalogVersion version of the catalog to start the stream with
 	 * @return a stream containing committed mutations

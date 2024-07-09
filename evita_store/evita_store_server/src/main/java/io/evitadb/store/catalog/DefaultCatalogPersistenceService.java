@@ -64,6 +64,7 @@ import io.evitadb.dataType.PaginatedList;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.InvalidClassifierFormatException;
+import io.evitadb.exception.ObsoleteStorageProtocolException;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.CatalogIndexKey;
@@ -118,6 +119,7 @@ import io.evitadb.utils.ClassifierUtils;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.FileUtils;
 import io.evitadb.utils.NamingConvention;
+import io.evitadb.utils.StringUtils;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
@@ -130,6 +132,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
@@ -909,8 +912,8 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		);
 
 		this.catalogStoragePartPersistenceService = CollectionUtils.createConcurrentHashMap(16);
-		final CatalogOffsetIndexStoragePartPersistenceService catalogStoragePartPersistenceService =
-			CatalogOffsetIndexStoragePartPersistenceService.create(
+		final CatalogOffsetIndexStoragePartPersistenceService catalogStoragePartPersistenceService = verifyAndUpgradeStorageFormat(
+			() -> CatalogOffsetIndexStoragePartPersistenceService.create(
 				this.catalogName,
 				catalogFilePath,
 				this.storageOptions,
@@ -922,7 +925,10 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				VERSIONED_KRYO_FACTORY,
 				nonFlushedBlock -> this.reportNonFlushedContents(catalogName, nonFlushedBlock),
 				oldestRecordTimestamp -> reportOldestHistoricalRecord(catalogName, oldestRecordTimestamp.orElse(null))
-			);
+			),
+			this.bootstrapUsed.catalogVersion()
+		);
+
 		this.catalogStoragePartPersistenceService.put(
 			catalogVersion,
 			catalogStoragePartPersistenceService
@@ -2052,6 +2058,25 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				flushedDescriptor.fileLocation()
 			);
 		}
+		return writeCatalogBootstrap(catalogVersion, newCatalogName, bootstrapRecord);
+	}
+
+	/**
+	 * Method stores solely the {@link CatalogBootstrap} record to the catalog bootstrap file. You probably want to use
+	 * more high-level method {@link #recordBootstrap(long, String, int, long, DataStoreMemoryBuffer)} or
+	 * {@link #storeHeader(UUID, CatalogState, long, int, TransactionMutation, List, DataStoreMemoryBuffer)} instead.
+	 *
+	 * @param catalogVersion the version of the catalog
+	 * @param newCatalogName the name of the catalog
+	 * @param bootstrapRecord the bootstrap record to store
+	 * @return the stored CatalogBootstrap object
+	 */
+	@Nonnull
+	private CatalogBootstrap writeCatalogBootstrap(
+		long catalogVersion,
+		@Nonnull String newCatalogName,
+		@Nonnull CatalogBootstrap bootstrapRecord
+	) {
 		final Kryo kryo = this.catalogKryoPool.obtain();
 		try {
 			this.bootstrapWriteLock.lockInterruptibly();
@@ -2063,8 +2088,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			// append to the existing file (we will compact it when the WAL files are purged)
 			bootstrapHandle.checkAndExecuteAndSync(
 				"store bootstrap record",
-				() -> {
-				},
+				() -> { },
 				output -> serializeBootstrapRecord(output, bootstrapRecord).payload(),
 				(output, catalogBootstrap) -> catalogBootstrap
 			);
@@ -2150,6 +2174,106 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			this.bootstrapWriteLock.unlock();
 			// emit the event
 			event.finish().commit();
+		}
+	}
+
+	/**
+	 * Method verifies the storage protocol version of current {@link CatalogHeader} and attempts to upgrade it to
+	 * the current storage protocol version if possible. Otherwise the exception is thrown.
+	 *
+	 * @param storagePartPersistenceFactory the factory for the storage part persistence service
+	 * @param catalogVersion the version of the catalog
+	 * @return the storage part persistence service
+	 * @throws ObsoleteStorageProtocolException if the storage protocol version is not compatible with the current one
+	 */
+	@Nonnull
+	private CatalogOffsetIndexStoragePartPersistenceService verifyAndUpgradeStorageFormat(
+		@Nonnull Supplier<CatalogOffsetIndexStoragePartPersistenceService> storagePartPersistenceFactory,
+		long catalogVersion
+	) throws ObsoleteStorageProtocolException {
+		final CatalogOffsetIndexStoragePartPersistenceService storagePartPersistenceService = storagePartPersistenceFactory.get();
+		final CatalogHeader catalogHeader = storagePartPersistenceService.getCatalogHeader(catalogVersion);
+		if (catalogHeader.storageProtocolVersion() == CatalogPersistenceService.STORAGE_PROTOCOL_VERSION) {
+			return storagePartPersistenceService;
+		} else {
+			if (catalogHeader.storageProtocolVersion() == 1) {
+				// upgrade from version 1 to version 2
+				log.info("Catalog {} uses deprecated storage protocol version 1.", catalogHeader.catalogName());
+				upgradeFromStorageProtocolVersion_1_to_2(catalogVersion, catalogHeader, storagePartPersistenceService);
+			}
+			// try to initialize the persistence service again - it should now have the correct storage protocol version
+			final CatalogOffsetIndexStoragePartPersistenceService reinitializedService = storagePartPersistenceFactory.get();
+			Assert.isPremiseValid(
+				STORAGE_PROTOCOL_VERSION == reinitializedService.getCatalogHeader(catalogVersion).storageProtocolVersion(),
+				() -> new ObsoleteStorageProtocolException(
+					"Failed to upgrade storage protocol from version: " + catalogHeader.storageProtocolVersion() + ", to: " + CatalogPersistenceService.STORAGE_PROTOCOL_VERSION,
+					"Failed to upgrade storage protocol."
+				)
+			);
+			return reinitializedService;
+		}
+	}
+
+	/**
+	 * Upgrades the storage protocol from version 1 to version 2. In the version 2 the entity collection files were
+	 * renamed and contains the primary key in their name.
+	 *
+	 * @param catalogVersion the version of the catalog
+	 * @param catalogHeader the catalog header
+	 * @param storagePartPersistenceService the storage part persistence service
+	 */
+	private void upgradeFromStorageProtocolVersion_1_to_2(
+		long catalogVersion,
+		@Nonnull CatalogHeader catalogHeader,
+		@Nonnull CatalogOffsetIndexStoragePartPersistenceService storagePartPersistenceService
+	) {
+		// in this version the files were renamed and contains the index in their filename
+		try {
+			for (CollectionFileReference entityTypeFileIndex : catalogHeader.getEntityTypeFileIndexes()) {
+				Files.move(
+					catalogStoragePath.resolve(StringUtils.toCamelCase(entityTypeFileIndex.entityType()) + '_' + entityTypeFileIndex.fileIndex() + ENTITY_COLLECTION_FILE_SUFFIX),
+					catalogStoragePath.resolve(
+						CatalogPersistenceService.getEntityCollectionDataStoreFileName(
+							entityTypeFileIndex.entityType(),
+							entityTypeFileIndex.entityTypePrimaryKey(),
+							entityTypeFileIndex.fileIndex()
+						)
+					),
+					StandardCopyOption.ATOMIC_MOVE
+				);
+			}
+
+			// entity collection files contains also their primary key in the name
+			storagePartPersistenceService.writeCatalogHeader(
+				STORAGE_PROTOCOL_VERSION,
+				catalogHeader.version(),
+				catalogStoragePath,
+				catalogHeader.walFileReference(),
+				catalogHeader.collectionFileIndex(),
+				catalogHeader.catalogId(),
+				catalogHeader.catalogName(),
+				catalogHeader.catalogState(),
+				catalogHeader.lastEntityCollectionPrimaryKey()
+			);
+			final OffsetIndexDescriptor flushedDescriptor = storagePartPersistenceService.flush(catalogVersion);
+			this.bootstrapUsed = writeCatalogBootstrap(
+				catalogHeader.version(),
+				catalogHeader.catalogName(),
+				new CatalogBootstrap(
+					this.bootstrapUsed.catalogVersion(),
+					this.bootstrapUsed.catalogFileIndex(),
+					OffsetDateTime.now(),
+					flushedDescriptor.fileLocation()
+				)
+			);
+
+			log.info("Catalog {} successfully upgraded from storage protocol version 1 to version 2.", catalogHeader.catalogName());
+		} catch (IOException e) {
+			throw new ObsoleteStorageProtocolException(
+				"Failed to upgrade storage protocol from the version: " + catalogHeader.storageProtocolVersion() + ", " +
+					"to: " + CatalogPersistenceService.STORAGE_PROTOCOL_VERSION,
+				"Failed to upgrade storage protocol."
+			);
 		}
 	}
 
