@@ -50,6 +50,7 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.Fi
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.OrderConstraintResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.RequireConstraintResolver;
 import io.evitadb.externalApi.graphql.api.resolver.SelectionSetAggregator;
+import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.ReadDataFetcher;
 import io.evitadb.externalApi.graphql.metric.event.request.ExecutedEvent;
 import lombok.extern.slf4j.Slf4j;
 
@@ -76,7 +77,7 @@ import static io.evitadb.api.query.QueryConstraints.strip;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 @Slf4j
-public class ListEntitiesDataFetcher implements DataFetcher<DataFetcherResult<List<EntityClassifier>>> {
+public class ListEntitiesDataFetcher implements DataFetcher<DataFetcherResult<List<EntityClassifier>>>, ReadDataFetcher {
 
     /**
      * Entity type of collection to which this fetcher is mapped to.

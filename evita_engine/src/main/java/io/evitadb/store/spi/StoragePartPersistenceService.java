@@ -30,8 +30,9 @@ import io.evitadb.store.service.KeyCompressor;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Closeable;
-import java.nio.file.Path;
+import java.io.OutputStream;
 import java.util.UUID;
+import java.util.function.IntConsumer;
 import java.util.stream.Stream;
 
 /**
@@ -128,6 +129,15 @@ public interface StoragePartPersistenceService extends Closeable {
 	 * Counts the number of storage parts of the specified container type.
 	 *
 	 * @param catalogVersion the version of the catalog the value is read from
+	 * @param <T>           the type of the storage part container
+	 * @return the number of storage parts of the specified container type
+	 */
+	<T extends StoragePart> int countStorageParts(long catalogVersion);
+
+	/**
+	 * Counts the number of storage parts of the specified container type.
+	 *
+	 * @param catalogVersion the version of the catalog the value is read from
 	 * @param containerType the type of the storage part containers
 	 * @param <T>           the type of the storage part container
 	 * @return the number of storage parts of the specified container type
@@ -188,13 +198,20 @@ public interface StoragePartPersistenceService extends Closeable {
 	PersistentStorageDescriptor flush(long catalogVersion);
 
 	/**
-	 * Flushes entire living data set to the target file. The file must exist and must be prepared for re-writing.
-	 * File must not be used by any other process.
+	 * Flushes entire living data set to the target output stream. If the output stream represents a file, it must exist
+	 * and must be prepared for re-writing. File must not be used by any other process.
 	 *
-	 * @param newFilePath target file
+	 * @param catalogVersion      new catalog version
+	 * @param outputStream        target output stream to write data to
+	 * @param updatedStorageParts storage parts that should be replaced with updated values in the snapshot
 	 */
 	@Nonnull
-	PersistentStorageDescriptor copySnapshotTo(@Nonnull Path newFilePath, long catalogVersion);
+	PersistentStorageDescriptor copySnapshotTo(
+		long catalogVersion,
+		@Nonnull OutputStream outputStream,
+		@Nullable IntConsumer progressConsumer,
+		@Nullable StoragePart... updatedStorageParts
+	);
 
 	/**
 	 * Notifies the persistence service that the last reader that read this particular catalog version has exited.

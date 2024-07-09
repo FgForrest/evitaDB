@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
 
 package io.evitadb.core.query.sort.attribute;
 
-import io.evitadb.core.query.QueryContext;
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.sort.ConditionalSorter;
 import io.evitadb.core.query.sort.Sorter;
@@ -46,7 +46,7 @@ abstract class AbstractRecordsSorter implements Sorter {
 	 * before the cut.
 	 */
 	protected static int returnResultAppendingUnknown(
-		@Nonnull QueryContext queryContext,
+		@Nonnull QueryExecutionContext queryContext,
 		@Nonnull RoaringBitmap notFoundRecords,
 		@Nullable Sorter unknownRecordIdsSorter,
 		int startIndex,
@@ -55,7 +55,7 @@ abstract class AbstractRecordsSorter implements Sorter {
 		int peak,
 		@Nonnull int[] buffer
 	) {
-		unknownRecordIdsSorter = ConditionalSorter.getFirstApplicableSorter(unknownRecordIdsSorter, queryContext);
+		unknownRecordIdsSorter = ConditionalSorter.getFirstApplicableSorter(queryContext, unknownRecordIdsSorter);
 		final int finalResultPeak;
 		if (peak < result.length && !notFoundRecords.isEmpty()) {
 			final int recomputedStartIndex = Math.max(0, startIndex - peak);

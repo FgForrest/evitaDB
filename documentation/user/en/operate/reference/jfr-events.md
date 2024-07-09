@@ -96,8 +96,12 @@
 <dl>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/system/BackgroundTaskFinishedEvent.java</SourceClass> Background task finished</dt>
   <dd>Event that is fired when a background task is finished.</dd>
+  <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/system/BackgroundTaskRejectedEvent.java</SourceClass> Background task rejected</dt>
+  <dd>Event that is fired when a background task is rejected due to full queues.</dd>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/system/BackgroundTaskStartedEvent.java</SourceClass> Background task started</dt>
   <dd>Event that is fired when a background task is started.</dd>
+  <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/system/BackgroundTaskTimedOutEvent.java</SourceClass> Background task timed out</dt>
+  <dd>Event that is fired when a background task was timed out and was canceled.</dd>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/system/EvitaStartedEvent.java</SourceClass> Evita started</dt>
   <dd>Event that is fired when evitaDB instance is started.</dd>
 </dl>

@@ -59,8 +59,12 @@ import lombok.extern.slf4j.Slf4j;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
+import java.io.ByteArrayOutputStream;
 import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.RandomAccessFile;
 import java.io.Serializable;
 import java.nio.file.Path;
@@ -78,6 +82,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.IntConsumer;
 import java.util.function.LongConsumer;
 import java.util.stream.Collectors;
 
@@ -170,12 +175,12 @@ public class OffsetIndex {
 	 * Keeps track of maximum record size ever written to this OffsetIndex. The number doesn't respect record removals and
 	 * should be used only for informational purposes.
 	 */
-	private final AtomicLong maxRecordSize = new AtomicLong(0);
+	private final AtomicLong maxRecordSizeBytes = new AtomicLong(0);
 	/**
 	 * Keeps track of total size of records held in this OffsetIndex. This number reflect the gross size of all ACTIVE
 	 * records except the OffsetIndex index. The removals and dead data are not reflected by this property.
 	 */
-	private final AtomicLong totalSize = new AtomicLong(0);
+	private final AtomicLong totalSizeBytes = new AtomicLong(0);
 	/**
 	 * Volatile values contains history of previous writes and removals so that offset index can provide access to
 	 * the correct contents based on the catalog version. Volatile values keep track only of the changes that have
@@ -212,6 +217,50 @@ public class OffsetIndex {
 	 */
 	private long lastSyncedPosition;
 
+	/**
+	 * Reads particular storage part from the target file path. This method will take `fileLocation` as leading pointer
+	 * to the offset index mapping and iterates over all records in this file looking for the last occurrence of
+	 * the particular storage part and returns it.
+	 *
+	 * @param filePath          The path to the file.
+	 * @param fileLocation      The location of the leading pointer to the offset index mapping.
+	 * @param recordKey         The looked up record key
+	 * @param storagePartReader implementation that will take care of deserialization of the storage record from
+	 *                          particular position in the file.
+	 * @param <T>               The type of the storage part.
+	 * @return deserialized storage part or null if the record was not found
+	 */
+	@Nullable
+	public static <T extends StoragePart> T readSingleRecord(
+		@Nonnull Path filePath,
+		@Nonnull FileLocation fileLocation,
+		@Nonnull RecordKey recordKey,
+		@Nonnull BiFunction<OffsetIndexBuilder, ObservableInput<?>, T> storagePartReader
+	) {
+		try (
+			final ObservableInput<InputStream> input = new ObservableInput<>(
+				new RandomAccessFileInputStream(
+					new RandomAccessFile(filePath.toFile(), "r"),
+					true
+				)
+			)
+		) {
+			final FilteringOffsetIndexBuilder filteringOffsetIndexBuilder = new FilteringOffsetIndexBuilder(recordKey);
+			deserialize(
+				input,
+				fileLocation,
+				filteringOffsetIndexBuilder
+			);
+			return storagePartReader.apply(filteringOffsetIndexBuilder, input);
+		} catch (FileNotFoundException e) {
+			throw new UnexpectedIOException(
+				"Cannot create read offset file index from file `" + filePath + "`!",
+				"OffsetIndex file not found! Critical error.",
+				e
+			);
+		}
+	}
+
 	public OffsetIndex(
 		long catalogVersion,
 		@Nonnull OffsetIndexDescriptor fileOffsetDescriptor,
@@ -225,8 +274,10 @@ public class OffsetIndex {
 		this.fileOffsetDescriptor = fileOffsetDescriptor;
 		this.recordTypeRegistry = recordTypeRegistry;
 		this.volatileValues = new VolatileValues(
-			nonFlushedBlockObserver == null ? nonFlushedBlock -> {} : nonFlushedBlockObserver,
-			historicalRecordObserver == null ? historicalRecord -> {} : historicalRecordObserver
+			nonFlushedBlockObserver == null ? nonFlushedBlock -> {
+			} : nonFlushedBlockObserver,
+			historicalRecordObserver == null ? historicalRecord -> {
+			} : historicalRecordObserver
 		);
 
 		this.readOnlyOpenedHandles = new CopyOnWriteArrayList<>();
@@ -237,7 +288,7 @@ public class OffsetIndex {
 		this.writeKryo = fileOffsetDescriptor.getWriteKryo();
 		this.writeHandle = writeHandle;
 		this.lastSyncedPosition = writeHandle.getLastWrittenPosition();
-		final Optional<FileOffsetIndexBuilder> fileOffsetIndexBuilder;
+		final Optional<CollectingOffsetIndexBuilder> fileOffsetIndexBuilder;
 		if (this.lastSyncedPosition == 0) {
 			fileOffsetIndexBuilder = Optional.empty();
 		} else {
@@ -247,15 +298,15 @@ public class OffsetIndex {
 		}
 		this.keyCatalogVersion = catalogVersion;
 		this.keyToLocations = fileOffsetIndexBuilder
-			.map(FileOffsetIndexBuilder::getBuiltIndex)
+			.map(CollectingOffsetIndexBuilder::getBuiltIndex)
 			.orElseGet(() -> CollectionUtils.createConcurrentHashMap(KEY_HASH_MAP_INITIAL_SIZE));
 		this.histogram = fileOffsetIndexBuilder
-			.map(FileOffsetIndexBuilder::getHistogram)
+			.map(CollectingOffsetIndexBuilder::getHistogram)
 			.orElseGet(() -> CollectionUtils.createConcurrentHashMap(HISTOGRAM_INITIAL_CAPACITY));
 		fileOffsetIndexBuilder
 			.ifPresent(it -> {
-				this.totalSize.set(it.getTotalSize());
-				this.maxRecordSize.set(it.getMaxSize());
+				this.totalSizeBytes.set(it.getTotalSizeBytes());
+				this.maxRecordSizeBytes.set(it.getMaxSizeBytes());
 			});
 	}
 
@@ -268,13 +319,15 @@ public class OffsetIndex {
 		@Nonnull WriteOnlyHandle writeHandle,
 		@Nullable Consumer<NonFlushedBlock> nonFlushedBlockObserver,
 		@Nullable Consumer<Optional<OffsetDateTime>> historicalRecordObserver,
-		@Nonnull BiFunction<FileOffsetIndexBuilder, ObservableInput<?>, ? extends OffsetIndexDescriptor> offsetIndexDescriptorFactory
+		@Nonnull BiFunction<OffsetIndexBuilder, ObservableInput<?>, ? extends OffsetIndexDescriptor> offsetIndexDescriptorFactory
 	) {
 		this.storageOptions = storageOptions;
 		this.writeHandle = writeHandle;
 		this.volatileValues = new VolatileValues(
-			nonFlushedBlockObserver == null ? nonFlushedBlock -> {} : nonFlushedBlockObserver,
-			historicalRecordObserver == null ? historicalRecord -> {} : historicalRecordObserver
+			nonFlushedBlockObserver == null ? nonFlushedBlock -> {
+			} : nonFlushedBlockObserver,
+			historicalRecordObserver == null ? historicalRecord -> {
+			} : historicalRecordObserver
 		);
 
 		this.recordTypeRegistry = recordTypeRegistry;
@@ -295,7 +348,7 @@ public class OffsetIndex {
 				)
 			)
 		) {
-			final FileOffsetIndexBuilder fileOffsetIndexBuilder = new FileOffsetIndexBuilder();
+			final CollectingOffsetIndexBuilder fileOffsetIndexBuilder = new CollectingOffsetIndexBuilder();
 			deserialize(
 				input,
 				fileLocation,
@@ -303,8 +356,8 @@ public class OffsetIndex {
 			);
 			this.keyToLocations = fileOffsetIndexBuilder.getBuiltIndex();
 			this.histogram = fileOffsetIndexBuilder.getHistogram();
-			this.totalSize.set(fileOffsetIndexBuilder.getTotalSize());
-			this.maxRecordSize.set(fileOffsetIndexBuilder.getMaxSize());
+			this.totalSizeBytes.set(fileOffsetIndexBuilder.getTotalSizeBytes());
+			this.maxRecordSizeBytes.set(fileOffsetIndexBuilder.getMaxSizeBytes());
 			this.fileOffsetDescriptor = offsetIndexDescriptorFactory.apply(fileOffsetIndexBuilder, input);
 			this.keyCatalogVersion = catalogVersion;
 			this.readKryoPool = new FileOffsetIndexKryoPool(
@@ -337,8 +390,10 @@ public class OffsetIndex {
 		this.readOnlyOpenedHandles = new CopyOnWriteArrayList<>();
 		this.writeHandle = writeHandle;
 		this.volatileValues = new VolatileValues(
-			nonFlushedBlockObserver == null ? nonFlushedBlock -> {} : nonFlushedBlockObserver,
-			historicalRecordObserver == null ? historicalRecord -> {} : historicalRecordObserver
+			nonFlushedBlockObserver == null ? nonFlushedBlock -> {
+			} : nonFlushedBlockObserver,
+			historicalRecordObserver == null ? historicalRecord -> {
+			} : historicalRecordObserver
 		);
 
 		this.lastSyncedPosition = writeHandle.getLastWrittenPosition();
@@ -351,8 +406,8 @@ public class OffsetIndex {
 
 		this.keyToLocations = previousOffsetIndex.keyToLocations;
 		this.histogram = previousOffsetIndex.histogram;
-		this.totalSize.set(previousOffsetIndex.totalSize.get());
-		this.maxRecordSize.set(previousOffsetIndex.getMaxRecordSize());
+		this.totalSizeBytes.set(previousOffsetIndex.totalSizeBytes.get());
+		this.maxRecordSizeBytes.set(previousOffsetIndex.getMaxRecordSizeBytes());
 		this.fileOffsetDescriptor = fileOffsetIndexDescriptor;
 		this.keyCatalogVersion = catalogVersion;
 		this.readKryoPool = new FileOffsetIndexKryoPool(
@@ -663,15 +718,21 @@ public class OffsetIndex {
 	}
 
 	/**
-	 * Copies entire living data set to the target file. The file must exist and must be prepared for re-writing.
-	 * File must not be used by any other process.
+	 * Copies entire living data set to the target output stream. The output stream is not closed in the method,
+	 * the caller is responsible for closing the stream.
 	 *
-	 * @param newFilePath    target file
+	 * @param outputStream   target output stream to write the copy to
+	 * @param progressConsumer consumer that will be called with the progress of the copy
 	 * @param catalogVersion will be propagated to {@link StorageRecord#transactionId()}
-	 * @return length of the copied data
+	 * @return result containing the file location and the file descriptor actual when the copy was made
 	 */
 	@Nonnull
-	public OffsetIndexDescriptor copySnapshotTo(@Nonnull Path newFilePath, long catalogVersion) {
+	public OffsetIndexDescriptor copySnapshotTo(
+		@Nonnull OutputStream outputStream,
+		@Nullable IntConsumer progressConsumer,
+		long catalogVersion,
+		@Nullable StoragePart... updatedStorageParts
+	) {
 		// flush all non-flushed values to the disk
 		this.doSoftFlush();
 		// copy the active parts to a new file
@@ -686,20 +747,44 @@ public class OffsetIndex {
 							Assert.isTrue(inputStream.getInputStream() instanceof RandomAccessFileInputStream, "Input stream must be RandomAccessFileInputStream!");
 							@SuppressWarnings("unchecked") final ObservableInput<RandomAccessFileInputStream> randomAccessFileInputStream =
 								(ObservableInput<RandomAccessFileInputStream>) inputStream;
-							final FileLocation fileLocation = OffsetIndexSerializationService.copySnapshotTo(
+							final Map<RecordKey, byte[]> overriddenEntries;
+							if (updatedStorageParts != null && updatedStorageParts.length > 0) {
+								overriddenEntries = CollectionUtils.createHashMap(updatedStorageParts.length);
+								final ByteArrayOutputStream baos = new ByteArrayOutputStream(storageOptions.outputBufferSize());
+								final ObservableOutput<ByteArrayOutputStream> observableOutput = new ObservableOutput<>(
+									baos, storageOptions.outputBufferSize(), 0
+								);
+								for (StoragePart value : updatedStorageParts) {
+									final RecordKey recordKey = new RecordKey(
+										recordTypeRegistry.idFor(value.getClass()),
+										ofNullable(value.getStoragePartPK())
+											.orElseGet(() -> value.computeUniquePartIdAndSet(fileOffsetDescriptor.getWriteKeyCompressor()))
+									);
+									baos.reset();
+									observableOutput.reset();
+									serializeValue(value, observableOutput);
+									observableOutput.flush();
+									overriddenEntries.put(recordKey, baos.toByteArray());
+								}
+							} else {
+								overriddenEntries = Collections.emptyMap();
+							}
+							final FileLocationAndWrittenBytes locationAndWrittenBytes = OffsetIndexSerializationService.copySnapshotTo(
 								this,
 								randomAccessFileInputStream,
+								outputStream,
 								catalogVersion,
-								newFilePath
+								overriddenEntries,
+								this.volatileValues,
+								progressConsumer
 							);
-							final long fileSize = newFilePath.toFile().length();
 							return new OffsetIndexDescriptor(
 								this.fileOffsetDescriptor.version() + 1,
-								fileLocation,
+								locationAndWrittenBytes.fileLocation(),
 								this.getCompressedKeys(),
 								this.fileOffsetDescriptor.getKryoFactory(),
-								getActiveRecordShare(fileSize),
-								fileSize
+								1,
+								locationAndWrittenBytes.writtenBytes()
 							);
 						}
 					)
@@ -791,8 +876,8 @@ public class OffsetIndex {
 	 *
 	 * @return maximal observed record size in this index
 	 */
-	public long getMaxRecordSize() {
-		return maxRecordSize.get();
+	public long getMaxRecordSizeBytes() {
+		return maxRecordSizeBytes.get();
 	}
 
 	/**
@@ -827,8 +912,8 @@ public class OffsetIndex {
 	 *
 	 * @return the total size
 	 */
-	public long getTotalSize() {
-		return this.totalSize.get() + (long) this.keyToLocations.size() * (long) MEM_TABLE_RECORD_SIZE;
+	public long getTotalSizeBytes() {
+		return this.totalSizeBytes.get() + (long) this.keyToLocations.size() * (long) MEM_TABLE_RECORD_SIZE;
 	}
 
 	/**
@@ -838,7 +923,7 @@ public class OffsetIndex {
 	 * @return the total size
 	 */
 	public long getTotalSizeIncludingVolatileData() {
-		return getTotalSize() + this.volatileValues.getTotalSize();
+		return getTotalSizeBytes() + this.volatileValues.getTotalSize();
 	}
 
 	/**
@@ -873,7 +958,15 @@ public class OffsetIndex {
 	 */
 	@Nonnull
 	public OffsetIndexDescriptor compact(@Nonnull Path newFilePath) {
-		return copySnapshotTo(newFilePath, this.keyCatalogVersion);
+		try (final FileOutputStream fos = new FileOutputStream(newFilePath.toFile())) {
+			return copySnapshotTo(fos, null, this.keyCatalogVersion);
+		} catch (IOException e) {
+			throw new UnexpectedIOException(
+				"Error occurred while compacting the snapshot to the new file: " + e.getMessage(),
+				"Error occurred while compacting the snapshot to the new file.",
+				e
+			);
+		}
 	}
 
 	/**
@@ -900,6 +993,27 @@ public class OffsetIndex {
 		return keyToLocations.equals(o.keyToLocations);
 	}
 
+	/**
+	 * Method serializes single {@link StoragePart} to an observable output stream. The value is not wrapped into
+	 * a {@link StorageRecord} and is written in a bare form, so that it could be wrapped in {@link StorageRecord}
+	 * later on.
+	 *
+	 * @param value            value to be serialized
+	 * @param observableOutput target output stream
+	 */
+	private void serializeValue(
+		@Nonnull StoragePart value,
+		@Nonnull ObservableOutput<? extends OutputStream> observableOutput
+	) {
+		// we cant write new values into the kryo here, because we write to snapshot file
+		this.readKryoPool.borrowAndExecute(
+			kryo -> {
+				kryo.writeObject(observableOutput, value);
+				return null;
+			}
+		);
+	}
+
 	/*
 		PRIVATE METHODS
 	 */
@@ -910,7 +1024,7 @@ public class OffsetIndex {
 	 * @return The total active size.
 	 */
 	private long getTotalActiveSize() {
-		return this.totalSize.get() + countFileOffsetTableSize(this.keyToLocations.size(), storageOptions);
+		return this.totalSizeBytes.get() + countFileOffsetTableSize(this.keyToLocations.size(), storageOptions);
 	}
 
 	/**
@@ -926,12 +1040,12 @@ public class OffsetIndex {
 	/**
 	 * Reads OffsetIndex from the disk using write handle.
 	 */
-	private FileOffsetIndexBuilder readFileOffsetIndex(@Nonnull FileLocation location) {
+	private CollectingOffsetIndexBuilder readFileOffsetIndex(@Nonnull FileLocation location) {
 		return readOnlyHandlePool.borrowAndExecute(
 			readOnlyFileHandle -> readOnlyFileHandle.execute(
 				exclusiveReadAccess -> {
 					assertOperative();
-					final FileOffsetIndexBuilder builder = new FileOffsetIndexBuilder();
+					final CollectingOffsetIndexBuilder builder = new CollectingOffsetIndexBuilder();
 					return readKryoPool.borrowAndExecute(kryo -> {
 						deserialize(
 							exclusiveReadAccess,
@@ -975,7 +1089,7 @@ public class OffsetIndex {
 							valuesToPromote,
 							this.getFileOffsetIndexLocation(),
 							this.getStorageOptions()
-						)
+						).fileLocation()
 					);
 				},
 				(outputStream, nonFlushedValuesWithFileLocation) -> {
@@ -1056,7 +1170,7 @@ public class OffsetIndex {
 		// have something like persistent map that would allow us to create new instance with reusing the old segments
 		newKeyToLocations.putAll(this.keyToLocations);
 
-		long workingMaxRecordSize = this.maxRecordSize.get();
+		long workingMaxRecordSize = this.maxRecordSizeBytes.get();
 		long recordLengthDelta = 0;
 
 		final Map<Byte, Integer> histogramDiff = CollectionUtils.createHashMap(this.histogram.size());
@@ -1105,8 +1219,8 @@ public class OffsetIndex {
 		}
 
 		// update statistics
-		this.totalSize.addAndGet(recordLengthDelta);
-		this.maxRecordSize.set(workingMaxRecordSize);
+		this.totalSizeBytes.addAndGet(recordLengthDelta);
+		this.maxRecordSizeBytes.set(workingMaxRecordSize);
 		for (Entry<Byte, Integer> entry : histogramDiff.entrySet()) {
 			this.histogram.merge(entry.getKey(), entry.getValue(), Integer::sum);
 		}
@@ -1454,7 +1568,7 @@ public class OffsetIndex {
 	 * level).
 	 */
 	@RequiredArgsConstructor
-	private static class VolatileValues {
+	static class VolatileValues {
 		/**
 		 * Contains catalog version which can be purged from {@link #historicalVersions} and {@link #volatileValues}
 		 * on the next promotion.
@@ -1470,6 +1584,10 @@ public class OffsetIndex {
 		 */
 		@Nonnull
 		private final Consumer<Optional<OffsetDateTime>> historicalVersionsObserver;
+		/**
+		 * Lock guarding the access to the {@link #historicalVersions}.
+		 */
+		private final ReentrantLock lock = new ReentrantLock();
 		/**
 		 * Non flushed values contains all values that has been modified in this OffsetIndex instance and their locations were
 		 * not yet flushed to the disk. They might have been written to the disk, but their location is still only in memory
@@ -1502,10 +1620,6 @@ public class OffsetIndex {
 		 * Contains the last size of non-flushed records in Bytes.
 		 */
 		private long nonFlushedRecordSizeInBytes;
-		/**
-		 * Lock guarding the access to the {@link #historicalVersions}.
-		 */
-		private final ReentrantLock lock = new ReentrantLock();
 
 		/**
 		 * Counts all non-flushed records not yet promoted to the shared state and the historical versions we still
@@ -1893,7 +2007,7 @@ public class OffsetIndex {
 					.map(vv -> vv.values().stream().mapToLong(it -> MemoryMeasuringConstants.LONG_SIZE + it.getTotalSize()).sum())
 					.orElse(0L)
 				+ MemoryMeasuringConstants.OBJECT_HEADER_SIZE * 4 +
-				+ MemoryMeasuringConstants.INT_SIZE + MemoryMeasuringConstants.LONG_SIZE;
+				+MemoryMeasuringConstants.INT_SIZE + MemoryMeasuringConstants.LONG_SIZE;
 		}
 
 		/**
@@ -1953,58 +2067,13 @@ public class OffsetIndex {
 
 		/**
 		 * Notifies the observer about the size increase of the non-flushed block.
+		 *
 		 * @param sizeInBytes the size increase in Bytes.
 		 */
 		private void notifySizeIncrease(long sizeInBytes) {
 			this.nonFlushedRecordCount++;
 			this.nonFlushedRecordSizeInBytes += sizeInBytes;
 			this.nonFlushedBlockObserver.accept(new NonFlushedBlock(this.nonFlushedRecordCount, this.nonFlushedRecordSizeInBytes));
-		}
-
-	}
-
-	/**
-	 * This class is used to build initial OffsetIndex in {@link OffsetIndexSerializationService} and switch atomically
-	 * the real (operative) OffsetIndex contents atomically once it's done.
-	 */
-	@Getter
-	public static class FileOffsetIndexBuilder {
-		private final ConcurrentHashMap<RecordKey, FileLocation> builtIndex = CollectionUtils.createConcurrentHashMap(KEY_HASH_MAP_INITIAL_SIZE);
-		private final ConcurrentHashMap<Byte, Integer> histogram = CollectionUtils.createConcurrentHashMap(HISTOGRAM_INITIAL_CAPACITY);
-		private long totalSize;
-		private int maxSize;
-
-		/**
-		 * Registers a record key with its corresponding file location in the built index and updates the histogram
-		 * and total size.
-		 *
-		 * @param recordKey    The record key to register.
-		 * @param fileLocation The file location associated with the record key.
-		 */
-		public void register(@Nonnull RecordKey recordKey, @Nonnull FileLocation fileLocation) {
-			final FileLocation previousValue = this.builtIndex.put(recordKey, fileLocation);
-			if (previousValue == null) {
-				this.histogram.merge(recordKey.recordType(), 1, Integer::sum);
-				this.totalSize += fileLocation.recordLength();
-			} else if (recordKey.recordType() < 0) {
-				this.histogram.merge(recordKey.recordType(), -1, Integer::sum);
-				this.totalSize -= fileLocation.recordLength();
-			} else {
-				this.totalSize += fileLocation.recordLength() - previousValue.recordLength();
-			}
-			if (this.maxSize < fileLocation.recordLength()) {
-				this.maxSize = fileLocation.recordLength();
-			}
-		}
-
-		/**
-		 * Checks if the specified record key is contained in the built index.
-		 *
-		 * @param recordKey The record key to check.
-		 * @return `true` if the built index contains the record key, `false` otherwise.
-		 */
-		public boolean contains(@Nonnull RecordKey recordKey) {
-			return builtIndex.containsKey(recordKey);
 		}
 
 	}
@@ -2145,7 +2214,7 @@ public class OffsetIndex {
 	 * @param removed        true if the value was removed in the past
 	 * @param addedInFuture  true if the value was added in future versions
 	 */
-	private record VolatileValueInformation(
+	protected record VolatileValueInformation(
 		@Nonnull VersionedValue versionedValue,
 		boolean removed,
 		boolean addedInFuture

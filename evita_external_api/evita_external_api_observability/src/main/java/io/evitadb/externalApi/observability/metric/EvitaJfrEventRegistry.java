@@ -35,7 +35,9 @@ import io.evitadb.core.metric.event.session.KilledEvent;
 import io.evitadb.core.metric.event.session.OpenedEvent;
 import io.evitadb.core.metric.event.storage.*;
 import io.evitadb.core.metric.event.system.BackgroundTaskFinishedEvent;
+import io.evitadb.core.metric.event.system.BackgroundTaskRejectedEvent;
 import io.evitadb.core.metric.event.system.BackgroundTaskStartedEvent;
+import io.evitadb.core.metric.event.system.BackgroundTaskTimedOutEvent;
 import io.evitadb.core.metric.event.system.EvitaStartedEvent;
 import io.evitadb.core.metric.event.transaction.*;
 import io.evitadb.externalApi.grpc.metric.event.ProcedureCalledEvent;
@@ -103,6 +105,8 @@ public class EvitaJfrEventRegistry {
 		// system events
 		EvitaStartedEvent.class,
 		BackgroundTaskStartedEvent.class,
+		BackgroundTaskRejectedEvent.class,
+		BackgroundTaskTimedOutEvent.class,
 		BackgroundTaskFinishedEvent.class,
 
 		//cache

@@ -30,6 +30,7 @@ import com.esotericsoftware.kryo.util.Pool;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.api.exception.InvalidMutationException;
+import io.evitadb.api.exception.TransactionTooBigException;
 import io.evitadb.api.requestResponse.data.mutation.EntityRemoveMutation;
 import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
@@ -39,14 +40,14 @@ import io.evitadb.api.requestResponse.system.CatalogVersionDescriptor;
 import io.evitadb.api.requestResponse.system.CatalogVersionDescriptor.EntityCollectionChanges;
 import io.evitadb.api.requestResponse.system.CatalogVersionDescriptor.TransactionChanges;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
+import io.evitadb.core.async.DelayedAsyncTask;
+import io.evitadb.core.async.Scheduler;
 import io.evitadb.core.metric.event.storage.DataFileCompactEvent;
 import io.evitadb.core.metric.event.storage.FileType;
 import io.evitadb.core.metric.event.transaction.WalCacheSizeChangedEvent;
 import io.evitadb.core.metric.event.transaction.WalRotationEvent;
 import io.evitadb.core.metric.event.transaction.WalStatisticsEvent;
-import io.evitadb.core.scheduling.DelayedAsyncTask;
 import io.evitadb.exception.UnexpectedIOException;
-import io.evitadb.scheduling.Scheduler;
 import io.evitadb.store.exception.WriteAheadLogCorruptedException;
 import io.evitadb.store.kryo.ObservableInput;
 import io.evitadb.store.kryo.ObservableOutput;
@@ -94,7 +95,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Consumer;
+import java.util.function.LongConsumer;
 import java.util.stream.Stream;
 
 import static io.evitadb.store.spi.CatalogPersistenceService.WAL_FILE_SUFFIX;
@@ -204,12 +205,16 @@ public class CatalogWriteAheadLog implements Closeable {
 	/**
 	 * This lambda allows trimming the bootstrap file to the given date.
 	 */
-	private final Consumer<OffsetDateTime> bootstrapFileTrimmer;
+	private final LongConsumer bootstrapFileTrimmer;
 	/**
 	 * List of pending removals of WAL files that should be removed, but could not be removed yet because the WAL
 	 * records in them were not yet processed.
 	 */
 	private final List<PendingRemoval> pendingRemovals = new CopyOnWriteArrayList<>();
+	/**
+	 * Callback to be called when the WAL file is purged.
+	 */
+	private final WalPurgeCallback onWalPurgeCallback;
 	/**
 	 * The index of the WAL file incremented each time the WAL file is rotated.
 	 */
@@ -381,6 +386,7 @@ public class CatalogWriteAheadLog implements Closeable {
 
 	/**
 	 * Returns the first and last catalog versions found in the given WAL file.
+	 *
 	 * @param walFile the WAL file to read from
 	 * @return the first and last catalog versions found in the WAL file
 	 */
@@ -534,7 +540,8 @@ public class CatalogWriteAheadLog implements Closeable {
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull TransactionOptions transactionOptions,
 		@Nonnull Scheduler scheduler,
-		@Nonnull Consumer<OffsetDateTime> bootstrapFileTrimmer
+		@Nonnull LongConsumer bootstrapFileTrimmer,
+		@Nonnull WalPurgeCallback onWalPurgeCallback
 	) {
 		this.processedCatalogVersion = new AtomicLong(catalogVersion);
 		final int[] firstAndLastWalFileIndex = getFirstAndLastWalFileIndex(catalogStoragePath, catalogName);
@@ -556,6 +563,7 @@ public class CatalogWriteAheadLog implements Closeable {
 		this.catalogStoragePath = catalogStoragePath;
 		this.computeCRC32C = storageOptions.computeCRC32C();
 		this.bootstrapFileTrimmer = bootstrapFileTrimmer;
+		this.onWalPurgeCallback = onWalPurgeCallback;
 		try {
 			final Path walFilePath = catalogStoragePath.resolve(getWalFileName(catalogName, this.walFileIndex));
 			final FirstAndLastCatalogVersions versions = checkAndTruncate(
@@ -591,26 +599,6 @@ public class CatalogWriteAheadLog implements Closeable {
 				"Failed to open WAL file!",
 				e
 			);
-		}
-	}
-
-	/**
-	 * Removes the obsolete WAL files from the catalog storage path.
-	 */
-	private long removeWalFiles() {
-		synchronized (this.pendingRemovals) {
-			final long catalogVersion = this.processedCatalogVersion.get();
-			final Set<PendingRemoval> toRemove = new HashSet<>(64);
-			for (PendingRemoval pendingRemoval : this.pendingRemovals) {
-				if (pendingRemoval.catalogVersion <= catalogVersion) {
-					pendingRemoval.runnable().run();
-					toRemove.add(pendingRemoval);
-				} else {
-					break;
-				}
-			}
-			this.pendingRemovals.removeAll(toRemove);
-			return -1;
 		}
 	}
 
@@ -661,6 +649,17 @@ public class CatalogWriteAheadLog implements Closeable {
 		@Nonnull TransactionMutation transactionMutation,
 		@Nonnull OffHeapWithFileBackupReference walReference
 	) {
+		Assert.isTrue(
+			transactionMutation.getWalSizeInBytes() <= this.maxWalFileSizeBytes,
+			() -> new TransactionTooBigException(
+				"Transaction size (`" + transactionMutation.getWalSizeInBytes() + "B`) exceeds the maximum WAL file size (`" + this.maxWalFileSizeBytes + "B`)! " +
+					"Transactions cannot be split into multiple WAL files, so you need to extend the limit " +
+					"for maximum WAL file size in evitaDB settings.",
+				"Transaction size exceeds the maximum WAL file size! " +
+					"Transactions cannot be split into multiple WAL files, so you need to extend the limit " +
+					"for maximum WAL file size in evitaDB settings."
+			)
+		);
 		if (this.currentWalFileSize + transactionMutation.getWalSizeInBytes() + 4 > this.maxWalFileSizeBytes) {
 			// rotate the WAL file
 			rotateWalFile();
@@ -788,12 +787,12 @@ public class CatalogWriteAheadLog implements Closeable {
 	 * Retrieves a stream of committed mutations starting from the given catalog version.
 	 * The stream is generated by reading mutations from the Write-Ahead Log (WAL) file.
 	 *
-	 * @param catalogVersion the catalog version from which to start retrieving mutations
+	 * @param startCatalogVersion             the catalog version to start reading from
 	 * @return a stream of committed mutations
 	 */
 	@Nonnull
-	public Stream<Mutation> getCommittedMutationStream(long catalogVersion) {
-		return getCommittedMutationStream(catalogVersion, false);
+	public Stream<Mutation> getCommittedMutationStream(long startCatalogVersion) {
+		return getCommittedMutationStream(startCatalogVersion, null);
 	}
 
 	/**
@@ -807,12 +806,13 @@ public class CatalogWriteAheadLog implements Closeable {
 	 * meantime another transaction with 4k size has been written the 4k transaction is then failed to be read from the
 	 * observable input, because the internal pointers are probably somehow misaligned.
 	 *
-	 * @param catalogVersion the catalog version from which to start retrieving mutations
+	 * @param startCatalogVersion             the catalog version to start reading from
+	 * @param requestedCatalogVersion             the minimal catalog version to finish reading
 	 * @return a stream of committed mutations
 	 */
 	@Nonnull
-	public Stream<Mutation> getCommittedMutationStreamAvoidingPartiallyWrittenBuffer(long catalogVersion) {
-		return getCommittedMutationStream(catalogVersion, true);
+	public Stream<Mutation> getCommittedMutationStreamAvoidingPartiallyWrittenBuffer(long startCatalogVersion, long requestedCatalogVersion) {
+		return getCommittedMutationStream(startCatalogVersion, requestedCatalogVersion);
 	}
 
 	/**
@@ -900,7 +900,7 @@ public class CatalogWriteAheadLog implements Closeable {
 	 * Calculates descriptor for particular version in history.
 	 *
 	 * @param catalogVersion              the catalog version to describe
-	 * @param previousKnownCatalogVersion the previous known catalog version (delimites transactions incorporated in
+	 * @param previousKnownCatalogVersion the previous known catalog version (delimits transactions incorporated in
 	 *                                    previous version of the catalog), -1 if there is no known previous version
 	 * @param introducedAt                the time when the version was introduced
 	 * @return the descriptor for the version in history or NULL if the version is not present in the WAL
@@ -913,7 +913,7 @@ public class CatalogWriteAheadLog implements Closeable {
 	) {
 		try (
 			final MutationSupplier supplier = createSupplier(
-				previousKnownCatalogVersion + 1, false
+				previousKnownCatalogVersion + 1, null
 			)
 		) {
 			TransactionMutation txMutation = (TransactionMutation) supplier.get();
@@ -997,30 +997,74 @@ public class CatalogWriteAheadLog implements Closeable {
 	/**
 	 * Creates a MutationSupplier object with the specified parameters.
 	 *
-	 * @param catalogVersion             the catalog version
-	 * @param avoidPartiallyFilledBuffer whether to avoid partially filled buffer or not
+	 * @param startCatalogVersion        the catalog version to start reading from
+	 * @param requestedCatalogVersion    the minimal catalog version to finish reading
 	 * @return a new MutationSupplier object
 	 */
 	@Nonnull
-	MutationSupplier createSupplier(long catalogVersion, boolean avoidPartiallyFilledBuffer) {
+	MutationSupplier createSupplier(long startCatalogVersion, @Nullable Long requestedCatalogVersion) {
 		final long theFirstCatalogVersionOfCurrentWalFile = this.getFirstCatalogVersionOfCurrentWalFile();
-		if (theFirstCatalogVersionOfCurrentWalFile != -1 && theFirstCatalogVersionOfCurrentWalFile <= catalogVersion) {
+
+		// when requested catalog version is provided it means we may be reading the WAL file that is being appended
+		// but we may rely on that the transaction with requested catalog version is already written and readable
+		final Optional<Long> requestedCatalogVersionOptional = ofNullable(requestedCatalogVersion);
+		final boolean avoidPartiallyFilledBuffer = requestedCatalogVersionOptional.isPresent();
+		final long theRequestedCatalogVersion = requestedCatalogVersionOptional.orElse(Long.MAX_VALUE);
+
+		if (theFirstCatalogVersionOfCurrentWalFile != -1 && theFirstCatalogVersionOfCurrentWalFile <= startCatalogVersion) {
 			// we could start reading the current WAL file
 			return new MutationSupplier(
-				catalogVersion, this.catalogName, this.catalogStoragePath, this.walFileIndex,
+				startCatalogVersion, theRequestedCatalogVersion,
+				this.catalogName, this.catalogStoragePath, this.walFileIndex,
 				this.catalogKryoPool, this.transactionLocationsCache,
 				avoidPartiallyFilledBuffer,
 				this::updateCacheSize
 			);
 		} else {
 			// we need to find older WAL file
-			final int foundWalIndex = findWalIndexFor(catalogVersion);
+			final int foundWalIndex = findWalIndexFor(startCatalogVersion);
 			return new MutationSupplier(
-				catalogVersion, this.catalogName, this.catalogStoragePath, foundWalIndex,
+				startCatalogVersion, theRequestedCatalogVersion,
+				this.catalogName, this.catalogStoragePath, foundWalIndex,
 				this.catalogKryoPool, this.transactionLocationsCache,
 				avoidPartiallyFilledBuffer,
 				this::updateCacheSize
 			);
+		}
+	}
+
+	/**
+	 * Removes the obsolete WAL files from the catalog storage path.
+	 */
+	long removeWalFiles() {
+		synchronized (this.pendingRemovals) {
+			final long catalogVersion = this.processedCatalogVersion.get();
+			final Set<PendingRemoval> toRemove = new HashSet<>(64);
+
+			long firstCatalogVersionToBeKept = -1;
+			for (PendingRemoval pendingRemoval : this.pendingRemovals) {
+				if (pendingRemoval.catalogVersion() <= catalogVersion) {
+					toRemove.add(pendingRemoval);
+					pendingRemoval.removeLambda().run();
+					if (pendingRemoval.catalogVersion() > firstCatalogVersionToBeKept) {
+						firstCatalogVersionToBeKept = pendingRemoval.catalogVersion();
+					}
+				} else {
+					break;
+				}
+			}
+
+			if (!toRemove.isEmpty()) {
+				this.pendingRemovals.removeAll(toRemove);
+				// call the listener to remove the obsolete files
+				if (firstCatalogVersionToBeKept > -1) {
+					this.onWalPurgeCallback.purgeFilesUpTo(firstCatalogVersionToBeKept);
+				}
+				// now trim the bootstrap record file
+				this.bootstrapFileTrimmer.accept(firstCatalogVersionToBeKept);
+			}
+
+			return -1;
 		}
 	}
 
@@ -1089,13 +1133,8 @@ public class CatalogWriteAheadLog implements Closeable {
 					}
 
 					previousLastCatalogVersion = lastCatalogVersion;
-				} catch (FileNotFoundException e) {
-					// the file was deleted in the meantime
-				} catch (IOException e) {
-					throw new WriteAheadLogCorruptedException(
-						"Failed to read `" + oldWalFile.getAbsolutePath() + "`!",
-						"Failed to read WAL file!", e
-					);
+				} catch (Exception e) {
+					// the file was deleted in the meantime or is being currently written to
 				}
 			}
 		}
@@ -1202,10 +1241,12 @@ public class CatalogWriteAheadLog implements Closeable {
 					try {
 						final FirstAndLastCatalogVersions versionsFromWalFile = getFirstAndLastCatalogVersionsFromWalFile(walFile);
 						final PendingRemoval pendingRemoval = new PendingRemoval(
-							versionsFromWalFile.lastCatalogVersion(),
+							versionsFromWalFile.lastCatalogVersion() + 1,
 							() -> {
 								try {
-									if (!walFile.delete()) {
+									if (walFile.delete()) {
+										log.debug("Deleted WAL file `" + walFile + "`!");
+									} else {
 										// don't throw exception - this is not so critical so that we should stop accepting new mutations
 										log.error("Failed to delete WAL file `" + walFile + "`!");
 									}
@@ -1217,17 +1258,12 @@ public class CatalogWriteAheadLog implements Closeable {
 						if (!this.pendingRemovals.contains(pendingRemoval)) {
 							this.pendingRemovals.add(pendingRemoval);
 						}
+						// schedule the task to remove the file
+						this.removeWalFileTask.schedule();
 					} catch (FileNotFoundException ex) {
 						// the file was deleted in the meantime
 					}
 				}
-
-				// now check the date and time of the leading transaction of the oldest WAL file
-				final TransactionMutation firstMutation = getFirstTransactionMutationFromWalFile(
-					walFiles[walFiles.length - this.walFileCountKept]
-				);
-				firstCommitTimestamp = firstMutation.getCommitTimestamp();
-				this.bootstrapFileTrimmer.accept(firstCommitTimestamp);
 			}
 
 		} catch (IOException e) {
@@ -1258,7 +1294,7 @@ public class CatalogWriteAheadLog implements Closeable {
 		);
 		try (
 			final MutationSupplier mutationSupplier = new MutationSupplier(
-				0L, this.catalogName, this.catalogStoragePath,
+				0L, 0L, this.catalogName, this.catalogStoragePath,
 				getIndexFromWalFileName(this.catalogName, walFile.getName()),
 				this.catalogKryoPool, this.transactionLocationsCache, false,
 				this::updateCacheSize
@@ -1280,12 +1316,13 @@ public class CatalogWriteAheadLog implements Closeable {
 	 * Retrieves a stream of committed mutations starting from the given catalog version.
 	 * The stream is generated by reading mutations from the Write-Ahead Log (WAL) file.
 	 *
-	 * @param catalogVersion the catalog version from which to start retrieving mutations
+	 * @param startCatalogVersion     the catalog version to start reading from
+	 * @param requestedCatalogVersion the minimal catalog version to finish reading
 	 * @return a stream of committed mutations
 	 */
 	@Nonnull
-	private Stream<Mutation> getCommittedMutationStream(long catalogVersion, boolean avoidPartiallyFilledBuffer) {
-		final MutationSupplier supplier = createSupplier(catalogVersion, avoidPartiallyFilledBuffer);
+	private Stream<Mutation> getCommittedMutationStream(long startCatalogVersion, @Nullable Long requestedCatalogVersion) {
+		final MutationSupplier supplier = createSupplier(startCatalogVersion, requestedCatalogVersion);
 		this.cutWalCacheTask.schedule();
 		return Stream.generate(supplier)
 			.takeWhile(Objects::nonNull)
@@ -1333,6 +1370,25 @@ public class CatalogWriteAheadLog implements Closeable {
 	}
 
 	/**
+	 * Interface that allows to look up for the active files for the given catalog version and to remove the files up to
+	 * the given active files.
+	 */
+	public interface WalPurgeCallback {
+
+		WalPurgeCallback NO_OP = activeFiles -> {
+			// do nothing
+		};
+
+		/**
+		 * Purges the files up to the given active files.
+		 *
+		 * @param firstActiveCatalogVersion the first catalog version that needs to be kept
+		 */
+		void purgeFilesUpTo(long firstActiveCatalogVersion);
+
+	}
+
+	/**
 	 * Contains first and last catalog versions found in current WAL file.
 	 *
 	 * @param firstCatalogVersion first catalog version
@@ -1346,12 +1402,14 @@ public class CatalogWriteAheadLog implements Closeable {
 
 	/**
 	 * Record that holds information about pending removal of the WAL file.
+	 *
 	 * @param catalogVersion the catalog version that needs to be processed before the removal
-	 * @param runnable the runnable that performs the file removal
+	 * @param removeLambda   the removeLambda that performs the file removal
+	 *                       and returns first transaction mutation in the removed file
 	 */
 	private record PendingRemoval(
 		long catalogVersion,
-		@Nonnull Runnable runnable
+		@Nonnull Runnable removeLambda
 	) {
 
 		@Override

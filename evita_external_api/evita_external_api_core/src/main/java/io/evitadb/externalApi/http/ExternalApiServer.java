@@ -58,7 +58,6 @@ import io.undertow.server.handlers.encoding.GzipEncodingProvider;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.bouncycastle.util.io.pem.PemReader;
-import org.jboss.threads.EnhancedQueueExecutor;
 import org.xnio.Xnio;
 import org.xnio.XnioWorker;
 
@@ -442,15 +441,10 @@ public class ExternalApiServer implements AutoCloseable {
 		@Nonnull ApiOptions apiOptions,
 		@Nonnull ServerCertificateManager serverCertificateManager
 	) {
-		final EnhancedQueueExecutor executor = evita.getExecutor();
 		undertowBuilder
 			.setWorker(
 				Xnio.getInstance()
 					.createWorkerBuilder()
-					/*
-						We try to use single shared executor instance to avoid CPU death from too many thread pools.
-					 */
-					.setExternalExecutorService(executor)
 					/*
 						IO threads represent separate thread pool, this is enforced by Undertow.
 					 */

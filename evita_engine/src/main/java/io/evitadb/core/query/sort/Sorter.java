@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
 
 package io.evitadb.core.query.sort;
 
-import io.evitadb.core.query.QueryContext;
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 
@@ -31,7 +31,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 /**
- * Sorter implementation allows to convert and slice result of the {@link AbstractFormula#compute()} to final slice of data
+ * Sorter implementation allows to convert and slice result of the {@link Formula#compute()} to final slice of data
  * ({@link java.util.List}) that respects pagination settings.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
@@ -64,7 +64,7 @@ public interface Sorter {
 	 * and `endIndex` (exclusive).
 	 */
 	int sortAndSlice(
-		@Nonnull QueryContext queryContext,
+		@Nonnull QueryExecutionContext queryContext,
 		@Nonnull Formula input,
 		int startIndex,
 		int endIndex,

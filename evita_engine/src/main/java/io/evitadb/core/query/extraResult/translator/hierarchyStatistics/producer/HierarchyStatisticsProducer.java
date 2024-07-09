@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -39,13 +39,14 @@ import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.core.query.AttributeSchemaAccessor;
 import io.evitadb.core.query.PrefetchRequirementCollector;
-import io.evitadb.core.query.QueryContext;
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.sort.NestedContextSorter;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.function.IntBiFunction;
 import io.evitadb.index.GlobalEntityIndex;
+import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.hierarchy.HierarchyIndex;
 import io.evitadb.index.hierarchy.HierarchyVisitor;
 import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
@@ -62,6 +63,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.Optional.ofNullable;
@@ -83,10 +85,6 @@ import static java.util.Optional.ofNullable;
  */
 @RequiredArgsConstructor
 public class HierarchyStatisticsProducer implements ExtraResultProducer {
-	/**
-	 * Reference to the query context that allows to access entity bodies.
-	 */
-	@Nonnull private final QueryContext queryContext;
 	/**
 	 * Contains language specified in {@link io.evitadb.api.requestResponse.EvitaRequest}. Language is valid for entire query.
 	 */
@@ -110,11 +108,10 @@ public class HierarchyStatisticsProducer implements ExtraResultProducer {
 
 	@Nullable
 	@Override
-
-	public <T extends Serializable> EvitaResponseExtraResult fabricate(@Nonnull List<T> entities) {
+	public <T extends Serializable> EvitaResponseExtraResult fabricate(@Nonnull QueryExecutionContext context, @Nonnull List<T> entities) {
 		return new Hierarchy(
 			ofNullable(selfHierarchyRequest)
-				.map(it -> it.createStatistics(language))
+				.map(it -> it.createStatistics(context, language))
 				.orElse(null),
 			hierarchyRequests
 				.entrySet()
@@ -122,7 +119,7 @@ public class HierarchyStatisticsProducer implements ExtraResultProducer {
 				.collect(
 					Collectors.toMap(
 						Entry::getKey,
-						it -> it.getValue().createStatistics(language)
+						it -> it.getValue().createStatistics(context, language)
 					)
 				)
 		);
@@ -158,6 +155,7 @@ public class HierarchyStatisticsProducer implements ExtraResultProducer {
 	 * @param interpretationLambda                   lambda that allows additional configuration of the {@link AbstractHierarchyStatisticsComputer}
 	 */
 	public void interpret(
+		@Nonnull Supplier<Bitmap> rootHierarchyNodesSupplier,
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor,
@@ -174,8 +172,9 @@ public class HierarchyStatisticsProducer implements ExtraResultProducer {
 		try {
 			context.set(
 				new HierarchyProducerContext(
-					queryContext,
-					entitySchema, referenceSchema,
+					rootHierarchyNodesSupplier,
+					entitySchema,
+					referenceSchema,
 					attributeSchemaAccessor,
 					hierarchyWithin,
 					targetIndex,

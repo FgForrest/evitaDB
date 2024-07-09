@@ -402,7 +402,7 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 		final int index = theSortedRecordsValues.indexOf(normalizedValueArray);
 		isTrue(
 			index >= 0,
-			"Value `" + Arrays.toString(value) + "` is not present in the sort index!"
+			"Value `" + Arrays.toString(value) + "` is not present in the sort index of attribute `" + this.attributeKey + "`!"
 		);
 		removeRecordInternal(normalizedValueArray, recordId, theSortedRecordsValues, this.valueCardinalities, sortIndexChanges);
 	}
@@ -420,7 +420,7 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 		final int index = theSortedRecordsValues.indexOf((T) normalizedValue);
 		isTrue(
 			index >= 0,
-			"Value `" + value + "` is not present in the sort index!"
+			"Value `" + value + "` is not present in the sort index of attribute `" + this.attributeKey + "`!"
 		);
 		removeRecordInternal((T) normalizedValue, recordId, theSortedRecordsValues, this.valueCardinalities, sortIndexChanges);
 	}

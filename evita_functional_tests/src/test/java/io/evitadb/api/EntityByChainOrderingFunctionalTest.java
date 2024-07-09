@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -56,7 +56,6 @@ import java.util.stream.IntStream;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
-import static io.evitadb.core.query.algebra.prefetch.PrefetchFormulaVisitor.doWithCustomPrefetchCostEstimator;
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
@@ -213,31 +212,27 @@ public class EntityByChainOrderingFunctionalTest {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				return doWithCustomPrefetchCostEstimator(() -> {
-						final EvitaResponse<EntityReference> result = session.query(
-							query(
-								collection(Entities.PRODUCT),
-								filterBy(
-									entityPrimaryKeyInSet(prefetchedProducts)
-								),
-								orderBy(
-									attributeNatural(ATTRIBUTE_ORDER, OrderDirection.ASC)
-								),
-								require(
-									page(2, 10),
-									debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
-								)
-							),
-							EntityReference.class
-						);
-						AssertionUtils.assertSortedResultEquals(
-							result.getRecordData().stream().map(EntityReference::getPrimaryKey).toList(),
-							Arrays.stream(PRODUCT_ORDER).filter(it -> Arrays.stream(prefetchedProducts).anyMatch(pid -> pid == it)).toArray()
-						);
-						return null;
-					},
-					(prefetchedEntityCount, requirementCount) -> Long.MIN_VALUE
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(prefetchedProducts)
+						),
+						orderBy(
+							attributeNatural(ATTRIBUTE_ORDER, OrderDirection.ASC)
+						),
+						require(
+							page(2, 10),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES, DebugMode.PREFER_PREFETCHING)
+						)
+					),
+					EntityReference.class
 				);
+				AssertionUtils.assertSortedResultEquals(
+					result.getRecordData().stream().map(EntityReference::getPrimaryKey).toList(),
+					Arrays.stream(PRODUCT_ORDER).filter(it -> Arrays.stream(prefetchedProducts).anyMatch(pid -> pid == it)).toArray()
+				);
+				return null;
 			}
 		);
 	}
@@ -251,31 +246,27 @@ public class EntityByChainOrderingFunctionalTest {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				return doWithCustomPrefetchCostEstimator(() -> {
-						final EvitaResponse<EntityReference> result = session.query(
-							query(
-								collection(Entities.PRODUCT),
-								filterBy(
-									entityPrimaryKeyInSet(prefetchedProducts)
-								),
-								orderBy(
-									attributeNatural(ATTRIBUTE_ORDER, OrderDirection.DESC)
-								),
-								require(
-									page(2, 10),
-									debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
-								)
-							),
-							EntityReference.class
-						);
-						AssertionUtils.assertSortedResultEquals(
-							result.getRecordData().stream().map(EntityReference::getPrimaryKey).toList(),
-							Arrays.stream(ArrayUtils.reverse(PRODUCT_ORDER)).filter(it -> Arrays.stream(prefetchedProducts).anyMatch(pid -> pid == it)).toArray()
-						);
-						return null;
-					},
-					(prefetchedEntityCount, requirementCount) -> Long.MIN_VALUE
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(prefetchedProducts)
+						),
+						orderBy(
+							attributeNatural(ATTRIBUTE_ORDER, OrderDirection.DESC)
+						),
+						require(
+							page(2, 10),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES, DebugMode.PREFER_PREFETCHING)
+						)
+					),
+					EntityReference.class
 				);
+				AssertionUtils.assertSortedResultEquals(
+					result.getRecordData().stream().map(EntityReference::getPrimaryKey).toList(),
+					Arrays.stream(ArrayUtils.reverse(PRODUCT_ORDER)).filter(it -> Arrays.stream(prefetchedProducts).anyMatch(pid -> pid == it)).toArray()
+				);
+				return null;
 			}
 		);
 	}

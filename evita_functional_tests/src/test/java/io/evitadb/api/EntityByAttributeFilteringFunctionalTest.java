@@ -79,7 +79,6 @@ import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.query.order.OrderDirection.ASC;
 import static io.evitadb.api.query.order.OrderDirection.DESC;
 import static io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement.attributeElement;
-import static io.evitadb.core.query.algebra.prefetch.PrefetchFormulaVisitor.doWithCustomPrefetchCostEstimator;
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.generator.DataGenerator.*;
@@ -3816,25 +3815,23 @@ public class EntityByAttributeFilteringFunctionalTest {
 					.toArray(String[]::new);
 				ArrayUtils.shuffleArray(random, randomCodes);
 
-				final EvitaResponse<SealedEntity> products = doWithCustomPrefetchCostEstimator(
-					() -> session.querySealedEntity(
-						query(
-							collection(Entities.PRODUCT),
-							filterBy(
-								entityPrimaryKeyInSet(randomProductIds)
+				final EvitaResponse<SealedEntity> products = session.querySealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(randomProductIds)
+						),
+						orderBy(
+							attributeSetExact(ATTRIBUTE_CODE, randomCodes)
+						),
+						require(
+							page(1, randomCodes.length),
+							entityFetch(
+								attributeContent(ATTRIBUTE_CODE)
 							),
-							orderBy(
-								attributeSetExact(ATTRIBUTE_CODE, randomCodes)
-							),
-							require(
-								page(1, randomCodes.length),
-								entityFetch(
-									attributeContent(ATTRIBUTE_CODE)
-								)
-							)
+							debug(DebugMode.PREFER_PREFETCHING)
 						)
-					),
-					(t, u) -> -1L
+					)
 				);
 				assertEquals(randomCodes.length, products.getRecordData().size());
 				assertEquals(randomCodes.length, products.getTotalRecordCount());

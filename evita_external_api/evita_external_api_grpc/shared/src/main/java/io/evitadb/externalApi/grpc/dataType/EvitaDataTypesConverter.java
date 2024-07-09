@@ -25,13 +25,17 @@ package io.evitadb.externalApi.grpc.dataType;
 
 import com.google.protobuf.Int32Value;
 import com.google.protobuf.Int64Value;
+import com.google.protobuf.StringValue;
 import com.google.protobuf.Timestamp;
+import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataValue;
+import io.evitadb.api.task.TaskStatus;
 import io.evitadb.dataType.*;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue.ValueCase;
+import io.evitadb.externalApi.grpc.generated.GrpcTaskStatus.Builder;
 import io.evitadb.utils.NumberUtils;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
@@ -51,6 +55,8 @@ import java.util.Arrays;
 import java.util.Currency;
 import java.util.Locale;
 import java.util.UUID;
+
+import static java.util.Optional.ofNullable;
 
 /**
  * This class is used to convert any of the {@link EvitaDataTypes#getSupportedDataTypes()} types to {@link GrpcEvitaDataTypes}
@@ -92,7 +98,7 @@ public class EvitaDataTypesConverter {
 	 * Converts the given {@link GrpcEvitaValue} to a {@link Serializable} value.
 	 *
 	 * @param value the supported data type value which is to be converted to one the {@link EvitaDataTypes#getSupportedDataTypes()} in a {@link Serializable} form.
-	 * @param <T>                    type of the value
+	 * @param <T>   type of the value
 	 * @return converted value
 	 */
 	@SuppressWarnings("unchecked")
@@ -135,7 +141,8 @@ public class EvitaDataTypesConverter {
 			case LOCAL_DATE_ARRAY -> (T) toLocalDateArray(value.getOffsetDateTimeArrayValue());
 			case LOCAL_TIME_ARRAY -> (T) toLocalTimeArray(value.getOffsetDateTimeArrayValue());
 			case DATE_TIME_RANGE_ARRAY -> (T) toDateTimeRangeArray(value.getDateTimeRangeArrayValue());
-			case BIG_DECIMAL_NUMBER_RANGE_ARRAY -> (T) toBigDecimalNumberRangeArray(value.getBigDecimalNumberRangeArrayValue());
+			case BIG_DECIMAL_NUMBER_RANGE_ARRAY ->
+				(T) toBigDecimalNumberRangeArray(value.getBigDecimalNumberRangeArrayValue());
 			case LONG_NUMBER_RANGE_ARRAY -> (T) toLongNumberRangeArray(value.getLongNumberRangeArrayValue());
 			case INTEGER_NUMBER_RANGE_ARRAY -> (T) toIntegerNumberRangeArray(value.getIntegerNumberRangeArrayValue());
 			case SHORT_NUMBER_RANGE_ARRAY -> (T) toShortNumberRangeArray(value.getIntegerNumberRangeArrayValue());
@@ -185,7 +192,7 @@ public class EvitaDataTypesConverter {
 	 * value data type by evita, this method converts the value to the corresponding {@link GrpcEvitaValue}
 	 * by calling the corresponding method.
 	 *
-	 * @param value supported by evita without {@link ComplexDataObject} returned by evita response
+	 * @param value   supported by evita without {@link ComplexDataObject} returned by evita response
 	 * @param version optional version of value
 	 * @return converted {@link GrpcEvitaValue} value
 	 */
@@ -310,7 +317,7 @@ public class EvitaDataTypesConverter {
 	/**
 	 * Converts serializable {@link AssociatedDataValue#value()} to {@link GrpcEvitaAssociatedDataValue} without version.
 	 *
-	 * @param value   in {@link Serializable} data type supported by Evita.
+	 * @param value in {@link Serializable} data type supported by Evita.
 	 * @return converted {@link GrpcEvitaAssociatedDataValue}
 	 */
 	@Nonnull
@@ -416,7 +423,7 @@ public class EvitaDataTypesConverter {
 	 * Based on passed class returns matching enum value represented by {@link GrpcEvitaDataTypes}.
 	 *
 	 * @param dataType class of the {@link GrpcEvitaValue}
-	 * @param <T>       type of the value
+	 * @param <T>      type of the value
 	 * @return {@link GrpcEvitaDataTypes} enum value
 	 */
 	@Nonnull
@@ -1064,8 +1071,7 @@ public class EvitaDataTypesConverter {
 		final Instant dateTime;
 		if (LocalDate.MIN.equals(offsetDateTime.toLocalDate())) {
 			dateTime = GRPC_MIN_INSTANT;
-		}
-		else if (LocalDate.MAX.equals(offsetDateTime.toLocalDate())) {
+		} else if (LocalDate.MAX.equals(offsetDateTime.toLocalDate())) {
 			dateTime = GRPC_MAX_INSTANT;
 		} else {
 			dateTime = offsetDateTime.toInstant();
@@ -1097,8 +1103,7 @@ public class EvitaDataTypesConverter {
 		final Instant dateTime;
 		if (LocalDate.MIN.equals(localDateTime.toLocalDate())) {
 			dateTime = GRPC_MIN_INSTANT;
-		}
-		else if (LocalDate.MAX.equals(localDateTime.toLocalDate())) {
+		} else if (LocalDate.MAX.equals(localDateTime.toLocalDate())) {
 			dateTime = GRPC_MAX_INSTANT;
 		} else {
 			dateTime = localDateTime.toInstant(DEFAULT_ZONE_OFFSET);
@@ -1129,8 +1134,7 @@ public class EvitaDataTypesConverter {
 		final Instant dateTime;
 		if (LocalDate.MIN.equals(localDate)) {
 			dateTime = GRPC_MIN_INSTANT;
-		}
-		else if (LocalDate.MAX.equals(localDate)) {
+		} else if (LocalDate.MAX.equals(localDate)) {
 			dateTime = GRPC_MAX_INSTANT;
 		} else {
 			dateTime = LocalDateTime.of(localDate, LocalTime.MIDNIGHT).toInstant(DEFAULT_ZONE_OFFSET);
@@ -1370,6 +1374,120 @@ public class EvitaDataTypesConverter {
 				.setPredecessorId(Int32Value.of(predecessor.predecessorId()))
 				.build();
 		}
+	}
+
+	/**
+	 * This method is used to convert a {@link TaskStatus} to {@link GrpcTaskStatus}.
+	 *
+	 * @param taskStatus task status to be converted
+	 * @return {@link GrpcTaskStatus} instance
+	 */
+	@Nonnull
+	public static GrpcTaskStatus toGrpcTaskStatus(@Nonnull TaskStatus<?, ?> taskStatus) {
+		final Builder builder = GrpcTaskStatus.newBuilder()
+			.setTaskType(taskStatus.taskType())
+			.setTaskName(taskStatus.taskName())
+			.setTaskId(toGrpcUuid(taskStatus.taskId()))
+			.setIssued(toGrpcOffsetDateTime(taskStatus.issued()))
+			.setProgress(taskStatus.progress());
+		ofNullable(taskStatus.catalogName())
+			.ifPresent(
+				catalogName -> builder.setCatalogName(
+					StringValue.newBuilder()
+						.setValue(catalogName)
+						.build()
+				)
+			);
+		ofNullable(taskStatus.started())
+			.ifPresent(started -> builder.setStarted(toGrpcOffsetDateTime(started)));
+		ofNullable(taskStatus.finished())
+			.ifPresent(finished -> builder.setFinished(toGrpcOffsetDateTime(finished)));
+		ofNullable(taskStatus.settings())
+			.ifPresent(settings -> builder.setSettings(StringValue.newBuilder().setValue(settings.toString()).build()));
+		ofNullable(taskStatus.result())
+			.ifPresent(
+				result -> {
+					if (result instanceof FileForFetch fileForFetch) {
+						builder.setFile(toGrpcFile(fileForFetch));
+					} else {
+						builder.setText(StringValue.newBuilder().setValue(result.toString()).build());
+					}
+				}
+			);
+		ofNullable(taskStatus.publicExceptionMessage())
+			.ifPresent(
+				publicExceptionMessage -> builder.setException(
+					StringValue.newBuilder()
+						.setValue(publicExceptionMessage)
+						.build()
+				)
+			);
+		return builder.build();
+	}
+
+	/**
+	 * This method is used to convert a {@link GrpcTaskStatus} to {@link TaskStatus}.
+	 *
+	 * @param taskStatus task status to be converted
+	 * @return {@link TaskStatus} instance
+	 */
+	@Nonnull
+	public static TaskStatus<?, ?> toTaskStatus(@Nonnull GrpcTaskStatus taskStatus) {
+		return new TaskStatus<>(
+			taskStatus.getTaskType(),
+			taskStatus.getTaskName(),
+			toUuid(taskStatus.getTaskId()),
+			taskStatus.hasCatalogName() ? taskStatus.getCatalogName().getValue() : null,
+			toOffsetDateTime(taskStatus.getIssued()),
+			taskStatus.hasStarted() ? EvitaDataTypesConverter.toOffsetDateTime(taskStatus.getStarted()) : null,
+			taskStatus.hasFinished() ? EvitaDataTypesConverter.toOffsetDateTime(taskStatus.getFinished()) : null,
+			taskStatus.getProgress(),
+			taskStatus.hasSettings() ? taskStatus.getSettings().getValue() : null,
+			taskStatus.hasFile() ?
+				EvitaDataTypesConverter.toFileForFetch(taskStatus.getFile()) :
+				taskStatus.hasText() ? taskStatus.getText().getValue() : null,
+			taskStatus.hasException() ? taskStatus.getException().getValue() : null,
+			null
+		);
+	}
+
+	/**
+	 * This method is used to convert a {@link FileForFetch} to {@link GrpcFile}.
+	 *
+	 * @param fileForFetch file to be converted
+	 * @return {@link GrpcFile} instance
+	 */
+	@Nonnull
+	public static GrpcFile toGrpcFile(@Nonnull FileForFetch fileForFetch) {
+		final GrpcFile.Builder builder = GrpcFile.newBuilder()
+			.setFileId(toGrpcUuid(fileForFetch.fileId()))
+			.setName(fileForFetch.name())
+			.setContentType(fileForFetch.contentType())
+			.setTotalSizeInBytes(fileForFetch.totalSizeInBytes())
+			.setCreated(toGrpcOffsetDateTime(fileForFetch.created()));
+		ofNullable(fileForFetch.description())
+			.ifPresent(description -> builder.setDescription(StringValue.newBuilder().setValue(description).build()));
+		ofNullable(fileForFetch.origin())
+			.ifPresent(origin -> builder.setOrigin(StringValue.newBuilder().setValue(String.join(",", origin)).build()));
+		return builder.build();
+	}
+
+	/**
+	 * This method is used to convert a {@link GrpcFile} to {@link FileForFetch}.
+	 * @param grpcFile file to be converted
+	 * @return {@link FileForFetch} instance
+	 */
+	@Nonnull
+	public static FileForFetch toFileForFetch(@Nonnull GrpcFile grpcFile) {
+		return new FileForFetch(
+			toUuid(grpcFile.getFileId()),
+			grpcFile.getName(),
+			grpcFile.hasDescription() ? grpcFile.getDescription().getValue() : null,
+			grpcFile.getContentType(),
+			grpcFile.getTotalSizeInBytes(),
+			toOffsetDateTime(grpcFile.getCreated()),
+			grpcFile.hasOrigin() ? grpcFile.getOrigin().getValue().split(",") : null
+		);
 	}
 
 }

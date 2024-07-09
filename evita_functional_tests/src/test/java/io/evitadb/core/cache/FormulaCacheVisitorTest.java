@@ -23,7 +23,9 @@
 
 package io.evitadb.core.cache;
 
+import io.evitadb.api.configuration.ThreadPoolOptions;
 import io.evitadb.core.EvitaSession;
+import io.evitadb.core.async.Scheduler;
 import io.evitadb.core.cache.model.CacheRecordAdept;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.AndFormula;
@@ -31,14 +33,12 @@ import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.OrFormula;
 import io.evitadb.core.query.algebra.facet.UserFilterFormula;
 import io.evitadb.index.bitmap.TransactionalBitmap;
-import io.evitadb.scheduling.Scheduler;
 import net.openhft.hashing.LongHashFunction;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
 
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static org.junit.jupiter.api.Assertions.*;
@@ -62,7 +62,12 @@ class FormulaCacheVisitorTest {
 
 	@BeforeEach
 	void setUp() {
-		final Scheduler scheduler = new Scheduler(new ScheduledThreadPoolExecutor(4));
+		final Scheduler scheduler = new Scheduler(
+			ThreadPoolOptions.requestThreadPoolBuilder()
+				.minThreadCount(4)
+				.maxThreadCount(4)
+				.build()
+		);
 		this.cacheEden = new CacheEden(1_000_000, MINIMAL_USAGE_THRESHOLD, 100L, scheduler);
 		this.cacheAnteroom = new CacheAnteroom(
 			10_000, 30L,

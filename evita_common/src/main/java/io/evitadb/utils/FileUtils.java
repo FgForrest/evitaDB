@@ -35,6 +35,7 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.Optional;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -217,5 +218,16 @@ public class FileUtils {
 			"Failed to calculate size of directory: " + directory,
 			"Failed to calculate size of directory!", ex
 		);
+	}
+
+	/**
+	 * Returns the extension of the file.
+	 * @param fileName The name of the file.
+	 * @return The extension of the file.
+	 */
+	@Nonnull
+	public static Optional<String> getFileExtension(@Nonnull String fileName) {
+		final int i = fileName.lastIndexOf('.') + 1;
+		return i > 0 ? Optional.of(fileName.substring(i)).filter(it -> !it.isBlank()) : Optional.empty();
 	}
 }

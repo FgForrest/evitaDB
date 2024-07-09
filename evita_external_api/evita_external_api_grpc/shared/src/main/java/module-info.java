@@ -38,5 +38,6 @@ module evita.external.api.grpc.shared {
 	requires io.grpc;
 	requires io.grpc.stub;
 	requires io.grpc.protobuf;
+	requires com.google.errorprone.annotations;
 
 }

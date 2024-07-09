@@ -26,10 +26,14 @@ package io.evitadb.store.spi;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TransactionOptions;
-import io.evitadb.scheduling.Scheduler;
+import io.evitadb.core.async.ClientRunnableTask;
+import io.evitadb.core.async.Scheduler;
+import io.evitadb.core.file.ExportFileService;
+import io.evitadb.store.exception.InvalidStoragePathException;
+import io.evitadb.store.spi.exception.DirectoryNotEmptyException;
 
 import javax.annotation.Nonnull;
-import java.nio.file.Path;
+import java.io.InputStream;
 
 /**
  * This interface and layer of abstraction was introduced because we want to split data storage / serialization and
@@ -65,7 +69,8 @@ public interface CatalogPersistenceServiceFactory {
 		@Nonnull String catalogName,
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull TransactionOptions transactionOptions,
-		@Nonnull Scheduler scheduler
+		@Nonnull Scheduler scheduler,
+		@Nonnull ExportFileService exportFileService
 	);
 
 	/**
@@ -76,10 +81,30 @@ public interface CatalogPersistenceServiceFactory {
 	CatalogPersistenceService load(
 		@Nonnull CatalogContract catalogInstance,
 		@Nonnull String catalogName,
-		@Nonnull Path catalogStoragePath,
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull TransactionOptions transactionOptions,
-		@Nonnull Scheduler scheduler
+		@Nonnull Scheduler scheduler,
+		@Nonnull ExportFileService exportFileService
 	);
+
+	/**
+	 * Checks whether it's possible to create catalog of particular name in the storage directory.
+	 *
+	 * @param catalogName name of the catalog
+	 * @param storageOptions storage options
+	 * @param totalBytesExpected total bytes expected to be read from the input stream
+	 * @param inputStream input stream with the catalog data
+	 * @return normalized name of the catalog to be created in storage directory
+	 *
+	 * @throws DirectoryNotEmptyException if the directory is not empty
+	 * @throws InvalidStoragePathException if the storage path is invalid
+	 */
+	@Nonnull
+	ClientRunnableTask<?> restoreCatalogTo(
+		@Nonnull String catalogName,
+		@Nonnull StorageOptions storageOptions,
+		long totalBytesExpected,
+		@Nonnull InputStream inputStream
+	) throws DirectoryNotEmptyException, InvalidStoragePathException;
 
 }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -251,10 +251,6 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 					.stream()
 					.map(it -> Integer.parseInt(it.getCode()))
 					.noneMatch(excluded::contains);
-		final Set<Integer> included = originalCategoryEntities.stream()
-			.filter(includedPredicate)
-			.map(EntityContract::getPrimaryKey)
-			.collect(Collectors.toSet());
 
 		evita.queryCatalog(
 			TEST_CATALOG,
@@ -262,7 +258,9 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 				final EvitaResponse<EntityReference> result = session.query(
 					query(
 						collection(Entities.CATEGORY),
-						filterBy(hierarchyWithinRootSelf(having(entityPrimaryKeyInSet(included.toArray(new Integer[0]))))),
+						filterBy(hierarchyWithinRootSelf(having(entityPrimaryKeyInSet(originalCategoryEntities.stream()
+							.filter(includedPredicate)
+							.map(EntityContract::getPrimaryKey).distinct().toArray(Integer[]::new))))),
 						require(
 							page(1, Integer.MAX_VALUE),
 							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)

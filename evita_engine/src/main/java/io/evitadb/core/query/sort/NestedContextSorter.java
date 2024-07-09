@@ -23,7 +23,8 @@
 
 package io.evitadb.core.query.sort;
 
-import io.evitadb.core.query.QueryContext;
+import io.evitadb.core.query.QueryExecutionContext;
+import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import lombok.RequiredArgsConstructor;
@@ -31,14 +32,14 @@ import lombok.RequiredArgsConstructor;
 import javax.annotation.Nonnull;
 
 /**
- * This class is a wrapper for {@link Sorter} along with correct nested {@link QueryContext} initialized for proper
+ * This class is a wrapper for {@link Sorter} along with correct nested {@link QueryPlanningContext} initialized for proper
  * query and entity type.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @RequiredArgsConstructor
 public class NestedContextSorter {
-	private final QueryContext context;
+	private final QueryExecutionContext context;
 	private final Sorter sorter;
 
 	/**

@@ -33,7 +33,7 @@ import javax.annotation.Nullable;
  * This event is base class for all background task related events.
  */
 @Getter
-abstract class AbstractBackgroundTaskEvent extends AbstractSystemEvent {
+abstract class AbstractBackgroundTaskEvent extends AbstractSystemCatalogEvent {
 
 	@ExportMetricLabel
 	final String taskName;

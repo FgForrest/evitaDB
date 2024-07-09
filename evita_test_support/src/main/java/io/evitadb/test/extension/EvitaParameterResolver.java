@@ -33,6 +33,7 @@ import io.evitadb.api.configuration.CacheOptions;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.StorageOptions;
+import io.evitadb.api.configuration.ThreadPoolOptions;
 import io.evitadb.core.Evita;
 import io.evitadb.driver.EvitaClient;
 import io.evitadb.driver.config.EvitaClientConfiguration;
@@ -209,7 +210,23 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 					// to avoid closing sessions when you stop at breakpoint
 					ServerOptions.builder()
 						.closeSessionsAfterSecondsOfInactivity(-1)
-						.queueSize(Integer.MAX_VALUE)
+						.serviceThreadPool(
+							ThreadPoolOptions.serviceThreadPoolBuilder()
+								.minThreadCount(1)
+								.maxThreadCount(1)
+								.queueSize(10_000)
+								.build()
+						)
+						.requestThreadPool(
+							ThreadPoolOptions.requestThreadPoolBuilder()
+								.queueSize(10_000)
+								.build()
+						)
+						.transactionThreadPool(
+							ThreadPoolOptions.transactionThreadPoolBuilder()
+								.queueSize(10_000)
+								.build()
+						)
 						.build()
 				)
 				.storage(

@@ -64,7 +64,7 @@ import io.evitadb.externalApi.graphql.api.catalog.schemaApi.model.UpdateEntitySc
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher.*;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.mutatingDataFetcher.UpdateEntitySchemaMutatingDataFetcher;
 import io.evitadb.externalApi.graphql.api.model.EndpointDescriptorToGraphQLFieldTransformer;
-import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.ReadDataFetcher;
+import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.AsyncDataFetcher;
 
 import javax.annotation.Nonnull;
 
@@ -189,10 +189,11 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 
 		return new BuiltFieldDescriptor(
 			entitySchemaField,
-			new ReadDataFetcher(
+			new AsyncDataFetcher(
 				new EntitySchemaDataFetcher(entitySchema.getName()),
+				buildingContext.getConfig(),
 				buildingContext.getTracingContext(),
-				buildingContext.getEvitaExecutor().orElse(null)
+				buildingContext.getEvita()
 			)
 		);
 	}
@@ -525,19 +526,21 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 		buildingContext.registerDataFetcher(
 			ReferenceSchemaDescriptor.THIS_GENERIC,
 			ReferenceSchemaDescriptor.ENTITY_TYPE_NAME_VARIANTS,
-			new ReadDataFetcher(
+			new AsyncDataFetcher(
 				new ReferenceSchemaEntityTypeNameVariantsDataFetcher(),
+				buildingContext.getConfig(),
 				buildingContext.getTracingContext(),
-				buildingContext.getEvitaExecutor().orElse(null)
+				buildingContext.getEvita()
 			)
 		);
 		buildingContext.registerDataFetcher(
 			ReferenceSchemaDescriptor.THIS_GENERIC,
 			ReferenceSchemaDescriptor.GROUP_TYPE_NAME_VARIANTS,
-			new ReadDataFetcher(
+			new AsyncDataFetcher(
 				new ReferenceSchemaGroupTypeNameVariantsDataFetcher(),
+				buildingContext.getConfig(),
 				buildingContext.getTracingContext(),
-				buildingContext.getEvitaExecutor().orElse(null)
+				buildingContext.getEvita()
 			)
 		);
 		buildingContext.registerDataFetcher(
@@ -624,19 +627,21 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 		buildingContext.registerDataFetcher(
 			objectName,
 			ReferenceSchemaDescriptor.ENTITY_TYPE_NAME_VARIANTS,
-			new ReadDataFetcher(
+			new AsyncDataFetcher(
 				new ReferenceSchemaEntityTypeNameVariantsDataFetcher(),
+				buildingContext.getConfig(),
 				buildingContext.getTracingContext(),
-				buildingContext.getEvitaExecutor().orElse(null)
+				buildingContext.getEvita()
 			)
 		);
 		buildingContext.registerDataFetcher(
 			objectName,
 			ReferenceSchemaDescriptor.GROUP_TYPE_NAME_VARIANTS,
-			new ReadDataFetcher(
+			new AsyncDataFetcher(
 				new ReferenceSchemaGroupTypeNameVariantsDataFetcher(),
+				buildingContext.getConfig(),
 				buildingContext.getTracingContext(),
-				buildingContext.getEvitaExecutor().orElse(null)
+				buildingContext.getEvita()
 			)
 		);
 
@@ -762,7 +767,12 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 
 		return new BuiltFieldDescriptor(
 			catalogSchemaField,
-			new UpdateEntitySchemaMutatingDataFetcher(entitySchema)
+			new AsyncDataFetcher(
+				new UpdateEntitySchemaMutatingDataFetcher(entitySchema),
+				buildingContext.getConfig(),
+				buildingContext.getTracingContext(),
+				buildingContext.getEvita()
+			)
 		);
 	}
 }

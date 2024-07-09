@@ -28,6 +28,7 @@ import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
+import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.ReadDataFetcher;
 import io.evitadb.externalApi.graphql.metric.event.request.ExecutedEvent;
 import lombok.RequiredArgsConstructor;
 
@@ -39,7 +40,7 @@ import javax.annotation.Nonnull;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 @RequiredArgsConstructor
-public class CollectionSizeDataFetcher implements DataFetcher<Integer> {
+public class CollectionSizeDataFetcher implements DataFetcher<Integer>, ReadDataFetcher {
 
 	@Nonnull private final EntitySchemaContract entitySchema;
 

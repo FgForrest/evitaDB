@@ -23,6 +23,7 @@
 
 package io.evitadb.index.attribute;
 
+import io.evitadb.api.CatalogState;
 import io.evitadb.api.exception.UniqueValueViolationException;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
@@ -171,7 +172,7 @@ public class GlobalUniqueIndex implements VoidTransactionMemoryProducer<GlobalUn
 
 	@Nonnull
 	@Override
-	public GlobalUniqueIndex createCopyForNewCatalogAttachment() {
+	public GlobalUniqueIndex createCopyForNewCatalogAttachment(@Nonnull CatalogState catalogState) {
 		return new GlobalUniqueIndex(
 			this.attributeKey,
 			this.type,

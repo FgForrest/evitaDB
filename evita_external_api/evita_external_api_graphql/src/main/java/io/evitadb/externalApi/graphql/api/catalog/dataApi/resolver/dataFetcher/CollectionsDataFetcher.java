@@ -27,6 +27,7 @@ import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
+import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.ReadDataFetcher;
 import io.evitadb.externalApi.graphql.metric.event.request.ExecutedEvent;
 
 import javax.annotation.Nonnull;
@@ -37,7 +38,7 @@ import java.util.Set;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public class CollectionsDataFetcher implements DataFetcher<Set<String>> {
+public class CollectionsDataFetcher implements DataFetcher<Set<String>>, ReadDataFetcher {
 
     @Nonnull
     @Override

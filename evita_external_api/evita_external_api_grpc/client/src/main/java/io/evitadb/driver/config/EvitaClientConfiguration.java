@@ -63,6 +63,7 @@ import java.util.concurrent.TimeUnit;
  *                                  wait for server to respond before throwing an exception or closing connection
  *                                  forcefully.
  * @param timeoutUnit               Time unit for {@link EvitaClientConfiguration#timeout property}.
+ * @param trackedTaskLimit		    The maximum number of server tasks that can be tracked by the client.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public record EvitaClientConfiguration(
@@ -83,7 +84,8 @@ public record EvitaClientConfiguration(
 	@Nonnull ReflectionCachingBehaviour reflectionLookupBehaviour,
 	long timeout,
 	@Nonnull TimeUnit timeoutUnit,
-	@Nullable Object openTelemetryInstance
+	@Nullable Object openTelemetryInstance,
+	int trackedTaskLimit
 ) {
 	private static final int DEFAULT_GRPC_API_PORT = 5555;
 	private static final int DEFAULT_SYSTEM_API_PORT = 5557;
@@ -118,6 +120,7 @@ public record EvitaClientConfiguration(
 		private String trustStorePassword = "trustStorePassword";
 		private ReflectionCachingBehaviour reflectionCachingBehaviour = ReflectionCachingBehaviour.CACHE;
 		private Object openTelemetryInstance = null;
+		private int trackedTaskLimit = 100;
 
 		Builder() {
 			try {
@@ -128,89 +131,112 @@ public record EvitaClientConfiguration(
 			}
 		}
 
+		@Nonnull
 		public EvitaClientConfiguration.Builder clientId(@Nonnull String clientId) {
 			this.clientId = clientId;
 			return this;
 		}
 
+		@Nonnull
 		public EvitaClientConfiguration.Builder host(@Nonnull String host) {
 			this.host = host;
 			return this;
 		}
 
+		@Nonnull
 		public EvitaClientConfiguration.Builder port(int port) {
 			this.port = port;
 			return this;
 		}
 
+		@Nonnull
 		public EvitaClientConfiguration.Builder systemApiPort(int systemApiPort) {
 			this.systemApiPort = systemApiPort;
 			return this;
 		}
 
+		@Nonnull
 		public EvitaClientConfiguration.Builder useGeneratedCertificate(boolean useGeneratedCertificate) {
 			this.useGeneratedCertificate = useGeneratedCertificate;
 			return this;
 		}
 
+		@Nonnull
 		public EvitaClientConfiguration.Builder trustCertificate(boolean trustCertificate) {
 			this.trustCertificate = trustCertificate;
 			return this;
 		}
 
+		@Nonnull
 		public EvitaClientConfiguration.Builder rootCaCertificatePath(@Nonnull Path rootCaCertificatePath) {
 			this.rootCaCertificatePath = rootCaCertificatePath;
 			return this;
 		}
 
+		@Nonnull
 		public EvitaClientConfiguration.Builder reflectionCachingBehaviour(@Nonnull ReflectionCachingBehaviour reflectionCachingBehaviour) {
 			this.reflectionCachingBehaviour = reflectionCachingBehaviour;
 			return this;
 		}
 
+		@Nonnull
 		public EvitaClientConfiguration.Builder certificateFolderPath(@Nonnull Path certificateFolderPath) {
 			this.certificateFolderPath = certificateFolderPath;
 			return this;
 		}
 
+		@Nonnull
 		public EvitaClientConfiguration.Builder timeoutUnit(long timeout, @Nonnull TimeUnit unit) {
 			this.timeout = timeout;
 			this.timeoutUnit = unit;
 			return this;
 		}
 
+		@Nonnull
 		public EvitaClientConfiguration.Builder tlsEnabled(boolean tlsEnabled) {
 			this.tlsEnabled = tlsEnabled;
 			return this;
 		}
 
+		@Nonnull
 		public EvitaClientConfiguration.Builder mtlsEnabled(boolean mtlsEnabled) {
 			this.mtlsEnabled = mtlsEnabled;
 			return this;
 		}
 
+		@Nonnull
 		public EvitaClientConfiguration.Builder certificateFileName(@Nonnull Path certificateFileName) {
 			this.certificatePath = certificateFileName;
 			return this;
 		}
 
+		@Nonnull
 		public EvitaClientConfiguration.Builder certificateKeyFileName(@Nonnull Path certificateKeyFileName) {
 			this.certificateKeyPath = certificateKeyFileName;
 			return this;
 		}
 
+		@Nonnull
 		public EvitaClientConfiguration.Builder certificateKeyPassword(@Nonnull String certificateKeyPassword) {
 			this.certificateKeyPassword = certificateKeyPassword;
 			return this;
 		}
 
+		@Nonnull
 		public EvitaClientConfiguration.Builder trustStorePassword(@Nonnull String trustStorePassword) {
 			this.trustStorePassword = trustStorePassword;
 			return this;
 		}
 
+		@Nonnull
 		public EvitaClientConfiguration.Builder openTelemetryInstance(@Nullable Object openTelemetryInstance) {
 			this.openTelemetryInstance = openTelemetryInstance;
+			return this;
+		}
+
+		@Nonnull
+		public EvitaClientConfiguration.Builder trackedTaskLimit(int trackedTaskLimit) {
+			this.trackedTaskLimit = trackedTaskLimit;
 			return this;
 		}
 
@@ -233,7 +259,8 @@ public record EvitaClientConfiguration(
 				reflectionCachingBehaviour,
 				timeout,
 				TimeUnit.SECONDS,
-				openTelemetryInstance
+				openTelemetryInstance,
+				trackedTaskLimit
 			);
 		}
 

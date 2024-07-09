@@ -44,11 +44,12 @@ import io.evitadb.store.wal.TransactionalStoragePartPersistenceService;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.nio.file.Path;
+import java.io.OutputStream;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.function.Function;
+import java.util.function.IntConsumer;
 import java.util.stream.Stream;
 
 /**
@@ -204,6 +205,15 @@ public class OffsetIndexStoragePartPersistenceService implements StoragePartPers
 	}
 
 	@Override
+	public <T extends StoragePart> int countStorageParts(long catalogVersion) {
+		if (offsetIndex.isOperative()) {
+			return this.offsetIndex.count(catalogVersion);
+		} else {
+			throw new PersistenceServiceClosed();
+		}
+	}
+
+	@Override
 	public <T extends StoragePart> int countStorageParts(long catalogVersion, @Nonnull Class<T> containerType) {
 		if (offsetIndex.isOperative()) {
 			return this.offsetIndex.count(catalogVersion, containerType);
@@ -278,9 +288,9 @@ public class OffsetIndexStoragePartPersistenceService implements StoragePartPers
 			event.finish(
 				this.offsetIndex.count(catalogVersion),
 				this.offsetIndex.getTotalSizeIncludingVolatileData(),
-				this.offsetIndex.getMaxRecordSize(),
+				this.offsetIndex.getMaxRecordSizeBytes(),
 				newDescriptor.getFileSize(),
-				this.offsetIndex.getTotalSize(),
+				this.offsetIndex.getTotalSizeBytes(),
 				this.offsetIndex.getOldestRecordKeptTimestamp().orElse(null)
 			).commit();
 
@@ -312,9 +322,14 @@ public class OffsetIndexStoragePartPersistenceService implements StoragePartPers
 
 	@Nonnull
 	@Override
-	public OffsetIndexDescriptor copySnapshotTo(@Nonnull Path newFilePath, long catalogVersion) {
+	public OffsetIndexDescriptor copySnapshotTo(
+		long catalogVersion,
+		@Nonnull OutputStream outputStream,
+		@Nullable IntConsumer progressConsumer,
+		@Nullable StoragePart... updatedStorageParts
+	) {
 		if (offsetIndex.isOperative()) {
-			return this.offsetIndex.copySnapshotTo(newFilePath, catalogVersion);
+			return this.offsetIndex.copySnapshotTo(outputStream, progressConsumer, catalogVersion, updatedStorageParts);
 		} else {
 			throw new PersistenceServiceClosed();
 		}

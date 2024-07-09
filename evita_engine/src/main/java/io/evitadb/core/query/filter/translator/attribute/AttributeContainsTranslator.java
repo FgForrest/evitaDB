@@ -72,7 +72,6 @@ public class AttributeContainsTranslator implements FilteringConstraintTranslato
 			);
 			if (filterByVisitor.isPrefetchPossible()) {
 				return new SelectionFormula(
-					filterByVisitor,
 					filteringFormula,
 					createAlternativeBitmapFilter(filterByVisitor, attributeName, textToSearch)
 				);
@@ -82,7 +81,6 @@ public class AttributeContainsTranslator implements FilteringConstraintTranslato
 		} else {
 			return new EntityFilteringFormula(
 				"attribute contains filter",
-				filterByVisitor,
 				createAlternativeBitmapFilter(filterByVisitor, attributeName, textToSearch)
 			);
 		}

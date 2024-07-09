@@ -34,6 +34,7 @@ import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.LocalCatal
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
 import io.evitadb.externalApi.graphql.api.catalog.resolver.mutation.GraphQLMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.model.UpdateCatalogSchemaQueryHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.WriteDataFetcher;
 import io.evitadb.externalApi.graphql.metric.event.request.ExecutedEvent;
 
 import javax.annotation.Nonnull;
@@ -47,7 +48,7 @@ import java.util.Map;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class UpdateCatalogSchemaMutatingDataFetcher implements DataFetcher<CatalogSchemaContract> {
+public class UpdateCatalogSchemaMutatingDataFetcher implements DataFetcher<CatalogSchemaContract>, WriteDataFetcher {
 
 	@Nonnull
 	private final LocalCatalogSchemaMutationAggregateConverter mutationAggregateResolver = new LocalCatalogSchemaMutationAggregateConverter(

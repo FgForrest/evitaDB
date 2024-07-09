@@ -50,7 +50,6 @@ import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.CatalogVersionBeyondTheHorizonListener;
 import io.evitadb.core.EntityCollection;
-import io.evitadb.core.buffer.DataStoreChanges;
 import io.evitadb.core.buffer.DataStoreIndexChanges;
 import io.evitadb.core.buffer.DataStoreMemoryBuffer;
 import io.evitadb.core.metric.event.storage.DataFileCompactEvent;
@@ -58,6 +57,7 @@ import io.evitadb.core.metric.event.storage.FileType;
 import io.evitadb.core.metric.event.storage.OffsetIndexHistoryKeptEvent;
 import io.evitadb.core.metric.event.storage.OffsetIndexNonFlushedEvent;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
@@ -113,15 +113,20 @@ import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStoragePart.A
 import io.evitadb.store.wal.TransactionalStoragePartPersistenceService;
 import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.function.IntConsumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -200,7 +205,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		@Nonnull EntityBodyStoragePart entityStorageContainer,
 		@Nonnull EvitaRequest evitaRequest,
 		@Nonnull EntitySchema entitySchema,
-		@Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex, DataStoreChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer
+		@Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex> storageContainerBuffer
 	) {
 		// the initial value is 1 because we've already fetched the `entityStorageContainer`
 		final IoFetchStatistics ioFetchStatistics = new IoFetchStatistics();
@@ -737,7 +742,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 
 		final OffsetIndexStoragePartPersistenceService previousStoragePartService = previous.storagePartPersistenceService;
 		final OffsetIndex previousOffsetIndex = previousStoragePartService.offsetIndex;
-		final long totalSize = previousOffsetIndex.getTotalSize();
+		final long totalSize = previousOffsetIndex.getTotalSizeBytes();
 		this.storagePartPersistenceService = new OffsetIndexStoragePartPersistenceService(
 			catalogVersion,
 			catalogName,
@@ -803,7 +808,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		int entityPrimaryKey,
 		@Nonnull EvitaRequest evitaRequest,
 		@Nonnull EntitySchema entitySchema,
-		@Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex, DataStoreChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer
+		@Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex> storageContainerBuffer
 	) {
 		// provide passed schema during deserialization from binary form
 		return EntitySchemaContext.executeWithSchemaContext(entitySchema, () -> {
@@ -828,7 +833,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		@Nonnull EvitaRequest evitaRequest,
 		@Nonnull EvitaSessionContract session,
 		@Nonnull Function<String, EntityCollection> entityCollectionFetcher,
-		@Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex, DataStoreChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer
+		@Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex> storageContainerBuffer
 	) {
 		// provide passed schema during deserialization from binary form
 		final EntitySchema entitySchema = entityCollectionFetcher.apply(evitaRequest.getEntityType()).getInternalSchema();
@@ -859,7 +864,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		@Nonnull AssociatedDataValueSerializablePredicate newAssociatedDataPredicate,
 		@Nonnull ReferenceContractSerializablePredicate newReferenceContractPredicate,
 		@Nonnull PriceContractSerializablePredicate newPricePredicate,
-		@Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex, DataStoreChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer
+		@Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex> storageContainerBuffer
 	) {
 		// provide passed schema during deserialization from binary form
 		return EntitySchemaContext.executeWithSchemaContext(entitySchema, () -> {
@@ -961,7 +966,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	@Override
 	public int countEntities(
 		long catalogVersion,
-		@Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex, DataStoreChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer
+		@Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex> storageContainerBuffer
 	) {
 		return storageContainerBuffer.countStorageParts(
 			catalogVersion, EntityBodyStoragePart.class
@@ -971,7 +976,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	@Override
 	public boolean isEmpty(
 		long catalogVersion,
-		@Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex, DataStoreChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer
+		@Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex> storageContainerBuffer
 	) {
 		return storageContainerBuffer.countStorageParts(
 			catalogVersion, EntityBodyStoragePart.class
@@ -980,7 +985,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 
 	@Nonnull
 	@Override
-	public BinaryEntityWithFetchCount enrichEntity(long catalogVersion, @Nonnull EntitySchema entitySchema, @Nonnull BinaryEntity entity, @Nonnull EvitaRequest evitaRequest, @Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex, DataStoreChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer) throws EntityAlreadyRemovedException {
+	public BinaryEntityWithFetchCount enrichEntity(long catalogVersion, @Nonnull EntitySchema entitySchema, @Nonnull BinaryEntity entity, @Nonnull EvitaRequest evitaRequest, @Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex> storageContainerBuffer) throws EntityAlreadyRemovedException {
 		/* TOBEDONE https://github.com/FgForrest/evitaDB/issues/13 */
 		return new BinaryEntityWithFetchCount(
 			entity, 0, 0
@@ -1102,17 +1107,6 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	}
 
 	@Nonnull
-	@Override
-	public PersistentStorageDescriptor copySnapshotTo(@Nonnull Path newFilePath, long catalogVersion) {
-		return getStoragePartPersistenceService().copySnapshotTo(newFilePath, catalogVersion);
-	}
-
-	@Override
-	public void close() {
-		this.storagePartPersistenceService.close();
-	}
-
-	@Nonnull
 	public OffsetIndexDescriptor flush(long newCatalogVersion, @Nonnull HeaderInfoSupplier headerInfoSupplier) {
 		final long previousVersion = this.storagePartPersistenceService.getVersion();
 		final OffsetIndexDescriptor newDescriptor = this.storagePartPersistenceService.flush(newCatalogVersion);
@@ -1134,7 +1128,16 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		final CollectionFileReference newReference = this.entityCollectionFileReference.incrementAndGet();
 		final Path catalogStoragePath = this.entityCollectionFile.getParent();
 		final Path newFilePath = newReference.toFilePath(catalogStoragePath);
-		final OffsetIndexDescriptor offsetIndexDescriptor = this.storagePartPersistenceService.copySnapshotTo(newFilePath, catalogVersion);
+		final OffsetIndexDescriptor offsetIndexDescriptor;
+		try (final FileOutputStream fos = new FileOutputStream(newFilePath.toFile())) {
+			offsetIndexDescriptor = this.storagePartPersistenceService.copySnapshotTo(catalogVersion, fos, null);
+		} catch (IOException e) {
+			throw new UnexpectedIOException(
+				"Error occurred while compacting entity " + this.entityCollectionFile + " data file: " + e.getMessage(),
+				"Error occurred while compacting entity data file.",
+				e
+			);
+		}
 		final EntityCollectionHeader newCollecitonHeader = createEntityCollectionHeader(catalogVersion, catalogStoragePath, offsetIndexDescriptor, headerInfoSupplier, newReference);
 		// emit event
 		event.finish().commit();
@@ -1147,6 +1150,42 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	@Nonnull
 	public Function<VersionedKryoKeyInputs, VersionedKryo> createTypeKryoInstance() {
 		return VERSIONED_KRYO_FACTORY;
+	}
+
+	/**
+	 * Flushes entire living data set to the target output stream. If the output stream represents a file, the file must
+	 * exist and must be prepared for re-writing. File must not be used by any other process.
+	 *
+	 * @param outputStream output stream to write the data to
+	 * @param catalogVersion new catalog version
+	 */
+	@Nonnull
+	public EntityCollectionHeader copySnapshotTo(
+		long catalogVersion,
+		@Nonnull CollectionFileReference fileReference,
+		@Nonnull OutputStream outputStream,
+		@Nullable IntConsumer progressConsumer
+	) {
+		final OffsetIndexDescriptor offsetIndexDescriptor = getStoragePartPersistenceService().copySnapshotTo(catalogVersion, outputStream, progressConsumer);
+		final EntityCollectionHeader currentHeader = getEntityCollectionHeader();
+		final Path catalogStoragePath = this.entityCollectionFile.getParent();
+		return createEntityCollectionHeader(
+			catalogVersion,
+			catalogStoragePath,
+			offsetIndexDescriptor,
+			new CopyingHeaderInfoSupplier(currentHeader),
+			new CollectionFileReference(
+				fileReference.entityType(),
+				fileReference.entityTypePrimaryKey(),
+				fileReference.fileIndex(),
+				offsetIndexDescriptor.fileLocation()
+			)
+		);
+	}
+
+	@Override
+	public void close() {
+		this.storagePartPersistenceService.close();
 	}
 
 	/*
@@ -1233,7 +1272,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		@Nonnull EvitaRequest evitaRequest,
 		@Nonnull EvitaSessionContract session,
 		@Nonnull Function<String, EntityCollection> entityCollectionFetcher,
-		@Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex, DataStoreChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer
+		@Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex> storageContainerBuffer
 	) {
 		final IoFetchStatistics ioFetchStatistics = new IoFetchStatistics();
 		final EntitySchema entitySchema = EntitySchemaContext.getEntitySchema();
@@ -1403,4 +1442,34 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 
 	}
 
+	/**
+	 * Internal implementation of the {@link HeaderInfoSupplier} that copies information from the previous header.
+	 */
+	@RequiredArgsConstructor
+	private static class CopyingHeaderInfoSupplier implements HeaderInfoSupplier {
+		private final EntityCollectionHeader currentHeader;
+
+		@Override
+		public int getLastAssignedPrimaryKey() {
+			return currentHeader.lastPrimaryKey();
+		}
+
+		@Override
+		public int getLastAssignedIndexKey() {
+			return currentHeader.lastEntityIndexPrimaryKey();
+		}
+
+		@Nullable
+		@Override
+		public OptionalInt getGlobalIndexKey() {
+			return currentHeader.globalEntityIndexId() == null ?
+				OptionalInt.empty() : OptionalInt.of(currentHeader.globalEntityIndexId());
+		}
+
+		@Nonnull
+		@Override
+		public List<Integer> getIndexKeys() {
+			return currentHeader.usedEntityIndexIds();
+		}
+	}
 }

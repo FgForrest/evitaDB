@@ -29,10 +29,8 @@ import io.evitadb.core.query.algebra.utils.visitor.FormulaCloner;
 import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.util.Map;
 import java.util.function.BiFunction;
-import java.util.function.Consumer;
 
 /**
  * This class is responsible for deduplicating formulas to optimize calculation performance by reusing memoized results.
@@ -46,23 +44,13 @@ public class FormulaDeduplicator extends FormulaCloner implements FormulaPostPro
 	 */
 	private Formula originalFormula;
 	/**
-	 * Consumer that will update the cloned formula.
-	 */
-	private final Consumer<Formula> originalResultConsumer;
-	/**
-	 * Consumer that will update the cloned formula.
-	 */
-	private final Consumer<Formula> clonedResultConsumer;
-	/**
 	 * Flag indicating that at least one formula was deduplicated.
 	 */
 	private boolean deduplicationHappened = false;
 
-	public FormulaDeduplicator(@Nonnull Formula originalFormula, @Nullable Consumer<Formula> originalResultConsumer, @Nullable Consumer<Formula> clonedResultConsumer) {
+	public FormulaDeduplicator(@Nonnull Formula originalFormula) {
 		super(new Deduplicator());
 		this.originalFormula = originalFormula;
-		this.clonedResultConsumer = clonedResultConsumer;
-		this.originalResultConsumer = originalResultConsumer;
 	}
 
 	@Nonnull
@@ -71,14 +59,8 @@ public class FormulaDeduplicator extends FormulaCloner implements FormulaPostPro
 		final Formula result;
 		if (this.deduplicationHappened) {
 			result = getResultClone();
-			if (clonedResultConsumer != null) {
-				clonedResultConsumer.accept(result);
-			}
 		} else {
 			result = this.originalFormula;
-			if (originalResultConsumer != null) {
-				originalResultConsumer.accept(result);
-			}
 		}
 		((Deduplicator)this.mutator).clear();
 		this.deduplicationHappened = false;

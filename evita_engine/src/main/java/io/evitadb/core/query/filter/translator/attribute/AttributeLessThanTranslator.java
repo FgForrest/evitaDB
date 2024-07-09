@@ -89,7 +89,6 @@ public class AttributeLessThanTranslator implements FilteringConstraintTranslato
 			);
 			if (filterByVisitor.isPrefetchPossible()) {
 				return new SelectionFormula(
-					filterByVisitor,
 					filteringFormula,
 					createAlternativeBitmapFilter(filterByVisitor, attributeName, attributeValue)
 				);
@@ -99,7 +98,6 @@ public class AttributeLessThanTranslator implements FilteringConstraintTranslato
 		} else {
 			return new EntityFilteringFormula(
 				"attribute less than filter",
-				filterByVisitor,
 				createAlternativeBitmapFilter(filterByVisitor, attributeName, attributeValue)
 			);
 		}

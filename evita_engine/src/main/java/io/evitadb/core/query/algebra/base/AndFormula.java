@@ -71,20 +71,22 @@ public class AndFormula extends AbstractCacheableFormula {
 	private List<Formula> sortedFormulasByComplexity;
 
 	AndFormula(@Nonnull Consumer<CacheableFormula> computationCallback, @Nonnull Formula[] innerFormulas, long[] indexTransactionId, @Nullable Bitmap[] bitmaps) {
-		super(computationCallback, innerFormulas);
+		super(computationCallback);
 		Assert.isTrue(
 			innerFormulas.length > 1 || Objects.requireNonNull(bitmaps).length > 1,
 			"And formula has no sense with " + innerFormulas.length + " inner formulas / bitmaps!"
 		);
 		this.bitmaps = bitmaps;
 		this.indexTransactionId = indexTransactionId;
+		this.initFields(innerFormulas);
 	}
 
 	public AndFormula(@Nonnull Formula... innerFormulas) {
-		super(null, innerFormulas);
+		super(null);
 		Assert.isTrue(innerFormulas.length > 1, "And formula has no sense with " + innerFormulas.length + " inner formulas!");
 		this.bitmaps = null;
 		this.indexTransactionId = null;
+		this.initFields(innerFormulas);
 	}
 
 	public AndFormula(long[] indexTransactionId, @Nonnull Bitmap... bitmaps) {
@@ -92,8 +94,10 @@ public class AndFormula extends AbstractCacheableFormula {
 		Assert.isTrue(bitmaps.length > 1, "And formula has no sense with " + bitmaps.length + " inner bitmaps!");
 		this.bitmaps = bitmaps;
 		this.indexTransactionId = indexTransactionId;
+		this.initFields();
 	}
 
+	@Nonnull
 	public Bitmap[] getBitmaps() {
 		return bitmaps == null ? EMPTY_BITMAP_ARRAY : bitmaps;
 	}
@@ -113,7 +117,7 @@ public class AndFormula extends AbstractCacheableFormula {
 	@Override
 	public int getEstimatedCardinality() {
 		if (bitmaps == null) {
-			return Arrays.stream(this.innerFormulas).mapToInt(Formula::getEstimatedCardinality).min().orElse(0);
+			return Arrays.stream(this.innerFormulas).mapToInt(formula -> formula.getEstimatedCardinality()).min().orElse(0);
 		} else {
 			return Arrays.stream(this.bitmaps).mapToInt(Bitmap::size).min().orElse(0);
 		}
@@ -204,9 +208,6 @@ public class AndFormula extends AbstractCacheableFormula {
 			})
 			.orElseGet(() -> {
 				long cost = 0L;
-				if (this.sortedFormulasByComplexity == null) {
-					initialize(CalculationContext.NO_CACHING_INSTANCE);
-				}
 				for (Formula innerFormula : this.sortedFormulasByComplexity) {
 					final Bitmap innerResult = innerFormula.compute();
 					cost += innerFormula.getCost() + innerResult.size() * getOperationCost();
@@ -224,9 +225,6 @@ public class AndFormula extends AbstractCacheableFormula {
 			.map(it -> getCost() / Math.max(1, compute().size()))
 			.orElseGet(() -> {
 				long costToPerformance = 0L;
-				if (this.sortedFormulasByComplexity == null) {
-					initialize(CalculationContext.NO_CACHING_INSTANCE);
-				}
 				for (Formula innerFormula : this.sortedFormulasByComplexity) {
 					final Bitmap innerResult = innerFormula.compute();
 					if (innerResult == EmptyBitmap.INSTANCE) {

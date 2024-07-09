@@ -47,6 +47,7 @@ import io.evitadb.utils.FileUtils;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashSet;
@@ -54,6 +55,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
+import java.util.function.IntConsumer;
 import java.util.stream.Stream;
 
 import static java.util.Optional.ofNullable;
@@ -198,6 +200,13 @@ public class TransactionalStoragePartPersistenceService implements StoragePartPe
 	}
 
 	@Override
+	public <T extends StoragePart> int countStorageParts(long catalogVersion) {
+		// this is going to be slow, but it's not used in production scenarios
+		return this.offsetIndex.count(catalogVersion) + this.delegate.countStorageParts(catalogVersion) -
+			this.removedStoragePartKeys.size();
+	}
+
+	@Override
 	public <T extends StoragePart> int countStorageParts(long catalogVersion, @Nonnull Class<T> containerType) {
 		final byte recType = offsetIndex.getIdForRecordType(containerType);
 		// this is going to be slow, but it's not used in production scenarios
@@ -239,7 +248,12 @@ public class TransactionalStoragePartPersistenceService implements StoragePartPe
 
 	@Nonnull
 	@Override
-	public PersistentStorageDescriptor copySnapshotTo(@Nonnull Path newFilePath, long catalogVersion) {
+	public PersistentStorageDescriptor copySnapshotTo(
+		long catalogVersion,
+		@Nonnull OutputStream outputStream,
+		@Nullable IntConsumer progressUpdater,
+		@Nullable StoragePart... updatedStorageParts
+	) {
 		throw new UnsupportedOperationException(
 			"Transactional storage part persistence service cannot copy snapshot to a new file!"
 		);

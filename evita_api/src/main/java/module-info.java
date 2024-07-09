@@ -34,6 +34,10 @@ module evita.api {
 
 	exports io.evitadb.api;
 	exports io.evitadb.api.configuration;
+	exports io.evitadb.api.configuration.metric;
+	exports io.evitadb.api.exception;
+	exports io.evitadb.api.file;
+	exports io.evitadb.api.task;
 	exports io.evitadb.api.proxy;
 	exports io.evitadb.api.proxy.impl;
 	exports io.evitadb.api.requestResponse;
@@ -58,12 +62,10 @@ module evita.api {
 	exports io.evitadb.api.requestResponse.schema.mutation.reference;
 	exports io.evitadb.api.requestResponse.schema.dto;
 	exports io.evitadb.api.requestResponse.system;
-	exports io.evitadb.api.exception;
 	exports io.evitadb.api.requestResponse.mutation;
 	exports io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound;
 	exports io.evitadb.api.requestResponse.data.annotation;
 	exports io.evitadb.api.requestResponse.transaction;
-	exports io.evitadb.api.configuration.metric;
 	exports io.evitadb.api.observability.trace;
 	exports io.evitadb.api.observability.annotation;
 

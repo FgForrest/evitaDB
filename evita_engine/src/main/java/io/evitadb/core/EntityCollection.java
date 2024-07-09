@@ -24,6 +24,7 @@
 package io.evitadb.core;
 
 import com.esotericsoftware.kryo.util.IntMap;
+import io.evitadb.api.CatalogState;
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.ConcurrentSchemaUpdateException;
@@ -80,10 +81,12 @@ import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchema
 import io.evitadb.api.requestResponse.schema.mutation.entity.SetEntitySchemaWithHierarchyMutation;
 import io.evitadb.core.buffer.DataStoreChanges;
 import io.evitadb.core.buffer.DataStoreMemoryBuffer;
+import io.evitadb.core.buffer.TransactionalDataStoreMemoryBuffer;
+import io.evitadb.core.buffer.WarmUpDataStoreMemoryBuffer;
 import io.evitadb.core.cache.CacheSupervisor;
-import io.evitadb.core.query.QueryContext;
 import io.evitadb.core.query.QueryPlan;
 import io.evitadb.core.query.QueryPlanner;
+import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.ReferencedEntityFetcher;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.response.ServerBinaryEntityDecorator;
@@ -118,7 +121,6 @@ import io.evitadb.store.spi.EntityCollectionPersistenceService.EntityWithFetchCo
 import io.evitadb.store.spi.HeaderInfoSupplier;
 import io.evitadb.store.spi.StoragePartPersistenceService;
 import io.evitadb.store.spi.model.EntityCollectionHeader;
-import io.evitadb.store.spi.model.storageParts.accessor.ReadOnlyEntityStorageContainerAccessor;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 
@@ -207,9 +209,9 @@ public final class EntityCollection implements
 	/**
 	 * This instance is used to cover changes in transactional memory and persistent storage reference.
 	 *
-	 * @see DataStoreMemoryBuffer documentation
+	 * @see TransactionalDataStoreMemoryBuffer documentation
 	 */
-	@Getter private final DataStoreMemoryBuffer<EntityIndexKey, EntityIndex, DataStoreChanges<EntityIndexKey, EntityIndex>> dataStoreBuffer;
+	@Getter private final DataStoreMemoryBuffer<EntityIndexKey, EntityIndex> dataStoreBuffer;
 	/**
 	 * Formula supervisor is an entry point to the Evita cache. The idea is that each {@link Formula} can be identified
 	 * by its {@link Formula#getHash()} method and when the supervisor identifies that certain
@@ -316,6 +318,7 @@ public final class EntityCollection implements
 	public EntityCollection(
 		@Nonnull String catalogName,
 		long catalogVersion,
+		@Nonnull CatalogState catalogState,
 		int entityTypePrimaryKey,
 		@Nonnull String entityType,
 		@Nonnull CatalogPersistenceService catalogPersistenceService,
@@ -343,7 +346,9 @@ public final class EntityCollection implements
 
 		// initialize container buffer
 		final StoragePartPersistenceService storagePartPersistenceService = this.persistenceService.getStoragePartPersistenceService();
-		this.dataStoreBuffer = new DataStoreMemoryBuffer<>(this, storagePartPersistenceService);
+		this.dataStoreBuffer = catalogState == CatalogState.WARMING_UP ?
+			new WarmUpDataStoreMemoryBuffer<>(storagePartPersistenceService) :
+			new TransactionalDataStoreMemoryBuffer<>(this, storagePartPersistenceService);
 		// initialize schema - still in constructor
 		this.initialSchema = ofNullable(storagePartPersistenceService.getStoragePart(catalogVersion, 1, EntitySchemaStoragePart.class))
 			.map(EntitySchemaStoragePart::entitySchema)
@@ -380,6 +385,7 @@ public final class EntityCollection implements
 
 	private EntityCollection(
 		long catalogVersion,
+		@Nonnull CatalogState catalogState,
 		int entityTypePrimaryKey,
 		@Nonnull EntitySchema entitySchema,
 		@Nonnull AtomicInteger pkSequence,
@@ -398,7 +404,9 @@ public final class EntityCollection implements
 		this.catalogPersistenceService = catalogPersistenceService;
 		this.persistenceService = persistenceService;
 		this.indexPkSequence = indexPkSequence;
-		this.dataStoreBuffer = new DataStoreMemoryBuffer<>(this, persistenceService.getStoragePartPersistenceService());
+		this.dataStoreBuffer = catalogState == CatalogState.WARMING_UP ?
+			new WarmUpDataStoreMemoryBuffer<>(persistenceService.getStoragePartPersistenceService()) :
+			new TransactionalDataStoreMemoryBuffer<>(this, persistenceService.getStoragePartPersistenceService());
 		this.indexes = new TransactionalMap<>(indexes, it -> (EntityIndex) it);
 		this.cacheSupervisor = cacheSupervisor;
 		this.emptyOnStart = this.persistenceService.isEmpty(catalogVersion, dataStoreBuffer);
@@ -407,10 +415,9 @@ public final class EntityCollection implements
 	@Override
 	@Nonnull
 	public <S extends Serializable, T extends EvitaResponse<S>> T getEntities(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
-		final QueryPlan queryPlan;
-		try (final QueryContext queryContext = createQueryContext(evitaRequest, session)) {
-			queryPlan = QueryPlanner.planQuery(queryContext);
-		}
+		final QueryPlanningContext queryContext = createQueryContext(evitaRequest, session);
+		final QueryPlan queryPlan = QueryPlanner.planQuery(queryContext);
+
 		return tracingContext.executeWithinBlockIfParentContextAvailable(
 			"query - " + queryPlan.getDescription(),
 			(Supplier<T>) queryPlan::execute,
@@ -493,19 +500,18 @@ public final class EntityCollection implements
 	public ServerEntityDecorator enrichEntity(@Nonnull EntityContract entity, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
 		final Map<String, RequirementContext> referenceEntityFetch = evitaRequest.getReferenceEntityFetch();
 		final ReferenceFetcher referenceFetcher;
-		try (final QueryContext queryContext = createQueryContext(evitaRequest, session)) {
-			referenceFetcher = referenceEntityFetch.isEmpty() &&
-				!evitaRequest.isRequiresEntityReferences() &&
-				!evitaRequest.isRequiresParent() ?
-				ReferenceFetcher.NO_IMPLEMENTATION :
-				new ReferencedEntityFetcher(
-					evitaRequest.getHierarchyContent(),
-					referenceEntityFetch,
-					evitaRequest.getDefaultReferenceRequirement(),
-					queryContext,
-					entity
-				);
-		}
+		final QueryPlanningContext queryContext = createQueryContext(evitaRequest, session);
+		referenceFetcher = referenceEntityFetch.isEmpty() &&
+			!evitaRequest.isRequiresEntityReferences() &&
+			!evitaRequest.isRequiresParent() ?
+			ReferenceFetcher.NO_IMPLEMENTATION :
+			new ReferencedEntityFetcher(
+				evitaRequest.getHierarchyContent(),
+				referenceEntityFetch,
+				evitaRequest.getDefaultReferenceRequirement(),
+				queryContext.createExecutionContext(),
+				entity
+			);
 
 		return applyReferenceFetcher(
 			enrichEntity(entity, evitaRequest),
@@ -680,10 +686,9 @@ public final class EntityCollection implements
 
 	@Override
 	public int deleteEntities(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
-		final QueryPlan queryPlan;
-		try (final QueryContext queryContext = createQueryContext(evitaRequest, session)) {
-			queryPlan = QueryPlanner.planQuery(queryContext);
-		}
+		final QueryPlanningContext queryContext = createQueryContext(evitaRequest, session);
+		final QueryPlan queryPlan = QueryPlanner.planQuery(queryContext);
+
 		final EvitaEntityReferenceResponse result = tracingContext.executeWithinBlockIfParentContextAvailable(
 			"delete - " + queryPlan.getDescription(),
 			(Supplier<EvitaEntityReferenceResponse>) queryPlan::execute,
@@ -701,10 +706,9 @@ public final class EntityCollection implements
 	@Override
 	@Nonnull
 	public SealedEntity[] deleteEntitiesAndReturnThem(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
-		final QueryPlan queryPlan;
-		try (final QueryContext queryContext = createQueryContext(evitaRequest, session)) {
-			queryPlan = QueryPlanner.planQuery(queryContext);
-		}
+		final QueryPlanningContext queryContext = createQueryContext(evitaRequest, session);
+		final QueryPlan queryPlan = QueryPlanner.planQuery(queryContext);
+
 		final EvitaResponse<? extends Serializable> result = tracingContext.executeWithinBlockIfParentContextAvailable(
 			"delete - " + queryPlan.getDescription(),
 			() -> queryPlan.execute(),
@@ -1064,7 +1068,8 @@ public final class EntityCollection implements
 		return this.catalogPersistenceService.flush(
 				0L,
 				this.headerInfoSupplier,
-				this.persistenceService.getEntityCollectionHeader()
+				this.persistenceService.getEntityCollectionHeader(),
+				this.dataStoreBuffer
 			)
 			.map(EntityCollectionPersistenceService::getEntityCollectionHeader)
 			.orElseGet(this::getEntityCollectionHeader);
@@ -1102,19 +1107,18 @@ public final class EntityCollection implements
 	}
 
 	/**
-	 * Method creates {@link QueryContext} that is used for read operations.
+	 * Method creates {@link QueryPlanningContext} that is used for read operations.
 	 */
 	@Nonnull
-	public QueryContext createQueryContext(
-		@Nonnull QueryContext queryContext,
+	public QueryPlanningContext createQueryContext(
+		@Nonnull QueryPlanningContext queryContext,
 		@Nonnull EvitaRequest evitaRequest,
 		@Nonnull EvitaSessionContract session
 	) {
-		return new QueryContext(
+		return new QueryPlanningContext(
 			queryContext,
 			this.catalog,
 			this,
-			new ReadOnlyEntityStorageContainerAccessor(catalog.getVersion(), this.dataStoreBuffer, this::getInternalSchema),
 			session, evitaRequest,
 			queryContext.getCurrentStep(),
 			this.indexes,
@@ -1123,14 +1127,13 @@ public final class EntityCollection implements
 	}
 
 	/**
-	 * Method creates {@link QueryContext} that is used for read operations.
+	 * Method creates {@link QueryPlanningContext} that is used for read operations.
 	 */
 	@Nonnull
-	public QueryContext createQueryContext(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
-		return new QueryContext(
+	public QueryPlanningContext createQueryContext(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
+		return new QueryPlanningContext(
 			this.catalog,
 			this,
-			new ReadOnlyEntityStorageContainerAccessor(catalog.getVersion(), this.dataStoreBuffer, this::getInternalSchema),
 			session, evitaRequest,
 			evitaRequest.isQueryTelemetryRequested() ? new QueryTelemetry(QueryPhase.OVERALL) : null,
 			this.indexes,
@@ -1168,7 +1171,7 @@ public final class EntityCollection implements
 			transactionalLayer.removeTransactionalMemoryLayer(this);
 			return new EntityCollection(
 				catalogVersion,
-				this.entityTypePrimaryKey,
+				CatalogState.ALIVE, this.entityTypePrimaryKey,
 				transactionalLayer.getStateCopyWithCommittedChanges(this.schema)
 					.map(EntitySchemaDecorator::getDelegate)
 					.orElse(null),
@@ -1196,7 +1199,7 @@ public final class EntityCollection implements
 				"Indexes are unexpectedly modified!"
 			);
 			// no changes were present - we return shallow copy
-			return createCopyForNewCatalogAttachment();
+			return createCopyForNewCatalogAttachment(CatalogState.ALIVE);
 		}
 	}
 
@@ -1207,9 +1210,10 @@ public final class EntityCollection implements
 	 * @return a new EntityCollection object with the updated persistence service
 	 */
 	@Nonnull
-	public EntityCollection createCopyWithNewPersistenceService(long catalogVersion, @Nonnull EntityCollectionPersistenceService newPersistenceService) {
+	public EntityCollection createCopyWithNewPersistenceService(long catalogVersion, @Nonnull CatalogState catalogState, @Nonnull EntityCollectionPersistenceService newPersistenceService) {
 		final EntityCollection entityCollection = new EntityCollection(
 			catalogVersion,
+			catalogState,
 			this.entityTypePrimaryKey,
 			this.getInternalSchema(),
 			this.pkSequence,
@@ -1244,11 +1248,13 @@ public final class EntityCollection implements
 	 *
 	 * @return a new EntityCollection object with the same state as the current one
 	 */
+	@Override
 	@Nonnull
-	public EntityCollection createCopyForNewCatalogAttachment() {
+	public EntityCollection createCopyForNewCatalogAttachment(@Nonnull CatalogState catalogState) {
 		//noinspection unchecked
 		return new EntityCollection(
 			this.catalog.getVersion(),
+			catalogState,
 			this.entityTypePrimaryKey,
 			this.getInternalSchema(),
 			this.pkSequence,
@@ -1261,7 +1267,7 @@ public final class EntityCollection implements
 					Collectors.toMap(
 						Map.Entry::getKey,
 						it -> it.getValue() instanceof CatalogRelatedDataStructure ?
-							((CatalogRelatedDataStructure<? extends EntityIndex>) it.getValue()).createCopyForNewCatalogAttachment() :
+							((CatalogRelatedDataStructure<? extends EntityIndex>) it.getValue()).createCopyForNewCatalogAttachment(catalogState) :
 							it.getValue()
 					)
 				),
@@ -1289,7 +1295,8 @@ public final class EntityCollection implements
 		return this.catalogPersistenceService.flush(
 				catalogVersion,
 				this.headerInfoSupplier,
-				this.persistenceService.getEntityCollectionHeader()
+				this.persistenceService.getEntityCollectionHeader(),
+				this.dataStoreBuffer
 			)
 			.map(EntityCollectionPersistenceService::getEntityCollectionHeader)
 			.orElseGet(this::getEntityCollectionHeader);
@@ -1346,7 +1353,7 @@ public final class EntityCollection implements
 
 	/**
 	 * Method fetches the full contents of the entity by its primary key from the I/O storage (taking advantage of
-	 * modified parts in the {@link DataStoreMemoryBuffer}.
+	 * modified parts in the {@link TransactionalDataStoreMemoryBuffer}.
 	 */
 	@Nullable
 	private EntityWithFetchCount getFullEntityById(int primaryKey) {
@@ -1365,7 +1372,7 @@ public final class EntityCollection implements
 
 	/**
 	 * Method fetches the entity by its primary key from the I/O storage (taking advantage of modified parts in the
-	 * {@link DataStoreMemoryBuffer}).
+	 * {@link TransactionalDataStoreMemoryBuffer}).
 	 */
 	@Nullable
 	private EntityWithFetchCount getEntityById(int primaryKey, @Nonnull EvitaRequest evitaRequest) {
@@ -1387,23 +1394,23 @@ public final class EntityCollection implements
 		@Nonnull EvitaSessionContract session
 	) {
 		final Map<String, RequirementContext> referenceEntityFetch = evitaRequest.getReferenceEntityFetch();
-		try (final QueryContext queryContext = createQueryContext(evitaRequest, session)) {
-			return referenceEntityFetch.isEmpty() &&
-				!evitaRequest.isRequiresEntityReferences() &&
-				!evitaRequest.isRequiresParent() ?
-				ReferenceFetcher.NO_IMPLEMENTATION :
-				new ReferencedEntityFetcher(
-					evitaRequest.getHierarchyContent(),
-					referenceEntityFetch,
-					evitaRequest.getDefaultReferenceRequirement(),
-					queryContext
-				);
-		}
+		final QueryPlanningContext queryContext = createQueryContext(evitaRequest, session);
+		return referenceEntityFetch.isEmpty() &&
+			!evitaRequest.isRequiresEntityReferences() &&
+			!evitaRequest.isRequiresParent() ?
+			ReferenceFetcher.NO_IMPLEMENTATION :
+			new ReferencedEntityFetcher(
+				evitaRequest.getHierarchyContent(),
+				referenceEntityFetch,
+				evitaRequest.getDefaultReferenceRequirement(),
+				queryContext.createExecutionContext()
+			);
 	}
 
 	/**
 	 * Injects referenced entity bodies into the main entity.
-	 * @param sealedEntity main entity to be enriched
+	 *
+	 * @param sealedEntity     main entity to be enriched
 	 * @param referenceFetcher reference fetcher to be used for accessing referenced entities
 	 * @return enriched entity
 	 */
