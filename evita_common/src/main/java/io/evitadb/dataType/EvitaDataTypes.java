@@ -560,7 +560,14 @@ public class EvitaDataTypes {
 	 */
 	public static boolean isSupportedTypeOrItsArrayOrEnum(@Nonnull Class<?> type) {
 		@SuppressWarnings("unchecked") final Class<? extends Serializable> typeToCheck = type.isArray() ? (Class<? extends Serializable>) type.getComponentType() : (Class<? extends Serializable>) type;
-		return EvitaDataTypes.isSupportedType(typeToCheck) || typeToCheck.isEnum();
+		return EvitaDataTypes.isSupportedType(typeToCheck) || (typeToCheck.isEnum() && typeToCheck.isAnnotationPresent(SupportedEnum.class));
+	}
+
+	/**
+	 * Returns true if passed class represents ANY enum or array of enums.
+	 */
+	public static boolean isEnumOrArrayOfEnums(Class<?> argType) {
+		return argType.isEnum() || (argType.isArray() && argType.getComponentType().isEnum());
 	}
 
 	/**

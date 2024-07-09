@@ -139,6 +139,18 @@ enum GrpcHistogramBehavior {
   OPTIMIZED = 1;
 }
 
+// This enumeration controls behavior of the {@link ReferenceContent} related to managed entities.
+// If the target entity is not (yet) present in the database and {@link ManagedReferencesBehaviour#EXISTING} is set,
+// the reference will not be returned as if it does not exist.
+// If {@link ManagedReferencesBehaviour#ANY} is set (default behavior), the reference will be returned if defined regardless
+// of its target entity existence.
+enum GrpcManagedReferencesBehaviour {
+  // The reference to managed entity will always be returned regardless of the target entity existence.
+  ANY = 0;
+  // The reference to managed entity will be returned only if the target entity exists in the database.
+  EXISTING = 1;
+}
+
 // This enum controls how prices that share same `inner entity id` will behave during filtering and sorting.
 enum GrpcPriceInnerRecordHandling {
   // No special strategy set. Inner record id is not taken into account at all.

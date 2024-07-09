@@ -38,6 +38,7 @@ import io.evitadb.utils.ReflectionLookup;
 import jdk.jfr.Category;
 import jdk.jfr.Description;
 import jdk.jfr.Label;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
@@ -80,6 +81,7 @@ public class JfrDocumentation implements EvitaTestSupport {
 	 *
 	 * @throws IOException if an I/O error occurs
 	 */
+	@Disabled
 	private void generateJfrReferenceDocumentation() throws IOException {
 		final ReflectionLookup lookup = ReflectionLookup.NO_CACHE_INSTANCE;
 		final Path jfrReferencePath = getRootDirectory().resolve(JFR_REFERENCE_DOCUMENTATION);

@@ -33,7 +33,6 @@ import io.evitadb.utils.Assert;
 import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
-import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -103,17 +102,6 @@ public class Strip extends AbstractRequireConstraintLeaf implements GenericConst
 	@Override
 	public boolean isApplicable() {
 		return isArgumentsNonNull() && getArguments().length > 1;
-	}
-
-	@Nonnull
-	@Override
-	public Serializable[] getArgumentsExcludingDefaults() {
-		final Serializable[] arguments = getArguments();
-		if (arguments.length == 2 && Objects.equals(arguments[0], 0) && Objects.equals(arguments[1], 20)) {
-			return new Serializable[0];
-		} else {
-			return arguments;
-		}
 	}
 
 	@Nonnull

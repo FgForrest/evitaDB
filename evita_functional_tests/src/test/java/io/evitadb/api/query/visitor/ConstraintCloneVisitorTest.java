@@ -195,7 +195,7 @@ class ConstraintCloneVisitorTest {
 		assertEquals(
 			"""
 				require(
-				\tpage(),
+				\tpage(1, 20),
 				\treferenceContent(
 				\t\t'a',
 				\t\tfilterBy(

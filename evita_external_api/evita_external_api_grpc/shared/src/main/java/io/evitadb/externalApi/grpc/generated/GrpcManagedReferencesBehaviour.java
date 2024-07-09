@@ -28,80 +28,52 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * This enum is used to identify session type of the created session by gRPC server.
+ * This enumeration controls behavior of the {&#64;link ReferenceContent} related to managed entities.
+ * If the target entity is not (yet) present in the database and {&#64;link ManagedReferencesBehaviour#EXISTING} is set,
+ * the reference will not be returned as if it does not exist.
+ * If {&#64;link ManagedReferencesBehaviour#ANY} is set (default behavior), the reference will be returned if defined regardless
+ * of its target entity existence.
  * </pre>
  *
- * Protobuf enum {@code io.evitadb.externalApi.grpc.generated.GrpcSessionType}
+ * Protobuf enum {@code io.evitadb.externalApi.grpc.generated.GrpcManagedReferencesBehaviour}
  */
-public enum GrpcSessionType
+public enum GrpcManagedReferencesBehaviour
     implements com.google.protobuf.ProtocolMessageEnum {
   /**
    * <pre>
-   * Classic read-only session.
+   * The reference to managed entity will always be returned regardless of the target entity existence.
    * </pre>
    *
-   * <code>READ_ONLY = 0;</code>
+   * <code>ANY = 0;</code>
    */
-  READ_ONLY(0),
+  ANY(0),
   /**
    * <pre>
-   * Classic read-write session.
+   * The reference to managed entity will be returned only if the target entity exists in the database.
    * </pre>
    *
-   * <code>READ_WRITE = 1;</code>
+   * <code>EXISTING = 1;</code>
    */
-  READ_WRITE(1),
-  /**
-   * <pre>
-   * Read only session that returns all fetched entities in a form of a `BinaryEntity`, which has all of its data represented in a binary form. Should be used only in combination with evitaDB's Java driver.
-   * </pre>
-   *
-   * <code>BINARY_READ_ONLY = 2;</code>
-   */
-  BINARY_READ_ONLY(2),
-  /**
-   * <pre>
-   * Read write session that returns all fetched entities in a form of a `BinaryEntity`, which has all of its data represented in a binary form. Should be used only in combination with evitaDB's Java driver.
-   * </pre>
-   *
-   * <code>BINARY_READ_WRITE = 3;</code>
-   */
-  BINARY_READ_WRITE(3),
+  EXISTING(1),
   UNRECOGNIZED(-1),
   ;
 
   /**
    * <pre>
-   * Classic read-only session.
+   * The reference to managed entity will always be returned regardless of the target entity existence.
    * </pre>
    *
-   * <code>READ_ONLY = 0;</code>
+   * <code>ANY = 0;</code>
    */
-  public static final int READ_ONLY_VALUE = 0;
+  public static final int ANY_VALUE = 0;
   /**
    * <pre>
-   * Classic read-write session.
+   * The reference to managed entity will be returned only if the target entity exists in the database.
    * </pre>
    *
-   * <code>READ_WRITE = 1;</code>
+   * <code>EXISTING = 1;</code>
    */
-  public static final int READ_WRITE_VALUE = 1;
-  /**
-   * <pre>
-   * Read only session that returns all fetched entities in a form of a `BinaryEntity`, which has all of its data represented in a binary form. Should be used only in combination with evitaDB's Java driver.
-   * </pre>
-   *
-   * <code>BINARY_READ_ONLY = 2;</code>
-   */
-  public static final int BINARY_READ_ONLY_VALUE = 2;
-  /**
-   * <pre>
-   * Read write session that returns all fetched entities in a form of a `BinaryEntity`, which has all of its data represented in a binary form. Should be used only in combination with evitaDB's Java driver.
-   * </pre>
-   *
-   * <code>BINARY_READ_WRITE = 3;</code>
-   */
-  public static final int BINARY_READ_WRITE_VALUE = 3;
+  public static final int EXISTING_VALUE = 1;
 
 
   public final int getNumber() {
@@ -118,7 +90,7 @@ public enum GrpcSessionType
    * @deprecated Use {@link #forNumber(int)} instead.
    */
   @java.lang.Deprecated
-  public static GrpcSessionType valueOf(int value) {
+  public static GrpcManagedReferencesBehaviour valueOf(int value) {
     return forNumber(value);
   }
 
@@ -126,25 +98,23 @@ public enum GrpcSessionType
    * @param value The numeric wire value of the corresponding enum entry.
    * @return The enum associated with the given numeric wire value.
    */
-  public static GrpcSessionType forNumber(int value) {
+  public static GrpcManagedReferencesBehaviour forNumber(int value) {
     switch (value) {
-      case 0: return READ_ONLY;
-      case 1: return READ_WRITE;
-      case 2: return BINARY_READ_ONLY;
-      case 3: return BINARY_READ_WRITE;
+      case 0: return ANY;
+      case 1: return EXISTING;
       default: return null;
     }
   }
 
-  public static com.google.protobuf.Internal.EnumLiteMap<GrpcSessionType>
+  public static com.google.protobuf.Internal.EnumLiteMap<GrpcManagedReferencesBehaviour>
       internalGetValueMap() {
     return internalValueMap;
   }
   private static final com.google.protobuf.Internal.EnumLiteMap<
-      GrpcSessionType> internalValueMap =
-        new com.google.protobuf.Internal.EnumLiteMap<GrpcSessionType>() {
-          public GrpcSessionType findValueByNumber(int number) {
-            return GrpcSessionType.forNumber(number);
+      GrpcManagedReferencesBehaviour> internalValueMap =
+        new com.google.protobuf.Internal.EnumLiteMap<GrpcManagedReferencesBehaviour>() {
+          public GrpcManagedReferencesBehaviour findValueByNumber(int number) {
+            return GrpcManagedReferencesBehaviour.forNumber(number);
           }
         };
 
@@ -162,12 +132,12 @@ public enum GrpcSessionType
   }
   public static final com.google.protobuf.Descriptors.EnumDescriptor
       getDescriptor() {
-    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(15);
+    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(13);
   }
 
-  private static final GrpcSessionType[] VALUES = values();
+  private static final GrpcManagedReferencesBehaviour[] VALUES = values();
 
-  public static GrpcSessionType valueOf(
+  public static GrpcManagedReferencesBehaviour valueOf(
       com.google.protobuf.Descriptors.EnumValueDescriptor desc) {
     if (desc.getType() != getDescriptor()) {
       throw new java.lang.IllegalArgumentException(
@@ -181,10 +151,10 @@ public enum GrpcSessionType
 
   private final int value;
 
-  private GrpcSessionType(int value) {
+  private GrpcManagedReferencesBehaviour(int value) {
     this.value = value;
   }
 
-  // @@protoc_insertion_point(enum_scope:io.evitadb.externalApi.grpc.generated.GrpcSessionType)
+  // @@protoc_insertion_point(enum_scope:io.evitadb.externalApi.grpc.generated.GrpcManagedReferencesBehaviour)
 }
 
