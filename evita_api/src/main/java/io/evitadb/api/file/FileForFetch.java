@@ -42,7 +42,6 @@ import java.util.UUID;
  *
  * @param fileId           ID of the file.
  * @param name             Name of the file.
- * @param path             Path to the data file.
  * @param description      Optional short description of the file in human readable form.
  * @param contentType      MIME type of the file.
  * @param totalSizeInBytes Total size of the file in bytes.
@@ -118,5 +117,19 @@ public record FileForFetch(
 			created.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME),
 			origin == null ? "" : String.join(",", origin)
 		);
+	}
+
+	@Override
+	public boolean equals(Object o) {
+		if (this == o) return true;
+		if (o == null || getClass() != o.getClass()) return false;
+
+		FileForFetch that = (FileForFetch) o;
+		return fileId.equals(that.fileId);
+	}
+
+	@Override
+	public int hashCode() {
+		return fileId.hashCode();
 	}
 }

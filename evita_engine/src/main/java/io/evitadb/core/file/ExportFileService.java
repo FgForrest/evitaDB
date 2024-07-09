@@ -263,9 +263,10 @@ public class ExportFileService {
 		try {
 			final FileForFetch file = getFile(fileId)
 				.orElseThrow(() -> new FileForFetchNotFoundException(fileId));
-			Files.delete(file.metadataPath(storageOptions.exportDirectory()));
-			Files.delete(file.path(storageOptions.exportDirectory()));
-			this.files.remove(file);
+			if (this.files.remove(file)) {
+				Files.delete(file.metadataPath(storageOptions.exportDirectory()));
+				Files.delete(file.path(storageOptions.exportDirectory()));
+			}
 		} catch (IOException e) {
 			throw new UnexpectedIOException(
 				"Failed to delete file: " + e.getMessage(),

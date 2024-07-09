@@ -260,11 +260,13 @@ abstract class AbstractServerTask<S, T> implements ServerTask<S, T> {
 		@Override
 		public boolean cancel(boolean mayInterruptIfRunning) {
 			final boolean cancelled = super.cancel(mayInterruptIfRunning);
-			AbstractServerTask.this.status.updateAndGet(
-				currentStatus -> currentStatus.transitionToFailed(
-					new CancellationException("Task was canceled.")
-				)
-			);
+			if (cancelled) {
+				AbstractServerTask.this.status.updateAndGet(
+					currentStatus -> currentStatus.transitionToFailed(
+						new CancellationException("Task was canceled.")
+					)
+				);
+			}
 			return cancelled;
 		}
 	}

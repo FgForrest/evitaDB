@@ -110,6 +110,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntFunction;
 import java.util.stream.Stream;
@@ -875,7 +876,7 @@ class EvitaTest implements EvitaTestSupport {
 				final EntityAttributeSchemaContract firstAttribute = session.getEntitySchemaOrThrow(Entities.PRODUCT).getAttribute(ATTRIBUTE_URL).orElseThrow();
 				assertInstanceOf(GlobalAttributeSchemaContract.class, firstAttribute);
 				assertTrue(firstAttribute.isLocalized());
-				assertEquals(GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG, ((GlobalAttributeSchemaContract)firstAttribute).getGlobalUniquenessType());
+				assertEquals(GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG, ((GlobalAttributeSchemaContract) firstAttribute).getGlobalUniquenessType());
 
 				session.getCatalogSchema()
 					.openForWrite()
@@ -889,7 +890,7 @@ class EvitaTest implements EvitaTestSupport {
 				final EntityAttributeSchemaContract secondAttribute = session.getEntitySchemaOrThrow(Entities.PRODUCT).getAttribute(ATTRIBUTE_URL).orElseThrow();
 				assertInstanceOf(GlobalAttributeSchemaContract.class, secondAttribute);
 				assertTrue(secondAttribute.isLocalized());
-				assertEquals(GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG_LOCALE, ((GlobalAttributeSchemaContract)secondAttribute).getGlobalUniquenessType());
+				assertEquals(GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG_LOCALE, ((GlobalAttributeSchemaContract) secondAttribute).getGlobalUniquenessType());
 			}
 		);
 	}
@@ -1784,6 +1785,13 @@ class EvitaTest implements EvitaTestSupport {
 	@Test
 	void shouldListAndCancelTasks() {
 		final int numberOfTasks = 20;
+
+		evita.updateCatalog(
+			TEST_CATALOG, session -> {
+				session.goLiveAndClose();
+			}
+		);
+
 		ExecutorService executorService = Executors.newFixedThreadPool(numberOfTasks);
 
 		// Step 2: Generate backup tasks using the custom executor
@@ -1814,13 +1822,16 @@ class EvitaTest implements EvitaTestSupport {
 			)
 			.toList();
 
-		// wait for all task to complete
-		assertThrows(
-			ExecutionException.class,
-			() -> CompletableFuture.allOf(
+		try {
+			// wait for all task to complete
+			CompletableFuture.allOf(
 				backupTasks.stream().map(it -> it.getNow(null)).toArray(CompletableFuture[]::new)
-			).get(3, TimeUnit.MINUTES)
-		);
+			).get(3, TimeUnit.MINUTES);
+		} catch (ExecutionException ignored) {
+			// if tasks were cancelled, they will throw exception
+		} catch (InterruptedException | TimeoutException e) {
+			fail(e);
+		}
 
 		final PaginatedList<TaskStatus<?, ?>> taskStatuses = evita.listTaskStatuses(1, numberOfTasks);
 		assertEquals(numberOfTasks, taskStatuses.getTotalRecordCount());
