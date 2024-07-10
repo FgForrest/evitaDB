@@ -49,7 +49,6 @@ import io.evitadb.test.annotation.OnDataSetTearDown;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.extension.EvitaParameterResolver;
-import io.grpc.ManagedChannel;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
@@ -63,7 +62,7 @@ import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_PRIORITY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
-import static org.wildfly.common.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @DisplayName("EvitaSystemService gRPC functional test")
 @Tag(FUNCTIONAL_TEST)

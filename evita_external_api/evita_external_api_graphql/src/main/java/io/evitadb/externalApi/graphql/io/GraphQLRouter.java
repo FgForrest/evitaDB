@@ -37,9 +37,9 @@ import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import io.evitadb.externalApi.http.AdditionalHeaders;
 import io.evitadb.externalApi.http.CorsFilterServiceDecorator;
 import io.evitadb.externalApi.http.CorsPreflightService;
+import io.evitadb.externalApi.utils.UriPath;
 import io.evitadb.externalApi.utils.path.PathHandlingService;
 import io.evitadb.externalApi.utils.path.RoutingHandlerService;
-import io.evitadb.externalApi.utils.UriPath;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils.Property;
 import lombok.Getter;
@@ -161,7 +161,7 @@ public class GraphQLRouter implements HttpService {
 		apiRouter.add(
 			HttpMethod.POST,
 			registeredApi.path().toString(),
-			new GraphQLHandler(objectMapper, evita, registeredApi.instanceType(), registeredApi.graphQLReference())
+			new GraphQLHandler(objectMapper, registeredApi.instanceType(), registeredApi.graphQLReference())
 			.decorate(service -> new GraphQLExceptionHandler(objectMapper, service))
 			.decorate(
 				new CorsFilterServiceDecorator(

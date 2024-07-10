@@ -77,7 +77,6 @@ public class ObservabilityProbesDetector implements ProbesProvider {
 		.stream()
 		.filter(gc -> OLD_GENERATION_GC_NAMES.contains(gc.getName()))
 		.toList();
-	private ObservabilityManager observabilityManager;
 	private final AtomicLong lastSeenRejectedTaskCount = new AtomicLong(0L);
 	private final AtomicLong lastSeenSubmittedTaskCount = new AtomicLong(0L);
 	private final AtomicLong lastSeenJavaErrorCount = new AtomicLong(0L);
@@ -86,6 +85,7 @@ public class ObservabilityProbesDetector implements ProbesProvider {
 	private final AtomicLong lastSeenJavaGarbageCollections = new AtomicLong(0L);
 	private final AtomicBoolean seenReady = new AtomicBoolean();
 	private final AtomicReference<ReadinessWithTimestamp> lastReadinessSeen = new AtomicReference<>();
+	private ObservabilityManager observabilityManager;
 
 	/**
 	 * Records the result of the health problem check.
@@ -275,36 +275,6 @@ public class ObservabilityProbesDetector implements ProbesProvider {
 		return result;
 	}
 
-	@Nonnull
-	@Override
-	public Readiness getReadiness(@Nonnull EvitaContract evitaContract, @Nonnull ExternalApiServer externalApiServer, @Nonnull String... apiCodes) {
-		final Optional<ObservabilityManager> theObservabilityManager = getObservabilityManager(externalApiServer);
-		// check the end-points availability
-		//noinspection rawtypes
-		final Collection<ExternalApiProviderRegistrar> availableExternalApis = ExternalApiServer.gatherExternalApiProviders();
-		final Map<String, Boolean> readiness = CollectionUtils.createHashMap(availableExternalApis.size());
-		for (String apiCode : apiCodes) {
-			final ExternalApiProvider<?> apiProvider = externalApiServer.getExternalApiProviderByCode(apiCode);
-			final boolean isReady = apiProvider.isReady();
-			readiness.put(apiProvider.getCode(), isReady);
-			theObservabilityManager.ifPresent(it -> it.recordReadiness(apiProvider.getCode(), isReady));
-		}
-		final boolean ready = readiness.values().stream().allMatch(Boolean::booleanValue);
-		if (ready) {
-			this.seenReady.set(true);
-		}
-		final Readiness currentReadiness = new Readiness(
-			ready ? ReadinessState.READY : (this.seenReady.get() ? ReadinessState.STALLING : ReadinessState.STARTING),
-			readiness.entrySet().stream()
-				.map(entry -> new ApiState(entry.getKey(), entry.getValue()))
-				.toArray(ApiState[]::new)
-		);
-		this.lastReadinessSeen.set(
-			new ReadinessWithTimestamp(currentReadiness, OffsetDateTime.now())
-		);
-		return currentReadiness;
-	}
-
 	/**
 	 * Returns the observability manager from the external API server.
 	 *
@@ -349,12 +319,14 @@ public class ObservabilityProbesDetector implements ProbesProvider {
 	/**
 	 * Record keeps the readiness result and the detail of readiness result for each API along with the timestamp when
 	 * it was recorded.
-	 * @param result overall readiness result (over all APIs)
+	 *
+	 * @param result    overall readiness result (over all APIs)
 	 * @param timestamp timestamp when the readiness was recorded
 	 */
 	private record ReadinessWithTimestamp(
 		@Nonnull Readiness result,
 		@Nonnull OffsetDateTime timestamp
-	) { }
+	) {
+	}
 
 }

@@ -56,7 +56,6 @@ module evita.external.api.graphql {
 	requires org.slf4j;
 	requires com.graphqljava;
 	requires com.fasterxml.jackson.databind;
-	requires com.graphqljava;
 	requires net.bytebuddy;
 	requires jdk.jfr;
 

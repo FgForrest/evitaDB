@@ -63,7 +63,6 @@ module evita.external.api.observability {
 	requires io.prometheus.metrics.instrumentation.jvm;
 
 	requires jdk.jfr;
-	requires jboss.threads;
 	requires io.grpc;
 
 	requires io.opentelemetry.sdk.trace;

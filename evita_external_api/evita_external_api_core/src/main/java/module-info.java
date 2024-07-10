@@ -65,7 +65,6 @@ module evita.external.api.core {
 	requires static lombok;
 	requires static jsr305;
 	requires org.slf4j;
-	requires jboss.threads;
 	requires com.fasterxml.jackson.databind;
 	requires zero.allocation.hashing;
 
