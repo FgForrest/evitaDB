@@ -1875,7 +1875,12 @@ class EvitaTest implements EvitaTestSupport {
 
 		// list them again and there should be none of them
 		final PaginatedList<FileForFetch> exportedFilesAfterDeletion = evita.listFilesToFetch(1, numberOfTasks, null);
-		assertEquals(0, exportedFilesAfterDeletion.getTotalRecordCount());
+		assertEquals(
+			0,
+			exportedFilesAfterDeletion.getTotalRecordCount(),
+			"Original file count " + exportedFiles.getTotalRecordCount() +
+				" vs. after deletion " + exportedFilesAfterDeletion.getTotalRecordCount()
+		);
 	}
 
 	private void doRenameCatalog(@Nonnull CatalogState catalogState) {

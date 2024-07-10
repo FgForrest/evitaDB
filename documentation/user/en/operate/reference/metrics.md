@@ -8,9 +8,9 @@
     <dt>catalogName</dt>
     <dd><strong>Catalog</strong>: N/A</dd>
     <dt>entityType</dt>
-    <dd><strong>Collection</strong>: N/A</dd>
-    <dt>entityType</dt>
     <dd><strong>Entity type</strong>: N/A</dd>
+    <dt>entityType</dt>
+    <dd><strong>Collection</strong>: N/A</dd>
     <dt>fileType</dt>
     <dd><strong>File type</strong>: N/A</dd>
     <dt>httpMethod</dt>
