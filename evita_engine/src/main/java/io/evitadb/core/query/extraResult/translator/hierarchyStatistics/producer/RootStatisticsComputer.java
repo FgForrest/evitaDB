@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ package io.evitadb.core.query.extraResult.translator.hierarchyStatistics.produce
 
 import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.query.require.StatisticsType;
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.visitor.Accumulator;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.visitor.ChildrenStatisticsHierarchyVisitor;
 import io.evitadb.index.bitmap.Bitmap;
@@ -66,12 +67,14 @@ public class RootStatisticsComputer extends AbstractHierarchyStatisticsComputer 
 	@Nonnull
 	@Override
 	protected List<Accumulator> createStatistics(
+		@Nonnull QueryExecutionContext executionContext,
 		@Nonnull HierarchyTraversalPredicate scopePredicate,
 		@Nonnull HierarchyFilteringPredicate filterPredicate
 	) {
 		// we always start with root nodes, but we respect the children exclusion
-		final Bitmap hierarchyNodes = context.queryContext().getRootHierarchyNodes();
+		final Bitmap hierarchyNodes = context.rootHierarchyNodesSupplier().get();
 		final ChildrenStatisticsHierarchyVisitor visitor = new ChildrenStatisticsHierarchyVisitor(
+			executionContext,
 			context.removeEmptyResults(),
 			0,
 			hierarchyNodes::contains,

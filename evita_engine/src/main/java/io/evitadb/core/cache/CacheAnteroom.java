@@ -26,6 +26,8 @@ package io.evitadb.core.cache;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.requestResponse.data.structure.BinaryEntity;
+import io.evitadb.core.async.DelayedAsyncTask;
+import io.evitadb.core.async.Scheduler;
 import io.evitadb.core.cache.model.CacheRecordAdept;
 import io.evitadb.core.cache.model.CacheRecordType;
 import io.evitadb.core.cache.payload.BinaryEntityComputationalObjectAdapter;
@@ -43,8 +45,6 @@ import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
 import io.evitadb.core.query.sort.CacheableSorter;
 import io.evitadb.core.query.sort.Sorter;
-import io.evitadb.core.scheduling.BackgroundTask;
-import io.evitadb.scheduling.Scheduler;
 import io.evitadb.utils.CollectionUtils;
 import lombok.extern.slf4j.Slf4j;
 import net.openhft.hashing.LongHashFunction;
@@ -99,9 +99,9 @@ public class CacheAnteroom {
 	 */
 	private final CacheEden cacheEden;
 	/**
-	 * Contains reference to the asynchronous task executor.
+	 * Task that evaluates adepts for the eden.
 	 */
-	private final Scheduler scheduler;
+	private final DelayedAsyncTask edenGateKeeper;
 	/**
 	 * Contains a hash map that collects adepts for the caching. In other terms the expensive data structures that were
 	 * recently computed and might be worth caching. The map is cleared each time {@link #evaluateAssociates(boolean)}
@@ -132,10 +132,12 @@ public class CacheAnteroom {
 		this.cacheEden = cacheEden;
 		this.maxRecordCount = maxRecordCount;
 		this.minimalComplexityThreshold = minimalComplexityThreshold;
-		this.scheduler = scheduler;
-		this.scheduler.scheduleAtFixedRate(
-			this::reportStatistics,
-			1, 1, TimeUnit.MINUTES
+		this.edenGateKeeper = new DelayedAsyncTask(
+			null,
+			"Eden cache adepts inbound reevaluation",
+			scheduler,
+			this.cacheEden::evaluateAdepts,
+			0, TimeUnit.MILLISECONDS, 0
 		);
 	}
 
@@ -152,7 +154,7 @@ public class CacheAnteroom {
 
 	/**
 	 * Hands off {@link #cacheAdepts} via. {@link CacheEden#setNextAdeptsToEvaluate(Map)} for evaluation. It also
-	 * triggers evaluation of those adepts in different thread using {@link #scheduler}. The evaluation will start almost
+	 * triggers evaluation of those adepts in different thread using {@link Scheduler}. The evaluation will start almost
 	 * immediately if there is any thread available in the executor pool.
 	 */
 	public void evaluateAssociatesAsynchronously() {
@@ -441,9 +443,7 @@ public class CacheAnteroom {
 			if (synchronously) {
 				this.cacheEden.evaluateAdepts();
 			} else {
-				this.scheduler.execute(
-					new BackgroundTask("Eden cache gatekeeper", this.cacheEden::evaluateAdepts)
-				);
+				this.edenGateKeeper.schedule();
 			}
 		} catch (RuntimeException e) {
 			// we don't rethrow - it would stop engine, just log error

@@ -28,6 +28,7 @@ import io.evitadb.api.CatalogState;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.core.metric.event.storage.FileType;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.store.catalog.model.CatalogBootstrap;
 import io.evitadb.store.kryo.ObservableInput;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
@@ -35,8 +36,8 @@ import io.evitadb.store.kryo.VersionedKryo;
 import io.evitadb.store.kryo.VersionedKryoKeyInputs;
 import io.evitadb.store.model.FileLocation;
 import io.evitadb.store.offsetIndex.OffsetIndex;
-import io.evitadb.store.offsetIndex.OffsetIndex.FileOffsetIndexBuilder;
 import io.evitadb.store.offsetIndex.OffsetIndex.NonFlushedBlock;
+import io.evitadb.store.offsetIndex.OffsetIndexBuilder;
 import io.evitadb.store.offsetIndex.OffsetIndexDescriptor;
 import io.evitadb.store.offsetIndex.io.OffHeapMemoryManager;
 import io.evitadb.store.offsetIndex.io.WriteOnlyFileHandle;
@@ -49,6 +50,7 @@ import io.evitadb.store.spi.CatalogStoragePartPersistenceService;
 import io.evitadb.store.spi.model.CatalogHeader;
 import io.evitadb.store.spi.model.reference.CollectionFileReference;
 import io.evitadb.store.spi.model.reference.WalFileReference;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -60,6 +62,8 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
+
+import static java.util.Optional.ofNullable;
 
 /**
  * A default persistence service for storing and retrieving the offset index and catalog header of a catalog.
@@ -87,7 +91,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 	 * @param catalogFilePath        The file path of the catalog.
 	 * @param storageOptions         The storage options.
 	 * @param transactionOptions     The transaction options.
-	 * @param lastCatalogBootstrap   The last catalog bootstrap.
+	 * @param catalogBootstrap       The last catalog bootstrap.
 	 * @param recordRegistry         The record type registry for offset index.
 	 * @param offHeapMemoryManager   The off-heap memory manager.
 	 * @param observableOutputKeeper The observable output keeper.
@@ -100,7 +104,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 		@Nonnull Path catalogFilePath,
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull TransactionOptions transactionOptions,
-		@Nonnull CatalogBootstrap lastCatalogBootstrap,
+		@Nonnull CatalogBootstrap catalogBootstrap,
 		@Nonnull OffsetIndexRecordTypeRegistry recordRegistry,
 		@Nonnull OffHeapMemoryManager offHeapMemoryManager,
 		@Nonnull ObservableOutputKeeper observableOutputKeeper,
@@ -111,12 +115,12 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 		final AtomicReference<CatalogHeader> catalogHeaderRef = new AtomicReference<>();
 		final OffsetIndex offsetIndex = loadOffsetIndex(
 			catalogName, catalogFilePath, storageOptions,
-			lastCatalogBootstrap, recordRegistry, observableOutputKeeper,
+			catalogBootstrap, recordRegistry, observableOutputKeeper,
 			kryoFactory, nonFlushedBlockObserver, historyKeptObserver,
 			catalogHeaderRef::set
 		);
 		return new CatalogOffsetIndexStoragePartPersistenceService(
-			lastCatalogBootstrap.catalogVersion(),
+			catalogBootstrap.catalogVersion(),
 			catalogHeaderRef.get(),
 			transactionOptions,
 			offsetIndex,
@@ -149,7 +153,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 	) {
 		final CatalogHeader catalogHeader = previous.getCatalogHeader(catalogVersion);
 		final OffsetIndex previousOffsetIndex = previous.offsetIndex;
-		final long totalSize = previousOffsetIndex.getTotalSize();
+		final long totalSize = previousOffsetIndex.getTotalSizeBytes();
 		final OffsetIndexDescriptor offsetIndexDescriptor = new OffsetIndexDescriptor(
 			previousOffsetIndex.getVersion(),
 			previousOffsetIndex.getFileOffsetIndexLocation(),
@@ -187,6 +191,55 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 	}
 
 	/**
+	 * Reads the catalog header bound to the given catalog file path and catalog bootstrap.
+	 *
+	 * @param catalogFilePath  The file path of the catalog.
+	 * @param catalogBootstrap The last catalog bootstrap.
+	 * @param recordRegistry   The record type registry for offset index.
+	 * @return The loaded offset index.
+	 */
+	@Nonnull
+	public static CatalogHeader readCatalogHeader(
+		@Nonnull Path catalogFilePath,
+		@Nonnull CatalogBootstrap catalogBootstrap,
+		@Nonnull OffsetIndexRecordTypeRegistry recordRegistry
+	) {
+		final FileLocation fileLocation = catalogBootstrap.fileLocation();
+		Assert.isPremiseValid(fileLocation != null, "File location must be present for catalog");
+		final RecordKey catalogHeaderRecord = new RecordKey(recordRegistry.idFor(CatalogHeader.class), 1L);
+		return OffsetIndex.readSingleRecord(
+			catalogFilePath,
+			fileLocation,
+			catalogHeaderRecord,
+			(indexBuilder, theInput) -> {
+				// and load the catalog header
+				final FileLocation catalogHeaderLocation = indexBuilder.getFileLocationFor(
+					catalogHeaderRecord
+				).orElseThrow(
+					() -> new GenericEvitaInternalError(
+						"Catalog header not found!",
+						"Catalog header not found in the offset index file `" + catalogFilePath + "`."
+					)
+				);
+				final Kryo kryo = KryoFactory.createKryo(
+					SharedClassesConfigurer.INSTANCE.andThen(CatalogHeaderKryoConfigurer.INSTANCE)
+				);
+				return ofNullable(
+					StorageRecord.read(
+						theInput, catalogHeaderLocation,
+						(input, recordLength) -> kryo.readObject(input, CatalogHeader.class)
+					).payload()
+				)
+					.orElseThrow(() -> new GenericEvitaInternalError(
+							"Catalog header not found!",
+							"Catalog header not found in the offset index file `" + catalogFilePath + "`."
+						)
+					);
+			}
+		);
+	}
+
+	/**
 	 * Loads an offset index descriptor based on the given parameters.
 	 *
 	 * @param catalogFilePath       the file to load offset index descriptor from
@@ -204,13 +257,18 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 		@Nonnull OffsetIndexRecordTypeRegistry recordRegistry,
 		@Nonnull Function<VersionedKryoKeyInputs, VersionedKryo> kryoFactory,
 		@Nonnull Consumer<CatalogHeader> catalogHeaderConsumer,
-		@Nonnull FileOffsetIndexBuilder indexBuilder,
+		@Nonnull OffsetIndexBuilder indexBuilder,
 		@Nonnull ObservableInput<?> theInput,
 		@Nonnull FileLocation fileLocation
 	) {
 		// and load the catalog header
-		final FileLocation catalogHeaderLocation = indexBuilder.getBuiltIndex().get(
+		final FileLocation catalogHeaderLocation = indexBuilder.getFileLocationFor(
 			new RecordKey(recordRegistry.idFor(CatalogHeader.class), 1L)
+		).orElseThrow(
+			() -> new GenericEvitaInternalError(
+				"Catalog header not found!",
+				"Catalog header not found in the offset index file `" + catalogFilePath + "`."
+			)
 		);
 		final Kryo kryo = KryoFactory.createKryo(
 			SharedClassesConfigurer.INSTANCE.andThen(CatalogHeaderKryoConfigurer.INSTANCE)
@@ -226,7 +284,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 			fileLocation,
 			theCatalogHeader.compressedKeys(),
 			kryoFactory,
-			// we don't know here yet - this will be recomputed on first flush
+			// we don't know here yet - this will be recomputed on the first flush
 			theCatalogHeader.activeRecordShare(),
 			catalogFilePath.toFile().length()
 		);
@@ -238,7 +296,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 	 * @param catalogName            The name of the catalog.
 	 * @param catalogFilePath        The file path of the catalog.
 	 * @param storageOptions         The storage options.
-	 * @param lastCatalogBootstrap   The last catalog bootstrap.
+	 * @param catalogBootstrap       The last catalog bootstrap.
 	 * @param recordRegistry         The record type registry for offset index.
 	 * @param observableOutputKeeper The observable output keeper.
 	 * @param kryoFactory            The factory to create Kryo instances.
@@ -250,7 +308,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 		@Nonnull String catalogName,
 		@Nonnull Path catalogFilePath,
 		@Nonnull StorageOptions storageOptions,
-		@Nonnull CatalogBootstrap lastCatalogBootstrap,
+		@Nonnull CatalogBootstrap catalogBootstrap,
 		@Nonnull OffsetIndexRecordTypeRegistry recordRegistry,
 		@Nonnull ObservableOutputKeeper observableOutputKeeper,
 		@Nonnull Function<VersionedKryoKeyInputs, VersionedKryo> kryoFactory,
@@ -258,11 +316,11 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 		@Nullable Consumer<Optional<OffsetDateTime>> historyKeptObserver,
 		@Nonnull Consumer<CatalogHeader> catalogHeaderConsumer
 	) {
-		final FileLocation fileLocation = lastCatalogBootstrap.fileLocation();
+		final FileLocation fileLocation = catalogBootstrap.fileLocation();
 		if (fileLocation == null) {
 			// create new offset index
 			final OffsetIndex newOffsetIndex = new OffsetIndex(
-				lastCatalogBootstrap.catalogVersion(),
+				catalogBootstrap.catalogVersion(),
 				new OffsetIndexDescriptor(
 					0L,
 					null,
@@ -290,7 +348,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 		} else {
 			// load existing offset index
 			return new OffsetIndex(
-				lastCatalogBootstrap.catalogVersion(),
+				catalogBootstrap.catalogVersion(),
 				catalogFilePath,
 				fileLocation,
 				storageOptions,

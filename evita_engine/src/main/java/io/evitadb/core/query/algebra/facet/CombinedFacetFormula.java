@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -47,12 +47,12 @@ import java.util.Arrays;
 public class CombinedFacetFormula extends AbstractFormula implements NonCacheableFormula {
 	private static final long CLASS_ID = 523840934350100709L;
 
-	public CombinedFacetFormula(Formula andFormula, Formula orFormula) {
-		super(andFormula, orFormula);
+	public CombinedFacetFormula(@Nonnull Formula andFormula, @Nonnull Formula orFormula) {
+		this.initFields(andFormula, orFormula);
 	}
 
-	private CombinedFacetFormula(Formula... innerFormulas) {
-		super(innerFormulas);
+	private CombinedFacetFormula(@Nonnull Formula... innerFormulas) {
+		this.initFields(innerFormulas);
 	}
 
 	@Nonnull
@@ -76,7 +76,7 @@ public class CombinedFacetFormula extends AbstractFormula implements NonCacheabl
 
 	@Override
 	public int getEstimatedCardinality() {
-		return Arrays.stream(this.innerFormulas).mapToInt(Formula::getEstimatedCardinality).sum();
+		return Arrays.stream(this.innerFormulas).mapToInt(formula -> formula.getEstimatedCardinality()).sum();
 	}
 
 	@Nonnull
@@ -85,7 +85,7 @@ public class CombinedFacetFormula extends AbstractFormula implements NonCacheabl
 		return new BaseBitmap(
 			RoaringBitmap.or(
 				Arrays.stream(getInnerFormulas())
-					.map(Formula::compute)
+					.map(formula -> formula.compute())
 					.map(RoaringBitmapBackedBitmap::getRoaringBitmap)
 					.toArray(RoaringBitmap[]::new)
 			)

@@ -38,8 +38,11 @@ import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.exception.CatalogAlreadyPresentException;
 import io.evitadb.api.exception.CatalogNotFoundException;
+import io.evitadb.api.exception.FileForFetchNotFoundException;
 import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.exception.ReadOnlyException;
+import io.evitadb.api.exception.TemporalDataNotAvailableException;
+import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.observability.trace.TracingContext;
 import io.evitadb.api.observability.trace.TracingContextProvider;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
@@ -53,19 +56,26 @@ import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchem
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaNameMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.RemoveCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.system.SystemStatus;
+import io.evitadb.api.task.ServerTask;
+import io.evitadb.api.task.Task;
+import io.evitadb.api.task.TaskStatus;
+import io.evitadb.core.async.ClientRunnableTask;
+import io.evitadb.core.async.ObservableExecutorService;
+import io.evitadb.core.async.ObservableThreadExecutor;
+import io.evitadb.core.async.Scheduler;
+import io.evitadb.core.async.SequentialTask;
+import io.evitadb.core.async.SessionKiller;
 import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.cache.HeapMemoryCacheSupervisor;
 import io.evitadb.core.cache.NoCacheSupervisor;
 import io.evitadb.core.exception.CatalogCorruptedException;
-import io.evitadb.core.maintenance.SessionKiller;
+import io.evitadb.core.file.ExportFileService;
 import io.evitadb.core.metric.event.storage.EvitaDBCompositionChangedEvent;
 import io.evitadb.core.metric.event.system.EvitaStartedEvent;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.scheduling.BackgroundTask;
+import io.evitadb.dataType.PaginatedList;
 import io.evitadb.exception.EvitaInvalidUsageException;
-import io.evitadb.scheduling.RejectingExecutor;
-import io.evitadb.scheduling.Scheduler;
-import io.evitadb.thread.TimeoutableThread;
+import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
@@ -75,14 +85,14 @@ import io.evitadb.utils.ReflectionLookup;
 import io.evitadb.utils.StringUtils;
 import io.evitadb.utils.VersionUtils;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.jboss.threads.EnhancedQueueExecutor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Closeable;
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.OffsetDateTime;
@@ -90,12 +100,9 @@ import java.util.*;
 import java.util.Map.Entry;
 import java.util.ServiceLoader.Provider;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -132,7 +139,7 @@ public final class Evita implements EvitaContract {
 	/**
 	 * Keeps information about currently active sessions.
 	 */
-	private final Map<String, SessionRegistry> activeSessions = new ConcurrentHashMap<>();
+	private final Map<String, SessionRegistry> activeSessions = CollectionUtils.createConcurrentHashMap(512);
 	/**
 	 * Formula supervisor is an entry point to the Evita cache. The idea is that each {@link Formula} can be identified by
 	 * its {@link Formula#getHash()} method and when the supervisor identifies that certain formula
@@ -161,19 +168,24 @@ public final class Evita implements EvitaContract {
 	 */
 	private final List<CatalogStructuralChangeObserver> structuralChangeObservers;
 	/**
-	 * Java based scheduled executor service.
+	 * Executor service that handles all requests to the Evita instance.
 	 */
 	@Getter
-	private final EnhancedQueueExecutor executor;
+	private final ObservableExecutorService requestExecutor;
 	/**
-	 * Scheduler service for executing asynchronous tasks.
+	 * Executor service that handles transaction handling, once transaction gets committed.
 	 */
-	private final Scheduler scheduler;
+	@Getter
+	private final ObservableExecutorService transactionExecutor;
 	/**
-	 * Kills threads that are marked as timeoutable and their time is up.
+	 * Scheduler service for executing asynchronous service tasks.
 	 */
-	@SuppressWarnings({"FieldCanBeLocal", "unused"})
-	private final TimeoutThreadKiller timeoutThreadKiller;
+	@Getter
+	private final Scheduler serviceExecutor;
+	/**
+	 * File service that maintains exported files and purges them eventually.
+	 */
+	private final ExportFileService exportFileService;
 	/**
 	 * Temporary storage that keeps catalog being removed reference so that onDelete callback can still access it.
 	 */
@@ -197,35 +209,48 @@ public final class Evita implements EvitaContract {
 	 */
 	@Getter private boolean readOnly;
 
+	/**
+	 * Shuts down passed executor service in a safe manner.
+	 *
+	 * @param name            name of the executor service
+	 * @param executorService executor service to be shut down
+	 * @param waitSeconds     number of seconds to wait for the executor service to shut down
+	 */
+	private static void shutdownScheduler(@Nonnull String name, @Nonnull ExecutorService executorService, int waitSeconds) {
+		executorService.shutdown();
+		try {
+			if (!executorService.awaitTermination(waitSeconds, TimeUnit.SECONDS)) {
+				log.warn("EvitaDB executor `" + name + "` did not terminate in time, forcing shutdown.");
+				executorService.shutdownNow();
+			}
+		} catch (InterruptedException ex) {
+			log.warn("EvitaDB executor `" + name + "` did not terminate in time (interrupted), forcing shutdown.");
+			executorService.shutdownNow();
+		}
+	}
+
 	public Evita(@Nonnull EvitaConfiguration configuration) {
 		this.configuration = configuration;
-		this.executor = new EnhancedQueueExecutor.Builder()
-			.setCorePoolSize(configuration.server().coreThreadCount())
-			.setMaximumPoolSize(configuration.server().maxThreadCount())
-			.setExceptionHandler((t, e) -> log.error("Uncaught error in thread `" + t.getName() + "`: " + e.getMessage(), e))
-			.setHandoffExecutor(RejectingExecutor.INSTANCE)
-			.setThreadFactory(new EvitaThreadFactory(configuration.server().threadPriority()))
-			.setMaximumQueueSize(configuration.server().queueSize())
-			.setRegisterMBean(false)
-			.build();
-		this.executor.prestartAllCoreThreads();
-		if (configuration.server().killTimedOutShortRunningThreadsEverySeconds() > 0 &&
-			configuration.server().shortRunningThreadsTimeoutInSeconds() > 0) {
-			this.timeoutThreadKiller = new TimeoutThreadKiller(
-				configuration.server().shortRunningThreadsTimeoutInSeconds(),
-				configuration.server().killTimedOutShortRunningThreadsEverySeconds(),
-				this.executor
-			);
-		} else {
-			this.timeoutThreadKiller = null;
-		}
-		this.scheduler = new Scheduler(this.executor);
+		this.serviceExecutor = new Scheduler(
+			configuration.server().serviceThreadPool()
+		);
+		this.requestExecutor = new ObservableThreadExecutor(
+			"request", configuration.server().requestThreadPool(),
+			this.serviceExecutor,
+			configuration.server().queryTimeoutInMilliseconds()
+		);
+		this.transactionExecutor = new ObservableThreadExecutor(
+			"transaction", configuration.server().transactionThreadPool(),
+			this.serviceExecutor, configuration.server().transactionTimeoutInMilliseconds()
+		);
+
+		this.exportFileService = new ExportFileService(configuration.storage());
 		this.sessionKiller = of(configuration.server().closeSessionsAfterSecondsOfInactivity())
 			.filter(it -> it > 0)
-			.map(it -> new SessionKiller(it, this, this.scheduler))
+			.map(it -> new SessionKiller(it, this, this.serviceExecutor))
 			.orElse(null);
 		this.cacheSupervisor = configuration.cache().enabled() ?
-			new HeapMemoryCacheSupervisor(configuration.cache(), this.scheduler) : NoCacheSupervisor.INSTANCE;
+			new HeapMemoryCacheSupervisor(configuration.cache(), this.serviceExecutor) : NoCacheSupervisor.INSTANCE;
 		this.reflectionLookup = new ReflectionLookup(configuration.cache().reflection());
 		this.structuralChangeObservers = ServiceLoader.load(CatalogStructuralChangeObserver.class)
 			.stream()
@@ -239,52 +264,19 @@ public final class Evita implements EvitaContract {
 		this.tracingContext = TracingContextProvider.getContext();
 		final Path[] directories = FileUtils.listDirectories(configuration.storage().storageDirectoryOrDefault());
 		this.catalogs = CollectionUtils.createConcurrentHashMap(directories.length);
-		final CountDownLatch startUpLatch = new CountDownLatch(directories.length);
-		for (Path directory : directories) {
-			final String catalogName = directory.toFile().getName();
-			this.executor.execute(
-				new BackgroundTask(
-					catalogName, "Catalog loader",
-					() -> {
-						try {
-							final long start = System.nanoTime();
-							final CatalogContract catalog = new Catalog(
-								catalogName,
-								directory,
-								this.cacheSupervisor,
-								this.configuration.storage(),
-								this.configuration.transaction(),
-								this.reflectionLookup,
-								this.scheduler,
-								this::replaceCatalogReference,
-								this.tracingContext
-							);
-							log.info("Catalog {} fully loaded in: {}", catalogName, StringUtils.formatNano(System.nanoTime() - start));
-							// this will be one day used in more clever way, when entire catalog loading will be split into
-							// multiple smaller tasks and done asynchronously after the startup (along with catalog loading / unloading feature)
-							catalog.processWriteAheadLog(
-								updatedCatalog -> this.catalogs.put(catalogName, updatedCatalog)
-							);
-						} catch (Throwable ex) {
-							log.error("Catalog {} is corrupted!", catalogName, ex);
-							this.catalogs.put(catalogName, new CorruptedCatalog(catalogName, directory, ex));
-						} finally {
-							startUpLatch.countDown();
-						}
-					}
-				)
-			);
-		}
 
 		try {
-			startUpLatch.await();
+			CompletableFuture.allOf(
+				Arrays.stream(directories)
+					.map(dir -> createLoadCatalogTask(dir.toFile().getName()))
+					.map(this.serviceExecutor::submit)
+					.toArray(CompletableFuture[]::new)
+			).get();
 			this.active = true;
-		} catch (InterruptedException ex) {
+		} catch (Exception ex) {
+			log.error("EvitaDB failed to start!", ex);
 			// terminate evitaDB - it has not properly started
-			this.executor.shutdown();
-			for (CatalogContract catalog : this.catalogs.values()) {
-				catalog.terminate();
-			}
+			this.closeInternal();
 		}
 
 		this.readOnly = this.configuration.server().readOnly();
@@ -461,6 +453,19 @@ public final class Evita implements EvitaContract {
 	}
 
 	@Override
+	public <T> CompletableFuture<T> queryCatalogAsync(@Nonnull String catalogName, @Nonnull Function<EvitaSessionContract, T> queryLogic, @Nullable SessionFlags... flags) {
+		return CompletableFuture.supplyAsync(
+			() -> {
+				assertActive();
+				try (final EvitaSessionContract session = this.createSession(new SessionTraits(catalogName, flags))) {
+					return queryLogic.apply(session);
+				}
+			},
+			this.requestExecutor
+		);
+	}
+
+	@Override
 	public <T> CompletableFuture<T> updateCatalogAsync(
 		@Nonnull String catalogName,
 		@Nonnull Function<EvitaSessionContract, T> updater,
@@ -536,6 +541,116 @@ public final class Evita implements EvitaContract {
 
 	@Nonnull
 	@Override
+	public CompletableFuture<FileForFetch> backupCatalog(
+		@Nonnull String catalogName,
+		@Nullable OffsetDateTime pastMoment,
+		boolean includingWAL
+	) throws TemporalDataNotAvailableException {
+		assertActive();
+		try (final EvitaSessionContract session = this.createSession(new SessionTraits(catalogName))) {
+			return session.backupCatalog(pastMoment, includingWAL).getFutureResult();
+		}
+	}
+
+	@Nonnull
+	@Override
+	public Task<?, Void> restoreCatalog(
+		@Nonnull String catalogName,
+		long totalBytesExpected,
+		@Nonnull InputStream inputStream
+	) throws UnexpectedIOException {
+		assertActive();
+		final SequentialTask<Void> task = new SequentialTask<>(
+			catalogName,
+			"Restore catalog " + catalogName + " from backup.",
+			Catalog.createRestoreCatalogTask(
+				catalogName, this.configuration.storage(), totalBytesExpected, inputStream
+			),
+			createLoadCatalogTask(catalogName)
+		);
+		this.serviceExecutor.submit(task);
+		return task;
+	}
+
+	@Nonnull
+	@Override
+	public Task<?, Void> restoreCatalog(@Nonnull String catalogName, @Nonnull UUID fileId) throws FileForFetchNotFoundException {
+		assertActive();
+		final FileForFetch file = this.exportFileService.getFile(fileId)
+			.orElseThrow(() -> new FileForFetchNotFoundException(fileId));
+		try {
+			final SequentialTask<Void> task = new SequentialTask<>(
+				catalogName,
+				"Restore catalog " + catalogName + " from backup.",
+				Catalog.createRestoreCatalogTask(
+					catalogName, this.configuration.storage(),
+					file.totalSizeInBytes(),
+					this.exportFileService.createInputStream(file)
+				),
+				createLoadCatalogTask(catalogName)
+			);
+			this.serviceExecutor.submit(task);
+			return task;
+		} catch (IOException e) {
+			throw new FileForFetchNotFoundException(fileId);
+		}
+	}
+
+	@Nonnull
+	@Override
+	public PaginatedList<TaskStatus<?, ?>> listTaskStatuses(int page, int pageSize) {
+		assertActive();
+		return this.serviceExecutor.listJobStatuses(page, pageSize);
+	}
+
+	@Nonnull
+	@Override
+	public Optional<TaskStatus<?, ?>> getTaskStatus(@Nonnull UUID jobId) {
+		assertActive();
+		return this.serviceExecutor.getJobStatus(jobId);
+	}
+
+	@Nonnull
+	@Override
+	public Collection<TaskStatus<?, ?>> getTaskStatuses(@Nonnull UUID... jobId) {
+		assertActive();
+		return this.serviceExecutor.getJobStatuses(jobId);
+	}
+
+	@Override
+	public boolean cancelTask(@Nonnull UUID jobId) {
+		assertActive();
+		return this.serviceExecutor.cancelJob(jobId);
+	}
+
+	@Nonnull
+	@Override
+	public PaginatedList<FileForFetch> listFilesToFetch(int page, int pageSize, @Nullable String origin) {
+		assertActive();
+		return this.exportFileService.listFilesToFetch(page, pageSize, origin);
+	}
+
+	@Nonnull
+	@Override
+	public Optional<FileForFetch> getFileToFetch(@Nonnull UUID fileId) {
+		return this.exportFileService.getFile(fileId);
+	}
+
+	@Nonnull
+	@Override
+	public InputStream fetchFile(@Nonnull UUID fileId) throws FileForFetchNotFoundException, UnexpectedIOException {
+		assertActive();
+		return this.exportFileService.fetchFile(fileId);
+	}
+
+	@Override
+	public void deleteFile(@Nonnull UUID fileId) throws FileForFetchNotFoundException {
+		assertActive();
+		this.exportFileService.deleteFile(fileId);
+	}
+
+	@Nonnull
+	@Override
 	public SystemStatus getSystemStatus() {
 		final int corruptedCatalogs = (int) this.catalogs.values()
 			.stream()
@@ -568,33 +683,9 @@ public final class Evita implements EvitaContract {
 	 */
 	@Override
 	public void close() {
-		if (active) {
-			active = false;
-			final Iterator<SessionRegistry> sessionRegistryIt = activeSessions.values().iterator();
-			while (sessionRegistryIt.hasNext()) {
-				final SessionRegistry sessionRegistry = sessionRegistryIt.next();
-				sessionRegistry.closeAllActiveSessions();
-				sessionRegistryIt.remove();
-			}
-
-			this.executor.shutdown();
-			try {
-				if (!this.executor.awaitTermination(configuration.server().shortRunningThreadsTimeoutInSeconds(), TimeUnit.SECONDS)) {
-					log.warn("EvitaDB executor did not terminate in time, forcing shutdown.");
-					this.executor.shutdownNow();
-				}
-			} catch (InterruptedException ex) {
-				log.warn("EvitaDB executor did not terminate in time (interrupted), forcing shutdown.");
-				this.executor.shutdownNow();
-			}
-
-			final Iterator<CatalogContract> it = catalogs.values().iterator();
-			while (it.hasNext()) {
-				final CatalogContract catalog = it.next();
-				catalog.terminate();
-				it.remove();
-				log.info("Catalog {} successfully terminated.", catalog.getName());
-			}
+		if (this.active) {
+			this.active = false;
+			closeInternal();
 		}
 	}
 
@@ -609,6 +700,10 @@ public final class Evita implements EvitaContract {
 			.or(() -> Optional.ofNullable(removedCatalog.get()));
 	}
 
+	/*
+		PRIVATE METHODS
+	*/
+
 	/**
 	 * Returns catalog instance for passed catalog name or throws exception.
 	 *
@@ -620,9 +715,51 @@ public final class Evita implements EvitaContract {
 			.orElseThrow(() -> new IllegalArgumentException("Catalog " + catalog + " is not known to Evita!"));
 	}
 
-	/*
-		PRIVATE METHODS
+	/**
+	 * Loads catalog from the designated directory. If the catalog is corrupted, it will be marked as such, but it'll
+	 * still be added to the list of catalogs.
+	 *
+	 * @param catalogName name of the catalog
 	 */
+	@Nonnull
+	private ServerTask<Void, Void> createLoadCatalogTask(@Nonnull String catalogName) {
+		return new ClientRunnableTask<>(
+			catalogName,
+			"Loading catalog " + catalogName + " from disk...",
+			null,
+			() -> {
+				final long start = System.nanoTime();
+				final Catalog theCatalog = new Catalog(
+					catalogName,
+					this.cacheSupervisor,
+					this.configuration,
+					this.reflectionLookup,
+					this.serviceExecutor,
+					this.exportFileService,
+					this.transactionExecutor,
+					this::replaceCatalogReference,
+					this.tracingContext
+				);
+				log.info("Catalog {} fully loaded in: {}", catalogName, StringUtils.formatNano(System.nanoTime() - start));
+				// this will be one day used in more clever way, when entire catalog loading will be split into
+				// multiple smaller tasks and done asynchronously after the startup (along with catalog loading / unloading feature)
+				theCatalog.processWriteAheadLog(
+					updatedCatalog -> this.catalogs.put(catalogName, updatedCatalog)
+				);
+			},
+			exception -> {
+				log.error("Catalog {} is corrupted!", catalogName, exception);
+				this.catalogs.put(
+					catalogName,
+					new CorruptedCatalog(
+						catalogName,
+						configuration.storage().storageDirectoryOrDefault().resolve(catalogName),
+						exception
+					)
+				);
+			}
+		);
+	}
 
 	/**
 	 * Creates new catalog in the evitaDB.
@@ -665,13 +802,14 @@ public final class Evita implements EvitaContract {
 
 					return new Catalog(
 						catalogSchema,
-						cacheSupervisor,
-						configuration.storage(),
-						configuration.transaction(),
-						reflectionLookup,
-						scheduler,
+						this.cacheSupervisor,
+						this.configuration,
+						this.reflectionLookup,
+						this.serviceExecutor,
+						this.exportFileService,
+						this.transactionExecutor,
 						this::replaceCatalogReference,
-						tracingContext
+						this.tracingContext
 					);
 				} else {
 					throw new CatalogAlreadyPresentException(catalogName, existingCatalog.getName());
@@ -801,6 +939,18 @@ public final class Evita implements EvitaContract {
 
 		// notify callback that it's now a live snapshot
 		catalog.notifyCatalogPresentInLiveView();
+	}
+
+	/**
+	 * Closes all active sessions regardless of target catalog.
+	 */
+	private void closeAllSessions() {
+		final Iterator<SessionRegistry> sessionRegistryIt = this.activeSessions.values().iterator();
+		while (sessionRegistryIt.hasNext()) {
+			final SessionRegistry sessionRegistry = sessionRegistryIt.next();
+			sessionRegistry.closeAllActiveSessions();
+			sessionRegistryIt.remove();
+		}
 	}
 
 	/**
@@ -938,6 +1088,29 @@ public final class Evita implements EvitaContract {
 	}
 
 	/**
+	 * Attempts to close all resources of evitaDB.
+	 */
+	private void closeInternal() {
+		CompletableFuture.allOf(
+			CompletableFuture.runAsync(this::closeAllSessions),
+			CompletableFuture.runAsync(() -> shutdownScheduler("request", this.requestExecutor, 60)),
+			CompletableFuture.runAsync(() -> shutdownScheduler("transaction", this.transactionExecutor, 60)),
+			CompletableFuture.runAsync(() -> shutdownScheduler("service", this.serviceExecutor, 60))
+		).join();
+
+		// terminate all catalogs finally (if we did this prematurely, many exceptions would occur)
+		CompletableFuture.allOf(
+			this.catalogs.values()
+				.stream()
+				.map(catalog -> CompletableFuture.runAsync(catalog::terminate))
+				.toArray(CompletableFuture[]::new)
+		).join();
+
+		// clear map
+		this.catalogs.clear();
+	}
+
+	/**
 	 * This descriptor allows to recognize collection and schema modifications in non-transactional mode where the
 	 * contents of the original catalog are directly modified.
 	 */
@@ -960,7 +1133,10 @@ public final class Evita implements EvitaContract {
 		 */
 		private final Map<String, Integer> entityCollectionSchemaVersions;
 
-		NonTransactionalCatalogDescriptor(@Nonnull CatalogContract catalog, @Nonnull Collection<CatalogStructuralChangeObserver> structuralChangeObservers) {
+		NonTransactionalCatalogDescriptor(
+			@Nonnull CatalogContract catalog,
+			@Nonnull Collection<CatalogStructuralChangeObserver> structuralChangeObservers
+		) {
 			this.theCatalog = catalog;
 			this.structuralChangeObservers = structuralChangeObservers;
 			this.catalogSchemaVersion = catalog.getSchema().version();
@@ -1048,94 +1224,6 @@ public final class Evita implements EvitaContract {
 		@Nonnull NamingConvention convention,
 		@Nonnull String conflictingName
 	) {
-	}
-
-	/**
-	 * Custom thread factory to manage thread priority and naming.
-	 */
-	private static class EvitaThreadFactory implements ThreadFactory {
-		/**
-		 * Counter monitoring the number of threads this factory created.
-		 */
-		private static final AtomicInteger THREAD_COUNTER = new AtomicInteger();
-		/**
-		 * Home group for the new threads.
-		 */
-		private final ThreadGroup group;
-		/**
-		 * Priority for threads that are created by this factory.
-		 * Initialized from {@link ServerOptions#threadPriority()}.
-		 */
-		private final int priority;
-
-		public EvitaThreadFactory(int priority) {
-			this.group = Thread.currentThread().getThreadGroup();
-			this.priority = priority;
-		}
-
-		@Override
-		public Thread newThread(@Nonnull Runnable runnable) {
-			final Thread thread = new TimeoutableThread(group, runnable, "Evita-" + THREAD_COUNTER.incrementAndGet());
-			if (priority > 0 && thread.getPriority() != priority) {
-				thread.setPriority(priority);
-			}
-			return thread;
-		}
-	}
-
-	/**
-	 * Tries to kill short-running threads that run longer than specified timeout.
-	 */
-	@RequiredArgsConstructor
-	private static class TimeoutThreadKiller implements Runnable {
-
-		@Nonnull private final EnhancedQueueExecutor executor;
-		private final long timeoutInSeconds;
-
-		public TimeoutThreadKiller(
-			int timeoutInSeconds,
-			int checkRateInSeconds,
-			@Nonnull EnhancedQueueExecutor executor
-		) {
-			this.timeoutInSeconds = timeoutInSeconds;
-			this.executor = executor;
-			this.executor.scheduleAtFixedRate(this, Math.min(60, checkRateInSeconds), Math.min(60, checkRateInSeconds), TimeUnit.SECONDS);
-		}
-
-		@Override
-		public void run() {
-			for (Thread runningThread : this.executor.getRunningThreads()) {
-				final TimeoutableThread timeoutableThread = (TimeoutableThread) runningThread;
-
-				if (timeoutableThread.isTimedOut(timeoutInSeconds * 1_000_000_000L)) {
-					printThreadStackTraces(timeoutableThread);
-					timeoutableThread.interrupt();
-				}
-			}
-		}
-
-		private void printThreadStackTraces(@Nonnull TimeoutableThread thread) {
-			if (log.isErrorEnabled()) {
-				final Map<Thread, StackTraceElement[]> allStackTraces = Thread.getAllStackTraces();
-
-				final String threadStackTraces = allStackTraces.entrySet()
-					.stream()
-					.filter(it -> it.getKey().getName().equals(thread.getName()))
-					.map(Entry::getValue)
-					.map(stackTrace -> {
-						final StringBuilder printableStackTrace = new StringBuilder(1024);
-						for (StackTraceElement stackTraceElement : stackTrace) {
-							printableStackTrace
-								.append(stackTraceElement.toString())
-								.append(System.lineSeparator());
-						}
-						return printableStackTrace.toString();
-					})
-					.collect(Collectors.joining("\n\n"));
-
-				log.error("Thread `" + thread.getName() + "` is running for more than `" + timeoutInSeconds + "` seconds and is about to be killed. Stack traces of the thread are: \n\n" + threadStackTraces);
-			}
-		}
 	}
 
 	/**

@@ -144,7 +144,7 @@ public class ObservabilityManager {
 			} catch (ClassNotFoundException | NoSuchMethodException | IllegalAccessException |
 			         InvocationTargetException e) {
 				// do nothing, the errors won't be monitored
-				log.error("ErrorMonitor class not found, the Java & evitaDB errors won't be present in metrics.");
+				log.warn("ErrorMonitor class not found, the Java & evitaDB errors won't be present in metrics.");
 			}
 		} while (classLoader.getParent() != null);
 	}

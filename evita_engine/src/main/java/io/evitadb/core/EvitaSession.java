@@ -32,15 +32,8 @@ import io.evitadb.api.SchemaPostProcessor;
 import io.evitadb.api.SchemaPostProcessorCapturingResult;
 import io.evitadb.api.SessionTraits;
 import io.evitadb.api.TransactionContract.CommitBehavior;
-import io.evitadb.api.exception.CollectionNotFoundException;
-import io.evitadb.api.exception.EntityClassInvalidException;
-import io.evitadb.api.exception.InstanceTerminatedException;
-import io.evitadb.api.exception.SchemaAlteringException;
-import io.evitadb.api.exception.TransactionException;
-import io.evitadb.api.exception.TransactionNotSupportedException;
-import io.evitadb.api.exception.UnexpectedResultCountException;
-import io.evitadb.api.exception.UnexpectedResultException;
-import io.evitadb.api.exception.UnexpectedTransactionStateException;
+import io.evitadb.api.exception.*;
+import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.observability.trace.RepresentsMutation;
 import io.evitadb.api.observability.trace.RepresentsQuery;
 import io.evitadb.api.observability.trace.Traced;
@@ -76,6 +69,8 @@ import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
+import io.evitadb.api.task.Task;
+import io.evitadb.core.async.Interruptible;
 import io.evitadb.core.exception.CatalogCorruptedException;
 import io.evitadb.core.metric.event.query.EntityEnrichEvent;
 import io.evitadb.core.metric.event.query.EntityFetchEvent;
@@ -295,6 +290,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		return getCatalog().getCatalogId();
 	}
 
+	@Interruptible
 	@Traced
 	@Nonnull
 	@Override
@@ -389,6 +385,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		return this.closedFuture;
 	}
 
+	@Interruptible
 	@Traced
 	@Nonnull
 	@Override
@@ -405,6 +402,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		);
 	}
 
+	@Interruptible
 	@Traced
 	@Nonnull
 	@Override
@@ -418,6 +416,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		});
 	}
 
+	@Interruptible
 	@Traced
 	@Nonnull
 	@Override
@@ -434,6 +433,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		});
 	}
 
+	@Interruptible
 	@Traced
 	@Override
 	@Nonnull
@@ -443,6 +443,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		return collection.map(EntityCollectionContract::getSchema);
 	}
 
+	@Interruptible
 	@Traced
 	@Nonnull
 	@Override
@@ -453,6 +454,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		);
 	}
 
+	@Interruptible
 	@Traced
 	@Nonnull
 	@Override
@@ -461,6 +463,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		return getCatalog().getCollectionForEntityOrThrowException(entityType).getSchema();
 	}
 
+	@Interruptible
 	@Traced
 	@Nonnull
 	@Override
@@ -471,6 +474,8 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		);
 	}
 
+	@Interruptible
+	@Traced
 	@Override
 	@Nonnull
 	public Set<String> getAllEntityTypes() {
@@ -492,6 +497,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		);
 	}
 
+	@Interruptible
 	@RepresentsQuery
 	@Nonnull
 	@Override
@@ -500,6 +506,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		return query(query, expectedType).getRecordData();
 	}
 
+	@Interruptible
 	@RepresentsQuery
 	@Nonnull
 	@Override
@@ -515,6 +522,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		return query(request);
 	}
 
+	@Interruptible
 	@Traced
 	@RepresentsQuery
 	@Nonnull
@@ -558,6 +566,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		return resultEntity;
 	}
 
+	@Interruptible
 	@Traced
 	@RepresentsQuery
 	@Nonnull
@@ -609,6 +618,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		return resultEntity;
 	}
 
+	@Interruptible
 	@Traced
 	@RepresentsQuery
 	@Nonnull
@@ -666,6 +676,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		}
 	}
 
+	@Interruptible
 	@Traced
 	@RepresentsQuery
 	@Nonnull
@@ -729,6 +740,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		}
 	}
 
+	@Interruptible
 	@Traced
 	@Override
 	public int updateCatalogSchema(@Nonnull LocalCatalogSchemaMutation... schemaMutation) throws SchemaAlteringException {
@@ -749,6 +761,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		});
 	}
 
+	@Interruptible
 	@Traced
 	@Nonnull
 	@Override
@@ -763,12 +776,14 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		});
 	}
 
+	@Interruptible
 	@Traced
 	@Override
 	public int updateEntitySchema(@Nonnull ModifyEntitySchemaMutation schemaMutation) throws SchemaAlteringException {
 		return updateAndFetchEntitySchema(schemaMutation).version();
 	}
 
+	@Interruptible
 	@Traced
 	@Nonnull
 	@Override
@@ -780,6 +795,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		});
 	}
 
+	@Interruptible
 	@Traced
 	@Override
 	public boolean deleteCollection(@Nonnull String entityType) {
@@ -787,6 +803,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		return executeInTransactionIfPossible(session -> getCatalog().deleteCollectionOfEntity(entityType, session));
 	}
 
+	@Interruptible
 	@Traced
 	@Override
 	public boolean deleteCollection(@Nonnull Class<?> modelClass) throws EntityClassInvalidException {
@@ -796,6 +813,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		);
 	}
 
+	@Interruptible
 	@Traced
 	@Override
 	public boolean renameCollection(@Nonnull String entityType, @Nonnull String newName) {
@@ -803,6 +821,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		return executeInTransactionIfPossible(session -> getCatalog().renameCollectionOfEntity(entityType, newName, session));
 	}
 
+	@Interruptible
 	@Traced
 	@Override
 	public boolean replaceCollection(@Nonnull String entityTypeToBeReplaced, @Nonnull String entityTypeToBeReplacedWith) {
@@ -810,6 +829,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		return executeInTransactionIfPossible(session -> getCatalog().replaceCollectionOfEntity(entityTypeToBeReplaced, entityTypeToBeReplacedWith, session));
 	}
 
+	@Interruptible
 	@Traced
 	@RepresentsQuery
 	@Override
@@ -865,6 +885,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		);
 	}
 
+	@Interruptible
 	@Traced
 	@RepresentsMutation
 	@Nonnull
@@ -901,6 +922,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		}
 	}
 
+	@Interruptible
 	@Traced
 	@RepresentsMutation
 	@Nonnull
@@ -961,6 +983,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		}
 	}
 
+	@Interruptible
 	@Traced
 	@RepresentsMutation
 	@Nonnull
@@ -973,6 +996,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		});
 	}
 
+	@Interruptible
 	@Traced
 	@RepresentsMutation
 	@RepresentsQuery
@@ -987,6 +1011,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 			);
 	}
 
+	@Interruptible
 	@Traced
 	@RepresentsMutation
 	@RepresentsQuery
@@ -1018,6 +1043,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		});
 	}
 
+	@Interruptible
 	@Traced
 	@RepresentsMutation
 	@Override
@@ -1029,6 +1055,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		});
 	}
 
+	@Interruptible
 	@Traced
 	@RepresentsMutation
 	@Override
@@ -1040,6 +1067,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		);
 	}
 
+	@Interruptible
 	@Traced
 	@RepresentsMutation
 	@RepresentsQuery
@@ -1049,6 +1077,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		return deleteEntityInternal(entityType, SealedEntity.class, primaryKey, require);
 	}
 
+	@Interruptible
 	@Traced
 	@RepresentsMutation
 	@RepresentsQuery
@@ -1062,6 +1091,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		);
 	}
 
+	@Interruptible
 	@Traced
 	@RepresentsMutation
 	@Override
@@ -1077,6 +1107,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		});
 	}
 
+	@Interruptible
 	@Traced
 	@RepresentsMutation
 	@RepresentsQuery
@@ -1086,6 +1117,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		return deleteEntityAndItsHierarchyInternal(entityType, SealedEntity.class, primaryKey, require);
 	}
 
+	@Interruptible
 	@Traced
 	@RepresentsMutation
 	@RepresentsQuery
@@ -1099,6 +1131,9 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		);
 	}
 
+	@Interruptible
+	@Traced
+	@RepresentsMutation
 	@Override
 	public int deleteEntities(@Nonnull Query query) {
 		assertActive();
@@ -1116,6 +1151,10 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		});
 	}
 
+	@Interruptible
+	@Traced
+	@RepresentsMutation
+	@RepresentsQuery
 	@Nonnull
 	@Override
 	public SealedEntity[] deleteSealedEntitiesAndReturnBodies(@Nonnull Query query) {
@@ -1132,6 +1171,14 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 				.getOrCreateCollectionForEntity(request.getEntityTypeOrThrowException("entities to be deleted"), session);
 			return collection.deleteEntitiesAndReturnThem(request, session);
 		});
+	}
+
+	@Interruptible
+	@Traced
+	@Nonnull
+	@Override
+	public Task<?, FileForFetch> backupCatalog(@Nullable OffsetDateTime pastMoment, boolean includingWAL) throws TemporalDataNotAvailableException {
+		return getCatalog().backup(pastMoment, includingWAL);
 	}
 
 	@Nonnull
@@ -1180,6 +1227,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		return (System.currentTimeMillis() - lastCall) / 1000;
 	}
 
+	@Interruptible
 	@RepresentsQuery
 	@Nonnull
 	@Override
@@ -1207,6 +1255,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		}
 	}
 
+	@Interruptible
 	@RepresentsQuery
 	@Nonnull
 	@Override
@@ -1215,6 +1264,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		return (List<S>) query(evitaRequest).getRecordData();
 	}
 
+	@Interruptible
 	@RepresentsQuery
 	@Nonnull
 	@Override
@@ -1265,12 +1315,14 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 			.filter(it -> !it.isClosed());
 	}
 
+	@Interruptible
 	@Traced
 	@Override
 	public <T> T execute(@Nonnull Function<EvitaSessionContract, T> logic) {
 		return executeInTransactionIfPossible(logic);
 	}
 
+	@Interruptible
 	@Traced
 	@Override
 	public void execute(@Nonnull Consumer<EvitaSessionContract> logic) {

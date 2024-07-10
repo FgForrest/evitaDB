@@ -45,9 +45,9 @@ public class ConstantFormula extends AbstractFormula {
 	@Getter private final Bitmap delegate;
 
 	public ConstantFormula(@Nonnull Bitmap delegate) {
-		super();
 		Assert.isTrue(!delegate.isEmpty(), "For empty bitmaps use EmptyFormula.INSTANCE!");
 		this.delegate = delegate;
+		this.initFields();
 	}
 
 	@Nonnull

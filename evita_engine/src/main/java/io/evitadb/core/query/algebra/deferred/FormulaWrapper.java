@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,82 +23,90 @@
 
 package io.evitadb.core.query.algebra.deferred;
 
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.index.bitmap.Bitmap;
-import lombok.RequiredArgsConstructor;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
-import java.util.function.Function;
+import java.util.function.BiFunction;
 
 /**
- * This bitmap supplier just delegates the call to the formula but when the computation (result memoization) occurs,
+ * This bitmap supplier just delegates the call to the this.formula but when the computation (result memoization) occurs,
  * it executes the computation within {@link #firstInvocation} lambda. The wrapper is mentioned to be used for
- * generating a query telemetry around the formula result computation.
+ * generating a query telemetry around the this.formula result computation.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-@RequiredArgsConstructor
 public class FormulaWrapper implements BitmapSupplier {
 	private final Formula formula;
-	private final Function<Formula, Bitmap> firstInvocation;
+	private final BiFunction<QueryExecutionContext, Formula, Bitmap> firstInvocation;
+	private QueryExecutionContext executionContext;
 	private Bitmap computed;
 
+	public FormulaWrapper(@Nonnull Formula formula, @Nonnull BiFunction<QueryExecutionContext, Formula, Bitmap> firstInvocation) {
+		this.formula = formula;
+		this.firstInvocation = firstInvocation;
+	}
+
 	@Override
-	public void initialize(@Nonnull CalculationContext calculationContext) {
-		this.formula.initialize(calculationContext);
+	public void initialize(@Nonnull QueryExecutionContext executionContext) {
+		this.executionContext = executionContext;
+		this.formula.initialize(executionContext);
 	}
 
 	@Override
 	public int getEstimatedCardinality() {
-		return formula.getEstimatedCardinality();
+		return this.formula.getEstimatedCardinality();
 	}
 
 	@Override
 	public long getHash() {
-		return formula.getHash();
+		return this.formula.getHash();
 	}
 
 	@Override
 	public long getTransactionalIdHash() {
-		return formula.getTransactionalIdHash();
+		return this.formula.getTransactionalIdHash();
 	}
 
 	@Nonnull
 	@Override
 	public long[] gatherTransactionalIds() {
-		return formula.gatherTransactionalIds();
+		return this.formula.gatherTransactionalIds();
 	}
 
 	@Override
 	public long getEstimatedCost() {
-		return formula.getEstimatedCost();
+		return this.formula.getEstimatedCost();
 	}
 
 	@Override
 	public long getCost() {
-		return formula.getCost();
+		return this.formula.getCost();
 	}
 
 	@Override
 	public long getOperationCost() {
-		return formula.getOperationCost();
+		return this.formula.getOperationCost();
 	}
 
 	@Override
 	public long getCostToPerformanceRatio() {
-		return formula.getCostToPerformanceRatio();
+		return this.formula.getCostToPerformanceRatio();
 	}
 
 	@Override
 	public Bitmap get() {
-		if (computed == null) {
-			computed = firstInvocation.apply(formula);
+		if (this.computed == null) {
+			Assert.isPremiseValid(this.executionContext != null, "FormulaWrapper must be initialized prior to calling get().");
+			this.computed = this.firstInvocation.apply(this.executionContext, this.formula);
 		}
-		return computed;
+		return this.computed;
 	}
 
 	@Override
 	public String toString() {
-		return formula.toString();
+		return this.formula.toString();
 	}
 }

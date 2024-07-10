@@ -73,7 +73,6 @@ public class EntityLocaleEqualsTranslator implements FilteringConstraintTranslat
 					return SkipFormula.INSTANCE;
 				} else {
 					return new SelectionFormula(
-						filterByVisitor,
 						filterByVisitor.applyOnIndexes(
 							index -> index.getRecordsWithLanguageFormula(locale)
 						),
@@ -88,7 +87,6 @@ public class EntityLocaleEqualsTranslator implements FilteringConstraintTranslat
 		} else {
 			return new EntityFilteringFormula(
 				"entity locale equals filter",
-				filterByVisitor,
 				new LocaleEntityToBitmapFilter(locale)
 			);
 		}

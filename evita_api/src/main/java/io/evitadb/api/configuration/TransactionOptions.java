@@ -49,9 +49,6 @@ import java.util.Optional;
  *                                              that the buffer will be full and will have to be copied to the disk.
  * @param walFileSizeBytes                      Size of the Write-Ahead Log (WAL) file in bytes before it is rotated.
  * @param walFileCountKept                      Number of WAL files to keep.
- * @param maxQueueSize                          Size of the catalog queue for parallel transaction. If there are more
- *                                              transaction than the number of free threads in the pool, the transaction
- *                                              are queued. If the queue is full, the transaction is rejected.
  * @param flushFrequencyInMillis                The frequency of flushing the transactional data to the disk when they
  *                                              are sequentially processed. If database process the (small) transaction
  *                                              very quickly, it may decide to process next transaction before flushing
@@ -66,7 +63,6 @@ public record TransactionOptions(
 	int transactionMemoryRegionCount,
 	long walFileSizeBytes,
 	int walFileCountKept,
-	int maxQueueSize,
 	long flushFrequencyInMillis
 ) {
 	public static final Path DEFAULT_TX_DIRECTORY = Paths.get(System.getProperty("java.io.tmpdir"), "evita/transaction");
@@ -74,7 +70,6 @@ public record TransactionOptions(
 	public static final int DEFAULT_TRANSACTION_MEMORY_REGION_COUNT = 256;
 	public static final int DEFAULT_WAL_SIZE_BYTES = 16_777_216;
 	public static final int DEFAULT_WAL_FILE_COUNT_KEPT = 8;
-	public static final int DEFAULT_MAX_QUEUE_SIZE = 1_024;
 	public static final int DEFAULT_FLUSH_FREQUENCY = 1_000;
 
 	/**
@@ -87,7 +82,6 @@ public record TransactionOptions(
 			32,
 			8_388_608,
 			1,
-			16,
 			100
 		);
 	}
@@ -113,7 +107,6 @@ public record TransactionOptions(
 			DEFAULT_TRANSACTION_MEMORY_REGION_COUNT,
 			DEFAULT_WAL_SIZE_BYTES,
 			DEFAULT_WAL_FILE_COUNT_KEPT,
-			DEFAULT_MAX_QUEUE_SIZE,
 			DEFAULT_FLUSH_FREQUENCY
 		);
 	}
@@ -124,7 +117,6 @@ public record TransactionOptions(
 		int transactionMemoryRegionCount,
 		long walFileSizeBytes,
 		int walFileCountKept,
-		int maxQueueSize,
 		long flushFrequencyInMillis
 	) {
 		this.transactionWorkDirectory = Optional.ofNullable(transactionWorkDirectory).orElse(DEFAULT_TX_DIRECTORY);
@@ -132,7 +124,6 @@ public record TransactionOptions(
 		this.transactionMemoryRegionCount = transactionMemoryRegionCount;
 		this.walFileSizeBytes = walFileSizeBytes;
 		this.walFileCountKept = walFileCountKept;
-		this.maxQueueSize = maxQueueSize;
 		this.flushFrequencyInMillis = flushFrequencyInMillis;
 	}
 
@@ -146,7 +137,6 @@ public record TransactionOptions(
 		private int transactionMemoryRegionCount = DEFAULT_TRANSACTION_MEMORY_REGION_COUNT;
 		private long walFileSizeBytes = DEFAULT_WAL_SIZE_BYTES;
 		private int walFileCountKept = DEFAULT_WAL_FILE_COUNT_KEPT;
-		private int maxQueueSize = DEFAULT_MAX_QUEUE_SIZE;
 		private long flushFrequency = DEFAULT_FLUSH_FREQUENCY;
 
 		Builder() {
@@ -158,7 +148,6 @@ public record TransactionOptions(
 			this.transactionMemoryRegionCount = TransactionOptions.transactionMemoryRegionCount;
 			this.walFileSizeBytes = TransactionOptions.walFileSizeBytes;
 			this.walFileCountKept = TransactionOptions.walFileCountKept;
-			this.maxQueueSize = TransactionOptions.maxQueueSize;
 			this.flushFrequency = TransactionOptions.flushFrequencyInMillis;
 		}
 
@@ -193,12 +182,6 @@ public record TransactionOptions(
 		}
 
 		@Nonnull
-		public TransactionOptions.Builder maxQueueSize(int maxQueueSize) {
-			this.maxQueueSize = maxQueueSize;
-			return this;
-		}
-
-		@Nonnull
 		public TransactionOptions.Builder flushFrequency(long flushFrequency) {
 			this.flushFrequency = flushFrequency;
 			return this;
@@ -212,7 +195,6 @@ public record TransactionOptions(
 				transactionMemoryRegionCount,
 				walFileSizeBytes,
 				walFileCountKept,
-				maxQueueSize,
 				flushFrequency
 			);
 		}

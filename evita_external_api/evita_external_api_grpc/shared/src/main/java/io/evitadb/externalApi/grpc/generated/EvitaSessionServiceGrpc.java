@@ -199,6 +199,37 @@ public final class EvitaSessionServiceGrpc {
     return getGoLiveAndCloseMethod;
   }
 
+  private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogRequest,
+      io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogResponse> getBackupCatalogMethod;
+
+  @io.grpc.stub.annotations.RpcMethod(
+      fullMethodName = SERVICE_NAME + '/' + "BackupCatalog",
+      requestType = io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogRequest.class,
+      responseType = io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogResponse.class,
+      methodType = io.grpc.MethodDescriptor.MethodType.UNARY)
+  public static io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogRequest,
+      io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogResponse> getBackupCatalogMethod() {
+    io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogRequest, io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogResponse> getBackupCatalogMethod;
+    if ((getBackupCatalogMethod = EvitaSessionServiceGrpc.getBackupCatalogMethod) == null) {
+      synchronized (EvitaSessionServiceGrpc.class) {
+        if ((getBackupCatalogMethod = EvitaSessionServiceGrpc.getBackupCatalogMethod) == null) {
+          EvitaSessionServiceGrpc.getBackupCatalogMethod = getBackupCatalogMethod =
+              io.grpc.MethodDescriptor.<io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogRequest, io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogResponse>newBuilder()
+              .setType(io.grpc.MethodDescriptor.MethodType.UNARY)
+              .setFullMethodName(generateFullMethodName(SERVICE_NAME, "BackupCatalog"))
+              .setSampledToLocalTracing(true)
+              .setRequestMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogRequest.getDefaultInstance()))
+              .setResponseMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogResponse.getDefaultInstance()))
+              .setSchemaDescriptor(new EvitaSessionServiceMethodDescriptorSupplier("BackupCatalog"))
+              .build();
+        }
+      }
+    }
+    return getBackupCatalogMethod;
+  }
+
   private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcCloseRequest,
       io.evitadb.externalApi.grpc.generated.GrpcCloseResponse> getCloseMethod;
 
@@ -896,6 +927,16 @@ public final class EvitaSessionServiceGrpc {
 
     /**
      * <pre>
+     * Procedure used to backup an existing catalog.
+     * </pre>
+     */
+    public void backupCatalog(io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogRequest request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogResponse> responseObserver) {
+      io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getBackupCatalogMethod(), responseObserver);
+    }
+
+    /**
+     * <pre>
      * Procedure that closes the session.
      * </pre>
      */
@@ -1122,6 +1163,13 @@ public final class EvitaSessionServiceGrpc {
                 io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseResponse>(
                   this, METHODID_GO_LIVE_AND_CLOSE)))
           .addMethod(
+            getBackupCatalogMethod(),
+            io.grpc.stub.ServerCalls.asyncUnaryCall(
+              new MethodHandlers<
+                io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogRequest,
+                io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogResponse>(
+                  this, METHODID_BACKUP_CATALOG)))
+          .addMethod(
             getCloseMethod(),
             io.grpc.stub.ServerCalls.asyncUnaryCall(
               new MethodHandlers<
@@ -1333,6 +1381,17 @@ public final class EvitaSessionServiceGrpc {
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseResponse> responseObserver) {
       io.grpc.stub.ClientCalls.asyncUnaryCall(
           getChannel().newCall(getGoLiveAndCloseMethod(), getCallOptions()), request, responseObserver);
+    }
+
+    /**
+     * <pre>
+     * Procedure used to backup an existing catalog.
+     * </pre>
+     */
+    public void backupCatalog(io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogRequest request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogResponse> responseObserver) {
+      io.grpc.stub.ClientCalls.asyncUnaryCall(
+          getChannel().newCall(getBackupCatalogMethod(), getCallOptions()), request, responseObserver);
     }
 
     /**
@@ -1619,6 +1678,16 @@ public final class EvitaSessionServiceGrpc {
 
     /**
      * <pre>
+     * Procedure used to backup an existing catalog.
+     * </pre>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogResponse backupCatalog(io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogRequest request) {
+      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+          getChannel(), getBackupCatalogMethod(), getCallOptions(), request);
+    }
+
+    /**
+     * <pre>
      * Procedure that closes the session.
      * </pre>
      */
@@ -1887,6 +1956,17 @@ public final class EvitaSessionServiceGrpc {
 
     /**
      * <pre>
+     * Procedure used to backup an existing catalog.
+     * </pre>
+     */
+    public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogResponse> backupCatalog(
+        io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogRequest request) {
+      return io.grpc.stub.ClientCalls.futureUnaryCall(
+          getChannel().newCall(getBackupCatalogMethod(), getCallOptions()), request);
+    }
+
+    /**
+     * <pre>
      * Procedure that closes the session.
      * </pre>
      */
@@ -2100,25 +2180,26 @@ public final class EvitaSessionServiceGrpc {
   private static final int METHODID_GET_ENTITY_SCHEMA = 2;
   private static final int METHODID_GET_ALL_ENTITY_TYPES = 3;
   private static final int METHODID_GO_LIVE_AND_CLOSE = 4;
-  private static final int METHODID_CLOSE = 5;
-  private static final int METHODID_QUERY_ONE = 6;
-  private static final int METHODID_QUERY_LIST = 7;
-  private static final int METHODID_QUERY = 8;
-  private static final int METHODID_GET_ENTITY = 9;
-  private static final int METHODID_UPDATE_CATALOG_SCHEMA = 10;
-  private static final int METHODID_UPDATE_AND_FETCH_CATALOG_SCHEMA = 11;
-  private static final int METHODID_DEFINE_ENTITY_SCHEMA = 12;
-  private static final int METHODID_UPDATE_ENTITY_SCHEMA = 13;
-  private static final int METHODID_UPDATE_AND_FETCH_ENTITY_SCHEMA = 14;
-  private static final int METHODID_DELETE_COLLECTION = 15;
-  private static final int METHODID_RENAME_COLLECTION = 16;
-  private static final int METHODID_REPLACE_COLLECTION = 17;
-  private static final int METHODID_GET_ENTITY_COLLECTION_SIZE = 18;
-  private static final int METHODID_UPSERT_ENTITY = 19;
-  private static final int METHODID_DELETE_ENTITY = 20;
-  private static final int METHODID_DELETE_ENTITY_AND_ITS_HIERARCHY = 21;
-  private static final int METHODID_DELETE_ENTITIES = 22;
-  private static final int METHODID_GET_TRANSACTION_ID = 23;
+  private static final int METHODID_BACKUP_CATALOG = 5;
+  private static final int METHODID_CLOSE = 6;
+  private static final int METHODID_QUERY_ONE = 7;
+  private static final int METHODID_QUERY_LIST = 8;
+  private static final int METHODID_QUERY = 9;
+  private static final int METHODID_GET_ENTITY = 10;
+  private static final int METHODID_UPDATE_CATALOG_SCHEMA = 11;
+  private static final int METHODID_UPDATE_AND_FETCH_CATALOG_SCHEMA = 12;
+  private static final int METHODID_DEFINE_ENTITY_SCHEMA = 13;
+  private static final int METHODID_UPDATE_ENTITY_SCHEMA = 14;
+  private static final int METHODID_UPDATE_AND_FETCH_ENTITY_SCHEMA = 15;
+  private static final int METHODID_DELETE_COLLECTION = 16;
+  private static final int METHODID_RENAME_COLLECTION = 17;
+  private static final int METHODID_REPLACE_COLLECTION = 18;
+  private static final int METHODID_GET_ENTITY_COLLECTION_SIZE = 19;
+  private static final int METHODID_UPSERT_ENTITY = 20;
+  private static final int METHODID_DELETE_ENTITY = 21;
+  private static final int METHODID_DELETE_ENTITY_AND_ITS_HIERARCHY = 22;
+  private static final int METHODID_DELETE_ENTITIES = 23;
+  private static final int METHODID_GET_TRANSACTION_ID = 24;
 
   private static final class MethodHandlers<Req, Resp> implements
       io.grpc.stub.ServerCalls.UnaryMethod<Req, Resp>,
@@ -2156,6 +2237,10 @@ public final class EvitaSessionServiceGrpc {
         case METHODID_GO_LIVE_AND_CLOSE:
           serviceImpl.goLiveAndClose((com.google.protobuf.Empty) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseResponse>) responseObserver);
+          break;
+        case METHODID_BACKUP_CATALOG:
+          serviceImpl.backupCatalog((io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogRequest) request,
+              (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogResponse>) responseObserver);
           break;
         case METHODID_CLOSE:
           serviceImpl.close((io.evitadb.externalApi.grpc.generated.GrpcCloseRequest) request,
@@ -2299,6 +2384,7 @@ public final class EvitaSessionServiceGrpc {
               .addMethod(getGetEntitySchemaMethod())
               .addMethod(getGetAllEntityTypesMethod())
               .addMethod(getGoLiveAndCloseMethod())
+              .addMethod(getBackupCatalogMethod())
               .addMethod(getCloseMethod())
               .addMethod(getQueryOneMethod())
               .addMethod(getQueryListMethod())

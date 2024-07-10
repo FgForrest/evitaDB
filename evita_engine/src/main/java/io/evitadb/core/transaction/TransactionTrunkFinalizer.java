@@ -107,6 +107,10 @@ public class TransactionTrunkFinalizer implements TransactionHandler {
 		this.catalogToUpdate.flush(catalogVersion, lastProcessedTransaction);
 		// init new catalog with the same collections as the previous one
 		final Catalog newCatalog = this.lastTransactionLayer.getStateCopyWithCommittedChanges(this.catalogToUpdate);
+		Assert.isPremiseValid(
+			newCatalog.getVersion() == catalogVersion,
+			"Catalog version mismatch!"
+		);
 		// verify everything was processed
 		this.lastTransactionLayer.verifyLayerWasFullySwept();
 		// assign committed catalog

@@ -23,6 +23,7 @@
 
 package io.evitadb.core;
 
+import io.evitadb.api.CatalogState;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.exception.EvitaInternalError;
@@ -65,6 +66,6 @@ public interface CatalogRelatedDataStructure<T extends CatalogRelatedDataStructu
 	 * @return the new instance of the data structure that is not attached to any catalog
 	 */
 	@Nonnull
-	T createCopyForNewCatalogAttachment();
+	T createCopyForNewCatalogAttachment(@Nonnull CatalogState catalogState);
 
 }

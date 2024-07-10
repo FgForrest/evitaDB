@@ -26,7 +26,7 @@ package io.evitadb.core.query.sort.price;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.order.PriceNatural;
 import io.evitadb.api.query.require.QueryPriceMode;
-import io.evitadb.core.query.QueryContext;
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor;
@@ -105,7 +105,7 @@ public class FilteredPricesSorter implements Sorter {
 		Assert.isTrue(!filteredPriceRecordAccessors.isEmpty(), "Price translate formulas must not be empty!");
 	}
 
-	private FilteredPricesSorter(@Nonnull Collection<FilteredPriceRecordAccessor> filteredPriceRecordAccessors, @Nonnull Comparator<PriceRecordContract> priceRecordComparator, @Nonnull Sorter unknownRecordIdsSorter) {
+	private FilteredPricesSorter(@Nonnull Collection<FilteredPriceRecordAccessor> filteredPriceRecordAccessors, @Nonnull Comparator<PriceRecordContract> priceRecordComparator, @Nullable Sorter unknownRecordIdsSorter) {
 		this.unknownRecordIdsSorter = unknownRecordIdsSorter;
 		this.filteredPriceRecordAccessors = filteredPriceRecordAccessors;
 		this.priceRecordComparator = priceRecordComparator;
@@ -138,7 +138,7 @@ public class FilteredPricesSorter implements Sorter {
 	}
 
 	@Override
-	public int sortAndSlice(@Nonnull QueryContext queryContext, @Nonnull Formula input, int startIndex, int endIndex, @Nonnull int[] result, int peak) {
+	public int sortAndSlice(@Nonnull QueryExecutionContext queryContext, @Nonnull Formula input, int startIndex, int endIndex, @Nonnull int[] result, int peak) {
 		// compute entire set of entity pks that needs to be sorted
 		final Bitmap computeResult = input.compute();
 		final RoaringBitmap computeResultBitmap = RoaringBitmapBackedBitmap.getRoaringBitmap(computeResult);
@@ -192,7 +192,7 @@ public class FilteredPricesSorter implements Sorter {
 	 * or by default in ascending order of PKs.
 	 */
 	private int appendSortedUnknownEntityPks(
-		@Nonnull QueryContext queryContext,
+		@Nonnull QueryExecutionContext queryContext,
 		@Nonnull Bitmap computeResult,
 		@Nonnull RoaringBitmap computeResultBitmap,
 		@Nullable int[] notFoundArray,

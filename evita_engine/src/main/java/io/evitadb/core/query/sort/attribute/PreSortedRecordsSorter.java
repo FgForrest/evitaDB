@@ -23,8 +23,7 @@
 
 package io.evitadb.core.query.sort.attribute;
 
-import io.evitadb.core.query.QueryContext;
-import io.evitadb.core.query.algebra.AbstractFormula;
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.sort.CacheableSorter;
 import io.evitadb.core.query.sort.ConditionalSorter;
@@ -32,6 +31,7 @@ import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProv
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.core.query.sort.attribute.cache.FlattenedMergedSortedRecordsProvider;
 import io.evitadb.index.attribute.SortedRecordsSupplier;
+import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 import net.openhft.hashing.LongHashFunction;
 
@@ -45,10 +45,10 @@ import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
 /**
- * This sorter sorts {@link AbstractFormula#compute()} result according to {@link SortedRecordsProvider} that contains information
+ * This sorter sorts {@link Formula#compute()} result according to {@link SortedRecordsProvider} that contains information
  * about record ids in already sorted fashion. This sorter executes following operation:
  *
- * - creates mask of positions in presorted array that refer to the {@link AbstractFormula#compute()} result
+ * - creates mask of positions in presorted array that refer to the {@link Formula#compute()} result
  * - copies slice of record ids in the presorted array that conform to the mask (in the order of presorted array)
  * the slice respects requested start and end index
  * - if the result is complete it is returned, if there is space left and there were record ids that were not found
@@ -102,6 +102,30 @@ public class PreSortedRecordsSorter extends AbstractRecordsSorter implements Cac
 		this.computationCallback = null;
 		this.sortedRecordsSupplier = sortedRecordsSupplier;
 		this.unknownRecordIdsSorter = null;
+
+		this.hash = HASH_FUNCTION.hashLongs(
+			Stream.of(
+					LongStream.of(CLASS_ID),
+					LongStream.of(
+						Arrays.stream(getSortedRecordsProviders())
+							.filter(SortedRecordsSupplier.class::isInstance)
+							.map(SortedRecordsSupplier.class::cast)
+							.mapToLong(SortedRecordsSupplier::getTransactionalId)
+							.toArray()
+					)
+				)
+				.flatMapToLong(Function.identity())
+				.toArray()
+		);
+		this.transactionalIds = Arrays.stream(getSortedRecordsProviders())
+			.filter(SortedRecordsSupplier.class::isInstance)
+			.map(SortedRecordsSupplier.class::cast)
+			.mapToLong(SortedRecordsSupplier::getTransactionalId)
+			.toArray();
+		this.transactionalIdHash = HASH_FUNCTION.hashLongs(this.transactionalIds);
+		this.estimatedCost = Arrays.stream(getSortedRecordsProviders())
+			.mapToInt(SortedRecordsProvider::getRecordCount)
+			.sum() * getOperationCost();
 	}
 
 	@Nonnull
@@ -131,85 +155,43 @@ public class PreSortedRecordsSorter extends AbstractRecordsSorter implements Cac
 	}
 
 	@Override
-	public int sortAndSlice(@Nonnull QueryContext queryContext, @Nonnull Formula input, int startIndex, int endIndex, @Nonnull int[] result, int peak) {
+	public int sortAndSlice(@Nonnull QueryExecutionContext queryContext, @Nonnull Formula input, int startIndex, int endIndex, @Nonnull int[] result, int peak) {
 		return getMemoizedResult().sortAndSlice(queryContext, input, startIndex, endIndex, result, peak);
 	}
 
 	@Override
-	public void initialize(@Nonnull CalculationContext calculationContext) {
-		if (this.hash == null) {
-			this.hash = calculationContext.getHashFunction().hashLongs(
-				Stream.of(
-						LongStream.of(CLASS_ID),
-						LongStream.of(
-							Arrays.stream(getSortedRecordsProviders())
-								.filter(SortedRecordsSupplier.class::isInstance)
-								.map(SortedRecordsSupplier.class::cast)
-								.mapToLong(SortedRecordsSupplier::getTransactionalId)
-								.toArray()
-						)
-					)
-					.flatMapToLong(Function.identity())
-					.toArray()
-			);
-		}
-		if (this.transactionalIds == null) {
-			this.transactionalIds = Arrays.stream(getSortedRecordsProviders())
-				.filter(SortedRecordsSupplier.class::isInstance)
-				.map(SortedRecordsSupplier.class::cast)
-				.mapToLong(SortedRecordsSupplier::getTransactionalId)
-				.toArray();
-			this.transactionalIdHash = calculationContext.getHashFunction().hashLongs(this.transactionalIds);
-		}
-		if (this.estimatedCost == null) {
-			if (calculationContext.visit(CalculationType.ESTIMATED_COST, this)) {
-				this.estimatedCost = Arrays.stream(getSortedRecordsProviders())
-					.mapToInt(SortedRecordsProvider::getRecordCount)
-					.sum() * getOperationCost();
-			} else {
-				this.estimatedCost = 0L;
-			}
-		}
+	public void initialize(@Nonnull QueryExecutionContext executionContext) {
+		// do nothing
 	}
 
 	@Override
 	public long getHash() {
-		if (this.hash == null) {
-			initialize(CalculationContext.NO_CACHING_INSTANCE);
-		}
+		Assert.isPremiseValid(this.hash != null, "Sorter must be initialized prior to calling getHash().");
 		return this.hash;
 	}
 
 	@Override
 	public long getTransactionalIdHash() {
-		if (this.transactionalIdHash == null) {
-			initialize(CalculationContext.NO_CACHING_INSTANCE);
-		}
+		Assert.isPremiseValid(this.transactionalIdHash != null, "Sorter must be initialized prior to calling getTransactionalIdHash().");
 		return this.transactionalIdHash;
 	}
 
 	@Nonnull
 	@Override
 	public long[] gatherTransactionalIds() {
-		if (this.transactionalIds == null) {
-			initialize(CalculationContext.NO_CACHING_INSTANCE);
-		}
+		Assert.isPremiseValid(this.transactionalIds != null, "Sorter must be initialized prior to calling gatherTransactionalIds().");
 		return this.transactionalIds;
 	}
 
 	@Override
 	public long getEstimatedCost() {
-		if (this.estimatedCost == null) {
-			initialize(CalculationContext.NO_CACHING_INSTANCE);
-		}
+		Assert.isPremiseValid(this.estimatedCost != null, "Sorter must be initialized prior to calling getEstimatedCost().");
 		return this.estimatedCost;
 	}
 
 	@Override
 	public long getCost() {
-		if (this.estimatedCost == null) {
-			initialize(CalculationContext.NO_CACHING_INSTANCE);
-		}
+		Assert.isPremiseValid(this.estimatedCost != null, "Sorter must be initialized prior to calling getCost().");
 		return this.estimatedCost;
 	}
 
@@ -220,9 +202,7 @@ public class PreSortedRecordsSorter extends AbstractRecordsSorter implements Cac
 
 	@Override
 	public long getCostToPerformanceRatio() {
-		if (this.estimatedCost == null) {
-			initialize(CalculationContext.NO_CACHING_INSTANCE);
-		}
+		Assert.isPremiseValid(this.estimatedCost != null, "Sorter must be initialized prior to calling getCostToPerformanceRatio().");
 		return this.estimatedCost;
 	}
 
@@ -255,7 +235,7 @@ public class PreSortedRecordsSorter extends AbstractRecordsSorter implements Cac
 	}
 
 	@Override
-	public boolean shouldApply(@Nonnull QueryContext queryContext) {
+	public boolean shouldApply(@Nonnull QueryExecutionContext queryContext) {
 		return queryContext.getPrefetchedEntities() == null;
 	}
 

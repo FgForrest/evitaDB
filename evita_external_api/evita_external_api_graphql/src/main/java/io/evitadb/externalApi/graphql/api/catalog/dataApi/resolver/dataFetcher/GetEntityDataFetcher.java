@@ -46,6 +46,7 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.Fi
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.OrderConstraintResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.RequireConstraintResolver;
 import io.evitadb.externalApi.graphql.api.resolver.SelectionSetAggregator;
+import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.ReadDataFetcher;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidArgumentException;
 import io.evitadb.externalApi.graphql.exception.GraphQLQueryResolvingInternalError;
 import io.evitadb.externalApi.graphql.metric.event.request.ExecutedEvent;
@@ -79,7 +80,7 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 @Slf4j
-public class GetEntityDataFetcher implements DataFetcher<DataFetcherResult<EntityClassifier>> {
+public class GetEntityDataFetcher implements DataFetcher<DataFetcherResult<EntityClassifier>>, ReadDataFetcher {
 
 	/**
 	 * Schema of collection to which this fetcher is mapped to.

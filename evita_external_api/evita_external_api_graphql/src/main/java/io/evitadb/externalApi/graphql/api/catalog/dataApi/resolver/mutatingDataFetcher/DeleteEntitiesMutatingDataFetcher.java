@@ -47,6 +47,7 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.Re
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.EntityQueryContext;
 import io.evitadb.externalApi.graphql.api.resolver.SelectionSetAggregator;
 import io.evitadb.externalApi.graphql.metric.event.request.ExecutedEvent;
+import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.WriteDataFetcher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -72,7 +73,7 @@ import static io.evitadb.api.query.QueryConstraints.strip;
  */
 @Slf4j
 @RequiredArgsConstructor
-public class DeleteEntitiesMutatingDataFetcher implements DataFetcher<DataFetcherResult<List<SealedEntity>>> {
+public class DeleteEntitiesMutatingDataFetcher implements DataFetcher<DataFetcherResult<List<SealedEntity>>>, WriteDataFetcher {
 
 	/**
 	 * Schema of collection to which this fetcher is mapped to.

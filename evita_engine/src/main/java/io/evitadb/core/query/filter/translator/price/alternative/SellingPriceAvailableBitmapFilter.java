@@ -30,7 +30,8 @@ import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.core.query.QueryContext;
+import io.evitadb.core.query.QueryExecutionContext;
+import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
@@ -43,7 +44,6 @@ import io.evitadb.core.query.algebra.price.filteredPriceRecords.ResolvedFiltered
 import io.evitadb.core.query.algebra.price.predicate.PriceAmountPredicate;
 import io.evitadb.core.query.algebra.price.predicate.PriceContractPredicate;
 import io.evitadb.core.query.algebra.price.predicate.PricePredicate;
-import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.function.QuadriFunction;
@@ -64,7 +64,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Implementation of {@link EntityToBitmapFilter} that verifies that the entity has the "selling price" available.
- * The proper "selling price" is derived from the {@link QueryContext} automatically by specifying
+ * The proper "selling price" is derived from the {@link QueryPlanningContext} automatically by specifying
  * {@link PriceContentMode#RESPECTING_FILTER} which in turn retrieves all basic constraints such as price list / currency
  * from the {@link io.evitadb.api.requestResponse.EvitaRequest}. Only the price between must be handled locally.
  *
@@ -87,8 +87,8 @@ public class SellingPriceAvailableBitmapFilter implements EntityToBitmapFilter, 
 	 */
 	private final PriceContractPredicate filter;
 	/**
-	 * Contains array of price records that links to the price ids produced by {@link #filter(FilterByVisitor)}
-	 * method. This object is available once the {@link #filter(FilterByVisitor)}  method has been called.
+	 * Contains array of price records that links to the price ids produced by {@link EntityToBitmapFilter#filter(QueryExecutionContext)}
+	 * method. This object is available once the {@link EntityToBitmapFilter#filter(QueryExecutionContext)}  method has been called.
 	 */
 	private FilteredPriceRecords filteredPriceRecords;
 	/**
@@ -143,30 +143,30 @@ public class SellingPriceAvailableBitmapFilter implements EntityToBitmapFilter, 
 
 	@Nonnull
 	@Override
-	public Bitmap filter(@Nonnull FilterByVisitor filterByVisitor) {
+	public Bitmap filter(@Nonnull QueryExecutionContext context) {
 		final CompositeObjectArray<PriceRecordContract> theFilteredPriceRecords = new CompositeObjectArray<>(PriceRecordContract.class);
-		final QueryPriceMode queryPriceMode = filterByVisitor.getQueryPriceMode();
+		final QueryPriceMode queryPriceMode = context.getQueryPriceMode();
 		final BaseBitmap result = new BaseBitmap();
 		final BaseBitmap filterOutResult = new BaseBitmap();
 		final AtomicInteger indexedPricePlaces = new AtomicInteger();
 		String entityType = null;
-		final List<ServerEntityDecorator> entities = filterByVisitor.getPrefetchedEntities();
+		final List<ServerEntityDecorator> entities = context.getPrefetchedEntities();
 		if (entities == null) {
 			return EmptyBitmap.INSTANCE;
 		} else {
 			// iterate over all entities
 			for (EntityDecorator entity : entities) {
 				/* we can be sure entities are sorted by type because:
-			   1. all entities share the same type
-			   2. or entities are fetched via {@link QueryContext#prefetchEntities(EntityReference[], EntityContentRequire[])}
-			      that fetches them by entity type in bulk
-			*/
+				   1. all entities share the same type
+				   2. or entities are fetched via {@link QueryPlanningContext#prefetchEntities(EntityReference[], EntityContentRequire[])}
+				      that fetches them by entity type in bulk
+				*/
 				final EntitySchemaContract entitySchema = entity.getSchema();
 				if (!Objects.equals(entityType, entitySchema.getName())) {
 					entityType = entitySchema.getName();
 					indexedPricePlaces.set(entitySchema.getIndexedPricePlaces());
 				}
-				final int primaryKey = filterByVisitor.translateEntity(entity);
+				final int primaryKey = context.translateEntity(entity);
 				if (entity.isPriceForSaleContextAvailable()) {
 					// check whether they have valid selling price (applying filter on price lists and currency)
 					entity.getPriceForSale(filter)

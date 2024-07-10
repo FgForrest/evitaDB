@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,7 +24,8 @@
 package io.evitadb.core.query.sort.attribute;
 
 import io.evitadb.api.requestResponse.data.EntityContract;
-import io.evitadb.core.query.QueryContext;
+import io.evitadb.core.query.QueryExecutionContext;
+import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.sort.ConditionalSorter;
 import io.evitadb.core.query.sort.EntityComparator;
@@ -40,7 +41,7 @@ import java.util.PrimitiveIterator.OfInt;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * This sorter requires list of pre-fetched entities in the {@link QueryContext}. If none is present the sorter is
+ * This sorter requires list of pre-fetched entities in the {@link QueryPlanningContext}. If none is present the sorter is
  * skipped entirely. If pre-fetched entities are present they are sorted by a {@link #entityComparator} that uses
  * their data. This sorter avoids using pre-sorted indexes, because we speculate that the cardinality of the pre-fetched
  * entities is low and the sorting will be faster than using the index.
@@ -53,7 +54,7 @@ public class PrefetchedRecordsSorter extends AbstractRecordsSorter implements Co
 	 */
 	private final Sorter unknownRecordIdsSorter;
 	/**
-	 * This instance will be used by this sorter in case the {@link QueryContext} contains list of prefetched entities.
+	 * This instance will be used by this sorter in case the {@link QueryPlanningContext} contains list of prefetched entities.
 	 */
 	private final EntityComparator entityComparator;
 
@@ -90,12 +91,12 @@ public class PrefetchedRecordsSorter extends AbstractRecordsSorter implements Co
 	}
 
 	@Override
-	public boolean shouldApply(@Nonnull QueryContext queryContext) {
+	public boolean shouldApply(@Nonnull QueryExecutionContext queryContext) {
 		return queryContext.getPrefetchedEntities() != null;
 	}
 
 	@Override
-	public int sortAndSlice(@Nonnull QueryContext queryContext, @Nonnull Formula input, int startIndex, int endIndex, @Nonnull int[] result, int peak) {
+	public int sortAndSlice(@Nonnull QueryExecutionContext queryContext, @Nonnull Formula input, int startIndex, int endIndex, @Nonnull int[] result, int peak) {
 		final Bitmap selectedRecordIds = input.compute();
 		final OfInt it = selectedRecordIds.iterator();
 		final List<EntityContract> entities = new ArrayList<>(selectedRecordIds.size());

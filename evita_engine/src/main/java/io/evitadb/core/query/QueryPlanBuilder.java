@@ -53,7 +53,7 @@ public class QueryPlanBuilder implements PrefetchRequirementCollector {
 	/**
 	 * Reference to the query context that allows to access entity bodies, indexes, original request and much more.
 	 */
-	private final QueryContext queryContext;
+	private final QueryPlanningContext queryContext;
 	/**
 	 * Filtering formula tree.
 	 */
@@ -68,7 +68,7 @@ public class QueryPlanBuilder implements PrefetchRequirementCollector {
 	 * Optional visitor that collected information about target entities so that they can
 	 * be fetched upfront and filtered/ordered by their properties.
 	 */
-	@Nullable
+	@Nonnull
 	@Getter private final PrefetchFormulaVisitor prefetchFormulaVisitor;
 	/**
 	 * The sorter that is responsible for ordering the filtered results.
@@ -85,7 +85,7 @@ public class QueryPlanBuilder implements PrefetchRequirementCollector {
 	 * Returns empty query plan.
 	 */
 	@Nonnull
-	public static QueryPlan empty(@Nonnull QueryContext queryContext) {
+	public static QueryPlan empty(@Nonnull QueryPlanningContext queryContext) {
 		return new QueryPlan(
 			queryContext,
 			"None", EmptyFormula.INSTANCE, null,
@@ -94,9 +94,9 @@ public class QueryPlanBuilder implements PrefetchRequirementCollector {
 	}
 
 	public QueryPlanBuilder(
-		@Nonnull QueryContext queryContext,
+		@Nonnull QueryPlanningContext queryContext,
 		@Nonnull Formula filterFormula,
-		@Nonnull TargetIndexes targetIndexes,
+		@Nonnull TargetIndexes<?> targetIndexes,
 		@Nonnull PrefetchFormulaVisitor prefetchFormulaVisitor,
 		@Nonnull Sorter replacedSorter
 	) {
@@ -108,9 +108,9 @@ public class QueryPlanBuilder implements PrefetchRequirementCollector {
 	}
 
 	public QueryPlanBuilder(
-		@Nonnull QueryContext queryContext,
+		@Nonnull QueryPlanningContext queryContext,
 		@Nonnull Formula filterFormula,
-		@Nonnull TargetIndexes targetIndexes,
+		@Nonnull TargetIndexes<?> targetIndexes,
 		@Nonnull PrefetchFormulaVisitor prefetchFormulaVisitor,
 		@Nonnull Sorter replacedSorter,
 		@Nonnull Collection<ExtraResultProducer> extraResultProducers
@@ -125,9 +125,7 @@ public class QueryPlanBuilder implements PrefetchRequirementCollector {
 
 	@Override
 	public void addRequirementToPrefetch(@Nonnull EntityContentRequire... require) {
-		if (prefetchFormulaVisitor != null) {
-			prefetchFormulaVisitor.addRequirement(require);
-		}
+		prefetchFormulaVisitor.addRequirement(require);
 	}
 
 	/**

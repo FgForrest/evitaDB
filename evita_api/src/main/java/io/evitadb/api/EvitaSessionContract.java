@@ -30,8 +30,10 @@ import io.evitadb.api.exception.EntityClassInvalidException;
 import io.evitadb.api.exception.EntityTypeAlreadyPresentInCatalogSchemaException;
 import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.exception.SchemaAlteringException;
+import io.evitadb.api.exception.TemporalDataNotAvailableException;
 import io.evitadb.api.exception.UnexpectedResultCountException;
 import io.evitadb.api.exception.UnexpectedResultException;
+import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.proxy.ProxyFactory;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.QueryConstraints;
@@ -64,14 +66,17 @@ import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
+import io.evitadb.api.task.Task;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Closeable;
 import java.io.Serializable;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -992,6 +997,19 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 */
 	@Nonnull
 	SealedEntity[] deleteSealedEntitiesAndReturnBodies(@Nonnull Query query);
+
+	/**
+	 * Creates a backup of the specified catalog and returns an InputStream to read the binary data of the zip file.
+	 *
+	 * @param pastMoment   leave null for creating backup for actual dataset, or specify past moment to create backup for
+	 *                     the dataset as it was at that moment
+	 * @param includingWAL if true, the backup will include the Write-Ahead Log (WAL) file and when the catalog is
+	 *                     restored, it'll replay the WAL contents locally to bring the catalog to the current state
+	 * @return jobId of the backup process
+	 * @throws TemporalDataNotAvailableException when the past data is not available
+	 */
+	@Nonnull
+	Task<?, FileForFetch> backupCatalog(@Nullable OffsetDateTime pastMoment, boolean includingWAL) throws TemporalDataNotAvailableException;
 
 	/**
 	 * Default implementation uses ID for comparing two sessions (and to distinguish one session from another).

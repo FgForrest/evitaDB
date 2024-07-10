@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 package io.evitadb.core.query.sort.attribute.cache;
 
 import io.evitadb.core.cache.payload.CachePayloadHeader;
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.core.query.sort.attribute.MergedSortedRecordsSupplier;
@@ -72,7 +73,7 @@ public class FlattenedMergedSortedRecordsProvider extends CachePayloadHeader imp
 	}
 
 	@Override
-	public void initialize(@Nonnull CalculationContext calculationContext) {
+	public void initialize(@Nonnull QueryExecutionContext executionContext) {
 
 	}
 

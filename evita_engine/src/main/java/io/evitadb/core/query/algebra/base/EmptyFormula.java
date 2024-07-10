@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -41,7 +41,7 @@ public class EmptyFormula extends AbstractFormula {
 	private static final long CLASS_ID = 7864590390866911682L;
 
 	private EmptyFormula() {
-		super();
+		this.initFields();
 	}
 
 	@Nonnull

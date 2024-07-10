@@ -26,6 +26,7 @@ package io.evitadb.core.query.extraResult.translator.histogram.producer;
 import io.evitadb.api.query.require.HistogramBehavior;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.facet.UserFilterFormula;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor;
@@ -62,6 +63,10 @@ import static java.util.Optional.ofNullable;
  */
 @RequiredArgsConstructor
 public class PriceHistogramComputer implements CacheableEvitaResponseExtraResultComputer<CacheableHistogramContract> {
+	/**
+	 * Execution context from initialization phase.
+	 */
+	protected QueryExecutionContext context;
 	/**
 	 * Contains reference to the lambda that needs to be executed THE FIRST time the histogram produced by this computer
 	 * instance is really computed (and memoized).
@@ -131,7 +136,7 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 	/**
 	 * Contains memoized value of {@link #gatherTransactionalIds()} computed hash.
 	 */
-	private Long memoizedTransactionalIdHash;
+	private Long transactionalIdHash;
 	/**
 	 * Contains price record array that all price records that represents source records for price histogram computation.
 	 * It is initialized during {@link #compute()} method and result is memoized, so it's ensured it's computed only once.
@@ -162,87 +167,65 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 		this.filteringFormulaWithFilteredOutRecords = filteringFormulaWithFilteredOutRecords;
 		this.filteredPriceRecordAccessors = filteredPriceRecordAccessors;
 		this.priceRecordsLookupResult = priceRecordsLookupResult;
+
+		this.hash = HASH_FUNCTION.hashLongs(
+			new long[]{
+				bucketCount, behavior.ordinal(),
+				queryPriceMode.ordinal(),
+				filteringFormula.getHash()
+			}
+		);
+		this.transactionalIds = filteringFormula.gatherTransactionalIds();
+		this.transactionalIdHash = HASH_FUNCTION.hashLongs(
+			Arrays.stream(this.transactionalIds)
+				.distinct()
+				.sorted()
+				.toArray()
+		);
+		this.estimatedCost = filteringFormula.getEstimatedCardinality() *
+			(filteredPriceRecordAccessors.size() / 2) *
+			getOperationCost();
 	}
 
 	@Override
-	public void initialize(@Nonnull CalculationContext calculationContext) {
-		this.filteringFormula.initialize(calculationContext);
-		if (this.hash == null) {
-			this.hash = calculationContext.getHashFunction().hashLongs(
-				new long[]{
-					bucketCount, behavior.ordinal(),
-					queryPriceMode.ordinal(),
-					filteringFormula.getHash()
-				}
-			);
-		}
-		if (this.memoizedTransactionalIdHash == null) {
-			this.transactionalIds = filteringFormula.gatherTransactionalIds();
-			this.memoizedTransactionalIdHash = calculationContext.getHashFunction().hashLongs(
-				Arrays.stream(this.transactionalIds)
-					.distinct()
-					.sorted()
-					.toArray()
-			);
-		}
-		if (this.estimatedCost == null) {
-			if (calculationContext.visit(CalculationType.ESTIMATED_COST, this)) {
-				this.estimatedCost = filteringFormula.compute().size() *
-					(filteredPriceRecordAccessors.size() / 2) *
-					getOperationCost();
-			} else {
-				this.estimatedCost = 0L;
-			}
-		}
-		if (this.cost == null && this.memoizedResult != null) {
-			if (calculationContext.visit(CalculationType.COST, this)) {
-				this.cost = getPriceRecords().length * getOperationCost();
-				this.costToPerformance = getCost() / (getOperationCost() * bucketCount);
-			} else {
-				this.cost = 0L;
-				this.costToPerformance = Long.MAX_VALUE;
-			}
-		}
+	public void initialize(@Nonnull QueryExecutionContext executionContext) {
+		this.context = executionContext;
+		this.filteringFormula.initialize(executionContext);
 	}
 
 	@Override
 	public long getHash() {
-		if (this.hash == null) {
-			initialize(CalculationContext.NO_CACHING_INSTANCE);
-		}
+		Assert.isPremiseValid(this.hash != null, "The computer must be initialized prior to calling getHash().");
 		return this.hash;
 	}
 
 	@Override
 	public long getTransactionalIdHash() {
-		if (this.memoizedTransactionalIdHash == null) {
-			initialize(CalculationContext.NO_CACHING_INSTANCE);
-		}
-		return this.memoizedTransactionalIdHash;
+		Assert.isPremiseValid(this.transactionalIdHash != null, "The computer must be initialized prior to calling getTransactionalIdHash().");
+		return this.transactionalIdHash;
 	}
 
 	@Nonnull
 	@Override
 	public long[] gatherTransactionalIds() {
-		if (this.transactionalIds == null) {
-			initialize(CalculationContext.NO_CACHING_INSTANCE);
-		}
+		Assert.isPremiseValid(this.transactionalIds != null, "The computer must be initialized prior to calling gatherTransactionalIds().");
 		return this.transactionalIds;
 	}
 
 	@Override
 	public long getEstimatedCost() {
-		if (this.estimatedCost == null) {
-			initialize(CalculationContext.NO_CACHING_INSTANCE);
-		}
+		Assert.isPremiseValid(this.estimatedCost != null, "The computer must be initialized prior to calling getEstimatedCost().");
 		return this.estimatedCost;
 	}
 
 	@Override
 	public long getCost() {
 		if (this.cost == null) {
-			initialize(CalculationContext.NO_CACHING_INSTANCE);
-			Assert.isPremiseValid(this.cost != null, "Formula results haven't been computed!");
+			if (this.memoizedResult == null) {
+				return Long.MAX_VALUE;
+			} else {
+				this.cost = getPriceRecords().length * getOperationCost();
+			}
 		}
 		return this.cost;
 	}
@@ -256,8 +239,11 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 	@Override
 	public long getCostToPerformanceRatio() {
 		if (this.costToPerformance == null) {
-			initialize(CalculationContext.NO_CACHING_INSTANCE);
-			Assert.isPremiseValid(this.costToPerformance != null, "Formula results haven't been computed!");
+			if (this.memoizedResult == null) {
+				return Long.MAX_VALUE;
+			} else {
+				this.costToPerformance = getCost() / (getOperationCost() * bucketCount);
+			}
 		}
 		return this.costToPerformance;
 	}

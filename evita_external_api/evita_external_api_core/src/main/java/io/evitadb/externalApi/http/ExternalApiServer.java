@@ -56,6 +56,8 @@ import io.netty.handler.ssl.ClientAuth;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.bouncycastle.util.io.pem.PemReader;
+import org.xnio.Xnio;
+import org.xnio.XnioWorker;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;

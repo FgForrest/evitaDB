@@ -152,12 +152,12 @@ public class JoinFormula extends AbstractFormula {
 	}
 
 	public JoinFormula(long indexTransactionId, @Nonnull Bitmap... bitmaps) {
-		super();
 		this.bitmaps = Arrays.stream(bitmaps)
 			.filter(it -> !(it instanceof EmptyBitmap))
 			.toArray(Bitmap[]::new);
 		Assert.isTrue(this.bitmaps.length > 1, "Join formula has to have at least two bitmaps - otherwise use EmptyFormula.INSTANCE or just the bitmap itself.");
 		this.indexTransactionId = new long[]{indexTransactionId};
+		this.initFields();
 	}
 
 	/**
@@ -264,7 +264,7 @@ public class JoinFormula extends AbstractFormula {
 	protected long getCostInternal() {
 		return ofNullable(this.bitmaps)
 			.map(it -> Arrays.stream(it).mapToLong(Bitmap::size).sum())
-			.orElseGet(super::getCostInternal);
+			.orElseGet(() -> super.getCostInternal());
 	}
 
 	/*

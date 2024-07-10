@@ -35,7 +35,7 @@ import javax.annotation.Nullable;
 /**
  * Event that is fired when a background task is started.
  */
-@Name(AbstractSystemEvent.PACKAGE_NAME + ".BackgroundTaskStarted")
+@Name(AbstractSystemCatalogEvent.PACKAGE_NAME + ".BackgroundTaskStarted")
 @Description("Event that is fired when a background task is started.")
 @ExportInvocationMetric(label = "Background tasks started")
 @Label("Background task started")

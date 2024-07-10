@@ -40,7 +40,8 @@ class OffsetIndexSerializationServiceTest {
 	@Test
 	void shouldComputeExpectedRecordCountProperly() {
 		final StorageOptions testOptions = new StorageOptions(
-			Path.of(""), 1, 0, 55, 1, false, 1.0, 0L
+			Path.of(""), Path.of(""), 1, 0, 55, 1,
+			false, 1.0, 0L, false, Long.MAX_VALUE, Long.MAX_VALUE
 		);
 		assertEquals(new OffsetIndexSerializationService.ExpectedCounts(0, 1), OffsetIndexSerializationService.computeExpectedRecordCount(testOptions, 0));
 		assertEquals(new OffsetIndexSerializationService.ExpectedCounts(1, 1), OffsetIndexSerializationService.computeExpectedRecordCount(testOptions, 1));

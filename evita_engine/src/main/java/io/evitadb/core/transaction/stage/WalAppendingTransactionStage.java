@@ -25,9 +25,9 @@ package io.evitadb.core.transaction.stage;
 
 import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
-import io.evitadb.core.Catalog;
 import io.evitadb.core.metric.event.transaction.TransactionAppendedToWalEvent;
 import io.evitadb.core.metric.event.transaction.TransactionQueuedEvent;
+import io.evitadb.core.transaction.TransactionManager;
 import io.evitadb.core.transaction.stage.TrunkIncorporationTransactionStage.TrunkIncorporationTransactionTask;
 import io.evitadb.core.transaction.stage.WalAppendingTransactionStage.WalAppendingTransactionTask;
 import io.evitadb.store.spi.OffHeapWithFileBackupReference;
@@ -36,11 +36,12 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.annotation.concurrent.NotThreadSafe;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
-import java.util.function.IntConsumer;
+import java.util.function.BiConsumer;
 
 /**
  * Represents a stage in a catalog processing pipeline that appends isolated write-ahead log (WAL) entries to a shared
@@ -49,25 +50,24 @@ import java.util.function.IntConsumer;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @Slf4j
+@NotThreadSafe
 public final class WalAppendingTransactionStage
 	extends AbstractTransactionStage<WalAppendingTransactionTask, TrunkIncorporationTransactionTask> {
-	/**
-	 * Contains consumer that compensates the catalog version in case of a failure in previous stages of the pipeline.
-	 */
-	private final IntConsumer catalogVersionCompensator;
-	/**
-	 * Contains last catalog version appended successfully to the WAL.
-	 */
-	private long lastWrittenCatalogVersion = -1L;
+	private int droppedCatalogVersions;
 
 	public WalAppendingTransactionStage(
 		@Nonnull Executor executor,
 		int maxBufferCapacity,
-		@Nonnull Catalog catalog,
-		@Nonnull IntConsumer catalogVersionCompensator
+		@Nonnull TransactionManager transactionManager,
+		@Nonnull BiConsumer<TransactionTask, Throwable> onException
 	) {
-		super(executor, maxBufferCapacity, catalog);
-		this.catalogVersionCompensator = catalogVersionCompensator;
+		super(executor, maxBufferCapacity, transactionManager, onException);
+	}
+
+	@Override
+	protected void handleException(@Nonnull WalAppendingTransactionTask task, @Nonnull Throwable ex) {
+		this.transactionManager.notifyCatalogVersionDropped(this.droppedCatalogVersions);
+		super.handleException(task, ex);
 	}
 
 	@Override
@@ -77,10 +77,12 @@ public final class WalAppendingTransactionStage
 
 	@Override
 	protected void handleNext(@Nonnull WalAppendingTransactionTask task) {
+		this.droppedCatalogVersions = 1;
 
 		// emit queue event
 		task.transactionQueuedEvent().finish().commit();
 
+		final long lastWrittenCatalogVersion = this.transactionManager.getLastWrittenCatalogVersion();
 		Assert.isPremiseValid(
 			lastWrittenCatalogVersion == -1 || lastWrittenCatalogVersion == task.catalogVersion() - 1,
 			"Transaction cannot be written to the WAL out of order. " +
@@ -90,8 +92,10 @@ public final class WalAppendingTransactionStage
 		// create WALL appending event
 		final TransactionAppendedToWalEvent event = new TransactionAppendedToWalEvent(task.catalogName());
 
+		log.debug("Appending transaction {} to WAL for catalog {}.", task.transactionId(), task.catalogName());
+
 		// append WAL and discard the contents of the isolated WAL
-		final long writtenLength = this.liveCatalog.get().appendWalAndDiscard(
+		final long writtenLength = this.transactionManager.appendWalAndDiscard(
 			new TransactionMutation(
 				task.transactionId(),
 				task.catalogVersion(),
@@ -101,6 +105,10 @@ public final class WalAppendingTransactionStage
 			),
 			task.walReference()
 		);
+
+		// now the WAL is safely written - no version is lost
+		this.droppedCatalogVersions = 0;
+
 		// and continue with trunk incorporation
 		push(
 			task,
@@ -119,27 +127,22 @@ public final class WalAppendingTransactionStage
 			writtenLength
 		).commit();
 
-		this.lastWrittenCatalogVersion = task.catalogVersion();
-	}
-
-	@Override
-	protected void handleException(@Nonnull WalAppendingTransactionTask task, @Nonnull Throwable ex) {
-		catalogVersionCompensator.accept(1);
-		super.handleException(task, ex);
+		this.transactionManager.updateLastWrittenCatalogVersion(task.catalogVersion());
 	}
 
 	/**
 	 * Represents a task for resolving conflicts during a transaction.
 	 *
-	 * @param catalogName the name of the catalog the transaction is bound to
-	 * @param catalogVersion assigned catalog version (the sequence number of the next catalog version)
-	 * @param transactionId the ID of the transaction
-	 * @param mutationCount the number of mutations in the transaction (excluding the leading mutation)
-	 * @param walSizeInBytes the size of the WAL file in bytes (size of the mutations excluding the leading mutation)
-	 * @param walReference the reference to the WAL file
+	 * @param catalogName     the name of the catalog the transaction is bound to
+	 * @param catalogVersion  assigned catalog version (the sequence number of the next catalog version)
+	 * @param transactionId   the ID of the transaction
+	 * @param mutationCount   the number of mutations in the transaction (excluding the leading mutation)
+	 * @param walSizeInBytes  the size of the WAL file in bytes (size of the mutations excluding the leading mutation)
+	 * @param walReference    the reference to the WAL file
 	 * @param commitBehaviour requested stage to wait for during commit
-	 * @param future the future to complete when the transaction propagates to requested stage
+	 * @param future          the future to complete when the transaction propagates to requested stage
 	 */
+	@NonRepeatableTask
 	public record WalAppendingTransactionTask(
 		@Nonnull String catalogName,
 		long catalogVersion,
@@ -152,8 +155,20 @@ public final class WalAppendingTransactionStage
 		@Nonnull TransactionQueuedEvent transactionQueuedEvent
 	) implements TransactionTask {
 
-		public WalAppendingTransactionTask(@Nonnull String catalogName, long catalogVersion, @Nonnull UUID transactionId, int mutationCount, long walSizeInBytes, @Nonnull OffHeapWithFileBackupReference walReference, @Nonnull CommitBehavior commitBehaviour, @Nullable CompletableFuture<Long> future) {
-			this(catalogName, catalogVersion, transactionId, mutationCount, walSizeInBytes, walReference, commitBehaviour, future, new TransactionQueuedEvent(catalogName, "wal_appending"));
+		public WalAppendingTransactionTask(
+			@Nonnull String catalogName,
+			long catalogVersion,
+			@Nonnull UUID transactionId,
+			int mutationCount,
+			long walSizeInBytes,
+			@Nonnull OffHeapWithFileBackupReference walReference,
+			@Nonnull CommitBehavior commitBehaviour,
+			@Nullable CompletableFuture<Long> future
+		) {
+			this(
+				catalogName, catalogVersion, transactionId, mutationCount, walSizeInBytes, walReference,
+				commitBehaviour, future, new TransactionQueuedEvent(catalogName, "wal_appending")
+			);
 		}
 	}
 

@@ -77,7 +77,6 @@ public class AttributeStartsWithTranslator implements FilteringConstraintTransla
 
 			if (filterByVisitor.isPrefetchPossible()) {
 				return new SelectionFormula(
-					filterByVisitor,
 					filteringFormula,
 					createAlternativeBitmapFilter(filterByVisitor, attributeName, textToSearch)
 				);
@@ -87,7 +86,6 @@ public class AttributeStartsWithTranslator implements FilteringConstraintTransla
 		} else {
 			return new EntityFilteringFormula(
 				"attribute starts with filter",
-				filterByVisitor,
 				createAlternativeBitmapFilter(filterByVisitor, attributeName, textToSearch)
 			);
 		}

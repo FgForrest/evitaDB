@@ -24,10 +24,10 @@
 package io.evitadb.core.transaction.stage;
 
 import io.evitadb.api.TransactionContract.CommitBehavior;
-import io.evitadb.core.Catalog;
 import io.evitadb.core.metric.event.transaction.TransactionAcceptedEvent;
 import io.evitadb.core.metric.event.transaction.TransactionQueuedEvent;
 import io.evitadb.core.metric.event.transaction.TransactionResolution;
+import io.evitadb.core.transaction.TransactionManager;
 import io.evitadb.core.transaction.stage.ConflictResolutionTransactionStage.ConflictResolutionTransactionTask;
 import io.evitadb.core.transaction.stage.WalAppendingTransactionStage.WalAppendingTransactionTask;
 import io.evitadb.store.spi.OffHeapWithFileBackupReference;
@@ -39,7 +39,7 @@ import javax.annotation.concurrent.NotThreadSafe;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiConsumer;
 
 /**
  * Represents a transaction stage responsible for resolving conflicts during a transaction and assigning a new
@@ -56,19 +56,13 @@ import java.util.concurrent.atomic.AtomicLong;
 public final class ConflictResolutionTransactionStage
 	extends AbstractTransactionStage<ConflictResolutionTransactionTask, WalAppendingTransactionTask> {
 
-	/**
-	 * Contains current version of the catalog - this practically represents a sequence number increased with each
-	 * committed transaction and denotes the next catalog version.
-	 */
-	private final AtomicLong catalogVersion;
-
 	public ConflictResolutionTransactionStage(
 		@Nonnull Executor executor,
 		int maxBufferCapacity,
-		@Nonnull Catalog catalog
+		@Nonnull TransactionManager transactionManager,
+		@Nonnull BiConsumer<TransactionTask, Throwable> onException
 	) {
-		super(executor, maxBufferCapacity, catalog);
-		this.catalogVersion = new AtomicLong(catalog.getVersion());
+		super(executor, maxBufferCapacity, transactionManager, onException);
 	}
 
 	@Override
@@ -89,14 +83,15 @@ public final class ConflictResolutionTransactionStage
 
 		final TransactionAcceptedEvent event = new TransactionAcceptedEvent(task.catalogName());
 
-		// identify conflicts with other transaction
-		// TOBEDONE JNO #503 - implement conflict resolution
+		// identify conflicts with other transactions
+		this.transactionManager.identifyConflicts();
+
 		// assign new catalog version
 		push(
 			task,
 			new WalAppendingTransactionTask(
 				task.catalogName(),
-				this.catalogVersion.incrementAndGet(),
+				this.transactionManager.getNextCatalogVersionToAssign(),
 				task.transactionId(),
 				task.mutationCount(),
 				task.walSizeInBytes(),
@@ -111,39 +106,8 @@ public final class ConflictResolutionTransactionStage
 
 	@Override
 	protected void handleException(@Nonnull ConflictResolutionTransactionTask task, @Nonnull Throwable ex) {
-		notifyCatalogVersionDropped(1);
+		this.transactionManager.notifyCatalogVersionDropped(1);
 		super.handleException(task, ex);
-	}
-
-	/**
-	 * This method registers the number of catalog versions that were dropped due to the processor being overloaded
-	 * or the WAL appending failing. We need to lower newly assigned catalog versions so that they take the dropped
-	 * versions into account and produce a consistent sequence of catalog versions.
-	 */
-	public void notifyCatalogVersionDropped(int numberOfDroppedCatalogVersions) {
-		this.catalogVersion.addAndGet(-numberOfDroppedCatalogVersions);
-	}
-
-	@Override
-	public void advanceVersion(long catalogVersion) {
-		// we need to advance the version to the latest committed version
-		Assert.isPremiseValid(
-			this.catalogVersion.get() <= catalogVersion,
-			"Unexpected catalog version " + catalogVersion + " vs. " + this.catalogVersion + "!"
-		);
-		this.catalogVersion.set(catalogVersion);
-	}
-
-	@Override
-	public void updateCatalogReference(@Nonnull Catalog catalog) {
-		super.updateCatalogReference(catalog);
-		// at this moment, the catalog transitions from non-transactional to transactional state
-		if (!this.catalogVersion.compareAndSet(0, catalog.getVersion())) {
-			Assert.isPremiseValid(
-				this.catalogVersion.get() >= catalog.getVersion(),
-				"Unexpected catalog version " + catalog.getVersion() + " vs. " + this.catalogVersion + "!"
-			);
-		}
 	}
 
 	/**
@@ -157,6 +121,7 @@ public final class ConflictResolutionTransactionStage
 	 * @param commitBehaviour requested stage to wait for during commit
 	 * @param future the future to complete when the transaction propagates to requested stage
 	 */
+	@NonRepeatableTask
 	public record ConflictResolutionTransactionTask(
 		@Nonnull String catalogName,
 		@Nonnull UUID transactionId,

@@ -77,6 +77,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -139,6 +140,25 @@ class EvitaApiFunctionalTest {
 
 		// get entity by primary key and verify its contents
 		assertBrand(evita, 1, Locale.ENGLISH, SIEMENS_CODE, SIEMENS_TITLE, LOGO, 1);
+	}
+
+	@DisplayName("Entity can be fetched asynchronously")
+	@Test
+	void shouldQueryCreatedEntityInAsynchronousFashion(Evita evita) {
+		final EntityContract entityReference = createFullFeaturedEntity(evita);
+
+		final CompletableFuture<SealedEntity> future = evita.queryCatalogAsync(TEST_CATALOG, session -> {
+			// get entity by primary key and verify its contents
+			return getProductById(session, 1).orElseThrow();
+		});
+
+		while (!future.isDone()) {
+			Thread.onSpinWait();
+		}
+
+		final SealedEntity loadedProduct = future.getNow(null);
+		assertNotNull(loadedProduct);
+		assertExactlyEquals(entityReference, loadedProduct);
 	}
 
 	@DisplayName("Don't allow creating entity with same primary key twice")

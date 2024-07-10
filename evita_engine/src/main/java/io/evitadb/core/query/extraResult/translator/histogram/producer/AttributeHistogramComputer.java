@@ -24,6 +24,7 @@
 package io.evitadb.core.query.extraResult.translator.histogram.producer;
 
 import io.evitadb.api.query.require.HistogramBehavior;
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.facet.UserFilterFormula;
 import io.evitadb.core.query.algebra.prefetch.SelectionFormula;
@@ -90,6 +91,10 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 	 * Contains original {@link AttributeHistogramRequest} that was collected during query examination.
 	 */
 	@Nonnull @Getter private final AttributeHistogramRequest request;
+	/**
+	 * Execution context from initialization phase.
+	 */
+	protected QueryExecutionContext context;
 	/**
 	 * Contains memoized value of {@link #getEstimatedCost()}  of this formula.
 	 */
@@ -226,6 +231,41 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 		this.behavior = behavior;
 		this.request = request;
 		this.onComputationCallback = null;
+
+		this.hash = HASH_FUNCTION.hashLongs(
+			LongStream.concat(
+				LongStream.of(
+					bucketCount,
+					behavior.ordinal(),
+					filterFormula.getHash()
+				),
+				LongStream.of(
+					request.attributeIndexes()
+						.stream()
+						.mapToLong(FilterIndex::getId)
+						.sorted()
+						.toArray()
+				)
+			).toArray()
+		);
+		this.transactionalIds = LongStream.concat(
+			LongStream.of(filterFormula.gatherTransactionalIds()),
+			request.attributeIndexes()
+				.stream()
+				.mapToLong(FilterIndex::getId)
+		).toArray();
+		this.transactionalIdHash = HASH_FUNCTION.hashLongs(
+			Arrays.stream(this.transactionalIds)
+				.distinct()
+				.sorted()
+				.toArray()
+		);
+		this.estimatedCost = filterFormula.getEstimatedCost() +
+			getAttributeIndexes()
+				.stream()
+				.map(FilterIndex::getAllRecordsFormula)
+				.mapToLong(TransactionalDataRelatedStructure::getEstimatedCost)
+				.sum() * getOperationCost();
 	}
 
 	@Override
@@ -263,105 +303,48 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 	}
 
 	@Override
-	public void initialize(@Nonnull CalculationContext calculationContext) {
-		this.filterFormula.initialize(calculationContext);
-		if (this.hash == null) {
-			this.hash = calculationContext.getHashFunction().hashLongs(
-				LongStream.concat(
-					LongStream.of(
-						bucketCount,
-						behavior.ordinal(),
-						filterFormula.getHash()
-					),
-					LongStream.of(
-						request.attributeIndexes()
-							.stream()
-							.mapToLong(FilterIndex::getId)
-							.sorted()
-							.toArray()
-					)
-				).toArray()
-			);
-		}
-		if (this.transactionalIdHash == null) {
-			this.transactionalIds = LongStream.concat(
-				LongStream.of(filterFormula.gatherTransactionalIds()),
-				request.attributeIndexes()
-					.stream()
-					.mapToLong(FilterIndex::getId)
-			).toArray();
-			this.transactionalIdHash = calculationContext.getHashFunction().hashLongs(
-				Arrays.stream(this.transactionalIds)
-					.distinct()
-					.sorted()
-					.toArray()
-			);
-		}
-		if (this.estimatedCost == null) {
-			if (calculationContext.visit(CalculationType.ESTIMATED_COST, this)) {
-				this.estimatedCost = filterFormula.getEstimatedCost() +
-					getAttributeIndexes()
-						.stream()
-						.map(FilterIndex::getAllRecordsFormula)
-						.peek(it -> it.initialize(calculationContext))
-						.mapToLong(TransactionalDataRelatedStructure::getEstimatedCost)
-						.sum() * getOperationCost();
-			} else {
-				this.estimatedCost = 0L;
-			}
-		}
-		if (this.memoizedResult != null && this.cost == null) {
-			if (calculationContext.visit(CalculationType.COST, this)) {
-				this.cost = filterFormula.getCost() +
-					Arrays.stream(computeNarrowedHistogramBuckets(this, filterFormula))
-						.mapToInt(it -> it.getRecordIds().size())
-						.sum() * getOperationCost();
-				this.costToPerformance = getCost() / (getOperationCost() * bucketCount);
-			} else {
-				this.cost = 0L;
-				this.costToPerformance = Long.MAX_VALUE;
-			}
-		}
+	public void initialize(@Nonnull QueryExecutionContext executionContext) {
+		this.context = executionContext;
+		this.filterFormula.initialize(executionContext);
 	}
 
 	@Override
 	public long getHash() {
-		if (this.hash == null) {
-			initialize(CalculationContext.NO_CACHING_INSTANCE);
-		}
+		Assert.isPremiseValid(this.hash != null, "The computer must be initialized prior to calling getHash().");
 		return this.hash;
 	}
 
 	@Override
 	public long getTransactionalIdHash() {
-		if (this.transactionalIdHash == null) {
-			initialize(CalculationContext.NO_CACHING_INSTANCE);
-		}
+		Assert.isPremiseValid(this.transactionalIdHash != null, "The computer must be initialized prior to calling getTransactionalIdHash().");
 		return this.transactionalIdHash;
 	}
 
 	@Nonnull
 	@Override
 	public long[] gatherTransactionalIds() {
-		if (this.transactionalIds == null) {
-			initialize(CalculationContext.NO_CACHING_INSTANCE);
-		}
+		Assert.isPremiseValid(this.transactionalIds != null, "The computer must be initialized prior to calling gatherTransactionalIds().");
 		return this.transactionalIds;
 	}
 
 	@Override
 	public long getEstimatedCost() {
-		if (this.estimatedCost == null) {
-			initialize(CalculationContext.NO_CACHING_INSTANCE);
-		}
+		Assert.isPremiseValid(this.estimatedCost != null, "The computer must be initialized prior to calling getEstimatedCost().");
 		return this.estimatedCost;
 	}
 
 	@Override
 	public long getCost() {
 		if (this.cost == null) {
-			initialize(CalculationContext.NO_CACHING_INSTANCE);
-			Assert.isPremiseValid(this.cost != null, "Formula results haven't been computed!");
+			if (this.memoizedResult == null) {
+				return Long.MAX_VALUE;
+			} else {
+				this.cost = filterFormula.getCost() +
+					Arrays.stream(computeNarrowedHistogramBuckets(this, filterFormula))
+						.mapToInt(it -> it.getRecordIds().size())
+						.sum() * getOperationCost();
+
+			}
 		}
 		return this.cost;
 	}
@@ -375,8 +358,11 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 	@Override
 	public long getCostToPerformanceRatio() {
 		if (this.costToPerformance == null) {
-			initialize(CalculationContext.NO_CACHING_INSTANCE);
-			Assert.isPremiseValid(this.costToPerformance != null, "Formula results haven't been computed!");
+			if (this.memoizedResult == null) {
+				return Long.MAX_VALUE;
+			} else {
+				this.costToPerformance = getCost() / (getOperationCost() * bucketCount);
+			}
 		}
 		return this.costToPerformance;
 	}

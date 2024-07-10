@@ -30,6 +30,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
 import io.evitadb.externalApi.graphql.metric.event.request.ExecutedEvent;
+import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.ReadDataFetcher;
 import io.evitadb.utils.NamingConvention;
 
 import javax.annotation.Nonnull;
@@ -42,7 +43,7 @@ import java.util.function.Function;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public class ReferenceSchemaGroupTypeNameVariantsDataFetcher implements DataFetcher<Map<NamingConvention, String>> {
+public class ReferenceSchemaGroupTypeNameVariantsDataFetcher implements DataFetcher<Map<NamingConvention, String>>, ReadDataFetcher {
 
 	@Nullable
 	@Override

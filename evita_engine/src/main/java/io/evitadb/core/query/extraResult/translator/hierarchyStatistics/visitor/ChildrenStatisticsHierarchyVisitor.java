@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyEntityFetcher;
@@ -54,6 +55,10 @@ import java.util.function.IntPredicate;
  */
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 public class ChildrenStatisticsHierarchyVisitor implements HierarchyVisitor {
+	/**
+	 * The execution context that should be used for fetching entities.
+	 */
+	private final QueryExecutionContext executionContext;
 	/**
 	 * Contains true if hierarchy statistics should be stripped of results with zero occurrences.
 	 */
@@ -104,6 +109,7 @@ public class ChildrenStatisticsHierarchyVisitor implements HierarchyVisitor {
 	private final Accumulator rootAccumulator;
 
 	public ChildrenStatisticsHierarchyVisitor(
+		@Nonnull QueryExecutionContext executionContext,
 		boolean removeEmptyResults,
 		int distanceCompensation,
 		@Nonnull IntPredicate requestedPredicate,
@@ -113,6 +119,7 @@ public class ChildrenStatisticsHierarchyVisitor implements HierarchyVisitor {
 		@Nonnull HierarchyEntityFetcher entityFetcher,
 		@Nonnull EnumSet<StatisticsType> statisticsType
 	) {
+		this.executionContext = executionContext;
 		this.removeEmptyResults = removeEmptyResults;
 		this.distanceCompensation = distanceCompensation;
 		this.requestedPredicate = requestedPredicate;
@@ -121,7 +128,7 @@ public class ChildrenStatisticsHierarchyVisitor implements HierarchyVisitor {
 		this.accumulator = new ArrayDeque<>(16);
 
 		// accumulator is used to gather information about its children gradually
-		this.rootAccumulator = new Accumulator(false, null, () -> EmptyFormula.INSTANCE);
+		this.rootAccumulator = new Accumulator(executionContext, false, null, () -> EmptyFormula.INSTANCE);
 		accumulator.add(rootAccumulator);
 
 		this.entityFetcher = entityFetcher;
@@ -162,10 +169,11 @@ public class ChildrenStatisticsHierarchyVisitor implements HierarchyVisitor {
 			} else {
 				if (scopePredicate.test(entityPrimaryKey, level, distance + distanceCompensation)) {
 					// and create element in accumulator that will be filled in
-					final EntityClassifier entityRef = entityFetcher.apply(entityPrimaryKey);
+					final EntityClassifier entityRef = entityFetcher.apply(executionContext, entityPrimaryKey);
 					if (entityRef != null) {
 						accumulator.push(
 							new Accumulator(
+								executionContext,
 								requestedPredicate.test(entityPrimaryKey),
 								entityRef,
 								() -> queriedEntityComputer.apply(node.entityPrimaryKey())
@@ -200,6 +208,7 @@ public class ChildrenStatisticsHierarchyVisitor implements HierarchyVisitor {
 				} else if (!statisticsType.isEmpty() || removeEmptyResults) {
 					// and create element in accumulator that will be filled in
 					final Accumulator theOmmissionAccumulator = new Accumulator(
+						executionContext,
 						() -> queriedEntityComputer.apply(node.entityPrimaryKey())
 					);
 					accumulator.push(theOmmissionAccumulator);
