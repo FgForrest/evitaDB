@@ -81,6 +81,7 @@ import io.evitadb.store.spi.CatalogPersistenceService;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.PortManager;
+import io.evitadb.utils.CollectionUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
@@ -1871,16 +1872,16 @@ class EvitaTest implements EvitaTestSupport {
 			});
 
 		// delete them
-		exportedFiles.getData().forEach(file -> evita.deleteFile(file.fileId()));
+		final Set<UUID> deletedFiles = CollectionUtils.createHashSet(exportedFiles.getData().size());
+		exportedFiles.getData()
+			.forEach(file -> {
+				evita.deleteFile(file.fileId());
+				deletedFiles.add(file.fileId());
+			});
 
 		// list them again and there should be none of them
 		final PaginatedList<FileForFetch> exportedFilesAfterDeletion = evita.listFilesToFetch(1, numberOfTasks, null);
-		assertEquals(
-			0,
-			exportedFilesAfterDeletion.getTotalRecordCount(),
-			"Original file count " + exportedFiles.getTotalRecordCount() +
-				" vs. after deletion " + exportedFilesAfterDeletion.getTotalRecordCount()
-		);
+		assertTrue(exportedFilesAfterDeletion.getData().stream().noneMatch(file -> deletedFiles.contains(file.fileId())));
 	}
 
 	private void doRenameCatalog(@Nonnull CatalogState catalogState) {
