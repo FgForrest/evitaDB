@@ -1014,12 +1014,12 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 		final Set<UUID> deletedFiles = CollectionUtils.createHashSet(exportedFiles.getData().size());
 		exportedFiles.getData()
 			.forEach(file -> {
-				evita.deleteFile(file.fileId());
+				evitaClient.deleteFile(file.fileId());
 				deletedFiles.add(file.fileId());
 			});
 
 		// list them again and there should be none of them
-		final PaginatedList<FileForFetch> exportedFilesAfterDeletion = evita.listFilesToFetch(1, numberOfTasks, null);
+		final PaginatedList<FileForFetch> exportedFilesAfterDeletion = evitaClient.listFilesToFetch(1, numberOfTasks, null);
 		assertTrue(exportedFilesAfterDeletion.getData().stream().noneMatch(file -> deletedFiles.contains(file.fileId())));
 	}
 
