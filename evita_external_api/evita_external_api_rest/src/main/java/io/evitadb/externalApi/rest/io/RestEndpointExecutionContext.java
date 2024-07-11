@@ -25,6 +25,7 @@ package io.evitadb.externalApi.rest.io;
 
 import com.linecorp.armeria.common.HttpRequest;
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.core.Evita;
 import io.evitadb.externalApi.http.EndpointExecutionContext;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.externalApi.rest.metric.event.request.ExecutedEvent;
@@ -48,9 +49,12 @@ public class RestEndpointExecutionContext extends EndpointExecutionContext {
 	@Nullable private String requestBodyContentType;
 	@Nullable private String preferredResponseContentType;
 
-	public RestEndpointExecutionContext(@Nonnull HttpRequest httpRequest,
-	                                    @Nonnull ExecutedEvent requestExecutedEvent) {
-		super(httpRequest);
+	public RestEndpointExecutionContext(
+		@Nonnull HttpRequest httpRequest,
+		@Nonnull Evita evita,
+		@Nonnull ExecutedEvent requestExecutedEvent
+	) {
+		super(httpRequest, evita);
 		this.requestExecutedEvent = requestExecutedEvent;
 	}
 
@@ -92,12 +96,6 @@ public class RestEndpointExecutionContext extends EndpointExecutionContext {
 		}
 	}
 
-	@Nullable
-	@Override
-	public String requestBodyContentType() {
-		return requestBodyContentType;
-	}
-
 	@Override
 	public void provideRequestBodyContentType(@Nonnull String contentType) {
 		Assert.isPremiseValid(
@@ -105,6 +103,12 @@ public class RestEndpointExecutionContext extends EndpointExecutionContext {
 			() -> new RestInternalError("Request body content type already provided.")
 		);
 		requestBodyContentType = contentType;
+	}
+
+	@Nullable
+	@Override
+	public String requestBodyContentType() {
+		return requestBodyContentType;
 	}
 
 	@Override

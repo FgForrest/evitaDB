@@ -23,10 +23,8 @@
 
 package io.evitadb.externalApi.rest.api.resolver.endpoint;
 
-import com.linecorp.armeria.common.ContextAwareEventLoop;
 import com.linecorp.armeria.common.HttpData;
 import com.linecorp.armeria.common.HttpMethod;
-import com.linecorp.armeria.common.HttpObject;
 import com.linecorp.armeria.common.HttpResponseWriter;
 import io.evitadb.externalApi.http.EndpointResponse;
 import io.evitadb.externalApi.http.MimeTypes;
@@ -38,12 +36,8 @@ import io.evitadb.externalApi.rest.io.RestHandlingContext;
 import io.netty.channel.EventLoop;
 
 import javax.annotation.Nonnull;
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.PipedInputStream;
-import java.io.PipedOutputStream;
 import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -64,7 +58,9 @@ public class OpenApiSpecificationHandler<C extends RestHandlingContext> extends 
 	@Nonnull
 	@Override
 	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
-		return CompletableFuture.supplyAsync(() -> new SuccessEndpointResponse(restHandlingContext.getOpenApi()));
+		return executionContext.executeAsyncInRequestThreadPool(
+			() -> new SuccessEndpointResponse(restHandlingContext.getOpenApi())
+		);
 	}
 
 	@Nonnull

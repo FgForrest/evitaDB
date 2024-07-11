@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.graphql.io;
 
 import com.linecorp.armeria.common.HttpRequest;
+import io.evitadb.core.Evita;
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import io.evitadb.externalApi.http.EndpointExecutionContext;
 import io.evitadb.utils.Assert;
@@ -41,8 +42,11 @@ class GraphQLSchemaEndpointExecutionContext extends EndpointExecutionContext {
 	@Nullable private String requestBodyContentType;
 	@Nullable private String preferredResponseContentType;
 
-	public GraphQLSchemaEndpointExecutionContext(@Nonnull HttpRequest serverExchange) {
-		super(serverExchange);
+	public GraphQLSchemaEndpointExecutionContext(
+		@Nonnull HttpRequest serverExchange,
+		@Nonnull Evita evita
+	) {
+		super(serverExchange, evita);
 	}
 
 	@Override

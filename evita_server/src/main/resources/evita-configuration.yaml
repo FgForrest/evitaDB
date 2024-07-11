@@ -91,7 +91,7 @@ api:
       host: ${api.endpoints.gRPC.host:localhost:5555}
       exposedHost: ${api.endpoints.gRPC.exposedHost:null}
       tlsMode: ${api.endpoints.gRPC.tlsMode:RELAXED}
-      exposeDocsService: ${api.endpoints.gRPC.exposeDocsService:true}
+      exposeDocsService: ${api.endpoints.gRPC.exposeDocsService:false}
       allowedOrigins: ${api.endpoints.gRPC.allowedOrigins:null}
       mTLS:
         enabled: ${api.endpoints.gRPC.mTLS.enabled:false}

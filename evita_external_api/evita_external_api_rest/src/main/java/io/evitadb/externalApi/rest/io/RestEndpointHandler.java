@@ -30,8 +30,8 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.externalApi.exception.ExternalApiInvalidUsageException;
-import io.evitadb.externalApi.http.EndpointService;
 import io.evitadb.externalApi.http.EndpointResponse;
+import io.evitadb.externalApi.http.EndpointService;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.CollectionRestHandlingContext;
 import io.evitadb.externalApi.rest.api.catalog.resolver.endpoint.CatalogRestHandlingContext;
 import io.evitadb.externalApi.rest.api.openApi.SchemaUtils;
@@ -113,13 +113,14 @@ public abstract class RestEndpointHandler<CTX extends RestHandlingContext> exten
 
         return new RestEndpointExecutionContext(
             httpRequest,
+            this.restHandlingContext.getEvita(),
             new ExecutedEvent(
                 instanceType,
                 modifiesData() ? OperationType.MUTATION : OperationType.QUERY,
-                restHandlingContext instanceof CatalogRestHandlingContext catalogRestHandlingContext ? catalogRestHandlingContext.getCatalogSchema().getName() : null,
-                restHandlingContext instanceof CollectionRestHandlingContext collectionRestHandlingContext ? collectionRestHandlingContext.getEntityType() : null,
+                this.restHandlingContext instanceof CatalogRestHandlingContext catalogRestHandlingContext ? catalogRestHandlingContext.getCatalogSchema().getName() : null,
+                this.restHandlingContext instanceof CollectionRestHandlingContext collectionRestHandlingContext ? collectionRestHandlingContext.getEntityType() : null,
                 httpRequest.method().name(),
-                restHandlingContext.getEndpointOperation().getOperationId()
+                this.restHandlingContext.getEndpointOperation().getOperationId()
             )
         );
     }

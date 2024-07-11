@@ -66,24 +66,27 @@ public class ListUnknownEntitiesHandler extends JsonRestHandler<CatalogRestHandl
 	@Override
 	@Nonnull
 	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
-		final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
+		return executionContext.executeAsyncInRequestThreadPool(() -> {
+			final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
 
-		final Map<String, Object> parametersFromRequest = getParametersFromRequest(executionContext);
-		requestExecutedEvent.finishInputDeserialization();
+			final Map<String, Object> parametersFromRequest = getParametersFromRequest(executionContext);
+			requestExecutedEvent.finishInputDeserialization();
 
-		final Query query = requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() -> Query.query(
-			FilterByConstraintFromRequestQueryBuilder.buildFilterByForUnknownEntityList(parametersFromRequest, restHandlingContext.getCatalogSchema()),
-			RequireConstraintFromRequestQueryBuilder.buildRequire(parametersFromRequest)
-		));
-		log.debug("Generated evitaDB query for unknown entity list fetch is `{}`.", query);
+			final Query query = requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() -> Query.query(
+				FilterByConstraintFromRequestQueryBuilder.buildFilterByForUnknownEntityList(parametersFromRequest, restHandlingContext.getCatalogSchema()),
+				RequireConstraintFromRequestQueryBuilder.buildRequire(parametersFromRequest)
+			));
+			log.debug("Generated evitaDB query for unknown entity list fetch is `{}`.", query);
 
-		final List<EntityClassifier> entities = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
-			executionContext.session().queryList(query, EntityClassifier.class));
-		requestExecutedEvent.finishOperationExecution();
+			final List<EntityClassifier> entities = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
+				executionContext.session().queryList(query, EntityClassifier.class));
+			requestExecutedEvent.finishOperationExecution();
 
-		final Object result = convertResultIntoSerializableObject(executionContext, entities);
-		requestExecutedEvent.finishResultSerialization();
-		return CompletableFuture.supplyAsync(() -> new SuccessEndpointResponse(result));
+			final Object result = convertResultIntoSerializableObject(executionContext, entities);
+			requestExecutedEvent.finishResultSerialization();
+
+			return new SuccessEndpointResponse(result);
+		});
 	}
 
 	@Nonnull

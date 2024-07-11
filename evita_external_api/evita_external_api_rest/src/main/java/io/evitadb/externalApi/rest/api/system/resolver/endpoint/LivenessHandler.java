@@ -50,16 +50,18 @@ public class LivenessHandler extends JsonRestHandler<SystemRestHandlingContext> 
 	@Nonnull
 	@Override
 	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
-		return CompletableFuture.supplyAsync(() -> {
-			final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
-			requestExecutedEvent.finishInputDeserialization();
+		return executionContext.executeAsyncInRequestThreadPool(
+			() -> {
+				final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
+				requestExecutedEvent.finishInputDeserialization();
 
-			final LivenessDto result = new LivenessDto(true);
-			requestExecutedEvent.finishOperationExecution();
-			requestExecutedEvent.finishResultSerialization();
+				final LivenessDto result = new LivenessDto(true);
+				requestExecutedEvent.finishOperationExecution();
+				requestExecutedEvent.finishResultSerialization();
 
-			return new SuccessEndpointResponse(result);
-		});
+				return new SuccessEndpointResponse(result);
+			}
+		);
 	}
 
 	@Nonnull

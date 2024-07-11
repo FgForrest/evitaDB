@@ -25,6 +25,7 @@ package io.evitadb.externalApi.observability.logging;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.linecorp.armeria.common.HttpRequest;
+import io.evitadb.core.Evita;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.externalApi.exception.ExternalApiInvalidUsageException;
 import io.evitadb.externalApi.http.EndpointService;
@@ -46,16 +47,21 @@ import java.util.concurrent.CompletableFuture;
  */
 public abstract class LoggingEndpointHandler extends EndpointService<LoggingEndpointExecutionContext> {
 	protected static final LinkedHashSet<String> DEFAULT_SUPPORTED_CONTENT_TYPES = new LinkedHashSet<>(List.of(MimeTypes.APPLICATION_JSON));
+	private final Evita evita;
 	protected final ObservabilityManager manager;
 
-	public LoggingEndpointHandler(ObservabilityManager manager) {
+	public LoggingEndpointHandler(
+		@Nonnull Evita evita,
+		@Nonnull ObservabilityManager manager
+	) {
+		this.evita = evita;
 		this.manager = manager;
 	}
 
 	@Nonnull
 	@Override
 	protected LoggingEndpointExecutionContext createExecutionContext(@Nonnull HttpRequest httpRequest) {
-		return new LoggingEndpointExecutionContext(httpRequest);
+		return new LoggingEndpointExecutionContext(httpRequest, this.evita);
 	}
 
 	@Nonnull

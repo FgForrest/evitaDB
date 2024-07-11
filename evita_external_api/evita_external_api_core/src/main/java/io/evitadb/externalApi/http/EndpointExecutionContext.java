@@ -24,11 +24,14 @@
 package io.evitadb.externalApi.http;
 
 import com.linecorp.armeria.common.HttpRequest;
+import io.evitadb.core.Evita;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.concurrent.CompletableFuture;
+import java.util.function.Supplier;
 
 /**
  * Context data present during entire execution of certain endpoint.
@@ -38,6 +41,7 @@ import javax.annotation.Nullable;
 @RequiredArgsConstructor(access = AccessLevel.PROTECTED)
 public abstract class EndpointExecutionContext implements AutoCloseable {
 	@Nonnull private final HttpRequest httpRequest;
+	@Nonnull private final Evita evita;
 
 	/**
 	 * Underlying HTTP request
@@ -54,6 +58,8 @@ public abstract class EndpointExecutionContext implements AutoCloseable {
 
 	/**
 	 * Parsed content type of request body, if any request body is present.
+	 *
+	 * TODO LHO - not used anywhere, remove?
 	 */
 	@Nullable
 	public abstract String requestBodyContentType();
@@ -80,5 +86,27 @@ public abstract class EndpointExecutionContext implements AutoCloseable {
 	@Override
 	public void close() {
 		// do nothing
+	}
+
+	/**
+	 * Asynchronously executes supplier lambda in the request thread pool.
+	 * @param supplier supplier to be executed
+	 * @return future with result of the supplier
+	 * @param <T> type of the result
+	 */
+	@Nonnull
+	public <T> CompletableFuture<T> executeAsyncInRequestThreadPool(@Nonnull Supplier<T> supplier) {
+		return CompletableFuture.supplyAsync(supplier, this.evita.getRequestExecutor());
+	}
+
+	/**
+	 * Asynchronously executes supplier lambda in the transactional thread pool.
+	 * @param supplier supplier to be executed
+	 * @return future with result of the supplier
+	 * @param <T> type of the result
+	 */
+	@Nonnull
+	public <T> CompletableFuture<T> executeAsyncInTransactionThreadPool(@Nonnull Supplier<T> supplier) {
+		return CompletableFuture.supplyAsync(supplier, this.evita.getTransactionExecutor());
 	}
 }

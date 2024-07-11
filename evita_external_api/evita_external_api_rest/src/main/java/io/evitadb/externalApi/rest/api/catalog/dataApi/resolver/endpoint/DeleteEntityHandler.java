@@ -63,34 +63,36 @@ public class DeleteEntityHandler extends EntityHandler<CollectionRestHandlingCon
 	@Override
 	@Nonnull
 	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
-		final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
+		return executionContext.executeAsyncInTransactionThreadPool(
+			() -> {
+				final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
 
-		final Map<String, Object> parametersFromRequest = getParametersFromRequest(executionContext);
-		Assert.isTrue(
-			parametersFromRequest.containsKey(DeleteEntityEndpointHeaderDescriptor.PRIMARY_KEY.name()),
-			() -> new RestInvalidArgumentException("Primary key wasn't found in URL.")
+				final Map<String, Object> parametersFromRequest = getParametersFromRequest(executionContext);
+				Assert.isTrue(
+					parametersFromRequest.containsKey(DeleteEntityEndpointHeaderDescriptor.PRIMARY_KEY.name()),
+					() -> new RestInvalidArgumentException("Primary key wasn't found in URL.")
+				);
+				requestExecutedEvent.finishInputDeserialization();
+
+				final EntityContentRequire[] entityContentRequires = requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() ->
+					RequireConstraintFromRequestQueryBuilder.getEntityContentRequires(parametersFromRequest));
+
+				final Optional<SealedEntity> deletedEntity = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
+					executionContext.session().deleteEntity(
+						restHandlingContext.getEntityType(),
+						(Integer) parametersFromRequest.get(DeleteEntityEndpointHeaderDescriptor.PRIMARY_KEY.name()),
+						entityContentRequires
+					));
+				requestExecutedEvent.finishOperationExecution();
+
+				final Optional<Object> result = deletedEntity.map(it -> convertResultIntoSerializableObject(executionContext, it));
+				requestExecutedEvent.finishResultSerialization();
+
+				return result
+					.map(it -> (EndpointResponse) new SuccessEndpointResponse(result))
+					.orElse(new NotFoundEndpointResponse());
+			}
 		);
-		requestExecutedEvent.finishInputDeserialization();
-
-		final EntityContentRequire[] entityContentRequires = requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() ->
-			RequireConstraintFromRequestQueryBuilder.getEntityContentRequires(parametersFromRequest));
-
-		return CompletableFuture.supplyAsync(() -> {
-			final Optional<SealedEntity> deletedEntity = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
-				executionContext.session().deleteEntity(
-					restHandlingContext.getEntityType(),
-					(Integer) parametersFromRequest.get(DeleteEntityEndpointHeaderDescriptor.PRIMARY_KEY.name()),
-					entityContentRequires
-				));
-			requestExecutedEvent.finishOperationExecution();
-
-			final Optional<Object> result = deletedEntity.map(it -> convertResultIntoSerializableObject(executionContext, it));
-			requestExecutedEvent.finishResultSerialization();
-
-			return result
-				.map(it -> (EndpointResponse) new SuccessEndpointResponse(result))
-				.orElse(new NotFoundEndpointResponse());
-		});
 	}
 
 	@Nonnull

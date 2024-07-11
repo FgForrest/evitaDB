@@ -24,7 +24,12 @@
 package io.evitadb.externalApi.graphql.io;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.linecorp.armeria.common.*;
+import com.linecorp.armeria.common.HttpData;
+import com.linecorp.armeria.common.HttpMethod;
+import com.linecorp.armeria.common.HttpRequest;
+import com.linecorp.armeria.common.HttpResponse;
+import com.linecorp.armeria.common.HttpResponseWriter;
+import com.linecorp.armeria.common.HttpStatus;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import graphql.ExecutionInput;
 import graphql.ExecutionResult;
@@ -36,6 +41,7 @@ import graphql.execution.UnknownOperationException;
 import graphql.schema.CoercingParseValueException;
 import graphql.schema.CoercingSerializeException;
 import io.evitadb.api.observability.trace.TracingBlockReference;
+import io.evitadb.core.Evita;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
@@ -45,8 +51,8 @@ import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidUsageException;
 import io.evitadb.externalApi.graphql.metric.event.request.ExecutedEvent;
-import io.evitadb.externalApi.http.EndpointService;
 import io.evitadb.externalApi.http.EndpointResponse;
+import io.evitadb.externalApi.http.EndpointService;
 import io.evitadb.externalApi.http.MimeTypes;
 import io.evitadb.externalApi.http.SuccessEndpointResponse;
 import io.evitadb.externalApi.trace.ExternalApiTracingContextProvider;
@@ -86,6 +92,8 @@ public class GraphQLHandler extends EndpointService<GraphQLEndpointExecutionCont
     );
 
     @Nonnull
+    private final Evita evita;
+    @Nonnull
     private final ObjectMapper objectMapper;
     @Nonnull
     private final ExternalApiTracingContext<Object> tracingContext;
@@ -95,10 +103,12 @@ public class GraphQLHandler extends EndpointService<GraphQLEndpointExecutionCont
     private final AtomicReference<GraphQL> graphQL;
 
 	public GraphQLHandler(
+        @Nonnull Evita evita,
 		@Nonnull ObjectMapper objectMapper,
 		@Nonnull GraphQLInstanceType instanceType,
 		@Nonnull AtomicReference<GraphQL> graphQL
 	) {
+        this.evita = evita;
 		this.objectMapper = objectMapper;
 		this.tracingContext = ExternalApiTracingContextProvider.getContext();
 		this.instanceType = instanceType;
@@ -127,6 +137,7 @@ public class GraphQLHandler extends EndpointService<GraphQLEndpointExecutionCont
 	protected GraphQLEndpointExecutionContext createExecutionContext(@Nonnull HttpRequest httpRequest) {
 		return new GraphQLEndpointExecutionContext(
 			httpRequest,
+            this.evita,
 			new ExecutedEvent(instanceType)
 		);
 	}

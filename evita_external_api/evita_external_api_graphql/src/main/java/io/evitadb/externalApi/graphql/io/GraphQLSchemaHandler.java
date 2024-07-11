@@ -23,16 +23,20 @@
 
 package io.evitadb.externalApi.graphql.io;
 
-import com.linecorp.armeria.common.*;
+import com.linecorp.armeria.common.HttpData;
+import com.linecorp.armeria.common.HttpMethod;
+import com.linecorp.armeria.common.HttpRequest;
+import com.linecorp.armeria.common.HttpResponseWriter;
 import graphql.GraphQL;
 import graphql.schema.GraphQLSchema;
+import io.evitadb.core.Evita;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.externalApi.exception.ExternalApiInvalidUsageException;
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidUsageException;
 import io.evitadb.externalApi.graphql.utils.GraphQLSchemaPrinter;
-import io.evitadb.externalApi.http.EndpointService;
 import io.evitadb.externalApi.http.EndpointResponse;
+import io.evitadb.externalApi.http.EndpointService;
 import io.evitadb.externalApi.http.SuccessEndpointResponse;
 import io.evitadb.utils.Assert;
 import io.netty.channel.EventLoop;
@@ -55,25 +59,31 @@ import static io.evitadb.utils.CollectionUtils.createLinkedHashSet;
 @Slf4j
 public class GraphQLSchemaHandler extends EndpointService<GraphQLSchemaEndpointExecutionContext> {
 
-    private static final Set<String> IMPLICIT_DIRECTIVES = Set.of("deprecated", "skip", "include", "specifiedBy");
-
+    @Nonnull
+    private final Evita evita;
     @Nonnull
     private final AtomicReference<GraphQL> graphQL;
 
-    public GraphQLSchemaHandler(@Nonnull AtomicReference<GraphQL> graphQL) {
+    public GraphQLSchemaHandler(
+        @Nonnull Evita evita,
+        @Nonnull AtomicReference<GraphQL> graphQL
+    ) {
+        this.evita = evita;
         this.graphQL = graphQL;
     }
 
     @Nonnull
     @Override
     protected GraphQLSchemaEndpointExecutionContext createExecutionContext(@Nonnull HttpRequest httpRequest) {
-        return new GraphQLSchemaEndpointExecutionContext(httpRequest);
+        return new GraphQLSchemaEndpointExecutionContext(httpRequest, this.evita);
     }
 
     @Override
     @Nonnull
     protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull GraphQLSchemaEndpointExecutionContext executionContext) {
-        return CompletableFuture.supplyAsync(() -> new SuccessEndpointResponse(graphQL.get().getGraphQLSchema()));
+        return executionContext.executeAsyncInRequestThreadPool(
+            () -> new SuccessEndpointResponse(graphQL.get().getGraphQLSchema())
+        );
     }
 
     @Nonnull

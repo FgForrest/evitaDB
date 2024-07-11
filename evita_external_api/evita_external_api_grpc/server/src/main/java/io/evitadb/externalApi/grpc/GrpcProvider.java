@@ -26,9 +26,7 @@ package io.evitadb.externalApi.grpc;
 import com.google.protobuf.Empty;
 import com.linecorp.armeria.client.ClientFactory;
 import com.linecorp.armeria.client.ClientFactoryBuilder;
-import com.linecorp.armeria.client.grpc.GrpcClientBuilder;
 import com.linecorp.armeria.client.grpc.GrpcClients;
-import io.evitadb.externalApi.configuration.ApiOptions;
 import com.linecorp.armeria.server.HttpService;
 import io.evitadb.externalApi.configuration.HostDefinition;
 import io.evitadb.externalApi.configuration.MtlsConfiguration;
@@ -54,12 +52,6 @@ import javax.annotation.Nullable;
 public class GrpcProvider implements ExternalApiProvider<GrpcConfig> {
 
 	public static final String CODE = "gRPC";
-
-	@Nonnull
-	private final String serverName;
-
-	@Nonnull
-	private final ApiOptions apiOptions;
 
 	@Nonnull
 	@Getter
@@ -91,33 +83,53 @@ public class GrpcProvider implements ExternalApiProvider<GrpcConfig> {
 		return configuration.isExposeDocsService();
 	}
 
-	private GrpcClientBuilder grpcClientBuilder;
-
+	/**
+	 * Builder for gRPC client factory.
+	 */
 	private final ClientFactoryBuilder clientFactoryBuilder = ClientFactory.builder()
 		.useHttp1Pipelining(true)
-		.idleTimeoutMillis(10000, true)
-		.tlsNoVerify()
-		.maxNumRequestsPerConnection(1000)
-		.maxNumEventLoopsPerEndpoint(10);
+		.idleTimeoutMillis(100)
+		.tlsNoVerify();
 
 	@Override
 	public boolean isReady() {
+		if (reachableUrl != null) {
+			if (checkReachable(reachableUrl)) {
+				return true;
+			}
+		}
+
 		for (HostDefinition hostDefinition : this.configuration.getHost()) {
 			final String uriScheme = configuration.getTlsMode() != TlsMode.FORCE_NO_TLS ? "https" : "http";
 
-			int attempts = 5;
-			while (attempts-- > 0) {
-				try {
-					final EvitaServiceBlockingStub evitaService = GrpcClients.builder(uriScheme + "://" + hostDefinition.hostWithPort() + "/")
-						.factory(clientFactoryBuilder.build())
-						.responseTimeoutMillis(3000)
-						.build(EvitaServiceBlockingStub.class);
-					return evitaService.serverStatus(Empty.newBuilder().build()).getUptime() > 0;
-				} catch (Exception e) {
-					log.error("Error while checking if gRPC server is ready", e);
-				}
+			final String uri = uriScheme + "://" + hostDefinition.hostWithPort() + "/";
+			if (!uri.equals(reachableUrl) && checkReachable(uri)) {
+				return true;
 			}
 		}
 		return false;
+	}
+
+	/**
+	 * Check if the given URI is reachable via gRPC client.
+	 * @param uri URI to check
+	 * @return true if the URI is reachable, false otherwise
+	 */
+	public boolean checkReachable(@Nonnull String uri) {
+		try {
+			final EvitaServiceBlockingStub evitaService = GrpcClients.builder(uri)
+				.factory(clientFactoryBuilder.build())
+				.responseTimeoutMillis(100)
+				.build(EvitaServiceBlockingStub.class);
+			final long uptime = evitaService.serverStatus(Empty.newBuilder().build()).getUptime();
+			if (uptime > 0) {
+				reachableUrl = uri;
+				return true;
+			} else {
+				return false;
+			}
+		} catch (Exception e) {
+			return false;
+		}
 	}
 }

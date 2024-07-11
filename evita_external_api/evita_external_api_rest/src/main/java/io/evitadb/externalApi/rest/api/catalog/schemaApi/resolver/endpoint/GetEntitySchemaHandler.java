@@ -23,8 +23,8 @@
 
 package io.evitadb.externalApi.rest.api.catalog.schemaApi.resolver.endpoint;
 
-import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import com.linecorp.armeria.common.HttpMethod;
+import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.externalApi.http.EndpointResponse;
 import io.evitadb.externalApi.http.NotFoundEndpointResponse;
 import io.evitadb.externalApi.http.SuccessEndpointResponse;
@@ -53,18 +53,20 @@ public class GetEntitySchemaHandler extends EntitySchemaHandler {
 	@Override
 	@Nonnull
 	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
-		final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
-		requestExecutedEvent.finishInputDeserialization();
+		return executionContext.executeAsyncInRequestThreadPool(
+			() -> {
+				final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
+				requestExecutedEvent.finishInputDeserialization();
 
-		return CompletableFuture.supplyAsync(() -> {
-			final Optional<SealedEntitySchema> entitySchema = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
-				executionContext.session().getEntitySchema(restHandlingContext.getEntityType()));
-			requestExecutedEvent.finishOperationExecution();
+				final Optional<SealedEntitySchema> entitySchema = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
+					executionContext.session().getEntitySchema(restHandlingContext.getEntityType()));
+				requestExecutedEvent.finishOperationExecution();
 
-			return entitySchema
-				.map(it -> (EndpointResponse) new SuccessEndpointResponse(convertResultIntoSerializableObject(executionContext, it)))
-				.orElse(new NotFoundEndpointResponse());
-		});
+				return entitySchema
+					.map(it -> (EndpointResponse) new SuccessEndpointResponse(convertResultIntoSerializableObject(executionContext, it)))
+					.orElse(new NotFoundEndpointResponse());
+			}
+		);
 	}
 
 	@Nonnull

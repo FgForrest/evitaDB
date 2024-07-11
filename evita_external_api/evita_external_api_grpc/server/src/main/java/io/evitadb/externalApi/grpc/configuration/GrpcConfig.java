@@ -27,7 +27,6 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
 import io.evitadb.externalApi.configuration.ApiWithOriginControl;
-import io.evitadb.externalApi.configuration.ApiWithSpecificPrefix;
 import io.evitadb.externalApi.configuration.MtlsConfiguration;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
@@ -57,21 +56,22 @@ public class GrpcConfig extends AbstractApiConfiguration implements ApiWithOrigi
 	 * Port on which will server be run and on which will channel be opened.
 	 */
 	public static final int DEFAULT_GRPC_PORT = 5556;
-	/*
-	 * Wrapper that contains a part of configuration file that is related to mTLS settings.
+	/**
+	 * Allows to expose the Armeria specific docs service on the gRPC API.
 	 */
-
 	@Getter private final boolean exposeDocsService;
 
 	@Getter private final String[] allowedOrigins;
-
+	/**
+	 * Wrapper that contains a part of configuration file that is related to mTLS settings.
+	 */
 	@Getter
 	private final MtlsConfiguration mtlsConfiguration;
 
 	public GrpcConfig() {
 		super(true, LOCALHOST + ":" + DEFAULT_GRPC_PORT);
 		this.exposeDocsService = false;
-		mtlsConfiguration = new MtlsConfiguration(false, List.of());
+		this.mtlsConfiguration = new MtlsConfiguration(false, List.of());
 		this.prefix = BASE_GRPC_PATH;
 		this.allowedOrigins = null;
 	}
@@ -79,7 +79,7 @@ public class GrpcConfig extends AbstractApiConfiguration implements ApiWithOrigi
 	public GrpcConfig(@Nonnull String host) {
 		super(true, host);
 		this.exposeDocsService = false;
-		mtlsConfiguration = new MtlsConfiguration(false, List.of());
+		this.mtlsConfiguration = new MtlsConfiguration(false, List.of());
 		this.prefix = BASE_GRPC_PATH;
 		this.allowedOrigins = null;
 	}

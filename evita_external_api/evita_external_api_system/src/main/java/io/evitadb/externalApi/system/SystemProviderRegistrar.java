@@ -60,6 +60,7 @@ import java.util.Optional;
 import java.util.ServiceLoader;
 import java.util.ServiceLoader.Provider;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 /**
@@ -126,65 +127,68 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 	 * @param probes            the probes providers
 	 * @param enabledEndPoints  the enabled API endpoints
 	 */
-	private static HttpResponse renderStatus(
+	private static CompletableFuture<HttpResponse> renderStatus(
 		@Nonnull Evita evita,
 		@Nonnull ExternalApiServer externalApiServer,
 		@Nonnull ApiOptions apiOptions,
 		@Nonnull List<ProbesProvider> probes,
 		@Nonnull String[] enabledEndPoints) {
-		if (evita.isActive()) {
-			final HttpResponseBuilder builder = HttpResponse.builder();
-			builder.status(HttpStatus.OK);
-			final Set<HealthProblem> healthProblems = probes
-				.stream()
-				.flatMap(it -> it.getHealthProblems(evita, externalApiServer, enabledEndPoints).stream())
-				.collect(Collectors.toSet());
-			final SystemStatus systemStatus = evita.getSystemStatus();
-			return builder.content(
-				MediaType.JSON,
-				String.format("""
-						{
-						   "serverName": "%s",
-						   "version": "%s",
-						   "startedAt": "%s",
-						   "uptime": %d,
-						   "uptimeForHuman": "%s",
-						   "catalogsCorrupted": %d,
-						   "catalogsOk": %d,
-						   "healthProblems": [%s],
-						   "apis": [
-						%s
-						   ]
-						}""",
-					evita.getConfiguration().name(),
-					systemStatus.version(),
-					DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(systemStatus.startedAt()),
-					systemStatus.uptime().toSeconds(),
-					StringUtils.formatDuration(systemStatus.uptime()),
-					systemStatus.catalogsCorrupted(),
-					systemStatus.catalogsOk(),
-					healthProblems.stream()
-						.sorted()
-						.map(it -> "\"" + it.name() + "\"")
-						.collect(Collectors.joining(", ")),
-					apiOptions.endpoints()
-						.entrySet()
+		return evita.executeAsyncInRequestThreadPool(
+			() -> {
+				if (evita.isActive()) {
+					final HttpResponseBuilder builder = HttpResponse.builder();
+					builder.status(HttpStatus.OK);
+					final Set<HealthProblem> healthProblems = probes
 						.stream()
-						.filter(entry -> Arrays.stream(enabledEndPoints).anyMatch(it -> it.equals(entry.getKey())))
-						.map(
-							entry -> "      {\n         \"" + entry.getKey() + "\": " +
-								"[\n" + Arrays.stream(entry.getValue().getBaseUrls(apiOptions.exposedOn()))
-								.map(it -> "            \"" + it + "\"")
-								.collect(Collectors.joining(",\n")) +
-								"\n         ]" +
-								"\n      }"
+						.flatMap(it -> it.getHealthProblems(evita, externalApiServer, enabledEndPoints).stream())
+						.collect(Collectors.toSet());
+					final SystemStatus systemStatus = evita.getSystemStatus();
+					return builder.content(
+						MediaType.JSON,
+						String.format("""
+								{
+								   "serverName": "%s",
+								   "version": "%s",
+								   "startedAt": "%s",
+								   "uptime": %d,
+								   "uptimeForHuman": "%s",
+								   "catalogsCorrupted": %d,
+								   "catalogsOk": %d,
+								   "healthProblems": [%s],
+								   "apis": [
+								%s
+								   ]
+								}""",
+							evita.getConfiguration().name(),
+							systemStatus.version(),
+							DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(systemStatus.startedAt()),
+							systemStatus.uptime().toSeconds(),
+							StringUtils.formatDuration(systemStatus.uptime()),
+							systemStatus.catalogsCorrupted(),
+							systemStatus.catalogsOk(),
+							healthProblems.stream()
+								.sorted()
+								.map(it -> "\"" + it.name() + "\"")
+								.collect(Collectors.joining(", ")),
+							apiOptions.endpoints()
+								.entrySet()
+								.stream()
+								.filter(entry -> Arrays.stream(enabledEndPoints).anyMatch(it -> it.equals(entry.getKey())))
+								.map(
+									entry -> "      {\n         \"" + entry.getKey() + "\": " +
+										"[\n" + Arrays.stream(entry.getValue().getBaseUrls(apiOptions.exposedOn()))
+										.map(it -> "            \"" + it + "\"")
+										.collect(Collectors.joining(",\n")) +
+										"\n         ]" +
+										"\n      }"
+								)
+								.collect(Collectors.joining(",\n"))
 						)
-						.collect(Collectors.joining(",\n"))
-				)
-			).build();
-		} else {
-			return renderUnavailable();
-		}
+					).build();
+				} else {
+					return renderUnavailable();
+				}
+			});
 	}
 
 	/**
@@ -195,32 +199,35 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 	 * @param probes            the probes providers
 	 * @param enabledEndPoints  the enabled API endpoints
 	 */
-	private static HttpResponse renderReadinessResponse(
+	private static CompletableFuture<HttpResponse> renderReadinessResponse(
 		@Nonnull Evita evita,
 		@Nonnull ExternalApiServer externalApiServer,
 		@Nonnull List<ProbesProvider> probes,
 		@Nonnull String[] enabledEndPoints
 	) {
-		final HttpResponseBuilder builder = HttpResponse.builder();
-		if (evita.isActive()) {
-			final Optional<Readiness> readiness = probes
-				.stream()
-				.map(it -> it.getReadiness(evita, externalApiServer, enabledEndPoints))
-				.findFirst();
+		return evita.executeAsyncInRequestThreadPool(
+			() -> {
+				final HttpResponseBuilder builder = HttpResponse.builder();
+				if (evita.isActive()) {
+					final Optional<Readiness> readiness = probes
+						.stream()
+						.map(it -> it.getReadiness(evita, externalApiServer, enabledEndPoints))
+						.findFirst();
 
-			if (readiness.map(it -> it.state() == ReadinessState.READY).orElse(false)) {
-				builder.status(HttpStatus.OK);
-				return printApiStatus(builder, readiness.get());
-			} else if (readiness.isPresent()) {
-				builder.status(HttpStatus.SERVICE_UNAVAILABLE);
-				return printApiStatus(builder, readiness.get());
-			} else {
-				builder.status(HttpStatus.SERVICE_UNAVAILABLE);
-				return builder.content(MediaType.JSON, "{\"status\": \"" + ReadinessState.UNKNOWN.name() + "\"}").build();
-			}
-		} else {
-			return renderUnavailable();
-		}
+					if (readiness.map(it -> it.state() == ReadinessState.READY).orElse(false)) {
+						builder.status(HttpStatus.OK);
+						return printApiStatus(builder, readiness.get());
+					} else if (readiness.isPresent()) {
+						builder.status(HttpStatus.SERVICE_UNAVAILABLE);
+						return printApiStatus(builder, readiness.get());
+					} else {
+						builder.status(HttpStatus.SERVICE_UNAVAILABLE);
+						return builder.content(MediaType.JSON, "{\"status\": \"" + ReadinessState.UNKNOWN.name() + "\"}").build();
+					}
+				} else {
+					return renderUnavailable();
+				}
+			});
 	}
 
 	/**
@@ -231,35 +238,38 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 	 * @param probes            the probes providers
 	 * @param enabledEndPoints  the enabled API endpoints
 	 */
-	private static HttpResponse renderLivenessResponse(
+	private static CompletableFuture<HttpResponse> renderLivenessResponse(
 		@Nonnull Evita evita,
 		@Nonnull ExternalApiServer externalApiServer,
 		@Nonnull List<ProbesProvider> probes,
 		@Nonnull String[] enabledEndPoints
 	) {
-		if (evita.isActive()) {
-			final Set<HealthProblem> healthProblems = probes
-				.stream()
-				.flatMap(it -> it.getHealthProblems(evita, externalApiServer, enabledEndPoints).stream())
-				.collect(Collectors.toSet());
+		return evita.executeAsyncInRequestThreadPool(
+			() -> {
+				if (evita.isActive()) {
+					final Set<HealthProblem> healthProblems = probes
+						.stream()
+						.flatMap(it -> it.getHealthProblems(evita, externalApiServer, enabledEndPoints).stream())
+						.collect(Collectors.toSet());
 
-			if (healthProblems.isEmpty()) {
-				return HttpResponse.of(HttpStatus.OK, MediaType.JSON, "{\"status\": \"healthy\"}");
-			} else {
-				return HttpResponse.of(
-					HttpStatus.SERVICE_UNAVAILABLE,
-					MediaType.JSON,
-					"{\"status\": \"unhealthy\", \"problems\": [" +
-						healthProblems.stream()
-							.sorted()
-							.map(it -> "\"" + it.name() + "\"")
-							.collect(Collectors.joining(", ")) +
-						"]}"
-				);
-			}
-		} else {
-			return renderUnavailable();
-		}
+					if (healthProblems.isEmpty()) {
+						return HttpResponse.of(HttpStatus.OK, MediaType.JSON, "{\"status\": \"healthy\"}");
+					} else {
+						return HttpResponse.of(
+							HttpStatus.SERVICE_UNAVAILABLE,
+							MediaType.JSON,
+							"{\"status\": \"unhealthy\", \"problems\": [" +
+								healthProblems.stream()
+									.sorted()
+									.map(it -> "\"" + it.name() + "\"")
+									.collect(Collectors.joining(", ")) +
+								"]}"
+						);
+					}
+				} else {
+					return renderUnavailable();
+				}
+			});
 	}
 
 	@Nonnull
@@ -296,23 +306,25 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 
 		router.addExactPath(
 			"/" + ENDPOINT_SYSTEM_STATUS,
-			(ctx, req) -> renderStatus(
-				evita,
-				externalApiServer,
-				apiOptions,
-				probes,
-				enabledEndPoints
+			(ctx, req) -> HttpResponse.of(
+				renderStatus(
+					evita,
+					externalApiServer,
+					apiOptions,
+					probes,
+					enabledEndPoints
+				)
 			)
 		);
 
 		router.addExactPath(
 			"/" + ENDPOINT_SYSTEM_LIVENESS,
-			(ctx, req) -> renderLivenessResponse(evita, externalApiServer, probes, enabledEndPoints)
+			(ctx, req) -> HttpResponse.of(renderLivenessResponse(evita, externalApiServer, probes, enabledEndPoints))
 		);
 
 		router.addExactPath(
 			"/" + ENDPOINT_SYSTEM_READINESS,
-			(ctx, req) -> renderReadinessResponse(evita, externalApiServer, probes, enabledEndPoints)
+			(ctx, req) -> HttpResponse.of(renderReadinessResponse(evita, externalApiServer, probes, enabledEndPoints))
 		);
 
 		final String fileName;

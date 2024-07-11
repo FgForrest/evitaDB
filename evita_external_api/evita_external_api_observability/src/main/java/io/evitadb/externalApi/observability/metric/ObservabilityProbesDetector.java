@@ -157,8 +157,9 @@ public class ObservabilityProbesDetector implements ProbesProvider {
 		final Map<String, Boolean> readiness = CollectionUtils.createHashMap(availableExternalApis.size());
 		for (String apiCode : apiCodes) {
 			final ExternalApiProvider<?> apiProvider = externalApiServer.getExternalApiProviderByCode(apiCode);
-			readiness.put(apiProvider.getCode(), apiProvider.isReady());
-			theObservabilityManager.ifPresent(it -> it.recordReadiness(apiProvider.getCode(), apiProvider.isReady()));
+			final boolean ready = apiProvider.isReady();
+			readiness.put(apiProvider.getCode(), ready);
+			theObservabilityManager.ifPresent(it -> it.recordReadiness(apiProvider.getCode(), ready));
 		}
 		final boolean ready = readiness.values().stream().allMatch(Boolean::booleanValue);
 		if (ready) {

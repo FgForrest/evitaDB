@@ -106,6 +106,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -713,6 +714,28 @@ public final class Evita implements EvitaContract {
 	public CatalogContract getCatalogInstanceOrThrowException(@Nonnull String catalog) throws IllegalArgumentException {
 		return getCatalogInstance(catalog)
 			.orElseThrow(() -> new IllegalArgumentException("Catalog " + catalog + " is not known to Evita!"));
+	}
+
+	/**
+	 * Asynchronously executes supplier lambda in the request thread pool.
+	 * @param supplier supplier to be executed
+	 * @return future with result of the supplier
+	 * @param <T> type of the result
+	 */
+	@Nonnull
+	public <T> CompletableFuture<T> executeAsyncInRequestThreadPool(@Nonnull Supplier<T> supplier) {
+		return CompletableFuture.supplyAsync(supplier, this.requestExecutor);
+	}
+
+	/**
+	 * Asynchronously executes supplier lambda in the transactional thread pool.
+	 * @param supplier supplier to be executed
+	 * @return future with result of the supplier
+	 * @param <T> type of the result
+	 */
+	@Nonnull
+	public <T> CompletableFuture<T> executeAsyncInTransactionThreadPool(@Nonnull Supplier<T> supplier) {
+		return CompletableFuture.supplyAsync(supplier, this.transactionExecutor);
 	}
 
 	/**

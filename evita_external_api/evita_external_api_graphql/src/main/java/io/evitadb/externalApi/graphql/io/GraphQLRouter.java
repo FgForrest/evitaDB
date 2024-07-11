@@ -94,7 +94,7 @@ public class GraphQLRouter implements HttpService {
 	 */
 	public void registerSystemApi(@Nonnull GraphQL systemApi) {
 		Assert.isPremiseValid(
-			!systemApiRegistered,
+			!this.systemApiRegistered,
 			() -> new GraphQLInternalError("System API has been already registered.")
 		);
 
@@ -161,8 +161,8 @@ public class GraphQLRouter implements HttpService {
 		apiRouter.add(
 			HttpMethod.POST,
 			registeredApi.path().toString(),
-			new GraphQLHandler(objectMapper, registeredApi.instanceType(), registeredApi.graphQLReference())
-			.decorate(service -> new GraphQLExceptionHandler(objectMapper, service))
+			new GraphQLHandler(this.evita, this.objectMapper, registeredApi.instanceType(), registeredApi.graphQLReference())
+			.decorate(service -> new GraphQLExceptionHandler(this.objectMapper, service))
 			.decorate(
 				new CorsFilterServiceDecorator(
 					graphQLConfig.getAllowedOrigins()
@@ -173,11 +173,14 @@ public class GraphQLRouter implements HttpService {
 		apiRouter.add(
 			HttpMethod.GET,
 			registeredApi.path().toString(),
-			new GraphQLSchemaHandler(registeredApi.graphQLReference())
-			.decorate(service -> new GraphQLExceptionHandler(objectMapper, service))
+			new GraphQLSchemaHandler(
+				this.evita,
+				registeredApi.graphQLReference()
+			)
+			.decorate(service -> new GraphQLExceptionHandler(this.objectMapper, service))
 			.decorate(
 				new CorsFilterServiceDecorator(
-					graphQLConfig.getAllowedOrigins()
+					this.graphQLConfig.getAllowedOrigins()
 				).createDecorator()
 			)
 		);
@@ -186,7 +189,7 @@ public class GraphQLRouter implements HttpService {
 			HttpMethod.OPTIONS,
 			registeredApi.path().toString(),
 			new CorsPreflightService(
-				graphQLConfig.getAllowedOrigins(),
+				this.graphQLConfig.getAllowedOrigins(),
 				Set.of(HttpMethod.GET.name(), HttpMethod.POST.name()),
 				Set.of(
 					HttpHeaderNames.CONTENT_TYPE.toString(),
@@ -197,7 +200,7 @@ public class GraphQLRouter implements HttpService {
 				)
 			).decorate(
 				new CorsFilterServiceDecorator(
-					graphQLConfig.getAllowedOrigins()
+					this.graphQLConfig.getAllowedOrigins()
 				).createDecorator()
 			)
 		);
@@ -207,12 +210,12 @@ public class GraphQLRouter implements HttpService {
 	 * Unified way of building catalog's URL path from its name.
 	 */
 	@Nonnull
-	private UriPath constructCatalogPath(@Nonnull String catalogName) {
+	private static UriPath constructCatalogPath(@Nonnull String catalogName) {
 		return UriPath.of("/", catalogName);
 	}
 
 	@RequiredArgsConstructor
-	private class RegisteredCatalog {
+	private static class RegisteredCatalog {
 
 		private static final Set<GraphQLInstanceType> ALLOWED_API_INSTANCES = Set.of(GraphQLInstanceType.DATA, GraphQLInstanceType.SCHEMA);
 
@@ -240,22 +243,6 @@ public class GraphQLRouter implements HttpService {
 			);
 			return api;
 		}
-//
-//		public void setDataApi(@Nonnull RegisteredApi dataApi) {
-//			Assert.isPremiseValid(
-//				dataApi == null,
-//				() -> new GraphQLInternalError("Data API has been already registered.")
-//			);
-//			this.dataApi = dataApi;
-//		}
-//
-//		public void setSchemaApi(@Nonnull RegisteredApi schemaApi) {
-//			Assert.isPremiseValid(
-//				schemaApi == null,
-//				() -> new GraphQLInternalError("Schema API has been already registered.")
-//			);
-//			this.schemaApi = schemaApi;
-//		}
 	}
 
 	private record RegisteredApi(@Nonnull GraphQLInstanceType instanceType,

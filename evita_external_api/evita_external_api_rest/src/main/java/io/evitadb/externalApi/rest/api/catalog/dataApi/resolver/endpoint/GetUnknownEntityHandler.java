@@ -57,30 +57,32 @@ public class GetUnknownEntityHandler extends EntityHandler<CatalogRestHandlingCo
 	@Override
 	@Nonnull
 	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
-		final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
+		return executionContext.executeAsyncInRequestThreadPool(
+			() -> {
+				final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
 
-		final Map<String, Object> parametersFromRequest = getParametersFromRequest(executionContext);
-		requestExecutedEvent.finishInputDeserialization();
+				final Map<String, Object> parametersFromRequest = getParametersFromRequest(executionContext);
+				requestExecutedEvent.finishInputDeserialization();
 
-		final Query query = requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() -> Query.query(
-			FilterByConstraintFromRequestQueryBuilder.buildFilterByForUnknownEntity(parametersFromRequest, restHandlingContext.getCatalogSchema()),
-			RequireConstraintFromRequestQueryBuilder.buildRequire(parametersFromRequest)
-		));
+				final Query query = requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() -> Query.query(
+					FilterByConstraintFromRequestQueryBuilder.buildFilterByForUnknownEntity(parametersFromRequest, restHandlingContext.getCatalogSchema()),
+					RequireConstraintFromRequestQueryBuilder.buildRequire(parametersFromRequest)
+				));
 
-		log.debug("Generated evitaDB query for single unknown entity fetch is `{}`.", query);
+				log.debug("Generated evitaDB query for single unknown entity fetch is `{}`.", query);
 
-		return CompletableFuture.supplyAsync(() -> {
-			final Optional<EntityClassifier> entity = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
-				executionContext.session().queryOne(query, EntityClassifier.class));
-			requestExecutedEvent.finishOperationExecution();
+				final Optional<EntityClassifier> entity = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
+					executionContext.session().queryOne(query, EntityClassifier.class));
+				requestExecutedEvent.finishOperationExecution();
 
-			final Optional<Object> result = entity.map(it -> convertResultIntoSerializableObject(executionContext, it));
-			requestExecutedEvent.finishResultSerialization();
+				final Optional<Object> result = entity.map(it -> convertResultIntoSerializableObject(executionContext, it));
+				requestExecutedEvent.finishResultSerialization();
 
-			return result
-				.map(it -> (EndpointResponse) new SuccessEndpointResponse(it))
-				.orElse(new NotFoundEndpointResponse());
-		});
+				return result
+					.map(it -> (EndpointResponse) new SuccessEndpointResponse(it))
+					.orElse(new NotFoundEndpointResponse());
+			}
+		);
 	}
 
 	@Nonnull

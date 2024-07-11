@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.observability.logging;
 
 import com.linecorp.armeria.common.HttpRequest;
+import io.evitadb.core.Evita;
 import io.evitadb.externalApi.http.EndpointExecutionContext;
 import io.evitadb.externalApi.observability.exception.ObservabilityInternalError;
 import io.evitadb.utils.Assert;
@@ -41,8 +42,11 @@ public class LoggingEndpointExecutionContext extends EndpointExecutionContext {
 	@Nullable private String requestBodyContentType;
 	@Nullable private String preferredResponseContentType;
 
-	public LoggingEndpointExecutionContext(@Nonnull HttpRequest httpRequest) {
-		super(httpRequest);
+	public LoggingEndpointExecutionContext(
+		@Nonnull HttpRequest httpRequest,
+		@Nonnull Evita evita
+	) {
+		super(httpRequest, evita);
 	}
 
 	@Override

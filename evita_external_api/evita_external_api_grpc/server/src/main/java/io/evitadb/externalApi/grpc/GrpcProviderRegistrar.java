@@ -40,7 +40,6 @@ import io.evitadb.externalApi.grpc.services.interceptors.ObservabilityIntercepto
 import io.evitadb.externalApi.grpc.services.interceptors.ServerSessionInterceptor;
 import io.evitadb.externalApi.http.ExternalApiProvider;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
-
 import io.evitadb.externalApi.http.ExternalApiServer;
 import io.grpc.protobuf.services.ProtoReflectionService;
 
@@ -98,6 +97,6 @@ public class GrpcProviderRegistrar implements ExternalApiProviderRegistrar<GrpcC
 
 		final GrpcService grpcService = grpcServiceBuilder.build();
 
-		return new GrpcProvider(evita.getConfiguration().name(), apiOptions, grpcAPIConfig, corsBuilder.build(grpcService));
+		return new GrpcProvider(grpcAPIConfig, corsBuilder.build(grpcService));
 	}
 }

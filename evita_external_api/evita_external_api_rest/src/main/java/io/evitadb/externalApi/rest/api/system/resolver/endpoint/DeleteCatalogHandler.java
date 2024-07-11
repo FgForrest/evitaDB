@@ -46,7 +46,7 @@ import java.util.concurrent.CompletableFuture;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class DeleteCatalogHandler extends JsonRestHandler<SystemRestHandlingContext>  {
+public class DeleteCatalogHandler extends JsonRestHandler<SystemRestHandlingContext> {
 
 	public DeleteCatalogHandler(@Nonnull SystemRestHandlingContext restApiHandlingContext) {
 		super(restApiHandlingContext);
@@ -66,26 +66,28 @@ public class DeleteCatalogHandler extends JsonRestHandler<SystemRestHandlingCont
 		requestExecutedEvent.finishInputDeserialization();
 
 		final String catalogName = (String) parameters.get(CatalogsHeaderDescriptor.NAME.name());
-		return CompletableFuture.supplyAsync(() -> {
-			final Optional<CatalogContract> catalog = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
-				restHandlingContext.getEvita().getCatalogInstance(catalogName));
-			if (catalog.isEmpty()) {
+		return executionContext.executeAsyncInTransactionThreadPool(
+			() -> {
+				final Optional<CatalogContract> catalog = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
+					restHandlingContext.getEvita().getCatalogInstance(catalogName));
+				if (catalog.isEmpty()) {
+					requestExecutedEvent.finishOperationExecution();
+					requestExecutedEvent.finishResultSerialization();
+					return new NotFoundEndpointResponse();
+				}
+
+				final boolean deleted = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
+					restHandlingContext.getEvita().deleteCatalogIfExists(catalog.get().getName()));
+				Assert.isPremiseValid(
+					deleted,
+					() -> new RestInternalError("Could not delete catalog `" + catalog.get().getName() + "`, even though it should exist.")
+				);
+
 				requestExecutedEvent.finishOperationExecution();
 				requestExecutedEvent.finishResultSerialization();
-				return new NotFoundEndpointResponse();
+				return new SuccessEndpointResponse();
 			}
-
-			final boolean deleted = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
-				restHandlingContext.getEvita().deleteCatalogIfExists(catalog.get().getName()));
-			Assert.isPremiseValid(
-				deleted,
-				() -> new RestInternalError("Could not delete catalog `" + catalog.get().getName() + "`, even though it should exist.")
-			);
-
-			requestExecutedEvent.finishOperationExecution();
-			requestExecutedEvent.finishResultSerialization();
-			return new SuccessEndpointResponse();
-		});
+		);
 	}
 
 	@Nonnull

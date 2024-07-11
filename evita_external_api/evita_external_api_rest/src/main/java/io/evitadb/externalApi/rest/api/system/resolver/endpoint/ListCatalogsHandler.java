@@ -58,19 +58,21 @@ public class ListCatalogsHandler extends JsonRestHandler<SystemRestHandlingConte
 	@Nonnull
 	@Override
 	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
-		final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
-		requestExecutedEvent.finishInputDeserialization();
+		return executionContext.executeAsyncInRequestThreadPool(
+			() -> {
+				final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
+				requestExecutedEvent.finishInputDeserialization();
 
-		return CompletableFuture.supplyAsync(() -> {
-			final Collection<CatalogContract> catalogs = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
-				restHandlingContext.getEvita().getCatalogs());
-			requestExecutedEvent.finishOperationExecution();
+				final Collection<CatalogContract> catalogs = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
+					restHandlingContext.getEvita().getCatalogs());
+				requestExecutedEvent.finishOperationExecution();
 
-			final Object result = convertResultIntoSerializableObject(executionContext, catalogs);
-			requestExecutedEvent.finishResultSerialization();
+				final Object result = convertResultIntoSerializableObject(executionContext, catalogs);
+				requestExecutedEvent.finishResultSerialization();
 
-			return new SuccessEndpointResponse(result);
-		});
+				return new SuccessEndpointResponse(result);
+			}
+		);
 	}
 
 	@Nonnull

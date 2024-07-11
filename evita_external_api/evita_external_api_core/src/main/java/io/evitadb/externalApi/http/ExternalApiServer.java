@@ -87,7 +87,9 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.ServiceLoader;
 import java.util.ServiceLoader.Provider;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -384,9 +386,8 @@ public class ExternalApiServer implements AutoCloseable {
 
 		try {
 			registeredApiProviders.values().forEach(ExternalApiProvider::beforeStop);
-			server.stop();
-			//TODO tpz await termination with 5s
-			//server.blockUntilShutdown();
+			final CompletableFuture<Void> stopFuture = server.stop();
+			stopFuture.get(5, TimeUnit.SECONDS);
 			ConsoleWriter.write("External APIs stopped.\n");
 		} catch (Exception ex) {
 			ConsoleWriter.write("Failed to stop external APIs in dedicated time (5 secs.).\n");

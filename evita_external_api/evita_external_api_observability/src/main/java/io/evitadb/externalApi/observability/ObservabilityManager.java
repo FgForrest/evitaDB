@@ -325,20 +325,7 @@ public class ObservabilityManager {
 				)
 			);
 		}
-		/*final ResourceHandler resourceHandler;
-		try (FileResourceManager resourceManager = new FileResourceManager(RECORDING_FILE_DIRECTORY_PATH.toFile(), 100)) {
-			resourceHandler = new ResourceHandler((exchange, path) -> {
-				if (("/" + DUMP_FILE_NAME).equals(path)) {
-					return resourceManager.getResource(DUMP_FILE_NAME);
-				} else {
-					return null;
-				}
-			});
-		} catch (IOException e) {
-			throw new GenericEvitaInternalError(e.getMessage(), e);
-		}*/
-		observabilityRouter.addExactPath("/" + DUMP_FILE_NAME, FileService.of(RECORDING_FILE_DIRECTORY_PATH));
-
+		this.observabilityRouter.addExactPath("/" + DUMP_FILE_NAME, FileService.of(RECORDING_FILE_DIRECTORY_PATH));
 	}
 
 	/**
@@ -358,7 +345,7 @@ public class ObservabilityManager {
 		observabilityRouter.addExactPath("/start",
 			new ObservabilityExceptionHandler(
 				objectMapper,
-				new StartLoggingHandler(this)
+				new StartLoggingHandler(this.evita, this)
 			).decorate(
 				new CorsFilterServiceDecorator(config.getAllowedOrigins()).createDecorator()
 			)
@@ -366,7 +353,7 @@ public class ObservabilityManager {
 		observabilityRouter.addExactPath("/stop",
 			new ObservabilityExceptionHandler(
 				objectMapper,
-				new StopLoggingHandler(this)
+				new StopLoggingHandler(this.evita, this)
 			).decorate(
 				new CorsFilterServiceDecorator(config.getAllowedOrigins()).createDecorator()
 			)

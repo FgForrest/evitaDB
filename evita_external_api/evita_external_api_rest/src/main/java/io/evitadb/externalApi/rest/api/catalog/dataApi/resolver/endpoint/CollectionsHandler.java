@@ -54,30 +54,32 @@ public class CollectionsHandler extends JsonRestHandler<CatalogRestHandlingConte
 	@Nonnull
 	@Override
 	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
-		final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
+		return executionContext.executeAsyncInRequestThreadPool(
+			() -> {
+				final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
 
-		final Map<String, Object> parametersFromRequest = getParametersFromRequest(executionContext);
-		final Boolean withCounts = (Boolean) parametersFromRequest.get(CollectionsEndpointHeaderDescriptor.ENTITY_COUNT.name());
+				final Map<String, Object> parametersFromRequest = getParametersFromRequest(executionContext);
+				final Boolean withCounts = (Boolean) parametersFromRequest.get(CollectionsEndpointHeaderDescriptor.ENTITY_COUNT.name());
 
-		requestExecutedEvent.finishInputDeserialization();
+				requestExecutedEvent.finishInputDeserialization();
 
-		final List<CollectionPointer> collections = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
-			executionContext.session()
-				.getAllEntityTypes()
-				.stream()
-				.map(entityType -> new CollectionPointer(
-					entityType,
-					withCounts != null && withCounts ? executionContext.session().getEntityCollectionSize(entityType) : null
-				))
-				.toList());
-		requestExecutedEvent.finishOperationExecution();
+				final List<CollectionPointer> collections = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
+					executionContext.session()
+						.getAllEntityTypes()
+						.stream()
+						.map(entityType -> new CollectionPointer(
+							entityType,
+							withCounts != null && withCounts ? executionContext.session().getEntityCollectionSize(entityType) : null
+						))
+						.toList());
+				requestExecutedEvent.finishOperationExecution();
 
-		return CompletableFuture.supplyAsync(() -> {
-			final Object result = convertResultIntoSerializableObject(executionContext, collections);
-			requestExecutedEvent.finishResultSerialization();
+				final Object result = convertResultIntoSerializableObject(executionContext, collections);
+				requestExecutedEvent.finishResultSerialization();
 
-			return new SuccessEndpointResponse(result);
-		});
+				return new SuccessEndpointResponse(result);
+			}
+		);
 	}
 
 	@Nonnull
