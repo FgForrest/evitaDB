@@ -21,10 +21,13 @@
  *   limitations under the License.
  */
 
+/*
+ * Written by Doug Lea and Martin Buchholz with assistance from members of
+ * JCP JSR-166 Expert Group and released to the public domain, as explained
+ * at http://creativecommons.org/publicdomain/zero/1.0/
+ */
+
 package io.evitadb.externalApi.utils.path.routing.cache;
-
-
-import io.evitadb.utils.Assert;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -32,6 +35,8 @@ import java.util.Deque;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
+
+import static io.evitadb.externalApi.utils.path.routing.RoutingAssertAdapter.checkNotNullParamWithNullPointerException;
 
 /**
  * A modified version of ConcurrentLinkedDequeue which includes direct
@@ -255,7 +260,7 @@ public class PortableConcurrentDirectDeque<E>
 	 * - head.item may or may not be null
 	 * - head may not be reachable from the first or last node, or from tail
 	 */
-	private transient volatile PortableConcurrentDirectDeque.Node<E> head;
+	private transient volatile Node<E> head;
 
 	/**
 	 * A node from which the last node on list (that is, the unique node p
@@ -269,32 +274,32 @@ public class PortableConcurrentDirectDeque<E>
 	 * - tail.item may or may not be null
 	 * - tail may not be reachable from the first or last node, or from head
 	 */
-	private transient volatile PortableConcurrentDirectDeque.Node<E> tail;
+	private transient volatile Node<E> tail;
 
-	private static final AtomicReferenceFieldUpdater<PortableConcurrentDirectDeque, PortableConcurrentDirectDeque.Node> headUpdater = AtomicReferenceFieldUpdater.newUpdater(PortableConcurrentDirectDeque.class, PortableConcurrentDirectDeque.Node.class, "head");
-	private static final AtomicReferenceFieldUpdater<PortableConcurrentDirectDeque, PortableConcurrentDirectDeque.Node> tailUpdater = AtomicReferenceFieldUpdater.newUpdater(PortableConcurrentDirectDeque.class, PortableConcurrentDirectDeque.Node.class, "tail");
+	private static final AtomicReferenceFieldUpdater<PortableConcurrentDirectDeque, Node> headUpdater = AtomicReferenceFieldUpdater.newUpdater(PortableConcurrentDirectDeque.class, Node.class, "head");
+	private static final AtomicReferenceFieldUpdater<PortableConcurrentDirectDeque, Node> tailUpdater = AtomicReferenceFieldUpdater.newUpdater(PortableConcurrentDirectDeque.class, Node.class, "tail");
 
-	private static final PortableConcurrentDirectDeque.Node<Object> PREV_TERMINATOR, NEXT_TERMINATOR;
+	private static final Node<Object> PREV_TERMINATOR, NEXT_TERMINATOR;
 
 	@SuppressWarnings("unchecked")
-	PortableConcurrentDirectDeque.Node<E> prevTerminator() {
-		return (PortableConcurrentDirectDeque.Node<E>) PREV_TERMINATOR;
+	Node<E> prevTerminator() {
+		return (Node<E>) PREV_TERMINATOR;
 	}
 
 	@SuppressWarnings("unchecked")
-	PortableConcurrentDirectDeque.Node<E> nextTerminator() {
-		return (PortableConcurrentDirectDeque.Node<E>) NEXT_TERMINATOR;
+	Node<E> nextTerminator() {
+		return (Node<E>) NEXT_TERMINATOR;
 	}
 
 	static final class Node<E> {
-		private static final AtomicReferenceFieldUpdater<PortableConcurrentDirectDeque.Node, PortableConcurrentDirectDeque.Node> prevUpdater = AtomicReferenceFieldUpdater.newUpdater(PortableConcurrentDirectDeque.Node.class, PortableConcurrentDirectDeque.Node.class, "prev");
-		private static final AtomicReferenceFieldUpdater<PortableConcurrentDirectDeque.Node, PortableConcurrentDirectDeque.Node> nextUpdater = AtomicReferenceFieldUpdater.newUpdater(PortableConcurrentDirectDeque.Node.class, PortableConcurrentDirectDeque.Node.class, "next");
-		private static final AtomicReferenceFieldUpdater<PortableConcurrentDirectDeque.Node, Object> itemUpdater = AtomicReferenceFieldUpdater.newUpdater(PortableConcurrentDirectDeque.Node.class, Object.class, "item");
+		private static final AtomicReferenceFieldUpdater<Node, Node> prevUpdater = AtomicReferenceFieldUpdater.newUpdater(Node.class, Node.class, "prev");
+		private static final AtomicReferenceFieldUpdater<Node, Node> nextUpdater = AtomicReferenceFieldUpdater.newUpdater(Node.class, Node.class, "next");
+		private static final AtomicReferenceFieldUpdater<Node, Object> itemUpdater = AtomicReferenceFieldUpdater.newUpdater(Node.class, Object.class, "item");
 
 
-		volatile PortableConcurrentDirectDeque.Node<E> prev;
+		volatile Node<E> prev;
 		volatile E item;
-		volatile PortableConcurrentDirectDeque.Node<E> next;
+		volatile Node<E> next;
 
 		Node() {  // default constructor for NEXT_TERMINATOR, PREV_TERMINATOR
 		}
@@ -311,19 +316,19 @@ public class PortableConcurrentDirectDeque<E>
 			return itemUpdater.compareAndSet(this, cmp, val);
 		}
 
-		void lazySetNext(PortableConcurrentDirectDeque.Node<E> val) {
+		void lazySetNext(Node<E> val) {
 			next = val;
 		}
 
-		boolean casNext(PortableConcurrentDirectDeque.Node<E> cmp, PortableConcurrentDirectDeque.Node<E> val) {
+		boolean casNext(Node<E> cmp, Node<E> val) {
 			return nextUpdater.compareAndSet(this, cmp, val);
 		}
 
-		void lazySetPrev(PortableConcurrentDirectDeque.Node<E> val) {
+		void lazySetPrev(Node<E> val) {
 			prev = val;
 		}
 
-		boolean casPrev(PortableConcurrentDirectDeque.Node<E> cmp, PortableConcurrentDirectDeque.Node<E> val) {
+		boolean casPrev(Node<E> cmp, Node<E> val) {
 			return prevUpdater.compareAndSet(this, cmp, val);
 		}
 	}
@@ -331,13 +336,13 @@ public class PortableConcurrentDirectDeque<E>
 	/**
 	 * Links e as first element.
 	 */
-	private PortableConcurrentDirectDeque.Node linkFirst(E e) {
-		Assert.notNull(e, "Parameter `e` may not be null");
-		final PortableConcurrentDirectDeque.Node<E> newNode = new PortableConcurrentDirectDeque.Node<>(e);
+	private Node linkFirst(E e) {
+		checkNotNullParamWithNullPointerException("e", e);
+		final Node<E> newNode = new Node<>(e);
 
 		restartFromHead:
 		for (;;)
-			for (PortableConcurrentDirectDeque.Node<E> h = head, p = h, q;;) {
+			for (Node<E> h = head, p = h, q;;) {
 				if ((q = p.prev) != null &&
 					(q = (p = q).prev) != null)
 					// Check for head updates every other hop.
@@ -364,13 +369,13 @@ public class PortableConcurrentDirectDeque<E>
 	/**
 	 * Links e as last element.
 	 */
-	private PortableConcurrentDirectDeque.Node linkLast(E e) {
-		Assert.notNull(e, "Parameter `e` may not be null");
-		final PortableConcurrentDirectDeque.Node<E> newNode = new PortableConcurrentDirectDeque.Node<>(e);
+	private Node linkLast(E e) {
+		checkNotNullParamWithNullPointerException("e", e);
+		final Node<E> newNode = new Node<>(e);
 
 		restartFromTail:
 		for (;;)
-			for (PortableConcurrentDirectDeque.Node<E> t = tail, p = t, q;;) {
+			for (Node<E> t = tail, p = t, q;;) {
 				if ((q = p.next) != null &&
 					(q = (p = q).next) != null)
 					// Check for tail updates every other hop.
@@ -399,9 +404,9 @@ public class PortableConcurrentDirectDeque<E>
 	/**
 	 * Unlinks non-null node x.
 	 */
-	void unlink(PortableConcurrentDirectDeque.Node<E> x) {
-		final PortableConcurrentDirectDeque.Node<E> prev = x.prev;
-		final PortableConcurrentDirectDeque.Node<E> next = x.next;
+	void unlink(Node<E> x) {
+		final Node<E> prev = x.prev;
+		final Node<E> next = x.next;
 		if (prev == null) {
 			unlinkFirst(x, next);
 		} else if (next == null) {
@@ -426,18 +431,18 @@ public class PortableConcurrentDirectDeque<E>
 			// unchanged and ensuring that x is not reachable from
 			// tail/head, before setting x's prev/next links to their
 			// logical approximate replacements, self/TERMINATOR.
-			PortableConcurrentDirectDeque.Node<E> activePred, activeSucc;
+			Node<E> activePred, activeSucc;
 			boolean isFirst, isLast;
 			int hops = 1;
 
 			// Find active predecessor
-			for (PortableConcurrentDirectDeque.Node<E> p = prev; ; ++hops) {
+			for (Node<E> p = prev; ; ++hops) {
 				if (p.item != null) {
 					activePred = p;
 					isFirst = false;
 					break;
 				}
-				PortableConcurrentDirectDeque.Node<E> q = p.prev;
+				Node<E> q = p.prev;
 				if (q == null) {
 					if (p.next == p)
 						return;
@@ -452,13 +457,13 @@ public class PortableConcurrentDirectDeque<E>
 			}
 
 			// Find active successor
-			for (PortableConcurrentDirectDeque.Node<E> p = next; ; ++hops) {
+			for (Node<E> p = next; ; ++hops) {
 				if (p.item != null) {
 					activeSucc = p;
 					isLast = false;
 					break;
 				}
-				PortableConcurrentDirectDeque.Node<E> q = p.next;
+				Node<E> q = p.next;
 				if (q == null) {
 					if (p.prev == p)
 						return;
@@ -505,8 +510,8 @@ public class PortableConcurrentDirectDeque<E>
 	/**
 	 * Unlinks non-null first node.
 	 */
-	private void unlinkFirst(PortableConcurrentDirectDeque.Node<E> first, PortableConcurrentDirectDeque.Node<E> next) {
-		for (PortableConcurrentDirectDeque.Node<E> o = null, p = next, q;;) {
+	private void unlinkFirst(Node<E> first, Node<E> next) {
+		for (Node<E> o = null, p = next, q;;) {
 			if (p.item != null || (q = p.next) == null) {
 				if (o != null && p.prev != p && first.casNext(next, p)) {
 					skipDeletedPredecessors(p);
@@ -536,8 +541,8 @@ public class PortableConcurrentDirectDeque<E>
 	/**
 	 * Unlinks non-null last node.
 	 */
-	private void unlinkLast(PortableConcurrentDirectDeque.Node<E> last, PortableConcurrentDirectDeque.Node<E> prev) {
-		for (PortableConcurrentDirectDeque.Node<E> o = null, p = prev, q;;) {
+	private void unlinkLast(Node<E> last, Node<E> prev) {
+		for (Node<E> o = null, p = prev, q;;) {
 			if (p.item != null || (q = p.prev) == null) {
 				if (o != null && p.next != p && last.casPrev(prev, p)) {
 					skipDeletedSuccessors(p);
@@ -573,7 +578,7 @@ public class PortableConcurrentDirectDeque<E>
 	private void updateHead() {
 		// Either head already points to an active node, or we keep
 		// trying to cas it to the first node until it does.
-		PortableConcurrentDirectDeque.Node<E> h, p, q;
+		Node<E> h, p, q;
 		restartFromHead:
 		while ((h = head).item == null && (p = h.prev) != null) {
 			for (;;) {
@@ -603,7 +608,7 @@ public class PortableConcurrentDirectDeque<E>
 	private void updateTail() {
 		// Either tail already points to an active node, or we keep
 		// trying to cas it to the last node until it does.
-		PortableConcurrentDirectDeque.Node<E> t, p, q;
+		Node<E> t, p, q;
 		restartFromTail:
 		while ((t = tail).item == null && (p = t.next) != null) {
 			for (;;) {
@@ -624,16 +629,16 @@ public class PortableConcurrentDirectDeque<E>
 		}
 	}
 
-	private void skipDeletedPredecessors(PortableConcurrentDirectDeque.Node<E> x) {
+	private void skipDeletedPredecessors(Node<E> x) {
 		whileActive:
 		do {
-			PortableConcurrentDirectDeque.Node<E> prev = x.prev;
-			PortableConcurrentDirectDeque.Node<E> p = prev;
+			Node<E> prev = x.prev;
+			Node<E> p = prev;
 			findActive:
 			for (;;) {
 				if (p.item != null)
 					break findActive;
-				PortableConcurrentDirectDeque.Node<E> q = p.prev;
+				Node<E> q = p.prev;
 				if (q == null) {
 					if (p.next == p)
 						continue whileActive;
@@ -652,16 +657,16 @@ public class PortableConcurrentDirectDeque<E>
 		} while (x.item != null || x.next == null);
 	}
 
-	private void skipDeletedSuccessors(PortableConcurrentDirectDeque.Node<E> x) {
+	private void skipDeletedSuccessors(Node<E> x) {
 		whileActive:
 		do {
-			PortableConcurrentDirectDeque.Node<E> next = x.next;
-			PortableConcurrentDirectDeque.Node<E> p = next;
+			Node<E> next = x.next;
+			Node<E> p = next;
 			findActive:
 			for (;;) {
 				if (p.item != null)
 					break findActive;
-				PortableConcurrentDirectDeque.Node<E> q = p.next;
+				Node<E> q = p.next;
 				if (q == null) {
 					if (p.prev == p)
 						continue whileActive;
@@ -685,9 +690,9 @@ public class PortableConcurrentDirectDeque<E>
 	 * linked to self, which will only be true if traversing with a
 	 * stale pointer that is now off the list.
 	 */
-	final PortableConcurrentDirectDeque.Node<E> succ(PortableConcurrentDirectDeque.Node<E> p) {
+	final Node<E> succ(Node<E> p) {
 		// TODO: should we skip deleted nodes here?
-		PortableConcurrentDirectDeque.Node<E> q = p.next;
+		Node<E> q = p.next;
 		return (p == q) ? first() : q;
 	}
 
@@ -696,8 +701,8 @@ public class PortableConcurrentDirectDeque<E>
 	 * linked to self, which will only be true if traversing with a
 	 * stale pointer that is now off the list.
 	 */
-	final PortableConcurrentDirectDeque.Node<E> pred(PortableConcurrentDirectDeque.Node<E> p) {
-		PortableConcurrentDirectDeque.Node<E> q = p.prev;
+	final Node<E> pred(Node<E> p) {
+		Node<E> q = p.prev;
 		return (p == q) ? last() : q;
 	}
 
@@ -707,10 +712,10 @@ public class PortableConcurrentDirectDeque<E>
 	 * The returned node may or may not be logically deleted.
 	 * Guarantees that head is set to the returned node.
 	 */
-	PortableConcurrentDirectDeque.Node<E> first() {
+	Node<E> first() {
 		restartFromHead:
 		for (;;)
-			for (PortableConcurrentDirectDeque.Node<E> h = head, p = h, q;;) {
+			for (Node<E> h = head, p = h, q;;) {
 				if ((q = p.prev) != null &&
 					(q = (p = q).prev) != null)
 					// Check for head updates every other hop.
@@ -732,10 +737,10 @@ public class PortableConcurrentDirectDeque<E>
 	 * The returned node may or may not be logically deleted.
 	 * Guarantees that tail is set to the returned node.
 	 */
-	PortableConcurrentDirectDeque.Node<E> last() {
+	Node<E> last() {
 		restartFromTail:
 		for (;;)
-			for (PortableConcurrentDirectDeque.Node<E> t = tail, p = t, q;;) {
+			for (Node<E> t = tail, p = t, q;;) {
 				if ((q = p.next) != null &&
 					(q = (p = q).next) != null)
 					// Check for tail updates every other hop.
@@ -774,7 +779,7 @@ public class PortableConcurrentDirectDeque<E>
 	 */
 	private ArrayList<E> toArrayList() {
 		ArrayList<E> list = new ArrayList<>();
-		for (PortableConcurrentDirectDeque.Node<E> p = first(); p != null; p = succ(p)) {
+		for (Node<E> p = first(); p != null; p = succ(p)) {
 			E item = p.item;
 			if (item != null)
 				list.add(item);
@@ -786,7 +791,7 @@ public class PortableConcurrentDirectDeque<E>
 	 * Constructs an empty deque.
 	 */
 	public PortableConcurrentDirectDeque() {
-		head = tail = new PortableConcurrentDirectDeque.Node<>(null);
+		head = tail = new Node<>(null);
 	}
 
 	/**
@@ -800,10 +805,10 @@ public class PortableConcurrentDirectDeque<E>
 	 */
 	public PortableConcurrentDirectDeque(Collection<? extends E> c) {
 		// Copy c into a private chain of Nodes
-		PortableConcurrentDirectDeque.Node<E> h = null, t = null;
+		Node<E> h = null, t = null;
 		for (E e : c) {
-			Assert.notNull(e, "Parameter `e` may not be null");
-			PortableConcurrentDirectDeque.Node<E> newNode = new PortableConcurrentDirectDeque.Node<>(e);
+			checkNotNullParamWithNullPointerException("e", e);
+			Node<E> newNode = new Node<>(e);
 			if (h == null)
 				h = t = newNode;
 			else {
@@ -818,13 +823,13 @@ public class PortableConcurrentDirectDeque<E>
 	/**
 	 * Initializes head and tail, ensuring invariants hold.
 	 */
-	private void initHeadTail(PortableConcurrentDirectDeque.Node<E> h, PortableConcurrentDirectDeque.Node<E> t) {
+	private void initHeadTail(Node<E> h, Node<E> t) {
 		if (h == t) {
 			if (h == null)
-				h = t = new PortableConcurrentDirectDeque.Node<>(null);
+				h = t = new Node<>(null);
 			else {
 				// Avoid edge case of a single Node with non-null item.
-				PortableConcurrentDirectDeque.Node<E> newNode = new PortableConcurrentDirectDeque.Node<>(null);
+				Node<E> newNode = new Node<>(null);
 				t.lazySetNext(newNode);
 				newNode.lazySetPrev(t);
 				t = newNode;
@@ -879,11 +884,11 @@ public class PortableConcurrentDirectDeque<E>
 	}
 
 	public void removeToken(Object token) {
-		if (!(token instanceof PortableConcurrentDirectDeque.Node)) {
+		if (!(token instanceof Node)) {
 			throw new IllegalArgumentException();
 		}
 
-		PortableConcurrentDirectDeque.Node node = (PortableConcurrentDirectDeque.Node) (token);
+		Node node = (Node) (token);
 		while (! node.casItem(node.item, null)) {}
 		unlink(node);
 	}
@@ -903,7 +908,7 @@ public class PortableConcurrentDirectDeque<E>
 	}
 
 	public E peekFirst() {
-		for (PortableConcurrentDirectDeque.Node<E> p = first(); p != null; p = succ(p)) {
+		for (Node<E> p = first(); p != null; p = succ(p)) {
 			E item = p.item;
 			if (item != null)
 				return item;
@@ -912,7 +917,7 @@ public class PortableConcurrentDirectDeque<E>
 	}
 
 	public E peekLast() {
-		for (PortableConcurrentDirectDeque.Node<E> p = last(); p != null; p = pred(p)) {
+		for (Node<E> p = last(); p != null; p = pred(p)) {
 			E item = p.item;
 			if (item != null)
 				return item;
@@ -935,7 +940,7 @@ public class PortableConcurrentDirectDeque<E>
 	}
 
 	public E pollFirst() {
-		for (PortableConcurrentDirectDeque.Node<E> p = first(); p != null; p = succ(p)) {
+		for (Node<E> p = first(); p != null; p = succ(p)) {
 			E item = p.item;
 			if (item != null && p.casItem(item, null)) {
 				unlink(p);
@@ -946,7 +951,7 @@ public class PortableConcurrentDirectDeque<E>
 	}
 
 	public E pollLast() {
-		for (PortableConcurrentDirectDeque.Node<E> p = last(); p != null; p = pred(p)) {
+		for (Node<E> p = last(); p != null; p = pred(p)) {
 			E item = p.item;
 			if (item != null && p.casItem(item, null)) {
 				unlink(p);
@@ -1029,8 +1034,8 @@ public class PortableConcurrentDirectDeque<E>
 	 * @throws NullPointerException if the specified element is null
 	 */
 	public boolean removeFirstOccurrence(Object o) {
-		Assert.notNull(o, "Parameter `o` may not be null");
-		for (PortableConcurrentDirectDeque.Node<E> p = first(); p != null; p = succ(p)) {
+		checkNotNullParamWithNullPointerException("o", o);
+		for (Node<E> p = first(); p != null; p = succ(p)) {
 			E item = p.item;
 			if (item != null && o.equals(item) && p.casItem(item, null)) {
 				unlink(p);
@@ -1050,8 +1055,8 @@ public class PortableConcurrentDirectDeque<E>
 	 * @throws NullPointerException if the specified element is null
 	 */
 	public boolean removeLastOccurrence(Object o) {
-		Assert.notNull(o, "Parameter `o` may not be null");
-		for (PortableConcurrentDirectDeque.Node<E> p = last(); p != null; p = pred(p)) {
+		checkNotNullParamWithNullPointerException("o", o);
+		for (Node<E> p = last(); p != null; p = pred(p)) {
 			E item = p.item;
 			if (item != null && o.equals(item) && p.casItem(item, null)) {
 				unlink(p);
@@ -1070,7 +1075,7 @@ public class PortableConcurrentDirectDeque<E>
 	 */
 	public boolean contains(Object o) {
 		if (o == null) return false;
-		for (PortableConcurrentDirectDeque.Node<E> p = first(); p != null; p = succ(p)) {
+		for (Node<E> p = first(); p != null; p = succ(p)) {
 			E item = p.item;
 			if (item != null && o.equals(item))
 				return true;
@@ -1105,7 +1110,7 @@ public class PortableConcurrentDirectDeque<E>
 	 */
 	public int size() {
 		int count = 0;
-		for (PortableConcurrentDirectDeque.Node<E> p = first(); p != null; p = succ(p))
+		for (Node<E> p = first(); p != null; p = succ(p))
 			if (p.item != null)
 				// Collection.size() spec says to max out
 				if (++count == Integer.MAX_VALUE)
@@ -1144,10 +1149,10 @@ public class PortableConcurrentDirectDeque<E>
 			throw new IllegalArgumentException();
 
 		// Copy c into a private chain of Nodes
-		PortableConcurrentDirectDeque.Node<E> beginningOfTheEnd = null, last = null;
+		Node<E> beginningOfTheEnd = null, last = null;
 		for (E e : c) {
-			Assert.notNull(e, "Parameter `e` may not be null");
-			PortableConcurrentDirectDeque.Node<E> newNode = new PortableConcurrentDirectDeque.Node<>(e);
+			checkNotNullParamWithNullPointerException("e", e);
+			Node<E> newNode = new Node<>(e);
 			if (beginningOfTheEnd == null)
 				beginningOfTheEnd = last = newNode;
 			else {
@@ -1162,7 +1167,7 @@ public class PortableConcurrentDirectDeque<E>
 		// Atomically append the chain at the tail of this collection
 		restartFromTail:
 		for (;;)
-			for (PortableConcurrentDirectDeque.Node<E> t = tail, p = t, q;;) {
+			for (Node<E> t = tail, p = t, q;;) {
 				if ((q = p.next) != null &&
 					(q = (p = q).next) != null)
 					// Check for tail updates every other hop.
@@ -1269,7 +1274,7 @@ public class PortableConcurrentDirectDeque<E>
 	 * @return an iterator over the elements in this deque in proper sequence
 	 */
 	public Iterator<E> iterator() {
-		return new PortableConcurrentDirectDeque.Itr();
+		return new Itr();
 	}
 
 	/**
@@ -1287,14 +1292,14 @@ public class PortableConcurrentDirectDeque<E>
 	 * @return an iterator over the elements in this deque in reverse order
 	 */
 	public Iterator<E> descendingIterator() {
-		return new PortableConcurrentDirectDeque.DescendingItr();
+		return new DescendingItr();
 	}
 
 	private abstract class AbstractItr implements Iterator<E> {
 		/**
 		 * Next node to return item for.
 		 */
-		private PortableConcurrentDirectDeque.Node<E> nextNode;
+		private Node<E> nextNode;
 
 		/**
 		 * nextItem holds on to item fields because once we claim
@@ -1308,10 +1313,10 @@ public class PortableConcurrentDirectDeque<E>
 		 * Node returned by most recent call to next. Needed by remove.
 		 * Reset to null if this element is deleted by a call to remove.
 		 */
-		private PortableConcurrentDirectDeque.Node<E> lastRet;
+		private Node<E> lastRet;
 
-		abstract PortableConcurrentDirectDeque.Node<E> startNode();
-		abstract PortableConcurrentDirectDeque.Node<E> nextNode(PortableConcurrentDirectDeque.Node<E> p);
+		abstract Node<E> startNode();
+		abstract Node<E> nextNode(Node<E> p);
 
 		AbstractItr() {
 			advance();
@@ -1324,7 +1329,7 @@ public class PortableConcurrentDirectDeque<E>
 		private void advance() {
 			lastRet = nextNode;
 
-			PortableConcurrentDirectDeque.Node<E> p = (nextNode == null) ? startNode() : nextNode(nextNode);
+			Node<E> p = (nextNode == null) ? startNode() : nextNode(nextNode);
 			for (;; p = nextNode(p)) {
 				if (p == null) {
 					// p might be active end or TERMINATOR node; both are OK
@@ -1353,7 +1358,7 @@ public class PortableConcurrentDirectDeque<E>
 		}
 
 		public void remove() {
-			PortableConcurrentDirectDeque.Node<E> l = lastRet;
+			Node<E> l = lastRet;
 			if (l == null) throw new IllegalStateException();
 			l.item = null;
 			unlink(l);
@@ -1363,12 +1368,10 @@ public class PortableConcurrentDirectDeque<E>
 
 	/** Forward iterator */
 	private class Itr extends AbstractItr {
-		@Override
 		Node<E> startNode() {
 			return first();
 		}
 
-		@Override
 		Node<E> nextNode(Node<E> p) {
 			return succ(p);
 		}
@@ -1378,12 +1381,10 @@ public class PortableConcurrentDirectDeque<E>
 	 * Descending iterator
 	 */
 	private class DescendingItr extends AbstractItr {
-		@Override
 		Node<E> startNode() {
 			return last();
 		}
 
-		@Override
 		Node<E> nextNode(Node<E> p) {
 			return pred(p);
 		}
@@ -1402,7 +1403,7 @@ public class PortableConcurrentDirectDeque<E>
 		s.defaultWriteObject();
 
 		// Write out all elements in the proper order.
-		for (PortableConcurrentDirectDeque.Node<E> p = first(); p != null; p = succ(p)) {
+		for (Node<E> p = first(); p != null; p = succ(p)) {
 			E item = p.item;
 			if (item != null)
 				s.writeObject(item);
@@ -1420,11 +1421,11 @@ public class PortableConcurrentDirectDeque<E>
 		s.defaultReadObject();
 
 		// Read in elements until trailing null sentinel found
-		PortableConcurrentDirectDeque.Node<E> h = null, t = null;
+		Node<E> h = null, t = null;
 		Object item;
 		while ((item = s.readObject()) != null) {
 			@SuppressWarnings("unchecked")
-			PortableConcurrentDirectDeque.Node<E> newNode = new PortableConcurrentDirectDeque.Node<>((E) item);
+			Node<E> newNode = new Node<>((E) item);
 			if (h == null)
 				h = t = newNode;
 			else {
@@ -1436,20 +1437,20 @@ public class PortableConcurrentDirectDeque<E>
 		initHeadTail(h, t);
 	}
 
-	private boolean casHead(PortableConcurrentDirectDeque.Node<E> cmp, PortableConcurrentDirectDeque.Node<E> val) {
+	private boolean casHead(Node<E> cmp, Node<E> val) {
 		return headUpdater.compareAndSet(this, cmp, val);
 	}
 
-	private boolean casTail(PortableConcurrentDirectDeque.Node<E> cmp, PortableConcurrentDirectDeque.Node<E> val) {
+	private boolean casTail(Node<E> cmp, Node<E> val) {
 		return tailUpdater.compareAndSet(this, cmp, val);
 	}
 
 	// Unsafe mechanics
 
 	static {
-		PREV_TERMINATOR = new PortableConcurrentDirectDeque.Node<>();
+		PREV_TERMINATOR = new Node<>();
 		PREV_TERMINATOR.next = PREV_TERMINATOR;
-		NEXT_TERMINATOR = new PortableConcurrentDirectDeque.Node<>();
+		NEXT_TERMINATOR = new Node<>();
 		NEXT_TERMINATOR.prev = NEXT_TERMINATOR;
 	}
 }

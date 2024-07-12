@@ -23,12 +23,12 @@
 
 package io.evitadb.externalApi.utils.path.routing;
 
-import io.evitadb.utils.Assert;
-
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.NoSuchElementException;
+
+import static io.evitadb.externalApi.utils.path.routing.RoutingAssertAdapter.checkNotNullParamWithNullPointerException;
 
 /**
  * A string keyed map that can be accessed as a substring, eliminating the need to allocate a new string
@@ -101,7 +101,7 @@ public class SubstringMap<V> {
 	}
 
 	public synchronized void put(String key, V value) {
-		Assert.notNull(key, "Path key cannot be null.");
+		checkNotNullParamWithNullPointerException("key", key);
 		Object[] newTable;
 		if (table.length / (double) size < 4 && table.length != Integer.MAX_VALUE) {
 			newTable = new Object[table.length << 1];
@@ -120,7 +120,7 @@ public class SubstringMap<V> {
 	}
 
 	public synchronized V remove(String key) {
-		Assert.notNull(key, "Path key cannot be null.");
+		checkNotNullParamWithNullPointerException("key", key);
 		//we just assume it is present, and always do a copy
 		//for this maps intended use cases as a path matcher it won't be called when
 		//the value is not present anyway

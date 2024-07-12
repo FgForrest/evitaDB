@@ -33,6 +33,7 @@ import lombok.ToString;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -42,32 +43,29 @@ import static java.util.Optional.ofNullable;
 /**
  * This DTO record encapsulates common settings shared among all the API endpoints.
  *
- * @param exposedOn   the name of the host the APIs will be exposed on when evitaDB is running inside a container
- * @param accessLog   defines whether the access logs will be enabled or not
- * @param endpoints   contains specific configuration for all the API endpoints
- * @param certificate defines the certificate settings that will be used to secure connections to the web servers providing APIs
- * @param exposedOn              the name of the host the APIs will be exposed on when evitaDB is running inside a container
- * @param workerGroupThreads              defines the number of IO threads
- * @param serviceWorkerGroupThreads              defines the number of threads for execution of service logic
- * @param idleTimeoutInMillis    The amount of time a connection can be idle for before it is timed out. An idle connection is a
- *                               connection that has had no data transfer in the idle timeout period. Note that this is a fairly coarse
- *                               grained approach, and small values will cause problems for requests with a long processing time.
- * @param parseTimeoutInMillis   How long a request can spend in the parsing phase before it is timed out. This timer is started when
- *                               the first bytes of a request are read, and finishes once all the headers have been parsed.
- * @param requestTimeoutInMillis The amount of time a connection can sit idle without processing a request, before it is closed by
- *                               the server.
- * @param keepAlive              If this is true then a Connection: keep-alive header will be added to responses, even when it is not strictly required by
- *                               the specification.
- * @param maxEntitySizeInBytes   The default maximum size of a request entity. If entity body is larger than this limit then a
- *                               java.io.IOException will be thrown at some point when reading the request (on the first read for fixed
- *                               length requests, when too much data has been read for chunked requests).
- * @param accessLog              defines whether the access logs will be enabled or not
- * @param endpoints              contains specific configuration for all the API endpoints
- * @param certificate            defines the certificate settings that will be used to secure connections to the web servers providing APIs
+ * @param exposedOn                 the name of the host the APIs will be exposed on when evitaDB is running inside a container
+ * @param accessLog                 defines whether the access logs will be enabled or not
+ * @param endpoints                 contains specific configuration for all the API endpoints
+ * @param certificate               defines the certificate settings that will be used to secure connections to the web servers providing APIs
+ * @param workerGroupThreads        defines the number of IO threads
+ * @param serviceWorkerGroupThreads defines the number of threads for execution of service logic
+ * @param idleTimeoutInMillis       The amount of time a connection can be idle for before it is timed out. An idle connection is a
+ *                                  connection that has had no data transfer in the idle timeout period. Note that this is a fairly coarse
+ *                                  grained approach, and small values will cause problems for requests with a long processing time.
+ * @param parseTimeoutInMillis      How long a request can spend in the parsing phase before it is timed out. This timer is started when
+ *                                  the first bytes of a request are read, and finishes once all the headers have been parsed.
+ * @param requestTimeoutInMillis    The amount of time a connection can sit idle without processing a request, before it is closed by
+ *                                  the server.
+ * @param keepAlive                 If this is true then a Connection: keep-alive header will be added to responses, even when it is not strictly required by
+ *                                  the specification.
+ * @param maxEntitySizeInBytes      The default maximum size of a request entity. If entity body is larger than this limit then a
+ *                                  java.io.IOException will be thrown at some point when reading the request (on the first read for fixed
+ *                                  length requests, when too much data has been read for chunked requests).
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public record ApiOptions(
 	@Nonnull String exposedOn,
+	/* TODO JNO - update documentation and remove ioThreads */
 	int workerGroupThreads,
 	int serviceWorkerGroupThreads,
 	int idleTimeoutInMillis,
@@ -96,7 +94,8 @@ public record ApiOptions(
 
 	public ApiOptions(
 		@Nonnull String exposedOn,
-		int workerGroupThreads, int serviceWorkerGroupThreads, int idleTimeoutInMillis, int requestTimeoutInMillis, int parseTimeoutInMillis,
+		int workerGroupThreads, int serviceWorkerGroupThreads,
+		int idleTimeoutInMillis, int requestTimeoutInMillis, int parseTimeoutInMillis,
 		boolean keepAlive, long maxEntitySizeInBytes, boolean accessLog,
 		@Nonnull CertificateSettings certificate,
 		@Nonnull Map<String, AbstractApiConfiguration> endpoints
@@ -148,6 +147,49 @@ public record ApiOptions(
 		return ofNullable(serviceWorkerGroupThreads)
 			// double the value of available processors (recommended by Netty configuration)
 			.orElse(DEFAULT_SERVICE_WORKER_GROUP_THREADS);
+	}
+
+	/**
+	 * Returns true if at least one endpoint requires TLS.
+	 * @return true if at least one endpoint requires TLS
+	 */
+	public boolean atLeastOneEndpointRequiresTls() {
+		return this.endpoints
+			.values()
+			.stream()
+			.anyMatch(it -> it.isEnabled() && it.getTlsMode() != TlsMode.FORCE_NO_TLS);
+	}
+
+	/**
+	 * Returns true if at least one endpoint requires TLS.
+	 * @return true if at least one endpoint requires TLS
+	 */
+	public boolean atLeastOneEndpointRequiresTls(@Nonnull HostDefinition host) {
+		return this.endpoints
+			.values()
+			.stream()
+			.filter(it -> Arrays.asList(it.getHost()).contains(host))
+			.anyMatch(it -> it.isEnabled() && it.getTlsMode() != TlsMode.FORCE_NO_TLS);
+	}
+
+	/**
+	 * Returns true if at least one endpoint requires mutual TLS.
+	 * @return true if at least one endpoint requires mutual TLS
+	 */
+	public boolean atLeastOnEndpointRequiresMtls() {
+		return this.endpoints
+			.values()
+			.stream()
+			.anyMatch(it -> {
+				if (it.isMtlsEnabled()) {
+					Assert.isPremiseValid(
+						it.getTlsMode() == TlsMode.FORCE_NO_TLS, "mTLS cannot be enabled without enabled TLS!"
+					);
+					return true;
+				} else {
+					return false;
+				}
+			});
 	}
 
 	/**
@@ -276,7 +318,8 @@ public record ApiOptions(
 		@Nonnull
 		public ApiOptions build() {
 			return new ApiOptions(
-				exposedOn, workerGroupThreads, serviceWorkerGroupThreads, idleTimeoutInMillis, requestTimeoutInMillis, parseTimeoutInMillis,
+				exposedOn, workerGroupThreads, serviceWorkerGroupThreads,
+				idleTimeoutInMillis, requestTimeoutInMillis, parseTimeoutInMillis,
 				keepAlive, maxEntitySizeInBytes, accessLog, certificate, enabledProviders
 			);
 		}

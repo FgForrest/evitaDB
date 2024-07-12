@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,42 +21,23 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.configuration;
+package io.evitadb.externalApi.utils.path.routing;
 
-import io.evitadb.utils.NetworkUtils;
-
-import javax.annotation.Nonnull;
-import java.net.InetAddress;
+import lombok.extern.slf4j.Slf4j;
 
 /**
- * Defines a host and port combination.
+ * TODO JNO - document me
  *
- * @param host defines the hostname and port the endpoints will listen on
- * @param port defines the port API endpoint will listen on
- *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public record HostDefinition(
-	@Nonnull InetAddress host,
-	int port
-) {
+public class UndertowLogger {
+	public static final LoggerAdapter REQUEST_LOGGER = new LoggerAdapter();
 
-	/**
-	 * Returns human comprehensible host name of the configured host.
-	 */
-	@Nonnull
-	public String hostName() {
-		return NetworkUtils.getHostName(host);
+	@Slf4j
+	public static class LoggerAdapter {
+
+		public void debugf(String message, Object... arguments) {
+			log.debug(String.format(message, arguments));
+		}
 	}
-
-	@Nonnull
-	public String hostNameWithPort() {
-		return hostName() + ":" + port;
-	}
-
-	@Nonnull
-	public String hostWithPort() {
-		return host.getHostAddress() + ":" + port;
-	}
-
 }

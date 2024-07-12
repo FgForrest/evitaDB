@@ -23,7 +23,6 @@
 
 package io.evitadb.externalApi.rest;
 
-import com.linecorp.armeria.server.HttpService;
 import io.evitadb.externalApi.http.ExternalApiProvider;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiSystemEndpoint;
 import io.evitadb.externalApi.rest.api.system.model.LivenessDescriptor;
@@ -33,7 +32,6 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.util.function.Predicate;
 
 /**
@@ -63,10 +61,12 @@ public class RestProvider implements ExternalApiProvider<RestConfig> {
 		return CODE;
 	}
 
-	@Nullable
+	@Nonnull
 	@Override
-	public HttpService getApiHandler() {
-		return restManager.getRestRouter();
+	public HttpServiceDefinition[] getHttpServiceDefinitions() {
+		return new HttpServiceDefinition[] {
+			new HttpServiceDefinition(restManager.getRestRouter(), PathHandlingMode.DYNAMIC_PATH_HANDLING)
+		};
 	}
 
 	@Override

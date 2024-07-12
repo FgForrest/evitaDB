@@ -28,4 +28,6 @@ java \
         -jar "target/evita-server.jar" \
         "configDir=../config/" \
         "storage.storageDirectory=../data " \
-        "cache.enabled=false"
+        "cache.enabled=false" \
+        "api.endpoints.gRPC.tlsMode=FORCE_NO_TLS" \
+        "api.endpoints.gRPC.exposeDocsService=true"

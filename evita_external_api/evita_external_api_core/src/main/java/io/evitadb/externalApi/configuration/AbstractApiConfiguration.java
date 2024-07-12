@@ -71,6 +71,7 @@ public abstract class AbstractApiConfiguration {
 	 * flag is to allow accessing the system API, from where the client obtains to access all of evita's APIs. All of
 	 * evita's APIs are always secured at least by TLS encryption, in gRPC is also an option to use mTLS.
 	 */
+	/* TODO JNO - update documentation */
 	@Getter private final TlsMode tlsMode;
 
 	private static InetAddress getByName(@Nonnull String host) {
@@ -92,15 +93,20 @@ public abstract class AbstractApiConfiguration {
 	 * @return parsed host definition
 	 */
 	@Nonnull
-	private static HostDefinition parseHost(@Nonnull String host) {
+	private static HostDefinition[] parseHost(@Nonnull String host) {
 		final Matcher matcher = HOST_PATTERN.matcher(host);
 		Assert.isTrue(matcher.matches(), "Invalid host definition: " + host);
 		final String parsedHost = matcher.group(1);
 		final int port = Integer.parseInt(matcher.group(2));
 		if (LOCALHOST.equalsIgnoreCase(parsedHost)) {
-			return new HostDefinition(getByName("0.0.0.0"), port);
+			return new HostDefinition[] {
+				new HostDefinition(getByName("0.0.0.0"), port),
+				new HostDefinition(getByName("127.0.0.1"), port),
+			};
 		} else {
-			return new HostDefinition(getByName(parsedHost), port);
+			return new HostDefinition[] {
+				new HostDefinition(getByName(parsedHost), port)
+			};
 		}
 	}
 
@@ -133,6 +139,7 @@ public abstract class AbstractApiConfiguration {
 		this.tlsMode = TlsMode.getByName(tlsMode);
 		this.host = Arrays.stream(host.split(","))
 			.map(AbstractApiConfiguration::parseHost)
+			.flatMap(Arrays::stream)
 			.toArray(HostDefinition[]::new);
 		this.exposedHost = exposedHost;
 	}

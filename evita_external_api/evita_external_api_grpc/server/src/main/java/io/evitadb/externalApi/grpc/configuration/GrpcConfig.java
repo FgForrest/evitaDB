@@ -26,6 +26,7 @@ package io.evitadb.externalApi.grpc.configuration;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
+import io.evitadb.externalApi.configuration.ApiConfigurationWithMutualTls;
 import io.evitadb.externalApi.configuration.ApiWithOriginControl;
 import io.evitadb.externalApi.configuration.MtlsConfiguration;
 import io.evitadb.utils.Assert;
@@ -48,7 +49,7 @@ import static java.util.Optional.ofNullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class GrpcConfig extends AbstractApiConfiguration implements ApiWithOriginControl {
+public class GrpcConfig extends AbstractApiConfiguration implements ApiConfigurationWithMutualTls, ApiWithOriginControl {
 	private static final Pattern ORIGIN_PATTERN = Pattern.compile("([a-z]+)://([\\w.]+)(:(\\d+))?");
 
 	private static final String BASE_GRPC_PATH = "";

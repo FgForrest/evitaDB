@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.grpc;
 
+import com.linecorp.armeria.common.HttpHeaderNames;
 import com.linecorp.armeria.common.HttpMethod;
 import com.linecorp.armeria.common.grpc.GrpcSerializationFormats;
 import com.linecorp.armeria.common.grpc.protocol.GrpcHeaderNames;
@@ -87,9 +88,18 @@ public class GrpcProviderRegistrar implements ExternalApiProviderRegistrar<GrpcC
 		corsBuilder
 			.allowRequestMethods(HttpMethod.POST) // Allow POST method.
 			// Allow Content-type and X-GRPC-WEB headers.
-			.allowAllRequestHeaders(true)
-			/*.allowAllRequestHeaders(HttpHeaderNames.CONTENT_TYPE,
-					HttpHeaderNames.of("X-GRPC-WEB"), "X-User-Agent")*/
+			.allowRequestHeaders(
+				HttpHeaderNames.CONTENT_TYPE,
+				HttpHeaderNames.of("X-Grpc-Web"),
+				HttpHeaderNames.of("X-User-Agent"),
+				HttpHeaderNames.of("X-Requested-With"),
+				HttpHeaderNames.of("X-Forwarded-For"),
+				HttpHeaderNames.of("X-Forwarded-Proto"),
+				HttpHeaderNames.of("Authorization"),
+				HttpHeaderNames.of("traceparent"),
+				HttpHeaderNames.of("tracestate"),
+				HttpHeaderNames.of("grpc-trace-bin")
+			)
 			// Expose trailers of the HTTP response to the client.
 			.exposeHeaders(GrpcHeaderNames.GRPC_STATUS,
 				GrpcHeaderNames.GRPC_MESSAGE,

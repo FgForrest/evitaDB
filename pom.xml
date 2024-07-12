@@ -441,8 +441,6 @@
 					<compilerVersion>${java.version}</compilerVersion>
 					<compilerArgs>
 						<arg>-parameters</arg>
-						<arg>--add-exports</arg>
-						<arg>ch.qos.logback.core/ch.qos.logback.core.hook=evita.server</arg>
 					</compilerArgs>
 					<annotationProcessorPaths>
 						<path>

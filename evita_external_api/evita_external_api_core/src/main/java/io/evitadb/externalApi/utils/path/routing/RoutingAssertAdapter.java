@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,42 +21,29 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.configuration;
+package io.evitadb.externalApi.utils.path.routing;
 
-import io.evitadb.utils.NetworkUtils;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
-import java.net.InetAddress;
+import javax.annotation.Nullable;
 
 /**
- * Defines a host and port combination.
+ * Adapters for classes taken from Undertow server.
  *
- * @param host defines the hostname and port the endpoints will listen on
- * @param port defines the port API endpoint will listen on
- *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public record HostDefinition(
-	@Nonnull InetAddress host,
-	int port
-) {
+public class RoutingAssertAdapter {
 
 	/**
-	 * Returns human comprehensible host name of the configured host.
+	 * Internal implementation to avoid entire library dependency.
+	 * @param argumentName name of the argument
+	 * @param argument argument to check
 	 */
 	@Nonnull
-	public String hostName() {
-		return NetworkUtils.getHostName(host);
-	}
-
-	@Nonnull
-	public String hostNameWithPort() {
-		return hostName() + ":" + port;
-	}
-
-	@Nonnull
-	public String hostWithPort() {
-		return host.getHostAddress() + ":" + port;
+	public static <T> T checkNotNullParamWithNullPointerException(@Nonnull String argumentName, @Nullable T argument) {
+		Assert.notNull(argument, "Parameter `" + argumentName + "` may not be null");
+		return argument;
 	}
 
 }

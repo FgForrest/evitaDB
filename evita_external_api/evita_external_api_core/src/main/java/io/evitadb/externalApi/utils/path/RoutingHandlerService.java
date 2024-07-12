@@ -30,9 +30,9 @@ import com.linecorp.armeria.common.QueryParams;
 import com.linecorp.armeria.common.RequestHeadersBuilder;
 import com.linecorp.armeria.server.HttpService;
 import com.linecorp.armeria.server.ServiceRequestContext;
-import io.evitadb.externalApi.utils.path.routing.CopyOnWriteMap;
 import io.evitadb.externalApi.utils.MethodNotAllowedService;
 import io.evitadb.externalApi.utils.NotFoundService;
+import io.evitadb.externalApi.utils.path.routing.CopyOnWriteMap;
 import io.evitadb.externalApi.utils.path.routing.PathTemplate;
 import io.evitadb.externalApi.utils.path.routing.PathTemplateMatcher;
 
@@ -46,7 +46,7 @@ import java.util.function.Predicate;
 import static io.evitadb.externalApi.http.AdditionalHeaders.INTERNAL_HEADER_PREFIX;
 
 /**
- * A Handler that handles the common case of routing via path template and method name.
+ * A Handler that handles the common case of pathHandlingMode via path template and method name.
  *
  * @author Stuart Douglas
  */

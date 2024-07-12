@@ -28,8 +28,9 @@ import com.linecorp.armeria.client.ClientFactory;
 import com.linecorp.armeria.client.ClientFactoryBuilder;
 import com.linecorp.armeria.client.grpc.GrpcClients;
 import com.linecorp.armeria.server.HttpService;
+import com.linecorp.armeria.server.docs.DocService;
+import com.linecorp.armeria.server.docs.DocServiceFilter;
 import io.evitadb.externalApi.configuration.HostDefinition;
-import io.evitadb.externalApi.configuration.MtlsConfiguration;
 import io.evitadb.externalApi.configuration.TlsMode;
 import io.evitadb.externalApi.grpc.configuration.GrpcConfig;
 import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc.EvitaServiceBlockingStub;
@@ -39,7 +40,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 /**
  * Descriptor of external API provider that provides gRPC API.
@@ -60,29 +60,10 @@ public class GrpcProvider implements ExternalApiProvider<GrpcConfig> {
 	@Nonnull
 	@Getter
 	private final HttpService apiHandler;
-
 	/**
 	 * Contains url that was at least once found reachable.
 	 */
 	private String reachableUrl;
-
-	@Nonnull
-	@Override
-	public String getCode() {
-		return CODE;
-	}
-
-	@Nullable
-	@Override
-	public MtlsConfiguration mtlsConfiguration() {
-		return this.configuration.getMtlsConfiguration();
-	}
-
-	@Override
-	public boolean isDocsServiceEnabled() {
-		return configuration.isExposeDocsService();
-	}
-
 	/**
 	 * Builder for gRPC client factory.
 	 */
@@ -90,6 +71,32 @@ public class GrpcProvider implements ExternalApiProvider<GrpcConfig> {
 		.useHttp1Pipelining(true)
 		.idleTimeoutMillis(100)
 		.tlsNoVerify();
+
+
+	@Nonnull
+	@Override
+	public String getCode() {
+		return CODE;
+	}
+
+	@Nonnull
+	@Override
+	public HttpServiceDefinition[] getHttpServiceDefinitions() {
+		if (configuration.isExposeDocsService()) {
+			final DocService docService = DocService.builder()
+				.exclude(DocServiceFilter.ofServiceName("grpc.reflection.v1alpha.ServerReflection"))
+				.build();
+
+			return new HttpServiceDefinition[]{
+				new HttpServiceDefinition(apiHandler, PathHandlingMode.FIXED_PATH_HANDLING),
+				new HttpServiceDefinition("grpc/doc", docService, PathHandlingMode.FIXED_PATH_HANDLING)
+			};
+		} else {
+			return new HttpServiceDefinition[]{
+				new HttpServiceDefinition(apiHandler, PathHandlingMode.FIXED_PATH_HANDLING)
+			};
+		}
+	}
 
 	@Override
 	public boolean isReady() {

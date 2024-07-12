@@ -39,14 +39,12 @@ import io.evitadb.externalApi.api.system.model.HealthProblem;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.configuration.CertificatePath;
 import io.evitadb.externalApi.configuration.CertificateSettings;
-import io.evitadb.externalApi.configuration.TlsMode;
 import io.evitadb.externalApi.http.CorsFilterServiceDecorator;
 import io.evitadb.externalApi.http.ExternalApiProvider;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
 import io.evitadb.externalApi.http.ExternalApiServer;
 import io.evitadb.externalApi.system.configuration.SystemConfig;
 import io.evitadb.externalApi.utils.path.PathHandlingService;
-import io.evitadb.utils.Assert;
 import io.evitadb.utils.CertificateUtils;
 import io.evitadb.utils.StringUtils;
 
@@ -329,24 +327,8 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 
 		final String fileName;
 		final CertificateSettings certificateSettings = apiOptions.certificate();
-		final boolean atLeastOnEndpointRequiresTls = apiOptions.endpoints()
-			.values()
-			.stream()
-			.anyMatch(it -> it.isEnabled() && it.getTlsMode() != TlsMode.FORCE_NO_TLS);
-		final boolean atLeastOnEndpointRequiresMtls = apiOptions.endpoints()
-			.values()
-			.stream()
-			.anyMatch(it -> {
-				if (it.isMtlsEnabled()) {
-					Assert.isPremiseValid(
-						it.getTlsMode() == TlsMode.FORCE_NO_TLS, "mTLS cannot be enabled without enabled TLS!"
-					);
-					return true;
-				} else {
-					return false;
-				}
-			});
 
+		final boolean atLeastOnEndpointRequiresTls = apiOptions.atLeastOneEndpointRequiresTls();
 		if (atLeastOnEndpointRequiresTls) {
 			final File file;
 			if (certificateSettings.generateAndUseSelfSigned()) {
@@ -388,11 +370,11 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 		} else {
 			fileName = null;
 		}
+
+		final boolean atLeastOnEndpointRequiresMtls = apiOptions.atLeastOnEndpointRequiresMtls();
 		return new SystemProvider(
 			systemConfig,
-			router.decorate(
-				new CorsFilterServiceDecorator(systemConfig.getAllowedOrigins()).createDecorator()
-			),
+			router.decorate(new CorsFilterServiceDecorator(systemConfig.getAllowedOrigins()).createDecorator()),
 			Arrays.stream(systemConfig.getBaseUrls(apiOptions.exposedOn()))
 				.map(it -> it + ENDPOINT_SERVER_NAME)
 				.toArray(String[]::new),

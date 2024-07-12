@@ -53,8 +53,7 @@
 		<appender-ref ref="STDERR" />
 	</root>
 
-	<logger name="org.xnio" level="ERROR"/>
-	<logger name="org.jboss" level="ERROR"/>
-	<logger name="io.undertow" level="ERROR"/>
+	<logger name="com.linecorp.armeria" level="ERROR"/>
+	<logger name="io.netty" level="ERROR"/>
 
 </configuration>

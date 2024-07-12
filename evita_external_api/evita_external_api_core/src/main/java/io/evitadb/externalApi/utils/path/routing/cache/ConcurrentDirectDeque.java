@@ -65,4 +65,3 @@ public abstract  class ConcurrentDirectDeque<E> extends AbstractCollection<E> im
 
 	public abstract void removeToken(Object token);
 }
-

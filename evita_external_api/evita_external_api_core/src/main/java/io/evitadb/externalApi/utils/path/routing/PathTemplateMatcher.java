@@ -35,6 +35,8 @@ import java.util.TreeSet;
 /**
  * Utility class that provides fast path matching of path templates. Templates are stored in a map based on the stem of the template,
  * and matches longest stem first.
+ * <p>
+ * TODO: we can probably do this faster using a trie type structure, but I think the current impl should perform ok most of the time
  *
  * @author Stuart Douglas
  */
@@ -43,35 +45,35 @@ public class PathTemplateMatcher<T> {
 	/**
 	 * Map of path template stem to the path templates that share the same base.
 	 */
-	private Map<String, Set<PathTemplateMatcher.PathTemplateHolder>> pathTemplateMap = new CopyOnWriteMap<>();
+	private Map<String, Set<PathTemplateHolder>> pathTemplateMap = new CopyOnWriteMap<>();
 
 	/**
 	 * lengths of all registered paths
 	 */
 	private volatile int[] lengths = {};
 
-	public PathTemplateMatcher.PathMatchResult<T> match(final String path) {
+	public PathMatchResult<T> match(final String path) {
 		String normalizedPath = "".equals(path) ? "/" : path;
-		if (!normalizedPath.startsWith("/"))
-			normalizedPath = "/" + normalizedPath;
+		if(!normalizedPath.startsWith("/"))
+			normalizedPath = "/"+ normalizedPath;
 		final Map<String, String> params = new LinkedHashMap<>();
 		int length = normalizedPath.length();
 		final int[] lengths = this.lengths;
 		for (int i = 0; i < lengths.length; ++i) {
 			int pathLength = lengths[i];
 			if (pathLength == length) {
-				Set<PathTemplateMatcher.PathTemplateHolder> entry = pathTemplateMap.get(normalizedPath);
+				Set<PathTemplateHolder> entry = pathTemplateMap.get(normalizedPath);
 				if (entry != null) {
-					PathTemplateMatcher.PathMatchResult<T> res = handleStemMatch(entry, normalizedPath, params);
+					PathMatchResult<T> res = handleStemMatch(entry, normalizedPath, params);
 					if (res != null) {
 						return res;
 					}
 				}
 			} else if (pathLength < length) {
 				String part = normalizedPath.substring(0, pathLength);
-				Set<PathTemplateMatcher.PathTemplateHolder> entry = pathTemplateMap.get(part);
+				Set<PathTemplateHolder> entry = pathTemplateMap.get(part);
 				if (entry != null) {
-					PathTemplateMatcher.PathMatchResult<T> res = handleStemMatch(entry, normalizedPath, params);
+					PathMatchResult<T> res = handleStemMatch(entry, normalizedPath, params);
 					if (res != null) {
 						return res;
 					}
@@ -81,7 +83,7 @@ public class PathTemplateMatcher<T> {
 		return null;
 	}
 
-	private PathTemplateMatcher.PathMatchResult<T> handleStemMatch(Set<PathTemplateMatcher.PathTemplateHolder> entry, final String path, final Map<String, String> params) {
+	private PathMatchResult<T> handleStemMatch(Set<PathTemplateHolder> entry, final String path, final Map<String, String> params) {
 		for (PathTemplateHolder val : entry) {
 			if (val.template.matches(path, params)) {
 				return new PathMatchResult<>(params, val.template.getTemplateString(), val.value);
@@ -94,23 +96,23 @@ public class PathTemplateMatcher<T> {
 
 
 	public synchronized PathTemplateMatcher<T> add(final PathTemplate template, final T value) {
-		Set<PathTemplateMatcher.PathTemplateHolder> values = pathTemplateMap.get(trimBase(template));
-		Set<PathTemplateMatcher.PathTemplateHolder> newValues;
+		Set<PathTemplateHolder> values = pathTemplateMap.get(trimBase(template));
+		Set<PathTemplateHolder> newValues;
 		if (values == null) {
 			newValues = new TreeSet<>();
 		} else {
 			newValues = new TreeSet<>(values);
 		}
-		PathTemplateMatcher.PathTemplateHolder holder = new PathTemplateMatcher.PathTemplateHolder(value, template);
+		PathTemplateHolder holder = new PathTemplateHolder(value, template);
 		if (newValues.contains(holder)) {
 			PathTemplate equivalent = null;
-			for (PathTemplateMatcher.PathTemplateHolder item : newValues) {
+			for (PathTemplateHolder item : newValues) {
 				if (item.compareTo(holder) == 0) {
 					equivalent = item.template;
 					break;
 				}
 			}
-			throw new IllegalStateException(String.format("Cannot add path template %s, matcher already contains an equivalent pattern %s", template.getTemplateString(), equivalent.getTemplateString()));
+			throw UndertowMessages.MESSAGES.matcherAlreadyContainsTemplate(template.getTemplateString(), equivalent.getTemplateString());
 		}
 		newValues.add(holder);
 		pathTemplateMap.put(trimBase(template), newValues);
@@ -155,7 +157,7 @@ public class PathTemplateMatcher<T> {
 	}
 
 	public synchronized PathTemplateMatcher<T> addAll(PathTemplateMatcher<T> pathTemplateMatcher) {
-		for (Entry<String, Set<PathTemplateMatcher.PathTemplateHolder>> entry : pathTemplateMatcher.getPathTemplateMap().entrySet()) {
+		for (Entry<String, Set<PathTemplateHolder>> entry : pathTemplateMatcher.getPathTemplateMap().entrySet()) {
 			for (PathTemplateHolder pathTemplateHolder : entry.getValue()) {
 				add(pathTemplateHolder.template, pathTemplateHolder.value);
 			}
@@ -163,14 +165,14 @@ public class PathTemplateMatcher<T> {
 		return this;
 	}
 
-	Map<String, Set<PathTemplateMatcher.PathTemplateHolder>> getPathTemplateMap() {
+	Map<String, Set<PathTemplateHolder>> getPathTemplateMap() {
 		return pathTemplateMap;
 	}
 
 	public Set<PathTemplate> getPathTemplates() {
 		Set<PathTemplate> templates = new HashSet<>();
-		for (Set<PathTemplateMatcher.PathTemplateHolder> holders : pathTemplateMap.values()) {
-			for (PathTemplateMatcher.PathTemplateHolder holder : holders) {
+		for (Set<PathTemplateHolder> holders : pathTemplateMap.values()) {
+			for (PathTemplateHolder holder: holders) {
 				templates.add(holder.template);
 			}
 		}
@@ -183,16 +185,16 @@ public class PathTemplateMatcher<T> {
 	}
 
 	private synchronized PathTemplateMatcher<T> remove(PathTemplate template) {
-		Set<PathTemplateMatcher.PathTemplateHolder> values = pathTemplateMap.get(trimBase(template));
-		Set<PathTemplateMatcher.PathTemplateHolder> newValues;
+		Set<PathTemplateHolder> values = pathTemplateMap.get(trimBase(template));
+		Set<PathTemplateHolder> newValues;
 		if (values == null) {
 			return this;
 		} else {
 			newValues = new TreeSet<>(values);
 		}
-		Iterator<PathTemplateMatcher.PathTemplateHolder> it = newValues.iterator();
+		Iterator<PathTemplateHolder> it = newValues.iterator();
 		while (it.hasNext()) {
-			PathTemplateMatcher.PathTemplateHolder next = it.next();
+			PathTemplateHolder next = it.next();
 			if (next.template.getTemplateString().equals(template.getTemplateString())) {
 				it.remove();
 				break;
@@ -210,8 +212,8 @@ public class PathTemplateMatcher<T> {
 
 	public synchronized T get(String template) {
 		PathTemplate pathTemplate = PathTemplate.create(template);
-		Set<PathTemplateMatcher.PathTemplateHolder> values = pathTemplateMap.get(trimBase(pathTemplate));
-		if (values == null) {
+		Set<PathTemplateHolder> values = pathTemplateMap.get(trimBase(pathTemplate));
+		if(values == null) {
 			return null;
 		}
 		for (PathTemplateHolder next : values) {
@@ -235,7 +237,7 @@ public class PathTemplateMatcher<T> {
 		}
 	}
 
-	private final class PathTemplateHolder implements Comparable<PathTemplateMatcher.PathTemplateHolder> {
+	private final class PathTemplateHolder implements Comparable<PathTemplateHolder> {
 		final T value;
 		final PathTemplate template;
 
@@ -248,9 +250,9 @@ public class PathTemplateMatcher<T> {
 		public boolean equals(Object o) {
 			if (this == o) return true;
 			if (o == null) return false;
-			if (!PathTemplateMatcher.PathTemplateHolder.class.equals(o.getClass())) return false;
+			if (!PathTemplateHolder.class.equals(o.getClass())) return false;
 
-			PathTemplateMatcher.PathTemplateHolder that = (PathTemplateMatcher.PathTemplateHolder) o;
+			PathTemplateHolder that = (PathTemplateHolder) o;
 			return template.equals(that.template);
 		}
 
@@ -260,8 +262,9 @@ public class PathTemplateMatcher<T> {
 		}
 
 		@Override
-		public int compareTo(PathTemplateMatcher.PathTemplateHolder o) {
+		public int compareTo(PathTemplateHolder o) {
 			return template.compareTo(o.template);
 		}
 	}
+
 }

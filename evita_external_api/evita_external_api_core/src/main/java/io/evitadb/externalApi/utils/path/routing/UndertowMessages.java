@@ -23,31 +23,30 @@
 
 package io.evitadb.externalApi.utils.path.routing;
 
-import java.util.Map;
+import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 
 /**
- * The result of a path template match.
+ * Adapter for messages used in the PathMatcher and other classes copied from Undertow.
  *
- * @author Stuart Douglas
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public class PathTemplateMatch {
+public class UndertowMessages {
 
-	public static final AttachmentKey<PathTemplateMatch> ATTACHMENT_KEY = AttachmentKey.create(PathTemplateMatch.class);
+	public static final MessageAdapter MESSAGES = new MessageAdapter();
 
-	private final String matchedTemplate;
-	private final Map<String, String> parameters;
+	public static class MessageAdapter {
 
-	public PathTemplateMatch(String matchedTemplate, Map<String, String> parameters) {
-		this.matchedTemplate = matchedTemplate;
-		this.parameters = parameters;
+		public EvitaInternalError pathMustBeSpecified() {
+			return new GenericEvitaInternalError("Path must be specified");
+		}
+
+		public EvitaInternalError couldNotParseUriTemplate(String path, int i) {
+			return new GenericEvitaInternalError("Could not parse URI template: " + path + " at position " + i);
+		}
+
+		public EvitaInternalError matcherAlreadyContainsTemplate(String templateString, String templateString1) {
+			return new GenericEvitaInternalError("Matcher already contains template: " + templateString + " " + templateString1);
+		}
 	}
-
-	public String getMatchedTemplate() {
-		return matchedTemplate;
-	}
-
-	public Map<String, String> getParameters() {
-		return parameters;
-	}
-
 }

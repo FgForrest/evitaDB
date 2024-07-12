@@ -23,7 +23,7 @@
 
 package io.evitadb.server;
 
-import ch.qos.logback.classic.util.ContextInitializer;
+import ch.qos.logback.classic.ClassicConstants;
 import ch.qos.logback.core.Context;
 import ch.qos.logback.core.ContextBase;
 import ch.qos.logback.core.spi.ContextAwareBase;
@@ -174,15 +174,15 @@ public class EvitaServer {
 	@Nonnull
 	private static String initLog() {
 		String logMsg;
-		if (System.getProperty(ContextInitializer.CONFIG_FILE_PROPERTY) == null) {
-			System.setProperty(ContextInitializer.CONFIG_FILE_PROPERTY, "META-INF/logback.xml");
+		if (System.getProperty(ClassicConstants.CONFIG_FILE_PROPERTY) == null) {
+			System.setProperty(ClassicConstants.CONFIG_FILE_PROPERTY, "META-INF/logback.xml");
 			logMsg = null;
 		} else {
-			final String originalFilePath = System.getProperty(ContextInitializer.CONFIG_FILE_PROPERTY);
+			final String originalFilePath = System.getProperty(ClassicConstants.CONFIG_FILE_PROPERTY);
 			final File logFile = new File(originalFilePath);
 			if (!logFile.exists() || !logFile.isFile()) {
 				logMsg = "original file `" + originalFilePath + "` doesn't exist";
-				System.setProperty(ContextInitializer.CONFIG_FILE_PROPERTY, "META-INF/logback.xml");
+				System.setProperty(ClassicConstants.CONFIG_FILE_PROPERTY, "META-INF/logback.xml");
 			} else {
 				logMsg = null;
 			}
@@ -396,7 +396,7 @@ public class EvitaServer {
 		ConsoleWriter.write("Visit us at: ");
 		ConsoleWriter.write("https://evitadb.io", ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);
 		ConsoleWriter.write("\n\n", ConsoleColor.WHITE);
-		ConsoleWriter.write("Log config used: " + System.getProperty(ContextInitializer.CONFIG_FILE_PROPERTY) + ofNullable(logInitializationStatus).map(it -> " (" + it + ")").orElse("") + "\n", ConsoleColor.DARK_GRAY);
+		ConsoleWriter.write("Log config used: " + System.getProperty(ClassicConstants.CONFIG_FILE_PROPERTY) + ofNullable(logInitializationStatus).map(it -> " (" + it + ")").orElse("") + "\n", ConsoleColor.DARK_GRAY);
 		ConsoleWriter.write("Config files used:\n   - DEFAULT (on classpath)\n" + Arrays.stream(evitaServerConfigurationWithLogFilesListing.configFilesApplied()).map(it -> "   - " + it.toAbsolutePath()).collect(Collectors.joining("\n")), ConsoleColor.DARK_GRAY);
 		ConsoleWriter.write("\n", ConsoleColor.WHITE);
 

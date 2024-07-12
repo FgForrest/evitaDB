@@ -29,8 +29,6 @@
 
 package io.evitadb.externalApi.utils.path.routing.cache;
 
-import io.evitadb.utils.Assert;
-
 import java.io.Serializable;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
@@ -45,6 +43,8 @@ import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+
+import static io.evitadb.externalApi.utils.path.routing.RoutingAssertAdapter.checkNotNullParamWithNullPointerException;
 
 /**
  * A modified version of ConcurrentLinkedDeque which includes direct
@@ -1326,8 +1326,7 @@ public class FastConcurrentDirectDeque<E>
 	 */
 	@SuppressWarnings("unchecked")
 	public <T> T[] toArray(T[] a) {
-		Assert.notNull(a, "Parameter 'a' may not be null");
-		return (T[]) toArrayInternal(a);
+		return (T[]) toArrayInternal(checkNotNullParamWithNullPointerException("a", a));
 	}
 
 	/**

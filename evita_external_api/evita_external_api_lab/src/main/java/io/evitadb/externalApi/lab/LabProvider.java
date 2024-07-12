@@ -62,6 +62,14 @@ public class LabProvider implements ExternalApiProvider<LabConfig> {
 		return CODE;
 	}
 
+	@Nonnull
+	@Override
+	public HttpServiceDefinition[] getHttpServiceDefinitions() {
+		return new HttpServiceDefinition[] {
+			new HttpServiceDefinition(apiHandler, PathHandlingMode.DYNAMIC_PATH_HANDLING)
+		};
+	}
+
 	@Override
 	public boolean isReady() {
 		final Predicate<String> isReady = url -> NetworkUtils.fetchContent(url, null, "text/html", null)

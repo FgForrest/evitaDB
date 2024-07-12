@@ -33,12 +33,9 @@ import io.evitadb.core.Evita;
 import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.configuration.TlsMode;
-import io.evitadb.function.QuadriFunction;
 import io.evitadb.function.TriFunction;
 
 import javax.annotation.Nonnull;
-import java.util.function.BiFunction;
-import java.util.function.Function;
 
 /**
  * Configures and registers provider of particular external API to HTTP server ({@link ExternalApiServer}).
@@ -90,6 +87,11 @@ public interface ExternalApiProviderRegistrar<T extends AbstractApiConfiguration
 		@Nonnull T externalApiConfiguration
 	);
 
+	/**
+	 * TODO JNO - document me
+	 * @param externalApiConfiguration
+	 * @return
+	 */
 	default TriFunction<ServiceRequestContext, HttpRequest, HttpService, HttpResponse> getApiHandlerPortSslValidatingFunction(T externalApiConfiguration) {
 		return (context, httpRequest, delegate) -> {
 			try {

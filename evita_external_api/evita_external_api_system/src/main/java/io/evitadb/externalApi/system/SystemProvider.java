@@ -87,6 +87,14 @@ public class SystemProvider implements ExternalApiProviderWithConsoleOutput<Syst
 		return CODE;
 	}
 
+	@Nonnull
+	@Override
+	public HttpServiceDefinition[] getHttpServiceDefinitions() {
+		return new HttpServiceDefinition[] {
+			new HttpServiceDefinition(apiHandler, PathHandlingMode.DYNAMIC_PATH_HANDLING)
+		};
+	}
+
 	@Override
 	public void writeToConsole() {
 		ConsoleWriter.write(StringUtils.rightPad("   - server name served at: ", " ", ExternalApiServer.PADDING_START_UP));

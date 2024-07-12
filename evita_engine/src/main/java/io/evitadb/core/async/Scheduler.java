@@ -54,7 +54,7 @@ import java.util.stream.Collectors;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @Slf4j
-public class Scheduler implements ObservableExecutorService {
+public class Scheduler implements ObservableExecutorService, ScheduledExecutorService {
 	private static final int FINISHED_TASKS_KEEP_INTERVAL_MILLIS = 120_000;
 	/**
 	 * Java based scheduled executor service.
@@ -111,40 +111,57 @@ public class Scheduler implements ObservableExecutorService {
 		this.rejectingExecutorHandler = null;
 	}
 
-	/**
-	 * Method schedules execution of `runnable` after `initialDelay` with frequency of `period`.
-	 *
-	 * @param runnable     the task to be executed
-	 * @param initialDelay the initial delay before the first execution
-	 * @param period       the period between subsequent executions
-	 * @param timeUnit     the time unit of the initialDelay and period parameters
-	 * @throws NullPointerException       if the runnable or timeUnit parameter is null
-	 * @throws RejectedExecutionException if the task cannot be scheduled for execution
-	 */
-	public void scheduleAtFixedRate(@Nonnull Runnable runnable, int initialDelay, int period, @Nonnull TimeUnit timeUnit) {
+	@Nonnull
+	@Override
+	public ScheduledFuture<?> scheduleAtFixedRate(@Nonnull Runnable command, long initialDelay, long period, @Nonnull TimeUnit unit) {
 		if (!this.executorService.isShutdown()) {
-			this.executorService.scheduleAtFixedRate(
-				runnable,
+			final ScheduledFuture<?> scheduledFuture = this.executorService.scheduleAtFixedRate(
+				command,
 				initialDelay,
 				period,
-				timeUnit
+				unit
 			);
 			this.submittedTaskCount.incrementAndGet();
+			return scheduledFuture;
+		} else {
+			throw new RejectedExecutionException("Scheduler is already shut down.");
 		}
 	}
 
-	/**
-	 * Schedules the execution of a {@link Runnable} task after a specified delay.
-	 *
-	 * @param lambda     The task to be executed.
-	 * @param delay      The amount of time to delay the execution.
-	 * @param delayUnits The time unit of the delay parameter.
-	 * @throws NullPointerException       if the lambda or delayUnits parameter is null.
-	 * @throws RejectedExecutionException if the task cannot be scheduled for execution.
-	 */
-	public void schedule(@Nonnull Runnable lambda, long delay, @Nonnull TimeUnit delayUnits) {
+	@Nonnull
+	@Override
+	public ScheduledFuture<?> scheduleWithFixedDelay(@Nonnull Runnable command, long initialDelay, long delay, @Nonnull TimeUnit unit) {
 		if (!this.executorService.isShutdown()) {
-			this.executorService.schedule(lambda, delay, delayUnits);
+			final ScheduledFuture<?> scheduledFuture = this.executorService.scheduleWithFixedDelay(
+				command,
+				initialDelay,
+				delay,
+				unit
+			);
+			this.submittedTaskCount.incrementAndGet();
+			return scheduledFuture;
+		} else {
+			throw new RejectedExecutionException("Scheduler is already shut down.");
+		}
+	}
+
+	@Nonnull
+	@Override
+	public <V> ScheduledFuture<V> schedule(@Nonnull Callable<V> callable, long delay, @Nonnull TimeUnit unit) {
+		if (!this.executorService.isShutdown()) {
+			return this.executorService.schedule(callable, delay, unit);
+		} else {
+			throw new RejectedExecutionException("Scheduler is already shut down.");
+		}
+	}
+
+	@Nonnull
+	@Override
+	public ScheduledFuture<?> schedule(@Nonnull Runnable lambda, long delay, @Nonnull TimeUnit delayUnits) {
+		if (!this.executorService.isShutdown()) {
+			return this.executorService.schedule(lambda, delay, delayUnits);
+		} else {
+			throw new RejectedExecutionException("Scheduler is already shut down.");
 		}
 	}
 

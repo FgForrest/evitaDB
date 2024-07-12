@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+
 /**
  * Represents a parsed web socket path template.
  * <p>
@@ -63,7 +64,7 @@ public class PathTemplate implements Comparable<PathTemplate> {
 	public static PathTemplate create(final String inputPath) {
 		// a path is required
 		if(inputPath == null) {
-			throw new IllegalArgumentException("Path must be specified");
+			throw UndertowMessages.MESSAGES.pathMustBeSpecified();
 		}
 
 		// prepend a "/" if none is present
@@ -127,7 +128,7 @@ public class PathTemplate implements Comparable<PathTemplate> {
 					if (c == '/') {
 						state = 4;
 					} else {
-						throw new RuntimeException(String.format("Could not parse URI template %s, exception at char %s", path, i));
+						throw UndertowMessages.MESSAGES.couldNotParseUriTemplate(path, i);
 					}
 					break;
 				}
@@ -162,7 +163,7 @@ public class PathTemplate implements Comparable<PathTemplate> {
 				break;
 			}
 			case 2: {
-				throw new RuntimeException(String.format("Could not parse URI template %s, exception at char %s", path, path.length()));
+				throw UndertowMessages.MESSAGES.couldNotParseUriTemplate(path, path.length());
 			}
 			case 4: {
 				trailingSlash = true;
@@ -224,7 +225,7 @@ public class PathTemplate implements Comparable<PathTemplate> {
 		}
 
 		int currentPartPosition = 0;
-		Part current = parts.get(currentPartPosition);
+		PathTemplate.Part current = parts.get(currentPartPosition);
 		int stringStart = baseLength;
 		int i;
 		for (i = baseLength; i < path.length(); ++i) {

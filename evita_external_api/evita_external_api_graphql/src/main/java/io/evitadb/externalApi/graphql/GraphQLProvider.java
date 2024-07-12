@@ -23,7 +23,6 @@
 
 package io.evitadb.externalApi.graphql;
 
-import com.linecorp.armeria.server.HttpService;
 import io.evitadb.externalApi.graphql.configuration.GraphQLConfig;
 import io.evitadb.externalApi.http.ExternalApiProvider;
 import io.evitadb.utils.NetworkUtils;
@@ -31,7 +30,6 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.util.Optional;
 import java.util.function.Predicate;
 
@@ -65,10 +63,12 @@ public class GraphQLProvider implements ExternalApiProvider<GraphQLConfig> {
         return CODE;
     }
 
-	@Nullable
+	@Nonnull
 	@Override
-	public HttpService getApiHandler() {
-		return graphQLManager.getGraphQLRouter();
+	public HttpServiceDefinition[] getHttpServiceDefinitions() {
+		return new HttpServiceDefinition[] {
+			new HttpServiceDefinition(graphQLManager.getGraphQLRouter(), PathHandlingMode.DYNAMIC_PATH_HANDLING)
+		};
 	}
 
 	@Override
