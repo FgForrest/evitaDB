@@ -29,15 +29,33 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+/**
+ * TLS mode provides all supported methods for TLS handling in internal web server.
+ * Unencrypted protocols are recommended to be used only in internal network that can be considered as safe.
+ */
 public enum TlsMode {
+	/**
+	 * Both TLS and non-TLS (unencrypted) protocols are allowed. Selection is up to the client.
+	 */
 	RELAXED,
+	/**
+	 * Server enforces TLS protocol only.
+	 */
 	FORCE_TLS,
+	/**
+	 * Server enforces non-TLS protocol only.
+	 */
 	FORCE_NO_TLS;
 
 	private static final Map<String, TlsMode> lookup =
 		Arrays.stream(values())
 			.collect(Collectors.toMap(Enum::name, Function.identity()));
 
+	/**
+	 * Returns enum value by its name.
+	 * @param name
+	 * @return
+	 */
 	public static TlsMode getByName(@Nullable String name) {
 		if (name == null) {
 			return RELAXED;

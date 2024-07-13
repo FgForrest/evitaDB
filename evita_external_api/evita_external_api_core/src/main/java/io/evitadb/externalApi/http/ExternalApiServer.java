@@ -662,12 +662,25 @@ public class ExternalApiServer implements AutoCloseable {
 			this.hostSetup.values().forEach(function);
 		}
 
+		/**
+		 * Registers the service as service with fixed path handling that doesn't change in runtime.
+		 *
+		 * @param servicePath base path
+		 * @param service the service to register
+		 */
 		public void setupFixedPathHandling(@Nonnull String servicePath, @Nonnull HttpService service) {
 			applyToAllHostSetups(
 				virtualHostBuilder -> virtualHostBuilder.serviceUnder(servicePath, service)
 			);
 		}
 
+		/**
+		 * Registers the service as service with dynamic path handling that changes during runtime - i.e. new paths
+		 * may be set-up, old ones removed. For this reasons our internal {@link PathHandlingService} exists.
+		 *
+		 * @param servicePath base path
+		 * @param service the service to register
+		 */
 		public void setupDynamicPathHandling(@Nonnull String servicePath, @Nonnull HttpService service) {
 			if (this.pathHandlingService == null) {
 				this.pathHandlingService = new PathHandlingService();

@@ -42,6 +42,14 @@ public record HostDefinition(
 ) {
 
 	/**
+	 * Returns IP address with port as a single string.
+	 */
+	@Nonnull
+	public String hostWithPort() {
+		return host.getHostAddress() + ":" + port;
+	}
+
+	/**
 	 * Returns human comprehensible host name of the configured host.
 	 */
 	@Nonnull
@@ -49,14 +57,12 @@ public record HostDefinition(
 		return NetworkUtils.getHostName(host);
 	}
 
+	/**
+	 * Returns human comprehensible host name of the configured host and port.
+	 */
 	@Nonnull
 	public String hostNameWithPort() {
 		return hostName() + ":" + port;
-	}
-
-	@Nonnull
-	public String hostWithPort() {
-		return host.getHostAddress() + ":" + port;
 	}
 
 }

@@ -29,9 +29,9 @@ import com.linecorp.armeria.common.HttpStatus;
 import com.linecorp.armeria.common.RequestHeadersBuilder;
 import com.linecorp.armeria.server.HttpService;
 import com.linecorp.armeria.server.ServiceRequestContext;
-import io.evitadb.externalApi.utils.path.routing.cache.LRUCache;
 import io.evitadb.externalApi.utils.path.routing.PathMatcher;
 import io.evitadb.externalApi.utils.path.routing.PathMatcher.PathMatch;
+import io.evitadb.externalApi.utils.path.routing.cache.LRUCache;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -39,6 +39,18 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+/**
+ * Adapted from `io.undertow.server.handlers.PathHandler` to Armeria.
+ *
+ * Handler that dispatches to a given handler based of a prefix match of the path.
+ * <p>
+ * This only matches a single level of a request, e.g if you have a request that takes the form:
+ * <p>
+ * /foo/bar
+ * <p>
+ *
+ * @author Stuart Douglas
+ */
 public class PathHandlingService implements HttpService {
 	private final PathMatcher<HttpService> pathMatcher = new PathMatcher<>();
 

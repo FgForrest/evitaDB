@@ -37,15 +37,14 @@ import io.evitadb.externalApi.utils.path.routing.PathTemplate;
 import io.evitadb.externalApi.utils.path.routing.PathTemplateMatcher;
 
 import javax.annotation.Nonnull;
-import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.function.Predicate;
 
 import static io.evitadb.externalApi.http.AdditionalHeaders.INTERNAL_HEADER_PREFIX;
 
 /**
+ * Adapted class from `io.undertow.server.RoutingHandler` to be used with Armeria.
+ *
  * A Handler that handles the common case of pathHandlingMode via path template and method name.
  *
  * @author Stuart Douglas
@@ -53,10 +52,10 @@ import static io.evitadb.externalApi.http.AdditionalHeaders.INTERNAL_HEADER_PREF
 public class RoutingHandlerService implements HttpService {
 
 	// Matcher objects grouped by http methods.
-	private final Map<HttpMethod, PathTemplateMatcher<RoutingMatch>> matches = new CopyOnWriteMap<>();
+	private final Map<HttpMethod, PathTemplateMatcher<HttpService>> matches = new CopyOnWriteMap<>();
 	// Matcher used to find if this instance contains matches for any http method for a path.
 	// This matcher is used to report if this instance can match a path for one of the http methods.
-	private final PathTemplateMatcher<RoutingHandlerService.RoutingMatch> allMethodsMatcher = new PathTemplateMatcher<>();
+	private final PathTemplateMatcher<HttpService> allMethodsMatcher = new PathTemplateMatcher<>();
 
 	// Handler called when no match was found and invalid method handler can't be invoked.
 	private volatile HttpService fallbackHandler = new NotFoundService();
@@ -80,11 +79,13 @@ public class RoutingHandlerService implements HttpService {
 	@Nonnull
 	@Override
 	public HttpResponse serve(@Nonnull ServiceRequestContext ctx, @Nonnull HttpRequest req) throws Exception {
-		PathTemplateMatcher<RoutingHandlerService.RoutingMatch> matcher = matches.get(req.method());
+		PathTemplateMatcher<HttpService> matcher = matches.get(req.method());
 		if (matcher == null) {
 			return handleNoMatch(ctx, req);
 		}
-		PathTemplateMatcher.PathMatchResult<RoutingHandlerService.RoutingMatch> match = matcher.match(getStringPartTillChar(req.path(), '?'));
+		// TODO JNO - CHECK REPLACEMENT WITH `getStringPartTillChar`
+		// req.uri().getPath();
+		PathTemplateMatcher.PathMatchResult<HttpService> match = matcher.match(getStringPartTillChar(req.path(), '?'));
 		if (match == null) {
 			return handleNoMatch(ctx, req);
 		}
@@ -98,15 +99,8 @@ public class RoutingHandlerService implements HttpService {
 		}
 
 		final HttpRequest newRequest = req.withHeaders(headersBuilder.build());
-
-		for (RoutingHandlerService.HandlerHolder handler : match.getValue().predicatedHandlers) {
-			/*if (handler.predicate.resolve()) {
-				return handler.handler.serve(ctx, newRequest);
-			}*/
-			//todo tpz: handle predicate
-		}
-		if (match.getValue().defaultHandler != null) {
-			return match.getValue().defaultHandler.serve(ctx, newRequest);
+		if (match.getValue() != null) {
+			return match.getValue().serve(ctx, newRequest);
 		} else {
 			return fallbackHandler.serve(ctx, newRequest);
 		}
@@ -141,18 +135,17 @@ public class RoutingHandlerService implements HttpService {
 	}
 
 	public synchronized RoutingHandlerService add(HttpMethod method, String template, HttpService handler) {
-		PathTemplateMatcher<RoutingHandlerService.RoutingMatch> matcher = matches.get(method);
+		PathTemplateMatcher<HttpService> matcher = matches.get(method);
 		if (matcher == null) {
 			matches.put(method, matcher = new PathTemplateMatcher<>());
 		}
-		RoutingHandlerService.RoutingMatch res = matcher.get(template);
+		HttpService res = matcher.get(template);
 		if (res == null) {
-			matcher.add(template, res = new RoutingHandlerService.RoutingMatch());
+			matcher.add(template, handler);
 		}
 		if (allMethodsMatcher.match(template) == null) {
-			allMethodsMatcher.add(template, res);
+			allMethodsMatcher.add(template, handler);
 		}
-		res.defaultHandler = handler;
 		return this;
 	}
 
@@ -173,9 +166,9 @@ public class RoutingHandlerService implements HttpService {
 	}
 
 	public synchronized RoutingHandlerService addAll(RoutingHandlerService routingHandler) {
-		for (Entry<HttpMethod, PathTemplateMatcher<RoutingHandlerService.RoutingMatch>> entry : routingHandler.getMatches().entrySet()) {
+		for (Entry<HttpMethod, PathTemplateMatcher<HttpService>> entry : routingHandler.getMatches().entrySet()) {
 			HttpMethod method = entry.getKey();
-			PathTemplateMatcher<RoutingHandlerService.RoutingMatch> matcher = matches.get(method);
+			PathTemplateMatcher<HttpService> matcher = matches.get(method);
 			if (matcher == null) {
 				matches.put(method, matcher = new PathTemplateMatcher<>());
 			}
@@ -184,7 +177,7 @@ public class RoutingHandlerService implements HttpService {
 			// PathTemplates which we want to ignore here so it does not crash.
 			for (PathTemplate template : entry.getValue().getPathTemplates()) {
 				if (allMethodsMatcher.match(template.getTemplateString()) == null) {
-					allMethodsMatcher.add(template, new RoutingHandlerService.RoutingMatch());
+					allMethodsMatcher.add(template, null);
 				}
 			}
 		}
@@ -200,7 +193,7 @@ public class RoutingHandlerService implements HttpService {
 	 * @return this handler
 	 */
 	public RoutingHandlerService remove(HttpMethod method, String path) {
-		PathTemplateMatcher<RoutingHandlerService.RoutingMatch> handler = matches.get(method);
+		PathTemplateMatcher<HttpService> handler = matches.get(method);
 		if(handler != null) {
 			handler.remove(path);
 		}
@@ -220,7 +213,7 @@ public class RoutingHandlerService implements HttpService {
 		return this;
 	}
 
-	Map<HttpMethod, PathTemplateMatcher<RoutingHandlerService.RoutingMatch>> getMatches() {
+	Map<HttpMethod, PathTemplateMatcher<HttpService>> getMatches() {
 		return matches;
 	}
 
@@ -261,23 +254,6 @@ public class RoutingHandlerService implements HttpService {
 	public RoutingHandlerService setInvalidMethodHandler(HttpService invalidMethodHandler) {
 		this.invalidMethodHandler = invalidMethodHandler;
 		return this;
-	}
-
-	private static class RoutingMatch {
-
-		final List<RoutingHandlerService.HandlerHolder> predicatedHandlers = new CopyOnWriteArrayList<>();
-		volatile HttpService defaultHandler;
-
-	}
-
-	private static class HandlerHolder {
-		final Predicate predicate;
-		final HttpService handler;
-
-		private HandlerHolder(Predicate predicate, HttpService handler) {
-			this.predicate = predicate;
-			this.handler = handler;
-		}
 	}
 
 }
