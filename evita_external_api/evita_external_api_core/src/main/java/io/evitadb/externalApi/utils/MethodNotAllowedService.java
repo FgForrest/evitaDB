@@ -32,6 +32,11 @@ import com.linecorp.armeria.server.ServiceRequestContext;
 
 import javax.annotation.Nonnull;
 
+/**
+ * This HTTP service returns HTTP 405 Method Not Allowed response.
+ *
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
+ */
 public class MethodNotAllowedService implements HttpService {
 	@Nonnull
 	@Override

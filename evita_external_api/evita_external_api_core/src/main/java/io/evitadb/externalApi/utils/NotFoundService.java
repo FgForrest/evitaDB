@@ -32,10 +32,17 @@ import com.linecorp.armeria.server.ServiceRequestContext;
 
 import javax.annotation.Nonnull;
 
+/**
+ * This HTTP service returns HTTP 404 Not Found response.
+ *
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
+ */
 public class NotFoundService implements HttpService {
+
 	@Nonnull
 	@Override
 	public HttpResponse serve(@Nonnull ServiceRequestContext ctx, @Nonnull HttpRequest req) {
 		return HttpResponse.of(HttpStatus.NOT_FOUND, MediaType.PLAIN_TEXT, "404 Not Found: The requested resource could not be found.");
 	}
+
 }
