@@ -88,11 +88,14 @@ public interface ExternalApiProviderRegistrar<T extends AbstractApiConfiguration
 	);
 
 	/**
-	 * TODO JNO - document me
-	 * @param externalApiConfiguration
-	 * @return
+	 * Provides lambda that verifies the request scheme according to configuration. If the scheme does not match the
+	 * configuration, the response with status code 403 is returned.
+	 *
+	 * @param externalApiConfiguration configuration of the external API
+	 * @return lambda that verifies the request scheme according to configuration
 	 */
-	default TriFunction<ServiceRequestContext, HttpRequest, HttpService, HttpResponse> getApiHandlerPortSslValidatingFunction(T externalApiConfiguration) {
+	@Nonnull
+	default TriFunction<ServiceRequestContext, HttpRequest, HttpService, HttpResponse> getApiHandlerPortTlsValidatingFunction(@Nonnull T externalApiConfiguration) {
 		return (context, httpRequest, delegate) -> {
 			try {
 				final TlsMode tlsMode = externalApiConfiguration.getTlsMode();

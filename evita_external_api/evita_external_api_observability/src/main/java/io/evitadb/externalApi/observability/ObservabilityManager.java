@@ -77,7 +77,6 @@ import java.util.function.Consumer;
 @Slf4j
 public class ObservabilityManager {
 	public static final String METRICS_SUFFIX = "metrics";
-	public static final String METRICS_PATH = "/observability/" + METRICS_SUFFIX;
 	/**
 	 * Directory where JFR recording file is stored.
 	 */
@@ -332,9 +331,9 @@ public class ObservabilityManager {
 	 * Creates and registers Prometheus scraping servlet for metrics publishing.
 	 */
 	private void createAndRegisterPrometheusServlet() {
-		observabilityRouter.addPrefixPath(
+		this.observabilityRouter.addPrefixPath(
 			"/" + METRICS_SUFFIX,
-			new PrometheusMetricsHttpService()
+			new PrometheusMetricsHttpService(this.evita)
 		);
 	}
 
@@ -342,7 +341,7 @@ public class ObservabilityManager {
 	 * Registers endpoints for controlling JFR recording.
 	 */
 	private void registerJfrControlEndpoints() {
-		observabilityRouter.addExactPath("/start",
+		this.observabilityRouter.addExactPath("/start",
 			new ObservabilityExceptionHandler(
 				objectMapper,
 				new StartLoggingHandler(this.evita, this)
@@ -350,7 +349,7 @@ public class ObservabilityManager {
 				new CorsFilterServiceDecorator(config.getAllowedOrigins()).createDecorator()
 			)
 		);
-		observabilityRouter.addExactPath("/stop",
+		this.observabilityRouter.addExactPath("/stop",
 			new ObservabilityExceptionHandler(
 				objectMapper,
 				new StopLoggingHandler(this.evita, this)

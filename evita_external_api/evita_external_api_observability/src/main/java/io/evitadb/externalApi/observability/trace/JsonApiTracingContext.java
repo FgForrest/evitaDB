@@ -46,7 +46,7 @@ import static java.util.Optional.ofNullable;
  * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
  */
 public class JsonApiTracingContext implements ExternalApiTracingContext<HttpRequest> {
-	private static final String CLIENT_ID_HEADER = "X-EvitaDB-ClientID";
+
 	/**
 	 * Getter for extracting information from Armeria's {@link RequestHeaders}.
 	 */
@@ -68,6 +68,10 @@ public class JsonApiTracingContext implements ExternalApiTracingContext<HttpRequ
 					.orElse(null);
 			}
 		};
+
+	/**
+	 * Tracing context for handling the actual tracing logic.
+	 */
 	private final TracingContext tracingContext;
 
 	public JsonApiTracingContext(@Nonnull TracingContext tracingContext) {

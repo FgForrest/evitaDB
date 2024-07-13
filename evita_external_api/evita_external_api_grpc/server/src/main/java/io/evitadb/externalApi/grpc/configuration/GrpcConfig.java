@@ -59,6 +59,7 @@ public class GrpcConfig extends AbstractApiConfiguration implements ApiConfigura
 	public static final int DEFAULT_GRPC_PORT = 5556;
 	/**
 	 * Allows to expose the Armeria specific docs service on the gRPC API.
+	 * TODO JNO - add to documentation
 	 */
 	@Getter private final boolean exposeDocsService;
 
@@ -68,6 +69,12 @@ public class GrpcConfig extends AbstractApiConfiguration implements ApiConfigura
 	 */
 	@Getter
 	private final MtlsConfiguration mtlsConfiguration;
+	/**
+	 * Controls the prefix gRPC API will react on.
+	 * Default value is empty string - gRPC currently doesn't support running on any prefix.
+	 * This is unfortunately limitation of original implementation - see <a href="https://github.com/grpc/grpc-java/issues/9671">related issue</a>.
+	 */
+	@Getter private final String prefix;
 
 	public GrpcConfig() {
 		super(true, LOCALHOST + ":" + DEFAULT_GRPC_PORT);
@@ -109,10 +116,4 @@ public class GrpcConfig extends AbstractApiConfiguration implements ApiConfigura
 				.toArray(String[]::new);
 		}
 	}
-
-	/**
-	 * Controls the prefix gRPC API will react on.
-	 * Default value is `grpc`.
-	 */
-	@Getter private final String prefix;
 }

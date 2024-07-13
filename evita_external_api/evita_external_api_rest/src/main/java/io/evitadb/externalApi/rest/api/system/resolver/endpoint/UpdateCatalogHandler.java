@@ -127,8 +127,8 @@ public class UpdateCatalogHandler extends CatalogHandler {
 		return newCatalogName;
 	}
 
-	private void switchCatalogToAliveState(@Nonnull CatalogContract catalog,
-	                                       @Nonnull UpdateCatalogRequestDto requestBody) {
+	private static void switchCatalogToAliveState(@Nonnull CatalogContract catalog,
+	                                              @Nonnull UpdateCatalogRequestDto requestBody) {
 		final Optional<CatalogState> newCatalogState = Optional.ofNullable(requestBody.catalogState());
 		if (newCatalogState.isEmpty()) {
 			return;

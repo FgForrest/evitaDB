@@ -56,6 +56,7 @@ public class PathNormalizingHandler implements HttpService {
 		} else if (req.path().isEmpty()) {
 			path = String.valueOf(SLASH);
 		} else if (req.path().contains(String.valueOf(QUESTION_MARK))) {
+			/* TODO JNO - wouldn't req.uri().getPath() work enough?! */
 			final String baseUrl = getStringPartBeforeOrAfterChar(req.path(), QUESTION_MARK, true);
 			if (baseUrl.charAt(baseUrl.length() - 1) == SLASH) {
 				path = baseUrl.substring(0, baseUrl.length() - 1) + QUESTION_MARK + getStringPartBeforeOrAfterChar(req.path(), QUESTION_MARK, false);

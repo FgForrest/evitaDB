@@ -41,7 +41,7 @@ import java.util.function.Function;
  */
 @Slf4j
 @RequiredArgsConstructor
-public class CorsFilterServiceDecorator  {
+public class CorsFilterServiceDecorator {
 	/**
 	 * Set of allowed origins, other origins will return error. If null, all origins are allowed.
 	 */
@@ -54,8 +54,12 @@ public class CorsFilterServiceDecorator  {
 		);
 	}
 
+	/**
+	 * TODO LHO: document
+	 * @return
+	 */
 	public Function<? super HttpService, CorsService> createDecorator() {
-		// todo: verify
+		// TODO LHO: verify
 		final CorsServiceBuilder builder;
 		if (allowedOrigins != null) {
 			builder = CorsService.builder(allowedOrigins);

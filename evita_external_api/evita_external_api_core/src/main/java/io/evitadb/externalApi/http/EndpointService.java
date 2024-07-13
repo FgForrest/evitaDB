@@ -23,7 +23,14 @@
 
 package io.evitadb.externalApi.http;
 
-import com.linecorp.armeria.common.*;
+import com.linecorp.armeria.common.HttpData;
+import com.linecorp.armeria.common.HttpHeaderNames;
+import com.linecorp.armeria.common.HttpRequest;
+import com.linecorp.armeria.common.HttpResponse;
+import com.linecorp.armeria.common.HttpResponseWriter;
+import com.linecorp.armeria.common.HttpStatus;
+import com.linecorp.armeria.common.MediaType;
+import com.linecorp.armeria.common.ResponseHeaders;
 import com.linecorp.armeria.server.HttpService;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
@@ -35,7 +42,6 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.Charset;
@@ -48,7 +54,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
@@ -319,19 +324,4 @@ public abstract class EndpointService<C extends EndpointExecutionContext> implem
 		throw createInternalError("Cannot serialize response body because handler doesn't support it.");
 	}
 
-	protected void streamData(@Nonnull EventLoop executor, @Nonnull HttpResponseWriter writer, @Nonnull ByteArrayInputStream inputStream) {
-		byte[] buffer = new byte[STREAM_CHUNK_SIZE];
-		int bytesRead;
-		try {
-			if ((bytesRead = inputStream.read(buffer)) != -1) {
-				writer.write(HttpData.wrap(buffer, 0, bytesRead));
-				writer.whenConsumed().thenRun(() -> executor.schedule(() -> streamData(executor, writer, inputStream),
-					100, TimeUnit.MILLISECONDS)); // Adjust interval as needed
-			} else {
-				writer.close();
-			}
-		} catch (IOException e) {
-			writer.close(e);
-		}
-	}
 }

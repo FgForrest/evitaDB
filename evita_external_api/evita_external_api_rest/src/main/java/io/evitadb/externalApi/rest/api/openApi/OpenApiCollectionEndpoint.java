@@ -209,19 +209,6 @@ public class OpenApiCollectionEndpoint extends OpenApiEndpoint<CollectionRestHan
 		}
 
 		/**
-		 * Adds single query parameter.
-		 */
-		@Nonnull
-		public Builder queryParameter(@Nonnull OpenApiEndpointParameter queryParameter) {
-			Assert.isPremiseValid(
-				queryParameter.getLocation().equals(ParameterLocation.QUERY),
-				() -> new OpenApiBuildingError("Only query parameters are supported here.")
-			);
-			this.parameters.add(queryParameter);
-			return this;
-		}
-
-		/**
 		 * Adds list of query parameters to existing query parameters.
 		 */
 		@Nonnull

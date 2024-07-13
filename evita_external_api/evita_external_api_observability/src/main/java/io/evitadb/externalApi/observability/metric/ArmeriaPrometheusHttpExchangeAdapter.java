@@ -29,6 +29,7 @@ import io.netty.util.AsciiString;
 import io.prometheus.metrics.exporter.common.PrometheusHttpExchange;
 import io.prometheus.metrics.exporter.common.PrometheusHttpRequest;
 import io.prometheus.metrics.exporter.common.PrometheusHttpResponse;
+import lombok.RequiredArgsConstructor;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -36,6 +37,12 @@ import java.io.OutputStream;
 import java.util.Collections;
 import java.util.Enumeration;
 
+/**
+ * This class is an adapter for Armeria's {@link ServiceRequestContext} and {@link HttpRequest} to Prometheus'
+ * {@link PrometheusHttpExchange}, {@link PrometheusHttpRequest} and {@link PrometheusHttpResponse}.
+ *
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
+ */
 public class ArmeriaPrometheusHttpExchangeAdapter implements PrometheusHttpExchange {
 	private final ArmeriaAdapterRequest request;
 	private final ArmeriaAdapterResponse response;
@@ -69,13 +76,12 @@ public class ArmeriaPrometheusHttpExchangeAdapter implements PrometheusHttpExcha
 	public void close() {
 	}
 
+	/**
+	 * Adapter for Armeria's {@link HttpRequest} to Prometheus' {@link PrometheusHttpRequest}.
+	 */
+	@RequiredArgsConstructor
 	public static class ArmeriaAdapterRequest implements PrometheusHttpRequest {
-
 		private final HttpRequest request;
-
-		public ArmeriaAdapterRequest(HttpRequest request) {
-			this.request = request;
-		}
 
 		@Override
 		public String getQueryString() {
@@ -98,15 +104,14 @@ public class ArmeriaPrometheusHttpExchangeAdapter implements PrometheusHttpExcha
 		}
 	}
 
+	/**
+	 * Adapter for Armeria's {@link ServiceRequestContext} and {@link OutputStream} to Prometheus'
+	 * {@link PrometheusHttpResponse}.
+	 */
+	@RequiredArgsConstructor
 	public static class ArmeriaAdapterResponse implements PrometheusHttpResponse {
-
 		private final ServiceRequestContext context;
 		private final OutputStream outputStream;
-
-		public ArmeriaAdapterResponse(ServiceRequestContext context, OutputStream outputStream) {
-			this.context = context;
-			this.outputStream = outputStream;
-		}
 
 		@Override
 		public void setHeader(String name, String value) {
@@ -114,7 +119,7 @@ public class ArmeriaPrometheusHttpExchangeAdapter implements PrometheusHttpExcha
 		}
 
 		@Override
-		public OutputStream sendHeadersAndGetBody(int statusCode, int contentLength) throws IOException {
+		public OutputStream sendHeadersAndGetBody(int statusCode, int contentLength) {
 			final String contentLengthHeader = context.additionalResponseHeaders().get("Content-Length");
 			if (contentLengthHeader != null && contentLength > 0) {
 				context.setMaxRequestLength(contentLength);

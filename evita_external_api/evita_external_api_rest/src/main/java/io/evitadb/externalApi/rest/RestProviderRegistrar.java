@@ -30,7 +30,6 @@ import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
 import io.evitadb.externalApi.http.ExternalApiServer;
 import io.evitadb.externalApi.rest.api.catalog.CatalogRestRefreshingObserver;
 import io.evitadb.externalApi.rest.configuration.RestConfig;
-import io.evitadb.externalApi.http.HttpServiceSslCheckingDecorator;
 
 import javax.annotation.Nonnull;
 
@@ -58,7 +57,7 @@ public class RestProviderRegistrar implements ExternalApiProviderRegistrar<RestC
 	public ExternalApiProvider<RestConfig> register(@Nonnull Evita evita,
 	                                                @Nonnull ExternalApiServer externalApiServer, @Nonnull ApiOptions apiOptions,
 	                                                @Nonnull RestConfig restConfiguration) {
-		final RestManager restManager = new RestManager(evita, apiOptions.exposedOn(), restConfiguration, getApiHandlerPortSslValidatingFunction(restConfiguration));
+		final RestManager restManager = new RestManager(evita, apiOptions.exposedOn(), restConfiguration, getApiHandlerPortTlsValidatingFunction(restConfiguration));
 		evita.registerStructuralChangeObserver(new CatalogRestRefreshingObserver(restManager));
 		return new RestProvider(restConfiguration, restManager);
 	}

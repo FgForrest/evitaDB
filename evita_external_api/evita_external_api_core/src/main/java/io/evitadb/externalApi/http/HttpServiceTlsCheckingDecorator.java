@@ -27,12 +27,20 @@ import com.linecorp.armeria.common.HttpRequest;
 import com.linecorp.armeria.common.HttpResponse;
 import com.linecorp.armeria.server.HttpService;
 import com.linecorp.armeria.server.ServiceRequestContext;
+import io.evitadb.externalApi.configuration.TlsMode;
 import io.evitadb.function.TriFunction;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+
+/**
+ * This HTTP service verifies input scheme against allowed {@link TlsMode} in configuration and returns appropriate
+ * error response if the scheme is not allowed. Othewise it delegates the request to the decorated service.
+ *
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
+ */
 @RequiredArgsConstructor
-public class HttpServiceSslCheckingDecorator implements HttpService {
+public class HttpServiceTlsCheckingDecorator implements HttpService {
 	private final HttpService delegate;
 	private final TriFunction<ServiceRequestContext, HttpRequest, HttpService, HttpResponse> validatorFunction;
 

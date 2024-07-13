@@ -82,15 +82,14 @@ import io.evitadb.driver.config.EvitaClientConfiguration;
 import io.evitadb.driver.exception.EvitaClientServerCallException;
 import io.evitadb.driver.exception.EvitaClientTimedOutException;
 import io.evitadb.driver.interceptor.ClientSessionInterceptor.SessionIdHolder;
-import io.evitadb.driver.pooling.ChannelPool;
 import io.evitadb.driver.requestResponse.schema.ClientCatalogSchemaDecorator;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
-import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.EvitaSessionServiceGrpc.EvitaSessionServiceFutureStub;
 import io.evitadb.externalApi.grpc.generated.EvitaSessionServiceGrpc.EvitaSessionServiceStub;
+import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogRequest.Builder;
 import io.evitadb.externalApi.grpc.query.QueryConverter;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
@@ -105,7 +104,6 @@ import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.SchemaMutatio
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutationConverter;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ReflectionLookup;
-import io.grpc.ManagedChannel;
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
@@ -184,12 +182,9 @@ public class EvitaClientSession implements EvitaSessionContract {
 	 */
 	private final EvitaEntitySchemaCache schemaCache;
 	/**
-	 * Contains reference to the channel pool that is used for retrieving a channel and applying wanted login onto it.
+	 * Builder for gRPC client.
 	 */
-	//private final ChannelPool channelPool;
-
 	private final GrpcClientBuilder grpcClientBuilder;
-
 	/**
 	 * Contains reference to the catalog name targeted by queries / mutations from this session.
 	 */
@@ -1412,6 +1407,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 	 * @param timeout timeout value
 	 * @param unit   time unit of the timeout
 	 */
+	@SuppressWarnings("unused")
 	public void executeWithExtendedTimeout(@Nonnull Runnable lambda, long timeout, @Nonnull TimeUnit unit) {
 		try {
 			this.callTimeout.push(new Timeout(timeout, unit));
@@ -1431,6 +1427,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 	 * @return result of the lambda
 	 * @param <T> type of the result
 	 */
+	@SuppressWarnings("unused")
 	public <T> T executeWithExtendedTimeout(@Nonnull Supplier<T> lambda, long timeout, @Nonnull TimeUnit unit) {
 		try {
 			this.callTimeout.push(new Timeout(timeout, unit));

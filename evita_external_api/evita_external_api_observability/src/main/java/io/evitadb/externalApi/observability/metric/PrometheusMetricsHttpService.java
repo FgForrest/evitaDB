@@ -30,28 +30,41 @@ import com.linecorp.armeria.common.HttpStatus;
 import com.linecorp.armeria.common.MediaType;
 import com.linecorp.armeria.server.HttpService;
 import com.linecorp.armeria.server.ServiceRequestContext;
+import io.evitadb.core.Evita;
 import io.prometheus.metrics.exporter.common.PrometheusScrapeHandler;
 
 import javax.annotation.Nonnull;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 
+/**
+ * This service provides Prometheus metrics in text format. The service mimics original PrometheusServlet behavior.
+ *
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
+ */
 public class PrometheusMetricsHttpService implements HttpService {
+	private final Evita evita;
 	private final PrometheusScrapeHandler prometheusScrapeHandler;
 
-	public PrometheusMetricsHttpService() {
+	public PrometheusMetricsHttpService(@Nonnull Evita evita) {
+		this.evita = evita;
 		this.prometheusScrapeHandler = new PrometheusScrapeHandler();
 	}
+
 	@Nonnull
 	@Override
-	public HttpResponse serve(@Nonnull ServiceRequestContext ctx, @Nonnull HttpRequest req) throws Exception {
-		final ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-		try {
-			prometheusScrapeHandler.handleRequest(new ArmeriaPrometheusHttpExchangeAdapter(ctx, req, outputStream));
-		} catch (IOException e) {
-			return HttpResponse.ofFailure(e);
-		}
-
-		return HttpResponse.of(HttpStatus.OK, MediaType.PLAIN_TEXT_UTF_8, HttpData.copyOf(outputStream.toByteArray()));
+	public HttpResponse serve(@Nonnull ServiceRequestContext ctx, @Nonnull HttpRequest req) {
+		return HttpResponse.of(
+			evita.executeAsyncInRequestThreadPool(
+				() -> {
+					try (final ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
+						this.prometheusScrapeHandler.handleRequest(new ArmeriaPrometheusHttpExchangeAdapter(ctx, req, outputStream));
+						return HttpResponse.of(HttpStatus.OK, MediaType.PLAIN_TEXT_UTF_8, HttpData.copyOf(outputStream.toByteArray()));
+					} catch (IOException e) {
+						return HttpResponse.ofFailure(e);
+					}
+				}
+			)
+		);
 	}
 }

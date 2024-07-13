@@ -262,7 +262,6 @@ public class EvitaClient implements EvitaContract {
 		ofNullable(grpcConfigurator).ifPresent(it -> it.accept(grpcClientBuilder));
 		this.grpcClientBuilder = grpcClientBuilder;
 		this.reflectionLookup = new ReflectionLookup(configuration.reflectionLookupBehaviour());
-		//this.channelPool = new ChannelPool(grpcClientBuilder, 10);
 		this.terminationCallback = () -> {
 			//todo tpz: handle termination
 			/*try {
@@ -1104,6 +1103,7 @@ public class EvitaClient implements EvitaContract {
 	 * @param timeout timeout value
 	 * @param unit    time unit of the timeout
 	 */
+	@SuppressWarnings("unused")
 	public void executeWithExtendedTimeout(@Nonnull Runnable lambda, long timeout, @Nonnull TimeUnit unit) {
 		try {
 			this.timeout.get().push(new Timeout(timeout, unit));
@@ -1123,6 +1123,7 @@ public class EvitaClient implements EvitaContract {
 	 * @param <T>     type of the result
 	 * @return result of the lambda
 	 */
+	@SuppressWarnings("unused")
 	public <T> T executeWithExtendedTimeout(@Nonnull Supplier<T> lambda, long timeout, @Nonnull TimeUnit unit) {
 		try {
 			this.timeout.get().push(new Timeout(timeout, unit));

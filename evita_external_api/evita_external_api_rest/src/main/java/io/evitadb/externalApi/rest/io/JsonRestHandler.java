@@ -24,7 +24,6 @@
 package io.evitadb.externalApi.rest.io;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.linecorp.armeria.common.ContextAwareEventLoop;
 import com.linecorp.armeria.common.HttpData;
 import com.linecorp.armeria.common.HttpResponseWriter;
 import io.evitadb.externalApi.http.MimeTypes;

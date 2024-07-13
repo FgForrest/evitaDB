@@ -25,7 +25,6 @@ package io.evitadb.externalApi.rest.api.openApi;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.evitadb.core.Evita;
-import io.evitadb.externalApi.rest.api.openApi.OpenApiEndpointParameter.ParameterLocation;
 import io.evitadb.externalApi.rest.api.system.resolver.endpoint.SystemRestHandlingContext;
 import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
 import io.evitadb.externalApi.rest.io.RestEndpointHandler;
@@ -162,34 +161,6 @@ public class OpenApiSystemEndpoint extends OpenApiEndpoint<SystemRestHandlingCon
 		@Nonnull
 		public Builder deprecationNotice(@Nullable String deprecationNotice) {
 			this.deprecationNotice = deprecationNotice;
-			return this;
-		}
-
-		/**
-		 * Adds single query parameter.
-		 */
-		@Nonnull
-		public Builder queryParameter(@Nonnull OpenApiEndpointParameter queryParameter) {
-			Assert.isPremiseValid(
-				queryParameter.getLocation().equals(ParameterLocation.QUERY),
-				() -> new OpenApiBuildingError("Only query parameters are supported here.")
-			);
-			this.parameters.add(queryParameter);
-			return this;
-		}
-
-		/**
-		 * Adds list of query parameters to existing query parameters.
-		 */
-		@Nonnull
-		public Builder queryParameters(@Nonnull List<OpenApiEndpointParameter> queryParameters) {
-			queryParameters.forEach(queryParameter ->
-				Assert.isPremiseValid(
-					queryParameter.getLocation().equals(ParameterLocation.QUERY),
-					() -> new OpenApiBuildingError("Only query parameters are supported here.")
-				)
-			);
-			this.parameters.addAll(queryParameters);
 			return this;
 		}
 

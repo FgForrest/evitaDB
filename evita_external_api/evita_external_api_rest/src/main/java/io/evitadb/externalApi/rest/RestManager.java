@@ -32,7 +32,7 @@ import io.evitadb.api.CatalogContract;
 import io.evitadb.core.CorruptedCatalog;
 import io.evitadb.core.Evita;
 import io.evitadb.exception.EvitaInternalError;
-import io.evitadb.externalApi.http.HttpServiceSslCheckingDecorator;
+import io.evitadb.externalApi.http.HttpServiceTlsCheckingDecorator;
 import io.evitadb.externalApi.http.PathNormalizingHandler;
 import io.evitadb.externalApi.rest.api.Rest;
 import io.evitadb.externalApi.rest.api.catalog.CatalogRestBuilder;
@@ -89,7 +89,7 @@ public class RestManager {
 	 */
 	@Nonnull private final Set<String> registeredCatalogs = createHashSet(20);
 
-	@Nonnull private SystemBuildStatistics systemBuildStatistics;
+	@Nullable private SystemBuildStatistics systemBuildStatistics;
 	@Nonnull private final Map<String, CatalogBuildStatistics> catalogBuildStatistics = createHashMap(20);
 
 	@Nonnull private final TriFunction<ServiceRequestContext, HttpRequest, HttpService, HttpResponse> apiHandlerPortSslValidatingFunction;
@@ -112,7 +112,7 @@ public class RestManager {
 
 	@Nonnull
 	public HttpService getRestRouter() {
-		return new HttpServiceSslCheckingDecorator(
+		return new HttpServiceTlsCheckingDecorator(
 			new PathNormalizingHandler(restRouter), apiHandlerPortSslValidatingFunction
 		);
 	}
@@ -287,7 +287,7 @@ public class RestManager {
 	/**
 	 * Counts lines of printed OpenAPI schema in DSL.
 	 */
-	private long countOpenApiSchemaLines(@Nonnull OpenAPI schema) {
+	private static long countOpenApiSchemaLines(@Nonnull OpenAPI schema) {
 		final ByteArrayOutputStream out = new ByteArrayOutputStream();
 		try {
 			OpenApiWriter.toYaml(schema, out);

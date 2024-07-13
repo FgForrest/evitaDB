@@ -55,7 +55,6 @@ import io.swagger.v3.oas.models.servers.Server;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
@@ -76,8 +75,8 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
 public abstract class RestBuildingContext {
 
 	@Nonnull protected final AbstractApiConfiguration restConfig;
-	@Getter @Nullable private final String exposedOn;
-	@Getter @Nonnull private final Evita evita;
+	@Nonnull @Getter private final String exposedOn;
+	@Nonnull @Getter private final Evita evita;
 
 	/**
 	 * This instance of object mapper is shared by all REST handlers registered via RoutingHandler.
@@ -236,7 +235,7 @@ public abstract class RestBuildingContext {
 		return Collections.unmodifiableList(builtEndpoints);
 	}
 
-	private void validateReferences(OpenAPI openApi) {
+	private static void validateReferences(OpenAPI openApi) {
 		final OpenApiReferenceValidator referenceValidator = new OpenApiReferenceValidator(openApi);
 		final Set<String> missingSchemas = referenceValidator.validateSchemaReferences();
 

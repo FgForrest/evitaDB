@@ -46,7 +46,7 @@ import io.evitadb.externalApi.graphql.io.GraphQLRouter;
 import io.evitadb.externalApi.graphql.metric.event.instance.BuiltEvent;
 import io.evitadb.externalApi.graphql.metric.event.instance.BuiltEvent.BuildType;
 import io.evitadb.externalApi.graphql.utils.GraphQLSchemaPrinter;
-import io.evitadb.externalApi.http.HttpServiceSslCheckingDecorator;
+import io.evitadb.externalApi.http.HttpServiceTlsCheckingDecorator;
 import io.evitadb.externalApi.http.PathNormalizingHandler;
 import io.evitadb.function.TriFunction;
 import io.evitadb.utils.Assert;
@@ -54,8 +54,9 @@ import io.evitadb.utils.StringUtils;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
-import java.util.Set;
+import javax.annotation.Nullable;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -72,10 +73,6 @@ import static io.evitadb.utils.CollectionUtils.createHashSet;
 public class GraphQLManager {
 
 	/**
-	 * Common object mapper for endpoints
-	 */
-	@Nonnull private final ObjectMapper objectMapper = new ObjectMapper();
-	/**
 	 * Provides access to Evita private API
 	 */
 	@Nonnull private final Evita evita;
@@ -91,7 +88,7 @@ public class GraphQLManager {
 	 */
 	@Nonnull private final Set<String> registeredCatalogs = createHashSet(20);
 
-	@Nonnull private SystemBuildStatistics systemBuildStatistics;
+	@Nullable private SystemBuildStatistics systemBuildStatistics;
 	@Nonnull private final Map<String, CatalogBuildStatistics> catalogBuildStatistics = createHashMap(20);
 
 	@Nonnull private final TriFunction<ServiceRequestContext, HttpRequest, HttpService, HttpResponse> apiHandlerPortSslValidatingFunction;
@@ -99,6 +96,10 @@ public class GraphQLManager {
 	public GraphQLManager(@Nonnull Evita evita, @Nonnull GraphQLConfig graphQLConfig, @Nonnull TriFunction<ServiceRequestContext, HttpRequest, HttpService, HttpResponse> apiHandlerPortSslValidatingFunction) {
 		this.evita = evita;
 		this.graphQLConfig = graphQLConfig;
+		/**
+		 * Common object mapper for endpoints
+		 */
+		ObjectMapper objectMapper = new ObjectMapper();
 		this.graphQLRouter = new GraphQLRouter(objectMapper, evita, graphQLConfig);
 		this.apiHandlerPortSslValidatingFunction = apiHandlerPortSslValidatingFunction;
 
@@ -113,7 +114,7 @@ public class GraphQLManager {
 
 	@Nonnull
 	public HttpService getGraphQLRouter() {
-		return new HttpServiceSslCheckingDecorator(
+		return new HttpServiceTlsCheckingDecorator(
 			new PathNormalizingHandler(graphQLRouter), apiHandlerPortSslValidatingFunction
 		);
 	}
@@ -128,11 +129,11 @@ public class GraphQLManager {
 		final GraphQLSchema schema = new SystemGraphQLSchemaBuilder(graphQLConfig, evita).build();
 		final long schemaBuildDuration = System.currentTimeMillis() - schemaBuildStartTime;
 
-		graphQLRouter.registerSystemApi(new SystemGraphQLBuilder(evita, schema).build(graphQLConfig));
+		this.graphQLRouter.registerSystemApi(new SystemGraphQLBuilder(evita, schema).build(graphQLConfig));
 		final long instanceBuildDuration = System.currentTimeMillis() - instanceBuildStartTime;
 
 		// build metrics
-		systemBuildStatistics = SystemBuildStatistics.createNew(
+		this.systemBuildStatistics = SystemBuildStatistics.createNew(
 			instanceBuildDuration,
 			schemaBuildDuration,
 			countGraphQLSchemaLines(schema)
@@ -404,5 +405,5 @@ public class GraphQLManager {
 			this.schemaApiSchemaDslLines.set(schemaApiSchemaDslLines);
 		}
 	}
-	
+
 }
