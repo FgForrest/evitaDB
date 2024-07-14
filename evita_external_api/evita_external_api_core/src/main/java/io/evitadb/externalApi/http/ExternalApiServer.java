@@ -521,7 +521,7 @@ public class ExternalApiServer implements AutoCloseable {
 			.childChannelOption(ChannelOption.SO_REUSEADDR, true)
 			.childChannelOption(ChannelOption.SO_KEEPALIVE, apiOptions.keepAlive())
 			.errorHandler(LoggingServerErrorHandler.INSTANCE)
-			.gracefulShutdownTimeout(Duration.ofMillis(300), Duration.ofSeconds(1))
+			.gracefulShutdownTimeout(Duration.ZERO, Duration.ZERO)
 			.idleTimeoutMillis(apiOptions.idleTimeoutInMillis())
 			.requestTimeoutMillis(apiOptions.requestTimeoutInMillis())
 			.serviceWorkerGroup(apiOptions.serviceWorkerGroupThreadsAsInt())

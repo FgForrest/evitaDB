@@ -61,7 +61,6 @@ import io.evitadb.exception.InvalidEvitaVersionException;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.externalApi.grpc.certificate.ClientCertificateManager;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
-import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc.EvitaServiceBlockingStub;
 import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc.EvitaServiceFutureStub;
 import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc.EvitaServiceStub;
 import io.evitadb.externalApi.grpc.generated.*;
@@ -159,11 +158,6 @@ public class EvitaClient implements EvitaContract {
 	 */
 	private final Map<UUID, EvitaSessionContract> activeSessions = CollectionUtils.createConcurrentHashMap(16);
 	/**
-	 * A lambda that needs to be invoked upon EvitaClient closing. It goes through all opened {@link EvitaClientSession}
-	 * and closes them along with their gRPC channels.
-	 */
-	private final Runnable terminationCallback;
-	/**
 	 * Client call timeout.
 	 */
 	private final ThreadLocal<LinkedList<Timeout>> timeout;
@@ -175,6 +169,22 @@ public class EvitaClient implements EvitaContract {
 	 * Client task tracker is used to track the tasks and their status.
 	 */
 	private final ClientTaskTracker clientTaskTracker;
+	/**
+	 * Client manager.
+	 */
+	private final ClientFactory clientFactory;
+	/**
+	 * Builder for creating the gRPC client.
+	 */
+	private final GrpcClientBuilder grpcClientBuilder;
+	/**
+	 * Created evita service stub.
+	 */
+	private final EvitaServiceStub evitaServiceStub;
+	/**
+	 * Created evita service stub that returns futures.
+	 */
+	private final EvitaServiceFutureStub evitaServiceFutureStub;
 
 	@Nonnull
 	private static ClientTracingContext getClientTracingContext(@Nonnull EvitaClientConfiguration configuration) {
@@ -187,8 +197,6 @@ public class EvitaClient implements EvitaContract {
 		}
 		return context;
 	}
-
-	private final GrpcClientBuilder grpcClientBuilder;
 
 	public EvitaClient(@Nonnull EvitaClientConfiguration configuration) {
 		this(configuration, null);
@@ -246,10 +254,11 @@ public class EvitaClient implements EvitaContract {
 		}
 
 		this.executor = Executors.newCachedThreadPool();
+		this.clientFactory = clientFactoryBuilder.build();
 		final GrpcClientBuilder grpcClientBuilder = GrpcClients.builder(uriScheme + "://" + configuration.host() + ":" + configuration.port() + "/")
-			.factory(clientFactoryBuilder.build())
+			.factory(clientFactory)
 			.serializationFormat(GrpcSerializationFormats.PROTO)
-			.responseTimeoutMillis(10000)
+			.responseTimeoutMillis(Duration.of(configuration.timeout(), configuration.timeoutUnit().toChronoUnit()).toMillis())
 			.intercept(new ClientSessionInterceptor(configuration));
 
 		final ClientTracingContext context = getClientTracingContext(configuration);
@@ -257,23 +266,11 @@ public class EvitaClient implements EvitaContract {
 			context.setOpenTelemetry(configuration.openTelemetryInstance());
 		}
 
-		grpcClientBuilder.build(EvitaServiceBlockingStub.class);
-
 		ofNullable(grpcConfigurator).ifPresent(it -> it.accept(grpcClientBuilder));
 		this.grpcClientBuilder = grpcClientBuilder;
+		this.evitaServiceStub = grpcClientBuilder.build(EvitaServiceStub.class);
+		this.evitaServiceFutureStub = grpcClientBuilder.build(EvitaServiceFutureStub.class);
 		this.reflectionLookup = new ReflectionLookup(configuration.reflectionLookupBehaviour());
-		this.terminationCallback = () -> {
-			//todo tpz: handle termination
-			/*try {
-				Assert.isTrue(
-					this.channelPool.awaitTermination(configuration.timeout(), configuration.timeoutUnit()),
-					() -> new EvitaClientTimedOutException(configuration.timeout(), configuration.timeoutUnit())
-				);
-			} catch (InterruptedException e) {
-				// terminated
-				Thread.currentThread().interrupt();
-			}*/
-		};
 		this.timeout = ThreadLocal.withInitial(() -> {
 			final LinkedList<Timeout> timeouts = new LinkedList<>();
 			timeouts.add(new Timeout(configuration.timeout(), configuration.timeoutUnit()));
@@ -350,7 +347,7 @@ public class EvitaClient implements EvitaContract {
 		if (traits.isReadWrite()) {
 			if (traits.isBinary()) {
 				grpcResponse = executeWithEvitaService(
-					EvitaServiceFutureStub.class,
+					this.evitaServiceFutureStub,
 					evitaService -> {
 						final Timeout timeoutToUse = this.timeout.get().peek();
 						return evitaService.createBinaryReadWriteSession(
@@ -364,7 +361,7 @@ public class EvitaClient implements EvitaContract {
 				);
 			} else {
 				grpcResponse = executeWithEvitaService(
-					EvitaServiceFutureStub.class,
+					this.evitaServiceFutureStub,
 					evitaService -> {
 						final Timeout timeoutToUse = this.timeout.get().peek();
 						return evitaService.createReadWriteSession(
@@ -380,7 +377,7 @@ public class EvitaClient implements EvitaContract {
 		} else {
 			if (traits.isBinary()) {
 				grpcResponse = executeWithEvitaService(
-					EvitaServiceFutureStub.class,
+					this.evitaServiceFutureStub,
 					evitaService -> {
 						final Timeout timeoutToUse = this.timeout.get().peek();
 						return evitaService.createBinaryReadOnlySession(
@@ -393,7 +390,7 @@ public class EvitaClient implements EvitaContract {
 				);
 			} else {
 				grpcResponse = executeWithEvitaService(
-					EvitaServiceFutureStub.class,
+					this.evitaServiceFutureStub,
 					evitaService -> {
 						final Timeout timeoutToUse = this.timeout.get().peek();
 						return evitaService.createReadOnlySession(
@@ -459,7 +456,7 @@ public class EvitaClient implements EvitaContract {
 	public Set<String> getCatalogNames() {
 		assertActive();
 		final GrpcCatalogNamesResponse grpcResponse = executeWithEvitaService(
-			EvitaServiceFutureStub.class,
+			this.evitaServiceFutureStub,
 			evitaService -> {
 				final Timeout timeoutToUse = this.timeout.get().peek();
 				return evitaService.getCatalogNames(Empty.newBuilder().build())
@@ -494,7 +491,7 @@ public class EvitaClient implements EvitaContract {
 			.setNewCatalogName(newCatalogName)
 			.build();
 		final GrpcRenameCatalogResponse grpcResponse = executeWithEvitaService(
-			EvitaServiceFutureStub.class,
+			this.evitaServiceFutureStub,
 			evitaService -> {
 				final Timeout timeoutToUse = this.timeout.get().peek();
 				return evitaService.renameCatalog(request)
@@ -517,7 +514,7 @@ public class EvitaClient implements EvitaContract {
 			.build();
 
 		final GrpcReplaceCatalogResponse grpcResponse = executeWithEvitaService(
-			EvitaServiceFutureStub.class,
+			this.evitaServiceFutureStub,
 			evitaService -> {
 				final Timeout timeoutToUse = this.timeout.get().peek();
 				return evitaService.replaceCatalog(request)
@@ -540,7 +537,7 @@ public class EvitaClient implements EvitaContract {
 			.build();
 
 		final GrpcDeleteCatalogIfExistsResponse grpcResponse = executeWithEvitaService(
-			EvitaServiceFutureStub.class,
+			this.evitaServiceFutureStub,
 			evitaService -> {
 				final Timeout timeoutToUse = this.timeout.get().peek();
 				return evitaService.deleteCatalogIfExists(request)
@@ -567,7 +564,7 @@ public class EvitaClient implements EvitaContract {
 			.build();
 
 		executeWithEvitaService(
-			EvitaServiceFutureStub.class,
+			this.evitaServiceFutureStub,
 			evitaService -> {
 				final Timeout timeoutToUse = this.timeout.get().peek();
 				return evitaService.update(request)
@@ -727,7 +724,7 @@ public class EvitaClient implements EvitaContract {
 		assertActive();
 
 		return executeWithEvitaService(
-			EvitaServiceStub.class,
+			this.evitaServiceStub,
 			evitaService -> {
 				final CompletableFuture<TaskStatus<?, ?>> result = new CompletableFuture<>();
 				final AtomicLong bytesSent = new AtomicLong(0);
@@ -805,7 +802,7 @@ public class EvitaClient implements EvitaContract {
 		assertActive();
 
 		final GrpcRestoreCatalogResponse response = executeWithEvitaService(
-			EvitaServiceFutureStub.class,
+			this.evitaServiceFutureStub,
 			evitaService -> {
 				final Timeout timeoutToUse = this.timeout.get().peek();
 				return evitaService.restoreCatalogFromServerFile(
@@ -829,7 +826,7 @@ public class EvitaClient implements EvitaContract {
 		assertActive();
 
 		final GrpcTaskStatusesResponse response = executeWithEvitaService(
-			EvitaServiceFutureStub.class,
+			this.evitaServiceFutureStub,
 			evitaService -> {
 				final Timeout timeoutToUse = this.timeout.get().peek();
 				return evitaService.listTaskStatuses(
@@ -858,7 +855,7 @@ public class EvitaClient implements EvitaContract {
 		assertActive();
 
 		final GrpcTaskStatusResponse response = executeWithEvitaService(
-			EvitaServiceFutureStub.class,
+			this.evitaServiceFutureStub,
 			evitaService -> {
 				final Timeout timeoutToUse = this.timeout.get().peek();
 				return evitaService.getTaskStatus(
@@ -879,7 +876,7 @@ public class EvitaClient implements EvitaContract {
 		assertActive();
 
 		final GrpcSpecifiedTaskStatusesResponse response = executeWithEvitaService(
-			EvitaServiceFutureStub.class,
+			this.evitaServiceFutureStub,
 			evitaService -> {
 				final Timeout timeoutToUse = this.timeout.get().peek();
 				final Builder builder = GrpcSpecifiedTaskStatusesRequest.newBuilder();
@@ -893,9 +890,9 @@ public class EvitaClient implements EvitaContract {
 		);
 
 		return response.getTaskStatusList()
-				.stream()
-				.map(EvitaDataTypesConverter::toTaskStatus)
-				.collect(Collectors.toCollection(ArrayList::new));
+			.stream()
+			.map(EvitaDataTypesConverter::toTaskStatus)
+			.collect(Collectors.toCollection(ArrayList::new));
 	}
 
 	@Override
@@ -903,7 +900,7 @@ public class EvitaClient implements EvitaContract {
 		assertActive();
 
 		final GrpcCancelTaskResponse response = executeWithEvitaService(
-			EvitaServiceFutureStub.class,
+			this.evitaServiceFutureStub,
 			evitaService -> {
 				final Timeout timeoutToUse = this.timeout.get().peek();
 				return evitaService.cancelTask(
@@ -923,7 +920,7 @@ public class EvitaClient implements EvitaContract {
 		assertActive();
 
 		final GrpcFilesToFetchResponse response = executeWithEvitaService(
-			EvitaServiceFutureStub.class,
+			this.evitaServiceFutureStub,
 			evitaService -> {
 				final Timeout timeoutToUse = this.timeout.get().peek();
 				return evitaService.listFilesToFetch(
@@ -952,7 +949,7 @@ public class EvitaClient implements EvitaContract {
 		assertActive();
 
 		final GrpcFileToFetchResponse response = executeWithEvitaService(
-			EvitaServiceFutureStub.class,
+			this.evitaServiceFutureStub,
 			evitaService -> {
 				final Timeout timeoutToUse = this.timeout.get().peek();
 				return evitaService.getFileToFetch(
@@ -978,7 +975,7 @@ public class EvitaClient implements EvitaContract {
 
 			// Download the file asynchronously
 			executeWithEvitaService(
-				EvitaServiceStub.class,
+				this.evitaServiceStub,
 				evitaService -> {
 					evitaService.fetchFile(
 						GrpcFetchFileRequest.newBuilder().setFileId(toGrpcUuid(fileId)).build(),
@@ -1034,7 +1031,7 @@ public class EvitaClient implements EvitaContract {
 		assertActive();
 
 		final GrpcDeleteFileToFetchResponse response = executeWithEvitaService(
-			EvitaServiceFutureStub.class,
+			this.evitaServiceFutureStub,
 			evitaService -> {
 				final Timeout timeoutToUse = this.timeout.get().peek();
 				return evitaService.deleteFile(
@@ -1056,7 +1053,7 @@ public class EvitaClient implements EvitaContract {
 		assertActive();
 
 		return executeWithEvitaService(
-			EvitaServiceFutureStub.class,
+			this.evitaServiceFutureStub,
 			evitaService -> {
 				final Timeout timeoutToUse = this.timeout.get().peek();
 				final GrpcEvitaServerStatusResponse response = evitaService.serverStatus(Empty.newBuilder().build())
@@ -1089,9 +1086,7 @@ public class EvitaClient implements EvitaContract {
 			this.activeSessions.values().forEach(EvitaSessionContract::close);
 			this.activeSessions.clear();
 			this.clientTaskTracker.close();
-			// todo tpz: validate
-			//this.grpcClientBuilder.shutdown();
-			this.terminationCallback.run();
+			this.clientFactory.close();
 		}
 	}
 
@@ -1150,9 +1145,9 @@ public class EvitaClient implements EvitaContract {
 	 * @param <T>    return type of the function
 	 * @return result of the applied function
 	 */
-	private <S, T> T executeWithEvitaService(@Nonnull Class<S> stubType, @Nonnull AsyncCallFunction<S, T> lambda) {
+	private static <S, T> T executeWithEvitaService(@Nonnull S clientStub, @Nonnull AsyncCallFunction<S, T> lambda) {
 		try {
-			return lambda.apply(grpcClientBuilder.build(stubType));
+			return lambda.apply(clientStub);
 		} catch (StatusRuntimeException statusRuntimeException) {
 			final Code statusCode = statusRuntimeException.getStatus().getCode();
 			final String description = ofNullable(statusRuntimeException.getStatus().getDescription())

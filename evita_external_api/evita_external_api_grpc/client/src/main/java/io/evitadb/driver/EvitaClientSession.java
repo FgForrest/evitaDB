@@ -182,9 +182,13 @@ public class EvitaClientSession implements EvitaSessionContract {
 	 */
 	private final EvitaEntitySchemaCache schemaCache;
 	/**
-	 * Builder for gRPC client.
+	 * Entity session service that works with futures.
 	 */
-	private final GrpcClientBuilder grpcClientBuilder;
+	private final EvitaSessionServiceFutureStub evitaSessionServiceFutureStub;
+	/**
+	 * Entity session service.
+	 */
+	private final EvitaSessionServiceStub evitaSessionServiceStub;
 	/**
 	 * Contains reference to the catalog name targeted by queries / mutations from this session.
 	 */
@@ -289,7 +293,8 @@ public class EvitaClientSession implements EvitaSessionContract {
 		this.reflectionLookup = evita.getReflectionLookup();
 		this.proxyFactory = schemaCache.getProxyFactory();
 		this.schemaCache = schemaCache;
-		this.grpcClientBuilder = grpcClientBuilder;
+		this.evitaSessionServiceFutureStub = grpcClientBuilder.build(EvitaSessionServiceFutureStub.class);
+		this.evitaSessionServiceStub = grpcClientBuilder.build(EvitaSessionServiceStub.class);
 		this.catalogName = catalogName;
 		this.catalogState = catalogState;
 		this.commitBehaviour = commitBehaviour;
@@ -1572,8 +1577,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 		final Timeout timeout = callTimeout.peek();
 		try {
 			return executeWithEvitaSessionService(
-				lambda,
-				() -> grpcClientBuilder.build(EvitaSessionServiceFutureStub.class)
+				lambda, this.evitaSessionServiceFutureStub
 			).get(timeout.timeout(), timeout.timeoutUnit());
 		} catch (ExecutionException e) {
 			if (e.getCause() instanceof EvitaInvalidUsageException invalidUsageException) {
@@ -1605,8 +1609,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 		@Nonnull AsyncCallFunction<EvitaSessionServiceStub, Void> lambda
 	) {
 		executeWithEvitaSessionService(
-			lambda,
-			() -> grpcClientBuilder.build(EvitaSessionServiceStub.class)
+			lambda, this.evitaSessionServiceStub
 		);
 	}
 
@@ -1620,12 +1623,11 @@ public class EvitaClientSession implements EvitaSessionContract {
 	 * @return result of the applied function
 	 */
 	private <S, T> T executeWithEvitaSessionService(
-		@Nonnull AsyncCallFunction<S, T> lambda,
-		@Nonnull Supplier<S> stubFactory
+		@Nonnull AsyncCallFunction<S, T> lambda, @Nonnull S stub
 	) {
 		try {
 			SessionIdHolder.setSessionId(getCatalogName(), getId().toString());
-			return lambda.apply(stubFactory.get());
+			return lambda.apply(stub);
 		} catch (StatusRuntimeException statusRuntimeException) {
 			throw transformStatusRuntimeException(statusRuntimeException);
 		} catch (EvitaInvalidUsageException | EvitaInternalError evitaError) {
