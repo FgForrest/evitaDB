@@ -32,24 +32,23 @@ import javax.annotation.Nonnull;
 /**
  * Record contains base server wide settings for the evitaDB.
  *
- * @param requestThreadPool                     Defines limits for core thread pool that is used for serving all
- *                                              incoming requests. Threads from this pool handles all queries and
- *                                              updates up until the transaction is committed / rolled-back.
- * @param transactionThreadPool                 Defines limits for transaction thread pool that is used for processing
- *                                              transactions when they're committed. I.e. conflict resolution,
- *                                              incorporation into trunk and replacing the used shared indexes.
- * @param serviceThreadPool                     Defines limits for service thread pool that is used for service tasks
- *                                              such as maintenance, creating backups, restoring backups, etc.
- * @param queryTimeoutInMilliseconds            sets the timeout in milliseconds after which threads that are executing
- *                                              read-only session requests should timeout and cancel its execution
- * @param transactionTimeoutInMilliseconds      sets the timeout in milliseconds after which threads that are executing
- *                                              read-write session requests should timeout and cancel its execution
- * @param closeSessionsAfterSecondsOfInactivity sets the timeout in seconds after which the session is closed
- *                                              automatically if there is no activity observed on it
- * @param readOnly                              starts the database in full read-only mode that forbids to execute write
- *                                              operations on {@link EntityContract} level and open read-write
- *                                              {@link EvitaSessionContract}
- * @param quiet                                 when true all outputs to system console output are suppressed
+ * @param requestThreadPool                     Defines limits for core thread pool that is used for serving all incoming
+ *                                              requests. Threads from this pool handles all queries and updates up until
+ *                                              the transaction is committed / rolled-back.
+ * @param transactionThreadPool                 Sets limits on the transaction thread pool used to process transactions
+ *                                              when they're committed. I.e. conflict resolution, inclusion in trunk,
+ *                                              and replacement of shared indexes used.
+ * @param serviceThreadPool                     Sets limits on the service thread pool used for service tasks such as
+ *                                              maintenance, backup creation, backup restoration, and so on.
+ * @param queryTimeoutInMilliseconds            Sets the timeout in milliseconds after which threads executing read-only
+ *                                              session requests should timeout and abort their execution.
+ * @param transactionTimeoutInMilliseconds      Sets the timeout in milliseconds after which threads executing
+ *                                              read-write session requests should timeout and abort their execution.
+ * @param closeSessionsAfterSecondsOfInactivity Sets the timeout in seconds after which the session is automatically
+ *                                              closed if no activity is observed on it.
+ * @param readOnly                              starts the database in full read-only mode, prohibiting write operations
+ *                                              on {@link EntityContract} level and open read-write {@link EvitaSessionContract}.
+ * @param quiet                                 If true, all output to the system console is suppressed.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public record ServerOptions(

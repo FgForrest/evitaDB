@@ -241,7 +241,7 @@ api:
       enabled: ${api.endpoints.observability.enabled:true}
       host: ${api.endpoints.observability.host:localhost:5557}
       exposedHost: ${api.endpoints.observability.exposedHost:null}
-      tlsEnabled: ${api.endpoints.observability.tlsEnabled:false}
+      tlsMode: ${api.endpoints.observability.tlsMode:FORCE_NO_TLS}
       allowedOrigins: ${api.endpoints.observability.allowedOrigins:null}
       allowedEvents: !include ${api.endpoints.observability.allowedEvents:null}
 ```
@@ -336,7 +336,7 @@ Observability:
   enabled: ${api.endpoints.observability.enabled:true}
   host: ${api.endpoints.observability.host:localhost:5557}
   exposedHost: ${api.endpoints.observability.exposedHost:null}
-  tlsEnabled: ${api.endpoints.observability.tlsEnabled:false}
+  tlsMode: ${api.endpoints.observability.tlsMode:FORCE_NO_TLS}
   allowedOrigins: ${api.endpoints.observability.allowedOrigins:null}
   tracing:
     endpoint: ${api.endpoints.observability.tracing.endpoint:null}

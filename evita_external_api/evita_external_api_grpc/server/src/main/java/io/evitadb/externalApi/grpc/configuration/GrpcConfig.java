@@ -59,7 +59,6 @@ public class GrpcConfig extends AbstractApiConfiguration implements ApiConfigura
 	public static final int DEFAULT_GRPC_PORT = 5556;
 	/**
 	 * Allows to expose the Armeria specific docs service on the gRPC API.
-	 * TODO JNO - add to documentation
 	 */
 	@Getter private final boolean exposeDocsService;
 

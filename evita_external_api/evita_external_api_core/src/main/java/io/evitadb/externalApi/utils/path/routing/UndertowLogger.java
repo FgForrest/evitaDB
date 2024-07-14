@@ -21,7 +21,7 @@ package io.evitadb.externalApi.utils.path.routing;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * TODO JNO - document me
+ * Adapter for logger used in classes copied from Undertow.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */

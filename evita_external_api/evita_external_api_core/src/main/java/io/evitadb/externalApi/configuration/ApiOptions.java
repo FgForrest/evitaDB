@@ -52,8 +52,6 @@ import static java.util.Optional.ofNullable;
  * @param idleTimeoutInMillis       The amount of time a connection can be idle for before it is timed out. An idle connection is a
  *                                  connection that has had no data transfer in the idle timeout period. Note that this is a fairly coarse
  *                                  grained approach, and small values will cause problems for requests with a long processing time.
- * @param parseTimeoutInMillis      How long a request can spend in the parsing phase before it is timed out. This timer is started when
- *                                  the first bytes of a request are read, and finishes once all the headers have been parsed.
  * @param requestTimeoutInMillis    The amount of time a connection can sit idle without processing a request, before it is closed by
  *                                  the server.
  * @param keepAlive                 If this is true then a Connection: keep-alive header will be added to responses, even when it is not strictly required by
@@ -65,12 +63,10 @@ import static java.util.Optional.ofNullable;
  */
 public record ApiOptions(
 	@Nonnull String exposedOn,
-	/* TODO JNO - update documentation and remove ioThreads */
-	int workerGroupThreads,
-	int serviceWorkerGroupThreads,
+	@Nullable Integer workerGroupThreads,
+	@Nullable Integer serviceWorkerGroupThreads,
 	int idleTimeoutInMillis,
 	int requestTimeoutInMillis,
-	int parseTimeoutInMillis,
 	boolean keepAlive,
 	long maxEntitySizeInBytes,
 	boolean accessLog,
@@ -80,7 +76,6 @@ public record ApiOptions(
 	public static final int DEFAULT_WORKER_GROUP_THREADS = Runtime.getRuntime().availableProcessors();
 	public static final int DEFAULT_SERVICE_WORKER_GROUP_THREADS = Runtime.getRuntime().availableProcessors() << 1;
 	public static final int DEFAULT_IDLE_TIMEOUT = 20 * 1000;
-	public static final int DEFAULT_PARSE_TIMEOUT = 1000;
 	public static final int DEFAULT_REQUEST_TIMEOUT = 1000;
 	public static final boolean DEFAULT_KEEP_ALIVE = true;
 	public static final long DEFAULT_MAX_ENTITY_SIZE = 2_097_152L;
@@ -94,18 +89,18 @@ public record ApiOptions(
 
 	public ApiOptions(
 		@Nonnull String exposedOn,
-		int workerGroupThreads, int serviceWorkerGroupThreads,
-		int idleTimeoutInMillis, int requestTimeoutInMillis, int parseTimeoutInMillis,
+		@Nullable Integer workerGroupThreads,
+		@Nullable Integer serviceWorkerGroupThreads,
+		int idleTimeoutInMillis, int requestTimeoutInMillis,
 		boolean keepAlive, long maxEntitySizeInBytes, boolean accessLog,
 		@Nonnull CertificateSettings certificate,
 		@Nonnull Map<String, AbstractApiConfiguration> endpoints
 	) {
 		this.exposedOn = exposedOn;
-		this.workerGroupThreads = workerGroupThreads <= 0 ? DEFAULT_WORKER_GROUP_THREADS : workerGroupThreads;
-		this.serviceWorkerGroupThreads = serviceWorkerGroupThreads <= 0 ? DEFAULT_SERVICE_WORKER_GROUP_THREADS : serviceWorkerGroupThreads;
+		this.workerGroupThreads = ofNullable(workerGroupThreads).orElse(DEFAULT_WORKER_GROUP_THREADS);
+		this.serviceWorkerGroupThreads = ofNullable(serviceWorkerGroupThreads).orElse(DEFAULT_SERVICE_WORKER_GROUP_THREADS);
 		this.idleTimeoutInMillis = idleTimeoutInMillis <= 0 ? DEFAULT_IDLE_TIMEOUT : idleTimeoutInMillis;
 		this.requestTimeoutInMillis = requestTimeoutInMillis <= 0 ? DEFAULT_REQUEST_TIMEOUT : requestTimeoutInMillis;
-		this.parseTimeoutInMillis = parseTimeoutInMillis <= 0 ? DEFAULT_PARSE_TIMEOUT : parseTimeoutInMillis;
 		this.keepAlive = keepAlive;
 		this.maxEntitySizeInBytes = maxEntitySizeInBytes <= 0 ? DEFAULT_MAX_ENTITY_SIZE : maxEntitySizeInBytes;
 		this.accessLog = accessLog;
@@ -116,7 +111,7 @@ public record ApiOptions(
 
 	public ApiOptions() {
 		this(
-			null, DEFAULT_WORKER_GROUP_THREADS, DEFAULT_SERVICE_WORKER_GROUP_THREADS, DEFAULT_IDLE_TIMEOUT, DEFAULT_REQUEST_TIMEOUT, DEFAULT_PARSE_TIMEOUT,
+			null, DEFAULT_WORKER_GROUP_THREADS, DEFAULT_SERVICE_WORKER_GROUP_THREADS, DEFAULT_IDLE_TIMEOUT, DEFAULT_REQUEST_TIMEOUT,
 			DEFAULT_KEEP_ALIVE, DEFAULT_MAX_ENTITY_SIZE, false,
 			new CertificateSettings(), new HashMap<>(8)
 		);
@@ -201,7 +196,6 @@ public record ApiOptions(
 		private final Map<String, AbstractApiConfiguration> enabledProviders;
 		private int idleTimeoutInMillis = DEFAULT_IDLE_TIMEOUT;
 		private int requestTimeoutInMillis = DEFAULT_REQUEST_TIMEOUT;
-		private int parseTimeoutInMillis = DEFAULT_PARSE_TIMEOUT;
 		private boolean keepAlive = DEFAULT_KEEP_ALIVE;
 		private long maxEntitySizeInBytes = DEFAULT_MAX_ENTITY_SIZE;
 		private CertificateSettings certificate;
@@ -251,12 +245,6 @@ public record ApiOptions(
 		@Nonnull
 		public ApiOptions.Builder requestTimeoutInMillis(int requestTimeoutInMillis) {
 			this.requestTimeoutInMillis = requestTimeoutInMillis;
-			return this;
-		}
-
-		@Nonnull
-		public ApiOptions.Builder parseTimeoutInMillis(int parseTimeoutInMillis) {
-			this.parseTimeoutInMillis = parseTimeoutInMillis;
 			return this;
 		}
 
@@ -319,7 +307,7 @@ public record ApiOptions(
 		public ApiOptions build() {
 			return new ApiOptions(
 				exposedOn, workerGroupThreads, serviceWorkerGroupThreads,
-				idleTimeoutInMillis, requestTimeoutInMillis, parseTimeoutInMillis,
+				idleTimeoutInMillis, requestTimeoutInMillis,
 				keepAlive, maxEntitySizeInBytes, accessLog, certificate, enabledProviders
 			);
 		}

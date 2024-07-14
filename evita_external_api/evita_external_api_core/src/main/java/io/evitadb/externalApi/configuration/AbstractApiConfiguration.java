@@ -71,7 +71,6 @@ public abstract class AbstractApiConfiguration {
 	 * flag is to allow accessing the system API, from where the client obtains to access all of evita's APIs. All of
 	 * evita's APIs are always secured at least by TLS encryption, in gRPC is also an option to use mTLS.
 	 */
-	/* TODO JNO - update documentation */
 	@Getter private final TlsMode tlsMode;
 
 	private static InetAddress getByName(@Nonnull String host) {

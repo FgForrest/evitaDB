@@ -31,6 +31,8 @@ import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.FileUtils;
 import io.evitadb.utils.UUIDUtil;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -287,7 +289,10 @@ public class ExportFileService {
 	 */
 	@Nonnull
 	public InputStream createInputStream(@Nonnull FileForFetch file) throws IOException {
-		return Files.newInputStream(file.path(storageOptions.exportDirectory()), StandardOpenOption.READ);
+		return new ExportFileInputStream(
+			file,
+			Files.newInputStream(file.path(storageOptions.exportDirectory()), StandardOpenOption.READ)
+		);
 	}
 
 	/**
@@ -359,6 +364,86 @@ public class ExportFileService {
 			}
 		}
 
+	}
+
+	/**
+	 * Input stream that wraps the file input stream and provides the file ID. This input stream is used to distinguish
+	 * this input stream from other input streams that read data for example from the network.
+	 */
+	@RequiredArgsConstructor
+	public static class ExportFileInputStream extends InputStream {
+		@Getter private final FileForFetch file;
+		private final InputStream inputStream;
+
+		@Override
+		public int read() throws IOException {
+			return inputStream.read();
+		}
+
+		@Override
+		public int read(byte[] b) throws IOException {
+			return inputStream.read(b);
+		}
+
+		@Override
+		public int read(byte[] b, int off, int len) throws IOException {
+			return inputStream.read(b, off, len);
+		}
+
+		@Override
+		public byte[] readAllBytes() throws IOException {
+			return inputStream.readAllBytes();
+		}
+
+		@Override
+		public byte[] readNBytes(int len) throws IOException {
+			return inputStream.readNBytes(len);
+		}
+
+		@Override
+		public int readNBytes(byte[] b, int off, int len) throws IOException {
+			return inputStream.readNBytes(b, off, len);
+		}
+
+		@Override
+		public long skip(long n) throws IOException {
+			return inputStream.skip(n);
+		}
+
+		@Override
+		public void skipNBytes(long n) throws IOException {
+			inputStream.skipNBytes(n);
+		}
+
+		@Override
+		public int available() throws IOException {
+			return inputStream.available();
+		}
+
+		@Override
+		public void close() throws IOException {
+			inputStream.close();
+		}
+
+		@Override
+		public void mark(int readlimit) {
+			inputStream.mark(readlimit);
+		}
+
+		@Override
+		public void reset() throws IOException {
+			inputStream.reset();
+		}
+
+		@Override
+		public boolean markSupported() {
+			return inputStream.markSupported();
+		}
+
+		@Override
+		public long transferTo(OutputStream out) throws IOException {
+			return inputStream.transferTo(out);
+		}
 	}
 
 }
