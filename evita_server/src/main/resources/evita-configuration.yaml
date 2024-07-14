@@ -55,7 +55,6 @@ api:
   serviceWorkerGroupThreads: ${api.serviceWorkerGroupThreads:null}
   idleTimeoutInMillis: ${api.idleTimeoutInMillis:2K}
   requestTimeoutInMillis: ${api.requestTimeoutInMillis:2K}
-  parseTimeoutInMillis: ${api.parseTimeoutInMillis:1K}
   keepAlive: ${api.keepAlive:true}
   maxEntitySizeInBytes: ${api.maxEntitySizeInBytes:2MB}
   accessLog: ${api.accessLog:false}
@@ -69,7 +68,7 @@ api:
   endpoints:
     system:
       enabled: ${api.endpoints.system.enabled:true}
-      host: ${api.endpoints.system.host:localhost:5557}
+      host: ${api.endpoints.system.host:localhost:5555}
       exposedHost: ${api.endpoints.system.exposedHost:null}
       tlsMode: ${api.endpoints.system.tlsMode:FORCE_NO_TLS}
       allowedOrigins: ${api.endpoints.system.allowedOrigins:null}
@@ -98,7 +97,7 @@ api:
         allowedClientCertificatePaths: ${api.endpoints.gRPC.mTLS.allowedClientCertificatesPaths:[]}
     lab:
       enabled: ${api.endpoints.lab.enabled:true}
-      host: ${api.endpoints.lab.host:localhost:5556}
+      host: ${api.endpoints.lab.host:localhost:5555}
       tlsMode: ${api.endpoints.lab.tlsMode:FORCE_TLS}
       allowedOrigins: ${api.endpoints.lab.allowedOrigins:null}
       gui:
@@ -107,7 +106,7 @@ api:
         preconfiguredConnections: !include ${api.endpoints.lab.gui.preconfiguredConnections:null}
     observability:
       enabled: ${api.endpoints.observability.enabled:true}
-      host: ${api.endpoints.observability.host:localhost:5557}
+      host: ${api.endpoints.observability.host:localhost:5555}
       exposedHost: ${api.endpoints.observability.exposedHost:null}
       tlsMode: ${api.endpoints.observability.tlsMode:FORCE_NO_TLS}
       allowedOrigins: ${api.endpoints.observability.allowedOrigins:null}

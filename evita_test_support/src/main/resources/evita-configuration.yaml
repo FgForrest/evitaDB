@@ -16,8 +16,8 @@ server:
     maxThreadCount: ${server.serviceThreadPool.maxThreadCount:16}
     threadPriority: ${server.serviceThreadPool.threadPriority:5}
     queueSize: ${server.serviceThreadPool.queueSize:100}
-  queryTimeoutInMilliseconds: ${server.shortRunningThreadsTimeoutInSeconds:5000}
-  transactionTimeoutInMilliseconds: ${server.shortRunningThreadsTimeoutInSeconds:300000}
+  queryTimeoutInMilliseconds: ${server.queryTimeoutInMilliseconds:5000}
+  transactionTimeoutInMilliseconds: ${server.transactionTimeoutInMilliseconds:300000}
   closeSessionsAfterSecondsOfInactivity: ${server.closeSessionsAfterSecondsOfInactivity:60}
   readOnly: ${server.readOnly:false}
   quiet: ${server.quiet:false}
@@ -51,12 +51,10 @@ cache:
 
 api:
   exposedOn: ${api.exposedOn:null}
-#  TODO JNO - REMOVE THIS (SEE SERVER THREADING)
-  workerGroupThreads: ${api.workerGroupThreads:4}
-  serviceWorkerGroupThreads: ${api.serviceWorkerGroupThreads:4}
+  workerGroupThreads: ${api.workerGroupThreads:null}
+  serviceWorkerGroupThreads: ${api.serviceWorkerGroupThreads:null}
   idleTimeoutInMillis: ${api.idleTimeoutInMillis:2K}
   requestTimeoutInMillis: ${api.requestTimeoutInMillis:2K}
-  parseTimeoutInMillis: ${api.parseTimeoutInMillis:1K}
   keepAlive: ${api.keepAlive:true}
   maxEntitySizeInBytes: ${api.maxEntitySizeInBytes:2MB}
   accessLog: ${api.accessLog:false}
@@ -70,7 +68,7 @@ api:
   endpoints:
     system:
       enabled: ${api.endpoints.system.enabled:true}
-      host: ${api.endpoints.system.host:localhost:5557}
+      host: ${api.endpoints.system.host:localhost:5555}
       exposedHost: ${api.endpoints.system.exposedHost:null}
       tlsMode: ${api.endpoints.system.tlsMode:FORCE_NO_TLS}
       allowedOrigins: ${api.endpoints.system.allowedOrigins:null}
@@ -89,7 +87,7 @@ api:
       allowedOrigins: ${api.endpoints.rest.allowedOrigins:null}
     gRPC:
       enabled: ${api.endpoints.gRPC.enabled:true}
-      host: ${api.endpoints.gRPC.host:localhost:5556}
+      host: ${api.endpoints.gRPC.host:localhost:5555}
       exposedHost: ${api.endpoints.gRPC.exposedHost:null}
       tlsMode: ${api.endpoints.gRPC.tlsMode:RELAXED}
       exposeDocsService: ${api.endpoints.gRPC.exposeDocsService:false}
@@ -108,7 +106,7 @@ api:
         preconfiguredConnections: !include ${api.endpoints.lab.gui.preconfiguredConnections:null}
     observability:
       enabled: ${api.endpoints.observability.enabled:false}
-      host: ${api.endpoints.observability.host:localhost:5557}
+      host: ${api.endpoints.observability.host:localhost:5555}
       exposedHost: ${api.endpoints.observability.exposedHost:null}
       tlsMode: ${api.endpoints.observability.tlsMode:FORCE_NO_TLS}
       allowedOrigins: ${api.endpoints.observability.allowedOrigins:null}
