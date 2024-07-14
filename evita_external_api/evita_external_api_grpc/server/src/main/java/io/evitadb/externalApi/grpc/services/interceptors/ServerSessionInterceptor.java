@@ -34,7 +34,7 @@ import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.UUIDUtil;
 import io.grpc.Context;
 import io.grpc.Contexts;
-import io.grpc.Grpc;
+import io.grpc.InternalMetadata;
 import io.grpc.Metadata;
 import io.grpc.ServerCall;
 import io.grpc.ServerCallHandler;
@@ -44,7 +44,6 @@ import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import javax.net.ssl.SSLSession;
 import java.util.Optional;
 import java.util.Set;
 
@@ -128,15 +127,15 @@ public class ServerSessionInterceptor implements ServerInterceptor {
 			return serverCallHandler.startCall(serverCall, metadata);
 		}
 		if (tlsMode != TlsMode.RELAXED) {
-			final SSLSession sslSession = serverCall.getAttributes().get(Grpc.TRANSPORT_ATTR_SSL_SESSION);
-			if (sslSession != null && tlsMode == TlsMode.FORCE_NO_TLS) {
+			final String scheme = metadata.get(InternalMetadata.keyOf(":scheme", Metadata.ASCII_STRING_MARSHALLER));
+			if ("https".equals(scheme) && tlsMode == TlsMode.FORCE_NO_TLS) {
 				final Status status = Status.UNAUTHENTICATED
 					.withCause(new EvitaInvalidUsageException("TLS is not required for this endpoint."))
 					.withDescription("TLS is not required for this endpoint.");
 				serverCall.close(status, metadata);
 				return new ServerCall.Listener<>() {};
 			}
-			if (sslSession == null && tlsMode == TlsMode.FORCE_TLS) {
+			if ("http".equals(scheme) && tlsMode == TlsMode.FORCE_TLS) {
 				final Status status = Status.UNAUTHENTICATED
 					.withCause(new EvitaInvalidUsageException("TLS is required for this endpoint."))
 					.withDescription("TLS is required for this endpoint.");
