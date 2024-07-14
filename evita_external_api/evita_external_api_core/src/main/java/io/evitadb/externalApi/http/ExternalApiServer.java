@@ -80,15 +80,7 @@ import java.security.cert.CertificateFactory;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.ServiceLoader;
+import java.util.*;
 import java.util.ServiceLoader.Provider;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -537,8 +529,15 @@ public class ExternalApiServer implements AutoCloseable {
 		final AtomicReference<KeyManagerFactory> keyFactoryRef = new AtomicReference<>();
 		final Map<HostDefinition, VirtualHostDefinition> hosts = createHashMap(8);
 
+		// we need to process APIs with PathHandlingMode.FIXED_PATH_HANDLING first,
+		// because the DYNAMIC_PATH_HANDLING catches all other requests on the same '/' route
+		final List<ExternalApiProvider<?>> sortedRegisteredApiProviders = registeredApiProviders.values()
+			.stream()
+			.sorted(Comparator.comparing(api ->
+				Arrays.stream(api.getHttpServiceDefinitions()).anyMatch(it -> it.pathHandlingMode() == PathHandlingMode.FIXED_PATH_HANDLING) ? -1 : 1)
+			).toList();
 		// for each API provider do
-		for (ExternalApiProvider<?> registeredApiProvider : registeredApiProviders.values()) {
+		for (ExternalApiProvider<?> registeredApiProvider : sortedRegisteredApiProviders) {
 			final AbstractApiConfiguration configuration = apiOptions.endpoints().get(registeredApiProvider.getCode());
 			// ok, only for those that are actually enabled ;)
 			if (configuration.isEnabled()) {
