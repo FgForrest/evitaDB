@@ -5,29 +5,28 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * Response to a task status request.
+ * Response to a task statuses request.
  * </pre>
  *
- * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcFetchFileResponse}
+ * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchResponse}
  */
-public final class GrpcFetchFileResponse extends
+public final class GrpcDeleteFileToFetchResponse extends
     com.google.protobuf.GeneratedMessageV3 implements
-    // @@protoc_insertion_point(message_implements:io.evitadb.externalApi.grpc.generated.GrpcFetchFileResponse)
-    GrpcFetchFileResponseOrBuilder {
+    // @@protoc_insertion_point(message_implements:io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchResponse)
+    GrpcDeleteFileToFetchResponseOrBuilder {
 private static final long serialVersionUID = 0L;
-  // Use GrpcFetchFileResponse.newBuilder() to construct.
-  private GrpcFetchFileResponse(com.google.protobuf.GeneratedMessageV3.Builder<?> builder) {
+  // Use GrpcDeleteFileToFetchResponse.newBuilder() to construct.
+  private GrpcDeleteFileToFetchResponse(com.google.protobuf.GeneratedMessageV3.Builder<?> builder) {
     super(builder);
   }
-  private GrpcFetchFileResponse() {
-    fileContents_ = com.google.protobuf.ByteString.EMPTY;
+  private GrpcDeleteFileToFetchResponse() {
   }
 
   @java.lang.Override
   @SuppressWarnings({"unused"})
   protected java.lang.Object newInstance(
       UnusedPrivateParameter unused) {
-    return new GrpcFetchFileResponse();
+    return new GrpcDeleteFileToFetchResponse();
   }
 
   @java.lang.Override
@@ -35,7 +34,7 @@ private static final long serialVersionUID = 0L;
   getUnknownFields() {
     return this.unknownFields;
   }
-  private GrpcFetchFileResponse(
+  private GrpcDeleteFileToFetchResponse(
       com.google.protobuf.CodedInputStream input,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
@@ -53,14 +52,9 @@ private static final long serialVersionUID = 0L;
           case 0:
             done = true;
             break;
-          case 10: {
+          case 8: {
 
-            fileContents_ = input.readBytes();
-            break;
-          }
-          case 16: {
-
-            totalSizeInBytes_ = input.readInt64();
+            success_ = input.readBool();
             break;
           }
           default: {
@@ -84,45 +78,30 @@ private static final long serialVersionUID = 0L;
   }
   public static final com.google.protobuf.Descriptors.Descriptor
       getDescriptor() {
-    return io.evitadb.externalApi.grpc.generated.GrpcEvitaAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcFetchFileResponse_descriptor;
+    return io.evitadb.externalApi.grpc.generated.GrpcEvitaAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcDeleteFileToFetchResponse_descriptor;
   }
 
   @java.lang.Override
   protected com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internalGetFieldAccessorTable() {
-    return io.evitadb.externalApi.grpc.generated.GrpcEvitaAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcFetchFileResponse_fieldAccessorTable
+    return io.evitadb.externalApi.grpc.generated.GrpcEvitaAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcDeleteFileToFetchResponse_fieldAccessorTable
         .ensureFieldAccessorsInitialized(
-            io.evitadb.externalApi.grpc.generated.GrpcFetchFileResponse.class, io.evitadb.externalApi.grpc.generated.GrpcFetchFileResponse.Builder.class);
+            io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchResponse.class, io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchResponse.Builder.class);
   }
 
-  public static final int FILECONTENTS_FIELD_NUMBER = 1;
-  private com.google.protobuf.ByteString fileContents_;
+  public static final int SUCCESS_FIELD_NUMBER = 1;
+  private boolean success_;
   /**
    * <pre>
-   * chunk of the file content
+   * true if the file was found and deleted
    * </pre>
    *
-   * <code>bytes fileContents = 1;</code>
-   * @return The fileContents.
+   * <code>bool success = 1;</code>
+   * @return The success.
    */
   @java.lang.Override
-  public com.google.protobuf.ByteString getFileContents() {
-    return fileContents_;
-  }
-
-  public static final int TOTALSIZEINBYTES_FIELD_NUMBER = 2;
-  private long totalSizeInBytes_;
-  /**
-   * <pre>
-   * total size of the file
-   * </pre>
-   *
-   * <code>int64 totalSizeInBytes = 2;</code>
-   * @return The totalSizeInBytes.
-   */
-  @java.lang.Override
-  public long getTotalSizeInBytes() {
-    return totalSizeInBytes_;
+  public boolean getSuccess() {
+    return success_;
   }
 
   private byte memoizedIsInitialized = -1;
@@ -139,11 +118,8 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (!fileContents_.isEmpty()) {
-      output.writeBytes(1, fileContents_);
-    }
-    if (totalSizeInBytes_ != 0L) {
-      output.writeInt64(2, totalSizeInBytes_);
+    if (success_ != false) {
+      output.writeBool(1, success_);
     }
     unknownFields.writeTo(output);
   }
@@ -154,13 +130,9 @@ private static final long serialVersionUID = 0L;
     if (size != -1) return size;
 
     size = 0;
-    if (!fileContents_.isEmpty()) {
+    if (success_ != false) {
       size += com.google.protobuf.CodedOutputStream
-        .computeBytesSize(1, fileContents_);
-    }
-    if (totalSizeInBytes_ != 0L) {
-      size += com.google.protobuf.CodedOutputStream
-        .computeInt64Size(2, totalSizeInBytes_);
+        .computeBoolSize(1, success_);
     }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
@@ -172,15 +144,13 @@ private static final long serialVersionUID = 0L;
     if (obj == this) {
      return true;
     }
-    if (!(obj instanceof io.evitadb.externalApi.grpc.generated.GrpcFetchFileResponse)) {
+    if (!(obj instanceof io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchResponse)) {
       return super.equals(obj);
     }
-    io.evitadb.externalApi.grpc.generated.GrpcFetchFileResponse other = (io.evitadb.externalApi.grpc.generated.GrpcFetchFileResponse) obj;
+    io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchResponse other = (io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchResponse) obj;
 
-    if (!getFileContents()
-        .equals(other.getFileContents())) return false;
-    if (getTotalSizeInBytes()
-        != other.getTotalSizeInBytes()) return false;
+    if (getSuccess()
+        != other.getSuccess()) return false;
     if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
@@ -192,79 +162,77 @@ private static final long serialVersionUID = 0L;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
-    hash = (37 * hash) + FILECONTENTS_FIELD_NUMBER;
-    hash = (53 * hash) + getFileContents().hashCode();
-    hash = (37 * hash) + TOTALSIZEINBYTES_FIELD_NUMBER;
-    hash = (53 * hash) + com.google.protobuf.Internal.hashLong(
-        getTotalSizeInBytes());
+    hash = (37 * hash) + SUCCESS_FIELD_NUMBER;
+    hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
+        getSuccess());
     hash = (29 * hash) + unknownFields.hashCode();
     memoizedHashCode = hash;
     return hash;
   }
 
-  public static io.evitadb.externalApi.grpc.generated.GrpcFetchFileResponse parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchResponse parseFrom(
       java.nio.ByteBuffer data)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcFetchFileResponse parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchResponse parseFrom(
       java.nio.ByteBuffer data,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data, extensionRegistry);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcFetchFileResponse parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchResponse parseFrom(
       com.google.protobuf.ByteString data)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcFetchFileResponse parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchResponse parseFrom(
       com.google.protobuf.ByteString data,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data, extensionRegistry);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcFetchFileResponse parseFrom(byte[] data)
+  public static io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchResponse parseFrom(byte[] data)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcFetchFileResponse parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchResponse parseFrom(
       byte[] data,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data, extensionRegistry);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcFetchFileResponse parseFrom(java.io.InputStream input)
+  public static io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchResponse parseFrom(java.io.InputStream input)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseWithIOException(PARSER, input);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcFetchFileResponse parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchResponse parseFrom(
       java.io.InputStream input,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseWithIOException(PARSER, input, extensionRegistry);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcFetchFileResponse parseDelimitedFrom(java.io.InputStream input)
+  public static io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchResponse parseDelimitedFrom(java.io.InputStream input)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseDelimitedWithIOException(PARSER, input);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcFetchFileResponse parseDelimitedFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchResponse parseDelimitedFrom(
       java.io.InputStream input,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseDelimitedWithIOException(PARSER, input, extensionRegistry);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcFetchFileResponse parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchResponse parseFrom(
       com.google.protobuf.CodedInputStream input)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseWithIOException(PARSER, input);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcFetchFileResponse parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchResponse parseFrom(
       com.google.protobuf.CodedInputStream input,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws java.io.IOException {
@@ -277,7 +245,7 @@ private static final long serialVersionUID = 0L;
   public static Builder newBuilder() {
     return DEFAULT_INSTANCE.toBuilder();
   }
-  public static Builder newBuilder(io.evitadb.externalApi.grpc.generated.GrpcFetchFileResponse prototype) {
+  public static Builder newBuilder(io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchResponse prototype) {
     return DEFAULT_INSTANCE.toBuilder().mergeFrom(prototype);
   }
   @java.lang.Override
@@ -294,29 +262,29 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Response to a task status request.
+   * Response to a task statuses request.
    * </pre>
    *
-   * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcFetchFileResponse}
+   * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchResponse}
    */
   public static final class Builder extends
       com.google.protobuf.GeneratedMessageV3.Builder<Builder> implements
-      // @@protoc_insertion_point(builder_implements:io.evitadb.externalApi.grpc.generated.GrpcFetchFileResponse)
-      io.evitadb.externalApi.grpc.generated.GrpcFetchFileResponseOrBuilder {
+      // @@protoc_insertion_point(builder_implements:io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchResponse)
+      io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchResponseOrBuilder {
     public static final com.google.protobuf.Descriptors.Descriptor
         getDescriptor() {
-      return io.evitadb.externalApi.grpc.generated.GrpcEvitaAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcFetchFileResponse_descriptor;
+      return io.evitadb.externalApi.grpc.generated.GrpcEvitaAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcDeleteFileToFetchResponse_descriptor;
     }
 
     @java.lang.Override
     protected com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
         internalGetFieldAccessorTable() {
-      return io.evitadb.externalApi.grpc.generated.GrpcEvitaAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcFetchFileResponse_fieldAccessorTable
+      return io.evitadb.externalApi.grpc.generated.GrpcEvitaAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcDeleteFileToFetchResponse_fieldAccessorTable
           .ensureFieldAccessorsInitialized(
-              io.evitadb.externalApi.grpc.generated.GrpcFetchFileResponse.class, io.evitadb.externalApi.grpc.generated.GrpcFetchFileResponse.Builder.class);
+              io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchResponse.class, io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchResponse.Builder.class);
     }
 
-    // Construct using io.evitadb.externalApi.grpc.generated.GrpcFetchFileResponse.newBuilder()
+    // Construct using io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchResponse.newBuilder()
     private Builder() {
       maybeForceBuilderInitialization();
     }
@@ -334,9 +302,7 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      fileContents_ = com.google.protobuf.ByteString.EMPTY;
-
-      totalSizeInBytes_ = 0L;
+      success_ = false;
 
       return this;
     }
@@ -344,17 +310,17 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public com.google.protobuf.Descriptors.Descriptor
         getDescriptorForType() {
-      return io.evitadb.externalApi.grpc.generated.GrpcEvitaAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcFetchFileResponse_descriptor;
+      return io.evitadb.externalApi.grpc.generated.GrpcEvitaAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcDeleteFileToFetchResponse_descriptor;
     }
 
     @java.lang.Override
-    public io.evitadb.externalApi.grpc.generated.GrpcFetchFileResponse getDefaultInstanceForType() {
-      return io.evitadb.externalApi.grpc.generated.GrpcFetchFileResponse.getDefaultInstance();
+    public io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchResponse getDefaultInstanceForType() {
+      return io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchResponse.getDefaultInstance();
     }
 
     @java.lang.Override
-    public io.evitadb.externalApi.grpc.generated.GrpcFetchFileResponse build() {
-      io.evitadb.externalApi.grpc.generated.GrpcFetchFileResponse result = buildPartial();
+    public io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchResponse build() {
+      io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchResponse result = buildPartial();
       if (!result.isInitialized()) {
         throw newUninitializedMessageException(result);
       }
@@ -362,10 +328,9 @@ private static final long serialVersionUID = 0L;
     }
 
     @java.lang.Override
-    public io.evitadb.externalApi.grpc.generated.GrpcFetchFileResponse buildPartial() {
-      io.evitadb.externalApi.grpc.generated.GrpcFetchFileResponse result = new io.evitadb.externalApi.grpc.generated.GrpcFetchFileResponse(this);
-      result.fileContents_ = fileContents_;
-      result.totalSizeInBytes_ = totalSizeInBytes_;
+    public io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchResponse buildPartial() {
+      io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchResponse result = new io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchResponse(this);
+      result.success_ = success_;
       onBuilt();
       return result;
     }
@@ -404,21 +369,18 @@ private static final long serialVersionUID = 0L;
     }
     @java.lang.Override
     public Builder mergeFrom(com.google.protobuf.Message other) {
-      if (other instanceof io.evitadb.externalApi.grpc.generated.GrpcFetchFileResponse) {
-        return mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcFetchFileResponse)other);
+      if (other instanceof io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchResponse) {
+        return mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchResponse)other);
       } else {
         super.mergeFrom(other);
         return this;
       }
     }
 
-    public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcFetchFileResponse other) {
-      if (other == io.evitadb.externalApi.grpc.generated.GrpcFetchFileResponse.getDefaultInstance()) return this;
-      if (other.getFileContents() != com.google.protobuf.ByteString.EMPTY) {
-        setFileContents(other.getFileContents());
-      }
-      if (other.getTotalSizeInBytes() != 0L) {
-        setTotalSizeInBytes(other.getTotalSizeInBytes());
+    public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchResponse other) {
+      if (other == io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchResponse.getDefaultInstance()) return this;
+      if (other.getSuccess() != false) {
+        setSuccess(other.getSuccess());
       }
       this.mergeUnknownFields(other.unknownFields);
       onChanged();
@@ -435,11 +397,11 @@ private static final long serialVersionUID = 0L;
         com.google.protobuf.CodedInputStream input,
         com.google.protobuf.ExtensionRegistryLite extensionRegistry)
         throws java.io.IOException {
-      io.evitadb.externalApi.grpc.generated.GrpcFetchFileResponse parsedMessage = null;
+      io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchResponse parsedMessage = null;
       try {
         parsedMessage = PARSER.parsePartialFrom(input, extensionRegistry);
       } catch (com.google.protobuf.InvalidProtocolBufferException e) {
-        parsedMessage = (io.evitadb.externalApi.grpc.generated.GrpcFetchFileResponse) e.getUnfinishedMessage();
+        parsedMessage = (io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchResponse) e.getUnfinishedMessage();
         throw e.unwrapIOException();
       } finally {
         if (parsedMessage != null) {
@@ -449,91 +411,45 @@ private static final long serialVersionUID = 0L;
       return this;
     }
 
-    private com.google.protobuf.ByteString fileContents_ = com.google.protobuf.ByteString.EMPTY;
+    private boolean success_ ;
     /**
      * <pre>
-     * chunk of the file content
+     * true if the file was found and deleted
      * </pre>
      *
-     * <code>bytes fileContents = 1;</code>
-     * @return The fileContents.
+     * <code>bool success = 1;</code>
+     * @return The success.
      */
     @java.lang.Override
-    public com.google.protobuf.ByteString getFileContents() {
-      return fileContents_;
+    public boolean getSuccess() {
+      return success_;
     }
     /**
      * <pre>
-     * chunk of the file content
+     * true if the file was found and deleted
      * </pre>
      *
-     * <code>bytes fileContents = 1;</code>
-     * @param value The fileContents to set.
+     * <code>bool success = 1;</code>
+     * @param value The success to set.
      * @return This builder for chaining.
      */
-    public Builder setFileContents(com.google.protobuf.ByteString value) {
-      if (value == null) {
-    throw new NullPointerException();
-  }
-  
-      fileContents_ = value;
+    public Builder setSuccess(boolean value) {
+      
+      success_ = value;
       onChanged();
       return this;
     }
     /**
      * <pre>
-     * chunk of the file content
+     * true if the file was found and deleted
      * </pre>
      *
-     * <code>bytes fileContents = 1;</code>
+     * <code>bool success = 1;</code>
      * @return This builder for chaining.
      */
-    public Builder clearFileContents() {
+    public Builder clearSuccess() {
       
-      fileContents_ = getDefaultInstance().getFileContents();
-      onChanged();
-      return this;
-    }
-
-    private long totalSizeInBytes_ ;
-    /**
-     * <pre>
-     * total size of the file
-     * </pre>
-     *
-     * <code>int64 totalSizeInBytes = 2;</code>
-     * @return The totalSizeInBytes.
-     */
-    @java.lang.Override
-    public long getTotalSizeInBytes() {
-      return totalSizeInBytes_;
-    }
-    /**
-     * <pre>
-     * total size of the file
-     * </pre>
-     *
-     * <code>int64 totalSizeInBytes = 2;</code>
-     * @param value The totalSizeInBytes to set.
-     * @return This builder for chaining.
-     */
-    public Builder setTotalSizeInBytes(long value) {
-      
-      totalSizeInBytes_ = value;
-      onChanged();
-      return this;
-    }
-    /**
-     * <pre>
-     * total size of the file
-     * </pre>
-     *
-     * <code>int64 totalSizeInBytes = 2;</code>
-     * @return This builder for chaining.
-     */
-    public Builder clearTotalSizeInBytes() {
-      
-      totalSizeInBytes_ = 0L;
+      success_ = false;
       onChanged();
       return this;
     }
@@ -550,41 +466,41 @@ private static final long serialVersionUID = 0L;
     }
 
 
-    // @@protoc_insertion_point(builder_scope:io.evitadb.externalApi.grpc.generated.GrpcFetchFileResponse)
+    // @@protoc_insertion_point(builder_scope:io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchResponse)
   }
 
-  // @@protoc_insertion_point(class_scope:io.evitadb.externalApi.grpc.generated.GrpcFetchFileResponse)
-  private static final io.evitadb.externalApi.grpc.generated.GrpcFetchFileResponse DEFAULT_INSTANCE;
+  // @@protoc_insertion_point(class_scope:io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchResponse)
+  private static final io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchResponse DEFAULT_INSTANCE;
   static {
-    DEFAULT_INSTANCE = new io.evitadb.externalApi.grpc.generated.GrpcFetchFileResponse();
+    DEFAULT_INSTANCE = new io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchResponse();
   }
 
-  public static io.evitadb.externalApi.grpc.generated.GrpcFetchFileResponse getDefaultInstance() {
+  public static io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchResponse getDefaultInstance() {
     return DEFAULT_INSTANCE;
   }
 
-  private static final com.google.protobuf.Parser<GrpcFetchFileResponse>
-      PARSER = new com.google.protobuf.AbstractParser<GrpcFetchFileResponse>() {
+  private static final com.google.protobuf.Parser<GrpcDeleteFileToFetchResponse>
+      PARSER = new com.google.protobuf.AbstractParser<GrpcDeleteFileToFetchResponse>() {
     @java.lang.Override
-    public GrpcFetchFileResponse parsePartialFrom(
+    public GrpcDeleteFileToFetchResponse parsePartialFrom(
         com.google.protobuf.CodedInputStream input,
         com.google.protobuf.ExtensionRegistryLite extensionRegistry)
         throws com.google.protobuf.InvalidProtocolBufferException {
-      return new GrpcFetchFileResponse(input, extensionRegistry);
+      return new GrpcDeleteFileToFetchResponse(input, extensionRegistry);
     }
   };
 
-  public static com.google.protobuf.Parser<GrpcFetchFileResponse> parser() {
+  public static com.google.protobuf.Parser<GrpcDeleteFileToFetchResponse> parser() {
     return PARSER;
   }
 
   @java.lang.Override
-  public com.google.protobuf.Parser<GrpcFetchFileResponse> getParserForType() {
+  public com.google.protobuf.Parser<GrpcDeleteFileToFetchResponse> getParserForType() {
     return PARSER;
   }
 
   @java.lang.Override
-  public io.evitadb.externalApi.grpc.generated.GrpcFetchFileResponse getDefaultInstanceForType() {
+  public io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchResponse getDefaultInstanceForType() {
     return DEFAULT_INSTANCE;
   }
 

@@ -26,36 +26,16 @@
 
 package io.evitadb.externalApi.grpc.generated;
 
-public interface GrpcTaskStatusesResponseOrBuilder extends
-    // @@protoc_insertion_point(interface_extends:io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesResponse)
+public interface GrpcSpecifiedTaskStatusesResponseOrBuilder extends
+    // @@protoc_insertion_point(interface_extends:io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesResponse)
     com.google.protobuf.MessageOrBuilder {
-
-  /**
-   * <pre>
-   * The size of the page.
-   * </pre>
-   *
-   * <code>int32 pageSize = 1;</code>
-   * @return The pageSize.
-   */
-  int getPageSize();
-
-  /**
-   * <pre>
-   * The number of the page.
-   * </pre>
-   *
-   * <code>int32 pageNumber = 2;</code>
-   * @return The pageNumber.
-   */
-  int getPageNumber();
 
   /**
    * <pre>
    * Collection of task statuses.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 3;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 1;</code>
    */
   java.util.List<io.evitadb.externalApi.grpc.generated.GrpcTaskStatus> 
       getTaskStatusList();
@@ -64,7 +44,7 @@ public interface GrpcTaskStatusesResponseOrBuilder extends
    * Collection of task statuses.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 3;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 1;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcTaskStatus getTaskStatus(int index);
   /**
@@ -72,7 +52,7 @@ public interface GrpcTaskStatusesResponseOrBuilder extends
    * Collection of task statuses.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 3;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 1;</code>
    */
   int getTaskStatusCount();
   /**
@@ -80,7 +60,7 @@ public interface GrpcTaskStatusesResponseOrBuilder extends
    * Collection of task statuses.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 3;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 1;</code>
    */
   java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcTaskStatusOrBuilder> 
       getTaskStatusOrBuilderList();
@@ -89,18 +69,8 @@ public interface GrpcTaskStatusesResponseOrBuilder extends
    * Collection of task statuses.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 3;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 1;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcTaskStatusOrBuilder getTaskStatusOrBuilder(
       int index);
-
-  /**
-   * <pre>
-   * Total number of task statuses.
-   * </pre>
-   *
-   * <code>int32 totalNumberOfRecords = 4;</code>
-   * @return The totalNumberOfRecords.
-   */
-  int getTotalNumberOfRecords();
 }

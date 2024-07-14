@@ -28,21 +28,21 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * Response to a task statuses request.
+ * Response to a multiple task statuses request.
  * </pre>
  *
- * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesResponse}
+ * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesResponse}
  */
-public final class GrpcTaskStatusesResponse extends
+public final class GrpcSpecifiedTaskStatusesResponse extends
     com.google.protobuf.GeneratedMessageV3 implements
-    // @@protoc_insertion_point(message_implements:io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesResponse)
-    GrpcTaskStatusesResponseOrBuilder {
+    // @@protoc_insertion_point(message_implements:io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesResponse)
+    GrpcSpecifiedTaskStatusesResponseOrBuilder {
 private static final long serialVersionUID = 0L;
-  // Use GrpcTaskStatusesResponse.newBuilder() to construct.
-  private GrpcTaskStatusesResponse(com.google.protobuf.GeneratedMessageV3.Builder<?> builder) {
+  // Use GrpcSpecifiedTaskStatusesResponse.newBuilder() to construct.
+  private GrpcSpecifiedTaskStatusesResponse(com.google.protobuf.GeneratedMessageV3.Builder<?> builder) {
     super(builder);
   }
-  private GrpcTaskStatusesResponse() {
+  private GrpcSpecifiedTaskStatusesResponse() {
     taskStatus_ = java.util.Collections.emptyList();
   }
 
@@ -50,7 +50,7 @@ private static final long serialVersionUID = 0L;
   @SuppressWarnings({"unused"})
   protected java.lang.Object newInstance(
       UnusedPrivateParameter unused) {
-    return new GrpcTaskStatusesResponse();
+    return new GrpcSpecifiedTaskStatusesResponse();
   }
 
   @java.lang.Override
@@ -58,7 +58,7 @@ private static final long serialVersionUID = 0L;
   getUnknownFields() {
     return this.unknownFields;
   }
-  private GrpcTaskStatusesResponse(
+  private GrpcSpecifiedTaskStatusesResponse(
       com.google.protobuf.CodedInputStream input,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
@@ -77,28 +77,13 @@ private static final long serialVersionUID = 0L;
           case 0:
             done = true;
             break;
-          case 8: {
-
-            pageSize_ = input.readInt32();
-            break;
-          }
-          case 16: {
-
-            pageNumber_ = input.readInt32();
-            break;
-          }
-          case 26: {
+          case 10: {
             if (!((mutable_bitField0_ & 0x00000001) != 0)) {
               taskStatus_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcTaskStatus>();
               mutable_bitField0_ |= 0x00000001;
             }
             taskStatus_.add(
                 input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcTaskStatus.parser(), extensionRegistry));
-            break;
-          }
-          case 32: {
-
-            totalNumberOfRecords_ = input.readInt32();
             break;
           }
           default: {
@@ -125,55 +110,25 @@ private static final long serialVersionUID = 0L;
   }
   public static final com.google.protobuf.Descriptors.Descriptor
       getDescriptor() {
-    return io.evitadb.externalApi.grpc.generated.GrpcEvitaAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcTaskStatusesResponse_descriptor;
+    return io.evitadb.externalApi.grpc.generated.GrpcEvitaAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcSpecifiedTaskStatusesResponse_descriptor;
   }
 
   @java.lang.Override
   protected com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internalGetFieldAccessorTable() {
-    return io.evitadb.externalApi.grpc.generated.GrpcEvitaAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcTaskStatusesResponse_fieldAccessorTable
+    return io.evitadb.externalApi.grpc.generated.GrpcEvitaAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcSpecifiedTaskStatusesResponse_fieldAccessorTable
         .ensureFieldAccessorsInitialized(
-            io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesResponse.class, io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesResponse.Builder.class);
+            io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesResponse.class, io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesResponse.Builder.class);
   }
 
-  public static final int PAGESIZE_FIELD_NUMBER = 1;
-  private int pageSize_;
-  /**
-   * <pre>
-   * The size of the page.
-   * </pre>
-   *
-   * <code>int32 pageSize = 1;</code>
-   * @return The pageSize.
-   */
-  @java.lang.Override
-  public int getPageSize() {
-    return pageSize_;
-  }
-
-  public static final int PAGENUMBER_FIELD_NUMBER = 2;
-  private int pageNumber_;
-  /**
-   * <pre>
-   * The number of the page.
-   * </pre>
-   *
-   * <code>int32 pageNumber = 2;</code>
-   * @return The pageNumber.
-   */
-  @java.lang.Override
-  public int getPageNumber() {
-    return pageNumber_;
-  }
-
-  public static final int TASKSTATUS_FIELD_NUMBER = 3;
+  public static final int TASKSTATUS_FIELD_NUMBER = 1;
   private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcTaskStatus> taskStatus_;
   /**
    * <pre>
    * Collection of task statuses.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 3;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 1;</code>
    */
   @java.lang.Override
   public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcTaskStatus> getTaskStatusList() {
@@ -184,7 +139,7 @@ private static final long serialVersionUID = 0L;
    * Collection of task statuses.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 3;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 1;</code>
    */
   @java.lang.Override
   public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcTaskStatusOrBuilder> 
@@ -196,7 +151,7 @@ private static final long serialVersionUID = 0L;
    * Collection of task statuses.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 3;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 1;</code>
    */
   @java.lang.Override
   public int getTaskStatusCount() {
@@ -207,7 +162,7 @@ private static final long serialVersionUID = 0L;
    * Collection of task statuses.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 3;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 1;</code>
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcTaskStatus getTaskStatus(int index) {
@@ -218,27 +173,12 @@ private static final long serialVersionUID = 0L;
    * Collection of task statuses.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 3;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 1;</code>
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcTaskStatusOrBuilder getTaskStatusOrBuilder(
       int index) {
     return taskStatus_.get(index);
-  }
-
-  public static final int TOTALNUMBEROFRECORDS_FIELD_NUMBER = 4;
-  private int totalNumberOfRecords_;
-  /**
-   * <pre>
-   * Total number of task statuses.
-   * </pre>
-   *
-   * <code>int32 totalNumberOfRecords = 4;</code>
-   * @return The totalNumberOfRecords.
-   */
-  @java.lang.Override
-  public int getTotalNumberOfRecords() {
-    return totalNumberOfRecords_;
   }
 
   private byte memoizedIsInitialized = -1;
@@ -255,17 +195,8 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (pageSize_ != 0) {
-      output.writeInt32(1, pageSize_);
-    }
-    if (pageNumber_ != 0) {
-      output.writeInt32(2, pageNumber_);
-    }
     for (int i = 0; i < taskStatus_.size(); i++) {
-      output.writeMessage(3, taskStatus_.get(i));
-    }
-    if (totalNumberOfRecords_ != 0) {
-      output.writeInt32(4, totalNumberOfRecords_);
+      output.writeMessage(1, taskStatus_.get(i));
     }
     unknownFields.writeTo(output);
   }
@@ -276,21 +207,9 @@ private static final long serialVersionUID = 0L;
     if (size != -1) return size;
 
     size = 0;
-    if (pageSize_ != 0) {
-      size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(1, pageSize_);
-    }
-    if (pageNumber_ != 0) {
-      size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(2, pageNumber_);
-    }
     for (int i = 0; i < taskStatus_.size(); i++) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(3, taskStatus_.get(i));
-    }
-    if (totalNumberOfRecords_ != 0) {
-      size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(4, totalNumberOfRecords_);
+        .computeMessageSize(1, taskStatus_.get(i));
     }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
@@ -302,19 +221,13 @@ private static final long serialVersionUID = 0L;
     if (obj == this) {
      return true;
     }
-    if (!(obj instanceof io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesResponse)) {
+    if (!(obj instanceof io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesResponse)) {
       return super.equals(obj);
     }
-    io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesResponse other = (io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesResponse) obj;
+    io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesResponse other = (io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesResponse) obj;
 
-    if (getPageSize()
-        != other.getPageSize()) return false;
-    if (getPageNumber()
-        != other.getPageNumber()) return false;
     if (!getTaskStatusList()
         .equals(other.getTaskStatusList())) return false;
-    if (getTotalNumberOfRecords()
-        != other.getTotalNumberOfRecords()) return false;
     if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
@@ -326,84 +239,78 @@ private static final long serialVersionUID = 0L;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
-    hash = (37 * hash) + PAGESIZE_FIELD_NUMBER;
-    hash = (53 * hash) + getPageSize();
-    hash = (37 * hash) + PAGENUMBER_FIELD_NUMBER;
-    hash = (53 * hash) + getPageNumber();
     if (getTaskStatusCount() > 0) {
       hash = (37 * hash) + TASKSTATUS_FIELD_NUMBER;
       hash = (53 * hash) + getTaskStatusList().hashCode();
     }
-    hash = (37 * hash) + TOTALNUMBEROFRECORDS_FIELD_NUMBER;
-    hash = (53 * hash) + getTotalNumberOfRecords();
     hash = (29 * hash) + unknownFields.hashCode();
     memoizedHashCode = hash;
     return hash;
   }
 
-  public static io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesResponse parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesResponse parseFrom(
       java.nio.ByteBuffer data)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesResponse parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesResponse parseFrom(
       java.nio.ByteBuffer data,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data, extensionRegistry);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesResponse parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesResponse parseFrom(
       com.google.protobuf.ByteString data)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesResponse parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesResponse parseFrom(
       com.google.protobuf.ByteString data,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data, extensionRegistry);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesResponse parseFrom(byte[] data)
+  public static io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesResponse parseFrom(byte[] data)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesResponse parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesResponse parseFrom(
       byte[] data,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data, extensionRegistry);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesResponse parseFrom(java.io.InputStream input)
+  public static io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesResponse parseFrom(java.io.InputStream input)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseWithIOException(PARSER, input);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesResponse parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesResponse parseFrom(
       java.io.InputStream input,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseWithIOException(PARSER, input, extensionRegistry);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesResponse parseDelimitedFrom(java.io.InputStream input)
+  public static io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesResponse parseDelimitedFrom(java.io.InputStream input)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseDelimitedWithIOException(PARSER, input);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesResponse parseDelimitedFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesResponse parseDelimitedFrom(
       java.io.InputStream input,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseDelimitedWithIOException(PARSER, input, extensionRegistry);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesResponse parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesResponse parseFrom(
       com.google.protobuf.CodedInputStream input)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseWithIOException(PARSER, input);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesResponse parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesResponse parseFrom(
       com.google.protobuf.CodedInputStream input,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws java.io.IOException {
@@ -416,7 +323,7 @@ private static final long serialVersionUID = 0L;
   public static Builder newBuilder() {
     return DEFAULT_INSTANCE.toBuilder();
   }
-  public static Builder newBuilder(io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesResponse prototype) {
+  public static Builder newBuilder(io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesResponse prototype) {
     return DEFAULT_INSTANCE.toBuilder().mergeFrom(prototype);
   }
   @java.lang.Override
@@ -433,29 +340,29 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Response to a task statuses request.
+   * Response to a multiple task statuses request.
    * </pre>
    *
-   * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesResponse}
+   * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesResponse}
    */
   public static final class Builder extends
       com.google.protobuf.GeneratedMessageV3.Builder<Builder> implements
-      // @@protoc_insertion_point(builder_implements:io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesResponse)
-      io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesResponseOrBuilder {
+      // @@protoc_insertion_point(builder_implements:io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesResponse)
+      io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesResponseOrBuilder {
     public static final com.google.protobuf.Descriptors.Descriptor
         getDescriptor() {
-      return io.evitadb.externalApi.grpc.generated.GrpcEvitaAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcTaskStatusesResponse_descriptor;
+      return io.evitadb.externalApi.grpc.generated.GrpcEvitaAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcSpecifiedTaskStatusesResponse_descriptor;
     }
 
     @java.lang.Override
     protected com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
         internalGetFieldAccessorTable() {
-      return io.evitadb.externalApi.grpc.generated.GrpcEvitaAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcTaskStatusesResponse_fieldAccessorTable
+      return io.evitadb.externalApi.grpc.generated.GrpcEvitaAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcSpecifiedTaskStatusesResponse_fieldAccessorTable
           .ensureFieldAccessorsInitialized(
-              io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesResponse.class, io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesResponse.Builder.class);
+              io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesResponse.class, io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesResponse.Builder.class);
     }
 
-    // Construct using io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesResponse.newBuilder()
+    // Construct using io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesResponse.newBuilder()
     private Builder() {
       maybeForceBuilderInitialization();
     }
@@ -474,35 +381,29 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      pageSize_ = 0;
-
-      pageNumber_ = 0;
-
       if (taskStatusBuilder_ == null) {
         taskStatus_ = java.util.Collections.emptyList();
         bitField0_ = (bitField0_ & ~0x00000001);
       } else {
         taskStatusBuilder_.clear();
       }
-      totalNumberOfRecords_ = 0;
-
       return this;
     }
 
     @java.lang.Override
     public com.google.protobuf.Descriptors.Descriptor
         getDescriptorForType() {
-      return io.evitadb.externalApi.grpc.generated.GrpcEvitaAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcTaskStatusesResponse_descriptor;
+      return io.evitadb.externalApi.grpc.generated.GrpcEvitaAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcSpecifiedTaskStatusesResponse_descriptor;
     }
 
     @java.lang.Override
-    public io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesResponse getDefaultInstanceForType() {
-      return io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesResponse.getDefaultInstance();
+    public io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesResponse getDefaultInstanceForType() {
+      return io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesResponse.getDefaultInstance();
     }
 
     @java.lang.Override
-    public io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesResponse build() {
-      io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesResponse result = buildPartial();
+    public io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesResponse build() {
+      io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesResponse result = buildPartial();
       if (!result.isInitialized()) {
         throw newUninitializedMessageException(result);
       }
@@ -510,11 +411,9 @@ private static final long serialVersionUID = 0L;
     }
 
     @java.lang.Override
-    public io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesResponse buildPartial() {
-      io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesResponse result = new io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesResponse(this);
+    public io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesResponse buildPartial() {
+      io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesResponse result = new io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesResponse(this);
       int from_bitField0_ = bitField0_;
-      result.pageSize_ = pageSize_;
-      result.pageNumber_ = pageNumber_;
       if (taskStatusBuilder_ == null) {
         if (((bitField0_ & 0x00000001) != 0)) {
           taskStatus_ = java.util.Collections.unmodifiableList(taskStatus_);
@@ -524,7 +423,6 @@ private static final long serialVersionUID = 0L;
       } else {
         result.taskStatus_ = taskStatusBuilder_.build();
       }
-      result.totalNumberOfRecords_ = totalNumberOfRecords_;
       onBuilt();
       return result;
     }
@@ -563,22 +461,16 @@ private static final long serialVersionUID = 0L;
     }
     @java.lang.Override
     public Builder mergeFrom(com.google.protobuf.Message other) {
-      if (other instanceof io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesResponse) {
-        return mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesResponse)other);
+      if (other instanceof io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesResponse) {
+        return mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesResponse)other);
       } else {
         super.mergeFrom(other);
         return this;
       }
     }
 
-    public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesResponse other) {
-      if (other == io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesResponse.getDefaultInstance()) return this;
-      if (other.getPageSize() != 0) {
-        setPageSize(other.getPageSize());
-      }
-      if (other.getPageNumber() != 0) {
-        setPageNumber(other.getPageNumber());
-      }
+    public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesResponse other) {
+      if (other == io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesResponse.getDefaultInstance()) return this;
       if (taskStatusBuilder_ == null) {
         if (!other.taskStatus_.isEmpty()) {
           if (taskStatus_.isEmpty()) {
@@ -605,9 +497,6 @@ private static final long serialVersionUID = 0L;
           }
         }
       }
-      if (other.getTotalNumberOfRecords() != 0) {
-        setTotalNumberOfRecords(other.getTotalNumberOfRecords());
-      }
       this.mergeUnknownFields(other.unknownFields);
       onChanged();
       return this;
@@ -623,11 +512,11 @@ private static final long serialVersionUID = 0L;
         com.google.protobuf.CodedInputStream input,
         com.google.protobuf.ExtensionRegistryLite extensionRegistry)
         throws java.io.IOException {
-      io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesResponse parsedMessage = null;
+      io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesResponse parsedMessage = null;
       try {
         parsedMessage = PARSER.parsePartialFrom(input, extensionRegistry);
       } catch (com.google.protobuf.InvalidProtocolBufferException e) {
-        parsedMessage = (io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesResponse) e.getUnfinishedMessage();
+        parsedMessage = (io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesResponse) e.getUnfinishedMessage();
         throw e.unwrapIOException();
       } finally {
         if (parsedMessage != null) {
@@ -637,92 +526,6 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     private int bitField0_;
-
-    private int pageSize_ ;
-    /**
-     * <pre>
-     * The size of the page.
-     * </pre>
-     *
-     * <code>int32 pageSize = 1;</code>
-     * @return The pageSize.
-     */
-    @java.lang.Override
-    public int getPageSize() {
-      return pageSize_;
-    }
-    /**
-     * <pre>
-     * The size of the page.
-     * </pre>
-     *
-     * <code>int32 pageSize = 1;</code>
-     * @param value The pageSize to set.
-     * @return This builder for chaining.
-     */
-    public Builder setPageSize(int value) {
-      
-      pageSize_ = value;
-      onChanged();
-      return this;
-    }
-    /**
-     * <pre>
-     * The size of the page.
-     * </pre>
-     *
-     * <code>int32 pageSize = 1;</code>
-     * @return This builder for chaining.
-     */
-    public Builder clearPageSize() {
-      
-      pageSize_ = 0;
-      onChanged();
-      return this;
-    }
-
-    private int pageNumber_ ;
-    /**
-     * <pre>
-     * The number of the page.
-     * </pre>
-     *
-     * <code>int32 pageNumber = 2;</code>
-     * @return The pageNumber.
-     */
-    @java.lang.Override
-    public int getPageNumber() {
-      return pageNumber_;
-    }
-    /**
-     * <pre>
-     * The number of the page.
-     * </pre>
-     *
-     * <code>int32 pageNumber = 2;</code>
-     * @param value The pageNumber to set.
-     * @return This builder for chaining.
-     */
-    public Builder setPageNumber(int value) {
-      
-      pageNumber_ = value;
-      onChanged();
-      return this;
-    }
-    /**
-     * <pre>
-     * The number of the page.
-     * </pre>
-     *
-     * <code>int32 pageNumber = 2;</code>
-     * @return This builder for chaining.
-     */
-    public Builder clearPageNumber() {
-      
-      pageNumber_ = 0;
-      onChanged();
-      return this;
-    }
 
     private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcTaskStatus> taskStatus_ =
       java.util.Collections.emptyList();
@@ -741,7 +544,7 @@ private static final long serialVersionUID = 0L;
      * Collection of task statuses.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 1;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcTaskStatus> getTaskStatusList() {
       if (taskStatusBuilder_ == null) {
@@ -755,7 +558,7 @@ private static final long serialVersionUID = 0L;
      * Collection of task statuses.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 1;</code>
      */
     public int getTaskStatusCount() {
       if (taskStatusBuilder_ == null) {
@@ -769,7 +572,7 @@ private static final long serialVersionUID = 0L;
      * Collection of task statuses.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcTaskStatus getTaskStatus(int index) {
       if (taskStatusBuilder_ == null) {
@@ -783,7 +586,7 @@ private static final long serialVersionUID = 0L;
      * Collection of task statuses.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 1;</code>
      */
     public Builder setTaskStatus(
         int index, io.evitadb.externalApi.grpc.generated.GrpcTaskStatus value) {
@@ -804,7 +607,7 @@ private static final long serialVersionUID = 0L;
      * Collection of task statuses.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 1;</code>
      */
     public Builder setTaskStatus(
         int index, io.evitadb.externalApi.grpc.generated.GrpcTaskStatus.Builder builderForValue) {
@@ -822,7 +625,7 @@ private static final long serialVersionUID = 0L;
      * Collection of task statuses.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 1;</code>
      */
     public Builder addTaskStatus(io.evitadb.externalApi.grpc.generated.GrpcTaskStatus value) {
       if (taskStatusBuilder_ == null) {
@@ -842,7 +645,7 @@ private static final long serialVersionUID = 0L;
      * Collection of task statuses.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 1;</code>
      */
     public Builder addTaskStatus(
         int index, io.evitadb.externalApi.grpc.generated.GrpcTaskStatus value) {
@@ -863,7 +666,7 @@ private static final long serialVersionUID = 0L;
      * Collection of task statuses.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 1;</code>
      */
     public Builder addTaskStatus(
         io.evitadb.externalApi.grpc.generated.GrpcTaskStatus.Builder builderForValue) {
@@ -881,7 +684,7 @@ private static final long serialVersionUID = 0L;
      * Collection of task statuses.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 1;</code>
      */
     public Builder addTaskStatus(
         int index, io.evitadb.externalApi.grpc.generated.GrpcTaskStatus.Builder builderForValue) {
@@ -899,7 +702,7 @@ private static final long serialVersionUID = 0L;
      * Collection of task statuses.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 1;</code>
      */
     public Builder addAllTaskStatus(
         java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcTaskStatus> values) {
@@ -918,7 +721,7 @@ private static final long serialVersionUID = 0L;
      * Collection of task statuses.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 1;</code>
      */
     public Builder clearTaskStatus() {
       if (taskStatusBuilder_ == null) {
@@ -935,7 +738,7 @@ private static final long serialVersionUID = 0L;
      * Collection of task statuses.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 1;</code>
      */
     public Builder removeTaskStatus(int index) {
       if (taskStatusBuilder_ == null) {
@@ -952,7 +755,7 @@ private static final long serialVersionUID = 0L;
      * Collection of task statuses.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcTaskStatus.Builder getTaskStatusBuilder(
         int index) {
@@ -963,7 +766,7 @@ private static final long serialVersionUID = 0L;
      * Collection of task statuses.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcTaskStatusOrBuilder getTaskStatusOrBuilder(
         int index) {
@@ -977,7 +780,7 @@ private static final long serialVersionUID = 0L;
      * Collection of task statuses.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 1;</code>
      */
     public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcTaskStatusOrBuilder> 
          getTaskStatusOrBuilderList() {
@@ -992,7 +795,7 @@ private static final long serialVersionUID = 0L;
      * Collection of task statuses.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcTaskStatus.Builder addTaskStatusBuilder() {
       return getTaskStatusFieldBuilder().addBuilder(
@@ -1003,7 +806,7 @@ private static final long serialVersionUID = 0L;
      * Collection of task statuses.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcTaskStatus.Builder addTaskStatusBuilder(
         int index) {
@@ -1015,7 +818,7 @@ private static final long serialVersionUID = 0L;
      * Collection of task statuses.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 1;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcTaskStatus.Builder> 
          getTaskStatusBuilderList() {
@@ -1035,49 +838,6 @@ private static final long serialVersionUID = 0L;
       }
       return taskStatusBuilder_;
     }
-
-    private int totalNumberOfRecords_ ;
-    /**
-     * <pre>
-     * Total number of task statuses.
-     * </pre>
-     *
-     * <code>int32 totalNumberOfRecords = 4;</code>
-     * @return The totalNumberOfRecords.
-     */
-    @java.lang.Override
-    public int getTotalNumberOfRecords() {
-      return totalNumberOfRecords_;
-    }
-    /**
-     * <pre>
-     * Total number of task statuses.
-     * </pre>
-     *
-     * <code>int32 totalNumberOfRecords = 4;</code>
-     * @param value The totalNumberOfRecords to set.
-     * @return This builder for chaining.
-     */
-    public Builder setTotalNumberOfRecords(int value) {
-      
-      totalNumberOfRecords_ = value;
-      onChanged();
-      return this;
-    }
-    /**
-     * <pre>
-     * Total number of task statuses.
-     * </pre>
-     *
-     * <code>int32 totalNumberOfRecords = 4;</code>
-     * @return This builder for chaining.
-     */
-    public Builder clearTotalNumberOfRecords() {
-      
-      totalNumberOfRecords_ = 0;
-      onChanged();
-      return this;
-    }
     @java.lang.Override
     public final Builder setUnknownFields(
         final com.google.protobuf.UnknownFieldSet unknownFields) {
@@ -1091,41 +851,41 @@ private static final long serialVersionUID = 0L;
     }
 
 
-    // @@protoc_insertion_point(builder_scope:io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesResponse)
+    // @@protoc_insertion_point(builder_scope:io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesResponse)
   }
 
-  // @@protoc_insertion_point(class_scope:io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesResponse)
-  private static final io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesResponse DEFAULT_INSTANCE;
+  // @@protoc_insertion_point(class_scope:io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesResponse)
+  private static final io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesResponse DEFAULT_INSTANCE;
   static {
-    DEFAULT_INSTANCE = new io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesResponse();
+    DEFAULT_INSTANCE = new io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesResponse();
   }
 
-  public static io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesResponse getDefaultInstance() {
+  public static io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesResponse getDefaultInstance() {
     return DEFAULT_INSTANCE;
   }
 
-  private static final com.google.protobuf.Parser<GrpcTaskStatusesResponse>
-      PARSER = new com.google.protobuf.AbstractParser<GrpcTaskStatusesResponse>() {
+  private static final com.google.protobuf.Parser<GrpcSpecifiedTaskStatusesResponse>
+      PARSER = new com.google.protobuf.AbstractParser<GrpcSpecifiedTaskStatusesResponse>() {
     @java.lang.Override
-    public GrpcTaskStatusesResponse parsePartialFrom(
+    public GrpcSpecifiedTaskStatusesResponse parsePartialFrom(
         com.google.protobuf.CodedInputStream input,
         com.google.protobuf.ExtensionRegistryLite extensionRegistry)
         throws com.google.protobuf.InvalidProtocolBufferException {
-      return new GrpcTaskStatusesResponse(input, extensionRegistry);
+      return new GrpcSpecifiedTaskStatusesResponse(input, extensionRegistry);
     }
   };
 
-  public static com.google.protobuf.Parser<GrpcTaskStatusesResponse> parser() {
+  public static com.google.protobuf.Parser<GrpcSpecifiedTaskStatusesResponse> parser() {
     return PARSER;
   }
 
   @java.lang.Override
-  public com.google.protobuf.Parser<GrpcTaskStatusesResponse> getParserForType() {
+  public com.google.protobuf.Parser<GrpcSpecifiedTaskStatusesResponse> getParserForType() {
     return PARSER;
   }
 
   @java.lang.Override
-  public io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesResponse getDefaultInstanceForType() {
+  public io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesResponse getDefaultInstanceForType() {
     return DEFAULT_INSTANCE;
   }
 
