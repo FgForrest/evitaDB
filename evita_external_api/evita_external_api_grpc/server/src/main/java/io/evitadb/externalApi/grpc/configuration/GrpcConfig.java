@@ -56,7 +56,7 @@ public class GrpcConfig extends AbstractApiConfiguration implements ApiConfigura
 	/**
 	 * Port on which will server be run and on which will channel be opened.
 	 */
-	public static final int DEFAULT_GRPC_PORT = 5556;
+	public static final int DEFAULT_GRPC_PORT = 5555;
 	/**
 	 * Allows to expose the Armeria specific docs service on the gRPC API.
 	 */

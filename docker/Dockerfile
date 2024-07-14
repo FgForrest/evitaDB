@@ -8,7 +8,7 @@ ARG RELEASE_DATE=not_set
 ## 1. Environment variables, NOT supposed to be overriden in container ##
 ENV EVITA_HOME="/evita"
 ENV EVITA_JAR_NAME="$EVITA_JAR_NAME"
-ENV SYSTEM_API_PORT="5557"
+ENV SYSTEM_API_PORT="5555"
 
 ## 2. Environment variables, MAY BE overriden in container ##
 

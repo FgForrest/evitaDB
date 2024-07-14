@@ -58,13 +58,13 @@ keeps a pool of opened resources and should be terminated by a `close()` method 
 ### Configuration
 
 The minimal configuration of the client is done by providing the server address and port. The following example shows
-how to create a client instance that connects to the server running on `localhost` on port `5556`:
+how to create a client instance that connects to the server running on `localhost` on port `5555`:
 
 ```java
 var evita = new EvitaClient(
 	EvitaClientConfiguration.builder()
 		.host("localhost")
-		.port(5556)
+		.port(5555)
 		.build()
 );
 ```
@@ -94,7 +94,7 @@ on the client side:
     </dd>
     <dt>systemApiPort</dt>
     <dd>
-        <p>**Default: `5557`**</p>
+        <p>**Default: `5555`**</p>
         <p>Identification of the server port on which the evitaDB system API is running. The system API is used to
         automatically set up the client certificate for mTLS or to download the server's self-signed certificate.
         See [TLS Configuration and Principles](../../operate/tls.md). The system API is not required if the server uses

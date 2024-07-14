@@ -80,7 +80,7 @@ api:                                              # [see API configuration](#api
   endpoints:
     system:                                       # [see System API configuration](#system-api-configuration)
       enabled: true
-      host: localhost:5557
+      host: localhost:5555
       tlsMode: FORCE_NO_TLS
       allowedOrigins: null
     graphQL:                                      # [see GraphQL API configuration](#graphql-api-configuration)
@@ -96,7 +96,7 @@ api:                                              # [see API configuration](#api
       allowedOrigins: null
     gRPC:                                         # [see gRPC API configuration](#grpc-api-configuration)
       enabled: true
-      host: localhost:5556
+      host: localhost:5555
       tlsMode: FORCE_TLS
       exposeDocsService: false
       mTLS:
@@ -113,7 +113,7 @@ api:                                              # [see API configuration](#api
         preconfiguredConnections: null
     observability:                                # [see Observability configuration](#observability-configuration)
       enabled: true
-      host: localhost:5557
+      host: localhost:5555
       exposedHost: null
       tlsMode: FORCE_NO_TLS
       allowedOrigins: null
@@ -878,7 +878,7 @@ more information.
     </dd>
     <dt>host</dt>
     <dd>
-        <p>**Default:** `localhost:5557`</p>
+        <p>**Default:** `localhost:5555`</p>
         <p>It specifies the host and port on which the system API should listen. The value must be different from all 
         other APIs because the system API needs to run on the insecure HTTP protocol while the other APIs use the secure one.</p>
         <p>The system endpoint allows anyone to view public <Term location="/documentation/user/en/operate/tls.md">certificate authority</Term> 

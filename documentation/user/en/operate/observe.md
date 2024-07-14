@@ -112,7 +112,7 @@ starts checking the server health, for larger databases you may need to increase
 ##### When you change system API port don't forget to set `SYSTEM_API_PORT` environment variable
 </NoteTitle>
 
-The healthcheck in the Docker image is configured to use the default system API port, which is `5557`. If you change 
+The healthcheck in the Docker image is configured to use the default system API port, which is `5555`. If you change 
 the port, the health check will immediately report an unhealthy container because it won't be able to reach the probe 
 endpoint. You need to specify the new port using the `SYSTEM_API_PORT` environment variable of the Docker container.
 
@@ -123,7 +123,7 @@ Both probes are available in the `system` API and are accessible at the followin
 ### Readiness probe
 
 ```shell
-curl -k "http://localhost:5557/system/readiness" \
+curl -k "http://localhost:5555/system/readiness" \
      -H 'Content-Type: application/json'
 ```
 
@@ -164,7 +164,7 @@ or `STALLING` status.
 ### Liveness probe
 
 ```shell
-curl -k "http://localhost:5557/system/liveness" \
+curl -k "http://localhost:5555/system/liveness" \
      -H 'Content-Type: application/json'
 ```
 
@@ -230,7 +230,7 @@ To collect metrics and publish them to the scrape endpoint, you don't need to do
 *observability* API enabled in the evitaDB config - this is a default behaviour. You can also set the path to a YAML 
 file that can be used to restrict what metrics are actually collected. Without its specification (or with an empty file),
 all metrics from both groups are automatically collected. The metrics are then available at the URL: 
-*http://[evita-server-name]:5557/observability/metrics*.
+*http://[evita-server-name]:5555/observability/metrics*.
 
 The sample below shows the relevant part of the configuration file related to the metrics.
 
@@ -239,7 +239,7 @@ api:
   endpoints:
     observability:
       enabled: ${api.endpoints.observability.enabled:true}
-      host: ${api.endpoints.observability.host:localhost:5557}
+      host: ${api.endpoints.observability.host:localhost:5555}
       exposedHost: ${api.endpoints.observability.exposedHost:null}
       tlsMode: ${api.endpoints.observability.tlsMode:FORCE_NO_TLS}
       allowedOrigins: ${api.endpoints.observability.allowedOrigins:null}
@@ -334,7 +334,7 @@ will be sent over.
 ```yaml
 Observability:
   enabled: ${api.endpoints.observability.enabled:true}
-  host: ${api.endpoints.observability.host:localhost:5557}
+  host: ${api.endpoints.observability.host:localhost:5555}
   exposedHost: ${api.endpoints.observability.exposedHost:null}
   tlsMode: ${api.endpoints.observability.tlsMode:FORCE_NO_TLS}
   allowedOrigins: ${api.endpoints.observability.allowedOrigins:null}

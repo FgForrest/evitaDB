@@ -121,7 +121,7 @@ public abstract class AbstractApiConfiguration {
 	/**
 	 * @param enabled enables the particular API
 	 * @param host    defines the hostname and port the endpoints will listen on, use constant `localhost` for loopback
-	 *                (IPv4) host. Multiple values can be delimited by comma. Example: `localhost:5555,168.12.45.44:5556`
+	 *                (IPv4) host. Multiple values can be delimited by comma. Example: `localhost:5555,168.12.45.44:5555`
 	 */
 	protected AbstractApiConfiguration(@Nullable Boolean enabled, @Nonnull String host) {
 		this(enabled, host, null, null);
@@ -130,7 +130,7 @@ public abstract class AbstractApiConfiguration {
 	/**
 	 * @param enabled    enables the particular API
 	 * @param host       defines the hostname and port the endpoints will listen on, use constant `localhost` for loopback
-	 *                   (IPv4) host. Multiple values can be delimited by comma. Example: `localhost:5555,168.12.45.44:5556`
+	 *                   (IPv4) host. Multiple values can be delimited by comma. Example: `localhost:5555,168.12.45.44:5555`
 	 * @param tlsMode    allows the API to run with TLS encryption
 	 */
 	protected AbstractApiConfiguration(@Nullable Boolean enabled, @Nonnull String host, @Nonnull String exposedHost, @Nullable String tlsMode) {

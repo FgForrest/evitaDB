@@ -185,10 +185,10 @@ You should see the following information logged to the console when you start th
 
 ```plain
 Root CA Certificate fingerprint:        CERTIFICATE AUTHORITY FINGERPRINT
-API `gRPC` listening on                 https://your-domain:5556/
+API `gRPC` listening on                 https://your-domain:5555/
 API `graphQL` listening on              https://your-domain:5555/gql/
 API `rest` listening on                 https://your-domain:5555/rest/
-API `system` listening on               http://your-domain:5557/system/
+API `system` listening on               http://your-domain:5555/system/
 ```
 
 </LS>
@@ -212,7 +212,7 @@ index.docker.io/evitadb/evitadb:latest
 
 # Windows / MacOS: there is open issue https://github.com/docker/roadmap/issues/238
 # and you need to open ports manually and propagate host IP address to the container
-docker run --name evitadb -i --rm -p 5555:5555 -p 5556:5556 -p 5557:5557 \
+docker run --name evitadb -i --rm -p 5555:5555 \
        -e "api.exposedOn=localhost" \
        index.docker.io/evitadb/evitadb:latest
 ```
@@ -237,13 +237,13 @@ Server name: evitaDB-a22be76c5dbd8c33
 Root CA Certificate fingerprint:        8A:78:A6:ED:E9:D6:83:0F:8D:99:A6:F2:1A:D5:41:B9:12:40:24:67:55:84:2C:4A:65:F7:B5:E7:33:00:35:9C
 API `graphQL` listening on              https://localhost:5555/gql/
 API `rest` listening on                 https://localhost:5555/rest/
-API `gRPC` listening on                 https://localhost:5556/
-API `system` listening on               http://localhost:5557/system/
-   - server name served at:             http://localhost:5557/system/server-name
-   - CA certificate served at:          http://localhost:5557/system/evitaDB-CA-selfSigned.crt
-   - server certificate served at:      http://localhost:5557/system/server.crt
-   - client certificate served at:      http://localhost:5557/system/client.crt
-   - client private key served at:      http://localhost:5557/system/client.key
+API `gRPC` listening on                 https://localhost:5555/
+API `system` listening on               http://localhost:5555/system/
+   - server name served at:             http://localhost:5555/system/server-name
+   - CA certificate served at:          http://localhost:5555/system/evitaDB-CA-selfSigned.crt
+   - server certificate served at:      http://localhost:5555/system/server.crt
+   - client certificate served at:      http://localhost:5555/system/client.crt
+   - client private key served at:      http://localhost:5555/system/client.key
 
 ************************* WARNING!!! *************************
 You use mTLS with automatically generated client certificate.

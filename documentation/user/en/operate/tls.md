@@ -334,10 +334,10 @@ The `client.crt` is automatically added to the list of trusted client certificat
 are available for downloading using `system` endpoint. You'll see those when the evitaDB server starts:
 
 ```plain
-API `system` listening on               http://your-domain:5557/system/
-   - server certificate served at:      http://your-domain:5557/system/evitaDB-CA-selfSigned.crt
-   - client certificate served at:      http://your-domain:5557/system/client.crt
-   - client private key served at:      http://your-domain:5557/system/client.key
+API `system` listening on               http://your-domain:5555/system/
+   - server certificate served at:      http://your-domain:5555/system/evitaDB-CA-selfSigned.crt
+   - client certificate served at:      http://your-domain:5555/system/client.crt
+   - client private key served at:      http://your-domain:5555/system/client.key
 ```
 
 When the gRPC client starts and has the following settings (all are defaults):

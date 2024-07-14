@@ -48,7 +48,7 @@ public class ObservabilityConfig extends AbstractApiConfiguration implements Api
 	/**
 	 * Port on which will server be run and on which will channel be opened.
 	 */
-	public static final int DEFAULT_OBSERVABILITY_PORT = 5557;
+	public static final int DEFAULT_OBSERVABILITY_PORT = 5555;
 	private static final String BASE_OBSERVABILITY_PATH = "observability";
 	private static final Pattern ORIGIN_PATTERN = Pattern.compile("([a-z]+)://([\\w.]+)(:(\\d+))?");
 

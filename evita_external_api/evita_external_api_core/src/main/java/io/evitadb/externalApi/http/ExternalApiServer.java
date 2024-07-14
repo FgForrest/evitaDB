@@ -482,10 +482,11 @@ public class ExternalApiServer implements AutoCloseable {
 		}
 
 		try {
-			registeredApiProviders.values().forEach(ExternalApiProvider::beforeStop);
-			final CompletableFuture<Void> stopFuture = server.stop();
+			this.registeredApiProviders.values().forEach(ExternalApiProvider::beforeStop);
+			final long start = System.nanoTime();
+			final CompletableFuture<Void> stopFuture = this.server.stop();
 			stopFuture.get(5, TimeUnit.SECONDS);
-			ConsoleWriter.write("External APIs stopped.\n");
+			ConsoleWriter.write("External APIs stopped in " + StringUtils.formatPreciseNano(System.nanoTime() - start) + ".\n");
 		} catch (Exception ex) {
 			ConsoleWriter.write("Failed to stop external APIs in dedicated time (5 secs.).\n");
 		}

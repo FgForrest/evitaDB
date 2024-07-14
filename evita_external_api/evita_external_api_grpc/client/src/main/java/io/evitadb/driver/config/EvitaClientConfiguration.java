@@ -87,8 +87,7 @@ public record EvitaClientConfiguration(
 	@Nullable Object openTelemetryInstance,
 	int trackedTaskLimit
 ) {
-	private static final int DEFAULT_GRPC_API_PORT = 5555;
-	private static final int DEFAULT_SYSTEM_API_PORT = 5557;
+	private static final int DEFAULT_PORT = 5555;
 
 	/**
 	 * Builder for the cache options. Recommended to use to avoid binary compatibility problems in the future.
@@ -104,8 +103,8 @@ public record EvitaClientConfiguration(
 	public static class Builder {
 		private String clientId;
 		private String host = "localhost";
-		private int port = DEFAULT_GRPC_API_PORT;
-		private int systemApiPort = DEFAULT_SYSTEM_API_PORT;
+		private int port = DEFAULT_PORT;
+		private int systemApiPort = DEFAULT_PORT;
 		private boolean useGeneratedCertificate = true;
 		private boolean trustCertificate = false;
 		private boolean tlsEnabled = true;
