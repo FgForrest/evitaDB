@@ -84,14 +84,15 @@ public class ObservableThreadExecutor implements ObservableExecutorService {
 		long timeoutInMilliseconds
 	) {
 		this.name = name;
+		final int processorsCount = Runtime.getRuntime().availableProcessors();
 		this.forkJoinPool = new ForkJoinPool(
-			Runtime.getRuntime().availableProcessors(),
+			Math.min(options.minThreadCount(), processorsCount),
 			pool -> new EvitaWorkerThread(pool, name, options.threadPriority()),
 			LoggingUncaughtExceptionHandler.INSTANCE,
 			true,
 			options.minThreadCount(),
 			options.maxThreadCount(),
-			Runtime.getRuntime().availableProcessors(),
+			1,
 			null,
 			60,
 			TimeUnit.SECONDS
