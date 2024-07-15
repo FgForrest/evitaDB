@@ -87,19 +87,9 @@ public class GrpcProviderRegistrar implements ExternalApiProviderRegistrar<GrpcC
 		}
 		corsBuilder
 			.allowRequestMethods(HttpMethod.POST) // Allow POST method.
-			// Allow Content-type and X-GRPC-WEB headers.
-			.allowRequestHeaders(
-				HttpHeaderNames.CONTENT_TYPE,
-				HttpHeaderNames.of("X-Grpc-Web"),
-				HttpHeaderNames.of("X-User-Agent"),
-				HttpHeaderNames.of("X-Requested-With"),
-				HttpHeaderNames.of("X-Forwarded-For"),
-				HttpHeaderNames.of("X-Forwarded-Proto"),
-				HttpHeaderNames.of("Authorization"),
-				HttpHeaderNames.of("traceparent"),
-				HttpHeaderNames.of("tracestate"),
-				HttpHeaderNames.of("grpc-trace-bin")
-			)
+			// Allow all request headers to ensure proper Metadata to HTTP headers conversion in gRPC-Web.
+			// Because of the variability of such headers, it is not wise to list them all and maintain it.
+			.allowAllRequestHeaders(true)
 			// Expose trailers of the HTTP response to the client.
 			.exposeHeaders(GrpcHeaderNames.GRPC_STATUS,
 				GrpcHeaderNames.GRPC_MESSAGE,

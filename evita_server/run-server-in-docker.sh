@@ -6,7 +6,7 @@
 #             |  __/\ V /| | || (_| | |_| | |_) |
 #              \___| \_/ |_|\__\__,_|____/|____/
 #
-#   Copyright (c) 2023
+#   Copyright (c) 2023-2024
 #
 #   Licensed under the Business Source License, Version 1.1 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -32,7 +32,6 @@ docker run --name evitadb -i --net=host \
       -v "/www/oss/evitaDB/evita_server/evita-server-certificates:/evita/certificates" \
       -v "/www/oss/evitaDB/evita_server/logback.xml:/evita/logback.xml" \
       -v "/www/oss/evitaDB/evita_server/logs:/evita/logs" \
-      -e "cache.enabled=false" \
-      -e "api.exposedOn=localhost" \
+      -e "EVITA_ARGS=cache.enabled=false api.exposedOn=localhost" \
       index.docker.io/evitadb/evitadb:latest
 echo "Done"
