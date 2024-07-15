@@ -39,7 +39,7 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.core.metric.event.query.FinishedEvent;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.algebra.prefetch.PrefetchFormulaVisitor;
+import io.evitadb.core.query.algebra.prefetch.PrefetchFactory;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.response.EntityFetchAwareDecorator;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
@@ -92,7 +92,7 @@ public class QueryPlan {
 	 * be fetched upfront and filtered/ordered by their properties.
 	 */
 	@Nonnull
-	private final PrefetchFormulaVisitor prefetchFormulaVisitor;
+	private final PrefetchFactory prefetchFactory;
 	/**
 	 * Contains prepared sorter implementation that takes output of the filtering process and sorts the entity
 	 * primary keys according to {@link OrderConstraint} in {@link EvitaRequest}.
@@ -169,16 +169,16 @@ public class QueryPlan {
 
 			try {
 				// prefetch the entities to allow using them in filtering / sorting in next step
-				final Runnable prefetchLambda = this.prefetchFormulaVisitor.createPrefetchLambdaIfNeededOrWorthwhile(executionContext);
-				if (prefetchLambda != null) {
-					executionContext.pushStep(QueryPhase.EXECUTION_PREFETCH);
-					try {
-						this.prefetched = true;
-						prefetchLambda.run();
-					} finally {
-						executionContext.popStep();
-					}
-				}
+				this.prefetchFactory.createPrefetchLambdaIfNeededOrWorthwhile(executionContext)
+					.ifPresent(prefetchLambda -> {
+						executionContext.pushStep(QueryPhase.EXECUTION_PREFETCH);
+						try {
+							this.prefetched = true;
+							prefetchLambda.run();
+						} finally {
+							executionContext.popStep();
+						}
+					});
 
 				executionContext.pushStep(QueryPhase.EXECUTION_FILTER);
 				try {
