@@ -63,14 +63,14 @@ To integrate evitaDB into your project, use the following steps:
 <dependency>
     <groupId>io.evitadb</groupId>
     <artifactId>evita_db</artifactId>
-    <version>2024.7.2</version>
+    <version>2024.8.4</version>
     <type>pom</type>
 </dependency>
 ```
 </CodeTabsBlock>
 <CodeTabsBlock>
 ```Gradle
-implementation 'io.evitadb:evita_db:2024.7.2'
+implementation 'io.evitadb:evita_db:2024.8.4'
 ```
 </CodeTabsBlock>
 </CodeTabs>
@@ -108,14 +108,14 @@ exception when you enable the corresponding API in evitaDB's configuration.
 <dependency>
     <groupId>io.evitadb</groupId>
     <artifactId>evita_external_api_grpc</artifactId>
-    <version>2024.7.2</version>
+    <version>2024.8.4</version>
     <type>pom</type>
 </dependency>
 ```
 </CodeTabsBlock>
 <CodeTabsBlock>
 ```Gradle
-implementation 'io.evitadb:evita_external_api_grpc:2024.7.2'
+implementation 'io.evitadb:evita_external_api_grpc:2024.8.4'
 ```
 </CodeTabsBlock>
 </CodeTabs>
@@ -128,14 +128,14 @@ implementation 'io.evitadb:evita_external_api_grpc:2024.7.2'
 <dependency>
     <groupId>io.evitadb</groupId>
     <artifactId>evita_external_api_graphql</artifactId>
-    <version>2024.7.2</version>
+    <version>2024.8.4</version>
     <type>pom</type>
 </dependency>
 ```
 </CodeTabsBlock>
 <CodeTabsBlock>
 ```Gradle
-implementation 'io.evitadb:evita_external_api_graphql:2024.7.2'
+implementation 'io.evitadb:evita_external_api_graphql:2024.8.4'
 ```
 </CodeTabsBlock>
 </CodeTabs>
@@ -148,14 +148,14 @@ implementation 'io.evitadb:evita_external_api_graphql:2024.7.2'
 <dependency>
     <groupId>io.evitadb</groupId>
     <artifactId>evita_external_api_rest</artifactId>
-    <version>2024.7.2</version>
+    <version>2024.8.4</version>
     <type>pom</type>
 </dependency>
 ```
 </CodeTabsBlock>
 <CodeTabsBlock>
 ```Gradle
-implementation 'io.evitadb:evita_external_api_rest:2024.7.2'
+implementation 'io.evitadb:evita_external_api_rest:2024.8.4'
 ```
 </CodeTabsBlock>
 </CodeTabs>
@@ -208,12 +208,13 @@ You can do both in one command using `docker run`. This is the easiest way to ru
 ```shell
 # Linux variant: run on foreground, destroy container after exit, use host ports without NAT
 docker run --name evitadb -i --rm --net=host \
-index.docker.io/evitadb/evitadb:latest
+       -e "EVITA_ARGS=api.exposedOn=localhost" \
+       index.docker.io/evitadb/evitadb:latest
 
 # Windows / MacOS: there is open issue https://github.com/docker/roadmap/issues/238
 # and you need to open ports manually and propagate host IP address to the container
 docker run --name evitadb -i --rm -p 5555:5555 \
-       -e "api.exposedOn=localhost" \
+       -e "EVITA_ARGS=api.exposedOn=localhost" \
        index.docker.io/evitadb/evitadb:latest
 ```
 
@@ -226,7 +227,7 @@ When you start the evitaDB server you should see the following information in th
 |  __/\ V /| | || (_| | |_| | |_) |
  \___| \_/ |_|\__\__,_|____/|____/
 
-beta build 2024.7.2 (keep calm and report bugs 😉)
+beta build 2024.8.4 (keep calm and report bugs 😉)
 Visit us at: https://evitadb.io
 
 Log config used: META-INF/logback.xml
