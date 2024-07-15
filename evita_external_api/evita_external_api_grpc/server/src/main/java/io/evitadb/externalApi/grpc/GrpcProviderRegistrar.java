@@ -74,7 +74,7 @@ public class GrpcProviderRegistrar implements ExternalApiProviderRegistrar<GrpcC
 			.addService(ProtoReflectionService.newInstance())
 			.intercept(new ServerSessionInterceptor(evita, grpcAPIConfig.getTlsMode()))
 			.intercept(new GlobalExceptionHandlerInterceptor())
-			.intercept(new ObservabilityInterceptor(apiOptions.accessLog()))
+			.intercept(new ObservabilityInterceptor())
 			.supportedSerializationFormats(GrpcSerializationFormats.values())
 			.enableHttpJsonTranscoding(true)
 			.enableUnframedRequests(true);

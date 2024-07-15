@@ -25,9 +25,9 @@ package io.evitadb.server;
 
 import com.google.protobuf.Empty;
 import com.linecorp.armeria.client.ClientFactory;
+import com.linecorp.armeria.client.grpc.GrpcClientBuilder;
 import com.linecorp.armeria.client.grpc.GrpcClients;
 import io.evitadb.api.EvitaSessionContract;
-import com.linecorp.armeria.client.grpc.GrpcClientBuilder;
 import io.evitadb.core.Evita;
 import io.evitadb.driver.EvitaClient;
 import io.evitadb.driver.config.EvitaClientConfiguration;
@@ -53,6 +53,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -205,6 +206,64 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 	}
 
 	@Test
+	void startStopTest() {
+		/* TODO JNO - remove when the shutdown sequence is made faster */
+		final Set<String> apis = ExternalApiServer.gatherExternalApiProviders()
+			.stream()
+			.map(ExternalApiProviderRegistrar::getExternalApiCode)
+			.collect(Collectors.toSet());
+
+		final int[] ports = getPortManager().allocatePorts(DIR_EVITA_SERVER_TEST, apis.size());
+		final AtomicInteger index = new AtomicInteger();
+		final Map<String, Integer> servicePorts = new HashMap<>();
+		//noinspection unchecked
+		final HashMap<String, String> configuration = createHashMap(
+			Stream.concat(
+					Stream.of(
+						property("storage.storageDirectory", getTestDirectory().resolve(DIR_EVITA_SERVER_TEST).toString()),
+						property("cache.enabled", "false"),
+						property("api.endpoints.observability.enabled", "false"),
+						property("api.endpoints.graphQL.enabled", "false"),
+						property("api.endpoints.rest.enabled", "false"),
+						property("api.endpoints.lab.enabled", "false"),
+						property("api.endpoints.system.enabled", "true"),
+						property("api.endpoints.gRPC.enabled", "false")
+					),
+					apis.stream()
+						.flatMap(it -> {
+							final int port = ports[index.getAndIncrement()];
+							servicePorts.put(it, port);
+							return Arrays.stream(
+								new Property[]{
+									property("api.endpoints." + it + ".host", "localhost:" + port),
+									property("api.endpoints." + it + ".tlsMode", "FORCE_NO_TLS")
+								}
+							);
+						})
+				)
+				.toArray(Property[]::new)
+		);
+		for (int i = 0; i < 20; i++) {
+			final EvitaServer evitaServer = new EvitaServer(
+				getPathInTargetDirectory(DIR_EVITA_SERVER_TEST),
+				configuration
+			);
+			try {
+				evitaServer.run();
+			} catch (Exception ex) {
+				fail(ex);
+			} finally {
+				try {
+					evitaServer.getEvita().deleteCatalogIfExists(TEST_CATALOG);
+					evitaServer.stop();
+				} catch (Exception ex) {
+					fail(ex.getMessage(), ex);
+				}
+			}
+		}
+	}
+
+	@Test
 	void shouldStartAndStopPlainServerCorrectly() {
 		final Set<String> apis = ExternalApiServer.gatherExternalApiProviders()
 			.stream()
@@ -222,7 +281,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 						Stream.of(
 							property("storage.storageDirectory", getTestDirectory().resolve(DIR_EVITA_SERVER_TEST).toString()),
 							property("cache.enabled", "false"),
-							property("api.endpoints.gRPC.tlsEnabled", "false")
+							property("api.endpoints.gRPC.tlsMode", "FORCE_NO_TLS")
 						),
 						apis.stream()
 							.map(it -> {

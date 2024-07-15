@@ -23,12 +23,14 @@
 
 package io.evitadb.externalApi.http;
 
+import com.linecorp.armeria.common.util.EventLoopGroups;
 import com.linecorp.armeria.server.HttpService;
 import com.linecorp.armeria.server.Server;
 import com.linecorp.armeria.server.ServerBuilder;
 import com.linecorp.armeria.server.VirtualHostBuilder;
 import com.linecorp.armeria.server.logging.AccessLogWriter;
 import com.linecorp.armeria.server.logging.LoggingService;
+import io.evitadb.api.requestResponse.data.DevelopmentConstants;
 import io.evitadb.core.Evita;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -433,7 +435,7 @@ public class ExternalApiServer implements AutoCloseable {
 							certificateSettings.custom().privateKeyPassword()
 						) : null
 				);
-			configureArmeria(serverBuilder, certificatePath, apiOptions);
+			configureArmeria(evita, serverBuilder, certificatePath, apiOptions);
 		} catch (CertificateException | UnrecoverableKeyException | KeyStoreException | IOException | NoSuchAlgorithmException e) {
 			throw new GenericEvitaInternalError(
 				"Failed to configure Armeria server with provided certificate and private key: " + e.getMessage(),
@@ -505,26 +507,30 @@ public class ExternalApiServer implements AutoCloseable {
 	 * @throws NoSuchAlgorithmException  when algorithm for creating cipher keys is not found
 	 */
 	private void configureArmeria(
+		@Nonnull Evita evita,
 		@Nonnull ServerBuilder serverBuilder,
 		@Nonnull CertificatePath certificatePath,
 		@Nonnull ApiOptions apiOptions
 	) throws CertificateException, UnrecoverableKeyException, KeyStoreException, IOException, NoSuchAlgorithmException {
 
+		// in tests we don't wait for shutdowns
+		final boolean shutdownOnStop = !"true".equals(System.getProperty(DevelopmentConstants.TEST_RUN));
+
 		serverBuilder
+			.blockingTaskExecutor(evita.getServiceExecutor(), shutdownOnStop)
 			.childChannelOption(ChannelOption.SO_REUSEADDR, true)
 			.childChannelOption(ChannelOption.SO_KEEPALIVE, apiOptions.keepAlive())
 			.errorHandler(LoggingServerErrorHandler.INSTANCE)
 			.gracefulShutdownTimeout(Duration.ZERO, Duration.ZERO)
 			.idleTimeoutMillis(apiOptions.idleTimeoutInMillis())
 			.requestTimeoutMillis(apiOptions.requestTimeoutInMillis())
-			.serviceWorkerGroup(apiOptions.serviceWorkerGroupThreadsAsInt())
+			.serviceWorkerGroup(EventLoopGroups.newEventLoopGroup(apiOptions.serviceWorkerGroupThreadsAsInt()), shutdownOnStop)
 			.maxRequestLength(apiOptions.maxEntitySizeInBytes())
 			.verboseResponses(false)
-			.workerGroup(apiOptions.workerGroupThreadsAsInt());
+			.workerGroup(EventLoopGroups.newEventLoopGroup(apiOptions.workerGroupThreadsAsInt()), shutdownOnStop);
 
 		if (apiOptions.accessLog()) {
-			/* TODO JNO / LHO - discuss access logger */
-			serverBuilder.accessLogWriter(AccessLogWriter.combined(), true);
+			serverBuilder.accessLogWriter(AccessLogWriter.combined(), shutdownOnStop);
 		}
 
 		final AtomicReference<KeyManagerFactory> keyFactoryRef = new AtomicReference<>();

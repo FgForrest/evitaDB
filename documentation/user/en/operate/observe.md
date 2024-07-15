@@ -12,26 +12,28 @@ preferredLang: 'java'
 
 **Work in progress**
 
-This article will contain description of Evita monitoring facilities - would it be directly Prometheus or OpenTelemetry.
-There should be also information how to log slow queries or see other problems within application (logging).
-The functionality is not finalized - [see issue #18](https://github.com/FgForrest/evitaDB/issues/18).
+The functionality is not finalized - [see issue #18](https://github.com/FgForrest/evitaDB/issues/18) 
+and [issue #628](https://github.com/FgForrest/evitaDB/issues/628).
 
 ## Logging
 
 evitaDB uses the [SLF4J](https://www.slf4j.org/) logging facade for logging both application log messages and access log messages. By default
 only application log messages are enabled, the access log messages must be explicitly [enabled in configuration](#access-log).
 
+You can override our default logback configuration by providing your own `logback.xml` and configuring it in a standard
+way as [documented on Logback site](https://logback.qos.ch/manual/configuration.html#auto_configuration). For example by
+passing `logback.configurationFile=/path/to/logback.xml` as a JVM argument.
+
+Our default Logback configuration can be found in GitHub repository:
+<SourceClass>https://github.com/FgForrest/evitaDB/blob/dev/evita_server/src/main/resources/META-INF/logback.xml</SourceClass>
+
 ### Access log
 
 If the `accessLog` property is set to `true` in the [configuration](configure.md#api-configuration), the server will log
 access log messages for all APIs using the
 [Slf4j](https://www.slf4j.org/) logging facade. These messages are logged at the `INFO` level and contain the `ACCESS_LOG`
-marker which you can use to separate standard messages from access log messages.
-
-Access log messages can be further categorized using `UNDERTOW_ACCESS_LOG` and `GRPC_ACCESS_LOG` markers. This is because
-evitaDB uses [Undertow](https://undertow.io/) web server for REST and GraphQL APIs and separate web server
-for [gRPC](https://grpc.io/). It might be sometimes useful to log these separately because even though they both
-use the same log format, for example, gRPC doesn't support all properties as Undertow.
+marker which you can use to separate standard messages from access log messages. Access log messages are logged
+by logger `com.linecorp.armeria.logging.access` (see [Armeria documentation](https://armeria.dev/docs/server-access-log)).
 
 ### Server Logback utilities
 
@@ -41,37 +43,6 @@ evitaDB server comes ready with several custom utilities for easier configuratio
 doesn't rely on a concrete implementation of the [Slf4j](https://www.slf4j.org/) logging facade.
 If the evitaDB is used as embedded instance, the following tools are not available, but can be used as reference to
 custom implementation in chosen framework.
-
-#### Log filters
-
-The basic utilities are two [Logback](https://logback.qos.ch/) filters ready-to-use to easily separate access log messages
-from app log messages.
-
-There is `io.evitadb.server.log.AccessLogFilter` filter to only log access log messages.
-This filter can be used as follows:
-```xml
-<appender name="FILE" class="ch.qos.logback.core.FileAppender">
-    <filter class="io.evitadb.server.log.AccessLogFilter"/>
-    <file>/path/to/access.log</file>
-    <encoder>
-        <pattern>%msg%n</pattern>
-    </encoder>
-</appender>
-```
-
-There is also `io.evitadb.server.log.AppLogFilter` filter to only log standard log messages.
-This filter can be used as follows:
-```xml
-<appender name="FILE" class="ch.qos.logback.core.FileAppender">
-    <filter class="io.evitadb.server.log.AppLogFilter"/>
-    <file>/evita/logs/evita_server.log</file>
-    <encoder>
-        <pattern>%date %level [%thread] %logger{10} [%file:%line] -%kvp- %msg%n</pattern>
-    </encoder>
-</appender>
-```
-This filter exists because when you enable access logs the log messages with the `ACCESS_LOG` marker aren't filtered out
-by default.
 
 #### Tooling for log aggregators
 
@@ -86,7 +57,6 @@ The layout is the `io.evitadb.server.log.AppLogJsonLayout` layout to log app log
     <!-- ... -->
     <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
         <target>System.out</target>
-        <filter class="io.evitadb.server.log.AppLogFilter" />
         <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
             <level>INFO</level>
         </filter>

@@ -26,13 +26,9 @@ package io.evitadb.externalApi.grpc.services.interceptors;
 import io.evitadb.externalApi.grpc.metric.event.ProcedureCalledEvent;
 import io.evitadb.externalApi.grpc.metric.event.ProcedureCalledEvent.InitiatorType;
 import io.evitadb.externalApi.grpc.metric.event.ProcedureCalledEvent.ResponseState;
-import io.evitadb.externalApi.log.AccessLogMarker;
-import io.grpc.Attributes;
 import io.grpc.ForwardingServerCallListener;
-import io.grpc.Grpc;
 import io.grpc.Metadata;
 import io.grpc.MethodDescriptor;
-import io.grpc.MethodDescriptor.MethodType;
 import io.grpc.ServerCall;
 import io.grpc.ServerCall.Listener;
 import io.grpc.ServerCallHandler;
@@ -40,13 +36,8 @@ import io.grpc.ServerInterceptor;
 import io.grpc.Status;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.slf4j.Marker;
-import org.slf4j.MarkerFactory;
 
 import javax.annotation.Nonnull;
-import java.net.InetSocketAddress;
-import java.time.OffsetDateTime;
-import java.time.format.DateTimeFormatter;
 
 /**
  * Logs access log messages to Slf4J logger marked with `ACCESS_LOG` and `GRPC_ACCESS_LOG`.
@@ -74,19 +65,6 @@ import java.time.format.DateTimeFormatter;
 @RequiredArgsConstructor
 public class ObservabilityInterceptor implements ServerInterceptor {
 
-	private static final DateTimeFormatter ACCESS_LOG_DATE_FORMAT = DateTimeFormatter.ofPattern("dd/MMM/yyyy:HH:mm:ss Z");
-	/**
-	 * Marks gRPC's access log messages to differentiate them from access log messages from other web servers.
-	 */
-	private static final Marker GRPC_ACCESS_LOG_MARKER = MarkerFactory.getMarker("GRPC_ACCESS_LOG");
-
-	private static final Attributes.Key<String> USER_AGENT = Attributes.Key.create("user-agent");
-
-	/**
-	 * True when access log should be generated.
-	 */
-	private final boolean accessLog;
-
 
 	@Override
 	public <ReqT, RespT> Listener<ReqT> interceptCall(ServerCall<ReqT, RespT> call,
@@ -100,7 +78,7 @@ public class ObservabilityInterceptor implements ServerInterceptor {
 			methodDescriptor.getBareMethodName(),
 			methodDescriptor.getType()
 		);
-		final ObservabilityServerCall<ReqT, RespT> loggingServerCall = new ObservabilityServerCall<>(call, event, this.accessLog);
+		final ObservabilityServerCall<ReqT, RespT> loggingServerCall = new ObservabilityServerCall<>(call, event);
 		return new ObservabilityListener<>(
 			next.startCall(loggingServerCall, headers), event
 		);
@@ -114,26 +92,17 @@ public class ObservabilityInterceptor implements ServerInterceptor {
 	private static class ObservabilityServerCall<M, R> extends ServerCall<M, R> {
 		private final ServerCall<M, R> serverCall;
 		private final ProcedureCalledEvent event;
-		private final boolean accessLog;
 
 		protected ObservabilityServerCall(
 			@Nonnull ServerCall<M, R> serverCall,
-			@Nonnull ProcedureCalledEvent event,
-			boolean accessLog
+			@Nonnull ProcedureCalledEvent event
 		) {
 			this.serverCall = serverCall;
 			this.event = event;
-			this.accessLog = accessLog;
 		}
 
 		@Override
 		public void close(Status status, Metadata trailers) {
-			if (accessLog) {
-				log.atInfo()
-					.addMarker(AccessLogMarker.getInstance())
-					.addMarker(GRPC_ACCESS_LOG_MARKER)
-					.log(constructLogMessage(serverCall, status));
-			}
 			this.event.finish().commit();
 			this.serverCall.close(status, trailers);
 		}
@@ -166,33 +135,6 @@ public class ObservabilityInterceptor implements ServerInterceptor {
 			return this.serverCall.getMethodDescriptor();
 		}
 
-		@Nonnull
-		private static <ReqT, RespT> String constructLogMessage(@Nonnull ServerCall<ReqT, RespT> call, @Nonnull Status status) {
-			final String clientIP = ((InetSocketAddress) call.getAttributes()
-				.get(Grpc.TRANSPORT_ATTR_REMOTE_ADDR)).getAddress().getHostName();
-			final MethodType requestMethodType = call.getMethodDescriptor().getType();
-			final String requestMethod = call.getMethodDescriptor().getFullMethodName();
-			// gRPC Java supports only HTTP/2 protocol now and doesn't expose actual used protocol
-			final String protocol = "HTTP/2";
-			final int statusCode = status.getCode().value();
-			// Currently, we cannot determine response size because gRPC API doesn't expose status code and response object
-			// in a single place. We can either send status or response size, but not both. We opt for status code as it
-			// is more important.
-			// final int responseSize = 0;
-
-			final String userAgent = call.getAttributes().get(USER_AGENT);
-
-			return String.format(
-				"%s - - [%s] \"%s %s %s\" %d - \"-\" \"%s\"",
-				clientIP,
-				OffsetDateTime.now().format(ACCESS_LOG_DATE_FORMAT),
-				requestMethodType,
-				requestMethod,
-				protocol,
-				statusCode,
-				userAgent == null || userAgent.isEmpty() ? "-" : userAgent
-			);
-		}
 	}
 
 	/**

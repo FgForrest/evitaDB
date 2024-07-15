@@ -27,6 +27,8 @@ java \
         -javaagent:target/evita-server.jar \
         -jar "target/evita-server.jar" \
         "configDir=../config/" \
+        "logback.configurationFile=./logback.xml" \
         "storage.storageDirectory=../data " \
+        "api.accessLog=true" \
         "cache.enabled=false" \
         "api.endpoints.gRPC.exposeDocsService=true"
