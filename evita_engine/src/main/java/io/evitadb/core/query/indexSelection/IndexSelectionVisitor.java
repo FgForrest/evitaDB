@@ -161,7 +161,7 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 					}
 					// locate all hierarchy indexes
 					final Bitmap requestedHierarchyNodes = requestedHierarchyNodesFormula.compute();
-					final List<EntityIndex> theTargetIndexes = new ArrayList<>(requestedHierarchyNodes.size());
+					final List<ReducedEntityIndex> theTargetIndexes = new ArrayList<>(requestedHierarchyNodes.size());
 					for (Integer hierarchyEntityId : requestedHierarchyNodes) {
 						queryContext.getIndex(
 							new EntityIndexKey(
@@ -169,7 +169,7 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 								new ReferenceKey(filteredHierarchyReferenceName, hierarchyEntityId)
 							)
 						)
-							.map(EntityIndex.class::cast)
+							.map(ReducedEntityIndex.class::cast)
 							.ifPresent(theTargetIndexes::add);
 					}
 					// add indexes as potential target indexes
@@ -178,7 +178,7 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 							EntityIndexType.REFERENCED_HIERARCHY_NODE.name() +
 								" composed of " + requestedHierarchyNodes.size() + " indexes",
 							constraint,
-							EntityIndex.class,
+							ReducedEntityIndex.class,
 							theTargetIndexes
 						)
 					);
