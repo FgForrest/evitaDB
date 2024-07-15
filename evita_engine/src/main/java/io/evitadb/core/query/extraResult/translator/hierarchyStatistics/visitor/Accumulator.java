@@ -241,6 +241,7 @@ public class Accumulator {
 			omittedQueuedEntities = new LinkedList<>();
 		}
 		omittedQueuedEntities.add(queriedEntities);
+		queriedEntities.initialize(executionContext);
 		queriedEntitiesFormula = null;
 	}
 
