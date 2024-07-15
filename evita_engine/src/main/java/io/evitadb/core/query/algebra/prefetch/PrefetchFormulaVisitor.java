@@ -53,6 +53,10 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+
+import static java.util.Optional.empty;
+import static java.util.Optional.of;
 
 /**
  * This formula visitor identifies the entity ids that are accessible within conjunction scope from the formula root
@@ -62,20 +66,20 @@ import java.util.Objects;
  * - {@link #getConjunctiveEntities()} entity primary keys to fetch
  * - {@link #getExpectedComputationalCosts()} costs that is estimated to be paid with regular execution
  */
-public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProcessor {
+public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProcessor, PrefetchFactory {
 	/**
 	 * Threshold where we avoid prefetching entities whatsoever.
 	 */
 	private static final int BITMAP_SIZE_THRESHOLD = 1000;
 	/**
+	 * Contains set of requirements collected from all {@link SelectionFormula} in the tree.
+	 */
+	protected final Map<Class<? extends EntityContentRequire>, EntityContentRequire> requirements = new HashMap<>();
+	/**
 	 * Indexes that were used when visitor was created.
 	 */
 	@Nonnull
 	@Getter private final TargetIndexes<?> targetIndexes;
-	/**
-	 * Contains set of requirements collected from all {@link SelectionFormula} in the tree.
-	 */
-	protected final Map<Class<? extends EntityContentRequire>, EntityContentRequire> requirements = new HashMap<>();
 	/**
 	 * Contains all bitmaps of entity ids found in conjunctive scope of the formula.
 	 */
@@ -133,13 +137,9 @@ public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProces
 		}
 	}
 
-	/**
-	 * Method will prefetch the entities identified in {@link PrefetchFormulaVisitor} but only in case the prefetch
-	 * is possible and would "pay off". In case the possible prefetching would be more costly than executing the standard
-	 * filtering logic, the prefetch is not executed.
-	 */
+	@Override
 	@Nullable
-	public Runnable createPrefetchLambdaIfNeededOrWorthwhile(@Nonnull QueryExecutionContext queryContext) {
+	public Optional<Runnable> createPrefetchLambdaIfNeededOrWorthwhile(@Nonnull QueryExecutionContext queryContext) {
 		EntityFetchRequire requirements = null;
 		Bitmap entitiesToPrefetch = null;
 		// are we forced to prefetch entities from catalog index?
@@ -173,7 +173,7 @@ public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProces
 						ArrayUtils.mergeArrays(
 							new RoaringBitmap[]{RoaringBitmapBackedBitmap.getRoaringBitmap(entitiesToPrefetch)},
 							targetIndexes.getIndexes().stream()
-								.map(index -> ((ReducedEntityIndex)index).getAllPrimaryKeys())
+								.map(index -> ((ReducedEntityIndex) index).getAllPrimaryKeys())
 								.map(RoaringBitmapBackedBitmap::getRoaringBitmap)
 								.toArray(RoaringBitmap[]::new)
 						)
@@ -185,12 +185,14 @@ public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProces
 		if (entitiesToPrefetch != null && requirements != null) {
 			final Bitmap finalEntitiesToPrefetch = entitiesToPrefetch;
 			final EntityFetchRequire finalRequirements = requirements;
-			return () -> queryContext.prefetchEntities(
-				finalEntitiesToPrefetch,
-				finalRequirements
+			return of(
+				() -> queryContext.prefetchEntities(
+					finalEntitiesToPrefetch,
+					finalRequirements
+				)
 			);
 		} else {
-			return null;
+			return empty();
 		}
 	}
 
