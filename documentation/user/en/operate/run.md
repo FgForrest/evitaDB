@@ -25,12 +25,13 @@ You can do both in one command using `docker run`. This is the easiest way to ru
 ```shell
 # Linux variant: run on foreground, destroy container after exit, use host ports without NAT
 docker run --name evitadb -i --rm --net=host \
-index.docker.io/evitadb/evitadb:latest
+       -e "EVITA_ARGS=api.exposedOn=localhost" \
+       index.docker.io/evitadb/evitadb:latest
 
 # Windows / MacOS: there is open issue https://github.com/docker/roadmap/issues/238
 # and you need to open ports manually and propagate host IP address to the container
 docker run --name evitadb -i --rm -p 5555:5555 \
-       -e "api.exposedOn=localhost" \
+       -e "EVITA_ARGS=api.exposedOn=localhost" \
        index.docker.io/evitadb/evitadb:latest
 ```
 
@@ -113,13 +114,13 @@ open/re-mapping ports opened inside the Docker container in the following way:
 # run on foreground, destroy container after exit, use exact mapping for host ports
 docker run --name evitadb -i --rm \
         -p 5555:5555 \      
-        -e "api.exposedOn=localhost" \
+        -e "EVITA_ARGS=api.exposedOn=localhost" \
         index.docker.io/evitadb/evitadb:latest
 ```
 
 <Note type="info">
 
-The `-e "api.exposedOn=localhost"` argument is necessary when evitaLab and/or Open API schema is generated and used
+The `-e "EVITA_ARGS=api.exposedOn=localhost"` argument is necessary when evitaLab and/or Open API schema is generated and used
 from the host system the docker container is running on. This argument is not necessary when container shares
 the network with the host using argument `--net=host`. Argument tells evitaDB running in container to use `localhost`
 as a domain for generated URLs in the schemas and the evitaLab network requests. Otherwise it would use the container

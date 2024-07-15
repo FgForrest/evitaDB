@@ -58,9 +58,10 @@
 		spustit tento příkaz:
 	</p>
 
-	<pre>docker run --name evitadb -i --rm --net=host \
-       -e "api.exposedOn=localhost" \
-       index.docker.io/evitadb/evitadb:latest
+	<pre>
+	docker run --name evitadb -i --rm --net=host \
+           -e "EVITA_ARGS=api.exposedOn=localhost" \
+           index.docker.io/evitadb/evitadb:latest
 	</pre>
 
 	<p>
@@ -73,9 +74,10 @@
 			href="https://github.com/docker/roadmap/issues/238">issue #238</a>):
 	</p>
 
-	<pre>docker run --name evitadb -i --rm -p 5555:5555 \
-       -e "api.exposedOn=localhost" \
-       index.docker.io/evitadb/evitadb:latest
+	<pre>
+		docker run --name evitadb -i --rm -p 5555:5555 \
+               -e "EVITA_ARGS=api.exposedOn=localhost" \
+               index.docker.io/evitadb/evitadb:latest
 	</pre>
 
 	<p>
@@ -88,7 +90,7 @@
 |  __/\ V /| | || (_| | |_| | |_) |
  \___| \_/ |_|\__\__,_|____/|____/
 
-beta build 2024.7.2 (keep calm and report bugs 😉)
+beta build 2024.8.4 (keep calm and report bugs 😉)
 Visit us at: https://evitadb.io
 
 Log config used: META-INF/logback.xml (original file `/evita/logback.xml` doesn't exist)

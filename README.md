@@ -149,6 +149,12 @@ That's it.
 
 ## Prerequisities
 
+To checkout Git repository on Windows you need to have long paths enabled:
+
+```shell
+git config --system core.longpaths true
+```
+
 evitaDB requires and is tested on OpenJDK 17.
 
 Java applications support multiple platforms depending on the

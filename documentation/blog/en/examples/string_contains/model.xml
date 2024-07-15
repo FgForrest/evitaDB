@@ -24,6 +24,6 @@
 <dependency>
 	<groupId>io.evitadb</groupId>
 	<artifactId>evita_external_api_graphql</artifactId>
-	<version>2024.7.2</version>
+	<version>2024.8.4</version>
 	<type>pom</type>
 </dependency>
