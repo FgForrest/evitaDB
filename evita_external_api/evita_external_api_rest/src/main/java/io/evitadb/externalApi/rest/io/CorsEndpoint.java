@@ -27,6 +27,7 @@ import com.linecorp.armeria.server.HttpService;
 import io.evitadb.externalApi.configuration.ApiWithOriginControl;
 import io.evitadb.externalApi.http.AdditionalHeaders;
 
+import io.evitadb.externalApi.http.CorsFilterServiceDecorator;
 import io.evitadb.externalApi.http.CorsPreflightService;
 
 import javax.annotation.Nonnull;
@@ -76,6 +77,9 @@ public class CorsEndpoint {
 
 	@Nonnull
 	public HttpService toService() {
-		return new CorsPreflightService(allowedOrigins, allowedMethods, allowedHeaders);
+		// todo lho verify
+		return new CorsPreflightService(allowedOrigins, allowedMethods, allowedHeaders).decorate(
+			new CorsFilterServiceDecorator(allowedOrigins).createDecorator()
+		);
 	}
 }

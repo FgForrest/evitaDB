@@ -23,12 +23,16 @@
 
 package io.evitadb.externalApi.http;
 
+import com.linecorp.armeria.common.HttpMethod;
 import com.linecorp.armeria.server.HttpService;
+import com.linecorp.armeria.server.cors.CorsPolicy;
+import com.linecorp.armeria.server.cors.CorsPolicyBuilder;
 import com.linecorp.armeria.server.cors.CorsService;
 import com.linecorp.armeria.server.cors.CorsServiceBuilder;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Set;
 import java.util.function.Function;
@@ -64,10 +68,13 @@ public class CorsFilterServiceDecorator {
 		if (allowedOrigins != null) {
 			builder = CorsService.builder(allowedOrigins);
 			builder.allowNullOrigin();
+			builder.allowAllRequestHeaders(true);
+			builder.allowRequestMethods(HttpMethod.values());
 			builder.preflightResponseHeader("Vary", "Origin");
 		} else {
-			builder = CorsService.builder("*");
-			builder.preflightResponseHeader(AdditionalHeaders.ACCESS_CONTROL_ALLOW_ORIGIN_STRING, "*");
+			builder = CorsService.builder("*")
+				.allowAllRequestHeaders(true)
+				.allowRequestMethods(HttpMethod.values());
 		}
 		return builder.newDecorator();
 	}

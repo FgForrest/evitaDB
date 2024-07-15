@@ -70,8 +70,11 @@ public class CorsPreflightService implements HttpService {
 	@Override
 	public HttpResponse serve(@Nonnull ServiceRequestContext ctx, @Nonnull HttpRequest req) throws Exception {
 		final HttpResponseBuilder responseBuilder = HttpResponse.builder();
+		// todo lho verify
 		if (allowedOrigins == null) {
-			responseBuilder.header("Access-Control-Allow-Origin", "*");
+			responseBuilder.header(AdditionalHeaders.ACCESS_CONTROL_ALLOW_ORIGIN_STRING, "*");
+			responseBuilder.header(AdditionalHeaders.ACCESS_CONTROL_ALLOW_METHODS_STRING, "*");
+			responseBuilder.header(AdditionalHeaders.ACCESS_CONTROL_ALLOW_HEADERS_STRING, "*");
 		} else {
 			final String requestOrigin = req.headers().get("Origin");
 			if (requestOrigin == null || !allowedOrigins.contains(requestOrigin)) {
@@ -79,12 +82,12 @@ public class CorsPreflightService implements HttpService {
 				responseBuilder.status(HttpStatus.FORBIDDEN);
 				return responseBuilder.build();
 			} else {
-				responseBuilder.header("Access-Control-Allow-Origin", requestOrigin);
-				responseBuilder.header("Vary", "Origin");
+				responseBuilder.header(AdditionalHeaders.ACCESS_CONTROL_ALLOW_ORIGIN_STRING, requestOrigin);
+				responseBuilder.header(AdditionalHeaders.VARY_STRING, "Origin");
 			}
+			responseBuilder.header(AdditionalHeaders.ACCESS_CONTROL_ALLOW_METHODS_STRING, String.join(", ", allowedMethods));
+			responseBuilder.header(AdditionalHeaders.ACCESS_CONTROL_ALLOW_HEADERS_STRING, String.join(", ", allowedHeaders));
 		}
-		responseBuilder.header("Access-Control-Allow-Methods", String.join(", ", allowedMethods));
-		responseBuilder.header("Access-Control-Allow-Headers", String.join(", ", allowedHeaders));
 		responseBuilder.status(HttpStatus.OK);
 		return responseBuilder.build();
 	}
