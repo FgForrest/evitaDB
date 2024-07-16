@@ -24,10 +24,12 @@
 package io.evitadb.externalApi.system;
 
 import com.linecorp.armeria.common.HttpHeaderNames;
+import com.linecorp.armeria.common.HttpMethod;
 import com.linecorp.armeria.common.HttpResponse;
 import com.linecorp.armeria.common.HttpResponseBuilder;
 import com.linecorp.armeria.common.HttpStatus;
 import com.linecorp.armeria.common.MediaType;
+import com.linecorp.armeria.server.HttpService;
 import com.linecorp.armeria.server.file.HttpFile;
 import io.evitadb.api.requestResponse.system.SystemStatus;
 import io.evitadb.core.Evita;
@@ -39,12 +41,13 @@ import io.evitadb.externalApi.api.system.model.HealthProblem;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.configuration.CertificatePath;
 import io.evitadb.externalApi.configuration.CertificateSettings;
-import io.evitadb.externalApi.http.CorsFilterServiceDecorator;
+import io.evitadb.externalApi.http.CorsFilter;
+import io.evitadb.externalApi.http.CorsPreflightHandler;
 import io.evitadb.externalApi.http.ExternalApiProvider;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
 import io.evitadb.externalApi.http.ExternalApiServer;
 import io.evitadb.externalApi.system.configuration.SystemConfig;
-import io.evitadb.externalApi.utils.path.PathHandlingService;
+import io.evitadb.externalApi.utils.path.RoutingHandlerService;
 import io.evitadb.utils.CertificateUtils;
 import io.evitadb.utils.StringUtils;
 
@@ -290,10 +293,14 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 		@Nonnull ApiOptions apiOptions,
 		@Nonnull SystemConfig systemConfig
 	) {
-		final PathHandlingService router = new PathHandlingService();
-		router.addExactPath(
+		final RoutingHandlerService router = new RoutingHandlerService();
+		router.add(
+			HttpMethod.GET,
 			"/" + ENDPOINT_SERVER_NAME,
-			(ctx, req) -> HttpResponse.of(HttpStatus.OK, MediaType.PLAIN_TEXT, evita.getConfiguration().name())
+			createCorsWrapper(
+				systemConfig,
+				(ctx, req) -> HttpResponse.of(HttpStatus.OK, MediaType.PLAIN_TEXT, evita.getConfiguration().name())
+			)
 		);
 
 		final String[] enabledEndPoints = getEnabledApiEndpoints(apiOptions);
@@ -302,27 +309,39 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 			.map(Provider::get)
 			.toList();
 
-		router.addExactPath(
+		router.add(
+			HttpMethod.GET,
 			"/" + ENDPOINT_SYSTEM_STATUS,
-			(ctx, req) -> HttpResponse.of(
-				renderStatus(
-					evita,
-					externalApiServer,
-					apiOptions,
-					probes,
-					enabledEndPoints
+			createCorsWrapper(
+				systemConfig,
+				(ctx, req) -> HttpResponse.of(
+					renderStatus(
+						evita,
+						externalApiServer,
+						apiOptions,
+						probes,
+						enabledEndPoints
+					)
 				)
 			)
 		);
 
-		router.addExactPath(
+		router.add(
+			HttpMethod.GET,
 			"/" + ENDPOINT_SYSTEM_LIVENESS,
-			(ctx, req) -> HttpResponse.of(renderLivenessResponse(evita, externalApiServer, probes, enabledEndPoints))
+			createCorsWrapper(
+				systemConfig,
+				(ctx, req) -> HttpResponse.of(renderLivenessResponse(evita, externalApiServer, probes, enabledEndPoints))
+			)
 		);
 
-		router.addExactPath(
+		router.add(
+			HttpMethod.GET,
 			"/" + ENDPOINT_SYSTEM_READINESS,
-			(ctx, req) -> HttpResponse.of(renderReadinessResponse(evita, externalApiServer, probes, enabledEndPoints))
+			createCorsWrapper(
+				systemConfig,
+				(ctx, req) -> HttpResponse.of(renderReadinessResponse(evita, externalApiServer, probes, enabledEndPoints))
+			)
 		);
 
 		final String fileName;
@@ -348,25 +367,53 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 				file = new File(certificate.substring(0, lastSeparatorIndex));
 				fileName = certificate.substring(lastSeparatorIndex);
 			}
-			router.addExactPath("/" + fileName, (ctx, req) -> {
-				ctx.addAdditionalResponseHeader(HttpHeaderNames.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\"");
-				return HttpFile.of(new File(file, fileName)).asService().serve(ctx, req);
-			});
+			router.add(
+				HttpMethod.GET,
+				"/" + fileName,
+				createCorsWrapper(
+					systemConfig,
+					(ctx, req) -> {
+						ctx.addAdditionalResponseHeader(HttpHeaderNames.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\"");
+						return HttpFile.of(new File(file, fileName)).asService().serve(ctx, req);
+					}
+				)
+			);
 
-			router.addExactPath("/" + CertificateUtils.getGeneratedServerCertificateFileName(), (ctx, req) -> {
-				ctx.addAdditionalResponseHeader(HttpHeaderNames.CONTENT_DISPOSITION, "attachment; filename=\"" + CertificateUtils.getGeneratedServerCertificateFileName() + "\"");
-				return HttpFile.of(new File(file, CertificateUtils.getGeneratedServerCertificateFileName())).asService().serve(ctx, req);
-			});
+			router.add(
+				HttpMethod.GET,
+				"/" + CertificateUtils.getGeneratedServerCertificateFileName(),
+				createCorsWrapper(
+					systemConfig,
+					(ctx, req) -> {
+						ctx.addAdditionalResponseHeader(HttpHeaderNames.CONTENT_DISPOSITION, "attachment; filename=\"" + CertificateUtils.getGeneratedServerCertificateFileName() + "\"");
+						return HttpFile.of(new File(file, CertificateUtils.getGeneratedServerCertificateFileName())).asService().serve(ctx, req);
+					}
+				)
+			);
 
-			router.addExactPath("/" + CertificateUtils.getGeneratedClientCertificateFileName(), (ctx, req) -> {
-				ctx.addAdditionalResponseHeader(HttpHeaderNames.CONTENT_DISPOSITION, "attachment; filename=\"" + CertificateUtils.getGeneratedClientCertificateFileName() + "\"");
-				return HttpFile.of(new File(file, CertificateUtils.getGeneratedClientCertificateFileName())).asService().serve(ctx, req);
-			});
+			router.add(
+				HttpMethod.GET,
+				"/" + CertificateUtils.getGeneratedClientCertificateFileName(),
+				createCorsWrapper(
+					systemConfig,
+					(ctx, req) -> {
+						ctx.addAdditionalResponseHeader(HttpHeaderNames.CONTENT_DISPOSITION, "attachment; filename=\"" + CertificateUtils.getGeneratedClientCertificateFileName() + "\"");
+						return HttpFile.of(new File(file, CertificateUtils.getGeneratedClientCertificateFileName())).asService().serve(ctx, req);
+					}
+				)
+			);
 
-			router.addExactPath("/" + CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName(), (ctx, req) -> {
-				ctx.addAdditionalResponseHeader(HttpHeaderNames.CONTENT_DISPOSITION, "attachment; filename=\"" + CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName() + "\"");
-				return HttpFile.of(new File(file, CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName())).asService().serve(ctx, req);
-			});
+			router.add(
+				HttpMethod.GET,
+				"/" + CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName(),
+				createCorsWrapper(
+					systemConfig,
+					(ctx, req) -> {
+						ctx.addAdditionalResponseHeader(HttpHeaderNames.CONTENT_DISPOSITION, "attachment; filename=\"" + CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName() + "\"");
+						return HttpFile.of(new File(file, CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName())).asService().serve(ctx, req);
+					}
+				)
+			);
 		} else {
 			fileName = null;
 		}
@@ -374,7 +421,7 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 		final boolean atLeastOnEndpointRequiresMtls = apiOptions.atLeastOnEndpointRequiresMtls();
 		return new SystemProvider(
 			systemConfig,
-			router.decorate(new CorsFilterServiceDecorator(systemConfig.getAllowedOrigins()).createDecorator()),
+			router,
 			Arrays.stream(systemConfig.getBaseUrls(apiOptions.exposedOn()))
 				.map(it -> it + ENDPOINT_SERVER_NAME)
 				.toArray(String[]::new),
@@ -397,6 +444,19 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 					.map(it -> it + CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName())
 					.toArray(String[]::new) :
 				new String[0]
+		);
+	}
+
+	@Nonnull
+	private HttpService createCorsWrapper(@Nonnull SystemConfig config, @Nonnull HttpService delegate) {
+		return new CorsFilter(
+			new CorsPreflightHandler(
+				delegate,
+				config.getAllowedOrigins(),
+				Set.of(HttpMethod.GET),
+				Set.of()
+			),
+			config.getAllowedOrigins()
 		);
 	}
 }

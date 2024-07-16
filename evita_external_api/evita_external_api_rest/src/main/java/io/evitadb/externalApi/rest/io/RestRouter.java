@@ -29,7 +29,8 @@ import com.linecorp.armeria.common.HttpRequest;
 import com.linecorp.armeria.common.HttpResponse;
 import com.linecorp.armeria.server.HttpService;
 import com.linecorp.armeria.server.ServiceRequestContext;
-import io.evitadb.externalApi.http.CorsFilterServiceDecorator;
+import io.evitadb.externalApi.http.CorsEndpoint;
+import io.evitadb.externalApi.http.CorsFilter;
 import io.evitadb.externalApi.rest.api.Rest;
 import io.evitadb.externalApi.rest.configuration.RestConfig;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
@@ -101,7 +102,7 @@ public class RestRouter implements HttpService {
 			final CorsEndpoint corsEndpoint = corsEndpoints.computeIfAbsent(endpoint.path(), p -> new CorsEndpoint(restConfig));
 			registerEndpoint(apiRouter, corsEndpoint, endpoint);
 		});
-		corsEndpoints.forEach((path, endpoint) -> apiRouter.add(HttpMethod.OPTIONS, path.toString(), endpoint.toService()));
+		corsEndpoints.forEach((path, endpoint) -> apiRouter.add(HttpMethod.OPTIONS, path.toString(), endpoint.toHandler()));
 
 		//fix router hierarchical inputs
 		delegateRouter.addPrefixPath(constructApiPath(apiName).toString(), apiRouter);
@@ -123,18 +124,16 @@ public class RestRouter implements HttpService {
 	 * Creates new REST endpoint on specified path with specified {@link Rest} instance.
 	 */
 	private void registerEndpoint(@Nonnull RoutingHandlerService apiRouter, @Nonnull CorsEndpoint corsEndpoint, @Nonnull Rest.Endpoint endpoint) {
-		corsEndpoint.addMetadataFromHandler(endpoint.handler());
+		corsEndpoint.addMetadataFromEndpoint(endpoint.handler());
 
 		apiRouter.add(
 			endpoint.method(),
 			endpoint.path().toString(),
-			endpoint.handler()
-				.decorate(service -> new RestExceptionHandler(objectMapper, service))
-				.decorate(
-					new CorsFilterServiceDecorator(
-						restConfig.getAllowedOrigins()
-					).createDecorator()
-				)
+			new CorsFilter(
+				endpoint.handler()
+					.decorate(service -> new RestExceptionHandler(objectMapper, service)),
+				restConfig.getAllowedOrigins()
+			)
 		);
 	}
 

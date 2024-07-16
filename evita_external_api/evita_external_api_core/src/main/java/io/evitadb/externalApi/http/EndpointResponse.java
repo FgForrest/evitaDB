@@ -24,7 +24,7 @@
 package io.evitadb.externalApi.http;
 
 /**
- * Response of {@link EndpointService}. It is used to determine HTTP response and its body.
+ * Response of {@link EndpointHandler}. It is used to determine HTTP response and its body.
  *
  * @author Lukáš Hornych, 2023
  */

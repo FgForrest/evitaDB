@@ -25,6 +25,7 @@ package io.evitadb.externalApi.http;
 
 import com.linecorp.armeria.common.HttpData;
 import com.linecorp.armeria.common.HttpHeaderNames;
+import com.linecorp.armeria.common.HttpMethod;
 import com.linecorp.armeria.common.HttpRequest;
 import com.linecorp.armeria.common.HttpResponse;
 import com.linecorp.armeria.common.HttpResponseWriter;
@@ -64,7 +65,7 @@ import java.util.stream.Collectors;
  * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
  */
 @Slf4j
-public abstract class EndpointService<C extends EndpointExecutionContext> implements HttpService {
+public abstract class EndpointHandler<C extends EndpointExecutionContext> implements HttpService {
 	private static final int STREAM_CHUNK_SIZE = 8192;
 	private static final String CONTENT_TYPE_CHARSET = "; charset=UTF-8";
 
@@ -153,7 +154,7 @@ public abstract class EndpointService<C extends EndpointExecutionContext> implem
 	 * Defines which HTTP methods can this particular endpoint process.
 	 */
 	@Nonnull
-	public abstract Set<String> getSupportedHttpMethods();
+	public abstract Set<HttpMethod> getSupportedHttpMethods();
 
 	/**
 	 * Defines which mime types are supported for request body.
@@ -185,7 +186,7 @@ public abstract class EndpointService<C extends EndpointExecutionContext> implem
 	}
 
 	private boolean hasSupportedHttpMethod(@Nonnull HttpRequest request) {
-		return getSupportedHttpMethods().contains(request.method().toString());
+		return getSupportedHttpMethods().contains(request.method());
 	}
 
 	/**
@@ -290,7 +291,7 @@ public abstract class EndpointService<C extends EndpointExecutionContext> implem
 			.thenApply(r -> {
 				try (HttpData data = r.content()) {
 					try (InputStream inputStream = data.toInputStream()) {
-						final byte[] buffer = new byte[EndpointService.STREAM_CHUNK_SIZE];
+						final byte[] buffer = new byte[EndpointHandler.STREAM_CHUNK_SIZE];
 						final StringBuilder stringBuilder = new StringBuilder(64);
 						int bytesRead;
 						while ((bytesRead = inputStream.read(buffer)) != -1) {

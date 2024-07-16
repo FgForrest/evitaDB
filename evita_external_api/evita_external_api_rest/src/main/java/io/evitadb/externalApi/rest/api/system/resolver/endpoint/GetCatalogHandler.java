@@ -77,7 +77,7 @@ public class GetCatalogHandler extends CatalogHandler {
 
 	@Nonnull
 	@Override
-	public Set<String> getSupportedHttpMethods() {
-		return Set.of(HttpMethod.GET.name());
+	public Set<HttpMethod> getSupportedHttpMethods() {
+		return Set.of(HttpMethod.GET);
 	}
 }

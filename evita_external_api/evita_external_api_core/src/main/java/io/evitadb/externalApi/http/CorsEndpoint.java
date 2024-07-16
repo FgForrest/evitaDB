@@ -21,14 +21,14 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.io;
+package io.evitadb.externalApi.http;
 
+import com.linecorp.armeria.common.HttpHeaderNames;
+import com.linecorp.armeria.common.HttpMethod;
 import com.linecorp.armeria.server.HttpService;
 import io.evitadb.externalApi.configuration.ApiWithOriginControl;
-import io.evitadb.externalApi.http.AdditionalHeaders;
 
-import io.evitadb.externalApi.http.CorsFilterServiceDecorator;
-import io.evitadb.externalApi.http.CorsPreflightService;
+import io.netty.util.AsciiString;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -44,42 +44,67 @@ import static io.evitadb.utils.CollectionUtils.createHashSet;
 public class CorsEndpoint {
 
 	@Nullable private final Set<String> allowedOrigins;
-	@Nonnull private final Set<String> allowedMethods = createHashSet(10);
-	@Nonnull private final Set<String> allowedHeaders = createHashSet(2);
+	@Nonnull private final Set<HttpMethod> allowedMethods = createHashSet(HttpMethod.values().length);
+	@Nonnull private final Set<AsciiString> allowedHeaders = createHashSet(4);
 
-	public CorsEndpoint(@Nonnull ApiWithOriginControl restConfig) {
-		this.allowedOrigins = restConfig.getAllowedOrigins() == null ? null : Set.of(restConfig.getAllowedOrigins());
+	public CorsEndpoint(@Nonnull ApiWithOriginControl apiConfig) {
+		this.allowedOrigins = apiConfig.getAllowedOrigins() == null ? null : Set.of(apiConfig.getAllowedOrigins());
 
 		// default headers for tracing that are allowed on every endpoint by default
-		this.allowedHeaders.add(AdditionalHeaders.OPENTELEMETRY_TRACEPARENT_STRING);
-		this.allowedHeaders.add(AdditionalHeaders.EVITADB_CLIENTID_HEADER_STRING);
+		this.allowedHeaders.add(AdditionalHttpHeaderNames.OPENTELEMETRY_TRACEPARENT_STRING);
+		this.allowedHeaders.add(AdditionalHttpHeaderNames.EVITADB_CLIENTID_HEADER_STRING);
 	}
 
-	public void addMetadataFromHandler(@Nonnull RestEndpointHandler<?> handler) {
+	/**
+	 * Adds allowed metadata from endpoint.
+	 */
+	public void addMetadataFromEndpoint(@Nonnull EndpointHandler<?> endpointHandler) {
 		addMetadata(
-			handler.getSupportedHttpMethods(),
-			!handler.getSupportedRequestContentTypes().isEmpty(),
-			!handler.getSupportedResponseContentTypes().isEmpty()
+			endpointHandler.getSupportedHttpMethods(),
+			!endpointHandler.getSupportedRequestContentTypes().isEmpty(),
+			!endpointHandler.getSupportedResponseContentTypes().isEmpty()
 		);
 	}
 
-	public void addMetadata(@Nonnull Set<String> supportedHttpMethods,
+	public void addMetadata(@Nonnull Set<HttpMethod> supportedHttpMethods,
 	                        boolean supportsRequestContentType,
 	                        boolean supportsResponseContentType) {
 		allowedMethods.addAll(supportedHttpMethods);
 		if (supportsRequestContentType) {
-			allowedHeaders.add("Content-Type");
+			allowedHeaders.add(HttpHeaderNames.CONTENT_TYPE);
 		}
 		if (supportsResponseContentType) {
-			allowedHeaders.add("Accept");
+			allowedHeaders.add(HttpHeaderNames.ACCEPT);
 		}
 	}
 
-	@Nonnull
-	public HttpService toService() {
-		// todo lho verify
-		return new CorsPreflightService(allowedOrigins, allowedMethods, allowedHeaders).decorate(
-			new CorsFilterServiceDecorator(allowedOrigins).createDecorator()
+
+	/**
+	 * Creates CORS preflight handler
+	 */
+	public HttpService toHandler() {
+		return new CorsFilter(
+			new CorsPreflightHandler(
+				allowedOrigins,
+				allowedMethods,
+				allowedHeaders
+			),
+			allowedOrigins
+		);
+	}
+
+	/**
+	 * Creates CORS preflight handler. Non-preflight requests are delegated to the passed delegate.
+	 */
+	public HttpService toHandler(@Nonnull HttpService delegate) {
+		return new CorsFilter(
+			new CorsPreflightHandler(
+				delegate,
+				allowedOrigins,
+				allowedMethods,
+				allowedHeaders
+			),
+			allowedOrigins
 		);
 	}
 }

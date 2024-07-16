@@ -109,8 +109,8 @@ public class DeleteEntitiesByQueryHandler extends QueryOrientedEntitiesHandler {
 
 	@Nonnull
 	@Override
-	public Set<String> getSupportedHttpMethods() {
-		return Set.of(HttpMethod.DELETE.name());
+	public Set<HttpMethod> getSupportedHttpMethods() {
+		return Set.of(HttpMethod.DELETE);
 	}
 
 	@Nonnull

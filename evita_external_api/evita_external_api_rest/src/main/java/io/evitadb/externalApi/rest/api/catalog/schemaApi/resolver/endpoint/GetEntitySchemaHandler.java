@@ -71,7 +71,7 @@ public class GetEntitySchemaHandler extends EntitySchemaHandler {
 
 	@Nonnull
 	@Override
-	public Set<String> getSupportedHttpMethods() {
-		return Set.of(HttpMethod.GET.name());
+	public Set<HttpMethod> getSupportedHttpMethods() {
+		return Set.of(HttpMethod.GET);
 	}
 }

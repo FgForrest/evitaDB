@@ -31,7 +31,7 @@ import io.evitadb.core.Evita;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.externalApi.exception.ExternalApiInvalidUsageException;
 import io.evitadb.externalApi.http.EndpointResponse;
-import io.evitadb.externalApi.http.EndpointService;
+import io.evitadb.externalApi.http.EndpointHandler;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.CollectionRestHandlingContext;
 import io.evitadb.externalApi.rest.api.catalog.resolver.endpoint.CatalogRestHandlingContext;
 import io.evitadb.externalApi.rest.api.openApi.SchemaUtils;
@@ -56,7 +56,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-import static io.evitadb.externalApi.http.AdditionalHeaders.INTERNAL_HEADER_PREFIX;
+import static io.evitadb.externalApi.http.AdditionalHttpHeaderNames.INTERNAL_HEADER_PREFIX;
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 
 /**
@@ -65,7 +65,7 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
 @Slf4j
-public abstract class RestEndpointHandler<CTX extends RestHandlingContext> extends EndpointService<RestEndpointExecutionContext> {
+public abstract class RestEndpointHandler<CTX extends RestHandlingContext> extends EndpointHandler<RestEndpointExecutionContext> {
 
     @Nonnull
     protected final CTX restHandlingContext;

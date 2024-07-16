@@ -30,7 +30,6 @@ import io.evitadb.externalApi.http.SuccessEndpointResponse;
 import io.evitadb.externalApi.observability.ObservabilityManager;
 
 import javax.annotation.Nonnull;
-import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
@@ -57,19 +56,13 @@ public class StartLoggingHandler extends LoggingEndpointHandler {
 
 	@Nonnull
 	@Override
-	public Set<String> getSupportedHttpMethods() {
-		return Set.of(HttpMethod.POST.name());
+	public Set<HttpMethod> getSupportedHttpMethods() {
+		return Set.of(HttpMethod.POST);
 	}
 
 	@Nonnull
 	@Override
 	public Set<String> getSupportedRequestContentTypes() {
-		return DEFAULT_SUPPORTED_CONTENT_TYPES;
-	}
-
-	@Nonnull
-	@Override
-	public LinkedHashSet<String> getSupportedResponseContentTypes() {
 		return DEFAULT_SUPPORTED_CONTENT_TYPES;
 	}
 }

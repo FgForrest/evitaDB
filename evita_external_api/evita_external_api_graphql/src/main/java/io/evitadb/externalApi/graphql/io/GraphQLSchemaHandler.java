@@ -36,7 +36,7 @@ import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidUsageException;
 import io.evitadb.externalApi.graphql.utils.GraphQLSchemaPrinter;
 import io.evitadb.externalApi.http.EndpointResponse;
-import io.evitadb.externalApi.http.EndpointService;
+import io.evitadb.externalApi.http.EndpointHandler;
 import io.evitadb.externalApi.http.SuccessEndpointResponse;
 import io.evitadb.utils.Assert;
 import io.netty.channel.EventLoop;
@@ -57,7 +57,7 @@ import static io.evitadb.utils.CollectionUtils.createLinkedHashSet;
  * @author Lukáš Hornych, FG Forrest a.s. 2023
  */
 @Slf4j
-public class GraphQLSchemaHandler extends EndpointService<GraphQLSchemaEndpointExecutionContext> {
+public class GraphQLSchemaHandler extends EndpointHandler<GraphQLSchemaEndpointExecutionContext> {
 
     @Nonnull
     private final Evita evita;
@@ -109,8 +109,8 @@ public class GraphQLSchemaHandler extends EndpointService<GraphQLSchemaEndpointE
 
     @Nonnull
     @Override
-    public Set<String> getSupportedHttpMethods() {
-        return Set.of(HttpMethod.GET.name());
+    public Set<HttpMethod> getSupportedHttpMethods() {
+        return Set.of(HttpMethod.GET);
     }
 
     @Nonnull

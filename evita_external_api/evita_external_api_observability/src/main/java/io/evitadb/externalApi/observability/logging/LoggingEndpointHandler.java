@@ -28,7 +28,7 @@ import com.linecorp.armeria.common.HttpRequest;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.externalApi.exception.ExternalApiInvalidUsageException;
-import io.evitadb.externalApi.http.EndpointService;
+import io.evitadb.externalApi.http.EndpointHandler;
 import io.evitadb.externalApi.http.MimeTypes;
 import io.evitadb.externalApi.observability.ObservabilityManager;
 import io.evitadb.externalApi.observability.exception.ObservabilityInternalError;
@@ -45,7 +45,7 @@ import java.util.concurrent.CompletableFuture;
  *
  * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
  */
-public abstract class LoggingEndpointHandler extends EndpointService<LoggingEndpointExecutionContext> {
+public abstract class LoggingEndpointHandler extends EndpointHandler<LoggingEndpointExecutionContext> {
 	protected static final LinkedHashSet<String> DEFAULT_SUPPORTED_CONTENT_TYPES = new LinkedHashSet<>(List.of(MimeTypes.APPLICATION_JSON));
 	private final Evita evita;
 	protected final ObservabilityManager manager;

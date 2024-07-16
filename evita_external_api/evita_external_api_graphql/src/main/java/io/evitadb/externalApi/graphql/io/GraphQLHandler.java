@@ -52,7 +52,7 @@ import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidUsageException;
 import io.evitadb.externalApi.graphql.metric.event.request.ExecutedEvent;
 import io.evitadb.externalApi.http.EndpointResponse;
-import io.evitadb.externalApi.http.EndpointService;
+import io.evitadb.externalApi.http.EndpointHandler;
 import io.evitadb.externalApi.http.MimeTypes;
 import io.evitadb.externalApi.http.SuccessEndpointResponse;
 import io.evitadb.externalApi.trace.ExternalApiTracingContextProvider;
@@ -78,7 +78,7 @@ import static io.evitadb.utils.CollectionUtils.createLinkedHashSet;
  * @author Lukáš Hornych, FG Forrest a.s. 2022
  */
 @Slf4j
-public class GraphQLHandler extends EndpointService<GraphQLEndpointExecutionContext> {
+public class GraphQLHandler extends EndpointHandler<GraphQLEndpointExecutionContext> {
 
     /**
      * Set of GraphQL exceptions that are caused by invalid user input and thus shouldn't return server error.
@@ -176,8 +176,8 @@ public class GraphQLHandler extends EndpointService<GraphQLEndpointExecutionCont
 
     @Nonnull
     @Override
-    public Set<String> getSupportedHttpMethods() {
-        return Set.of(HttpMethod.POST.name());
+    public Set<HttpMethod> getSupportedHttpMethods() {
+        return Set.of(HttpMethod.POST);
     }
 
     @Nonnull

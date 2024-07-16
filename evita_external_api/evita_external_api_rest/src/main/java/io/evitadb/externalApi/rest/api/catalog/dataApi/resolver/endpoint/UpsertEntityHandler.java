@@ -129,8 +129,8 @@ public class UpsertEntityHandler extends EntityHandler<CollectionRestHandlingCon
 
 	@Nonnull
 	@Override
-	public Set<String> getSupportedHttpMethods() {
-		return Set.of(withPrimaryKeyInPath ? HttpMethod.PUT.name() : HttpMethod.POST.name());
+	public Set<HttpMethod> getSupportedHttpMethods() {
+		return Set.of(withPrimaryKeyInPath ? HttpMethod.PUT : HttpMethod.POST);
 	}
 
 	@Nonnull

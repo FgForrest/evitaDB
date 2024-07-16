@@ -30,7 +30,7 @@ import io.evitadb.core.Evita;
 import io.evitadb.core.metric.event.CustomMetricsExecutionEvent;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.externalApi.configuration.ApiOptions;
-import io.evitadb.externalApi.http.CorsFilterServiceDecorator;
+import io.evitadb.externalApi.http.CorsEndpoint;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
 import io.evitadb.externalApi.observability.agent.ErrorMonitor;
 import io.evitadb.externalApi.observability.configuration.ObservabilityConfig;
@@ -341,21 +341,20 @@ public class ObservabilityManager {
 	 * Registers endpoints for controlling JFR recording.
 	 */
 	private void registerJfrControlEndpoints() {
-		this.observabilityRouter.addExactPath("/start",
-			new ObservabilityExceptionHandler(
-				objectMapper,
-				new StartLoggingHandler(this.evita, this)
-			).decorate(
-				new CorsFilterServiceDecorator(config.getAllowedOrigins()).createDecorator()
-			)
+		final StartLoggingHandler startLoggingHandler = new StartLoggingHandler(this.evita, this);
+		final StopLoggingHandler stopLoggingHandler = new StopLoggingHandler(this.evita, this);
+
+		final CorsEndpoint corsEndpoint = new CorsEndpoint(config);
+		corsEndpoint.addMetadataFromEndpoint(startLoggingHandler);
+		corsEndpoint.addMetadataFromEndpoint(startLoggingHandler);
+
+		this.observabilityRouter.addExactPath(
+			"/start",
+			corsEndpoint.toHandler(new ObservabilityExceptionHandler(objectMapper, startLoggingHandler))
 		);
-		this.observabilityRouter.addExactPath("/stop",
-			new ObservabilityExceptionHandler(
-				objectMapper,
-				new StopLoggingHandler(this.evita, this)
-			).decorate(
-				new CorsFilterServiceDecorator(config.getAllowedOrigins()).createDecorator()
-			)
+		this.observabilityRouter.addExactPath(
+			"/stop",
+			corsEndpoint.toHandler(new ObservabilityExceptionHandler(objectMapper, stopLoggingHandler))
 		);
 	}
 }

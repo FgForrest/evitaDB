@@ -97,7 +97,7 @@ public class DeleteEntityHandler extends EntityHandler<CollectionRestHandlingCon
 
 	@Nonnull
 	@Override
-	public Set<String> getSupportedHttpMethods() {
-		return Set.of(HttpMethod.DELETE.name());
+	public Set<HttpMethod> getSupportedHttpMethods() {
+		return Set.of(HttpMethod.DELETE);
 	}
 }

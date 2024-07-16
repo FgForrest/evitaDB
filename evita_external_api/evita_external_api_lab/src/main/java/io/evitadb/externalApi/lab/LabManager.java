@@ -29,14 +29,14 @@ import com.linecorp.armeria.server.HttpService;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.configuration.ApiOptions;
-import io.evitadb.externalApi.http.CorsFilterServiceDecorator;
+import io.evitadb.externalApi.http.CorsFilter;
 import io.evitadb.externalApi.http.PathNormalizingHandler;
 import io.evitadb.externalApi.lab.api.LabApiBuilder;
 import io.evitadb.externalApi.lab.configuration.LabConfig;
 import io.evitadb.externalApi.lab.gui.resolver.GuiHandler;
 import io.evitadb.externalApi.lab.io.LabExceptionHandler;
 import io.evitadb.externalApi.rest.api.Rest;
-import io.evitadb.externalApi.rest.io.CorsEndpoint;
+import io.evitadb.externalApi.http.CorsEndpoint;
 import io.evitadb.externalApi.utils.path.RoutingHandlerService;
 import io.evitadb.externalApi.utils.UriPath;
 import io.evitadb.utils.StringUtils;
@@ -82,7 +82,7 @@ public class LabManager {
 
 		registerLabApi();
 		registerLabGui();
-		corsEndpoints.forEach((path, endpoint) -> labRouter.add(HttpMethod.OPTIONS, path.toString(), endpoint.toService()));
+		corsEndpoints.forEach((path, endpoint) -> labRouter.add(HttpMethod.OPTIONS, path.toString(), endpoint.toHandler()));
 
 		log.info("Built Lab in " + StringUtils.formatPreciseNano(System.currentTimeMillis() - buildingStartTime));
 	}
@@ -108,15 +108,15 @@ public class LabManager {
 		final UriPath path = UriPath.of("/", LAB_API_URL_PREFIX, endpoint.path());
 
 		final CorsEndpoint corsEndpoint = corsEndpoints.computeIfAbsent(path, p -> new CorsEndpoint(labConfig));
-		corsEndpoint.addMetadataFromHandler(endpoint.handler());
+		corsEndpoint.addMetadataFromEndpoint(endpoint.handler());
 
 		labRouter.add(
 			endpoint.method(),
 			path.toString(),
-			endpoint.handler()
-			.decorate(service -> new LabExceptionHandler(objectMapper, service))
-			.decorate(
-				new CorsFilterServiceDecorator(labConfig.getAllowedOrigins()).createDecorator()
+			new CorsFilter(
+				endpoint.handler()
+					.decorate(service -> new LabExceptionHandler(objectMapper, service)),
+				labConfig.getAllowedOrigins()
 			)
 		);
 	}
@@ -128,16 +128,16 @@ public class LabManager {
 		final UriPath endpointPath = UriPath.of("/", "*");
 
 		final CorsEndpoint corsEndpoint = corsEndpoints.computeIfAbsent(endpointPath, p -> new CorsEndpoint(labConfig));
-		corsEndpoint.addMetadata(Set.of(HttpMethod.GET.name()), true, true);
+		corsEndpoint.addMetadata(Set.of(HttpMethod.GET), true, true);
 
 		final EvitaConfiguration configuration = evita.getConfiguration();
 		labRouter.add(
 			HttpMethod.GET,
 			endpointPath.toString(),
-			GuiHandler.create(labConfig, configuration.name(), apiOptions, objectMapper)
-			.decorate(service -> new LabExceptionHandler(objectMapper, service))
-			.decorate(
-				new CorsFilterServiceDecorator(labConfig.getAllowedOrigins()).createDecorator()
+			new CorsFilter(
+				GuiHandler.create(labConfig, configuration.name(), apiOptions, objectMapper)
+					.decorate(service -> new LabExceptionHandler(objectMapper, service)),
+				labConfig.getAllowedOrigins()
 			)
 		);
 	}

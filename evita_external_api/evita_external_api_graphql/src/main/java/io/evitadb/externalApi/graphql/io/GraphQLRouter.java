@@ -24,7 +24,6 @@
 package io.evitadb.externalApi.graphql.io;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.linecorp.armeria.common.HttpHeaderNames;
 import com.linecorp.armeria.common.HttpMethod;
 import com.linecorp.armeria.common.HttpRequest;
 import com.linecorp.armeria.common.HttpResponse;
@@ -34,9 +33,8 @@ import graphql.GraphQL;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.graphql.configuration.GraphQLConfig;
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
-import io.evitadb.externalApi.http.AdditionalHeaders;
-import io.evitadb.externalApi.http.CorsFilterServiceDecorator;
-import io.evitadb.externalApi.http.CorsPreflightService;
+import io.evitadb.externalApi.http.CorsEndpoint;
+import io.evitadb.externalApi.http.CorsFilter;
 import io.evitadb.externalApi.utils.UriPath;
 import io.evitadb.externalApi.utils.path.PathHandlingService;
 import io.evitadb.externalApi.utils.path.RoutingHandlerService;
@@ -157,52 +155,37 @@ public class GraphQLRouter implements HttpService {
 	 * Registers all needed endpoints for a single API into a passed router.
 	 */
 	private void registerApi(@Nonnull RoutingHandlerService apiRouter, @Nonnull RegisteredApi registeredApi) {
+		final CorsEndpoint corsEndpoint = new CorsEndpoint(this.graphQLConfig);
+		corsEndpoint.addMetadata(Set.of(HttpMethod.GET, HttpMethod.POST), true, true);
+
 		// actual GraphQL query handler
 		apiRouter.add(
 			HttpMethod.POST,
 			registeredApi.path().toString(),
-			new GraphQLHandler(this.evita, this.objectMapper, registeredApi.instanceType(), registeredApi.graphQLReference())
-			.decorate(service -> new GraphQLExceptionHandler(this.objectMapper, service))
-			.decorate(
-				new CorsFilterServiceDecorator(
-					graphQLConfig.getAllowedOrigins()
-				).createDecorator()
+			new CorsFilter(
+				new GraphQLHandler(this.evita, this.objectMapper, registeredApi.instanceType(), registeredApi.graphQLReference())
+					.decorate(service -> new GraphQLExceptionHandler(this.objectMapper, service)),
+				graphQLConfig.getAllowedOrigins()
 			)
 		);
 		// GraphQL schema handler
 		apiRouter.add(
 			HttpMethod.GET,
 			registeredApi.path().toString(),
-			new GraphQLSchemaHandler(
-				this.evita,
-				registeredApi.graphQLReference()
-			)
-			.decorate(service -> new GraphQLExceptionHandler(this.objectMapper, service))
-			.decorate(
-				new CorsFilterServiceDecorator(
-					this.graphQLConfig.getAllowedOrigins()
-				).createDecorator()
+			new CorsFilter(
+				new GraphQLSchemaHandler(
+					this.evita,
+					registeredApi.graphQLReference()
+				)
+					.decorate(service -> new GraphQLExceptionHandler(this.objectMapper, service)),
+				graphQLConfig.getAllowedOrigins()
 			)
 		);
 		// CORS pre-flight handler for the GraphQL handler
 		apiRouter.add(
 			HttpMethod.OPTIONS,
 			registeredApi.path().toString(),
-			new CorsPreflightService(
-				this.graphQLConfig.getAllowedOrigins(),
-				Set.of(HttpMethod.GET.name(), HttpMethod.POST.name()),
-				Set.of(
-					HttpHeaderNames.CONTENT_TYPE.toString(),
-					HttpHeaderNames.ACCEPT.toString(),
-					// default headers for tracing that are allowed on every endpoint by default
-					AdditionalHeaders.OPENTELEMETRY_TRACEPARENT_STRING,
-					AdditionalHeaders.EVITADB_CLIENTID_HEADER_STRING
-				)
-			).decorate(
-				new CorsFilterServiceDecorator(
-					this.graphQLConfig.getAllowedOrigins()
-				).createDecorator()
-			)
+			corsEndpoint.toHandler()
 		);
 	}
 

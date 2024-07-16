@@ -55,8 +55,8 @@ public class StopLoggingHandler extends LoggingEndpointHandler {
 
 	@Nonnull
 	@Override
-	public Set<String> getSupportedHttpMethods() {
-		return Set.of(HttpMethod.POST.name());
+	public Set<HttpMethod> getSupportedHttpMethods() {
+		return Set.of(HttpMethod.POST);
 	}
 
 	@Nonnull

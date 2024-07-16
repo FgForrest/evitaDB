@@ -23,23 +23,20 @@
 
 package io.evitadb.externalApi.http;
 
+import io.netty.util.AsciiString;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
 /**
- * Additional list of HTTP headers that are not supported by {@link com.linecorp.armeria.common.HttpHeaders}.
+ * Additional list of HTTP headers that are not supported by {@link com.linecorp.armeria.common.HttpHeaderNames}.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
-public class AdditionalHeaders {
+public class AdditionalHttpHeaderNames {
 
-	public static final String VARY_STRING = "Vary";
-	public static final String ACCESS_CONTROL_ALLOW_ORIGIN_STRING = "Access-Control-Allow-Origin";
-	public static final String ACCESS_CONTROL_ALLOW_METHODS_STRING = "Access-Control-Allow-Methods";
-	public static final String ACCESS_CONTROL_ALLOW_HEADERS_STRING = "Access-Control-Allow-Headers";
-	public static final String OPENTELEMETRY_TRACEPARENT_STRING = "traceparent";
-	public static final String EVITADB_CLIENTID_HEADER_STRING = "X-EvitaDB-ClientID";
+	public static final AsciiString OPENTELEMETRY_TRACEPARENT_STRING = new AsciiString("traceparent");
+	public static final AsciiString EVITADB_CLIENTID_HEADER_STRING = new AsciiString("X-EvitaDB-ClientID");
 
-	public static final String INTERNAL_HEADER_PREFIX = "internal_";
+	public static final AsciiString INTERNAL_HEADER_PREFIX = new AsciiString("internal_");
 }
