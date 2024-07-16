@@ -59,6 +59,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -147,7 +148,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 		} finally {
 			try {
 				evitaServer.getEvita().deleteCatalogIfExists(TEST_CATALOG);
-				evitaServer.stop();
+				evitaServer.stop().get(1, TimeUnit.MINUTES);;
 			} catch (Exception ex) {
 				fail(ex.getMessage(), ex);
 			}
@@ -198,7 +199,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 		} finally {
 			try {
 				evitaServer.getEvita().deleteCatalogIfExists(TEST_CATALOG);
-				evitaServer.stop();
+				evitaServer.stop().get(1, TimeUnit.MINUTES);
 			} catch (Exception ex) {
 				fail(ex.getMessage(), ex);
 			}
@@ -255,7 +256,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 			} finally {
 				try {
 					evitaServer.getEvita().deleteCatalogIfExists(TEST_CATALOG);
-					evitaServer.stop();
+					evitaServer.stop().get(1, TimeUnit.MINUTES);;
 				} catch (Exception ex) {
 					fail(ex.getMessage(), ex);
 				}
@@ -319,7 +320,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 		} finally {
 			try {
 				evitaServer.getEvita().deleteCatalogIfExists(TEST_CATALOG);
-				evitaServer.stop();
+				evitaServer.stop().get(1, TimeUnit.MINUTES);;
 			} catch (Exception ex) {
 				fail(ex.getMessage(), ex);
 			}
@@ -475,7 +476,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 			fail(ex);
 		} finally {
 			try {
-				evitaServer.stop();
+				evitaServer.stop().get(1, TimeUnit.MINUTES);;
 			} catch (Exception ex) {
 				fail(ex.getMessage(), ex);
 			}
@@ -523,7 +524,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 		} finally {
 			try {
 				evitaServer.getEvita().deleteCatalogIfExists(TEST_CATALOG);
-				evitaServer.stop();
+				evitaServer.stop().get(1, TimeUnit.MINUTES);;
 			} catch (Exception ex) {
 				fail(ex.getMessage(), ex);
 			}

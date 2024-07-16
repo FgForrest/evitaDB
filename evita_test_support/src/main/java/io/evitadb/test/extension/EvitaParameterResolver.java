@@ -1198,10 +1198,7 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 
 			// close the server instance and free ports
 			ofNullable(evitaServerInstance)
-				.ifPresent(it -> {
-					it.stop();
-					portManager.releasePorts(dataSetName);
-				});
+				.ifPresent(it -> it.stop().thenAccept(unused -> portManager.releasePorts(dataSetName)));
 
 			// close all closeable elements in data carrier
 			if (dataCarrier != null) {

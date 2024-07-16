@@ -76,6 +76,10 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.regex.Matcher;
@@ -145,6 +149,10 @@ public class EvitaServer {
 	 * Instance of the web server providing the HTTP endpoints.
 	 */
 	@Getter private ExternalApiServer externalApiServer;
+	/**
+	 * Reference to a future that is initialized when server is stopped.
+	 */
+	private CompletableFuture<Void> stopFuture;
 
 	/**
 	 * Rock'n'Roll.
@@ -431,11 +439,13 @@ public class EvitaServer {
 	/**
 	 * Method stops {@link ExternalApiServer} and closes all opened ports.
 	 */
-	public void stop() {
-		if (externalApiServer != null) {
-			externalApiServer.close();
+	@Nonnull
+	public CompletableFuture<Void> stop() {
+		if (this.stopFuture != null) {
+			this.stopFuture = externalApiServer.closeAsynchronously()
+				.thenAccept(unused -> ConsoleWriter.write("Server stopped, bye.\n\n"));
 		}
-		ConsoleWriter.write("Server stopped, bye.\n\n");
+		return this.stopFuture;
 	}
 
 	/**
@@ -543,8 +553,13 @@ public class EvitaServer {
 
 		@Override
 		public void run() {
-			evitaServer.stop();
-			stop();
+			try {
+				evitaServer.stop()
+					.thenAccept(unused -> stop())
+					.get(5, TimeUnit.SECONDS);
+			} catch (ExecutionException | InterruptedException | TimeoutException e) {
+				ConsoleWriter.write("Failed to stop evita server in dedicated time (5 secs.).\n");
+			}
 		}
 
 		protected void stop() {

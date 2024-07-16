@@ -113,6 +113,7 @@ public class ExternalApiServer implements AutoCloseable {
 	private final Server server;
 	@Getter private final ApiOptions apiOptions;
 	private final Map<String, ExternalApiProvider<?>> registeredApiProviders;
+	private CompletableFuture<Void> stopFuture;
 
 	/**
 	 * Finds all implementations of {@link ExternalApiProviderRegistrar} using {@link ServiceLoader} from the classpath.
@@ -479,19 +480,28 @@ public class ExternalApiServer implements AutoCloseable {
 	 */
 	@Override
 	public void close() {
-		if (server == null) {
-			return;
-		}
-
 		try {
-			this.registeredApiProviders.values().forEach(ExternalApiProvider::beforeStop);
-			final long start = System.nanoTime();
-			final CompletableFuture<Void> stopFuture = this.server.stop();
-			stopFuture.get(5, TimeUnit.SECONDS);
-			ConsoleWriter.write("External APIs stopped in " + StringUtils.formatPreciseNano(System.nanoTime() - start) + ".\n");
+			closeAsynchronously().get(5, TimeUnit.SECONDS);
 		} catch (Exception ex) {
 			ConsoleWriter.write("Failed to stop external APIs in dedicated time (5 secs.).\n");
 		}
+	}
+
+	/**
+	 * Stops this running HTTP server and its registered APIs.
+	 */
+	@Nonnull
+	public CompletableFuture<Void> closeAsynchronously() {
+		if (this.stopFuture == null) {
+			this.registeredApiProviders.values().forEach(ExternalApiProvider::beforeStop);
+			final long start = System.nanoTime();
+			this.stopFuture = this.server.stop()
+				.thenAccept(
+					unused -> ConsoleWriter.write(
+						"External APIs stopped in " + StringUtils.formatPreciseNano(System.nanoTime() - start) + ".\n")
+				);
+		}
+		return this.stopFuture;
 	}
 
 	/**
