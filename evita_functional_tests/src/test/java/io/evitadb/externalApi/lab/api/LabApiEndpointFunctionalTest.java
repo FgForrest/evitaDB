@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -197,6 +197,7 @@ class LabApiEndpointFunctionalTest extends RestEndpointFunctionalTest implements
 	@Nonnull
 	private static Map<String, Object> createCatalogDto(@Nonnull CatalogContract catalog) {
 		return map()
+			.e(CatalogDescriptor.CATALOG_ID.name(), catalog.getCatalogId().toString())
 			.e(CatalogDescriptor.NAME.name(), catalog.getName())
 			.e(CatalogDescriptor.NAME_VARIANTS.name(), map()
 				.e(NameVariantsDescriptor.CAMEL_CASE.name(), catalog.getSchema().getNameVariants().get(NamingConvention.CAMEL_CASE))
