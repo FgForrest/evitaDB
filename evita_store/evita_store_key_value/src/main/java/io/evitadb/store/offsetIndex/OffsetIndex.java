@@ -1500,7 +1500,8 @@ public class OffsetIndex {
 			return new PastMemory(
 				Collections.unmodifiableMap(result),
 				addedKeys.isEmpty() ? Collections.emptySet() : Collections.unmodifiableSet(addedKeys),
-				removedKeys.isEmpty() ? Collections.emptySet() : Collections.unmodifiableSet(removedKeys)
+				removedKeys.isEmpty() ? Collections.emptySet() : Collections.unmodifiableSet(removedKeys),
+				nonFlushedValuesHistogram
 			);
 		}
 
@@ -1522,6 +1523,10 @@ public class OffsetIndex {
 			addedKeys.addAll(this.addedKeys);
 			final Set<RecordKey> removedKeys = new HashSet<>(existingHistory.getRemovedKeys());
 			removedKeys.addAll(this.removedKeys);
+			final Map<Byte, Integer> histogram = new HashMap<>(existingHistory.getHistogram());
+			for (Entry<Byte, Integer> entry : nonFlushedValuesHistogram.entrySet()) {
+				histogram.compute(entry.getKey(), (k, v) -> v == null ? entry.getValue() : v + entry.getValue());
+			}
 			final Map<RecordKey, VersionedValue> replacedValues = new HashMap<>(existingHistory.getReplacedValues());
 			for (RecordKey replacedKey : nonFlushedValueIndex.keySet()) {
 				// if the existing history already contains the key, we must not overwrite it, the currentLocations
@@ -1536,7 +1541,8 @@ public class OffsetIndex {
 			return new PastMemory(
 				Collections.unmodifiableMap(replacedValues),
 				addedKeys.isEmpty() ? Collections.emptySet() : Collections.unmodifiableSet(addedKeys),
-				removedKeys.isEmpty() ? Collections.emptySet() : Collections.unmodifiableSet(removedKeys)
+				removedKeys.isEmpty() ? Collections.emptySet() : Collections.unmodifiableSet(removedKeys),
+				histogram
 			);
 		}
 
@@ -1554,6 +1560,14 @@ public class OffsetIndex {
 				removedKeys.size() * RecordKey.MEMORY_SIZE;
 		}
 
+		/**
+		 * Returns the count of non-flushed records of particular type.
+		 * @param recordTypeId the record type id
+		 * @return the count of non-flushed records of particular type
+		 */
+		public int getCountFor(byte recordTypeId) {
+			return nonFlushedValuesHistogram.getOrDefault(recordTypeId, 0);
+		}
 	}
 
 	/**
@@ -1646,22 +1660,24 @@ public class OffsetIndex {
 			}
 
 			// scan also all previous versions we still keep in memory
-			final ConcurrentHashMap<Long, PastMemory> hvValues;
-			final long[] hv;
-			try {
-				this.lock.lock();
-				hvValues = this.volatileValues;
-				hv = this.historicalVersions;
-			} finally {
-				this.lock.unlock();
-			}
-			if (hv != null) {
-				int index = Arrays.binarySearch(hv, catalogVersion);
-				if (index != -1) {
-					final int startIndex = index >= 0 ? index : -index - 1;
-					for (int ix = hv.length - 1; ix > startIndex && ix >= 0; ix--) {
-						final PastMemory differenceSet = hvValues.get(hv[ix]);
-						diff -= differenceSet.getAddedKeys().size() - differenceSet.getRemovedKeys().size();
+			if (this.volatileValues != null) {
+				final ConcurrentHashMap<Long, PastMemory> hvValues;
+				final long[] hv;
+				try {
+					this.lock.lock();
+					hvValues = this.volatileValues;
+					hv = this.historicalVersions;
+				} finally {
+					this.lock.unlock();
+				}
+				if (hv != null) {
+					int index = Arrays.binarySearch(hv, catalogVersion);
+					if (index != -1) {
+						final int startIndex = index >= 0 ? index : -index - 1;
+						for (int ix = hv.length - 1; ix > startIndex && ix >= 0; ix--) {
+							final PastMemory differenceSet = hvValues.get(hv[ix]);
+							diff -= differenceSet.getAddedKeys().size() - differenceSet.getRemovedKeys().size();
+						}
 					}
 				}
 			}
@@ -1688,44 +1704,38 @@ public class OffsetIndex {
 					final int startIndex = index >= 0 ? index : -index - 1;
 					for (int ix = nv.length - 1; ix >= startIndex && ix >= 0; ix--) {
 						final NonFlushedValueSet nonFlushedValueSet = nvValues.get(nv[ix]);
-						for (RecordKey addedKey : nonFlushedValueSet.getAddedKeys()) {
-							if (addedKey.recordType() == recordTypeId) {
-								diff++;
-							}
-						}
-						for (RecordKey removedKey : nonFlushedValueSet.getRemovedKeys()) {
-							if (removedKey.recordType() == recordTypeId) {
-								diff--;
-							}
-						}
+						diff += nonFlushedValueSet.getCountFor(recordTypeId);
 					}
 				}
 			}
 
 			// scan also all previous versions we still keep in memory
-			final ConcurrentHashMap<Long, PastMemory> hvValues;
-			final long[] hv;
-			try {
-				this.lock.lock();
-				hvValues = this.volatileValues;
-				hv = this.historicalVersions;
-			} finally {
-				this.lock.unlock();
-			}
-			if (hv != null) {
-				int index = Arrays.binarySearch(hv, catalogVersion);
-				if (index != -1) {
-					final int startIndex = index >= 0 ? index : -index - 1;
-					for (int ix = hv.length - 1; ix > startIndex && ix >= 0; ix--) {
-						final PastMemory differenceSet = hvValues.get(hv[ix]);
-						for (RecordKey addedKey : differenceSet.getAddedKeys()) {
-							if (addedKey.recordType() == recordTypeId) {
-								diff--;
+			if (this.volatileValues != null) {
+				final ConcurrentHashMap<Long, PastMemory> hvValues;
+				final long[] hv;
+				try {
+					this.lock.lock();
+					hvValues = this.volatileValues;
+					hv = this.historicalVersions;
+				} finally {
+					this.lock.unlock();
+				}
+				if (hv != null) {
+					int index = Arrays.binarySearch(hv, catalogVersion);
+					if (index != -1) {
+						final int startIndex = index >= 0 ? index : -index - 1;
+						for (int ix = hv.length - 1; ix > startIndex && ix >= 0; ix--) {
+							final PastMemory differenceSet = hvValues.get(hv[ix]);
+							diff += differenceSet.getCountFor(recordTypeId);
+							for (RecordKey addedKey : differenceSet.getAddedKeys()) {
+								if (addedKey.recordType() == recordTypeId) {
+									diff--;
+								}
 							}
-						}
-						for (RecordKey removedKey : differenceSet.getRemovedKeys()) {
-							if (removedKey.recordType() == recordTypeId) {
-								diff++;
+							for (RecordKey removedKey : differenceSet.getRemovedKeys()) {
+								if (removedKey.recordType() == recordTypeId) {
+									diff++;
+								}
 							}
 						}
 					}
@@ -2155,6 +2165,11 @@ public class OffsetIndex {
 		@Nonnull private final Map<RecordKey, VersionedValue> replacedValues;
 		@Nonnull private final Set<RecordKey> addedKeys;
 		@Nonnull private final Set<RecordKey> removedKeys;
+		/**
+		 * Map of non-flushed values. We can use "non-concurrent" map because this instance is secured by the write
+		 * handle for concurrent access.
+		 */
+		private final Map<Byte, Integer> histogram;
 
 		/**
 		 * Retrieves the previous value associated with the specified record key.
@@ -2188,6 +2203,15 @@ public class OffsetIndex {
 				replacedValues.size() * (RecordKey.MEMORY_SIZE + VersionedValue.MEMORY_SIZE) +
 				addedKeys.size() * RecordKey.MEMORY_SIZE +
 				removedKeys.size() * RecordKey.MEMORY_SIZE;
+		}
+
+		/**
+		 * Returns the count of past memory records of particular type.
+		 * @param recordTypeId the record type id
+		 * @return the count of past memory records of particular type
+		 */
+		public int getCountFor(byte recordTypeId) {
+			return histogram.getOrDefault(recordTypeId, 0);
 		}
 	}
 
