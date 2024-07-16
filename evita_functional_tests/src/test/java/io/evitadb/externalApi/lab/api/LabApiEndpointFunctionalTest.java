@@ -143,7 +143,6 @@ class LabApiEndpointFunctionalTest extends RestEndpointFunctionalTest implements
 			.body(
 				"",
 				equalTo(
-					// todo lho: maybe move these builders to some common place
 					createCatalogSchemaDto(evita, getCatalogSchemaFromTestData(evita))
 				)
 			);
@@ -190,7 +189,6 @@ class LabApiEndpointFunctionalTest extends RestEndpointFunctionalTest implements
 				codes.stream().map(it -> "'" + it + "'").collect(Collectors.joining(", ")))
 			.executeAndThen()
 			.statusCode(200)
-			// todo lho: maybe move these builders to some common place
 			.body("recordPage.data", equalTo(createEntityDtos(entities)));
 	}
 

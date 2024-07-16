@@ -265,7 +265,7 @@ public abstract class EndpointHandler<C extends EndpointExecutionContext> implem
 			() -> createInternalError("Handler doesn't support reading of request body.")
 		);
 
-		final String bodyContentType = executionContext.httpRequest().contentType().toString();
+		final String bodyContentType = executionContext.requestBodyContentType();
 		final Charset bodyCharset = Arrays.stream(bodyContentType.split(";"))
 			.map(String::trim)
 			.filter(part -> part.startsWith("charset"))

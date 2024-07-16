@@ -30,13 +30,16 @@ import lombok.NoArgsConstructor;
 import javax.annotation.Nonnull;
 
 /**
- * TODO lho docs
+ * Utils for resolving operation name from GraphQL request.
  *
- * @author Lukáš Hornych, 2024
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
  */
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class GraphQLOperationNameResolver {
 
+	/**
+	 * Resolves operation name from GraphQL request.
+	 */
 	@Nonnull
 	public static String resolve(@Nonnull OperationDefinition operationDefinition) {
 		return operationDefinition.getName() != null ? operationDefinition.getName() : "<unnamed>";

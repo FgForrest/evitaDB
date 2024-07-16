@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -141,7 +141,6 @@ class CatalogRestDeleteEntityMutationsFunctionalTest extends CatalogRestDataEndp
                     """)
 			.executeAndThen()
 			.statusCode(200)
-			// todo lho zdá se že se priceinnerrecordhandling chová jinak při deletu, vrací NONE, normálně vrací UNKNOWN
 			.body("", equalTo(createEntityDtos(entitiesToDelete)));
 
 		assertProductDeleted(entitiesToDelete.get(0).getPrimaryKey(), tester);

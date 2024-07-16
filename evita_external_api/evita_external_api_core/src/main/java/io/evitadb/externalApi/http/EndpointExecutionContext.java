@@ -58,8 +58,6 @@ public abstract class EndpointExecutionContext implements AutoCloseable {
 
 	/**
 	 * Parsed content type of request body, if any request body is present.
-	 *
-	 * TODO LHO - not used anywhere, remove?
 	 */
 	@Nullable
 	public abstract String requestBodyContentType();

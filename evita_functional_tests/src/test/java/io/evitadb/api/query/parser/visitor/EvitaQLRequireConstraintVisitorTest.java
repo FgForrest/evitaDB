@@ -2730,14 +2730,14 @@ class EvitaQLRequireConstraintVisitorTest {
 			constraint1
 		);
 
-		// todo lho support for multiple reference names
+		// TOBEDONE LHO https://github.com/FgForrest/evitaDB/issues/155 support for multiple reference names
 //		final RequireConstraint constraint2 = parseRequireConstraintUnsafe("hierarchyOfReference('a', 'b', LEAVE_EMPTY, fromRoot('megaMenu'))");
 //		assertEquals(
 //			hierarchyOfReference(new String[] {"a", "b"}, EmptyHierarchicalEntityBehaviour.LEAVE_EMPTY, fromRoot("megaMenu")),
 //			constraint2
 //		);
 
-		// todo lho support for multiple reference names
+		// TOBEDONE LHO https://github.com/FgForrest/evitaDB/issues/155 support for multiple reference names
 //		final RequireConstraint constraint3 = parseRequireConstraintUnsafe(
 //			"hierarchyOfReference('a', 'b', LEAVE_EMPTY, orderBy(random()), fromRoot('megaMenu'))"
 //		);
@@ -2764,7 +2764,7 @@ class EvitaQLRequireConstraintVisitorTest {
 			constraint4
 		);
 
-		// todo lho support for multiple reference names
+		// TOBEDONE LHO https://github.com/FgForrest/evitaDB/issues/155 support for multiple reference names
 //		final RequireConstraint constraint5 = parseRequireConstraint(
 //			"hierarchyOfReference(?, ?, fromRoot(?))",
 //			new String[] {"a", "b"}, EmptyHierarchicalEntityBehaviour.LEAVE_EMPTY, "megaMenu"
@@ -2774,7 +2774,7 @@ class EvitaQLRequireConstraintVisitorTest {
 //			constraint5
 //		);
 
-		// todo lho support for multiple reference names
+		// TOBEDONE LHO https://github.com/FgForrest/evitaDB/issues/155 support for multiple reference names
 //		final RequireConstraint constraint6 = parseRequireConstraint(
 //			"hierarchyOfReference(?, ?, orderBy(random()), fromRoot(?))",
 //			new String[] {"a", "b"}, EmptyHierarchicalEntityBehaviour.LEAVE_EMPTY, "megaMenu"
@@ -2802,7 +2802,7 @@ class EvitaQLRequireConstraintVisitorTest {
 			constraint7
 		);
 
-		// todo lho support for multiple reference names
+		// TOBEDONE LHO https://github.com/FgForrest/evitaDB/issues/155 support for multiple reference names
 //		final RequireConstraint constraint8 = parseRequireConstraint(
 //			"hierarchyOfReference(@refs, @beh, fromRoot(@out))",
 //			Map.of("refs", new String[] {"a", "b"}, "beh", EmptyHierarchicalEntityBehaviour.LEAVE_EMPTY, "out", "megaMenu")
@@ -2812,7 +2812,7 @@ class EvitaQLRequireConstraintVisitorTest {
 //			constraint8
 //		);
 
-		// todo lho support for multiple reference names
+		// TOBEDONE LHO https://github.com/FgForrest/evitaDB/issues/155 support for multiple reference names
 //		final RequireConstraint constraint13 = parseRequireConstraint(
 //			"hierarchyOfReference(@refs, orderBy(random()), fromRoot(@out))",
 //			Map.of("refs", new String[] {"a", "b"}, "out", "megaMenu")
@@ -2822,7 +2822,7 @@ class EvitaQLRequireConstraintVisitorTest {
 //			constraint13
 //		);
 
-		// todo lho support for multiple reference names
+		// TOBEDONE LHO https://github.com/FgForrest/evitaDB/issues/155 support for multiple reference names
 //		final RequireConstraint constraint9 = parseRequireConstraint(
 //			"hierarchyOfReference(@refs, @beh, orderBy(random()), fromRoot(@out))",
 //			Map.of("refs", new String[] {"a", "b"}, "beh", EmptyHierarchicalEntityBehaviour.LEAVE_EMPTY, "out", "megaMenu")

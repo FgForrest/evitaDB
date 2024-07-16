@@ -1830,7 +1830,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 		return parse(
 			ctx,
 			() -> new HierarchyOfReference(
-				// todo lho support for multiple reference names
+				// TOBEDONE LHO https://github.com/FgForrest/evitaDB/issues/155 support for multiple reference names
 				ctx.args.referenceName.accept(stringValueTokenVisitor).asString(),
 				EmptyHierarchicalEntityBehaviour.REMOVE_EMPTY,
 				ctx.args.requirements
@@ -1846,7 +1846,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 		return parse(
 			ctx,
 			() -> new HierarchyOfReference(
-				// todo lho support for multiple reference names
+				// TOBEDONE LHO https://github.com/FgForrest/evitaDB/issues/155 support for multiple reference names
 				ctx.args.referenceName.accept(stringValueTokenVisitor).asString(),
 				ctx.args.emptyHierarchicalEntityBehaviour
 					.accept(emptyHierarchicalEntityBehaviourValueTokenVisitor)
@@ -1864,7 +1864,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 		return parse(
 			ctx,
 			() -> new HierarchyOfReference(
-				// todo lho support for multiple reference names
+				// TOBEDONE LHO https://github.com/FgForrest/evitaDB/issues/155 support for multiple reference names
 				ctx.args.referenceName.accept(stringValueTokenVisitor).asString(),
 				EmptyHierarchicalEntityBehaviour.REMOVE_EMPTY,
 				visitChildConstraint(orderConstraintVisitor, ctx.args.orderBy, OrderBy.class),
@@ -1881,7 +1881,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 		return parse(
 			ctx,
 			() -> new HierarchyOfReference(
-				// todo lho support for multiple reference names
+				// TOBEDONE LHO https://github.com/FgForrest/evitaDB/issues/155 support for multiple reference names
 				ctx.args.referenceName.accept(stringValueTokenVisitor).asString(),
 				ctx.args.emptyHierarchicalEntityBehaviour
 					.accept(emptyHierarchicalEntityBehaviourValueTokenVisitor)

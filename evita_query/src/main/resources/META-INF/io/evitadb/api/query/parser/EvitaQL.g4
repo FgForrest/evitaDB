@@ -327,7 +327,7 @@ hierarchyFromNodeArgs :                             argsOpening outputName = val
 
 fullHierarchyOfSelfArgs :                           argsOpening orderBy = orderConstraint (ARGS_DELIMITER requirements += requireConstraint)+ argsClosing;
 
-// todo lho support for multiple reference names
+// TOBEDONE LHO https://github.com/FgForrest/evitaDB/issues/155 support for multiple reference names
 
 basicHierarchyOfReferenceArgs :                     argsOpening referenceName = valueToken (ARGS_DELIMITER requirements += requireConstraint)+ argsClosing ;
 

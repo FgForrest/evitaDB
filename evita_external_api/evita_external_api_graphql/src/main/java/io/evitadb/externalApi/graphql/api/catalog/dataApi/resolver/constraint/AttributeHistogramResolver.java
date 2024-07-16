@@ -60,7 +60,7 @@ public class AttributeHistogramResolver {
 	@Nonnull
 	public List<RequireConstraint> resolve(@Nonnull SelectionSetAggregator extraResultsSelectionSet) {
 		final List<SelectedField> attributeHistogramFields = extraResultsSelectionSet.getImmediateFields(ExtraResultsDescriptor.ATTRIBUTE_HISTOGRAM.name());
-		// todo lho: remove after https://gitlab.fg.cz/hv/evita/-/issues/120 is implemented
+		// TOBEDONE LHO: remove after https://github.com/FgForrest/evitaDB/issues/8 is implemented
 		final List<SelectedField> attributeHistogramsFields = extraResultsSelectionSet.getImmediateFields("attributeHistograms");
 		if (attributeHistogramFields.isEmpty() && attributeHistogramsFields.isEmpty()) {
 			return List.of();
@@ -99,7 +99,7 @@ public class AttributeHistogramResolver {
 				});
 			});
 
-		// todo lho: remove after https://gitlab.fg.cz/hv/evita/-/issues/120 is implemented
+		// TOBEDONE LHO: remove after https://github.com/FgForrest/evitaDB/issues/8 is implemented
 		if (!attributeHistogramsFields.isEmpty()) {
 			attributeHistogramsFields.forEach(f -> {
 				//noinspection unchecked

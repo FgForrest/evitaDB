@@ -33,9 +33,9 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 /**
- * TODO lho docs
+ * Endpoint execution context for GraphQL schema DSL requests.
  *
- * @author Lukáš Hornych, 2024
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
  */
 class GraphQLSchemaEndpointExecutionContext extends EndpointExecutionContext {
 
