@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,6 +29,7 @@ import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
 import java.util.List;
+import java.util.UUID;
 
 import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nonNullRef;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
@@ -42,6 +43,14 @@ import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescript
  */
 public interface CatalogDescriptor {
 
+	PropertyDescriptor CATALOG_ID = PropertyDescriptor.builder()
+		.name("catalogId")
+		.description("""
+			Returns unique catalog id that doesn't change with catalog schema changes - such as renaming.
+			The id is assigned to the catalog when it is created and never changes.
+			""")
+		.type(nonNull(UUID.class))
+		.build();
     PropertyDescriptor NAME = PropertyDescriptor.builder()
         .name("name")
         .description("""
@@ -108,6 +117,6 @@ public interface CatalogDescriptor {
             connected with single client. In the e-commerce world catalog means "single e-shop" although it may not be the truth
             in every case. Catalog manages set of entity collection uniquely identified by their name.
             """)
-        .staticFields(List.of(NAME, NAME_VARIANTS, VERSION, CATALOG_STATE, SUPPORTS_TRANSACTION, ENTITY_TYPES, CORRUPTED))
+        .staticFields(List.of(CATALOG_ID, NAME, NAME_VARIANTS, VERSION, CATALOG_STATE, SUPPORTS_TRANSACTION, ENTITY_TYPES, CORRUPTED))
         .build();
 }

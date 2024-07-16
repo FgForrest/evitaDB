@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -90,6 +90,7 @@ public class SystemGraphQLQueriesFunctionalTest extends SystemGraphQLEndpointFun
 						catalog(name: "%s") {
 							... on Catalog {
 								__typename
+								catalogId,
 								name
 								nameVariants {
 									camelCase
@@ -126,6 +127,7 @@ public class SystemGraphQLQueriesFunctionalTest extends SystemGraphQLEndpointFun
 						catalogs {
 							... on Catalog {
 								__typename
+								catalogId,
 								name
 								nameVariants {
 									camelCase
@@ -202,6 +204,7 @@ public class SystemGraphQLQueriesFunctionalTest extends SystemGraphQLEndpointFun
 	private static Map<String, Object> createCatalogDto(@Nonnull CatalogContract catalog) {
 		return map()
 			.e(TYPENAME_FIELD, CatalogDescriptor.THIS.name())
+			.e(CatalogDescriptor.CATALOG_ID.name(), catalog.getCatalogId().toString())
 			.e(CatalogDescriptor.NAME.name(), catalog.getName())
 			.e(CatalogDescriptor.NAME_VARIANTS.name(), map()
 				.e(NameVariantsDescriptor.CAMEL_CASE.name(), catalog.getSchema().getNameVariants().get(NamingConvention.CAMEL_CASE))
@@ -221,6 +224,7 @@ public class SystemGraphQLQueriesFunctionalTest extends SystemGraphQLEndpointFun
 	private static Map<String, Object> createCorruptedCatalogDto(@Nonnull CorruptedCatalog catalog) {
 		return map()
 			.e(TYPENAME_FIELD, CorruptedCatalogDescriptor.THIS.name())
+			.e(CorruptedCatalogDescriptor.CATALOG_ID.name(), catalog.getCatalogId().toString())
 			.e(CorruptedCatalogDescriptor.NAME.name(), catalog.getName())
 			.e(CorruptedCatalogDescriptor.CATALOG_STORAGE_PATH.name(), catalog.getCatalogStoragePath().toFile())
 			.e(CorruptedCatalogDescriptor.CAUSE.name(), catalog.getCause().toString())
