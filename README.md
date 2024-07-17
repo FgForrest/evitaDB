@@ -233,6 +233,21 @@ In order code to be accepted it will fulfill following criteria:
 - there will be no TODO statements in the code
 - there will be no commented out code
 
+# Standing on giants' shoulders
+
+evitaDB uses the following open source projects:
+
+- [RoaringBitmap](https://github.com/RoaringBitmap/RoaringBitmap) by Daniel Lemire, Richard Statin and others
+- [Kryo](https://github.com/EsotericSoftware/kryo) by Nathan Sweet, Thomas Heigl, Martin Grotzke and others
+- [Netty](https://github.com/netty/netty) and [Armeria](https://github.com/line/armeria) by Trustin Lee, Norman Mauer, Ikhun Um and others
+- [Logback](https://github.com/qos-ch/logback) by Ceki Gülcü and others
+- [Jackson](https://github.com/FasterXML/jackson) by Tatu Saloranta and others
+- [gRPC Java](https://github.com/grpc/grpc-java) by Eric Anderson, Carl Mastrangelo, ZHANG Dapeng, Kun Zhang and others
+- [GraphQL Java](https://github.com/graphql-java/graphql-java) by Andreas Marek, Brad Baker and others
+- [Byte Buddy](https://github.com/raphw/byte-buddy) by Rafael Winterhalter and others
+
+And many others. We are grateful for their work.
+
 -------------------------------------------------------------------------
 
 [Icons sourced at Icons8.com](https://icons8.com/)
