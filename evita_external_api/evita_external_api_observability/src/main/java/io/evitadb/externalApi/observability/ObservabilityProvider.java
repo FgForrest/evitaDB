@@ -64,7 +64,10 @@ public class ObservabilityProvider implements ExternalApiProvider<ObservabilityC
 	@Nonnull
 	public HttpServiceDefinition[] getHttpServiceDefinitions() {
 		return new HttpServiceDefinition[] {
-			new HttpServiceDefinition(observabilityManager.getObservabilityRouter(), PathHandlingMode.DYNAMIC_PATH_HANDLING)
+			new HttpServiceDefinition(
+				observabilityManager.getObservabilityRouter(),
+				PathHandlingMode.DYNAMIC_PATH_HANDLING
+			)
 		};
 	}
 

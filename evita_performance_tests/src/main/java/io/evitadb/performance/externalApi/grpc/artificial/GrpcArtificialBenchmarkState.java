@@ -72,7 +72,6 @@ public abstract class GrpcArtificialBenchmarkState extends AbstractArtificialBen
 				.tlsCustomizer(tlsCustomizer -> clientCertificateManager.buildClientSslContext(null, tlsCustomizer))
 				.build();
 
-			//todo tpz: add tls and scheme conditions
 			final GrpcClientBuilder clientBuilder = GrpcClients.builder(HOST + ":" + PORT + "/")
 				.factory(clientFactory)
 				.serializationFormat(GrpcSerializationFormats.PROTO)

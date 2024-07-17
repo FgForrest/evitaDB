@@ -83,16 +83,13 @@ public class RoutingHandlerService implements HttpService {
 		if (matcher == null) {
 			return handleNoMatch(ctx, req);
 		}
-		// TODO JNO - CHECK REPLACEMENT WITH `getStringPartTillChar`
-		// req.uri().getPath();
-		PathTemplateMatcher.PathMatchResult<HttpService> match = matcher.match(getStringPartTillChar(req.path(), '?'));
+		PathTemplateMatcher.PathMatchResult<HttpService> match = matcher.match(req.path());
 		if (match == null) {
 			return handleNoMatch(ctx, req);
 		}
 
 		final RequestHeadersBuilder headersBuilder = req.headers().toBuilder();
 
-		//exchange.putAttachment(PathTemplateMatch.ATTACHMENT_KEY, match);
 		if (rewriteQueryParameters) {
 			QueryParams.fromQueryString(ctx.query()).forEach((key, value) -> headersBuilder.add(INTERNAL_HEADER_PREFIX + key, value));
 			match.getParameters().forEach((key, value) -> headersBuilder.add(INTERNAL_HEADER_PREFIX + key, value));
@@ -104,14 +101,6 @@ public class RoutingHandlerService implements HttpService {
 		} else {
 			return fallbackHandler.serve(ctx, newRequest);
 		}
-	}
-
-	private static String getStringPartTillChar(@Nonnull String input, char delimiter) {
-		int index = input.indexOf(delimiter);
-		if (index != -1) {
-			return input.substring(0, index);
-		}
-		return input; // Return the original string if the delimiter is not found
 	}
 
 	/**

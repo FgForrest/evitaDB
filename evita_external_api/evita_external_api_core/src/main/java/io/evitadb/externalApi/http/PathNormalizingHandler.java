@@ -32,6 +32,7 @@ import io.evitadb.externalApi.utils.path.RoutingHandlerService;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import java.util.Optional;
 
 /**
  * Normalizes request path for all subsequent handlers. Currently, it removes trailing slash if present to support
@@ -56,12 +57,13 @@ public class PathNormalizingHandler implements HttpService {
 		} else if (req.path().isEmpty()) {
 			path = String.valueOf(SLASH);
 		} else if (req.path().contains(String.valueOf(QUESTION_MARK))) {
-			/* TODO JNO - wouldn't req.uri().getPath() work enough?! */
-			final String baseUrl = getStringPartBeforeOrAfterChar(req.path(), QUESTION_MARK, true);
+			final String baseUrl = Optional.ofNullable(req.uri().getQuery())
+				.map(query -> req.path() + QUESTION_MARK + query)
+				.orElse(req.path());
 			if (baseUrl.charAt(baseUrl.length() - 1) == SLASH) {
-				path = baseUrl.substring(0, baseUrl.length() - 1) + QUESTION_MARK + getStringPartBeforeOrAfterChar(req.path(), QUESTION_MARK, false);
+				path = baseUrl.substring(0, baseUrl.length() - 1);
 			} else {
-				path = req.path();
+				path = baseUrl;
 			}
 		} else {
 			return next.serve(ctx, req);
@@ -71,15 +73,4 @@ public class PathNormalizingHandler implements HttpService {
 		return next.serve(ctx, req.withHeaders(newHeaders));
 	}
 
-	private static String getStringPartBeforeOrAfterChar(@Nonnull String input, char delimiter, boolean before) {
-		int index = input.indexOf(delimiter);
-		if (index != -1) {
-			if (before) {
-				return input.substring(0, index);
-			} else {
-				return input.substring(index + 1);
-			}
-		}
-		return input; // Return the original string if the delimiter is not found
-	}
 }
