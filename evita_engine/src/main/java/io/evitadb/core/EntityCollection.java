@@ -25,6 +25,7 @@ package io.evitadb.core;
 
 import com.esotericsoftware.kryo.util.IntMap;
 import io.evitadb.api.CatalogState;
+import io.evitadb.api.CatalogStatistics.EntityCollectionStatistics;
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.ConcurrentSchemaUpdateException;
@@ -831,6 +832,17 @@ public final class EntityCollection implements
 	@Override
 	public long getVersion() {
 		return this.persistenceService.getEntityCollectionHeader().version();
+	}
+
+	@Nonnull
+	@Override
+	public EntityCollectionStatistics getStatistics() {
+		return new EntityCollectionStatistics(
+			getEntityType(),
+			size(),
+			this.indexes.size(),
+			this.persistenceService.getSizeOnDiskInBytes()
+		);
 	}
 
 	@Override

@@ -146,7 +146,7 @@ private static final long serialVersionUID = 0L;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs = 
+      com.google.protobuf.ByteString bs =
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
       attributeName_ = s;
@@ -166,7 +166,7 @@ private static final long serialVersionUID = 0L;
       getAttributeNameBytes() {
     java.lang.Object ref = attributeName_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b = 
+      com.google.protobuf.ByteString b =
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
       attributeName_ = b;
@@ -603,7 +603,7 @@ private static final long serialVersionUID = 0L;
         getAttributeNameBytes() {
       java.lang.Object ref = attributeName_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b = 
+        com.google.protobuf.ByteString b =
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
         attributeName_ = b;
@@ -626,7 +626,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
     throw new NullPointerException();
   }
-  
+
       attributeName_ = value;
       onChanged();
       return this;
@@ -640,7 +640,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearAttributeName() {
-      
+
       attributeName_ = getDefaultInstance().getAttributeName();
       onChanged();
       return this;
@@ -660,7 +660,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   checkByteStringIsUtf8(value);
-      
+
       attributeName_ = value;
       onChanged();
       return this;
@@ -688,7 +688,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setDirectionValue(int value) {
-      
+
       direction_ = value;
       onChanged();
       return this;
@@ -720,7 +720,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
         throw new NullPointerException();
       }
-      
+
       direction_ = value.getNumber();
       onChanged();
       return this;
@@ -734,7 +734,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearDirection() {
-      
+
       direction_ = 0;
       onChanged();
       return this;
@@ -762,7 +762,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setBehaviourValue(int value) {
-      
+
       behaviour_ = value;
       onChanged();
       return this;
@@ -794,7 +794,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
         throw new NullPointerException();
       }
-      
+
       behaviour_ = value.getNumber();
       onChanged();
       return this;
@@ -808,7 +808,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearBehaviour() {
-      
+
       behaviour_ = 0;
       onChanged();
       return this;

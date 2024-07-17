@@ -52,6 +52,12 @@ import java.util.concurrent.CompletableFuture;
 public interface EvitaManagementContract {
 
 	/**
+	 * Returns complete listing of all catalogs known to the Evita instance along with their states and basic statistics.
+	 */
+	@Nonnull
+	CatalogStatistics[] getCatalogStatistics();
+
+	/**
 	 * Creates a backup of the specified catalog and returns an InputStream to read the binary data of the zip file.
 	 *
 	 * @param catalogName  the name of the catalog to backup

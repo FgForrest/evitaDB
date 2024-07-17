@@ -329,11 +329,17 @@ public interface CatalogContract {
 	ServerTask<?, FileForFetch> backup(@Nullable OffsetDateTime pastMoment, boolean includingWAL) throws TemporalDataNotAvailableException;
 
 	/**
+	 * Returns catalog statistics aggregating basic information about the catalog and the data stored in it.
+	 * @return catalog statistics
+	 */
+	@Nonnull
+	CatalogStatistics getStatistics();
+
+	/**
 	 * Terminates catalog instance and frees all claimed resources. Prepares catalog instance to be garbage collected.
 	 *
 	 * This method is idempotent and may be called multiple times. Only first call is really processed and others are
 	 * ignored.
 	 */
 	void terminate();
-
 }

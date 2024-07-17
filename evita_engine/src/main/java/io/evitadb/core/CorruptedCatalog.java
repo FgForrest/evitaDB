@@ -25,6 +25,8 @@ package io.evitadb.core;
 
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.CatalogState;
+import io.evitadb.api.CatalogStatistics;
+import io.evitadb.api.CatalogStatistics.EntityCollectionStatistics;
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.CollectionNotFoundException;
@@ -237,6 +239,21 @@ public final class CorruptedCatalog implements CatalogContract {
 	@Override
 	public ServerTask<Void, FileForFetch> backup(@Nullable OffsetDateTime pastMoment, boolean includingWAL) throws TemporalDataNotAvailableException {
 		throw new CatalogCorruptedException(this);
+	}
+
+	@Nonnull
+	@Override
+	public CatalogStatistics getStatistics() {
+		return new CatalogStatistics(
+			catalogName,
+			true,
+			null,
+			-1L,
+			-1,
+			-1,
+			FileUtils.getDirectorySize(catalogStoragePath),
+			new EntityCollectionStatistics[0]
+		);
 	}
 
 	@Override

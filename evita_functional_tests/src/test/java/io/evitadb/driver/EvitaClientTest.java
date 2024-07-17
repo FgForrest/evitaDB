@@ -24,6 +24,9 @@
 package io.evitadb.driver;
 
 import com.github.javafaker.Faker;
+import io.evitadb.api.CatalogState;
+import io.evitadb.api.CatalogStatistics;
+import io.evitadb.api.CatalogStatistics.EntityCollectionStatistics;
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.EvitaManagementContract;
 import io.evitadb.api.EvitaSessionContract;
@@ -60,6 +63,7 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
+import io.evitadb.api.requestResponse.system.SystemStatus;
 import io.evitadb.api.task.Task;
 import io.evitadb.api.task.TaskStatus;
 import io.evitadb.api.task.TaskStatus.State;
@@ -1762,6 +1766,40 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 		assertProductAttributes(products.get(7), limitedProduct, null);
 		assertThrows(ContextMissingException.class, limitedProduct::getReferencedFileSet);
 		assertThrows(ContextMissingException.class, limitedProduct::getReferencedFileSetAsDifferentProperty);
+	}
+
+	@Test
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldRetrieveSystemStatus(EvitaClient evitaClient) {
+		final SystemStatus systemStatus = evitaClient.management().getSystemStatus();
+		assertNotNull(systemStatus);
+		assertEquals(1, systemStatus.catalogsOk());
+		assertEquals(0, systemStatus.catalogsCorrupted());
+	}
+
+	@Test
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldRetrieveCatalogStatistics(EvitaClient evitaClient) {
+		final CatalogStatistics[] catalogStatistics = evitaClient.management().getCatalogStatistics();
+
+		assertEquals(1, catalogStatistics.length);
+		final CatalogStatistics statistics = catalogStatistics[0];
+
+		assertEquals(TEST_CATALOG, statistics.catalogName());
+		assertFalse(statistics.corrupted());
+		assertEquals(CatalogState.ALIVE, statistics.catalogState());
+		assertEquals(1, statistics.catalogVersion());
+		assertTrue(statistics.totalRecords() > 1);
+		assertTrue(statistics.indexCount() > 1);
+		assertTrue(statistics.sizeOnDiskInBytes() > 1);
+		assertEquals(7, statistics.entityCollectionStatistics().length);
+
+		for (EntityCollectionStatistics entityCollectionStatistics : statistics.entityCollectionStatistics()) {
+			assertNotNull(entityCollectionStatistics.entityType());
+			assertTrue(entityCollectionStatistics.totalRecords() > 0);
+			assertTrue(entityCollectionStatistics.indexCount() > 0);
+			assertTrue(entityCollectionStatistics.sizeOnDiskInBytes() > 0);
+		}
 	}
 
 	@Test

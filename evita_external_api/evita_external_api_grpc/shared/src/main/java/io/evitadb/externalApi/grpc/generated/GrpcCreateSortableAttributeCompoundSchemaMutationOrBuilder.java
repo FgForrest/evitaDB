@@ -120,7 +120,7 @@ public interface GrpcCreateSortableAttributeCompoundSchemaMutationOrBuilder exte
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAttributeElement attributeElements = 4;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcAttributeElement> 
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcAttributeElement>
       getAttributeElementsList();
   /**
    * <pre>
@@ -145,7 +145,7 @@ public interface GrpcCreateSortableAttributeCompoundSchemaMutationOrBuilder exte
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAttributeElement attributeElements = 4;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcAttributeElementOrBuilder> 
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcAttributeElementOrBuilder>
       getAttributeElementsOrBuilderList();
   /**
    * <pre>

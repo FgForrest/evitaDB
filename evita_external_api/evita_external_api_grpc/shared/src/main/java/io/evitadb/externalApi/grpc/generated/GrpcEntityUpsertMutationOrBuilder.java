@@ -109,7 +109,7 @@ public interface GrpcEntityUpsertMutationOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocalMutation mutations = 4;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLocalMutation> 
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLocalMutation>
       getMutationsList();
   /**
    * <pre>
@@ -134,7 +134,7 @@ public interface GrpcEntityUpsertMutationOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocalMutation mutations = 4;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLocalMutationOrBuilder> 
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLocalMutationOrBuilder>
       getMutationsOrBuilderList();
   /**
    * <pre>

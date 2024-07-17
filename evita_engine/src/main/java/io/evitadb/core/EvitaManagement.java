@@ -24,6 +24,7 @@
 package io.evitadb.core;
 
 import io.evitadb.api.CatalogContract;
+import io.evitadb.api.CatalogStatistics;
 import io.evitadb.api.EvitaManagementContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.SessionTraits;
@@ -47,6 +48,7 @@ import java.io.InputStream;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -89,6 +91,16 @@ public class EvitaManagement implements EvitaManagementContract {
 	@Nonnull
 	public ExportFileService exportFileService() {
 		return exportFileService;
+	}
+
+	@Nonnull
+	@Override
+	public CatalogStatistics[] getCatalogStatistics() {
+		return this.evita.getCatalogs()
+			.stream()
+			.map(CatalogContract::getStatistics)
+			.sorted(Comparator.comparing(CatalogStatistics::catalogName))
+			.toArray(CatalogStatistics[]::new);
 	}
 
 	@Nonnull

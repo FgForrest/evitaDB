@@ -23,6 +23,7 @@
 
 package io.evitadb.api;
 
+import io.evitadb.api.CatalogStatistics.EntityCollectionStatistics;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.StorageOptions;
@@ -100,6 +101,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.Arrays;
 import java.util.Currency;
 import java.util.List;
 import java.util.Locale;
@@ -1437,6 +1439,35 @@ class EvitaTest implements EvitaTestSupport {
 					);
 				}
 			);
+
+			final CatalogStatistics[] catalogStatistics = evita.management().getCatalogStatistics();
+			assertNotNull(catalogStatistics);
+			assertEquals(3, catalogStatistics.length);
+
+			assertEquals(
+				Arrays.stream(catalogStatistics).filter(it -> TEST_CATALOG.equals(it.catalogName())).findFirst().orElseThrow(),
+				new CatalogStatistics(
+					TEST_CATALOG, false, CatalogState.WARMING_UP, 0L, 0, 1, 490, new EntityCollectionStatistics[0]
+				)
+			);
+
+			assertEquals(
+				Arrays.stream(catalogStatistics).filter(it -> (TEST_CATALOG + "_1").equals(it.catalogName())).findFirst().orElseThrow(),
+				new CatalogStatistics(
+					TEST_CATALOG + "_1", true, null, -1L, -1, -1, 922, new EntityCollectionStatistics[0]
+				)
+			);
+
+			assertEquals(
+				Arrays.stream(catalogStatistics).filter(it -> (TEST_CATALOG + "_2").equals(it.catalogName())).findFirst().orElseThrow(),
+				new CatalogStatistics(
+					TEST_CATALOG + "_2", false, CatalogState.WARMING_UP, 0, 1, 2, 1381,
+					new EntityCollectionStatistics[] {
+						new EntityCollectionStatistics(Entities.PRODUCT, 1, 1, 475)
+					}
+				)
+			);
+
 		} finally {
 			portManager.releasePorts(dataSetName);
 		}

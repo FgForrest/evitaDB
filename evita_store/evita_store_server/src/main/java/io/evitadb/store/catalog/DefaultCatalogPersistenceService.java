@@ -1830,6 +1830,11 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	}
 
 	@Override
+	public long getSizeOnDiskInBytes() {
+		return FileUtils.getDirectorySize(this.catalogStoragePath);
+	}
+
+	@Override
 	public void close() {
 		try {
 			// close WAL

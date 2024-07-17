@@ -25,6 +25,7 @@ package io.evitadb.externalApi.grpc.services;
 
 import com.google.protobuf.ByteString;
 import com.google.protobuf.Empty;
+import io.evitadb.api.CatalogStatistics;
 import io.evitadb.api.EvitaManagementContract;
 import io.evitadb.api.exception.FileForFetchNotFoundException;
 import io.evitadb.api.file.FileForFetch;
@@ -55,6 +56,7 @@ import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.Arrays;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
@@ -131,6 +133,29 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 					.setInstanceId(systemStatus.instanceId())
 					.setCatalogsCorrupted(systemStatus.catalogsCorrupted())
 					.setCatalogsOk(systemStatus.catalogsOk())
+					.build()
+			);
+			responseObserver.onCompleted();
+		});
+	}
+
+	/**
+	 * Retrieves catalog statistics from the server.
+	 *
+	 * @param request 		the request for catalog statistics
+	 * @param responseObserver the observer for receiving the catalog statistics response
+	 */
+	@Override
+	public void getCatalogStatistics(Empty request, StreamObserver<GrpcEvitaCatalogStatisticsResponse> responseObserver) {
+		executeWithClientContext(() -> {
+			final CatalogStatistics[] catalogStatistics = management.getCatalogStatistics();
+			responseObserver.onNext(
+				GrpcEvitaCatalogStatisticsResponse.newBuilder()
+					.addAllCatalogStatistics(
+						Arrays.stream(catalogStatistics)
+							.map(EvitaDataTypesConverter::toGrpcCatalogStatistics)
+							.toList()
+					)
 					.build()
 			);
 			responseObserver.onCompleted();

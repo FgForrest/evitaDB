@@ -25,6 +25,12 @@ message GrpcEvitaServerStatusResponse {
   int32 catalogsOk = 6;
 }
 
+// Response to a server catalog statistics request.
+message GrpcEvitaCatalogStatisticsResponse {
+  // Collection of catalog statistics for all catalogs
+  repeated GrpcCatalogStatistics catalogStatistics = 1;
+}
+
 // Request to restore a catalog.
 message GrpcRestoreCatalogRequest {
   // Name of the catalog where the backup will be restored
@@ -173,6 +179,8 @@ message GrpcDeleteFileToFetchResponse {
 service EvitaManagementService {
   // Procedure used to obtain server status.
   rpc ServerStatus(google.protobuf.Empty) returns (GrpcEvitaServerStatusResponse);
+  // Procedure used to obtain catalog statistics.
+  rpc GetCatalogStatistics(google.protobuf.Empty) returns (GrpcEvitaCatalogStatisticsResponse);
   // Procedure used to restore a catalog from backup.
   rpc RestoreCatalog(stream GrpcRestoreCatalogRequest) returns (GrpcRestoreCatalogResponse);
   // Procedure used to restore a catalog from backup.

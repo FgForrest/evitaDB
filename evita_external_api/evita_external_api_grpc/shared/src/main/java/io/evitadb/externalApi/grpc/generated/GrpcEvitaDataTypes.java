@@ -217,6 +217,16 @@ public final class GrpcEvitaDataTypes {
   static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcTaskStatus_fieldAccessorTable;
+  static final com.google.protobuf.Descriptors.Descriptor
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcCatalogStatistics_descriptor;
+  static final
+    com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
+      internal_static_io_evitadb_externalApi_grpc_generated_GrpcCatalogStatistics_fieldAccessorTable;
+  static final com.google.protobuf.Descriptors.Descriptor
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcEntityCollectionStatistics_descriptor;
+  static final
+    com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
+      internal_static_io_evitadb_externalApi_grpc_generated_GrpcEntityCollectionStatistics_fieldAccessorTable;
 
   public static com.google.protobuf.Descriptors.FileDescriptor
       getDescriptor() {
@@ -388,8 +398,19 @@ public final class GrpcEvitaDataTypes {
       ".protobuf.StringValueH\000\022?\n\004file\030\013 \001(\0132/." +
       "io.evitadb.externalApi.grpc.generated.Gr" +
       "pcFileH\000\022/\n\texception\030\014 \001(\0132\034.google.pro" +
-      "tobuf.StringValueB\010\n\006resultB\014P\001\252\002\007EvitaD" +
-      "Bb\006proto3"
+      "tobuf.StringValueB\010\n\006result\"\326\002\n\025GrpcCata" +
+      "logStatistics\022\023\n\013catalogName\030\001 \001(\t\022\021\n\tco" +
+      "rrupted\030\002 \001(\010\022M\n\014catalogState\030\003 \001(\01627.io" +
+      ".evitadb.externalApi.grpc.generated.Grpc" +
+      "CatalogState\022\026\n\016catalogVersion\030\004 \001(\003\022\024\n\014" +
+      "totalRecords\030\005 \001(\003\022\022\n\nindexCount\030\006 \001(\003\022\031" +
+      "\n\021sizeOnDiskInBytes\030\007 \001(\003\022i\n\032entityColle" +
+      "ctionStatistics\030\010 \003(\0132E.io.evitadb.exter" +
+      "nalApi.grpc.generated.GrpcEntityCollecti" +
+      "onStatistics\"y\n\036GrpcEntityCollectionStat" +
+      "istics\022\022\n\nentityType\030\001 \001(\t\022\024\n\014totalRecor" +
+      "ds\030\002 \001(\005\022\022\n\nindexCount\030\003 \001(\005\022\031\n\021sizeOnDi" +
+      "skInBytes\030\004 \001(\003B\014P\001\252\002\007EvitaDBb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,
@@ -614,6 +635,18 @@ public final class GrpcEvitaDataTypes {
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcTaskStatus_descriptor,
         new java.lang.String[] { "TaskType", "TaskName", "TaskId", "CatalogName", "Issued", "Started", "Finished", "Progress", "Settings", "Text", "File", "Exception", "Result", });
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcCatalogStatistics_descriptor =
+      getDescriptor().getMessageTypes().get(36);
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcCatalogStatistics_fieldAccessorTable = new
+      com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
+        internal_static_io_evitadb_externalApi_grpc_generated_GrpcCatalogStatistics_descriptor,
+        new java.lang.String[] { "CatalogName", "Corrupted", "CatalogState", "CatalogVersion", "TotalRecords", "IndexCount", "SizeOnDiskInBytes", "EntityCollectionStatistics", });
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcEntityCollectionStatistics_descriptor =
+      getDescriptor().getMessageTypes().get(37);
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcEntityCollectionStatistics_fieldAccessorTable = new
+      com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
+        internal_static_io_evitadb_externalApi_grpc_generated_GrpcEntityCollectionStatistics_descriptor,
+        new java.lang.String[] { "EntityType", "TotalRecords", "IndexCount", "SizeOnDiskInBytes", });
     com.google.protobuf.TimestampProto.getDescriptor();
     com.google.protobuf.WrappersProto.getDescriptor();
     io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor();
