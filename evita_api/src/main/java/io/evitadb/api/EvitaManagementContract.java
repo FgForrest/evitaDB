@@ -194,4 +194,12 @@ public interface EvitaManagementContract {
 	@Nonnull
 	SystemStatus getSystemStatus();
 
+	/**
+	 * Retrieves the current configuration of the EvitaDB server in String format with evaluated value expressions.
+	 *
+	 * @return the configuration of the EvitaDB server
+	 */
+	@Nonnull
+	String getConfiguration();
+
 }

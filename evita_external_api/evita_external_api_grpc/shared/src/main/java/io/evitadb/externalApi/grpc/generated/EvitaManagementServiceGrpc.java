@@ -72,6 +72,37 @@ public final class EvitaManagementServiceGrpc {
   }
 
   private static volatile io.grpc.MethodDescriptor<com.google.protobuf.Empty,
+      io.evitadb.externalApi.grpc.generated.GrpcEvitaConfigurationResponse> getGetConfigurationMethod;
+
+  @io.grpc.stub.annotations.RpcMethod(
+      fullMethodName = SERVICE_NAME + '/' + "GetConfiguration",
+      requestType = com.google.protobuf.Empty.class,
+      responseType = io.evitadb.externalApi.grpc.generated.GrpcEvitaConfigurationResponse.class,
+      methodType = io.grpc.MethodDescriptor.MethodType.UNARY)
+  public static io.grpc.MethodDescriptor<com.google.protobuf.Empty,
+      io.evitadb.externalApi.grpc.generated.GrpcEvitaConfigurationResponse> getGetConfigurationMethod() {
+    io.grpc.MethodDescriptor<com.google.protobuf.Empty, io.evitadb.externalApi.grpc.generated.GrpcEvitaConfigurationResponse> getGetConfigurationMethod;
+    if ((getGetConfigurationMethod = EvitaManagementServiceGrpc.getGetConfigurationMethod) == null) {
+      synchronized (EvitaManagementServiceGrpc.class) {
+        if ((getGetConfigurationMethod = EvitaManagementServiceGrpc.getGetConfigurationMethod) == null) {
+          EvitaManagementServiceGrpc.getGetConfigurationMethod = getGetConfigurationMethod =
+              io.grpc.MethodDescriptor.<com.google.protobuf.Empty, io.evitadb.externalApi.grpc.generated.GrpcEvitaConfigurationResponse>newBuilder()
+              .setType(io.grpc.MethodDescriptor.MethodType.UNARY)
+              .setFullMethodName(generateFullMethodName(SERVICE_NAME, "GetConfiguration"))
+              .setSampledToLocalTracing(true)
+              .setRequestMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  com.google.protobuf.Empty.getDefaultInstance()))
+              .setResponseMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  io.evitadb.externalApi.grpc.generated.GrpcEvitaConfigurationResponse.getDefaultInstance()))
+              .setSchemaDescriptor(new EvitaManagementServiceMethodDescriptorSupplier("GetConfiguration"))
+              .build();
+        }
+      }
+    }
+    return getGetConfigurationMethod;
+  }
+
+  private static volatile io.grpc.MethodDescriptor<com.google.protobuf.Empty,
       io.evitadb.externalApi.grpc.generated.GrpcEvitaCatalogStatisticsResponse> getGetCatalogStatisticsMethod;
 
   @io.grpc.stub.annotations.RpcMethod(
@@ -476,6 +507,16 @@ public final class EvitaManagementServiceGrpc {
 
     /**
      * <pre>
+     * Procedure used to obtain server configuration.
+     * </pre>
+     */
+    public void getConfiguration(com.google.protobuf.Empty request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcEvitaConfigurationResponse> responseObserver) {
+      io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getGetConfigurationMethod(), responseObserver);
+    }
+
+    /**
+     * <pre>
      * Procedure used to obtain catalog statistics.
      * </pre>
      */
@@ -594,6 +635,13 @@ public final class EvitaManagementServiceGrpc {
                 io.evitadb.externalApi.grpc.generated.GrpcEvitaServerStatusResponse>(
                   this, METHODID_SERVER_STATUS)))
           .addMethod(
+            getGetConfigurationMethod(),
+            io.grpc.stub.ServerCalls.asyncUnaryCall(
+              new MethodHandlers<
+                com.google.protobuf.Empty,
+                io.evitadb.externalApi.grpc.generated.GrpcEvitaConfigurationResponse>(
+                  this, METHODID_GET_CONFIGURATION)))
+          .addMethod(
             getGetCatalogStatisticsMethod(),
             io.grpc.stub.ServerCalls.asyncUnaryCall(
               new MethodHandlers<
@@ -701,6 +749,17 @@ public final class EvitaManagementServiceGrpc {
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcEvitaServerStatusResponse> responseObserver) {
       io.grpc.stub.ClientCalls.asyncUnaryCall(
           getChannel().newCall(getServerStatusMethod(), getCallOptions()), request, responseObserver);
+    }
+
+    /**
+     * <pre>
+     * Procedure used to obtain server configuration.
+     * </pre>
+     */
+    public void getConfiguration(com.google.protobuf.Empty request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcEvitaConfigurationResponse> responseObserver) {
+      io.grpc.stub.ClientCalls.asyncUnaryCall(
+          getChannel().newCall(getGetConfigurationMethod(), getCallOptions()), request, responseObserver);
     }
 
     /**
@@ -855,6 +914,16 @@ public final class EvitaManagementServiceGrpc {
 
     /**
      * <pre>
+     * Procedure used to obtain server configuration.
+     * </pre>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcEvitaConfigurationResponse getConfiguration(com.google.protobuf.Empty request) {
+      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+          getChannel(), getGetConfigurationMethod(), getCallOptions(), request);
+    }
+
+    /**
+     * <pre>
      * Procedure used to obtain catalog statistics.
      * </pre>
      */
@@ -986,6 +1055,17 @@ public final class EvitaManagementServiceGrpc {
 
     /**
      * <pre>
+     * Procedure used to obtain server configuration.
+     * </pre>
+     */
+    public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcEvitaConfigurationResponse> getConfiguration(
+        com.google.protobuf.Empty request) {
+      return io.grpc.stub.ClientCalls.futureUnaryCall(
+          getChannel().newCall(getGetConfigurationMethod(), getCallOptions()), request);
+    }
+
+    /**
+     * <pre>
      * Procedure used to obtain catalog statistics.
      * </pre>
      */
@@ -1085,17 +1165,18 @@ public final class EvitaManagementServiceGrpc {
   }
 
   private static final int METHODID_SERVER_STATUS = 0;
-  private static final int METHODID_GET_CATALOG_STATISTICS = 1;
-  private static final int METHODID_RESTORE_CATALOG_FROM_SERVER_FILE = 2;
-  private static final int METHODID_LIST_TASK_STATUSES = 3;
-  private static final int METHODID_GET_TASK_STATUS = 4;
-  private static final int METHODID_GET_TASK_STATUSES = 5;
-  private static final int METHODID_CANCEL_TASK = 6;
-  private static final int METHODID_LIST_FILES_TO_FETCH = 7;
-  private static final int METHODID_GET_FILE_TO_FETCH = 8;
-  private static final int METHODID_FETCH_FILE = 9;
-  private static final int METHODID_DELETE_FILE = 10;
-  private static final int METHODID_RESTORE_CATALOG = 11;
+  private static final int METHODID_GET_CONFIGURATION = 1;
+  private static final int METHODID_GET_CATALOG_STATISTICS = 2;
+  private static final int METHODID_RESTORE_CATALOG_FROM_SERVER_FILE = 3;
+  private static final int METHODID_LIST_TASK_STATUSES = 4;
+  private static final int METHODID_GET_TASK_STATUS = 5;
+  private static final int METHODID_GET_TASK_STATUSES = 6;
+  private static final int METHODID_CANCEL_TASK = 7;
+  private static final int METHODID_LIST_FILES_TO_FETCH = 8;
+  private static final int METHODID_GET_FILE_TO_FETCH = 9;
+  private static final int METHODID_FETCH_FILE = 10;
+  private static final int METHODID_DELETE_FILE = 11;
+  private static final int METHODID_RESTORE_CATALOG = 12;
 
   private static final class MethodHandlers<Req, Resp> implements
       io.grpc.stub.ServerCalls.UnaryMethod<Req, Resp>,
@@ -1117,6 +1198,10 @@ public final class EvitaManagementServiceGrpc {
         case METHODID_SERVER_STATUS:
           serviceImpl.serverStatus((com.google.protobuf.Empty) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcEvitaServerStatusResponse>) responseObserver);
+          break;
+        case METHODID_GET_CONFIGURATION:
+          serviceImpl.getConfiguration((com.google.protobuf.Empty) request,
+              (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcEvitaConfigurationResponse>) responseObserver);
           break;
         case METHODID_GET_CATALOG_STATISTICS:
           serviceImpl.getCatalogStatistics((com.google.protobuf.Empty) request,
@@ -1223,6 +1308,7 @@ public final class EvitaManagementServiceGrpc {
           serviceDescriptor = result = io.grpc.ServiceDescriptor.newBuilder(SERVICE_NAME)
               .setSchemaDescriptor(new EvitaManagementServiceFileDescriptorSupplier())
               .addMethod(getServerStatusMethod())
+              .addMethod(getGetConfigurationMethod())
               .addMethod(getGetCatalogStatisticsMethod())
               .addMethod(getRestoreCatalogMethod())
               .addMethod(getRestoreCatalogFromServerFileMethod())

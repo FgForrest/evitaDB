@@ -140,9 +140,27 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 	}
 
 	/**
+	 * Retrieves server configuration.
+	 *
+	 * @param request          the request for configuration
+	 * @param responseObserver the observer for receiving the configuration response
+	 */
+	@Override
+	public void getConfiguration(Empty request, StreamObserver<GrpcEvitaConfigurationResponse> responseObserver) {
+		executeWithClientContext(() -> {
+			responseObserver.onNext(
+				GrpcEvitaConfigurationResponse.newBuilder()
+					.setConfiguration(management.getConfiguration())
+					.build()
+			);
+			responseObserver.onCompleted();
+		});
+	}
+
+	/**
 	 * Retrieves catalog statistics from the server.
 	 *
-	 * @param request 		the request for catalog statistics
+	 * @param request          the request for catalog statistics
 	 * @param responseObserver the observer for receiving the catalog statistics response
 	 */
 	@Override

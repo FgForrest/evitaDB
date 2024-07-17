@@ -40,6 +40,7 @@ import io.evitadb.core.file.ExportFileService;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.utils.VersionUtils;
+import lombok.Setter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -52,6 +53,7 @@ import java.util.Comparator;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Supplier;
 
 /**
  * Main implementation of {@link EvitaManagementContract}.
@@ -76,12 +78,17 @@ public class EvitaManagement implements EvitaManagementContract {
 	 * File service that maintains exported files and purges them eventually.
 	 */
 	private final ExportFileService exportFileService;
+	/**
+	 * Supplier that provides the configuration.
+	 */
+	@Setter private Supplier<String> configurationSupplier;
 
-	public EvitaManagement(Evita evita) {
+	public EvitaManagement(@Nonnull Evita evita) {
 		this.evita = evita;
 		this.serviceExecutor = evita.getServiceExecutor();
 		this.exportFileService = new ExportFileService(evita.getConfiguration().storage());
 		this.started = OffsetDateTime.now();
+		this.configurationSupplier = evita.getConfiguration()::toString;
 	}
 
 	/**
@@ -232,4 +239,9 @@ public class EvitaManagement implements EvitaManagementContract {
 		);
 	}
 
+	@Nonnull
+	@Override
+	public String getConfiguration() {
+		return this.configurationSupplier.get();
+	}
 }

@@ -496,6 +496,22 @@ public class EvitaClientManagement implements EvitaManagementContract, Closeable
 		);
 	}
 
+	@Nonnull
+	@Override
+	public String getConfiguration() {
+		this.evitaClient.assertActive();
+
+		return executeWithEvitaService(
+			this.evitaManagementServiceFutureStub,
+			evitaService -> {
+				final Timeout timeoutToUse = this.evitaClient.timeout.get().peek();
+				final GrpcEvitaConfigurationResponse response = evitaService.getConfiguration(Empty.newBuilder().build())
+					.get(timeoutToUse.timeout(), timeoutToUse.timeoutUnit());
+				return response.getConfiguration();
+			}
+		);
+	}
+
 	@Override
 	public void close() {
 		this.clientTaskTracker.close();

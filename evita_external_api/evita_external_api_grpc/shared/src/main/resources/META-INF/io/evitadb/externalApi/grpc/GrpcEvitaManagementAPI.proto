@@ -25,6 +25,12 @@ message GrpcEvitaServerStatusResponse {
   int32 catalogsOk = 6;
 }
 
+// Response to an evitaDB configuration request.
+message GrpcEvitaConfigurationResponse {
+  // Current configuration of the server in YAML format with evaluated values.
+  string configuration = 1;
+}
+
 // Response to a server catalog statistics request.
 message GrpcEvitaCatalogStatisticsResponse {
   // Collection of catalog statistics for all catalogs
@@ -179,6 +185,8 @@ message GrpcDeleteFileToFetchResponse {
 service EvitaManagementService {
   // Procedure used to obtain server status.
   rpc ServerStatus(google.protobuf.Empty) returns (GrpcEvitaServerStatusResponse);
+  // Procedure used to obtain server configuration.
+  rpc GetConfiguration(google.protobuf.Empty) returns (GrpcEvitaConfigurationResponse);
   // Procedure used to obtain catalog statistics.
   rpc GetCatalogStatistics(google.protobuf.Empty) returns (GrpcEvitaCatalogStatisticsResponse);
   // Procedure used to restore a catalog from backup.

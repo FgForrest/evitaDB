@@ -27,9 +27,12 @@ import ch.qos.logback.classic.ClassicConstants;
 import ch.qos.logback.core.Context;
 import ch.qos.logback.core.ContextBase;
 import ch.qos.logback.core.spi.ContextAwareBase;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import com.fasterxml.jackson.dataformat.yaml.YAMLGenerator;
+import com.fasterxml.jackson.dataformat.yaml.YAMLGenerator.Feature;
 import com.fasterxml.jackson.module.paramnames.ParameterNamesModule;
 import io.evitadb.api.configuration.CacheOptions;
 import io.evitadb.api.configuration.EvitaConfiguration;
@@ -133,9 +136,9 @@ public class EvitaServer {
 	 */
 	private final EvitaConfiguration evitaConfiguration;
 	/**
-	 * Instance of the {@link ApiOptions} initialized from the evita configuration file.
+	 * Instance of the {@link EvitaServerConfiguration} initialized from the evita configuration file.
 	 */
-	private final ApiOptions apiOptions;
+	private final EvitaServerConfiguration evitaServerConfiguration;
 	/**
 	 * List of external API providers indexed by their {@link ExternalApiProviderRegistrar#getExternalApiCode()}.
 	 */
@@ -377,6 +380,7 @@ public class EvitaServer {
 		this.externalApiProviders = ExternalApiServer.gatherExternalApiProviders();
 		final EvitaServerConfigurationWithLogFilesListing evitaServerConfigurationWithLogFilesListing = parseConfiguration(configDirLocation, arguments);
 		final EvitaServerConfiguration evitaServerConfig = evitaServerConfigurationWithLogFilesListing.configuration();
+		this.evitaServerConfiguration = evitaServerConfig;
 		this.evitaConfiguration = new EvitaConfiguration(
 			evitaServerConfig.name(),
 			evitaServerConfig.server(),
@@ -384,7 +388,6 @@ public class EvitaServer {
 			evitaServerConfig.transaction(),
 			evitaServerConfig.cache()
 		);
-		this.apiOptions = evitaServerConfig.api();
 
 		if (this.evitaConfiguration.server().quiet()) {
 			ConsoleWriter.setQuiet(true);
@@ -420,7 +423,14 @@ public class EvitaServer {
 		this.externalApiProviders = ExternalApiServer.gatherExternalApiProviders();
 		this.evita = evita;
 		this.evitaConfiguration = evita.getConfiguration();
-		this.apiOptions = apiOptions;
+		this.evitaServerConfiguration = new EvitaServerConfiguration(
+			evitaConfiguration.name(),
+			evitaConfiguration.server(),
+			evitaConfiguration.storage(),
+			evitaConfiguration.transaction(),
+			evitaConfiguration.cache(),
+			apiOptions
+		);
 	}
 
 	/**
@@ -428,12 +438,34 @@ public class EvitaServer {
 	 */
 	public void run() {
 		if (this.evita == null) {
-			this.evita = new Evita(evitaConfiguration);
+			this.evita = new Evita(this.evitaConfiguration);
 		}
 		this.externalApiServer = new ExternalApiServer(
-			this.evita, this.apiOptions, this.externalApiProviders
+			this.evita, this.evitaServerConfiguration.api(), this.externalApiProviders
 		);
+		this.evita.management().setConfigurationSupplier(this::serializeConfiguration);
 		this.externalApiServer.start();
+	}
+
+	/**
+	 * Method serializes the configuration to a YAML string.
+	 * @return serialized configuration
+	 */
+	@Nonnull
+	private String serializeConfiguration() {
+		try {
+			final ObjectMapper yamlMapper = new ObjectMapper(
+				YAMLFactory.builder()
+					.disable(YAMLGenerator.Feature.WRITE_DOC_START_MARKER)
+					.enable(Feature.INDENT_ARRAYS)
+					.enable(Feature.INDENT_ARRAYS_WITH_INDICATOR)
+					.build()
+			);
+			return yamlMapper.writeValueAsString(this.evitaServerConfiguration);
+		} catch (JsonProcessingException e) {
+			log.error("Failed to serialize configuration.", e);
+			return "Failed to serialize configuration.";
+		}
 	}
 
 	/**
