@@ -97,18 +97,18 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 			getPathInTargetDirectory(DIR_EVITA_SERVER_TEST),
 			createHashMap(
 				Stream.concat(
-					Stream.of(
-						property("storage.storageDirectory", getTestDirectory().resolve(DIR_EVITA_SERVER_TEST).toString()),
-						property("cache.enabled", "false")
-					),
-					apis.stream()
-						.map(it -> {
-							final int port = ports[index.getAndIncrement()];
-							servicePorts.put(it, port);
-							return property("api.endpoints." + it + ".host", "localhost:" + port);
-						})
-				)
-				.toArray(Property[]::new)
+						Stream.of(
+							property("storage.storageDirectory", getTestDirectory().resolve(DIR_EVITA_SERVER_TEST).toString()),
+							property("cache.enabled", "false")
+						),
+						apis.stream()
+							.map(it -> {
+								final int port = ports[index.getAndIncrement()];
+								servicePorts.put(it, port);
+								return property("api.endpoints." + it + ".host", "localhost:" + port);
+							})
+					)
+					.toArray(Property[]::new)
 			)
 		);
 		try {
@@ -149,8 +149,12 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 
 	@Test
 	void shouldBeAbleToGetGrpcWebResponse() {
-		final List<String> apis = List.of(GrpcProvider.CODE, SystemProvider.CODE);
-		final int[] ports = getPortManager().allocatePorts(DIR_EVITA_SERVER_TEST, apis.size());
+		final Set<String> apis = ExternalApiServer.gatherExternalApiProviders()
+			.stream()
+			.map(ExternalApiProviderRegistrar::getExternalApiCode)
+			.collect(Collectors.toSet());
+		final List<String> enabledApis = List.of(GrpcProvider.CODE, SystemProvider.CODE);
+		final int[] ports = getPortManager().allocatePorts(DIR_EVITA_SERVER_TEST, enabledApis.size());
 		final AtomicInteger index = new AtomicInteger();
 		final Map<String, Integer> servicePorts = new HashMap<>();
 		//noinspection unchecked
@@ -162,12 +166,17 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 							property("storage.storageDirectory", getTestDirectory().resolve(DIR_EVITA_SERVER_TEST).toString()),
 							property("cache.enabled", "false")
 						),
-						apis.stream()
-							.map(it -> {
-								final int port = ports[index.getAndIncrement()];
-								servicePorts.put(it, port);
-								return property("api.endpoints." + it + ".host", "localhost:" + port);
-							})
+						Stream.concat(
+							apis.stream()
+								.filter(it -> !enabledApis.contains(it))
+								.map(it -> property("api.endpoints." + it + ".enabled", "false")),
+							enabledApis.stream()
+								.map(it -> {
+									final int port = ports[index.getAndIncrement()];
+									servicePorts.put(it, port);
+									return property("api.endpoints." + it + ".host", "localhost:" + port);
+								})
+						)
 					)
 					.toArray(Property[]::new)
 			)
@@ -317,17 +326,17 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 			assertTrue(readiness.isPresent());
 			assertEquals(
 				"""
-				{
-					"status": "READY",
-					"apis": {
-						"rest": "ready",
-						"system": "ready",
-						"graphQL": "ready",
-						"lab": "ready",
-						"observability": "ready",
-						"gRPC": "ready"
-					}
-				}""",
+					{
+						"status": "READY",
+						"apis": {
+							"rest": "ready",
+							"system": "ready",
+							"graphQL": "ready",
+							"lab": "ready",
+							"observability": "ready",
+							"gRPC": "ready"
+						}
+					}""",
 				readiness.get().trim()
 			);
 
@@ -361,48 +370,48 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 			output = Pattern.compile("(//)(.+:[0-9]+)(/)").matcher(output).replaceAll("$1VARIABLE$3");
 			assertEquals(
 				"""
-				{
-				   "serverName": "evitaDB-RANDOM",
-				   "version": "VARIABLE",
-				   "startedAt": "VARIABLE",
-				   "uptime": VARIABLE,
-				   "uptimeForHuman": "VARIABLE",
-				   "catalogsCorrupted": 0,
-				   "catalogsOk": 0,
-				   "healthProblems": [],
-				   "apis": [
-				      {
-				         "system": [
-				            "http://VARIABLE/system/"
-				         ]
-				      },
-				      {
-				         "graphQL": [
-				            "https://VARIABLE/gql/"
-				         ]
-				      },
-				      {
-				         "rest": [
-				            "https://VARIABLE/rest/"
-				         ]
-				      },
-				      {
-				         "gRPC": [
-				            "https://VARIABLE/"
-				         ]
-				      },
-				      {
-				         "lab": [
-				            "https://VARIABLE/lab/"
-				         ]
-				      },
-				      {
-				         "observability": [
-				            "http://VARIABLE/observability/"
-				         ]
-				      }
-				   ]
-				}""",
+					{
+					   "serverName": "evitaDB-RANDOM",
+					   "version": "VARIABLE",
+					   "startedAt": "VARIABLE",
+					   "uptime": VARIABLE,
+					   "uptimeForHuman": "VARIABLE",
+					   "catalogsCorrupted": 0,
+					   "catalogsOk": 0,
+					   "healthProblems": [],
+					   "apis": [
+					      {
+					         "system": [
+					            "http://VARIABLE/system/"
+					         ]
+					      },
+					      {
+					         "graphQL": [
+					            "https://VARIABLE/gql/"
+					         ]
+					      },
+					      {
+					         "rest": [
+					            "https://VARIABLE/rest/"
+					         ]
+					      },
+					      {
+					         "gRPC": [
+					            "https://VARIABLE/"
+					         ]
+					      },
+					      {
+					         "lab": [
+					            "https://VARIABLE/lab/"
+					         ]
+					      },
+					      {
+					         "observability": [
+					            "http://VARIABLE/observability/"
+					         ]
+					      }
+					   ]
+					}""",
 				output
 			);
 
