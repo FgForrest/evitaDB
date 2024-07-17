@@ -23,7 +23,7 @@
 
 package io.evitadb.driver;
 
-import io.evitadb.api.EvitaContract;
+import io.evitadb.api.EvitaManagementContract;
 import io.evitadb.api.task.TaskStatus;
 import io.evitadb.api.task.TaskStatus.State;
 import io.evitadb.test.TestConstants;
@@ -48,7 +48,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 class ClientTaskTrackerTest implements TestConstants {
-	final EvitaContract evitaClientMock = Mockito.mock(EvitaContract.class);
+	final EvitaManagementContract evitaClientMock = Mockito.mock(EvitaManagementContract.class);
 	private ClientTaskTracker tested = new ClientTaskTracker(evitaClientMock, 100, 1);
 
 	@Test

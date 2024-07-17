@@ -38,11 +38,8 @@ import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.exception.CatalogAlreadyPresentException;
 import io.evitadb.api.exception.CatalogNotFoundException;
-import io.evitadb.api.exception.FileForFetchNotFoundException;
 import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.exception.ReadOnlyException;
-import io.evitadb.api.exception.TemporalDataNotAvailableException;
-import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.observability.trace.TracingContext;
 import io.evitadb.api.observability.trace.TracingContextProvider;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
@@ -55,27 +52,20 @@ import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateCatalogSchem
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaNameMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.RemoveCatalogSchemaMutation;
-import io.evitadb.api.requestResponse.system.SystemStatus;
 import io.evitadb.api.task.ServerTask;
-import io.evitadb.api.task.Task;
-import io.evitadb.api.task.TaskStatus;
 import io.evitadb.core.async.ClientRunnableTask;
 import io.evitadb.core.async.ObservableExecutorService;
 import io.evitadb.core.async.ObservableThreadExecutor;
 import io.evitadb.core.async.Scheduler;
-import io.evitadb.core.async.SequentialTask;
 import io.evitadb.core.async.SessionKiller;
 import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.cache.HeapMemoryCacheSupervisor;
 import io.evitadb.core.cache.NoCacheSupervisor;
 import io.evitadb.core.exception.CatalogCorruptedException;
-import io.evitadb.core.file.ExportFileService;
 import io.evitadb.core.metric.event.storage.EvitaDBCompositionChangedEvent;
 import io.evitadb.core.metric.event.system.EvitaStartedEvent;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.dataType.PaginatedList;
 import io.evitadb.exception.EvitaInvalidUsageException;
-import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
@@ -83,7 +73,6 @@ import io.evitadb.utils.FileUtils;
 import io.evitadb.utils.NamingConvention;
 import io.evitadb.utils.ReflectionLookup;
 import io.evitadb.utils.StringUtils;
-import io.evitadb.utils.VersionUtils;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
@@ -91,11 +80,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Closeable;
-import java.io.IOException;
-import java.io.InputStream;
 import java.nio.file.Path;
-import java.time.Duration;
-import java.time.OffsetDateTime;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.ServiceLoader.Provider;
@@ -184,9 +169,9 @@ public final class Evita implements EvitaContract {
 	@Getter
 	private final Scheduler serviceExecutor;
 	/**
-	 * File service that maintains exported files and purges them eventually.
+	 * Contains the main evitaDB management service.
 	 */
-	private final ExportFileService exportFileService;
+	private final EvitaManagement management;
 	/**
 	 * Temporary storage that keeps catalog being removed reference so that onDelete callback can still access it.
 	 */
@@ -195,10 +180,6 @@ public final class Evita implements EvitaContract {
 	 * Provides the tracing context for tracking the execution flow in the application.
 	 **/
 	private final TracingContext tracingContext;
-	/**
-	 * This variable represents the starting date and time.
-	 */
-	private final OffsetDateTime started;
 	/**
 	 * Flag that is se to TRUE when Evita. is ready to serve application calls.
 	 * Aim of this flag is to refuse any calls after {@link #close()} method has been called.
@@ -245,7 +226,6 @@ public final class Evita implements EvitaContract {
 			this.serviceExecutor, configuration.server().transactionTimeoutInMilliseconds()
 		);
 
-		this.exportFileService = new ExportFileService(configuration.storage());
 		this.sessionKiller = of(configuration.server().closeSessionsAfterSecondsOfInactivity())
 			.filter(it -> it > 0)
 			.map(it -> new SessionKiller(it, this, this.serviceExecutor))
@@ -265,6 +245,7 @@ public final class Evita implements EvitaContract {
 		this.tracingContext = TracingContextProvider.getContext();
 		final Path[] directories = FileUtils.listDirectories(configuration.storage().storageDirectoryOrDefault());
 		this.catalogs = CollectionUtils.createConcurrentHashMap(directories.length);
+		this.management = new EvitaManagement(this);
 
 		try {
 			CompletableFuture.allOf(
@@ -281,7 +262,6 @@ public final class Evita implements EvitaContract {
 		}
 
 		this.readOnly = this.configuration.server().readOnly();
-		this.started = OffsetDateTime.now();
 		this.structuralChangeObservers
 			.stream()
 			.filter(CatalogStructuralChangeObserverWithEvitaContractCallback.class::isInstance)
@@ -453,6 +433,7 @@ public final class Evita implements EvitaContract {
 		}
 	}
 
+	@Nonnull
 	@Override
 	public <T> CompletableFuture<T> queryCatalogAsync(@Nonnull String catalogName, @Nonnull Function<EvitaSessionContract, T> queryLogic, @Nullable SessionFlags... flags) {
 		return CompletableFuture.supplyAsync(
@@ -466,6 +447,7 @@ public final class Evita implements EvitaContract {
 		);
 	}
 
+	@Nonnull
 	@Override
 	public <T> CompletableFuture<T> updateCatalogAsync(
 		@Nonnull String catalogName,
@@ -502,6 +484,7 @@ public final class Evita implements EvitaContract {
 		}
 	}
 
+	@Nonnull
 	@Override
 	public CompletableFuture<Long> updateCatalogAsync(
 		@Nonnull String catalogName,
@@ -542,130 +525,8 @@ public final class Evita implements EvitaContract {
 
 	@Nonnull
 	@Override
-	public CompletableFuture<FileForFetch> backupCatalog(
-		@Nonnull String catalogName,
-		@Nullable OffsetDateTime pastMoment,
-		boolean includingWAL
-	) throws TemporalDataNotAvailableException {
-		assertActive();
-		try (final EvitaSessionContract session = this.createSession(new SessionTraits(catalogName))) {
-			return session.backupCatalog(pastMoment, includingWAL).getFutureResult();
-		}
-	}
-
-	@Nonnull
-	@Override
-	public Task<?, Void> restoreCatalog(
-		@Nonnull String catalogName,
-		long totalBytesExpected,
-		@Nonnull InputStream inputStream
-	) throws UnexpectedIOException {
-		assertActive();
-		final SequentialTask<Void> task = new SequentialTask<>(
-			catalogName,
-			"Restore catalog " + catalogName + " from backup.",
-			Catalog.createRestoreCatalogTask(
-				catalogName, this.configuration.storage(), totalBytesExpected, inputStream
-			),
-			createLoadCatalogTask(catalogName)
-		);
-		this.serviceExecutor.submit(task);
-		return task;
-	}
-
-	@Nonnull
-	@Override
-	public Task<?, Void> restoreCatalog(@Nonnull String catalogName, @Nonnull UUID fileId) throws FileForFetchNotFoundException {
-		assertActive();
-		final FileForFetch file = this.exportFileService.getFile(fileId)
-			.orElseThrow(() -> new FileForFetchNotFoundException(fileId));
-		try {
-			final SequentialTask<Void> task = new SequentialTask<>(
-				catalogName,
-				"Restore catalog " + catalogName + " from backup.",
-				Catalog.createRestoreCatalogTask(
-					catalogName, this.configuration.storage(),
-					file.totalSizeInBytes(),
-					this.exportFileService.createInputStream(file)
-				),
-				createLoadCatalogTask(catalogName)
-			);
-			this.serviceExecutor.submit(task);
-			return task;
-		} catch (IOException e) {
-			throw new FileForFetchNotFoundException(fileId);
-		}
-	}
-
-	@Nonnull
-	@Override
-	public PaginatedList<TaskStatus<?, ?>> listTaskStatuses(int page, int pageSize) {
-		assertActive();
-		return this.serviceExecutor.listJobStatuses(page, pageSize);
-	}
-
-	@Nonnull
-	@Override
-	public Optional<TaskStatus<?, ?>> getTaskStatus(@Nonnull UUID jobId) {
-		assertActive();
-		return this.serviceExecutor.getJobStatus(jobId);
-	}
-
-	@Nonnull
-	@Override
-	public Collection<TaskStatus<?, ?>> getTaskStatuses(@Nonnull UUID... jobId) {
-		assertActive();
-		return this.serviceExecutor.getJobStatuses(jobId);
-	}
-
-	@Override
-	public boolean cancelTask(@Nonnull UUID jobId) {
-		assertActive();
-		return this.serviceExecutor.cancelJob(jobId);
-	}
-
-	@Nonnull
-	@Override
-	public PaginatedList<FileForFetch> listFilesToFetch(int page, int pageSize, @Nullable String origin) {
-		assertActive();
-		return this.exportFileService.listFilesToFetch(page, pageSize, origin);
-	}
-
-	@Nonnull
-	@Override
-	public Optional<FileForFetch> getFileToFetch(@Nonnull UUID fileId) {
-		return this.exportFileService.getFile(fileId);
-	}
-
-	@Nonnull
-	@Override
-	public InputStream fetchFile(@Nonnull UUID fileId) throws FileForFetchNotFoundException, UnexpectedIOException {
-		assertActive();
-		return this.exportFileService.fetchFile(fileId);
-	}
-
-	@Override
-	public void deleteFile(@Nonnull UUID fileId) throws FileForFetchNotFoundException {
-		assertActive();
-		this.exportFileService.deleteFile(fileId);
-	}
-
-	@Nonnull
-	@Override
-	public SystemStatus getSystemStatus() {
-		final int corruptedCatalogs = (int) this.catalogs.values()
-			.stream()
-			.filter(it -> it instanceof CorruptedCatalog)
-			.count();
-
-		return new SystemStatus(
-			VersionUtils.readVersion(),
-			this.started,
-			Duration.between(this.started, OffsetDateTime.now()),
-			this.configuration.name(),
-			corruptedCatalogs,
-			this.catalogs.size() - corruptedCatalogs
-		);
+	public EvitaManagement management() {
+		return this.management;
 	}
 
 	/**
@@ -700,10 +561,6 @@ public final class Evita implements EvitaContract {
 		return ofNullable(catalogs.get(catalog))
 			.or(() -> Optional.ofNullable(removedCatalog.get()));
 	}
-
-	/*
-		PRIVATE METHODS
-	*/
 
 	/**
 	 * Returns catalog instance for passed catalog name or throws exception.
@@ -745,7 +602,7 @@ public final class Evita implements EvitaContract {
 	 * @param catalogName name of the catalog
 	 */
 	@Nonnull
-	private ServerTask<Void, Void> createLoadCatalogTask(@Nonnull String catalogName) {
+	ServerTask<Void, Void> createLoadCatalogTask(@Nonnull String catalogName) {
 		return new ClientRunnableTask<>(
 			catalogName,
 			"Loading catalog " + catalogName + " from disk...",
@@ -758,7 +615,7 @@ public final class Evita implements EvitaContract {
 					this.configuration,
 					this.reflectionLookup,
 					this.serviceExecutor,
-					this.exportFileService,
+					this.management.exportFileService(),
 					this.transactionExecutor,
 					this::replaceCatalogReference,
 					this.tracingContext
@@ -783,6 +640,10 @@ public final class Evita implements EvitaContract {
 			}
 		);
 	}
+
+	/*
+		PRIVATE METHODS
+	*/
 
 	/**
 	 * Creates new catalog in the evitaDB.
@@ -829,7 +690,7 @@ public final class Evita implements EvitaContract {
 						this.configuration,
 						this.reflectionLookup,
 						this.serviceExecutor,
-						this.exportFileService,
+						this.management.exportFileService(),
 						this.transactionExecutor,
 						this::replaceCatalogReference,
 						this.tracingContext
@@ -988,7 +849,7 @@ public final class Evita implements EvitaContract {
 	/**
 	 * Verifies this instance is still active.
 	 */
-	private void assertActive() {
+	void assertActive() {
 		if (!active) {
 			throw new InstanceTerminatedException("instance");
 		}

@@ -23,7 +23,7 @@
 
 package io.evitadb.driver;
 
-import io.evitadb.api.EvitaContract;
+import io.evitadb.api.EvitaManagementContract;
 import io.evitadb.api.task.Task;
 import io.evitadb.api.task.TaskStatus;
 import io.evitadb.api.task.TaskStatus.State;
@@ -72,7 +72,7 @@ public class ClientTaskTracker implements Closeable {
 	/**
 	 * The client that is used to refresh the task statuses and cancelling them.
 	 */
-	private final EvitaContract evitaClient;
+	private final EvitaManagementContract evitaManagement;
 	/**
 	 * The queue of tasks that are being tracked.
 	 */
@@ -94,8 +94,8 @@ public class ClientTaskTracker implements Closeable {
 	 */
 	private final int refreshIntervalMillis;
 
-	public ClientTaskTracker(@Nonnull EvitaContract evitaClient, int clientTaskLimit, int refreshIntervalMillis) {
-		this.evitaClient = evitaClient;
+	public ClientTaskTracker(@Nonnull EvitaManagementContract evitaManagement, int clientTaskLimit, int refreshIntervalMillis) {
+		this.evitaManagement = evitaManagement;
 		this.scheduler = Executors.newSingleThreadScheduledExecutor();
 		this.tasks = new ArrayBlockingQueue<>(clientTaskLimit);
 		this.refreshIntervalMillis = refreshIntervalMillis;
@@ -118,8 +118,8 @@ public class ClientTaskTracker implements Closeable {
 			// we need to add the task to the queue and track its status - unless it's already GCed
 			final ClientTask<S, T> taskToTrack = new ClientTask<>(
 				taskStatus,
-				() -> evitaClient::cancelTask,
-				() -> evitaClient::getTaskStatus
+				() -> evitaManagement::cancelTask,
+				() -> evitaManagement::getTaskStatus
 			);
 			final boolean added = this.tasks.offer(new WeakReference<>(taskToTrack));
 			if (!added) {
@@ -180,7 +180,7 @@ public class ClientTaskTracker implements Closeable {
 				.map(TaskStatus::taskId)
 				.distinct()
 				.toArray(UUID[]::new);
-			final Map<UUID, TaskStatus<?, ?>> statusIndex = evitaClient.getTaskStatuses(taskIds)
+			final Map<UUID, TaskStatus<?, ?>> statusIndex = evitaManagement.getTaskStatuses(taskIds)
 				.stream()
 				.collect(
 					Collectors.toMap(

@@ -25,14 +25,16 @@
 
 package io.evitadb.api.query.parser.grammar;
 
-import org.antlr.v4.runtime.Lexer;
 import org.antlr.v4.runtime.CharStream;
-import org.antlr.v4.runtime.Token;
-import org.antlr.v4.runtime.TokenStream;
-import org.antlr.v4.runtime.*;
-import org.antlr.v4.runtime.atn.*;
+import org.antlr.v4.runtime.Lexer;
+import org.antlr.v4.runtime.RuntimeMetaData;
+import org.antlr.v4.runtime.Vocabulary;
+import org.antlr.v4.runtime.VocabularyImpl;
+import org.antlr.v4.runtime.atn.ATN;
+import org.antlr.v4.runtime.atn.ATNDeserializer;
+import org.antlr.v4.runtime.atn.LexerATNSimulator;
+import org.antlr.v4.runtime.atn.PredictionContextCache;
 import org.antlr.v4.runtime.dfa.DFA;
-import org.antlr.v4.runtime.misc.*;
 
 @SuppressWarnings({"all", "warnings", "unchecked", "unused", "cast"})
 public class EvitaQLLexer extends Lexer {
@@ -42,23 +44,23 @@ public class EvitaQLLexer extends Lexer {
 	protected static final PredictionContextCache _sharedContextCache =
 		new PredictionContextCache();
 	public static final int
-		T__0=1, T__1=2, T__2=3, T__3=4, T__4=5, T__5=6, T__6=7, T__7=8, T__8=9, 
-		T__9=10, T__10=11, T__11=12, T__12=13, T__13=14, T__14=15, T__15=16, T__16=17, 
-		T__17=18, T__18=19, T__19=20, T__20=21, T__21=22, T__22=23, T__23=24, 
-		T__24=25, T__25=26, T__26=27, T__27=28, T__28=29, T__29=30, T__30=31, 
-		T__31=32, T__32=33, T__33=34, T__34=35, T__35=36, T__36=37, T__37=38, 
-		T__38=39, T__39=40, T__40=41, T__41=42, T__42=43, T__43=44, T__44=45, 
-		T__45=46, T__46=47, T__47=48, T__48=49, T__49=50, T__50=51, T__51=52, 
-		T__52=53, T__53=54, T__54=55, T__55=56, T__56=57, T__57=58, T__58=59, 
-		T__59=60, T__60=61, T__61=62, T__62=63, T__63=64, T__64=65, T__65=66, 
-		T__66=67, T__67=68, T__68=69, T__69=70, T__70=71, T__71=72, T__72=73, 
-		T__73=74, T__74=75, T__75=76, T__76=77, T__77=78, T__78=79, T__79=80, 
-		T__80=81, T__81=82, T__82=83, T__83=84, T__84=85, T__85=86, T__86=87, 
-		T__87=88, T__88=89, T__89=90, T__90=91, T__91=92, T__92=93, T__93=94, 
-		T__94=95, T__95=96, POSITIONAL_PARAMETER=97, NAMED_PARAMETER=98, STRING=99, 
-		INT=100, FLOAT=101, BOOLEAN=102, DATE=103, TIME=104, DATE_TIME=105, OFFSET_DATE_TIME=106, 
-		FLOAT_NUMBER_RANGE=107, INT_NUMBER_RANGE=108, DATE_TIME_RANGE=109, UUID=110, 
-		ENUM=111, ARGS_OPENING=112, ARGS_CLOSING=113, ARGS_DELIMITER=114, COMMENT=115, 
+		T__0=1, T__1=2, T__2=3, T__3=4, T__4=5, T__5=6, T__6=7, T__7=8, T__8=9,
+		T__9=10, T__10=11, T__11=12, T__12=13, T__13=14, T__14=15, T__15=16, T__16=17,
+		T__17=18, T__18=19, T__19=20, T__20=21, T__21=22, T__22=23, T__23=24,
+		T__24=25, T__25=26, T__26=27, T__27=28, T__28=29, T__29=30, T__30=31,
+		T__31=32, T__32=33, T__33=34, T__34=35, T__35=36, T__36=37, T__37=38,
+		T__38=39, T__39=40, T__40=41, T__41=42, T__42=43, T__43=44, T__44=45,
+		T__45=46, T__46=47, T__47=48, T__48=49, T__49=50, T__50=51, T__51=52,
+		T__52=53, T__53=54, T__54=55, T__55=56, T__56=57, T__57=58, T__58=59,
+		T__59=60, T__60=61, T__61=62, T__62=63, T__63=64, T__64=65, T__65=66,
+		T__66=67, T__67=68, T__68=69, T__69=70, T__70=71, T__71=72, T__72=73,
+		T__73=74, T__74=75, T__75=76, T__76=77, T__77=78, T__78=79, T__79=80,
+		T__80=81, T__81=82, T__82=83, T__83=84, T__84=85, T__85=86, T__86=87,
+		T__87=88, T__88=89, T__89=90, T__90=91, T__91=92, T__92=93, T__93=94,
+		T__94=95, T__95=96, POSITIONAL_PARAMETER=97, NAMED_PARAMETER=98, STRING=99,
+		INT=100, FLOAT=101, BOOLEAN=102, DATE=103, TIME=104, DATE_TIME=105, OFFSET_DATE_TIME=106,
+		FLOAT_NUMBER_RANGE=107, INT_NUMBER_RANGE=108, DATE_TIME_RANGE=109, UUID=110,
+		ENUM=111, ARGS_OPENING=112, ARGS_CLOSING=113, ARGS_DELIMITER=114, COMMENT=115,
 		WHITESPACE=116, UNEXPECTED_CHAR=117;
 	public static String[] channelNames = {
 		"DEFAULT_TOKEN_CHANNEL", "HIDDEN"
@@ -70,23 +72,23 @@ public class EvitaQLLexer extends Lexer {
 
 	private static String[] makeRuleNames() {
 		return new String[] {
-			"T__0", "T__1", "T__2", "T__3", "T__4", "T__5", "T__6", "T__7", "T__8", 
-			"T__9", "T__10", "T__11", "T__12", "T__13", "T__14", "T__15", "T__16", 
-			"T__17", "T__18", "T__19", "T__20", "T__21", "T__22", "T__23", "T__24", 
-			"T__25", "T__26", "T__27", "T__28", "T__29", "T__30", "T__31", "T__32", 
-			"T__33", "T__34", "T__35", "T__36", "T__37", "T__38", "T__39", "T__40", 
-			"T__41", "T__42", "T__43", "T__44", "T__45", "T__46", "T__47", "T__48", 
-			"T__49", "T__50", "T__51", "T__52", "T__53", "T__54", "T__55", "T__56", 
-			"T__57", "T__58", "T__59", "T__60", "T__61", "T__62", "T__63", "T__64", 
-			"T__65", "T__66", "T__67", "T__68", "T__69", "T__70", "T__71", "T__72", 
-			"T__73", "T__74", "T__75", "T__76", "T__77", "T__78", "T__79", "T__80", 
-			"T__81", "T__82", "T__83", "T__84", "T__85", "T__86", "T__87", "T__88", 
-			"T__89", "T__90", "T__91", "T__92", "T__93", "T__94", "T__95", "POSITIONAL_PARAMETER", 
-			"NAMED_PARAMETER", "STRING", "STRING_DOUBLE_QUOTATION_ESC", "STRING_SINGLE_QUOTATION_ESC", 
-			"STRING_UNICODE", "STRING_HEX", "STRING_DOUBLE_QUOTATION_SAFECODEPOINT", 
-			"STRING_SINGLE_QUOTATION_SAFECODEPOINT", "INT", "FLOAT", "BOOLEAN", "DATE", 
-			"TIME", "DATE_TIME", "OFFSET_DATE_TIME", "FLOAT_NUMBER_RANGE", "INT_NUMBER_RANGE", 
-			"DATE_TIME_RANGE", "UUID", "ENUM", "ARGS_OPENING", "ARGS_CLOSING", "ARGS_DELIMITER", 
+			"T__0", "T__1", "T__2", "T__3", "T__4", "T__5", "T__6", "T__7", "T__8",
+			"T__9", "T__10", "T__11", "T__12", "T__13", "T__14", "T__15", "T__16",
+			"T__17", "T__18", "T__19", "T__20", "T__21", "T__22", "T__23", "T__24",
+			"T__25", "T__26", "T__27", "T__28", "T__29", "T__30", "T__31", "T__32",
+			"T__33", "T__34", "T__35", "T__36", "T__37", "T__38", "T__39", "T__40",
+			"T__41", "T__42", "T__43", "T__44", "T__45", "T__46", "T__47", "T__48",
+			"T__49", "T__50", "T__51", "T__52", "T__53", "T__54", "T__55", "T__56",
+			"T__57", "T__58", "T__59", "T__60", "T__61", "T__62", "T__63", "T__64",
+			"T__65", "T__66", "T__67", "T__68", "T__69", "T__70", "T__71", "T__72",
+			"T__73", "T__74", "T__75", "T__76", "T__77", "T__78", "T__79", "T__80",
+			"T__81", "T__82", "T__83", "T__84", "T__85", "T__86", "T__87", "T__88",
+			"T__89", "T__90", "T__91", "T__92", "T__93", "T__94", "T__95", "POSITIONAL_PARAMETER",
+			"NAMED_PARAMETER", "STRING", "STRING_DOUBLE_QUOTATION_ESC", "STRING_SINGLE_QUOTATION_ESC",
+			"STRING_UNICODE", "STRING_HEX", "STRING_DOUBLE_QUOTATION_SAFECODEPOINT",
+			"STRING_SINGLE_QUOTATION_SAFECODEPOINT", "INT", "FLOAT", "BOOLEAN", "DATE",
+			"TIME", "DATE_TIME", "OFFSET_DATE_TIME", "FLOAT_NUMBER_RANGE", "INT_NUMBER_RANGE",
+			"DATE_TIME_RANGE", "UUID", "ENUM", "ARGS_OPENING", "ARGS_CLOSING", "ARGS_DELIMITER",
 			"COMMENT", "WHITESPACE", "UNEXPECTED_CHAR"
 		};
 	}
@@ -94,49 +96,49 @@ public class EvitaQLLexer extends Lexer {
 
 	private static String[] makeLiteralNames() {
 		return new String[] {
-			null, "'query'", "'collection'", "'filterBy'", "'filterGroupBy'", "'and'", 
-			"'or'", "'not'", "'userFilter'", "'attributeEquals'", "'attributeGreaterThan'", 
-			"'attributeGreaterThanEquals'", "'attributeLessThan'", "'attributeLessThanEquals'", 
-			"'attributeBetween'", "'attributeInSet'", "'attributeContains'", "'attributeStartsWith'", 
-			"'attributeEndsWith'", "'attributeEqualsTrue'", "'attributeEqualsFalse'", 
-			"'attributeIs'", "'attributeIsNull'", "'attributeIsNotNull'", "'attributeInRange'", 
-			"'attributeInRangeNow'", "'entityPrimaryKeyInSet'", "'entityLocaleEquals'", 
-			"'priceInCurrency'", "'priceInPriceLists'", "'priceValidInNow'", "'priceValidIn'", 
-			"'priceBetween'", "'facetHaving'", "'referenceHaving'", "'hierarchyWithin'", 
-			"'hierarchyWithinSelf'", "'hierarchyWithinRoot'", "'hierarchyWithinRootSelf'", 
-			"'directRelation'", "'having'", "'excludingRoot'", "'excluding'", "'entityHaving'", 
-			"'orderBy'", "'orderGroupBy'", "'attributeNatural'", "'attributeSetExact'", 
-			"'attributeSetInFilter'", "'priceNatural'", "'random'", "'referenceProperty'", 
-			"'entityPrimaryKeyNatural'", "'entityPrimaryKeyExact'", "'entityPrimaryKeyInFilter'", 
-			"'entityProperty'", "'entityGroupProperty'", "'require'", "'page'", "'strip'", 
-			"'entityFetch'", "'entityGroupFetch'", "'attributeContent'", "'attributeContentAll'", 
-			"'priceContent'", "'priceContentAll'", "'priceContentRespectingFilter'", 
-			"'associatedDataContent'", "'associatedDataContentAll'", "'referenceContentAll'", 
-			"'referenceContent'", "'referenceContentAllWithAttributes'", "'referenceContentWithAttributes'", 
-			"'hierarchyContent'", "'priceType'", "'dataInLocalesAll'", "'dataInLocales'", 
-			"'facetSummary'", "'facetSummaryOfReference'", "'facetGroupsConjunction'", 
-			"'facetGroupsDisjunction'", "'facetGroupsNegation'", "'attributeHistogram'", 
-			"'priceHistogram'", "'distance'", "'level'", "'node'", "'stopAt'", "'statistics'", 
-			"'fromRoot'", "'fromNode'", "'children'", "'siblings'", "'parents'", 
-			"'hierarchyOfSelf'", "'hierarchyOfReference'", "'queryTelemetry'", "'?'", 
-			null, null, null, null, null, null, null, null, null, null, null, null, 
+			null, "'query'", "'collection'", "'filterBy'", "'filterGroupBy'", "'and'",
+			"'or'", "'not'", "'userFilter'", "'attributeEquals'", "'attributeGreaterThan'",
+			"'attributeGreaterThanEquals'", "'attributeLessThan'", "'attributeLessThanEquals'",
+			"'attributeBetween'", "'attributeInSet'", "'attributeContains'", "'attributeStartsWith'",
+			"'attributeEndsWith'", "'attributeEqualsTrue'", "'attributeEqualsFalse'",
+			"'attributeIs'", "'attributeIsNull'", "'attributeIsNotNull'", "'attributeInRange'",
+			"'attributeInRangeNow'", "'entityPrimaryKeyInSet'", "'entityLocaleEquals'",
+			"'priceInCurrency'", "'priceInPriceLists'", "'priceValidInNow'", "'priceValidIn'",
+			"'priceBetween'", "'facetHaving'", "'referenceHaving'", "'hierarchyWithin'",
+			"'hierarchyWithinSelf'", "'hierarchyWithinRoot'", "'hierarchyWithinRootSelf'",
+			"'directRelation'", "'having'", "'excludingRoot'", "'excluding'", "'entityHaving'",
+			"'orderBy'", "'orderGroupBy'", "'attributeNatural'", "'attributeSetExact'",
+			"'attributeSetInFilter'", "'priceNatural'", "'random'", "'referenceProperty'",
+			"'entityPrimaryKeyNatural'", "'entityPrimaryKeyExact'", "'entityPrimaryKeyInFilter'",
+			"'entityProperty'", "'entityGroupProperty'", "'require'", "'page'", "'strip'",
+			"'entityFetch'", "'entityGroupFetch'", "'attributeContent'", "'attributeContentAll'",
+			"'priceContent'", "'priceContentAll'", "'priceContentRespectingFilter'",
+			"'associatedDataContent'", "'associatedDataContentAll'", "'referenceContentAll'",
+			"'referenceContent'", "'referenceContentAllWithAttributes'", "'referenceContentWithAttributes'",
+			"'hierarchyContent'", "'priceType'", "'dataInLocalesAll'", "'dataInLocales'",
+			"'facetSummary'", "'facetSummaryOfReference'", "'facetGroupsConjunction'",
+			"'facetGroupsDisjunction'", "'facetGroupsNegation'", "'attributeHistogram'",
+			"'priceHistogram'", "'distance'", "'level'", "'node'", "'stopAt'", "'statistics'",
+			"'fromRoot'", "'fromNode'", "'children'", "'siblings'", "'parents'",
+			"'hierarchyOfSelf'", "'hierarchyOfReference'", "'queryTelemetry'", "'?'",
+			null, null, null, null, null, null, null, null, null, null, null, null,
 			null, null, "'('", "')'", "','"
 		};
 	}
 	private static final String[] _LITERAL_NAMES = makeLiteralNames();
 	private static String[] makeSymbolicNames() {
 		return new String[] {
-			null, null, null, null, null, null, null, null, null, null, null, null, 
-			null, null, null, null, null, null, null, null, null, null, null, null, 
-			null, null, null, null, null, null, null, null, null, null, null, null, 
-			null, null, null, null, null, null, null, null, null, null, null, null, 
-			null, null, null, null, null, null, null, null, null, null, null, null, 
-			null, null, null, null, null, null, null, null, null, null, null, null, 
-			null, null, null, null, null, null, null, null, null, null, null, null, 
-			null, null, null, null, null, null, null, null, null, null, null, null, 
-			null, "POSITIONAL_PARAMETER", "NAMED_PARAMETER", "STRING", "INT", "FLOAT", 
-			"BOOLEAN", "DATE", "TIME", "DATE_TIME", "OFFSET_DATE_TIME", "FLOAT_NUMBER_RANGE", 
-			"INT_NUMBER_RANGE", "DATE_TIME_RANGE", "UUID", "ENUM", "ARGS_OPENING", 
+			null, null, null, null, null, null, null, null, null, null, null, null,
+			null, null, null, null, null, null, null, null, null, null, null, null,
+			null, null, null, null, null, null, null, null, null, null, null, null,
+			null, null, null, null, null, null, null, null, null, null, null, null,
+			null, null, null, null, null, null, null, null, null, null, null, null,
+			null, null, null, null, null, null, null, null, null, null, null, null,
+			null, null, null, null, null, null, null, null, null, null, null, null,
+			null, null, null, null, null, null, null, null, null, null, null, null,
+			null, "POSITIONAL_PARAMETER", "NAMED_PARAMETER", "STRING", "INT", "FLOAT",
+			"BOOLEAN", "DATE", "TIME", "DATE_TIME", "OFFSET_DATE_TIME", "FLOAT_NUMBER_RANGE",
+			"INT_NUMBER_RANGE", "DATE_TIME_RANGE", "UUID", "ENUM", "ARGS_OPENING",
 			"ARGS_CLOSING", "ARGS_DELIMITER", "COMMENT", "WHITESPACE", "UNEXPECTED_CHAR"
 		};
 	}

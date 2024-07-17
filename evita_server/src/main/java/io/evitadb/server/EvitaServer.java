@@ -441,7 +441,7 @@ public class EvitaServer {
 	 */
 	@Nonnull
 	public CompletableFuture<Void> stop() {
-		if (this.stopFuture != null) {
+		if (this.stopFuture == null) {
 			this.stopFuture = externalApiServer.closeAsynchronously()
 				.thenAccept(unused -> ConsoleWriter.write("Server stopped, bye.\n\n"));
 		}
@@ -556,9 +556,9 @@ public class EvitaServer {
 			try {
 				evitaServer.stop()
 					.thenAccept(unused -> stop())
-					.get(5, TimeUnit.SECONDS);
+					.get(30, TimeUnit.SECONDS);
 			} catch (ExecutionException | InterruptedException | TimeoutException e) {
-				ConsoleWriter.write("Failed to stop evita server in dedicated time (5 secs.).\n");
+				ConsoleWriter.write("Failed to stop evita server in dedicated time (30 secs.).\n");
 			}
 		}
 

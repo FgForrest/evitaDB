@@ -143,7 +143,7 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 						.stream()
 						.flatMap(it -> it.getHealthProblems(evita, externalApiServer, enabledEndPoints).stream())
 						.collect(Collectors.toSet());
-					final SystemStatus systemStatus = evita.getSystemStatus();
+					final SystemStatus systemStatus = evita.management().getSystemStatus();
 					return builder.content(
 						MediaType.JSON,
 						String.format("""
@@ -448,7 +448,7 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 	}
 
 	@Nonnull
-	private HttpService createCorsWrapper(@Nonnull SystemConfig config, @Nonnull HttpService delegate) {
+	private static HttpService createCorsWrapper(@Nonnull SystemConfig config, @Nonnull HttpService delegate) {
 		return new CorsFilter(
 			new CorsPreflightHandler(
 				delegate,
