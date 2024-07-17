@@ -50,6 +50,7 @@ import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.grpc.generated.*;
+import io.evitadb.utils.NamingConvention;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
@@ -777,6 +778,39 @@ public class EvitaEnumConverter {
 			case WAIT_FOR_LOG_PERSISTENCE -> CommitBehavior.WAIT_FOR_WAL_PERSISTENCE;
 			case WAIT_FOR_INDEX_PROPAGATION -> CommitBehavior.WAIT_FOR_INDEX_PROPAGATION;
 			default -> throw new GenericEvitaInternalError("Unrecognized remote commit behavior: " + commitBehaviour);
+		};
+	}
+
+	/**
+	 * Converts a GrpcNamingConvention to a NamingConvention.
+	 * @param namingConvention The GrpcNamingConvention to convert.
+	 * @return The converted NamingConvention.
+	 */
+	@Nonnull
+	public static GrpcNamingConvention toGrpcNamingConvention(@Nonnull NamingConvention namingConvention) {
+		return switch (namingConvention) {
+			case SNAKE_CASE -> GrpcNamingConvention.SNAKE_CASE;
+			case CAMEL_CASE -> GrpcNamingConvention.CAMEL_CASE;
+			case UPPER_SNAKE_CASE -> GrpcNamingConvention.UPPER_SNAKE_CASE;
+			case PASCAL_CASE -> GrpcNamingConvention.PASCAL_CASE;
+			case KEBAB_CASE -> GrpcNamingConvention.KEBAB_CASE;
+		};
+	}
+
+	/**
+	 * Converts a NamingConvention to a GrpcNamingConvention.
+	 * @param namingConvention The NamingConvention to convert.
+	 * @return The converted GrpcNamingConvention.
+	 */
+	@Nonnull
+	public static NamingConvention toNamingConvention(@Nonnull GrpcNamingConvention namingConvention) {
+		return switch (namingConvention) {
+			case SNAKE_CASE -> NamingConvention.SNAKE_CASE;
+			case CAMEL_CASE -> NamingConvention.CAMEL_CASE;
+			case UPPER_SNAKE_CASE -> NamingConvention.UPPER_SNAKE_CASE;
+			case PASCAL_CASE -> NamingConvention.PASCAL_CASE;
+			case KEBAB_CASE -> NamingConvention.KEBAB_CASE;
+			default -> throw new GenericEvitaInternalError("Unrecognized naming convention: " + namingConvention);
 		};
 	}
 

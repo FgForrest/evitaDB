@@ -1860,7 +1860,9 @@ public class EvitaClientSession implements EvitaSessionContract {
 	private CatalogSchema fetchCatalogSchema() {
 		final GrpcCatalogSchemaResponse grpcResponse = executeWithBlockingEvitaSessionService(
 			evitaSessionService ->
-				evitaSessionService.getCatalogSchema(Empty.getDefaultInstance())
+				evitaSessionService.getCatalogSchema(
+					GrpcGetCatalogSchemaRequest.newBuilder().build()
+				)
 		);
 		return CatalogSchemaConverter.convert(
 			grpcResponse.getCatalogSchema(), clientEntitySchemaAccessor

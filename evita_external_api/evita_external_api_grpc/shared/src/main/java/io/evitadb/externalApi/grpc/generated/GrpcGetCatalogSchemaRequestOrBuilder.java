@@ -26,29 +26,9 @@
 
 package io.evitadb.externalApi.grpc.generated;
 
-public interface GrpcEntitySchemaRequestOrBuilder extends
-    // @@protoc_insertion_point(interface_extends:io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaRequest)
+public interface GrpcGetCatalogSchemaRequestOrBuilder extends
+    // @@protoc_insertion_point(interface_extends:io.evitadb.externalApi.grpc.generated.GrpcGetCatalogSchemaRequest)
     com.google.protobuf.MessageOrBuilder {
-
-  /**
-   * <pre>
-   * The entity type for which the schema is requested.
-   * </pre>
-   *
-   * <code>string entityType = 1;</code>
-   * @return The entityType.
-   */
-  java.lang.String getEntityType();
-  /**
-   * <pre>
-   * The entity type for which the schema is requested.
-   * </pre>
-   *
-   * <code>string entityType = 1;</code>
-   * @return The bytes for entityType.
-   */
-  com.google.protobuf.ByteString
-      getEntityTypeBytes();
 
   /**
    * <pre>
@@ -56,7 +36,7 @@ public interface GrpcEntitySchemaRequestOrBuilder extends
    * This could considerably increase the size of the response.
    * </pre>
    *
-   * <code>bool nameVariants = 2;</code>
+   * <code>bool nameVariants = 1;</code>
    * @return The nameVariants.
    */
   boolean getNameVariants();

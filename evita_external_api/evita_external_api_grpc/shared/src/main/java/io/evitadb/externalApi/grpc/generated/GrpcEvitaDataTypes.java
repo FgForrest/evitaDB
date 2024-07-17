@@ -227,6 +227,11 @@ public final class GrpcEvitaDataTypes {
   static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcEntityCollectionStatistics_fieldAccessorTable;
+  static final com.google.protobuf.Descriptors.Descriptor
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcNameVariant_descriptor;
+  static final
+    com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
+      internal_static_io_evitadb_externalApi_grpc_generated_GrpcNameVariant_fieldAccessorTable;
 
   public static com.google.protobuf.Descriptors.FileDescriptor
       getDescriptor() {
@@ -410,7 +415,10 @@ public final class GrpcEvitaDataTypes {
       "onStatistics\"y\n\036GrpcEntityCollectionStat" +
       "istics\022\022\n\nentityType\030\001 \001(\t\022\024\n\014totalRecor" +
       "ds\030\002 \001(\005\022\022\n\nindexCount\030\003 \001(\005\022\031\n\021sizeOnDi" +
-      "skInBytes\030\004 \001(\003B\014P\001\252\002\007EvitaDBb\006proto3"
+      "skInBytes\030\004 \001(\003\"v\n\017GrpcNameVariant\022U\n\020na" +
+      "mingConvention\030\001 \001(\0162;.io.evitadb.extern" +
+      "alApi.grpc.generated.GrpcNamingConventio" +
+      "n\022\014\n\004name\030\002 \001(\tB\014P\001\252\002\007EvitaDBb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,
@@ -647,6 +655,12 @@ public final class GrpcEvitaDataTypes {
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcEntityCollectionStatistics_descriptor,
         new java.lang.String[] { "EntityType", "TotalRecords", "IndexCount", "SizeOnDiskInBytes", });
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcNameVariant_descriptor =
+      getDescriptor().getMessageTypes().get(38);
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcNameVariant_fieldAccessorTable = new
+      com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
+        internal_static_io_evitadb_externalApi_grpc_generated_GrpcNameVariant_descriptor,
+        new java.lang.String[] { "NamingConvention", "Name", });
     com.google.protobuf.TimestampProto.getDescriptor();
     com.google.protobuf.WrappersProto.getDescriptor();
     io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor();

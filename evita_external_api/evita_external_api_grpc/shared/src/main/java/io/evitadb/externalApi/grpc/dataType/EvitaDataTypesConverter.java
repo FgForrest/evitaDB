@@ -39,6 +39,7 @@ import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue.ValueCase;
 import io.evitadb.externalApi.grpc.generated.GrpcTaskStatus.Builder;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
+import io.evitadb.utils.NamingConvention;
 import io.evitadb.utils.NumberUtils;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
@@ -1569,4 +1570,17 @@ public class EvitaDataTypesConverter {
 		);
 	}
 
+	/**
+	 * Converts {@link NamingConvention} to {@link GrpcNamingConvention}.
+	 * @param namingConvention naming convention to be converted
+	 * @param nameVariant name variant to be converted
+	 * @return built instance of {@link GrpcNameVariant}
+	 */
+	@Nonnull
+	public static GrpcNameVariant toGrpcNameVariant(@Nonnull NamingConvention namingConvention, @Nonnull String nameVariant) {
+		return GrpcNameVariant.newBuilder()
+			.setNamingConvention(EvitaEnumConverter.toGrpcNamingConvention(namingConvention))
+			.setName(nameVariant)
+			.build();
+	}
 }

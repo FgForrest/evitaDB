@@ -28,29 +28,28 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * Request for acquiring the schema of a specific entity type.
+ * Request to GetCatalogSchema request.
  * </pre>
  *
- * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaRequest}
+ * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcGetCatalogSchemaRequest}
  */
-public final class GrpcEntitySchemaRequest extends
+public final class GrpcGetCatalogSchemaRequest extends
     com.google.protobuf.GeneratedMessageV3 implements
-    // @@protoc_insertion_point(message_implements:io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaRequest)
-    GrpcEntitySchemaRequestOrBuilder {
+    // @@protoc_insertion_point(message_implements:io.evitadb.externalApi.grpc.generated.GrpcGetCatalogSchemaRequest)
+    GrpcGetCatalogSchemaRequestOrBuilder {
 private static final long serialVersionUID = 0L;
-  // Use GrpcEntitySchemaRequest.newBuilder() to construct.
-  private GrpcEntitySchemaRequest(com.google.protobuf.GeneratedMessageV3.Builder<?> builder) {
+  // Use GrpcGetCatalogSchemaRequest.newBuilder() to construct.
+  private GrpcGetCatalogSchemaRequest(com.google.protobuf.GeneratedMessageV3.Builder<?> builder) {
     super(builder);
   }
-  private GrpcEntitySchemaRequest() {
-    entityType_ = "";
+  private GrpcGetCatalogSchemaRequest() {
   }
 
   @java.lang.Override
   @SuppressWarnings({"unused"})
   protected java.lang.Object newInstance(
       UnusedPrivateParameter unused) {
-    return new GrpcEntitySchemaRequest();
+    return new GrpcGetCatalogSchemaRequest();
   }
 
   @java.lang.Override
@@ -58,7 +57,7 @@ private static final long serialVersionUID = 0L;
   getUnknownFields() {
     return this.unknownFields;
   }
-  private GrpcEntitySchemaRequest(
+  private GrpcGetCatalogSchemaRequest(
       com.google.protobuf.CodedInputStream input,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
@@ -76,13 +75,7 @@ private static final long serialVersionUID = 0L;
           case 0:
             done = true;
             break;
-          case 10: {
-            java.lang.String s = input.readStringRequireUtf8();
-
-            entityType_ = s;
-            break;
-          }
-          case 16: {
+          case 8: {
 
             nameVariants_ = input.readBool();
             break;
@@ -108,64 +101,18 @@ private static final long serialVersionUID = 0L;
   }
   public static final com.google.protobuf.Descriptors.Descriptor
       getDescriptor() {
-    return io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcEntitySchemaRequest_descriptor;
+    return io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcGetCatalogSchemaRequest_descriptor;
   }
 
   @java.lang.Override
   protected com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internalGetFieldAccessorTable() {
-    return io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcEntitySchemaRequest_fieldAccessorTable
+    return io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcGetCatalogSchemaRequest_fieldAccessorTable
         .ensureFieldAccessorsInitialized(
-            io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaRequest.class, io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaRequest.Builder.class);
+            io.evitadb.externalApi.grpc.generated.GrpcGetCatalogSchemaRequest.class, io.evitadb.externalApi.grpc.generated.GrpcGetCatalogSchemaRequest.Builder.class);
   }
 
-  public static final int ENTITYTYPE_FIELD_NUMBER = 1;
-  private volatile java.lang.Object entityType_;
-  /**
-   * <pre>
-   * The entity type for which the schema is requested.
-   * </pre>
-   *
-   * <code>string entityType = 1;</code>
-   * @return The entityType.
-   */
-  @java.lang.Override
-  public java.lang.String getEntityType() {
-    java.lang.Object ref = entityType_;
-    if (ref instanceof java.lang.String) {
-      return (java.lang.String) ref;
-    } else {
-      com.google.protobuf.ByteString bs =
-          (com.google.protobuf.ByteString) ref;
-      java.lang.String s = bs.toStringUtf8();
-      entityType_ = s;
-      return s;
-    }
-  }
-  /**
-   * <pre>
-   * The entity type for which the schema is requested.
-   * </pre>
-   *
-   * <code>string entityType = 1;</code>
-   * @return The bytes for entityType.
-   */
-  @java.lang.Override
-  public com.google.protobuf.ByteString
-      getEntityTypeBytes() {
-    java.lang.Object ref = entityType_;
-    if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b =
-          com.google.protobuf.ByteString.copyFromUtf8(
-              (java.lang.String) ref);
-      entityType_ = b;
-      return b;
-    } else {
-      return (com.google.protobuf.ByteString) ref;
-    }
-  }
-
-  public static final int NAMEVARIANTS_FIELD_NUMBER = 2;
+  public static final int NAMEVARIANTS_FIELD_NUMBER = 1;
   private boolean nameVariants_;
   /**
    * <pre>
@@ -173,7 +120,7 @@ private static final long serialVersionUID = 0L;
    * This could considerably increase the size of the response.
    * </pre>
    *
-   * <code>bool nameVariants = 2;</code>
+   * <code>bool nameVariants = 1;</code>
    * @return The nameVariants.
    */
   @java.lang.Override
@@ -195,11 +142,8 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(entityType_)) {
-      com.google.protobuf.GeneratedMessageV3.writeString(output, 1, entityType_);
-    }
     if (nameVariants_ != false) {
-      output.writeBool(2, nameVariants_);
+      output.writeBool(1, nameVariants_);
     }
     unknownFields.writeTo(output);
   }
@@ -210,12 +154,9 @@ private static final long serialVersionUID = 0L;
     if (size != -1) return size;
 
     size = 0;
-    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(entityType_)) {
-      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(1, entityType_);
-    }
     if (nameVariants_ != false) {
       size += com.google.protobuf.CodedOutputStream
-        .computeBoolSize(2, nameVariants_);
+        .computeBoolSize(1, nameVariants_);
     }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
@@ -227,13 +168,11 @@ private static final long serialVersionUID = 0L;
     if (obj == this) {
      return true;
     }
-    if (!(obj instanceof io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaRequest)) {
+    if (!(obj instanceof io.evitadb.externalApi.grpc.generated.GrpcGetCatalogSchemaRequest)) {
       return super.equals(obj);
     }
-    io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaRequest other = (io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaRequest) obj;
+    io.evitadb.externalApi.grpc.generated.GrpcGetCatalogSchemaRequest other = (io.evitadb.externalApi.grpc.generated.GrpcGetCatalogSchemaRequest) obj;
 
-    if (!getEntityType()
-        .equals(other.getEntityType())) return false;
     if (getNameVariants()
         != other.getNameVariants()) return false;
     if (!unknownFields.equals(other.unknownFields)) return false;
@@ -247,8 +186,6 @@ private static final long serialVersionUID = 0L;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
-    hash = (37 * hash) + ENTITYTYPE_FIELD_NUMBER;
-    hash = (53 * hash) + getEntityType().hashCode();
     hash = (37 * hash) + NAMEVARIANTS_FIELD_NUMBER;
     hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
         getNameVariants());
@@ -257,69 +194,69 @@ private static final long serialVersionUID = 0L;
     return hash;
   }
 
-  public static io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaRequest parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcGetCatalogSchemaRequest parseFrom(
       java.nio.ByteBuffer data)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaRequest parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcGetCatalogSchemaRequest parseFrom(
       java.nio.ByteBuffer data,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data, extensionRegistry);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaRequest parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcGetCatalogSchemaRequest parseFrom(
       com.google.protobuf.ByteString data)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaRequest parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcGetCatalogSchemaRequest parseFrom(
       com.google.protobuf.ByteString data,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data, extensionRegistry);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaRequest parseFrom(byte[] data)
+  public static io.evitadb.externalApi.grpc.generated.GrpcGetCatalogSchemaRequest parseFrom(byte[] data)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaRequest parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcGetCatalogSchemaRequest parseFrom(
       byte[] data,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data, extensionRegistry);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaRequest parseFrom(java.io.InputStream input)
+  public static io.evitadb.externalApi.grpc.generated.GrpcGetCatalogSchemaRequest parseFrom(java.io.InputStream input)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseWithIOException(PARSER, input);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaRequest parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcGetCatalogSchemaRequest parseFrom(
       java.io.InputStream input,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseWithIOException(PARSER, input, extensionRegistry);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaRequest parseDelimitedFrom(java.io.InputStream input)
+  public static io.evitadb.externalApi.grpc.generated.GrpcGetCatalogSchemaRequest parseDelimitedFrom(java.io.InputStream input)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseDelimitedWithIOException(PARSER, input);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaRequest parseDelimitedFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcGetCatalogSchemaRequest parseDelimitedFrom(
       java.io.InputStream input,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseDelimitedWithIOException(PARSER, input, extensionRegistry);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaRequest parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcGetCatalogSchemaRequest parseFrom(
       com.google.protobuf.CodedInputStream input)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseWithIOException(PARSER, input);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaRequest parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcGetCatalogSchemaRequest parseFrom(
       com.google.protobuf.CodedInputStream input,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws java.io.IOException {
@@ -332,7 +269,7 @@ private static final long serialVersionUID = 0L;
   public static Builder newBuilder() {
     return DEFAULT_INSTANCE.toBuilder();
   }
-  public static Builder newBuilder(io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaRequest prototype) {
+  public static Builder newBuilder(io.evitadb.externalApi.grpc.generated.GrpcGetCatalogSchemaRequest prototype) {
     return DEFAULT_INSTANCE.toBuilder().mergeFrom(prototype);
   }
   @java.lang.Override
@@ -349,29 +286,29 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Request for acquiring the schema of a specific entity type.
+   * Request to GetCatalogSchema request.
    * </pre>
    *
-   * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaRequest}
+   * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcGetCatalogSchemaRequest}
    */
   public static final class Builder extends
       com.google.protobuf.GeneratedMessageV3.Builder<Builder> implements
-      // @@protoc_insertion_point(builder_implements:io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaRequest)
-      io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaRequestOrBuilder {
+      // @@protoc_insertion_point(builder_implements:io.evitadb.externalApi.grpc.generated.GrpcGetCatalogSchemaRequest)
+      io.evitadb.externalApi.grpc.generated.GrpcGetCatalogSchemaRequestOrBuilder {
     public static final com.google.protobuf.Descriptors.Descriptor
         getDescriptor() {
-      return io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcEntitySchemaRequest_descriptor;
+      return io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcGetCatalogSchemaRequest_descriptor;
     }
 
     @java.lang.Override
     protected com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
         internalGetFieldAccessorTable() {
-      return io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcEntitySchemaRequest_fieldAccessorTable
+      return io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcGetCatalogSchemaRequest_fieldAccessorTable
           .ensureFieldAccessorsInitialized(
-              io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaRequest.class, io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaRequest.Builder.class);
+              io.evitadb.externalApi.grpc.generated.GrpcGetCatalogSchemaRequest.class, io.evitadb.externalApi.grpc.generated.GrpcGetCatalogSchemaRequest.Builder.class);
     }
 
-    // Construct using io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaRequest.newBuilder()
+    // Construct using io.evitadb.externalApi.grpc.generated.GrpcGetCatalogSchemaRequest.newBuilder()
     private Builder() {
       maybeForceBuilderInitialization();
     }
@@ -389,8 +326,6 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      entityType_ = "";
-
       nameVariants_ = false;
 
       return this;
@@ -399,17 +334,17 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public com.google.protobuf.Descriptors.Descriptor
         getDescriptorForType() {
-      return io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcEntitySchemaRequest_descriptor;
+      return io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcGetCatalogSchemaRequest_descriptor;
     }
 
     @java.lang.Override
-    public io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaRequest getDefaultInstanceForType() {
-      return io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaRequest.getDefaultInstance();
+    public io.evitadb.externalApi.grpc.generated.GrpcGetCatalogSchemaRequest getDefaultInstanceForType() {
+      return io.evitadb.externalApi.grpc.generated.GrpcGetCatalogSchemaRequest.getDefaultInstance();
     }
 
     @java.lang.Override
-    public io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaRequest build() {
-      io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaRequest result = buildPartial();
+    public io.evitadb.externalApi.grpc.generated.GrpcGetCatalogSchemaRequest build() {
+      io.evitadb.externalApi.grpc.generated.GrpcGetCatalogSchemaRequest result = buildPartial();
       if (!result.isInitialized()) {
         throw newUninitializedMessageException(result);
       }
@@ -417,9 +352,8 @@ private static final long serialVersionUID = 0L;
     }
 
     @java.lang.Override
-    public io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaRequest buildPartial() {
-      io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaRequest result = new io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaRequest(this);
-      result.entityType_ = entityType_;
+    public io.evitadb.externalApi.grpc.generated.GrpcGetCatalogSchemaRequest buildPartial() {
+      io.evitadb.externalApi.grpc.generated.GrpcGetCatalogSchemaRequest result = new io.evitadb.externalApi.grpc.generated.GrpcGetCatalogSchemaRequest(this);
       result.nameVariants_ = nameVariants_;
       onBuilt();
       return result;
@@ -459,20 +393,16 @@ private static final long serialVersionUID = 0L;
     }
     @java.lang.Override
     public Builder mergeFrom(com.google.protobuf.Message other) {
-      if (other instanceof io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaRequest) {
-        return mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaRequest)other);
+      if (other instanceof io.evitadb.externalApi.grpc.generated.GrpcGetCatalogSchemaRequest) {
+        return mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcGetCatalogSchemaRequest)other);
       } else {
         super.mergeFrom(other);
         return this;
       }
     }
 
-    public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaRequest other) {
-      if (other == io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaRequest.getDefaultInstance()) return this;
-      if (!other.getEntityType().isEmpty()) {
-        entityType_ = other.entityType_;
-        onChanged();
-      }
+    public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcGetCatalogSchemaRequest other) {
+      if (other == io.evitadb.externalApi.grpc.generated.GrpcGetCatalogSchemaRequest.getDefaultInstance()) return this;
       if (other.getNameVariants() != false) {
         setNameVariants(other.getNameVariants());
       }
@@ -491,113 +421,17 @@ private static final long serialVersionUID = 0L;
         com.google.protobuf.CodedInputStream input,
         com.google.protobuf.ExtensionRegistryLite extensionRegistry)
         throws java.io.IOException {
-      io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaRequest parsedMessage = null;
+      io.evitadb.externalApi.grpc.generated.GrpcGetCatalogSchemaRequest parsedMessage = null;
       try {
         parsedMessage = PARSER.parsePartialFrom(input, extensionRegistry);
       } catch (com.google.protobuf.InvalidProtocolBufferException e) {
-        parsedMessage = (io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaRequest) e.getUnfinishedMessage();
+        parsedMessage = (io.evitadb.externalApi.grpc.generated.GrpcGetCatalogSchemaRequest) e.getUnfinishedMessage();
         throw e.unwrapIOException();
       } finally {
         if (parsedMessage != null) {
           mergeFrom(parsedMessage);
         }
       }
-      return this;
-    }
-
-    private java.lang.Object entityType_ = "";
-    /**
-     * <pre>
-     * The entity type for which the schema is requested.
-     * </pre>
-     *
-     * <code>string entityType = 1;</code>
-     * @return The entityType.
-     */
-    public java.lang.String getEntityType() {
-      java.lang.Object ref = entityType_;
-      if (!(ref instanceof java.lang.String)) {
-        com.google.protobuf.ByteString bs =
-            (com.google.protobuf.ByteString) ref;
-        java.lang.String s = bs.toStringUtf8();
-        entityType_ = s;
-        return s;
-      } else {
-        return (java.lang.String) ref;
-      }
-    }
-    /**
-     * <pre>
-     * The entity type for which the schema is requested.
-     * </pre>
-     *
-     * <code>string entityType = 1;</code>
-     * @return The bytes for entityType.
-     */
-    public com.google.protobuf.ByteString
-        getEntityTypeBytes() {
-      java.lang.Object ref = entityType_;
-      if (ref instanceof String) {
-        com.google.protobuf.ByteString b =
-            com.google.protobuf.ByteString.copyFromUtf8(
-                (java.lang.String) ref);
-        entityType_ = b;
-        return b;
-      } else {
-        return (com.google.protobuf.ByteString) ref;
-      }
-    }
-    /**
-     * <pre>
-     * The entity type for which the schema is requested.
-     * </pre>
-     *
-     * <code>string entityType = 1;</code>
-     * @param value The entityType to set.
-     * @return This builder for chaining.
-     */
-    public Builder setEntityType(
-        java.lang.String value) {
-      if (value == null) {
-    throw new NullPointerException();
-  }
-
-      entityType_ = value;
-      onChanged();
-      return this;
-    }
-    /**
-     * <pre>
-     * The entity type for which the schema is requested.
-     * </pre>
-     *
-     * <code>string entityType = 1;</code>
-     * @return This builder for chaining.
-     */
-    public Builder clearEntityType() {
-
-      entityType_ = getDefaultInstance().getEntityType();
-      onChanged();
-      return this;
-    }
-    /**
-     * <pre>
-     * The entity type for which the schema is requested.
-     * </pre>
-     *
-     * <code>string entityType = 1;</code>
-     * @param value The bytes for entityType to set.
-     * @return This builder for chaining.
-     */
-    public Builder setEntityTypeBytes(
-        com.google.protobuf.ByteString value) {
-      if (value == null) {
-    throw new NullPointerException();
-  }
-  checkByteStringIsUtf8(value);
-
-      entityType_ = value;
-      onChanged();
       return this;
     }
 
@@ -608,7 +442,7 @@ private static final long serialVersionUID = 0L;
      * This could considerably increase the size of the response.
      * </pre>
      *
-     * <code>bool nameVariants = 2;</code>
+     * <code>bool nameVariants = 1;</code>
      * @return The nameVariants.
      */
     @java.lang.Override
@@ -621,7 +455,7 @@ private static final long serialVersionUID = 0L;
      * This could considerably increase the size of the response.
      * </pre>
      *
-     * <code>bool nameVariants = 2;</code>
+     * <code>bool nameVariants = 1;</code>
      * @param value The nameVariants to set.
      * @return This builder for chaining.
      */
@@ -637,7 +471,7 @@ private static final long serialVersionUID = 0L;
      * This could considerably increase the size of the response.
      * </pre>
      *
-     * <code>bool nameVariants = 2;</code>
+     * <code>bool nameVariants = 1;</code>
      * @return This builder for chaining.
      */
     public Builder clearNameVariants() {
@@ -659,41 +493,41 @@ private static final long serialVersionUID = 0L;
     }
 
 
-    // @@protoc_insertion_point(builder_scope:io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaRequest)
+    // @@protoc_insertion_point(builder_scope:io.evitadb.externalApi.grpc.generated.GrpcGetCatalogSchemaRequest)
   }
 
-  // @@protoc_insertion_point(class_scope:io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaRequest)
-  private static final io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaRequest DEFAULT_INSTANCE;
+  // @@protoc_insertion_point(class_scope:io.evitadb.externalApi.grpc.generated.GrpcGetCatalogSchemaRequest)
+  private static final io.evitadb.externalApi.grpc.generated.GrpcGetCatalogSchemaRequest DEFAULT_INSTANCE;
   static {
-    DEFAULT_INSTANCE = new io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaRequest();
+    DEFAULT_INSTANCE = new io.evitadb.externalApi.grpc.generated.GrpcGetCatalogSchemaRequest();
   }
 
-  public static io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaRequest getDefaultInstance() {
+  public static io.evitadb.externalApi.grpc.generated.GrpcGetCatalogSchemaRequest getDefaultInstance() {
     return DEFAULT_INSTANCE;
   }
 
-  private static final com.google.protobuf.Parser<GrpcEntitySchemaRequest>
-      PARSER = new com.google.protobuf.AbstractParser<GrpcEntitySchemaRequest>() {
+  private static final com.google.protobuf.Parser<GrpcGetCatalogSchemaRequest>
+      PARSER = new com.google.protobuf.AbstractParser<GrpcGetCatalogSchemaRequest>() {
     @java.lang.Override
-    public GrpcEntitySchemaRequest parsePartialFrom(
+    public GrpcGetCatalogSchemaRequest parsePartialFrom(
         com.google.protobuf.CodedInputStream input,
         com.google.protobuf.ExtensionRegistryLite extensionRegistry)
         throws com.google.protobuf.InvalidProtocolBufferException {
-      return new GrpcEntitySchemaRequest(input, extensionRegistry);
+      return new GrpcGetCatalogSchemaRequest(input, extensionRegistry);
     }
   };
 
-  public static com.google.protobuf.Parser<GrpcEntitySchemaRequest> parser() {
+  public static com.google.protobuf.Parser<GrpcGetCatalogSchemaRequest> parser() {
     return PARSER;
   }
 
   @java.lang.Override
-  public com.google.protobuf.Parser<GrpcEntitySchemaRequest> getParserForType() {
+  public com.google.protobuf.Parser<GrpcGetCatalogSchemaRequest> getParserForType() {
     return PARSER;
   }
 
   @java.lang.Override
-  public io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaRequest getDefaultInstanceForType() {
+  public io.evitadb.externalApi.grpc.generated.GrpcGetCatalogSchemaRequest getDefaultInstanceForType() {
     return DEFAULT_INSTANCE;
   }
 

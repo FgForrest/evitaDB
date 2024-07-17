@@ -74,7 +74,6 @@ import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.extension.EvitaParameterResolver;
 import io.evitadb.utils.CollectionUtils;
-import io.grpc.ManagedChannel;
 import io.grpc.StatusRuntimeException;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.AfterEach;
@@ -1549,7 +1548,7 @@ class EvitaSessionServiceFunctionalTest {
 		final AtomicReference<GrpcCatalogSchemaResponse> response = new AtomicReference<>();
 
 		final Executable executable = () ->
-			response.set(evitaSessionBlockingStub.getCatalogSchema(Empty.newBuilder().build()));
+			response.set(evitaSessionBlockingStub.getCatalogSchema(GrpcGetCatalogSchemaRequest.newBuilder().setNameVariants(true).build()));
 
 		assertDoesNotThrow(executable);
 

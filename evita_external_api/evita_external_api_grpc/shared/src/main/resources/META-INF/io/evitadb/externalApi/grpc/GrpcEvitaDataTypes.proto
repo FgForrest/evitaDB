@@ -389,3 +389,11 @@ message GrpcEntityCollectionStatistics {
   // total size of the entity collection on disk in bytes
   int64 sizeOnDiskInBytes = 4;
 }
+
+// Structure for representing a name in a particular naming convention.
+message GrpcNameVariant {
+  // naming convention the name is in
+  GrpcNamingConvention namingConvention = 1;
+  // the name in the particular naming convention
+  string name = 2;
+}

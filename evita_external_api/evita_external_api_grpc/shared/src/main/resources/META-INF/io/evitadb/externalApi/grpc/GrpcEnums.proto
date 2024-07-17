@@ -485,6 +485,7 @@ enum GrpcEntityExistence {
   MUST_EXIST = 2;
 }
 
+// Contains set of all possible close method behavior types when the session is committed/closed
 enum GrpcCommitBehavior {
 
   // Changes performed in the transaction are passed to evitaDB server, checked for conflicts and if no conflict
@@ -510,5 +511,21 @@ enum GrpcCommitBehavior {
   // slowest but guarantees that the changes are persisted on disk and durable and that they are visible
   // immediately after the commit is marked as completed.
   WAIT_FOR_INDEX_PROPAGATION = 2;
+
+}
+
+// Contains set of all supported/used naming conventions in evitaDB APIs.
+enum GrpcNamingConvention {
+
+  // Camel case: https://en.wikipedia.org/wiki/Camel_case
+  CAMEL_CASE = 0;
+  // Pascal case: https://www.theserverside.com/definition/Pascal-case
+  PASCAL_CASE = 1;
+  // Snake case: https://en.wikipedia.org/wiki/Snake_case
+  SNAKE_CASE = 2;
+  // Capitalized snake case: https://en.wikipedia.org/wiki/Snake_case
+  UPPER_SNAKE_CASE = 3;
+  // Kebab case: https://en.wikipedia.org/wiki/Letter_case#Kebab_case
+  KEBAB_CASE = 4;
 
 }
