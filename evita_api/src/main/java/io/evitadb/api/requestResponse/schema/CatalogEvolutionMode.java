@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ import io.evitadb.api.requestResponse.data.EntityContract;
 
 /**
  * Evolution mode allows to specify how strict is evitaDB when unknown information is presented to her for the first
- * time. When no evolution mode is set, each violation of the {@link EntitySchemaContract} is
+ * time. When no evolution mode is set, each violation of the {@link CatalogSchemaContract} is
  * reported by an exception. This behaviour can be changed by this evolution mode, however.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021

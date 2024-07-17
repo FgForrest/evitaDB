@@ -521,7 +521,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setWithPrice(boolean value) {
-      
+
       withPrice_ = value;
       onChanged();
       return this;
@@ -543,7 +543,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearWithPrice() {
-      
+
       withPrice_ = false;
       onChanged();
       return this;
@@ -578,7 +578,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setIndexedPricePlaces(int value) {
-      
+
       indexedPricePlaces_ = value;
       onChanged();
       return this;
@@ -595,7 +595,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearIndexedPricePlaces() {
-      
+
       indexedPricePlaces_ = 0;
       onChanged();
       return this;

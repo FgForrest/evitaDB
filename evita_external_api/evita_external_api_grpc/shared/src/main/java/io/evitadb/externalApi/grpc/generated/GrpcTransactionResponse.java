@@ -538,7 +538,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setCatalogVersion(long value) {
-      
+
       catalogVersion_ = value;
       onChanged();
       return this;
@@ -552,7 +552,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearCatalogVersion() {
-      
+
       catalogVersion_ = 0L;
       onChanged();
       return this;
@@ -673,7 +673,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid transactionId = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder getTransactionIdBuilder() {
-      
+
       onChanged();
       return getTransactionIdFieldBuilder().getBuilder();
     }
@@ -700,7 +700,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid transactionId = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcUuid, io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder, io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcUuid, io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder, io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder>
         getTransactionIdFieldBuilder() {
       if (transactionIdBuilder_ == null) {
         transactionIdBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<

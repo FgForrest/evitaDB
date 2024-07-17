@@ -54,6 +54,7 @@ import io.evitadb.utils.CertificateUtils;
 import io.evitadb.utils.ConsoleWriter;
 import io.evitadb.utils.ConsoleWriter.ConsoleColor;
 import io.evitadb.utils.ConsoleWriter.ConsoleDecoration;
+import io.evitadb.utils.NetworkUtils;
 import io.evitadb.utils.StringUtils;
 import io.netty.channel.ChannelOption;
 import io.netty.handler.ssl.ClientAuth;
@@ -101,7 +102,7 @@ import static java.util.Optional.ofNullable;
 /**
  * HTTP server of external APIs. It is responsible for starting HTTP server with all configured external API providers
  * (GraphQL, REST, ...).
- * It uses Armeria;s {@link Server} server under the hood and uses {@link ExternalApiProviderRegistrar} for registering
+ * It uses Armeria {@link Server} server under the hood and uses {@link ExternalApiProviderRegistrar} for registering
  * each external API provider to be run on this HTTP server.
  *
  * @author Lukáš Hornych, FG Forrest a.s. 2022
@@ -113,6 +114,7 @@ public class ExternalApiServer implements AutoCloseable {
 	private final Server server;
 	@Getter private final ApiOptions apiOptions;
 	private final Map<String, ExternalApiProvider<?>> registeredApiProviders;
+	private CompletableFuture<Void> stopFuture;
 
 	/**
 	 * Finds all implementations of {@link ExternalApiProviderRegistrar} using {@link ServiceLoader} from the classpath.
@@ -479,19 +481,32 @@ public class ExternalApiServer implements AutoCloseable {
 	 */
 	@Override
 	public void close() {
-		if (server == null) {
-			return;
-		}
-
 		try {
-			this.registeredApiProviders.values().forEach(ExternalApiProvider::beforeStop);
-			final long start = System.nanoTime();
-			final CompletableFuture<Void> stopFuture = this.server.stop();
-			stopFuture.get(5, TimeUnit.SECONDS);
-			ConsoleWriter.write("External APIs stopped in " + StringUtils.formatPreciseNano(System.nanoTime() - start) + ".\n");
+			closeAsynchronously().get(30, TimeUnit.SECONDS);
 		} catch (Exception ex) {
-			ConsoleWriter.write("Failed to stop external APIs in dedicated time (5 secs.).\n");
+			ConsoleWriter.write("Failed to stop external APIs in dedicated time (30 secs.).\n");
 		}
+	}
+
+	/**
+	 * Stops this running HTTP server and its registered APIs.
+	 */
+	@Nonnull
+	public CompletableFuture<Void> closeAsynchronously() {
+		if (this.stopFuture == null) {
+			if (this.server == null) {
+				this.stopFuture = CompletableFuture.completedFuture(null);
+			} else {
+				this.registeredApiProviders.values().forEach(ExternalApiProvider::beforeStop);
+				final long start = System.nanoTime();
+				this.stopFuture = this.server.stop()
+					.thenAccept(
+						unused -> ConsoleWriter.write(
+							"External APIs stopped in " + StringUtils.formatPreciseNano(System.nanoTime() - start) + ".\n")
+					);
+			}
+		}
+		return this.stopFuture;
 	}
 
 	/**
@@ -514,23 +529,23 @@ public class ExternalApiServer implements AutoCloseable {
 	) throws CertificateException, UnrecoverableKeyException, KeyStoreException, IOException, NoSuchAlgorithmException {
 
 		// in tests we don't wait for shutdowns
-		final boolean shutdownOnStop = !"true".equals(System.getProperty(DevelopmentConstants.TEST_RUN));
+		final boolean gracefulShutdown = !"true".equals(System.getProperty(DevelopmentConstants.TEST_RUN));
 
 		serverBuilder
-			.blockingTaskExecutor(evita.getServiceExecutor(), shutdownOnStop)
+			.blockingTaskExecutor(evita.getServiceExecutor(), gracefulShutdown)
 			.childChannelOption(ChannelOption.SO_REUSEADDR, true)
 			.childChannelOption(ChannelOption.SO_KEEPALIVE, apiOptions.keepAlive())
 			.errorHandler(LoggingServerErrorHandler.INSTANCE)
-			.gracefulShutdownTimeout(Duration.ZERO, Duration.ZERO)
+			.gracefulShutdownTimeout(gracefulShutdown ? Duration.ofSeconds(30) : Duration.ZERO, gracefulShutdown ? Duration.ofMinutes(1) : Duration.ZERO)
 			.idleTimeoutMillis(apiOptions.idleTimeoutInMillis())
 			.requestTimeoutMillis(apiOptions.requestTimeoutInMillis())
-			.serviceWorkerGroup(EventLoopGroups.newEventLoopGroup(apiOptions.serviceWorkerGroupThreadsAsInt()), shutdownOnStop)
+			.serviceWorkerGroup(EventLoopGroups.newEventLoopGroup(apiOptions.serviceWorkerGroupThreadsAsInt()), gracefulShutdown)
 			.maxRequestLength(apiOptions.maxEntitySizeInBytes())
 			.verboseResponses(false)
-			.workerGroup(EventLoopGroups.newEventLoopGroup(apiOptions.workerGroupThreadsAsInt()), shutdownOnStop);
+			.workerGroup(EventLoopGroups.newEventLoopGroup(apiOptions.workerGroupThreadsAsInt()), gracefulShutdown);
 
 		if (apiOptions.accessLog()) {
-			serverBuilder.accessLogWriter(AccessLogWriter.combined(), shutdownOnStop);
+			serverBuilder.accessLogWriter(AccessLogWriter.combined(), gracefulShutdown);
 		}
 
 		final AtomicReference<KeyManagerFactory> keyFactoryRef = new AtomicReference<>();
@@ -660,6 +675,15 @@ public class ExternalApiServer implements AutoCloseable {
 		) {
 			setupHost(hostDefinition.hostNameWithPort(), serverBuilder);
 			setupHost(hostDefinition.hostWithPort(), serverBuilder);
+			if (hostDefinition.localhost()) {
+				Arrays.stream(
+					new String[]{
+						"127.0.0.1:" + hostDefinition.port(),
+						"localhost:" + hostDefinition.port(),
+						NetworkUtils.getHostName(NetworkUtils.getByName("localhost")) + ":" + hostDefinition.port()
+					}
+				).forEach(host -> setupHost(host, serverBuilder));
+			}
 		}
 
 		/**

@@ -171,7 +171,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 	/**
 	 * Service class used for tracking tasks on the server side.
 	 */
-	private final ClientTaskTracker clientTaskTracker;
+	private final EvitaClientManagement management;
 	/**
 	 * Reflection lookup is used to speed up reflection operation by memoizing the results for examined classes.
 	 */
@@ -276,7 +276,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 
 	public EvitaClientSession(
 		@Nonnull EvitaClient evita,
-		@Nonnull ClientTaskTracker clientTaskTracker,
+		@Nonnull EvitaClientManagement management,
 		@Nonnull EvitaEntitySchemaCache schemaCache,
 		@Nonnull GrpcClientBuilder grpcClientBuilder,
 		@Nonnull String catalogName,
@@ -289,7 +289,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 		@Nonnull Timeout timeout
 		) {
 		this.evita = evita;
-		this.clientTaskTracker = clientTaskTracker;
+		this.management = management;
 		this.reflectionLookup = evita.getReflectionLookup();
 		this.proxyFactory = schemaCache.getProxyFactory();
 		this.schemaCache = schemaCache;
@@ -1305,7 +1305,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 			);
 
 			//noinspection unchecked
-			return (Task<?, FileForFetch>) this.clientTaskTracker.createTask(
+			return (Task<?, FileForFetch>) this.management.createTask(
 				toTaskStatus(grpcResponse.getTaskStatus())
 			);
 		});
@@ -1860,7 +1860,9 @@ public class EvitaClientSession implements EvitaSessionContract {
 	private CatalogSchema fetchCatalogSchema() {
 		final GrpcCatalogSchemaResponse grpcResponse = executeWithBlockingEvitaSessionService(
 			evitaSessionService ->
-				evitaSessionService.getCatalogSchema(Empty.getDefaultInstance())
+				evitaSessionService.getCatalogSchema(
+					GrpcGetCatalogSchemaRequest.newBuilder().build()
+				)
 		);
 		return CatalogSchemaConverter.convert(
 			grpcResponse.getCatalogSchema(), clientEntitySchemaAccessor

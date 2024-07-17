@@ -144,4 +144,48 @@ public interface GrpcAssociatedDataSchemaOrBuilder extends
    * @return The nullable.
    */
   boolean getNullable();
+
+  /**
+   * <pre>
+   * Contains associated data name converted to different naming conventions.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 7;</code>
+   */
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant>
+      getNameVariantList();
+  /**
+   * <pre>
+   * Contains associated data name converted to different naming conventions.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 7;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcNameVariant getNameVariant(int index);
+  /**
+   * <pre>
+   * Contains associated data name converted to different naming conventions.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 7;</code>
+   */
+  int getNameVariantCount();
+  /**
+   * <pre>
+   * Contains associated data name converted to different naming conventions.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 7;</code>
+   */
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder>
+      getNameVariantOrBuilderList();
+  /**
+   * <pre>
+   * Contains associated data name converted to different naming conventions.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 7;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder getNameVariantOrBuilder(
+      int index);
 }

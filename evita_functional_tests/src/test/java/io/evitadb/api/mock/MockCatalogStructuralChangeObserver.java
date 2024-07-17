@@ -105,7 +105,7 @@ public class MockCatalogStructuralChangeObserver implements CatalogStructuralCha
 
 	@Override
 	public void onInit(@Nonnull EvitaContract evita) {
-		this.evitaInstanceId = evita.getSystemStatus().instanceId();
+		this.evitaInstanceId = evita.management().getSystemStatus().instanceId();
 	}
 
 	@Override

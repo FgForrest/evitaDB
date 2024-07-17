@@ -27,6 +27,8 @@ import com.carrotsearch.hppc.ObjectObjectIdentityHashMap;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.CatalogState;
+import io.evitadb.api.CatalogStatistics;
+import io.evitadb.api.CatalogStatistics.EntityCollectionStatistics;
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.TransactionContract.CommitBehavior;
@@ -1236,6 +1238,25 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		if (this.persistenceService instanceof CatalogVersionBeyondTheHorizonListener cvbthl) {
 			cvbthl.catalogVersionBeyondTheHorizon(minimalActiveCatalogVersion);
 		}
+	}
+
+	@Nonnull
+	@Override
+	public CatalogStatistics getStatistics() {
+		final EntityCollectionStatistics[] collectionStatistics = this.entityCollections.values()
+			.stream()
+			.map(EntityCollection::getStatistics)
+			.toArray(EntityCollectionStatistics[]::new);
+		return new CatalogStatistics(
+			getName(),
+			false,
+			getCatalogState(),
+			getVersion(),
+			Arrays.stream(collectionStatistics).mapToLong(EntityCollectionStatistics::totalRecords).sum(),
+			Arrays.stream(collectionStatistics).mapToLong(EntityCollectionStatistics::indexCount).sum() + 1,
+			this.persistenceService.getSizeOnDiskInBytes(),
+			collectionStatistics
+		);
 	}
 
 	/**

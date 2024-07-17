@@ -456,7 +456,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setSize(int value) {
-      
+
       size_ = value;
       onChanged();
       return this;
@@ -470,7 +470,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearSize() {
-      
+
       size_ = 0;
       onChanged();
       return this;

@@ -195,7 +195,7 @@ public interface GrpcEntitySchemaOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 9;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLocale> 
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLocale>
       getLocalesList();
   /**
    * <pre>
@@ -223,7 +223,7 @@ public interface GrpcEntitySchemaOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 9;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder> 
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder>
       getLocalesOrBuilderList();
   /**
    * <pre>
@@ -243,7 +243,7 @@ public interface GrpcEntitySchemaOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCurrency currencies = 10;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcCurrency> 
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcCurrency>
       getCurrenciesList();
   /**
    * <pre>
@@ -268,7 +268,7 @@ public interface GrpcEntitySchemaOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCurrency currencies = 10;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcCurrencyOrBuilder> 
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcCurrencyOrBuilder>
       getCurrenciesOrBuilderList();
   /**
    * <pre>
@@ -694,4 +694,48 @@ public interface GrpcEntitySchemaOrBuilder extends
 
   io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema getSortableAttributeCompoundsOrThrow(
       java.lang.String key);
+
+  /**
+   * <pre>
+   * Contains entity type converted to different naming conventions.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 16;</code>
+   */
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant>
+      getNameVariantList();
+  /**
+   * <pre>
+   * Contains entity type converted to different naming conventions.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 16;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcNameVariant getNameVariant(int index);
+  /**
+   * <pre>
+   * Contains entity type converted to different naming conventions.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 16;</code>
+   */
+  int getNameVariantCount();
+  /**
+   * <pre>
+   * Contains entity type converted to different naming conventions.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 16;</code>
+   */
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder>
+      getNameVariantOrBuilderList();
+  /**
+   * <pre>
+   * Contains entity type converted to different naming conventions.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 16;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder getNameVariantOrBuilder(
+      int index);
 }

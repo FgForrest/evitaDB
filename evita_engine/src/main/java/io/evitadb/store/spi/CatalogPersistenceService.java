@@ -495,6 +495,12 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	ServerTask<?, FileForFetch> createBackupTask(@Nullable OffsetDateTime pastMoment, boolean includingWAL) throws TemporalDataNotAvailableException;
 
 	/**
+	 * Returns size taken by all catalog data structures in bytes.
+	 * @return size taken by all catalog data structures in bytes
+	 */
+	long getSizeOnDiskInBytes();
+
+	/**
 	 * Method closes this persistence service and also all {@link EntityCollectionPersistenceService} that were created
 	 * via. {@link #getOrCreateEntityCollectionPersistenceService(long, String, int)}.
 	 *

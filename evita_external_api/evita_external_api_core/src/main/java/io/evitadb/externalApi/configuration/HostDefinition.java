@@ -32,12 +32,14 @@ import java.net.InetAddress;
  * Defines a host and port combination.
  *
  * @param host defines the hostname and port the endpoints will listen on
+ * @param localhost contains TRUE if configuration option represents a loop-back host (self)
  * @param port defines the port API endpoint will listen on
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public record HostDefinition(
 	@Nonnull InetAddress host,
+	boolean localhost,
 	int port
 ) {
 

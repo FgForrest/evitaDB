@@ -39,7 +39,7 @@ public final class GrpcEnums {
   }
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcEvitaAssociatedDataDataType_descriptor;
-  static final 
+  static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcEvitaAssociatedDataDataType_fieldAccessorTable;
 
@@ -153,8 +153,11 @@ public final class GrpcEnums {
       "T\020\000\022\022\n\016MUST_NOT_EXIST\020\001\022\016\n\nMUST_EXIST\020\002*" +
       "t\n\022GrpcCommitBehavior\022 \n\034WAIT_FOR_CONFLI" +
       "CT_RESOLUTION\020\000\022\034\n\030WAIT_FOR_LOG_PERSISTE" +
-      "NCE\020\001\022\036\n\032WAIT_FOR_INDEX_PROPAGATION\020\002B\014P" +
-      "\001\252\002\007EvitaDBb\006proto3"
+      "NCE\020\001\022\036\n\032WAIT_FOR_INDEX_PROPAGATION\020\002*m\n" +
+      "\024GrpcNamingConvention\022\016\n\nCAMEL_CASE\020\000\022\017\n" +
+      "\013PASCAL_CASE\020\001\022\016\n\nSNAKE_CASE\020\002\022\024\n\020UPPER_" +
+      "SNAKE_CASE\020\003\022\016\n\nKEBAB_CASE\020\004B\014P\001\252\002\007Evita" +
+      "DBb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,

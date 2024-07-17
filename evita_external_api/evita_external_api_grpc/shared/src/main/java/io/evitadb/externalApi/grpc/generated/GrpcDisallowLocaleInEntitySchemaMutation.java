@@ -142,7 +142,7 @@ private static final long serialVersionUID = 0L;
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 1;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder> 
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder>
       getLocalesOrBuilderList() {
     return locales_;
   }
@@ -489,7 +489,7 @@ private static final long serialVersionUID = 0L;
             localesBuilder_ = null;
             locales_ = other.locales_;
             bitField0_ = (bitField0_ & ~0x00000001);
-            localesBuilder_ = 
+            localesBuilder_ =
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getLocalesFieldBuilder() : null;
           } else {
@@ -782,7 +782,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 1;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder> 
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder>
          getLocalesOrBuilderList() {
       if (localesBuilder_ != null) {
         return localesBuilder_.getMessageOrBuilderList();
@@ -820,12 +820,12 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 1;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder> 
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder>
          getLocalesBuilderList() {
       return getLocalesFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcLocale, io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder, io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcLocale, io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder, io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder>
         getLocalesFieldBuilder() {
       if (localesBuilder_ == null) {
         localesBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<

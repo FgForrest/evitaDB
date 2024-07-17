@@ -44,27 +44,27 @@ public final class EvitaSessionServiceGrpc {
   public static final String SERVICE_NAME = "io.evitadb.externalApi.grpc.generated.EvitaSessionService";
 
   // Static method descriptors that strictly reflect the proto.
-  private static volatile io.grpc.MethodDescriptor<com.google.protobuf.Empty,
+  private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcGetCatalogSchemaRequest,
       io.evitadb.externalApi.grpc.generated.GrpcCatalogSchemaResponse> getGetCatalogSchemaMethod;
 
   @io.grpc.stub.annotations.RpcMethod(
       fullMethodName = SERVICE_NAME + '/' + "GetCatalogSchema",
-      requestType = com.google.protobuf.Empty.class,
+      requestType = io.evitadb.externalApi.grpc.generated.GrpcGetCatalogSchemaRequest.class,
       responseType = io.evitadb.externalApi.grpc.generated.GrpcCatalogSchemaResponse.class,
       methodType = io.grpc.MethodDescriptor.MethodType.UNARY)
-  public static io.grpc.MethodDescriptor<com.google.protobuf.Empty,
+  public static io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcGetCatalogSchemaRequest,
       io.evitadb.externalApi.grpc.generated.GrpcCatalogSchemaResponse> getGetCatalogSchemaMethod() {
-    io.grpc.MethodDescriptor<com.google.protobuf.Empty, io.evitadb.externalApi.grpc.generated.GrpcCatalogSchemaResponse> getGetCatalogSchemaMethod;
+    io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcGetCatalogSchemaRequest, io.evitadb.externalApi.grpc.generated.GrpcCatalogSchemaResponse> getGetCatalogSchemaMethod;
     if ((getGetCatalogSchemaMethod = EvitaSessionServiceGrpc.getGetCatalogSchemaMethod) == null) {
       synchronized (EvitaSessionServiceGrpc.class) {
         if ((getGetCatalogSchemaMethod = EvitaSessionServiceGrpc.getGetCatalogSchemaMethod) == null) {
           EvitaSessionServiceGrpc.getGetCatalogSchemaMethod = getGetCatalogSchemaMethod =
-              io.grpc.MethodDescriptor.<com.google.protobuf.Empty, io.evitadb.externalApi.grpc.generated.GrpcCatalogSchemaResponse>newBuilder()
+              io.grpc.MethodDescriptor.<io.evitadb.externalApi.grpc.generated.GrpcGetCatalogSchemaRequest, io.evitadb.externalApi.grpc.generated.GrpcCatalogSchemaResponse>newBuilder()
               .setType(io.grpc.MethodDescriptor.MethodType.UNARY)
               .setFullMethodName(generateFullMethodName(SERVICE_NAME, "GetCatalogSchema"))
               .setSampledToLocalTracing(true)
               .setRequestMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
-                  com.google.protobuf.Empty.getDefaultInstance()))
+                  io.evitadb.externalApi.grpc.generated.GrpcGetCatalogSchemaRequest.getDefaultInstance()))
               .setResponseMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
                   io.evitadb.externalApi.grpc.generated.GrpcCatalogSchemaResponse.getDefaultInstance()))
               .setSchemaDescriptor(new EvitaSessionServiceMethodDescriptorSupplier("GetCatalogSchema"))
@@ -880,7 +880,7 @@ public final class EvitaSessionServiceGrpc {
      * Procedure that returns the current (the one on which the used session operates) catalog schema.
      * </pre>
      */
-    public void getCatalogSchema(com.google.protobuf.Empty request,
+    public void getCatalogSchema(io.evitadb.externalApi.grpc.generated.GrpcGetCatalogSchemaRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcCatalogSchemaResponse> responseObserver) {
       io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getGetCatalogSchemaMethod(), responseObserver);
     }
@@ -1131,7 +1131,7 @@ public final class EvitaSessionServiceGrpc {
             getGetCatalogSchemaMethod(),
             io.grpc.stub.ServerCalls.asyncUnaryCall(
               new MethodHandlers<
-                com.google.protobuf.Empty,
+                io.evitadb.externalApi.grpc.generated.GrpcGetCatalogSchemaRequest,
                 io.evitadb.externalApi.grpc.generated.GrpcCatalogSchemaResponse>(
                   this, METHODID_GET_CATALOG_SCHEMA)))
           .addMethod(
@@ -1333,7 +1333,7 @@ public final class EvitaSessionServiceGrpc {
      * Procedure that returns the current (the one on which the used session operates) catalog schema.
      * </pre>
      */
-    public void getCatalogSchema(com.google.protobuf.Empty request,
+    public void getCatalogSchema(io.evitadb.externalApi.grpc.generated.GrpcGetCatalogSchemaRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcCatalogSchemaResponse> responseObserver) {
       io.grpc.stub.ClientCalls.asyncUnaryCall(
           getChannel().newCall(getGetCatalogSchemaMethod(), getCallOptions()), request, responseObserver);
@@ -1631,7 +1631,7 @@ public final class EvitaSessionServiceGrpc {
      * Procedure that returns the current (the one on which the used session operates) catalog schema.
      * </pre>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcCatalogSchemaResponse getCatalogSchema(com.google.protobuf.Empty request) {
+    public io.evitadb.externalApi.grpc.generated.GrpcCatalogSchemaResponse getCatalogSchema(io.evitadb.externalApi.grpc.generated.GrpcGetCatalogSchemaRequest request) {
       return io.grpc.stub.ClientCalls.blockingUnaryCall(
           getChannel(), getGetCatalogSchemaMethod(), getCallOptions(), request);
     }
@@ -1905,7 +1905,7 @@ public final class EvitaSessionServiceGrpc {
      * </pre>
      */
     public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcCatalogSchemaResponse> getCatalogSchema(
-        com.google.protobuf.Empty request) {
+        io.evitadb.externalApi.grpc.generated.GrpcGetCatalogSchemaRequest request) {
       return io.grpc.stub.ClientCalls.futureUnaryCall(
           getChannel().newCall(getGetCatalogSchemaMethod(), getCallOptions()), request);
     }
@@ -2219,7 +2219,7 @@ public final class EvitaSessionServiceGrpc {
     public void invoke(Req request, io.grpc.stub.StreamObserver<Resp> responseObserver) {
       switch (methodId) {
         case METHODID_GET_CATALOG_SCHEMA:
-          serviceImpl.getCatalogSchema((com.google.protobuf.Empty) request,
+          serviceImpl.getCatalogSchema((io.evitadb.externalApi.grpc.generated.GrpcGetCatalogSchemaRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcCatalogSchemaResponse>) responseObserver);
           break;
         case METHODID_GET_CATALOG_STATE:

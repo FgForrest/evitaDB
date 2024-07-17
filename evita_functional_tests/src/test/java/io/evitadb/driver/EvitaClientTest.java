@@ -24,7 +24,11 @@
 package io.evitadb.driver;
 
 import com.github.javafaker.Faker;
+import io.evitadb.api.CatalogState;
+import io.evitadb.api.CatalogStatistics;
+import io.evitadb.api.CatalogStatistics.EntityCollectionStatistics;
 import io.evitadb.api.EvitaContract;
+import io.evitadb.api.EvitaManagementContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.SessionTraits;
 import io.evitadb.api.SessionTraits.SessionFlags;
@@ -59,6 +63,7 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
+import io.evitadb.api.requestResponse.system.SystemStatus;
 import io.evitadb.api.task.Task;
 import io.evitadb.api.task.TaskStatus;
 import io.evitadb.api.task.TaskStatus.State;
@@ -867,15 +872,16 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 		assertEquals(1, catalogNames.size());
 		assertTrue(catalogNames.contains(TEST_CATALOG));
 
-		final CompletableFuture<FileForFetch> backupFileFuture = evitaClient.backupCatalog(TEST_CATALOG, null, true);
+		final EvitaManagementContract management = evitaClient.management();
+		final CompletableFuture<FileForFetch> backupFileFuture = management.backupCatalog(TEST_CATALOG, null, true);
 		final FileForFetch fileForFetch = backupFileFuture.get(3, TimeUnit.MINUTES);
 
 		log.info("Catalog backed up to file: {}", fileForFetch.fileId());
 
 		final String restoredCatalogName = TEST_CATALOG + "_restored";
-		try (final InputStream inputStream = evitaClient.fetchFile(fileForFetch.fileId())) {
+		try (final InputStream inputStream = management.fetchFile(fileForFetch.fileId())) {
 			// wait to restoration to be finished
-			evitaClient.restoreCatalog(restoredCatalogName, fileForFetch.totalSizeInBytes(), inputStream)
+			management.restoreCatalog(restoredCatalogName, fileForFetch.totalSizeInBytes(), inputStream)
 				.getFutureResult()
 				.get(3, TimeUnit.MINUTES);
 
@@ -905,13 +911,14 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 		assertEquals(1, catalogNames.size());
 		assertTrue(catalogNames.contains(TEST_CATALOG));
 
-		final CompletableFuture<FileForFetch> backupFileFuture = evitaClient.backupCatalog(TEST_CATALOG, null, true);
+		final EvitaManagementContract management = evitaClient.management();
+		final CompletableFuture<FileForFetch> backupFileFuture = management.backupCatalog(TEST_CATALOG, null, true);
 		final FileForFetch fileForFetch = backupFileFuture.get(3, TimeUnit.MINUTES);
 
 		log.info("Catalog backed up to file: {}", fileForFetch.fileId());
 
 		final String restoredCatalogName = TEST_CATALOG + "_restored";
-		final Task<?, Void> restoreTask = evitaClient.restoreCatalog(restoredCatalogName, fileForFetch.fileId());
+		final Task<?, Void> restoreTask = management.restoreCatalog(restoredCatalogName, fileForFetch.fileId());
 
 		// wait for the restore to finish
 		restoreTask.getFutureResult().get(3, TimeUnit.MINUTES);
@@ -935,12 +942,13 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 	@UseDataSet(value = EVITA_CLIENT_DATA_SET, destroyAfterTest = true)
 	void shouldListAndCancelTasks(EvitaClient evitaClient) {
 		final int numberOfTasks = 20;
-		ExecutorService executorService = Executors.newFixedThreadPool(numberOfTasks);
+		final ExecutorService executorService = Executors.newFixedThreadPool(numberOfTasks);
+		final EvitaManagementContract management = evitaClient.management();
 
 		// Step 2: Generate backup tasks using the custom executor
 		final List<CompletableFuture<CompletableFuture<FileForFetch>>> backupTasks = Stream.generate(
 				() -> CompletableFuture.supplyAsync(
-					() -> evitaClient.backupCatalog(TEST_CATALOG, null, true),
+					() -> management.backupCatalog(TEST_CATALOG, null, true),
 					executorService
 				)
 			)
@@ -951,14 +959,14 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 		CompletableFuture.allOf(backupTasks.toArray(new CompletableFuture[0])).join();
 		executorService.shutdown();
 
-		evitaClient.listTaskStatuses(1, numberOfTasks);
+		management.listTaskStatuses(1, numberOfTasks);
 
 		// cancel 7 of them immediately
 		final List<Boolean> cancellationResult = Stream.concat(
-				evitaClient.listTaskStatuses(1, 1)
+				management.listTaskStatuses(1, 1)
 					.getData()
 					.stream()
-					.map(it -> evitaClient.cancelTask(it.taskId())),
+					.map(it -> management.cancelTask(it.taskId())),
 				backupTasks.subList(3, numberOfTasks - 1)
 					.stream()
 					.map(task -> task.getNow(null).cancel(true))
@@ -973,33 +981,33 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 			).get(3, TimeUnit.MINUTES)
 		);
 
-		final PaginatedList<TaskStatus<?, ?>> taskStatuses = evitaClient.listTaskStatuses(1, numberOfTasks);
+		final PaginatedList<TaskStatus<?, ?>> taskStatuses = management.listTaskStatuses(1, numberOfTasks);
 		assertEquals(numberOfTasks, taskStatuses.getTotalRecordCount());
 		final int cancelled = cancellationResult.stream().mapToInt(b -> b ? 1 : 0).sum();
 		assertEquals(backupTasks.size() - cancelled, taskStatuses.getData().stream().filter(task -> task.state() == State.FINISHED).count());
 		assertEquals(cancelled, taskStatuses.getData().stream().filter(task -> task.state() == State.FAILED).count());
 
 		// fetch all tasks by their ids
-		evitaClient.getTaskStatuses(
+		management.getTaskStatuses(
 			taskStatuses.getData().stream().map(TaskStatus::taskId).toArray(UUID[]::new)
 		).forEach(Assertions::assertNotNull);
 
 		// fetch tasks individually
-		taskStatuses.getData().forEach(task -> assertNotNull(evitaClient.getTaskStatus(task.taskId())));
+		taskStatuses.getData().forEach(task -> assertNotNull(management.getTaskStatus(task.taskId())));
 
 		// list exported files
-		final PaginatedList<FileForFetch> exportedFiles = evitaClient.listFilesToFetch(1, numberOfTasks, null);
+		final PaginatedList<FileForFetch> exportedFiles = management.listFilesToFetch(1, numberOfTasks, null);
 		// some task might have finished even if cancelled (if they were cancelled in terminal phase)
 		assertTrue(exportedFiles.getTotalRecordCount() >= backupTasks.size() - cancelled);
 		exportedFiles.getData().forEach(file -> assertTrue(file.totalSizeInBytes() > 0));
 
 		// get all files by their ids
-		exportedFiles.getData().forEach(file -> assertNotNull(evitaClient.getFileToFetch(file.fileId())));
+		exportedFiles.getData().forEach(file -> assertNotNull(management.getFileToFetch(file.fileId())));
 
 		// fetch all of them
 		exportedFiles.getData().forEach(
 			file -> {
-				try (final InputStream inputStream = evitaClient.fetchFile(file.fileId())) {
+				try (final InputStream inputStream = management.fetchFile(file.fileId())) {
 					final Path tempFile = Files.createTempFile(String.valueOf(file.fileId()), ".zip");
 					Files.copy(inputStream, tempFile, StandardCopyOption.REPLACE_EXISTING);
 					assertTrue(tempFile.toFile().exists());
@@ -1014,12 +1022,12 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 		final Set<UUID> deletedFiles = CollectionUtils.createHashSet(exportedFiles.getData().size());
 		exportedFiles.getData()
 			.forEach(file -> {
-				evitaClient.deleteFile(file.fileId());
+				management.deleteFile(file.fileId());
 				deletedFiles.add(file.fileId());
 			});
 
 		// list them again and there should be none of them
-		final PaginatedList<FileForFetch> exportedFilesAfterDeletion = evitaClient.listFilesToFetch(1, numberOfTasks, null);
+		final PaginatedList<FileForFetch> exportedFilesAfterDeletion = management.listFilesToFetch(1, numberOfTasks, null);
 		assertTrue(exportedFilesAfterDeletion.getData().stream().noneMatch(file -> deletedFiles.contains(file.fileId())));
 	}
 
@@ -1758,6 +1766,40 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 		assertProductAttributes(products.get(7), limitedProduct, null);
 		assertThrows(ContextMissingException.class, limitedProduct::getReferencedFileSet);
 		assertThrows(ContextMissingException.class, limitedProduct::getReferencedFileSetAsDifferentProperty);
+	}
+
+	@Test
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldRetrieveSystemStatus(EvitaClient evitaClient) {
+		final SystemStatus systemStatus = evitaClient.management().getSystemStatus();
+		assertNotNull(systemStatus);
+		assertEquals(1, systemStatus.catalogsOk());
+		assertEquals(0, systemStatus.catalogsCorrupted());
+	}
+
+	@Test
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldRetrieveCatalogStatistics(EvitaClient evitaClient) {
+		final CatalogStatistics[] catalogStatistics = evitaClient.management().getCatalogStatistics();
+
+		assertEquals(1, catalogStatistics.length);
+		final CatalogStatistics statistics = catalogStatistics[0];
+
+		assertEquals(TEST_CATALOG, statistics.catalogName());
+		assertFalse(statistics.corrupted());
+		assertEquals(CatalogState.ALIVE, statistics.catalogState());
+		assertEquals(1, statistics.catalogVersion());
+		assertTrue(statistics.totalRecords() > 1);
+		assertTrue(statistics.indexCount() > 1);
+		assertTrue(statistics.sizeOnDiskInBytes() > 1);
+		assertEquals(7, statistics.entityCollectionStatistics().length);
+
+		for (EntityCollectionStatistics entityCollectionStatistics : statistics.entityCollectionStatistics()) {
+			assertNotNull(entityCollectionStatistics.entityType());
+			assertTrue(entityCollectionStatistics.totalRecords() > 0);
+			assertTrue(entityCollectionStatistics.indexCount() > 0);
+			assertTrue(entityCollectionStatistics.sizeOnDiskInBytes() > 0);
+		}
 	}
 
 	@Test

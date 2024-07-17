@@ -142,7 +142,7 @@ private static final long serialVersionUID = 0L;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs = 
+      com.google.protobuf.ByteString bs =
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
       catalogName_ = s;
@@ -162,7 +162,7 @@ private static final long serialVersionUID = 0L;
       getCatalogNameBytes() {
     java.lang.Object ref = catalogName_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b = 
+      com.google.protobuf.ByteString b =
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
       catalogName_ = b;
@@ -188,7 +188,7 @@ private static final long serialVersionUID = 0L;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs = 
+      com.google.protobuf.ByteString bs =
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
       newCatalogName_ = s;
@@ -208,7 +208,7 @@ private static final long serialVersionUID = 0L;
       getNewCatalogNameBytes() {
     java.lang.Object ref = newCatalogName_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b = 
+      com.google.protobuf.ByteString b =
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
       newCatalogName_ = b;
@@ -607,7 +607,7 @@ private static final long serialVersionUID = 0L;
         getCatalogNameBytes() {
       java.lang.Object ref = catalogName_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b = 
+        com.google.protobuf.ByteString b =
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
         catalogName_ = b;
@@ -630,7 +630,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
     throw new NullPointerException();
   }
-  
+
       catalogName_ = value;
       onChanged();
       return this;
@@ -644,7 +644,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearCatalogName() {
-      
+
       catalogName_ = getDefaultInstance().getCatalogName();
       onChanged();
       return this;
@@ -664,7 +664,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   checkByteStringIsUtf8(value);
-      
+
       catalogName_ = value;
       onChanged();
       return this;
@@ -703,7 +703,7 @@ private static final long serialVersionUID = 0L;
         getNewCatalogNameBytes() {
       java.lang.Object ref = newCatalogName_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b = 
+        com.google.protobuf.ByteString b =
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
         newCatalogName_ = b;
@@ -726,7 +726,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
     throw new NullPointerException();
   }
-  
+
       newCatalogName_ = value;
       onChanged();
       return this;
@@ -740,7 +740,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearNewCatalogName() {
-      
+
       newCatalogName_ = getDefaultInstance().getNewCatalogName();
       onChanged();
       return this;
@@ -760,7 +760,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   checkByteStringIsUtf8(value);
-      
+
       newCatalogName_ = value;
       onChanged();
       return this;
@@ -789,7 +789,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setOverwriteTarget(boolean value) {
-      
+
       overwriteTarget_ = value;
       onChanged();
       return this;
@@ -803,7 +803,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearOverwriteTarget() {
-      
+
       overwriteTarget_ = false;
       onChanged();
       return this;

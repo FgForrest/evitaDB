@@ -881,7 +881,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateCatalogSchemaMutation createCatalogSchemaMutation = 1;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcCreateCatalogSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcCreateCatalogSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcCreateCatalogSchemaMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcCreateCatalogSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcCreateCatalogSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcCreateCatalogSchemaMutationOrBuilder>
         getCreateCatalogSchemaMutationFieldBuilder() {
       if (createCatalogSchemaMutationBuilder_ == null) {
         if (!(mutationCase_ == 1)) {
@@ -1058,7 +1058,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaNameMutation modifyCatalogSchemaNameMutation = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaNameMutation, io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaNameMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaNameMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaNameMutation, io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaNameMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaNameMutationOrBuilder>
         getModifyCatalogSchemaNameMutationFieldBuilder() {
       if (modifyCatalogSchemaNameMutationBuilder_ == null) {
         if (!(mutationCase_ == 2)) {
@@ -1235,7 +1235,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveCatalogSchemaMutation removeCatalogSchemaMutation = 3;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcRemoveCatalogSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcRemoveCatalogSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcRemoveCatalogSchemaMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcRemoveCatalogSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcRemoveCatalogSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcRemoveCatalogSchemaMutationOrBuilder>
         getRemoveCatalogSchemaMutationFieldBuilder() {
       if (removeCatalogSchemaMutationBuilder_ == null) {
         if (!(mutationCase_ == 3)) {

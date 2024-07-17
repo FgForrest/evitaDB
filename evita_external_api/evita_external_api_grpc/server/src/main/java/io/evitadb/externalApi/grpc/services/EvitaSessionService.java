@@ -135,12 +135,12 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	 * Produces the {@link CatalogSchema}.
 	 */
 	@Override
-	public void getCatalogSchema(Empty request, StreamObserver<GrpcCatalogSchemaResponse> responseObserver) {
+	public void getCatalogSchema(GrpcGetCatalogSchemaRequest request, StreamObserver<GrpcCatalogSchemaResponse> responseObserver) {
 		executeWithClientContext(session -> {
 			final SealedCatalogSchema catalogSchema = session.getCatalogSchema();
 			responseObserver.onNext(
 				GrpcCatalogSchemaResponse.newBuilder()
-					.setCatalogSchema(convert(catalogSchema))
+					.setCatalogSchema(convert(catalogSchema, request.getNameVariants()))
 					.build()
 			);
 			responseObserver.onCompleted();
@@ -171,7 +171,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 		executeWithClientContext(session -> {
 			final Builder responseBuilder = GrpcEntitySchemaResponse.newBuilder();
 			session.getEntitySchema(request.getEntityType())
-				.ifPresent(it -> responseBuilder.setEntitySchema(EntitySchemaConverter.convert(it)));
+				.ifPresent(it -> responseBuilder.setEntitySchema(EntitySchemaConverter.convert(it, request.getNameVariants())));
 
 			responseObserver.onNext(
 				responseBuilder.build()
@@ -527,7 +527,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 			final SealedCatalogSchema newCatalogSchema = session.updateAndFetchCatalogSchema(schemaMutations);
 
 			final GrpcUpdateAndFetchCatalogSchemaResponse response = GrpcUpdateAndFetchCatalogSchemaResponse.newBuilder()
-				.setCatalogSchema(convert(newCatalogSchema))
+				.setCatalogSchema(convert(newCatalogSchema, false))
 				.build();
 			responseObserver.onNext(response);
 			responseObserver.onCompleted();
@@ -540,7 +540,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 			final EntitySchemaBuilder entitySchemaBuilder = session.defineEntitySchema(request.getEntityType());
 
 			final GrpcDefineEntitySchemaResponse response = GrpcDefineEntitySchemaResponse.newBuilder()
-				.setEntitySchema(EntitySchemaConverter.convert(entitySchemaBuilder.toInstance()))
+				.setEntitySchema(EntitySchemaConverter.convert(entitySchemaBuilder.toInstance(), false))
 				.build();
 			responseObserver.onNext(response);
 			responseObserver.onCompleted();
@@ -568,7 +568,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 			final SealedEntitySchema newEntitySchema = session.updateAndFetchEntitySchema(schemaMutation);
 
 			final GrpcUpdateAndFetchEntitySchemaResponse response = GrpcUpdateAndFetchEntitySchemaResponse.newBuilder()
-				.setEntitySchema(EntitySchemaConverter.convert(newEntitySchema))
+				.setEntitySchema(EntitySchemaConverter.convert(newEntitySchema, false))
 				.build();
 			responseObserver.onNext(response);
 			responseObserver.onCompleted();

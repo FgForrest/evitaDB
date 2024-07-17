@@ -23,7 +23,6 @@
 
 package io.evitadb.externalApi.grpc;
 
-import com.linecorp.armeria.common.HttpHeaderNames;
 import com.linecorp.armeria.common.HttpMethod;
 import com.linecorp.armeria.common.grpc.GrpcSerializationFormats;
 import com.linecorp.armeria.common.grpc.protocol.GrpcHeaderNames;
@@ -34,6 +33,7 @@ import com.linecorp.armeria.server.grpc.GrpcServiceBuilder;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.grpc.configuration.GrpcConfig;
+import io.evitadb.externalApi.grpc.services.EvitaManagementService;
 import io.evitadb.externalApi.grpc.services.EvitaService;
 import io.evitadb.externalApi.grpc.services.EvitaSessionService;
 import io.evitadb.externalApi.grpc.services.interceptors.GlobalExceptionHandlerInterceptor;
@@ -70,6 +70,7 @@ public class GrpcProviderRegistrar implements ExternalApiProviderRegistrar<GrpcC
 	public ExternalApiProvider<GrpcConfig> register(@Nonnull Evita evita, @Nonnull ExternalApiServer externalApiServer, @Nonnull ApiOptions apiOptions, @Nonnull GrpcConfig grpcAPIConfig) {
 		final GrpcServiceBuilder grpcServiceBuilder = GrpcService.builder()
 			.addService(new EvitaService(evita))
+			.addService(new EvitaManagementService(evita))
 			.addService(new EvitaSessionService(evita))
 			.addService(ProtoReflectionService.newInstance())
 			.intercept(new ServerSessionInterceptor(evita, grpcAPIConfig.getTlsMode()))

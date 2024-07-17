@@ -142,7 +142,7 @@ private static final long serialVersionUID = 0L;
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange value = 1;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeOrBuilder> 
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeOrBuilder>
       getValueOrBuilderList() {
     return value_;
   }
@@ -489,7 +489,7 @@ private static final long serialVersionUID = 0L;
             valueBuilder_ = null;
             value_ = other.value_;
             bitField0_ = (bitField0_ & ~0x00000001);
-            valueBuilder_ = 
+            valueBuilder_ =
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getValueFieldBuilder() : null;
           } else {
@@ -782,7 +782,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange value = 1;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeOrBuilder> 
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeOrBuilder>
          getValueOrBuilderList() {
       if (valueBuilder_ != null) {
         return valueBuilder_.getMessageOrBuilderList();
@@ -820,12 +820,12 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange value = 1;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange.Builder> 
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange.Builder>
          getValueBuilderList() {
       return getValueFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange, io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange.Builder, io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange, io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange.Builder, io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeOrBuilder>
         getValueFieldBuilder() {
       if (valueBuilder_ == null) {
         valueBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<

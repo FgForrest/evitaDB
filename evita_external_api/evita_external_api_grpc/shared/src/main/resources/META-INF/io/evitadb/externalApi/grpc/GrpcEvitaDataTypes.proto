@@ -357,3 +357,43 @@ message GrpcTaskStatus {
   // Exception that occurred during the task execution
   google.protobuf.StringValue exception = 12;
 }
+
+// Aggregates basic data about the catalog and entity types stored in it.
+message GrpcCatalogStatistics {
+  // name of the catalog
+  string catalogName = 1;
+  // true if the catalog is corrupted (other data will be not available)
+  bool corrupted = 2;
+  // current state of the catalog, null for corrupted catalog
+  GrpcCatalogState catalogState = 3;
+  // version of the catalog, -1 for corrupted catalog
+  int64 catalogVersion = 4;
+  // total number of records in the catalog, -1 for corrupted catalog
+  int64 totalRecords = 5;
+  // total number of indexes in the catalog, -1 for corrupted catalog
+  int64 indexCount = 6;
+  // total size of the catalog on disk in bytes
+  int64 sizeOnDiskInBytes = 7;
+  // statistics for each entity collection in the catalog, empty array for corrupted catalog
+  repeated GrpcEntityCollectionStatistics entityCollectionStatistics = 8;
+}
+
+// Aggregates basic data about the entity collection.
+message GrpcEntityCollectionStatistics {
+  // name of the entity collection
+  string entityType = 1;
+  // total number of records in the entity collection
+  int32 totalRecords = 2;
+  // total number of indexes in the entity collection
+  int32 indexCount = 3;
+  // total size of the entity collection on disk in bytes
+  int64 sizeOnDiskInBytes = 4;
+}
+
+// Structure for representing a name in a particular naming convention.
+message GrpcNameVariant {
+  // naming convention the name is in
+  GrpcNamingConvention namingConvention = 1;
+  // the name in the particular naming convention
+  string name = 2;
+}

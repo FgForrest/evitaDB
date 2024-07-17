@@ -491,7 +491,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setMostSignificantBits(long value) {
-      
+
       mostSignificantBits_ = value;
       onChanged();
       return this;
@@ -505,7 +505,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearMostSignificantBits() {
-      
+
       mostSignificantBits_ = 0L;
       onChanged();
       return this;
@@ -526,7 +526,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setLeastSignificantBits(long value) {
-      
+
       leastSignificantBits_ = value;
       onChanged();
       return this;
@@ -536,7 +536,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearLeastSignificantBits() {
-      
+
       leastSignificantBits_ = 0L;
       onChanged();
       return this;

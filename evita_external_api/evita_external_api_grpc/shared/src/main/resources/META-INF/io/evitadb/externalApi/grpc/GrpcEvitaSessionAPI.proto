@@ -22,6 +22,13 @@ message GrpcCatalogStateResponse {
   GrpcCatalogState state = 1;
 }
 
+// Request to GetCatalogSchema request.
+message GrpcGetCatalogSchemaRequest {
+  // True, if the schema should include name variants for it and all sub-schemas.
+  // This could considerably increase the size of the response.
+  bool nameVariants = 1;
+}
+
 // Response to GetCatalogSchema request.
 message GrpcCatalogSchemaResponse {
   // The current catalog schema.
@@ -32,6 +39,9 @@ message GrpcCatalogSchemaResponse {
 message GrpcEntitySchemaRequest {
   // The entity type for which the schema is requested.
   string entityType = 1;
+  // True, if the schema should include name variants for it and all sub-schemas.
+  // This could considerably increase the size of the response.
+  bool nameVariants = 2;
 }
 
 // Response to GetEntitySchema request.
@@ -471,7 +481,7 @@ message GrpcQueryParam {
 // be fetched by specifying a complex queries.
 service EvitaSessionService {
   // Procedure that returns the current (the one on which the used session operates) catalog schema.
-  rpc GetCatalogSchema(google.protobuf.Empty) returns (GrpcCatalogSchemaResponse);
+  rpc GetCatalogSchema(GrpcGetCatalogSchemaRequest) returns (GrpcCatalogSchemaResponse);
   // Procedure that returns the current state of the catalog.
   rpc GetCatalogState(google.protobuf.Empty) returns (GrpcCatalogStateResponse);
   // Procedure that returns the schema of a specific entity type.
