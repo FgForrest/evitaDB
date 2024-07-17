@@ -157,6 +157,7 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 					(executionContext, formula) -> {
 						try {
 							executionContext.pushStep(QueryPhase.EXECUTION_FILTER_NESTED_QUERY, stepDescriptionSupplier);
+							formula.initialize(executionContext);
 							return formula.compute();
 						} finally {
 							executionContext.popStep();
