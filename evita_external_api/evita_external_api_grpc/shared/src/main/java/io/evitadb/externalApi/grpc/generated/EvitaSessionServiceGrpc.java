@@ -354,6 +354,99 @@ public final class EvitaSessionServiceGrpc {
     return getQueryMethod;
   }
 
+  private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcQueryUnsafeRequest,
+      io.evitadb.externalApi.grpc.generated.GrpcQueryOneResponse> getQueryOneUnsafeMethod;
+
+  @io.grpc.stub.annotations.RpcMethod(
+      fullMethodName = SERVICE_NAME + '/' + "QueryOneUnsafe",
+      requestType = io.evitadb.externalApi.grpc.generated.GrpcQueryUnsafeRequest.class,
+      responseType = io.evitadb.externalApi.grpc.generated.GrpcQueryOneResponse.class,
+      methodType = io.grpc.MethodDescriptor.MethodType.UNARY)
+  public static io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcQueryUnsafeRequest,
+      io.evitadb.externalApi.grpc.generated.GrpcQueryOneResponse> getQueryOneUnsafeMethod() {
+    io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcQueryUnsafeRequest, io.evitadb.externalApi.grpc.generated.GrpcQueryOneResponse> getQueryOneUnsafeMethod;
+    if ((getQueryOneUnsafeMethod = EvitaSessionServiceGrpc.getQueryOneUnsafeMethod) == null) {
+      synchronized (EvitaSessionServiceGrpc.class) {
+        if ((getQueryOneUnsafeMethod = EvitaSessionServiceGrpc.getQueryOneUnsafeMethod) == null) {
+          EvitaSessionServiceGrpc.getQueryOneUnsafeMethod = getQueryOneUnsafeMethod =
+              io.grpc.MethodDescriptor.<io.evitadb.externalApi.grpc.generated.GrpcQueryUnsafeRequest, io.evitadb.externalApi.grpc.generated.GrpcQueryOneResponse>newBuilder()
+              .setType(io.grpc.MethodDescriptor.MethodType.UNARY)
+              .setFullMethodName(generateFullMethodName(SERVICE_NAME, "QueryOneUnsafe"))
+              .setSampledToLocalTracing(true)
+              .setRequestMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  io.evitadb.externalApi.grpc.generated.GrpcQueryUnsafeRequest.getDefaultInstance()))
+              .setResponseMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  io.evitadb.externalApi.grpc.generated.GrpcQueryOneResponse.getDefaultInstance()))
+              .setSchemaDescriptor(new EvitaSessionServiceMethodDescriptorSupplier("QueryOneUnsafe"))
+              .build();
+        }
+      }
+    }
+    return getQueryOneUnsafeMethod;
+  }
+
+  private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcQueryUnsafeRequest,
+      io.evitadb.externalApi.grpc.generated.GrpcQueryListResponse> getQueryListUnsafeMethod;
+
+  @io.grpc.stub.annotations.RpcMethod(
+      fullMethodName = SERVICE_NAME + '/' + "QueryListUnsafe",
+      requestType = io.evitadb.externalApi.grpc.generated.GrpcQueryUnsafeRequest.class,
+      responseType = io.evitadb.externalApi.grpc.generated.GrpcQueryListResponse.class,
+      methodType = io.grpc.MethodDescriptor.MethodType.UNARY)
+  public static io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcQueryUnsafeRequest,
+      io.evitadb.externalApi.grpc.generated.GrpcQueryListResponse> getQueryListUnsafeMethod() {
+    io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcQueryUnsafeRequest, io.evitadb.externalApi.grpc.generated.GrpcQueryListResponse> getQueryListUnsafeMethod;
+    if ((getQueryListUnsafeMethod = EvitaSessionServiceGrpc.getQueryListUnsafeMethod) == null) {
+      synchronized (EvitaSessionServiceGrpc.class) {
+        if ((getQueryListUnsafeMethod = EvitaSessionServiceGrpc.getQueryListUnsafeMethod) == null) {
+          EvitaSessionServiceGrpc.getQueryListUnsafeMethod = getQueryListUnsafeMethod =
+              io.grpc.MethodDescriptor.<io.evitadb.externalApi.grpc.generated.GrpcQueryUnsafeRequest, io.evitadb.externalApi.grpc.generated.GrpcQueryListResponse>newBuilder()
+              .setType(io.grpc.MethodDescriptor.MethodType.UNARY)
+              .setFullMethodName(generateFullMethodName(SERVICE_NAME, "QueryListUnsafe"))
+              .setSampledToLocalTracing(true)
+              .setRequestMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  io.evitadb.externalApi.grpc.generated.GrpcQueryUnsafeRequest.getDefaultInstance()))
+              .setResponseMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  io.evitadb.externalApi.grpc.generated.GrpcQueryListResponse.getDefaultInstance()))
+              .setSchemaDescriptor(new EvitaSessionServiceMethodDescriptorSupplier("QueryListUnsafe"))
+              .build();
+        }
+      }
+    }
+    return getQueryListUnsafeMethod;
+  }
+
+  private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcQueryUnsafeRequest,
+      io.evitadb.externalApi.grpc.generated.GrpcQueryResponse> getQueryUnsafeMethod;
+
+  @io.grpc.stub.annotations.RpcMethod(
+      fullMethodName = SERVICE_NAME + '/' + "QueryUnsafe",
+      requestType = io.evitadb.externalApi.grpc.generated.GrpcQueryUnsafeRequest.class,
+      responseType = io.evitadb.externalApi.grpc.generated.GrpcQueryResponse.class,
+      methodType = io.grpc.MethodDescriptor.MethodType.UNARY)
+  public static io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcQueryUnsafeRequest,
+      io.evitadb.externalApi.grpc.generated.GrpcQueryResponse> getQueryUnsafeMethod() {
+    io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcQueryUnsafeRequest, io.evitadb.externalApi.grpc.generated.GrpcQueryResponse> getQueryUnsafeMethod;
+    if ((getQueryUnsafeMethod = EvitaSessionServiceGrpc.getQueryUnsafeMethod) == null) {
+      synchronized (EvitaSessionServiceGrpc.class) {
+        if ((getQueryUnsafeMethod = EvitaSessionServiceGrpc.getQueryUnsafeMethod) == null) {
+          EvitaSessionServiceGrpc.getQueryUnsafeMethod = getQueryUnsafeMethod =
+              io.grpc.MethodDescriptor.<io.evitadb.externalApi.grpc.generated.GrpcQueryUnsafeRequest, io.evitadb.externalApi.grpc.generated.GrpcQueryResponse>newBuilder()
+              .setType(io.grpc.MethodDescriptor.MethodType.UNARY)
+              .setFullMethodName(generateFullMethodName(SERVICE_NAME, "QueryUnsafe"))
+              .setSampledToLocalTracing(true)
+              .setRequestMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  io.evitadb.externalApi.grpc.generated.GrpcQueryUnsafeRequest.getDefaultInstance()))
+              .setResponseMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  io.evitadb.externalApi.grpc.generated.GrpcQueryResponse.getDefaultInstance()))
+              .setSchemaDescriptor(new EvitaSessionServiceMethodDescriptorSupplier("QueryUnsafe"))
+              .build();
+        }
+      }
+    }
+    return getQueryUnsafeMethod;
+  }
+
   private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcEntityRequest,
       io.evitadb.externalApi.grpc.generated.GrpcEntityResponse> getGetEntityMethod;
 
@@ -977,6 +1070,39 @@ public final class EvitaSessionServiceGrpc {
 
     /**
      * <pre>
+     * Procedure that executes passed query with embedded variables and returns zero or one entity.
+     * Do not use in your applications! This method is unsafe and should be used only for internal purposes.
+     * </pre>
+     */
+    public void queryOneUnsafe(io.evitadb.externalApi.grpc.generated.GrpcQueryUnsafeRequest request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcQueryOneResponse> responseObserver) {
+      io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getQueryOneUnsafeMethod(), responseObserver);
+    }
+
+    /**
+     * <pre>
+     * Procedure that executes passed query with embedded variables and returns a list of entities.
+     * Do not use in your applications! This method is unsafe and should be used only for internal purposes.
+     * </pre>
+     */
+    public void queryListUnsafe(io.evitadb.externalApi.grpc.generated.GrpcQueryUnsafeRequest request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcQueryListResponse> responseObserver) {
+      io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getQueryListUnsafeMethod(), responseObserver);
+    }
+
+    /**
+     * <pre>
+     * Procedure that executes passed query with embedded variables and returns a data chunk with computed extra results.
+     * Do not use in your applications! This method is unsafe and should be used only for internal purposes.
+     * </pre>
+     */
+    public void queryUnsafe(io.evitadb.externalApi.grpc.generated.GrpcQueryUnsafeRequest request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcQueryResponse> responseObserver) {
+      io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getQueryUnsafeMethod(), responseObserver);
+    }
+
+    /**
+     * <pre>
      * Procedure that find entity by passed entity type and primary key and return it by specified richness by passed parametrised require query part.
      * </pre>
      */
@@ -1197,6 +1323,27 @@ public final class EvitaSessionServiceGrpc {
                 io.evitadb.externalApi.grpc.generated.GrpcQueryRequest,
                 io.evitadb.externalApi.grpc.generated.GrpcQueryResponse>(
                   this, METHODID_QUERY)))
+          .addMethod(
+            getQueryOneUnsafeMethod(),
+            io.grpc.stub.ServerCalls.asyncUnaryCall(
+              new MethodHandlers<
+                io.evitadb.externalApi.grpc.generated.GrpcQueryUnsafeRequest,
+                io.evitadb.externalApi.grpc.generated.GrpcQueryOneResponse>(
+                  this, METHODID_QUERY_ONE_UNSAFE)))
+          .addMethod(
+            getQueryListUnsafeMethod(),
+            io.grpc.stub.ServerCalls.asyncUnaryCall(
+              new MethodHandlers<
+                io.evitadb.externalApi.grpc.generated.GrpcQueryUnsafeRequest,
+                io.evitadb.externalApi.grpc.generated.GrpcQueryListResponse>(
+                  this, METHODID_QUERY_LIST_UNSAFE)))
+          .addMethod(
+            getQueryUnsafeMethod(),
+            io.grpc.stub.ServerCalls.asyncUnaryCall(
+              new MethodHandlers<
+                io.evitadb.externalApi.grpc.generated.GrpcQueryUnsafeRequest,
+                io.evitadb.externalApi.grpc.generated.GrpcQueryResponse>(
+                  this, METHODID_QUERY_UNSAFE)))
           .addMethod(
             getGetEntityMethod(),
             io.grpc.stub.ServerCalls.asyncUnaryCall(
@@ -1436,6 +1583,42 @@ public final class EvitaSessionServiceGrpc {
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcQueryResponse> responseObserver) {
       io.grpc.stub.ClientCalls.asyncUnaryCall(
           getChannel().newCall(getQueryMethod(), getCallOptions()), request, responseObserver);
+    }
+
+    /**
+     * <pre>
+     * Procedure that executes passed query with embedded variables and returns zero or one entity.
+     * Do not use in your applications! This method is unsafe and should be used only for internal purposes.
+     * </pre>
+     */
+    public void queryOneUnsafe(io.evitadb.externalApi.grpc.generated.GrpcQueryUnsafeRequest request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcQueryOneResponse> responseObserver) {
+      io.grpc.stub.ClientCalls.asyncUnaryCall(
+          getChannel().newCall(getQueryOneUnsafeMethod(), getCallOptions()), request, responseObserver);
+    }
+
+    /**
+     * <pre>
+     * Procedure that executes passed query with embedded variables and returns a list of entities.
+     * Do not use in your applications! This method is unsafe and should be used only for internal purposes.
+     * </pre>
+     */
+    public void queryListUnsafe(io.evitadb.externalApi.grpc.generated.GrpcQueryUnsafeRequest request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcQueryListResponse> responseObserver) {
+      io.grpc.stub.ClientCalls.asyncUnaryCall(
+          getChannel().newCall(getQueryListUnsafeMethod(), getCallOptions()), request, responseObserver);
+    }
+
+    /**
+     * <pre>
+     * Procedure that executes passed query with embedded variables and returns a data chunk with computed extra results.
+     * Do not use in your applications! This method is unsafe and should be used only for internal purposes.
+     * </pre>
+     */
+    public void queryUnsafe(io.evitadb.externalApi.grpc.generated.GrpcQueryUnsafeRequest request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcQueryResponse> responseObserver) {
+      io.grpc.stub.ClientCalls.asyncUnaryCall(
+          getChannel().newCall(getQueryUnsafeMethod(), getCallOptions()), request, responseObserver);
     }
 
     /**
@@ -1728,6 +1911,39 @@ public final class EvitaSessionServiceGrpc {
 
     /**
      * <pre>
+     * Procedure that executes passed query with embedded variables and returns zero or one entity.
+     * Do not use in your applications! This method is unsafe and should be used only for internal purposes.
+     * </pre>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcQueryOneResponse queryOneUnsafe(io.evitadb.externalApi.grpc.generated.GrpcQueryUnsafeRequest request) {
+      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+          getChannel(), getQueryOneUnsafeMethod(), getCallOptions(), request);
+    }
+
+    /**
+     * <pre>
+     * Procedure that executes passed query with embedded variables and returns a list of entities.
+     * Do not use in your applications! This method is unsafe and should be used only for internal purposes.
+     * </pre>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcQueryListResponse queryListUnsafe(io.evitadb.externalApi.grpc.generated.GrpcQueryUnsafeRequest request) {
+      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+          getChannel(), getQueryListUnsafeMethod(), getCallOptions(), request);
+    }
+
+    /**
+     * <pre>
+     * Procedure that executes passed query with embedded variables and returns a data chunk with computed extra results.
+     * Do not use in your applications! This method is unsafe and should be used only for internal purposes.
+     * </pre>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcQueryResponse queryUnsafe(io.evitadb.externalApi.grpc.generated.GrpcQueryUnsafeRequest request) {
+      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+          getChannel(), getQueryUnsafeMethod(), getCallOptions(), request);
+    }
+
+    /**
+     * <pre>
      * Procedure that find entity by passed entity type and primary key and return it by specified richness by passed parametrised require query part.
      * </pre>
      */
@@ -2011,6 +2227,42 @@ public final class EvitaSessionServiceGrpc {
 
     /**
      * <pre>
+     * Procedure that executes passed query with embedded variables and returns zero or one entity.
+     * Do not use in your applications! This method is unsafe and should be used only for internal purposes.
+     * </pre>
+     */
+    public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcQueryOneResponse> queryOneUnsafe(
+        io.evitadb.externalApi.grpc.generated.GrpcQueryUnsafeRequest request) {
+      return io.grpc.stub.ClientCalls.futureUnaryCall(
+          getChannel().newCall(getQueryOneUnsafeMethod(), getCallOptions()), request);
+    }
+
+    /**
+     * <pre>
+     * Procedure that executes passed query with embedded variables and returns a list of entities.
+     * Do not use in your applications! This method is unsafe and should be used only for internal purposes.
+     * </pre>
+     */
+    public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcQueryListResponse> queryListUnsafe(
+        io.evitadb.externalApi.grpc.generated.GrpcQueryUnsafeRequest request) {
+      return io.grpc.stub.ClientCalls.futureUnaryCall(
+          getChannel().newCall(getQueryListUnsafeMethod(), getCallOptions()), request);
+    }
+
+    /**
+     * <pre>
+     * Procedure that executes passed query with embedded variables and returns a data chunk with computed extra results.
+     * Do not use in your applications! This method is unsafe and should be used only for internal purposes.
+     * </pre>
+     */
+    public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcQueryResponse> queryUnsafe(
+        io.evitadb.externalApi.grpc.generated.GrpcQueryUnsafeRequest request) {
+      return io.grpc.stub.ClientCalls.futureUnaryCall(
+          getChannel().newCall(getQueryUnsafeMethod(), getCallOptions()), request);
+    }
+
+    /**
+     * <pre>
      * Procedure that find entity by passed entity type and primary key and return it by specified richness by passed parametrised require query part.
      * </pre>
      */
@@ -2185,21 +2437,24 @@ public final class EvitaSessionServiceGrpc {
   private static final int METHODID_QUERY_ONE = 7;
   private static final int METHODID_QUERY_LIST = 8;
   private static final int METHODID_QUERY = 9;
-  private static final int METHODID_GET_ENTITY = 10;
-  private static final int METHODID_UPDATE_CATALOG_SCHEMA = 11;
-  private static final int METHODID_UPDATE_AND_FETCH_CATALOG_SCHEMA = 12;
-  private static final int METHODID_DEFINE_ENTITY_SCHEMA = 13;
-  private static final int METHODID_UPDATE_ENTITY_SCHEMA = 14;
-  private static final int METHODID_UPDATE_AND_FETCH_ENTITY_SCHEMA = 15;
-  private static final int METHODID_DELETE_COLLECTION = 16;
-  private static final int METHODID_RENAME_COLLECTION = 17;
-  private static final int METHODID_REPLACE_COLLECTION = 18;
-  private static final int METHODID_GET_ENTITY_COLLECTION_SIZE = 19;
-  private static final int METHODID_UPSERT_ENTITY = 20;
-  private static final int METHODID_DELETE_ENTITY = 21;
-  private static final int METHODID_DELETE_ENTITY_AND_ITS_HIERARCHY = 22;
-  private static final int METHODID_DELETE_ENTITIES = 23;
-  private static final int METHODID_GET_TRANSACTION_ID = 24;
+  private static final int METHODID_QUERY_ONE_UNSAFE = 10;
+  private static final int METHODID_QUERY_LIST_UNSAFE = 11;
+  private static final int METHODID_QUERY_UNSAFE = 12;
+  private static final int METHODID_GET_ENTITY = 13;
+  private static final int METHODID_UPDATE_CATALOG_SCHEMA = 14;
+  private static final int METHODID_UPDATE_AND_FETCH_CATALOG_SCHEMA = 15;
+  private static final int METHODID_DEFINE_ENTITY_SCHEMA = 16;
+  private static final int METHODID_UPDATE_ENTITY_SCHEMA = 17;
+  private static final int METHODID_UPDATE_AND_FETCH_ENTITY_SCHEMA = 18;
+  private static final int METHODID_DELETE_COLLECTION = 19;
+  private static final int METHODID_RENAME_COLLECTION = 20;
+  private static final int METHODID_REPLACE_COLLECTION = 21;
+  private static final int METHODID_GET_ENTITY_COLLECTION_SIZE = 22;
+  private static final int METHODID_UPSERT_ENTITY = 23;
+  private static final int METHODID_DELETE_ENTITY = 24;
+  private static final int METHODID_DELETE_ENTITY_AND_ITS_HIERARCHY = 25;
+  private static final int METHODID_DELETE_ENTITIES = 26;
+  private static final int METHODID_GET_TRANSACTION_ID = 27;
 
   private static final class MethodHandlers<Req, Resp> implements
       io.grpc.stub.ServerCalls.UnaryMethod<Req, Resp>,
@@ -2256,6 +2511,18 @@ public final class EvitaSessionServiceGrpc {
           break;
         case METHODID_QUERY:
           serviceImpl.query((io.evitadb.externalApi.grpc.generated.GrpcQueryRequest) request,
+              (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcQueryResponse>) responseObserver);
+          break;
+        case METHODID_QUERY_ONE_UNSAFE:
+          serviceImpl.queryOneUnsafe((io.evitadb.externalApi.grpc.generated.GrpcQueryUnsafeRequest) request,
+              (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcQueryOneResponse>) responseObserver);
+          break;
+        case METHODID_QUERY_LIST_UNSAFE:
+          serviceImpl.queryListUnsafe((io.evitadb.externalApi.grpc.generated.GrpcQueryUnsafeRequest) request,
+              (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcQueryListResponse>) responseObserver);
+          break;
+        case METHODID_QUERY_UNSAFE:
+          serviceImpl.queryUnsafe((io.evitadb.externalApi.grpc.generated.GrpcQueryUnsafeRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcQueryResponse>) responseObserver);
           break;
         case METHODID_GET_ENTITY:
@@ -2389,6 +2656,9 @@ public final class EvitaSessionServiceGrpc {
               .addMethod(getQueryOneMethod())
               .addMethod(getQueryListMethod())
               .addMethod(getQueryMethod())
+              .addMethod(getQueryOneUnsafeMethod())
+              .addMethod(getQueryListUnsafeMethod())
+              .addMethod(getQueryUnsafeMethod())
               .addMethod(getGetEntityMethod())
               .addMethod(getUpdateCatalogSchemaMethod())
               .addMethod(getUpdateAndFetchCatalogSchemaMethod())

@@ -268,6 +268,12 @@ message GrpcQueryRequest {
   map<string, GrpcQueryParam> namedQueryParams = 3;
 }
 
+// Request for specifying a query to be executed.
+message GrpcQueryUnsafeRequest {
+  // The string part of the parametrised query.
+  string query = 1;
+}
+
 // Response to Query request.
 message GrpcQueryResponse {
   // The fetched record page with entities.
@@ -501,6 +507,15 @@ service EvitaSessionService {
   rpc QueryList(GrpcQueryRequest) returns (GrpcQueryListResponse);
   // Procedure that executes passed parametrised query and returns a data chunk with computed extra results.
   rpc Query(GrpcQueryRequest) returns (GrpcQueryResponse);
+  // Procedure that executes passed query with embedded variables and returns zero or one entity.
+  // Do not use in your applications! This method is unsafe and should be used only for internal purposes.
+  rpc QueryOneUnsafe(GrpcQueryUnsafeRequest) returns (GrpcQueryOneResponse);
+  // Procedure that executes passed query with embedded variables and returns a list of entities.
+  // Do not use in your applications! This method is unsafe and should be used only for internal purposes.
+  rpc QueryListUnsafe(GrpcQueryUnsafeRequest) returns (GrpcQueryListResponse);
+  // Procedure that executes passed query with embedded variables and returns a data chunk with computed extra results.
+  // Do not use in your applications! This method is unsafe and should be used only for internal purposes.
+  rpc QueryUnsafe(GrpcQueryUnsafeRequest) returns (GrpcQueryResponse);
   // Procedure that find entity by passed entity type and primary key and return it by specified richness by passed parametrised require query part.
   rpc GetEntity(GrpcEntityRequest) returns (GrpcEntityResponse);
 

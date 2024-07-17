@@ -78,6 +78,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -129,6 +130,183 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 					lambda.accept(session);
 				}
 			);
+	}
+
+	/**
+	 * Internal method used to query catalog expecting only one record returned by calling {@link EvitaSessionContract#queryOne(Query, Class)}.
+	 *
+	 * @param session          session on which the query will be executed
+	 * @param query            query to be executed
+	 * @param responseObserver observer on which errors might be thrown and result returned
+	 */
+	private static void queryOneInternal(
+		@Nonnull StreamObserver<GrpcQueryOneResponse> responseObserver,
+		@Nonnull EvitaInternalSessionContract session,
+		@Nullable Query query
+	) {
+		if (query != null) {
+			final EvitaRequest evitaRequest = new EvitaRequest(
+				query,
+				OffsetDateTime.now(),
+				EntityClassifier.class,
+				null,
+				EvitaRequest.CONVERSION_NOT_SUPPORTED
+			);
+
+			final GrpcQueryOneResponse.Builder responseBuilder = GrpcQueryOneResponse.newBuilder();
+			session.queryOne(evitaRequest).ifPresent(responseEntity -> {
+				if (responseEntity instanceof final EntityReference entityReference) {
+					responseBuilder.setEntityReference(GrpcEntityReference.newBuilder()
+						.setEntityType(entityReference.getType())
+						.setPrimaryKey(entityReference.getPrimaryKey())
+						.build());
+				} else if (responseEntity instanceof final SealedEntity sealedEntity) {
+					responseBuilder.setSealedEntity(EntityConverter.toGrpcSealedEntity(sealedEntity));
+				} else if (responseEntity instanceof final BinaryEntity binaryEntity) {
+					responseBuilder.setBinaryEntity(EntityConverter.toGrpcBinaryEntity(binaryEntity));
+				} else {
+					throw new GenericEvitaInternalError("Unsupported entity class `" + responseEntity.getClass().getName() + "`.");
+				}
+			});
+			responseObserver.onNext(responseBuilder.build());
+		}
+		responseObserver.onCompleted();
+	}
+
+	/**
+	 * Internal method used to query catalog expecting list of records returned by calling {@link EvitaSessionContract#queryList(Query, Class)}.
+	 *
+	 * @param session          session on which the query will be executed
+	 * @param query            query to be executed
+	 * @param responseObserver observer on which errors might be thrown and result returned
+	 */
+	private static void queryListInternal(
+		@Nonnull StreamObserver<GrpcQueryListResponse> responseObserver,
+		@Nonnull EvitaInternalSessionContract session,
+		@Nullable Query query
+	) {
+		if (query != null) {
+			final EvitaRequest evitaRequest = new EvitaRequest(
+				query,
+				OffsetDateTime.now(),
+				EntityClassifier.class,
+				null,
+				EvitaRequest.CONVERSION_NOT_SUPPORTED
+			);
+			final List<EntityClassifier> responseEntities = session.queryList(evitaRequest);
+			final GrpcQueryListResponse.Builder responseBuilder = GrpcQueryListResponse.newBuilder();
+			final EntityFetch entityFetchRequirement = evitaRequest.getEntityRequirement();
+			if (entityFetchRequirement != null) {
+				if (session.isBinaryFormat()) {
+					responseEntities.forEach(e ->
+						responseBuilder.addBinaryEntities(EntityConverter.toGrpcBinaryEntity((BinaryEntity) e))
+					);
+				} else {
+					responseEntities.forEach(entity ->
+						responseBuilder.addSealedEntities(EntityConverter.toGrpcSealedEntity((SealedEntity) entity))
+					);
+				}
+			} else {
+				responseEntities.forEach(e ->
+					responseBuilder.addEntityReferences(GrpcEntityReference.newBuilder()
+						.setEntityType(e.getType())
+						.setPrimaryKey(((EntityReference) e).getPrimaryKey())
+						.build())
+				);
+			}
+
+			responseObserver.onNext(responseBuilder.build());
+		}
+		responseObserver.onCompleted();
+	}
+
+	/**
+	 * Internal method used to query catalog calling {@link EvitaSessionContract#query(Query, Class)}.
+	 *
+	 * @param session          session on which the query will be executed
+	 * @param query            query to be executed
+	 * @param responseObserver observer on which errors might be thrown and result returned
+	 */
+	private static void queryInternal(
+		@Nonnull StreamObserver<GrpcQueryResponse> responseObserver,
+		@Nonnull EvitaInternalSessionContract session,
+		@Nullable Query query
+	) {
+		if (query != null) {
+			final EvitaRequest evitaRequest = new EvitaRequest(
+				query.normalizeQuery(),
+				OffsetDateTime.now(),
+				EntityClassifier.class,
+				null,
+				EvitaRequest.CONVERSION_NOT_SUPPORTED
+			);
+
+			final EvitaResponse<EntityClassifier> evitaResponse = session.query(evitaRequest);
+			final GrpcQueryResponse.Builder entityBuilder = GrpcQueryResponse.newBuilder();
+			final DataChunk<EntityClassifier> recordPage = evitaResponse.getRecordPage();
+			final GrpcDataChunk.Builder dataChunkBuilder = GrpcDataChunk.newBuilder()
+				.setTotalRecordCount(evitaResponse.getTotalRecordCount())
+				.setIsFirst(recordPage.isFirst())
+				.setIsLast(recordPage.isLast())
+				.setHasPrevious(recordPage.hasPrevious())
+				.setHasNext(recordPage.hasNext())
+				.setIsSinglePage(recordPage.isSinglePage())
+				.setIsEmpty(recordPage.isEmpty());
+
+			if (recordPage instanceof PaginatedList<?> paginatedList) {
+				dataChunkBuilder.getPaginatedListBuilder()
+					.setPageNumber(paginatedList.getPageNumber())
+					.setPageSize(paginatedList.getPageSize());
+			} else if (recordPage instanceof StripList<?> stripList) {
+				dataChunkBuilder.getStripListBuilder()
+					.setOffset(stripList.getOffset())
+					.setLimit(stripList.getLimit());
+			}
+
+			entityBuilder.setExtraResults(
+				GrpcExtraResultsBuilder.buildExtraResults(evitaResponse)
+			);
+
+			final EntityFetch entityRequirement = evitaRequest.getEntityRequirement();
+			if (entityRequirement != null) {
+				if (session.isBinaryFormat()) {
+					final List<GrpcBinaryEntity> binaryEntities = new ArrayList<>(recordPage.getData().size());
+					recordPage.stream().forEach(e ->
+						binaryEntities.add(EntityConverter.toGrpcBinaryEntity((BinaryEntity) e))
+					);
+					entityBuilder.setRecordPage(dataChunkBuilder
+						.addAllBinaryEntities(binaryEntities)
+						.build()
+					);
+				} else {
+					final List<GrpcSealedEntity> sealedEntities = new ArrayList<>(recordPage.getData().size());
+					recordPage.stream().forEach(e ->
+						sealedEntities.add(EntityConverter.toGrpcSealedEntity((SealedEntity) e))
+					);
+					entityBuilder.setRecordPage(dataChunkBuilder
+						.addAllSealedEntities(sealedEntities)
+						.build()
+					);
+				}
+			} else {
+				final List<GrpcEntityReference> entityReferences = new ArrayList<>(recordPage.getData().size());
+				recordPage.stream().forEach(e ->
+					entityReferences.add(
+						GrpcEntityReference.newBuilder()
+							.setEntityType(e.getType())
+							.setPrimaryKey(((EntityReference) e).getPrimaryKey())
+							.build())
+				);
+				entityBuilder.setRecordPage(dataChunkBuilder
+						.addAllEntityReferences(entityReferences)
+						.build()
+					)
+					.build();
+			}
+
+			responseObserver.onNext(entityBuilder.build());
+		}
+		responseObserver.onCompleted();
 	}
 
 	/**
@@ -296,33 +474,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 				responseObserver
 			);
 
-			if (query != null) {
-				final EvitaRequest evitaRequest = new EvitaRequest(
-					query,
-					OffsetDateTime.now(),
-					EntityClassifier.class,
-					null,
-					EvitaRequest.CONVERSION_NOT_SUPPORTED
-				);
-
-				final GrpcQueryOneResponse.Builder responseBuilder = GrpcQueryOneResponse.newBuilder();
-				session.queryOne(evitaRequest).ifPresent(responseEntity -> {
-					if (responseEntity instanceof final EntityReference entityReference) {
-						responseBuilder.setEntityReference(GrpcEntityReference.newBuilder()
-							.setEntityType(entityReference.getType())
-							.setPrimaryKey(entityReference.getPrimaryKey())
-							.build());
-					} else if (responseEntity instanceof final SealedEntity sealedEntity) {
-						responseBuilder.setSealedEntity(EntityConverter.toGrpcSealedEntity(sealedEntity));
-					} else if (responseEntity instanceof final BinaryEntity binaryEntity) {
-						responseBuilder.setBinaryEntity(EntityConverter.toGrpcBinaryEntity(binaryEntity));
-					} else {
-						throw new GenericEvitaInternalError("Unsupported entity class `" + responseEntity.getClass().getName() + "`.");
-					}
-				});
-				responseObserver.onNext(responseBuilder.build());
-			}
-			responseObserver.onCompleted();
+			queryOneInternal(responseObserver, session, query);
 		});
 	}
 
@@ -342,39 +494,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 				responseObserver
 			);
 
-			if (query != null) {
-				final EvitaRequest evitaRequest = new EvitaRequest(
-					query,
-					OffsetDateTime.now(),
-					EntityClassifier.class,
-					null,
-					EvitaRequest.CONVERSION_NOT_SUPPORTED
-				);
-				final List<EntityClassifier> responseEntities = session.queryList(evitaRequest);
-				final GrpcQueryListResponse.Builder responseBuilder = GrpcQueryListResponse.newBuilder();
-				final EntityFetch entityFetchRequirement = evitaRequest.getEntityRequirement();
-				if (entityFetchRequirement != null) {
-					if (session.isBinaryFormat()) {
-						responseEntities.forEach(e ->
-							responseBuilder.addBinaryEntities(EntityConverter.toGrpcBinaryEntity((BinaryEntity) e))
-						);
-					} else {
-						responseEntities.forEach(entity ->
-							responseBuilder.addSealedEntities(EntityConverter.toGrpcSealedEntity((SealedEntity) entity))
-						);
-					}
-				} else {
-					responseEntities.forEach(e ->
-						responseBuilder.addEntityReferences(GrpcEntityReference.newBuilder()
-							.setEntityType(e.getType())
-							.setPrimaryKey(((EntityReference) e).getPrimaryKey())
-							.build())
-					);
-				}
-
-				responseObserver.onNext(responseBuilder.build());
-			}
-			responseObserver.onCompleted();
+			queryListInternal(responseObserver, session, query);
 		});
 	}
 
@@ -394,81 +514,64 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 				responseObserver
 			);
 
-			if (query != null) {
-				final EvitaRequest evitaRequest = new EvitaRequest(
-					query.normalizeQuery(),
-					OffsetDateTime.now(),
-					EntityClassifier.class,
-					null,
-					EvitaRequest.CONVERSION_NOT_SUPPORTED
-				);
+			queryInternal(responseObserver, session, query);
+		});
+	}
 
-				final EvitaResponse<EntityClassifier> evitaResponse = session.query(evitaRequest);
-				final GrpcQueryResponse.Builder entityBuilder = GrpcQueryResponse.newBuilder();
-				final DataChunk<EntityClassifier> recordPage = evitaResponse.getRecordPage();
-				final GrpcDataChunk.Builder dataChunkBuilder = GrpcDataChunk.newBuilder()
-					.setTotalRecordCount(evitaResponse.getTotalRecordCount())
-					.setIsFirst(recordPage.isFirst())
-					.setIsLast(recordPage.isLast())
-					.setHasPrevious(recordPage.hasPrevious())
-					.setHasNext(recordPage.hasNext())
-					.setIsSinglePage(recordPage.isSinglePage())
-					.setIsEmpty(recordPage.isEmpty());
+	/**
+	 * Method used to query catalog expecting only one record returned by calling {@link EvitaSessionContract#queryOne(Query, Class)}.
+	 * This method implements UNSAFE approach where values are embedded directly into the query string.
+	 *
+	 * @param request          request containing query string form with possible usage of positional or named parameters and their respective collections
+	 * @param responseObserver observer on which errors might be thrown and result returned
+	 */
+	@Override
+	public void queryOneUnsafe(GrpcQueryUnsafeRequest request, StreamObserver<GrpcQueryOneResponse> responseObserver) {
+		executeWithClientContext(session -> {
+			final Query query = QueryUtil.parseQueryUnsafe(
+				request.getQuery(),
+				responseObserver
+			);
 
-				if (recordPage instanceof PaginatedList<?> paginatedList) {
-					dataChunkBuilder.getPaginatedListBuilder()
-						.setPageNumber(paginatedList.getPageNumber())
-						.setPageSize(paginatedList.getPageSize());
-				} else if (recordPage instanceof StripList<?> stripList) {
-					dataChunkBuilder.getStripListBuilder()
-						.setOffset(stripList.getOffset())
-						.setLimit(stripList.getLimit());
-				}
+			queryOneInternal(responseObserver, session, query);
+		});
+	}
 
-				entityBuilder.setExtraResults(
-					GrpcExtraResultsBuilder.buildExtraResults(evitaResponse)
-				);
+	/**
+	 * Method used to query catalog expecting list of records returned by calling {@link EvitaSessionContract#queryList(Query, Class)}.
+	 * This method implements UNSAFE approach where values are embedded directly into the query string.
+	 *
+	 * @param request          request containing query string form with possible usage of positional or named parameters and their respective collections
+	 * @param responseObserver observer on which errors might be thrown and result returned
+	 */
+	@Override
+	public void queryListUnsafe(GrpcQueryUnsafeRequest request, StreamObserver<GrpcQueryListResponse> responseObserver) {
+		executeWithClientContext(session -> {
+			final Query query = QueryUtil.parseQueryUnsafe(
+				request.getQuery(),
+				responseObserver
+			);
 
-				final EntityFetch entityRequirement = evitaRequest.getEntityRequirement();
-				if (entityRequirement != null) {
-					if (session.isBinaryFormat()) {
-						final List<GrpcBinaryEntity> binaryEntities = new ArrayList<>(recordPage.getData().size());
-						recordPage.stream().forEach(e ->
-							binaryEntities.add(EntityConverter.toGrpcBinaryEntity((BinaryEntity) e))
-						);
-						entityBuilder.setRecordPage(dataChunkBuilder
-							.addAllBinaryEntities(binaryEntities)
-							.build()
-						);
-					} else {
-						final List<GrpcSealedEntity> sealedEntities = new ArrayList<>(recordPage.getData().size());
-						recordPage.stream().forEach(e ->
-							sealedEntities.add(EntityConverter.toGrpcSealedEntity((SealedEntity) e))
-						);
-						entityBuilder.setRecordPage(dataChunkBuilder
-							.addAllSealedEntities(sealedEntities)
-							.build()
-						);
-					}
-				} else {
-					final List<GrpcEntityReference> entityReferences = new ArrayList<>(recordPage.getData().size());
-					recordPage.stream().forEach(e ->
-						entityReferences.add(
-							GrpcEntityReference.newBuilder()
-								.setEntityType(e.getType())
-								.setPrimaryKey(((EntityReference) e).getPrimaryKey())
-								.build())
-					);
-					entityBuilder.setRecordPage(dataChunkBuilder
-							.addAllEntityReferences(entityReferences)
-							.build()
-						)
-						.build();
-				}
+			queryListInternal(responseObserver, session, query);
+		});
+	}
 
-				responseObserver.onNext(entityBuilder.build());
-			}
-			responseObserver.onCompleted();
+	/**
+	 * Method used to query catalog calling {@link EvitaSessionContract#query(Query, Class)}.
+	 * This method implements UNSAFE approach where values are embedded directly into the query string.
+	 *
+	 * @param request          request containing query string form with possible usage of positional or named parameters and their respective collections
+	 * @param responseObserver observer on which errors might be thrown and result returned
+	 */
+	@Override
+	public void queryUnsafe(GrpcQueryUnsafeRequest request, StreamObserver<GrpcQueryResponse> responseObserver) {
+		executeWithClientContext(session -> {
+			final Query query = QueryUtil.parseQueryUnsafe(
+				request.getQuery(),
+				responseObserver
+			);
+
+			queryInternal(responseObserver, session, query);
 		});
 	}
 
