@@ -23,6 +23,7 @@
 
 package io.evitadb.utils;
 
+import io.evitadb.exception.InvalidHostDefinitionException;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.ConnectionPool;
@@ -49,7 +50,6 @@ import java.security.NoSuchAlgorithmException;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
 import java.util.Optional;
-import java.util.OptionalInt;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -157,33 +157,20 @@ public class NetworkUtils {
 	}
 
 	/**
-	 * Returns HTTP status code of the URL if it is reachable and returns some content.
-	 *
-	 * @param url         URL to check
-	 * @param method      HTTP method to use
-	 * @param contentType content type to use
-	 * @return the HTTP status code of the URL or empty optional if the URL is not reachable
+	 * Returns the IP address of the given host.
+	 * @param host host to get the IP address for
+	 * @return the IP address of the given host
 	 */
 	@Nonnull
-	public static OptionalInt getHttpStatusCode(
-		@Nonnull String url,
-		@Nullable String method,
-		@Nonnull String contentType
-	) {
+	public static InetAddress getByName(@Nonnull String host) {
 		try {
-			try (
-				final Response response = getHttpClient().newCall(
-					new Builder()
-						.url(url)
-						.addHeader("Content-Type", contentType)
-						.method(method != null ? method : "GET", null)
-						.build()
-				).execute()
-			) {
-				return OptionalInt.of(response.code());
-			}
-		} catch (IOException e) {
-			return OptionalInt.empty();
+			return InetAddress.getByName(host);
+		} catch (UnknownHostException e) {
+			throw new InvalidHostDefinitionException(
+				"Invalid host definition in evita server configuration!",
+				"Invalid host definition `" + host + "` in evita server configuration!",
+				e
+			);
 		}
 	}
 

@@ -23,14 +23,12 @@
 
 package io.evitadb.externalApi.configuration;
 
-import io.evitadb.externalApi.exception.InvalidHostDefinitionException;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.NetworkUtils;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.util.Arrays;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -73,18 +71,6 @@ public abstract class AbstractApiConfiguration {
 	 */
 	@Getter private final TlsMode tlsMode;
 
-	private static InetAddress getByName(@Nonnull String host) {
-		try {
-			return InetAddress.getByName(host);
-		} catch (UnknownHostException e) {
-			throw new InvalidHostDefinitionException(
-				"Invalid host definition in evita server configuration!",
-				"Invalid host definition `" + host + "` in evita server configuration!",
-				e
-			);
-		}
-	}
-
 	/**
 	 * Parses host definition into {@link HostDefinition} object.
 	 *
@@ -99,12 +85,11 @@ public abstract class AbstractApiConfiguration {
 		final int port = Integer.parseInt(matcher.group(2));
 		if (LOCALHOST.equalsIgnoreCase(parsedHost)) {
 			return new HostDefinition[] {
-				new HostDefinition(getByName("0.0.0.0"), port),
-				new HostDefinition(getByName("127.0.0.1"), port),
+				new HostDefinition(NetworkUtils.getByName("0.0.0.0"), true, port)
 			};
 		} else {
 			return new HostDefinition[] {
-				new HostDefinition(getByName(parsedHost), port)
+				new HostDefinition(NetworkUtils.getByName(parsedHost), false, port)
 			};
 		}
 	}
@@ -114,7 +99,7 @@ public abstract class AbstractApiConfiguration {
 		this.tlsMode = TlsMode.RELAXED;
 		this.exposedHost = null;
 		this.host = new HostDefinition[]{
-			new HostDefinition(getByName("0.0.0.0"), DEFAULT_PORT)
+			new HostDefinition(NetworkUtils.getByName("0.0.0.0"), true, DEFAULT_PORT)
 		};
 	}
 

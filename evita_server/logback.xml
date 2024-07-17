@@ -74,5 +74,6 @@
 
 	<logger name="com.linecorp.armeria" level="ERROR"/>
 	<logger name="io.netty" level="ERROR"/>
+	<logger name="io.micrometer" level="OFF"/>
 
 </configuration>
