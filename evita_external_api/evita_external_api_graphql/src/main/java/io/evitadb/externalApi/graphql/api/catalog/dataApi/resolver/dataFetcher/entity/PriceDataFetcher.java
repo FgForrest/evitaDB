@@ -49,7 +49,7 @@ import java.util.Optional;
  *      respect price inner record handling. Use `accompanyingPrice` fields within `priceForSale` field instead.
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-// todo #538: deprecated, remove
+// TOBEDONE #538: deprecated, remove
 @Deprecated
 public class PriceDataFetcher implements DataFetcher<DataFetcherResult<PriceContract>> {
 

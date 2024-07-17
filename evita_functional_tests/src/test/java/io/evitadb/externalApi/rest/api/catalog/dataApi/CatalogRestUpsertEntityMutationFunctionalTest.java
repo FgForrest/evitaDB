@@ -523,8 +523,6 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
                 """)
 			.executeAndThen()
 			.statusCode(200);
-			//.body("", equalTo(expectedBodyWithNewPrice));
-		//todo result will be without priceForSale
 
 		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/PRODUCT/list")

@@ -82,7 +82,7 @@ public class EntityFetchRequireResolver {
 		GraphQLEntityDescriptor.ALL_PRICES_FOR_SALE.name()
 	);
 	private static final Set<String> CUSTOM_PRICE_FIELDS = Set.of(
-		GraphQLEntityDescriptor.PRICE.name(), // todo #538: deprecated, remove
+		GraphQLEntityDescriptor.PRICE.name(), // TOBEDONE #538: deprecated, remove
 		GraphQLEntityDescriptor.PRICES.name()
 	);
 
