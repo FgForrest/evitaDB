@@ -235,6 +235,9 @@ In order code to be accepted it will fulfill following criteria:
 
 # Standing on giants' shoulders
 
+<table>
+  <tr>
+    <td>
 evitaDB uses the following open source projects:
 
 - [RoaringBitmap](https://github.com/RoaringBitmap/RoaringBitmap) by Daniel Lemire, Richard Statin and others
@@ -247,8 +250,12 @@ evitaDB uses the following open source projects:
 - [Byte Buddy](https://github.com/raphw/byte-buddy) by Rafael Winterhalter and others
 
 And many others. We are grateful for their work.
-
-<img src="https://raw.githubusercontent.com/FgForrest/evitaDB/397-grpc-armeria-library-adaptation/documentation/assets/img/giant_small.png" style="float: right"/>
+    </td>
+    <td>
+<img src="https://raw.githubusercontent.com/FgForrest/evitaDB/397-grpc-armeria-library-adaptation/documentation/assets/img/giant_small.png"/>
+    </td>
+  </tr>
+</table>
 
 -------------------------------------------------------------------------
 
