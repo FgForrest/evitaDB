@@ -32,6 +32,7 @@ import io.evitadb.externalApi.utils.path.RoutingHandlerService;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import java.net.URI;
 import java.util.Optional;
 
 /**
@@ -57,9 +58,10 @@ public class PathNormalizingHandler implements HttpService {
 		} else if (req.path().isEmpty()) {
 			path = String.valueOf(SLASH);
 		} else if (req.path().contains(String.valueOf(QUESTION_MARK))) {
-			final String baseUrl = Optional.ofNullable(req.uri().getQuery())
-				.map(query -> req.path() + QUESTION_MARK + query)
-				.orElse(req.path());
+			final URI uri = req.uri();
+			final String baseUrl = Optional.ofNullable(uri.getQuery())
+				.map(query -> uri.getPath() + QUESTION_MARK + query)
+				.orElse(uri.getPath());
 			if (baseUrl.charAt(baseUrl.length() - 1) == SLASH) {
 				path = baseUrl.substring(0, baseUrl.length() - 1);
 			} else {

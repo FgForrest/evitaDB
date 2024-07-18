@@ -55,18 +55,19 @@ public class PathHandlingService implements HttpService {
 	public HttpResponse serve(@Nonnull ServiceRequestContext ctx, @Nonnull HttpRequest req) throws Exception {
 		PathMatcher.PathMatch<HttpService> match = null;
 		boolean hit = false;
+		final String path = req.uri().getPath();
 		if(cache != null) {
-			match = cache.get(req.path());
+			match = cache.get(path);
 			hit = true;
 		}
 		if(match == null) {
-			match = pathMatcher.match(req.path());
+			match = pathMatcher.match(path);
 		}
 		if (match.getValue() == null) {
 			return HttpResponse.of(HttpStatus.NOT_FOUND);
 		}
 		if(hit) {
-			cache.add(req.path(), match);
+			cache.add(path, match);
 		}
 		final RequestHeadersBuilder headersBuilder = req.headers().toBuilder().path(match.getRemaining());
 		return match.getValue().serve(ctx, req.withHeaders(headersBuilder.build()));
