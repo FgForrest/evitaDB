@@ -38,6 +38,8 @@ import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 
+import static io.evitadb.externalApi.system.SystemProviderRegistrar.ENDPOINT_SERVER_NAME;
+
 /**
  * Descriptor of external API provider that provides System API.
  *
@@ -173,8 +175,9 @@ public class SystemProvider implements ExternalApiProviderWithConsoleOutput<Syst
 		final String[] baseUrls = this.configuration.getBaseUrls(configuration.getExposedHost());
 		if (this.reachableUrl == null) {
 			for (String baseUrl : baseUrls) {
-				if (NetworkUtils.isReachable(baseUrl)) {
-					this.reachableUrl = baseUrl;
+				final String nameUrl = baseUrl + ENDPOINT_SERVER_NAME;
+				if (NetworkUtils.isReachable(nameUrl)) {
+					this.reachableUrl = nameUrl;
 					return true;
 				}
 			}

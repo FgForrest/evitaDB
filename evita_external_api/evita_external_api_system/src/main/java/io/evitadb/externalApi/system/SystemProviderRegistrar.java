@@ -70,10 +70,10 @@ import java.util.stream.Collectors;
  * @author Tomáš Pozler, 2023
  */
 public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<SystemConfig> {
-	private static final String ENDPOINT_SERVER_NAME = "server-name";
-	private static final String ENDPOINT_SYSTEM_STATUS = "status";
-	private static final String ENDPOINT_SYSTEM_LIVENESS = "liveness";
-	private static final String ENDPOINT_SYSTEM_READINESS = "readiness";
+	public static final String ENDPOINT_SERVER_NAME = "server-name";
+	public static final String ENDPOINT_SYSTEM_STATUS = "status";
+	public static final String ENDPOINT_SYSTEM_LIVENESS = "liveness";
+	public static final String ENDPOINT_SYSTEM_READINESS = "readiness";
 
 	/**
 	 * Prints the status of the APIs as a JSON string.

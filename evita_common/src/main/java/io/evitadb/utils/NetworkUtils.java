@@ -111,7 +111,7 @@ public class NetworkUtils {
 						.build()
 				).execute()
 			) {
-				return response.code() < DEFAULT_CLIENT_TIMEOUT;
+				return response.code() == 200;
 			}
 		} catch (IOException e) {
 			return false;
