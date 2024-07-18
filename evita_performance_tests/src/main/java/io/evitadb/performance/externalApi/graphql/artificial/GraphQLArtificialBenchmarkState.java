@@ -45,7 +45,7 @@ public abstract class GraphQLArtificialBenchmarkState extends AbstractArtificial
 		return getSession(() -> {
 			try {
 				return new GraphQLClient(
-					"https://" + InetAddress.getByName("localhost").getHostAddress() + ":5555/gql/test-catalog",
+					"https://" + InetAddress.getByName("localhost").getHostAddress() + ":5555",
 					false,
 					true
 				);
