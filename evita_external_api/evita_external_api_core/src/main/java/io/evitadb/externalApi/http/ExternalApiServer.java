@@ -537,6 +537,7 @@ public class ExternalApiServer implements AutoCloseable {
 			.childChannelOption(ChannelOption.SO_REUSEADDR, true)
 			.childChannelOption(ChannelOption.SO_KEEPALIVE, apiOptions.keepAlive())
 			.decorator(DecodingService.newDecorator())
+			/* TODO JNO - temporarily disabled: https://discord.com/channels/1087271586832318494/1087272728177942629/1263488000042602497 */
 			/*.decorator(EncodingService.builder()
 				.encodableContentTypes(
 					MediaType.PLAIN_TEXT,
