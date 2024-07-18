@@ -238,8 +238,7 @@ In order code to be accepted it will fulfill following criteria:
 <table style="border: none">
   <tr style="border: none">
     <td style="border: none">
-
-evitaDB uses the following open source projects:
+<p>evitaDB uses the following open source projects:</p>
 
 - [RoaringBitmap](https://github.com/RoaringBitmap/RoaringBitmap) by Daniel Lemire, Richard Statin and others
 - [Kryo](https://github.com/EsotericSoftware/kryo) by Nathan Sweet, Thomas Heigl, Martin Grotzke and others
@@ -250,13 +249,10 @@ evitaDB uses the following open source projects:
 - [GraphQL Java](https://github.com/graphql-java/graphql-java) by Andreas Marek, Brad Baker and others
 - [Byte Buddy](https://github.com/raphw/byte-buddy) by Rafael Winterhalter and others
 
-And many others. We are grateful for their work.
-
+<p>And many others. We are grateful for their work.</p>
     </td>
     <td>
-
 <img src="https://raw.githubusercontent.com/FgForrest/evitaDB/397-grpc-armeria-library-adaptation/documentation/assets/img/giant_small.png"/>
-
     </td>
   </tr>
 </table>
