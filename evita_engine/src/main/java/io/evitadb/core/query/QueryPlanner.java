@@ -266,7 +266,7 @@ public class QueryPlanner {
 					adeptFormula = queryContext.analyse(filterByVisitor.getFormula());
 
 					final QueryPlanBuilder queryPlanBuilder = new QueryPlanBuilder(
-						queryContext, adeptFormula, targetIndex, prefetchFormulaVisitor
+						queryContext, adeptFormula, filterByVisitor.getSuperSetFormula(), targetIndex, prefetchFormulaVisitor
 					);
 					if (result.isEmpty() || adeptFormula.getEstimatedCost() < result.get(0).getEstimatedCost()) {
 						result.addFirst(queryPlanBuilder);
@@ -317,7 +317,7 @@ public class QueryPlanner {
 					// create and add copy for the formula with cached variant result
 					it -> {
 						final QueryPlanBuilder alternativeBuilder = new QueryPlanBuilder(
-							queryContext, it,
+							queryContext, it, sourcePlan.getSuperSetFormula(),
 							sourcePlan.getTargetIndexes(),
 							sourcePlan.getPrefetchFormulaVisitor()
 						);
@@ -412,6 +412,7 @@ public class QueryPlanner {
 							builder.getTargetIndexes(),
 							builder,
 							builder.getFilterFormula(),
+							builder.getSuperSetFormula(),
 							builder.getSorter()
 						);
 						extraResultPlanner.visit(queryContext.getRequire());

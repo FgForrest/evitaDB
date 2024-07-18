@@ -61,6 +61,10 @@ public class QueryPlanBuilder implements PrefetchRequirementCollector {
 	@Nonnull
 	@Getter private final Formula filterFormula;
 	/**
+	 * Superset of all possible results without any filtering.
+	 */
+	@Getter private final Formula superSetFormula;
+	/**
 	 * Indexes that were used for creating {@link #filterFormula}.
 	 */
 	@Nonnull
@@ -97,12 +101,14 @@ public class QueryPlanBuilder implements PrefetchRequirementCollector {
 	public QueryPlanBuilder(
 		@Nonnull QueryPlanningContext queryContext,
 		@Nonnull Formula filterFormula,
+		@Nonnull Formula superSetFormula,
 		@Nonnull TargetIndexes<?> targetIndexes,
 		@Nonnull PrefetchFormulaVisitor prefetchFormulaVisitor,
 		@Nonnull Sorter replacedSorter
 	) {
 		this.queryContext = queryContext;
 		this.filterFormula = filterFormula;
+		this.superSetFormula = superSetFormula;
 		this.targetIndexes = targetIndexes;
 		this.prefetchFormulaVisitor = prefetchFormulaVisitor;
 		this.sorter = replacedSorter;
@@ -111,6 +117,7 @@ public class QueryPlanBuilder implements PrefetchRequirementCollector {
 	public QueryPlanBuilder(
 		@Nonnull QueryPlanningContext queryContext,
 		@Nonnull Formula filterFormula,
+		@Nonnull Formula superSetFormula,
 		@Nonnull TargetIndexes<?> targetIndexes,
 		@Nonnull PrefetchFormulaVisitor prefetchFormulaVisitor,
 		@Nonnull Sorter replacedSorter,
@@ -118,6 +125,7 @@ public class QueryPlanBuilder implements PrefetchRequirementCollector {
 	) {
 		this.queryContext = queryContext;
 		this.filterFormula = filterFormula;
+		this.superSetFormula = superSetFormula;
 		this.targetIndexes = targetIndexes;
 		this.prefetchFormulaVisitor = prefetchFormulaVisitor;
 		this.sorter = replacedSorter;

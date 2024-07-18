@@ -63,10 +63,10 @@ public class NotFormula extends AbstractCacheableFormula {
 
 	protected NotFormula(@Nonnull Consumer<CacheableFormula> computationCallback, @Nonnull Formula subtractedFormula, @Nonnull Formula supersetFormula) {
 		super(computationCallback);
-		Assert.isTrue(innerFormulas.length > 1, "And formula has no sense with " + innerFormulas.length + " inner formulas!");
 		this.subtractedBitmap = null;
 		this.supersetBitmap = null;
 		this.initFields(subtractedFormula, supersetFormula);
+		Assert.isTrue(this.innerFormulas.length > 1, "And formula has no sense with " + innerFormulas.length + " inner formulas!");
 	}
 
 	public NotFormula(@Nonnull Formula subtractedFormula, @Nonnull Formula supersetFormula) {

@@ -40,9 +40,7 @@ import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.invertedIndex.InvertedIndexSubSet;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.utils.ArrayUtils;
-import io.evitadb.utils.Assert;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
@@ -60,7 +58,6 @@ import static java.util.Optional.ofNullable;
 /**
  * DTO that aggregates all data necessary for computing histogram for single attribute.
  */
-@RequiredArgsConstructor
 public class AttributeHistogramComputer implements CacheableEvitaResponseExtraResultComputer<CacheableHistogramContract> {
 	/**
 	 * Contains the name of the reference attribute.
@@ -98,7 +95,7 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 	/**
 	 * Contains memoized value of {@link #getEstimatedCost()}  of this formula.
 	 */
-	private Long estimatedCost;
+	private final Long estimatedCost;
 	/**
 	 * Contains memoized value of {@link #getCost()}  of this formula.
 	 */
@@ -110,15 +107,15 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 	/**
 	 * Contains memoized value of {@link #getHash()} method.
 	 */
-	private Long hash;
+	private final Long hash;
 	/**
 	 * Contains memoized value of {@link #gatherTransactionalIds()} method.
 	 */
-	private long[] transactionalIds;
+	private final long[] transactionalIds;
 	/**
 	 * Contains memoized value of {@link #gatherTransactionalIds()} computed hash.
 	 */
-	private Long transactionalIdHash;
+	private final Long transactionalIdHash;
 	/**
 	 * Contains bucket array that contains only entity primary keys that match the {@link #filterFormula}. The array
 	 * is initialized during {@link #compute()} method and result is memoized, so it's ensured it's computed only once.
@@ -225,12 +222,23 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 		@Nonnull HistogramBehavior behavior,
 		@Nonnull AttributeHistogramRequest request
 	) {
+		this(attributeName, null, filterFormula, bucketCount, behavior, request);
+	}
+
+	private AttributeHistogramComputer(
+		@Nonnull String attributeName,
+		@Nullable Consumer<CacheableEvitaResponseExtraResultComputer<CacheableHistogramContract>> onComputationCallback,
+		@Nonnull Formula filterFormula,
+		int bucketCount,
+		@Nonnull HistogramBehavior behavior,
+		@Nonnull AttributeHistogramRequest request
+	) {
 		this.attributeName = attributeName;
+		this.onComputationCallback = onComputationCallback;
 		this.filterFormula = filterFormula;
 		this.bucketCount = bucketCount;
 		this.behavior = behavior;
 		this.request = request;
-		this.onComputationCallback = null;
 
 		this.hash = HASH_FUNCTION.hashLongs(
 			LongStream.concat(
@@ -291,7 +299,9 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 
 	@Nonnull
 	@Override
-	public CacheableEvitaResponseExtraResultComputer<CacheableHistogramContract> getCloneWithComputationCallback(@Nonnull Consumer<CacheableEvitaResponseExtraResultComputer<CacheableHistogramContract>> selfOperator) {
+	public CacheableEvitaResponseExtraResultComputer<CacheableHistogramContract> getCloneWithComputationCallback(
+		@Nonnull Consumer<CacheableEvitaResponseExtraResultComputer<CacheableHistogramContract>> selfOperator
+	) {
 		return new AttributeHistogramComputer(
 			attributeName, selfOperator, filterFormula, bucketCount, behavior, request
 		);
@@ -310,26 +320,22 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 
 	@Override
 	public long getHash() {
-		Assert.isPremiseValid(this.hash != null, "The computer must be initialized prior to calling getHash().");
 		return this.hash;
 	}
 
 	@Override
 	public long getTransactionalIdHash() {
-		Assert.isPremiseValid(this.transactionalIdHash != null, "The computer must be initialized prior to calling getTransactionalIdHash().");
 		return this.transactionalIdHash;
 	}
 
 	@Nonnull
 	@Override
 	public long[] gatherTransactionalIds() {
-		Assert.isPremiseValid(this.transactionalIds != null, "The computer must be initialized prior to calling gatherTransactionalIds().");
 		return this.transactionalIds;
 	}
 
 	@Override
 	public long getEstimatedCost() {
-		Assert.isPremiseValid(this.estimatedCost != null, "The computer must be initialized prior to calling getEstimatedCost().");
 		return this.estimatedCost;
 	}
 
@@ -339,7 +345,7 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 			if (this.memoizedResult == null) {
 				return Long.MAX_VALUE;
 			} else {
-				this.cost = filterFormula.getCost() +
+				this.cost = this.filterFormula.getCost() +
 					Arrays.stream(computeNarrowedHistogramBuckets(this, filterFormula))
 						.mapToInt(it -> it.getRecordIds().size())
 						.sum() * getOperationCost();

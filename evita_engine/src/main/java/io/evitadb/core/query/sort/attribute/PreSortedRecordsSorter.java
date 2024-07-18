@@ -32,7 +32,6 @@ import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.core.query.sort.attribute.cache.FlattenedMergedSortedRecordsProvider;
 import io.evitadb.index.attribute.SortedRecordsSupplier;
 import io.evitadb.utils.Assert;
-import lombok.RequiredArgsConstructor;
 import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
@@ -56,7 +55,6 @@ import java.util.stream.Stream;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@RequiredArgsConstructor
 public class PreSortedRecordsSorter extends AbstractRecordsSorter implements CacheableSorter, ConditionalSorter {
 	private static final long CLASS_ID = 795011057191754417L;
 	/**
@@ -78,19 +76,19 @@ public class PreSortedRecordsSorter extends AbstractRecordsSorter implements Cac
 	/**
 	 * Contains memoized value of {@link #getEstimatedCost()}  of this formula.
 	 */
-	private Long estimatedCost;
+	private final Long estimatedCost;
 	/**
 	 * Contains memoized value of {@link #getHash()} method.
 	 */
-	private Long hash;
+	private final Long hash;
 	/**
 	 * Contains memoized value of {@link #gatherTransactionalIds()} method.
 	 */
-	private long[] transactionalIds;
+	private final long[] transactionalIds;
 	/**
 	 * Contains memoized value of {@link #gatherTransactionalIds()} computed hash.
 	 */
-	private Long transactionalIdHash;
+	private final Long transactionalIdHash;
 	/**
 	 * Contains memoized value of {@link #getSortedRecordsProviders()} method.
 	 */
@@ -99,10 +97,17 @@ public class PreSortedRecordsSorter extends AbstractRecordsSorter implements Cac
 	public PreSortedRecordsSorter(
 		@Nonnull Supplier<SortedRecordsProvider[]> sortedRecordsSupplier
 	) {
-		this.computationCallback = null;
-		this.sortedRecordsSupplier = sortedRecordsSupplier;
-		this.unknownRecordIdsSorter = null;
+		this(null, sortedRecordsSupplier, null);
+	}
 
+	private PreSortedRecordsSorter(
+		@Nullable Consumer<CacheableSorter> computationCallback,
+		@Nonnull Supplier<SortedRecordsProvider[]> sortedRecordsSupplier,
+		@Nullable Sorter unknownRecordIdsSorter
+	) {
+		this.computationCallback = computationCallback;
+		this.sortedRecordsSupplier = sortedRecordsSupplier;
+		this.unknownRecordIdsSorter = unknownRecordIdsSorter;
 		this.hash = HASH_FUNCTION.hashLongs(
 			Stream.of(
 					LongStream.of(CLASS_ID),
@@ -166,32 +171,27 @@ public class PreSortedRecordsSorter extends AbstractRecordsSorter implements Cac
 
 	@Override
 	public long getHash() {
-		Assert.isPremiseValid(this.hash != null, "Sorter must be initialized prior to calling getHash().");
 		return this.hash;
 	}
 
 	@Override
 	public long getTransactionalIdHash() {
-		Assert.isPremiseValid(this.transactionalIdHash != null, "Sorter must be initialized prior to calling getTransactionalIdHash().");
 		return this.transactionalIdHash;
 	}
 
 	@Nonnull
 	@Override
 	public long[] gatherTransactionalIds() {
-		Assert.isPremiseValid(this.transactionalIds != null, "Sorter must be initialized prior to calling gatherTransactionalIds().");
 		return this.transactionalIds;
 	}
 
 	@Override
 	public long getEstimatedCost() {
-		Assert.isPremiseValid(this.estimatedCost != null, "Sorter must be initialized prior to calling getEstimatedCost().");
 		return this.estimatedCost;
 	}
 
 	@Override
 	public long getCost() {
-		Assert.isPremiseValid(this.estimatedCost != null, "Sorter must be initialized prior to calling getCost().");
 		return this.estimatedCost;
 	}
 
