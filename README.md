@@ -235,9 +235,9 @@ In order code to be accepted it will fulfill following criteria:
 
 # Standing on giants' shoulders
 
-<table style="border: none">
-  <tr style="border: none">
-    <td style="border: none">
+<table>
+  <tr>
+    <td>
 <p>evitaDB uses the following open source projects:</p>
 
 - [RoaringBitmap](https://github.com/RoaringBitmap/RoaringBitmap) by Daniel Lemire, Richard Statin and others
@@ -252,7 +252,7 @@ In order code to be accepted it will fulfill following criteria:
 <p>And many others. We are grateful for their work.</p>
     </td>
     <td>
-<img src="https://raw.githubusercontent.com/FgForrest/evitaDB/397-grpc-armeria-library-adaptation/documentation/assets/img/giant_small.png"/>
+<img src="https://raw.githubusercontent.com/FgForrest/evitaDB/dev/documentation/assets/img/giant_small.png"/>
     </td>
   </tr>
 </table>
