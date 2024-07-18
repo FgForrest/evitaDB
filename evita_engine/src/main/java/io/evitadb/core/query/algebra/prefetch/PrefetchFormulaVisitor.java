@@ -41,7 +41,6 @@ import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
-import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 import org.roaringbitmap.RoaringBitmap;
@@ -170,13 +169,15 @@ public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProces
 						"Only reduced entity indexes are supported"
 					);
 					entitiesToPrefetch = RoaringBitmapBackedBitmap.and(
-						ArrayUtils.mergeArrays(
-							new RoaringBitmap[]{RoaringBitmapBackedBitmap.getRoaringBitmap(entitiesToPrefetch)},
-							targetIndexes.getIndexes().stream()
-								.map(index -> ((ReducedEntityIndex) index).getAllPrimaryKeys())
-								.map(RoaringBitmapBackedBitmap::getRoaringBitmap)
-								.toArray(RoaringBitmap[]::new)
-						)
+						new RoaringBitmap[]{
+							RoaringBitmapBackedBitmap.getRoaringBitmap(entitiesToPrefetch),
+							RoaringBitmap.or(
+								targetIndexes.getIndexes().stream()
+									.map(index -> ((ReducedEntityIndex) index).getAllPrimaryKeys())
+									.map(RoaringBitmapBackedBitmap::getRoaringBitmap)
+									.toArray(RoaringBitmap[]::new)
+							)
+						}
 					);
 				}
 			}

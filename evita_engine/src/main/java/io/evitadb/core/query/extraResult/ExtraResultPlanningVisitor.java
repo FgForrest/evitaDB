@@ -157,6 +157,10 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	 */
 	@Getter private final Formula filteringFormula;
 	/**
+	 * Contains superset formula that contains superset of all possible results without any filtering.
+	 */
+	@Getter private final Formula superSetFormula;
+	/**
 	 * Contains prepared sorter implementation that takes output of the {@link #filteringFormula} and sorts the entity
 	 * primary keys according to {@link OrderConstraint} in {@link EvitaRequest}.
 	 */
@@ -204,12 +208,14 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 		@Nonnull TargetIndexes<?> indexSetToUse,
 		@Nonnull PrefetchRequirementCollector prefetchRequirementCollector,
 		@Nonnull Formula filteringFormula,
+		@Nonnull Formula superSetFormula,
 		@Nullable Sorter sorter
 	) {
 		this.queryContext = queryContext;
 		this.indexSetToUse = indexSetToUse;
 		this.prefetchRequirementCollector = prefetchRequirementCollector;
 		this.filteringFormula = filteringFormula;
+		this.superSetFormula = superSetFormula;
 		this.sorter = sorter;
 		this.attributeSchemaAccessor = new AttributeSchemaAccessor(queryContext);
 	}
@@ -242,10 +248,11 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	@Nonnull
 	public Formula getFilteringFormulaWithoutUserFilter() {
 		if (filteringFormulaWithoutUserFilter == null) {
-			filteringFormulaWithoutUserFilter = FormulaCloner.clone(
+			filteringFormulaWithoutUserFilter = ofNullable(
+				FormulaCloner.clone(
 				filteringFormula,
 				formula -> formula instanceof UserFilterFormula ? null : formula
-			);
+			)).orElse(this.superSetFormula);
 		}
 		return filteringFormulaWithoutUserFilter;
 	}

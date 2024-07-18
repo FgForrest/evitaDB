@@ -43,7 +43,6 @@ import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
-import lombok.RequiredArgsConstructor;
 import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
@@ -61,7 +60,6 @@ import static java.util.Optional.ofNullable;
 /**
  * DTO that aggregates all data necessary for computing histogram for prices.
  */
-@RequiredArgsConstructor
 public class PriceHistogramComputer implements CacheableEvitaResponseExtraResultComputer<CacheableHistogramContract> {
 	/**
 	 * Execution context from initialization phase.
@@ -116,15 +114,15 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 	/**
 	 * Contains memoized value of {@link #getHash()} method.
 	 */
-	private Long hash;
+	private final Long hash;
 	/**
 	 * Contains memoized value of {@link #gatherTransactionalIds()} method.
 	 */
-	private long[] transactionalIds;
+	private final long[] transactionalIds;
 	/**
 	 * Contains memoized value of {@link #getEstimatedCost()} ()}  of this formula.
 	 */
-	private Long estimatedCost;
+	private final Long estimatedCost;
 	/**
 	 * Contains memoized value of {@link #getCost()}  of this formula.
 	 */
@@ -136,7 +134,7 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 	/**
 	 * Contains memoized value of {@link #gatherTransactionalIds()} computed hash.
 	 */
-	private Long transactionalIdHash;
+	private final Long transactionalIdHash;
 	/**
 	 * Contains price record array that all price records that represents source records for price histogram computation.
 	 * It is initialized during {@link #compute()} method and result is memoized, so it's ensured it's computed only once.
@@ -149,6 +147,24 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 	private CacheableHistogramContract memoizedResult;
 
 	public PriceHistogramComputer(
+		int bucketCount,
+		@Nonnull HistogramBehavior behavior,
+		int indexedPricePlaces,
+		@Nonnull QueryPriceMode queryPriceMode,
+		@Nonnull Formula filteringFormula,
+		@Nullable Formula filteringFormulaWithFilteredOutRecords,
+		@Nonnull Collection<FilteredPriceRecordAccessor> filteredPriceRecordAccessors,
+		@Nullable FilteredPriceRecordsLookupResult priceRecordsLookupResult
+	) {
+		this(
+			null, bucketCount, behavior, indexedPricePlaces, queryPriceMode,
+			filteringFormula, filteringFormulaWithFilteredOutRecords, filteredPriceRecordAccessors,
+			priceRecordsLookupResult
+		);
+	}
+
+	private PriceHistogramComputer(
+		@Nullable Consumer<CacheableEvitaResponseExtraResultComputer<CacheableHistogramContract>> selfOperator,
 		int bucketCount,
 		@Nonnull HistogramBehavior behavior,
 		int indexedPricePlaces,
@@ -271,7 +287,9 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 
 	@Nonnull
 	@Override
-	public CacheableEvitaResponseExtraResultComputer<CacheableHistogramContract> getCloneWithComputationCallback(@Nonnull Consumer<CacheableEvitaResponseExtraResultComputer<CacheableHistogramContract>> selfOperator) {
+	public CacheableEvitaResponseExtraResultComputer<CacheableHistogramContract> getCloneWithComputationCallback(
+		@Nonnull Consumer<CacheableEvitaResponseExtraResultComputer<CacheableHistogramContract>> selfOperator
+	) {
 		return new PriceHistogramComputer(
 			selfOperator, bucketCount, behavior, indexedPricePlaces, queryPriceMode,
 			filteringFormula, filteringFormulaWithFilteredOutRecords,
