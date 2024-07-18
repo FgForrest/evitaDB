@@ -248,6 +248,8 @@ evitaDB uses the following open source projects:
 
 And many others. We are grateful for their work.
 
+<img src="https://raw.githubusercontent.com/FgForrest/evitaDB/397-grpc-armeria-library-adaptation/documentation/assets/img/giant_small.png" style="float: right"/>
+
 -------------------------------------------------------------------------
 
 [Icons sourced at Icons8.com](https://icons8.com/)
