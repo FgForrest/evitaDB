@@ -43,6 +43,11 @@ public @interface EventGroup {
 	String value();
 
 	/**
+	 * Contains a human-readable name of the group.
+	 */
+	String name() default "";
+
+	/**
 	 * Contains a description of the group.
 	 */
 	String description() default "";

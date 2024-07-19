@@ -26,9 +26,10 @@ package io.evitadb.externalApi.observability.task;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.core.async.ClientCallableTask;
 import io.evitadb.core.file.ExportFileService;
-import io.evitadb.core.metric.event.CustomMetricsExecutionEvent;
 import io.evitadb.externalApi.observability.exception.JfRException;
 import io.evitadb.externalApi.observability.metric.EvitaJfrEventRegistry;
+import io.evitadb.externalApi.observability.metric.EvitaJfrEventRegistry.EvitaEventGroup;
+import io.evitadb.externalApi.observability.metric.EvitaJfrEventRegistry.JdkEventGroup;
 import io.evitadb.externalApi.observability.task.JfrRecorderTask.RecordingSettings;
 import jdk.jfr.EventType;
 import jdk.jfr.FlightRecorder;
@@ -39,13 +40,17 @@ import lombok.extern.slf4j.Slf4j;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
-import java.lang.reflect.Modifier;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
-import java.util.List;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static java.util.Optional.ofNullable;
 
@@ -68,29 +73,6 @@ public class JfrRecorderTask extends ClientCallableTask<RecordingSettings, FileF
 	 * Absolute path to the target file.
 	 */
 	private final Path targetFilePath;
-
-	/**
-	 * Registers specified events within {@link FlightRecorder}.
-	 */
-	private static void registerJfrEvents(@Nonnull String[] allowedEvents) {
-		for (String event : Arrays.stream(allowedEvents).filter(x -> !x.startsWith("jdk.")).toList()) {
-			if (event.endsWith(".*")) {
-				EvitaJfrEventRegistry.getEventClassesFromPackage(event)
-					.ifPresent(classes -> {
-						for (Class<? extends CustomMetricsExecutionEvent> clazz : classes) {
-							if (!Modifier.isAbstract(clazz.getModifiers())) {
-								FlightRecorder.register(clazz);
-							}
-						}
-					});
-			} else {
-				final Class<? extends CustomMetricsExecutionEvent> clazz = EvitaJfrEventRegistry.getEventClass(event);
-				if (!Modifier.isAbstract(clazz.getModifiers())) {
-					FlightRecorder.register(clazz);
-				}
-			}
-		}
-	}
 
 	public JfrRecorderTask(
 		@Nonnull String[] allowedEvents,
@@ -120,15 +102,6 @@ public class JfrRecorderTask extends ClientCallableTask<RecordingSettings, FileF
 	}
 
 	/**
-	 * Returns the name of the file that will be produced by this task.
-	 * @return Name of the file.
-	 */
-	@Nonnull
-	public String getFileName() {
-		return this.targetFile.name();
-	}
-
-	/**
 	 * Starts the JFR recording.
 	 * @return File where the recording will be stored.
 	 */
@@ -140,26 +113,53 @@ public class JfrRecorderTask extends ClientCallableTask<RecordingSettings, FileF
 			final RecordingSettings settings = getStatus().settings();
 			ofNullable(settings.maxSizeInBytes()).ifPresent(this.recording::setMaxSize);
 			ofNullable(settings.maxAgeInSeconds()).map(Duration::ofSeconds).ifPresent(this.recording::setMaxAge);
-			final String[] allowedEvents = settings.allowedEvents();
-			registerJfrEvents(allowedEvents);
-			final List<EventType> eventTypes = FlightRecorder.getFlightRecorder().getEventTypes();
-			for (String event : allowedEvents) {
-				if (event.endsWith(".*")) {
-					for (EventType eventType : eventTypes) {
-						String it = eventType.getName();
-						if (it.startsWith(event.substring(0, event.length() - 2))) {
-							recording.enable(it).withoutThreshold();
-						}
-					}
-				} else {
-					recording.enable(event).withoutThreshold();
-				}
-			}
+			final Set<String> allowedEvents = new HashSet<>(Arrays.asList(settings.allowedEvents()));
+
+			// first disable all JDK events, that are not wanted
+			disableUnwantedJdkEvents(allowedEvents);
+
+			// then register all custom event groups
+			enableEvitaEvents(allowedEvents);
+
 			this.recording.start();
 			return this.targetFile;
 		} catch (IOException e) {
 			throw new RuntimeException(e);
 		}
+	}
+
+	/**
+	 * Disables all JDK events that are not in the allowed set.
+	 * @param allowedEvents set of allowed events
+	 */
+	private void disableUnwantedJdkEvents(@Nonnull Set<String> allowedEvents) {
+		final Set<String> disabledJdkEvents = EvitaJfrEventRegistry.getJdkEventGroups()
+			.entrySet()
+			.stream()
+			.filter(entry -> !allowedEvents.contains(entry.getKey()))
+			.map(Entry::getValue)
+			.map(JdkEventGroup::events)
+			.flatMap(Arrays::stream)
+			.collect(Collectors.toSet());
+		for (EventType eventType : FlightRecorder.getFlightRecorder().getEventTypes()) {
+			if (disabledJdkEvents.contains(eventType.getName())) {
+				this.recording.disable(eventType.getName());
+			}
+		}
+	}
+
+	/**
+	 * Enables all Evita events that are in the allowed set.
+	 * @param allowedEvents set of allowed events
+	 */
+	private void enableEvitaEvents(@Nonnull Set<String> allowedEvents) {
+		final Map<String, EvitaEventGroup> evitaEventGroups = EvitaJfrEventRegistry.getEvitaEventGroups();
+		allowedEvents.stream()
+			.map(evitaEventGroups::get)
+			.filter(Objects::nonNull)
+			.map(EvitaEventGroup::events)
+			.flatMap(Arrays::stream)
+			.forEach(eventType -> recording.enable(eventType).withoutThreshold());
 	}
 
 	/**

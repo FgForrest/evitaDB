@@ -145,6 +145,7 @@ public class EvitaJfrEventRegistry {
 			"Security",
 			new JdkEventGroup(
 				"Security",
+				"JDK - Security",
 				"Events related to security and cryptography.",
 				new String[]{
 					"jdk.X509Validation",
@@ -159,6 +160,7 @@ public class EvitaJfrEventRegistry {
 			"ProcessAndContainerManagement",
 			new JdkEventGroup(
 				"ProcessAndContainerManagement",
+				"JDK - Process and container management",
 				"Events related to process and container management.",
 				new String[]{
 					"jdk.ProcessStart",
@@ -175,6 +177,7 @@ public class EvitaJfrEventRegistry {
 			"ThreadManagement",
 			new JdkEventGroup(
 				"ThreadManagement",
+				"JDK - Thread management",
 				"Events related to thread management.",
 				new String[]{
 					"jdk.ThreadStart",
@@ -192,6 +195,7 @@ public class EvitaJfrEventRegistry {
 			"GarbageCollection",
 			new JdkEventGroup(
 				"GarbageCollection",
+				"JDK - Garbage collection",
 				"Events related to garbage collection.",
 				new String[]{
 					"jdk.GCHeapSummary",
@@ -257,6 +261,7 @@ public class EvitaJfrEventRegistry {
 			"FileOperations",
 			new JdkEventGroup(
 				"FileOperations",
+				"JDK - File operations",
 				"Events related to file operations.",
 				new String[]{
 					"jdk.SocketWrite",
@@ -273,6 +278,7 @@ public class EvitaJfrEventRegistry {
 			"ExceptionsAndErrors",
 			new JdkEventGroup(
 				"ExceptionsAndErrors",
+				"JDK - Exceptions and errors",
 				"Events related to exception handling and errors.",
 				new String[]{
 					"jdk.JavaErrorThrow",
@@ -288,6 +294,7 @@ public class EvitaJfrEventRegistry {
 			"ClassLoadingAndModification",
 			new JdkEventGroup(
 				"ClassLoadingAndModification",
+				"JDK - Class loading and modification",
 				"Events related to class loading and modification.",
 				new String[]{
 					"jdk.ClassLoad",
@@ -306,6 +313,7 @@ public class EvitaJfrEventRegistry {
 			"SystemAndJVMInfo",
 			new JdkEventGroup(
 				"SystemAndJVMInfo",
+				"JDK - System and JVM information",
 				"Events related to system and JVM information.",
 				new String[]{
 					"jdk.JVMInformation",
@@ -329,6 +337,7 @@ public class EvitaJfrEventRegistry {
 			"MemoryAllocation",
 			new JdkEventGroup(
 				"MemoryAllocation",
+				"JDK - Memory allocation",
 				"Events related to memory allocation.",
 				new String[]{
 					"jdk.ObjectAllocationInNewTLAB",
@@ -344,6 +353,7 @@ public class EvitaJfrEventRegistry {
 			"MonitoringAndStatistics",
 			new JdkEventGroup(
 				"MonitoringAndStatistics",
+				"JDK - Monitoring and statistics",
 				"Events related to monitoring and statistics.",
 				new String[]{
 					"jdk.ActiveRecording",
@@ -381,6 +391,7 @@ public class EvitaJfrEventRegistry {
 			"CompilationAndOptimization",
 			new JdkEventGroup(
 				"CompilationAndOptimization",
+				"JDK - Compilation and optimization",
 				"Events related to compilation and optimization.",
 				new String[]{
 					"jdk.Compilation",
@@ -405,6 +416,7 @@ public class EvitaJfrEventRegistry {
 			"Safepoints",
 			new JdkEventGroup(
 				"Safepoints",
+				"JDK - Safepoints",
 				"Events related to safe points.",
 				new String[]{
 					"jdk.SafepointBegin",
@@ -420,6 +432,7 @@ public class EvitaJfrEventRegistry {
 			"Flags",
 			new JdkEventGroup(
 				"Flags",
+				"JDK - Flags",
 				"Events related to flags.",
 				new String[]{
 					"jdk.IntFlag",
@@ -437,6 +450,7 @@ public class EvitaJfrEventRegistry {
 			"FlushingAndCleaningUp",
 			new JdkEventGroup(
 				"FlushingAndCleaningUp",
+				"JDK - Flushing and cleaning up",
 				"Events related to flushing and cleaning up.",
 				new String[]{
 					"jdk.Flush",
@@ -457,6 +471,7 @@ public class EvitaJfrEventRegistry {
 				"Other",
 				new JdkEventGroup(
 					"Other",
+					"JDK - Other",
 					"Other JDK events, that were not categorized.",
 					unknownJdkEvents
 				)
@@ -475,11 +490,13 @@ public class EvitaJfrEventRegistry {
 					Collectors.collectingAndThen(
 						Collectors.toSet(),
 						events -> {
-							String groupName = EvitaJfrEventRegistry.getMetricsGroup(events.iterator().next());
-							EventGroup groupInfo = KNOWN_EVITA_GROUPS.get(groupName);
+							EventGroup groupInfo = KNOWN_EVITA_GROUPS.get(
+								EvitaJfrEventRegistry.getMetricsGroup(events.iterator().next())
+							);
 							//noinspection unchecked
 							return new EvitaEventGroup(
-								groupName,
+								groupInfo.value(),
+								groupInfo.name(),
 								groupInfo.description(),
 								events.toArray(new Class[0])
 							);
@@ -537,7 +554,7 @@ public class EvitaJfrEventRegistry {
 	 * @return a map of all registered event packages fetched from the registry
 	 */
 	@Nonnull
-	public static Map<String, EvitaEventGroup> getCustomEventPackages() {
+	public static Map<String, EvitaEventGroup> getEvitaEventGroups() {
 		return EVENT_MAP_BY_PACKAGE;
 	}
 
@@ -559,15 +576,25 @@ public class EvitaJfrEventRegistry {
 	 * @param events  the names of the events in the group
 	 */
 	public record EvitaEventGroup(
+		@Nonnull String id,
 		@Nonnull String name,
 		@Nullable String description,
 		@Nonnull Class<? extends CustomMetricsExecutionEvent>[] events
 	) {
 
-		public EvitaEventGroup(@Nonnull String name, @Nullable String description, @Nonnull Class<? extends CustomMetricsExecutionEvent>[] events) {
+		public EvitaEventGroup(
+			@Nonnull String id,
+			@Nonnull String name,
+			@Nullable String description,
+			@Nonnull Class<? extends CustomMetricsExecutionEvent>[] events
+		) {
+			this.id = id;
 			this.name = name;
 			this.description = description;
 			this.events = events;
+			for (Class<? extends CustomMetricsExecutionEvent> event : events) {
+				FlightRecorder.register(event);
+			}
 		}
 	}
 
@@ -579,12 +606,14 @@ public class EvitaJfrEventRegistry {
 	 * @param events  the names of the events in the group
 	 */
 	public record JdkEventGroup(
+		@Nonnull String id,
 		@Nonnull String name,
 		@Nullable String description,
 		@Nonnull String[] events
 	) {
 
-		public JdkEventGroup(@Nonnull String name, @Nullable String description, @Nonnull String[] events) {
+		public JdkEventGroup(@Nonnull String id, @Nonnull String name, @Nullable String description, @Nonnull String[] events) {
+			this.id = id;
 			this.name = name;
 			this.description = description;
 			this.events = events;

@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.observability;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.linecorp.armeria.server.HttpService;
 import com.linecorp.armeria.server.file.FileService;
 import io.evitadb.api.exception.SingletonTaskAlreadyRunningException;
@@ -34,7 +35,6 @@ import io.evitadb.core.Evita;
 import io.evitadb.core.metric.event.CustomMetricsExecutionEvent;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.UnexpectedIOException;
-import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.http.CorsEndpoint;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
 import io.evitadb.externalApi.observability.agent.ErrorMonitor;
@@ -121,17 +121,13 @@ public class ObservabilityManager {
 	 */
 	private final ObservabilityConfig config;
 	/**
-	 * API options part of the config.
-	 */
-	private final ApiOptions apiOptions;
-	/**
 	 * Evita instance.
 	 */
 	private final Evita evita;
 	/**
 	 * Common object mapper for endpoints
 	 */
-	@Nonnull @Getter private final ObjectMapper objectMapper = new ObjectMapper();
+	@Nonnull @Getter private final ObjectMapper objectMapper;
 
 	static {
 		ClassLoader classLoader = null;
@@ -174,13 +170,14 @@ public class ObservabilityManager {
 		}
 	}
 
-	public ObservabilityManager(ObservabilityConfig config, ApiOptions apiOptions, Evita evita) {
+	public ObservabilityManager(ObservabilityConfig config, Evita evita) {
 		this.config = config;
-		this.apiOptions = apiOptions;
 		this.evita = evita;
 		createAndRegisterPrometheusServlet();
 		registerJfrControlEndpoints();
 		registerRecordingFileResourceHandler();
+		objectMapper = new ObjectMapper();
+		objectMapper.registerModule(new JavaTimeModule());
 	}
 
 	/**
@@ -242,16 +239,16 @@ public class ObservabilityManager {
 	@Nonnull
 	public List<RecordingGroup> getAvailableJfrEventTypes() {
 		return Stream.concat(
-			EvitaJfrEventRegistry.getCustomEventPackages()
+			EvitaJfrEventRegistry.getEvitaEventGroups()
 				.values()
 				.stream()
 				.sorted(Comparator.comparing(EvitaEventGroup::name))
-				.map(it -> new RecordingGroup(it.name(), it.description())),
+				.map(it -> new RecordingGroup(it.id(), it.name(), it.description())),
 			EvitaJfrEventRegistry.getJdkEventGroups()
 				.values()
 				.stream()
 				.sorted(Comparator.comparing(JdkEventGroup::name))
-				.map(it -> new RecordingGroup(it.name(), it.description()))
+				.map(it -> new RecordingGroup(it.id(), it.name(), it.description()))
 		)
 		.toList();
 	}
@@ -393,6 +390,7 @@ public class ObservabilityManager {
 	 * @param description the description of the group
 	 */
 	public record RecordingGroup(
+		@Nonnull String id,
 		@Nonnull String name,
 		@Nullable String description
 	) {

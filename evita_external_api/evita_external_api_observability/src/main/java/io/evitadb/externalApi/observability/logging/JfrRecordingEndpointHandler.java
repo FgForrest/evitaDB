@@ -115,7 +115,9 @@ public abstract class JfrRecordingEndpointHandler extends EndpointHandler<JfrRec
 			responseWriter.write(HttpData.ofUtf8(manager.getObjectMapper().writeValueAsString(result)));
 		} catch (JsonProcessingException e) {
 			throw new GenericEvitaInternalError(
-				"Failed to serialize available JFR event types",
+				"Failed to serialize response object to JSON.",
+				"Failed to serialize response object to JSON: " + e.getMessage(),
+
 				e
 			);
 		}

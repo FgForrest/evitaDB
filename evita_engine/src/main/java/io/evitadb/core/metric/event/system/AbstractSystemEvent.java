@@ -32,7 +32,11 @@ import lombok.RequiredArgsConstructor;
 /**
  * This event is base class for all system related events.
  */
-@EventGroup(value = AbstractSystemEvent.PACKAGE_NAME, description = "evitaDB events relating to system wide operations, such as tasks, threads etc.")
+@EventGroup(
+	value = AbstractSystemEvent.PACKAGE_NAME,
+	name = "evitaDB - System",
+	description = "evitaDB events relating to system wide operations, such as tasks, threads etc."
+)
 @Category({"evitaDB", "System"})
 @RequiredArgsConstructor
 @Getter

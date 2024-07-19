@@ -64,7 +64,7 @@ public class ObservabilityProviderRegistrar implements ExternalApiProviderRegist
 	@Nonnull
 	@Override
 	public ExternalApiProvider<ObservabilityConfig> register(@Nonnull Evita evita, @Nonnull ExternalApiServer externalApiServer, @Nonnull ApiOptions apiOptions, @Nonnull ObservabilityConfig observabilityConfig) {
-		final ObservabilityManager observabilityManager = new ObservabilityManager(observabilityConfig, apiOptions, evita);
+		final ObservabilityManager observabilityManager = new ObservabilityManager(observabilityConfig, evita);
 		final TracingConfig tracingConfig = observabilityConfig.getTracing();
 		if (tracingConfig != null && tracingConfig.getEndpoint() != null) {
 			OpenTelemetryTracerSetup.setTracingConfig(observabilityConfig.getTracing());

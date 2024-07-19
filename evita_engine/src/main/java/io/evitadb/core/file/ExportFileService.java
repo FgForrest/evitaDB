@@ -183,6 +183,7 @@ public class ExportFileService {
 					"Failed to create file."
 				)
 			);
+			lock.lock();
 			try {
 				final FileForFetch fileForFetch = new FileForFetch(
 					fileId,
