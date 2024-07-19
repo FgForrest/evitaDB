@@ -30,39 +30,41 @@ import io.evitadb.externalApi.http.SuccessEndpointResponse;
 import io.evitadb.externalApi.observability.ObservabilityManager;
 
 import javax.annotation.Nonnull;
+import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * Starts recording of JFR events.
+ * Check whether JFR event recording is currently running. And if so, it returns the task ID of the recording task,
+ * otherwise empty result is returned.
  *
  * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
  */
-public class StartLoggingHandler extends LoggingEndpointHandler {
+public class CheckJfrRecordingHandler extends JfrRecordingEndpointHandler {
 
-	public StartLoggingHandler(@Nonnull Evita evita, @Nonnull ObservabilityManager manager) {
+	public CheckJfrRecordingHandler(@Nonnull Evita evita, @Nonnull ObservabilityManager manager) {
 		super(evita, manager);
 	}
 
 	@Nonnull
 	@Override
-	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull LoggingEndpointExecutionContext executionContext) {
-		return parseRequestBody(executionContext, String[].class)
-			.thenApply(allowedEvents -> {
-				manager.start(allowedEvents);
-				return new SuccessEndpointResponse();
-			});
+	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull JfrRecordingEndpointExecutionContext executionContext) {
+		return executionContext.executeAsyncInRequestThreadPool(
+			() -> manager.jfrRecordingTaskStatus()
+				.map(SuccessEndpointResponse::new)
+				.orElse(SuccessEndpointResponse.NO_CONTENT)
+		);
 	}
 
 	@Nonnull
 	@Override
 	public Set<HttpMethod> getSupportedHttpMethods() {
-		return Set.of(HttpMethod.POST);
+		return Set.of(HttpMethod.GET);
 	}
 
 	@Nonnull
 	@Override
-	public Set<String> getSupportedRequestContentTypes() {
+	public LinkedHashSet<String> getSupportedResponseContentTypes() {
 		return DEFAULT_SUPPORTED_CONTENT_TYPES;
 	}
 }

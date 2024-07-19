@@ -35,7 +35,7 @@ import lombok.RequiredArgsConstructor;
 /**
  * This event is base class for all session related events.
  */
-@EventGroup(AbstractSessionEvent.PACKAGE_NAME)
+@EventGroup(value = AbstractSessionEvent.PACKAGE_NAME, description = "evitaDB events relating to session handling.")
 @Category({"evitaDB", "Session"})
 @RequiredArgsConstructor
 @Getter

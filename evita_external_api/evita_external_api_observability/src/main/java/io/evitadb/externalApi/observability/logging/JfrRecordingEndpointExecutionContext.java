@@ -37,12 +37,12 @@ import javax.annotation.Nullable;
  *
  * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
  */
-public class LoggingEndpointExecutionContext extends EndpointExecutionContext {
+public class JfrRecordingEndpointExecutionContext extends EndpointExecutionContext {
 
 	@Nullable private String requestBodyContentType;
 	@Nullable private String preferredResponseContentType;
 
-	public LoggingEndpointExecutionContext(
+	public JfrRecordingEndpointExecutionContext(
 		@Nonnull HttpRequest httpRequest,
 		@Nonnull Evita evita
 	) {

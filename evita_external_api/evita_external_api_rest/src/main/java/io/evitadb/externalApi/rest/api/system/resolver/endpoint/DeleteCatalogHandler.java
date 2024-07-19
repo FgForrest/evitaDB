@@ -85,7 +85,7 @@ public class DeleteCatalogHandler extends JsonRestHandler<SystemRestHandlingCont
 
 				requestExecutedEvent.finishOperationExecution();
 				requestExecutedEvent.finishResultSerialization();
-				return new SuccessEndpointResponse();
+				return SuccessEndpointResponse.NO_CONTENT;
 			}
 		);
 	}

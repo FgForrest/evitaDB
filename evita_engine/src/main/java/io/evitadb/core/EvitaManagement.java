@@ -32,6 +32,7 @@ import io.evitadb.api.exception.FileForFetchNotFoundException;
 import io.evitadb.api.exception.TemporalDataNotAvailableException;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.requestResponse.system.SystemStatus;
+import io.evitadb.api.task.ServerTask;
 import io.evitadb.api.task.Task;
 import io.evitadb.api.task.TaskStatus;
 import io.evitadb.core.async.Scheduler;
@@ -167,31 +168,43 @@ public class EvitaManagement implements EvitaManagementContract {
 		}
 	}
 
+	/**
+	 * Returns the task statuses of the given task type.
+	 * @param taskType the type of the task
+	 * @return the list of task statuses
+	 * @param <T> the type of the task
+	 */
+	@Nonnull
+	public <T extends ServerTask<?, ?>> Collection<T> getTaskStatuses(@Nonnull Class<T> taskType) {
+		this.evita.assertActive();
+		return this.serviceExecutor.getTasks(taskType);
+	}
+
 	@Nonnull
 	@Override
 	public PaginatedList<TaskStatus<?, ?>> listTaskStatuses(int page, int pageSize) {
 		this.evita.assertActive();
-		return this.serviceExecutor.listJobStatuses(page, pageSize);
+		return this.serviceExecutor.listTaskStatuses(page, pageSize);
 	}
 
 	@Nonnull
 	@Override
 	public Optional<TaskStatus<?, ?>> getTaskStatus(@Nonnull UUID jobId) {
 		this.evita.assertActive();
-		return this.serviceExecutor.getJobStatus(jobId);
+		return this.serviceExecutor.getTaskStatus(jobId);
 	}
 
 	@Nonnull
 	@Override
 	public Collection<TaskStatus<?, ?>> getTaskStatuses(@Nonnull UUID... jobId) {
 		this.evita.assertActive();
-		return this.serviceExecutor.getJobStatuses(jobId);
+		return this.serviceExecutor.getTaskStatuses(jobId);
 	}
 
 	@Override
 	public boolean cancelTask(@Nonnull UUID jobId) {
 		this.evita.assertActive();
-		return this.serviceExecutor.cancelJob(jobId);
+		return this.serviceExecutor.cancelTask(jobId);
 	}
 
 	@Nonnull

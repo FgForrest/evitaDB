@@ -35,7 +35,7 @@ import lombok.RequiredArgsConstructor;
 /**
  * This event is base class for all transaction events.
  */
-@EventGroup(AbstractStorageEvent.PACKAGE_NAME)
+@EventGroup(value = AbstractStorageEvent.PACKAGE_NAME, description = "evitaDB events relating to data storage.")
 @Category({"evitaDB", "Storage"})
 @RequiredArgsConstructor
 @Getter

@@ -148,6 +148,79 @@ public class ExportFileService {
 	}
 
 	/**
+	 * Method creates new file for fetch but doesn't create it - only metadata is created.
+	 *
+	 * @param fileName    name of the file
+	 * @param description optional description of the file
+	 * @param contentType MIME type of the file
+	 * @param origin      optional origin of the file
+	 * @return file for fetch
+	 */
+	@Nonnull
+	public FileForFetch createFile(
+		@Nonnull String fileName,
+		@Nullable String description,
+		@Nonnull String contentType,
+		@Nullable String origin
+	) {
+		final UUID fileId = UUIDUtil.randomUUID();
+		final String finalFileName = fileId + FileUtils.getFileExtension(fileName).map(it -> "." + it).orElse("");
+		final Path finalFilePath = storageOptions.exportDirectory().resolve(finalFileName);
+		try {
+			if (!storageOptions.exportDirectory().toFile().exists()) {
+				Assert.isPremiseValid(
+					storageOptions.exportDirectory().toFile().mkdirs(),
+					() -> new UnexpectedIOException(
+						"Failed to create directory: " + storageOptions.exportDirectory(),
+						"Failed to create directory."
+					)
+				);
+			}
+			Assert.isPremiseValid(
+				finalFilePath.toFile().createNewFile(),
+				() -> new UnexpectedIOException(
+					"Failed to create file: " + finalFilePath,
+					"Failed to create file."
+				)
+			);
+			try {
+				final FileForFetch fileForFetch = new FileForFetch(
+					fileId,
+					fileName,
+					description,
+					contentType,
+					Files.size(finalFilePath),
+					OffsetDateTime.now(),
+					origin == null ? null : Arrays.stream(origin.split(","))
+						.map(String::trim)
+						.toArray(String[]::new)
+				);
+				Files.write(
+					storageOptions.exportDirectory().resolve(fileId + FileForFetch.METADATA_EXTENSION),
+					fileForFetch.toLines(),
+					StandardCharsets.UTF_8,
+					StandardOpenOption.CREATE_NEW
+				);
+				this.files.add(0, fileForFetch);
+				return fileForFetch;
+			} catch (IOException e) {
+				throw new UnexpectedIOException(
+					"Failed to write metadata file: " + e.getMessage(),
+					"Failed to write metadata file."
+				);
+			} finally {
+				lock.unlock();
+			}
+		} catch (IOException e) {
+			throw new UnexpectedIOException(
+				"Failed to store file: " + finalFilePath,
+				"Failed to store file.",
+				e
+			);
+		}
+	}
+
+	/**
 	 * Method creates new file for fetch and stores it in the export directory.
 	 *
 	 * @param fileName    name of the file
@@ -293,6 +366,16 @@ public class ExportFileService {
 			file,
 			Files.newInputStream(file.path(storageOptions.exportDirectory()), StandardOpenOption.READ)
 		);
+	}
+
+	/**
+	 * Returns absolute path of the file in the export directory.
+	 * @param file file to get the path for
+	 * @return absolute path of the file in the export directory
+	 */
+	@Nonnull
+	public Path getFilePath(@Nonnull FileForFetch file) {
+		return file.path(storageOptions.exportDirectory());
 	}
 
 	/**

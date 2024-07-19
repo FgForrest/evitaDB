@@ -24,8 +24,11 @@
 package io.evitadb.externalApi.observability.logging;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.linecorp.armeria.common.HttpData;
 import com.linecorp.armeria.common.HttpRequest;
+import com.linecorp.armeria.common.HttpResponseWriter;
 import io.evitadb.core.Evita;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.externalApi.exception.ExternalApiInvalidUsageException;
 import io.evitadb.externalApi.http.EndpointHandler;
@@ -34,6 +37,7 @@ import io.evitadb.externalApi.observability.ObservabilityManager;
 import io.evitadb.externalApi.observability.exception.ObservabilityInternalError;
 import io.evitadb.externalApi.observability.exception.ObservabilityInvalidUsageException;
 import io.evitadb.utils.Assert;
+import io.netty.channel.EventLoop;
 
 import javax.annotation.Nonnull;
 import java.util.LinkedHashSet;
@@ -45,12 +49,12 @@ import java.util.concurrent.CompletableFuture;
  *
  * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
  */
-public abstract class LoggingEndpointHandler extends EndpointHandler<LoggingEndpointExecutionContext> {
+public abstract class JfrRecordingEndpointHandler extends EndpointHandler<JfrRecordingEndpointExecutionContext> {
 	protected static final LinkedHashSet<String> DEFAULT_SUPPORTED_CONTENT_TYPES = new LinkedHashSet<>(List.of(MimeTypes.APPLICATION_JSON));
 	private final Evita evita;
 	protected final ObservabilityManager manager;
 
-	public LoggingEndpointHandler(
+	public JfrRecordingEndpointHandler(
 		@Nonnull Evita evita,
 		@Nonnull ObservabilityManager manager
 	) {
@@ -60,8 +64,8 @@ public abstract class LoggingEndpointHandler extends EndpointHandler<LoggingEndp
 
 	@Nonnull
 	@Override
-	protected LoggingEndpointExecutionContext createExecutionContext(@Nonnull HttpRequest httpRequest) {
-		return new LoggingEndpointExecutionContext(httpRequest, this.evita);
+	protected JfrRecordingEndpointExecutionContext createExecutionContext(@Nonnull HttpRequest httpRequest) {
+		return new JfrRecordingEndpointExecutionContext(httpRequest, this.evita);
 	}
 
 	@Nonnull
@@ -89,7 +93,7 @@ public abstract class LoggingEndpointHandler extends EndpointHandler<LoggingEndp
 	 * Tries to parse input request body JSON into data class.
 	 */
 	@Nonnull
-	protected <T> CompletableFuture<T> parseRequestBody(@Nonnull LoggingEndpointExecutionContext exchange, @Nonnull Class<T> dataClass) {
+	protected <T> CompletableFuture<T> parseRequestBody(@Nonnull JfrRecordingEndpointExecutionContext exchange, @Nonnull Class<T> dataClass) {
 		return readRawRequestBody(exchange)
 			.thenApply(content -> {
 				Assert.isTrue(
@@ -103,5 +107,17 @@ public abstract class LoggingEndpointHandler extends EndpointHandler<LoggingEndp
 					throw createInternalError("Could not parse request body: ", e);
 				}
 			});
+	}
+
+	@Override
+	protected void writeResponse(@Nonnull JfrRecordingEndpointExecutionContext executionContext, @Nonnull HttpResponseWriter responseWriter, @Nonnull Object result, @Nonnull EventLoop eventExecutor) {
+		try {
+			responseWriter.write(HttpData.ofUtf8(manager.getObjectMapper().writeValueAsString(result)));
+		} catch (JsonProcessingException e) {
+			throw new GenericEvitaInternalError(
+				"Failed to serialize available JFR event types",
+				e
+			);
+		}
 	}
 }

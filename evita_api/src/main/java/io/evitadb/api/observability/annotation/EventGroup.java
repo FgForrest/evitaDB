@@ -42,4 +42,9 @@ public @interface EventGroup {
 	 */
 	String value();
 
+	/**
+	 * Contains a description of the group.
+	 */
+	String description() default "";
+
 }

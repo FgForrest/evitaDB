@@ -32,7 +32,7 @@ import lombok.RequiredArgsConstructor;
 /**
  * This event is base class for all cache related events.
  */
-@EventGroup(AbstractCacheEvent.PACKAGE_NAME)
+@EventGroup(value = AbstractCacheEvent.PACKAGE_NAME, description = "evitaDB events relating to internal database cache.")
 @Category({"evitaDB", "Cache"})
 @RequiredArgsConstructor
 @Getter

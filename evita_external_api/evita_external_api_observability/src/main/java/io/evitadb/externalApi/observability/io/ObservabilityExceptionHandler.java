@@ -32,7 +32,7 @@ import lombok.extern.slf4j.Slf4j;
 import javax.annotation.Nonnull;
 
 /**
- * Handles exception that occurred during processing of HTTP request outside LoggingEndpointHandler execution.
+ * Handles exception that occurred during processing of HTTP request outside JfrRecordingEndpointHandler execution.
  *
  * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
  */

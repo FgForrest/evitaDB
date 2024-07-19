@@ -26,8 +26,13 @@ package io.evitadb.externalApi.observability;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linecorp.armeria.server.HttpService;
 import com.linecorp.armeria.server.file.FileService;
+import io.evitadb.api.exception.SingletonTaskAlreadyRunningException;
+import io.evitadb.api.file.FileForFetch;
+import io.evitadb.api.task.ServerTask;
+import io.evitadb.api.task.TaskStatus;
 import io.evitadb.core.Evita;
 import io.evitadb.core.metric.event.CustomMetricsExecutionEvent;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.http.CorsEndpoint;
@@ -36,33 +41,39 @@ import io.evitadb.externalApi.observability.agent.ErrorMonitor;
 import io.evitadb.externalApi.observability.configuration.ObservabilityConfig;
 import io.evitadb.externalApi.observability.exception.JfRException;
 import io.evitadb.externalApi.observability.io.ObservabilityExceptionHandler;
-import io.evitadb.externalApi.observability.logging.StartLoggingHandler;
-import io.evitadb.externalApi.observability.logging.StopLoggingHandler;
+import io.evitadb.externalApi.observability.logging.CheckJfrRecordingHandler;
+import io.evitadb.externalApi.observability.logging.GetJfrRecordingEventTypesHandler;
+import io.evitadb.externalApi.observability.logging.StartJfrRecordingHandler;
+import io.evitadb.externalApi.observability.logging.StopJfrRecordingHandler;
 import io.evitadb.externalApi.observability.metric.EvitaJfrEventRegistry;
+import io.evitadb.externalApi.observability.metric.EvitaJfrEventRegistry.EvitaEventGroup;
+import io.evitadb.externalApi.observability.metric.EvitaJfrEventRegistry.JdkEventGroup;
 import io.evitadb.externalApi.observability.metric.MetricHandler;
 import io.evitadb.externalApi.observability.metric.PrometheusMetricsHttpService;
+import io.evitadb.externalApi.observability.task.JfrRecorderTask;
+import io.evitadb.externalApi.observability.task.JfrRecorderTask.RecordingSettings;
 import io.evitadb.externalApi.utils.path.PathHandlingService;
 import io.evitadb.utils.Assert;
-import jdk.jfr.EventType;
 import jdk.jfr.FlightRecorder;
-import jdk.jfr.Recording;
-import jdk.jfr.RecordingState;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.File;
-import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
 import java.nio.file.Path;
-import java.util.Arrays;
+import java.util.Collection;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import java.util.stream.Stream;
+
+import static java.util.Optional.empty;
+import static java.util.Optional.of;
 
 /**
  * This class is used as an orchestrator for all observability-related tasks. It is responsible for starting and stopping
@@ -101,10 +112,6 @@ public class ObservabilityManager {
 	 * Name of the OutOfMemoryError class to detect the problems of OOM kind.
 	 */
 	private static final String OOM_NAME = OutOfMemoryError.class.getSimpleName();
-	/**
-	 * JFR recording instance.
-	 */
-	private final Recording recording;
 	/**
 	 * Router for observability endpoints.
 	 */
@@ -167,29 +174,7 @@ public class ObservabilityManager {
 		}
 	}
 
-	/**
-	 * Registers specified events within {@link FlightRecorder}.
-	 */
-	private static void registerJfrEvents(@Nonnull String[] allowedEvents) {
-		for (String event : Arrays.stream(allowedEvents).filter(x -> !x.startsWith("jdk.")).toList()) {
-			if (event.endsWith(".*")) {
-				final Set<Class<? extends CustomMetricsExecutionEvent>> classes = EvitaJfrEventRegistry.getEventClassesFromPackage(event);
-				for (Class<? extends CustomMetricsExecutionEvent> clazz : classes) {
-					if (!Modifier.isAbstract(clazz.getModifiers())) {
-						FlightRecorder.register(clazz);
-					}
-				}
-			} else {
-				final Class<? extends CustomMetricsExecutionEvent> clazz = EvitaJfrEventRegistry.getEventClass(event);
-				if (!Modifier.isAbstract(clazz.getModifiers())) {
-					FlightRecorder.register(clazz);
-				}
-			}
-		}
-	}
-
 	public ObservabilityManager(ObservabilityConfig config, ApiOptions apiOptions, Evita evita) {
-		this.recording = new Recording();
 		this.config = config;
 		this.apiOptions = apiOptions;
 		this.evita = evita;
@@ -251,47 +236,79 @@ public class ObservabilityManager {
 	}
 
 	/**
+	 * Returns list of all available JFR event types.
+	 * @return list of all available JFR event types
+	 */
+	@Nonnull
+	public List<RecordingGroup> getAvailableJfrEventTypes() {
+		return Stream.concat(
+			EvitaJfrEventRegistry.getCustomEventPackages()
+				.values()
+				.stream()
+				.sorted(Comparator.comparing(EvitaEventGroup::name))
+				.map(it -> new RecordingGroup(it.name(), it.description())),
+			EvitaJfrEventRegistry.getJdkEventGroups()
+				.values()
+				.stream()
+				.sorted(Comparator.comparing(JdkEventGroup::name))
+				.map(it -> new RecordingGroup(it.name(), it.description()))
+		)
+		.toList();
+	}
+
+	/**
 	 * Starts JFR recording that logs all specified events.
 	 */
-	public void start(@Nonnull String[] allowedEvents) throws JfRException {
-		registerJfrEvents(allowedEvents);
-		final List<EventType> eventTypes = FlightRecorder.getFlightRecorder().getEventTypes();
-		for (String event : allowedEvents) {
-			if (event.endsWith(".*")) {
-				for (EventType eventType : eventTypes) {
-					String it = eventType.getName();
-					if (it.startsWith(event.substring(0, event.length() - 2))) {
-						recording.enable(it).withoutThreshold();
-					}
-				}
-			} else {
-				recording.enable(event).withoutThreshold();
-			}
+	@Nonnull
+	public ServerTask<RecordingSettings, FileForFetch> start(
+		@Nonnull String[] allowedEvents,
+		@Nullable Long maxSizeInBytes,
+		@Nullable Long maxAgeInSeconds
+	) throws JfRException, SingletonTaskAlreadyRunningException {
+		final Collection<JfrRecorderTask> existingTaskStatus = this.evita.management().getTaskStatuses(JfrRecorderTask.class);
+		final JfrRecorderTask runningTask = existingTaskStatus.stream().filter(it -> !it.getFutureResult().isDone()).findFirst().orElse(null);
+		if (runningTask != null) {
+			throw new SingletonTaskAlreadyRunningException(runningTask.getStatus().taskName());
+		} else {
+			final ServerTask<RecordingSettings, FileForFetch> jfrRecorderTask = new JfrRecorderTask(
+				allowedEvents, maxSizeInBytes, maxAgeInSeconds,
+				this.evita.management().exportFileService()
+			);
+			evita.getServiceExecutor().submit(jfrRecorderTask);
+			return jfrRecorderTask;
 		}
-		recording.start();
 	}
 
 	/**
 	 * Stops currently running JFR recording and stores recorded content to a file.
 	 */
 	@Nonnull
-	public String stop() throws JfRException {
-		if (recording.getState() != RecordingState.RUNNING) {
-			throw new JfRException("Recording is not running.");
+	public TaskStatus<?, ?> stop() throws JfRException {
+		final Collection<JfrRecorderTask> existingTaskStatus = evita.management().getTaskStatuses(JfrRecorderTask.class);
+		final JfrRecorderTask runningTask = existingTaskStatus.stream().filter(it -> !it.getFutureResult().isDone()).findFirst().orElse(null);
+		if (runningTask != null) {
+			runningTask.cancel();
+			return runningTask.getStatus();
+		} else {
+			throw new EvitaInvalidUsageException(
+				"JFR recording is not running.",
+				"JFR recording is not running. You have to start it first."
+			);
 		}
-		try {
-			recording.dump(Path.of(String.valueOf(RECORDING_FILE_DIRECTORY_PATH), DUMP_FILE_NAME));
-			recording.stop();
-			final Optional<String> filePath = Arrays.stream(config.getBaseUrls(apiOptions.exposedOn()))
-				.map(it -> it + DUMP_FILE_NAME)
-				.findFirst();
-			if (filePath.isEmpty()) {
-				throw new JfRException("Unable to get URL for recording file.");
-			} else {
-				return filePath.get();
-			}
-		} catch (IOException e) {
-			throw new JfRException("Unable to dump recording.", e);
+	}
+
+	/**
+	 * Returns the status of the currently running JFR recording task or empty result if no task is running.
+	 * @return the status of the currently running JFR recording task or empty result if no task is running
+	 */
+	@Nonnull
+	public Optional<TaskStatus<RecordingSettings, FileForFetch>> jfrRecordingTaskStatus() {
+		final Collection<JfrRecorderTask> existingTaskStatus = evita.management().getTaskStatuses(JfrRecorderTask.class);
+		final JfrRecorderTask runningTask = existingTaskStatus.stream().filter(it -> !it.getFutureResult().isDone()).findFirst().orElse(null);
+		if (runningTask != null) {
+			return of(runningTask.getStatus());
+		} else {
+			return empty();
 		}
 	}
 
@@ -341,20 +358,44 @@ public class ObservabilityManager {
 	 * Registers endpoints for controlling JFR recording.
 	 */
 	private void registerJfrControlEndpoints() {
-		final StartLoggingHandler startLoggingHandler = new StartLoggingHandler(this.evita, this);
-		final StopLoggingHandler stopLoggingHandler = new StopLoggingHandler(this.evita, this);
+		final StartJfrRecordingHandler startLoggingHandler = new StartJfrRecordingHandler(this.evita, this);
+		final StopJfrRecordingHandler stopLoggingHandler = new StopJfrRecordingHandler(this.evita, this);
+		final CheckJfrRecordingHandler checkJfrRecordingHandler = new CheckJfrRecordingHandler(this.evita, this);
+		final GetJfrRecordingEventTypesHandler getJfrRecordingEventTypesHandler = new GetJfrRecordingEventTypesHandler(this.evita, this);
 
 		final CorsEndpoint corsEndpoint = new CorsEndpoint(config);
 		corsEndpoint.addMetadataFromEndpoint(startLoggingHandler);
-		corsEndpoint.addMetadataFromEndpoint(startLoggingHandler);
+		corsEndpoint.addMetadataFromEndpoint(stopLoggingHandler);
+		corsEndpoint.addMetadataFromEndpoint(checkJfrRecordingHandler);
+		corsEndpoint.addMetadataFromEndpoint(getJfrRecordingEventTypesHandler);
 
 		this.observabilityRouter.addExactPath(
-			"/start",
+			"/startRecording",
 			corsEndpoint.toHandler(new ObservabilityExceptionHandler(objectMapper, startLoggingHandler))
 		);
 		this.observabilityRouter.addExactPath(
-			"/stop",
+			"/stopRecording",
 			corsEndpoint.toHandler(new ObservabilityExceptionHandler(objectMapper, stopLoggingHandler))
 		);
+		this.observabilityRouter.addExactPath(
+			"/checkRecording",
+			corsEndpoint.toHandler(new ObservabilityExceptionHandler(objectMapper, checkJfrRecordingHandler))
+		);
+		this.observabilityRouter.addExactPath(
+			"/getRecordingEventTypes",
+			corsEndpoint.toHandler(new ObservabilityExceptionHandler(objectMapper, getJfrRecordingEventTypesHandler))
+		);
 	}
+
+	/**
+	 * Represents a group of JFR events that could be recorded.
+	 * @param name the name of the group
+	 * @param description the description of the group
+	 */
+	public record RecordingGroup(
+		@Nonnull String name,
+		@Nullable String description
+	) {
+	}
+
 }

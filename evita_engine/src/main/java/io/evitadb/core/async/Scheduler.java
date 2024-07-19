@@ -289,7 +289,7 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 	 * @return the paginated list of tasks
 	 */
 	@Nonnull
-	public PaginatedList<TaskStatus<?, ?>> listJobStatuses(int page, int pageSize) {
+	public PaginatedList<TaskStatus<?, ?>> listTaskStatuses(int page, int pageSize) {
 		return new PaginatedList<>(
 			page, pageSize, this.queue.size(),
 			this.queue.stream()
@@ -302,13 +302,28 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 	}
 
 	/**
+	 * Returns the tasks of the given task type.
+	 * @param taskType the type of the task
+	 * @return the list of matching tasks
+	 * @param <T> the type of the task
+	 */
+	@Nonnull
+	public <T extends ServerTask<?, ?>> Collection<T> getTasks(@Nonnull Class<T> taskType) {
+		return this.queue
+			.stream()
+			.filter(taskType::isInstance)
+			.map(taskType::cast)
+			.collect(Collectors.toCollection(ArrayList::new));
+	}
+
+	/**
 	 * Returns job statuses for the requested job ids. If the job with the specified jobId is not found, it is not
 	 * included in the returned collection.
 	 *
 	 * @param jobId jobId of the job
 	 * @return collection of job statuses
 	 */
-	public Collection<TaskStatus<?, ?>> getJobStatuses(@Nonnull UUID... jobId) {
+	public Collection<TaskStatus<?, ?>> getTaskStatuses(@Nonnull UUID... jobId) {
 		final HashSet<UUID> uuids = new HashSet<>(Arrays.asList(jobId));
 		return this.queue
 			.stream()
@@ -323,7 +338,7 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 	 * @return job status
 	 */
 	@Nonnull
-	public Optional<TaskStatus<?, ?>> getJobStatus(@Nonnull UUID jobId) {
+	public Optional<TaskStatus<?, ?>> getTaskStatus(@Nonnull UUID jobId) {
 		return this.queue.stream()
 			.filter(it -> it.getStatus().taskId().equals(jobId))
 			.findFirst()
@@ -337,7 +352,7 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 	 * @param jobId jobId of the job
 	 * @return true if the job was found and cancellation triggered, false if the job was not found
 	 */
-	public boolean cancelJob(@Nonnull UUID jobId) {
+	public boolean cancelTask(@Nonnull UUID jobId) {
 		return this.queue.stream()
 			.filter(it -> it.getStatus().taskId().equals(jobId))
 			.findFirst()

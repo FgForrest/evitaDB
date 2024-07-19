@@ -36,12 +36,13 @@ import javax.annotation.Nullable;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 public class SuccessEndpointResponse implements EndpointResponse {
+	public static final SuccessEndpointResponse NO_CONTENT = new SuccessEndpointResponse();
 
 	@Nullable
 	@Getter
 	private final Object result;
 
-	public SuccessEndpointResponse() {
+	private SuccessEndpointResponse() {
 		this.result = null;
 	}
 

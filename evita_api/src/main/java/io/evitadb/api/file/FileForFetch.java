@@ -58,8 +58,25 @@ public record FileForFetch(
 	@Nonnull OffsetDateTime created,
 	@Nullable String[] origin
 ) implements Serializable {
-
 	public static final String METADATA_EXTENSION = ".metadata";
+
+	public FileForFetch(
+		@Nonnull UUID fileId,
+		@Nonnull String name,
+		@Nullable String description,
+		@Nonnull String contentType,
+		long totalSizeInBytes,
+		@Nonnull OffsetDateTime created,
+		@Nullable String[] origin
+	) {
+		this.fileId = fileId;
+		this.name = FileUtils.convertToSupportedName(name);
+		this.description = description;
+		this.contentType = contentType;
+		this.totalSizeInBytes = totalSizeInBytes;
+		this.created = created;
+		this.origin = origin;
+	}
 
 	/**
 	 * Returns path to the metadata file in target directory.

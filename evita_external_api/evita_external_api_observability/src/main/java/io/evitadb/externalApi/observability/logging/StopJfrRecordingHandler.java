@@ -39,15 +39,15 @@ import java.util.concurrent.CompletableFuture;
  *
  * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
  */
-public class StopLoggingHandler extends LoggingEndpointHandler {
+public class StopJfrRecordingHandler extends JfrRecordingEndpointHandler {
 
-	public StopLoggingHandler(@Nonnull Evita evita, @Nonnull ObservabilityManager manager) {
+	public StopJfrRecordingHandler(@Nonnull Evita evita, @Nonnull ObservabilityManager manager) {
 		super(evita, manager);
 	}
 
 	@Nonnull
 	@Override
-	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull LoggingEndpointExecutionContext executionContext) {
+	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull JfrRecordingEndpointExecutionContext executionContext) {
 		return executionContext.executeAsyncInRequestThreadPool(
 			() -> new SuccessEndpointResponse(manager.stop())
 		);

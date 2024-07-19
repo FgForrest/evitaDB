@@ -21,24 +21,25 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.metric.event.instance;
+package io.evitadb.api.exception;
 
-import io.evitadb.api.observability.annotation.EventGroup;
-import io.evitadb.core.metric.event.CustomMetricsExecutionEvent;
-import jdk.jfr.Category;
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
+import io.evitadb.exception.EvitaInvalidUsageException;
+
+import javax.annotation.Nonnull;
+import java.io.Serial;
 
 /**
- * Common event ancestor for events regarding REST API instances creation.
+ * Exception is thrown when task that is designed to run as singleton per evitaDB instance is already running.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@EventGroup(value = AbstractRestInstanceEvent.PACKAGE_NAME, description = "evitaDB events relating to REST API.")
-@Category({"evitaDB", "ExternalAPI", "REST", "Instance", "Schema"})
-@RequiredArgsConstructor
-@Getter
-public abstract class AbstractRestInstanceEvent extends CustomMetricsExecutionEvent {
+public class SingletonTaskAlreadyRunningException extends EvitaInvalidUsageException {
+	@Serial private static final long serialVersionUID = -213346139859613431L;
 
-	protected static final String PACKAGE_NAME = "io.evitadb.externalApi.rest.instance";
+	public SingletonTaskAlreadyRunningException(@Nonnull String taskName) {
+		super(
+			"Task " + taskName + " is already running. Only one instance of the task can run at a time.",
+			"Please wait until the task is finished or cancel the running task."
+		);
+	}
 }
