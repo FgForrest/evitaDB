@@ -90,14 +90,11 @@ public class FacetSummaryConverter extends RequireConverter {
 					.values()
 					.stream()
 					.filter(ReferenceSchemaContract::isFaceted)
-					.map(referenceSchema -> {
-						final FacetSummaryOfReference facetSummaryOfReference = facetSummaryRequests.get(referenceSchema.getName());
-						if (facetSummaryOfReference == null) {
-							return null;
-						}
-						return getFacetSummaryOfReference(referenceSchema, facetSummaryOfReference, facetSummary);
-					})
-					.filter(Objects::nonNull)
+					.map(referenceSchema -> getFacetSummaryOfReference(
+						referenceSchema,
+						facetSummaryRequests.get(referenceSchema.getName()),
+						facetSummary
+					))
 					.forEach(facetSummaryOfReference -> {
 						final ReferenceSchemaContract referenceSchema = entitySchema.getReference(facetSummaryOfReference.getReferenceName())
 							.orElseThrow();

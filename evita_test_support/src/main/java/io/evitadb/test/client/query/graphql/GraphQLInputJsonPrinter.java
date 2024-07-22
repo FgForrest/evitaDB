@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -53,8 +53,8 @@ import java.util.stream.Collectors;
  */
 public class GraphQLInputJsonPrinter {
 
-	private final static Pattern LOCALE_PATTERN = Pattern.compile("\"(cs|en|de)\"");
-	private final static Pattern CURRENCY_PATTERN = Pattern.compile("\"(CZK|EUR|USD)\"");
+	private final static Pattern LOCALE_PATTERN = Pattern.compile("\"(cs-CZ|en-US|de-DE|cs|en|de)\"");
+	private final static Pattern CURRENCY_PATTERN = Pattern.compile("\"(CZK|EUR|USD|GBP)\"");
 
 	private final static Set<Class<? extends Enum<?>>> KNOWN_ENUMS = Set.of(
 		AttributeSpecialValue.class, OrderDirection.class, EmptyHierarchicalEntityBehaviour.class, FacetStatisticsDepth.class, PriceContentMode.class, QueryPriceMode.class, StatisticsBase.class, StatisticsType.class

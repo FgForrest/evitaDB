@@ -35,6 +35,7 @@ import okhttp3.Response;
 
 import javax.annotation.Nonnull;
 import java.io.IOException;
+import java.util.Optional;
 
 /**
  * Simple client for calling GraphQL requests from documentation.
@@ -48,12 +49,12 @@ public class GraphQLClient extends ApiClient {
 	}
 
 	@Nonnull
-	public JsonNode call(@Nonnull String document) {
+	public Optional<JsonNode> call(@Nonnull String document) {
 		return call("/gql/evita", document);
 	}
 
 	@Nonnull
-	public JsonNode call(@Nonnull String instancePath, @Nonnull String document) {
+	public Optional<JsonNode> call(@Nonnull String instancePath, @Nonnull String document) {
 		final Request request;
 		try {
 			request = createRequest(instancePath, document);
@@ -65,9 +66,14 @@ public class GraphQLClient extends ApiClient {
 			final int responseCode = response.code();
 			if (responseCode == 200) {
 				final JsonNode responseBody = readResponseBody(response.body());
-				validateResponseBody(responseBody);
+				validateResponseBody(document, responseBody);
 
-				return responseBody;
+				final JsonNode data = responseBody.get("data");
+				if (data != null && !data.isNull()) {
+					return Optional.empty();
+				}
+
+				return Optional.of(responseBody);
 			}
 			if (responseCode >= 400 && responseCode <= 499 && responseCode != 404) {
 				final String errorResponseString = response.body() != null ? response.body().string() : "no response body";
@@ -95,23 +101,11 @@ public class GraphQLClient extends ApiClient {
 		return objectMapper.writeValueAsString(requestBody);
 	}
 
-	private static void validateResponseBody(@Nonnull JsonNode responseBody) throws JsonProcessingException {
+	private static void validateResponseBody(@Nonnull String document, @Nonnull JsonNode responseBody) throws JsonProcessingException {
 		final JsonNode errors = responseBody.get("errors");
 		Assert.isPremiseValid(
 			errors == null || errors.isNull() || errors.isEmpty(),
-			"Call to GraphQL server ended with errors: " + objectMapper.writeValueAsString(errors)
+			"Call to GraphQL server with document: " + document + " ended with errors: " + objectMapper.writeValueAsString(errors)
 		);
-
-		final JsonNode data = responseBody.get("data");
-		Assert.isPremiseValid(
-			data != null && !data.isNull() && (data.isValueNode() || !data.isEmpty()),
-			"Call to GraphQL server ended with empty data."
-		);
-		data.elements().forEachRemaining(element -> {
-			Assert.isPremiseValid(
-				element != null && !element.isNull(),
-				"Call to GraphQL server ended with empty data."
-			);
-		});
 	}
 }
