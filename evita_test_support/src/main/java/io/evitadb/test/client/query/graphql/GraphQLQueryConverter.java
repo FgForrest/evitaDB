@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -115,14 +115,12 @@ public class GraphQLQueryConverter {
 		if (query.getFilterBy() != null) {
 			rootConstraints.add(
 				filterConstraintToJsonConverter.convert(new EntityDataLocator(entityType), query.getFilterBy())
-					.filter(it -> !it.value().isEmpty())
 					.orElseThrow(() -> new IllegalStateException("Root JSON filter constraint cannot be null if original query has filter constraint."))
 			);
 		}
 		if (query.getOrderBy() != null) {
 			rootConstraints.add(
 				orderConstraintToJsonConverter.convert(new GenericDataLocator(entityType), query.getOrderBy())
-					.filter(it -> !it.value().isEmpty())
 					.orElseThrow(() -> new IllegalStateException("Root JSON order constraint cannot be null if original query has order constraint."))
 			);
 		}
