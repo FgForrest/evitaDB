@@ -26,8 +26,6 @@ package io.evitadb.externalApi.observability.metric;
 import com.linecorp.armeria.common.HttpData;
 import com.linecorp.armeria.common.HttpRequest;
 import com.linecorp.armeria.common.HttpResponse;
-import com.linecorp.armeria.common.HttpStatus;
-import com.linecorp.armeria.common.MediaType;
 import com.linecorp.armeria.server.HttpService;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import io.evitadb.core.Evita;
@@ -58,8 +56,9 @@ public class PrometheusMetricsHttpService implements HttpService {
 			evita.executeAsyncInRequestThreadPool(
 				() -> {
 					try (final ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
-						this.prometheusScrapeHandler.handleRequest(new ArmeriaPrometheusHttpExchangeAdapter(ctx, req, outputStream));
-						return HttpResponse.of(HttpStatus.OK, MediaType.PLAIN_TEXT_UTF_8, HttpData.copyOf(outputStream.toByteArray()));
+						final ArmeriaPrometheusHttpExchangeAdapter exchange = new ArmeriaPrometheusHttpExchangeAdapter(ctx, req, outputStream);
+						this.prometheusScrapeHandler.handleRequest(exchange);
+						return HttpResponse.of(exchange.headersBuilder().build(), HttpData.copyOf(outputStream.toByteArray()));
 					} catch (IOException e) {
 						return HttpResponse.ofFailure(e);
 					}

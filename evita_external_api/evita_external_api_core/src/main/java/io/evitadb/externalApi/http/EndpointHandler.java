@@ -79,40 +79,71 @@ public abstract class EndpointHandler<C extends EndpointExecutionContext> implem
 		executionContext.providePreferredResponseContentType(resolvePreferredResponseContentType(executionContext).orElse(null));
 
 		beforeRequestHandled(executionContext);
-		return HttpResponse.of(Objects.requireNonNull(doHandleRequest(executionContext)
-			.thenApply(response -> {
-				try {
-					afterRequestHandled(executionContext, response);
+		return HttpResponse.of(
+			Objects.requireNonNull(
+				doHandleRequest(executionContext)
+					.thenApply(response -> {
+						try {
+							afterRequestHandled(executionContext, response);
 
-					if (response instanceof NotFoundEndpointResponse) {
-						throw new HttpExchangeException(HttpStatus.NOT_FOUND.code(), "Requested resource wasn't found.");
-					} else if (response instanceof SuccessEndpointResponse successResponse) {
-						final Object result = successResponse.getResult();
-						if (result == null) {
-							return HttpResponse.builder()
-								.status(HttpStatus.NO_CONTENT)
-								.build();
-						} else {
-							final HttpResponseWriter responseWriter = HttpResponse.streaming();
-							ctx.addAdditionalResponseHeader(HttpHeaderNames.CONTENT_TYPE, executionContext.preferredResponseContentType() + CONTENT_TYPE_CHARSET);
-							responseWriter.write(ResponseHeaders.of(HttpStatus.OK));
-							writeResponse(executionContext, responseWriter, result, ctx.eventLoop());
-							if (responseWriter.isOpen()) {
-								responseWriter.close();
+							if (response instanceof NotFoundEndpointResponse) {
+								throw new HttpExchangeException(HttpStatus.NOT_FOUND.code(), "Requested resource wasn't found.");
+							} else if (response instanceof SuccessEndpointResponse successResponse) {
+								final Object result = successResponse.getResult();
+								if (result == null) {
+									return HttpResponse.builder()
+										.status(HttpStatus.NO_CONTENT)
+										.build();
+								} else {
+									final HttpResponseWriter responseWriter = HttpResponse.streaming();
+									responseWriter.write(
+										ResponseHeaders.of(
+											HttpStatus.OK,
+											HttpHeaderNames.CONTENT_TYPE, executionContext.preferredResponseContentType() + CONTENT_TYPE_CHARSET
+										)
+									);
+									writeResponse(executionContext, responseWriter, result, ctx.eventLoop());
+									if (responseWriter.isOpen()) {
+										responseWriter.close();
+									}
+									return responseWriter;
+								}
+							} else {
+								throw createInternalError("Unsupported response `" + response.getClass().getName() + "`.");
 							}
-							return responseWriter;
+						} catch (Exception e) {
+							executionContext.notifyError(e);
+							throw e;
 						}
-					} else {
-						throw createInternalError("Unsupported response `" + response.getClass().getName() + "`.");
-					}
-				} catch (Exception e) {
-					executionContext.notifyError(e);
-					throw e;
-				}
-			}).whenComplete((response, throwable) -> {
-				executionContext.close();
-			})
-		));
+					}).whenComplete((response, throwable) -> {
+						executionContext.close();
+					})
+			));
+	}
+
+	/**
+	 * Defines which HTTP methods can this particular endpoint process.
+	 */
+	@Nonnull
+	public abstract Set<HttpMethod> getSupportedHttpMethods();
+
+	/**
+	 * Defines which mime types are supported for request body.
+	 * By default, no mime types are supported.
+	 */
+	@Nonnull
+	public Set<String> getSupportedRequestContentTypes() {
+		return Set.of();
+	}
+
+	/**
+	 * Defines which mime types are supported for response body.
+	 * By default, no mime types are supported.
+	 * Note: order of mime types is important, it defines priority of mime types by which preferred response mime type is selected.
+	 */
+	@Nonnull
+	public LinkedHashSet<String> getSupportedResponseContentTypes() {
+		return new LinkedHashSet<>(0);
 	}
 
 	/**
@@ -150,32 +181,6 @@ public abstract class EndpointHandler<C extends EndpointExecutionContext> implem
 	@Nonnull
 	protected abstract <T extends ExternalApiInvalidUsageException> T createInvalidUsageException(@Nonnull String message);
 
-	/**
-	 * Defines which HTTP methods can this particular endpoint process.
-	 */
-	@Nonnull
-	public abstract Set<HttpMethod> getSupportedHttpMethods();
-
-	/**
-	 * Defines which mime types are supported for request body.
-	 * By default, no mime types are supported.
-	 */
-	@Nonnull
-	public Set<String> getSupportedRequestContentTypes() {
-		return Set.of();
-	}
-
-	/**
-	 * Defines which mime types are supported for response body.
-	 * By default, no mime types are supported.
-	 * Note: order of mime types is important, it defines priority of mime types by which preferred response mime type is selected.
-	 */
-	@Nonnull
-	public LinkedHashSet<String> getSupportedResponseContentTypes() {
-		return new LinkedHashSet<>(0);
-	}
-
-
 	protected void validateRequest(@Nonnull HttpRequest exchange) {
 		if (!hasSupportedHttpMethod(exchange)) {
 			throw new HttpExchangeException(
@@ -183,6 +188,76 @@ public abstract class EndpointHandler<C extends EndpointExecutionContext> implem
 				"Supported methods are " + getSupportedHttpMethods().stream().map(it -> "`" + it + "`").collect(Collectors.joining(", ")) + "."
 			);
 		}
+	}
+
+	/**
+	 * Reads request body into raw string.
+	 */
+	@Nonnull
+	protected CompletableFuture<String> readRawRequestBody(@Nonnull C executionContext) {
+		Assert.isPremiseValid(
+			!getSupportedRequestContentTypes().isEmpty(),
+			() -> createInternalError("Handler doesn't support reading of request body.")
+		);
+
+		final String bodyContentType = executionContext.requestBodyContentType();
+		final Charset bodyCharset = Arrays.stream(bodyContentType.split(";"))
+			.map(String::trim)
+			.filter(part -> part.startsWith("charset"))
+			.findFirst()
+			.map(charsetPart -> {
+				final String[] charsetParts = charsetPart.split("=");
+				if (charsetParts.length != 2) {
+					throw new HttpExchangeException(HttpStatus.UNSUPPORTED_MEDIA_TYPE.code(), "Charset has invalid format");
+				}
+				return charsetParts[1].trim();
+			})
+			.map(charsetName -> {
+				try {
+					return Charset.forName(charsetName);
+				} catch (IllegalCharsetNameException | UnsupportedCharsetException ex) {
+					throw new HttpExchangeException(HttpStatus.UNSUPPORTED_MEDIA_TYPE.code(), "Unsupported charset.");
+				}
+			})
+			.orElse(StandardCharsets.UTF_8);
+
+		return executionContext.httpRequest()
+			.aggregate()
+			.thenApply(r -> {
+				try (HttpData data = r.content()) {
+					try (InputStream inputStream = data.toInputStream()) {
+						final byte[] buffer = new byte[EndpointHandler.STREAM_CHUNK_SIZE];
+						final StringBuilder stringBuilder = new StringBuilder(64);
+						int bytesRead;
+						while ((bytesRead = inputStream.read(buffer)) != -1) {
+							stringBuilder.append(new String(buffer, 0, bytesRead, bodyCharset));
+						}
+						return stringBuilder.toString();
+					} catch (IOException e) {
+						throw new RuntimeException(e);
+					}
+				}
+			});
+	}
+
+	/**
+	 * Tries to parse input request body JSON into data class.
+	 */
+	@Nonnull
+	protected <T> CompletableFuture<T> parseRequestBody(@Nonnull C executionContext, @Nonnull Class<T> dataClass) {
+		throw createInternalError("Cannot parse request body because handler doesn't support it.");
+	}
+
+	/**
+	 * Serializes a result object into the preferred media type.
+	 *
+	 * @param executionContext endpoint exchange
+	 * @param responseWriter   response writer to write the response to
+	 * @param result           result data from handler to serialize to the response
+	 * @param eventExecutor    event executor to schedule response writing
+	 */
+	protected void writeResponse(@Nonnull C executionContext, @Nonnull HttpResponseWriter responseWriter, @Nonnull Object result, @Nonnull EventLoop eventExecutor) {
+		throw createInternalError("Cannot serialize response body because handler doesn't support it.");
 	}
 
 	private boolean hasSupportedHttpMethod(@Nonnull HttpRequest request) {
@@ -253,76 +328,6 @@ public abstract class EndpointHandler<C extends EndpointExecutionContext> implem
 			.map(MediaType::toString)
 			.collect(Collectors.toUnmodifiableSet());
 		return acceptHeaders.isEmpty() ? null : acceptHeaders;
-	}
-
-	/**
-	 * Reads request body into raw string.
-	 */
-	@Nonnull
-	protected CompletableFuture<String> readRawRequestBody(@Nonnull C executionContext) {
-		Assert.isPremiseValid(
-			!getSupportedRequestContentTypes().isEmpty(),
-			() -> createInternalError("Handler doesn't support reading of request body.")
-		);
-
-		final String bodyContentType = executionContext.requestBodyContentType();
-		final Charset bodyCharset = Arrays.stream(bodyContentType.split(";"))
-			.map(String::trim)
-			.filter(part -> part.startsWith("charset"))
-			.findFirst()
-			.map(charsetPart -> {
-				final String[] charsetParts = charsetPart.split("=");
-				if (charsetParts.length != 2) {
-					throw new HttpExchangeException(HttpStatus.UNSUPPORTED_MEDIA_TYPE.code(), "Charset has invalid format");
-				}
-				return charsetParts[1].trim();
-			})
-			.map(charsetName -> {
-				try {
-					return Charset.forName(charsetName);
-				} catch (IllegalCharsetNameException | UnsupportedCharsetException ex) {
-					throw new HttpExchangeException(HttpStatus.UNSUPPORTED_MEDIA_TYPE.code(), "Unsupported charset.");
-				}
-			})
-			.orElse(StandardCharsets.UTF_8);
-
-		return executionContext.httpRequest()
-			.aggregate()
-			.thenApply(r -> {
-				try (HttpData data = r.content()) {
-					try (InputStream inputStream = data.toInputStream()) {
-						final byte[] buffer = new byte[EndpointHandler.STREAM_CHUNK_SIZE];
-						final StringBuilder stringBuilder = new StringBuilder(64);
-						int bytesRead;
-						while ((bytesRead = inputStream.read(buffer)) != -1) {
-							stringBuilder.append(new String(buffer, 0, bytesRead, bodyCharset));
-						}
-						return stringBuilder.toString();
-					} catch (IOException e) {
-						throw new RuntimeException(e);
-					}
-				}
-			});
-	}
-
-	/**
-	 * Tries to parse input request body JSON into data class.
-	 */
-	@Nonnull
-	protected <T> CompletableFuture<T> parseRequestBody(@Nonnull C executionContext, @Nonnull Class<T> dataClass) {
-		throw createInternalError("Cannot parse request body because handler doesn't support it.");
-	}
-
-	/**
-	 * Serializes a result object into the preferred media type.
-	 *
-	 * @param executionContext      endpoint exchange
-	 * @param responseWriter response writer to write the response to
-	 * @param result         result data from handler to serialize to the response
-	 * @param eventExecutor event executor to schedule response writing
-	 */
-	protected void writeResponse(@Nonnull C executionContext, @Nonnull HttpResponseWriter responseWriter, @Nonnull Object result, @Nonnull EventLoop eventExecutor) {
-		throw createInternalError("Cannot serialize response body because handler doesn't support it.");
 	}
 
 }

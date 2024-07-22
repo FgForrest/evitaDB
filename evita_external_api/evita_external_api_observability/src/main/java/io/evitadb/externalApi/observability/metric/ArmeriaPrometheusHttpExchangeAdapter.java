@@ -24,6 +24,8 @@
 package io.evitadb.externalApi.observability.metric;
 
 import com.linecorp.armeria.common.HttpRequest;
+import com.linecorp.armeria.common.ResponseHeaders;
+import com.linecorp.armeria.common.ResponseHeadersBuilder;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import io.netty.util.AsciiString;
 import io.prometheus.metrics.exporter.common.PrometheusHttpExchange;
@@ -31,6 +33,7 @@ import io.prometheus.metrics.exporter.common.PrometheusHttpRequest;
 import io.prometheus.metrics.exporter.common.PrometheusHttpResponse;
 import lombok.RequiredArgsConstructor;
 
+import javax.annotation.Nonnull;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -49,7 +52,7 @@ public class ArmeriaPrometheusHttpExchangeAdapter implements PrometheusHttpExcha
 
 	public ArmeriaPrometheusHttpExchangeAdapter(ServiceRequestContext ctx, HttpRequest req, ByteArrayOutputStream outputStream) {
 		this.request = new ArmeriaAdapterRequest(req);
-		this.response = new ArmeriaAdapterResponse(ctx, outputStream);
+		this.response = new ArmeriaAdapterResponse(ctx, ResponseHeaders.builder(), outputStream);
 	}
 
 	@Override
@@ -74,6 +77,15 @@ public class ArmeriaPrometheusHttpExchangeAdapter implements PrometheusHttpExcha
 
 	@Override
 	public void close() {
+	}
+
+	/**
+	 * Returns the {@link ResponseHeadersBuilder} for the response that contains properly set content length.
+	 * @return the {@link ResponseHeadersBuilder} for the response
+	 */
+	@Nonnull
+	ResponseHeadersBuilder headersBuilder() {
+		return response.headersBuilder;
 	}
 
 	/**
@@ -111,17 +123,19 @@ public class ArmeriaPrometheusHttpExchangeAdapter implements PrometheusHttpExcha
 	@RequiredArgsConstructor
 	public static class ArmeriaAdapterResponse implements PrometheusHttpResponse {
 		private final ServiceRequestContext context;
+		private final ResponseHeadersBuilder headersBuilder;
 		private final OutputStream outputStream;
 
 		@Override
 		public void setHeader(String name, String value) {
-			context.addAdditionalResponseHeader(name, value);
+			headersBuilder.set(name, value);
 		}
 
 		@Override
 		public OutputStream sendHeadersAndGetBody(int statusCode, int contentLength) {
-			final String contentLengthHeader = context.additionalResponseHeaders().get("Content-Length");
-			if (contentLengthHeader != null && contentLength > 0) {
+			if (contentLength > 0) {
+				headersBuilder.status(statusCode);
+				headersBuilder.contentLength(contentLength);
 				context.setMaxRequestLength(contentLength);
 			}
 			return outputStream;

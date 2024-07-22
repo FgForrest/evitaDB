@@ -23,12 +23,14 @@
 
 package io.evitadb.externalApi.http;
 
+import com.linecorp.armeria.common.MediaType;
 import com.linecorp.armeria.common.util.EventLoopGroups;
 import com.linecorp.armeria.server.HttpService;
 import com.linecorp.armeria.server.Server;
 import com.linecorp.armeria.server.ServerBuilder;
 import com.linecorp.armeria.server.VirtualHostBuilder;
 import com.linecorp.armeria.server.encoding.DecodingService;
+import com.linecorp.armeria.server.encoding.EncodingService;
 import com.linecorp.armeria.server.logging.AccessLogWriter;
 import com.linecorp.armeria.server.logging.LoggingService;
 import io.evitadb.api.requestResponse.data.DevelopmentConstants;
@@ -537,8 +539,7 @@ public class ExternalApiServer implements AutoCloseable {
 			.childChannelOption(ChannelOption.SO_REUSEADDR, true)
 			.childChannelOption(ChannelOption.SO_KEEPALIVE, apiOptions.keepAlive())
 			.decorator(DecodingService.newDecorator())
-			/* TODO JNO - temporarily disabled: https://discord.com/channels/1087271586832318494/1087272728177942629/1263488000042602497 */
-			/*.decorator(EncodingService.builder()
+			.decorator(EncodingService.builder()
 				.encodableContentTypes(
 					MediaType.PLAIN_TEXT,
 					MediaType.PLAIN_TEXT_UTF_8,
@@ -548,7 +549,7 @@ public class ExternalApiServer implements AutoCloseable {
 					MediaType.JSON_UTF_8
 				)
 				.newDecorator()
-			)*/
+			)
 			.errorHandler(LoggingServerErrorHandler.INSTANCE)
 			.gracefulShutdownTimeout(gracefulShutdown ? Duration.ofSeconds(1) : Duration.ZERO, gracefulShutdown ? Duration.ofSeconds(1) : Duration.ZERO)
 			.idleTimeoutMillis(apiOptions.idleTimeoutInMillis())
