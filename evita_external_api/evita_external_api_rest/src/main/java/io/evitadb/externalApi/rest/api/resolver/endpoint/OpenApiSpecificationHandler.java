@@ -95,9 +95,6 @@ public class OpenApiSpecificationHandler<C extends RestHandlingContext> extends 
 				throw createInternalError("Should never happen!");
 			}
 			responseWriter.write(HttpData.copyOf(outputStream.toByteArray()));
-			/*responseWriter.whenConsumed().thenRun(() ->
-				streamData(eventLoop, responseWriter, new ByteArrayInputStream(outputStream.toByteArray()))
-			);*/
 		} catch (IOException e) {
 			throw createInternalError("Could not serialize OpenAPI specification: " + e.getMessage());
 		}

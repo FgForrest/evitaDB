@@ -112,7 +112,7 @@ public abstract class JfrRecordingEndpointHandler extends EndpointHandler<JfrRec
 	@Override
 	protected void writeResponse(@Nonnull JfrRecordingEndpointExecutionContext executionContext, @Nonnull HttpResponseWriter responseWriter, @Nonnull Object result, @Nonnull EventLoop eventExecutor) {
 		try {
-			responseWriter.write(HttpData.ofUtf8(manager.getObjectMapper().writeValueAsString(result)));
+			responseWriter.write(HttpData.copyOf(manager.getObjectMapper().writeValueAsBytes(result)));
 		} catch (JsonProcessingException e) {
 			throw new GenericEvitaInternalError(
 				"Failed to serialize response object to JSON.",

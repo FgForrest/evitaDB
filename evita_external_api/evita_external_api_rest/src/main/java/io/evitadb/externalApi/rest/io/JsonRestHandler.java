@@ -75,7 +75,7 @@ public abstract class JsonRestHandler<CTX extends RestHandlingContext> extends R
 	@Override
 	protected void writeResponse(@Nonnull RestEndpointExecutionContext executionContext, @Nonnull HttpResponseWriter responseWriter, @Nonnull Object result, @Nonnull EventLoop eventExecutors) {
 		try {
-			responseWriter.write(HttpData.ofUtf8(restHandlingContext.getObjectMapper().writeValueAsString(result)));
+			responseWriter.write(HttpData.copyOf(restHandlingContext.getObjectMapper().writeValueAsBytes(result)));
 		} catch (IOException e) {
 			throw new OpenApiInternalError(
 				"Could not serialize Java object response to JSON: " + e.getMessage(),

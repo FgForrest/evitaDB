@@ -51,8 +51,8 @@ import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidUsageException;
 import io.evitadb.externalApi.graphql.metric.event.request.ExecutedEvent;
-import io.evitadb.externalApi.http.EndpointResponse;
 import io.evitadb.externalApi.http.EndpointHandler;
+import io.evitadb.externalApi.http.EndpointResponse;
 import io.evitadb.externalApi.http.MimeTypes;
 import io.evitadb.externalApi.http.SuccessEndpointResponse;
 import io.evitadb.externalApi.trace.ExternalApiTracingContextProvider;
@@ -263,7 +263,7 @@ public class GraphQLHandler extends EndpointHandler<GraphQLEndpointExecutionCont
     @Override
     protected void writeResponse(@Nonnull GraphQLEndpointExecutionContext executionContext, @Nonnull HttpResponseWriter responseWriter, @Nonnull Object response, @Nonnull EventLoop eventExecutors) {
         try {
-            responseWriter.write(HttpData.ofUtf8(objectMapper.writeValueAsString(response)));
+            responseWriter.write(HttpData.copyOf(objectMapper.writeValueAsBytes(response)));
         } catch (IOException e) {
             throw new GraphQLInternalError(
                 "Could not serialize GraphQL API response to JSON: " + e.getMessage(),
