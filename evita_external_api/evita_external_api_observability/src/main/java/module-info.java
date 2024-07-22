@@ -88,6 +88,7 @@ module evita.external.api.observability {
 	requires io.prometheus.metrics.exporter.common;
 	requires io.netty.transport;
 	requires com.fasterxml.jackson.datatype.jsr310;
+	requires com.fasterxml.jackson.datatype.jdk8;
 
 	exports io.evitadb.externalApi.observability.configuration;
 	exports io.evitadb.externalApi.observability.trace;

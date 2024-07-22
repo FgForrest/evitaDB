@@ -70,8 +70,8 @@ The layout is the `io.evitadb.server.log.AppLogJsonLayout` layout to log app log
 
 ## Readiness and liveness probes
 
-The evitaDB server provides endpoints for Kubernetes [readiness and liveness probes](https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/). The liveness probe is also c
-onfigured as [healthcheck](https://docs.docker.com/reference/dockerfile/#healthcheck) by default in our Docker image. By default the health check waits `30s` before it
+The evitaDB server provides endpoints for Kubernetes [readiness and liveness probes](https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/). The liveness probe is also 
+configured as [healthcheck](https://docs.docker.com/reference/dockerfile/#healthcheck) by default in our Docker image. By default the health check waits `30s` before it
 starts checking the server health, for larger databases you may need to increase this value using environment variable 
 `HEALTHCHECK_START_DELAY` so that they have enough time to be loaded into memory.
 
@@ -170,7 +170,7 @@ If the server is unhealthy, the response will list the problems.
 
 ## Metrics
 
-evitaDB server has the option to publish [metrics](https://en.wikipedia.org/wiki/Observability_(software)#Metrics).
+evitaDB server can publish [metrics](https://en.wikipedia.org/wiki/Observability_(software)#Metrics).
 The popular option of using the [Prometheus](https://prometheus.io/) solution was chosen as a way to make them available
 outside the application. evitaDB exposes a scraping endpoint to which the application publishes collected metrics at
 regular intervals, which can then be visualized using any tool such as [Grafana](https://grafana.com/).
@@ -221,43 +221,31 @@ to constrain the collected data. From the JVM category (
 more [here](https://prometheus.github.io/client_java/instrumentation/jvm/)), published metrics can be constrained by
 specifying selected names in the YAML array:
 
-- AllMetrics
-- JvmThreadsMetrics
-- JvmBufferPoolMetrics
-- JvmClassLoadingMetrics
-- JvmCompilationMetrics
-- JvmGarbageCollectorMetrics
-- JvmMemoryPoolAllocationMetrics
-- JvmMemoryMetrics
-- JvmRuntimeInfoMetric
-- ProcessMetrics
+- `AllMetrics`
+- `JvmThreadsMetrics`
+- `JvmBufferPoolMetrics`
+- `JvmClassLoadingMetrics`
+- `JvmCompilationMetrics`
+- `JvmGarbageCollectorMetrics`
+- `JvmMemoryPoolAllocationMetrics`
+- `JvmMemoryMetrics`
+- `JvmRuntimeInfoMetric`
+- `ProcessMetrics`
 
 From the internal metrics section, metrics can also be constrained using the *wildcard* pattern in conjunction with Java
 package. Thus, we can specify the name of the package that contains the metrics we want to enable with the suffix ".*",
 which will enable the collection of all events in that category (package). It is also possible to specify individual
 metrics by specifying the full name of their corresponding class (*package_path.class_name*).
 
-Categories of internal metrics (the corresponding class and package names will be added later):
-
-- Storage
-    - Transactions
-    - Storage
-        - Per collection
-        - Per catalog
-        - Per instance
-- Engine
-    - Queries
-    - Per instance
-    - Cache
-- Web API
+Internal metrics are documented in the [Metrics reference](#metrics-reference) section.
 
 ### JFR events
 
 The [JFR events](https://docs.oracle.com/javacomponents/jmc-5-4/jfr-runtime-guide/about.htm#JFRUH170) can also be
 associated with metrics, which are used for local diagnostics of Java applications and can provide deeper insight into
-their functioning. Unlike metrics that publish different types of data (Counter, Gauge, ...), JFR (Java Flight Recorder)
-responds to the invocation of any of the events targeted by the recording that is running. It is usually desirable to
-run a streaming recording that collects data on all registered events while it is running and it can be saved to a file
+their functioning. Unlike metrics that publish different types of data (counter, gauge, ...), JFR (Java Flight Recorder) 
+responds to the invocation of any of the events targeted by the current recording. It is usually desirable to
+run a streaming recording that collects data on all registered events while it is running, and it can be saved to a file
 when the recording stops if desired. With JFR, one can also learn how long it took to process the monitored events or
 how many times each event was called during the monitored time. These internal events, which in the case of evitaDB
 share a class with Prometheus metrics, carry auxiliary information (catalog name, query parameters, etc.) which can help
@@ -265,13 +253,154 @@ in solving more complex problems and finding performance bottlenecks. Among othe
 traces are stored in conjunction with this data.
 
 In evitaDB, this concept has been integrated into the aforementioned Observability API (URL: */observability/*), on which
-these two endpoints exist for JFR control:
+these endpoints exist for JFR control:
 
-- **start:** starts the JFR.
-- **stop:** stops the JFR and saves the recording progress file - the file is then available at URL */observability/recording.jfr*.
+#### Check recording is running
+
+Since only one recording can be running at a time, it is necessary to check if the recording is currently running.
+You can do this by calling the following endpoint:
+
+```shell
+curl -k "http://localhost:5555/observability/checkRecording" \
+     -H 'Content-Type: application/json'
+```
+
+The response will be empty if there is no active JFR recording. If there is an active recording, the response will 
+return a JSON object representing the task:
+
+```json
+{
+  "taskType": "JfrRecorderTask",
+  "taskName": "JFR recording",
+  "taskId": "e36303cd-9e20-4e51-8972-2b98c9945dd4",
+  "catalogName": null,
+  "issued": "2024-07-22T17:20:28.157+02:00",
+  "started": "2024-07-22T17:20:28.16+02:00",
+  "finished": null,
+  "progress": 0,
+  "settings": {
+    "allowedEvents": [
+      "io.evitadb.query",
+      "MemoryAllocation"
+    ],
+    "maxSizeInBytes": null,
+    "maxAgeInSeconds": null
+  },
+  "result": null,
+  "publicExceptionMessage": null,
+  "exceptionWithStackTrace": null
+}
+```
+
+#### List event groups to include in recording
+
+To start recording JFR events, you must specify which JFR event groups to include in the recording.
+You can list all available event groups by invoking the following endpoint:
+
+```shell
+curl -k "http://localhost:5555/observability/getRecordingEventTypes" \
+     -H 'Content-Type: application/json'
+```
+
+And you will get a list of all available event groups:
+
+```json
+[
+  {
+    "id": "io.evitadb.cache",
+    "name": "evitaDB - Cache",
+    "description": "evitaDB events relating to internal database cache."
+  },
+  {
+    "id": "io.evitadb.externalApi.graphql.instance",
+    "name": "evitaDB - GraphQL API",
+    "description": "evitaDB events relating to GraphQL API."
+  },
+  ... and more ...
+]
+```
+
+The `id` property is the identification of the group, which you must specify when starting the recording. 
+Other properties just describe the group.
+
+#### Start recording
+
+Recording is started by calling the following endpoint:
+
+```shell
+curl -k -X POST "http://localhost:5555/observability/startRecording" \
+     -H 'Content-Type: application/json' \
+     -d '{
+           "allowedEvents": [
+             "io.evitadb.query",
+             "MemoryAllocation"
+           ]
+         }'
+```
+
+The `allowedEvents` property is an array of event group IDs that you want to include in the recording.
+
+<Note type="info">
+
+Only one recording can be running at a time. If you try to start a new recording while another one is running, 
+the server will return an error.
+
+</Note>
+
+#### Stop recording
+
+Recording can be stopped by calling the following endpoint:
+
+```shell
+curl -k -X POST "http://localhost:5555/observability/stopRecording" \
+     -H 'Content-Type: application/json'
+```
+
+And you'll get similar response as when checking if the recording is running:
+
+```json
+{
+  "taskType": "JfrRecorderTask",
+  "taskName": "JFR recording",
+  "taskId": "e36303cd-9e20-4e51-8972-2b98c9945dd4",
+  "catalogName": null,
+  "issued": "2024-07-22T17:20:28.157+02:00",
+  "started": "2024-07-22T17:20:28.16+02:00",
+  "finished": "2024-07-22T17:28:00.729+02:00",
+  "progress": 100,
+  "settings": {
+    "allowedEvents": [
+      "io.evitadb.query",
+      "MemoryAllocation"
+    ],
+    "maxSizeInBytes": null,
+    "maxAgeInSeconds": null
+  },
+  "result": {
+    "fileId": "45cee61c-a233-4c36-ad3c-fa2325434bf6",
+    "name": "jfr_recording_2024-07-22T17-20-28.157316739-02-00.jfr",
+    "description": "JFR recording started at 2024-07-22T17:20:28.157619773+02:00 with events: [io.evitadb.query, MemoryAllocation].",
+    "contentType": "application/octet-stream",
+    "totalSizeInBytes": 180281,
+    "created": "2024-07-22T17:20:28.158+02:00",
+    "origin": [
+      "JfrRecorderTask"
+    ]
+  },
+  "publicExceptionMessage": null,
+  "exceptionWithStackTrace": null
+}
+```
+
+The main difference is that the result of a JFR recording task includes a file that you can download from the server or 
+find directly in the server's export folder. The file is automatically removed after a configured period of time.
+
+<Note type="info">
 
 Since the produced JFR files are binary and therefore not directly readable (the JDK offers a terminal utility *JMC*,
 but this is not ideal in terms of readability and orientation in the output), we plan to add a visualizer to evitaLab.
+
+</Note>
 
 ## Tracing
 
@@ -280,7 +409,7 @@ using [OpenTelemetry](https://opentelemetry.io/).
 It offers to collect useful information on all queries to the database within a request made via any of the external
 APIs. This data is exported from the database using
 the [OTLP exporter](https://opentelemetry.io/docs/specs/otel/protocol/exporter/) and then forwarded to
-the [OpenTelemetry collector](https://opentelemetry.io/docs/collector/). The latter can sort, reduce and forward the
+the [OpenTelemetry collector](https://opentelemetry.io/docs/collector/). The latter can sort, reduce, and forward the
 data to other applications that can be used to visualize it, for example (tools like [Grafana](https://grafana.com/)
 using the [Tempo](https://grafana.com/oss/tempo/) module, [Jaeger](https://www.jaegertracing.io/),...). To maximize the
 effect of tracing, it is also possible to use the so-called distributed tracing method, where not only data from evitaDB

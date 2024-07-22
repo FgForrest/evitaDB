@@ -24,7 +24,7 @@
 package io.evitadb.externalApi.observability;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.linecorp.armeria.server.HttpService;
 import com.linecorp.armeria.server.file.FileService;
 import io.evitadb.api.exception.SingletonTaskAlreadyRunningException;
@@ -52,6 +52,7 @@ import io.evitadb.externalApi.observability.metric.MetricHandler;
 import io.evitadb.externalApi.observability.metric.PrometheusMetricsHttpService;
 import io.evitadb.externalApi.observability.task.JfrRecorderTask;
 import io.evitadb.externalApi.observability.task.JfrRecorderTask.RecordingSettings;
+import io.evitadb.externalApi.serialization.OffsetDateTimeSerializer;
 import io.evitadb.externalApi.utils.path.PathHandlingService;
 import io.evitadb.utils.Assert;
 import jdk.jfr.FlightRecorder;
@@ -64,6 +65,7 @@ import java.io.File;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.file.Path;
+import java.time.OffsetDateTime;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
@@ -177,7 +179,10 @@ public class ObservabilityManager {
 		registerJfrControlEndpoints();
 		registerRecordingFileResourceHandler();
 		objectMapper = new ObjectMapper();
-		objectMapper.registerModule(new JavaTimeModule());
+
+		final SimpleModule module = new SimpleModule();
+		module.addSerializer(OffsetDateTime.class, new OffsetDateTimeSerializer());
+		objectMapper.registerModule(module);
 	}
 
 	/**
