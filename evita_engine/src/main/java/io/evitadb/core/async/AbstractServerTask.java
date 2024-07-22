@@ -48,19 +48,19 @@ import java.util.function.Function;
 @Slf4j
 abstract class AbstractServerTask<S, T> implements ServerTask<S, T> {
 	/**
-	 * Contains the actual status of the task.
-	 */
-	private final AtomicReference<TaskStatus<S, T>> status;
-	/**
 	 * The exception handler that is called when an exception is thrown during the task execution.
 	 * When the exception handler doesn't throw exception and instead returns a compatible value it's considered as a
 	 * successful handling of the exception and value is returned as a result of the task.
 	 */
-	private final Function<Throwable, T> exceptionHandler;
+	protected final Function<Throwable, T> exceptionHandler;
 	/**
 	 * This future can be returned to a client to join the future in its pipeline.
 	 */
-	private final ServerTaskCompletableFuture<T> future;
+	protected final CompletableFuture<T> future;
+	/**
+	 * Contains the actual status of the task.
+	 */
+	protected final AtomicReference<TaskStatus<S, T>> status;
 
 	public AbstractServerTask(@Nonnull String taskName, @Nullable S settings) {
 		this.future = new ServerTaskCompletableFuture<>();
@@ -159,6 +159,15 @@ abstract class AbstractServerTask<S, T> implements ServerTask<S, T> {
 	}
 
 	@Override
+	public boolean cancel() {
+		if (this.future.isDone() || this.future.isCancelled()) {
+			return false;
+		} else {
+			return this.future.cancel(true);
+		}
+	}
+
+	@Override
 	@Nullable
 	public final T execute() {
 		// emit the start event
@@ -174,16 +183,7 @@ abstract class AbstractServerTask<S, T> implements ServerTask<S, T> {
 			// prepare the finish event
 			final BackgroundTaskFinishedEvent finishedEvent = new BackgroundTaskFinishedEvent(theStatus.catalogName(), theStatus.taskName());
 			try {
-				final T result = this.executeInternal();
-				if (this.future.isDone()) {
-					return null;
-				} else {
-					this.status.updateAndGet(
-						currentStatus -> currentStatus.transitionToFinished(result)
-					);
-					this.future.complete(result);
-					return result;
-				}
+				return executeAndCompleteFuture();
 			} catch (Throwable e) {
 				log.error("Task failed: {}", theStatus.taskName(), e);
 				this.status.updateAndGet(
@@ -212,15 +212,6 @@ abstract class AbstractServerTask<S, T> implements ServerTask<S, T> {
 	}
 
 	@Override
-	public boolean cancel() {
-		if (this.future.isDone() || this.future.isCancelled()) {
-			return false;
-		} else {
-			return this.future.cancel(true);
-		}
-	}
-
-	@Override
 	public void fail(@Nonnull Exception exception) {
 		if (!(this.future.isDone() || this.future.isCancelled())) {
 			this.future.completeExceptionally(exception);
@@ -232,6 +223,7 @@ abstract class AbstractServerTask<S, T> implements ServerTask<S, T> {
 
 	/**
 	 * Method updates the progress of the task.
+	 *
 	 * @param progress new progress of the task in percents
 	 */
 	public void updateProgress(int progress) {
@@ -243,16 +235,36 @@ abstract class AbstractServerTask<S, T> implements ServerTask<S, T> {
 	}
 
 	/**
-	 * Executes the task logic.
+	 * Executes the task and completes the future with the result.
+	 *
 	 * @return the result of the task
 	 */
+	@Nonnull
+	protected T executeAndCompleteFuture() {
+		final T result = this.executeInternal();
+		if (this.future.isDone()) {
+			return null;
+		} else {
+			this.status.updateAndGet(
+				currentStatus -> currentStatus.transitionToFinished(result)
+			);
+			this.future.complete(result);
+			return result;
+		}
+	}
+
+	/**
+	 * Executes the task logic.
+	 *
+	 * @return the result of the task
+	 */
+	@Nonnull
 	protected abstract T executeInternal();
 
 	/**
 	 * This class is used to keep {@link ServerTask} alive as long as someone keeps a reference to the future. Task
 	 * must not be ever garbage collected while the future is still referenced. That's why this inner class is not
 	 * static.
-	 * @param <X>
 	 */
 	@SuppressWarnings("InnerClassMayBeStatic")
 	private class ServerTaskCompletableFuture<X> extends CompletableFuture<X> {

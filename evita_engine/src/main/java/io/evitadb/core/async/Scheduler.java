@@ -24,6 +24,7 @@
 package io.evitadb.core.async;
 
 import io.evitadb.api.configuration.ThreadPoolOptions;
+import io.evitadb.api.task.InternallyScheduledTask;
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.api.task.Task;
 import io.evitadb.api.task.TaskStatus;
@@ -275,7 +276,12 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 	@Nonnull
 	public <T> CompletableFuture<T> submit(@Nonnull ServerTask<?, T> task) {
 		addTaskToQueue(task);
-		this.executorService.submit(task::execute);
+		if (task.getClass().isAnnotationPresent(InternallyScheduledTask.class)) {
+			// if the task is internally scheduled, we can execute it immediately
+			task.execute();
+		} else {
+			this.executorService.submit(task::execute);
+		}
 		this.submittedTaskCount.incrementAndGet();
 		return task.getFutureResult();
 	}

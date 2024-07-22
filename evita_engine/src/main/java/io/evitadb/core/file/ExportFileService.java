@@ -33,6 +33,7 @@ import io.evitadb.utils.FileUtils;
 import io.evitadb.utils.UUIDUtil;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -44,6 +45,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.time.OffsetDateTime;
@@ -72,6 +74,7 @@ import static java.util.Optional.of;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
+@Slf4j
 public class ExportFileService {
 	/**
 	 * Storage options.
@@ -196,12 +199,7 @@ public class ExportFileService {
 						.map(String::trim)
 						.toArray(String[]::new)
 				);
-				Files.write(
-					storageOptions.exportDirectory().resolve(fileId + FileForFetch.METADATA_EXTENSION),
-					fileForFetch.toLines(),
-					StandardCharsets.UTF_8,
-					StandardOpenOption.CREATE_NEW
-				);
+				writeFileMetadata(fileForFetch, StandardOpenOption.CREATE_NEW);
 				this.files.add(0, fileForFetch);
 				return fileForFetch;
 			} catch (IOException e) {
@@ -277,12 +275,7 @@ public class ExportFileService {
 									.map(String::trim)
 									.toArray(String[]::new)
 							);
-							Files.write(
-								storageOptions.exportDirectory().resolve(fileId + FileForFetch.METADATA_EXTENSION),
-								fileForFetch.toLines(),
-								StandardCharsets.UTF_8,
-								StandardOpenOption.CREATE_NEW
-							);
+							writeFileMetadata(fileForFetch, StandardOpenOption.CREATE_NEW);
 							this.files.add(0, fileForFetch);
 							return fileForFetch;
 						} catch (IOException e) {
@@ -371,12 +364,56 @@ public class ExportFileService {
 
 	/**
 	 * Returns absolute path of the file in the export directory.
+	 *
 	 * @param file file to get the path for
 	 * @return absolute path of the file in the export directory
 	 */
 	@Nonnull
 	public Path getFilePath(@Nonnull FileForFetch file) {
-		return file.path(storageOptions.exportDirectory());
+		return file.path(this.storageOptions.exportDirectory());
+	}
+
+	/**
+	 * Checks whether a file has still the same size on the disk and if not, it updates the metadata file and the file
+	 * contents in the memory.
+	 *
+	 * @param theFile file to check
+	 * @return updated file
+	 */
+	@Nonnull
+	public FileForFetch updateFileData(@Nonnull FileForFetch theFile) {
+		this.lock.lock();
+		try {
+			final long actualSize = Files.size(theFile.path(this.storageOptions.exportDirectory()));
+			if (actualSize != theFile.totalSizeInBytes()) {
+				final FileForFetch updatedFile = theFile.withTotalSizeInBytes(actualSize);
+				writeFileMetadata(updatedFile, StandardOpenOption.TRUNCATE_EXISTING);
+				this.files = this.files.stream()
+					.map(it -> it.fileId().equals(theFile.fileId()) ? updatedFile : it)
+					.collect(Collectors.toList());
+				return updatedFile;
+			}
+		} catch (IOException e) {
+			log.error("Failed to read file size: {}", theFile.name(), e);
+		} finally {
+			this.lock.unlock();
+		}
+		return theFile;
+	}
+
+	/**
+	 * Writes metadata file for the file with the specified fileId.
+	 *
+	 * @param fileForFetch file to write metadata for
+	 * @throws IOException if the metadata file cannot be written
+	 */
+	private void writeFileMetadata(@Nonnull FileForFetch fileForFetch, @Nonnull OpenOption... options) throws IOException {
+		Files.write(
+			storageOptions.exportDirectory().resolve(fileForFetch.fileId() + FileForFetch.METADATA_EXTENSION),
+			fileForFetch.toLines(),
+			StandardCharsets.UTF_8,
+			options
+		);
 	}
 
 	/**

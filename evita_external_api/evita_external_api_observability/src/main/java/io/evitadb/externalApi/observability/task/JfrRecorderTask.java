@@ -24,7 +24,7 @@
 package io.evitadb.externalApi.observability.task;
 
 import io.evitadb.api.file.FileForFetch;
-import io.evitadb.core.async.ClientCallableTask;
+import io.evitadb.core.async.ClientInfiniteCallableTask;
 import io.evitadb.core.file.ExportFileService;
 import io.evitadb.externalApi.observability.exception.JfRException;
 import io.evitadb.externalApi.observability.metric.EvitaJfrEventRegistry;
@@ -40,7 +40,6 @@ import lombok.extern.slf4j.Slf4j;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
-import java.nio.file.Path;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
@@ -60,7 +59,7 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @Slf4j
-public class JfrRecorderTask extends ClientCallableTask<RecordingSettings, FileForFetch> {
+public class JfrRecorderTask extends ClientInfiniteCallableTask<RecordingSettings, FileForFetch> {
 	/**
 	 * JFR recording instance.
 	 */
@@ -70,9 +69,9 @@ public class JfrRecorderTask extends ClientCallableTask<RecordingSettings, FileF
 	 */
 	private final FileForFetch targetFile;
 	/**
-	 * Absolute path to the target file.
+	 * Export file service that manages the target file.
 	 */
-	private final Path targetFilePath;
+	private final ExportFileService exportFileService;
 
 	public JfrRecorderTask(
 		@Nonnull String[] allowedEvents,
@@ -92,12 +91,12 @@ public class JfrRecorderTask extends ClientCallableTask<RecordingSettings, FileF
 			"application/octet-stream",
 			this.getClass().getSimpleName()
 		);
-		this.targetFilePath = exportFileService.getFilePath(targetFile);
+		this.exportFileService = exportFileService;
 	}
 
 	@Override
 	public boolean cancel() {
-		stop();
+		stopInternal();
 		return super.cancel();
 	}
 
@@ -109,7 +108,7 @@ public class JfrRecorderTask extends ClientCallableTask<RecordingSettings, FileF
 	private FileForFetch start() {
 		try {
 			this.recording.setToDisk(true);
-			this.recording.setDestination(this.targetFilePath);
+			this.recording.setDestination(this.exportFileService.getFilePath(this.targetFile).toAbsolutePath());
 			final RecordingSettings settings = getStatus().settings();
 			ofNullable(settings.maxSizeInBytes()).ifPresent(this.recording::setMaxSize);
 			ofNullable(settings.maxAgeInSeconds()).map(Duration::ofSeconds).ifPresent(this.recording::setMaxAge);
@@ -126,6 +125,16 @@ public class JfrRecorderTask extends ClientCallableTask<RecordingSettings, FileF
 		} catch (IOException e) {
 			throw new RuntimeException(e);
 		}
+	}
+
+	@Nonnull
+	@Override
+	protected FileForFetch stopInternal() {
+		if (this.recording.getState() != RecordingState.RUNNING) {
+			throw new JfRException("Recording is not running.");
+		}
+		this.recording.stop();
+		return this.exportFileService.updateFileData(this.targetFile);
 	}
 
 	/**
@@ -160,19 +169,6 @@ public class JfrRecorderTask extends ClientCallableTask<RecordingSettings, FileF
 			.map(EvitaEventGroup::events)
 			.flatMap(Arrays::stream)
 			.forEach(eventType -> recording.enable(eventType).withoutThreshold());
-	}
-
-	/**
-	 * Stops the JFR recording.
-	 * @return File where the recording was stored.
-	 */
-	@Nonnull
-	private FileForFetch stop() {
-		if (this.recording.getState() != RecordingState.RUNNING) {
-			throw new JfRException("Recording is not running.");
-		}
-		this.recording.stop();
-		return this.targetFile;
 	}
 
 	/**

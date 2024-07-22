@@ -284,7 +284,7 @@ public class ObservabilityManager {
 		final Collection<JfrRecorderTask> existingTaskStatus = evita.management().getTaskStatuses(JfrRecorderTask.class);
 		final JfrRecorderTask runningTask = existingTaskStatus.stream().filter(it -> !it.getFutureResult().isDone()).findFirst().orElse(null);
 		if (runningTask != null) {
-			runningTask.cancel();
+			runningTask.stop();
 			return runningTask.getStatus();
 		} else {
 			throw new EvitaInvalidUsageException(

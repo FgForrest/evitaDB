@@ -100,6 +100,7 @@ public class ClientRunnableTask<S> extends AbstractServerTask<S, Void> implement
 		super.execute();
 	}
 
+	@Nonnull
 	@Override
 	protected Void executeInternal() {
 		this.runnableWithProgress.accept(this);
