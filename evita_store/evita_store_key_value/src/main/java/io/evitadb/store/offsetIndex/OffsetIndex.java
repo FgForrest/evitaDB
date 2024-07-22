@@ -1726,17 +1726,7 @@ public class OffsetIndex {
 						final int startIndex = index >= 0 ? index : -index - 1;
 						for (int ix = hv.length - 1; ix > startIndex && ix >= 0; ix--) {
 							final PastMemory differenceSet = hvValues.get(hv[ix]);
-							diff += differenceSet.getCountFor(recordTypeId);
-							for (RecordKey addedKey : differenceSet.getAddedKeys()) {
-								if (addedKey.recordType() == recordTypeId) {
-									diff--;
-								}
-							}
-							for (RecordKey removedKey : differenceSet.getRemovedKeys()) {
-								if (removedKey.recordType() == recordTypeId) {
-									diff++;
-								}
-							}
+							diff -= differenceSet.getCountFor(recordTypeId);
 						}
 					}
 				}
