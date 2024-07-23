@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,6 +23,7 @@
 
 package io.evitadb.spike;
 
+import io.evitadb.api.query.require.HistogramBehavior;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.core.query.algebra.base.AndFormula;
@@ -31,12 +32,12 @@ import io.evitadb.core.query.algebra.base.JoinFormula;
 import io.evitadb.core.query.algebra.base.NotFormula;
 import io.evitadb.core.query.algebra.base.OrFormula;
 import io.evitadb.core.query.algebra.price.innerRecordHandling.PriceHandlingContainerFormula;
+import io.evitadb.core.query.algebra.price.predicate.PricePredicate;
 import io.evitadb.core.query.algebra.price.priceIndex.PriceIdContainerFormula;
 import io.evitadb.core.query.algebra.price.termination.FirstVariantPriceTerminationFormula;
 import io.evitadb.core.query.algebra.price.termination.PlainPriceTerminationFormula;
 import io.evitadb.core.query.algebra.price.termination.PlainPriceTerminationFormulaWithPriceFilter;
 import io.evitadb.core.query.algebra.price.termination.PriceEvaluationContext;
-import io.evitadb.core.query.algebra.price.termination.PricePredicate;
 import io.evitadb.core.query.algebra.price.termination.SumPriceTerminationFormula;
 import io.evitadb.core.query.algebra.price.translate.PriceIdToEntityIdTranslateFormula;
 import io.evitadb.core.query.extraResult.translator.histogram.producer.AttributeHistogramComputer;
@@ -197,7 +198,7 @@ public class FormulaCostMeasurement {
 			new PriceEvaluationContext(
 				new PriceIndexKey("whatever", Currency.getInstance("CZK"), PriceInnerRecordHandling.NONE)
 			),
-			PricePredicate.NO_FILTER
+			PricePredicate.ALL_RECORD_FILTER
 		);
 		blackhole.consume(testedFormula.compute());
 	}
@@ -206,14 +207,14 @@ public class FormulaCostMeasurement {
 	public void firstVariantPriceTermination(InnerRecordIdsWithPriceRecordsRecordState priceDataSet, Blackhole blackhole) {
 		final FirstVariantPriceTerminationFormula testedFormula = new FirstVariantPriceTerminationFormula(
 			new PriceHandlingContainerFormula(
-				PriceInnerRecordHandling.FIRST_OCCURRENCE,
+				PriceInnerRecordHandling.LOWEST_PRICE,
 				priceDataSet.getFormula()
 			),
 			new PriceEvaluationContext(
 				new PriceIndexKey("whatever", Currency.getInstance("CZK"), PriceInnerRecordHandling.NONE)
 			),
 			QueryPriceMode.WITH_TAX,
-			PricePredicate.NO_FILTER
+			PricePredicate.ALL_RECORD_FILTER
 		);
 		blackhole.consume(testedFormula.compute());
 	}
@@ -222,14 +223,14 @@ public class FormulaCostMeasurement {
 	public void sumPriceTermination(InnerRecordIdsWithPriceRecordsRecordState priceDataSet, Blackhole blackhole) {
 		final SumPriceTerminationFormula testedFormula = new SumPriceTerminationFormula(
 			new PriceHandlingContainerFormula(
-				PriceInnerRecordHandling.FIRST_OCCURRENCE,
+				PriceInnerRecordHandling.LOWEST_PRICE,
 				priceDataSet.getFormula()
 			),
 			new PriceEvaluationContext(
 				new PriceIndexKey("whatever", Currency.getInstance("CZK"), PriceInnerRecordHandling.NONE)
 			),
 			QueryPriceMode.WITH_TAX,
-			PricePredicate.NO_FILTER
+			PricePredicate.ALL_RECORD_FILTER
 		);
 		blackhole.consume(testedFormula.compute());
 	}
@@ -247,7 +248,7 @@ public class FormulaCostMeasurement {
 		final AttributeHistogramComputer testedFormula = new AttributeHistogramComputer(
 			"test histogram",
 			bucketDataSet.getFormula(),
-			40,
+			40, HistogramBehavior.STANDARD,
 			bucketDataSet.getRequest()
 		);
 		blackhole.consume(testedFormula.compute());
@@ -256,7 +257,8 @@ public class FormulaCostMeasurement {
 	@Benchmark
 	public void priceHistogramComputer(PriceBucketRecordState bucketDataSet, Blackhole blackhole) {
 		final PriceHistogramComputer testedFormula = new PriceHistogramComputer(
-			40, 2, QueryPriceMode.WITH_TAX,
+			40, HistogramBehavior.STANDARD,
+			2, QueryPriceMode.WITH_TAX,
 			bucketDataSet.getFormulaA(),
 			bucketDataSet.getFormulaB(),
 			bucketDataSet.getFilteredPriceRecordAccessors(),

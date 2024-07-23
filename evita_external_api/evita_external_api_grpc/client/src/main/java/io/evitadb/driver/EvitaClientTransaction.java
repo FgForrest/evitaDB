@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -27,6 +27,8 @@ import io.evitadb.api.TransactionContract;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
+import java.util.UUID;
+
 /**
  * {@inheritDoc TransactionContract}
  *
@@ -37,13 +39,13 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class EvitaClientTransaction implements TransactionContract {
 	/**
-	 * Reference to the active session the transaction is related to and opened within.
-	 */
-	private final EvitaClientSession session;
-	/**
 	 * Contains unique id of the transaction (the overflow risk for long type is ignored).
 	 */
-	@Getter private final long id;
+	@Getter private final UUID transactionId;
+	/**
+	 * Contains the catalog version the transaction is opened within.
+	 */
+	@Getter private final long catalogVersion;
 	/**
 	 * Rollback only flag.
 	 */
@@ -63,9 +65,7 @@ public class EvitaClientTransaction implements TransactionContract {
 		if (closed) {
 			return;
 		}
-
-		closed = true;
-		session.closeTransaction();
+		this.closed = true;
 	}
 
 }

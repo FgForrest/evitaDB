@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -24,9 +24,11 @@
 package io.evitadb.core.query.response;
 
 import io.evitadb.core.cache.CacheEden;
+import io.evitadb.core.cache.CacheSupervisor;
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.deferred.BitmapSupplier;
-import io.evitadb.index.transactionalMemory.TransactionalLayerCreator;
+import io.evitadb.core.transaction.memory.TransactionalLayerCreator;
 import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
@@ -45,6 +47,24 @@ public interface TransactionalDataRelatedStructure {
 	 * change than to allocate a lot of memory for precise invalidation.
 	 */
 	int EXCESSIVE_HIGH_CARDINALITY = 100;
+	/**
+	 * The hash function to use for hash calculation.
+	 */
+	LongHashFunction HASH_FUNCTION = CacheSupervisor.createHashFunction();
+
+	/**
+	 * Initializes internal ids and cost estimations. This method is necessary to be called prior to calling any of
+	 * these methods:
+	 *
+	 * - {@link #getHash()}
+	 * - {@link #getTransactionalIdHash()}
+	 * - {@link #getEstimatedCost()}
+	 * - {@link #getCost()}
+	 * - {@link #getCostToPerformanceRatio()}
+	 *
+	 * @param queryExecutionContext context of the query execution
+	 */
+	void initialize(@Nonnull QueryExecutionContext queryExecutionContext);
 
 	/**
 	 * Hash identifies the formula and it's contents. The hash must be different for formulas with logically different
@@ -59,7 +79,7 @@ public interface TransactionalDataRelatedStructure {
 	 * 1. and(eq(name,'Jan'),greaterThanEq(age,18))
 	 * 2. or(eq(name,'Jan'),greaterThanEq(age,18))
 	 */
-	long computeHash(@Nonnull LongHashFunction hashFunction);
+	long getHash();
 
 	/**
 	 * Transactional id hash is a has computed from the output of {@link #gatherTransactionalIds()}. The hash must be
@@ -68,7 +88,7 @@ public interface TransactionalDataRelatedStructure {
 	 * that has at least single difference in the array contents (we are going to rely on some hash function with low
 	 * rate of collisions).
 	 */
-	long computeTransactionalIdHash(@Nonnull LongHashFunction hashFunction);
+	long getTransactionalIdHash();
 
 	/**
 	 * Returns {@link TransactionalLayerCreator#getId()} of all bitmaps used by this formula. Should any of those ids
@@ -80,8 +100,8 @@ public interface TransactionalDataRelatedStructure {
 	/**
 	 * Estimated effort of the operation without prior the result of the computation. From bottom to up it's getting less
 	 * useful because operation at the top of the formula doesn't count bitmap cardinality reduction that happens when
-	 * formula is processed. For precise cost computation use {@link #getCost()} operation that takes this into an account
-	 * but also requires formula to be fully computed.
+	 * formula is processed. For precise cost computation use {@link #getCost()}  operation that takes
+	 * this into an account but also requires formula to be fully computed.
 	 */
 	long getEstimatedCost();
 

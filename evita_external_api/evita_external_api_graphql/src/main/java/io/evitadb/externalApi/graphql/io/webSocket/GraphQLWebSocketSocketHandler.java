@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,30 +23,13 @@
 
 package io.evitadb.externalApi.graphql.io.webSocket;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import graphql.ExecutionResult;
 import graphql.GraphQL;
 import io.evitadb.core.Evita;
-import io.evitadb.externalApi.graphql.GraphQLProvider;
-import io.evitadb.externalApi.graphql.exception.EvitaGraphQLError;
-import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
-import io.evitadb.externalApi.graphql.exception.GraphQLInvalidArgumentException;
-import io.evitadb.externalApi.graphql.io.GraphQLRequest;
-import io.evitadb.externalApi.graphql.io.GraphQLResponse;
-import io.evitadb.utils.Assert;
-import io.undertow.websockets.WebSocketConnectionCallback;
-import io.undertow.websockets.core.AbstractReceiveListener;
-import io.undertow.websockets.core.BufferedTextMessage;
-import io.undertow.websockets.core.WebSocketChannel;
-import io.undertow.websockets.core.WebSockets;
-import io.undertow.websockets.spi.WebSocketHttpExchange;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.reactivestreams.Publisher;
 
 import javax.annotation.Nonnull;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -56,7 +39,7 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 @RequiredArgsConstructor
 @Slf4j
-class GraphQLWebSocketSocketHandler implements WebSocketConnectionCallback {
+class GraphQLWebSocketSocketHandler /*implements WebSocketConnectionCallback*/ {
 
 	private static final int HANDSHAKE_INIT_TIMEOUT = 10;
 	private static final String SESSION_ATTRIBUTE_KEY = "session";
@@ -67,7 +50,7 @@ class GraphQLWebSocketSocketHandler implements WebSocketConnectionCallback {
 
 	@Nonnull private final GraphQLWebSocketExceptionHandler exceptionHandler = new GraphQLWebSocketExceptionHandler();
 
-	@Override
+	/*@Override
 	public void onConnect(WebSocketHttpExchange exchange, WebSocketChannel channel) {
 		initSession(channel);
 
@@ -123,16 +106,16 @@ class GraphQLWebSocketSocketHandler implements WebSocketConnectionCallback {
 		channel.resumeReceives();
 	}
 
-	/**
+	*//**
 	 * Creates new session for a single WebSocket channel/client connection.
-	 */
+	 *//*
 	private void initSession(@Nonnull WebSocketChannel channel) {
 		channel.setAttribute(SESSION_ATTRIBUTE_KEY, new GraphQLWebSocketSession(channel, objectMapper));
 	}
 
-	/**
+	*//**
 	 * Retrieves current session for current channel/connection.
-	 */
+	 *//*
 	@Nonnull
 	private GraphQLWebSocketSession getSession(@Nonnull WebSocketChannel channel) {
 		final GraphQLWebSocketSession session = (GraphQLWebSocketSession) channel.getAttribute(SESSION_ATTRIBUTE_KEY);
@@ -143,9 +126,9 @@ class GraphQLWebSocketSocketHandler implements WebSocketConnectionCallback {
 		return session;
 	}
 
-	/**
+	*//**
 	 * Processes {@code "connection_init"} message from a client.
-	 */
+	 *//*
 	private void handleConnectionInit(@Nonnull GraphQLWebSocketSession session) {
 		if (!session.isNew()) {
 			session.closeChannel(GraphQLWebSocketCloseMessage.tooManyInitRequests());
@@ -155,16 +138,16 @@ class GraphQLWebSocketSocketHandler implements WebSocketConnectionCallback {
 		}
 	}
 
-	/**
+	*//**
 	 * Processes {@code "ping"} message from a client.
-	 */
+	 *//*
 	private void handlePing(@Nonnull GraphQLWebSocketSession session) {
 		session.sendMessage(GraphQLWebSocketMessage.pong());
 	}
 
-	/**
+	*//**
 	 * Processes {@code "subscribe"} message from a client.
-	 */
+	 *//*
 	private void handleSubscribe(@Nonnull GraphQLWebSocketSession session,
 	                             @Nonnull GraphQLWebSocketMessage message) {
 		if (!session.isActive()) {
@@ -207,17 +190,17 @@ class GraphQLWebSocketSocketHandler implements WebSocketConnectionCallback {
 		}
 	}
 
-	/**
+	*//**
 	 * Processes {@code "complete"} message from a client.
-	 */
+	 *//*
 	private void handleComplete(@Nonnull GraphQLWebSocketSession session, @Nonnull GraphQLWebSocketMessage message) {
 		session.getSubscription(message.id()).ifPresent(GraphQLWebSocketSubscription::complete);
 	}
 
-	/**
+	*//**
 	 * Processes {@code "invalid_message"} message from a client.
-	 */
+	 *//*
 	private void handleInvalidMessage(@Nonnull GraphQLWebSocketMessage message) {
 		log.error("Invalid GraphQL WebSocket message received from client: {}", message.payload());
-	}
+	}*/
 }

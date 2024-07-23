@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -26,9 +26,10 @@ package io.evitadb.api.requestResponse.data.structure.predicate;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.query.require.PriceContentMode;
+import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.EvitaRequest;
+import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
-import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.data.structure.SerializablePredicate;
@@ -84,9 +85,13 @@ public class PriceContractSerializablePredicate implements SerializablePredicate
 	 */
 	@Getter @Nonnull private final Set<String> priceListsAsSet;
 	/**
+	 * Contains information about the type of price that should be used for sorting and filtering.
+	 */
+	@Getter @Nonnull private final QueryPriceMode queryPriceMode;
+	/**
 	 * Contains information about underlying predicate that is bound to the {@link EntityDecorator}. This underlying
 	 * predicate represents the scope of the fetched (enriched) entity in its true form (i.e. {@link Entity}) and needs
-	 * to be carried around even if {@link io.evitadb.api.EntityCollectionContract#limitEntity(SealedEntity, EvitaRequest, EvitaSessionContract)}
+	 * to be carried around even if {@link io.evitadb.api.EntityCollectionContract#limitEntity(EntityContract, EvitaRequest, EvitaSessionContract)}
 	 * is invoked on the entity.
 	 */
 	@Nullable @Getter private final PriceContractSerializablePredicate underlyingPredicate;
@@ -101,6 +106,7 @@ public class PriceContractSerializablePredicate implements SerializablePredicate
 		this.priceListsAsSet = Collections.emptySet();
 		this.underlyingPredicate = null;
 		this.contextAvailable = false;
+		this.queryPriceMode = QueryPriceMode.WITH_TAX;
 	}
 
 	public PriceContractSerializablePredicate(@Nonnull EvitaRequest evitaRequest, @Nullable Boolean contextAvailable) {
@@ -115,6 +121,7 @@ public class PriceContractSerializablePredicate implements SerializablePredicate
 		this.underlyingPredicate = null;
 		this.contextAvailable = contextAvailable != null ?
 			contextAvailable : this.currency != null && !ArrayUtils.isEmpty(this.priceLists);
+		this.queryPriceMode = evitaRequest.getQueryPriceMode();
 	}
 
 	public PriceContractSerializablePredicate(@Nonnull EvitaRequest evitaRequest, @Nonnull PriceContractSerializablePredicate underlyingPredicate) {
@@ -132,6 +139,7 @@ public class PriceContractSerializablePredicate implements SerializablePredicate
 		this.priceListsAsSet = underlyingPredicate.priceListsAsSet;
 		this.underlyingPredicate = underlyingPredicate;
 		this.contextAvailable = this.currency != null && !ArrayUtils.isEmpty(this.priceLists);
+		this.queryPriceMode = evitaRequest.getQueryPriceMode();
 	}
 
 	PriceContractSerializablePredicate(
@@ -141,6 +149,7 @@ public class PriceContractSerializablePredicate implements SerializablePredicate
 		@Nullable String[] priceLists,
 		@Nullable String[] additionalPriceLists,
 		@Nonnull Set<String> priceListsAsSet,
+		@Nonnull QueryPriceMode queryPriceMode,
 		boolean contextAvailable
 	) {
 		this.priceContentMode = priceContentMode;
@@ -150,6 +159,7 @@ public class PriceContractSerializablePredicate implements SerializablePredicate
 		this.additionalPriceLists = additionalPriceLists;
 		this.priceListsAsSet = priceListsAsSet;
 		this.underlyingPredicate = null;
+		this.queryPriceMode = queryPriceMode;
 		this.contextAvailable = contextAvailable;
 	}
 
@@ -225,6 +235,7 @@ public class PriceContractSerializablePredicate implements SerializablePredicate
 					this.currency, this.validIn, this.priceLists,
 					this.additionalPriceLists == null ? fetchesAdditionalPriceLists : ArrayUtils.mergeArrays(this.additionalPriceLists, fetchesAdditionalPriceLists),
 					this.priceListsAsSet,
+					this.queryPriceMode,
 					this.contextAvailable
 				);
 			}
@@ -234,7 +245,9 @@ public class PriceContractSerializablePredicate implements SerializablePredicate
 					requiresEntityPrices,
 					this.currency, this.validIn, this.priceLists,
 					this.additionalPriceLists,
-					this.priceListsAsSet, this.contextAvailable
+					this.priceListsAsSet,
+					this.queryPriceMode,
+					this.contextAvailable
 				);
 			} else {
 				return new PriceContractSerializablePredicate(
@@ -243,6 +256,7 @@ public class PriceContractSerializablePredicate implements SerializablePredicate
 					this.priceLists,
 					this.additionalPriceLists == null ? fetchesAdditionalPriceLists : ArrayUtils.mergeArrays(this.additionalPriceLists, fetchesAdditionalPriceLists),
 					this.additionalPriceLists == null ? this.priceListsAsSet : Stream.concat(this.priceListsAsSet.stream(), Arrays.stream(fetchesAdditionalPriceLists)).collect(Collectors.toSet()),
+					this.queryPriceMode,
 					this.contextAvailable
 				);
 			}

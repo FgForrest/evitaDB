@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -60,6 +60,8 @@ import java.util.Arrays;
  * inSet("code","A", "B")
  * </pre>
  *
+ * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#attribute-in-set">Visit detailed user documentation</a></p>
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
@@ -67,7 +69,8 @@ import java.util.Arrays;
 	shortDescription = "Compares value of the attribute with passed value and checks if the value of that attribute " +
 		"equals to at least one of the passed values. " +
 		"The constraint is equivalent to the multiple `equals` constraints combined with logical OR.",
-	supportedIn = {ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE},
+	userDocsLink = "/documentation/query/filtering/comparable#attribute-in-set",
+	supportedIn = {ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE, ConstraintDomain.INLINE_REFERENCE},
 	supportedValues = @ConstraintSupportedValues(allTypesSupported = true, arraysSupported = true)
 )
 public class AttributeInSet extends AbstractAttributeFilterConstraintLeaf implements IndexUsingConstraint {
@@ -78,8 +81,10 @@ public class AttributeInSet extends AbstractAttributeFilterConstraintLeaf implem
 	}
 
 	@Creator
-	public <T extends Serializable> AttributeInSet(@Nonnull @Classifier String attributeName,
-	                                               @Nonnull T... attributeValues) {
+	public <T extends Serializable> AttributeInSet(
+		@Nonnull @Classifier String attributeName,
+		@Nonnull T... attributeValues
+	) {
 		super(concat(attributeName, attributeValues));
 	}
 
@@ -94,7 +99,7 @@ public class AttributeInSet extends AbstractAttributeFilterConstraintLeaf implem
 
 	@Override
 	public boolean isApplicable() {
-		return isArgumentsNonNull() && getArguments().length >= 2;
+		return isArgumentsNonNull() && getArguments().length >= 1;
 	}
 
 	@Nonnull

@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -44,7 +44,7 @@ import java.util.Optional;
  * {@link SiblingsStatisticsComputer} registered inside {@link HierarchyStatisticsProducer}. The computer instance has
  * all pointer necessary to compute result.
  * All operations in this translator are relatively cheap comparing to final result computation, that is deferred to
- * {@link HierarchyStatisticsProducer#fabricate(List)} method.
+ * {@link ExtraResultProducer#fabricate(io.evitadb.core.query.QueryExecutionContext, List)} method.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -58,7 +58,16 @@ public class HierarchySiblingsTranslator
 		final Optional<HierarchyStatistics> statistics = siblings.getStatistics();
 		final HierarchyProducerContext context = producer.getContext(siblings.getName());
 		final HierarchyTraversalPredicate scopePredicate = siblings.getStopAt()
-			.map(it -> stopAtConstraintToPredicate(TraversalDirection.TOP_DOWN, it, context.queryContext(), context.entityIndex(), context.referenceSchema()))
+			.map(
+				it -> stopAtConstraintToPredicate(
+					TraversalDirection.TOP_DOWN,
+					it,
+					extraResultPlanningVisitor.getQueryContext(),
+					context.entityIndex(),
+					context.entitySchema(),
+					context.referenceSchema()
+				)
+			)
 			.orElse(HierarchyTraversalPredicate.ONLY_SELF);
 		producer.addComputer(
 			siblings.getName(),
@@ -67,7 +76,8 @@ public class HierarchySiblingsTranslator
 				context,
 				createEntityFetcher(
 					siblings.getEntityFetch().orElse(null),
-					context
+					context,
+					extraResultPlanningVisitor
 				),
 				context.hierarchyFilterPredicateProducer(),
 				extraResultPlanningVisitor.getQueryContext().getHierarchyHavingPredicate(),

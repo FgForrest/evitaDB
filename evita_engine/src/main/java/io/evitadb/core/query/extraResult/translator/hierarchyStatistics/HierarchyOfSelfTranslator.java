@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -32,6 +32,7 @@ import io.evitadb.api.query.require.HierarchyOfSelf;
 import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.core.EntityCollection;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
@@ -40,7 +41,7 @@ import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.extraResult.translator.RequireConstraintTranslator;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyStatisticsProducer;
-import io.evitadb.core.query.sort.Sorter;
+import io.evitadb.core.query.sort.NestedContextSorter;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.hierarchy.predicate.FilteringFormulaHierarchyEntityPredicate;
@@ -49,12 +50,13 @@ import io.evitadb.utils.Assert;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * This implementation of {@link RequireConstraintTranslator} converts {@link HierarchyOfSelf} to
  * {@link HierarchyStatisticsProducer}. The producer instance has all pointer necessary to compute result.
  * All operations in this translator are relatively cheap comparing to final result computation, that is deferred to
- * {@link ExtraResultProducer#fabricate(List)} method.
+ * {@link ExtraResultProducer#fabricate(io.evitadb.core.query.QueryExecutionContext, List)} method.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -64,28 +66,16 @@ public class HierarchyOfSelfTranslator
 
 	@Override
 	public ExtraResultProducer apply(HierarchyOfSelf hierarchyOfSelf, ExtraResultPlanningVisitor extraResultPlanner) {
-		final String queriedEntityType = extraResultPlanner.getSchema().getName();
+		final EntitySchemaContract queriedSchema = extraResultPlanner.getSchema();
+		final String queriedEntityType = queriedSchema.getName();
 		// verify that requested entityType is hierarchical
-		final EntitySchemaContract entitySchema = extraResultPlanner.getSchema(queriedEntityType);
 		Assert.isTrue(
-			entitySchema.isWithHierarchy(),
+			queriedSchema.isWithHierarchy(),
 			() -> new EntityIsNotHierarchicalException(null, queriedEntityType));
 
 		// prepare shared data from the context
 		final EvitaRequest evitaRequest = extraResultPlanner.getEvitaRequest();
 		final HierarchyFilterConstraint hierarchyWithin = evitaRequest.getHierarchyWithin(null);
-		final GlobalEntityIndex globalIndex = extraResultPlanner.getGlobalEntityIndex(queriedEntityType);
-		final Sorter sorter = hierarchyOfSelf.getOrderBy()
-			.map(
-				it -> extraResultPlanner.createSorter(
-					it,
-					null,
-					globalIndex,
-					queriedEntityType,
-					() -> "Hierarchy statistics of `" + entitySchema.getName() + "`: " + it
-				)
-			)
-			.orElse(null);
 
 		// retrieve existing producer or create new one
 		final HierarchyStatisticsProducer hierarchyStatisticsProducer = getHierarchyStatisticsProducer(
@@ -94,73 +84,92 @@ public class HierarchyOfSelfTranslator
 		// we need to register producer prematurely
 		extraResultPlanner.registerProducer(hierarchyStatisticsProducer);
 
-		// the request is simple - we use global index of current entity
-		hierarchyStatisticsProducer.interpret(
-			entitySchema,
-			null,
-			extraResultPlanner.getAttributeSchemaAccessor(),
-			hierarchyWithin,
-			globalIndex,
-			extraResultPlanner.getPrefetchRequirementCollector(),
-			(nodeId, statisticsBase) -> {
-				final FilterBy filter = statisticsBase == StatisticsBase.COMPLETE_FILTER ?
-					extraResultPlanner.getFilterByWithoutHierarchyFilter(null) :
-					extraResultPlanner.getFilterByWithoutHierarchyAndUserFilter(null);
-				final Formula childrenExceptSelfFormula = FormulaFactory.not(
-					new ConstantFormula(new BaseBitmap(nodeId)),
-					globalIndex.getHierarchyNodesForParentFormula(nodeId)
-				);
-				if (filter == null || !filter.isApplicable()) {
-					return childrenExceptSelfFormula;
-				} else {
-					final Formula baseFormula = extraResultPlanner.computeOnlyOnce(
-						Collections.singletonList(globalIndex),
-						filter,
-						() -> createFilterFormula(
-							extraResultPlanner.getQueryContext(),
+		final Optional<EntityCollection> targetCollectionRef = extraResultPlanner.getEntityCollection(queriedEntityType);
+		final GlobalEntityIndex globalIndex = targetCollectionRef.flatMap(EntityCollection::getGlobalIndexIfExists).orElse(null);
+		if (globalIndex != null) {
+			final NestedContextSorter sorter = hierarchyOfSelf.getOrderBy()
+				.map(
+					it -> extraResultPlanner.createSorter(
+						it,
+						null,
+						targetCollectionRef.get(),
+						queriedEntityType,
+						() -> "Hierarchy statistics of `" + queriedEntityType + "`: " + it
+					)
+				)
+				.orElse(null);
+
+			// the request is simple - we use global index of current entity
+			hierarchyStatisticsProducer.interpret(
+				extraResultPlanner.getQueryContext()::getRootHierarchyNodes,
+				queriedSchema,
+				null,
+				extraResultPlanner.getAttributeSchemaAccessor(),
+				hierarchyWithin,
+				globalIndex,
+				extraResultPlanner.getPrefetchRequirementCollector(),
+				(nodeId, statisticsBase) -> {
+					final FilterBy filter = statisticsBase == StatisticsBase.COMPLETE_FILTER ?
+						extraResultPlanner.getFilterByWithoutHierarchyFilter(null) :
+						extraResultPlanner.getFilterByWithoutHierarchyAndUserFilter(null);
+					final Formula childrenExceptSelfFormula = FormulaFactory.not(
+						new ConstantFormula(new BaseBitmap(nodeId)),
+						globalIndex.getHierarchyNodesForParentFormula(nodeId)
+					);
+					if (filter == null || !filter.isApplicable()) {
+						return childrenExceptSelfFormula;
+					} else {
+						final Formula baseFormula = extraResultPlanner.computeOnlyOnce(
+							Collections.singletonList(globalIndex),
 							filter,
-							GlobalEntityIndex.class,
-							globalIndex,
-							extraResultPlanner.getAttributeSchemaAccessor()
-						)
-					);
-					return FormulaFactory.and(
-						baseFormula,
-						childrenExceptSelfFormula
-					);
-				}
-			},
-			statisticsBase -> {
-				final FilterBy filter = statisticsBase == StatisticsBase.COMPLETE_FILTER ?
-					extraResultPlanner.getFilterByWithoutHierarchyFilter(null) :
-					extraResultPlanner.getFilterByWithoutHierarchyAndUserFilter(null);
-				if (filter == null || !filter.isApplicable()) {
-					return HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE;
-				} else {
-					final Formula baseFormula = extraResultPlanner.computeOnlyOnce(
-						Collections.singletonList(globalIndex),
-						filter,
-						() -> createFilterFormula(
-							extraResultPlanner.getQueryContext(),
+							() -> createFilterFormula(
+								extraResultPlanner.getQueryContext(),
+								filter,
+								GlobalEntityIndex.class,
+								queriedSchema,
+								globalIndex,
+								extraResultPlanner.getAttributeSchemaAccessor()
+							)
+						);
+						return FormulaFactory.and(
+							baseFormula,
+							childrenExceptSelfFormula
+						);
+					}
+				},
+				statisticsBase -> {
+					final FilterBy filter = statisticsBase == StatisticsBase.COMPLETE_FILTER ?
+						extraResultPlanner.getFilterByWithoutHierarchyFilter(null) :
+						extraResultPlanner.getFilterByWithoutHierarchyAndUserFilter(null);
+					if (filter == null || !filter.isApplicable()) {
+						return HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE;
+					} else {
+						final Formula baseFormula = extraResultPlanner.computeOnlyOnce(
+							Collections.singletonList(globalIndex),
 							filter,
-							GlobalEntityIndex.class,
-							globalIndex,
-							extraResultPlanner.getAttributeSchemaAccessor()
-						)
-					);
-					return new FilteringFormulaHierarchyEntityPredicate(
-						filter, baseFormula
-					);
+							() -> createFilterFormula(
+								extraResultPlanner.getQueryContext(),
+								filter,
+								GlobalEntityIndex.class,
+								queriedSchema,
+								globalIndex,
+								extraResultPlanner.getAttributeSchemaAccessor()
+							)
+						);
+						return new FilteringFormulaHierarchyEntityPredicate(
+							filter, baseFormula
+						);
+					}
+				},
+				EmptyHierarchicalEntityBehaviour.LEAVE_EMPTY,
+				sorter,
+				() -> {
+					for (RequireConstraint child : hierarchyOfSelf) {
+						child.accept(extraResultPlanner);
+					}
 				}
-			},
-			EmptyHierarchicalEntityBehaviour.LEAVE_EMPTY,
-			sorter,
-			() -> {
-				for (RequireConstraint child : hierarchyOfSelf) {
-					child.accept(extraResultPlanner);
-				}
-			}
-		);
+			);
+		}
 
 		return hierarchyStatisticsProducer;
 	}

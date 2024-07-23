@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -27,8 +27,10 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.api.requestResponse.schema.mutation.AttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 
 import javax.annotation.Nonnull;
 import java.util.function.Function;
@@ -47,38 +49,45 @@ public interface GlobalAttributeSchemaMutation extends AttributeSchemaMutation, 
 	 * the non-changed, original catalog schema is returned.
 	 */
 	@Nonnull
-	default CatalogSchemaContract replaceAttributeIfDifferent(
+	default CatalogSchemaWithImpactOnEntitySchemas replaceAttributeIfDifferent(
 		@Nonnull CatalogSchemaContract catalogSchema,
 		@Nonnull GlobalAttributeSchemaContract existingAttributeSchema,
-		@Nonnull GlobalAttributeSchemaContract updatedAttributeSchema
+		@Nonnull GlobalAttributeSchemaContract updatedAttributeSchema,
+		@Nonnull EntitySchemaProvider entitySchemaAccessor,
+		@Nonnull EntityAttributeSchemaMutation attributeSchemaMutation
 	) {
 		if (existingAttributeSchema.equals(updatedAttributeSchema)) {
 			// we don't need to update entity schema - the associated data already contains the requested change
-			return catalogSchema;
+			return new CatalogSchemaWithImpactOnEntitySchemas(catalogSchema);
 		} else {
-			return CatalogSchema._internalBuild(
-				catalogSchema.version() + 1,
-				catalogSchema.getName(),
-				catalogSchema.getNameVariants(),
-				catalogSchema.getDescription(),
-				catalogSchema.getCatalogEvolutionMode(),
-				Stream.concat(
-						catalogSchema.getAttributes().values().stream().filter(it -> !updatedAttributeSchema.getName().equals(it.getName())),
-						Stream.of(updatedAttributeSchema)
-					)
-					.collect(
-						Collectors.toMap(
-							AttributeSchemaContract::getName,
-							Function.identity()
+			return new CatalogSchemaWithImpactOnEntitySchemas(
+				CatalogSchema._internalBuild(
+					catalogSchema.version() + 1,
+					catalogSchema.getName(),
+					catalogSchema.getNameVariants(),
+					catalogSchema.getDescription(),
+					catalogSchema.getCatalogEvolutionMode(),
+					Stream.concat(
+							catalogSchema.getAttributes().values().stream().filter(it -> !updatedAttributeSchema.getName().equals(it.getName())),
+							Stream.of(updatedAttributeSchema)
 						)
-					),
-				catalogSchema instanceof CatalogSchema cs ?
-					cs.getEntitySchemaAccessor() :
-					entityType -> {
-						throw new UnsupportedOperationException(
-							"Mutated schema is not able to provide access to entity schemas!"
-						);
-					}
+						.collect(
+							Collectors.toMap(
+								AttributeSchemaContract::getName,
+								Function.identity()
+							)
+						),
+					entitySchemaAccessor
+				),
+				entitySchemaAccessor
+					.getEntitySchemas()
+					.stream()
+					.filter(it -> it.getAttributes().containsKey(existingAttributeSchema.getName()))
+					.map(it -> new ModifyEntitySchemaMutation(
+						it.getName(),
+						attributeSchemaMutation
+					))
+					.toArray(ModifyEntitySchemaMutation[]::new)
 			);
 		}
 	}

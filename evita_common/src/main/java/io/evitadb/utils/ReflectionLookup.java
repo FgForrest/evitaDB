@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -608,6 +608,37 @@ public class ReflectionLookup {
 	}
 
 	/**
+	 * Returns all getters that have passed `annotationType` defined on them.
+	 */
+	public <T extends Annotation> List<Method> findAllGettersHavingAnnotationDeeply(@Nonnull Class<?> onClass, @Nonnull Class<T> annotationType) {
+		return Stream.of(
+				findAllGetters(onClass).stream()
+					.filter(it -> getAnnotationInstance(it, annotationType) != null),
+				ofNullable(onClass.getSuperclass())
+					.filter(it -> !Objects.equals(Object.class, it))
+					.map(it -> findAllGettersHavingAnnotationDeeply(it, annotationType).stream())
+					.orElse(Stream.empty()),
+				Arrays.stream(onClass.getInterfaces())
+					.flatMap(it -> findAllGettersHavingAnnotationDeeply(it, annotationType).stream())
+			)
+			// reduce them by distinct values of `.toString()` method result
+			.reduce(
+				new LinkedHashMap<String, Method>(64),
+				(map, method) -> {
+					method.forEach(it -> map.putIfAbsent(it.toString(), it));
+					return map;
+				},
+				(map1, map2) -> {
+					map1.putAll(map2);
+					return map1;
+				}
+			)
+			.values()
+			.stream()
+			.toList();
+	}
+
+	/**
 	 * Returns all setters found on particular class or its superclasses. Ie. all setters that can be successfully called
 	 * on class instance.
 	 */
@@ -694,6 +725,43 @@ public class ReflectionLookup {
 	public <T extends Annotation> T getClassAnnotation(@Nonnull Class<?> type, @Nonnull Class<T> annotationType) {
 		final List<T> result = getClassAnnotations(type, annotationType);
 		return result.isEmpty() ? null : result.get(0);
+	}
+
+	/**
+	 * Returns the class the passed annotation belongs to.
+	 *
+	 * @param clazz              class to start the search from
+	 * @param annotationInstance annotation instance to find the origin class for
+	 * @return the class the passed annotation belongs to
+	 * @throws IllegalArgumentException if the annotation is not present on the class
+	 */
+	@Nonnull
+	public Class<?> findOriginClass(@Nonnull Class<?> clazz, @Nonnull Annotation annotationInstance) {
+		Class<?> examinedClass = clazz;
+		do {
+			final Annotation[] someAnnotation = examinedClass.getAnnotations();
+			if (someAnnotation.length > 0) {
+				for (Annotation annotation : expand(someAnnotation)) {
+					if (annotation == annotationInstance) {
+						return examinedClass;
+					}
+				}
+			}
+			for (Class<?> implementedInterface : examinedClass.getInterfaces()) {
+				final List<Annotation> interfaceAnnotation = getClassAnnotations(implementedInterface);
+				if (!interfaceAnnotation.isEmpty()) {
+					for (Annotation annotation : expand(interfaceAnnotation.toArray(new Annotation[0]))) {
+						if (annotation == annotationInstance) {
+							return implementedInterface;
+						}
+					}
+				}
+			}
+
+			examinedClass = examinedClass.getSuperclass();
+		} while (examinedClass != null && !Objects.equals(Object.class, examinedClass));
+
+		throw new IllegalArgumentException("Annotation " + annotationInstance + " is not present on class " + clazz + "!");
 	}
 
 	/**

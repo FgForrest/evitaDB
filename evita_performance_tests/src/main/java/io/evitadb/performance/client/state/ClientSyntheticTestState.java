@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -46,6 +46,7 @@ import org.openjdk.jmh.annotations.TearDown;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.nio.file.Path;
+import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.LinkedList;
 
@@ -63,7 +64,7 @@ public abstract class ClientSyntheticTestState extends ClientDataFullDatabaseSta
 	private static final int PRELOADED_QUERY_COUNT = 100_000;
 	private final Object monitor = new Object();
 
-	private Deque<Query> preloadedQueries = new LinkedList<>();
+	private Deque<Query> preloadedQueries = new ArrayDeque<>(64);
 	private Path inputFolder;
 	private Kryo kryo;
 	private Input input;

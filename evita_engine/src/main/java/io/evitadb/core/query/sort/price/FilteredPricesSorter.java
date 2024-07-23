@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -26,7 +26,7 @@ package io.evitadb.core.query.sort.price;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.order.PriceNatural;
 import io.evitadb.api.query.require.QueryPriceMode;
-import io.evitadb.core.query.QueryContext;
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor;
@@ -105,7 +105,7 @@ public class FilteredPricesSorter implements Sorter {
 		Assert.isTrue(!filteredPriceRecordAccessors.isEmpty(), "Price translate formulas must not be empty!");
 	}
 
-	private FilteredPricesSorter(@Nonnull Collection<FilteredPriceRecordAccessor> filteredPriceRecordAccessors, @Nonnull Comparator<PriceRecordContract> priceRecordComparator, @Nonnull Sorter unknownRecordIdsSorter) {
+	private FilteredPricesSorter(@Nonnull Collection<FilteredPriceRecordAccessor> filteredPriceRecordAccessors, @Nonnull Comparator<PriceRecordContract> priceRecordComparator, @Nullable Sorter unknownRecordIdsSorter) {
 		this.unknownRecordIdsSorter = unknownRecordIdsSorter;
 		this.filteredPriceRecordAccessors = filteredPriceRecordAccessors;
 		this.priceRecordComparator = priceRecordComparator;
@@ -138,7 +138,7 @@ public class FilteredPricesSorter implements Sorter {
 	}
 
 	@Override
-	public int sortAndSlice(@Nonnull QueryContext queryContext, @Nonnull Formula input, int startIndex, int endIndex, @Nonnull int[] result, int peak) {
+	public int sortAndSlice(@Nonnull QueryExecutionContext queryContext, @Nonnull Formula input, int startIndex, int endIndex, @Nonnull int[] result, int peak) {
 		// compute entire set of entity pks that needs to be sorted
 		final Bitmap computeResult = input.compute();
 		final RoaringBitmap computeResultBitmap = RoaringBitmapBackedBitmap.getRoaringBitmap(computeResult);
@@ -154,13 +154,13 @@ public class FilteredPricesSorter implements Sorter {
 		// slice the output and cut appropriate page from it
 		final int pageSize = Math.min(endIndex - startIndex, translatedResult.length - startIndex);
 		int written = 0;
-		for (int i = startIndex; i < pageSize; i++) {
+		for (int i = startIndex; i < startIndex + pageSize; i++) {
 			result[peak + written++] = translatedResult[i].entityPrimaryKey();
 		}
 
 		// if the output is not complete, and we have not found entity PKs
 		final int[] notFoundEntities = priceRecordsLookupResult.getNotFoundEntities();
-		if (translatedResult.length < endIndex && (notFoundEntities == null || notFoundEntities.length > 0)) {
+		if (translatedResult.length < endIndex && (notFoundEntities != null && notFoundEntities.length > 0)) {
 			// pass them to another sorter
 			final int recomputedStartIndex = Math.max(0, startIndex - written);
 			final int recomputedEndIndex = Math.max(0, endIndex - written);
@@ -192,7 +192,7 @@ public class FilteredPricesSorter implements Sorter {
 	 * or by default in ascending order of PKs.
 	 */
 	private int appendSortedUnknownEntityPks(
-		@Nonnull QueryContext queryContext,
+		@Nonnull QueryExecutionContext queryContext,
 		@Nonnull Bitmap computeResult,
 		@Nonnull RoaringBitmap computeResultBitmap,
 		@Nullable int[] notFoundArray,

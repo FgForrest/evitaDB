@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -25,6 +25,7 @@ package io.evitadb.api.query.parser;
 
 import io.evitadb.dataType.exception.InconvertibleDataTypeException;
 import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -67,7 +68,7 @@ class ValueTest {
 
 	@Test
 	void shouldNotReturnLocale() {
-		assertThrows(EvitaInternalError.class, () -> new Value(1).asLocale());
+		assertThrows(EvitaInvalidUsageException.class, () -> new Value(1).asLocale());
 		assertThrows(InconvertibleDataTypeException.class, () -> new Value("").asLocale());
 		assertThrows(InconvertibleDataTypeException.class, () -> new Value("zz").asLocale());
 	}
@@ -90,6 +91,5 @@ class ValueTest {
 	@Test
 	void shouldNotReturnIntegerArray() {
 		assertThrows(EvitaInternalError.class, () -> new Value(List.of(1, "b")).asIntegerArray());
-		assertThrows(EvitaInternalError.class, () -> new Value(new Long[] { 1L, 2L }).asIntegerArray());
 	}
 }

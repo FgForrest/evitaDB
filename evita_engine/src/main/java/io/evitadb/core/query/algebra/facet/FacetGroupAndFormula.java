@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -73,12 +73,12 @@ public class FacetGroupAndFormula extends AbstractFormula implements FacetGroupF
 	@Getter private final Bitmap[] bitmaps;
 
 	public FacetGroupAndFormula(@Nonnull String referenceName, @Nullable Integer facetGroupId, @Nonnull Bitmap facetIds, @Nonnull Bitmap... bitmaps) {
-		super();
 		Assert.isPremiseValid(facetIds.size() == bitmaps.length, "Expected one bitmap for each facet.");
 		this.referenceName = referenceName;
 		this.facetGroupId = facetGroupId;
 		this.facetIds = facetIds;
 		this.bitmaps = bitmaps;
+		this.initFields();
 	}
 
 	@Nonnull
@@ -106,6 +106,20 @@ public class FacetGroupAndFormula extends AbstractFormula implements FacetGroupF
 
 	@Override
 	public String toString() {
+		final StringBuilder sb = new StringBuilder("FACET " + referenceName + " AND (" + ofNullable(facetGroupId).map(Object::toString).orElse("-") + " - " + facetIds.toString() + "): ");
+		for (int i = 0; i < bitmaps.length; i++) {
+			final Bitmap bitmap = bitmaps[i];
+			sb.append(" ↦ ").append(bitmap.size());
+			if (i + 1 < facetIds.size()) {
+				sb.append(", ");
+			}
+		}
+		return sb.append(" primary keys").toString();
+	}
+
+	@Nonnull
+	@Override
+	public String toStringVerbose() {
 		final StringBuilder sb = new StringBuilder("FACET " + referenceName + " AND (" + ofNullable(facetGroupId).map(Object::toString).orElse("-") + " - " + facetIds.toString() + "): ");
 		for (int i = 0; i < bitmaps.length; i++) {
 			final Bitmap bitmap = bitmaps[i];

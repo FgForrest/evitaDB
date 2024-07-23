@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.schema;
 
+import io.evitadb.api.exception.SchemaAlteringException;
 import io.evitadb.api.query.filter.EntityLocaleEquals;
 import io.evitadb.api.query.filter.HierarchyWithin;
 import io.evitadb.api.query.filter.PriceBetween;
@@ -71,8 +72,7 @@ public interface EntitySchemaContract extends
 	Versioned,
 	NamedSchemaWithDeprecationContract,
 	ContentComparator<EntitySchemaContract>,
-	SortableAttributeCompoundSchemaProvider<EntityAttributeSchemaContract>
-{
+	SortableAttributeCompoundSchemaProvider<EntityAttributeSchemaContract> {
 
 	/**
 	 * Returns version of this definition object and gets increased with any entity schema update. Allows to execute
@@ -224,5 +224,13 @@ public interface EntitySchemaContract extends
 	default boolean allows(@Nonnull EvolutionMode evolutionMode) {
 		return getEvolutionMode().contains(evolutionMode);
 	}
+
+	/**
+	 * Validates current entity schema for invalid settings using the information from current catalog schema.
+	 *
+	 * @param catalogSchema current catalog schema providing access to other entity schemas in it
+	 * @throws SchemaAlteringException if there is an error in current schema
+	 */
+	void validate(@Nonnull CatalogSchemaContract catalogSchema) throws SchemaAlteringException;
 
 }

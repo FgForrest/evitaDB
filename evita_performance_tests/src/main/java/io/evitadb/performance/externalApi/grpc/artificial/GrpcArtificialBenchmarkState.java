@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,8 +23,12 @@
 
 package io.evitadb.performance.externalApi.grpc.artificial;
 
-import io.evitadb.driver.certificate.ClientCertificateManager;
+import com.linecorp.armeria.client.ClientFactory;
+import com.linecorp.armeria.client.grpc.GrpcClientBuilder;
+import com.linecorp.armeria.client.grpc.GrpcClients;
+import com.linecorp.armeria.common.grpc.GrpcSerializationFormats;
 import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
+import io.evitadb.externalApi.grpc.certificate.ClientCertificateManager;
 import io.evitadb.externalApi.grpc.configuration.GrpcConfig;
 import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc;
 import io.evitadb.externalApi.grpc.generated.EvitaSessionServiceGrpc;
@@ -33,11 +37,7 @@ import io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest;
 import io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse;
 import io.evitadb.externalApi.system.configuration.SystemConfig;
 import io.evitadb.performance.artificial.AbstractArtificialBenchmarkState;
-import io.grpc.ManagedChannel;
-import io.grpc.netty.NettyChannelBuilder;
-import io.netty.handler.ssl.SslContext;
 
-import java.util.concurrent.Executors;
 import java.util.function.Supplier;
 
 /**
@@ -51,13 +51,11 @@ public abstract class GrpcArtificialBenchmarkState extends AbstractArtificialBen
 	private static final int PORT = GrpcConfig.DEFAULT_GRPC_PORT;
 
 	private ClientCertificateManager clientCertificateManager;
-	private SslContext sslContext;
 
 	public void setUp() {
 		clientCertificateManager = new ClientCertificateManager.Builder()
 			.useGeneratedCertificate(true, HOST, SystemConfig.DEFAULT_SYSTEM_PORT)
 			.build();
-		sslContext = clientCertificateManager.buildClientSslContext();
 	}
 
 	/**
@@ -66,24 +64,31 @@ public abstract class GrpcArtificialBenchmarkState extends AbstractArtificialBen
 	@Override
 	public EvitaSessionServiceBlockingStub getSession() {
 		return getSession(() -> {
-			final ManagedChannel grpcEvitaChannel = NettyChannelBuilder.forAddress(HOST, PORT)
-				.sslContext(sslContext)
+			final ClientFactory clientFactory = ClientFactory.builder()
+				.useHttp1Pipelining(true)
+				.idleTimeoutMillis(10000, true)
+				.maxNumRequestsPerConnection(1000)
+				.maxNumEventLoopsPerEndpoint(10)
+				.tlsCustomizer(tlsCustomizer -> clientCertificateManager.buildClientSslContext(null, tlsCustomizer))
 				.build();
 
-			final EvitaServiceGrpc.EvitaServiceBlockingStub evitaClient = EvitaServiceGrpc.newBlockingStub(grpcEvitaChannel);
+			final GrpcClientBuilder clientBuilder = GrpcClients.builder(HOST + ":" + PORT + "/")
+				.factory(clientFactory)
+				.serializationFormat(GrpcSerializationFormats.PROTO)
+				.responseTimeoutMillis(10000);
+
+			final EvitaServiceGrpc.EvitaServiceBlockingStub evitaClient = clientBuilder.build(EvitaServiceGrpc.EvitaServiceBlockingStub.class);
 			final GrpcEvitaSessionResponse response = evitaClient.createReadOnlySession(GrpcEvitaSessionRequest.newBuilder()
 				.setCatalogName(TEST_CATALOG)
 				.build());
-			grpcEvitaChannel.shutdownNow();
 
-			final ManagedChannel channel = NettyChannelBuilder.forAddress(HOST, PORT)
-				.sslContext(sslContext)
-				.intercept(new JmhClientSessionInterceptor(response.getSessionId()))
-				.executor(Executors.newCachedThreadPool())
-				.defaultLoadBalancingPolicy("round_robin")
-				.build();
+			final GrpcClientBuilder clientBuilderWithJmhInterceptor = GrpcClients.builder(HOST + ":" + PORT + "/")
+				.factory(clientFactory)
+				.serializationFormat(GrpcSerializationFormats.PROTO)
+				.responseTimeoutMillis(10000)
+				.intercept(new JmhClientSessionInterceptor(response.getSessionId()));
 
-			return EvitaSessionServiceGrpc.newBlockingStub(channel);
+			return clientBuilderWithJmhInterceptor.build(EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub.class);
 		});
 	}
 

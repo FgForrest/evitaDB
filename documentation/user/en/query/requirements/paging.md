@@ -1,8 +1,8 @@
 ---
 title: Paging
 perex: |
-  Paging request constraints help to traverse large lists of records by splitting them into several parts that are requested 
-  separately. This technique is used to reduce the amount of data transferred over the network and to reduce the load 
+  Paging request constraints help to traverse large lists of records by splitting them into several parts that are requested
+  separately. This technique is used to reduce the amount of data transferred over the network and to reduce the load
   on the server. evitaDB supports several ways to paginate query results, which are described in this section.
 date: '23.7.2023'
 author: 'Ing. Jan Novotný'
@@ -10,7 +10,7 @@ proofreading: 'done'
 preferredLang: 'evitaql'
 ---
 
-<LanguageSpecific to="graphql">
+<LS to="g">
 
 In GraphQL, there are multiple different ways to paginate results. The main distinction is between the
 [`list` queries](../../use/api/query-data.md#list-queries) and [`query` queries](../../use/api/query-data.md#query-queries).
@@ -19,7 +19,7 @@ The `query` queries are then further divided into `page` and `strip` pagination.
 ## Pagination of `list` queries
 
 As mentioned in [detailed description of `list` queries](../../use/api/query-data.md#list-queries), the `list` queries
-are meant to be used for quick listing of entities, and so they offer only a limited set of pagination features. 
+are meant to be used for quick listing of entities, and so they offer only a limited set of pagination features.
 
 The pagination is controlled by the `limit` and `offset` arguments on a `listCollectionName` field, and it doesn't provide
 any pagination metadata (e.g., total number of records, page number, and so on):
@@ -40,17 +40,17 @@ The result contains the result from the 11th through the 15th record of the list
 of the records because no content request was specified, and it is sorted by the primary key in ascending order because
 no order was specified in the query.
 
-<LanguageSpecific to="graphql">
+<LS to="g">
 
 <MDInclude sourceVariable="data.listProduct">[The data chunk with paginated data](/documentation/user/en/query/requirements/examples/paging/listEntities.graphql.json.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
 </Note>
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="graphql">
+<LS to="g">
 
 ## Pagination of `query` queries
 
@@ -59,8 +59,8 @@ The pagination in this case has two versions - `page` (`recordPage` field) and `
 
 ### Page (`recordPage`)
 
-</LanguageSpecific>
-<LanguageSpecific to="evitaql,java,rest,csharp">
+</LS>
+<LS to="e,j,r,c">
 
 ## Page
 
@@ -82,27 +82,27 @@ page(
     </dd>
 </dl>
 
-</LanguageSpecific>
+</LS>
 
-The `page` 
-<LanguageSpecific to="evitaql,java,rest,csharp">(<SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/Page.java</SourceClass>) requirement</LanguageSpecific>
-<LanguageSpecific to="graphql">approach</LanguageSpecific>
-controls the number and slice of entities returned in the query response
-<LanguageSpecific to="graphql"> and is specified by usage of the `recordPage` field (in combination with `number` and `size` arguments)</LanguageSpecific>. 
-If no 
-<LanguageSpecific to="evitaql,java,rest,csharp">page requirement is</LanguageSpecific>
-<LanguageSpecific to="graphql">page arguments are</LanguageSpecific> used 
-<LanguageSpecific to="evitaql,java,rest,csharp">in the query</LanguageSpecific>
-<LanguageSpecific to="graphql">on the field</LanguageSpecific>,
+The `page`
+<LS to="e,j,r">(<SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/Page.java</SourceClass>)</LS><LS to="c">(<SourceClass>EvitaDB.Client/Queries/Requires/Page.cs</SourceClass>) requirement</LS>
+<LS to="g">approach</LS>
+controls the number and slice of entities returned in the query response<LS to="g"> and is specified by usage of the `recordPage` field (in combination with `number` and `size` arguments)</LS>.
+If no
+<LS to="e,j,r,c">page requirement is</LS>
+<LS to="g">page arguments are</LS> used
+<LS to="e,j,r,c">in the query</LS>
+<LS to="g">on the field</LS>,
 the default page `1` with the default page size `20` is used. If the requested page exceeds the number of available
 pages, a result with the first page is returned. An empty result is only returned if the query returns no result at all
 or the page size is set to zero. By automatically returning the first page result when the requested page is exceeded,
 we try to avoid the need to issue a secondary request to fetch the data.
 
 The information about the actual returned page and data statistics can be found in the query response, which is wrapped
-in a so-called data chunk object. <LanguageSpecific to="evitaql,java,rest,csharp">In case of the `page` constraint, 
-the <SourceClass>evita_common/src/main/java/io/evitadb/dataType/PaginatedList.java</SourceClass> is used as data chunk 
-object.</LanguageSpecific> The data chunk object contains the following information:
+in a so-called data chunk object. <LS to="e,j,r,c">In case of the `page` constraint,
+the <LS to="e,j,r"><SourceClass>evita_common/src/main/java/io/evitadb/dataType/PaginatedList.java</SourceClass></LS>
+<LS to="c"><SourceClass>EvitaDB.Client/DataTypes/PaginatedList.cs</SourceClass></LS> is used as data chunk
+object.</LS> The data chunk object contains the following information:
 
 <dl>
     <dt>pageNumber</dt>
@@ -159,7 +159,7 @@ object.</LanguageSpecific> The data chunk object contains the following informat
     </dd>
 </dl>
 
-The <LanguageSpecific to="evitaql,java,rest,csharp">`page` requirement</LanguageSpecific><LanguageSpecific to="graphql">`recordPage` field</LanguageSpecific>
+The <LS to="e,j,r,c">`page` requirement</LS><LS to="g">`recordPage` field</LS>
 is the most natural and commonly used requirement for the pagination of the query results.
 To get the second page of the query result, use the following query:
 
@@ -175,35 +175,35 @@ To get the second page of the query result, use the following query:
 ##### The result of second page example
 </NoteTitle>
 
-The result contains the result from the 6th through the 10th record of the query result. It returns only a primary key 
-of the records because no content request was specified, and it is sorted by the primary key in ascending order because 
+The result contains the result from the 6th through the 10th record of the query result. It returns only a primary key
+of the records because no content request was specified, and it is sorted by the primary key in ascending order because
 no order was specified in the query.
 
-<LanguageSpecific to="evitaql,java,csharp">
+<LS to="e,j,c">
 
 <MDInclude sourceVariable="recordPage">[The data chunk with paginated data](/documentation/user/en/query/requirements/examples/paging/page.evitaql.json.md)</MDInclude>
 
-</LanguageSpecific>
-<LanguageSpecific to="graphql">
+</LS>
+<LS to="g">
 
 <MDInclude sourceVariable="data.queryProduct.recordPage">[The data chunk with paginated data](/documentation/user/en/query/requirements/examples/paging/page.graphql.json.md)</MDInclude>
 
-</LanguageSpecific>
-<LanguageSpecific to="rest">
+</LS>
+<LS to="r">
 
 <MDInclude sourceVariable="recordPage">[The data chunk with paginated data](/documentation/user/en/query/requirements/examples/paging/page.rest.json.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
 </Note>
 
-<LanguageSpecific to="graphql">
+<LS to="g">
 
 ### Strip (`recordStrip`)
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="evitaql,java,rest,csharp">
+<LS to="e,j,r,c">
 
 ## Strip
 
@@ -225,23 +225,22 @@ strip(
     </dd>
 </dl>
 
-</LanguageSpecific>
+</LS>
 
-The `strip` 
-<LanguageSpecific to="evitaql,java,rest,csharp">(<SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/Strip.java</SourceClass>) requirement</LanguageSpecific>
-<LanguageSpecific to="graphql">approach</LanguageSpecific>
-controls the number and slice of entities returned in the query response
-<LanguageSpecific to="graphql"> and is specified by usage of the `recordStrip` field (in combination with `limit` and `offset` arguments)</LanguageSpecific>.
+The `strip`
+<LS to="e,j,r">(<SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/Strip.java</SourceClass>)</LS><LS to="c">(<SourceClass>EvitaDB.Client/Queries/Requires/Strip.cs</SourceClass>) requirement</LS>
+<LS to="g">approach</LS>
+controls the number and slice of entities returned in the query response<LS to="g"> and is specified by usage of the `recordStrip` field (in combination with `limit` and `offset` arguments)</LS>.
 If the requested strip exceeds the number of
 available records, a result from the zero offset with retained limit is returned. An empty result is only returned if
 the query returns no result at all or the limit is set to zero. By automatically returning the first strip result when
 the requested page is exceeded, we try to avoid the need to issue a secondary request to fetch the data.
 
 The information about the actual returned page and data statistics can be found in the query response, which is wrapped
-in a so-called data chunk object. 
-<LanguageSpecific to="evitaql,java,rest,csharp">In case of the `strip` constraint,
-the <SourceClass>evita_common/src/main/java/io/evitadb/dataType/StripList.java</SourceClass> is used as data chunk
-object.</LanguageSpecific> The data chunk object contains the following information:
+in a so-called data chunk object. <LS to="e,j,r,c">In case of the `strip` constraint,
+the <LS to="e,j,r"><SourceClass>evita_common/src/main/java/io/evitadb/dataType/StripList.java</SourceClass></LS>
+<LS to="c"><SourceClass>EvitaDB.Client/DataTypes/StripList.cs</SourceClass></LS> is used as data chunk
+object.</LS>The data chunk object contains the following information:
 
 <dl>
     <dt>offset</dt>
@@ -282,11 +281,11 @@ object.</LanguageSpecific> The data chunk object contains the following informat
     </dd>
 </dl>
 
-The `strip` requirement can be used to list query records in a non-uniform way - for example, when the entity listing is 
-interleaved with an advertisement that requires an entity rendering to be skipped at certain positions. In other words, 
-if you know that there is an "advertisement" block every 20 records, which means that the entity must be skipped for 
-that position, and you want to correctly fetch records for the 5th page, you need to request a strip with offset `76` 
-(4 pages * 20 positions per page - 4 records omitted on the previous 4 pages) and limit 19. To get such a strip, use 
+The `strip` requirement can be used to list query records in a non-uniform way - for example, when the entity listing is
+interleaved with an advertisement that requires an entity rendering to be skipped at certain positions. In other words,
+if you know that there is an "advertisement" block every 20 records, which means that the entity must be skipped for
+that position, and you want to correctly fetch records for the 5th page, you need to request a strip with offset `76`
+(4 pages * 20 positions per page - 4 records omitted on the previous 4 pages) and limit 19. To get such a strip, use
 the following query:
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
@@ -305,20 +304,20 @@ The result contains the result from the 76th through the 95th record of the quer
 of the records because no content request was specified, and it is sorted by the primary key in ascending order because
 no order was specified in the query.
 
-<LanguageSpecific to="evitaql,java,csharp">
+<LS to="e,j,c">
 
 <MDInclude sourceVariable="recordPage">[The data chunk with strip list](/documentation/user/en/query/requirements/examples/paging/strip.evitaql.json.md)</MDInclude>
 
-</LanguageSpecific>
-<LanguageSpecific to="graphql">
+</LS>
+<LS to="g">
 
 <MDInclude sourceVariable="data.queryProduct.recordStrip">[The data chunk with strip list](/documentation/user/en/query/requirements/examples/paging/strip.graphql.json.md)</MDInclude>
 
-</LanguageSpecific>
-<LanguageSpecific to="rest">
+</LS>
+<LS to="r">
 
 <MDInclude sourceVariable="recordPage">[The data chunk with strip list](/documentation/user/en/query/requirements/examples/paging/strip.rest.json.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
 </Note>

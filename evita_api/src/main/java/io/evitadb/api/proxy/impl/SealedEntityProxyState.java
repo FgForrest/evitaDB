@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -41,8 +41,8 @@ import io.evitadb.api.requestResponse.data.structure.ExistingReferenceBuilder;
 import io.evitadb.api.requestResponse.data.structure.InitialReferenceBuilder;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ReflectionLookup;
 import lombok.Setter;
@@ -70,7 +70,7 @@ public class SealedEntityProxyState
 	@Serial private static final long serialVersionUID = 586508293856395550L;
 	/**
 	 * Optional reference to the {@link EntityBuilder} that is created on demand by calling {@link SealedEntity#openForWrite()}
-	 * from internally wrapped entity {@link #getEntity()}.
+	 * from internally wrapped entity {@link #entity()}.
 	 */
 	@Nullable protected EntityBuilder entityBuilder;
 	/**
@@ -108,8 +108,8 @@ public class SealedEntityProxyState
 
 	@Nonnull
 	@Override
-	public EntityContract getEntity() {
-		return getEntityBuilderIfPresent()
+	public EntityContract entity() {
+		return entityBuilderIfPresent()
 			.map(EntityContract.class::cast)
 			.orElse(this.entity);
 	}
@@ -144,7 +144,7 @@ public class SealedEntityProxyState
 	}
 
 	@Nonnull
-	public Optional<EntityBuilder> getEntityBuilderIfPresent() {
+	public Optional<EntityBuilder> entityBuilderIfPresent() {
 		return ofNullable(this.entityBuilder);
 	}
 
@@ -156,15 +156,15 @@ public class SealedEntityProxyState
 		} else if (entity instanceof Entity theEntity) {
 			entityBuilder = new ExistingEntityBuilder(theEntity, mutations);
 		} else if (entity instanceof EntityBuilder) {
-			throw new EvitaInternalError("Entity builder already created!");
+			throw new GenericEvitaInternalError("Entity builder already created!");
 		} else {
-			throw new EvitaInternalError("Unexpected entity type: " + entity.getClass().getName());
+			throw new GenericEvitaInternalError("Unexpected entity type: " + entity.getClass().getName());
 		}
 		return entityBuilder;
 	}
 
 	@Nonnull
-	public EntityBuilder getEntityBuilder() {
+	public EntityBuilder entityBuilder() {
 		if (entityBuilder == null) {
 			if (entity instanceof EntityDecorator entityDecorator) {
 				entityBuilder = new ExistingEntityBuilder(entityDecorator);
@@ -173,7 +173,7 @@ public class SealedEntityProxyState
 			} else if (entity instanceof EntityBuilder theBuilder) {
 				entityBuilder = theBuilder;
 			} else {
-				throw new EvitaInternalError("Unexpected entity type: " + entity.getClass().getName());
+				throw new GenericEvitaInternalError("Unexpected entity type: " + entity.getClass().getName());
 			}
 		}
 		return entityBuilder;
@@ -188,10 +188,18 @@ public class SealedEntityProxyState
 		int primaryKey
 	) throws EntityClassInvalidException {
 		final Supplier<ProxyWithUpsertCallback> instanceSupplier = () -> {
-			final EntityContract entity = getEntityBuilderIfPresent()
+			final Optional<EntityBuilder> entityBuilderRef = entityBuilderIfPresent();
+			final EntityContract entity = entityBuilderRef
 				.map(EntityContract.class::cast)
-				.orElseGet(this::getEntity);
+				.orElseGet(this::entity);
 			return entity.getReference(referenceSchema.getName(), primaryKey)
+				.filter(
+					ref -> entityBuilderRef
+						.filter(ExistingEntityBuilder.class::isInstance)
+						.map(ExistingEntityBuilder.class::cast)
+						.map(eb -> eb.isPresentInBaseEntity(ref))
+						.orElse(true)
+				)
 				.map(
 					existingReference -> new ProxyWithUpsertCallback(
 						ProxycianFactory.createEntityReferenceProxy(
@@ -230,7 +238,7 @@ public class SealedEntityProxyState
 	}
 
 	/**
-	 * Method propagates all mutations in reference proxies to the {@link #getEntityBuilder()}.
+	 * Method propagates all mutations in reference proxies to the {@link #entityBuilder()}.
 	 */
 	public void propagateReferenceMutations() {
 		this.generatedProxyObjects.entrySet().stream()
@@ -245,7 +253,7 @@ public class SealedEntityProxyState
 					.getReferenceBuilderIfPresent()
 					.stream()
 			)
-			.forEach(referenceBuilder -> getEntityBuilder().addOrReplaceReferenceMutations(referenceBuilder));
+			.forEach(referenceBuilder -> entityBuilder().addOrReplaceReferenceMutations(referenceBuilder));
 	}
 
 	@Override

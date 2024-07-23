@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -192,7 +192,7 @@ public abstract class ConstraintContainer<T extends Constraint<T>> extends BaseC
 		return getName() +
 			ARG_OPENING +
 			Stream.of(
-					Arrays.stream(getArguments())
+					Arrays.stream(getArgumentsExcludingDefaults())
 						.filter(it -> !(this instanceof ConstraintWithSuffix cws) || !cws.isArgumentImplicitForSuffix(it))
 						.map(BaseConstraint::convertToString),
 					Arrays.stream(additionalChildren)

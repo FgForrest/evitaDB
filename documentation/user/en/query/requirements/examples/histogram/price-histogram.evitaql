@@ -1,11 +1,11 @@
 query(
-    collection('Product'),
+    collection("Product"),
     filterBy(
-        priceInPriceLists('basic'),
-        priceInCurrency('EUR'),
+        priceInPriceLists("basic"),
+        priceInCurrency("EUR"),
         priceValidInNow()
     ),
     require(
-      priceHistogram(10)
+      priceHistogram(20)
     )
 )

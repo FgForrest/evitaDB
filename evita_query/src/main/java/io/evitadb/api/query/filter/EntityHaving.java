@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -52,6 +52,8 @@ import java.io.Serializable;
  * )
  * </pre>
  *
+ * <p><a href="https://evitadb.io/documentation/query/filtering/references#entity-having">Visit detailed user documentation</a></p>
+ *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 @ConstraintDefinition(
@@ -59,7 +61,8 @@ import java.io.Serializable;
 	shortDescription = "The container allowing to filter entities by having references to entities managed by evitaDB that " +
 		"match inner filtering constraints. This container resembles the SQL inner join clauses where the `entityHaving`" +
 		"contains the filtering condition on particular join.",
-	supportedIn = ConstraintDomain.REFERENCE
+	userDocsLink = "/documentation/query/filtering/references#entity-having",
+	supportedIn = { ConstraintDomain.REFERENCE, ConstraintDomain.INLINE_REFERENCE }
 )
 public class EntityHaving extends AbstractFilterConstraintContainer implements EntityConstraint<FilterConstraint>, SeparateEntityScopeContainer {
 	@Serial private static final long serialVersionUID = 7151549459608672988L;

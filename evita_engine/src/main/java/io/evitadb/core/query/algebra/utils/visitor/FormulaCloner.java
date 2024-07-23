@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -29,11 +29,11 @@ import io.evitadb.core.query.algebra.base.NotFormula;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
+import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.Deque;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashSet;
-import java.util.LinkedList;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
@@ -63,11 +63,11 @@ public class FormulaCloner implements FormulaVisitor {
 	/**
 	 * This stack contains list of parents for currently examined formula.
 	 */
-	protected final Deque<Formula> parents = new LinkedList<>();
+	protected final Deque<Formula> parents = new ArrayDeque<>(32);
 	/**
 	 * Stacks serves internally to collect the cloned tree of formulas.
 	 */
-	protected final Deque<SubTree> treeStack = new LinkedList<>();
+	protected final Deque<SubTree> treeStack = new ArrayDeque<>(32);
 	/**
 	 * Result set of the clone operation.
 	 */
@@ -117,6 +117,13 @@ public class FormulaCloner implements FormulaVisitor {
 	}
 
 	/**
+	 * Returns true if all parents match the passed predicate.
+	 */
+	public boolean allParentsMatch(@Nonnull Predicate<Formula> formulaTester) {
+		return parents.stream().allMatch(formulaTester);
+	}
+
+	/**
 	 * Returns true if there is at least single parent formula of passed `formulaType` for currently visited formula.
 	 */
 	public boolean isWithin(@Nonnull Class<? extends Formula> formulaType) {
@@ -124,7 +131,7 @@ public class FormulaCloner implements FormulaVisitor {
 	}
 
 	@Override
-	public void visit(Formula formula) {
+	public void visit(@Nonnull Formula formula) {
 		final Formula mutatedFormula = mutator.apply(this, formula);
 		final Formula alreadyProcessedFormula = formulasProcessed.get(formula);
 		if (alreadyProcessedFormula != null) {
@@ -189,7 +196,7 @@ public class FormulaCloner implements FormulaVisitor {
 		PRIVATE METHODS
 	 */
 
-	private void storeFormula(Formula formula) {
+	private void storeFormula(@Nonnull Formula formula) {
 		// store updated formula
 		if (treeStack.isEmpty()) {
 			this.resultClone = formula;

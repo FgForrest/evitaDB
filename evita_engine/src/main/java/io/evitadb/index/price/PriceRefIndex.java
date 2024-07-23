@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,22 +23,26 @@
 
 package io.evitadb.index.price;
 
+import io.evitadb.api.CatalogState;
 import io.evitadb.api.query.order.PriceNatural;
 import io.evitadb.api.requestResponse.data.PriceContract;
-import io.evitadb.core.EntityCollection;
+import io.evitadb.core.Catalog;
+import io.evitadb.core.CatalogRelatedDataStructure;
 import io.evitadb.core.Transaction;
+import io.evitadb.core.transaction.memory.TransactionalContainerChanges;
+import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
+import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.index.map.TransactionalMap;
+import io.evitadb.index.price.PriceListAndCurrencyPriceIndex.PriceListAndCurrencyPriceIndexTerminated;
 import io.evitadb.index.price.PriceRefIndex.PriceIndexChanges;
 import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.index.price.model.entityPrices.EntityPrices;
 import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
-import io.evitadb.index.transactionalMemory.TransactionalContainerChanges;
-import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
-import io.evitadb.index.transactionalMemory.TransactionalLayerProducer;
 import io.evitadb.store.entity.model.entity.price.MinimalPriceInternalIdContainer;
 import io.evitadb.store.entity.model.entity.price.PriceInternalIdContainer;
+import io.evitadb.utils.Assert;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -46,11 +50,10 @@ import javax.annotation.Nullable;
 import java.io.Serial;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
+import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
-import static io.evitadb.core.Transaction.getTransactionalMemoryLayer;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -69,7 +72,10 @@ import static java.util.Optional.ofNullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class PriceRefIndex extends AbstractPriceIndex<PriceListAndCurrencyPriceRefIndex> implements TransactionalLayerProducer<PriceIndexChanges, PriceRefIndex> {
+public class PriceRefIndex extends AbstractPriceIndex<PriceListAndCurrencyPriceRefIndex> implements
+	TransactionalLayerProducer<PriceIndexChanges, PriceRefIndex>,
+	CatalogRelatedDataStructure<PriceRefIndex>
+{
 	@Serial private static final long serialVersionUID = 7596276815836027747L;
 	/**
 	 * Map of {@link PriceListAndCurrencyPriceSuperIndex indexes} that contains prices that relates to specific price-list
@@ -77,32 +83,42 @@ public class PriceRefIndex extends AbstractPriceIndex<PriceListAndCurrencyPriceR
 	 */
 	@Getter protected final TransactionalMap<PriceIndexKey, PriceListAndCurrencyPriceRefIndex> priceIndexes;
 	/**
-	 * Lambda providing access to the main {@link PriceSuperIndex} that keeps memory expensive
-	 * objects.
+	 * Lambda that manages initialization of new price list indexes. These indexes needs to locate their
+	 * {@link PriceListAndCurrencyPriceSuperIndex} from the catalog data and use it for locating shared price records
+	 * instances.
 	 */
-	private Supplier<PriceSuperIndex> superIndexAccessor;
+	private Consumer<PriceListAndCurrencyPriceRefIndex> initCallback;
 
-	public PriceRefIndex(@Nonnull Supplier<PriceSuperIndex> superIndexAccessor) {
+	public PriceRefIndex() {
 		this.priceIndexes = new TransactionalMap<>(new HashMap<>(), PriceListAndCurrencyPriceRefIndex.class, Function.identity());
-		this.superIndexAccessor = superIndexAccessor;
 	}
 
-	public PriceRefIndex(@Nonnull Map<PriceIndexKey, PriceListAndCurrencyPriceRefIndex> priceIndexes, @Nonnull Supplier<PriceSuperIndex> superIndexAccessor) {
+	public PriceRefIndex(@Nonnull Map<PriceIndexKey, PriceListAndCurrencyPriceRefIndex> priceIndexes) {
 		this.priceIndexes = new TransactionalMap<>(priceIndexes, PriceListAndCurrencyPriceRefIndex.class, Function.identity());
-		this.superIndexAccessor = superIndexAccessor;
 	}
 
-	/**
-	 * This method replaces super index accessor with new one. This needs to be done when transaction is committed and
-	 * PriceRefIndex is created with link to the original transactional {@link PriceSuperIndex} but finally new
-	 * {@link EntityCollection} is created along with new {@link PriceSuperIndex} and reference needs
-	 * to be exchanged.
-	 */
-	public void updateReferencesTo(@Nonnull Supplier<PriceSuperIndex> priceSuperIndexAccessor) {
-		this.superIndexAccessor = priceSuperIndexAccessor;
-		for (PriceListAndCurrencyPriceRefIndex index : priceIndexes.values()) {
-			index.updateReferencesTo(priceIndexKey -> superIndexAccessor.get().getPriceIndex(priceIndexKey));
-		}
+	@Override
+	public void attachToCatalog(@Nullable String entityType, @Nonnull Catalog catalog) {
+		Assert.isPremiseValid(this.initCallback == null, "Catalog was already attached to this index!");
+		this.initCallback = priceListAndCurrencyPriceRefIndex -> priceListAndCurrencyPriceRefIndex.attachToCatalog(entityType, catalog);
+		// delegate call to price list indexes
+		this.priceIndexes.values().forEach(it -> it.attachToCatalog(entityType, catalog));
+	}
+
+	@Nonnull
+	@Override
+	public PriceRefIndex createCopyForNewCatalogAttachment(@Nonnull CatalogState catalogState) {
+		return new PriceRefIndex(
+			this.priceIndexes
+				.entrySet()
+				.stream()
+				.collect(
+					Collectors.toMap(
+						Map.Entry::getKey,
+						it -> it.getValue().createCopyForNewCatalogAttachment(catalogState)
+					)
+				)
+		);
 	}
 
 	/*
@@ -116,10 +132,9 @@ public class PriceRefIndex extends AbstractPriceIndex<PriceListAndCurrencyPriceR
 
 	@Nonnull
 	@Override
-	public PriceRefIndex createCopyWithMergedTransactionalMemory(@Nullable PriceIndexChanges layer, @Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Transaction transaction) {
+	public PriceRefIndex createCopyWithMergedTransactionalMemory(@Nullable PriceIndexChanges layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		final PriceRefIndex priceIndex = new PriceRefIndex(
-			transactionalLayer.getStateCopyWithCommittedChanges(this.priceIndexes, transaction),
-			this.superIndexAccessor
+			transactionalLayer.getStateCopyWithCommittedChanges(this.priceIndexes)
 		);
 		ofNullable(layer).ifPresent(it -> it.clean(transactionalLayer));
 		return priceIndex;
@@ -138,10 +153,9 @@ public class PriceRefIndex extends AbstractPriceIndex<PriceListAndCurrencyPriceR
 
 	@Nonnull
 	protected PriceListAndCurrencyPriceRefIndex createNewPriceListAndCurrencyIndex(@Nonnull PriceIndexKey lookupKey) {
-		final PriceListAndCurrencyPriceRefIndex newPriceListIndex = new PriceListAndCurrencyPriceRefIndex(
-			lookupKey, priceIndexKey -> this.superIndexAccessor.get().getPriceIndex(priceIndexKey)
-		);
-		ofNullable(getTransactionalMemoryLayer(this))
+		final PriceListAndCurrencyPriceRefIndex newPriceListIndex = new PriceListAndCurrencyPriceRefIndex(lookupKey);
+		initCallback.accept(newPriceListIndex);
+		ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
 			.ifPresent(it -> it.addCreatedItem(newPriceListIndex));
 		return newPriceListIndex;
 	}
@@ -149,7 +163,7 @@ public class PriceRefIndex extends AbstractPriceIndex<PriceListAndCurrencyPriceR
 	@Override
 	protected void removeExistingIndex(@Nonnull PriceIndexKey lookupKey, @Nonnull PriceListAndCurrencyPriceRefIndex priceListIndex) {
 		super.removeExistingIndex(lookupKey, priceListIndex);
-		ofNullable(getTransactionalMemoryLayer(this))
+		ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
 			.ifPresent(it -> it.addRemovedItem(priceListIndex));
 	}
 
@@ -160,9 +174,7 @@ public class PriceRefIndex extends AbstractPriceIndex<PriceListAndCurrencyPriceR
 		@Nullable Integer innerRecordId,
 		@Nullable DateTimeRange validity, int priceWithoutTax, int priceWithTax
 	) {
-		final PriceListAndCurrencyPriceSuperIndex superIndex = Objects.requireNonNull(superIndexAccessor.get().getPriceIndex(priceListIndex.getPriceIndexKey()));
-		final PriceRecordContract priceRecord = superIndex.getPriceRecord(Objects.requireNonNull(internalPriceId));
-		priceListIndex.addPrice(priceRecord, validity);
+		final PriceRecordContract priceRecord = priceListIndex.addPrice(internalPriceId, validity);
 		return new MinimalPriceInternalIdContainer(priceRecord.internalPriceId());
 	}
 
@@ -173,10 +185,12 @@ public class PriceRefIndex extends AbstractPriceIndex<PriceListAndCurrencyPriceR
 		@Nullable Integer innerRecordId,
 		@Nullable DateTimeRange validity, int priceWithoutTax, int priceWithTax
 	) {
-		final PriceListAndCurrencyPriceSuperIndex superIndex = Objects.requireNonNull(superIndexAccessor.get().getPriceIndex(priceListIndex.getPriceIndexKey()));
-		final PriceRecordContract priceRecord = superIndex.getPriceRecord(internalPriceId);
-		final EntityPrices entityPrices = superIndex.getEntityPrices(priceRecord.entityPrimaryKey());
-		priceListIndex.removePrice(priceRecord, validity, entityPrices);
+		try {
+			priceListIndex.removePrice(internalPriceId, validity);
+		} catch (PriceListAndCurrencyPriceIndexTerminated ex) {
+			// when super index was removed the referencing index must be removed as well
+			removeExistingIndex(priceListIndex.getPriceIndexKey(), priceListIndex);
+		}
 	}
 
 	/**

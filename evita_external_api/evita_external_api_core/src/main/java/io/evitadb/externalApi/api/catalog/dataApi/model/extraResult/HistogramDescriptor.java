@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -98,14 +98,6 @@ public interface HistogramDescriptor {
 	 */
 	interface BucketDescriptor {
 
-		PropertyDescriptor INDEX = PropertyDescriptor.builder()
-			.name("index")
-			.description("""
-				Contains index (starting with zero) of the bucket in the histogram. First bucket / column of the histogram
-				will have index zero, second bucket / column one and so forth.
-				""")
-			.type(nonNull(Integer.class))
-			.build();
 		PropertyDescriptor THRESHOLD = PropertyDescriptor.builder()
 			.name("threshold")
 			.description("""
@@ -137,7 +129,7 @@ public interface HistogramDescriptor {
 			.description("""
 				Data object that carries out threshold in histogram (or bucket if you will) along with number of occurrences in it.
 				""")
-			.staticFields(List.of(INDEX, THRESHOLD, OCCURRENCES, REQUESTED))
+			.staticFields(List.of(THRESHOLD, OCCURRENCES, REQUESTED))
 			.build();
 	}
 }

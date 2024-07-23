@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -57,7 +57,7 @@ import io.evitadb.api.requestResponse.data.Versioned;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.associatedData.AssociatedDataMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.AttributeMutation;
-import io.evitadb.api.requestResponse.data.mutation.entity.ParentMutation;
+import io.evitadb.api.requestResponse.data.mutation.parent.ParentMutation;
 import io.evitadb.api.requestResponse.data.mutation.price.PriceMutation;
 import io.evitadb.api.requestResponse.data.mutation.price.SetPriceInnerRecordHandlingMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
@@ -444,58 +444,10 @@ public class Entity implements SealedEntity {
 	}
 
 	/**
-	 * Method allows to create the entityDecorator object with up-to-date schema definition. Data of the entity are kept
-	 * untouched.
-	 */
-	public static EntityDecorator decorate(
-		@Nonnull Entity entity,
-		@Nonnull EntitySchema entitySchema,
-		@Nullable SealedEntity parentEntity,
-		@Nonnull LocaleSerializablePredicate localePredicate,
-		@Nonnull HierarchySerializablePredicate hierarchyPredicate,
-		@Nonnull AttributeValueSerializablePredicate attributePredicate,
-		@Nonnull AssociatedDataValueSerializablePredicate associatedDataValuePredicate,
-		@Nonnull ReferenceContractSerializablePredicate referencePredicate,
-		@Nonnull PriceContractSerializablePredicate pricePredicate,
-		@Nonnull OffsetDateTime alignedNow
-	) {
-		return new EntityDecorator(
-			entity, entitySchema, parentEntity,
-			localePredicate, hierarchyPredicate,
-			attributePredicate, associatedDataValuePredicate,
-			referencePredicate, pricePredicate,
-			alignedNow
-		);
-	}
-
-	/**
-	 * Method allows to create copy of the entityDecorator object with up-to-date schema definition. Data of the original
-	 * entityDecorator are kept untouched.
-	 */
-	public static EntityDecorator decorate(
-		@Nonnull EntityDecorator entityDecorator,
-		@Nullable EntityClassifierWithParent parentEntity,
-		@Nonnull LocaleSerializablePredicate localePredicate,
-		@Nonnull HierarchySerializablePredicate hierarchyPredicate,
-		@Nonnull AttributeValueSerializablePredicate attributePredicate,
-		@Nonnull AssociatedDataValueSerializablePredicate associatedDataValuePredicate,
-		@Nonnull ReferenceContractSerializablePredicate referencePredicate,
-		@Nonnull PriceContractSerializablePredicate pricePredicate,
-		@Nonnull OffsetDateTime alignedNow
-	) {
-		return new EntityDecorator(
-			entityDecorator, parentEntity,
-			localePredicate, hierarchyPredicate,
-			attributePredicate, associatedDataValuePredicate,
-			referencePredicate, pricePredicate,
-			alignedNow
-		);
-	}
-
-	/**
 	 * Method allows to create copy of the entity object with up-to-date schema definition. Data of the original
 	 * entity are kept untouched.
 	 */
+	@Nonnull
 	public static EntityDecorator decorate(
 		@Nonnull Entity entity,
 		@Nonnull EntitySchemaContract entitySchema,

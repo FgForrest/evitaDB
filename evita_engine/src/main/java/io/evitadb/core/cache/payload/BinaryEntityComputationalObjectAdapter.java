@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,12 +23,10 @@
 
 package io.evitadb.core.cache.payload;
 
-import io.evitadb.api.requestResponse.data.structure.BinaryEntity;
 import io.evitadb.core.cache.CacheEden;
-import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.QueryExecutionContext;
+import io.evitadb.core.query.response.ServerBinaryEntityDecorator;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
-import lombok.RequiredArgsConstructor;
-import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -44,7 +42,6 @@ import java.util.function.Supplier;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-@RequiredArgsConstructor
 public class BinaryEntityComputationalObjectAdapter implements TransactionalDataRelatedStructure {
 	/**
 	 * Primary key of the entity that is requested for fetching.
@@ -54,27 +51,40 @@ public class BinaryEntityComputationalObjectAdapter implements TransactionalData
 	 * The logic that executed the factual entity fetch from the persistent datastore. The supplier will never be called
 	 * providing the entity is found in the cache.
 	 */
-	@Nonnull private final Supplier<BinaryEntity> entityFetcher;
+	@Nonnull private final Supplier<ServerBinaryEntityDecorator> entityFetcher;
 	/**
-	 * Contains the count of requested {@link io.evitadb.api.query.require.EntityContentRequire} that control how many
-	 * containers would have to be fetched from the persistent storage in order to supply rich enough entity for
-	 * the current request. This affects the "cost" of the entity fetch that needs to be examined when determining which
-	 * entities are worth to stay in the cache.
+	 * Contains memoized value of {@link #getEstimatedCost()}  of this formula.
 	 */
-	private final int requirementCount;
+	private final Long estimatedCost;
 	/**
-	 * Contains minimal threshold of the {@link Formula#getEstimatedCost()} that formula needs to exceed in order to
-	 * become a cache adept, that may be potentially moved to {@link CacheEden}.
+	 * Contains memoized value of {@link #getCost()}  of this formula.
 	 */
-	private final long minimalComplexityThreshold;
+	private final Long cost;
+
+	public BinaryEntityComputationalObjectAdapter(
+		int entityPrimaryKey,
+		@Nonnull Supplier<ServerBinaryEntityDecorator> entityFetcher,
+		int requirementCount,
+		long minimalComplexityThreshold
+	) {
+		this.entityPrimaryKey = entityPrimaryKey;
+		this.entityFetcher = entityFetcher;
+		this.estimatedCost = Math.max(minimalComplexityThreshold, requirementCount * getOperationCost());
+		this.cost = Math.max(minimalComplexityThreshold, requirementCount * getOperationCost());
+	}
 
 	@Override
-	public long computeHash(@Nonnull LongHashFunction hashFunction) {
+	public void initialize(@Nonnull QueryExecutionContext executionContext) {
+		// do nothing
+	}
+
+	@Override
+	public long getHash() {
 		return entityPrimaryKey;
 	}
 
 	@Override
-	public long computeTransactionalIdHash(@Nonnull LongHashFunction hashFunction) {
+	public long getTransactionalIdHash() {
 		return entityPrimaryKey;
 	}
 
@@ -86,12 +96,12 @@ public class BinaryEntityComputationalObjectAdapter implements TransactionalData
 
 	@Override
 	public long getEstimatedCost() {
-		return Math.max(minimalComplexityThreshold, requirementCount * getOperationCost());
+		return this.estimatedCost;
 	}
 
 	@Override
 	public long getCost() {
-		return Math.max(minimalComplexityThreshold, requirementCount * getOperationCost());
+		return this.cost;
 	}
 
 	@Override
@@ -108,7 +118,7 @@ public class BinaryEntityComputationalObjectAdapter implements TransactionalData
 	 * Method will fetch the factual entity from the persistent datastore.
 	 */
 	@Nullable
-	public BinaryEntity fetchEntity() {
+	public ServerBinaryEntityDecorator fetchEntity() {
 		return entityFetcher.get();
 	}
 

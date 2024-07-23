@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -125,11 +125,14 @@ import static java.util.Optional.of;
  * the calculated statistics to respect the rules that apply to the hierarchyWithin so that the calculated number
  * remains consistent for the end user.
  *
+ * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#from-node">Visit detailed user documentation</a></p>
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 @ConstraintDefinition(
 	name = "fromNode",
 	shortDescription = "The constraint triggers computing the hierarchy subtree starting at pivot node.",
+	userDocsLink = "/documentation/query/requirements/hierarchy#from-node",
 	supportedIn = ConstraintDomain.HIERARCHY
 )
 public class HierarchyFromNode extends AbstractRequireConstraintContainer implements HierarchyRequireConstraint {

@@ -7,13 +7,13 @@
   ~             |  __/\ V /| | || (_| | |_| | |_) |
   ~              \___| \_/ |_|\__\__,_|____/|____/
   ~
-  ~   Copyright (c) 2023
+  ~   Copyright (c) 2023-2024
   ~
   ~   Licensed under the Business Source License, Version 1.1 (the "License");
   ~   you may not use this file except in compliance with the License.
   ~   You may obtain a copy of the License at
   ~
-  ~   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+  ~   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
   ~
   ~   Unless required by applicable law or agreed to in writing, software
   ~   distributed under the License is distributed on an "AS IS" BASIS,
@@ -31,7 +31,7 @@
 	<parent>
 		<groupId>io.evitadb</groupId>
 		<artifactId>evita_external_api</artifactId>
-		<version>0.10-SNAPSHOT</version>
+		<version>2024.9-SNAPSHOT</version>
 	</parent>
 
 	<dependencies>
@@ -49,37 +49,30 @@
 		</dependency>
 
 		<dependency>
-			<groupId>io.undertow</groupId>
-			<artifactId>undertow-core</artifactId>
-			<version>2.3.5.Final</version>
-		</dependency>
-
-		<dependency>
 			<groupId>net.openhft</groupId>
 			<artifactId>zero-allocation-hashing</artifactId>
 		</dependency>
 
 		<dependency>
 			<groupId>org.bouncycastle</groupId>
-			<artifactId>bcpkix-jdk15on</artifactId>
+			<artifactId>bcpkix-jdk18on</artifactId>
 			<version>${bouncyCastle.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>org.bouncycastle</groupId>
-			<artifactId>bcprov-jdk15on</artifactId>
+			<artifactId>bcprov-jdk18on</artifactId>
 			<version>${bouncyCastle.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>org.bouncycastle</groupId>
-			<artifactId>bcprov-ext-jdk15on</artifactId>
+			<artifactId>bcprov-ext-jdk18on</artifactId>
 			<version>${bouncyCastle.version}</version>
 		</dependency>
 
 		<dependency>
-			<groupId>io.grpc</groupId>
-			<artifactId>grpc-netty</artifactId>
-			<version>${grpc.version}</version>
-			<scope>runtime</scope>
+			<groupId>com.linecorp.armeria</groupId>
+			<artifactId>armeria</artifactId>
+			<version>${armeria.version}</version>
 		</dependency>
 	</dependencies>
 </project>

@@ -6,8 +6,6 @@
       "type": "Product",
       "version": 1,
       "allLocales": [
-        "cs",
-        "de",
         "en"
       ],
       "priceInnerRecordHandling": "NONE",
@@ -46,8 +44,6 @@
       "type": "Product",
       "version": 1,
       "allLocales": [
-        "cs",
-        "de",
         "en"
       ],
       "priceInnerRecordHandling": "NONE",
@@ -73,7 +69,7 @@
           "priceList": "christmas-prices",
           "currency": "EUR",
           "innerRecordId": null,
-          "sellable": true,
+          "sellable": false,
           "priceWithoutTax": "24.74",
           "priceWithTax": "29.94",
           "taxRate": "21.0",
@@ -84,18 +80,15 @@
         }
       ],
       "priceForSale": {
-        "priceId": 85362,
-        "priceList": "christmas-prices",
+        "priceId": 8805,
+        "priceList": "basic",
         "currency": "EUR",
         "innerRecordId": null,
         "sellable": true,
-        "priceWithoutTax": "24.74",
-        "priceWithTax": "29.94",
+        "priceWithoutTax": "24.79",
+        "priceWithTax": "30.0",
         "taxRate": "21.0",
-        "validity": [
-          "2023-12-01T12:00:00+01:00",
-          "2024-01-01T12:00:59+01:00"
-        ]
+        "validity": null
       }
     },
     {
@@ -103,8 +96,6 @@
       "type": "Product",
       "version": 1,
       "allLocales": [
-        "cs",
-        "de",
         "en"
       ],
       "priceInnerRecordHandling": "NONE",
@@ -130,7 +121,7 @@
           "priceList": "christmas-prices",
           "currency": "EUR",
           "innerRecordId": null,
-          "sellable": true,
+          "sellable": false,
           "priceWithoutTax": "30.21",
           "priceWithTax": "36.55",
           "taxRate": "21.0",
@@ -141,18 +132,15 @@
         }
       ],
       "priceForSale": {
-        "priceId": 85380,
-        "priceList": "christmas-prices",
+        "priceId": 8807,
+        "priceList": "basic",
         "currency": "EUR",
         "innerRecordId": null,
         "sellable": true,
-        "priceWithoutTax": "30.21",
-        "priceWithTax": "36.55",
+        "priceWithoutTax": "30.58",
+        "priceWithTax": "37.0",
         "taxRate": "21.0",
-        "validity": [
-          "2023-12-01T12:00:00+01:00",
-          "2024-01-01T12:00:59+01:00"
-        ]
+        "validity": null
       }
     },
     {
@@ -160,8 +148,6 @@
       "type": "Product",
       "version": 1,
       "allLocales": [
-        "cs",
-        "de",
         "en"
       ],
       "priceInnerRecordHandling": "NONE",
@@ -200,8 +186,6 @@
       "type": "Product",
       "version": 1,
       "allLocales": [
-        "cs",
-        "de",
         "en"
       ],
       "priceInnerRecordHandling": "NONE",
@@ -227,7 +211,7 @@
           "priceList": "christmas-prices",
           "currency": "EUR",
           "innerRecordId": null,
-          "sellable": true,
+          "sellable": false,
           "priceWithoutTax": "12.02",
           "priceWithTax": "14.55",
           "taxRate": "21.0",
@@ -238,18 +222,15 @@
         }
       ],
       "priceForSale": {
-        "priceId": 85398,
-        "priceList": "christmas-prices",
+        "priceId": 8811,
+        "priceList": "basic",
         "currency": "EUR",
         "innerRecordId": null,
         "sellable": true,
-        "priceWithoutTax": "12.02",
-        "priceWithTax": "14.55",
+        "priceWithoutTax": "12.4",
+        "priceWithTax": "15.0",
         "taxRate": "21.0",
-        "validity": [
-          "2023-12-01T12:00:00+01:00",
-          "2024-01-01T12:00:59+01:00"
-        ]
+        "validity": null
       }
     },
     {
@@ -257,8 +238,6 @@
       "type": "Product",
       "version": 1,
       "allLocales": [
-        "cs",
-        "de",
         "en"
       ],
       "priceInnerRecordHandling": "NONE",
@@ -297,8 +276,6 @@
       "type": "Product",
       "version": 1,
       "allLocales": [
-        "cs",
-        "de",
         "en"
       ],
       "priceInnerRecordHandling": "NONE",
@@ -324,7 +301,7 @@
           "priceList": "christmas-prices",
           "currency": "EUR",
           "innerRecordId": null,
-          "sellable": true,
+          "sellable": false,
           "priceWithoutTax": "11.79",
           "priceWithTax": "14.26",
           "taxRate": "21.0",
@@ -335,18 +312,15 @@
         }
       ],
       "priceForSale": {
-        "priceId": 85412,
-        "priceList": "christmas-prices",
+        "priceId": 8815,
+        "priceList": "basic",
         "currency": "EUR",
         "innerRecordId": null,
         "sellable": true,
-        "priceWithoutTax": "11.79",
-        "priceWithTax": "14.26",
+        "priceWithoutTax": "12.4",
+        "priceWithTax": "15.0",
         "taxRate": "21.0",
-        "validity": [
-          "2023-12-01T12:00:00+01:00",
-          "2024-01-01T12:00:59+01:00"
-        ]
+        "validity": null
       }
     },
     {
@@ -354,8 +328,6 @@
       "type": "Product",
       "version": 1,
       "allLocales": [
-        "cs",
-        "de",
         "en"
       ],
       "priceInnerRecordHandling": "NONE",
@@ -381,7 +353,7 @@
           "priceList": "christmas-prices",
           "currency": "EUR",
           "innerRecordId": null,
-          "sellable": true,
+          "sellable": false,
           "priceWithoutTax": "33.47",
           "priceWithTax": "40.5",
           "taxRate": "21.0",
@@ -392,18 +364,15 @@
         }
       ],
       "priceForSale": {
-        "priceId": 85422,
-        "priceList": "christmas-prices",
+        "priceId": 8817,
+        "priceList": "basic",
         "currency": "EUR",
         "innerRecordId": null,
         "sellable": true,
-        "priceWithoutTax": "33.47",
-        "priceWithTax": "40.5",
+        "priceWithoutTax": "33.88",
+        "priceWithTax": "41.0",
         "taxRate": "21.0",
-        "validity": [
-          "2023-12-01T12:00:00+01:00",
-          "2024-01-01T12:00:59+01:00"
-        ]
+        "validity": null
       }
     },
     {
@@ -411,8 +380,6 @@
       "type": "Product",
       "version": 1,
       "allLocales": [
-        "cs",
-        "de",
         "en"
       ],
       "priceInnerRecordHandling": "NONE",
@@ -451,8 +418,6 @@
       "type": "Product",
       "version": 1,
       "allLocales": [
-        "cs",
-        "de",
         "en"
       ],
       "priceInnerRecordHandling": "NONE",
@@ -478,7 +443,7 @@
           "priceList": "christmas-prices",
           "currency": "EUR",
           "innerRecordId": null,
-          "sellable": true,
+          "sellable": false,
           "priceWithoutTax": "53.88",
           "priceWithTax": "65.2",
           "taxRate": "21.0",
@@ -489,33 +454,30 @@
         }
       ],
       "priceForSale": {
-        "priceId": 85448,
-        "priceList": "christmas-prices",
+        "priceId": 8821,
+        "priceList": "basic",
         "currency": "EUR",
         "innerRecordId": null,
         "sellable": true,
-        "priceWithoutTax": "53.88",
-        "priceWithTax": "65.2",
+        "priceWithoutTax": "54.55",
+        "priceWithTax": "66.0",
         "taxRate": "21.0",
-        "validity": [
-          "2023-12-01T12:00:00+01:00",
-          "2024-01-01T12:00:59+01:00"
-        ]
+        "validity": null
       }
     }
   ],
-  "type": "PAGE",
-  "totalRecordCount": 10,
-  "first": true,
-  "last": true,
-  "hasPrevious": false,
-  "hasNext": false,
-  "singlePage": true,
   "empty": false,
-  "pageSize": 20,
-  "pageNumber": 1,
-  "lastPageNumber": 1,
+  "first": true,
   "firstPageItemNumber": 0,
-  "lastPageItemNumber": 10
+  "hasNext": false,
+  "hasPrevious": false,
+  "last": true,
+  "lastPageItemNumber": 10,
+  "lastPageNumber": 1,
+  "pageNumber": 1,
+  "pageSize": 20,
+  "singlePage": true,
+  "totalRecordCount": 10,
+  "type": "PAGE"
 }
 ```

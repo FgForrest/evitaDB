@@ -46,7 +46,7 @@
       "allLocales": [
         "en"
       ],
-      "priceInnerRecordHandling": "FIRST_OCCURRENCE",
+      "priceInnerRecordHandling": "LOWEST_PRICE",
       "attributes": {
         "global": {
           "code": "alcatel-3"
@@ -86,7 +86,8 @@
         "priceWithTax": "80.0",
         "taxRate": "21.0",
         "validity": null
-      }
+      },
+      "multiplePricesForSaleAvailable": true
     },
     {
       "primaryKey": 106106,
@@ -393,18 +394,18 @@
       }
     }
   ],
-  "type": "PAGE",
-  "totalRecordCount": 10,
-  "first": true,
-  "last": true,
-  "hasPrevious": false,
-  "hasNext": false,
-  "singlePage": true,
   "empty": false,
-  "pageSize": 20,
-  "pageNumber": 1,
-  "lastPageNumber": 1,
+  "first": true,
   "firstPageItemNumber": 0,
-  "lastPageItemNumber": 10
+  "hasNext": false,
+  "hasPrevious": false,
+  "last": true,
+  "lastPageItemNumber": 10,
+  "lastPageNumber": 1,
+  "pageNumber": 1,
+  "pageSize": 20,
+  "singlePage": true,
+  "totalRecordCount": 10,
+  "type": "PAGE"
 }
 ```

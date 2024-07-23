@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -66,7 +66,6 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.Gra
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.OrderConstraintSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.RequireConstraintSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.ResponseHeaderDescriptor.BucketsFieldHeaderDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.ResponseHeaderDescriptor.QueryTelemetryFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.ResponseHeaderDescriptor.RecordPageFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.ResponseHeaderDescriptor.RecordStripFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.*;
@@ -142,7 +141,7 @@ public class FullResponseObjectBuilder {
 	public void buildCommonTypes() {
 		buildingContext.registerType(BucketDescriptor.THIS.to(objectBuilderTransformer).build());
 		buildingContext.registerType(buildHistogramObject());
-		// todo lho: remove after https://gitlab.fg.cz/hv/evita/-/issues/120 is implemented
+		// TOBEDONE LHO: remove after https://github.com/FgForrest/evitaDB/issues/8 is implemented
 		buildingContext.registerType(buildAttributeNamedHistogramObject());
 		buildingContext.registerType(buildFacetRequestImpactObject());
 	}
@@ -261,7 +260,7 @@ public class FullResponseObjectBuilder {
 		final List<BuiltFieldDescriptor> extraResultFields = new ArrayList<>(10);
 
 		buildAttributeHistogramField(entitySchema).ifPresent(extraResultFields::add);
-		// todo lho: remove after https://gitlab.fg.cz/hv/evita/-/issues/120 is implemented
+		// TOBEDONE LHO: remove after https://github.com/FgForrest/evitaDB/issues/8 is implemented
 		buildAttributeHistogramsField(entitySchema).ifPresent(extraResultFields::add);
 		buildPriceHistogramField(entitySchema).ifPresent(extraResultFields::add);
 		buildFacetSummaryField(entitySchema).ifPresent(extraResultFields::add);
@@ -342,7 +341,7 @@ public class FullResponseObjectBuilder {
 		);
 	}
 
-	// todo lho: remove after https://gitlab.fg.cz/hv/evita/-/issues/120 is implemented
+	// TOBEDONE LHO: remove after https://github.com/FgForrest/evitaDB/issues/8 is implemented
 	@Nonnull
 	private static Optional<BuiltFieldDescriptor> buildAttributeHistogramsField(@Nonnull EntitySchemaContract entitySchema) {
 		final GraphQLFieldDefinition attributeHistogramField = newFieldDefinition()
@@ -433,9 +432,16 @@ public class FullResponseObjectBuilder {
 			referenceSchema
 		);
 
+		final boolean isGrouped = referenceSchema.getReferencedGroupType() != null;
+
 		final GraphQLFieldDefinition.Builder facetGroupStatisticsFieldBuilder = newFieldDefinition()
-			.name(referenceSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION))
-			.type(list(nonNull(facetGroupStatisticsObject)));
+			.name(referenceSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION));
+		if (isGrouped) {
+			facetGroupStatisticsFieldBuilder.type(list(nonNull(facetGroupStatisticsObject)));
+		} else {
+			// if there is no group type, then the result will always be a single virtual group covering all facet statistics
+			facetGroupStatisticsFieldBuilder.type(facetGroupStatisticsObject);
+		}
 
 		if (referenceSchema.getReferencedGroupType() != null) {
 			final DataLocator groupEntityDataLocator;
@@ -458,7 +464,7 @@ public class FullResponseObjectBuilder {
 
 		return new BuiltFieldDescriptor(
 			facetGroupStatisticsFieldBuilder.build(),
-			new FacetGroupStatisticsDataFetcher(referenceSchema)
+			isGrouped ? new FacetGroupStatisticsDataFetcher(referenceSchema) : new NonGroupedFacetGroupStatisticsDataFetcher(referenceSchema)
 		);
 	}
 
@@ -471,11 +477,13 @@ public class FullResponseObjectBuilder {
 			.to(objectBuilderTransformer)
 			.name(objectName);
 
-		buildingContext.registerFieldToObject(
-			objectName,
-			facetGroupStatisticsBuilder,
-			buildFacetGroupEntityField(referenceSchema)
-		);
+		if (referenceSchema.getReferencedGroupType() != null) {
+			buildingContext.registerFieldToObject(
+				objectName,
+				facetGroupStatisticsBuilder,
+				buildFacetGroupEntityField(referenceSchema)
+			);
+		}
 
 		buildingContext.registerFieldToObject(
 			objectName,
@@ -920,7 +928,6 @@ public class FullResponseObjectBuilder {
 			ExtraResultsDescriptor.QUERY_TELEMETRY
 				.to(fieldBuilderTransformer)
 				.type(nonNull(OBJECT)) // workaround because GQL doesn't support infinite recursive structures
-				.argument(QueryTelemetryFieldHeaderDescriptor.FORMATTED.to(argumentBuilderTransformer))
 				.build(),
 			new QueryTelemetryDataFetcher(QUERY_TELEMETRY_OBJECT_MAPPER)
 		);
@@ -942,11 +949,12 @@ public class FullResponseObjectBuilder {
 			.to(objectBuilderTransformer)
 			.field(HistogramDescriptor.BUCKETS
 				.to(fieldBuilderTransformer)
-				.argument(BucketsFieldHeaderDescriptor.REQUESTED_COUNT.to(argumentBuilderTransformer)))
+				.argument(BucketsFieldHeaderDescriptor.REQUESTED_COUNT.to(argumentBuilderTransformer))
+				.argument(BucketsFieldHeaderDescriptor.BEHAVIOR.to(argumentBuilderTransformer)))
 			.build();
 	}
 
-	// todo lho: remove after https://gitlab.fg.cz/hv/evita/-/issues/120 is implemented
+	// TOBEDONE LHO: remove after https://github.com/FgForrest/evitaDB/issues/8 is implemented
 	@Nonnull
 	private GraphQLObjectType buildAttributeNamedHistogramObject() {
 		return HistogramDescriptor.THIS
@@ -955,7 +963,8 @@ public class FullResponseObjectBuilder {
 			.field(f -> f.name("attributeName").type(nonNull(STRING)))
 			.field(HistogramDescriptor.BUCKETS
 				.to(fieldBuilderTransformer)
-				.argument(BucketsFieldHeaderDescriptor.REQUESTED_COUNT.to(argumentBuilderTransformer)))
+				.argument(BucketsFieldHeaderDescriptor.REQUESTED_COUNT.to(argumentBuilderTransformer))
+				.argument(BucketsFieldHeaderDescriptor.BEHAVIOR.to(argumentBuilderTransformer)))
 			.build();
 	}
 

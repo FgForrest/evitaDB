@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,7 +23,7 @@
 
 package io.evitadb.externalApi.lab.api.resolver.endpoint;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import com.linecorp.armeria.common.HttpMethod;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.Query;
@@ -34,7 +34,6 @@ import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.dataType.DataChunk;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.StripList;
-import io.evitadb.externalApi.api.ExternalApiNamingConventions;
 import io.evitadb.externalApi.http.EndpointResponse;
 import io.evitadb.externalApi.http.SuccessEndpointResponse;
 import io.evitadb.externalApi.lab.api.dto.QueryEntitiesRequestBodyDto;
@@ -45,12 +44,13 @@ import io.evitadb.externalApi.rest.api.catalog.dataApi.dto.PaginatedListDto;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.dto.QueryResponse;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.dto.QueryResponse.QueryResponseBuilder;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.dto.StripListDto;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer.EntitySerializationContext;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer.ExtraResultsJsonSerializer;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.externalApi.rest.io.JsonRestHandler;
-import io.evitadb.externalApi.rest.io.RestEndpointExchange;
-import io.evitadb.utils.StringUtils;
-import io.undertow.util.Methods;
+import io.evitadb.externalApi.rest.io.RestEndpointExecutionContext;
+import io.evitadb.externalApi.rest.metric.event.request.ExecutedEvent;
+import io.evitadb.utils.Assert;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -59,6 +59,7 @@ import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Returns entities by passed query.
@@ -66,48 +67,57 @@ import java.util.Set;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @Slf4j
-public class QueryEntitiesHandler extends JsonRestHandler<EvitaResponse<EntityClassifier>, LabApiHandlingContext> {
+public class QueryEntitiesHandler extends JsonRestHandler<LabApiHandlingContext> {
 
 	@Nonnull private final QueryParser queryParser;
 	@Nonnull private final GenericEntityJsonSerializer entityJsonSerializer;
 	@Nonnull private final ExtraResultsJsonSerializer extraResultsJsonSerializer;
 
-	public QueryEntitiesHandler(@Nonnull LabApiHandlingContext restApiHandlingContext) {
-		super(restApiHandlingContext);
+	public QueryEntitiesHandler(@Nonnull LabApiHandlingContext restHandlingContext) {
+		super(restHandlingContext);
 		this.queryParser = new DefaultQueryParser();
-		this.entityJsonSerializer = new GenericEntityJsonSerializer(restApiHandlingContext);
+		this.entityJsonSerializer = new GenericEntityJsonSerializer(restHandlingContext.getObjectMapper());
 		this.extraResultsJsonSerializer = new ExtraResultsJsonSerializer(
-			restApiHandlingContext,
 			this.entityJsonSerializer,
-			StringUtils::toCamelCase
+			this.restHandlingContext.getObjectMapper()
 		);
 	}
 
 	@Nullable
 	@Override
-	protected Optional<EvitaSessionContract> createSession(@Nonnull RestEndpointExchange exchange) {
+	protected Optional<EvitaSessionContract> createSession(@Nonnull RestEndpointExecutionContext exchange) {
 		final Map<String, Object> parameters = getParametersFromRequest(exchange);
 		final String catalogName = (String) parameters.get(CatalogsHeaderDescriptor.NAME.name());
-		final CatalogContract catalog = restApiHandlingContext.getEvita().getCatalogInstance(catalogName)
+		final CatalogContract catalog = restHandlingContext.getEvita().getCatalogInstance(catalogName)
 			.orElseThrow(() -> new RestInternalError("Catalog `" + catalogName + "` does not exist."));
 
-		return Optional.of(restApiHandlingContext.getEvita().createReadOnlySession(catalog.getName()));
+		return Optional.of(restHandlingContext.getEvita().createReadOnlySession(catalog.getName()));
 	}
 
 	@Nonnull
 	@Override
-	protected EndpointResponse<EvitaResponse<EntityClassifier>> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
-		final Query query = resolveQuery(exchange);
-		log.debug("Generated evitaDB query for entity query is `{}`.", query);
+	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
+		final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
 
-		final EvitaResponse<EntityClassifier> response = exchange.session().query(query, EntityClassifier.class);
-		return new SuccessEndpointResponse<>(response);
+		return resolveQuery(executionContext)
+			.thenApply(query -> {
+				log.debug("Generated evitaDB query for entity query is `{}`.", query);
+
+				final EvitaResponse<EntityClassifier> response = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
+					executionContext.session().query(query, EntityClassifier.class));
+				requestExecutedEvent.finishOperationExecution();
+
+				final Object result = convertResultIntoSerializableObject(executionContext, response);
+				requestExecutedEvent.finishResultSerialization();
+
+				return new SuccessEndpointResponse(result);
+			});
 	}
 
 	@Nonnull
 	@Override
-	public Set<String> getSupportedHttpMethods() {
-		return Set.of(Methods.POST_STRING);
+	public Set<HttpMethod> getSupportedHttpMethods() {
+		return Set.of(HttpMethod.POST);
 	}
 
 	@Nonnull
@@ -123,38 +133,59 @@ public class QueryEntitiesHandler extends JsonRestHandler<EvitaResponse<EntityCl
 	}
 
 	@Nonnull
-	protected Query resolveQuery(@Nonnull RestEndpointExchange exchange) {
-		final QueryEntitiesRequestBodyDto requestData = parseRequestBody(exchange, QueryEntitiesRequestBodyDto.class);
+	protected CompletableFuture<Query> resolveQuery(@Nonnull RestEndpointExecutionContext executionContext) {
+		final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
 
-		// todo lho arguments
-		return queryParser.parseQueryUnsafe(requestData.getQuery());
+		return parseRequestBody(executionContext, QueryEntitiesRequestBodyDto.class)
+			.thenApply(requestData -> {
+				// todo lho arguments
+				requestExecutedEvent.finishInputDeserialization();
+
+				// todo lho arguments
+				return requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() ->
+					queryParser.parseQueryUnsafe(requestData.getQuery()));
+			});
+
 	}
 
 	@Nonnull
 	@Override
-	protected Object convertResultIntoSerializableObject(@Nonnull RestEndpointExchange exchange, @Nonnull EvitaResponse<EntityClassifier> result) {
+	protected Object convertResultIntoSerializableObject(@Nonnull RestEndpointExecutionContext exchange, @Nonnull Object result) {
+		Assert.isPremiseValid(
+			result instanceof EvitaResponse,
+			() -> new RestInternalError("Expected evitaDB response, but got `" + result.getClass().getName() + "`.")
+		);
+		//noinspection unchecked
+		final EvitaResponse<EntityClassifier> evitaResponse = (EvitaResponse<EntityClassifier>) result;
 		final QueryResponseBuilder queryResponseBuilder = QueryResponse.builder()
-			.recordPage(serializeRecordPage(result));
-		if (!result.getExtraResults().isEmpty()) {
+			.recordPage(serializeRecordPage(exchange, evitaResponse));
+		if (!evitaResponse.getExtraResults().isEmpty()) {
 			queryResponseBuilder
-				.extraResults(extraResultsJsonSerializer.serialize(result.getExtraResults()));
+				.extraResults(
+					extraResultsJsonSerializer.serialize(
+						evitaResponse.getExtraResults(),
+						exchange.session().getEntitySchemaOrThrow(evitaResponse.getSourceQuery().getCollection().getEntityType()),
+						exchange.session().getCatalogSchema()
+					)
+				);
 		}
 		return queryResponseBuilder.build();
 	}
 
 	@Nonnull
-	private DataChunkDto serializeRecordPage(@Nonnull EvitaResponse<EntityClassifier> response) {
+	private DataChunkDto serializeRecordPage(@Nonnull RestEndpointExecutionContext exchange, @Nonnull EvitaResponse<EntityClassifier> response) {
 		final DataChunk<EntityClassifier> recordPage = response.getRecordPage();
 
+		final EntitySerializationContext serializationContext = new EntitySerializationContext(exchange.session().getCatalogSchema());
 		if (recordPage instanceof PaginatedList<EntityClassifier> paginatedList) {
 			return new PaginatedListDto(
 				paginatedList,
-				entityJsonSerializer.serialize(paginatedList.getData())
+				entityJsonSerializer.serialize(serializationContext, paginatedList.getData())
 			);
 		} else if (recordPage instanceof StripList<EntityClassifier> stripList) {
 			return new StripListDto(
 				stripList,
-				entityJsonSerializer.serialize(stripList.getData())
+				entityJsonSerializer.serialize(serializationContext, stripList.getData())
 			);
 		} else {
 			throw new RestInternalError("Unsupported data chunk type `" + recordPage.getClass().getName() + "`.");

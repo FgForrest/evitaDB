@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -43,6 +43,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.test.Entities;
 import io.evitadb.test.TestConstants;
@@ -53,6 +54,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Collection;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
@@ -61,6 +63,7 @@ import java.util.stream.Stream;
 
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_NAME;
+import static java.util.Optional.ofNullable;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -80,7 +83,24 @@ public class DataLocatorResolverTest {
 	@BeforeEach
 	void setUp() {
 		this.entitySchemaIndex = new HashMap<>();
-		this.catalogSchema = CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, Map.of(), EnumSet.allOf(CatalogEvolutionMode.class), entitySchemaIndex::get);
+		this.catalogSchema = CatalogSchema._internalBuild(
+			TestConstants.TEST_CATALOG,
+			Map.of(),
+			EnumSet.allOf(CatalogEvolutionMode.class),
+			new EntitySchemaProvider() {
+				@Nonnull
+				@Override
+				public Collection<EntitySchemaContract> getEntitySchemas() {
+					return entitySchemaIndex.values();
+				}
+
+				@Nonnull
+				@Override
+				public Optional<EntitySchemaContract> getEntitySchema(@Nonnull String entityType) {
+					return ofNullable(entitySchemaIndex.get(entityType));
+				}
+			}
+		);
 
 		final EntitySchemaContract productSchema = new InternalEntitySchemaBuilder(
 			catalogSchema,
@@ -121,7 +141,7 @@ public class DataLocatorResolverTest {
 	                                            @Nonnull DataLocator expectedChildDataLocator) {
 		assertEquals(
 			expectedChildDataLocator,
-			dataLocatorResolver.resolveChildParameterDataLocator(parentDataLocator, desiredChildDomain)
+			dataLocatorResolver.resolveChildParameterDataLocator(parentDataLocator, desiredChildDomain).get()
 		);
 	}
 
@@ -136,6 +156,10 @@ public class DataLocatorResolverTest {
 			// from basic reference to entity
 			Arguments.of(new ReferenceDataLocator(Entities.PRODUCT, Entities.CATEGORY), ConstraintDomain.ENTITY, new EntityDataLocator(Entities.CATEGORY)),
 			Arguments.of(new ReferenceDataLocator(Entities.PRODUCT, EXTERNAL_ENTITY_TAG), ConstraintDomain.ENTITY, new ExternalEntityDataLocator(EXTERNAL_ENTITY_TAG)),
+
+			// from basic inline reference to entity
+			Arguments.of(new InlineReferenceDataLocator(Entities.PRODUCT, Entities.CATEGORY), ConstraintDomain.ENTITY, new EntityDataLocator(Entities.CATEGORY)),
+			Arguments.of(new InlineReferenceDataLocator(Entities.PRODUCT, EXTERNAL_ENTITY_TAG), ConstraintDomain.ENTITY, new ExternalEntityDataLocator(EXTERNAL_ENTITY_TAG)),
 
 			// from hierarchy to entity
 			Arguments.of(new HierarchyDataLocator(Entities.CATEGORY), ConstraintDomain.ENTITY, new EntityDataLocator(Entities.CATEGORY)),
@@ -158,6 +182,7 @@ public class DataLocatorResolverTest {
 			Arguments.of(new EntityDataLocator(Entities.PRODUCT), ConstraintDomain.GENERIC, new GenericDataLocator(Entities.PRODUCT)),
 			Arguments.of(new ExternalEntityDataLocator(Entities.PRODUCT), ConstraintDomain.GENERIC, new GenericDataLocator(Entities.PRODUCT)),
 			Arguments.of(new ReferenceDataLocator(Entities.PRODUCT, Entities.CATEGORY), ConstraintDomain.GENERIC, new GenericDataLocator(Entities.CATEGORY)),
+			Arguments.of(new InlineReferenceDataLocator(Entities.PRODUCT, Entities.CATEGORY), ConstraintDomain.GENERIC, new GenericDataLocator(Entities.CATEGORY)),
 			Arguments.of(new HierarchyDataLocator(Entities.CATEGORY), ConstraintDomain.GENERIC, new GenericDataLocator(Entities.CATEGORY)),
 			Arguments.of(new HierarchyDataLocator(Entities.PRODUCT, Entities.CATEGORY), ConstraintDomain.GENERIC, new GenericDataLocator(Entities.CATEGORY)),
 			Arguments.of(new FacetDataLocator(Entities.PARAMETER), ConstraintDomain.GENERIC, new GenericDataLocator(Entities.PARAMETER)),
@@ -184,6 +209,7 @@ public class DataLocatorResolverTest {
 			Arguments.of(new EntityDataLocator(Entities.PRODUCT), ConstraintDomain.HIERARCHY_TARGET),
 			Arguments.of(new ExternalEntityDataLocator(EXTERNAL_ENTITY_TAG), ConstraintDomain.HIERARCHY_TARGET),
 			Arguments.of(new ReferenceDataLocator(Entities.PRODUCT, Entities.CATEGORY), ConstraintDomain.HIERARCHY_TARGET),
+			Arguments.of(new InlineReferenceDataLocator(Entities.PRODUCT, Entities.CATEGORY), ConstraintDomain.HIERARCHY_TARGET),
 			Arguments.of(new FacetDataLocator(Entities.PRODUCT), ConstraintDomain.HIERARCHY_TARGET),
 			Arguments.of(new FacetDataLocator(Entities.PRODUCT, Entities.CATEGORY), ConstraintDomain.HIERARCHY_TARGET),
 
@@ -211,8 +237,12 @@ public class DataLocatorResolverTest {
 			Arguments.of(new FacetDataLocator(Entities.PRODUCT, Entities.CATEGORY), ConstraintDomain.HIERARCHY),
 			// we don't know if reference is facet
 			Arguments.of(new ReferenceDataLocator(Entities.PRODUCT, Entities.CATEGORY), ConstraintDomain.FACET),
+			// we don't know if reference is facet
+			Arguments.of(new InlineReferenceDataLocator(Entities.PRODUCT, Entities.CATEGORY), ConstraintDomain.FACET),
 			// we don't know if reference is hierarchy
-			Arguments.of(new ReferenceDataLocator(Entities.PRODUCT, Entities.CATEGORY), ConstraintDomain.HIERARCHY)
+			Arguments.of(new ReferenceDataLocator(Entities.PRODUCT, Entities.CATEGORY), ConstraintDomain.HIERARCHY),
+			// we don't know if reference is hierarchy
+			Arguments.of(new InlineReferenceDataLocator(Entities.PRODUCT, Entities.CATEGORY), ConstraintDomain.HIERARCHY)
 		);
 	}
 
@@ -224,7 +254,7 @@ public class DataLocatorResolverTest {
 	                                             @Nonnull DataLocator expectedChildDataLocator) {
 		assertEquals(
 			expectedChildDataLocator,
-			dataLocatorResolver.resolveConstraintDataLocator(parentDataLocator, constraintDescriptor, Optional.ofNullable(classifier))
+			dataLocatorResolver.resolveConstraintDataLocator(parentDataLocator, constraintDescriptor, ofNullable(classifier))
 		);
 	}
 
@@ -320,7 +350,19 @@ public class DataLocatorResolverTest {
 				new EntityDataLocator(Entities.CATEGORY)
 			),
 			Arguments.of(
+				new InlineReferenceDataLocator(Entities.PRODUCT, Entities.CATEGORY),
+				ConstraintDescriptorProvider.getConstraint(EntityHaving.class),
+				null,
+				new EntityDataLocator(Entities.CATEGORY)
+			),
+			Arguments.of(
 				new ReferenceDataLocator(Entities.PRODUCT, EXTERNAL_ENTITY_TAG),
+				ConstraintDescriptorProvider.getConstraint(EntityHaving.class),
+				null,
+				new ExternalEntityDataLocator(EXTERNAL_ENTITY_TAG)
+			),
+			Arguments.of(
+				new InlineReferenceDataLocator(Entities.PRODUCT, EXTERNAL_ENTITY_TAG),
 				ConstraintDescriptorProvider.getConstraint(EntityHaving.class),
 				null,
 				new ExternalEntityDataLocator(EXTERNAL_ENTITY_TAG)
@@ -353,7 +395,7 @@ public class DataLocatorResolverTest {
 	                                           @Nullable String classifier) {
 		assertThrows(
 			ExternalApiInternalError.class,
-			() -> dataLocatorResolver.resolveConstraintDataLocator(parentDataLocator, constraintDescriptor, Optional.ofNullable(classifier))
+			() -> dataLocatorResolver.resolveConstraintDataLocator(parentDataLocator, constraintDescriptor, ofNullable(classifier))
 		);
 	}
 
@@ -364,6 +406,11 @@ public class DataLocatorResolverTest {
 			// cannot have another reference in other reference
 			Arguments.of(
 				new ReferenceDataLocator(Entities.PRODUCT, Entities.CATEGORY),
+				ConstraintDescriptorProvider.getConstraint(ReferenceHaving.class),
+				Entities.BRAND
+			),
+			Arguments.of(
+				new InlineReferenceDataLocator(Entities.PRODUCT, Entities.CATEGORY),
 				ConstraintDescriptorProvider.getConstraint(ReferenceHaving.class),
 				Entities.BRAND
 			),

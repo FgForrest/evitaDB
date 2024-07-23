@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -47,8 +47,6 @@ import java.io.Serial;
  * Mutation implements {@link CombinableEntitySchemaMutation} allowing to resolve conflicts with the same mutation
  * if it's present in the mutation pipeline.
  *
- * TOBEDONE JNO - write tests
- *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @ThreadSafe
@@ -80,7 +78,7 @@ public class SetEntitySchemaWithPriceMutation implements CombinableEntitySchemaM
 	@Override
 	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
-		if (withPrice == entitySchema.isWithPrice()) {
+		if (withPrice == entitySchema.isWithPrice() && indexedPricePlaces == entitySchema.getIndexedPricePlaces()) {
 			// no need to change the schema
 			return entitySchema;
 		} else {
@@ -93,7 +91,7 @@ public class SetEntitySchemaWithPriceMutation implements CombinableEntitySchemaM
 				entitySchema.isWithGeneratedPrimaryKey(),
 				entitySchema.isWithHierarchy(),
 				withPrice,
-				entitySchema.getIndexedPricePlaces(),
+				indexedPricePlaces,
 				entitySchema.getLocales(),
 				entitySchema.getCurrencies(),
 				entitySchema.getAttributes(),

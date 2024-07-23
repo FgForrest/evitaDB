@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -36,29 +36,37 @@ module evita.external.api.graphql {
 
 	opens io.evitadb.externalApi.graphql to com.graphqljava;
 	opens io.evitadb.externalApi.graphql.configuration to com.fasterxml.jackson.databind;
-	opens io.evitadb.externalApi.graphql.io to com.fasterxml.jackson.databind;
-	opens io.evitadb.externalApi.graphql.api.catalog.dataApi.dto to com.graphqljava;
 	opens io.evitadb.externalApi.graphql.api to com.graphqljava;
+	opens io.evitadb.externalApi.graphql.api.catalog to com.graphqljava;
+	opens io.evitadb.externalApi.graphql.api.catalog.dataApi.dto to com.graphqljava;
+	opens io.evitadb.externalApi.graphql.io to com.fasterxml.jackson.databind;
+	opens io.evitadb.externalApi.graphql.io.webSocket to com.fasterxml.jackson.databind;
+	opens io.evitadb.externalApi.graphql.io.web to com.fasterxml.jackson.databind;
 
 	exports io.evitadb.externalApi.graphql;
 	exports io.evitadb.externalApi.graphql.io;
 	exports io.evitadb.externalApi.graphql.configuration;
+	exports io.evitadb.externalApi.graphql.metric.event.request;
+	exports io.evitadb.externalApi.graphql.metric.event.instance;
 
 	exports io.evitadb.externalApi.graphql.api.catalog.dataApi.model to evita.test.support;
 	exports io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity to evita.test.support;
 	exports io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult to evita.test.support;
 	exports io.evitadb.externalApi.graphql.io.webSocket;
-	opens io.evitadb.externalApi.graphql.io.webSocket to com.fasterxml.jackson.databind;
 	exports io.evitadb.externalApi.graphql.io.web;
-	opens io.evitadb.externalApi.graphql.io.web to com.fasterxml.jackson.databind;
 
 	requires static jsr305;
 	requires static lombok;
-	requires org.slf4j;
-	requires com.fasterxml.jackson.databind;
-	requires undertow.core;
+
 	requires com.graphqljava;
+	requires com.fasterxml.jackson.databind;
+	requires com.linecorp.armeria;
+	requires io.netty.common;
+	requires io.netty.transport;
+	requires net.bytebuddy;
+	requires jdk.jfr;
 	requires org.reactivestreams;
+	requires org.slf4j;
 
 	requires evita.api;
 	requires evita.common;

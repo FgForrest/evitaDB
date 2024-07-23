@@ -147,8 +147,8 @@
 			"path": "/query/ordering/constant.md"
 		  },
 		  {
-			"title": "Natural",
-			"path": "/query/ordering/natural.md"
+			"title": "Comparable",
+			"path": "/query/ordering/comparable.md"
 		  },
 		  {
 			"title": "Price",
@@ -190,6 +190,10 @@
 		  {
 			"title": "Histogram",
 			"path": "/query/requirements/histogram.md"
+		  },
+		  {
+			"title": "Telemetry",
+			"path": "/query/requirements/telemetry.md"
 		  }
 		]
 	  }
@@ -215,8 +219,8 @@
 		"path": "/operate/backup-restore.md"
 	  },
 	  {
-		"title": "Monitor",
-		"path": "/operate/monitor.md"
+		"title": "Observe",
+		"path": "/operate/observe.md"
 	  }
 	]
   },

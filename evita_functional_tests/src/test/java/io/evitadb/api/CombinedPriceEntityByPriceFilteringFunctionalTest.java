@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -42,7 +42,6 @@ import java.util.List;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
-import static io.evitadb.api.query.QueryConstraints.attributeContent;
 import static io.evitadb.api.query.QueryConstraints.attributeContentAll;
 import static io.evitadb.api.query.QueryConstraints.priceContentRespectingFilter;
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
@@ -72,6 +71,7 @@ public class CombinedPriceEntityByPriceFilteringFunctionalTest extends EntityByP
 
 			dataGenerator.getSampleCategorySchema(session);
 			dataGenerator.getSampleBrandSchema(session);
+			dataGenerator.getSampleStoreSchema(session);
 
 			final List<EntityReference> storedProducts = dataGenerator.generateEntities(
 					dataGenerator.getSampleProductSchema(session),
@@ -270,5 +270,37 @@ public class CombinedPriceEntityByPriceFilteringFunctionalTest extends EntityByP
 	@Override
 	void shouldReturnPriceHistogramWithoutBeingAffectedByPriceFilter(Evita evita, List<SealedEntity> originalProductEntities) {
 		super.shouldReturnPriceHistogramWithoutBeingAffectedByPriceFilter(evita, originalProductEntities);
+	}
+
+	@DisplayName("Should return price histogram for returned products excluding price between query (and validity)")
+	@UseDataSet(HUNDRED_PRODUCTS_WITH_COMBINED_PRICES)
+	@Test
+	@Override
+	void shouldReturnPriceHistogramWithoutBeingAffectedByPriceFilterAndValidity(Evita evita, List<SealedEntity> originalProductEntities) {
+		super.shouldReturnPriceHistogramWithoutBeingAffectedByPriceFilterAndValidity(evita, originalProductEntities);
+	}
+
+	@DisplayName("Should return price histogram for returned products excluding price between query")
+	@UseDataSet(HUNDRED_PRODUCTS_WITH_COMBINED_PRICES)
+	@Test
+	@Override
+	void shouldReturnPriceHistogramWithoutBeingAffectedByPriceFilterUsingPrefetch(Evita evita, List<SealedEntity> originalProductEntities) {
+		super.shouldReturnPriceHistogramWithoutBeingAffectedByPriceFilterUsingPrefetch(evita, originalProductEntities);
+	}
+
+	@DisplayName("Should return products with price in price list and currency within interval (with tax) ordered by price asc without explicit AND")
+	@UseDataSet(HUNDRED_PRODUCTS_WITH_COMBINED_PRICES)
+	@Test
+	@Override
+	void shouldReturnProductsHavingPriceInCurrencyAndPriceListInIntervalWithTaxOrderByPriceAscendingWithoutExplicitAnd(Evita evita, List<SealedEntity> originalProductEntities) {
+		super.shouldReturnProductsHavingPriceInCurrencyAndPriceListInIntervalWithTaxOrderByPriceAscendingWithoutExplicitAnd(evita, originalProductEntities);
+	}
+
+	@DisplayName("Should correctly traverse through all pages or results")
+	@UseDataSet(HUNDRED_PRODUCTS_WITH_COMBINED_PRICES)
+	@Test
+	@Override
+	void shouldReturnCorrectlyTraverseThroughAllPagesOfResults(Evita evita, List<SealedEntity> originalProductEntities) {
+		super.shouldReturnCorrectlyTraverseThroughAllPagesOfResults(evita, originalProductEntities);
 	}
 }

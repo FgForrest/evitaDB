@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -44,6 +44,7 @@ private static final long serialVersionUID = 0L;
   }
   private GrpcEvitaSessionRequest() {
     catalogName_ = "";
+    commitBehavior_ = 0;
   }
 
   @java.lang.Override
@@ -83,6 +84,12 @@ private static final long serialVersionUID = 0L;
             break;
           }
           case 16: {
+            int rawValue = input.readEnum();
+
+            commitBehavior_ = rawValue;
+            break;
+          }
+          case 24: {
 
             dryRun_ = input.readBool();
             break;
@@ -165,14 +172,41 @@ private static final long serialVersionUID = 0L;
     }
   }
 
-  public static final int DRYRUN_FIELD_NUMBER = 2;
+  public static final int COMMITBEHAVIOR_FIELD_NUMBER = 2;
+  private int commitBehavior_;
+  /**
+   * <pre>
+   * Commit behaviour
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior commitBehavior = 2;</code>
+   * @return The enum numeric value on the wire for commitBehavior.
+   */
+  @java.lang.Override public int getCommitBehaviorValue() {
+    return commitBehavior_;
+  }
+  /**
+   * <pre>
+   * Commit behaviour
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior commitBehavior = 2;</code>
+   * @return The commitBehavior.
+   */
+  @java.lang.Override public io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior getCommitBehavior() {
+    @SuppressWarnings("deprecation")
+    io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior result = io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior.valueOf(commitBehavior_);
+    return result == null ? io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior.UNRECOGNIZED : result;
+  }
+
+  public static final int DRYRUN_FIELD_NUMBER = 3;
   private boolean dryRun_;
   /**
    * <pre>
    * For testing purposes. Flag indicating that all changes by the session should be rollbacked after the session is closed.
    * </pre>
    *
-   * <code>bool dryRun = 2;</code>
+   * <code>bool dryRun = 3;</code>
    * @return The dryRun.
    */
   @java.lang.Override
@@ -197,8 +231,11 @@ private static final long serialVersionUID = 0L;
     if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(catalogName_)) {
       com.google.protobuf.GeneratedMessageV3.writeString(output, 1, catalogName_);
     }
+    if (commitBehavior_ != io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior.WAIT_FOR_CONFLICT_RESOLUTION.getNumber()) {
+      output.writeEnum(2, commitBehavior_);
+    }
     if (dryRun_ != false) {
-      output.writeBool(2, dryRun_);
+      output.writeBool(3, dryRun_);
     }
     unknownFields.writeTo(output);
   }
@@ -212,9 +249,13 @@ private static final long serialVersionUID = 0L;
     if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(catalogName_)) {
       size += com.google.protobuf.GeneratedMessageV3.computeStringSize(1, catalogName_);
     }
+    if (commitBehavior_ != io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior.WAIT_FOR_CONFLICT_RESOLUTION.getNumber()) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeEnumSize(2, commitBehavior_);
+    }
     if (dryRun_ != false) {
       size += com.google.protobuf.CodedOutputStream
-        .computeBoolSize(2, dryRun_);
+        .computeBoolSize(3, dryRun_);
     }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
@@ -233,6 +274,7 @@ private static final long serialVersionUID = 0L;
 
     if (!getCatalogName()
         .equals(other.getCatalogName())) return false;
+    if (commitBehavior_ != other.commitBehavior_) return false;
     if (getDryRun()
         != other.getDryRun()) return false;
     if (!unknownFields.equals(other.unknownFields)) return false;
@@ -248,6 +290,8 @@ private static final long serialVersionUID = 0L;
     hash = (19 * hash) + getDescriptor().hashCode();
     hash = (37 * hash) + CATALOGNAME_FIELD_NUMBER;
     hash = (53 * hash) + getCatalogName().hashCode();
+    hash = (37 * hash) + COMMITBEHAVIOR_FIELD_NUMBER;
+    hash = (53 * hash) + commitBehavior_;
     hash = (37 * hash) + DRYRUN_FIELD_NUMBER;
     hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
         getDryRun());
@@ -390,6 +434,8 @@ private static final long serialVersionUID = 0L;
       super.clear();
       catalogName_ = "";
 
+      commitBehavior_ = 0;
+
       dryRun_ = false;
 
       return this;
@@ -419,6 +465,7 @@ private static final long serialVersionUID = 0L;
     public io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest result = new io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest(this);
       result.catalogName_ = catalogName_;
+      result.commitBehavior_ = commitBehavior_;
       result.dryRun_ = dryRun_;
       onBuilt();
       return result;
@@ -471,6 +518,9 @@ private static final long serialVersionUID = 0L;
       if (!other.getCatalogName().isEmpty()) {
         catalogName_ = other.catalogName_;
         onChanged();
+      }
+      if (other.commitBehavior_ != 0) {
+        setCommitBehaviorValue(other.getCommitBehaviorValue());
       }
       if (other.getDryRun() != false) {
         setDryRun(other.getDryRun());
@@ -600,13 +650,87 @@ private static final long serialVersionUID = 0L;
       return this;
     }
 
+    private int commitBehavior_ = 0;
+    /**
+     * <pre>
+     * Commit behaviour
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior commitBehavior = 2;</code>
+     * @return The enum numeric value on the wire for commitBehavior.
+     */
+    @java.lang.Override public int getCommitBehaviorValue() {
+      return commitBehavior_;
+    }
+    /**
+     * <pre>
+     * Commit behaviour
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior commitBehavior = 2;</code>
+     * @param value The enum numeric value on the wire for commitBehavior to set.
+     * @return This builder for chaining.
+     */
+    public Builder setCommitBehaviorValue(int value) {
+
+      commitBehavior_ = value;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Commit behaviour
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior commitBehavior = 2;</code>
+     * @return The commitBehavior.
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior getCommitBehavior() {
+      @SuppressWarnings("deprecation")
+      io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior result = io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior.valueOf(commitBehavior_);
+      return result == null ? io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior.UNRECOGNIZED : result;
+    }
+    /**
+     * <pre>
+     * Commit behaviour
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior commitBehavior = 2;</code>
+     * @param value The commitBehavior to set.
+     * @return This builder for chaining.
+     */
+    public Builder setCommitBehavior(io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior value) {
+      if (value == null) {
+        throw new NullPointerException();
+      }
+
+      commitBehavior_ = value.getNumber();
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Commit behaviour
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior commitBehavior = 2;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearCommitBehavior() {
+
+      commitBehavior_ = 0;
+      onChanged();
+      return this;
+    }
+
     private boolean dryRun_ ;
     /**
      * <pre>
      * For testing purposes. Flag indicating that all changes by the session should be rollbacked after the session is closed.
      * </pre>
      *
-     * <code>bool dryRun = 2;</code>
+     * <code>bool dryRun = 3;</code>
      * @return The dryRun.
      */
     @java.lang.Override
@@ -618,7 +742,7 @@ private static final long serialVersionUID = 0L;
      * For testing purposes. Flag indicating that all changes by the session should be rollbacked after the session is closed.
      * </pre>
      *
-     * <code>bool dryRun = 2;</code>
+     * <code>bool dryRun = 3;</code>
      * @param value The dryRun to set.
      * @return This builder for chaining.
      */
@@ -633,7 +757,7 @@ private static final long serialVersionUID = 0L;
      * For testing purposes. Flag indicating that all changes by the session should be rollbacked after the session is closed.
      * </pre>
      *
-     * <code>bool dryRun = 2;</code>
+     * <code>bool dryRun = 3;</code>
      * @return This builder for chaining.
      */
     public Builder clearDryRun() {

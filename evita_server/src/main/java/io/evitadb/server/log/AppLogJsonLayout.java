@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,12 +23,15 @@
 
 package io.evitadb.server.log;
 
+import ch.qos.logback.classic.pattern.MessageConverter;
+import ch.qos.logback.classic.pattern.ThrowableProxyConverter;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.CoreConstants;
 import ch.qos.logback.core.LayoutBase;
 import ch.qos.logback.core.util.CachingDateFormatter;
-import io.evitadb.api.ClientContext;
+import io.evitadb.api.observability.trace.TracingContext;
 import io.evitadb.utils.StringUtils;
+import lombok.Setter;
 
 import javax.annotation.Nonnull;
 
@@ -45,16 +48,21 @@ public class AppLogJsonLayout extends LayoutBase<ILoggingEvent> {
 	private static final String[] REPLACEMENTS_FOR_ESCAPED_CHARS = new String[] { "\\r\\n", "\\n", "\\r", "\\f", "\\b", "\\\\", "\\\"" };
 
 	private final CachingDateFormatter cachingDateFormatter = new CachingDateFormatter("yyyy-MM-dd'T'HH:mm:ss.SSSZ", null);
+	private final MessageConverter messageConverter = new MessageConverter();
+	private final ThrowableProxyConverter throwableProxyConverter = new ThrowableProxyConverter();
 
-	private boolean logTimestamp = false;
+	@Setter private boolean logTimestamp = true;
 
-	public void setLogTimestamp(boolean logTimestamp) {
-		this.logTimestamp = logTimestamp;
+	@Override
+	public void start() {
+		messageConverter.start();
+		throwableProxyConverter.start();
+		super.start();
 	}
 
 	@Override
 	public String doLayout(ILoggingEvent event) {
-		final StringBuilder buf = new StringBuilder(128);
+		final StringBuilder buf = new StringBuilder(512);
 
 		buf.append("{");
 
@@ -72,13 +80,17 @@ public class AppLogJsonLayout extends LayoutBase<ILoggingEvent> {
 
 		buf.append(",");
 
+		String completeMessage = messageConverter.convert(event);
+		if (event.getThrowableProxy() != null) {
+			completeMessage += "\n" + throwableProxyConverter.convert(event);
+		}
 		buf.append("\"message\":\"");
-		buf.append(escapeMessage(event.getFormattedMessage()));
+		buf.append(escapeMessage(completeMessage));
 		buf.append("\"");
 
 		buf.append(",");
 
-		final String clientId = event.getMDCPropertyMap().get(ClientContext.MDC_CLIENT_ID_PROPERTY);
+		final String clientId = event.getMDCPropertyMap().get(TracingContext.MDC_CLIENT_ID_PROPERTY);
 		buf.append("\"client_id\":");
 		if (clientId == null) {
 			buf.append("null");
@@ -90,13 +102,13 @@ public class AppLogJsonLayout extends LayoutBase<ILoggingEvent> {
 
 		buf.append(",");
 
-		final String requestId = event.getMDCPropertyMap().get(ClientContext.MDC_REQUEST_ID_PROPERTY);
-		buf.append("\"request_id\":");
-		if (requestId == null) {
+		final String traceId = event.getMDCPropertyMap().get(TracingContext.MDC_TRACE_ID_PROPERTY);
+		buf.append("\"trace_id\":");
+		if (traceId == null) {
 			buf.append("null");
 		} else {
 			buf.append("\"");
-			buf.append(requestId);
+			buf.append(traceId);
 			buf.append("\"");
 		}
 
@@ -106,7 +118,14 @@ public class AppLogJsonLayout extends LayoutBase<ILoggingEvent> {
 		return buf.toString();
 	}
 
-	private String escapeMessage(@Nonnull String message) {
+	/**
+	 * Escapes special characters in a given message by replacing them with their corresponding escape sequences.
+	 * The escape sequences are defined in the {@link AppLogJsonLayout} class.
+	 *
+	 * @param message the message to escape
+	 * @return the escaped message
+	 */
+	private static String escapeMessage(@Nonnull String message) {
 		return StringUtils.replaceEach(message, ESCAPED_CHARS, REPLACEMENTS_FOR_ESCAPED_CHARS);
 	}
 }

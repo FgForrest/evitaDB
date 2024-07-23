@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -35,7 +35,8 @@ import io.evitadb.api.query.parser.error.EvitaQLInvalidQueryError;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser.*;
 import io.evitadb.api.query.parser.grammar.EvitaQLVisitor;
 import io.evitadb.api.query.require.*;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -46,6 +47,7 @@ import java.util.Deque;
 import java.util.LinkedList;
 import java.util.Locale;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import static java.util.Optional.ofNullable;
 
@@ -59,24 +61,63 @@ import static java.util.Optional.ofNullable;
  */
 public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisitor<RequireConstraint> {
 
-	protected final EvitaQLClassifierTokenVisitor classifierTokenVisitor = new EvitaQLClassifierTokenVisitor();
-	protected final EvitaQLValueTokenVisitor queryPriceModeValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(QueryPriceMode.class);
-	protected final EvitaQLValueTokenVisitor facetStatisticsDepthValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(FacetStatisticsDepth.class);
-	protected final EvitaQLValueTokenVisitor intValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(
+	protected final EvitaQLValueTokenVisitor attributeHistogramArgValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(
+		byte.class,
 		Byte.class,
+		short.class,
 		Short.class,
+		int.class,
 		Integer.class,
+		long.class,
+		Long.class,
+		String.class,
+		HistogramBehavior.class,
+		String[].class,
+		Iterable.class
+	);
+	protected final EvitaQLValueTokenVisitor emptyHierarchicalEntityBehaviourValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(EmptyHierarchicalEntityBehaviour.class);
+	protected final EvitaQLValueTokenVisitor facetStatisticsDepthValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(FacetStatisticsDepth.class);
+	protected final EvitaQLFilterConstraintVisitor filterConstraintVisitor = new EvitaQLFilterConstraintVisitor();
+	protected final EvitaQLValueTokenVisitor histogramBehaviorValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(HistogramBehavior.class);
+	protected final EvitaQLValueTokenVisitor intValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(
+		byte.class,
+		Byte.class,
+		short.class,
+		Short.class,
+		int.class,
+		Integer.class,
+		long.class,
 		Long.class
 	);
-	protected final EvitaQLValueTokenVisitor stringValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(String.class);
 	protected final EvitaQLValueTokenVisitor localeValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(String.class, Locale.class);
-	protected final EvitaQLValueTokenVisitor emptyHierarchicalEntityBehaviourValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(EmptyHierarchicalEntityBehaviour.class);
-	protected final EvitaQLValueTokenVisitor statisticsArgValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(StatisticsBase.class, StatisticsType.class);
-	protected final EvitaQLValueTokenVisitor priceContentModeValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(PriceContentMode.class);
-
-	protected final EvitaQLFilterConstraintVisitor filterConstraintVisitor = new EvitaQLFilterConstraintVisitor();
+	protected final EvitaQLValueTokenVisitor managedReferenceBehaviourValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(
+		ManagedReferencesBehaviour.class,
+		String.class,
+		String[].class,
+		Iterable.class
+	);
 	protected final EvitaQLOrderConstraintVisitor orderConstraintVisitor = new EvitaQLOrderConstraintVisitor();
+	protected final EvitaQLValueTokenVisitor priceContentModeValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(PriceContentMode.class);
+	protected final EvitaQLValueTokenVisitor queryPriceModeValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(QueryPriceMode.class);
+	protected final EvitaQLValueTokenVisitor statisticsArgValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(StatisticsBase.class, StatisticsType.class);
+	protected final EvitaQLValueTokenVisitor stringValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(String.class);
+	protected final EvitaQLValueTokenVisitor stringValueListTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(
+		String.class,
+		String[].class,
+		Iterable.class
+	);
 
+	@Nonnull
+	private static ManagedReferencesBehaviour toManagedReferencesBehaviour(@Nonnull Serializable arg) {
+		if (arg instanceof ManagedReferencesBehaviour theEnum) {
+			return theEnum;
+		} else if (arg instanceof EnumWrapper theEnumWrapper && theEnumWrapper.canBeMappedTo(ManagedReferencesBehaviour.class)) {
+			return theEnumWrapper.toEnum(ManagedReferencesBehaviour.class);
+		} else {
+			// return default
+			return ManagedReferencesBehaviour.ANY;
+		}
+	}
 
 	@Override
 	public RequireConstraint visitRequireContainerConstraint(@Nonnull RequireContainerConstraintContext ctx) {
@@ -163,7 +204,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 					return new AttributeContent();
 				}
 				return new AttributeContent(
-					ctx.args.classifiers.accept(classifierTokenVisitor).asClassifierArray()
+					ctx.args.classifiers.accept(stringValueListTokenVisitor).asStringArray()
 				);
 			}
 		);
@@ -176,7 +217,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 			() -> new PriceContent(
 				ctx.args.contentMode.accept(priceContentModeValueTokenVisitor).asEnum(PriceContentMode.class),
 				ctx.args.priceLists != null
-					? ctx.args.priceLists.accept(stringValueTokenVisitor).asStringArray()
+					? ctx.args.priceLists.accept(stringValueListTokenVisitor).asStringArray()
 					: new String[0]
 			)
 		);
@@ -199,7 +240,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 				return new PriceContent(
 					PriceContentMode.RESPECTING_FILTER,
 					ctx.args.values != null
-						? ctx.args.values.accept(stringValueTokenVisitor).asStringArray()
+						? ctx.args.values.accept(stringValueListTokenVisitor).asStringArray()
 						: new String[0]
 				);
 			}
@@ -215,7 +256,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 					return new AssociatedDataContent();
 				}
 				return new AssociatedDataContent(
-					ctx.args.classifiers.accept(classifierTokenVisitor).asClassifierArray()
+					ctx.args.classifiers.accept(stringValueListTokenVisitor).asStringArray()
 				);
 			}
 		);
@@ -229,19 +270,79 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 				if (ctx.args == null) {
 					return new ReferenceContent();
 				}
+				final ManagedReferencesBehaviour managedReferencesBehaviour = getManagedReferencesBehaviourAsEnum(
+					ctx.args.managedReferencesBehaviour
+				);
 				if (ctx.args.requirement != null) {
 					final EntityRequire require = visitChildConstraint(ctx.args.requirement, EntityRequire.class);
 					if (require instanceof final EntityFetch entityFetch) {
-						return new ReferenceContent(entityFetch, null);
+						return new ReferenceContent(
+							managedReferencesBehaviour, entityFetch, null
+						);
 					} else if (require instanceof final EntityGroupFetch entityGroupFetch) {
-						return new ReferenceContent(null, entityGroupFetch);
+						return new ReferenceContent(
+							managedReferencesBehaviour, null, entityGroupFetch
+						);
 					} else {
-						throw new EvitaInternalError("Should never happen!");
+						throw new GenericEvitaInternalError("Should never happen!");
 					}
 				} else {
 					return new ReferenceContent(
-						visitChildConstraint(ctx.args.facetEntityRequirement, EntityFetch.class),
-						visitChildConstraint(ctx.args.groupEntityRequirement, EntityGroupFetch.class)
+						managedReferencesBehaviour,
+						ctx.args.facetEntityRequirement == null ? null : visitChildConstraint(ctx.args.facetEntityRequirement, EntityFetch.class),
+						ctx.args.groupEntityRequirement == null ? null : visitChildConstraint(ctx.args.groupEntityRequirement, EntityGroupFetch.class)
+					);
+				}
+			}
+		);
+	}
+
+	@Override
+	public RequireConstraint visitMultipleRefsReferenceContentConstraint(@Nonnull MultipleRefsReferenceContentConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> {
+				final Serializable firstArg = getManagedReferencesBehaviour(
+					ctx.args.managedReferencesBehaviour
+				);
+				final ManagedReferencesBehaviour managedReferencesBehaviour = toManagedReferencesBehaviour(firstArg);
+
+				final String[] classifiers = firstArg instanceof String firstArgAsString ?
+					ArrayUtils.mergeArrays(
+						new String[]{firstArgAsString},
+						ctx.args.classifiers
+							.accept(stringValueListTokenVisitor)
+							.asStringArray()
+					) :
+					ctx.args.classifiers
+						.accept(stringValueListTokenVisitor)
+						.asStringArray();
+
+				if (ctx.args.requirement == null && ctx.args.facetEntityRequirement == null && ctx.args.groupEntityRequirement == null) {
+					return new ReferenceContent(managedReferencesBehaviour, classifiers);
+				} else if (ctx.args.requirement != null) {
+					final EntityRequire require = visitChildConstraint(ctx.args.requirement, EntityRequire.class);
+					if (require instanceof final EntityFetch entityFetch) {
+						return new ReferenceContent(
+							managedReferencesBehaviour, classifiers, entityFetch, null
+						);
+					} else if (require instanceof final EntityGroupFetch entityGroupFetch) {
+						return new ReferenceContent(
+							managedReferencesBehaviour, classifiers, null, entityGroupFetch
+						);
+					} else {
+						throw new GenericEvitaInternalError("Should never happen!");
+					}
+				} else {
+					return new ReferenceContent(
+						managedReferencesBehaviour,
+						classifiers,
+						ofNullable(ctx.args.facetEntityRequirement)
+							.map(c -> visitChildConstraint(c, EntityFetch.class))
+							.orElse(null),
+						ofNullable(ctx.args.groupEntityRequirement)
+							.map(c -> visitChildConstraint(c, EntityGroupFetch.class))
+							.orElse(null)
 					);
 				}
 			}
@@ -253,22 +354,39 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 		return parse(
 			ctx,
 			() -> {
-				final String classifier = ctx.args.classifier
-					.accept(classifierTokenVisitor)
-					.asSingleClassifier();
+				final Serializable firstArg = getManagedReferencesBehaviour(
+					ctx.args.managedReferencesBehaviour
+				);
+
+				final ManagedReferencesBehaviour managedReferencesBehaviour = toManagedReferencesBehaviour(firstArg);
+
+				final String classifier = firstArg instanceof String firstArgAsString ?
+					firstArgAsString :
+					ctx.args.classifier
+						.accept(stringValueTokenVisitor)
+						.asString();
 
 				final EntityRequire requirement = ofNullable(ctx.args.requirement)
 					.map(c -> visitChildConstraint(c, EntityRequire.class))
 					.orElse(null);
 
 				if (requirement == null) {
-					return new ReferenceContent(classifier, null, null, null, null);
+					return new ReferenceContent(
+						managedReferencesBehaviour,
+						classifier, null, null, null, null
+					);
 				} else if (requirement instanceof final EntityFetch entityFetch) {
-					return new ReferenceContent(classifier, null, null, entityFetch, null);
+					return new ReferenceContent(
+						managedReferencesBehaviour,
+						classifier, null, null, entityFetch, null
+					);
 				} else if (requirement instanceof final EntityGroupFetch entityGroupFetch) {
-					return new ReferenceContent(classifier, null, null, null, entityGroupFetch);
+					return new ReferenceContent(
+						managedReferencesBehaviour,
+						classifier, null, null, null, entityGroupFetch
+					);
 				} else {
-					throw new EvitaInternalError("Should never happen!");
+					throw new GenericEvitaInternalError("Should never happen!");
 				}
 			}
 		);
@@ -279,14 +397,24 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 		return parse(
 			ctx,
 			() -> {
-				final String classifier = ctx.args.classifier
-					.accept(classifierTokenVisitor)
-					.asSingleClassifier();
+				final Serializable firstArg = getManagedReferencesBehaviour(
+					ctx.args.managedReferencesBehaviour
+				);
+				final ManagedReferencesBehaviour managedReferencesBehaviour = toManagedReferencesBehaviour(firstArg);
+
+				final String classifier = firstArg instanceof String firstArgAsString ?
+					firstArgAsString :
+					ctx.args.classifier
+						.accept(stringValueTokenVisitor)
+						.asString();
 
 				final EntityFetch facetEntityRequirement = visitChildConstraint(ctx.args.facetEntityRequirement, EntityFetch.class);
 				final EntityGroupFetch groupEntityRequirement = visitChildConstraint(ctx.args.groupEntityRequirement, EntityGroupFetch.class);
 
-				return new ReferenceContent(classifier, null, null, facetEntityRequirement, groupEntityRequirement);
+				return new ReferenceContent(
+					managedReferencesBehaviour, classifier, null, null,
+					facetEntityRequirement, groupEntityRequirement
+				);
 			}
 		);
 	}
@@ -296,9 +424,16 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 		return parse(
 			ctx,
 			() -> {
-				final String classifier = ctx.args.classifier
-					.accept(classifierTokenVisitor)
-					.asSingleClassifier();
+				final Serializable firstArg = getManagedReferencesBehaviour(
+					ctx.args.managedReferencesBehaviour
+				);
+				final ManagedReferencesBehaviour managedReferencesBehaviour = toManagedReferencesBehaviour(firstArg);
+
+				final String classifier = firstArg instanceof String firstArgAsString ?
+					firstArgAsString :
+					ctx.args.classifier
+						.accept(stringValueTokenVisitor)
+						.asString();
 
 				final FilterBy filterBy = visitChildConstraint(filterConstraintVisitor, ctx.args.filterBy, FilterBy.class);
 
@@ -307,13 +442,19 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 					.orElse(null);
 
 				if (requirement == null) {
-					return new ReferenceContent(classifier, filterBy, null, null, null);
+					return new ReferenceContent(
+						managedReferencesBehaviour, classifier, filterBy, null, null, null
+					);
 				} else if (requirement instanceof final EntityFetch entityFetch) {
-					return new ReferenceContent(classifier, filterBy, null, entityFetch, null);
+					return new ReferenceContent(
+						managedReferencesBehaviour, classifier, filterBy, null, entityFetch, null
+					);
 				} else if (requirement instanceof final EntityGroupFetch entityGroupFetch) {
-					return new ReferenceContent(classifier, filterBy, null, null, entityGroupFetch);
+					return new ReferenceContent(
+						managedReferencesBehaviour, classifier, filterBy, null, null, entityGroupFetch
+					);
 				} else {
-					throw new EvitaInternalError("Should never happen!");
+					throw new GenericEvitaInternalError("Should never happen!");
 				}
 			}
 		);
@@ -324,16 +465,25 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 		return parse(
 			ctx,
 			() -> {
-				final String classifier = ctx.args.classifier
-					.accept(classifierTokenVisitor)
-					.asSingleClassifier();
+				final Serializable firstArg = getManagedReferencesBehaviour(
+					ctx.args.managedReferencesBehaviour
+				);
+				final ManagedReferencesBehaviour managedReferencesBehaviour = toManagedReferencesBehaviour(firstArg);
+
+				final String classifier = firstArg instanceof String firstArgAsString ?
+					firstArgAsString :
+					ctx.args.classifier
+						.accept(stringValueTokenVisitor)
+						.asString();
 
 				final FilterBy filterBy = visitChildConstraint(filterConstraintVisitor, ctx.args.filterBy, FilterBy.class);
 
 				final EntityFetch requirement1 = visitChildConstraint(ctx.args.facetEntityRequirement, EntityFetch.class);
 				final EntityGroupFetch requirement2 = visitChildConstraint(ctx.args.groupEntityRequirement, EntityGroupFetch.class);
 
-				return new ReferenceContent(classifier, filterBy, null, requirement1, requirement2);
+				return new ReferenceContent(
+					managedReferencesBehaviour, classifier, filterBy, null, requirement1, requirement2
+				);
 			}
 		);
 	}
@@ -343,9 +493,16 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 		return parse(
 			ctx,
 			() -> {
-				final String classifier = ctx.args.classifier
-					.accept(classifierTokenVisitor)
-					.asSingleClassifier();
+				final Serializable firstArg = getManagedReferencesBehaviour(
+					ctx.args.managedReferencesBehaviour
+				);
+				final ManagedReferencesBehaviour managedReferencesBehaviour = toManagedReferencesBehaviour(firstArg);
+
+				final String classifier = firstArg instanceof String firstArgAsString ?
+					firstArgAsString :
+					ctx.args.classifier
+						.accept(stringValueTokenVisitor)
+						.asString();
 
 				final OrderBy orderBy = visitChildConstraint(orderConstraintVisitor, ctx.args.orderBy, OrderBy.class);
 
@@ -354,13 +511,19 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 					.orElse(null);
 
 				if (requirement == null) {
-					return new ReferenceContent(classifier, null, orderBy, null, null);
+					return new ReferenceContent(
+						managedReferencesBehaviour, classifier, null, orderBy, null, null
+					);
 				} else if (requirement instanceof final EntityFetch entityFetch) {
-					return new ReferenceContent(classifier, null, orderBy, entityFetch, null);
+					return new ReferenceContent(
+						managedReferencesBehaviour, classifier, null, orderBy, entityFetch, null
+					);
 				} else if (requirement instanceof final EntityGroupFetch entityGroupFetch) {
-					return new ReferenceContent(classifier, null, orderBy, null, entityGroupFetch);
+					return new ReferenceContent(
+						managedReferencesBehaviour, classifier, null, orderBy, null, entityGroupFetch
+					);
 				} else {
-					throw new EvitaInternalError("Should never happen!");
+					throw new GenericEvitaInternalError("Should never happen!");
 				}
 			}
 		);
@@ -371,29 +534,45 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 		return parse(
 			ctx,
 			() -> {
-				final String classifier = ctx.args.classifier
-					.accept(classifierTokenVisitor)
-					.asSingleClassifier();
+				final Serializable firstArg = getManagedReferencesBehaviour(
+					ctx.args.managedReferencesBehaviour
+				);
+				final ManagedReferencesBehaviour managedReferencesBehaviour = toManagedReferencesBehaviour(firstArg);
+
+				final String classifier = firstArg instanceof String firstArgAsString ?
+					firstArgAsString :
+					ctx.args.classifier
+						.accept(stringValueTokenVisitor)
+						.asString();
 
 				final OrderBy orderBy = visitChildConstraint(orderConstraintVisitor, ctx.args.orderBy, OrderBy.class);
 
 				final EntityFetch facetEntityRequirement = visitChildConstraint(ctx.args.facetEntityRequirement, EntityFetch.class);
 				final EntityGroupFetch groupEntityRequirement = visitChildConstraint(ctx.args.groupEntityRequirement, EntityGroupFetch.class);
 
-				return new ReferenceContent(classifier, null, orderBy, facetEntityRequirement, groupEntityRequirement);
+				return new ReferenceContent(
+					managedReferencesBehaviour, classifier, null, orderBy,
+					facetEntityRequirement, groupEntityRequirement
+				);
 			}
 		);
 	}
-
 
 	@Override
 	public RequireConstraint visitSingleRefReferenceContent7Constraint(SingleRefReferenceContent7ConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> {
-				final String classifier = ctx.args.classifier
-					.accept(classifierTokenVisitor)
-					.asSingleClassifier();
+				final Serializable firstArg = getManagedReferencesBehaviour(
+					ctx.args.managedReferencesBehaviour
+				);
+				final ManagedReferencesBehaviour managedReferencesBehaviour = toManagedReferencesBehaviour(firstArg);
+
+				final String classifier = firstArg instanceof String firstArgAsString ?
+					firstArgAsString :
+					ctx.args.classifier
+						.accept(stringValueTokenVisitor)
+						.asString();
 
 				final FilterBy filterBy = visitChildConstraint(filterConstraintVisitor, ctx.args.filterBy, FilterBy.class);
 				final OrderBy orderBy = visitChildConstraint(orderConstraintVisitor, ctx.args.orderBy, OrderBy.class);
@@ -403,13 +582,19 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 					.orElse(null);
 
 				if (requirement == null) {
-					return new ReferenceContent(classifier, filterBy, orderBy, null, null);
+					return new ReferenceContent(
+						managedReferencesBehaviour, classifier, filterBy, orderBy, null, null
+					);
 				} else if (requirement instanceof final EntityFetch entityFetch) {
-					return new ReferenceContent(classifier, filterBy, orderBy, entityFetch, null);
+					return new ReferenceContent(
+						managedReferencesBehaviour, classifier, filterBy, orderBy, entityFetch, null
+					);
 				} else if (requirement instanceof final EntityGroupFetch entityGroupFetch) {
-					return new ReferenceContent(classifier, filterBy, orderBy, null, entityGroupFetch);
+					return new ReferenceContent(
+						managedReferencesBehaviour, classifier, filterBy, orderBy, null, entityGroupFetch
+					);
 				} else {
-					throw new EvitaInternalError("Should never happen!");
+					throw new GenericEvitaInternalError("Should never happen!");
 				}
 			}
 		);
@@ -420,9 +605,16 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 		return parse(
 			ctx,
 			() -> {
-				final String classifier = ctx.args.classifier
-					.accept(classifierTokenVisitor)
-					.asSingleClassifier();
+				final Serializable firstArg = getManagedReferencesBehaviour(
+					ctx.args.managedReferencesBehaviour
+				);
+				final ManagedReferencesBehaviour managedReferencesBehaviour = toManagedReferencesBehaviour(firstArg);
+
+				final String classifier = firstArg instanceof String firstArgAsString ?
+					firstArgAsString :
+					ctx.args.classifier
+						.accept(stringValueTokenVisitor)
+						.asString();
 
 				final FilterBy filterBy = visitChildConstraint(filterConstraintVisitor, ctx.args.filterBy, FilterBy.class);
 				final OrderBy orderBy = visitChildConstraint(orderConstraintVisitor, ctx.args.orderBy, OrderBy.class);
@@ -430,7 +622,10 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 				final EntityFetch facetEntityRequirements = visitChildConstraint(ctx.args.facetEntityRequirement, EntityFetch.class);
 				final EntityGroupFetch groupEntityRequirements = visitChildConstraint(ctx.args.groupEntityRequirement, EntityGroupFetch.class);
 
-				return new ReferenceContent(classifier, filterBy, orderBy, facetEntityRequirements, groupEntityRequirements);
+				return new ReferenceContent(
+					managedReferencesBehaviour, classifier, filterBy, orderBy,
+					facetEntityRequirements, groupEntityRequirements
+				);
 			}
 		);
 	}
@@ -444,20 +639,32 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 					return new ReferenceContent((AttributeContent) null);
 				}
 
+				final ManagedReferencesBehaviour managedReferencesBehaviour = getManagedReferencesBehaviourAsEnum(
+					ctx.args.managedReferencesBehaviour
+				);
+
 				final RequireConstraint requirement = ofNullable(ctx.args.requirement)
 					.map(c -> visitChildConstraint(c, RequireConstraint.class))
 					.orElse(null);
 
 				if (requirement == null) {
-					return new ReferenceContent((AttributeContent) null, null, null);
+					return new ReferenceContent(
+						managedReferencesBehaviour, (AttributeContent) null, null, null
+					);
 				} else if (requirement instanceof final AttributeContent attributeContent) {
-					return new ReferenceContent(attributeContent, null, null);
+					return new ReferenceContent(
+						managedReferencesBehaviour, attributeContent, null, null
+					);
 				} else if (requirement instanceof final EntityFetch entityFetch) {
-					return new ReferenceContent((AttributeContent) null, entityFetch, null);
+					return new ReferenceContent(
+						managedReferencesBehaviour, (AttributeContent) null, entityFetch, null
+					);
 				} else if (requirement instanceof final EntityGroupFetch entityGroupFetch) {
-					return new ReferenceContent((AttributeContent) null, null, entityGroupFetch);
+					return new ReferenceContent(
+						managedReferencesBehaviour, (AttributeContent) null, null, entityGroupFetch
+					);
 				} else {
-					throw new EvitaInternalError("Should never happen!");
+					throw new GenericEvitaInternalError("Should never happen!");
 				}
 			}
 		);
@@ -468,6 +675,10 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 		return parse(
 			ctx,
 			() -> {
+				final ManagedReferencesBehaviour managedReferencesBehaviour = getManagedReferencesBehaviourAsEnum(
+					ctx.args.managedReferencesBehaviour
+				);
+
 				final RequireConstraint requirement1 = visitChildConstraint(ctx.args.requirement1, AttributeContent.class, EntityFetch.class, EntityGroupFetch.class);
 				final RequireConstraint requirement2 = visitChildConstraint(ctx.args.requirement2, AttributeContent.class, EntityFetch.class, EntityGroupFetch.class);
 				Assert.isTrue(
@@ -476,11 +687,17 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 				);
 
 				if (requirement1 instanceof final EntityFetch entityFetch && requirement2 instanceof final EntityGroupFetch entityGroupFetch) {
-					return new ReferenceContent((AttributeContent) null, entityFetch, entityGroupFetch);
+					return new ReferenceContent(
+						managedReferencesBehaviour, (AttributeContent) null, entityFetch, entityGroupFetch
+					);
 				} else if (requirement1 instanceof final AttributeContent attributeContent && requirement2 instanceof final EntityFetch entityFetch) {
-					return new ReferenceContent(attributeContent, entityFetch, null);
+					return new ReferenceContent(
+						managedReferencesBehaviour, attributeContent, entityFetch, null
+					);
 				} else if (requirement1 instanceof final AttributeContent attributeContent && requirement2 instanceof final EntityGroupFetch entityGroupFetch) {
-					return new ReferenceContent(attributeContent, null, entityGroupFetch);
+					return new ReferenceContent(
+						managedReferencesBehaviour, attributeContent, null, entityGroupFetch
+					);
 				} else {
 					throw new EvitaQLInvalidQueryError(ctx, "Invalid combination of requirements.");
 				}
@@ -493,11 +710,14 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 		return parse(
 			ctx,
 			() -> {
+				final ManagedReferencesBehaviour managedReferencesBehaviour = getManagedReferencesBehaviourAsEnum(
+					ctx.args.managedReferencesBehaviour
+				);
 				final AttributeContent attributeContent = visitChildConstraint(ctx.args.attributeContent, AttributeContent.class);
 				final EntityFetch entityFetch = visitChildConstraint(ctx.args.facetEntityRequirement, EntityFetch.class);
 				final EntityGroupFetch entityGroupFetch = visitChildConstraint(ctx.args.groupEntityRequirement, EntityGroupFetch.class);
 
-				return new ReferenceContent(attributeContent, entityFetch, entityGroupFetch);
+				return new ReferenceContent(managedReferencesBehaviour, attributeContent, entityFetch, entityGroupFetch);
 			}
 		);
 	}
@@ -507,24 +727,39 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 		return parse(
 			ctx,
 			() -> {
-				final String classifier = ctx.args.classifier
-					.accept(classifierTokenVisitor)
-					.asSingleClassifier();
+				final Serializable firstArg = getManagedReferencesBehaviour(
+					ctx.args.managedReferencesBehaviour
+				);
+				final ManagedReferencesBehaviour managedReferencesBehaviour = toManagedReferencesBehaviour(firstArg);
+
+				final String classifier = firstArg instanceof String firstArgAsString ?
+					firstArgAsString :
+					ctx.args.classifier
+						.accept(stringValueTokenVisitor)
+						.asString();
 
 				final RequireConstraint requirement = ofNullable(ctx.args.requirement)
 					.map(c -> (RequireConstraint) visitChildConstraint(c, AttributeContent.class, EntityFetch.class, EntityGroupFetch.class))
 					.orElse(null);
 
 				if (requirement == null) {
-					return new ReferenceContent(classifier, null, null, null, null, null);
+					return new ReferenceContent(
+						managedReferencesBehaviour, classifier, null, null, null, null, null
+					);
 				} else if (requirement instanceof final AttributeContent attributeContent) {
-					return new ReferenceContent(classifier, null, null, attributeContent, null, null);
+					return new ReferenceContent(
+						managedReferencesBehaviour, classifier, null, null, attributeContent, null, null
+					);
 				} else if (requirement instanceof final EntityFetch entityFetch) {
-					return new ReferenceContent(classifier, null, null, null, entityFetch, null);
+					return new ReferenceContent(
+						managedReferencesBehaviour, classifier, null, null, null, entityFetch, null
+					);
 				} else if (requirement instanceof final EntityGroupFetch entityGroupFetch) {
-					return new ReferenceContent(classifier, null, null, null, null, entityGroupFetch);
+					return new ReferenceContent(
+						managedReferencesBehaviour, classifier, null, null, null, null, entityGroupFetch
+					);
 				} else {
-					throw new EvitaInternalError("Should never happen!");
+					throw new GenericEvitaInternalError("Should never happen!");
 				}
 			}
 		);
@@ -535,9 +770,16 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 		return parse(
 			ctx,
 			() -> {
-				final String classifier = ctx.args.classifier
-					.accept(classifierTokenVisitor)
-					.asSingleClassifier();
+				final Serializable firstArg = getManagedReferencesBehaviour(
+					ctx.args.managedReferencesBehaviour
+				);
+				final ManagedReferencesBehaviour managedReferencesBehaviour = toManagedReferencesBehaviour(firstArg);
+
+				final String classifier = firstArg instanceof String firstArgAsString ?
+					firstArgAsString :
+					ctx.args.classifier
+						.accept(stringValueTokenVisitor)
+						.asString();
 
 				final RequireConstraint requirement1 = visitChildConstraint(ctx.args.requirement1, AttributeContent.class, EntityFetch.class, EntityGroupFetch.class);
 				final RequireConstraint requirement2 = visitChildConstraint(ctx.args.requirement2, AttributeContent.class, EntityFetch.class, EntityGroupFetch.class);
@@ -547,11 +789,17 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 				);
 
 				if (requirement1 instanceof final EntityFetch entityFetch && requirement2 instanceof final EntityGroupFetch entityGroupFetch) {
-					return new ReferenceContent(classifier, null, null, null, entityFetch, entityGroupFetch);
+					return new ReferenceContent(
+						managedReferencesBehaviour, classifier, null, null, null, entityFetch, entityGroupFetch
+					);
 				} else if (requirement1 instanceof final AttributeContent attributeContent && requirement2 instanceof final EntityFetch entityFetch) {
-					return new ReferenceContent(classifier, null, null, attributeContent, entityFetch, null);
+					return new ReferenceContent(
+						managedReferencesBehaviour, classifier, null, null, attributeContent, entityFetch, null
+					);
 				} else if (requirement1 instanceof final AttributeContent attributeContent && requirement2 instanceof final EntityGroupFetch entityGroupFetch) {
-					return new ReferenceContent(classifier, null, null, attributeContent, null, entityGroupFetch);
+					return new ReferenceContent(
+						managedReferencesBehaviour, classifier, null, null, attributeContent, null, entityGroupFetch
+					);
 				} else {
 					throw new EvitaQLInvalidQueryError(ctx, "Invalid combination of requirements.");
 				}
@@ -564,15 +812,24 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 		return parse(
 			ctx,
 			() -> {
-				final String classifier = ctx.args.classifier
-					.accept(classifierTokenVisitor)
-					.asSingleClassifier();
+				final Serializable firstArg = getManagedReferencesBehaviour(
+					ctx.args.managedReferencesBehaviour
+				);
+				final ManagedReferencesBehaviour managedReferencesBehaviour = toManagedReferencesBehaviour(firstArg);
+
+				final String classifier = firstArg instanceof String firstArgAsString ?
+					firstArgAsString :
+					ctx.args.classifier
+						.accept(stringValueTokenVisitor)
+						.asString();
 
 				final AttributeContent attributeContent = visitChildConstraint(ctx.args.attributeContent, AttributeContent.class);
 				final EntityFetch entityFetch = visitChildConstraint(ctx.args.facetEntityRequirement, EntityFetch.class);
 				final EntityGroupFetch entityGroupFetch = visitChildConstraint(ctx.args.groupEntityRequirement, EntityGroupFetch.class);
 
-				return new ReferenceContent(classifier, null, null, attributeContent, entityFetch, entityGroupFetch);
+				return new ReferenceContent(
+					managedReferencesBehaviour, classifier, null, null, attributeContent, entityFetch, entityGroupFetch
+				);
 			}
 		);
 	}
@@ -582,9 +839,16 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 		return parse(
 			ctx,
 			() -> {
-				final String classifier = ctx.args.classifier
-					.accept(classifierTokenVisitor)
-					.asSingleClassifier();
+				final Serializable firstArg = getManagedReferencesBehaviour(
+					ctx.args.managedReferencesBehaviour
+				);
+				final ManagedReferencesBehaviour managedReferencesBehaviour = toManagedReferencesBehaviour(firstArg);
+
+				final String classifier = firstArg instanceof String firstArgAsString ?
+					firstArgAsString :
+					ctx.args.classifier
+						.accept(stringValueTokenVisitor)
+						.asString();
 
 				final FilterBy filterBy = visitChildConstraint(filterConstraintVisitor, ctx.args.filterBy, FilterBy.class);
 
@@ -593,15 +857,23 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 					.orElse(null);
 
 				if (requirement == null) {
-					return new ReferenceContent(classifier, filterBy, null, null, null, null);
+					return new ReferenceContent(
+						managedReferencesBehaviour, classifier, filterBy, null, null, null, null
+					);
 				} else if (requirement instanceof final AttributeContent attributeContent) {
-					return new ReferenceContent(classifier, filterBy, null, attributeContent, null, null);
+					return new ReferenceContent(
+						managedReferencesBehaviour, classifier, filterBy, null, attributeContent, null, null
+					);
 				} else if (requirement instanceof final EntityFetch entityFetch) {
-					return new ReferenceContent(classifier, filterBy, null, null, entityFetch, null);
+					return new ReferenceContent(
+						managedReferencesBehaviour, classifier, filterBy, null, null, entityFetch, null
+					);
 				} else if (requirement instanceof final EntityGroupFetch entityGroupFetch) {
-					return new ReferenceContent(classifier, filterBy, null, null, null, entityGroupFetch);
+					return new ReferenceContent(
+						managedReferencesBehaviour, classifier, filterBy, null, null, null, entityGroupFetch
+					);
 				} else {
-					throw new EvitaInternalError("Should never happen!");
+					throw new GenericEvitaInternalError("Should never happen!");
 				}
 			}
 		);
@@ -612,9 +884,16 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 		return parse(
 			ctx,
 			() -> {
-				final String classifier = ctx.args.classifier
-					.accept(classifierTokenVisitor)
-					.asSingleClassifier();
+				final Serializable firstArg = getManagedReferencesBehaviour(
+					ctx.args.managedReferencesBehaviour
+				);
+				final ManagedReferencesBehaviour managedReferencesBehaviour = toManagedReferencesBehaviour(firstArg);
+
+				final String classifier = firstArg instanceof String firstArgAsString ?
+					firstArgAsString :
+					ctx.args.classifier
+						.accept(stringValueTokenVisitor)
+						.asString();
 
 				final FilterBy filterBy = visitChildConstraint(filterConstraintVisitor, ctx.args.filterBy, FilterBy.class);
 
@@ -626,11 +905,17 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 				);
 
 				if (requirement1 instanceof final EntityFetch entityFetch && requirement2 instanceof final EntityGroupFetch entityGroupFetch) {
-					return new ReferenceContent(classifier, filterBy, null, null, entityFetch, entityGroupFetch);
+					return new ReferenceContent(
+						managedReferencesBehaviour, classifier, filterBy, null, null, entityFetch, entityGroupFetch
+					);
 				} else if (requirement1 instanceof final AttributeContent attributeContent && requirement2 instanceof final EntityFetch entityFetch) {
-					return new ReferenceContent(classifier, filterBy, null, attributeContent, entityFetch, null);
+					return new ReferenceContent(
+						managedReferencesBehaviour, classifier, filterBy, null, attributeContent, entityFetch, null
+					);
 				} else if (requirement1 instanceof final AttributeContent attributeContent && requirement2 instanceof final EntityGroupFetch entityGroupFetch) {
-					return new ReferenceContent(classifier, filterBy, null, attributeContent, null, entityGroupFetch);
+					return new ReferenceContent(
+						managedReferencesBehaviour, classifier, filterBy, null, attributeContent, null, entityGroupFetch
+					);
 				} else {
 					throw new EvitaQLInvalidQueryError(ctx, "Invalid combination of requirements.");
 				}
@@ -643,9 +928,16 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 		return parse(
 			ctx,
 			() -> {
-				final String classifier = ctx.args.classifier
-					.accept(classifierTokenVisitor)
-					.asSingleClassifier();
+				final Serializable firstArg = getManagedReferencesBehaviour(
+					ctx.args.managedReferencesBehaviour
+				);
+				final ManagedReferencesBehaviour managedReferencesBehaviour = toManagedReferencesBehaviour(firstArg);
+
+				final String classifier = firstArg instanceof String firstArgAsString ?
+					firstArgAsString :
+					ctx.args.classifier
+						.accept(stringValueTokenVisitor)
+						.asString();
 
 				final FilterBy filterBy = visitChildConstraint(filterConstraintVisitor, ctx.args.filterBy, FilterBy.class);
 
@@ -653,7 +945,9 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 				final EntityFetch entityFetch = visitChildConstraint(ctx.args.facetEntityRequirement, EntityFetch.class);
 				final EntityGroupFetch entityGroupFetch = visitChildConstraint(ctx.args.groupEntityRequirement, EntityGroupFetch.class);
 
-				return new ReferenceContent(classifier, filterBy, null, attributeContent, entityFetch, entityGroupFetch);
+				return new ReferenceContent(
+					managedReferencesBehaviour, classifier, filterBy, null, attributeContent, entityFetch, entityGroupFetch
+				);
 			}
 		);
 	}
@@ -663,9 +957,16 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 		return parse(
 			ctx,
 			() -> {
-				final String classifier = ctx.args.classifier
-					.accept(classifierTokenVisitor)
-					.asSingleClassifier();
+				final Serializable firstArg = getManagedReferencesBehaviour(
+					ctx.args.managedReferencesBehaviour
+				);
+				final ManagedReferencesBehaviour managedReferencesBehaviour = toManagedReferencesBehaviour(firstArg);
+
+				final String classifier = firstArg instanceof String firstArgAsString ?
+					firstArgAsString :
+					ctx.args.classifier
+						.accept(stringValueTokenVisitor)
+						.asString();
 
 				final OrderBy orderBy = visitChildConstraint(orderConstraintVisitor, ctx.args.orderBy, OrderBy.class);
 
@@ -674,15 +975,23 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 					.orElse(null);
 
 				if (requirement == null) {
-					return new ReferenceContent(classifier, null, orderBy, null, null, null);
+					return new ReferenceContent(
+						managedReferencesBehaviour, classifier, null, orderBy, null, null, null
+					);
 				} else if (requirement instanceof final AttributeContent attributeContent) {
-					return new ReferenceContent(classifier, null, orderBy, attributeContent, null, null);
+					return new ReferenceContent(
+						managedReferencesBehaviour, classifier, null, orderBy, attributeContent, null, null
+					);
 				} else if (requirement instanceof final EntityFetch entityFetch) {
-					return new ReferenceContent(classifier, null, orderBy, null, entityFetch, null);
+					return new ReferenceContent(
+						managedReferencesBehaviour, classifier, null, orderBy, null, entityFetch, null
+					);
 				} else if (requirement instanceof final EntityGroupFetch entityGroupFetch) {
-					return new ReferenceContent(classifier, null, orderBy, null, null, entityGroupFetch);
+					return new ReferenceContent(
+						managedReferencesBehaviour, classifier, null, orderBy, null, null, entityGroupFetch
+					);
 				} else {
-					throw new EvitaInternalError("Should never happen!");
+					throw new GenericEvitaInternalError("Should never happen!");
 				}
 			}
 		);
@@ -693,9 +1002,16 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 		return parse(
 			ctx,
 			() -> {
-				final String classifier = ctx.args.classifier
-					.accept(classifierTokenVisitor)
-					.asSingleClassifier();
+				final Serializable firstArg = getManagedReferencesBehaviour(
+					ctx.args.managedReferencesBehaviour
+				);
+				final ManagedReferencesBehaviour managedReferencesBehaviour = toManagedReferencesBehaviour(firstArg);
+
+				final String classifier = firstArg instanceof String firstArgAsString ?
+					firstArgAsString :
+					ctx.args.classifier
+						.accept(stringValueTokenVisitor)
+						.asString();
 
 				final OrderBy orderBy = visitChildConstraint(orderConstraintVisitor, ctx.args.orderBy, OrderBy.class);
 
@@ -707,11 +1023,17 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 				);
 
 				if (requirement1 instanceof final EntityFetch entityFetch && requirement2 instanceof final EntityGroupFetch entityGroupFetch) {
-					return new ReferenceContent(classifier, null, orderBy, null, entityFetch, entityGroupFetch);
+					return new ReferenceContent(
+						managedReferencesBehaviour, classifier, null, orderBy, null, entityFetch, entityGroupFetch
+					);
 				} else if (requirement1 instanceof final AttributeContent attributeContent && requirement2 instanceof final EntityFetch entityFetch) {
-					return new ReferenceContent(classifier, null, orderBy, attributeContent, entityFetch, null);
+					return new ReferenceContent(
+						managedReferencesBehaviour, classifier, null, orderBy, attributeContent, entityFetch, null
+					);
 				} else if (requirement1 instanceof final AttributeContent attributeContent && requirement2 instanceof final EntityGroupFetch entityGroupFetch) {
-					return new ReferenceContent(classifier, null, orderBy, attributeContent, null, entityGroupFetch);
+					return new ReferenceContent(
+						managedReferencesBehaviour, classifier, null, orderBy, attributeContent, null, entityGroupFetch
+					);
 				} else {
 					throw new EvitaQLInvalidQueryError(ctx, "Invalid combination of requirements.");
 				}
@@ -724,9 +1046,16 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 		return parse(
 			ctx,
 			() -> {
-				final String classifier = ctx.args.classifier
-					.accept(classifierTokenVisitor)
-					.asSingleClassifier();
+				final Serializable firstArg = getManagedReferencesBehaviour(
+					ctx.args.managedReferencesBehaviour
+				);
+				final ManagedReferencesBehaviour managedReferencesBehaviour = toManagedReferencesBehaviour(firstArg);
+
+				final String classifier = firstArg instanceof String firstArgAsString ?
+					firstArgAsString :
+					ctx.args.classifier
+						.accept(stringValueTokenVisitor)
+						.asString();
 
 				final OrderBy orderBy = visitChildConstraint(orderConstraintVisitor, ctx.args.orderBy, OrderBy.class);
 
@@ -734,7 +1063,9 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 				final EntityFetch entityFetch = visitChildConstraint(ctx.args.facetEntityRequirement, EntityFetch.class);
 				final EntityGroupFetch entityGroupFetch = visitChildConstraint(ctx.args.groupEntityRequirement, EntityGroupFetch.class);
 
-				return new ReferenceContent(classifier, null, orderBy, attributeContent, entityFetch, entityGroupFetch);
+				return new ReferenceContent(
+					managedReferencesBehaviour, classifier, null, orderBy, attributeContent, entityFetch, entityGroupFetch
+				);
 			}
 		);
 	}
@@ -744,9 +1075,16 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 		return parse(
 			ctx,
 			() -> {
-				final String classifier = ctx.args.classifier
-					.accept(classifierTokenVisitor)
-					.asSingleClassifier();
+				final Serializable firstArg = getManagedReferencesBehaviour(
+					ctx.args.managedReferencesBehaviour
+				);
+				final ManagedReferencesBehaviour managedReferencesBehaviour = toManagedReferencesBehaviour(firstArg);
+
+				final String classifier = firstArg instanceof String firstArgAsString ?
+					firstArgAsString :
+					ctx.args.classifier
+						.accept(stringValueTokenVisitor)
+						.asString();
 
 				final FilterBy filterBy = visitChildConstraint(filterConstraintVisitor, ctx.args.filterBy, FilterBy.class);
 				final OrderBy orderBy = visitChildConstraint(orderConstraintVisitor, ctx.args.orderBy, OrderBy.class);
@@ -756,15 +1094,23 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 					.orElse(null);
 
 				if (requirement == null) {
-					return new ReferenceContent(classifier, filterBy, orderBy, null, null, null);
+					return new ReferenceContent(
+						managedReferencesBehaviour, classifier, filterBy, orderBy, null, null, null
+					);
 				} else if (requirement instanceof final AttributeContent attributeContent) {
-					return new ReferenceContent(classifier, filterBy, orderBy, attributeContent, null, null);
+					return new ReferenceContent(
+						managedReferencesBehaviour, classifier, filterBy, orderBy, attributeContent, null, null
+					);
 				} else if (requirement instanceof final EntityFetch entityFetch) {
-					return new ReferenceContent(classifier, filterBy, orderBy, null, entityFetch, null);
+					return new ReferenceContent(
+						managedReferencesBehaviour, classifier, filterBy, orderBy, null, entityFetch, null
+					);
 				} else if (requirement instanceof final EntityGroupFetch entityGroupFetch) {
-					return new ReferenceContent(classifier, filterBy, orderBy, null, null, entityGroupFetch);
+					return new ReferenceContent(
+						managedReferencesBehaviour, classifier, filterBy, orderBy, null, null, entityGroupFetch
+					);
 				} else {
-					throw new EvitaInternalError("Should never happen!");
+					throw new GenericEvitaInternalError("Should never happen!");
 				}
 			}
 		);
@@ -775,9 +1121,16 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 		return parse(
 			ctx,
 			() -> {
-				final String classifier = ctx.args.classifier
-					.accept(classifierTokenVisitor)
-					.asSingleClassifier();
+				final Serializable firstArg = getManagedReferencesBehaviour(
+					ctx.args.managedReferencesBehaviour
+				);
+				final ManagedReferencesBehaviour managedReferencesBehaviour = toManagedReferencesBehaviour(firstArg);
+
+				final String classifier = firstArg instanceof String firstArgAsString ?
+					firstArgAsString :
+					ctx.args.classifier
+						.accept(stringValueTokenVisitor)
+						.asString();
 
 				final FilterBy filterBy = visitChildConstraint(filterConstraintVisitor, ctx.args.filterBy, FilterBy.class);
 				final OrderBy orderBy = visitChildConstraint(orderConstraintVisitor, ctx.args.orderBy, OrderBy.class);
@@ -790,11 +1143,17 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 				);
 
 				if (requirement1 instanceof final EntityFetch entityFetch && requirement2 instanceof final EntityGroupFetch entityGroupFetch) {
-					return new ReferenceContent(classifier, filterBy, orderBy, null, entityFetch, entityGroupFetch);
+					return new ReferenceContent(
+						managedReferencesBehaviour, classifier, filterBy, orderBy, null, entityFetch, entityGroupFetch
+					);
 				} else if (requirement1 instanceof final AttributeContent attributeContent && requirement2 instanceof final EntityFetch entityFetch) {
-					return new ReferenceContent(classifier, filterBy, orderBy, attributeContent, entityFetch, null);
+					return new ReferenceContent(
+						managedReferencesBehaviour, classifier, filterBy, orderBy, attributeContent, entityFetch, null
+					);
 				} else if (requirement1 instanceof final AttributeContent attributeContent && requirement2 instanceof final EntityGroupFetch entityGroupFetch) {
-					return new ReferenceContent(classifier, filterBy, orderBy, attributeContent, null, entityGroupFetch);
+					return new ReferenceContent(
+						managedReferencesBehaviour, classifier, filterBy, orderBy, attributeContent, null, entityGroupFetch
+					);
 				} else {
 					throw new EvitaQLInvalidQueryError(ctx, "Invalid combination of requirements.");
 				}
@@ -807,9 +1166,16 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 		return parse(
 			ctx,
 			() -> {
-				final String classifier = ctx.args.classifier
-					.accept(classifierTokenVisitor)
-					.asSingleClassifier();
+				final Serializable firstArg = getManagedReferencesBehaviour(
+					ctx.args.managedReferencesBehaviour
+				);
+				final ManagedReferencesBehaviour managedReferencesBehaviour = toManagedReferencesBehaviour(firstArg);
+
+				final String classifier = firstArg instanceof String firstArgAsString ?
+					firstArgAsString :
+					ctx.args.classifier
+						.accept(stringValueTokenVisitor)
+						.asString();
 
 				final FilterBy filterBy = visitChildConstraint(filterConstraintVisitor, ctx.args.filterBy, FilterBy.class);
 				final OrderBy orderBy = visitChildConstraint(orderConstraintVisitor, ctx.args.orderBy, OrderBy.class);
@@ -818,43 +1184,9 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 				final EntityFetch entityFetch = visitChildConstraint(ctx.args.facetEntityRequirement, EntityFetch.class);
 				final EntityGroupFetch entityGroupFetch = visitChildConstraint(ctx.args.groupEntityRequirement, EntityGroupFetch.class);
 
-				return new ReferenceContent(classifier, filterBy, orderBy, attributeContent, entityFetch, entityGroupFetch);
-			}
-		);
-	}
-
-
-	@Override
-	public RequireConstraint visitMultipleRefsReferenceContentConstraint(@Nonnull MultipleRefsReferenceContentConstraintContext ctx) {
-		return parse(
-			ctx,
-			() -> {
-				final String[] classifiers = ctx.args.classifiers
-						.accept(classifierTokenVisitor)
-						.asClassifierArray();
-
-				if (ctx.args.requirement == null && ctx.args.facetEntityRequirement == null && ctx.args.groupEntityRequirement == null) {
-					return new ReferenceContent(classifiers);
-				} else if (ctx.args.requirement != null) {
-					final EntityRequire require = visitChildConstraint(ctx.args.requirement, EntityRequire.class);
-					if (require instanceof final EntityFetch entityFetch) {
-						return new ReferenceContent(classifiers, entityFetch, null);
-					} else if (require instanceof final EntityGroupFetch entityGroupFetch) {
-						return new ReferenceContent(classifiers, null, entityGroupFetch);
-					} else {
-						throw new EvitaInternalError("Should never happen!");
-					}
-				} else {
-					return new ReferenceContent(
-						classifiers,
-						ofNullable(ctx.args.facetEntityRequirement)
-							.map(c -> visitChildConstraint(c, EntityFetch.class))
-							.orElse(null),
-						ofNullable(ctx.args.groupEntityRequirement)
-							.map(c -> visitChildConstraint(c, EntityGroupFetch.class))
-							.orElse(null)
-					);
-				}
+				return new ReferenceContent(
+					managedReferencesBehaviour, classifier, filterBy, orderBy, attributeContent, entityFetch, entityGroupFetch
+				);
 			}
 		);
 	}
@@ -989,7 +1321,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 		return parse(
 			ctx,
 			() -> new FacetSummaryOfReference(
-				ctx.args.referenceName.accept(classifierTokenVisitor).asSingleClassifier()
+				ctx.args.classifier.accept(stringValueTokenVisitor).asString()
 			)
 		);
 	}
@@ -999,7 +1331,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 		return parse(
 			ctx,
 			() -> {
-				final String referenceName = ctx.args.referenceName.accept(classifierTokenVisitor).asSingleClassifier();
+				final String referenceName = ctx.args.referenceName.accept(stringValueTokenVisitor).asString();
 				final FacetStatisticsDepth depth = ctx.args.depth.accept(facetStatisticsDepthValueTokenVisitor).asEnum(FacetStatisticsDepth.class);
 
 				final FilterConstraint filterBy1 = ofNullable(ctx.args.filter)
@@ -1050,7 +1382,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 		return parse(
 			ctx,
 			() -> new FacetGroupsConjunction(
-				ctx.args.classifier.accept(classifierTokenVisitor).asSingleClassifier(),
+				ctx.args.classifier.accept(stringValueTokenVisitor).asString(),
 				ctx.args.filterConstraint() == null ?
 					null : (FilterBy) ctx.args.filterConstraint().accept(filterConstraintVisitor)
 			)
@@ -1062,7 +1394,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 		return parse(
 			ctx,
 			() -> new FacetGroupsDisjunction(
-				ctx.args.classifier.accept(classifierTokenVisitor).asSingleClassifier(),
+				ctx.args.classifier.accept(stringValueTokenVisitor).asString(),
 				ctx.args.filterConstraint() == null ?
 					null : (FilterBy) ctx.args.filterConstraint().accept(filterConstraintVisitor)
 			)
@@ -1074,7 +1406,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 		return parse(
 			ctx,
 			() -> new FacetGroupsNegation(
-				ctx.args.classifier.accept(classifierTokenVisitor).asSingleClassifier(),
+				ctx.args.classifier.accept(stringValueTokenVisitor).asString(),
 				ctx.args.filterConstraint() == null ?
 					null : (FilterBy) ctx.args.filterConstraint().accept(filterConstraintVisitor)
 			)
@@ -1085,10 +1417,48 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	public RequireConstraint visitAttributeHistogramConstraint(@Nonnull AttributeHistogramConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new AttributeHistogram(
-				ctx.args.value.accept(intValueTokenVisitor).asInt(),
-				ctx.args.classifiers.accept(classifierTokenVisitor).asClassifierArray()
-			)
+			() -> {
+				final int requestedBucketCount = ctx.args.requestedBucketCount.accept(intValueTokenVisitor).asInt();
+
+				final LinkedList<Serializable> args = Arrays.stream(ctx.args.values
+						.accept(attributeHistogramArgValueTokenVisitor)
+						.asSerializableArray())
+					.collect(Collectors.toCollection(LinkedList::new));
+
+				final HistogramBehavior behavior;
+				final Serializable secondArgument = args.peekFirst();
+				if (secondArgument instanceof HistogramBehavior) {
+					behavior = castArgument(ctx, args.pop(), HistogramBehavior.class);
+				} else if (secondArgument instanceof EnumWrapper enumWrapper && enumWrapper.canBeMappedTo(HistogramBehavior.class)) {
+					behavior = castArgument(ctx, args.pop(), EnumWrapper.class).toEnum(HistogramBehavior.class);
+				} else {
+					behavior = null;
+				}
+
+				final Serializable attributeNamesArgument = args.peekFirst();
+				final String[] attributesNames;
+				if (attributeNamesArgument == null) {
+					attributesNames = new String[0];
+				} else if (attributeNamesArgument instanceof Iterable<?>) {
+					attributesNames = StreamSupport.stream(((Iterable<?>) args.pop()).spliterator(), false)
+						.map(it -> castArgument(ctx, it, String.class))
+						.toArray(String[]::new);
+				} else if (attributeNamesArgument.getClass().isArray()) {
+					attributesNames = Arrays.stream((Object[]) args.pop())
+						.map(it -> castArgument(ctx, it, String.class))
+						.toArray(String[]::new);
+				} else {
+					attributesNames = args.stream()
+						.map(it -> castArgument(ctx, it, String.class))
+						.toArray(String[]::new);
+				}
+
+				return new AttributeHistogram(
+					requestedBucketCount,
+					behavior,
+					attributesNames
+				);
+			}
 		);
 	}
 
@@ -1097,7 +1467,8 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 		return parse(
 			ctx,
 			() -> new PriceHistogram(
-				ctx.args.value.accept(intValueTokenVisitor).asInt()
+				ctx.args.requestedBucketCount.accept(intValueTokenVisitor).asInt(),
+				ctx.args.behaviour != null ? ctx.args.behaviour.accept(histogramBehaviorValueTokenVisitor).asEnum(HistogramBehavior.class) : null
 			)
 		);
 	}
@@ -1143,8 +1514,8 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 					return new HierarchyStatistics();
 				}
 				final LinkedList<Serializable> settings = Arrays.stream(ctx.args.settings
-					.accept(statisticsArgValueTokenVisitor)
-					.asSerializableArray())
+						.accept(statisticsArgValueTokenVisitor)
+						.asSerializableArray())
 					.collect(Collectors.toCollection(LinkedList::new));
 
 				// due to the varargs of any value in QL, we don't know which enum is where, on top of that it can be
@@ -1197,7 +1568,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 		return parse(
 			ctx,
 			() -> {
-				final String outputName = ctx.args.outputName.accept(classifierTokenVisitor).asSingleClassifier();
+				final String outputName = ctx.args.outputName.accept(stringValueTokenVisitor).asString();
 				final Deque<RequireConstraint> requirements = ctx.args.requirements
 					.stream()
 					.map(c -> visitChildConstraint(c, RequireConstraint.class))
@@ -1230,7 +1601,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 		return parse(
 			ctx,
 			() -> {
-				final String outputName = ctx.args.outputName.accept(classifierTokenVisitor).asSingleClassifier();
+				final String outputName = ctx.args.outputName.accept(stringValueTokenVisitor).asString();
 				final HierarchyNode node = visitChildConstraint(ctx.args.node, HierarchyNode.class);
 				final Deque<RequireConstraint> requirements = ctx.args.requirements
 					.stream()
@@ -1269,7 +1640,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 		return parse(
 			ctx,
 			() -> {
-				final String outputName = ctx.args.outputName.accept(classifierTokenVisitor).asSingleClassifier();
+				final String outputName = ctx.args.outputName.accept(stringValueTokenVisitor).asString();
 				final Deque<RequireConstraint> requirements = ctx.args.requirements
 					.stream()
 					.map(c -> visitChildConstraint(c, RequireConstraint.class))
@@ -1339,7 +1710,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 		return parse(
 			ctx,
 			() -> {
-				final String outputName = ctx.args.outputName.accept(classifierTokenVisitor).asSingleClassifier();
+				final String outputName = ctx.args.outputName.accept(stringValueTokenVisitor).asString();
 				final Deque<RequireConstraint> requirements = ctx.args.requirements
 					.stream()
 					.map(c -> visitChildConstraint(c, RequireConstraint.class))
@@ -1372,7 +1743,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 		return parse(
 			ctx,
 			() -> {
-				final String outputName = ctx.args.outputName.accept(classifierTokenVisitor).asSingleClassifier();
+				final String outputName = ctx.args.outputName.accept(stringValueTokenVisitor).asString();
 				final Deque<RequireConstraint> requirements = ctx.args.requirements
 					.stream()
 					.map(c -> visitChildConstraint(c, RequireConstraint.class))
@@ -1459,8 +1830,8 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 		return parse(
 			ctx,
 			() -> new HierarchyOfReference(
-				// todo lho support for multiple reference names
-				ctx.args.referenceName.accept(classifierTokenVisitor).asSingleClassifier(),
+				// TOBEDONE LHO https://github.com/FgForrest/evitaDB/issues/155 support for multiple reference names
+				ctx.args.referenceName.accept(stringValueTokenVisitor).asString(),
 				EmptyHierarchicalEntityBehaviour.REMOVE_EMPTY,
 				ctx.args.requirements
 					.stream()
@@ -1475,8 +1846,8 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 		return parse(
 			ctx,
 			() -> new HierarchyOfReference(
-				// todo lho support for multiple reference names
-				ctx.args.referenceName.accept(classifierTokenVisitor).asSingleClassifier(),
+				// TOBEDONE LHO https://github.com/FgForrest/evitaDB/issues/155 support for multiple reference names
+				ctx.args.referenceName.accept(stringValueTokenVisitor).asString(),
 				ctx.args.emptyHierarchicalEntityBehaviour
 					.accept(emptyHierarchicalEntityBehaviourValueTokenVisitor)
 					.asEnum(EmptyHierarchicalEntityBehaviour.class),
@@ -1493,8 +1864,8 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 		return parse(
 			ctx,
 			() -> new HierarchyOfReference(
-				// todo lho support for multiple reference names
-				ctx.args.referenceName.accept(classifierTokenVisitor).asSingleClassifier(),
+				// TOBEDONE LHO https://github.com/FgForrest/evitaDB/issues/155 support for multiple reference names
+				ctx.args.referenceName.accept(stringValueTokenVisitor).asString(),
 				EmptyHierarchicalEntityBehaviour.REMOVE_EMPTY,
 				visitChildConstraint(orderConstraintVisitor, ctx.args.orderBy, OrderBy.class),
 				ctx.args.requirements
@@ -1510,8 +1881,8 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 		return parse(
 			ctx,
 			() -> new HierarchyOfReference(
-				// todo lho support for multiple reference names
-				ctx.args.referenceName.accept(classifierTokenVisitor).asSingleClassifier(),
+				// TOBEDONE LHO https://github.com/FgForrest/evitaDB/issues/155 support for multiple reference names
+				ctx.args.referenceName.accept(stringValueTokenVisitor).asString(),
 				ctx.args.emptyHierarchicalEntityBehaviour
 					.accept(emptyHierarchicalEntityBehaviourValueTokenVisitor)
 					.asEnum(EmptyHierarchicalEntityBehaviour.class),
@@ -1529,6 +1900,23 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 		return parse(ctx, QueryTelemetry::new);
 	}
 
+	@Nonnull
+	private Serializable getManagedReferencesBehaviour(@Nullable ValueTokenContext managedReferencesBehaviour) {
+		return managedReferencesBehaviour == null || managedReferencesBehaviour.isEmpty() ?
+			ManagedReferencesBehaviour.ANY :
+			managedReferencesBehaviour
+				.accept(managedReferenceBehaviourValueTokenVisitor)
+				.asSerializable();
+	}
+
+	@Nonnull
+	private ManagedReferencesBehaviour getManagedReferencesBehaviourAsEnum(@Nullable ValueTokenContext managedReferencesBehaviour) {
+		return managedReferencesBehaviour == null || managedReferencesBehaviour.isEmpty() ?
+			ManagedReferencesBehaviour.ANY :
+			managedReferencesBehaviour
+				.accept(managedReferenceBehaviourValueTokenVisitor)
+				.asEnum(ManagedReferencesBehaviour.class);
+	}
 
 	@Nonnull
 	private EntityRequire[] parseFacetSummaryRequirementsArgs(@Nullable FacetSummaryRequirementsArgsContext ctx) {
@@ -1538,14 +1926,14 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 		if (ctx.requirement != null) {
 			final EntityRequire requirement = visitChildConstraint(ctx.requirement, EntityRequire.class);
 			if (requirement instanceof final EntityFetch facetEntityRequirement) {
-				return new EntityRequire[] { facetEntityRequirement };
+				return new EntityRequire[]{facetEntityRequirement};
 			} else if (requirement instanceof final EntityGroupFetch groupEntityRequirement) {
-				return new EntityRequire[] { groupEntityRequirement };
+				return new EntityRequire[]{groupEntityRequirement};
 			} else {
 				throw new EvitaQLInvalidQueryError(ctx, "Unsupported requirement constraint.");
 			}
 		}
-		return new EntityRequire[] {
+		return new EntityRequire[]{
 			visitChildConstraint(ctx.facetEntityRequirement, EntityFetch.class),
 			visitChildConstraint(ctx.groupEntityRequirement, EntityGroupFetch.class)
 		};

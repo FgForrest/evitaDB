@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -66,7 +66,7 @@ import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.mutatingDataFetcher.UpdateEntitySchemaMutatingDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.subscribingDataFetcher.OnSchemaChangeSubscribingDataFetcher;
 import io.evitadb.externalApi.graphql.api.model.EndpointDescriptorToGraphQLFieldTransformer;
-import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.ReadDataFetcher;
+import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.AsyncDataFetcher;
 
 import javax.annotation.Nonnull;
 
@@ -192,10 +192,11 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 
 		return new BuiltFieldDescriptor(
 			entitySchemaField,
-			new ReadDataFetcher(
+			new AsyncDataFetcher(
 				new EntitySchemaDataFetcher(entitySchema.getName()),
-				buildingContext.getEvita(),
-				buildingContext.getEvitaExecutor().orElse(null)
+				buildingContext.getConfig(),
+				buildingContext.getTracingContext(),
+				buildingContext.getEvita()
 			)
 		);
 	}
@@ -231,10 +232,10 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 			);
 		}
 
-		schemaObjectBuilder.field(EntitySchemaDescriptor.ALL_SORTABLE_ATTRIBUTE_COMPOUNDS.to(fieldBuilderTransformer));
+		schemaObjectBuilder.field(SortableAttributeCompoundsSchemaProviderDescriptor.ALL_SORTABLE_ATTRIBUTE_COMPOUNDS.to(fieldBuilderTransformer));
 		buildingContext.registerDataFetcher(
 			objectName,
-			EntitySchemaDescriptor.ALL_SORTABLE_ATTRIBUTE_COMPOUNDS,
+			SortableAttributeCompoundsSchemaProviderDescriptor.ALL_SORTABLE_ATTRIBUTE_COMPOUNDS,
 			new AllSortableAttributeCompoundSchemasDataFetcher()
 		);
 
@@ -292,7 +293,7 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 	private GraphQLObjectType buildEntityAttributeSchemaObject() {
 		buildingContext.registerDataFetcher(
 			EntityAttributeSchemaDescriptor.THIS,
-			EntityAttributeSchemaDescriptor.TYPE,
+			AttributeSchemaDescriptor.TYPE,
 			new AttributeSchemaTypeDataFetcher()
 		);
 
@@ -407,7 +408,7 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 	private BuiltFieldDescriptor buildSortableAttributeCompoundSchemasField(@Nonnull EntitySchemaContract entitySchema) {
 		final GraphQLObjectType object = buildSortableAttributeCompoundSchemasObject(entitySchema);
 
-		final GraphQLFieldDefinition field = EntitySchemaDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS
+		final GraphQLFieldDefinition field = SortableAttributeCompoundsSchemaProviderDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS
 			.to(fieldBuilderTransformer)
 			.type(nonNull(object))
 			.build();
@@ -528,19 +529,21 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 		buildingContext.registerDataFetcher(
 			ReferenceSchemaDescriptor.THIS_GENERIC,
 			ReferenceSchemaDescriptor.ENTITY_TYPE_NAME_VARIANTS,
-			new ReadDataFetcher(
+			new AsyncDataFetcher(
 				new ReferenceSchemaEntityTypeNameVariantsDataFetcher(),
-				buildingContext.getEvita(),
-				buildingContext.getEvitaExecutor().orElse(null)
+				buildingContext.getConfig(),
+				buildingContext.getTracingContext(),
+				buildingContext.getEvita()
 			)
 		);
 		buildingContext.registerDataFetcher(
 			ReferenceSchemaDescriptor.THIS_GENERIC,
 			ReferenceSchemaDescriptor.GROUP_TYPE_NAME_VARIANTS,
-			new ReadDataFetcher(
+			new AsyncDataFetcher(
 				new ReferenceSchemaGroupTypeNameVariantsDataFetcher(),
-				buildingContext.getEvita(),
-				buildingContext.getEvitaExecutor().orElse(null)
+				buildingContext.getConfig(),
+				buildingContext.getTracingContext(),
+				buildingContext.getEvita()
 			)
 		);
 		buildingContext.registerDataFetcher(
@@ -550,7 +553,7 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 		);
 		buildingContext.registerDataFetcher(
 			ReferenceSchemaDescriptor.THIS_GENERIC,
-			ReferenceSchemaDescriptor.ALL_SORTABLE_ATTRIBUTE_COMPOUNDS,
+			SortableAttributeCompoundsSchemaProviderDescriptor.ALL_SORTABLE_ATTRIBUTE_COMPOUNDS,
 			new AllSortableAttributeCompoundSchemasDataFetcher()
 		);
 
@@ -622,24 +625,26 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 			.to(objectBuilderTransformer)
 			.name(objectName)
 			.field(ReferenceSchemaDescriptor.ALL_ATTRIBUTES.to(fieldBuilderTransformer))
-			.field(ReferenceSchemaDescriptor.ALL_SORTABLE_ATTRIBUTE_COMPOUNDS.to(fieldBuilderTransformer));
+			.field(SortableAttributeCompoundsSchemaProviderDescriptor.ALL_SORTABLE_ATTRIBUTE_COMPOUNDS.to(fieldBuilderTransformer));
 
 		buildingContext.registerDataFetcher(
 			objectName,
 			ReferenceSchemaDescriptor.ENTITY_TYPE_NAME_VARIANTS,
-			new ReadDataFetcher(
+			new AsyncDataFetcher(
 				new ReferenceSchemaEntityTypeNameVariantsDataFetcher(),
-				buildingContext.getEvita(),
-				buildingContext.getEvitaExecutor().orElse(null)
+				buildingContext.getConfig(),
+				buildingContext.getTracingContext(),
+				buildingContext.getEvita()
 			)
 		);
 		buildingContext.registerDataFetcher(
 			objectName,
 			ReferenceSchemaDescriptor.GROUP_TYPE_NAME_VARIANTS,
-			new ReadDataFetcher(
+			new AsyncDataFetcher(
 				new ReferenceSchemaGroupTypeNameVariantsDataFetcher(),
-				buildingContext.getEvita(),
-				buildingContext.getEvitaExecutor().orElse(null)
+				buildingContext.getConfig(),
+				buildingContext.getTracingContext(),
+				buildingContext.getEvita()
 			)
 		);
 
@@ -665,7 +670,7 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 		}
 		buildingContext.registerDataFetcher(
 			objectName,
-			ReferenceSchemaDescriptor.ALL_SORTABLE_ATTRIBUTE_COMPOUNDS,
+			SortableAttributeCompoundsSchemaProviderDescriptor.ALL_SORTABLE_ATTRIBUTE_COMPOUNDS,
 			new AllSortableAttributeCompoundSchemasDataFetcher()
 		);
 
@@ -721,7 +726,7 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 			referenceSchema
 		);
 
-		final GraphQLFieldDefinition field = ReferenceSchemaDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS
+		final GraphQLFieldDefinition field = SortableAttributeCompoundsSchemaProviderDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS
 			.to(fieldBuilderTransformer)
 			.type(nonNull(object))
 			.build();
@@ -765,7 +770,12 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 
 		return new BuiltFieldDescriptor(
 			catalogSchemaField,
-			new UpdateEntitySchemaMutatingDataFetcher(entitySchema)
+			new AsyncDataFetcher(
+				new UpdateEntitySchemaMutatingDataFetcher(entitySchema),
+				buildingContext.getConfig(),
+				buildingContext.getTracingContext(),
+				buildingContext.getEvita()
+			)
 		);
 	}
 

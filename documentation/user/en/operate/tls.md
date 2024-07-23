@@ -1,8 +1,8 @@
 ---
 title: Setting up TLS
 perex: |
-   All evitaDB APIs support the secure layer (HTTPS). The gRPC is completely based on the HTTP/2 protocol, which is 
-   binary and requires encryption. Because of this fact, all evitaDB external APIs work by default on secure protocol 
+   All evitaDB APIs support the secure layer (HTTPS). The gRPC is completely based on the HTTP/2 protocol, which is
+   binary and requires encryption. Because of this fact, all evitaDB external APIs work by default on secure protocol
    to keep the security uniform.
 date: '1.3.2023'
 author: 'Bc. Tomáš Pozler'
@@ -14,15 +14,15 @@ proofreading: 'done'
    <dl>
       <dt>certificate authority</dt>
       <dd>
-         the certificate authority is an entity that stores, signs, and issues digital certificates. A digital certificate 
-         certifies the ownership of a public key by the named subject of the certificate. This allows others (relying 
-         parties) to rely upon signatures or on assertions made about the private key that corresponds to the certified 
-         public key. A CA acts as a trusted third party—trusted both by the subject (owner) of the certificate and by 
+         the certificate authority is an entity that stores, signs, and issues digital certificates. A digital certificate
+         certifies the ownership of a public key by the named subject of the certificate. This allows others (relying
+         parties) to rely upon signatures or on assertions made about the private key that corresponds to the certified
+         public key. A CA acts as a trusted third party—trusted both by the subject (owner) of the certificate and by
          the party relying upon the certificate. [source](https://en.wikipedia.org/wiki/Certificate_authority)
       </dd>
       <dt>certificate</dt>
       <dd>
-         the certificate is an electronic document used to prove the validity of a public key, and it contains a public 
+         the certificate is an electronic document used to prove the validity of a public key, and it contains a public
          key along with a lot of additional information [source](https://en.wikipedia.org/wiki/Public_key_certificate)
       </dd>
       <dt>private key</dt>
@@ -33,8 +33,8 @@ proofreading: 'done'
       </dd>
       <dt>public key</dt>
       <dd>
-         the public key is the second part public/private key pair - it may be freely distributed  and its ownership 
-         does not entitle to anything, it only serves to prove the authenticity of the private key 
+         the public key is the second part public/private key pair - it may be freely distributed  and its ownership
+         does not entitle to anything, it only serves to prove the authenticity of the private key
          [see more](https://en.wikipedia.org/wiki/Public-key_cryptography)
       </dd>
    </dl>
@@ -51,13 +51,13 @@ We don't want to make things complicated for developers and newcomers, but that 
 is secure, because it can't be. The evitaDB server automatically generates a self-signed <Term>certificate authority</Term> and
 issues the server certificate required for TLS. This certificate will not be trusted by the clients unless you force
 them to. Usually it's just a matter of toggling some switches and for development purposes it's good enough. For
-production environments, we strongly recommend issuing your own <Term>certificate</Term> using the [Let's Encrypt](https://letsencrypt.org) 
+production environments, we strongly recommend issuing your own <Term>certificate</Term> using the [Let's Encrypt](https://letsencrypt.org)
 authority, which can be automated and is part of all certificate trust chains these days.
 
 </Note>
 
 If you are familiar with certificate handling, you can skip the entire [create a certificate](#creating-a-certificate)
-chapter and go to [configuration](configure.md#tls-configuration) or read about [mTLS](#mutual-tls-for-grpc) support for 
+chapter and go to [configuration](configure.md#tls-configuration) or read about [mTLS](#mutual-tls-for-grpc) support for
 the gRPC protocol.
 
 ## Creating a certificate
@@ -73,34 +73,34 @@ It is possible to divide certificates into two groups according to the certifica
 
 You can buy a <Term>certificate</Term> from commercial <Term name="certificate authority">certificate authorities</Term>,
 or you can generate one for free using [Let's Encrypt](https://letsencrypt.org). You can find lots of information about
-this process on the web, so we won't duplicate it here. To generate a free server certificate, follow the instructions 
+this process on the web, so we won't duplicate it here. To generate a free server certificate, follow the instructions
 on the [Certbot site](https://certbot.eff.org/).
 
 ### Self-signed certificate authority
 
-In this guide, we will focus on the second group: self-signed certificates. When using [mTLS](#mutual-tls-for-grpc), it is 
-necessary for the server to have access to a <Term>certificate authority</Term> that trusts it, and for clients that 
+In this guide, we will focus on the second group: self-signed certificates. When using [mTLS](#mutual-tls-for-grpc), it is
+necessary for the server to have access to a <Term>certificate authority</Term> that trusts it, and for clients that
 prove their identity with a <Term>certificate</Term> issued by that authority to allow communication.
 
 To generate a certificate, we will use the [OpenSSL](https://www.openssl.org/) tool. It is pre-installed on many
 Linux distributions, as well as on newer versions of the MacOS system. On Windows operating systems, you will need
 to download and install the tool.
 
-<LanguageSpecific to="javascript">
+<LS to="jscript">
 
 <Note type="info">
-If you need to connect to a server that provides a self-signed certificate from the Node.js application, you need to set 
-the variable `NODE_TLS_REJECT_UNAUTHORIZED` to the value `0`. However, this setting will cause Node.JS to log a warning 
+If you need to connect to a server that provides a self-signed certificate from the Node.js application, you need to set
+the variable `NODE_TLS_REJECT_UNAUTHORIZED` to the value `0`. However, this setting will cause Node.JS to log a warning
 message:
 
 ```plain
-Setting the NODE_TLS_REJECT_UNAUTHORIZED environment variable to '0' makes TLS connections and HTTPS requests insecure 
+Setting the NODE_TLS_REJECT_UNAUTHORIZED environment variable to '0' makes TLS connections and HTTPS requests insecure
 by disabling certificate verification.
 ```
 
 </Note>
 
-</LanguageSpecific>
+</LS>
 
 #### Creating certificate authority
 
@@ -108,17 +108,17 @@ To create <Term>certificate authority</Term> execute following command:
 
 ```shell
 openssl req -x509 \
-        -newkey rsa:2048 \ 
+        -newkey rsa:2048 \
         -keyout rootCA.key \
         -out rootCA.crt \
         -days 365
 ```
 
-It generates a <Term>certificate</Term> `rootCA.crt` and a <Term>private key</Term> `rootCA.key` for 
+It generates a <Term>certificate</Term> `rootCA.crt` and a <Term>private key</Term> `rootCA.key` for
 the <Term>certificate authority</Term> (after confirmation you have to enter a password).
 
 <Note type="warning">
-After running the commands in steps 1 and 2, you must enter a password - if you want an unencrypted certificate without 
+After running the commands in steps 1 and 2, you must enter a password - if you want an unencrypted certificate without
 a password, specify the `-nodes' parameter in the command.
 </Note>
 
@@ -139,7 +139,7 @@ a password, specify the `-nodes' parameter in the command.
     <Tbody>
         <Tr>
             <Td>`-x509`</Td>
-            <Td>produces a x509 certificate - according to a standard that defines the format of digital 
+            <Td>produces a x509 certificate - according to a standard that defines the format of digital
                 certificates used in SSL/TLS connections</Td>
         </Tr>
         <Tr>
@@ -174,8 +174,8 @@ a password, specify the `-nodes' parameter in the command.
 
 #### Certificate signing request
 
-Now you need to create a text file called `domain.ext` with the following content. You need to replace `[domain]` in DNS 
-section with the name of the domain (or [multiple domains](https://easyengine.io/wordpress-nginx/tutorials/ssl/multidomain-ssl-subject-alternative-names/)) 
+Now you need to create a text file called `domain.ext` with the following content. You need to replace `[domain]` in DNS
+section with the name of the domain (or [multiple domains](https://easyengine.io/wordpress-nginx/tutorials/ssl/multidomain-ssl-subject-alternative-names/))
 where your going to run the evitaDB server:
 
 ```plain
@@ -186,7 +186,7 @@ subjectAltName = @alt_names
 DNS.1 = [domain]
 ```
 
-Then you need to create the certificate signing request `domain.csr` using following command: 
+Then you need to create the certificate signing request `domain.csr` using following command:
 
 ```shell
 openssl req -newkey rsa:2048 \
@@ -204,7 +204,7 @@ Now you are ready for the final step.
 Finally, you're ready to generate signed certificate which you can use for evitaDB server or any of the clients in case
 the [mTLS](#mutual-tls-for-grpc) is enabled.
 
-Generate new <Term>certificate</Term> signed by the [certificate authority](#creating-certificate-authority) 
+Generate new <Term>certificate</Term> signed by the [certificate authority](#creating-certificate-authority)
 represented by the `rootCA.crt` and its <Term>private key</Term> `rootCA.key` using the following command:
 
 ```shell
@@ -213,11 +213,11 @@ openssl x509 -req -CA rootCA.crt -CAkey rootCA.key \
         -extfile domain.ext
 ```
 
-You can repeat this command multiple times to generate different certificates both for server side and for each 
+You can repeat this command multiple times to generate different certificates both for server side and for each
 of the clients.
 
 <Note type="warning">
-Do not use the same signed certificate for the server and the client! Do not use the same certificate for different 
+Do not use the same signed certificate for the server and the client! Do not use the same certificate for different
 clients! Each entity in the communication must be represented (identified) by a different certificate.
 
 If you follow these recommendations, you'll be able to control the rejection of each client separately. If you issue a
@@ -283,7 +283,7 @@ Both the server and the client can be provided with:
 ## Mutual TLS for gRPC
 
 The gRPC API, and thus <SourceClass>evita_external_api/evita_external_api_grpc/client/src/main/java/io/evitadb/driver/EvitaClient.java</SourceClass>,
-also offers the possibility of authentication via [mutual TLS](https://en.wikipedia.org/wiki/Mutual_authentication), in 
+also offers the possibility of authentication via [mutual TLS](https://en.wikipedia.org/wiki/Mutual_authentication), in
 which client and server verify their identities with the help of a certificate exchange.
 
 <Note type="question">
@@ -300,12 +300,12 @@ requirements.
 
 </Note>
 
-The mTLS can be controlled in the configuration file <SourceClass>docker/evita-configuration.yaml</SourceClass> in the
+The mTLS can be controlled in the configuration file <SourceClass>evita_server/src/main/resources/evita-configuration.yaml</SourceClass> in the
 section `api.endpoints.gRPC.mTLS`. At the same place it is possible to configure the list of client certificates that
 are allowed to communicate with the gRPC server. The client that doesn't present itself with the accepted certificate
 will be rejected by the server.
 
-The client needs to configure path to its <Term>certificate</Term>, <Term>private key</Term> and optionally password to 
+The client needs to configure path to its <Term>certificate</Term>, <Term>private key</Term> and optionally password to
 a private key in [configuration](../use/connectors/java.md).
 
 We recommend the use of `mTLS` because it prevents a large number of attacks and thus emphasizes the security of
@@ -325,8 +325,8 @@ Examples of attacks prevented:
 The `mTLS` is enabled by default but in a way that is not secure and should be used only in development. When the evitaDB
 starts and `generateAndUseSelfSigned` is set to `true` (default), it generates three public/private key pairs:
 
-1. <Term>certificate authority</Term> in `evitaDB-CA-selfSigned.crt` and 
-   its <Term>private key</Term> in `evitaDB-CA-selfSigned.key` files 
+1. <Term>certificate authority</Term> in `evitaDB-CA-selfSigned.crt` and
+   its <Term>private key</Term> in `evitaDB-CA-selfSigned.key` files
 2. server <Term>certificate</Term> in `server.crt` and its <Term>private key</Term> in `server.key` files
 3. client <Term>certificate</Term> in `client.crt` and its <Term>private key</Term> in `client.key` files
 
@@ -334,10 +334,10 @@ The `client.crt` is automatically added to the list of trusted client certificat
 are available for downloading using `system` endpoint. You'll see those when the evitaDB server starts:
 
 ```plain
-API `system` listening on               http://your-domain:5557/system/
-   - server certificate served at:      http://your-domain:5557/system/evitaDB-CA-selfSigned.crt
-   - client certificate served at:      http://your-domain:5557/system/client.crt
-   - client private key served at:      http://your-domain:5557/system/client.key
+API `system` listening on               http://your-domain:5555/system/
+   - server certificate served at:      http://your-domain:5555/system/evitaDB-CA-selfSigned.crt
+   - client certificate served at:      http://your-domain:5555/system/client.crt
+   - client private key served at:      http://your-domain:5555/system/client.key
 ```
 
 When the gRPC client starts and has the following settings (all are defaults):
@@ -356,8 +356,8 @@ problems in test/production environments.
 ##### How we can validate communication integrity?
 </NoteTitle>
 
-If you need to verify that the client communicates with the server directly without any 
-[man-in-the-middle](https://en.wikipedia.org/wiki/Man-in-the-middle_attack), you may check the fingerprints of 
+If you need to verify that the client communicates with the server directly without any
+[man-in-the-middle](https://en.wikipedia.org/wiki/Man-in-the-middle_attack), you may check the fingerprints of
 the used <Term>certificate authority</Term> both on the server side and the client.
 
 **Server side fingerprint**
@@ -381,5 +381,5 @@ Client logs the fingerprint using [configured logging library](run.md#control-lo
 
 For each of the gRPC client generate their own <Term>certificate</Term> using trusted <Term>certificate authority</Term>
 (such as [Let's Encrypt](https://letsencrypt.org)), or your own [self-signed authority](#creating-certificate-authority).
-Disable `generateAndUseSelfSigned` and configure server certificate and each of client certificates in 
+Disable `generateAndUseSelfSigned` and configure server certificate and each of client certificates in
 [configuration](configure.md#tls-configuration).

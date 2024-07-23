@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -34,10 +34,9 @@ import io.evitadb.api.query.descriptor.ConstraintDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintDescriptorProvider;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.ConstraintType;
+import io.evitadb.api.query.descriptor.ConstraintValueStructure;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ConstraintKeyBuilder;
-import io.evitadb.externalApi.api.catalog.dataApi.constraint.ConstraintProcessingUtils;
-import io.evitadb.api.query.descriptor.ConstraintValueStructure;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocatorResolver;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.constraint.ConstraintDescriptorResolver.ParsedConstraintDescriptor;
@@ -485,8 +484,12 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 	                                     @Nonnull ConstraintValueStructure constraintValueStructure,
 	                                     @Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor,
 	                                     @Nullable Object value) {
-		final DataLocator childDataLocator = resolveChildDataLocator(resolveContext, parsedConstraintDescriptor, childParameterDescriptor.domain());
-		final ConstraintResolveContext childResolveContext = resolveContext.switchToChildContext(childDataLocator);
+		final Optional<DataLocator> childDataLocator = resolveChildDataLocator(resolveContext, parsedConstraintDescriptor, childParameterDescriptor.domain());
+		if (childDataLocator.isEmpty()) {
+			// we don't have data for the switch, thus we don't want to build this child parameter
+			return null;
+		}
+		final ConstraintResolveContext childResolveContext = resolveContext.switchToChildContext(childDataLocator.get());
 
 		final ResolvedChildParameterArgument argument = extractChildParameterFromValue(
 			childResolveContext,
@@ -689,8 +692,12 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 			additionalChildParameterDescriptor
 		);
 
-		final DataLocator childDataLocator = resolveChildDataLocator(resolveContext, parsedConstraintDescriptor, additionalChildParameterDescriptor.domain());
-		final ConstraintResolveContext childResolveContext = resolveContext.switchToChildContext(childDataLocator);
+		final Optional<DataLocator> childDataLocator = resolveChildDataLocator(resolveContext, parsedConstraintDescriptor, additionalChildParameterDescriptor.domain());
+		if (childDataLocator.isEmpty()) {
+			// we don't have data for the switch, thus we don't want to build this child parameter
+			return null;
+		}
+		final ConstraintResolveContext childResolveContext = resolveContext.switchToChildContext(childDataLocator.get());
 		return convertAdditionalChildParameterArgumentToInstantiationArg(childResolveContext, argument, additionalChildParameterDescriptor);
 	}
 
@@ -839,12 +846,12 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 	 * @param desiredChildDomain desired domain for child constraints
 	 */
 	@Nonnull
-	private DataLocator resolveChildDataLocator(@Nonnull ConstraintResolveContext resolveContext,
-	                                            @Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor,
-	                                            @Nonnull ConstraintDomain desiredChildDomain) {
+	private Optional<DataLocator> resolveChildDataLocator(@Nonnull ConstraintResolveContext resolveContext,
+	                                                      @Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor,
+	                                                      @Nonnull ConstraintDomain desiredChildDomain) {
 		final ConstraintDescriptor constraintDescriptor = parsedConstraintDescriptor.constraintDescriptor();
 		if (constraintDescriptor.constraintClass().equals(getDefaultRootConstraintContainerDescriptor().constraintClass())) {
-			return resolveContext.dataLocator();
+			return Optional.of(resolveContext.dataLocator());
 		}
 		return dataLocatorResolver.resolveChildParameterDataLocator(resolveContext.dataLocator(), desiredChildDomain);
 	}

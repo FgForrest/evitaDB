@@ -1,14 +1,14 @@
 query(
-    collection('Product'),
+    collection("Product"),
     filterBy(
         entityPrimaryKeyInSet(103885),
-        priceInCurrency('EUR'),
-        priceInPriceLists('employee-basic-price', 'basic')
+        priceInCurrency("EUR"),
+        priceInPriceLists("employee-basic-price", "basic")
     ),
     require(
         entityFetch(
-            attributeContent('code'),
-            priceContentRespectingFilter('reference')
+            attributeContent("code"),
+            priceContentRespectingFilter("reference")
         )
     )
 )

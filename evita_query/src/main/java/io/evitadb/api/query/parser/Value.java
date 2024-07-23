@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -27,7 +27,6 @@ import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.LongNumberRange;
-import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
@@ -35,7 +34,6 @@ import lombok.Getter;
 import lombok.ToString;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.lang.reflect.Array;
 import java.math.BigDecimal;
@@ -43,6 +41,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
+import java.util.Arrays;
 import java.util.Currency;
 import java.util.Locale;
 import java.util.UUID;
@@ -200,7 +199,7 @@ public class Value {
         } else {
             // correct passed type from client should be checked at visitor level, here should be should correct checked type
             // if everything is correct on parser side
-            throw new EvitaInternalError("Expected locale or string value but got `" + actualValue.getClass().getName() + "`.");
+            throw new EvitaInvalidUsageException("Expected locale or string value but got `" + actualValue.getClass().getName() + "`.");
         }
     }
 
@@ -248,16 +247,6 @@ public class Value {
     }
 
     @Nonnull
-    public <T extends Serializable & Comparable<?>> T[] asSerializableAndComparableArray() {
-        try {
-            //noinspection unchecked
-            return asArray(v -> (T) v, null);
-        } catch (ClassCastException e) {
-            throw new EvitaInvalidUsageException("Unexpected type of value array `" + actualValue.getClass().getName() + "`.");
-        }
-    }
-
-    @Nonnull
     public Integer[] asIntegerArray() {
         try {
             return asArray(
@@ -278,7 +267,7 @@ public class Value {
         } catch (ClassCastException e) {
             // correct passed type from client should be checked at visitor level, here should be should correct checked type
             // if everything is correct on parser side
-            throw new EvitaInternalError("Unexpected type of value array `" + actualValue.getClass().getName() + "`.");
+            throw new EvitaInvalidUsageException("Unexpected type of value array `" + actualValue.getClass().getName() + "`.");
         }
     }
 
@@ -302,30 +291,6 @@ public class Value {
         }
     }
 
-    @Nonnull
-    public <T extends Enum<T>> T[] asEnumArray(@Nonnull Class<T> enumType) {
-        try {
-            return asArray(
-                v -> {
-                    if (v instanceof Enum<?>) {
-                        return variadicValueItemAsSpecificType(v, enumType);
-                    } else if (v instanceof EnumWrapper) {
-                        return variadicValueItemAsSpecificType(v, EnumWrapper.class).toEnum(enumType);
-                    } else {
-                        throw new EvitaInvalidUsageException(
-                            "Expected enum value but got `" + v.getClass().getName() + "`."
-                        );
-                    }
-                },
-                enumType
-            );
-        } catch (ClassCastException e) {
-            // correct passed type from client should be checked at visitor level, here should be should correct checked type
-            // if everything is correct on parser side
-            throw new EvitaInternalError("Unexpected type of value array `" + actualValue.getClass().getName() + "`.");
-        }
-    }
-
     private void assertValueIsOfType(@Nonnull Class<?> type) {
         // correct passed type from client should be checked at visitor level, here should be should correct checked type
         // if everything is correct on parser side
@@ -342,7 +307,7 @@ public class Value {
     }
 
     @Nonnull
-    private <T> T variadicValueItemAsSpecificType(@Nonnull Object item, @Nonnull Class<T> type) {
+    private static <T> T variadicValueItemAsSpecificType(@Nonnull Object item, @Nonnull Class<T> type) {
         // correct passed type from client should be checked at visitor level, here should be should correct checked type
         // if everything is correct on parser side
         Assert.isPremiseValid(
@@ -353,28 +318,35 @@ public class Value {
     }
 
     @Nonnull
-    private <T> T[] asArray(@Nonnull Function<Object, T> itemTransformer, @Nullable Class<T> expectedItemType) {
+    private <T> T[] asArray(@Nonnull Function<Object, T> itemTransformer, @Nonnull Class<T> expectedItemType) {
         final Object values = actualValue;
         if (values instanceof Iterable<?> iterableValues) {
-            final Class<?> guessedExpectedItemType;
-            if (expectedItemType == null) {
-                guessedExpectedItemType = iterableValues.iterator().next().getClass();
-                for (Object value : iterableValues) {
-                    if (!guessedExpectedItemType.isAssignableFrom(value.getClass())) {
-                        throw new EvitaInvalidUsageException("Expected all variadic values to be of type `" + guessedExpectedItemType.getName() + "` but got `" + value.getClass().getName() + "`.");
-                    }
-                }
-            } else {
-                guessedExpectedItemType = null;
+            if (!iterableValues.iterator().hasNext()) {
+                //noinspection unchecked
+                return (T[]) Array.newInstance(expectedItemType, 0);
             }
 
             //noinspection unchecked
             return StreamSupport.stream(iterableValues.spliterator(), false)
                 .map(itemTransformer)
-                .toArray(size -> (T[]) Array.newInstance(expectedItemType != null ? expectedItemType : guessedExpectedItemType, size));
+                .toArray(size -> (T[]) Array.newInstance(expectedItemType, size));
         } else if (values.getClass().isArray()) {
+            final int length = Array.getLength(values);
+
+            if (length == 0) {
+                //noinspection unchecked
+                return (T[]) Array.newInstance(expectedItemType, 0);
+            }
+
+            final Object[] iterableValues = new Object[length];
+            for (int i = 0; i < length; i++) {
+                iterableValues[i] = Array.get(values, i);
+            }
+
             //noinspection unchecked
-            return (T[]) values;
+            return Arrays.stream(iterableValues)
+                .map(itemTransformer)
+                .toArray(size -> (T[]) Array.newInstance(expectedItemType, size));
         } else {
             throw new EvitaInvalidUsageException("Expected value of iterable type or array but got `" + actualValue.getClass().getName() + "`.");
         }

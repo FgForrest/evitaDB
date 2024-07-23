@@ -471,7 +471,7 @@
         "allLocales": [
           "en"
         ],
-        "priceInnerRecordHandling": "FIRST_OCCURRENCE",
+        "priceInnerRecordHandling": "LOWEST_PRICE",
         "prices": [
           {
             "priceId": 7683,
@@ -605,7 +605,8 @@
           "priceWithTax": "4539.0",
           "taxRate": "21.0",
           "validity": null
-        }
+        },
+        "multiplePricesForSaleAvailable": true
       },
       {
         "primaryKey": 111157,
@@ -773,19 +774,19 @@
         }
       }
     ],
-    "type": "PAGE",
-    "totalRecordCount": 4125,
-    "first": true,
-    "last": false,
-    "hasPrevious": false,
-    "hasNext": true,
-    "singlePage": false,
     "empty": false,
-    "pageSize": 20,
-    "pageNumber": 1,
-    "lastPageNumber": 207,
+    "first": true,
     "firstPageItemNumber": 0,
-    "lastPageItemNumber": 19
+    "hasNext": true,
+    "hasPrevious": false,
+    "last": false,
+    "lastPageItemNumber": 19,
+    "lastPageNumber": 207,
+    "pageNumber": 1,
+    "pageSize": 20,
+    "singlePage": false,
+    "totalRecordCount": 4127,
+    "type": "PAGE"
   }
 }
 ```

@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -39,11 +39,12 @@ import javax.annotation.Nonnull;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class SkipFormula extends AbstractFormula {
+	private static final long CLASS_ID = -8329967861689590212L;
 	public static final SkipFormula INSTANCE = new SkipFormula();
 	private static final String ERROR_CANNOT_BE_USED = "This formula is not expected to be used whatsoever!";
 
 	private SkipFormula() {
-		super();
+		this.initFields();
 	}
 
 	@Nonnull
@@ -54,7 +55,7 @@ public class SkipFormula extends AbstractFormula {
 
 	@Override
 	public long getOperationCost() {
-		throw new UnsupportedOperationException(ERROR_CANNOT_BE_USED);
+		return 0L;
 	}
 
 	@Nonnull
@@ -65,7 +66,7 @@ public class SkipFormula extends AbstractFormula {
 
 	@Override
 	public int getEstimatedCardinality() {
-		throw new UnsupportedOperationException(ERROR_CANNOT_BE_USED);
+		return 0;
 	}
 
 	@Override
@@ -75,12 +76,12 @@ public class SkipFormula extends AbstractFormula {
 
 	@Override
 	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		throw new UnsupportedOperationException(ERROR_CANNOT_BE_USED);
+		return 0L;
 	}
 
 	@Override
 	protected long getClassId() {
-		throw new UnsupportedOperationException(ERROR_CANNOT_BE_USED);
+		return CLASS_ID;
 	}
 
 }

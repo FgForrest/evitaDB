@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -179,19 +179,19 @@ class InitialAttributesBuilderTest extends AbstractBuilderTest {
 		assertTrue(names.contains("greetings"));
 
 		assertEquals(
-			EntityAttributeSchema._internalBuild("abc", false, false, false, false, false, false, Integer.class, null),
+			EntityAttributeSchema._internalBuild("abc", null, false, false, false, false, false, Integer.class, null),
 			attributes.getAttributeSchema("abc").orElse(null)
 		);
 		assertEquals(
-			EntityAttributeSchema._internalBuild("def", false, false, false, false, false, false, IntegerNumberRange.class, null),
+			EntityAttributeSchema._internalBuild("def", null, false, false, false, false, false, IntegerNumberRange.class, null),
 			attributes.getAttributeSchema("def").orElse(null)
 		);
 		assertEquals(
-			EntityAttributeSchema._internalBuild("dd", false, false, false, false, false, false, BigDecimal.class, null),
+			EntityAttributeSchema._internalBuild("dd", null, false, false, false, false, false, BigDecimal.class, null),
 			attributes.getAttributeSchema("dd").orElse(null)
 		);
 		assertEquals(
-			EntityAttributeSchema._internalBuild("greetings", false, false, false, true, false, false, String.class, null),
+			EntityAttributeSchema._internalBuild("greetings", null, false, false, true, false, false, String.class, null),
 			attributes.getAttributeSchema("greetings").orElse(null)
 		);
 	}

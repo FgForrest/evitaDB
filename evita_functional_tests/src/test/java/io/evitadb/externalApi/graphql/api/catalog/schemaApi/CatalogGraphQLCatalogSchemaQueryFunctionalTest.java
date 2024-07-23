@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.core.Evita;
+import io.evitadb.externalApi.api.catalog.model.VersionedDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.*;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.UseDataSet;
@@ -42,9 +43,9 @@ import java.util.Optional;
 
 import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.GRAPHQL_THOUSAND_PRODUCTS;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
-import static io.evitadb.utils.MapBuilder.map;
 import static io.evitadb.test.generator.DataGenerator.ASSOCIATED_DATA_LABELS;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_URL;
+import static io.evitadb.utils.MapBuilder.map;
 import static org.hamcrest.Matchers.*;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 
@@ -93,9 +94,9 @@ public class CatalogGraphQLCatalogSchemaQueryFunctionalTest extends CatalogGraph
 				equalTo(
 					map()
 						.e(TYPENAME_FIELD, CatalogSchemaDescriptor.THIS.name())
-						.e(CatalogSchemaDescriptor.VERSION.name(), catalogSchema.version())
-						.e(CatalogSchemaDescriptor.NAME.name(), catalogSchema.getName())
-						.e(CatalogSchemaDescriptor.NAME_VARIANTS.name(), map()
+						.e(VersionedDescriptor.VERSION.name(), catalogSchema.version())
+						.e(NamedSchemaDescriptor.NAME.name(), catalogSchema.getName())
+						.e(NamedSchemaDescriptor.NAME_VARIANTS.name(), map()
 							.e(TYPENAME_FIELD, NameVariantsDescriptor.THIS.name())
 							.e(NameVariantsDescriptor.CAMEL_CASE.name(), catalogSchema.getNameVariants().get(NamingConvention.CAMEL_CASE))
 							.e(NameVariantsDescriptor.PASCAL_CASE.name(), catalogSchema.getNameVariants().get(NamingConvention.PASCAL_CASE))
@@ -103,7 +104,7 @@ public class CatalogGraphQLCatalogSchemaQueryFunctionalTest extends CatalogGraph
 							.e(NameVariantsDescriptor.UPPER_SNAKE_CASE.name(), catalogSchema.getNameVariants().get(NamingConvention.UPPER_SNAKE_CASE))
 							.e(NameVariantsDescriptor.KEBAB_CASE.name(), catalogSchema.getNameVariants().get(NamingConvention.KEBAB_CASE))
 							.build())
-						.e(CatalogSchemaDescriptor.DESCRIPTION.name(), catalogSchema.getDescription())
+						.e(NamedSchemaDescriptor.DESCRIPTION.name(), catalogSchema.getDescription())
 						.build()
 				)
 			);
@@ -160,8 +161,8 @@ public class CatalogGraphQLCatalogSchemaQueryFunctionalTest extends CatalogGraph
 									}
 									description
 									deprecationNotice
-									unique
-									uniqueGlobally
+									uniquenessType
+									globalUniquenessType
 									filterable
 									sortable
 									localized
@@ -186,8 +187,8 @@ public class CatalogGraphQLCatalogSchemaQueryFunctionalTest extends CatalogGraph
 							.e(TYPENAME_FIELD, GlobalAttributeSchemasDescriptor.THIS.name())
 							.e(ATTRIBUTE_URL, map()
 								.e(TYPENAME_FIELD, GlobalAttributeSchemaDescriptor.THIS.name())
-								.e(GlobalAttributeSchemaDescriptor.NAME.name(), urlSchema.getName())
-								.e(GlobalAttributeSchemaDescriptor.NAME_VARIANTS.name(), map()
+								.e(NamedSchemaDescriptor.NAME.name(), urlSchema.getName())
+								.e(NamedSchemaDescriptor.NAME_VARIANTS.name(), map()
 									.e(TYPENAME_FIELD, NameVariantsDescriptor.THIS.name())
 									.e(NameVariantsDescriptor.CAMEL_CASE.name(), urlSchema.getNameVariant(NamingConvention.CAMEL_CASE))
 									.e(NameVariantsDescriptor.PASCAL_CASE.name(), urlSchema.getNameVariant(NamingConvention.PASCAL_CASE))
@@ -195,17 +196,17 @@ public class CatalogGraphQLCatalogSchemaQueryFunctionalTest extends CatalogGraph
 									.e(NameVariantsDescriptor.UPPER_SNAKE_CASE.name(), urlSchema.getNameVariant(NamingConvention.UPPER_SNAKE_CASE))
 									.e(NameVariantsDescriptor.KEBAB_CASE.name(), urlSchema.getNameVariant(NamingConvention.KEBAB_CASE))
 									.build())
-								.e(GlobalAttributeSchemaDescriptor.DESCRIPTION.name(), urlSchema.getDescription())
-								.e(GlobalAttributeSchemaDescriptor.DEPRECATION_NOTICE.name(), urlSchema.getDeprecationNotice())
-								.e(GlobalAttributeSchemaDescriptor.UNIQUE.name(), urlSchema.isUnique())
-								.e(GlobalAttributeSchemaDescriptor.UNIQUE_GLOBALLY.name(), urlSchema.isUniqueGlobally())
-								.e(GlobalAttributeSchemaDescriptor.FILTERABLE.name(), urlSchema.isFilterable())
-								.e(GlobalAttributeSchemaDescriptor.SORTABLE.name(), urlSchema.isSortable())
-								.e(GlobalAttributeSchemaDescriptor.LOCALIZED.name(), urlSchema.isLocalized())
-								.e(GlobalAttributeSchemaDescriptor.NULLABLE.name(), urlSchema.isNullable())
-								.e(GlobalAttributeSchemaDescriptor.DEFAULT_VALUE.name(), urlSchema.getDefaultValue() == null ? null : urlSchema.getDefaultValue().toString())
-								.e(GlobalAttributeSchemaDescriptor.TYPE.name(), urlSchema.getType().getSimpleName())
-								.e(GlobalAttributeSchemaDescriptor.INDEXED_DECIMAL_PLACES.name(), urlSchema.getIndexedDecimalPlaces())
+								.e(NamedSchemaDescriptor.DESCRIPTION.name(), urlSchema.getDescription())
+								.e(NamedSchemaWithDeprecationDescriptor.DEPRECATION_NOTICE.name(), urlSchema.getDeprecationNotice())
+								.e(AttributeSchemaDescriptor.UNIQUENESS_TYPE.name(), urlSchema.getUniquenessType().name())
+								.e(GlobalAttributeSchemaDescriptor.GLOBAL_UNIQUENESS_TYPE.name(), urlSchema.getGlobalUniquenessType().name())
+								.e(AttributeSchemaDescriptor.FILTERABLE.name(), urlSchema.isFilterable())
+								.e(AttributeSchemaDescriptor.SORTABLE.name(), urlSchema.isSortable())
+								.e(AttributeSchemaDescriptor.LOCALIZED.name(), urlSchema.isLocalized())
+								.e(AttributeSchemaDescriptor.NULLABLE.name(), urlSchema.isNullable())
+								.e(AttributeSchemaDescriptor.DEFAULT_VALUE.name(), urlSchema.getDefaultValue() == null ? null : urlSchema.getDefaultValue().toString())
+								.e(AttributeSchemaDescriptor.TYPE.name(), urlSchema.getType().getSimpleName())
+								.e(AttributeSchemaDescriptor.INDEXED_DECIMAL_PLACES.name(), urlSchema.getIndexedDecimalPlaces())
 								.build())
 							.build())
 						.build()
@@ -266,7 +267,7 @@ public class CatalogGraphQLCatalogSchemaQueryFunctionalTest extends CatalogGraph
 				containsInRelativeOrder(GlobalAttributeSchemaDescriptor.THIS.name())
 			)
 			.body(
-				CATALOG_SCHEMA_PATH + "." + CatalogSchemaDescriptor.ALL_ATTRIBUTES.name() + "." + AttributeSchemaDescriptor.NAME.name(),
+				CATALOG_SCHEMA_PATH + "." + CatalogSchemaDescriptor.ALL_ATTRIBUTES.name() + "." + NamedSchemaDescriptor.NAME.name(),
 				containsInAnyOrder(catalogSchema.getAttributes().keySet().toArray(String[]::new))
 			);
 	}
@@ -354,8 +355,8 @@ public class CatalogGraphQLCatalogSchemaQueryFunctionalTest extends CatalogGraph
 							.e(TYPENAME_FIELD, EntitySchemasDescriptor.THIS.name())
 							.e("product", map()
 								.e(TYPENAME_FIELD, EntitySchemaDescriptor.THIS_SPECIFIC.name(createEmptyEntitySchema("Product")))
-								.e(EntitySchemaDescriptor.NAME.name(), productSchema.getName())
-								.e(EntitySchemaDescriptor.NAME_VARIANTS.name(), map()
+								.e(NamedSchemaDescriptor.NAME.name(), productSchema.getName())
+								.e(NamedSchemaDescriptor.NAME_VARIANTS.name(), map()
 									.e(TYPENAME_FIELD, NameVariantsDescriptor.THIS.name())
 									.e(NameVariantsDescriptor.CAMEL_CASE.name(), productSchema.getNameVariant(NamingConvention.CAMEL_CASE))
 									.e(NameVariantsDescriptor.PASCAL_CASE.name(), productSchema.getNameVariant(NamingConvention.PASCAL_CASE))
@@ -367,42 +368,42 @@ public class CatalogGraphQLCatalogSchemaQueryFunctionalTest extends CatalogGraph
 									.e(TYPENAME_FIELD, AttributeSchemasDescriptor.THIS.name(createEmptyEntitySchema("Product")))
 									.e(ATTRIBUTE_URL, map()
 										.e(TYPENAME_FIELD, GlobalAttributeSchemaDescriptor.THIS.name())
-										.e(AttributeSchemaDescriptor.NAME.name(), ATTRIBUTE_URL)
+										.e(NamedSchemaDescriptor.NAME.name(), ATTRIBUTE_URL)
 										.build())
 									.build())
 								.e(EntitySchemaDescriptor.ALL_ATTRIBUTES.name(), productSchema.getAttributes().values()
 									.stream()
 									.map(attributeSchema -> map()
 										.e(TYPENAME_FIELD, (attributeSchema instanceof GlobalAttributeSchemaContract) ? GlobalAttributeSchemaDescriptor.THIS.name() : EntityAttributeSchemaDescriptor.THIS.name())
-										.e(AttributeSchemaDescriptor.NAME.name(), attributeSchema.getName())
+										.e(NamedSchemaDescriptor.NAME.name(), attributeSchema.getName())
 										.build())
 									.toList())
 								.e(EntitySchemaDescriptor.ASSOCIATED_DATA.name(), map()
 									.e(TYPENAME_FIELD, AssociatedDataSchemasDescriptor.THIS.name(createEmptyEntitySchema("Product")))
 									.e(ASSOCIATED_DATA_LABELS, map()
 										.e(TYPENAME_FIELD, AssociatedDataSchemaDescriptor.THIS.name())
-										.e(AssociatedDataSchemaDescriptor.NAME.name(), ASSOCIATED_DATA_LABELS)
+										.e(NamedSchemaDescriptor.NAME.name(), ASSOCIATED_DATA_LABELS)
 										.build())
 									.build())
 								.e(EntitySchemaDescriptor.ALL_ASSOCIATED_DATA.name(), productSchema.getAssociatedData().keySet()
 									.stream()
 									.map(name -> map()
 										.e(TYPENAME_FIELD, AssociatedDataSchemaDescriptor.THIS.name())
-										.e(AssociatedDataSchemaDescriptor.NAME.name(), name)
+										.e(NamedSchemaDescriptor.NAME.name(), name)
 										.build())
 									.toList())
 								.e(EntitySchemaDescriptor.REFERENCES.name(), map()
 									.e(TYPENAME_FIELD, ReferenceSchemasDescriptor.THIS.name(createEmptyEntitySchema("Product")))
 									.e("brand", map()
 										.e(TYPENAME_FIELD, ReferenceSchemaDescriptor.THIS_SPECIFIC.name(createEmptyEntitySchema("Product"), createEmptyEntitySchema("Brand")))
-										.e(ReferenceSchemaDescriptor.NAME.name(), Entities.BRAND)
+										.e(NamedSchemaDescriptor.NAME.name(), Entities.BRAND)
 										.build())
 									.build())
 								.e(EntitySchemaDescriptor.ALL_REFERENCES.name(), productSchema.getReferences().keySet()
 									.stream()
 									.map(name -> map()
 										.e(TYPENAME_FIELD, ReferenceSchemaDescriptor.THIS_GENERIC.name())
-										.e(ReferenceSchemaDescriptor.NAME.name(), name)
+										.e(NamedSchemaDescriptor.NAME.name(), name)
 										.build())
 									.toList())
 								.build())
@@ -461,14 +462,14 @@ public class CatalogGraphQLCatalogSchemaQueryFunctionalTest extends CatalogGraph
 						.map(entitySchema ->
 							map()
 								.e(TYPENAME_FIELD, EntitySchemaDescriptor.THIS_GENERIC.name())
-								.e(EntitySchemaDescriptor.NAME.name(), entitySchema.getName())
+								.e(NamedSchemaDescriptor.NAME.name(), entitySchema.getName())
 								.e(EntitySchemaDescriptor.ALL_ATTRIBUTES.name(), entitySchema.getAttributes()
 									.values()
 									.stream()
 									.map(attributeSchema ->
 										map()
 											.e(TYPENAME_FIELD, (attributeSchema instanceof GlobalAttributeSchemaContract) ? GlobalAttributeSchemaDescriptor.THIS.name() : EntityAttributeSchemaDescriptor.THIS.name())
-											.e(AttributeSchemaDescriptor.NAME.name(), attributeSchema.getName())
+											.e(NamedSchemaDescriptor.NAME.name(), attributeSchema.getName())
 											.build()
 									)
 									.toList())

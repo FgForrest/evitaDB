@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -30,20 +30,17 @@ import io.evitadb.api.query.filter.PriceInCurrency;
 import io.evitadb.api.query.filter.PriceInPriceLists;
 import io.evitadb.api.query.filter.PriceValidIn;
 import io.evitadb.api.query.require.QueryPriceMode;
-import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.prefetch.EntityFilteringFormula;
 import io.evitadb.core.query.algebra.prefetch.SelectionFormula;
-import io.evitadb.core.query.algebra.price.termination.PricePredicate;
+import io.evitadb.core.query.algebra.price.predicate.PricePredicate.PriceContractPredicate;
+import io.evitadb.core.query.algebra.price.predicate.PricePredicate.PriceRecordPredicate;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.core.query.filter.translator.price.alternative.SellingPriceAvailableBitmapFilter;
-import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
 import io.evitadb.utils.Assert;
-import io.evitadb.utils.NumberUtils;
-import lombok.Getter;
-import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -51,7 +48,6 @@ import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.Currency;
 import java.util.List;
-import java.util.function.Predicate;
 
 import static java.util.Optional.ofNullable;
 
@@ -77,7 +73,7 @@ public class PriceBetweenTranslator extends AbstractPriceRelatedConstraintTransl
 		final QueryPriceMode queryPriceMode = filterByVisitor.getQueryPriceMode();
 
 		final OffsetDateTime theMoment = ofNullable(filterByVisitor.findInConjunctionTree(PriceValidIn.class))
-			.map(PriceValidIn::getTheMoment)
+			.map(it -> it.getTheMoment(filterByVisitor::getNow))
 			.orElse(null);
 		final String[] priceLists = ofNullable(filterByVisitor.findInConjunctionTree(PriceInPriceLists.class))
 			.map(PriceInPriceLists::getPriceLists)
@@ -93,6 +89,8 @@ public class PriceBetweenTranslator extends AbstractPriceRelatedConstraintTransl
 				"Query context is missing. You cannot use price between query without specifying price lists" +
 					" and currency that should be taken into account."
 			);
+		} else if (priceLists.length == 0) {
+			return EmptyFormula.INSTANCE;
 		}
 
 		if (filterByVisitor.isEntityTypeKnown()) {
@@ -128,11 +126,10 @@ public class PriceBetweenTranslator extends AbstractPriceRelatedConstraintTransl
 			// there is no default return so that we completed all combinations in previous if-else hell
 			if (filterByVisitor.isPrefetchPossible()) {
 				return new SelectionFormula(
-					filterByVisitor,
 					filteringFormula,
 					new SellingPriceAvailableBitmapFilter(
 						filterByVisitor.getEvitaRequest().getFetchesAdditionalPriceLists(),
-						createPredicate(priceBetween.getFrom(), priceBetween.getTo(), queryPriceMode, indexedPricePlaces)
+						new PriceContractPredicate(priceBetween.getFrom(), priceBetween.getTo(), queryPriceMode, indexedPricePlaces)
 					)
 				);
 			} else {
@@ -141,42 +138,18 @@ public class PriceBetweenTranslator extends AbstractPriceRelatedConstraintTransl
 		} else {
 			return new EntityFilteringFormula(
 				"price between filter",
-				filterByVisitor,
 				new SellingPriceAvailableBitmapFilter(
 					filterByVisitor.getEvitaRequest().getFetchesAdditionalPriceLists(),
-					createPredicate(priceBetween.getFrom(), priceBetween.getTo(), queryPriceMode, indexedPricePlaces)
+					new PriceContractPredicate(priceBetween.getFrom(), priceBetween.getTo(), queryPriceMode, indexedPricePlaces)
 				)
 			);
 		}
 	}
 
 	/**
-	 * Creates predicate used to filter entities by price span.
-	 */
-	@Nonnull
-	public static Predicate<PriceContract> createPredicate(@Nullable BigDecimal from, @Nullable BigDecimal to, @Nonnull QueryPriceMode queryPriceMode, int indexedPricePlaces) {
-		final int fromAsInt = ofNullable(from)
-			.map(it -> NumberUtils.convertToInt(it, indexedPricePlaces))
-			.orElse(Integer.MIN_VALUE);
-		final int toAsInt = ofNullable(to)
-			.map(it -> NumberUtils.convertToInt(it, indexedPricePlaces))
-			.orElse(Integer.MAX_VALUE);
-
-		return queryPriceMode == QueryPriceMode.WITH_TAX ?
-			priceContract -> {
-				final int priceWithTax = NumberUtils.convertToInt(priceContract.priceWithTax(), indexedPricePlaces);
-				return fromAsInt <= priceWithTax && toAsInt >= priceWithTax;
-			} :
-			priceContract -> {
-				final int priceWithoutTax = NumberUtils.convertToInt(priceContract.priceWithoutTax(), indexedPricePlaces);
-				return fromAsInt <= priceWithoutTax && toAsInt >= priceWithoutTax;
-			};
-	}
-
-	/**
 	 * Modifies original formula in a way that it incorporates price between formula in it.
 	 */
-	private Formula applyVisitorAndReturnModifiedResult(
+	private static Formula applyVisitorAndReturnModifiedResult(
 		@Nullable BigDecimal from,
 		@Nullable BigDecimal to,
 		int indexedPricePlaces,
@@ -184,71 +157,11 @@ public class PriceBetweenTranslator extends AbstractPriceRelatedConstraintTransl
 		@Nonnull List<Formula> formula,
 		@Nonnull FilterByVisitor filterByVisitor
 	) {
-		final PricePredicate priceFilter = queryPriceMode == QueryPriceMode.WITH_TAX ?
-			new PricePredicateBetweenPriceWithTax(from, to, indexedPricePlaces) :
-			new PricePredicateBetweenPriceWithoutTax(from, to, indexedPricePlaces);
+		final io.evitadb.core.query.algebra.price.predicate.PriceRecordPredicate priceFilter = new PriceRecordPredicate(from, to, queryPriceMode, indexedPricePlaces);
 
 		return PriceListCompositionTerminationVisitor.translate(
 			formula, filterByVisitor.getQueryPriceMode(), priceFilter
 		);
 	}
 
-	private static class PricePredicateBetweenPriceWithTax extends PricePredicate {
-		@Getter private final BigDecimal from;
-		@Getter private final BigDecimal to;
-		private final int fromAsInt;
-		private final int toAsInt;
-
-		public PricePredicateBetweenPriceWithTax(@Nullable BigDecimal from, @Nullable BigDecimal to, int indexedPricePlaces) {
-			super("ENTITY PRICE WITH TAX BETWEEN " + from + " AND " + to);
-			this.from = from;
-			this.to = to;
-			this.fromAsInt = ofNullable(from)
-				.map(it -> NumberUtils.convertToInt(it, indexedPricePlaces))
-				.orElse(Integer.MIN_VALUE);
-			this.toAsInt = ofNullable(to)
-				.map(it -> NumberUtils.convertToInt(it, indexedPricePlaces))
-				.orElse(Integer.MAX_VALUE);
-		}
-
-		@Override
-		public boolean test(PriceRecordContract priceRecord) {
-			return priceRecord.priceWithTax() >= fromAsInt && priceRecord.priceWithTax() <= toAsInt;
-		}
-
-		@Override
-		public long computeHash(@Nonnull LongHashFunction hashFunction) {
-			return hashFunction.hashInts(new int[]{fromAsInt, toAsInt});
-		}
-
-	}
-
-	private static class PricePredicateBetweenPriceWithoutTax extends PricePredicate {
-		@Getter private final BigDecimal from;
-		@Getter private final BigDecimal to;
-		private final int fromAsInt;
-		private final int toAsInt;
-
-		public PricePredicateBetweenPriceWithoutTax(@Nullable BigDecimal from, @Nullable BigDecimal to, int indexedPricePlaces) {
-			super("ENTITY PRICE WITHOUT TAX BETWEEN " + from + " AND " + to);
-			this.from = from;
-			this.to = to;
-			this.fromAsInt = ofNullable(from)
-				.map(it -> NumberUtils.convertToInt(it, indexedPricePlaces))
-				.orElse(Integer.MIN_VALUE);
-			this.toAsInt = ofNullable(to)
-				.map(it -> NumberUtils.convertToInt(it, indexedPricePlaces))
-				.orElse(Integer.MAX_VALUE);
-		}
-
-		@Override
-		public boolean test(PriceRecordContract priceRecord) {
-			return priceRecord.priceWithoutTax() >= fromAsInt && priceRecord.priceWithoutTax() <= toAsInt;
-		}
-
-		@Override
-		public long computeHash(@Nonnull LongHashFunction hashFunction) {
-			return hashFunction.hashInts(new int[]{fromAsInt, toAsInt});
-		}
-	}
 }

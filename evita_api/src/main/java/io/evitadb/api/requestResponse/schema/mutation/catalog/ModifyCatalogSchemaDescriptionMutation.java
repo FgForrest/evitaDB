@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -28,6 +28,8 @@ import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
+import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.utils.Assert;
@@ -55,7 +57,7 @@ import java.util.Objects;
 @Immutable
 @EqualsAndHashCode
 @RequiredArgsConstructor
-public class ModifyCatalogSchemaDescriptionMutation implements CombinableCatalogSchemaMutation {
+public class ModifyCatalogSchemaDescriptionMutation implements CombinableCatalogSchemaMutation, CatalogSchemaMutation {
 	@Serial private static final long serialVersionUID = -367741086084429615L;
 	@Nullable @Getter private final String description;
 
@@ -78,25 +80,25 @@ public class ModifyCatalogSchemaDescriptionMutation implements CombinableCatalog
 
 	@Nullable
 	@Override
-	public CatalogSchemaContract mutate(@Nullable CatalogSchemaContract catalogSchema) {
+	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nullable CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
 		Assert.notNull(
 			catalogSchema,
 			() -> new InvalidSchemaMutationException("Catalog doesn't exist!")
 		);
 		if (Objects.equals(description, catalogSchema.getDescription())) {
 			// nothing has changed - we can return existing schema
-			return catalogSchema;
+			return new CatalogSchemaWithImpactOnEntitySchemas(catalogSchema);
 		} else {
-			return CatalogSchema._internalBuild(
-				catalogSchema.version() + 1,
-				catalogSchema.getName(),
-				catalogSchema.getNameVariants(),
-				description,
-				catalogSchema.getCatalogEvolutionMode(),
-				catalogSchema.getAttributes(),
-				entityType -> {
-					throw new UnsupportedOperationException("Mutated catalog schema can't provide access to entity schemas!");
-				}
+			return new CatalogSchemaWithImpactOnEntitySchemas(
+				CatalogSchema._internalBuild(
+					catalogSchema.version() + 1,
+					catalogSchema.getName(),
+					catalogSchema.getNameVariants(),
+					description,
+					catalogSchema.getCatalogEvolutionMode(),
+					catalogSchema.getAttributes(),
+					entitySchemaAccessor
+				)
 			);
 		}
 	}

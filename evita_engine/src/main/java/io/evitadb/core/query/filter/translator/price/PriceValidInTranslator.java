@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -75,10 +75,14 @@ public class PriceValidInTranslator extends AbstractPriceRelatedConstraintTransl
 		if (filterByVisitor.isAnyConstraintPresentInConjunctionScopeExcludingUserFilter(PriceBetween.class)) {
 			return SkipFormula.INSTANCE;
 		} else {
-			final OffsetDateTime theMoment = ofNullable(priceValidIn.getTheMoment()).orElseGet(filterByVisitor::getNow);
+			final OffsetDateTime theMoment = priceValidIn.getTheMoment(filterByVisitor::getNow);
 			final String[] priceLists = ofNullable(filterByVisitor.findInConjunctionTree(PriceInPriceLists.class))
 				.map(PriceInPriceLists::getPriceLists)
 				.orElse(null);
+			if (priceLists != null && priceLists.length == 0) {
+				return EmptyFormula.INSTANCE;
+			}
+
 			final Currency currency = ofNullable(filterByVisitor.findInConjunctionTree(PriceInCurrency.class))
 				.map(PriceInCurrency::getCurrency)
 				.orElse(null);
@@ -91,7 +95,6 @@ public class PriceValidInTranslator extends AbstractPriceRelatedConstraintTransl
 				);
 				if (filterByVisitor.isPrefetchPossible()) {
 					return new SelectionFormula(
-						filterByVisitor,
 						filteringFormula,
 						new SellingPriceAvailableBitmapFilter(
 							filterByVisitor.getEvitaRequest().getFetchesAdditionalPriceLists()
@@ -103,7 +106,6 @@ public class PriceValidInTranslator extends AbstractPriceRelatedConstraintTransl
 			} else {
 				return new EntityFilteringFormula(
 					"price valid in filter",
-					filterByVisitor,
 					new SellingPriceAvailableBitmapFilter(
 						filterByVisitor.getEvitaRequest().getFetchesAdditionalPriceLists()
 					)

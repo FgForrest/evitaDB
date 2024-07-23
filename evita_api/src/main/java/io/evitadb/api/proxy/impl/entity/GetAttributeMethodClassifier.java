@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -243,7 +243,11 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 		final Function<String, AttributeSchemaContract> schemaLocator = attributeName -> entitySchema.getAttribute(attributeName)
 			.orElseThrow(() -> new AttributeNotFoundException(attributeName, entitySchema));
 		if (attributeInstance != null) {
-			return schemaLocator.apply(attributeInstance.name());
+			return schemaLocator.apply(
+				ofNullable(attributeInstance.name())
+					.filter(it -> !it.isBlank())
+					.orElseGet(() -> ReflectionLookup.getPropertyNameFromMethodName(method.getName()))
+			);
 		} else if (attributeRefInstance != null) {
 			return schemaLocator.apply(attributeRefInstance.value());
 		} else if (!reflectionLookup.hasAnnotationForPropertyInSamePackage(method, Attribute.class) && ClassUtils.isAbstract(method)) {
@@ -306,7 +310,7 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 		);
 		return (entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.wrap(
 			() -> toTargetType(
-				defaultValueProvider.apply(attributeExtractor.apply(theState.getEntity(), cleanAttributeName)),
+				defaultValueProvider.apply(attributeExtractor.apply(theState.entity(), cleanAttributeName)),
 				itemType, indexedDecimalPlaces
 			)
 		);
@@ -332,7 +336,7 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 		return (entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.wrap(
 			() -> ofNullable(
 				toTargetType(
-					defaultValueProvider.apply(attributeExtractor.apply(theState.getEntity(), cleanAttributeName)),
+					defaultValueProvider.apply(attributeExtractor.apply(theState.entity(), cleanAttributeName)),
 					itemType, indexedDecimalPlaces
 				)
 			)
@@ -366,7 +370,7 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 		return (entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.wrap(
 			() -> ofNullable(
 				toTargetType(
-					defaultValueProvider.apply(attributeExtractor.apply(theState.getEntity(), cleanAttributeName)),
+					defaultValueProvider.apply(attributeExtractor.apply(theState.entity(), cleanAttributeName)),
 					itemType, indexedDecimalPlaces
 				)
 			)
@@ -390,7 +394,7 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 	) {
 		return method.getParameterCount() == 0 ?
 			(entityClassifier, theMethod, args, theState, invokeSuper) -> {
-				final EntityDecorator sealedEntity = (EntityDecorator) theState.getEntity();
+				final EntityDecorator sealedEntity = (EntityDecorator) theState.entity();
 				final Locale locale = sealedEntity.getRequestedLocale();
 				if (locale != null) {
 					return resultWrapper.wrap(
@@ -406,7 +410,7 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 			(entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.wrap(
 				() -> toTargetType(
 					defaultValueProvider.apply(
-						localizedAttributeExtractor.apply(theState.getEntity(), cleanAttributeName, (Locale) args[0])
+						localizedAttributeExtractor.apply(theState.entity(), cleanAttributeName, (Locale) args[0])
 					),
 					itemType, indexedDecimalPlaces
 				)
@@ -428,7 +432,7 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 	) {
 		return method.getParameterCount() == 0 ?
 			(entityClassifier, theMethod, args, theState, invokeSuper) -> {
-				final EntityDecorator sealedEntity = (EntityDecorator) theState.getEntity();
+				final EntityDecorator sealedEntity = (EntityDecorator) theState.entity();
 				final Locale locale = sealedEntity.getRequestedLocale();
 				if (locale != null) {
 					return resultWrapper.wrap(
@@ -462,7 +466,7 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 					toTargetType(
 						defaultValueProvider.apply(
 							localizedAttributeExtractor.apply(
-								theState.getEntity(), cleanAttributeName, (Locale) args[0]
+								theState.entity(), cleanAttributeName, (Locale) args[0]
 							)
 						),
 						itemType, indexedDecimalPlaces
@@ -501,7 +505,7 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 	) {
 		return method.getParameterCount() == 0 ?
 			(entityClassifier, theMethod, args, theState, invokeSuper) -> {
-				final EntityDecorator sealedEntity = (EntityDecorator) theState.getEntity();
+				final EntityDecorator sealedEntity = (EntityDecorator) theState.entity();
 				final Locale locale = sealedEntity.getRequestedLocale();
 				if (locale != null) {
 					return resultWrapper.wrap(
@@ -535,7 +539,7 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 					toTargetType(
 						defaultValueProvider.apply(
 							localizedAttributeExtractor.apply(
-								theState.getEntity(), cleanAttributeName, (Locale) args[0]
+								theState.entity(), cleanAttributeName, (Locale) args[0]
 							)
 						),
 						itemType, indexedDecimalPlaces

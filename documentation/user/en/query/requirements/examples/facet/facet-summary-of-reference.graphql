@@ -14,9 +14,6 @@
       facetSummary {
         brand {
           count
-          groupEntity {
-            primaryKey
-          }
           facetStatistics(
             orderBy: [
               {

@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -35,6 +35,7 @@ import io.evitadb.test.generator.DataGenerator;
 import io.evitadb.test.generator.DataGenerator.Labels;
 import io.evitadb.test.generator.DataGenerator.ReferencedFileSet;
 
+import javax.annotation.Nonnull;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
@@ -64,19 +65,34 @@ public class AbstractHundredProductsFunctionalTest {
 	private static final int SEED = 40;
 	private final DataGenerator dataGenerator = new DataGenerator();
 
+	@Nonnull
+	protected BiFunction<String, Faker, Integer> getRandomEntityPicker(EvitaSessionContract session) {
+		return (entityType, faker) -> {
+			final int entityCount = session.getEntityCollectionSize(entityType);
+			final int primaryKey = entityCount == 0 ? 0 : faker.random().nextInt(1, entityCount);
+			return primaryKey == 0 ? null : primaryKey;
+		};
+	}
+
 	DataCarrier setUp(Evita evita) {
 		return evita.updateCatalog(TEST_CATALOG, session -> {
-			final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> {
-				final int entityCount = session.getEntityCollectionSize(entityType);
-				final int primaryKey = entityCount == 0 ? 0 : faker.random().nextInt(1, entityCount);
-				return primaryKey == 0 ? null : primaryKey;
-			};
+			final BiFunction<String, Faker, Integer> randomEntityPicker = getRandomEntityPicker(session);
+
+			final List<EntityReference> storedPriceLists = dataGenerator.generateEntities(
+					dataGenerator.getSamplePriceListSchema(session),
+					randomEntityPicker,
+					SEED
+				)
+				.limit(20)
+				.map(session::upsertEntity)
+				.toList();
 
 			final List<EntityReference> storedCategories = dataGenerator.generateEntities(
 					dataGenerator.getSampleCategorySchema(
 						session,
 						builder -> {
 							builder
+								.withReferenceToEntity(Entities.PRICE_LIST, Entities.PRICE_LIST, Cardinality.ZERO_OR_ONE)
 								/* here we define set of associated data, that can be stored along with entity */
 								.withAssociatedData(ASSOCIATED_DATA_REFERENCED_FILES, ReferencedFileSet.class)
 								.withAssociatedData(ASSOCIATED_DATA_LABELS, Labels.class)
@@ -90,14 +106,6 @@ public class AbstractHundredProductsFunctionalTest {
 				.limit(20)
 				.map(session::upsertEntity)
 				.toList();
-
-			dataGenerator.generateEntities(
-					dataGenerator.getSamplePriceListSchema(session),
-					randomEntityPicker,
-					SEED
-				)
-				.limit(4)
-				.forEach(session::upsertEntity);
 
 			final List<EntityReference> storedStores = dataGenerator.generateEntities(
 					dataGenerator.getSampleStoreSchema(
@@ -243,6 +251,7 @@ public class AbstractHundredProductsFunctionalTest {
 				tuple("originalParameters", parameters),
 				tuple("originalStores", stores),
 				tuple("originalCategories", categories),
+				tuple("originalPriceLists", storedPriceLists),
 				tuple("categoryHierarchy", dataGenerator.getHierarchy(Entities.CATEGORY))
 			);
 		});

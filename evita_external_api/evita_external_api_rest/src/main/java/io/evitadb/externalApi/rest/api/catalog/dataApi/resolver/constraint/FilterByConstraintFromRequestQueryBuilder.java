@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -36,6 +36,9 @@ import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.ListUnknownE
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.QueryHeaderFilterArgumentsJoinType;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.UnknownEntityEndpointHeaderDescriptor;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
+import io.evitadb.externalApi.rest.exception.RestInvalidArgumentException;
+import io.evitadb.externalApi.rest.exception.RestQueryResolvingInternalError;
+import io.evitadb.utils.Assert;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
@@ -49,12 +52,12 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Optional;
 
-import static io.evitadb.api.query.QueryConstraints.and;
-import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInSet;
-import static io.evitadb.api.query.QueryConstraints.filterBy;
-import static io.evitadb.api.query.QueryConstraints.or;
+import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.ARGUMENT_NAME_NAMING_CONVENTION;
+import static io.evitadb.utils.CollectionUtils.createHashMap;
 
 /**
  * Creates {@link io.evitadb.api.query.filter.FilterBy} constraint for Evita query from request parameters.
@@ -123,17 +126,18 @@ public class FilterByConstraintFromRequestQueryBuilder {
 	                                                                                              @Nonnull CatalogSchemaContract catalogSchema) {
 		final List<FilterConstraint> filterConstraints = new LinkedList<>();
 
-		if (parameters.containsKey(FetchEntityEndpointHeaderDescriptor.LOCALE.name())) {
-			filterConstraints.add(QueryConstraints.entityLocaleEquals((Locale) parameters.get(FetchEntityEndpointHeaderDescriptor.LOCALE.name())));
-		}
+		final Map<GlobalAttributeSchemaContract, Object> uniqueAttributes = getGloballyUniqueAttributesFromParameters(parameters, catalogSchema);
+		uniqueAttributes.forEach((attributeSchema, attributeValue) -> {
+			final String name = attributeSchema.getNameVariant(ARGUMENT_NAME_NAMING_CONVENTION);
+			filterConstraints.add(QueryConstraints.attributeEquals(name, (A) attributeValue));
+		});
 
-		getGloballyUniqueAttributes(catalogSchema).stream()
-			.map(arg -> arg.getNameVariant(ARGUMENT_NAME_NAMING_CONVENTION))
-			.forEach(name -> {
-				if (parameters.containsKey(name)) {
-					filterConstraints.add(QueryConstraints.attributeEquals(name, (A) parameters.get(name)));
-				}
-			});
+		final Locale locale = (Locale) parameters.get(FetchEntityEndpointHeaderDescriptor.LOCALE.name());
+		if (locale == null &&
+			uniqueAttributes.keySet().stream().anyMatch(GlobalAttributeSchemaContract::isUniqueGloballyWithinLocale)) {
+			throw new RestInvalidArgumentException("Globally unique within locale attribute used but no locale was passed.");
+		}
+		Optional.ofNullable(locale).ifPresent(it -> filterConstraints.add(entityLocaleEquals(it)));
 
 		final QueryHeaderFilterArgumentsJoinType filterJoin = (QueryHeaderFilterArgumentsJoinType) parameters.getOrDefault(
 			UnknownEntityEndpointHeaderDescriptor.FILTER_JOIN.name(),
@@ -162,22 +166,22 @@ public class FilterByConstraintFromRequestQueryBuilder {
 	                                                                                                  @Nonnull CatalogSchemaContract catalogSchema) {
 		final List<FilterConstraint> filterConstraints = new LinkedList<>();
 
-		if (parameters.containsKey(FetchEntityEndpointHeaderDescriptor.LOCALE.name())) {
-			filterConstraints.add(QueryConstraints.entityLocaleEquals((Locale) parameters.get(FetchEntityEndpointHeaderDescriptor.LOCALE.name())));
-		}
+		final Map<GlobalAttributeSchemaContract, Object> uniqueAttributes = getGloballyUniqueAttributesFromParameters(parameters, catalogSchema);
+		uniqueAttributes.forEach((attributeSchema, attributeValue) -> {
+			final String name = attributeSchema.getNameVariant(ARGUMENT_NAME_NAMING_CONVENTION);
+			if(attributeValue instanceof Object[] array) {
+				filterConstraints.add(QueryConstraints.attributeInSet(name, convertObjectArrayToSpecificArray(attributeSchema.getType(), array)));
+			} else {
+				filterConstraints.add(QueryConstraints.attributeEquals(name, (A) attributeValue));
+			}
+		});
 
-		getGloballyUniqueAttributes(catalogSchema)
-			.forEach(arg -> {
-				final String name = arg.getNameVariant(ARGUMENT_NAME_NAMING_CONVENTION);
-				if (parameters.containsKey(name)) {
-					final Object parameter = parameters.get(name);
-					if(parameter instanceof Object[] array) {
-						filterConstraints.add(QueryConstraints.attributeInSet(name, convertObjectArrayToSpecificArray(arg.getType(), array)));
-					} else {
-						filterConstraints.add(QueryConstraints.attributeEquals(name, (A) parameter));
-					}
-				}
-			});
+		final Locale locale = (Locale) parameters.get(FetchEntityEndpointHeaderDescriptor.LOCALE.name());
+		if (locale == null &&
+			uniqueAttributes.keySet().stream().anyMatch(GlobalAttributeSchemaContract::isUniqueGloballyWithinLocale)) {
+			throw new RestInvalidArgumentException("Globally unique within locale attribute used but no locale was passed.");
+		}
+		Optional.ofNullable(locale).ifPresent(it -> filterConstraints.add(entityLocaleEquals(it)));
 
 		final QueryHeaderFilterArgumentsJoinType filterJoin = (QueryHeaderFilterArgumentsJoinType) parameters.getOrDefault(
 			ListUnknownEntitiesEndpointHeaderDescriptor.FILTER_JOIN.name(),
@@ -198,13 +202,36 @@ public class FilterByConstraintFromRequestQueryBuilder {
 	}
 
 	@Nonnull
-	private static List<GlobalAttributeSchemaContract> getGloballyUniqueAttributes(CatalogSchemaContract catalogSchema) {
-		return catalogSchema
-			.getAttributes()
-			.values()
-			.stream()
-			.filter(GlobalAttributeSchemaContract::isUniqueGlobally)
-			.toList();
+	private static Map<GlobalAttributeSchemaContract, Object> getGloballyUniqueAttributesFromParameters(@Nonnull Map<String, Object> parameters,
+	                                                                                                    @Nonnull CatalogSchemaContract catalogSchema) {
+		final Map<GlobalAttributeSchemaContract, Object> uniqueAttributes = createHashMap(parameters.size());
+
+		for (Entry<String, Object> parameter : parameters.entrySet()) {
+			final String attributeName = parameter.getKey();
+			final GlobalAttributeSchemaContract attributeSchema = catalogSchema
+				.getAttributeByName(attributeName, ARGUMENT_NAME_NAMING_CONVENTION)
+				.orElse(null);
+			if (attributeSchema == null) {
+				// not a attribute argument
+				continue;
+			}
+			Assert.isPremiseValid(
+				attributeSchema.isUniqueGlobally(),
+				() -> new RestQueryResolvingInternalError(
+					"Cannot find entity by non-unique attribute `" + attributeName + "`."
+				)
+			);
+
+			final Object attributeValue = parameter.getValue();
+			if (attributeValue == null) {
+				// ignore empty argument attributes
+				continue;
+			}
+
+			uniqueAttributes.put(attributeSchema, attributeValue);
+		}
+
+		return uniqueAttributes;
 	}
 
 	@SuppressWarnings("unchecked")

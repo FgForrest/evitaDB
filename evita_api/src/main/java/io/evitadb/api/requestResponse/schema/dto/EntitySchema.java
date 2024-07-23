@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,9 +23,12 @@
 
 package io.evitadb.api.requestResponse.schema.dto;
 
+import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.ReferenceNotFoundException;
+import io.evitadb.api.exception.SchemaAlteringException;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
@@ -49,6 +52,7 @@ import java.util.*;
 import java.util.Map.Entry;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Optional.ofNullable;
 
@@ -283,7 +287,7 @@ public final class EntitySchema implements EntitySchemaContract {
 				attributeSchemaContract.getNameVariants(),
 				attributeSchemaContract.getDescription(),
 				attributeSchemaContract.getDeprecationNotice(),
-				attributeSchemaContract.isUnique(),
+				attributeSchemaContract.getUniquenessType(),
 				attributeSchemaContract.isFilterable(),
 				attributeSchemaContract.isSortable(),
 				attributeSchemaContract.isLocalized(),
@@ -310,7 +314,7 @@ public final class EntitySchema implements EntitySchemaContract {
 				attributeSchemaContract.getNameVariants(),
 				attributeSchemaContract.getDescription(),
 				attributeSchemaContract.getDeprecationNotice(),
-				attributeSchemaContract.isUnique(),
+				attributeSchemaContract.getUniquenessType(),
 				attributeSchemaContract.isFilterable(),
 				attributeSchemaContract.isSortable(),
 				attributeSchemaContract.isLocalized(),
@@ -634,6 +638,33 @@ public final class EntitySchema implements EntitySchemaContract {
 		return getReference(referenceName)
 			.map(it -> (ReferenceSchema) it)
 			.orElseThrow(() -> new ReferenceNotFoundException(referenceName, this));
+	}
+
+	@Override
+	public void validate(@Nonnull CatalogSchemaContract catalogSchema) throws SchemaAlteringException {
+		final List<String> errors = getReferences()
+			.values()
+			.stream()
+			.flatMap(ref -> {
+				Stream<String> referenceErrors = Stream.empty();
+				if (ref.isReferencedEntityTypeManaged() && catalogSchema.getEntitySchema(ref.getReferencedEntityType()).isEmpty()) {
+					referenceErrors = Stream.concat(
+						referenceErrors,
+						Stream.of("Referenced entity type `" + ref.getReferencedEntityType() + "` is not present in catalog `" + catalogSchema.getName() + "` schema!"));
+				}
+				if (ref.isReferencedGroupTypeManaged() && catalogSchema.getEntitySchema(ref.getReferencedGroupType()).isEmpty()) {
+					referenceErrors = Stream.concat(
+						referenceErrors,
+						Stream.of("Referenced group entity type `" + ref.getReferencedGroupType() + "` is not present in catalog `" + catalogSchema.getName() + "` schema!"));
+				}
+				return referenceErrors;
+			})
+			.toList();
+		if (!errors.isEmpty()) {
+			throw new InvalidSchemaMutationException(
+				"Schema `" + getName() + "` contains validation errors: " + String.join(", ", errors)
+			);
+		}
 	}
 
 	/**

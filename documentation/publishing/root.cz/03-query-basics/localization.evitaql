@@ -1,0 +1,16 @@
+query(
+  collection("Product"),
+  filterBy(
+    entityPrimaryKeyInSet(103885, 103911, 105715),
+    entityLocaleEquals("cs")
+  ),
+  orderBy(
+    attributeNatural("name", DESC)
+  ),
+  require(
+    entityFetch(
+      attributeContent("name", "descriptionShort"),
+      associatedDataContent("localization")
+    )
+  )
+)

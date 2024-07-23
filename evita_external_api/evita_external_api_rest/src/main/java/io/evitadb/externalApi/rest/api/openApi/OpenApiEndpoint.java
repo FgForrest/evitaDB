@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.rest.api.openApi;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.linecorp.armeria.common.HttpStatus;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.http.MimeTypes;
 import io.evitadb.externalApi.rest.api.model.ErrorDescriptor;
@@ -41,7 +42,6 @@ import io.swagger.v3.oas.models.media.MediaType;
 import io.swagger.v3.oas.models.parameters.RequestBody;
 import io.swagger.v3.oas.models.responses.ApiResponse;
 import io.swagger.v3.oas.models.responses.ApiResponses;
-import io.undertow.util.StatusCodes;
 import lombok.AccessLevel;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -60,7 +60,7 @@ import static io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference.typeR
 
 /**
  * Single REST endpoint with schema description and handler builder. It combines {@link io.swagger.v3.oas.models.PathItem},
- * {@link Operation} and {@link io.undertow.server.HttpHandler} into one place with useful defaults. To further simplify
+ * {@link Operation} and {@link com.linecorp.armeria.server.HttpService} into one place with useful defaults. To further simplify
  * building endpoints, the {@link OpenApiCollectionEndpoint} and {@link OpenApiCatalogEndpoint} have been created with
  * built-in specific path builders and custom properties for each type of endpoint.
  *
@@ -73,14 +73,14 @@ import static io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference.typeR
 @ToString
 public abstract class OpenApiEndpoint<HC extends RestHandlingContext> {
 
-	private static final String STATUS_CODE_OK = String.valueOf(StatusCodes.OK);
-	private static final String STATUS_CODE_NO_CONTENT = String.valueOf(StatusCodes.NO_CONTENT);
-	private static final String STATUS_CODE_INTERNAL_SERVER_ERROR = String.valueOf(StatusCodes.INTERNAL_SERVER_ERROR);
-	private static final String STATUS_CODE_METHOD_NOT_ALLOWED = String.valueOf(StatusCodes.METHOD_NOT_ALLOWED);
-	private static final String STATUS_CODE_NOT_FOUND = String.valueOf(StatusCodes.NOT_FOUND);
-	private static final String STATUS_CODE_NOT_ACCEPTABLE = String.valueOf(StatusCodes.NOT_ACCEPTABLE);
-	private static final String STATUS_CODE_UNSUPPORTED_MEDIA_TYPE = String.valueOf(StatusCodes.UNSUPPORTED_MEDIA_TYPE);
-	private static final String STATUS_CODE_BAD_REQUEST = String.valueOf(StatusCodes.BAD_REQUEST);
+	private static final String STATUS_CODE_OK = String.valueOf(HttpStatus.OK);
+	private static final String STATUS_CODE_NO_CONTENT = String.valueOf(HttpStatus.NO_CONTENT);
+	private static final String STATUS_CODE_INTERNAL_SERVER_ERROR = String.valueOf(HttpStatus.INTERNAL_SERVER_ERROR);
+	private static final String STATUS_CODE_METHOD_NOT_ALLOWED = String.valueOf(HttpStatus.METHOD_NOT_ALLOWED);
+	private static final String STATUS_CODE_NOT_FOUND = String.valueOf(HttpStatus.NOT_FOUND);
+	private static final String STATUS_CODE_NOT_ACCEPTABLE = String.valueOf(HttpStatus.NOT_ACCEPTABLE);
+	private static final String STATUS_CODE_UNSUPPORTED_MEDIA_TYPE = String.valueOf(HttpStatus.UNSUPPORTED_MEDIA_TYPE);
+	private static final String STATUS_CODE_BAD_REQUEST = String.valueOf(HttpStatus.BAD_REQUEST);
 
 	@Nonnull @Getter protected final HttpMethod method;
 	@Nonnull @Getter protected final UriPath path;
@@ -103,7 +103,7 @@ public abstract class OpenApiEndpoint<HC extends RestHandlingContext> {
 	@Nullable protected final OpenApiSimpleType requestBody;
 	@Nullable protected final OpenApiSimpleType successResponse;
 
-	@Nonnull protected final Function<HC, RestEndpointHandler<?, HC>> handlerBuilder;
+	@Nonnull protected final Function<HC, RestEndpointHandler<HC>> handlerBuilder;
 
 	/**
 	 * Instantiate a new handler for this particular endpoint with passed data.
@@ -115,10 +115,10 @@ public abstract class OpenApiEndpoint<HC extends RestHandlingContext> {
 	 * @return ready-to-handle endpoint handler
 	 */
 	@Nonnull
-	public abstract RestEndpointHandler<?, HC> toHandler(@Nonnull ObjectMapper objectMapper,
-	                                                     @Nonnull Evita evita,
-	                                                     @Nonnull OpenAPI openApi,
-	                                                     @Nonnull Map<String, Class<? extends Enum<?>>> enumMapping);
+	public abstract RestEndpointHandler<HC> toHandler(@Nonnull ObjectMapper objectMapper,
+	                                                  @Nonnull Evita evita,
+	                                                  @Nonnull OpenAPI openApi,
+	                                                  @Nonnull Map<String, Class<? extends Enum<?>>> enumMapping);
 
 	/**
 	 * Build {@link Operation} describing this endpoint in OpenAPI.
@@ -228,7 +228,7 @@ public abstract class OpenApiEndpoint<HC extends RestHandlingContext> {
 	public static class PathBuilder {
 
 		@Nonnull
-		private UriPath.Builder pathBuilder = UriPath.builder();
+		private final UriPath.Builder pathBuilder = UriPath.builder();
 		@Getter
 		private final List<OpenApiEndpointParameter> pathParameters = new LinkedList<>();
 

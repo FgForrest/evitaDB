@@ -35,12 +35,12 @@ in the separate part of this site.
 </NoteTitle>
 
 evitaDB is currently in alpha version and a lot of development is going on right now. We plan to stabilize the first 
-generally available version at the beginning of 2024. Until that time, the storage format may change at any time, which 
+generally available version in 2024. Until that time, the storage format may change at any time, which 
 will require all existing data to be dropped and re-indexed from the primary storage.
 
 **Please do not use evitaDB to store your primary data for the reasons mentioned above.**
 
-In the fall of 2023, we plan to release a beta version and deploy it first to our own customers to gain first-hand 
+In the spring of 2023, we plan to release a beta version and deploy it first to our own customers to gain first-hand 
 experience using it ourselves. When we can be sure that the database engine is stable and reliable, we will release 
 the first version to the general public.
 </Note>
@@ -87,7 +87,7 @@ the first version to the general public.
    10. [Behavioral filter containers](query/filtering/behavioral.md)
 3. **Ordering**
    1. [Constant](query/ordering/constant.md)
-   1. [Natural](query/ordering/natural.md)
+   1. [Comparable](query/ordering/comparable.md)
    2. [Price](query/ordering/price.md)
    3. [Reference](query/ordering/reference.md)
    4. [Random](query/ordering/random.md)
@@ -105,7 +105,7 @@ the first version to the general public.
    1. [Setup TLS](operate/tls.md) 
 2. [Run](operate/run.md)
 3. [Backup & Restore](operate/backup-restore.md)
-4. [Monitor](operate/monitor.md)
+4. [Observe](operate/observe.md)
 
 ## Deep dive
 
@@ -118,15 +118,18 @@ the first version to the general public.
 
 ## Solve
 
-1. [Render category menu](solve/render-category-menu.md)
+1. [Routing](solve/routing.md)
+2. [Render category menu](solve/render-category-menu.md)
    1. [Mega-menu](solve/render-category-menu.md#mega-menu)
-   2. [Partial menu](solve/render-category-menu.md#partial-menu)
-   3. [Hide parts of the category menu](solve/render-category-menu.md#hiding-parts-of-the-category-tree)
-2. [Filter products in category](solve/filtering-products-in-category.md)
+   2. [Dynamic collapsible menu](solve/render-category-menu.md#dynamic-collapsible-menu)
+   3. [Listing sub-cateogires](solve/render-category-menu.md#listing-sub-categories)
+   4. [Hybrid menu](solve/render-category-menu.md#hybrid-menu)
+   5. [Hide parts of the category menu](solve/render-category-menu.md#hiding-parts-of-the-category-tree)
+3. [Filter products in category](solve/filtering-products-in-category.md)
    1. [With faceted search](solve/filtering-products-in-category.md#faceted-search)
    2. [With price filter](solve/filtering-products-in-category.md#price-filter)
-3. [Render referenced brand](solve/render-referenced-brand.md)
+4. [Render referenced brand](solve/render-referenced-brand.md)
    1. [With product listing](solve/render-referenced-brand.md#product-listing)
    2. [With involved categories listing](solve/render-referenced-brand.md#category-listing)
-4. [Handle images & binaries](solve/handling-images-binaries.md)
-5. [Model price policies](solve/model-price-policies.md)
+5. [Handle images & binaries](solve/handling-images-binaries.md)
+6. [Model price policies](solve/model-price-policies.md)

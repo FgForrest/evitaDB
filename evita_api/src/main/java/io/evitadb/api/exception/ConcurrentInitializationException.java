@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -49,7 +49,7 @@ public class ConcurrentInitializationException extends EvitaInvalidUsageExceptio
 				"This problem usually occurs when you open the session by `createSession` on Evita instance " +
 				"multiple times, or when you create session and subsequently call `update` method on Evita instance " +
 				"without closing the existing session first. Parallel sessions are allowed in \"alive\" state which " +
-				"applies mutations in separate ACID transactions (considerably slower). You may switch from warming up " +
+				"applies mutations in separate ACID transaction (considerably slower). You may switch from warming up " +
 				"to alive state by calling `goLive` on session contract."
 		);
 	}

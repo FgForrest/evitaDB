@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -50,7 +50,7 @@ public abstract class GraphQLArtificialEntitiesBenchmark {
 	 */
 	public void singleEntityRead(GraphQLArtificialFullDatabaseBenchmarkState benchmarkState, GraphQLArtificialSingleReadState state, Blackhole blackhole) {
 		blackhole.consume(
-			benchmarkState.getSession().call(state.getRequestBody())
+			benchmarkState.getSession().call(state.getInstancePath(), state.getRequestBody())
 		);
 	}
 
@@ -67,7 +67,7 @@ public abstract class GraphQLArtificialEntitiesBenchmark {
 	 */
 	public void paginatedEntityRead(GraphQLArtificialFullDatabaseBenchmarkState benchmarkState, GraphQLArtificialPageReadState state, Blackhole blackhole) {
 		blackhole.consume(
-			benchmarkState.getSession().call(state.getRequestBody())
+			benchmarkState.getSession().call(state.getInstancePath(), state.getRequestBody())
 		);
 	}
 
@@ -84,7 +84,7 @@ public abstract class GraphQLArtificialEntitiesBenchmark {
 	 */
 	public void attributeFiltering(GraphQLArtificialAttributeBenchmarkState benchmarkState, GraphQLArtificialAttributeFilteringState state, Blackhole blackhole) {
 		blackhole.consume(
-			benchmarkState.getSession().call(state.getRequestBody())
+			benchmarkState.getSession().call(state.getInstancePath(), state.getRequestBody())
 		);
 	}
 
@@ -102,7 +102,7 @@ public abstract class GraphQLArtificialEntitiesBenchmark {
 	 */
 	public void attributeAndHierarchyFiltering(GraphQLArtificialAttributeBenchmarkState benchmarkState, GraphQLArtificialAttributeAndHierarchyFilteringState state, Blackhole blackhole) {
 		blackhole.consume(
-			benchmarkState.getSession().call(state.getRequestBody())
+			benchmarkState.getSession().call(state.getInstancePath(), state.getRequestBody())
 		);
 	}
 
@@ -120,7 +120,7 @@ public abstract class GraphQLArtificialEntitiesBenchmark {
 	 */
 	public void attributeHistogramComputation(GraphQLArtificialAttributeBenchmarkState benchmarkState, GraphQLArtificialAttributeHistogramState state, Blackhole blackhole) {
 		blackhole.consume(
-			benchmarkState.getSession().call(state.getRequestBody())
+			benchmarkState.getSession().call(state.getInstancePath(), state.getRequestBody())
 		);
 	}
 
@@ -137,7 +137,7 @@ public abstract class GraphQLArtificialEntitiesBenchmark {
 	 */
 	public void priceFiltering(GraphQLArtificialPriceBenchmarkState benchmarkState, GraphQLArtificialPriceFilteringState state, Blackhole blackhole) {
 		blackhole.consume(
-			benchmarkState.getSession().call(state.getRequestBody())
+			benchmarkState.getSession().call(state.getInstancePath(), state.getRequestBody())
 		);
 	}
 
@@ -154,7 +154,7 @@ public abstract class GraphQLArtificialEntitiesBenchmark {
 	 */
 	public void priceAndHierarchyFiltering(GraphQLArtificialPriceBenchmarkState benchmarkState, GraphQLArtificialPriceAndHierarchyFilteringState state, Blackhole blackhole) {
 		blackhole.consume(
-			benchmarkState.getSession().call(state.getRequestBody())
+			benchmarkState.getSession().call(state.getInstancePath(), state.getRequestBody())
 		);
 	}
 
@@ -172,7 +172,7 @@ public abstract class GraphQLArtificialEntitiesBenchmark {
 	 */
 	public void priceHistogramComputation(GraphQLArtificialPriceBenchmarkState benchmarkState, GraphQLArtificialPriceHistogramState state, Blackhole blackhole) {
 		blackhole.consume(
-			benchmarkState.getSession().call(state.getRequestBody())
+			benchmarkState.getSession().call(state.getInstancePath(), state.getRequestBody())
 		);
 	}
 
@@ -189,7 +189,7 @@ public abstract class GraphQLArtificialEntitiesBenchmark {
 	 */
 	public void facetFiltering(GraphQLArtificialFacetBenchmarkState benchmarkState, GraphQLArtificialFacetFilteringState state, Blackhole blackhole) {
 		blackhole.consume(
-			benchmarkState.getSession().call(state.getRequestBody())
+			benchmarkState.getSession().call(state.getInstancePath(), state.getRequestBody())
 		);
 	}
 
@@ -206,7 +206,7 @@ public abstract class GraphQLArtificialEntitiesBenchmark {
 	 */
 	public void facetAndHierarchyFiltering(GraphQLArtificialFacetBenchmarkState benchmarkState, GraphQLArtificialFacetAndHierarchyFilteringState state, Blackhole blackhole) {
 		blackhole.consume(
-			benchmarkState.getSession().call(state.getRequestBody())
+			benchmarkState.getSession().call(state.getInstancePath(), state.getRequestBody())
 		);
 	}
 
@@ -225,7 +225,7 @@ public abstract class GraphQLArtificialEntitiesBenchmark {
 	 */
 	public void facetFilteringAndSummarizingCount(GraphQLArtificialFacetBenchmarkState benchmarkState, GraphQLArtificialFacetFilteringAndSummarizingCountState state, Blackhole blackhole) {
 		blackhole.consume(
-			benchmarkState.getSession().call(state.getRequestBody())
+			benchmarkState.getSession().call(state.getInstancePath(), state.getRequestBody())
 		);
 	}
 
@@ -244,7 +244,7 @@ public abstract class GraphQLArtificialEntitiesBenchmark {
 	 */
 	public void facetAndHierarchyFilteringAndSummarizingCount(GraphQLArtificialFacetBenchmarkState benchmarkState, GraphQLArtificialFacetAndHierarchyFilteringAndSummarizingCountState state, Blackhole blackhole) {
 		blackhole.consume(
-			benchmarkState.getSession().call(state.getRequestBody())
+			benchmarkState.getSession().call(state.getInstancePath(), state.getRequestBody())
 		);
 	}
 
@@ -263,7 +263,7 @@ public abstract class GraphQLArtificialEntitiesBenchmark {
 	 */
 	public void facetAndHierarchyFilteringAndSummarizingImpact(GraphQLArtificialFacetBenchmarkState benchmarkState, GraphQLArtificialFacetAndHierarchyFilteringAndSummarizingImpactState state, Blackhole blackhole) {
 		blackhole.consume(
-			benchmarkState.getSession().call(state.getRequestBody())
+			benchmarkState.getSession().call(state.getInstancePath(), state.getRequestBody())
 		);
 	}
 
@@ -281,7 +281,7 @@ public abstract class GraphQLArtificialEntitiesBenchmark {
 	 */
 	public void hierarchyStatisticsComputation(GraphQLArtificialHierarchyBenchmarkState benchmarkState, GraphQLArtificialHierarchyStatisticsComputationState state, Blackhole blackhole) {
 		blackhole.consume(
-			benchmarkState.getSession().call(state.getRequestBody())
+			benchmarkState.getSession().call(state.getInstancePath(), state.getRequestBody())
 		);
 	}
 

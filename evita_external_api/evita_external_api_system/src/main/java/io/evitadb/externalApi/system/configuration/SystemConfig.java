@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -28,6 +28,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
 import io.evitadb.externalApi.configuration.ApiWithOriginControl;
 import io.evitadb.externalApi.configuration.ApiWithSpecificPrefix;
+import io.evitadb.externalApi.configuration.TlsMode;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 
@@ -47,7 +48,7 @@ public class SystemConfig extends AbstractApiConfiguration implements ApiWithSpe
 	/**
 	 * Port on which will server be run and on which will channel be opened.
 	 */
-	public static final int DEFAULT_SYSTEM_PORT = 5557;
+	public static final int DEFAULT_SYSTEM_PORT = 5555;
 	private static final String BASE_SYSTEM_PATH = "system";
 	private static final Pattern ORIGIN_PATTERN = Pattern.compile("([a-z]+)://([\\w.]+)(:(\\d+))?");
 
@@ -59,13 +60,13 @@ public class SystemConfig extends AbstractApiConfiguration implements ApiWithSpe
 	@Getter private final String[] allowedOrigins;
 
 	public SystemConfig() {
-		super(true, "0.0.0.0:" + DEFAULT_SYSTEM_PORT, null, false);
+		super(true, "0.0.0.0:" + DEFAULT_SYSTEM_PORT, null, TlsMode.FORCE_NO_TLS.name());
 		this.prefix = BASE_SYSTEM_PATH;
 		this.allowedOrigins = null;
 	}
 
 	public SystemConfig(@Nonnull String host) {
-		super(true, host, null, false);
+		super(true, host, null, TlsMode.FORCE_NO_TLS.name());
 		this.prefix = BASE_SYSTEM_PATH;
 		this.allowedOrigins = null;
 	}
@@ -74,10 +75,10 @@ public class SystemConfig extends AbstractApiConfiguration implements ApiWithSpe
 	public SystemConfig(@Nullable @JsonProperty("enabled") Boolean enabled,
 						@Nonnull @JsonProperty("host") String host,
 						@Nullable @JsonProperty("exposedHost") String exposedHost,
-						@Nullable @JsonProperty("tlsEnabled") Boolean tlsEnabled,
+						@Nullable @JsonProperty("tlsMode") String tlsMode,
 						@Nullable @JsonProperty("prefix") String prefix,
 						@Nullable @JsonProperty("allowedOrigins") String allowedOrigins) {
-		super(enabled, host, exposedHost, tlsEnabled);
+		super(enabled, host, exposedHost, tlsMode);
 		this.prefix = Optional.ofNullable(prefix).orElse(BASE_SYSTEM_PATH);
 		if (allowedOrigins == null) {
 			this.allowedOrigins = null;

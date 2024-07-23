@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -46,8 +46,6 @@ import java.io.Serial;
  * Mutation implements {@link CombinableCatalogSchemaMutation} allowing to resolve conflicts with the same mutation
  * if the mutation is placed twice in the mutation pipeline.
  *
- * TOBEDONE JNO - write tests
- *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @ThreadSafe
@@ -68,25 +66,25 @@ public class ModifyCatalogSchemaNameMutation implements TopLevelCatalogSchemaMut
 
 	@Nullable
 	@Override
-	public CatalogSchemaContract mutate(@Nullable CatalogSchemaContract catalogSchema) {
+	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nullable CatalogSchemaContract catalogSchema) {
 		Assert.notNull(
 			catalogSchema,
 			() -> new InvalidSchemaMutationException("Catalog doesn't exist!")
 		);
 		if (newCatalogName.equals(catalogSchema.getName())) {
 			// nothing has changed - we can return existing schema
-			return catalogSchema;
+			return new CatalogSchemaWithImpactOnEntitySchemas(catalogSchema);
 		} else {
-			return CatalogSchema._internalBuild(
-				catalogSchema.version() + 1,
-				newCatalogName,
-				NamingConvention.generate(newCatalogName),
-				catalogSchema.getDescription(),
-				catalogSchema.getCatalogEvolutionMode(),
-				catalogSchema.getAttributes(),
-				entityType -> {
-					throw new UnsupportedOperationException("Mutated catalog schema can't provide access to entity schemas!");
-				}
+			return new CatalogSchemaWithImpactOnEntitySchemas(
+				CatalogSchema._internalBuild(
+					catalogSchema.version() + 1,
+					newCatalogName,
+					NamingConvention.generate(newCatalogName),
+					catalogSchema.getDescription(),
+					catalogSchema.getCatalogEvolutionMode(),
+					catalogSchema.getAttributes(),
+					MutationEntitySchemaAccessor.INSTANCE
+				)
 			);
 		}
 	}
@@ -96,4 +94,5 @@ public class ModifyCatalogSchemaNameMutation implements TopLevelCatalogSchemaMut
 		return (overwriteTarget ? "Replace catalog " : "Modify catalog name") + "`" + catalogName + "`: " +
 			"newCatalogName='" + newCatalogName + '\'';
 	}
+
 }

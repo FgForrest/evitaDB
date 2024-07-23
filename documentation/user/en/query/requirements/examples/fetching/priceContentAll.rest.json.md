@@ -6,8 +6,8 @@
       "type": "Product",
       "version": 1,
       "allLocales": [
-        "en",
-        "cs"
+        "cs",
+        "en"
       ],
       "priceInnerRecordHandling": "NONE",
       "attributes": {
@@ -109,7 +109,7 @@
           "priceList": "christmas-prices",
           "currency": "CZK",
           "innerRecordId": null,
-          "sellable": true,
+          "sellable": false,
           "priceWithoutTax": "2154.55",
           "priceWithTax": "2607.0",
           "taxRate": "21.0",
@@ -123,7 +123,7 @@
           "priceList": "christmas-prices",
           "currency": "EUR",
           "innerRecordId": null,
-          "sellable": true,
+          "sellable": false,
           "priceWithoutTax": "90.49",
           "priceWithTax": "109.49",
           "taxRate": "21.0",
@@ -278,18 +278,18 @@
       }
     }
   ],
-  "type": "PAGE",
-  "totalRecordCount": 1,
-  "first": true,
-  "last": true,
-  "hasPrevious": false,
-  "hasNext": false,
-  "singlePage": true,
   "empty": false,
-  "pageSize": 20,
-  "pageNumber": 1,
-  "lastPageNumber": 1,
+  "first": true,
   "firstPageItemNumber": 0,
-  "lastPageItemNumber": 1
+  "hasNext": false,
+  "hasPrevious": false,
+  "last": true,
+  "lastPageItemNumber": 1,
+  "lastPageNumber": 1,
+  "pageNumber": 1,
+  "pageSize": 20,
+  "singlePage": true,
+  "totalRecordCount": 1,
+  "type": "PAGE"
 }
 ```

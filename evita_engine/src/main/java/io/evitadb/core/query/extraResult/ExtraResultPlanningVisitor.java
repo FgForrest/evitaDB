@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -36,6 +36,7 @@ import io.evitadb.api.query.filter.HierarchyWithin;
 import io.evitadb.api.query.filter.HierarchyWithinRoot;
 import io.evitadb.api.query.filter.ReferenceHaving;
 import io.evitadb.api.query.filter.UserFilter;
+import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.require.*;
 import io.evitadb.api.query.visitor.ConstraintCloneVisitor;
 import io.evitadb.api.requestResponse.EvitaRequest;
@@ -43,9 +44,10 @@ import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.core.EntityCollection;
 import io.evitadb.core.query.AttributeSchemaAccessor;
 import io.evitadb.core.query.PrefetchRequirementCollector;
-import io.evitadb.core.query.QueryContext;
+import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.facet.UserFilterFormula;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaCloner;
@@ -74,11 +76,14 @@ import io.evitadb.core.query.extraResult.translator.reference.PriceContentTransl
 import io.evitadb.core.query.extraResult.translator.reference.ReferenceContentTranslator;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.core.query.sort.DeferredSorter;
+import io.evitadb.core.query.sort.NestedContextSorter;
+import io.evitadb.core.query.sort.NoSorter;
 import io.evitadb.core.query.sort.OrderByVisitor;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.core.query.sort.attribute.translator.EntityAttributeExtractor;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
+import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.utils.ArrayUtils;
 import lombok.Getter;
 import lombok.experimental.Delegate;
@@ -136,11 +141,11 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	/**
 	 * Reference to the query context that allows to access entity bodies, indexes, original request and much more.
 	 */
-	@Delegate @Getter private final QueryContext queryContext;
+	@Delegate @Getter private final QueryPlanningContext queryContext;
 	/**
-	 * This instance contains the {@link EntityIndex} set that is used to resolve passed query filter.
+	 * This instance contains the {@link io.evitadb.index.Index} set that is used to resolve passed query filter.
 	 */
-	@Getter private final TargetIndexes<EntityIndex> indexSetToUse;
+	@Getter private final TargetIndexes<?> indexSetToUse;
 	/**
 	 * Reference to the collector of requirements for entity prefetch phase.
 	 */
@@ -151,6 +156,10 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	 * sorting.
 	 */
 	@Getter private final Formula filteringFormula;
+	/**
+	 * Contains superset formula that contains superset of all possible results without any filtering.
+	 */
+	@Getter private final Formula superSetFormula;
 	/**
 	 * Contains prepared sorter implementation that takes output of the {@link #filteringFormula} and sorts the entity
 	 * primary keys according to {@link OrderConstraint} in {@link EvitaRequest}.
@@ -164,6 +173,10 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	 * Contains an accessor providing access to the attribute schemas.
 	 */
 	@Getter private final AttributeSchemaAccessor attributeSchemaAccessor;
+	/**
+	 * Contemporary stack for auxiliary data resolved for each level of the query.
+	 */
+	private final Deque<ProcessingScope> scope = new ArrayDeque<>(32);
 	/**
 	 * Performance optimization when multiple translators ask for the same (last) producer.
 	 */
@@ -189,22 +202,20 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	 * times.
 	 */
 	private Set<Formula> userFilterFormula;
-	/**
-	 * Contemporary stack for auxiliary data resolved for each level of the query.
-	 */
-	private final Deque<ProcessingScope> scope = new LinkedList<>();
 
 	public ExtraResultPlanningVisitor(
-		@Nonnull QueryContext queryContext,
-		@Nonnull TargetIndexes<EntityIndex> indexSetToUse,
+		@Nonnull QueryPlanningContext queryContext,
+		@Nonnull TargetIndexes<?> indexSetToUse,
 		@Nonnull PrefetchRequirementCollector prefetchRequirementCollector,
 		@Nonnull Formula filteringFormula,
+		@Nonnull Formula superSetFormula,
 		@Nullable Sorter sorter
 	) {
 		this.queryContext = queryContext;
 		this.indexSetToUse = indexSetToUse;
 		this.prefetchRequirementCollector = prefetchRequirementCollector;
 		this.filteringFormula = filteringFormula;
+		this.superSetFormula = superSetFormula;
 		this.sorter = sorter;
 		this.attributeSchemaAccessor = new AttributeSchemaAccessor(queryContext);
 	}
@@ -237,10 +248,11 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	@Nonnull
 	public Formula getFilteringFormulaWithoutUserFilter() {
 		if (filteringFormulaWithoutUserFilter == null) {
-			filteringFormulaWithoutUserFilter = FormulaCloner.clone(
+			filteringFormulaWithoutUserFilter = ofNullable(
+				FormulaCloner.clone(
 				filteringFormula,
 				formula -> formula instanceof UserFilterFormula ? null : formula
-			);
+			)).orElse(this.superSetFormula);
 		}
 		return filteringFormulaWithoutUserFilter;
 	}
@@ -357,10 +369,10 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	 * the {@link io.evitadb.api.requestResponse.extraResult.Hierarchy} result object.
 	 */
 	@Nonnull
-	public Sorter createSorter(
+	public NestedContextSorter createSorter(
 		@Nonnull ConstraintContainer<OrderConstraint> orderBy,
 		@Nullable Locale locale,
-		@Nonnull EntityIndex entityIndex,
+		@Nonnull EntityCollection entityCollection,
 		@Nonnull String entityType,
 		@Nonnull Supplier<String> stepDescriptionSupplier
 	) {
@@ -369,37 +381,59 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 				QueryPhase.PLANNING_SORT,
 				stepDescriptionSupplier
 			);
-			// crete a visitor
-			final OrderByVisitor orderByVisitor = new OrderByVisitor(
+			// we have to create and trap the nested query context here to carry it along with the sorter
+			// otherwise the sorter will target and use the incorrectly originally queried (prefetched) entities
+			final QueryPlanningContext nestedQueryContext = entityCollection.createQueryContext(
 				queryContext,
-				Collections.emptyList(),
-				prefetchRequirementCollector,
-				filteringFormula
+				queryContext.getEvitaRequest().deriveCopyWith(
+					entityType,
+					null,
+					new OrderBy(orderBy.getChildren()),
+					queryContext.getLocale()
+				),
+				queryContext.getEvitaSession()
 			);
-			// now analyze the filter by in a nested context with exchanged primary entity index
-			return orderByVisitor.executeInContext(
-				new EntityIndex[] {entityIndex},
-				entityType,
-				locale,
-				new AttributeSchemaAccessor(queryContext),
-				EntityAttributeExtractor.INSTANCE,
-				() -> {
-					for (OrderConstraint innerConstraint : orderBy.getChildren()) {
-						innerConstraint.accept(orderByVisitor);
-					}
-					// create a deferred sorter that will log the execution time to query telemetry
-					return new DeferredSorter(
-						orderByVisitor.getSorter(),
-						sorter -> {
-							try {
-								queryContext.pushStep(QueryPhase.EXECUTION_SORT_AND_SLICE, stepDescriptionSupplier);
-								return sorter.getAsInt();
-							} finally {
-								queryContext.popStep();
-							}
+
+			final GlobalEntityIndex entityIndex = entityCollection.getGlobalIndexIfExists().orElse(null);
+			final Sorter sorter;
+			if (entityIndex == null) {
+				sorter = NoSorter.INSTANCE;
+			} else {
+				// create a visitor
+				final OrderByVisitor orderByVisitor = new OrderByVisitor(
+					nestedQueryContext,
+					Collections.emptyList(),
+					prefetchRequirementCollector,
+					filteringFormula
+				);
+				// now analyze the filter by in a nested context with exchanged primary entity index
+				sorter = orderByVisitor.executeInContext(
+					new EntityIndex[]{entityIndex},
+					entityType,
+					locale,
+					new AttributeSchemaAccessor(nestedQueryContext.getCatalogSchema(), entityCollection.getSchema()),
+					EntityAttributeExtractor.INSTANCE,
+					() -> {
+						for (OrderConstraint innerConstraint : orderBy.getChildren()) {
+							innerConstraint.accept(orderByVisitor);
 						}
-					);
-				}
+						// create a deferred sorter that will log the execution time to query telemetry
+						return new DeferredSorter(
+							orderByVisitor.getSorter(),
+							theSorter -> {
+								try {
+									nestedQueryContext.pushStep(QueryPhase.EXECUTION_SORT_AND_SLICE, stepDescriptionSupplier);
+									return theSorter.getAsInt();
+								} finally {
+									nestedQueryContext.popStep();
+								}
+							}
+						);
+					}
+				);
+			}
+			return new NestedContextSorter(
+				nestedQueryContext.createExecutionContext(), sorter
 			);
 		} finally {
 			queryContext.popStep();
@@ -432,7 +466,7 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 				(RequireConstraintTranslator<RequireConstraint>) TRANSLATORS.get(requireConstraint.getClass());
 			isPremiseValid(
 				translator != null,
-				"No translator found for query `" + requireConstraint.getClass() + "`!"
+				"No translator found for constraint `" + requireConstraint.getClass() + "`!"
 			);
 
 			// if query is a container query
@@ -451,7 +485,7 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 				registerProducer(translator.apply(requireConstraint, this));
 			} else {
 				// sanity check only
-				throw new EvitaInternalError("Should never happen");
+				throw new GenericEvitaInternalError("Should never happen");
 			}
 		} else {
 			@SuppressWarnings("unchecked") final RequireConstraintTranslator<RequireConstraint> translator =
@@ -506,7 +540,7 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	@Nonnull
 	public ProcessingScope getProcessingScope() {
 		if (isScopeEmpty()) {
-			throw new EvitaInternalError("Scope should never be empty");
+			throw new GenericEvitaInternalError("Scope should never be empty");
 		} else {
 			return scope.peek();
 		}
@@ -561,6 +595,13 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	 */
 	public boolean isScopeEmpty() {
 		return scope.isEmpty();
+	}
+
+	/**
+	 * Returns true if the scope relates to top entity.
+	 */
+	public boolean isScopeOfQueriedEntity() {
+		return scope.size() <= 1;
 	}
 
 	/**

@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -27,7 +27,7 @@ import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
@@ -79,22 +79,26 @@ import java.util.EnumSet;
  * even considering that all the indexes are in-memory. Caching is probably the only way out if you really need
  * to crunch these numbers.
  *
+ * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#statistics">Visit detailed user documentation</a></p>
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 @ConstraintDefinition(
 	name = "statistics",
 	shortDescription = "The constraint triggers computing the count of children for each returned hierarchy node.",
+	userDocsLink = "/documentation/query/requirements/hierarchy#statistics",
 	supportedIn = ConstraintDomain.HIERARCHY
 )
 public class HierarchyStatistics extends AbstractRequireConstraintLeaf implements HierarchyOutputRequireConstraint {
 	@Serial private static final long serialVersionUID = 264601966496432983L;
+	private static final String CONSTRAINT_NAME = "statistics";
 
 	private HierarchyStatistics(@Nonnull Serializable... arguments) {
 		super(arguments);
 	}
 
 	public HierarchyStatistics() {
-		super("statistics", StatisticsBase.WITHOUT_USER_FILTER);
+		super(CONSTRAINT_NAME, StatisticsBase.WITHOUT_USER_FILTER);
 	}
 
 	public HierarchyStatistics(
@@ -103,10 +107,12 @@ public class HierarchyStatistics extends AbstractRequireConstraintLeaf implement
 		// because this query can be used only within some other hierarchy query, it would be
 		// unnecessary to duplicate the hierarchy prefix
 		super(
-			"statistics",
-			statisticsBase == null
-				? StatisticsBase.WITHOUT_USER_FILTER
-				: statisticsBase
+			CONSTRAINT_NAME,
+			statisticsBase
+		);
+		Assert.isTrue(
+			statisticsBase != null,
+			"StatisticsBase is mandatory argument, yet it was not provided!"
 		);
 	}
 
@@ -118,14 +124,17 @@ public class HierarchyStatistics extends AbstractRequireConstraintLeaf implement
 		// because this query can be used only within some other hierarchy query, it would be
 		// unnecessary to duplicate the hierarchy prefix
 		super(
-			"statistics",
+			CONSTRAINT_NAME,
 			ArrayUtils.mergeArrays(
-				statisticsBase == null ?
-					new Serializable[] {StatisticsBase.WITHOUT_USER_FILTER} : new Serializable[] {statisticsBase},
+				new Serializable[] {statisticsBase},
 				ArrayUtils.isEmpty(statisticsType) ?
 					new StatisticsType[0] :
 					statisticsType
 			)
+		);
+		Assert.isTrue(
+			statisticsBase != null,
+			"StatisticsBase is mandatory argument, yet it was not provided!"
 		);
 	}
 
@@ -140,7 +149,7 @@ public class HierarchyStatistics extends AbstractRequireConstraintLeaf implement
 				return sb;
 			}
 		}
-		throw new EvitaInternalError("StatisticsBase is mandatory argument, yet it was not found!");
+		throw new GenericEvitaInternalError("StatisticsBase is mandatory argument, yet it was not found!");
 	}
 
 	/**
@@ -161,6 +170,14 @@ public class HierarchyStatistics extends AbstractRequireConstraintLeaf implement
 	@Override
 	public boolean isApplicable() {
 		return isArgumentsNonNull() && getArguments().length >= 1;
+	}
+
+	@Nonnull
+	@Override
+	public Serializable[] getArgumentsExcludingDefaults() {
+		return Arrays.stream(super.getArgumentsExcludingDefaults())
+			.filter(it -> it != StatisticsBase.WITHOUT_USER_FILTER)
+			.toArray(Serializable[]::new);
 	}
 
 	@Nonnull

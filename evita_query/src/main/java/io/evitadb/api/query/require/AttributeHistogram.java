@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -33,6 +33,7 @@ import io.evitadb.api.query.filter.PriceBetween;
 import io.evitadb.utils.ArrayUtils;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.math.BigDecimal;
@@ -45,17 +46,29 @@ import java.util.Arrays;
  * the sake of histogram calculation. If this weren't the case, the user narrowing the filtered range based on
  * the histogram results would be driven into a narrower and narrower range and eventually into a dead end.
  *
+ * It accepts two plus arguments:
+ *
+ * 1. The number of buckets (columns) the histogram should contain.
+ * 2. The behavior of the histogram calculation - either STANDARD (default), where the exactly requested bucket count
+ *    is returned or OPTIMIZED, where the number of columns is reduced if the data is scarce and there would be big gaps
+ *    (empty buckets) between buckets. This leads to more compact histograms, which provide better user experience.
+ * 3. variable number of attribute names for which the histogram should be computed.
+ *
  * Example:
  *
  * <pre>
  * attributeHistogram(5, "width", "height")
+ * attributeHistogram(5, OPTIMIZED, "width", "height")
  * </pre>
+ *
+ * <p><a href="https://evitadb.io/documentation/query/requirements/histogram#attribute-histogram">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "histogram",
-	shortDescription =  "The constraint triggers computation of the [histogram](https://en.wikipedia.org/wiki/Histogram) of specified attributes into response.",
+	shortDescription = "The constraint triggers computation of the [histogram](https://en.wikipedia.org/wiki/Histogram) of specified attributes into response.",
+	userDocsLink = "/documentation/query/requirements/histogram#attribute-histogram",
 	supportedValues = @ConstraintSupportedValues(supportedTypes = {Byte.class, Short.class, Integer.class, Long.class, BigDecimal.class})
 )
 public class AttributeHistogram extends AbstractRequireConstraintLeaf implements AttributeConstraint<RequireConstraint>, ExtraResultRequireConstraint {
@@ -66,9 +79,28 @@ public class AttributeHistogram extends AbstractRequireConstraintLeaf implements
 	}
 
 	@Creator
-	public AttributeHistogram(int requestedBucketCount,
-	                          @Nonnull String... attributeNames) {
-		super(ArrayUtils.mergeArrays(new Serializable[]{requestedBucketCount}, attributeNames));
+	public AttributeHistogram(int requestedBucketCount, @Nullable HistogramBehavior behavior, @Nonnull String... attributeNames) {
+		super(
+			ArrayUtils.mergeArrays(
+				new Serializable[]{
+					requestedBucketCount,
+					behavior == null ? HistogramBehavior.STANDARD : behavior
+				},
+				attributeNames
+			)
+		);
+	}
+
+	public AttributeHistogram(int requestedBucketCount, @Nonnull String... attributeNames) {
+		super(
+			ArrayUtils.mergeArrays(
+				new Serializable[]{
+					requestedBucketCount,
+					HistogramBehavior.STANDARD
+				},
+				attributeNames
+			)
+		);
 	}
 
 	/**
@@ -82,19 +114,38 @@ public class AttributeHistogram extends AbstractRequireConstraintLeaf implements
 	}
 
 	/**
+	 * Returns the requested behavior of the histogram calculation.
+	 *
+	 * @return {@link HistogramBehavior#STANDARD} if not specified otherwise.
+	 * @see HistogramBehavior
+	 */
+	@Nonnull
+	public HistogramBehavior getBehavior() {
+		return (HistogramBehavior) getArguments()[1];
+	}
+
+	/**
 	 * Returns names of attributes for which histogram should be computed.
 	 */
 	@Nonnull
 	public String[] getAttributeNames() {
 		return Arrays.stream(getArguments())
-			.skip(1)
+			.skip(2)
 			.map(String.class::cast)
 			.toArray(String[]::new);
 	}
 
 	@Override
 	public boolean isApplicable() {
-		return isArgumentsNonNull() && getArguments().length > 1;
+		return isArgumentsNonNull() && getArguments().length > 2;
+	}
+
+	@Nonnull
+	@Override
+	public Serializable[] getArgumentsExcludingDefaults() {
+		return Arrays.stream(super.getArgumentsExcludingDefaults())
+			.filter(it -> it != HistogramBehavior.STANDARD)
+			.toArray(Serializable[]::new);
 	}
 
 	@Nonnull

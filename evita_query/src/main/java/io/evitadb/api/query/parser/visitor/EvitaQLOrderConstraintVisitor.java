@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -30,11 +30,15 @@ import io.evitadb.api.query.parser.grammar.EvitaQLParser.AttributeSetExactConstr
 import io.evitadb.api.query.parser.grammar.EvitaQLParser.AttributeSetInFilterConstraintContext;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser.EntityGroupPropertyConstraintContext;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser.EntityPrimaryKeyExactConstraintContext;
+import io.evitadb.api.query.parser.grammar.EvitaQLParser.EntityPrimaryKeyExactNaturalContext;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser.EntityPrimaryKeyInFilterConstraintContext;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser.EntityPropertyConstraintContext;
+import io.evitadb.api.query.parser.grammar.EvitaQLParser.ValueArgsContext;
 import io.evitadb.api.query.parser.grammar.EvitaQLVisitor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.util.Optional;
 
 /**
  * Implementation of {@link EvitaQLVisitor} for parsing all order type constraints
@@ -46,12 +50,16 @@ import javax.annotation.Nonnull;
  */
 public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseConstraintVisitor<OrderConstraint> {
 
-	protected final EvitaQLClassifierTokenVisitor classifierTokenVisitor = new EvitaQLClassifierTokenVisitor();
+	protected final EvitaQLValueTokenVisitor stringValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(String.class);
 	protected final EvitaQLValueTokenVisitor comparableValueTokenVisitor = EvitaQLValueTokenVisitor.withComparableTypesAllowed();
 	protected final EvitaQLValueTokenVisitor intValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(
+		byte.class,
 		Byte.class,
+		short.class,
 		Short.class,
+		int.class,
 		Integer.class,
+		long.class,
 		Long.class
 	);
 	protected final EvitaQLValueTokenVisitor orderDirectionValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(OrderDirection.class);
@@ -98,7 +106,7 @@ public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseConstraintVisitor<
 		return parse(
 			ctx,
 			() -> {
-				final String attributeName = ctx.args.classifier.accept(classifierTokenVisitor).asSingleClassifier();
+				final String attributeName = ctx.args.classifier.accept(stringValueTokenVisitor).asString();
 				if (ctx.args.value == null) {
 					return new AttributeNatural(attributeName);
 				} else {
@@ -118,7 +126,7 @@ public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseConstraintVisitor<
 		return parse(
 			ctx,
 			() -> new AttributeSetExact(
-				ctx.args.attributeName.accept(classifierTokenVisitor).asSingleClassifier(),
+				ctx.args.attributeName.accept(stringValueTokenVisitor).asString(),
 				ctx.args.attributeValues.accept(comparableValueTokenVisitor).asSerializableArray()
 			)
 		);
@@ -129,7 +137,7 @@ public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseConstraintVisitor<
 		return parse(
 			ctx,
 			() -> new AttributeSetInFilter(
-				ctx.args.classifier.accept(classifierTokenVisitor).asSingleClassifier()
+				ctx.args.classifier.accept(stringValueTokenVisitor).asString()
 			)
 		);
 	}
@@ -162,7 +170,7 @@ public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseConstraintVisitor<
 		return parse(
 			ctx,
 			() -> new ReferenceProperty(
-				ctx.args.classifier.accept(classifierTokenVisitor).asSingleClassifier(),
+				ctx.args.classifier.accept(stringValueTokenVisitor).asString(),
 				ctx.args.constrains
 					.stream()
 					.map(c -> visitChildConstraint(c, OrderConstraint.class))
@@ -184,6 +192,20 @@ public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseConstraintVisitor<
 	@Override
 	public OrderConstraint visitEntityPrimaryKeyInFilterConstraint(EntityPrimaryKeyInFilterConstraintContext ctx) {
 		return parse(ctx, EntityPrimaryKeyInFilter::new);
+	}
+
+	@Nullable
+	@Override
+	public OrderConstraint visitEntityPrimaryKeyExactNatural(EntityPrimaryKeyExactNaturalContext ctx) {
+		return parse(
+			ctx,
+			() -> new EntityPrimaryKeyNatural(
+				Optional.ofNullable(ctx.args)
+					.map(ValueArgsContext::valueToken)
+					.map(it -> it.accept(orderDirectionValueTokenVisitor).asEnum(OrderDirection.class))
+					.orElse(OrderDirection.ASC)
+			)
+		);
 	}
 
 	@Override

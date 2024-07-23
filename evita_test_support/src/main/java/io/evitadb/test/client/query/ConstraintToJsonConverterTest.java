@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -28,16 +28,21 @@ import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.EntitySchemaDecorator;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.test.Entities;
 import io.evitadb.test.TestConstants;
 import org.junit.jupiter.api.BeforeEach;
 
+import javax.annotation.Nonnull;
+import java.util.Collection;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Abstract test class for testing implementations of {@link ConstraintToJsonConverter}.
@@ -54,7 +59,24 @@ abstract class ConstraintToJsonConverterTest {
 	@BeforeEach
 	void init() {
 		this.entitySchemaIndex = new HashMap<>();
-		this.catalogSchema = CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, Map.of(), EnumSet.allOf(CatalogEvolutionMode.class), entitySchemaIndex::get);
+		this.catalogSchema = CatalogSchema._internalBuild(
+			TestConstants.TEST_CATALOG,
+			Map.of(),
+			EnumSet.allOf(CatalogEvolutionMode.class),
+			new EntitySchemaProvider() {
+				@Nonnull
+				@Override
+				public Collection<EntitySchemaContract> getEntitySchemas() {
+					return entitySchemaIndex.values();
+				}
+
+				@Nonnull
+				@Override
+				public Optional<EntitySchemaContract> getEntitySchema(@Nonnull String entityType) {
+					return Optional.ofNullable(entitySchemaIndex.get(entityType));
+				}
+			}
+		);
 
 		final EntitySchemaContract productSchema = new InternalEntitySchemaBuilder(
 			catalogSchema,
@@ -67,7 +89,7 @@ abstract class ConstraintToJsonConverterTest {
 			.withReferenceToEntity(Entities.BRAND, Entities.BRAND, Cardinality.EXACTLY_ONE)
 			.toInstance();
 
-		entitySchemaIndex.put(Entities.PRODUCT, productSchema);
+		entitySchemaIndex.put(Entities.PRODUCT, new EntitySchemaDecorator(() -> catalogSchema, (EntitySchema) productSchema));
 
 		final EntitySchemaContract categorySchema = new InternalEntitySchemaBuilder(
 			catalogSchema,
@@ -77,13 +99,13 @@ abstract class ConstraintToJsonConverterTest {
 			.withAttribute("NAME", String.class)
 			.withReferenceToEntity("RELATED_PRODUCTS", Entities.PRODUCT, Cardinality.ONE_OR_MORE, thatIs -> thatIs.withAttribute("ORDER", Integer.class))
 			.toInstance();
-		entitySchemaIndex.put(Entities.CATEGORY, categorySchema);
+		entitySchemaIndex.put(Entities.CATEGORY, new EntitySchemaDecorator(() -> catalogSchema, (EntitySchema) categorySchema));
 
 		final EntitySchemaContract brandSchema = new InternalEntitySchemaBuilder(
 			catalogSchema,
 			EntitySchema._internalBuild(Entities.BRAND)
 		)
 			.toInstance();
-		entitySchemaIndex.put(Entities.BRAND, brandSchema);
+		entitySchemaIndex.put(Entities.BRAND, new EntitySchemaDecorator(() -> catalogSchema, (EntitySchema) brandSchema));
 	}
 }

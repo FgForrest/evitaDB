@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -24,14 +24,14 @@
 package io.evitadb.index;
 
 import io.evitadb.api.requestResponse.data.Versioned;
-import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
-import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
-import io.evitadb.core.EntityCollection;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.locale.LocaleFormula;
+import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
+import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.index.attribute.AttributeIndex;
 import io.evitadb.index.attribute.AttributeIndexContract;
 import io.evitadb.index.bitmap.Bitmap;
@@ -42,15 +42,11 @@ import io.evitadb.index.facet.FacetIndexContract;
 import io.evitadb.index.hierarchy.HierarchyIndex;
 import io.evitadb.index.hierarchy.HierarchyIndexContract;
 import io.evitadb.index.map.TransactionalMap;
-import io.evitadb.index.mutation.AttributeIndexMutator;
 import io.evitadb.index.price.PriceIndexContract;
 import io.evitadb.index.price.PriceListAndCurrencyPriceIndex;
 import io.evitadb.index.price.PriceSuperIndex;
 import io.evitadb.index.price.model.PriceIndexKey;
-import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
-import io.evitadb.index.transactionalMemory.TransactionalObjectVersion;
 import io.evitadb.store.model.StoragePart;
-import io.evitadb.store.spi.model.storageParts.accessor.EntityStoragePartAccessor;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStorageKey;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
 import io.evitadb.store.spi.model.storageParts.index.EntityIndexStoragePart;
@@ -70,7 +66,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -143,54 +138,48 @@ public abstract class EntityIndex implements
 	 */
 	protected final int version;
 	/**
-	 * Lambda that provides access to the current schema.
-	 * Beware this reference changes with each entity collection exchange during transactional commit.
-	 */
-	protected Supplier<EntitySchema> schemaAccessor;
-	/**
 	 * This field captures the original state of the hierarchy index when this index was created.
 	 * This information is used along with {@link #dirty} flag to determine whether {@link EntityIndexStoragePart}
 	 * should be persisted.
 	 */
-	private final boolean originalHierarchyIndexEmpty;
+	protected final boolean originalHierarchyIndexEmpty;
 	/**
 	 * This field captures the original state of the price id sequence when this index was created.
 	 * This information is used along with {@link #dirty} flag to determine whether {@link EntityIndexStoragePart}
 	 * should be persisted.
 	 */
-	private final Integer originalInternalPriceIdSequence;
+	protected final Integer originalInternalPriceIdSequence;
 	/**
 	 * This field captures the original state of the attribute index when this index was created.
 	 * This information is used along with {@link #dirty} flag to determine whether {@link EntityIndexStoragePart}
 	 * should be persisted.
 	 */
-	private final Set<AttributeIndexStorageKey> originalAttributeIndexes;
+	protected final Set<AttributeIndexStorageKey> originalAttributeIndexes;
 	/**
 	 * This field captures the original state of the price indexes when this index was created.
 	 * This information is used along with {@link #dirty} flag to determine whether {@link EntityIndexStoragePart}
 	 * should be persisted.
 	 */
-	private final Set<PriceIndexKey> originalPriceIndexes;
+	protected final Set<PriceIndexKey> originalPriceIndexes;
 	/**
 	 * This field captures the original state of the facet indexes when this index was created.
 	 * This information is used along with {@link #dirty} flag to determine whether {@link EntityIndexStoragePart}
 	 * should be persisted.
 	 */
-	private final Set<String> originalFacetIndexes;
+	protected final Set<String> originalFacetIndexes;
 
 	protected EntityIndex(
 		int primaryKey,
-		@Nonnull EntityIndexKey indexKey,
-		@Nonnull Supplier<EntitySchema> schemaAccessor
+		@Nonnull String entityType,
+		@Nonnull EntityIndexKey indexKey
 	) {
 		this.primaryKey = primaryKey;
 		this.version = 1;
 		this.dirty = new TransactionalBoolean();
 		this.indexKey = indexKey;
-		this.schemaAccessor = schemaAccessor;
 		this.entityIds = new TransactionalBitmap();
 		this.entityIdsByLanguage = new TransactionalMap<>(new HashMap<>(), TransactionalBitmap.class, TransactionalBitmap::new);
-		this.attributeIndex = new AttributeIndex(schemaAccessor.get().getName());
+		this.attributeIndex = new AttributeIndex(entityType);
 		this.hierarchyIndex = new HierarchyIndex();
 		this.facetIndex = new FacetIndex();
 		this.originalHierarchyIndexEmpty = true;
@@ -204,7 +193,6 @@ public abstract class EntityIndex implements
 		int primaryKey,
 		@Nonnull EntityIndexKey indexKey,
 		int version,
-		@Nonnull Supplier<EntitySchema> schemaAccessor,
 		@Nonnull Bitmap entityIds,
 		@Nonnull Map<Locale, TransactionalBitmap> entityIdsByLanguage,
 		@Nonnull AttributeIndex attributeIndex,
@@ -215,7 +203,6 @@ public abstract class EntityIndex implements
 		this.primaryKey = primaryKey;
 		this.indexKey = indexKey;
 		this.version = version;
-		this.schemaAccessor = schemaAccessor;
 		this.dirty = new TransactionalBoolean();
 		this.entityIds = new TransactionalBitmap(entityIds);
 
@@ -234,23 +221,43 @@ public abstract class EntityIndex implements
 		this.originalFacetIndexes = getFacetIndexReferencedEntities();
 	}
 
+	protected EntityIndex(
+		int primaryKey,
+		@Nonnull EntityIndexKey indexKey,
+		int version,
+		@Nonnull TransactionalBitmap entityIds,
+		@Nonnull TransactionalMap<Locale, TransactionalBitmap> entityIdsByLanguage,
+		@Nonnull AttributeIndex attributeIndex,
+		@Nonnull HierarchyIndex hierarchyIndex,
+		@Nonnull FacetIndex facetIndex,
+		boolean originalHierarchyIndexEmpty,
+		@Nonnull Integer originalInternalPriceIdSequence,
+		@Nonnull Set<AttributeIndexStorageKey> originalAttributeIndexes,
+		@Nonnull Set<PriceIndexKey> originalPriceIndexes,
+		@Nonnull Set<String> originalFacetIndexes
+	) {
+		this.primaryKey = primaryKey;
+		this.indexKey = indexKey;
+		this.version = version;
+		this.dirty = new TransactionalBoolean();
+		this.entityIds = entityIds;
+		this.entityIdsByLanguage = entityIdsByLanguage;
+		this.attributeIndex = attributeIndex;
+		this.hierarchyIndex = hierarchyIndex;
+		this.facetIndex = facetIndex;
+		this.originalHierarchyIndexEmpty = originalHierarchyIndexEmpty;
+		this.originalInternalPriceIdSequence = originalInternalPriceIdSequence;
+		this.originalAttributeIndexes = originalAttributeIndexes;
+		this.originalPriceIndexes = originalPriceIndexes;
+		this.originalFacetIndexes = originalFacetIndexes;
+	}
+
 	/**
 	 * Registers new entity primary key to the superset of entity ids of this entity index.
 	 */
-	public boolean insertPrimaryKeyIfMissing(int entityPrimaryKey, @Nonnull EntityStoragePartAccessor entityStoragePartAccessor) {
+	public boolean insertPrimaryKeyIfMissing(int entityPrimaryKey) {
 		final boolean added = entityIds.add(entityPrimaryKey);
 		if (added) {
-			if (indexKey.getType() != EntityIndexType.REFERENCED_ENTITY_TYPE) {
-				AttributeIndexMutator.insertInitialSuiteOfSortableAttributeCompounds(
-					this,
-					null,
-					entityPrimaryKey,
-					getEntitySchema(),
-					indexKey.getDiscriminator() instanceof ReferenceKey referenceKey ? referenceKey : null,
-					entityStoragePartAccessor
-				);
-			}
-
 			this.dirty.setToTrue();
 		}
 		return added;
@@ -259,20 +266,9 @@ public abstract class EntityIndex implements
 	/**
 	 * Removes existing from the superset of entity ids of this entity index.
 	 */
-	public boolean removePrimaryKey(int entityPrimaryKey, @Nonnull EntityStoragePartAccessor entityStoragePartAccessor) {
+	public boolean removePrimaryKey(int entityPrimaryKey) {
 		final boolean removed = entityIds.remove(entityPrimaryKey);
 		if (removed) {
-			if (indexKey.getType() != EntityIndexType.REFERENCED_ENTITY_TYPE) {
-				AttributeIndexMutator.removeEntireSuiteOfSortableAttributeCompounds(
-					this,
-					null,
-					entityPrimaryKey,
-					getEntitySchema(),
-					indexKey.getDiscriminator() instanceof ReferenceKey referenceKey ? referenceKey : null,
-					entityStoragePartAccessor
-				);
-			}
-
 			this.dirty.setToTrue();
 		}
 		return removed;
@@ -288,6 +284,7 @@ public abstract class EntityIndex implements
 	/**
 	 * Returns superset of all entity ids known to this entity index.
 	 */
+	@Nonnull
 	public Formula getAllPrimaryKeysFormula() {
 		return entityIds.isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(entityIds);
 	}
@@ -295,33 +292,18 @@ public abstract class EntityIndex implements
 	/**
 	 * Returns superset of all entity ids known to this entity index.
 	 */
+	@Nonnull
 	public Bitmap getAllPrimaryKeys() {
 		return entityIds;
 	}
 
 	/**
-	 * Replaces reference to the schema accessor lambda in new collection. This needs to be done when transaction is
-	 * committed and new EntityIndex is created with link to the original transactional EntityIndex but finally
-	 * new {@link EntityCollection} is created and the new indexes linking old collection needs to be
-	 * migrated to new entity collection.
-	 */
-	public void updateReferencesTo(@Nonnull EntityCollection newCollection) {
-		this.schemaAccessor = newCollection::getInternalSchema;
-	}
-
-	/**
-	 * Provides access to the entity schema via passed lambda.
-	 */
-	public EntitySchema getEntitySchema() {
-		return schemaAccessor.get();
-	}
-
-	/**
 	 * Inserts information that entity with `entityPrimaryKey` has localized attribute / associated data of passed `locale`.
 	 * If such information is already present no changes are made.
+	 *
+	 * @return true if the language was added, false if it was already present
 	 */
-	public void upsertLanguage(@Nonnull Locale locale, int entityPrimaryKey, @Nonnull EntityStoragePartAccessor entityStoragePartAccessor) {
-		final EntitySchema schema = getEntitySchema();
+	public boolean upsertLanguage(@Nonnull Locale locale, int entityPrimaryKey, @Nonnull EntitySchemaContract schema) {
 		final Set<Locale> allowedLocales = schema.getLocales();
 		isTrue(
 			allowedLocales.contains(locale) || schema.getEvolutionMode().contains(EvolutionMode.ADDING_LOCALES),
@@ -333,32 +315,18 @@ public abstract class EntityIndex implements
 			.add(entityPrimaryKey);
 
 		if (added) {
-			AttributeIndexMutator.insertInitialSuiteOfSortableAttributeCompounds(
-				this,
-				locale,
-				entityPrimaryKey,
-				getEntitySchema(),
-				null,
-				entityStoragePartAccessor
-			);
-			if (indexKey.getDiscriminator() instanceof ReferenceKey referenceKey) {
-				AttributeIndexMutator.insertInitialSuiteOfSortableAttributeCompounds(
-					this,
-					locale,
-					entityPrimaryKey,
-					getEntitySchema(),
-					referenceKey,
-					entityStoragePartAccessor
-				);
-			}
 			this.dirty.setToTrue();
 		}
+
+		return added;
 	}
 
 	/**
 	 * Removed information that entity with `recordId` has no longer any localized attribute / associated data of passed `language`.
+	 *
+	 * @return true if the language was removed, false if it was not present
 	 */
-	public void removeLanguage(@Nonnull Locale locale, int recordId, @Nonnull EntityStoragePartAccessor entityStoragePartAccessor) {
+	public boolean removeLanguage(@Nonnull Locale locale, int recordId) {
 		final TransactionalBitmap recordIdsWithLanguage = this.entityIdsByLanguage.get(locale);
 		Assert.isTrue(
 			recordIdsWithLanguage != null && recordIdsWithLanguage.remove(recordId),
@@ -366,27 +334,12 @@ public abstract class EntityIndex implements
 		);
 		if (recordIdsWithLanguage.isEmpty()) {
 			this.entityIdsByLanguage.remove(locale);
-			AttributeIndexMutator.removeEntireSuiteOfSortableAttributeCompounds(
-				this,
-				locale,
-				recordId,
-				getEntitySchema(),
-				null,
-				entityStoragePartAccessor
-			);
-			if (indexKey.getDiscriminator() instanceof ReferenceKey referenceKey) {
-				AttributeIndexMutator.removeEntireSuiteOfSortableAttributeCompounds(
-					this,
-					locale,
-					recordId,
-					getEntitySchema(),
-					referenceKey,
-					entityStoragePartAccessor
-				);
-			}
 			this.dirty.setToTrue();
 			// remove the changes container - the bitmap got removed entirely
 			removeTransactionalMemoryLayerIfExists(recordIdsWithLanguage);
+			return true;
+		} else {
+			return false;
 		}
 	}
 
@@ -536,7 +489,7 @@ public abstract class EntityIndex implements
 	 * @return the internal price ID sequence if the PriceIndex is an instance of PriceSuperIndex, null otherwise
 	 */
 	@Nullable
-	private Integer getInternalPriceIdSequence(@Nonnull PriceIndexContract priceIndex) {
+	private static Integer getInternalPriceIdSequence(@Nonnull PriceIndexContract priceIndex) {
 		return priceIndex instanceof PriceSuperIndex ? ((PriceSuperIndex) priceIndex).getLastAssignedInternalPriceId() : null;
 	}
 

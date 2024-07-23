@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -29,13 +29,11 @@ import io.evitadb.externalApi.api.catalog.model.VersionedDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
-import java.util.List;
-import java.util.Locale;
-
 import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor.LOCALE_ENUM;
 import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nonNullListRef;
 import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nullableRef;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
+import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 
 /**
  * Descriptor of {@link EntityContract} for schema-based external APIs. It describes what entity data are supported in API
@@ -94,19 +92,22 @@ public interface EntityDescriptor extends VersionedDescriptor, AttributesProvide
         .name("priceForSale")
         .description("""
             Price for which the entity should be sold. This method can be used only when appropriate
-            price related constraints are present so that `currency` and `priceList` priority can be extracted from the query.
+            price related constraints are present or appropriate arguments are passed so that `currency` and `priceList`
+            priority can be extracted.
             The moment is either extracted from the query as well (if present) or current date and time is used.
             """)
         .type(nullableRef(PriceDescriptor.THIS))
         .build();
-    PropertyDescriptor PRICE = PropertyDescriptor.builder()
-        .name("price")
+    PropertyDescriptor MULTIPLE_PRICES_FOR_SALE_AVAILABLE = PropertyDescriptor.builder()
+        .name("multiplePricesForSaleAvailable")
         .description("""
-            Single price corresponding to defined arguments picked up from set of all `prices`.
-            If more than one price is found, the valid one is picked. Validity is check based on query, if desired
-            validity is not specified in query, current time is used. 
-            """)
-        .type(nullableRef(PriceDescriptor.THIS))
+			Whether the entity could be sold for multiple prices or not. This method can be used only when appropriate
+            price related constraints are present in query so that `currency` and `priceList`
+            priority can be extracted.
+            
+            For actual prices, the `allPricesForSale` field can be used.
+			""")
+        .type(nullable(Boolean.class))
         .build();
     PropertyDescriptor PRICES = PropertyDescriptor.builder()
         .name("prices")
@@ -123,20 +124,27 @@ public interface EntityDescriptor extends VersionedDescriptor, AttributesProvide
         .type(nonNull(PriceInnerRecordHandling.class))
         .build();
 
-    ObjectDescriptor THIS_REFERENCE = ObjectDescriptor.builder()
+    ObjectDescriptor THIS_CLASSIFIER = ObjectDescriptor.builder()
+        .name("Entity")
+        .description("""
+            Generic the most basic entity.
+            Common ancestor for all specific entities which correspond to specific collections.
+            """)
+        .staticField(PRIMARY_KEY)
+        .staticField(TYPE)
+        .staticField(VERSION)
+        .build();
+    /**
+     * Used only to distinguish from entity classifier for clarity, that this is a final object that just references an
+     * entity, not that an entity should extend this.
+     */
+    ObjectDescriptor THIS_REFERENCE = ObjectDescriptor.extend(THIS_CLASSIFIER)
         .name("EntityReference")
         .description("""
             Pointer to a full entity.
             """)
-        .staticFields(List.of(PRIMARY_KEY, TYPE, VERSION))
         .build();
-    ObjectDescriptor THIS_GLOBAL = ObjectDescriptor.extend(THIS_REFERENCE)
-        .name("Entity")
-        .description("""
-            Catalog-wise entity with only common data across all entity collections.
-            """)
-        .build();
-    ObjectDescriptor THIS = ObjectDescriptor.extend(THIS_REFERENCE)
+    ObjectDescriptor THIS = ObjectDescriptor.extend(THIS_CLASSIFIER)
         .name("*")
         .build();
 }

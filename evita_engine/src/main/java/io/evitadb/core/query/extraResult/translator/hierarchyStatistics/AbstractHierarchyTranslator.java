@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -30,15 +30,15 @@ import io.evitadb.api.query.require.HierarchyLevel;
 import io.evitadb.api.query.require.HierarchyNode;
 import io.evitadb.api.query.require.HierarchyStopAt;
 import io.evitadb.api.query.require.HierarchyStopAtRequireConstraint;
-import io.evitadb.api.requestResponse.data.AttributesContract;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.AttributeSchemaAccessor;
-import io.evitadb.core.query.QueryContext;
+import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.deferred.DeferredFormula;
 import io.evitadb.core.query.algebra.deferred.FormulaWrapper;
@@ -46,6 +46,7 @@ import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyEntityFetcher;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyProducerContext;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyStatisticsProducer;
+import io.evitadb.core.query.extraResult.translator.reference.EntityFetchTranslator;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.index.EntityIndex;
@@ -59,6 +60,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Optional.ofNullable;
 
@@ -78,12 +80,7 @@ public abstract class AbstractHierarchyTranslator {
 		@Nonnull ExtraResultPlanningVisitor extraResultPlanner
 	) {
 		return ofNullable(extraResultPlanner.findExistingProducer(HierarchyStatisticsProducer.class))
-			.orElseGet(
-				() -> new HierarchyStatisticsProducer(
-					extraResultPlanner.getQueryContext(),
-					extraResultPlanner.getLocale()
-				)
-			);
+			.orElseGet(() -> new HierarchyStatisticsProducer(extraResultPlanner.getLocale()));
 	}
 
 	/**
@@ -94,8 +91,9 @@ public abstract class AbstractHierarchyTranslator {
 	public static HierarchyTraversalPredicate stopAtConstraintToPredicate(
 		@Nonnull TraversalDirection direction,
 		@Nonnull HierarchyStopAt stopAt,
-		@Nonnull QueryContext queryContext,
+		@Nonnull QueryPlanningContext queryContext,
 		@Nonnull GlobalEntityIndex entityIndex,
+		@Nonnull EntitySchemaContract entitySchema,
 		@Nullable ReferenceSchemaContract referenceSchema
 	) {
 		final HierarchyStopAtRequireConstraint filter = stopAt.getStopAtDefinition();
@@ -110,6 +108,7 @@ public abstract class AbstractHierarchyTranslator {
 				queryContext,
 				entityIndex,
 				node.getFilterBy(),
+				entitySchema,
 				referenceSchema
 			);
 		} else {
@@ -127,16 +126,18 @@ public abstract class AbstractHierarchyTranslator {
 	@Nonnull
 	protected static HierarchyEntityFetcher createEntityFetcher(
 		@Nullable EntityFetch entityFetch,
-		@Nonnull HierarchyProducerContext context
+		@Nonnull HierarchyProducerContext context,
+		@Nonnull ExtraResultPlanningVisitor extraResultPlanner
 	) {
 		// first create the `entityFetcher` that either returns simple integer primary keys or full entities
 		final String hierarchicalEntityType = context.entitySchema().getName();
 		if (entityFetch == null) {
-			return entityPk -> new EntityReference(hierarchicalEntityType, entityPk);
+			return (executionContext, entityPk) -> new EntityReference(hierarchicalEntityType, entityPk);
 		} else {
 			ofNullable(context.prefetchRequirementCollector())
 				.ifPresent(it -> it.addRequirementToPrefetch(entityFetch.getRequirements()));
-			return entityPk -> context.queryContext().fetchEntity(hierarchicalEntityType, entityPk, entityFetch).orElse(null);
+			EntityFetchTranslator.verifyEntityFetchLocalizedAttributes(context.entitySchema(), entityFetch, extraResultPlanner);
+			return (executionContext, entityPk) -> executionContext.fetchEntity(hierarchicalEntityType, entityPk, entityFetch).orElse(null);
 		}
 	}
 
@@ -146,14 +147,15 @@ public abstract class AbstractHierarchyTranslator {
 	 */
 	@Nonnull
 	protected <T extends EntityIndex> Formula createFilterFormula(
-		@Nonnull QueryContext queryContext,
+		@Nonnull QueryPlanningContext queryContext,
 		@Nonnull FilterBy filterBy,
 		@Nonnull Class<T> indexType,
+		@Nonnull EntitySchemaContract targetEntitySchema,
 		@Nonnull T entityIndex,
 		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor
 	) {
 		try {
-			final Supplier<String> stepDescriptionSupplier = () -> "Hierarchy statistics of `" + entityIndex.getEntitySchema().getName() + "`: " +
+			final Supplier<String> stepDescriptionSupplier = () -> "Hierarchy statistics of `" + targetEntitySchema.getName() + "`: " +
 				Arrays.stream(filterBy.getChildren()).map(Object::toString).collect(Collectors.joining(", "));
 			queryContext.pushStep(
 				QueryPhase.PLANNING_FILTER_NESTED_QUERY,
@@ -172,12 +174,12 @@ public abstract class AbstractHierarchyTranslator {
 					indexType,
 					Collections.singletonList(entityIndex),
 					null,
-					entityIndex.getEntitySchema(),
+					targetEntitySchema,
 					null,
 					null,
 					null,
 					attributeSchemaAccessor,
-					AttributesContract::getAttribute,
+					(entityContract, attributeName, locale) -> Stream.of(entityContract.getAttributeValue(attributeName, locale)),
 					() -> {
 						filterBy.accept(theFilterByVisitor);
 						// get the result and clear the visitor internal structures
@@ -189,12 +191,12 @@ public abstract class AbstractHierarchyTranslator {
 			return new DeferredFormula(
 				new FormulaWrapper(
 					theFormula,
-					formula -> {
+					(executionContext, formula) -> {
 						try {
-							queryContext.pushStep(QueryPhase.EXECUTION_FILTER_NESTED_QUERY, stepDescriptionSupplier);
+							executionContext.pushStep(QueryPhase.EXECUTION_FILTER_NESTED_QUERY, stepDescriptionSupplier);
 							return formula.compute();
 						} finally {
-							queryContext.popStep();
+							executionContext.popStep();
 						}
 					}
 				)

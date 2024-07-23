@@ -221,6 +221,12 @@ message GrpcStatisticsTypeArray {
   repeated GrpcStatisticsType value = 1;
 }
 
+// Wrapper for representing an array of HistogramBehavior enums.
+message GrpcHistogramBehaviorTypeArray {
+  // Value that supports storing a HistogramBehavior array.
+  repeated GrpcHistogramBehavior value = 1;
+}
+
 // Structure that holds one of the supported data type values, its type and version of stored value.
 message GrpcEvitaValue {
   // The stored value. May by only one of the following at the time.
@@ -301,4 +307,93 @@ message GrpcEvitaAssociatedDataValue {
   // Contains version of this value and gets increased with any entity type update. Allows to execute
   //			optimistic locking i.e. avoiding parallel modifications.
   google.protobuf.Int32Value version = 3;
+}
+
+// identification of the file available for fetching
+message GrpcFile {
+  // Identification of the file
+  GrpcUuid fileId = 1;
+  // File name
+  string name = 2;
+  // Detailed description of the file
+  google.protobuf.StringValue description = 3;
+  // Content type of the file
+  string contentType = 4;
+  // Size of the file in bytes
+  int64 totalSizeInBytes = 5;
+  // Date and time when the file was created
+  GrpcOffsetDateTime created = 6;
+  // Origin of the file (usually the taskType)
+  google.protobuf.StringValue origin = 7;
+}
+
+// Record representing status of particular asynchronous task
+message GrpcTaskStatus {
+  // Type of the task (shortName of the task)
+  string taskType = 1;
+  // Longer, human-readable name of the task
+  string taskName = 2;
+  // Identification of the task
+  GrpcUuid taskId = 3;
+  // Name of the catalog the task is related to (optional)
+  google.protobuf.StringValue catalogName = 4;
+  // Date and time when the task was issued
+  GrpcOffsetDateTime issued = 5;
+  // Date and time when the task was started
+  GrpcOffsetDateTime started = 6;
+  // Date and time when the task was finished
+  GrpcOffsetDateTime finished = 7;
+  // Progress of the task (0-100)
+  int32 progress = 8;
+  // Configuration settings of the task
+  google.protobuf.StringValue settings = 9;
+  // Result of the task
+  oneof result {
+    // Textual result of the task
+    google.protobuf.StringValue text = 10;
+    // File that was created by the task and is available for fetching
+    GrpcFile file = 11;
+  }
+  // Exception that occurred during the task execution
+  google.protobuf.StringValue exception = 12;
+}
+
+// Aggregates basic data about the catalog and entity types stored in it.
+message GrpcCatalogStatistics {
+  // name of the catalog
+  string catalogName = 1;
+  // true if the catalog is corrupted (other data will be not available)
+  bool corrupted = 2;
+  // current state of the catalog, null for corrupted catalog
+  GrpcCatalogState catalogState = 3;
+  // version of the catalog, -1 for corrupted catalog
+  int64 catalogVersion = 4;
+  // total number of records in the catalog, -1 for corrupted catalog
+  int64 totalRecords = 5;
+  // total number of indexes in the catalog, -1 for corrupted catalog
+  int64 indexCount = 6;
+  // total size of the catalog on disk in bytes
+  int64 sizeOnDiskInBytes = 7;
+  // statistics for each entity collection in the catalog, empty array for corrupted catalog
+  repeated GrpcEntityCollectionStatistics entityCollectionStatistics = 8;
+}
+
+// Aggregates basic data about the entity collection.
+message GrpcEntityCollectionStatistics {
+  // name of the entity collection
+  string entityType = 1;
+  // total number of records in the entity collection
+  int32 totalRecords = 2;
+  // total number of indexes in the entity collection
+  int32 indexCount = 3;
+  // total size of the entity collection on disk in bytes
+  int64 sizeOnDiskInBytes = 4;
+}
+
+// Structure for representing a name in a particular naming convention.
+message GrpcNameVariant {
+  // naming convention the name is in
+  GrpcNamingConvention namingConvention = 1;
+  // the name in the particular naming convention
+  string name = 2;
 }

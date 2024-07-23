@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -65,12 +65,6 @@ public interface EvitaQLVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitRequireConstraintListUnit(EvitaQLParser.RequireConstraintListUnitContext ctx);
-	/**
-	 * Visit a parse tree produced by {@link EvitaQLParser#classifierTokenUnit}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitClassifierTokenUnit(EvitaQLParser.ClassifierTokenUnitContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link EvitaQLParser#valueTokenUnit}.
 	 * @param ctx the parse tree
@@ -439,6 +433,13 @@ public interface EvitaQLVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitReferencePropertyConstraint(EvitaQLParser.ReferencePropertyConstraintContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code entityPrimaryKeyExactNatural}
+	 * labeled alternative in {@link EvitaQLParser#orderConstraint}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitEntityPrimaryKeyExactNatural(EvitaQLParser.EntityPrimaryKeyExactNaturalContext ctx);
 	/**
 	 * Visit a parse tree produced by the {@code entityPrimaryKeyExactConstraint}
 	 * labeled alternative in {@link EvitaQLParser#orderConstraint}.
@@ -975,6 +976,18 @@ public interface EvitaQLVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitRequireConstraintList(EvitaQLParser.RequireConstraintListContext ctx);
 	/**
+	 * Visit a parse tree produced by {@link EvitaQLParser#argsOpening}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitArgsOpening(EvitaQLParser.ArgsOpeningContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link EvitaQLParser#argsClosing}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitArgsClosing(EvitaQLParser.ArgsClosingContext ctx);
+	/**
 	 * Visit a parse tree produced by {@link EvitaQLParser#constraintListArgs}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
@@ -1041,6 +1054,12 @@ public interface EvitaQLVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitClassifierWithValueListArgs(EvitaQLParser.ClassifierWithValueListArgsContext ctx);
 	/**
+	 * Visit a parse tree produced by {@link EvitaQLParser#classifierWithOptionalValueListArgs}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitClassifierWithOptionalValueListArgs(EvitaQLParser.ClassifierWithOptionalValueListArgsContext ctx);
+	/**
 	 * Visit a parse tree produced by {@link EvitaQLParser#classifierWithBetweenValuesArgs}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
@@ -1070,12 +1089,6 @@ public interface EvitaQLVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitClassifierListArgs(EvitaQLParser.ClassifierListArgsContext ctx);
-	/**
-	 * Visit a parse tree produced by {@link EvitaQLParser#valueWithClassifierListArgs}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitValueWithClassifierListArgs(EvitaQLParser.ValueWithClassifierListArgsContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link EvitaQLParser#classifierWithFilterConstraintArgs}.
 	 * @param ctx the parse tree
@@ -1299,12 +1312,6 @@ public interface EvitaQLVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitFacetSummary2Args(EvitaQLParser.FacetSummary2ArgsContext ctx);
 	/**
-	 * Visit a parse tree produced by {@link EvitaQLParser#facetSummaryOfReference1Args}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitFacetSummaryOfReference1Args(EvitaQLParser.FacetSummaryOfReference1ArgsContext ctx);
-	/**
 	 * Visit a parse tree produced by {@link EvitaQLParser#facetSummaryOfReference2Args}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
@@ -1328,6 +1335,18 @@ public interface EvitaQLVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitFacetSummaryOrderArgs(EvitaQLParser.FacetSummaryOrderArgsContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link EvitaQLParser#attributeHistogramArgs}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitAttributeHistogramArgs(EvitaQLParser.AttributeHistogramArgsContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link EvitaQLParser#priceHistogramArgs}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitPriceHistogramArgs(EvitaQLParser.PriceHistogramArgsContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link EvitaQLParser#hierarchyStatisticsArgs}.
 	 * @param ctx the parse tree
@@ -1388,48 +1407,6 @@ public interface EvitaQLVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitNamedParameter(EvitaQLParser.NamedParameterContext ctx);
-	/**
-	 * Visit a parse tree produced by the {@code positionalParameterVariadicClassifierTokens}
-	 * labeled alternative in {@link EvitaQLParser#variadicClassifierTokens}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitPositionalParameterVariadicClassifierTokens(EvitaQLParser.PositionalParameterVariadicClassifierTokensContext ctx);
-	/**
-	 * Visit a parse tree produced by the {@code namedParameterVariadicClassifierTokens}
-	 * labeled alternative in {@link EvitaQLParser#variadicClassifierTokens}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitNamedParameterVariadicClassifierTokens(EvitaQLParser.NamedParameterVariadicClassifierTokensContext ctx);
-	/**
-	 * Visit a parse tree produced by the {@code explicitVariadicClassifierTokens}
-	 * labeled alternative in {@link EvitaQLParser#variadicClassifierTokens}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitExplicitVariadicClassifierTokens(EvitaQLParser.ExplicitVariadicClassifierTokensContext ctx);
-	/**
-	 * Visit a parse tree produced by the {@code positionalParameterClassifierToken}
-	 * labeled alternative in {@link EvitaQLParser#classifierToken}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitPositionalParameterClassifierToken(EvitaQLParser.PositionalParameterClassifierTokenContext ctx);
-	/**
-	 * Visit a parse tree produced by the {@code namedParameterClassifierToken}
-	 * labeled alternative in {@link EvitaQLParser#classifierToken}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitNamedParameterClassifierToken(EvitaQLParser.NamedParameterClassifierTokenContext ctx);
-	/**
-	 * Visit a parse tree produced by the {@code stringClassifierToken}
-	 * labeled alternative in {@link EvitaQLParser#classifierToken}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitStringClassifierToken(EvitaQLParser.StringClassifierTokenContext ctx);
 	/**
 	 * Visit a parse tree produced by the {@code positionalParameterVariadicValueTokens}
 	 * labeled alternative in {@link EvitaQLParser#variadicValueTokens}.

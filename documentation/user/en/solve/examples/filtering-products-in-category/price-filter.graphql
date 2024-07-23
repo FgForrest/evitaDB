@@ -1,0 +1,38 @@
+{
+  queryProduct(
+    filterBy: {
+      entityLocaleEquals: en,
+      hierarchyCategoriesWithin: {
+        ofParent: {
+          attributeUrlEquals: "/en/smartwatches"
+        }
+      },
+      priceInPriceLists: [
+        "basic"
+      ],
+      priceInCurrency: EUR,
+      priceValidInNow: true,
+      userFilter: [
+        {
+          priceBetween: [
+            "50",
+            "400"
+          ]
+        }
+      ]
+    }
+  ) {
+    extraResults {
+      priceHistogram {
+        min
+        max
+        overallCount
+        buckets(requestedCount: 10) {
+          threshold
+          occurrences
+          requested
+        }
+      }
+    }
+  }
+}

@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -24,6 +24,8 @@
 package io.evitadb.externalApi.rest.api.catalog.schemaApi;
 
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
+import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.api.catalog.model.VersionedDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.AttributeSchemaDescriptor;
@@ -52,8 +54,8 @@ import java.util.stream.Collectors;
 
 import static io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator.REST_THOUSAND_PRODUCTS;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
-import static io.evitadb.utils.MapBuilder.map;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
+import static io.evitadb.utils.MapBuilder.map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -169,8 +171,8 @@ class CatalogRestCatalogSchemaEndpointFunctionalTest extends CatalogRestSchemaEn
                         {
                             "createGlobalAttributeSchemaMutation": {
 								"name": "mySpecialCode",
-								"unique": true,
-								"uniqueGlobally": true,
+								"uniquenessType": "UNIQUE_WITHIN_COLLECTION",
+								"globalUniquenessType": "UNIQUE_WITHIN_CATALOG",
 								"filterable": true,
 								"sortable": true,
 								"localized": false,
@@ -212,8 +214,8 @@ class CatalogRestCatalogSchemaEndpointFunctionalTest extends CatalogRestSchemaEn
 							.build())
 						.e(NamedSchemaDescriptor.DESCRIPTION.name(), null)
 						.e(NamedSchemaWithDeprecationDescriptor.DEPRECATION_NOTICE.name(), null)
-						.e(AttributeSchemaDescriptor.UNIQUE.name(), true)
-						.e(GlobalAttributeSchemaDescriptor.UNIQUE_GLOBALLY.name(), true)
+						.e(AttributeSchemaDescriptor.UNIQUENESS_TYPE.name(), AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION.name())
+						.e(GlobalAttributeSchemaDescriptor.GLOBAL_UNIQUENESS_TYPE.name(), GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG.name())
 						.e(AttributeSchemaDescriptor.FILTERABLE.name(), true)
 						.e(AttributeSchemaDescriptor.SORTABLE.name(), true)
 						.e(AttributeSchemaDescriptor.LOCALIZED.name(), false)

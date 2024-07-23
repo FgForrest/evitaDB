@@ -1,7 +1,23 @@
-PUT /rest/test-catalog/schema
+PUT /rest/evita/schema
 
 {
   "mutations": [
+    // first create stubs of the entity schemas that the product will reference
+    {
+      "createEntitySchemaMutation": {
+        "entityType": "Brand"
+      }
+    },
+    {
+      "createEntitySchemaMutation": {
+        "entityType": "Category"
+      }
+    },
+    {
+      "createEntitySchemaMutation": {
+        "entityType": "Stock"
+      }
+    },
     {
       "createEntitySchemaMutation": {
         "entityType": "Product"
@@ -56,14 +72,14 @@ PUT /rest/test-catalog/schema
             "createAttributeSchemaMutation": {
               "name": "code",
               "type": "String",
-              "unique": true
+              "uniquenessType": "UNIQUE_WITHIN_COLLECTION"
             }
           },
           {
             "createAttributeSchemaMutation": {
               "name": "url",
               "type": "String",
-              "unique": true,
+              "uniquenessType": "UNIQUE_WITHIN_COLLECTION",
               "localized": true
             }
           },
@@ -170,7 +186,7 @@ PUT /rest/test-catalog/schema
           {
             "createReferenceSchemaMutation": {
               "name": "stock",
-              "referencedEntityType": "stock",
+              "referencedEntityType": "Stock",
               "referencedEntityTypeManaged": false,
               "cardinality": "ZERO_OR_MORE",
               "indexed": true,

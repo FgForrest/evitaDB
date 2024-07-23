@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -273,9 +273,13 @@ public class EntityPojoProxyingFunctionalTest extends AbstractEntityProxyingFunc
 		}
 
 		final PriceContract[] allPricesForSale = product.getAllPricesForSale();
-		final PriceContract[] expectedAllPricesForSale = originalProduct.getAllPricesForSale().toArray(PriceContract[]::new);
-		assertEquals(expectedAllPricesForSale.length, allPricesForSale.length);
-		assertArrayEquals(expectedAllPricesForSale, allPricesForSale);
+		if (allPricesForSale == null) {
+			assertFalse(originalProduct.isPriceForSaleContextAvailable());
+		} else {
+			final PriceContract[] expectedAllPricesForSale = originalProduct.getAllPricesForSale().toArray(PriceContract[]::new);
+			assertEquals(expectedAllPricesForSale.length, allPricesForSale.length);
+			assertArrayEquals(expectedAllPricesForSale, allPricesForSale);
+		}
 
 		final PriceContract[] expectedAllPrices = originalProduct.getPrices().toArray(PriceContract[]::new);
 		final PriceContract[] allPrices = Arrays.stream(product.getAllPricesAsArray())
@@ -308,7 +312,7 @@ public class EntityPojoProxyingFunctionalTest extends AbstractEntityProxyingFunc
 	private static void assertProductAttributes(@Nonnull SealedEntity originalProduct, @Nonnull AbstractProductPojo product, @Nullable Locale locale) {
 		assertEquals(originalProduct.getAttribute(DataGenerator.ATTRIBUTE_CODE), product.getCode());
 		if (locale == null) {
-			if (!((SealedEntityProxy)product).getEntity().getLocales().isEmpty()) {
+			if (!((SealedEntityProxy)product).entity().getLocales().isEmpty()) {
 				assertArrayEquals(originalProduct.getAttributeLocales().stream().map(it -> originalProduct.getAttribute(DataGenerator.ATTRIBUTE_NAME, it, String.class)).toArray(String[]::new), product.getNames());
 			}
 		} else {
@@ -504,7 +508,7 @@ public class EntityPojoProxyingFunctionalTest extends AbstractEntityProxyingFunc
 
 		verifyAllFieldsAreSet(
 			proxiedEntity, theClass,
-			"priceForSale"
+			"priceForSale", "allPricesForSale"
 		);
 
 		assertProduct(
@@ -946,7 +950,7 @@ public class EntityPojoProxyingFunctionalTest extends AbstractEntityProxyingFunc
 		final SealedEntity theProduct = originalProducts
 			.stream()
 			.filter(it -> it.getReferences(Entities.CATEGORY).size() > 1)
-			.filter(it -> it.getAllPricesForSale().size() > 1)
+			.filter(it -> it.getPrices().stream().anyMatch(PriceContract::sellable))
 			.findFirst()
 			.orElseThrow();
 
@@ -965,7 +969,13 @@ public class EntityPojoProxyingFunctionalTest extends AbstractEntityProxyingFunc
 						referenceContentAllWithAttributes(
 							entityFetch(
 								hierarchyContent(
-									entityFetchAll()
+									entityFetch(
+										hierarchyContent(
+											entityFetchAll()
+										),
+										attributeContentAll(),
+										associatedDataContentAll()
+									)
 								),
 								attributeContentAll(),
 								associatedDataContentAll()
@@ -1003,7 +1013,7 @@ public class EntityPojoProxyingFunctionalTest extends AbstractEntityProxyingFunc
 		final SealedEntity theProduct = originalProducts
 			.stream()
 			.filter(it -> it.getReferences(Entities.CATEGORY).size() > 1)
-			.filter(it -> it.getAllPricesForSale().size() > 1)
+			.filter(it -> it.getPrices().size() > 1)
 			.findFirst()
 			.orElseThrow();
 
@@ -1017,12 +1027,21 @@ public class EntityPojoProxyingFunctionalTest extends AbstractEntityProxyingFunc
 			referenceContentAllWithAttributes(
 				entityFetch(
 					hierarchyContent(
-						entityFetchAll()
+						entityFetch(
+							hierarchyContent(
+								entityFetchAll()
+							),
+							attributeContentAll(),
+							associatedDataContentAll()
+						)
 					),
 					attributeContentAll(),
 					associatedDataContentAll()
 				),
-				entityGroupFetchAll()
+				entityGroupFetch(
+					attributeContentAll(),
+					associatedDataContentAll()
+				)
 			)
 		);
 

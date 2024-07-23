@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,40 +23,29 @@
 
 package io.evitadb.core;
 
-import io.evitadb.api.CatalogContract;
 import io.evitadb.api.TransactionContract;
-import io.evitadb.api.exception.RollbackException;
-import io.evitadb.api.exception.UnexpectedRollbackException;
-import io.evitadb.core.exception.CatalogCorruptedException;
+import io.evitadb.api.exception.TransactionException;
+import io.evitadb.api.requestResponse.mutation.Mutation;
+import io.evitadb.core.metric.event.transaction.TransactionFinishedEvent;
+import io.evitadb.core.transaction.TransactionHandler;
+import io.evitadb.core.transaction.TransactionWalFinalizer;
+import io.evitadb.core.transaction.memory.TransactionalLayerCreator;
+import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
+import io.evitadb.core.transaction.memory.TransactionalLayerMaintainerFinalizer;
+import io.evitadb.core.transaction.memory.TransactionalMemory;
 import io.evitadb.exception.EvitaInternalError;
-import io.evitadb.index.transactionalMemory.TransactionalLayerConsumer;
-import io.evitadb.index.transactionalMemory.TransactionalLayerCreator;
-import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
-import io.evitadb.index.transactionalMemory.TransactionalLayerProducer;
-import io.evitadb.index.transactionalMemory.TransactionalMemory;
-import io.evitadb.store.model.StoragePart;
-import io.evitadb.store.spi.CatalogPersistenceService;
-import io.evitadb.store.spi.DeferredStorageOperation;
-import io.evitadb.store.spi.EntityCollectionPersistenceService;
-import io.evitadb.store.spi.PersistenceService;
-import io.evitadb.store.spi.model.CatalogBootstrap;
+import io.evitadb.store.spi.StoragePartPersistenceService;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
+import java.time.OffsetDateTime;
 import java.util.Optional;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.locks.ReentrantLock;
-import java.util.function.BiConsumer;
+import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -65,61 +54,70 @@ import static java.util.Optional.ofNullable;
 
 /**
  * {@inheritDoc TransactionContract}
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @NotThreadSafe
 @Slf4j
 public final class Transaction implements TransactionContract {
-	public static final String ERROR_MESSAGE_TIMEOUT = "Failed to commit transaction within timeout!";
-	private static final ReentrantLock LOCK = new ReentrantLock(true);
+	/**
+	 * TOBEDONE JNO - this should be migrated to ScopedValue in Java 21
+	 */
 	private static final ThreadLocal<Transaction> CURRENT_TRANSACTION = new ThreadLocal<>();
 
 	/**
-	 * Contains unique transactional id that gets incremented with each transaction opened in the catalog. Latest
-	 * committed transaction id gets printed into the {@link CatalogBootstrap} and is restored
-	 * when catalog is loaded. Transaction ids are sequential and transaction with higher id is guaranteed to be
-	 * committed later than the transaction with lower id.
-	 *
-	 * TOBEDONE JNO - this should be changed - there should be another id that is connected with the commit phase and
-	 * should be assigned when transaction is accepted and ordered for the commit
+	 * Contains unique transactional id that uniquely represents the transaction.
+	 * We don't actively check the uniqueness of the transaction id and rely on the fact that UUID is unique enough.
 	 */
-	@Getter private final long id;
+	@Getter private final UUID transactionId;
 	/**
 	 * Contains reference to the transactional memory that keeps the difference layer for this transaction.
 	 */
 	@Getter private final TransactionalMemory transactionalMemory;
 	/**
-	 * Reference to catalog that is valid for this transaction. The transaction keeps SNAPSHOT isolation contract,
-	 * so that this reference cannot be changed.
+	 * This class provides methods for handling transaction = registering mutations and interpreting commit / rollback
+	 * actions.
 	 */
-	private final CatalogContract originalCatalog;
+	private final TransactionHandler transactionHandler;
 	/**
-	 * Atomic reference, that will obtain pointer to a new version of catalog once it's created.
+	 * Flag that marks this transaction as replay transaction - i.e. when the transaction is being incorporated in
+	 * the trunk and is then replayed for the second time (now finally in correct sequence order).
 	 */
-	private final AtomicReference<CatalogContract> updatedCatalog = new AtomicReference<>();
-	/**
-	 * Consumer that will be called back when transaction is committed and new catalog reference is created.
-	 * The callback obtains reference to the new immutable version of the catalog.
-	 */
-	private final Consumer<CatalogContract> updatedCatalogCallback;
-	/**
-	 * List of {@link StoragePart} items that got modified in transaction and needs to be persisted.
-	 */
-	private final CommitUpdateInstructionSet updateInstructions = new CommitUpdateInstructionSet();
+	@Getter private final boolean replay;
 	/**
 	 * Rollback only flag.
 	 */
 	@Getter private boolean rollbackOnly;
 	/**
-	 * Flag that marks this instance closed and unusable. Once closed it can never be opened again.
+	 * Exception that caused the rollback.
 	 */
-	@Getter private boolean closed;
+	@Getter private Throwable rollbackCause;
+	/**
+	 * Date and time when this this instance was created.
+	 */
+	@Getter private final OffsetDateTime created;
+	/**
+	 * Date and time when this this instance was closed and marked unusable. Once closed it can never be opened again.
+	 */
+	@Getter private OffsetDateTime closed;
+	/**
+	 * Event that is fired when a transaction is finished (either committed or rolled back).
+	 */
+	@Setter @Getter private TransactionFinishedEvent finalizationEvent;
 
 	/**
 	 * Method initializes current session UUID to the thread context and binds transaction for particular session as
 	 * the "current" transaction.
 	 */
 	public static void executeInTransactionIfProvided(@Nullable Transaction transaction, @Nonnull Runnable lambda) {
+		executeInTransactionIfProvided(transaction, lambda, true);
+	}
+
+	/**
+	 * Method initializes current session UUID to the thread context and binds transaction for particular session as
+	 * the "current" transaction.
+	 */
+	public static void executeInTransactionIfProvided(@Nullable Transaction transaction, @Nonnull Runnable lambda, boolean rollbackOnException) {
 		if (transaction == null) {
 			lambda.run();
 		} else {
@@ -128,7 +126,9 @@ public final class Transaction implements TransactionContract {
 				bound = transaction.bindTransactionToThread();
 				lambda.run();
 			} catch (Throwable ex) {
-				transaction.setRollbackOnly();
+				if (rollbackOnException) {
+					transaction.setRollbackOnlyWithException(ex);
+				}
 				throw ex;
 			} finally {
 				if (bound) {
@@ -143,6 +143,14 @@ public final class Transaction implements TransactionContract {
 	 * the "current" transaction.
 	 */
 	public static <T> T executeInTransactionIfProvided(@Nullable Transaction transaction, @Nonnull Supplier<T> lambda) {
+		return executeInTransactionIfProvided(transaction, lambda, true);
+	}
+
+	/**
+	 * Method initializes current session UUID to the thread context and binds transaction for particular session as
+	 * the "current" transaction.
+	 */
+	public static <T> T executeInTransactionIfProvided(@Nullable Transaction transaction, @Nonnull Supplier<T> lambda, boolean rollbackOnException) {
 		if (transaction == null) {
 			return lambda.get();
 		} else {
@@ -150,8 +158,14 @@ public final class Transaction implements TransactionContract {
 			try {
 				bound = transaction.bindTransactionToThread();
 				return lambda.get();
+			} catch (TransactionException ex) {
+				// always rollback transaction - this is unexpected critical error we cannot recover from
+				transaction.setRollbackOnlyWithException(ex);
+				throw ex;
 			} catch (Throwable ex) {
-				transaction.setRollbackOnly();
+				if (rollbackOnException) {
+					transaction.setRollbackOnlyWithException(ex);
+				}
 				throw ex;
 			} finally {
 				if (bound) {
@@ -166,6 +180,21 @@ public final class Transaction implements TransactionContract {
 	 */
 	public static boolean isTransactionAvailable() {
 		return CURRENT_TRANSACTION.get() != null;
+	}
+
+	/**
+	 * Returns transactional states for passed layer creator object, that is isolated for this thread.
+	 */
+	@Nullable
+	public static TransactionalLayerMaintainer getTransactionalLayerMaintainer() {
+		// we may safely do this because transactionalLayer is stored in ThreadLocal and
+		// thus won't be accessed by multiple threads at once
+		final Transaction transaction = CURRENT_TRANSACTION.get();
+		if (transaction != null) {
+			return transaction.transactionalMemory.getTransactionalLayerMaintainer();
+		} else {
+			return null;
+		}
 	}
 
 	/**
@@ -187,27 +216,12 @@ public final class Transaction implements TransactionContract {
 	 * Returns transactional states for passed layer creator object, that is isolated for this thread.
 	 */
 	@Nullable
-	public static TransactionalLayerMaintainer getTransactionalMemoryLayer() {
+	public static <T> T getOrCreateTransactionalMemoryLayer(@Nonnull TransactionalLayerCreator<T> layerCreator) {
 		// we may safely do this because transactionalLayer is stored in ThreadLocal and
 		// thus won't be accessed by multiple threads at once
 		final Transaction transaction = CURRENT_TRANSACTION.get();
 		if (transaction != null) {
-			return transaction.transactionalMemory.getTransactionalMemoryLayer();
-		} else {
-			return null;
-		}
-	}
-
-	/**
-	 * Returns transactional states for passed layer creator object, that is isolated for this thread.
-	 */
-	@Nullable
-	public static <T> T getTransactionalMemoryLayer(@Nonnull TransactionalLayerCreator<T> layerCreator) {
-		// we may safely do this because transactionalLayer is stored in ThreadLocal and
-		// thus won't be accessed by multiple threads at once
-		final Transaction transaction = CURRENT_TRANSACTION.get();
-		if (transaction != null) {
-			return transaction.transactionalMemory.getTransactionalMemoryLayer(layerCreator);
+			return transaction.transactionalMemory.getOrCreateTransactionalMemoryLayer(layerCreator);
 		} else {
 			return null;
 		}
@@ -275,85 +289,75 @@ public final class Transaction implements TransactionContract {
 	}
 
 	/**
-	 * Do not use this method outside the tests!
-	 */
-	@Nonnull
-	public static Transaction createMockTransactionForTests() {
-		return new Transaction();
-	}
-
-	/**
-	 * This constructor should be used only in tests.
-	 */
-	private Transaction() {
-		this.id = 0L;
-		this.originalCatalog = null;
-		this.transactionalMemory = new TransactionalMemory(this.id);
-		this.updatedCatalogCallback = updatedCatalog -> {};
-	}
-
-	/**
-	 * Creates new transaction with snapshot isolation.
+	 * Creates a transactional persistence service based on the given storage part persistence service.
+	 * If a transaction is active, it creates a transactional service using the current transaction identifier.
+	 * Registers the transactional service with the transaction's finalizer for cleanup.
+	 * Returns the transactional service if a transaction is active, otherwise returns the original storage part
+	 * persistence service which writes all the changes in the "trunk".
 	 *
-	 * @param currentCatalog         reference to the current version of the catalog the transaction begins with
-	 * @param updatedCatalogCallback consumer that will be called back when transaction is committed and new catalog
-	 *                               reference is created. The callback obtains reference to the new immutable version
-	 *                               of the catalog.
+	 * @param storagePartPersistenceService The storage part persistence service.
+	 * @return The transactional persistence service if a transaction is active, otherwise the original storage part
+	 * persistence service.
+	 * @throws EvitaInternalError if the finalizer type is unexpected.
+	 */
+	public static StoragePartPersistenceService createTransactionalPersistenceService(
+		@Nonnull StoragePartPersistenceService storagePartPersistenceService
+	) {
+		final Transaction transaction = CURRENT_TRANSACTION.get();
+		if (transaction != null && !transaction.isReplay()) {
+			final StoragePartPersistenceService transactionalService = storagePartPersistenceService.createTransactionalService(
+				transaction.getTransactionId()
+			);
+			final TransactionalLayerMaintainerFinalizer finalizer = transaction.getTransactionalMemory().getTransactionalLayerMaintainerFinalizer();
+			if (finalizer instanceof TransactionWalFinalizer transactionWalFinalizer) {
+				transactionWalFinalizer.registerCloseable(transactionalService);
+			}
+			return transactionalService;
+		} else {
+			return storagePartPersistenceService;
+		}
+	}
+
+	/**
+	 * Creates new transaction.
+	 *
+	 * @param transactionId      unique id of the transaction
+	 * @param transactionHandler handler that takes care about mutation persistence, commit and rollback behaviour
 	 */
 	public Transaction(
-		@Nonnull CatalogContract currentCatalog,
-		@Nonnull BiConsumer<CatalogContract, CatalogContract> updatedCatalogCallback
+		@Nonnull UUID transactionId,
+		@Nonnull TransactionHandler transactionHandler,
+		boolean replay
 	) {
-		if (currentCatalog instanceof Catalog theCatalog) {
-			this.id = theCatalog.getNextTransactionId();
-			this.originalCatalog = currentCatalog;
-			this.transactionalMemory = new TransactionalMemory(this.id);
-			this.updatedCatalogCallback = updatedCatalog -> updatedCatalogCallback.accept(currentCatalog, updatedCatalog);
-			transactionalMemory.addTransactionCommitHandler(
-				transactionalLayer -> {
-					final List<? extends TransactionalLayerConsumer> layerConsumers = transactionalLayer.getLayerConsumers();
-					if (!layerConsumers.isEmpty()) {
-						try {
-							if (LOCK.tryLock(5, TimeUnit.SECONDS)) {
-								updatedCatalog.set(
-									onCommit(theCatalog, transactionalLayer)
-								);
-							} else {
-								log.error(ERROR_MESSAGE_TIMEOUT);
-								throw new RollbackException(ERROR_MESSAGE_TIMEOUT);
-							}
-						} catch (InterruptedException e) {
-							log.error(ERROR_MESSAGE_TIMEOUT);
-							Thread.currentThread().interrupt();
-							throw new RollbackException(ERROR_MESSAGE_TIMEOUT);
-						}
-					}
-				});
-		} else {
-			throw new CatalogCorruptedException((CorruptedCatalog) currentCatalog);
-		}
+		this.transactionId = transactionId;
+		this.transactionHandler = transactionHandler;
+		this.transactionalMemory = new TransactionalMemory(transactionHandler);
+		this.replay = replay;
+		this.created = OffsetDateTime.now();
 	}
 
 	/**
-	 * Method is executed when commit is executed.
+	 * Creates new transaction.
+	 *
+	 * @param transactionId      unique id of the transaction
+	 * @param transactionHandler handler that takes care about mutation persistence, commit and rollback behaviour
 	 */
-	@Nonnull
-	public Catalog onCommit(@Nonnull Catalog currentCatalog, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
-		try {
-			// init new catalog with the same collections as previous one
-			final Catalog newCatalog = executeInTransactionIfProvided(
-				this,
-				() -> transactionalLayer.getStateCopyWithCommittedChanges(currentCatalog, this)
-			);
-			// now let's flush the catalog on the disk
-			newCatalog.flushTransaction(id, updateInstructions);
-			// and return reference to a new catalog
-			return newCatalog;
-		} catch (Throwable throwable) {
-			throw new UnexpectedRollbackException("Unexpected exception while committing!", throwable);
-		} finally {
-			Transaction.LOCK.unlock();
-		}
+	public Transaction(
+		@Nonnull UUID transactionId,
+		@Nonnull TransactionHandler transactionHandler,
+		@Nonnull TransactionalMemory transactionalMemory,
+		boolean replay
+	) {
+		Assert.isPremiseValid(
+			transactionHandler == transactionalMemory.getFinalizer(),
+			"Transaction handler and transactional memory finalizer must be the same instance!"
+		);
+		this.transactionId = transactionId;
+		this.transactionHandler = transactionHandler;
+		this.transactionalMemory = transactionalMemory;
+		this.transactionalMemory.extendTransaction();
+		this.replay = replay;
+		this.created = OffsetDateTime.now();
 	}
 
 	@Override
@@ -361,66 +365,40 @@ public final class Transaction implements TransactionContract {
 		this.rollbackOnly = true;
 	}
 
+	public void setRollbackOnlyWithException(@Nonnull Throwable cause) {
+		this.rollbackOnly = true;
+		this.rollbackCause = cause;
+	}
+
+	@Override
+	public boolean isClosed() {
+		return this.closed != null;
+	}
+
 	@Override
 	public void close() {
-		if (closed) {
+		if (this.closed != null) {
 			return;
+		} else {
+			this.closed = OffsetDateTime.now();
 		}
 
-		final CatalogContract newCatalog;
 		try {
 			if (isRollbackOnly()) {
-				newCatalog = originalCatalog;
+				if (rollbackCause != null) {
+					log.debug("Rolling back transaction `" + transactionId + "` with exception.", rollbackCause);
+				} else {
+					log.debug("Rolling back transaction `{}`.", transactionId);
+				}
+				transactionalMemory.rollback(rollbackCause);
 			} else {
+				log.debug("Committing transaction `{}`.", transactionId);
 				transactionalMemory.commit();
-				newCatalog = updatedCatalog.get();
-				Assert.isPremiseValid(
-					id == 0L || newCatalog != null,
-					"New version of catalog was not created as expected!"
-				);
 			}
 		} finally {
 			// now we remove the transactional memory - no object will see it transactional memory from now on
 			CURRENT_TRANSACTION.remove();
-			closed = true;
 		}
-
-		updatedCatalogCallback.accept(newCatalog);
-	}
-
-	/**
-	 * Registers deferred I/O related catalog operation that should be performed when the transaction is committed.
-	 */
-	public void register(@Nonnull DeferredStorageOperation<?> deferredStorageOperation) {
-		Assert.isPremiseValid(
-			CatalogPersistenceService.class.equals(deferredStorageOperation.getRequiredPersistenceServiceType()) ||
-			PersistenceService.class.equals(deferredStorageOperation.getRequiredPersistenceServiceType()),
-			() -> new EvitaInternalError("It's not allowed to register deferred operation for catalog that targets entity collection!")
-		);
-		this.updateInstructions.register(deferredStorageOperation);
-	}
-
-	/**
-	 * Registers deferred I/O related entity collection operation that should be performed when the transaction is committed.
-	 */
-	public void register(@Nonnull String entityType, @Nonnull DeferredStorageOperation<?> deferredStorageOperation) {
-		Assert.isPremiseValid(
-			EntityCollectionPersistenceService.class.equals(deferredStorageOperation.getRequiredPersistenceServiceType()) ||
-				PersistenceService.class.equals(deferredStorageOperation.getRequiredPersistenceServiceType()),
-			() -> new EvitaInternalError("It's not allowed to register deferred operation for entity collection that targets catalog!")
-		);
-		this.updateInstructions.register(entityType, deferredStorageOperation);
-	}
-
-	/**
-	 * Registers transaction commit handler for current transaction. Implementation of {@link TransactionalLayerConsumer}
-	 * may withdraw multiple {@link TransactionalLayerProducer#createCopyWithMergedTransactionalMemory(Object, TransactionalLayerMaintainer, Transaction)} 4
-	 * and use their results to swap certain internal state atomically.
-	 *
-	 * All withdrawn objects will be considered as committed.
-	 */
-	public void addTransactionCommitHandler(@Nonnull TransactionalLayerConsumer consumer) {
-		this.transactionalMemory.addTransactionCommitHandler(consumer);
 	}
 
 	/**
@@ -430,7 +408,7 @@ public final class Transaction implements TransactionContract {
 		final Transaction currentValue = CURRENT_TRANSACTION.get();
 		Assert.isPremiseValid(
 			currentValue == null || currentValue == this,
-			() -> "You cannot mix calling different sessions within one thread (sessions `" + currentValue.id + "` and `" + this.id + "`)!");
+			() -> "You cannot mix calling different sessions within one thread (sessions `" + currentValue.transactionId + "` and `" + this.transactionId + "`)!");
 		if (currentValue == null) {
 			CURRENT_TRANSACTION.set(this);
 			return true;
@@ -447,44 +425,17 @@ public final class Transaction implements TransactionContract {
 	}
 
 	/**
-	 * DTO class wrapping collections of pending updates to the persistent storage collected from {@link Catalog} and
-	 * its {@link EntityCollection collections}. Updates represent the modified indexes that are stored on transaction
-	 * commit only (on the contrary to entity bodies which are persisted immediately).
+	 * All mutation operations that occur within the transaction must be registered here in order they get recorded
+	 * in the WAL and participate in conflict resolution logic.
+	 *
+	 * @param mutation mutation to be registered
 	 */
-	public static class CommitUpdateInstructionSet {
-		/**
-		 * Collection of updates from {@link Catalog} itself.
-		 */
-		@Getter @Nonnull private final List<DeferredStorageOperation<?>> catalogUpdates = new LinkedList<>();
-		/**
-		 * Collection of updates from all {@link EntityCollection entity collections} of the catalog.
-		 */
-		@Nonnull private final Map<String, List<DeferredStorageOperation<?>>> entityCollectionUpdates = new HashMap<>(16);
-
-		/**
-		 * Registers deferred I/O related catalog operation that should be performed when the transaction is committed.
-		 */
-		public void register(@Nonnull DeferredStorageOperation<?> deferredStorageOperation) {
-			catalogUpdates.add(deferredStorageOperation);
-		}
-
-		/**
-		 * Registers deferred I/O related entity collection operation that should be performed when the transaction is committed.
-		 */
-		public void register(@Nonnull String entityType, @Nonnull DeferredStorageOperation<?> deferredStorageOperation) {
-			this.entityCollectionUpdates.computeIfAbsent(entityType, et -> new LinkedList<>())
-				.add(deferredStorageOperation);
-		}
-
-		/**
-		 * Returns IO deferred operations registered for particular entity collection that needs to be executed.
-		 */
-		@Nonnull
-		public List<DeferredStorageOperation<?>> getEntityCollectionUpdates(@Nonnull String entityType) {
-			return ofNullable(entityCollectionUpdates.get(entityType))
-				.orElse(Collections.emptyList());
-		}
-
+	public void registerMutation(@Nonnull Mutation mutation) {
+		this.transactionHandler.registerMutation(mutation);
 	}
 
+	@Override
+	public String toString() {
+		return transactionId + " (replay=" + replay + ", rollbackOnly=" + rollbackOnly + '}';
+	}
 }

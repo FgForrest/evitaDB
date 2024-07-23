@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -21,8 +21,10 @@
  *   limitations under the License.
  */
 
+import io.evitadb.api.observability.trace.TracingContext;
 import io.evitadb.externalApi.grpc.GrpcProviderRegistrar;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
+import io.evitadb.externalApi.utils.ExternalApiTracingContext;
 import io.evitadb.store.spi.CatalogPersistenceServiceFactory;
 
 /**
@@ -32,12 +34,16 @@ module evita.external.api.grpc {
 
 	uses CatalogPersistenceServiceFactory;
 	uses ExternalApiProviderRegistrar;
+	uses TracingContext;
+	uses ExternalApiTracingContext;
 
 	provides ExternalApiProviderRegistrar with GrpcProviderRegistrar;
 
 	opens io.evitadb.externalApi.grpc.configuration to com.fasterxml.jackson.databind;
-	exports io.evitadb.externalApi.grpc.configuration;
+
 	exports io.evitadb.externalApi.grpc;
+	exports io.evitadb.externalApi.grpc.configuration;
+	exports io.evitadb.externalApi.grpc.metric.event;
 
 	requires static jsr305;
 	requires static org.slf4j;
@@ -54,13 +60,18 @@ module evita.external.api.grpc {
 	requires evita.external.api.core;
 	requires evita.external.api.grpc.shared;
 
-	requires org.bouncycastle.pkix;
-	requires org.bouncycastle.provider;
-	requires reactive.grpc.common;
-	requires org.reactivestreams;
-	requires undertow.core;
-	requires io.grpc.netty;
-	requires io.netty.transport;
 	requires io.grpc;
+	requires io.netty.transport;
+	requires io.grpc.protobuf;
+	requires io.grpc.stub;
+
+	requires com.linecorp.armeria;
+	requires com.linecorp.armeria.grpc;
+	requires com.linecorp.armeria.grpc.protocol;
+	requires com.linecorp.armeria.protobuf;
+	requires jdk.jfr;
+	requires org.checkerframework.checker.qual;
+	requires org.reactivestreams;
+	requires reactive.grpc.common;
 
 }

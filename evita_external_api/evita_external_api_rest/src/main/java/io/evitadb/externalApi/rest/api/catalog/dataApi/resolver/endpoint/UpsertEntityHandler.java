@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint;
 
+import com.linecorp.armeria.common.HttpMethod;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.EntityFetch;
@@ -39,9 +40,9 @@ import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.Order
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.RequireConstraintResolver;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.mutation.RestEntityUpsertMutationConverter;
 import io.evitadb.externalApi.rest.exception.RestInvalidArgumentException;
-import io.evitadb.externalApi.rest.io.RestEndpointExchange;
+import io.evitadb.externalApi.rest.io.RestEndpointExecutionContext;
+import io.evitadb.externalApi.rest.metric.event.request.ExecutedEvent;
 import io.evitadb.utils.Assert;
-import io.undertow.util.Methods;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -49,6 +50,7 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -57,7 +59,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
 @Slf4j
-public class UpsertEntityHandler extends EntityHandler<EntityClassifier, CollectionRestHandlingContext> {
+public class UpsertEntityHandler extends EntityHandler<CollectionRestHandlingContext> {
 
 	@Nonnull private final RestEntityUpsertMutationConverter mutationResolver;
 	@Nonnull private final RequireConstraintResolver requireConstraintResolver;
@@ -85,40 +87,50 @@ public class UpsertEntityHandler extends EntityHandler<EntityClassifier, Collect
 
 	@Override
 	@Nonnull
-	protected EndpointResponse<EntityClassifier> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
-		final UpsertEntityUpsertRequestDto requestData = parseRequestBody(exchange, UpsertEntityUpsertRequestDto.class);
+	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
+		final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
+		return parseRequestBody(executionContext, UpsertEntityUpsertRequestDto.class)
+			.thenApply(requestData -> {
+				if (withPrimaryKeyInPath) {
+					final Map<String, Object> parametersFromRequest = getParametersFromRequest(executionContext);
+					Assert.isTrue(
+						parametersFromRequest.containsKey(DeleteEntityEndpointHeaderDescriptor.PRIMARY_KEY.name()),
+						() -> new RestInvalidArgumentException("Primary key is not present in request's URL path.")
+					);
+					requestData.setPrimaryKey((Integer) parametersFromRequest.get(DeleteEntityEndpointHeaderDescriptor.PRIMARY_KEY.name()));
+				}
+				requestExecutedEvent.finishInputDeserialization();
 
-		if (withPrimaryKeyInPath) {
-			final Map<String, Object> parametersFromRequest = getParametersFromRequest(exchange);
-			Assert.isTrue(
-				parametersFromRequest.containsKey(DeleteEntityEndpointHeaderDescriptor.PRIMARY_KEY.name()),
-				() -> new RestInvalidArgumentException("Primary key is not present in request's URL path.")
-			);
-			requestData.setPrimaryKey((Integer) parametersFromRequest.get(DeleteEntityEndpointHeaderDescriptor.PRIMARY_KEY.name()));
-		}
+				final EntityMutation entityMutation = requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() ->
+					mutationResolver.convertFromInput(
+						requestData.getPrimaryKey()
+							.orElse(null),
+						requestData.getEntityExistence()
+							.orElseThrow(() -> new RestInvalidArgumentException("EntityExistence is not set in request data.")),
+						requestData.getMutations()
+							.orElseThrow(() -> new RestInvalidArgumentException("Mutations are not set in request data."))
+					));
 
-		final EntityMutation entityMutation = mutationResolver.convertFromInput(
-			requestData.getPrimaryKey()
-				.orElse(null),
-			requestData.getEntityExistence()
-				.orElseThrow(() -> new RestInvalidArgumentException("EntityExistence is not set in request data.")),
-			requestData.getMutations()
-				.orElseThrow(() -> new RestInvalidArgumentException("Mutations are not set in request data."))
-		);
+				final EntityContentRequire[] requires = requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() ->
+					getEntityContentRequires(requestData).orElse(null));
 
-		final EntityContentRequire[] requires = getEntityContentRequires(requestData).orElse(null);
+				final EntityClassifier upsertedEntity = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
+					requestData.getRequire().isPresent()
+						? executionContext.session().upsertAndFetchEntity(entityMutation, requires)
+						: executionContext.session().upsertEntity(entityMutation));
+				requestExecutedEvent.finishOperationExecution();
 
-		final EntityClassifier upsertedEntity = requestData.getRequire().isPresent()
-			? exchange.session().upsertAndFetchEntity(entityMutation, requires)
-			: exchange.session().upsertEntity(entityMutation);
+				final Object result = convertResultIntoSerializableObject(executionContext, upsertedEntity);
+				requestExecutedEvent.finishResultSerialization();
 
-		return new SuccessEndpointResponse<>(upsertedEntity);
+				return new SuccessEndpointResponse(result);
+			});
 	}
 
 	@Nonnull
 	@Override
-	public Set<String> getSupportedHttpMethods() {
-		return Set.of(withPrimaryKeyInPath ? Methods.PUT_STRING : Methods.POST_STRING);
+	public Set<HttpMethod> getSupportedHttpMethods() {
+		return Set.of(withPrimaryKeyInPath ? HttpMethod.PUT : HttpMethod.POST);
 	}
 
 	@Nonnull

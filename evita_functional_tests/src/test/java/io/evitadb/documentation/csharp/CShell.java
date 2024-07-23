@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -25,7 +25,10 @@ package io.evitadb.documentation.csharp;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.evitadb.documentation.Environment;
 import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -57,11 +60,8 @@ import java.util.zip.ZipInputStream;
  * temporary folder and provides a method for executing C# code and fetching its results. The results are returned as a
  * string messages from which the actual results are parsed.
  */
+@Slf4j
 public class CShell {
-    /**
-     * URL of the latest version of C# query validator executable.
-     */
-    private static final String VALIDATOR_ZIP_URL = new GithubLatestAssetUrlFetcher().fetchAssetUrl("Validator"+(isWindows() ? "-win" : "")+".zip");
     /**
      * Path to the C# query validator folder locates in a system temp folder.
      */
@@ -76,9 +76,16 @@ public class CShell {
     private static final Pattern COMPILE = Pattern.compile("\\p{C}");
 
     /**
+     * Profile of the documentation that is currently being tested - either localhost or the default; the latter represents
+     * evita demo instance.
+     */
+    private final Environment profile;
+
+    /**
      * Constructor for CShell. It downloads the C# query validator executable if it is not present in the temporary folder.
      */
-    public CShell() {
+    public CShell(@Nonnull Environment profile) {
+        this.profile = profile;
         if (!Files.exists(Paths.get(VALIDATOR_PATH))) {
             downloadValidator();
         }
@@ -95,7 +102,7 @@ public class CShell {
      */
     @Nonnull
     public String evaluate(String command, @Nonnull String outputFormat, @Nullable String sourceVariable) throws CsharpExecutionException, CsharpCompilationException {
-        final ProcessBuilder processBuilder = getProcessBuilder(command, outputFormat, sourceVariable);
+        final ProcessBuilder processBuilder = getProcessBuilder(command, outputFormat, sourceVariable, profile);
         final StringBuilder actualOutput = new StringBuilder(64);
         try {
             // Start the process
@@ -139,19 +146,21 @@ public class CShell {
             try {
                 Files.createDirectory(VALIDATOR_TEMP_FOLDER_PATH);
             } catch (IOException e) {
-                throw new EvitaInternalError("Failed to create temporary folder for C# query validator.");
+                throw new GenericEvitaInternalError("Failed to create temporary folder for C# query validator.");
             }
         }
         final Path zipPath = Paths.get(VALIDATOR_TEMP_FOLDER_PATH.toString(), "Validator.zip");
 
-        try (InputStream in = new URL(VALIDATOR_ZIP_URL).openStream()) {
+        final String zipUrl = new GithubLatestAssetUrlFetcher().fetchAssetUrl("Validator" + (isWindows() ? "-win" : "") + ".zip");
+        log.info("Downloading C# query validator from {} to {}", zipUrl, zipPath);
+        try (InputStream in = new URL(zipUrl).openStream()) {
             Files.copy(in, Paths.get(zipPath.toUri()), StandardCopyOption.REPLACE_EXISTING);
             unzip(zipPath.toString(), VALIDATOR_TEMP_FOLDER_PATH.toString());
             if (!isWindows()) {
                 setExecutablePermission();
             }
         } catch (IOException ex) {
-            throw new EvitaInternalError("Failed to download C# query validator.");
+            throw new GenericEvitaInternalError("Failed to download C# query validator.", ex);
         }
     }
 
@@ -196,7 +205,7 @@ public class CShell {
             zis.close();
             fis.close();
         } catch (IOException e) {
-            throw new EvitaInternalError("Failed to unzip C# query validator executable.");
+            throw new GenericEvitaInternalError("Failed to unzip C# query validator executable.", e);
         }
     }
 
@@ -208,7 +217,7 @@ public class CShell {
             ProcessBuilder processBuilder = new ProcessBuilder("chmod", "+x", VALIDATOR_PATH);
             processBuilder.start();
         } catch (IOException e) {
-            throw new EvitaInternalError("Failed to set executable permission on C# query validator executable.");
+            throw new GenericEvitaInternalError("Failed to set executable permission on C# query validator executable.");
         }
     }
 
@@ -221,18 +230,20 @@ public class CShell {
      * encountered during the execution to the standard output
      */
     @Nonnull
-    private static ProcessBuilder getProcessBuilder(@Nonnull String command, @Nonnull String outputFormat, @Nullable String sourceVariable) {
+    private static ProcessBuilder getProcessBuilder(@Nonnull String command, @Nonnull String outputFormat, @Nullable String sourceVariable, @Nonnull Environment profile) {
         final ProcessBuilder processBuilder;
         final String commandToSend = COMPILE.matcher(isWindows() ? command.replace("\"", "\\\"") : command).replaceAll("");
+        final String host = profile.equals(Environment.LOCALHOST) ? "localhost" : "demo.evitadb.io";
         if (sourceVariable == null) {
-            processBuilder = new ProcessBuilder(VALIDATOR_PATH, commandToSend, outputFormat);
+            processBuilder = new ProcessBuilder(VALIDATOR_PATH, commandToSend, host, outputFormat);
         } else {
-            processBuilder = new ProcessBuilder(VALIDATOR_PATH, commandToSend, outputFormat, sourceVariable);
+            processBuilder = new ProcessBuilder(VALIDATOR_PATH, commandToSend, host, outputFormat, sourceVariable);
         }
 
         // This is here for debugging purposes of future added tests
 
-		/*System.out.println("\""+commandToSend+"\"" + "\n");
+		/*System.out.println("\""+command.replace("\"", "\\\"")+"\"" + "\n");
+		System.out.println("\""+host+"\"" + "\n");
 		System.out.println("\""+outputFormat+"\"" + "\n");
 		if (sourceVariable != null) {
 			System.out.println("\""+sourceVariable+"\"" + "\n");
@@ -306,14 +317,14 @@ public class CShell {
             try {
                 releaseResponse = httpClient.send(releaseRequest, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
             } catch (IOException | InterruptedException e) {
-                throw new EvitaInternalError("Could not find GitHub release: ", e);
+                throw new GenericEvitaInternalError("Could not find GitHub release: ", e);
             }
 
             try {
                 //noinspection unchecked
                 return (Map<String, Object>) objectMapper.readValue(releaseResponse.body(), Map.class);
             } catch (JsonProcessingException e) {
-                throw new EvitaInternalError("Could not parse GitHub release: ", e);
+                throw new GenericEvitaInternalError("Could not parse GitHub release: ", e);
             }
         }
 
@@ -322,13 +333,13 @@ public class CShell {
             //noinspection unchecked
             final List<Map<String, Object>> assets = (List<Map<String, Object>>) release.get("assets");
             if (assets == null || assets.isEmpty()) {
-                throw new EvitaInternalError("No assets found in GitHub release.");
+                throw new GenericEvitaInternalError("No assets found in GitHub release.");
             }
 
             final Map<String, Object> asset = assets.stream()
                 .filter(it -> assetName.equals(it.get("name")))
                 .findFirst()
-                .orElseThrow(() -> new EvitaInternalError("Asset not found in GitHub release."));
+                .orElseThrow(() -> new GenericEvitaInternalError("Asset not found in GitHub release."));
 
             return (String) asset.get("browser_download_url");
         }

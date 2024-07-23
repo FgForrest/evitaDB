@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -44,9 +44,9 @@ import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator.REST_THOUSAND_PRODUCTS;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
-import static io.evitadb.utils.MapBuilder.map;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_QUANTITY;
+import static io.evitadb.utils.MapBuilder.map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -65,6 +65,37 @@ class CatalogRestDeleteEntityMutationsFunctionalTest extends CatalogRestDataEndp
 	@DataSet(value = REST_THOUSAND_PRODUCTS_FOR_DELETE, openWebApi = RestProvider.CODE, readOnly = false, destroyAfterClass = true)
 	protected DataCarrier setUp(Evita evita, EvitaServer evitaServer) {
 		return super.setUpData(evita, evitaServer, 20);
+	}
+
+	@Test
+	@UseDataSet(REST_THOUSAND_PRODUCTS_FOR_DELETE)
+	@DisplayName("Should delete entity by primary key")
+	void shouldDeleteEntityByPrimaryKey(Evita evita, RestTester tester) {
+		final List<SealedEntity> entitiesToDelete = getEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					attributeLessThan(ATTRIBUTE_QUANTITY, 5500)
+				),
+				require(
+					strip(0, 1),
+					entityFetch(
+						attributeContent(ATTRIBUTE_CODE)
+					)
+				)
+			),
+			SealedEntity.class
+		);
+		assertEquals(1, entitiesToDelete.size());
+
+		tester.test(TEST_CATALOG)
+			.httpMethod(Request.METHOD_DELETE)
+			.urlPathSuffix("/PRODUCT/" + entitiesToDelete.get(0).getPrimaryKey())
+			.executeAndThen()
+			.statusCode(200);
+
+		assertProductDeleted(entitiesToDelete.get(0).getPrimaryKey(), tester);
 	}
 
 	@Test
@@ -110,7 +141,6 @@ class CatalogRestDeleteEntityMutationsFunctionalTest extends CatalogRestDataEndp
                     """)
 			.executeAndThen()
 			.statusCode(200)
-			// todo lho zdá se že se priceinnerrecordhandling chová jinak při deletu, vrací NONE, normálně vrací UNKNOWN
 			.body("", equalTo(createEntityDtos(entitiesToDelete)));
 
 		assertProductDeleted(entitiesToDelete.get(0).getPrimaryKey(), tester);

@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -37,6 +37,7 @@ import java.util.List;
 import java.util.Map;
 
 import static io.evitadb.api.query.QueryConstraints.*;
+import static io.evitadb.api.query.order.OrderDirection.ASC;
 import static io.evitadb.api.query.order.OrderDirection.DESC;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -50,7 +51,7 @@ class EvitaQLOrderConstraintVisitorTest {
 
     @Test
     void shouldParseOrderByConstraint() {
-        final OrderConstraint constraint1 = parseOrderConstraint("orderBy(attributeNatural('a'))");
+        final OrderConstraint constraint1 = parseOrderConstraint("orderBy(attributeNatural(?))", "a");
         assertEquals(orderBy(attributeNatural("a")), constraint1);
 
         final OrderConstraint constraint2 = parseOrderConstraintUnsafe("orderBy(attributeNatural('a'),attributeNatural('b',DESC))");
@@ -66,12 +67,13 @@ class EvitaQLOrderConstraintVisitorTest {
     @Test
     void shouldNotParseOrderByConstraint() {
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("orderBy"));
+        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraint("orderBy(attributeNatural('a'))"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("orderBy(attributeEquals('a',1))"));
     }
 
     @Test
     void shouldParseOrderGroupByConstraint() {
-        final OrderConstraint constraint1 = parseOrderConstraint("orderGroupBy(attributeNatural('a'))");
+        final OrderConstraint constraint1 = parseOrderConstraint("orderGroupBy(attributeNatural(?))", "a");
         assertEquals(orderGroupBy(attributeNatural("a")), constraint1);
 
         final OrderConstraint constraint2 = parseOrderConstraintUnsafe("orderGroupBy(attributeNatural('a'),attributeNatural('b',DESC))");
@@ -88,14 +90,15 @@ class EvitaQLOrderConstraintVisitorTest {
     void shouldNotParseOrderGroupByConstraint() {
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("orderGroupBy"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("orderGroupBy(attributeEquals('a',1))"));
+        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraint("orderGroupBy(attributeNatural('a'))"));
     }
 
     @Test
     void shouldParseAttributeNaturalConstraint() {
-        final OrderConstraint constraint1 = parseOrderConstraint("attributeNatural('a')");
+        final OrderConstraint constraint1 = parseOrderConstraint("attributeNatural(?)", "a");
         assertEquals(attributeNatural("a"), constraint1);
 
-        final OrderConstraint constraint2 = parseOrderConstraint("attributeNatural( 'a'  )");
+        final OrderConstraint constraint2 = parseOrderConstraint("attributeNatural( ?  )", "a");
         assertEquals(attributeNatural("a"), constraint2);
 
         final OrderConstraint constraint3 = parseOrderConstraintUnsafe("attributeNatural('a',DESC)");
@@ -114,6 +117,7 @@ class EvitaQLOrderConstraintVisitorTest {
     @Test
     void shouldNotParseAttributeNaturalConstraint() {
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraint("attributeNatural('a',DESC)"));
+        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraint("attributeNatural('a',?)", DESC));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraint("attributeNatural('a',?)"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraint("attributeNatural('a',@b)"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("attributeNatural"));
@@ -130,19 +134,16 @@ class EvitaQLOrderConstraintVisitorTest {
         final OrderConstraint constraint2 = parseOrderConstraintUnsafe("attributeSetExact('a', 1, 2, 3)");
         assertEquals(attributeSetExact("a", 1L, 2L, 3L), constraint2);
 
-        final OrderConstraint constraint3 = parseOrderConstraint("attributeSetExact('a', ?)", 1);
+        final OrderConstraint constraint3 = parseOrderConstraint("attributeSetExact(?, ?)", "a", 1);
         assertEquals(attributeSetExact("a", 1), constraint3);
-
-        final OrderConstraint constraint4 = parseOrderConstraint("attributeSetExact('a', ?)", List.of(1, 2, 3));
-        assertEquals(attributeSetExact("a", 1, 2, 3), constraint4);
 
         final OrderConstraint constraint5 = parseOrderConstraint("attributeSetExact(?, ?)", "a", List.of(1, 2, 3));
         assertEquals(attributeSetExact("a", 1, 2, 3), constraint5);
 
-        final OrderConstraint constraint6 = parseOrderConstraint("attributeSetExact('a', @val)", Map.of("val", 1));
+        final OrderConstraint constraint6 = parseOrderConstraint("attributeSetExact(@name, @val)", Map.of("name", "a", "val", 1));
         assertEquals(attributeSetExact("a", 1), constraint6);
 
-        final OrderConstraint constraint7 = parseOrderConstraint("attributeSetExact('a', @val)", Map.of("val", List.of(1, 2, 3)));
+        final OrderConstraint constraint7 = parseOrderConstraint("attributeSetExact(@name, @val)", Map.of("name", "a", "val", List.of(1, 2, 3)));
         assertEquals(attributeSetExact("a", 1, 2, 3), constraint7);
 
         final OrderConstraint constraint8 = parseOrderConstraint(
@@ -159,14 +160,12 @@ class EvitaQLOrderConstraintVisitorTest {
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("attributeSetExact('a')"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraint("attributeSetExact('a',1)"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraint("attributeSetExact('a',?)"));
+        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraint("attributeSetExact('a',?)", 1));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraint("attributeSetExact('a',@b)"));
     }
 
     @Test
     void shouldParseAttributeSetInFilterConstraint() {
-        final OrderConstraint constraint1 = parseOrderConstraint("attributeSetInFilter('a')");
-        assertEquals(attributeSetInFilter("a"), constraint1);
-
         final OrderConstraint constraint2 = parseOrderConstraint("attributeSetInFilter(?)", "a");
         assertEquals(attributeSetInFilter("a"), constraint2);
 
@@ -179,6 +178,7 @@ class EvitaQLOrderConstraintVisitorTest {
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("attributeSetInFilter"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("attributeSetInFilter()"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("attributeSetInFilter(1)"));
+        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraint("attributeSetInFilter('a')"));
     }
 
     @Test
@@ -229,7 +229,7 @@ class EvitaQLOrderConstraintVisitorTest {
 
     @Test
     void shouldParseReferencePropertyConstraint() {
-        final OrderConstraint constraint1 = parseOrderConstraint("referenceProperty('a',attributeNatural('b'))");
+        final OrderConstraint constraint1 = parseOrderConstraint("referenceProperty(?,attributeNatural(?))", "a", "b");
         assertEquals(
                 referenceProperty(
                     "a",
@@ -267,7 +267,7 @@ class EvitaQLOrderConstraintVisitorTest {
                 constraint4
         );
 
-        final OrderConstraint constraint5 = parseOrderConstraint("referenceProperty(?,attributeNatural('b'))", "a");
+        final OrderConstraint constraint5 = parseOrderConstraint("referenceProperty(?,attributeNatural(?))", "a", "b");
         assertEquals(
             referenceProperty(
                 "a",
@@ -276,7 +276,7 @@ class EvitaQLOrderConstraintVisitorTest {
             constraint5
         );
 
-        final OrderConstraint constraint6 = parseOrderConstraint("referenceProperty(@a,attributeNatural('b'))", Map.of("a", "a"));
+        final OrderConstraint constraint6 = parseOrderConstraint("referenceProperty(@a,attributeNatural(@b))", Map.of("a", "a", "b", "b"));
         assertEquals(
             referenceProperty(
                 "a",
@@ -294,6 +294,7 @@ class EvitaQLOrderConstraintVisitorTest {
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("referenceProperty()"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("referenceProperty('a')"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("referenceProperty('a',1)"));
+        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraint("referenceProperty('a',attributeNatural('b'))"));
     }
 
     @Test
@@ -337,11 +338,34 @@ class EvitaQLOrderConstraintVisitorTest {
     void shouldNotParseEntityPrimaryKeyInFilterConstraint() {
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("entityPrimaryKeyInFilter"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("entityPrimaryKeyInFilter(1)"));
+        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraint("entityPrimaryKeyInFilter(DESC)"));
+    }
+
+    @Test
+    void shouldParseEntityPrimaryKeyNaturalConstraint() {
+        final OrderConstraint constraint1 = parseOrderConstraint("entityPrimaryKeyNatural()");
+        assertEquals(entityPrimaryKeyNatural(ASC), constraint1);
+
+        final OrderConstraint constraint2 = parseOrderConstraintUnsafe("entityPrimaryKeyNatural(DESC)");
+        assertEquals(entityPrimaryKeyNatural(DESC), constraint2);
+
+        final OrderConstraint constraint3 = parseOrderConstraint("entityPrimaryKeyNatural(?)", DESC);
+        assertEquals(entityPrimaryKeyNatural(DESC), constraint3);
+
+        final OrderConstraint constraint4 = parseOrderConstraint("entityPrimaryKeyNatural(@order)", Map.of("order", DESC));
+        assertEquals(entityPrimaryKeyNatural(DESC), constraint4);
+    }
+
+    @Test
+    void shouldNotParseEntityPrimaryKeyNaturalConstraint() {
+        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("entityPrimaryKeyNatural"));
+        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("entityPrimaryKeyNatural(1)"));
+        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraint("entityPrimaryKeyNatural(DESC)"));
     }
 
     @Test
     void shouldParseEntityPropertyConstraint() {
-        final OrderConstraint constraint1 = parseOrderConstraint("entityProperty(attributeNatural('b'))");
+        final OrderConstraint constraint1 = parseOrderConstraint("entityProperty(attributeNatural(?))", "b");
         assertEquals(entityProperty(attributeNatural("b")), constraint1);
 
         final OrderConstraint constraint2 = parseOrderConstraintUnsafe("entityProperty(attributeNatural('b'),attributeNatural('c',DESC))");
@@ -379,6 +403,7 @@ class EvitaQLOrderConstraintVisitorTest {
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("entityProperty('a',priceNatural())"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("entityProperty(?)"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("entityProperty(and())"));
+        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraint("entityProperty(attributeNatural('b'))"));
     }
 
 

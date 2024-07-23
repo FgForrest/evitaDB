@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -25,6 +25,7 @@ package io.evitadb.api.query.parser.visitor;
 
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.parser.ParseContext;
+import io.evitadb.api.query.parser.ParseMode;
 import io.evitadb.api.query.parser.ParserExecutor;
 import io.evitadb.api.query.parser.ParserFactory;
 import io.evitadb.api.query.parser.error.EvitaQLInvalidQueryError;
@@ -46,13 +47,13 @@ class EvitaQLOrderConstraintListVisitorTest {
 
     @Test
     void shouldParseOrderConstraintList() {
-        final List<OrderConstraint> constraintList1 = parseOrderConstraintList("attributeNatural('code')");
+        final List<OrderConstraint> constraintList1 = parseOrderConstraintListUnsafe("attributeNatural('code')");
         assertEquals(
             List.of(attributeNatural("code")),
             constraintList1
         );
 
-        final List<OrderConstraint> constraintList2 = parseOrderConstraintList("attributeNatural('code'),attributeNatural('age')");
+        final List<OrderConstraint> constraintList2 = parseOrderConstraintListUnsafe("attributeNatural('code'),attributeNatural('age')");
         assertEquals(
             List.of(attributeNatural("code"), attributeNatural("age")),
             constraintList2
@@ -64,7 +65,7 @@ class EvitaQLOrderConstraintListVisitorTest {
             constraintList3
         );
 
-        final List<OrderConstraint> constraintList4 = parseOrderConstraintList("attributeNatural('code'),attributeNatural(?)", "age");
+        final List<OrderConstraint> constraintList4 = parseOrderConstraintList("attributeNatural(?),attributeNatural(?)", "code", "age");
         assertEquals(
             List.of(attributeNatural("code"), attributeNatural("age")),
             constraintList4
@@ -88,6 +89,21 @@ class EvitaQLOrderConstraintListVisitorTest {
     private List<OrderConstraint> parseOrderConstraintList(@Nonnull String string, @Nonnull Object... positionalArguments) {
         return ParserExecutor.execute(
             new ParseContext(positionalArguments),
+            () -> ParserFactory.getParser(string).orderConstraintListUnit().orderConstraintList().accept(new EvitaQLOrderConstraintListVisitor())
+        );
+    }
+
+    /**
+     * Using generated EvitaQL parser tries to parse string as grammar rule "orderConstraintListUnit"
+     *
+     * @param string string to parse
+     * @return parsed query
+     */
+    private List<OrderConstraint> parseOrderConstraintListUnsafe(@Nonnull String string) {
+        final ParseContext context = new ParseContext();
+        context.setMode(ParseMode.UNSAFE);
+        return ParserExecutor.execute(
+            context,
             () -> ParserFactory.getParser(string).orderConstraintListUnit().orderConstraintList().accept(new EvitaQLOrderConstraintListVisitor())
         );
     }

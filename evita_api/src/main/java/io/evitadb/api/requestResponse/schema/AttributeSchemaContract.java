@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -36,6 +36,7 @@ import io.evitadb.api.requestResponse.data.structure.AssociatedData;
 import io.evitadb.api.requestResponse.data.structure.Attributes;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
+import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.dataType.EvitaDataTypes;
 
 import javax.annotation.Nonnull;
@@ -72,6 +73,26 @@ public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContr
 	 * better to have this ensured by the database engine.
 	 */
 	boolean isUnique();
+
+	/**
+	 * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
+	 * having certain value of this attribute among other entities in the same collection.
+	 * {@link AttributeSchema#getType() Type} of the unique attribute must implement {@link Comparable} interface.
+	 *
+	 * As an example of unique attribute can be EAN - there is no sense in having two entities with same EAN, and it's
+	 * better to have this ensured by the database engine.
+	 *
+	 * This method differs from {@link #isUnique()} in that it is possible to have multiple entities with same value
+	 * of this attribute as long as the attribute is {@link #isLocalized()} and the values relate to different locales.
+	 */
+	boolean isUniqueWithinLocale();
+
+	/**
+	 * Returns type of uniqueness of the attribute. See {@link #isUnique()} and {@link #isUniqueWithinLocale()}.
+	 * @return type of uniqueness
+	 */
+	@Nonnull
+	AttributeUniquenessType getUniquenessType();
 
 	/**
 	 * When attribute is filterable, it is possible to filter entities by this attribute. Do not mark attribute

@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -24,11 +24,11 @@
 package io.evitadb.core.cache;
 
 import io.evitadb.core.EvitaSession;
+import io.evitadb.core.async.Scheduler;
 import io.evitadb.core.cache.payload.FlattenedFormula;
 import io.evitadb.core.query.algebra.CacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.AndFormula;
-import io.evitadb.core.scheduling.Scheduler;
 import io.evitadb.test.TestConstants;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -44,6 +44,7 @@ import java.util.stream.IntStream;
 import static io.evitadb.core.cache.CacheEden.COOL_ENOUGH;
 import static io.evitadb.core.cache.FormulaCacheVisitorTest.toConstantFormula;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -53,9 +54,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class CacheAnteroomTest {
 	public static final String SOME_ENTITY = "SomeEntity";
+	public static final long MINIMAL_COMPLEXITY_THRESHOLD = 1L;
 	private static final int MAX_RECORD_COUNT = 10;
 	private static final Random RANDOM = new Random(52);
-	public static final long MINIMAL_COMPLEXITY_THRESHOLD = 1L;
 	private CacheAnteroom cacheAnteroom;
 	private CacheEden cacheEden;
 	private CacheableFormula[] inputFormulas;
@@ -70,16 +71,19 @@ class CacheAnteroomTest {
 
 	@BeforeEach
 	void setUp() {
-		cacheEden = new CacheEden(1_000_000, 1, MINIMAL_COMPLEXITY_THRESHOLD);
-		this.cacheAnteroom = new CacheAnteroom(
-			MAX_RECORD_COUNT, MINIMAL_COMPLEXITY_THRESHOLD,
-			cacheEden,
-			new Scheduler(new ScheduledThreadPoolExecutor(4)) {
+		final Scheduler scheduler = new Scheduler(
+			new ScheduledThreadPoolExecutor(4) {
 				@Override
 				public void execute(@Nonnull Runnable runnable) {
 					runnable.run();
 				}
 			}
+		);
+		this.cacheEden = new CacheEden(1_000_000, 1, MINIMAL_COMPLEXITY_THRESHOLD, scheduler);
+		this.cacheAnteroom = new CacheAnteroom(
+			MAX_RECORD_COUNT, MINIMAL_COMPLEXITY_THRESHOLD,
+			cacheEden,
+			scheduler
 		);
 		this.inputFormulas = new CacheableFormula[MAX_RECORD_COUNT + 2];
 		for (int i = 0; i < MAX_RECORD_COUNT + 2; i++) {
@@ -111,7 +115,7 @@ class CacheAnteroomTest {
 		assertEquals(12, cacheEden.getCacheRecordCount());
 		final long firstFullCacheSize = cacheEden.getByteSizeUsedByCache();
 		assertTrue(firstFullCacheSize > 2200);
-		assertTrue(cacheHits.size() > 0);
+		assertFalse(cacheHits.isEmpty());
 		cacheHits.clear();
 
 		for (int j = 0; j < COOL_ENOUGH; j++) {
@@ -128,7 +132,7 @@ class CacheAnteroomTest {
 			cacheAnteroom.evaluateAssociatesSynchronously();
 
 			assertEquals(12, cacheEden.getCacheRecordCount());
-			assertTrue(cacheHits.size() > 0);
+			assertFalse(cacheHits.isEmpty());
 			cacheHits.clear();
 		}
 

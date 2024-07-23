@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -31,7 +31,7 @@ import io.evitadb.api.query.descriptor.annotation.Classifier;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.order.OrderBy;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
@@ -80,11 +80,14 @@ import static java.util.Optional.ofNullable;
  *      - {@link HierarchyChildren}
  *      - {@link HierarchyParents}
  *
+ * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#hierarchy-of-reference">Visit detailed user documentation</a></p>
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "ofReference",
-	shortDescription = "The constraint triggers computation of hierarchy statistics (how many matching children the hierarchy nodes have) of referenced hierarchical entities into response."
+	shortDescription = "The constraint triggers computation of hierarchy statistics (how many matching children the hierarchy nodes have) of referenced hierarchical entities into response.",
+	userDocsLink = "/documentation/query/requirements/hierarchy#hierarchy-of-reference"
 )
 public class HierarchyOfReference extends AbstractRequireConstraintContainer
 	implements RootHierarchyConstraint, SeparateEntityContentRequireContainer, ExtraResultRequireConstraint {
@@ -199,7 +202,7 @@ public class HierarchyOfReference extends AbstractRequireConstraintContainer
 			.filter(EmptyHierarchicalEntityBehaviour.class::isInstance)
 			.map(EmptyHierarchicalEntityBehaviour.class::cast)
 			.findFirst()
-			.orElseThrow(() -> new EvitaInternalError("EmptyHierarchicalEntityBehaviour is a mandatory argument!"));
+			.orElseThrow(() -> new GenericEvitaInternalError("EmptyHierarchicalEntityBehaviour is a mandatory argument!"));
 	}
 
 	/**
@@ -226,6 +229,14 @@ public class HierarchyOfReference extends AbstractRequireConstraintContainer
 	@Override
 	public boolean isApplicable() {
 		return getArguments().length > 0 && getChildrenCount() > 0;
+	}
+
+	@Nonnull
+	@Override
+	public Serializable[] getArgumentsExcludingDefaults() {
+		return Arrays.stream(super.getArgumentsExcludingDefaults())
+			.filter(it -> it != EmptyHierarchicalEntityBehaviour.REMOVE_EMPTY)
+			.toArray(Serializable[]::new);
 	}
 
 	@Nonnull

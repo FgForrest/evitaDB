@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -56,7 +56,7 @@ import static io.swagger.v3.oas.models.PathItem.HttpMethod.*;
 /**
  * Single REST endpoint with schema description and handler builder for building collection-specific endpoints
  * (for specific catalog and entity type). It combines {@link io.swagger.v3.oas.models.PathItem},
- * {@link Operation} and {@link io.undertow.server.HttpHandler} into one place with useful defaults.
+ * {@link Operation} and {@link com.linecorp.armeria.server.HttpService} into one place with useful defaults.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  * @see OpenApiCatalogEndpoint
@@ -77,7 +77,7 @@ public class OpenApiCollectionEndpoint extends OpenApiEndpoint<CollectionRestHan
 	                                  @Nonnull List<OpenApiEndpointParameter> parameters,
 	                                  @Nullable OpenApiSimpleType requestBody,
 	                                  @Nonnull OpenApiSimpleType successResponse,
-	                                  @Nonnull Function<CollectionRestHandlingContext, RestEndpointHandler<?, CollectionRestHandlingContext>> handlerBuilder) {
+	                                  @Nonnull Function<CollectionRestHandlingContext, RestEndpointHandler<CollectionRestHandlingContext>> handlerBuilder) {
 		super(method, path, localized, operationId, description, deprecationNotice, parameters, requestBody, successResponse, handlerBuilder);
 		this.catalogSchema = catalogSchema;
 		this.entitySchema = entitySchema;
@@ -94,7 +94,7 @@ public class OpenApiCollectionEndpoint extends OpenApiEndpoint<CollectionRestHan
 
 	@Nonnull
 	@Override
-	public RestEndpointHandler<?, CollectionRestHandlingContext> toHandler(@Nonnull ObjectMapper objectMapper,
+	public RestEndpointHandler<CollectionRestHandlingContext> toHandler(@Nonnull ObjectMapper objectMapper,
 	                                                                       @Nonnull Evita evita,
 	                                                                       @Nonnull OpenAPI openApi,
 	                                                                       @Nonnull Map<String, Class<? extends Enum<?>>> enumMapping) {
@@ -129,7 +129,7 @@ public class OpenApiCollectionEndpoint extends OpenApiEndpoint<CollectionRestHan
 		@Nullable private OpenApiSimpleType requestBody;
 		@Nullable private OpenApiSimpleType successResponse;
 
-		@Nullable private Function<CollectionRestHandlingContext, RestEndpointHandler<?, CollectionRestHandlingContext>> handlerBuilder;
+		@Nullable private Function<CollectionRestHandlingContext, RestEndpointHandler<CollectionRestHandlingContext>> handlerBuilder;
 
 		private Builder(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaContract entitySchema) {
 			this.catalogSchema = catalogSchema;
@@ -209,19 +209,6 @@ public class OpenApiCollectionEndpoint extends OpenApiEndpoint<CollectionRestHan
 		}
 
 		/**
-		 * Adds single query parameter.
-		 */
-		@Nonnull
-		public Builder queryParameter(@Nonnull OpenApiEndpointParameter queryParameter) {
-			Assert.isPremiseValid(
-				queryParameter.getLocation().equals(ParameterLocation.QUERY),
-				() -> new OpenApiBuildingError("Only query parameters are supported here.")
-			);
-			this.parameters.add(queryParameter);
-			return this;
-		}
-
-		/**
 		 * Adds list of query parameters to existing query parameters.
 		 */
 		@Nonnull
@@ -258,7 +245,7 @@ public class OpenApiCollectionEndpoint extends OpenApiEndpoint<CollectionRestHan
 		 * Sets handler builder.
 		 */
 		@Nonnull
-		public Builder handler(@Nonnull Function<CollectionRestHandlingContext, RestEndpointHandler<?, CollectionRestHandlingContext>> handlerBuilder) {
+		public Builder handler(@Nonnull Function<CollectionRestHandlingContext, RestEndpointHandler<CollectionRestHandlingContext>> handlerBuilder) {
 			this.handlerBuilder = handlerBuilder;
 			return this;
 		}

@@ -46,7 +46,7 @@
       "allLocales": [
         "en"
       ],
-      "priceInnerRecordHandling": "FIRST_OCCURRENCE",
+      "priceInnerRecordHandling": "LOWEST_PRICE",
       "attributes": {
         "global": {
           "code": "nokia-g10"
@@ -86,7 +86,8 @@
         "priceWithTax": "124.0",
         "taxRate": "21.0",
         "validity": null
-      }
+      },
+      "multiplePricesForSaleAvailable": false
     },
     {
       "primaryKey": 107015,
@@ -171,7 +172,7 @@
       "allLocales": [
         "en"
       ],
-      "priceInnerRecordHandling": "FIRST_OCCURRENCE",
+      "priceInnerRecordHandling": "LOWEST_PRICE",
       "attributes": {
         "global": {
           "code": "oppo-a53"
@@ -222,7 +223,8 @@
         "priceWithTax": "124.0",
         "taxRate": "21.0",
         "validity": null
-      }
+      },
+      "multiplePricesForSaleAvailable": false
     },
     {
       "primaryKey": 107170,
@@ -339,18 +341,18 @@
       }
     }
   ],
-  "type": "PAGE",
-  "totalRecordCount": 8,
-  "first": true,
-  "last": true,
-  "hasPrevious": false,
-  "hasNext": false,
-  "singlePage": true,
   "empty": false,
-  "pageSize": 20,
-  "pageNumber": 1,
-  "lastPageNumber": 1,
+  "first": true,
   "firstPageItemNumber": 0,
-  "lastPageItemNumber": 8
+  "hasNext": false,
+  "hasPrevious": false,
+  "last": true,
+  "lastPageItemNumber": 8,
+  "lastPageNumber": 1,
+  "pageNumber": 1,
+  "pageSize": 20,
+  "singlePage": true,
+  "totalRecordCount": 8,
+  "type": "PAGE"
 }
 ```

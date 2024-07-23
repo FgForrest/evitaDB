@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -28,6 +28,7 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBu
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalCatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.exception.EvitaInvalidUsageException;
 
@@ -36,7 +37,6 @@ import java.io.Serial;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Optional;
-import java.util.function.Function;
 
 /**
  * Extension of {@link CatalogSchemaDecorator} for {@link io.evitadb.driver.EvitaClient} so that entity schema accessor
@@ -53,10 +53,10 @@ public class ClientCatalogSchemaDecorator extends CatalogSchemaDecorator {
 	 * when the {@link CatalogSchema} is retrieved from cache on client and thus the integrated accessor could use
 	 * expired session.
 	 */
-	@Nonnull private final Function<String, EntitySchemaContract> entitySchemaAccessor;
+	@Nonnull private final EntitySchemaProvider entitySchemaAccessor;
 
 	public ClientCatalogSchemaDecorator(@Nonnull CatalogSchema delegate,
-	                                    @Nonnull Function<String, EntitySchemaContract> entitySchemaAccessor) {
+	                                    @Nonnull EntitySchemaProvider entitySchemaAccessor) {
 		super(delegate);
 		this.entitySchemaAccessor = entitySchemaAccessor;
 	}
@@ -87,8 +87,14 @@ public class ClientCatalogSchemaDecorator extends CatalogSchemaDecorator {
 
 	@Nonnull
 	@Override
+	public Collection<EntitySchemaContract> getEntitySchemas() {
+		return entitySchemaAccessor.getEntitySchemas();
+	}
+
+	@Nonnull
+	@Override
 	public Optional<EntitySchemaContract> getEntitySchema(@Nonnull String entityType) {
-		return Optional.ofNullable(entitySchemaAccessor.apply(entityType));
+		return entitySchemaAccessor.getEntitySchema(entityType);
 	}
 
 	@Nonnull

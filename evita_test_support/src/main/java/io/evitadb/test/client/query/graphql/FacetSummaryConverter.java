@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -30,7 +30,7 @@ import io.evitadb.api.query.require.FacetSummaryOfReference;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.api.ExternalApiNamingConventions;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResultsDescriptor;
@@ -48,7 +48,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static java.util.Optional.ofNullable;
@@ -64,10 +63,9 @@ public class FacetSummaryConverter extends RequireConverter {
 	private final EntityFetchConverter entityFetchBuilder;
 
 	public FacetSummaryConverter(@Nonnull CatalogSchemaContract catalogSchema,
-                                 @Nonnull Query query,
-	                             @Nonnull GraphQLInputJsonPrinter inputJsonPrinter) {
-		super(catalogSchema, query, inputJsonPrinter);
-		this.entityFetchBuilder = new EntityFetchConverter(catalogSchema, query, inputJsonPrinter);
+                                 @Nonnull Query query) {
+		super(catalogSchema, query);
+		this.entityFetchBuilder = new EntityFetchConverter(catalogSchema, query);
 	}
 
 	public void convert(@Nonnull GraphQLOutputFieldsBuilder fieldsBuilder,
@@ -91,14 +89,11 @@ public class FacetSummaryConverter extends RequireConverter {
 					.values()
 					.stream()
 					.filter(ReferenceSchemaContract::isFaceted)
-					.map(referenceSchema -> {
-						final FacetSummaryOfReference facetSummaryOfReference = facetSummaryRequests.get(referenceSchema.getName());
-						if (facetSummaryOfReference == null) {
-							return null;
-						}
-						return getFacetSummaryOfReference(referenceSchema, facetSummaryOfReference, facetSummary);
-					})
-					.filter(Objects::nonNull)
+					.map(referenceSchema -> getFacetSummaryOfReference(
+						referenceSchema,
+						facetSummaryRequests.get(referenceSchema.getName()),
+						facetSummary
+					))
 					.forEach(facetSummaryOfReference -> {
 						final ReferenceSchemaContract referenceSchema = entitySchema.getReference(facetSummaryOfReference.getReferenceName())
 							.orElseThrow();
@@ -123,7 +118,7 @@ public class FacetSummaryConverter extends RequireConverter {
 	                                                           @Nullable FacetSummaryOfReference facetSummaryRequest,
 	                                                           @Nullable FacetSummary defaultRequest) {
 		if (facetSummaryRequest == null && defaultRequest == null) {
-			throw new EvitaInternalError("Either facet summary request or default request must be present!");
+			throw new GenericEvitaInternalError("Either facet summary request or default request must be present!");
 		}
 		return ofNullable(facetSummaryRequest)
 			.map(referenceRequest -> {
@@ -168,9 +163,10 @@ public class FacetSummaryConverter extends RequireConverter {
 
 		if (facetSummaryOfReference.getFilterGroupBy().isPresent()) {
 			arguments.add(
-				offset -> new Argument(
+				(offset, multipleArguments) -> new Argument(
 					FacetGroupStatisticsHeaderDescriptor.FILTER_GROUP_BY,
 					offset,
+					multipleArguments,
 					convertFilterConstraint(
 						new EntityDataLocator(referenceSchema.getReferencedGroupType()),
 						facetSummaryOfReference.getFilterGroupBy().get()
@@ -183,9 +179,10 @@ public class FacetSummaryConverter extends RequireConverter {
 
 		if (facetSummaryOfReference.getOrderGroupBy().isPresent()) {
 			arguments.add(
-				offset -> new Argument(
+				(offset, multipleArguments) -> new Argument(
 					FacetGroupStatisticsHeaderDescriptor.ORDER_GROUP_BY,
 					offset,
+					multipleArguments,
 					convertOrderConstraint(
 						new EntityDataLocator(referenceSchema.getReferencedGroupType()),
 						facetSummaryOfReference.getOrderGroupBy().get()
@@ -203,9 +200,10 @@ public class FacetSummaryConverter extends RequireConverter {
 	                                            @Nonnull ReferenceSchemaContract referenceSchema,
 	                                            @Nonnull FacetSummaryOfReference facetSummaryOfReference) {
 
-		facetSummaryOfReferenceBuilder
-			.addPrimitiveField(FacetGroupStatisticsDescriptor.COUNT)
-			.addObjectField(
+		facetSummaryOfReferenceBuilder.addPrimitiveField(FacetGroupStatisticsDescriptor.COUNT);
+
+		if (referenceSchema.getReferencedGroupType() != null) {
+			facetSummaryOfReferenceBuilder.addObjectField(
 				FacetGroupStatisticsDescriptor.GROUP_ENTITY,
 				groupEntityBuilder -> entityFetchBuilder.convert(
 					groupEntityBuilder,
@@ -213,17 +211,19 @@ public class FacetSummaryConverter extends RequireConverter {
 					locale,
 					facetSummaryOfReference.getGroupEntityRequirement().orElse(null)
 				)
-			)
-			.addObjectField(
-				FacetGroupStatisticsDescriptor.FACET_STATISTICS,
-				facetStatisticsBuilder -> convertFacetStatistics(
-					facetStatisticsBuilder,
-					locale,
-					referenceSchema,
-					facetSummaryOfReference
-				),
-				getFacetStatisticsArgumentsBuilder(referenceSchema, facetSummaryOfReference)
 			);
+		}
+
+		facetSummaryOfReferenceBuilder.addObjectField(
+			FacetGroupStatisticsDescriptor.FACET_STATISTICS,
+			facetStatisticsBuilder -> convertFacetStatistics(
+				facetStatisticsBuilder,
+				locale,
+				referenceSchema,
+				facetSummaryOfReference
+			),
+			getFacetStatisticsArgumentsBuilder(referenceSchema, facetSummaryOfReference)
+		);
 	}
 
 	@Nonnull
@@ -237,9 +237,10 @@ public class FacetSummaryConverter extends RequireConverter {
 
 		if (facetSummaryOfReference.getFilterBy().isPresent()) {
 			arguments.add(
-				offset -> new Argument(
+				(offset, multipleArguments) -> new Argument(
 					FacetStatisticsHeaderDescriptor.FILTER_BY,
 					offset,
+					multipleArguments,
 					convertFilterConstraint(
 						new EntityDataLocator(referenceSchema.getReferencedEntityType()),
 						facetSummaryOfReference.getFilterBy().get()
@@ -251,9 +252,10 @@ public class FacetSummaryConverter extends RequireConverter {
 
 		if (facetSummaryOfReference.getOrderBy().isPresent()) {
 			arguments.add(
-				offset -> new Argument(
+				(offset, multipleArguments) -> new Argument(
 					FacetStatisticsHeaderDescriptor.ORDER_BY,
 					offset,
+					multipleArguments,
 					convertOrderConstraint(
 						new EntityDataLocator(referenceSchema.getReferencedEntityType()),
 						facetSummaryOfReference.getOrderBy().get()

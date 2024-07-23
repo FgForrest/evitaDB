@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -80,6 +80,11 @@ private static final long serialVersionUID = 0L;
             success_ = input.readBool();
             break;
           }
+          case 16: {
+
+            catalogVersion_ = input.readInt64();
+            break;
+          }
           default: {
             if (!parseUnknownField(
                 input, unknownFields, extensionRegistry, tag)) {
@@ -127,6 +132,21 @@ private static final long serialVersionUID = 0L;
     return success_;
   }
 
+  public static final int CATALOGVERSION_FIELD_NUMBER = 2;
+  private long catalogVersion_;
+  /**
+   * <pre>
+   * Contains next catalog version
+   * </pre>
+   *
+   * <code>int64 catalogVersion = 2;</code>
+   * @return The catalogVersion.
+   */
+  @java.lang.Override
+  public long getCatalogVersion() {
+    return catalogVersion_;
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -144,6 +164,9 @@ private static final long serialVersionUID = 0L;
     if (success_ != false) {
       output.writeBool(1, success_);
     }
+    if (catalogVersion_ != 0L) {
+      output.writeInt64(2, catalogVersion_);
+    }
     unknownFields.writeTo(output);
   }
 
@@ -156,6 +179,10 @@ private static final long serialVersionUID = 0L;
     if (success_ != false) {
       size += com.google.protobuf.CodedOutputStream
         .computeBoolSize(1, success_);
+    }
+    if (catalogVersion_ != 0L) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeInt64Size(2, catalogVersion_);
     }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
@@ -174,6 +201,8 @@ private static final long serialVersionUID = 0L;
 
     if (getSuccess()
         != other.getSuccess()) return false;
+    if (getCatalogVersion()
+        != other.getCatalogVersion()) return false;
     if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
@@ -188,6 +217,9 @@ private static final long serialVersionUID = 0L;
     hash = (37 * hash) + SUCCESS_FIELD_NUMBER;
     hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
         getSuccess());
+    hash = (37 * hash) + CATALOGVERSION_FIELD_NUMBER;
+    hash = (53 * hash) + com.google.protobuf.Internal.hashLong(
+        getCatalogVersion());
     hash = (29 * hash) + unknownFields.hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -327,6 +359,8 @@ private static final long serialVersionUID = 0L;
       super.clear();
       success_ = false;
 
+      catalogVersion_ = 0L;
+
       return this;
     }
 
@@ -354,6 +388,7 @@ private static final long serialVersionUID = 0L;
     public io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseResponse buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseResponse result = new io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseResponse(this);
       result.success_ = success_;
+      result.catalogVersion_ = catalogVersion_;
       onBuilt();
       return result;
     }
@@ -404,6 +439,9 @@ private static final long serialVersionUID = 0L;
       if (other == io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseResponse.getDefaultInstance()) return this;
       if (other.getSuccess() != false) {
         setSuccess(other.getSuccess());
+      }
+      if (other.getCatalogVersion() != 0L) {
+        setCatalogVersion(other.getCatalogVersion());
       }
       this.mergeUnknownFields(other.unknownFields);
       onChanged();
@@ -473,6 +511,49 @@ private static final long serialVersionUID = 0L;
     public Builder clearSuccess() {
 
       success_ = false;
+      onChanged();
+      return this;
+    }
+
+    private long catalogVersion_ ;
+    /**
+     * <pre>
+     * Contains next catalog version
+     * </pre>
+     *
+     * <code>int64 catalogVersion = 2;</code>
+     * @return The catalogVersion.
+     */
+    @java.lang.Override
+    public long getCatalogVersion() {
+      return catalogVersion_;
+    }
+    /**
+     * <pre>
+     * Contains next catalog version
+     * </pre>
+     *
+     * <code>int64 catalogVersion = 2;</code>
+     * @param value The catalogVersion to set.
+     * @return This builder for chaining.
+     */
+    public Builder setCatalogVersion(long value) {
+
+      catalogVersion_ = value;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains next catalog version
+     * </pre>
+     *
+     * <code>int64 catalogVersion = 2;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearCatalogVersion() {
+
+      catalogVersion_ = 0L;
       onChanged();
       return this;
     }

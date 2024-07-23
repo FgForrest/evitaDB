@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,19 +23,18 @@
 
 package io.evitadb.core.query.algebra.price.termination;
 
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.algebra.price.innerRecordHandling.PriceHandlingContainerFormula;
+import io.evitadb.core.query.algebra.price.predicate.PriceAmountPredicate;
+import io.evitadb.core.query.algebra.price.predicate.PricePredicate;
 import io.evitadb.index.bitmap.Bitmap;
-import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.math.BigDecimal;
-import java.util.function.Predicate;
 
 /**
  * PlainPriceTerminationFormula is a simplified variant of {@link PlainPriceTerminationFormulaWithPriceFilter} for cases
@@ -54,22 +53,29 @@ public class PlainPriceTerminationFormula extends AbstractFormula implements Pri
 	 */
 	@Getter private final PriceEvaluationContext priceEvaluationContext;
 
-	public PlainPriceTerminationFormula(@Nonnull PriceHandlingContainerFormula containerFormula, @Nonnull PriceEvaluationContext priceEvaluationContext) {
-		super(containerFormula);
+	public PlainPriceTerminationFormula(@Nonnull Formula containerFormula, @Nonnull PriceEvaluationContext priceEvaluationContext) {
 		this.priceEvaluationContext = priceEvaluationContext;
+		this.initFields(containerFormula);
 	}
 
 	/**
 	 * Returns delegate formula of this container.
 	 */
+	@Nonnull
 	public Formula getDelegate() {
-		return ((PriceHandlingContainerFormula) this.innerFormulas[0]).getDelegate();
+		return this.innerFormulas[0];
+	}
+
+	@Override
+	public void initialize(@Nonnull QueryExecutionContext executionContext) {
+		getDelegate().initialize(executionContext);
+		super.initialize(executionContext);
 	}
 
 	@Nullable
 	@Override
-	public Predicate<BigDecimal> getRequestedPredicate() {
-		return threshold -> true;
+	public PriceAmountPredicate getRequestedPredicate() {
+		return PriceAmountPredicate.ALL;
 	}
 
 	@Nonnull
@@ -77,7 +83,7 @@ public class PlainPriceTerminationFormula extends AbstractFormula implements Pri
 	public Formula getCloneWithInnerFormulas(@Nonnull Formula... innerFormulas) {
 		Assert.isPremiseValid(innerFormulas.length == 1, "Expected exactly single delegate inner formula!");
 		return new PlainPriceTerminationFormula(
-			(PriceHandlingContainerFormula) innerFormulas[0], priceEvaluationContext
+			innerFormulas[0], priceEvaluationContext
 		);
 	}
 
@@ -94,13 +100,7 @@ public class PlainPriceTerminationFormula extends AbstractFormula implements Pri
 
 	@Override
 	public String toString() {
-		return PricePredicate.NO_FILTER.toString();
-	}
-
-	@Nullable
-	@Override
-	public Bitmap getRecordsFilteredOutByPredicate() {
-		return EmptyBitmap.INSTANCE;
+		return PricePredicate.ALL_RECORD_FILTER.toString();
 	}
 
 	@Nonnull

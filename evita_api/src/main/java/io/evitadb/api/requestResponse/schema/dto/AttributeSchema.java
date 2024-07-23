@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -53,7 +53,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits E
 	@Getter @Nonnull private final Map<NamingConvention, String> nameVariants;
 	@Getter @Nullable private final String description;
 	@Getter @Nullable private final String deprecationNotice;
-	@Getter private final boolean unique;
+	@Getter private final AttributeUniquenessType uniquenessType;
 	@Getter private final boolean filterable;
 	@Getter private final boolean sortable;
 	@Getter private final boolean localized;
@@ -77,7 +77,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits E
 		return new AttributeSchema(
 			name, NamingConvention.generate(name),
 			null, null,
-			false, false, false, localized, false,
+			null, false, false, localized, false,
 			type, null,
 			0
 		);
@@ -91,7 +91,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits E
 	 */
 	public static <T extends Serializable> AttributeSchema _internalBuild(
 		@Nonnull String name,
-		boolean unique,
+		@Nullable AttributeUniquenessType unique,
 		boolean filterable,
 		boolean sortable,
 		boolean localized,
@@ -123,7 +123,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits E
 		@Nonnull String name,
 		@Nullable String description,
 		@Nullable String deprecationNotice,
-		boolean unique,
+		@Nullable AttributeUniquenessType unique,
 		boolean filterable,
 		boolean sortable,
 		boolean localized,
@@ -152,7 +152,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits E
 		@Nonnull Map<NamingConvention, String> nameVariants,
 		@Nullable String description,
 		@Nullable String deprecationNotice,
-		boolean unique,
+		@Nullable AttributeUniquenessType unique,
 		boolean filterable,
 		boolean sortable,
 		boolean localized,
@@ -175,7 +175,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits E
 		@Nonnull Map<NamingConvention, String> nameVariants,
 		@Nullable String description,
 		@Nullable String deprecationNotice,
-		boolean unique,
+		@Nullable AttributeUniquenessType uniquenessType,
 		boolean filterable,
 		boolean sortable,
 		boolean localized,
@@ -188,7 +188,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits E
 		this.nameVariants = nameVariants;
 		this.description = description;
 		this.deprecationNotice = deprecationNotice;
-		this.unique = unique;
+		this.uniquenessType = uniquenessType == null ? AttributeUniquenessType.NOT_UNIQUE : uniquenessType;
 		this.filterable = filterable;
 		this.sortable = sortable;
 		this.localized = localized;
@@ -207,10 +207,20 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits E
 	}
 
 	@Override
+	public boolean isUnique() {
+		return uniquenessType != AttributeUniquenessType.NOT_UNIQUE;
+	}
+
+	@Override
+	public boolean isUniqueWithinLocale() {
+		return uniquenessType == AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION_LOCALE;
+	}
+
+	@Override
 	public String toString() {
 		return "AttributeSchema{" +
 			"name='" + name + '\'' +
-			", unique=" + unique +
+			", unique=" + uniquenessType +
 			", filterable=" + filterable +
 			", sortable=" + sortable +
 			", localized=" + localized +

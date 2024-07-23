@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.data.structure.predicate;
 
 import io.evitadb.api.query.require.PriceContentMode;
+import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -49,7 +50,8 @@ class PriceContractSerializablePredicateTest {
 	@Test
 	void shouldCreateRicherCopyForNoPrices() {
 		final PriceContractSerializablePredicate noPricesRequired = new PriceContractSerializablePredicate(
-			PriceContentMode.NONE, null, null, null, null, Collections.emptySet(), false
+			PriceContentMode.NONE, null, null, null, null,
+			Collections.emptySet(), QueryPriceMode.WITH_TAX, false
 		);
 
 		final EvitaRequest evitaRequest = Mockito.mock(EvitaRequest.class);
@@ -65,7 +67,8 @@ class PriceContractSerializablePredicateTest {
 	@Test
 	void shouldCreateRicherCopyForNoPricesAndAdditionalPriceListsInSource() {
 		final PriceContractSerializablePredicate noPricesRequired = new PriceContractSerializablePredicate(
-			PriceContentMode.NONE, null, null, null, new String[] {"A", "B"}, Collections.emptySet(), false
+			PriceContentMode.NONE, null, null, null, new String[] {"A", "B"},
+			Collections.emptySet(), QueryPriceMode.WITH_TAX, false
 		);
 
 		final EvitaRequest evitaRequest = Mockito.mock(EvitaRequest.class);
@@ -84,7 +87,8 @@ class PriceContractSerializablePredicateTest {
 	@Test
 	void shouldCreateRicherCopyForNoPricesAndAdditionalPriceListsInMock() {
 		final PriceContractSerializablePredicate noPricesRequired = new PriceContractSerializablePredicate(
-			PriceContentMode.NONE, null, null, null, null, Collections.emptySet(), false
+			PriceContentMode.NONE, null, null, null, null,
+			Collections.emptySet(), QueryPriceMode.WITH_TAX, false
 		);
 
 		final EvitaRequest evitaRequest = Mockito.mock(EvitaRequest.class);
@@ -103,7 +107,8 @@ class PriceContractSerializablePredicateTest {
 	@Test
 	void shouldCreateRicherCopyForNoPricesAndAdditionalPriceListsInBoth() {
 		final PriceContractSerializablePredicate noPricesRequired = new PriceContractSerializablePredicate(
-			PriceContentMode.NONE, null, null, null, new String[] {"A", "B"}, new HashSet<>(Arrays.asList("A", "B")), false
+			PriceContentMode.NONE, null, null, null, new String[] {"A", "B"},
+			new HashSet<>(Arrays.asList("A", "B")), QueryPriceMode.WITH_TAX, false
 		);
 
 		final EvitaRequest evitaRequest = Mockito.mock(EvitaRequest.class);
@@ -123,7 +128,8 @@ class PriceContractSerializablePredicateTest {
 	@Test
 	void shouldCreateRicherCopyForNoPricesAndPricesAndAdditionalPriceListsInBoth() {
 		final PriceContractSerializablePredicate noPricesRequired = new PriceContractSerializablePredicate(
-			PriceContentMode.NONE, null, null, new String[] {"X", "Z"}, new String[] {"A", "B"}, new HashSet<>(Arrays.asList("A", "B", "X", "Z")), false
+			PriceContentMode.NONE, null, null, new String[] {"X", "Z"}, new String[] {"A", "B"},
+			new HashSet<>(Arrays.asList("A", "B", "X", "Z")), QueryPriceMode.WITH_TAX, false
 		);
 
 		final EvitaRequest evitaRequest = Mockito.mock(EvitaRequest.class);
@@ -144,7 +150,8 @@ class PriceContractSerializablePredicateTest {
 	@Test
 	void shouldNotCreateRicherCopyForNoPrices() {
 		final PriceContractSerializablePredicate noAttributesRequired = new PriceContractSerializablePredicate(
-			PriceContentMode.NONE, null, null, null, null, Collections.emptySet(), false
+			PriceContentMode.NONE, null, null, null, null,
+			Collections.emptySet(), QueryPriceMode.WITH_TAX, false
 		);
 
 		final EvitaRequest evitaRequest = Mockito.mock(EvitaRequest.class);
@@ -160,7 +167,8 @@ class PriceContractSerializablePredicateTest {
 	@Test
 	void shouldNotCreateRicherCopyForNoPricesWhenPricesPresent() {
 		final PriceContractSerializablePredicate noAttributesRequired = new PriceContractSerializablePredicate(
-			PriceContentMode.RESPECTING_FILTER, null, null, null, null, Collections.emptySet(), false
+			PriceContentMode.RESPECTING_FILTER, null, null, null, null,
+			Collections.emptySet(), QueryPriceMode.WITH_TAX, false
 		);
 
 		final EvitaRequest evitaRequest = Mockito.mock(EvitaRequest.class);
@@ -176,7 +184,8 @@ class PriceContractSerializablePredicateTest {
 	@Test
 	void shouldCreateRicherCopyForNoPricesRespectingFilter() {
 		final PriceContractSerializablePredicate pricesRespectingFilterRequired = new PriceContractSerializablePredicate(
-			PriceContentMode.RESPECTING_FILTER, null, null, null, null, Collections.emptySet(), false
+			PriceContentMode.RESPECTING_FILTER, null, null, null, null,
+			Collections.emptySet(), QueryPriceMode.WITH_TAX, false
 		);
 
 		final EvitaRequest evitaRequest = Mockito.mock(EvitaRequest.class);
@@ -192,7 +201,8 @@ class PriceContractSerializablePredicateTest {
 	@Test
 	void shouldNotCreateRicherCopyForRespectingFilter() {
 		final PriceContractSerializablePredicate pricesRespectingFilterRequired = new PriceContractSerializablePredicate(
-			PriceContentMode.NONE, null, null, null, null, Collections.emptySet(), false
+			PriceContentMode.NONE, null, null, null, null,
+			Collections.emptySet(), QueryPriceMode.WITH_TAX, false
 		);
 
 		final EvitaRequest evitaRequest = Mockito.mock(EvitaRequest.class);
@@ -208,7 +218,8 @@ class PriceContractSerializablePredicateTest {
 	@Test
 	void shouldNotCreateRicherCopyForAllPrices() {
 		final PriceContractSerializablePredicate allPrices = new PriceContractSerializablePredicate(
-			PriceContentMode.ALL, null, null, null, null, Collections.emptySet(), false
+			PriceContentMode.ALL, null, null, null, null,
+			Collections.emptySet(), QueryPriceMode.WITH_TAX, false
 		);
 
 		final EvitaRequest evitaRequest = Mockito.mock(EvitaRequest.class);

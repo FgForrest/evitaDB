@@ -7,6 +7,8 @@
         "type": "Category",
         "version": 1,
         "allLocales": [
+          "cs",
+          "de",
           "en"
         ],
         "attributes": {
@@ -85,6 +87,8 @@
         "type": "Category",
         "version": 1,
         "allLocales": [
+          "cs",
+          "de",
           "en"
         ],
         "attributes": {
@@ -263,19 +267,19 @@
         }
       }
     ],
-    "type": "PAGE",
-    "totalRecordCount": 22,
-    "first": true,
-    "last": false,
-    "hasPrevious": false,
-    "hasNext": true,
-    "singlePage": false,
     "empty": false,
-    "pageSize": 20,
-    "pageNumber": 1,
-    "lastPageNumber": 2,
+    "first": true,
     "firstPageItemNumber": 0,
-    "lastPageItemNumber": 19
+    "hasNext": true,
+    "hasPrevious": false,
+    "last": false,
+    "lastPageItemNumber": 19,
+    "lastPageNumber": 2,
+    "pageNumber": 1,
+    "pageSize": 20,
+    "singlePage": false,
+    "totalRecordCount": 22,
+    "type": "PAGE"
   }
 }
 ```

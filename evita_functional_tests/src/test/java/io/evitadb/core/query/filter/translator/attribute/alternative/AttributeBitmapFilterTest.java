@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -34,9 +34,10 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaDecorator;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.core.EvitaSession;
 import io.evitadb.core.query.AttributeSchemaAccessor;
-import io.evitadb.core.query.filter.translator.TestFilterByVisitor;
+import io.evitadb.core.query.filter.translator.TestQueryExecutionContext;
 import io.evitadb.core.query.filter.translator.attribute.AttributeBetweenTranslator;
 import io.evitadb.core.query.filter.translator.attribute.AttributeContainsTranslator;
 import io.evitadb.core.query.filter.translator.attribute.AttributeEndsWithTranslator;
@@ -61,6 +62,8 @@ import javax.annotation.Nonnull;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Map;
 import java.util.Optional;
@@ -93,7 +96,7 @@ class AttributeBitmapFilterTest {
 			TestConstants.TEST_CATALOG,
 			NamingConvention.generate(TestConstants.TEST_CATALOG),
 			EnumSet.allOf(CatalogEvolutionMode.class),
-			entityType -> null
+			new EmptyEntitySchemaAccessor()
 		);
 		final EvitaSession mockSession = Mockito.mock(EvitaSession.class);
 		Mockito.when(mockSession.getCatalogSchema()).thenReturn(new CatalogSchemaDecorator(catalogSchema));
@@ -481,9 +484,8 @@ class AttributeBitmapFilterTest {
 	}
 
 	@Nonnull
-	private TestFilterByVisitor createTestFilterByVisitor(FilterBy filterBy, AttributeBitmapFilter filter) {
-		return new TestFilterByVisitor(
-			catalogSchema,
+	private TestQueryExecutionContext createTestFilterByVisitor(FilterBy filterBy, AttributeBitmapFilter filter) {
+		return new TestQueryExecutionContext(
 			entitySchema,
 			Query.query(
 				collection(Entities.PRODUCT),
@@ -496,4 +498,17 @@ class AttributeBitmapFilterTest {
 		);
 	}
 
+	private static class EmptyEntitySchemaAccessor implements EntitySchemaProvider {
+		@Nonnull
+		@Override
+		public Collection<EntitySchemaContract> getEntitySchemas() {
+			return Collections.emptyList();
+		}
+
+		@Nonnull
+		@Override
+		public Optional<EntitySchemaContract> getEntitySchema(@Nonnull String entityType) {
+			return Optional.empty();
+		}
+	}
 }

@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -26,18 +26,25 @@ package io.evitadb.externalApi.graphql.api.catalog;
 import graphql.ExecutionResult;
 import graphql.execution.ExecutionContext;
 import graphql.execution.instrumentation.Instrumentation;
+import graphql.execution.instrumentation.InstrumentationContext;
 import graphql.execution.instrumentation.InstrumentationState;
 import graphql.execution.instrumentation.SimplePerformantInstrumentation;
+import graphql.execution.instrumentation.parameters.InstrumentationExecuteOperationParameters;
 import graphql.execution.instrumentation.parameters.InstrumentationExecutionParameters;
 import graphql.language.OperationDefinition;
-import io.evitadb.api.EvitaContract;
+import graphql.language.OperationDefinition.Operation;
 import io.evitadb.api.EvitaSessionContract;
-import io.evitadb.externalApi.graphql.exception.GraphQLSchemaBuildingError;
+import io.evitadb.api.exception.RollbackException;
+import io.evitadb.core.Evita;
+import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.util.concurrent.CompletableFuture;
+
+import static graphql.execution.instrumentation.SimpleInstrumentationContext.noOp;
 
 /**
  * GraphQL {@link Instrumentation} which is responsible for managing lifecycle of {@link EvitaSessionContract} during
@@ -53,29 +60,28 @@ import java.util.concurrent.CompletableFuture;
 public class EvitaSessionManagingInstrumentation extends SimplePerformantInstrumentation {
 
     @Nonnull
-    private final EvitaContract evita;
+    private final Evita evita;
     @Nonnull
     private final String catalogName;
 
-    @Nonnull
     @Override
-    public ExecutionContext instrumentExecutionContext(@Nonnull ExecutionContext executionContext,
-                                                       @Nonnull InstrumentationExecutionParameters parameters,
-                                                       @Nonnull InstrumentationState state) {
-        final OperationDefinition.Operation operation = executionContext.getOperationDefinition().getOperation();
+    @Nullable
+    public InstrumentationContext<ExecutionResult> beginExecuteOperation(@Nonnull InstrumentationExecuteOperationParameters parameters,
+                                                                         @Nonnull InstrumentationState state) {
+        final ExecutionContext executionContext = parameters.getExecutionContext();
+        final Operation operation = executionContext.getOperationDefinition().getOperation();
 
         final EvitaSessionContract evitaSession;
         if (operation == OperationDefinition.Operation.QUERY || operation == OperationDefinition.Operation.SUBSCRIPTION) {
             evitaSession = evita.createReadOnlySession(catalogName);
         } else if (operation == OperationDefinition.Operation.MUTATION) {
             evitaSession = evita.createReadWriteSession(catalogName);
-            evitaSession.openTransaction();
         } else {
-            throw new GraphQLSchemaBuildingError("Operation `" + operation + "` is currently not supported by evitaDB GraphQL API.");
+            throw new GraphQLInternalError("Operation `" + operation + "` is currently not supported by evitaDB GraphQL API.");
         }
         executionContext.getGraphQLContext().put(GraphQLContextKey.EVITA_SESSION, evitaSession);
 
-        return executionContext;
+        return noOp();
     }
 
     @Nonnull
@@ -85,11 +91,12 @@ public class EvitaSessionManagingInstrumentation extends SimplePerformantInstrum
                                                                         @Nonnull InstrumentationState state) {
         final EvitaSessionContract evitaSession = parameters.getGraphQLContext().get(GraphQLContextKey.EVITA_SESSION);
         if (evitaSession != null) {
-            // there may not be any session if there was some error in GraphQL query parsing before the session creation
-            if (evitaSession.isTransactionOpen()) {
-                evitaSession.closeTransaction();
+            try {
+                evitaSession.close();
+            } catch (RollbackException ex) {
+                // we can ignore the rollback exception here,
+                // because the exception has been already handled by exception handler
             }
-            evitaSession.close();
         }
 
         return CompletableFuture.completedFuture(executionResult);

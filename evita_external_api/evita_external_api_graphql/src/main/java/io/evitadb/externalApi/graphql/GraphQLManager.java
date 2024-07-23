@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -24,11 +24,15 @@
 package io.evitadb.externalApi.graphql;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.linecorp.armeria.common.HttpRequest;
+import com.linecorp.armeria.common.HttpResponse;
+import com.linecorp.armeria.server.HttpService;
+import com.linecorp.armeria.server.ServiceRequestContext;
 import graphql.GraphQL;
+import graphql.schema.GraphQLSchema;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.requestResponse.cdc.CaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
-import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.core.CorruptedCatalog;
 import io.evitadb.core.Evita;
 import io.evitadb.exception.EvitaInternalError;
@@ -37,32 +41,31 @@ import io.evitadb.externalApi.graphql.api.catalog.SystemGraphQLRefreshingObserve
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.CatalogDataApiGraphQLSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.CatalogSchemaApiGraphQLSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.system.SystemGraphQLBuilder;
+import io.evitadb.externalApi.graphql.api.system.builder.SystemGraphQLSchemaBuilder;
 import io.evitadb.externalApi.graphql.configuration.GraphQLConfig;
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
-import io.evitadb.externalApi.graphql.io.GraphQLExceptionHandler;
-import io.evitadb.externalApi.graphql.io.web.GraphQLWebHandler;
-import io.evitadb.externalApi.graphql.io.webSocket.GraphQLWebSocketHandler;
-import io.evitadb.externalApi.graphql.io.GraphQLSchemaHandler;
-import io.evitadb.externalApi.http.CorsFilter;
-import io.evitadb.externalApi.http.CorsPreflightHandler;
+import io.evitadb.externalApi.graphql.io.GraphQLInstanceType;
+import io.evitadb.externalApi.graphql.io.GraphQLRouter;
+import io.evitadb.externalApi.graphql.metric.event.instance.BuiltEvent;
+import io.evitadb.externalApi.graphql.metric.event.instance.BuiltEvent.BuildType;
+import io.evitadb.externalApi.graphql.utils.GraphQLSchemaPrinter;
+import io.evitadb.externalApi.http.HttpServiceTlsCheckingDecorator;
 import io.evitadb.externalApi.http.PathNormalizingHandler;
-import io.evitadb.externalApi.utils.UriPath;
+import io.evitadb.function.TriFunction;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.StringUtils;
-import io.undertow.Handlers;
-import io.undertow.server.HttpHandler;
-import io.undertow.server.RoutingHandler;
-import io.undertow.server.handlers.BlockingHandler;
-import io.undertow.util.Headers;
-import io.undertow.util.Methods;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static io.evitadb.utils.CollectionUtils.createHashMap;
+import static io.evitadb.utils.CollectionUtils.createHashSet;
 
 /**
  * Manages the whole GraphQL API (its endpoints, lifecycle, etc).
@@ -73,10 +76,6 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
 public class GraphQLManager {
 
 	/**
-	 * Common object mapper for endpoints
-	 */
-	@Nonnull private final ObjectMapper objectMapper = new ObjectMapper();
-	/**
 	 * Provides access to Evita private API
 	 */
 	@Nonnull private final Evita evita;
@@ -86,15 +85,26 @@ public class GraphQLManager {
 	/**
 	 * GraphQL specific endpoint router.
 	 */
-	@Nonnull private final RoutingHandler graphQLRouter = Handlers.routing();
+	@Nonnull private final GraphQLRouter graphQLRouter;
 	/**
 	 * Already registered catalogs (corresponds to existing endpoints as well)
 	 */
-	@Nonnull private final Map<String, RegisteredCatalog> registeredCatalogs = createHashMap(20);
+	@Nonnull private final Set<String> registeredCatalogs = createHashSet(20);
 
-	public GraphQLManager(@Nonnull Evita evita, @Nonnull GraphQLConfig graphQLConfig) {
+	@Nullable private SystemBuildStatistics systemBuildStatistics;
+	@Nonnull private final Map<String, CatalogBuildStatistics> catalogBuildStatistics = createHashMap(20);
+
+	@Nonnull private final TriFunction<ServiceRequestContext, HttpRequest, HttpService, HttpResponse> apiHandlerPortSslValidatingFunction;
+
+	public GraphQLManager(@Nonnull Evita evita, @Nonnull GraphQLConfig graphQLConfig, @Nonnull TriFunction<ServiceRequestContext, HttpRequest, HttpService, HttpResponse> apiHandlerPortSslValidatingFunction) {
 		this.evita = evita;
 		this.graphQLConfig = graphQLConfig;
+		/**
+		 * Common object mapper for endpoints
+		 */
+		ObjectMapper objectMapper = new ObjectMapper();
+		this.graphQLRouter = new GraphQLRouter(objectMapper, evita, graphQLConfig);
+		this.apiHandlerPortSslValidatingFunction = apiHandlerPortSslValidatingFunction;
 
 		final long buildingStartTime = System.currentTimeMillis();
 
@@ -110,8 +120,31 @@ public class GraphQLManager {
 	}
 
 	@Nonnull
-	public HttpHandler getGraphQLRouter() {
-		return new PathNormalizingHandler(graphQLRouter);
+	public HttpService getGraphQLRouter() {
+		return new HttpServiceTlsCheckingDecorator(
+			new PathNormalizingHandler(graphQLRouter), apiHandlerPortSslValidatingFunction
+		);
+	}
+
+	/**
+	 * Initializes system GraphQL endpoint for managing Evita.
+	 */
+	private void registerSystemApi() {
+		final long instanceBuildStartTime = System.currentTimeMillis();
+
+		final long schemaBuildStartTime = System.currentTimeMillis();
+		final GraphQLSchema schema = new SystemGraphQLSchemaBuilder(graphQLConfig, evita).build();
+		final long schemaBuildDuration = System.currentTimeMillis() - schemaBuildStartTime;
+
+		this.graphQLRouter.registerSystemApi(new SystemGraphQLBuilder(evita, schema).build(graphQLConfig));
+		final long instanceBuildDuration = System.currentTimeMillis() - instanceBuildStartTime;
+
+		// build metrics
+		this.systemBuildStatistics = SystemBuildStatistics.createNew(
+			instanceBuildDuration,
+			schemaBuildDuration,
+			countGraphQLSchemaLines(schema)
+		);
 	}
 
 	/**
@@ -124,7 +157,7 @@ public class GraphQLManager {
 			return;
 		}
 		Assert.isPremiseValid(
-			!registeredCatalogs.containsKey(catalogName),
+			!registeredCatalogs.contains(catalogName),
 			() -> new GraphQLInternalError("Catalog `" + catalogName + "` has been already registered.")
 		);
 		// todo jno: uncomment after the catalog captures are implemented
@@ -136,35 +169,59 @@ public class GraphQLManager {
 //		).subscribe(new CatalogGraphQLRefreshingObserver(this));
 
 		try {
-			final UriPath catalogDataApiPath = buildCatalogDataApiPath(catalog.getSchema());
-			final GraphQL catalogDataApiGraphQL = new CatalogGraphQLBuilder(
+			// build data API instance
+			final long dataApiInstanceBuildStartTime = System.currentTimeMillis();
+			final long dataApiSchemaBuildStartTime = System.currentTimeMillis();
+			final GraphQLSchema dataApiSchema = new CatalogDataApiGraphQLSchemaBuilder(graphQLConfig, evita, catalog).build();
+			final long dataApiSchemaBuildDuration = System.currentTimeMillis() - dataApiSchemaBuildStartTime;
+
+			final GraphQL dataApi = new CatalogGraphQLBuilder(
 				evita,
 				catalog,
-				new CatalogDataApiGraphQLSchemaBuilder(graphQLConfig, evita, catalog).build()
+				dataApiSchema
 			).build(graphQLConfig);
-			final RegisteredGraphQLApi registeredDataApiGraphQL = new RegisteredGraphQLApi(
-				catalogDataApiPath,
-				new AtomicReference<>(catalogDataApiGraphQL)
-			);
-			registerGraphQLEndpoint(registeredDataApiGraphQL);
 
-			final UriPath catalogSchemaApiPath = buildCatalogSchemaApiPath(catalog.getSchema());
-			final GraphQL catalogSchemaApiGraphQL = new CatalogGraphQLBuilder(
+			graphQLRouter.registerCatalogApi(catalogName, GraphQLInstanceType.DATA, dataApi);
+			final long dataApiInstanceBuildDuration = System.currentTimeMillis() - dataApiInstanceBuildStartTime;
+
+			// build schema API instance
+			final long schemaApiInstanceBuildStartTime = System.currentTimeMillis();
+			final long schemaApiSchemaBuildStartTime = System.currentTimeMillis();
+			final GraphQLSchema schemaApiSchema = new CatalogSchemaApiGraphQLSchemaBuilder(graphQLConfig, evita, catalog).build();
+			final long schemaApiSchemaBuildDuration = System.currentTimeMillis() - schemaApiSchemaBuildStartTime;
+
+			final GraphQL schemaApi = new CatalogGraphQLBuilder(
 				evita,
 				catalog,
-				new CatalogSchemaApiGraphQLSchemaBuilder(graphQLConfig, evita, catalog).build()
+				schemaApiSchema
 			).build(graphQLConfig);
-			final RegisteredGraphQLApi registeredSchemaApiGraphQL = new RegisteredGraphQLApi(
-				catalogSchemaApiPath,
-				new AtomicReference<>(catalogSchemaApiGraphQL)
-			);
-			registerGraphQLEndpoint(registeredSchemaApiGraphQL);
 
-			final RegisteredCatalog registeredCatalog = new RegisteredCatalog(registeredDataApiGraphQL, registeredSchemaApiGraphQL);
-			registeredCatalogs.put(catalogName, registeredCatalog);
+			graphQLRouter.registerCatalogApi(catalogName, GraphQLInstanceType.SCHEMA, schemaApi);
+			final long schemaApiInstanceBuildDuration = System.currentTimeMillis() - schemaApiInstanceBuildStartTime;
+
+			registeredCatalogs.add(catalogName);
+
+			// build metrics
+			final CatalogBuildStatistics schemaBuildStatistics = CatalogBuildStatistics.createNew(
+				dataApiInstanceBuildDuration,
+				dataApiSchemaBuildDuration,
+				countGraphQLSchemaLines(dataApiSchema),
+				schemaApiInstanceBuildDuration,
+				schemaApiSchemaBuildDuration,
+				countGraphQLSchemaLines(schemaApiSchema)
+			);
+			Assert.isPremiseValid(
+				!catalogBuildStatistics.containsKey(catalogName),
+				() -> new GraphQLInternalError("No build statistics found for catalog `" + catalogName + "`")
+			);
+			catalogBuildStatistics.put(catalogName, schemaBuildStatistics);
 		} catch (EvitaInternalError ex) {
 			// log and skip the catalog entirely
 			log.error("Catalog `" + catalogName + "` is corrupted and will not accessible by GraphQL API.", ex);
+
+			// cleanup corrupted paths
+			graphQLRouter.unregisterCatalogApis(catalogName);
+			catalogBuildStatistics.remove(catalogName);
 		}
 	}
 
@@ -172,8 +229,8 @@ public class GraphQLManager {
 	 * Refreshes already registered catalog endpoint and its {@link GraphQL} instance.
 	 */
 	public void refreshCatalog(@Nonnull String catalogName) {
-		final RegisteredCatalog registeredCatalog = registeredCatalogs.get(catalogName);
-		if (registeredCatalog == null) {
+		final boolean catalogRegistered = registeredCatalogs.contains(catalogName);
+		if (!catalogRegistered) {
 			// there may be case where initial registration failed and catalog is not registered at all
 			// for example, when catalog was corrupted and is replaced with new fresh one
 			log.info("Could not refresh existing catalog `{}`. Registering new one instead...", catalogName);
@@ -183,126 +240,184 @@ public class GraphQLManager {
 
 		final CatalogContract catalog = evita.getCatalogInstanceOrThrowException(catalogName);
 
-		final GraphQL newCatalogDataApiGraphQL = new CatalogGraphQLBuilder(
-			evita,
-			catalog,
-			new CatalogDataApiGraphQLSchemaBuilder(graphQLConfig, evita, catalog).build()
-		).build(graphQLConfig);
-		registeredCatalog.dataApi().graphQLReference().set(newCatalogDataApiGraphQL);
+		// rebuild data API instance
+		final long dataApiInstanceBuildStartTime = System.currentTimeMillis();
+		final long dataApiSchemaBuildStartTime = System.currentTimeMillis();
+		final GraphQLSchema dataApiSchema = new CatalogDataApiGraphQLSchemaBuilder(graphQLConfig, evita, catalog).build();
+		final long dataApiSchemaBuildDuration = System.currentTimeMillis() - dataApiSchemaBuildStartTime;
 
-		final GraphQL newCatalogSchemaApiGraphQL = new CatalogGraphQLBuilder(
+		final GraphQL newDataApi = new CatalogGraphQLBuilder(
 			evita,
 			catalog,
-			new CatalogSchemaApiGraphQLSchemaBuilder(graphQLConfig, evita, catalog).build()
+			dataApiSchema
 		).build(graphQLConfig);
-		registeredCatalog.schemaApi().graphQLReference().set(newCatalogSchemaApiGraphQL);
+
+		graphQLRouter.refreshCatalogApi(catalogName, GraphQLInstanceType.DATA, newDataApi);
+		final long dataApiInstanceBuildDuration = System.currentTimeMillis() - dataApiInstanceBuildStartTime;
+
+		// rebuild schema API instance
+		final long schemaApiInstanceBuildStartTime = System.currentTimeMillis();
+		final long schemaApiSchemaBuildStartTime = System.currentTimeMillis();
+		final GraphQLSchema schemaApiSchema = new CatalogSchemaApiGraphQLSchemaBuilder(graphQLConfig, evita, catalog).build();
+		final long schemaApiSchemaBuildDuration = System.currentTimeMillis() - schemaApiSchemaBuildStartTime;
+
+		final GraphQL newSchemaApi = new CatalogGraphQLBuilder(
+			evita,
+			catalog,
+			schemaApiSchema
+		).build(graphQLConfig);
+
+		graphQLRouter.refreshCatalogApi(catalogName, GraphQLInstanceType.SCHEMA, newSchemaApi);
+		final long schemaApiInstanceBuildDuration = System.currentTimeMillis() - schemaApiInstanceBuildStartTime;
+
+		// build metrics
+		final CatalogBuildStatistics buildStatistics = catalogBuildStatistics.get(catalogName);
+		Assert.isPremiseValid(
+			buildStatistics != null,
+			() -> new GraphQLInternalError("No build statistics found for catalog `" + catalogName + "`")
+		);
+		buildStatistics.refresh(
+			dataApiInstanceBuildDuration,
+			dataApiSchemaBuildDuration,
+			countGraphQLSchemaLines(dataApiSchema),
+			schemaApiInstanceBuildDuration,
+			schemaApiSchemaBuildDuration,
+			countGraphQLSchemaLines(schemaApiSchema)
+		);
 	}
 
 	/**
 	 * Deletes endpoint and its {@link GraphQL} instance for this already registered catalog.
 	 */
 	public void unregisterCatalog(@Nonnull String catalogName) {
-		final RegisteredCatalog registeredCatalog = registeredCatalogs.remove(catalogName);
-		if (registeredCatalog != null) {
-			graphQLRouter.remove(Methods.GET, registeredCatalog.dataApi().path().toString());
-			graphQLRouter.remove(Methods.GET, registeredCatalog.schemaApi().path().toString());
-
-			graphQLRouter.remove(Methods.POST, registeredCatalog.dataApi().path().toString());
-			graphQLRouter.remove(Methods.POST, registeredCatalog.schemaApi().path().toString());
-
-			graphQLRouter.remove(Methods.OPTIONS, registeredCatalog.dataApi().path().toString());
-			graphQLRouter.remove(Methods.OPTIONS, registeredCatalog.schemaApi().path().toString());
+		final boolean catalogRegistered = registeredCatalogs.remove(catalogName);
+		if (catalogRegistered) {
+			graphQLRouter.unregisterCatalogApis(catalogName);
+			catalogBuildStatistics.remove(catalogName);
 		}
 	}
 
 	/**
-	 * Initializes system GraphQL endpoint for managing Evita.
+	 * Allows emitting start events when observability facilities are already initialized.
+	 * If we didn't postpone this initialization, events would become lost.
 	 */
-	private void registerSystemApi() {
-		final GraphQL graphql = new SystemGraphQLBuilder(evita).build(graphQLConfig);
-		registerGraphQLEndpoint(new RegisteredGraphQLApi(
-			UriPath.of("/", "system"),
-			new AtomicReference<>(graphql)
-		));
+	public void emitObservabilityEvents() {
+		Assert.isPremiseValid(
+			systemBuildStatistics != null,
+			() -> new GraphQLInternalError("No build statistics for system API found.")
+		);
+		if (!systemBuildStatistics.reported().get()) {
+			new BuiltEvent(
+				GraphQLInstanceType.SYSTEM,
+				BuildType.NEW,
+				systemBuildStatistics.instanceBuildDuration(),
+				systemBuildStatistics.schemaBuildDuration(),
+				systemBuildStatistics.schemaDslLines()
+			).commit();
+
+			systemBuildStatistics.markAsReported();
+		}
+
+		catalogBuildStatistics.keySet().forEach(this::emitObservabilityEvents);
 	}
 
 	/**
-	 * Creates new GraphQL endpoint on specified path with specified {@link GraphQL} instance.
+	 * Allows emitting start events when observability facilities are already initialized.
+	 * If we didn't postpone this initialization, events would become lost.
 	 */
-	private void registerGraphQLEndpoint(@Nonnull RegisteredGraphQLApi registeredGraphQLApi) {
-		// GraphQL handler for main HTTP web API
-		graphQLRouter.add(
-			Methods.POST,
-			registeredGraphQLApi.path().toString(),
-			new BlockingHandler(
-				new CorsFilter(
-					new GraphQLExceptionHandler(
-						objectMapper,
-						new GraphQLWebHandler(objectMapper, evita, registeredGraphQLApi.graphQLReference())
-					),
-					graphQLConfig.getAllowedOrigins()
-				)
-			)
+	public void emitObservabilityEvents(@Nonnull String catalogName) {
+		final CatalogBuildStatistics buildStatistics = catalogBuildStatistics.get(catalogName);
+		Assert.isPremiseValid(
+			buildStatistics != null,
+			() -> new GraphQLInternalError("No build statistics found for catalog `" + catalogName + "`")
 		);
-		// GraphQL handler for WebSocket web API, may be later used even for the main web API with GET method
-		graphQLRouter.add(
-			Methods.GET,
-			registeredGraphQLApi.path().toString(),
-			new CorsFilter(
-				new GraphQLExceptionHandler(
-					objectMapper,
-					new GraphQLWebSocketHandler(objectMapper, evita, registeredGraphQLApi.graphQLReference())
-				),
-				graphQLConfig.getAllowedOrigins()
-			)
-		);
-		// GraphQL schema handler
-		graphQLRouter.add(
-			Methods.GET,
-			registeredGraphQLApi.path().toString(),
-			new BlockingHandler(
-				new CorsFilter(
-					new GraphQLExceptionHandler(
-						objectMapper,
-						new GraphQLSchemaHandler(registeredGraphQLApi.graphQLReference())
-					),
-					graphQLConfig.getAllowedOrigins()
-				)
-			)
-		);
-		// CORS pre-flight handler for the GraphQL handler
-		graphQLRouter.add(
-			Methods.OPTIONS,
-			registeredGraphQLApi.path().toString(),
-			new BlockingHandler(
-				new CorsPreflightHandler(
-					graphQLConfig.getAllowedOrigins(),
-					Set.of(Methods.GET_STRING, Methods.POST_STRING),
-					Set.of(Headers.CONTENT_TYPE_STRING, Headers.ACCEPT_STRING)
-				)
-			)
-		);
+
+		final BuildType buildType = buildStatistics.buildCount().get() == 1 ? BuildType.NEW : BuildType.REFRESH;
+		new BuiltEvent(
+			catalogName,
+			GraphQLInstanceType.DATA,
+			buildType,
+			buildStatistics.dataApiSchemaBuildDuration().get(),
+			buildStatistics.dataApiSchemaBuildDuration().get(),
+			buildStatistics.dataApiSchemaDslLines().get()
+		).commit();
+		new BuiltEvent(
+			catalogName,
+			GraphQLInstanceType.SCHEMA,
+			buildType,
+			buildStatistics.schemaApiSchemaBuildDuration().get(),
+			buildStatistics.schemaApiSchemaBuildDuration().get(),
+			buildStatistics.schemaApiSchemaDslLines().get()
+		).commit();
 	}
 
 	/**
-	 * Unified way of building catalog's URL path from its name.
+	 * Counts lines of printed GraphQL schema in DSL.
 	 */
-	@Nonnull
-	private UriPath buildCatalogDataApiPath(@Nonnull CatalogSchemaContract catalogSchema) {
-		return UriPath.of(catalogSchema.getName());
+	private long countGraphQLSchemaLines(@Nonnull GraphQLSchema schema) {
+		return GraphQLSchemaPrinter.print(schema).lines().count();
 	}
 
-	/**
-	 * Unified way of building catalog's URL path from its name.
-	 */
-	@Nonnull
-	private UriPath buildCatalogSchemaApiPath(@Nonnull CatalogSchemaContract catalogSchema) {
-		return UriPath.of(buildCatalogDataApiPath(catalogSchema), "schema");
+	private record SystemBuildStatistics(@Nonnull AtomicBoolean reported,
+										 long instanceBuildDuration,
+	                                     long schemaBuildDuration,
+	                                     long schemaDslLines) {
+
+		public static SystemBuildStatistics createNew(long instanceBuildDuration,
+		                                              long schemaBuildDuration,
+		                                              long schemaDslLines) {
+			return new SystemBuildStatistics(
+				new AtomicBoolean(false),
+				instanceBuildDuration,
+				schemaBuildDuration,
+				schemaDslLines
+			);
+		}
+
+		public void markAsReported() {
+			this.reported.set(true);
+		}
 	}
 
-	private record RegisteredCatalog(@Nonnull RegisteredGraphQLApi dataApi,
-	                                 @Nonnull RegisteredGraphQLApi schemaApi) {}
+	private record CatalogBuildStatistics(@Nonnull AtomicInteger buildCount,
+										  @Nonnull AtomicLong dataApiInstanceBuildDuration,
+	                                      @Nonnull AtomicLong dataApiSchemaBuildDuration,
+	                                      @Nonnull AtomicLong dataApiSchemaDslLines,
+										  @Nonnull AtomicLong schemaApiInstanceBuildDuration,
+	                                      @Nonnull AtomicLong schemaApiSchemaBuildDuration,
+	                                      @Nonnull AtomicLong schemaApiSchemaDslLines) {
 
-	private record RegisteredGraphQLApi(@Nonnull UriPath path,
-	                                    @Nonnull AtomicReference<GraphQL> graphQLReference) {}
+		public static CatalogBuildStatistics createNew(long dataApiInstanceBuildDuration,
+		                                               long dataApiSchemaBuildDuration,
+		                                               long dataApiSchemaDslLines,
+		                                               long schemaApiInstanceBuildDuration,
+		                                               long schemaApiSchemaBuildDuration,
+		                                               long schemaApiSchemaDslLines) {
+			return new CatalogBuildStatistics(
+				new AtomicInteger(1),
+				new AtomicLong(dataApiInstanceBuildDuration),
+				new AtomicLong(dataApiSchemaBuildDuration),
+				new AtomicLong(dataApiSchemaDslLines),
+				new AtomicLong(schemaApiInstanceBuildDuration),
+				new AtomicLong(schemaApiSchemaBuildDuration),
+				new AtomicLong(schemaApiSchemaDslLines)
+			);
+		}
+
+		public void refresh(long dataApiInstanceBuildDuration,
+		                    long dataApiSchemaBuildDuration,
+		                    long dataApiSchemaDslLines,
+		                    long schemaApiInstanceBuildDuration,
+		                    long schemaApiSchemaBuildDuration,
+		                    long schemaApiSchemaDslLines) {
+			this.buildCount.incrementAndGet();
+			this.dataApiInstanceBuildDuration.set(dataApiInstanceBuildDuration);
+			this.dataApiSchemaBuildDuration.set(dataApiSchemaBuildDuration);
+			this.dataApiSchemaDslLines.set(dataApiSchemaDslLines);
+			this.schemaApiInstanceBuildDuration.set(schemaApiInstanceBuildDuration);
+			this.schemaApiSchemaBuildDuration.set(schemaApiSchemaBuildDuration);
+			this.schemaApiSchemaDslLines.set(schemaApiSchemaDslLines);
+		}
+	}
+
 }

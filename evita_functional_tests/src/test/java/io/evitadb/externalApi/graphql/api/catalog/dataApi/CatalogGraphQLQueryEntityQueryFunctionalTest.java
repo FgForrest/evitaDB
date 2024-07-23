@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -26,11 +26,15 @@ package io.evitadb.externalApi.graphql.api.catalog.dataApi;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
+import io.evitadb.api.query.require.HistogramBehavior;
+import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.api.requestResponse.EvitaResponse;
+import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
+import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
@@ -65,10 +69,10 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.Leve
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
-import io.evitadb.utils.MapBuilder;
 import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.tester.GraphQLTester;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.MapBuilder;
 import io.evitadb.utils.StringUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -94,11 +98,12 @@ import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.query.order.OrderDirection.DESC;
 import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.*;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
-import static io.evitadb.utils.MapBuilder.map;
 import static io.evitadb.test.generator.DataGenerator.*;
+import static io.evitadb.utils.MapBuilder.map;
 import static org.hamcrest.Matchers.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -839,7 +844,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 						filterBy(
 							hierarchyWithin(
 								Entities.CATEGORY,
-								entityPrimaryKeyInSet(16)
+								entityPrimaryKeyInSet(26)
 							)
 						),
 						require(
@@ -883,7 +888,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 						filterBy: {
 							hierarchyCategoryWithin: {
 								ofParent: {
-									entityPrimaryKeyInSet: 16
+									entityPrimaryKeyInSet: 26
 								}
 							}
 						}
@@ -920,7 +925,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 						filterBy(
 							hierarchyWithin(
 								Entities.CATEGORY,
-								entityPrimaryKeyInSet(16)
+								entityPrimaryKeyInSet(26)
 							)
 						),
 						require(
@@ -968,7 +973,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 						filterBy: {
 							hierarchyCategoryWithin: {
 								ofParent: {
-									entityPrimaryKeyInSet: 16
+									entityPrimaryKeyInSet: 26
 								}
 							}
 						}
@@ -1089,7 +1094,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	void shouldFilterByAndReturnPriceForSaleForMultipleProducts(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final var entities = findEntitiesWithPrice(originalProductEntities, 2);
 
-		final var expectedBody = createBasicPageResponse(entities, this::createEntityDtoWithPriceForSale);
+		final var expectedBody = createBasicPageResponse(entities, this::createEntityDtoWithOnlyOnePriceForSale);
 
 		tester.test(TEST_CATALOG)
 			.document(
@@ -1114,6 +1119,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                                priceList
 		                                priceWithTax
 		                            }
+		                            multiplePricesForSaleAvailable
 	                            }
 	                        }
 	                    }
@@ -1126,6 +1132,158 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
 			.body(PRODUCT_QUERY_PATH, equalTo(expectedBody));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return all prices for sale for master products")
+	void shouldReturnAllPricesForSaleForMasterProducts(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+		final var entities = findEntities(
+			originalProductEntities,
+			it -> it.getPriceInnerRecordHandling().equals(PriceInnerRecordHandling.LOWEST_PRICE) &&
+				it.getPrices(CURRENCY_CZK)
+					.stream()
+					.filter(PriceContract::sellable)
+					.map(PriceContract::innerRecordId)
+					.distinct()
+					.count() > 1,
+			2
+		);
+
+		final List<String> priceLists = entities.stream()
+			.flatMap(it -> it.getPrices(CURRENCY_CZK).stream().map(PriceContract::priceList))
+			.distinct()
+			.toList();
+		assertTrue(priceLists.size() > 1);
+
+		final var expectedBody = createBasicPageResponse(entities, entity -> createEntityDtoWithAllPricesForSale(entity, priceLists.toArray(String[]::new)));
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    queryProduct(
+	                        filterBy: {
+		                        entityPrimaryKeyInSet: [%d, %d]
+		                        priceInCurrency: CZK,
+		                        priceInPriceLists: %s
+	                        }
+                        ) {
+                            __typename
+	                        recordPage {
+	                            __typename
+	                            data {
+	                                primaryKey
+			                        type
+			                        multiplePricesForSaleAvailable
+		                            allPricesForSale {
+		                                __typename
+		                                currency
+		                                priceList
+		                                priceWithTax
+		                                innerRecordId
+		                            }
+	                            }
+	                        }
+	                    }
+	                }
+					""",
+				entities.get(0).getPrimaryKey(),
+				entities.get(1).getPrimaryKey(),
+				serializeStringArrayToQueryString(priceLists)
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(PRODUCT_QUERY_PATH, equalTo(expectedBody));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return custom multiple prices for sale flag for master products")
+	void shouldReturnCustomMultiplePricesForSaleForMasterProducts(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+		final var entities1 = findEntitiesWithPrice(originalProductEntities, 2);
+
+		final var expectedBody1 = createBasicPageResponse(entities1, entity -> createEntityDtoWithMultiplePricesForSaleAvailable(entity, false));
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    queryProduct(
+	                        filterBy: {
+		                        attributeCodeInSet: ["%s", "%s"]
+	                        }
+                        ) {
+                            __typename
+	                        recordPage {
+	                            __typename
+	                            data {
+	                                primaryKey
+			                        type
+		                            multiplePricesForSaleAvailable(currency: CZK, priceLists: "basic")
+	                            }
+	                        }
+	                    }
+	                }
+					""",
+				entities1.get(0).getAttribute(ATTRIBUTE_CODE),
+				entities1.get(1).getAttribute(ATTRIBUTE_CODE)
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(PRODUCT_QUERY_PATH, equalTo(expectedBody1));
+
+		final var entities2 = findEntities(
+			originalProductEntities,
+			it -> it.getPriceInnerRecordHandling().equals(PriceInnerRecordHandling.LOWEST_PRICE) &&
+				it.getPrices(CURRENCY_CZK)
+					.stream()
+					.filter(PriceContract::sellable)
+					.map(PriceContract::innerRecordId)
+					.distinct()
+					.count() > 1,
+			2
+		);
+
+		final List<String> priceLists = entities2.stream()
+			.flatMap(it -> it.getPrices(CURRENCY_CZK).stream().map(PriceContract::priceList))
+			.distinct()
+			.toList();
+		assertTrue(priceLists.size() > 1);
+
+		final var expectedBody2 = createBasicPageResponse(entities2, entity -> createEntityDtoWithMultiplePricesForSaleAvailable(entity, true));
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    queryProduct(
+	                        filterBy: {
+		                        entityPrimaryKeyInSet: [%d, %d]
+	                        }
+                        ) {
+                            __typename
+	                        recordPage {
+	                            __typename
+	                            data {
+	                                primaryKey
+			                        type
+			                        multiplePricesForSaleAvailable(currency: CZK, priceLists: %s)
+	                            }
+	                        }
+	                    }
+	                }
+					""",
+				entities2.get(0).getPrimaryKey(),
+				entities2.get(1).getPrimaryKey(),
+				serializeStringArrayToQueryString(priceLists)
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(PRODUCT_QUERY_PATH, equalTo(expectedBody2));
 	}
 
 	@Test
@@ -1206,7 +1364,14 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return custom price for sale for products")
 	void shouldReturnCustomPriceForSaleForProducts(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
-		final var entities = findEntitiesWithPrice(originalProductEntities, 2);
+		final var entities = findEntities(
+			originalProductEntities,
+			it -> it.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).size() == 1 &&
+				it.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).stream().allMatch(PriceContract::sellable) &&
+				!it.getPrices(CURRENCY_EUR).isEmpty() &&
+				it.getPrices(CURRENCY_EUR).stream().allMatch(PriceContract::sellable),
+			2
+		);
 
 		final var expectedBody = createBasicPageResponse(
 			entities,
@@ -1220,6 +1385,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	                    queryProduct(
 	                        filterBy: {
 	                            entityPrimaryKeyInSet: [%d, %d]
+	                            priceInCurrency: EUR
 	                        }
 	                    ) {
 	                        __typename
@@ -1471,7 +1637,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
 			.body(
-				resultPath(PRODUCT_QUERY_DATA_PATH, EntityDescriptor.PRICE),
+				resultPath(PRODUCT_QUERY_DATA_PATH, GraphQLEntityDescriptor.PRICE),
 				equalTo(List.of(
 					map()
 						.e(PriceDescriptor.PRICE_ID.name(), vipPrices.iterator().next().priceId())
@@ -1770,22 +1936,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	void shouldReturnFilteredPricesForProducts(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final List<SealedEntity> entities = findEntitiesWithPrice(originalProductEntities, 2);
 
-		final var expectedBody = createBasicPageResponse(
-			entities,
-			entity ->
-				map()
-					.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
-					.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
-					.e("prices", List.of(
-						map()
-							.e(TYPENAME_FIELD, PriceDescriptor.THIS.name())
-							.e(PriceDescriptor.CURRENCY.name(), CURRENCY_CZK.toString())
-							.e(PriceDescriptor.PRICE_LIST.name(), PRICE_LIST_BASIC)
-							.e(PriceDescriptor.PRICE_WITH_TAX.name(), entity.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).iterator().next().priceWithTax().toString())
-							.build()
-					))
-					.build()
-		);
+		final var expectedBody = createBasicPageResponse(entities, this::createEntityDtoWithPrices);
 
 		tester.test(TEST_CATALOG)
 			.document(
@@ -1989,6 +2140,407 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.executeAndThen()
 			.statusCode(200)
 			.body(ERRORS_PATH, hasSize(greaterThan(0)));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return accompanying prices for single price for sale")
+	void shouldReturnAccompanyingPricesForSinglePriceForSale(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+		final List<Integer> desiredEntities = originalProductEntities.stream()
+			.filter(entity ->
+				entity.getPrices(CURRENCY_CZK).stream()
+					.anyMatch(price -> price.priceList().equals(PRICE_LIST_BASIC)) &&
+					entity.getPrices(CURRENCY_CZK).stream()
+						.anyMatch(price -> price.priceList().equals(PRICE_LIST_REFERENCE)) &&
+					entity.getPrices(CURRENCY_CZK).stream()
+						.anyMatch(price -> price.priceList().equals(PRICE_LIST_VIP)))
+			.map(entity -> entity.getPrimaryKey())
+			.toList();
+		assertTrue(desiredEntities.size() > 1);
+
+
+		final EvitaResponse<SealedEntity> exampleResponse = queryEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					entityPrimaryKeyInSet(desiredEntities.toArray(Integer[]::new)),
+					priceInPriceLists(PRICE_LIST_BASIC),
+					priceInCurrency(CURRENCY_CZK)
+				),
+				require(
+					entityFetch(
+						priceContent(PriceContentMode.RESPECTING_FILTER, PRICE_LIST_REFERENCE, PRICE_LIST_VIP)
+					)
+				)
+			),
+			SealedEntity.class
+		);
+
+		final Map<String, Object> expectedBody = createBasicPageResponse(
+			exampleResponse.getRecordData(),
+			this::createEntityDtoWithAccompanyingPricesForSinglePriceForSale
+		);
+		tester.test(TEST_CATALOG)
+			.document("""
+				query {
+					queryProduct(
+						filterBy: {
+							entityPrimaryKeyInSet: %s,
+							priceInPriceLists: "basic",
+							priceInCurrency: CZK
+						}
+					) {
+						__typename
+						recordPage {
+							__typename
+							data {
+								primaryKey
+								type
+								priceForSale {
+									__typename
+									priceWithTax
+									accompanyingPrice(priceLists: "reference") {
+										__typename
+										priceWithTax
+									}
+									vipPrice: accompanyingPrice(priceLists: "vip") {
+										__typename
+										priceWithTax
+									}
+								}
+							}
+						}
+					}
+				}
+				""",
+				serializeIntArrayToQueryString(desiredEntities))
+			.executeAndExpectOkAndThen()
+			.body(PRODUCT_QUERY_PATH, equalTo(expectedBody));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return accompanying prices for single custom price for sale")
+	void shouldReturnAccompanyingPricesForSingleCustomPriceForSale(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+		final List<Integer> desiredEntities = originalProductEntities.stream()
+			.filter(entity ->
+				entity.getPrices(CURRENCY_CZK).stream()
+					.anyMatch(price -> price.priceList().equals(PRICE_LIST_BASIC)) &&
+					entity.getPrices(CURRENCY_CZK).stream()
+						.anyMatch(price -> price.priceList().equals(PRICE_LIST_REFERENCE)) &&
+					entity.getPrices(CURRENCY_CZK).stream()
+						.anyMatch(price -> price.priceList().equals(PRICE_LIST_VIP)))
+			.map(entity -> entity.getPrimaryKey())
+			.toList();
+		assertTrue(desiredEntities.size() > 1);
+
+
+		final EvitaResponse<SealedEntity> exampleResponse = queryEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					entityPrimaryKeyInSet(desiredEntities.toArray(Integer[]::new))
+				),
+				require(
+					entityFetch(
+						priceContentAll()
+					)
+				)
+			),
+			SealedEntity.class
+		);
+
+		final Map<String, Object> expectedBody = createBasicPageResponse(
+			exampleResponse.getRecordData(),
+			this::createEntityDtoWithAccompanyingPricesForSinglePriceForSale
+		);
+		tester.test(TEST_CATALOG)
+			.document("""
+				query {
+					queryProduct(
+						filterBy: {
+							entityPrimaryKeyInSet: %s
+						}
+					) {
+						__typename
+						recordPage {
+							__typename
+							data {
+								primaryKey
+								type
+								priceForSale(priceLists: "basic", currency: CZK) {
+									__typename
+									priceWithTax
+									accompanyingPrice(priceLists: "reference") {
+										__typename
+										priceWithTax
+									}
+									vipPrice: accompanyingPrice(priceLists: "vip") {
+										__typename
+										priceWithTax
+									}
+								}
+							}
+						}
+					}
+				}
+				""",
+				serializeIntArrayToQueryString(desiredEntities))
+			.executeAndExpectOkAndThen()
+			.body(PRODUCT_QUERY_PATH, equalTo(expectedBody));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return accompanying prices for all prices for sale")
+	void shouldReturnAccompanyingPricesForAllPricesForSale(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+		final List<Integer> desiredEntities = originalProductEntities.stream()
+			.filter(entity ->
+				entity.getPriceInnerRecordHandling().equals(PriceInnerRecordHandling.LOWEST_PRICE) &&
+				entity.getPrices(CURRENCY_CZK).stream()
+					.anyMatch(price -> price.priceList().equals(PRICE_LIST_BASIC)) &&
+					entity.getPrices(CURRENCY_CZK).stream()
+						.anyMatch(price -> price.priceList().equals(PRICE_LIST_REFERENCE)) &&
+					entity.getPrices(CURRENCY_CZK).stream()
+						.anyMatch(price -> price.priceList().equals(PRICE_LIST_VIP)))
+			.map(entity -> entity.getPrimaryKey())
+			.toList();
+		assertTrue(desiredEntities.size() > 1);
+
+
+		final EvitaResponse<SealedEntity> exampleResponse = queryEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					entityPrimaryKeyInSet(desiredEntities.toArray(Integer[]::new)),
+					priceInPriceLists(PRICE_LIST_BASIC),
+					priceInCurrency(CURRENCY_CZK)
+				),
+				require(
+					entityFetch(
+						priceContent(PriceContentMode.RESPECTING_FILTER, PRICE_LIST_REFERENCE, PRICE_LIST_VIP)
+					)
+				)
+			),
+			SealedEntity.class
+		);
+
+		final Map<String, Object> expectedBody = createBasicPageResponse(
+			exampleResponse.getRecordData(),
+			this::createEntityDtoWithAccompanyingPricesForAllPricesForSale
+		);
+		tester.test(TEST_CATALOG)
+			.document("""
+				query {
+					queryProduct(
+						filterBy: {
+							entityPrimaryKeyInSet: %s,
+							priceInPriceLists: "basic",
+							priceInCurrency: CZK
+						}
+					) {
+						__typename
+						recordPage {
+							__typename
+							data {
+								primaryKey
+								type
+								allPricesForSale {
+									__typename
+									priceWithTax
+									accompanyingPrice(priceLists: "reference") {
+										__typename
+										priceWithTax
+									}
+									vipPrice: accompanyingPrice(priceLists: "vip") {
+										__typename
+										priceWithTax
+									}
+								}
+							}
+						}
+					}
+				}
+				""",
+				serializeIntArrayToQueryString(desiredEntities))
+			.executeAndExpectOkAndThen()
+			.body(PRODUCT_QUERY_PATH, equalTo(expectedBody));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return accompanying prices for all custom prices for sale")
+	void shouldReturnAccompanyingPricesForAllCustomPricesForSale(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+		final List<Integer> desiredEntities = originalProductEntities.stream()
+			.filter(entity ->
+				entity.getPriceInnerRecordHandling().equals(PriceInnerRecordHandling.LOWEST_PRICE) &&
+				entity.getPrices(CURRENCY_CZK).stream()
+					.anyMatch(price -> price.priceList().equals(PRICE_LIST_BASIC)) &&
+					entity.getPrices(CURRENCY_CZK).stream()
+						.anyMatch(price -> price.priceList().equals(PRICE_LIST_REFERENCE)) &&
+					entity.getPrices(CURRENCY_CZK).stream()
+						.anyMatch(price -> price.priceList().equals(PRICE_LIST_VIP)))
+			.map(entity -> entity.getPrimaryKey())
+			.toList();
+		assertTrue(desiredEntities.size() > 1);
+
+
+		final EvitaResponse<SealedEntity> exampleResponse = queryEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					entityPrimaryKeyInSet(desiredEntities.toArray(Integer[]::new))
+				),
+				require(
+					entityFetch(
+						priceContentAll()
+					)
+				)
+			),
+			SealedEntity.class
+		);
+
+		final Map<String, Object> expectedBody = createBasicPageResponse(
+			exampleResponse.getRecordData(),
+			this::createEntityDtoWithAccompanyingPricesForAllPricesForSale
+		);
+		tester.test(TEST_CATALOG)
+			.document("""
+				query {
+					queryProduct(
+						filterBy: {
+							entityPrimaryKeyInSet: %s
+						}
+					) {
+						__typename
+						recordPage {
+							__typename
+							data {
+								primaryKey
+								type
+								allPricesForSale(priceLists: "basic", currency: CZK) {
+									__typename
+									priceWithTax
+									accompanyingPrice(priceLists: "reference") {
+										__typename
+										priceWithTax
+									}
+									vipPrice: accompanyingPrice(priceLists: "vip") {
+										__typename
+										priceWithTax
+									}
+								}
+							}
+						}
+					}
+				}
+				""",
+				serializeIntArrayToQueryString(desiredEntities))
+			.executeAndExpectOkAndThen()
+			.body(PRODUCT_QUERY_PATH, equalTo(expectedBody));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return error for accompanying prices without price lists in single price for sale")
+	void shouldReturnErrorForAccompanyingPricesWithoutPriceListsInSinglePriceForSale(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+		final List<Integer> desiredEntities = originalProductEntities.stream()
+			.filter(entity ->
+				entity.getPrices(CURRENCY_CZK).stream()
+					.anyMatch(price -> price.priceList().equals(PRICE_LIST_BASIC)) &&
+					entity.getPrices(CURRENCY_CZK).stream()
+						.anyMatch(price -> price.priceList().equals(PRICE_LIST_REFERENCE)) &&
+					entity.getPrices(CURRENCY_CZK).stream()
+						.anyMatch(price -> price.priceList().equals(PRICE_LIST_VIP)))
+			.map(entity -> entity.getPrimaryKey())
+			.toList();
+		assertTrue(desiredEntities.size() > 1);
+
+		tester.test(TEST_CATALOG)
+			.document("""
+				query {
+					queryProduct(
+						filterBy: {
+							entityPrimaryKeyInSet: %s,
+							priceInPriceLists: "basic",
+							priceInCurrency: CZK
+						}
+					) {
+						__typename
+						recordPage {
+							__typename
+							data {
+								primaryKey
+								type
+								priceForSale {
+									__typename
+									priceWithTax
+									accompanyingPrice {
+										__typename
+										priceWithTax
+									}
+								}
+							}
+						}
+					}
+				}
+				""",
+				serializeIntArrayToQueryString(desiredEntities))
+			.executeAndExpectErrorsAndThen();
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return error for accompanying prices without price lists in all prices for sale")
+	void shouldReturnErrorForAccompanyingPricesWithoutPriceListsInAllPricesForSale(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+		final List<Integer> desiredEntities = originalProductEntities.stream()
+			.filter(entity ->
+				entity.getPriceInnerRecordHandling().equals(PriceInnerRecordHandling.LOWEST_PRICE) &&
+				entity.getPrices(CURRENCY_CZK).stream()
+					.anyMatch(price -> price.priceList().equals(PRICE_LIST_BASIC)) &&
+				entity.getPrices(CURRENCY_CZK).stream()
+					.anyMatch(price -> price.priceList().equals(PRICE_LIST_REFERENCE)) &&
+				entity.getPrices(CURRENCY_CZK).stream()
+					.anyMatch(price -> price.priceList().equals(PRICE_LIST_VIP)))
+			.map(entity -> entity.getPrimaryKey())
+			.toList();
+		assertTrue(desiredEntities.size() > 1);
+
+		tester.test(TEST_CATALOG)
+			.document("""
+				query {
+					queryProduct(
+						filterBy: {
+							entityPrimaryKeyInSet: %s,
+							priceInPriceLists: "basic",
+							priceInCurrency: CZK
+						}
+					) {
+						__typename
+						recordPage {
+							__typename
+							data {
+								primaryKey
+								type
+								allPricesForSale {
+									__typename
+									priceWithTax
+									accompanyingPrice {
+										__typename
+										priceWithTax
+									}
+								}
+							}
+						}
+					}
+				}
+				""",
+				serializeIntArrayToQueryString(desiredEntities))
+			.executeAndExpectErrorsAndThen();
 	}
 
 	@Test
@@ -2706,11 +3258,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.document(
 				"""
 		            query {
-		                queryProduct(
-		                    filterBy: {
-		                        attributeAliasIs: NOT_NULL
-		                    }
-		                ) {
+		                queryProduct {
 		                    recordPage(size: %d) {
 		                        data {
 		                            primaryKey
@@ -2727,7 +3275,81 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                                overallCount
 		                                buckets(requestedCount: 20) {
 		                                    __typename
-		                                    index
+		                                    threshold
+		                                    occurrences
+		                                    requested
+		                                }
+		                            }
+		                        }
+		                    }
+		                }
+		            }
+					""",
+				Integer.MAX_VALUE
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(
+				resultPath(PRODUCT_QUERY_PATH, ResponseDescriptor.EXTRA_RESULTS, TYPENAME_FIELD),
+				equalTo(ExtraResultsDescriptor.THIS.name(createEmptyEntitySchema("Product")))
+			)
+			.body(
+				resultPath(PRODUCT_QUERY_PATH, ResponseDescriptor.EXTRA_RESULTS, ExtraResultsDescriptor.ATTRIBUTE_HISTOGRAM, TYPENAME_FIELD),
+				equalTo(AttributeHistogramDescriptor.THIS.name(createEmptyEntitySchema("Product")))
+			)
+			.body(
+				resultPath(PRODUCT_QUERY_PATH, ResponseDescriptor.EXTRA_RESULTS, ExtraResultsDescriptor.ATTRIBUTE_HISTOGRAM, ATTRIBUTE_QUANTITY),
+				equalTo(expectedHistogram)
+			);
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return optimized attribute histogram")
+	void shouldReturnOptimizedAttributeHistogram(Evita evita, GraphQLTester tester) {
+		final EvitaResponse<EntityReference> response = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							attributeIsNotNull(ATTRIBUTE_ALIAS)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							attributeHistogram(20, HistogramBehavior.OPTIMIZED, ATTRIBUTE_QUANTITY)
+						)
+					),
+					EntityReference.class
+				);
+			}
+		);
+
+		final var expectedHistogram = createAttributeHistogramDto(response, ATTRIBUTE_QUANTITY);
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+		            query {
+		                queryProduct {
+		                    recordPage(size: %d) {
+		                        data {
+		                            primaryKey
+		                        }
+		                    }
+		                    extraResults {
+		                        __typename
+		                        attributeHistogram {
+		                            __typename
+		                            quantity {
+		                                __typename
+		                                min
+		                                max
+		                                overallCount
+		                                buckets(requestedCount: 20, behavior: OPTIMIZED) {
+		                                    __typename
 		                                    threshold
 		                                    occurrences
 		                                    requested
@@ -2791,7 +3413,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		            query {
 		                queryProduct(
 		                    filterBy: {
-		                        attributeAliasIs: NOT_NULL,
 		                        userFilter: {
 		                            attributeQuantityBetween: ["100", "900"]
 	                            }
@@ -2813,7 +3434,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                                overallCount
 		                                buckets(requestedCount: 20) {
 		                                    __typename
-		                                    index
 		                                    threshold
 		                                    occurrences
 		                                    requested
@@ -2873,11 +3493,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.document(
 				"""
 		            query {
-		                queryProduct(
-		                    filterBy: {
-		                        attributeAliasIs: NOT_NULL
-		                    }
-		                ) {
+		                queryProduct {
 		                    recordPage(size: %d) {
 		                        data {
 		                            primaryKey
@@ -2892,7 +3508,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                                overallCount
 		                                buckets(requestedCount: 20) {
 		                                    __typename
-		                                    index
 		                                    threshold
 		                                    occurrences
 		                                    requested
@@ -2909,7 +3524,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                                overallCount
 		                                buckets(requestedCount: 20) {
 		                                    __typename
-		                                    index
 		                                    threshold
 		                                    occurrences
 		                                    requested
@@ -2945,9 +3559,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				return session.query(
 					query(
 						collection(Entities.PRODUCT),
-						filterBy(
-							attributeIsNotNull(ATTRIBUTE_ALIAS)
-						),
 						require(
 							page(1, Integer.MAX_VALUE),
 							attributeHistogram(20, ATTRIBUTE_QUANTITY)
@@ -2964,11 +3575,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.document(
 				"""
 		            query {
-		                queryProduct(
-		                    filterBy: {
-		                        attributeAliasIs: NOT_NULL
-		                    }
-		                ) {
+		                queryProduct {
 		                    recordPage(size: %d) {
 		                        data {
 		                            primaryKey
@@ -2983,7 +3590,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                                overallCount
 		                                buckets(requestedCount: 20) {
 		                                    __typename
-		                                    index
 		                                    threshold
 		                                    occurrences
 		                                    requested
@@ -2994,9 +3600,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                                min
 		                                max
 		                                overallCount
-		                                buckets(requestedCount: 20) {
+		                                buckets(requestedCount: 20, behavior: STANDARD) {
 		                                    __typename
-		                                    index
 		                                    threshold
 		                                    occurrences
 		                                    requested
@@ -3046,7 +3651,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                                max
 		                                overallCount
 		                                buckets {
-		                                    index
 		                                    threshold
 		                                    occurrences
 		                                }
@@ -3102,6 +3706,49 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return error for multiple attribute histogram buckets behavior")
+	void shouldReturnErrorForMultipleAttributeHistogramBucketsBehavior(GraphQLTester tester) {
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+		            query {
+		                queryProduct(
+		                    filterBy: {
+		                        attributeAliasIs: NOT_NULL
+		                    }
+		                ) {
+		                    recordPage(size: %d) {
+		                        data {
+		                            primaryKey
+		                        }
+		                    }
+		                    extraResults {
+		                        attributeHistogram {
+		                            quantity {
+		                                min
+		                                max
+		                                overallCount
+		                                buckets(requestedCount: 10, behavior: OPTIMIZED) {
+		                                    threshold
+		                                }
+		                                otherBuckets: buckets(requestedCount: 10) {
+		                                    threshold
+		                                }
+		                            }
+		                        }
+		                    }
+		                }
+		            }
+					""",
+				Integer.MAX_VALUE
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, hasSize(greaterThan(0)));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error for multiple attribute histogram buckets count")
 	void shouldReturnErrorForMultipleAttributeHistogramBucketsCount(GraphQLTester tester) {
 		tester.test(TEST_CATALOG)
@@ -3125,10 +3772,10 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                                max
 		                                overallCount
 		                                buckets(requestedCount: 10) {
-		                                    index
+		                                    threshold
 		                                }
 		                                otherBuckets: buckets(requestedCount: 20) {
-		                                    index
+		                                    threshold
 		                                }
 		                            }
 		                        }
@@ -3142,6 +3789,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.statusCode(200)
 			.body(ERRORS_PATH, hasSize(greaterThan(0)));
 	}
+
 
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
@@ -3195,7 +3843,82 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	                                overallCount
 	                                buckets(requestedCount: 20) {
 	                                    __typename
-	                                    index
+	                                    threshold
+	                                    occurrences
+	                                    requested
+	                                }
+		                        }
+		                    }
+		                }
+		            }
+					""",
+				Integer.MAX_VALUE
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(
+				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + TYPENAME_FIELD,
+				equalTo(ExtraResultsDescriptor.THIS.name(createEmptyEntitySchema("Product")))
+			)
+			.body(
+				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.PRICE_HISTOGRAM.name(),
+				equalTo(expectedBody)
+			);
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return optimized price histogram")
+	void shouldReturnOptimizedPriceHistogram(Evita evita, GraphQLTester tester) {
+		final EvitaResponse<EntityReference> response = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							and(
+								priceInCurrency(CURRENCY_EUR),
+								priceInPriceLists(PRICE_LIST_VIP, PRICE_LIST_BASIC)
+							)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							priceHistogram(20, HistogramBehavior.OPTIMIZED)
+						)
+					),
+					EntityReference.class
+				);
+			}
+		);
+
+		final var expectedBody = createPriceHistogramDto(response);
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+		            query {
+		                queryProduct(
+		                    filterBy: {
+		                        priceInCurrency: EUR
+		                        priceInPriceLists: ["vip", "basic"]
+		                    }
+		                ) {
+		                    recordPage(size: %d) {
+		                        data {
+		                            primaryKey
+		                        }
+		                    }
+		                    extraResults {
+		                        __typename
+		                        priceHistogram {
+		                            __typename
+	                                min
+	                                max
+	                                overallCount
+	                                buckets(requestedCount: 20, behavior: OPTIMIZED) {
+	                                    __typename
 	                                    threshold
 	                                    occurrences
 	                                    requested
@@ -3280,7 +4003,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	                                overallCount
 	                                buckets(requestedCount: 20) {
 	                                    __typename
-	                                    index
 	                                    threshold
 	                                    occurrences
 	                                    requested
@@ -3356,7 +4078,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	                                overallCount
 	                                buckets(requestedCount: 20) {
 	                                    __typename
-	                                    index
 	                                    threshold
 	                                    occurrences
 	                                    requested
@@ -3367,9 +4088,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	                                min
 	                                max
 	                                overallCount
-	                                buckets(requestedCount: 20) {
+	                                buckets(requestedCount: 20, behavior: STANDARD) {
 	                                    __typename
-	                                    index
 	                                    threshold
 	                                    occurrences
 	                                    requested
@@ -3419,7 +4139,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	                                max
 	                                overallCount
 	                                buckets {
-	                                    index
 	                                    threshold
 	                                    occurrences
 	                                    requested
@@ -3497,12 +4216,54 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	                                max
 	                                overallCount
 	                                buckets(requestedCount: 10) {
-	                                    index
 	                                    threshold
 	                                    occurrences
 	                                }
 	                                otherBuckets: buckets(requestedCount: 20) {
-	                                    index
+	                                    threshold
+	                                    occurrences
+	                                }
+		                        }
+		                    }
+		                }
+		            }
+					""",
+				Integer.MAX_VALUE
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, hasSize(greaterThan(0)));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return error for multiple price histogram buckets behaviors")
+	void shouldReturnErrorForMultiplePriceHistogramBucketsBehaviors(GraphQLTester tester) {
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+		            query {
+		                queryProduct(
+		                    filterBy: {
+		                        priceInCurrency: EUR
+		                        priceInPriceLists: ["vip", "basic"]
+		                    }
+		                ) {
+		                    recordPage(size: %d) {
+		                        data {
+		                            primaryKey
+		                        }
+		                    }
+		                    extraResults {
+		                        priceHistogram {
+	                                min
+	                                max
+	                                overallCount
+	                                buckets(requestedCount: 10, behavior: OPTIMIZED) {
+	                                    threshold
+	                                    occurrences
+	                                }
+	                                otherBuckets: buckets(requestedCount: 10) {
 	                                    threshold
 	                                    occurrences
 	                                }
@@ -4732,7 +5493,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		);
 		assertFalse(response.getExtraResult(FacetSummary.class).getReferenceStatistics().isEmpty());
 
-		final var expectedBody = createFacetSummaryWithCountsDto(response, Entities.BRAND);
+		final var expectedBody = createNonGroupedFacetSummaryWithCountsDto(response, Entities.BRAND);
 
 		tester.test(TEST_CATALOG)
 			.document(
@@ -4745,11 +5506,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                            __typename
 		                            brand {
 		                                __typename
-		                                groupEntity {
-			                                __typename
-			                                primaryKey
-			                                type
-			                            }
 			                            count
 			                            facetStatistics {
 			                                __typename
@@ -4810,7 +5566,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		);
 		assertFalse(response.getExtraResult(FacetSummary.class).getReferenceStatistics().isEmpty());
 
-		final var expectedBody = createFacetSummaryWithImpactsDto(response);
+		final var expectedBody = createNonGroupedFacetSummaryWithImpactsDto(response, Entities.BRAND);
 
 		tester.test(TEST_CATALOG)
 			.document(
@@ -4820,10 +5576,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                    extraResults {
 		                        facetSummary {
 		                            brand {
-		                                groupEntity {
-		                                    primaryKey
-		                                    type
-		                                }
 		                                count
 			                            facetStatistics {
 			                                facetEntity {
@@ -4900,7 +5652,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                            parameter(
 		                                filterGroupBy: {
 		                                    attributeCodeLessThanEquals: "K",
-		                                    entityLocaleEquals: en		                                   
+		                                    entityLocaleEquals: en                                   
 			                            },
 			                            orderGroupBy: {
 			                                attributeNameNatural: DESC
@@ -4937,6 +5689,60 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.body(
 				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.FACET_SUMMARY.name() + ".parameter",
 				equalTo(expectedBody)
+			);
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return empty facet summary of non-grouped reference if missing reference")
+	void shouldReturnEmptyFacetSummaryOfNonGroupedReferenceIfMissingReference(Evita evita, GraphQLTester tester) {
+		final EntityClassifier entityWithoutBrand = getEntity(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					not(referenceHaving(Entities.BRAND))
+				),
+				require(
+					strip(0, 1)
+				)
+			)
+		);
+		assertNotNull(entityWithoutBrand);
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+		            query {
+		                queryProduct(
+		                    filterBy: {
+		                        entityPrimaryKeyInSet: %d
+		                    }
+		                ) {
+		                    extraResults {
+		                        facetSummary {
+		                            brand {
+			                            count
+		                            }
+		                        }
+		                    }
+		                }
+		            }
+					""",
+				entityWithoutBrand.getPrimaryKey()
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(
+				resultPath(PRODUCT_QUERY_PATH),
+				equalTo(
+					map()
+						.e(ResponseDescriptor.EXTRA_RESULTS.name(), map()
+							.e(ExtraResultsDescriptor.FACET_SUMMARY.name(), map()
+								.e("brand", null)))
+						.build()
+				)
 			);
 	}
 
@@ -5209,7 +6015,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.e(HistogramDescriptor.BUCKETS.name(), Arrays.stream(histogram.getBuckets())
 				.map(bucket -> map()
 					.e(TYPENAME_FIELD, BucketDescriptor.THIS.name())
-					.e(BucketDescriptor.INDEX.name(), bucket.index())
 					.e(BucketDescriptor.THRESHOLD.name(), bucket.threshold().toString())
 					.e(BucketDescriptor.OCCURRENCES.name(), bucket.occurrences())
 					.e(BucketDescriptor.REQUESTED.name(), bucket.requested())
@@ -5234,7 +6039,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.e(HistogramDescriptor.BUCKETS.name(), Arrays.stream(priceHistogram.getBuckets())
 				.map(bucket -> map()
 					.e(TYPENAME_FIELD, BucketDescriptor.THIS.name())
-					.e(BucketDescriptor.INDEX.name(), bucket.index())
 					.e(BucketDescriptor.THRESHOLD.name(), bucket.threshold().toString())
 					.e(BucketDescriptor.OCCURRENCES.name(), bucket.occurrences())
 					.e(BucketDescriptor.REQUESTED.name(), bucket.requested())
@@ -5277,6 +6081,35 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	}
 
 	@Nonnull
+	private Map<String, Object> createNonGroupedFacetSummaryWithCountsDto(@Nonnull EvitaResponse<EntityReference> response,
+	                                                                      @Nonnull String referenceName) {
+		final FacetSummary facetSummary = response.getExtraResult(FacetSummary.class);
+
+		return Optional.ofNullable(facetSummary.getFacetGroupStatistics(referenceName))
+			.map(groupStatistics ->
+				map()
+					.e(TYPENAME_FIELD, FacetGroupStatisticsDescriptor.THIS.name(createEmptyEntitySchema(Entities.PRODUCT), createEmptyEntitySchema(referenceName)))
+					.e(FacetGroupStatisticsDescriptor.COUNT.name(), groupStatistics.getCount())
+					.e(FacetGroupStatisticsDescriptor.FACET_STATISTICS.name(), groupStatistics.getFacetStatistics()
+						.stream()
+						.map(facetStatistics ->
+							map()
+								.e(TYPENAME_FIELD, FacetStatisticsDescriptor.THIS.name(createEmptyEntitySchema(Entities.PRODUCT), createEmptyEntitySchema(referenceName)))
+								.e(FacetStatisticsDescriptor.FACET_ENTITY.name(), map()
+									.e(TYPENAME_FIELD, StringUtils.toPascalCase(referenceName))
+									.e(EntityDescriptor.PRIMARY_KEY.name(), facetStatistics.getFacetEntity().getPrimaryKey())
+									.e(EntityDescriptor.TYPE.name(), facetStatistics.getFacetEntity().getType())
+									.build())
+								.e(FacetStatisticsDescriptor.REQUESTED.name(), facetStatistics.isRequested())
+								.e(FacetStatisticsDescriptor.COUNT.name(), facetStatistics.getCount())
+								.build())
+						.toList())
+					.build()
+			)
+			.orElseThrow(() -> new IllegalStateException("Facet summary must contain facet group statistics for reference " + referenceName));
+	}
+
+	@Nonnull
 	private List<Map<String, Object>> createFacetSummaryWithCountsDto(@Nonnull EvitaResponse<EntityReference> response,
 	                                                                  @Nonnull String referenceName) {
 		final FacetSummary facetSummary = response.getExtraResult(FacetSummary.class);
@@ -5314,11 +6147,48 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	}
 
 	@Nonnull
-	private List<Map<String, Object>> createFacetSummaryWithImpactsDto(@Nonnull EvitaResponse<EntityReference> response) {
+	private Map<String, Object> createNonGroupedFacetSummaryWithImpactsDto(@Nonnull EvitaResponse<EntityReference> response,
+	                                                                   @Nonnull String referenceName) {
+		final FacetSummary facetSummary = response.getExtraResult(FacetSummary.class);
+
+		return Optional.ofNullable(facetSummary.getFacetGroupStatistics(referenceName))
+			.map(groupStatistics ->
+				map()
+					.e(FacetGroupStatisticsDescriptor.COUNT.name(), groupStatistics.getCount())
+					.e(FacetGroupStatisticsDescriptor.FACET_STATISTICS.name(), groupStatistics.getFacetStatistics()
+						.stream()
+						.map(facetStatistics ->
+							map()
+								.e(FacetStatisticsDescriptor.FACET_ENTITY.name(), map()
+									.e(EntityDescriptor.PRIMARY_KEY.name(), facetStatistics.getFacetEntity().getPrimaryKey())
+									.e(EntityDescriptor.TYPE.name(), facetStatistics.getFacetEntity().getType())
+									.e(EntityDescriptor.ATTRIBUTES.name(), map()
+										.e(ATTRIBUTE_CODE, ((SealedEntity) facetStatistics.getFacetEntity()).getAttribute(ATTRIBUTE_CODE))
+										.build())
+									.build())
+								.e(FacetStatisticsDescriptor.REQUESTED.name(), facetStatistics.isRequested())
+								.e(FacetStatisticsDescriptor.COUNT.name(), facetStatistics.getCount())
+								.e(FacetStatisticsDescriptor.IMPACT.name(), map()
+									.e(TYPENAME_FIELD, FacetRequestImpactDescriptor.THIS.name())
+									.e(FacetRequestImpactDescriptor.DIFFERENCE.name(), facetStatistics.getImpact().difference())
+									.e(FacetRequestImpactDescriptor.MATCH_COUNT.name(), facetStatistics.getImpact().matchCount())
+									.e(FacetRequestImpactDescriptor.HAS_SENSE.name(), facetStatistics.getImpact().hasSense())
+									.build())
+								.build())
+						.toList())
+					.build()
+			)
+			.orElseThrow(() -> new IllegalStateException("Facet summary must contain facet group statistics for reference " + referenceName));
+	}
+
+	@Nonnull
+	private List<Map<String, Object>> createFacetSummaryWithImpactsDto(@Nonnull EvitaResponse<EntityReference> response,
+	                                                                   @Nonnull String referenceName) {
 		final FacetSummary facetSummary = response.getExtraResult(FacetSummary.class);
 
 		return facetSummary.getReferenceStatistics()
 			.stream()
+			.filter(groupStatistics -> groupStatistics.getReferenceName().equals(referenceName))
 			.map(groupStatistics ->
 				map()
 					.e(FacetGroupStatisticsDescriptor.GROUP_ENTITY.name(), null)

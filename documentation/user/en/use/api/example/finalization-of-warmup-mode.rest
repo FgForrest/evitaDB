@@ -1,4 +1,4 @@
-PATCH /rest/system/catalogs/test-catalog
+PATCH /rest/system/catalogs/evita
 
 {
   "catalogState": "ALIVE"

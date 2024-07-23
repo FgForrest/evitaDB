@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -45,6 +45,8 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.Re
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.EntityQueryContext;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.mutation.GraphQLEntityUpsertMutationConverter;
 import io.evitadb.externalApi.graphql.api.resolver.SelectionSetAggregator;
+import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.WriteDataFetcher;
+import io.evitadb.externalApi.graphql.metric.event.request.ExecutedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -63,7 +65,7 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 @Slf4j
 @RequiredArgsConstructor
-public class UpsertEntityMutatingDataFetcher implements DataFetcher<DataFetcherResult<EntityClassifier>> {
+public class UpsertEntityMutatingDataFetcher implements DataFetcher<DataFetcherResult<EntityClassifier>>, WriteDataFetcher {
 
 
 	/**
@@ -97,13 +99,17 @@ public class UpsertEntityMutatingDataFetcher implements DataFetcher<DataFetcherR
 	@Override
 	public DataFetcherResult<EntityClassifier> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
 		final Arguments arguments = Arguments.from(environment);
+		final ExecutedEvent requestExecutedEvent = environment.getGraphQlContext().get(GraphQLContextKey.METRIC_EXECUTED_EVENT);
 
-		final EntityMutation entityMutation = entityUpsertMutationResolver.convertFromInput(arguments.primaryKey(), arguments.entityExistence(), arguments.mutations());
-		final EntityContentRequire[] contentRequires = buildEnrichingRequires(environment);
+		final EntityMutation entityMutation = requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() ->
+			entityUpsertMutationResolver.convertFromInput(arguments.primaryKey(), arguments.entityExistence(), arguments.mutations()));
+		final EntityContentRequire[] contentRequires = requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() ->
+			buildEnrichingRequires(environment));
 
 		final EvitaSessionContract evitaSession = environment.getGraphQlContext().get(GraphQLContextKey.EVITA_SESSION);
 		log.debug("Upserting entity `{}` with PK {} and fetching new version with `{}`.",  entitySchema.getName(), arguments.primaryKey(), Arrays.toString(contentRequires));
-		final SealedEntity upsertedEntity = evitaSession.upsertAndFetchEntity(entityMutation, contentRequires);
+		final SealedEntity upsertedEntity = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
+			evitaSession.upsertAndFetchEntity(entityMutation, contentRequires));
 
 		return DataFetcherResult.<EntityClassifier>newResult()
 			.data(upsertedEntity)

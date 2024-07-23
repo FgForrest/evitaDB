@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -43,6 +43,7 @@ import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import javax.annotation.Nonnull;
 import java.math.BigDecimal;
 import java.util.Collection;
 import java.util.Currency;
@@ -77,7 +78,7 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 	void setUp() {
 		final SealedEntity sealedEntity = new InitialEntityBuilder("product", 1)
 			.setParent(5)
-			.setPriceInnerRecordHandling(PriceInnerRecordHandling.FIRST_OCCURRENCE)
+			.setPriceInnerRecordHandling(PriceInnerRecordHandling.LOWEST_PRICE)
 			.setPrice(1, "basic", CZK, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)
 			.setPrice(2, "reference", CZK, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, false)
 			.setPrice(3, "basic", EUR, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)
@@ -97,7 +98,7 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 	void shouldSkipMutationsThatMeansNoChange() {
 		builder
 			.setParent(5)
-			.setPriceInnerRecordHandling(PriceInnerRecordHandling.FIRST_OCCURRENCE)
+			.setPriceInnerRecordHandling(PriceInnerRecordHandling.LOWEST_PRICE)
 			.setPrice(1, "basic", CZK, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)
 			.setPrice(2, "reference", CZK, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, false)
 			.setPrice(3, "basic", EUR, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)
@@ -130,24 +131,7 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 
 	@Test
 	void shouldDefineReferenceGroup() {
-		builder.setReference(BRAND_TYPE, BRAND_TYPE, Cardinality.ZERO_OR_ONE, 1, whichIs -> whichIs.setGroup("Whatever", 8));
-
-		final EntityMutation entityMutation = builder.toMutation().orElseThrow();
-		final Collection<? extends LocalMutation<?, ?>> localMutations = entityMutation.getLocalMutations();
-		assertEquals(2, localMutations.size());
-
-		final SealedEntitySchema sealedEntitySchema = new EntitySchemaDecorator(() -> CATALOG_SCHEMA, (EntitySchema) initialEntity.getSchema());
-		final EntitySchemaMutation[] schemaMutations = EntityMutation.verifyOrEvolveSchema(
-			CATALOG_SCHEMA,
-			sealedEntitySchema,
-			localMutations
-		).orElseThrow();
-
-		final EntitySchemaContract updatedSchema = sealedEntitySchema
-			.withMutations(schemaMutations)
-			.toInstance();
-
-		final Entity updatedEntity = entityMutation.mutate(updatedSchema, initialEntity);
+		final Entity updatedEntity = setupEntityWithBrand();
 		final ReferenceContract reference = updatedEntity.getReference(BRAND_TYPE, 1).orElseThrow();
 		assertEquals(new GroupEntityReference("Whatever", 8, 1, false), reference.getGroup().orElse(null));
 	}
@@ -249,7 +233,7 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 	void shouldReturnOriginalEntityInstanceWhenNothingHasChanged() {
 		final SealedEntity newEntity = new ExistingEntityBuilder(initialEntity)
 			.setParent(5)
-			.setPriceInnerRecordHandling(PriceInnerRecordHandling.FIRST_OCCURRENCE)
+			.setPriceInnerRecordHandling(PriceInnerRecordHandling.LOWEST_PRICE)
 			.setPrice(1, "basic", CZK, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)
 			.setPrice(2, "reference", CZK, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, false)
 			.setPrice(3, "basic", EUR, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)
@@ -265,4 +249,63 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 		assertSame(initialEntity, newEntity);
 	}
 
+	@Test
+	void shouldRemoveAddedReference() {
+		final Entity entityWithBrand = setupEntityWithBrand();
+
+		final SealedEntity updatedInstance = new ExistingEntityBuilder(entityWithBrand)
+			.setReference(
+				BRAND_TYPE, BRAND_TYPE, Cardinality.ZERO_OR_MORE, 2,
+				whichIs -> whichIs.setAttribute("newAttribute", "someValue")
+			)
+			.removeReference(BRAND_TYPE, 2)
+			.toInstance();
+
+		assertEquals(1, updatedInstance.getReferences(BRAND_TYPE).size());
+	}
+
+	@Test
+	void shouldRemoveExistingReferenceAndAddAgain() {
+		final Entity entityWithBrand = setupEntityWithBrand();
+
+		final SealedEntity updatedInstance = new ExistingEntityBuilder(entityWithBrand)
+			.removeReference(BRAND_TYPE, 1)
+			.setReference(
+				BRAND_TYPE, 1,
+				whichIs -> whichIs
+					.setGroup("Whatever", 8)
+					.setAttribute("newAttribute", "someValue")
+			)
+			.toInstance();
+
+		assertEquals(1, updatedInstance.getReferences(BRAND_TYPE).size());
+
+		updatedInstance.getReference(BRAND_TYPE, 1).ifPresent(reference -> {
+			assertEquals("Whatever", reference.getGroup().map(GroupEntityReference::getType).orElse(null));
+			assertEquals(8, reference.getGroup().map(GroupEntityReference::getPrimaryKey).orElse(null));
+			assertEquals("someValue", reference.getAttribute("newAttribute"));
+		});
+	}
+
+	@Nonnull
+	private Entity setupEntityWithBrand() {
+		builder.setReference(BRAND_TYPE, BRAND_TYPE, Cardinality.ZERO_OR_ONE, 1, whichIs -> whichIs.setGroup("Whatever", 8));
+
+		final EntityMutation entityMutation = builder.toMutation().orElseThrow();
+		final Collection<? extends LocalMutation<?, ?>> localMutations = entityMutation.getLocalMutations();
+		assertEquals(2, localMutations.size());
+
+		final SealedEntitySchema sealedEntitySchema = new EntitySchemaDecorator(() -> CATALOG_SCHEMA, (EntitySchema) initialEntity.getSchema());
+		final EntitySchemaMutation[] schemaMutations = EntityMutation.verifyOrEvolveSchema(
+			CATALOG_SCHEMA,
+			sealedEntitySchema,
+			localMutations
+		).orElseThrow();
+
+		final EntitySchemaContract updatedSchema = sealedEntitySchema
+			.withMutations(schemaMutations)
+			.toInstance();
+
+		return entityMutation.mutate(updatedSchema, initialEntity);
+	}
 }

@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.rest.api.openApi;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.linecorp.armeria.server.HttpService;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.EndpointHeaderDescriptor;
@@ -54,7 +55,7 @@ import static io.swagger.v3.oas.models.PathItem.HttpMethod.*;
 /**
  * Single REST endpoint with schema description and handler builder for building catalog-specific endpoints
  * (for specific catalog and entity type). It combines {@link io.swagger.v3.oas.models.PathItem},
- * {@link Operation} and {@link io.undertow.server.HttpHandler} into one place with useful defaults.
+ * {@link Operation} and {@link HttpService} into one place with useful defaults.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
@@ -72,7 +73,7 @@ public class OpenApiCatalogEndpoint extends OpenApiEndpoint<CatalogRestHandlingC
 	                               @Nonnull List<OpenApiEndpointParameter> parameters,
 	                               @Nullable OpenApiSimpleType requestBody,
 	                               @Nonnull OpenApiSimpleType successResponse,
-	                               @Nonnull Function<CatalogRestHandlingContext, RestEndpointHandler<?, CatalogRestHandlingContext>> handlerBuilder) {
+	                               @Nonnull Function<CatalogRestHandlingContext, RestEndpointHandler<CatalogRestHandlingContext>> handlerBuilder) {
 		super(method, path, localized, operationId, description, deprecationNotice, parameters, requestBody, successResponse, handlerBuilder);
 		this.catalogSchema = catalogSchema;
 	}
@@ -87,10 +88,10 @@ public class OpenApiCatalogEndpoint extends OpenApiEndpoint<CatalogRestHandlingC
 
 	@Nonnull
 	@Override
-	public RestEndpointHandler<?, CatalogRestHandlingContext> toHandler(@Nonnull ObjectMapper objectMapper,
-	                                                                    @Nonnull Evita evita,
-	                                                                    @Nonnull OpenAPI openApi,
-	                                                                    @Nonnull Map<String, Class<? extends Enum<?>>> enumMapping) {
+	public RestEndpointHandler<CatalogRestHandlingContext> toHandler(@Nonnull ObjectMapper objectMapper,
+	                                                                 @Nonnull Evita evita,
+	                                                                 @Nonnull OpenAPI openApi,
+	                                                                 @Nonnull Map<String, Class<? extends Enum<?>>> enumMapping) {
 		final CatalogRestHandlingContext context = new CatalogRestHandlingContext(
 			objectMapper,
 			evita,
@@ -119,7 +120,7 @@ public class OpenApiCatalogEndpoint extends OpenApiEndpoint<CatalogRestHandlingC
 		@Nullable private OpenApiSimpleType requestBody;
 		@Nullable private OpenApiSimpleType successResponse;
 
-		@Nullable private Function<CatalogRestHandlingContext, RestEndpointHandler<?, CatalogRestHandlingContext>> handlerBuilder;
+		@Nullable private Function<CatalogRestHandlingContext, RestEndpointHandler<CatalogRestHandlingContext>> handlerBuilder;
 
 		private Builder(@Nonnull CatalogSchemaContract catalogSchema) {
 			this.catalogSchema = catalogSchema;
@@ -246,7 +247,7 @@ public class OpenApiCatalogEndpoint extends OpenApiEndpoint<CatalogRestHandlingC
 		 * Sets handler builder.
 		 */
 		@Nonnull
-		public Builder handler(@Nonnull Function<CatalogRestHandlingContext, RestEndpointHandler<?, CatalogRestHandlingContext>> handlerBuilder) {
+		public Builder handler(@Nonnull Function<CatalogRestHandlingContext, RestEndpointHandler<CatalogRestHandlingContext>> handlerBuilder) {
 			this.handlerBuilder = handlerBuilder;
 			return this;
 		}

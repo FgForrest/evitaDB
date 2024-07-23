@@ -1,24 +1,24 @@
 query(
-    collection('Product'),
+    collection("Product"),
     filterBy(
         hierarchyWithin(
-            'categories',
-            attributeEquals('code', 'e-readers')
+            "categories",
+            attributeEquals("code", "e-readers")
         ),
         userFilter(
           facetHaving(
-            'brand',
+            "brand",
             entityHaving(
-              attributeInSet('code', 'amazon')
+              attributeInSet("code", "amazon")
             )
           )
         )
     ),
     require(
         facetSummaryOfReference(
-            'brand',
+            "brand",
             IMPACT,
-            entityFetch(attributeContent('code'))
+            entityFetch(attributeContent("code"))
         )
     )
 )

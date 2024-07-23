@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -34,6 +34,8 @@ import javax.annotation.Nullable;
 import java.io.Serial;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static io.evitadb.utils.CollectionUtils.createHashMap;
@@ -53,7 +55,7 @@ public class MutableCatalogEntityHeader implements KeyCompressor {
 	@Getter private final String entityType;
 	/**
 	 * Contains key index extracted from {@link KeyCompressor} that is necessary for
-	 * bootstraping {@link KeyCompressor} used for MemTable deserialization.
+	 * bootstraping {@link KeyCompressor} used for OffsetIndex deserialization.
 	 */
 	@Getter private final Map<Integer, Object> idToKeyIndex;
 	/**
@@ -100,10 +102,12 @@ public class MutableCatalogEntityHeader implements KeyCompressor {
 		});
 	}
 
-	@Nullable
+	@Nonnull
 	@Override
-	public <T extends Comparable<T>> Integer getIdIfExists(@Nonnull T key) {
-		return keyToIdIndex.get(key);
+	public <T extends Comparable<T>> OptionalInt getIdIfExists(@Nonnull T key) {
+		return Optional.ofNullable(keyToIdIndex.get(key))
+			.map(OptionalInt::of)
+			.orElseGet(OptionalInt::empty);
 	}
 
 	@Nonnull
@@ -115,13 +119,20 @@ public class MutableCatalogEntityHeader implements KeyCompressor {
 		return (T) key;
 	}
 
+	@Nullable
+	@Override
+	public <T extends Comparable<T>> T getKeyForIdIfExists(int id) {
+		final Object key = idToKeyIndex.get(id);
+		//noinspection unchecked
+		return (T) key;
+	}
+
 	@Override
 	public int hashCode() {
 		int result = entityType.hashCode();
 		result = 31 * result + idToKeyIndex.hashCode();
 		result = 31 * result + keyToIdIndex.hashCode();
 		result = 31 * result + Integer.hashCode(keySequence.get());
-		result = 31 * result + recordCount;
 		return result;
 	}
 
@@ -132,7 +143,6 @@ public class MutableCatalogEntityHeader implements KeyCompressor {
 
 		MutableCatalogEntityHeader that = (MutableCatalogEntityHeader) o;
 
-		if (recordCount != that.recordCount) return false;
 		if (!entityType.equals(that.entityType)) return false;
 		if (!idToKeyIndex.equals(that.idToKeyIndex)) return false;
 		if (!keyToIdIndex.equals(that.keyToIdIndex)) return false;

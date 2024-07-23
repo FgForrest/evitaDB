@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -24,6 +24,7 @@
 package io.evitadb.api;
 
 import com.github.javafaker.Faker;
+import io.evitadb.api.exception.EntityLocaleMissingException;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.RequireConstraint;
@@ -38,6 +39,7 @@ import io.evitadb.api.query.require.FacetGroupsConjunction;
 import io.evitadb.api.query.require.FacetGroupsDisjunction;
 import io.evitadb.api.query.require.FacetGroupsNegation;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
+import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityContract;
@@ -58,6 +60,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.core.Evita;
+import io.evitadb.dataType.Predecessor;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.annotation.DataSet;
@@ -83,6 +86,7 @@ import javax.annotation.Nullable;
 import java.math.BigDecimal;
 import java.util.*;
 import java.util.Map.Entry;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -96,20 +100,14 @@ import static io.evitadb.api.query.QueryUtils.findConstraints;
 import static io.evitadb.api.query.QueryUtils.findRequires;
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.extension.DataCarrier.tuple;
-import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
-import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_NAME;
-import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_QUANTITY;
-import static io.evitadb.test.generator.DataGenerator.CZECH_LOCALE;
+import static io.evitadb.test.generator.DataGenerator.*;
 import static io.evitadb.utils.AssertionUtils.assertResultIs;
 import static java.util.Optional.ofNullable;
 import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.summingInt;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toMap;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * This test verifies whether entities can be filtered by facets.
@@ -124,9 +122,23 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @ExtendWith(EvitaParameterResolver.class)
 @Slf4j
 public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
+	public static final String ATTRIBUTE_ORDER = "order";
 	private static final String THOUSAND_PRODUCTS_WITH_FACETS = "ThousandsProductsWithFacets";
 	private static final String ATTRIBUTE_TRANSIENT = "transient";
 	private static final int SEED = 40;
+	private static final String EMPTY_COLLECTION_ENTITY = "someCollectionWithoutEntities";
+	private final static int[] STORE_ORDER;
+	private static final int STORE_COUNT = 12;
+
+	static {
+		STORE_ORDER = new int[STORE_COUNT];
+		for (int i = 1; i <= STORE_COUNT; i++) {
+			STORE_ORDER[i - 1] = i;
+		}
+
+		ArrayUtils.shuffleArray(new Random(SEED), STORE_ORDER, STORE_COUNT);
+	}
+
 	private final DataGenerator dataGenerator = new DataGenerator();
 
 	/**
@@ -175,7 +187,7 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 			session, schema, entities, entityFilter, referencePredicate, facetSorterFactory, facetGroupSorterFactory,
 			query, allowedReferenceNames, statisticsDepthSupplier,
 			facetEntityRequirementSupplier, groupEntityRequirementSupplier,
-			parameterGroupMapping, null
+			parameterGroupMapping, null, null
 		);
 	}
 
@@ -198,14 +210,44 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 		@Nonnull Map<Integer, Integer> parameterGroupMapping,
 		@Nullable Function<String, int[]> selectedFacetProvider
 	) {
+		return computeFacetSummary(
+			session, schema, entities, entityFilter, referencePredicate, facetSorterFactory, facetGroupSorterFactory,
+			query, allowedReferenceNames, statisticsDepthSupplier,
+			facetEntityRequirementSupplier, groupEntityRequirementSupplier,
+			parameterGroupMapping, selectedFacetProvider, null
+		);
+	}
+
+	/**
+	 * Computes facet summary by streamed fashion.
+	 */
+	private static FacetSummaryWithResultCount computeFacetSummary(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull EntitySchemaContract schema,
+		@Nonnull List<SealedEntity> entities,
+		@Nullable Predicate<SealedEntity> entityFilter,
+		@Nullable Predicate<ReferenceContract> referencePredicate,
+		@Nullable Function<String, Comparator<FacetStatistics>> facetSorterFactory,
+		@Nullable Function<String, Comparator<FacetGroupStatistics>> facetGroupSorterFactory,
+		@Nonnull Query query,
+		@Nullable Supplier<Set<String>> allowedReferenceNames,
+		@Nonnull Function<String, FacetStatisticsDepth> statisticsDepthSupplier,
+		@Nullable Function<String, EntityFetch> facetEntityRequirementSupplier,
+		@Nullable Function<String, EntityGroupFetch> groupEntityRequirementSupplier,
+		@Nonnull Map<Integer, Integer> parameterGroupMapping,
+		@Nullable Function<String, int[]> selectedFacetProvider,
+		@Nullable Predicate<SealedEntity> selectedEntitiesPredicate
+	) {
 		// this context allows us to create facet filtering predicates in correct way
-		final FacetComputationalContext fcc = new FacetComputationalContext(schema, query, parameterGroupMapping, selectedFacetProvider);
+		final FacetComputationalContext fcc = new FacetComputationalContext(
+			schema, query, parameterGroupMapping, selectedFacetProvider
+		);
 
 		// filter entities by mandatory predicate
 		final List<SealedEntity> filteredEntities = ofNullable(entityFilter)
 			.map(it -> entities.stream().filter(it))
 			.orElseGet(entities::stream)
-			.collect(toList());
+			.toList();
 
 		// collect set of faceted reference types
 		final Set<String> facetedEntities = schema.getReferences()
@@ -268,7 +310,11 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 
 
 		// filter entities by facets in input query (even if part of user filter) - use AND for different entity types, and OR for facet ids
-		final Set<Integer> facetFilteredEntityIds = filteredEntities
+		final List<SealedEntity> filteredEntitiesIncludingUserFilter =
+			selectedEntitiesPredicate == null ?
+				filteredEntities.stream().toList() :
+				filteredEntities.stream().filter(selectedEntitiesPredicate).toList();
+		final Set<Integer> facetFilteredEntityIds = filteredEntitiesIncludingUserFilter
 			.stream()
 			.filter(fcc.createBaseFacetPredicate())
 			.map(EntityContract::getPrimaryKey)
@@ -283,7 +329,7 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 					// invert the results
 					it.getValue()
 						.entrySet()
-						.forEach(facetCount -> facetCount.setValue(filteredEntities.size() - facetCount.getValue()))
+						.forEach(facetCount -> facetCount.setValue(filteredEntitiesIncludingUserFilter.size() - facetCount.getValue()))
 				);
 		}
 
@@ -346,7 +392,7 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 											requested,
 											facet.getValue(),
 											statisticsDepth == FacetStatisticsDepth.IMPACT ?
-												computeImpact(filteredEntities, facetFilteredEntityIds, facet.getKey(), fcc) : null
+												computeImpact(filteredEntitiesIncludingUserFilter, facetFilteredEntityIds, facet.getKey(), fcc) : null
 										);
 									})
 									.sorted((o1, o2) -> compareFacet(referenceSchema.getName(), facetSorterFactory, cachedComparators, o1, o2))
@@ -402,21 +448,38 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 		}
 	}
 
-	private static RequestImpact computeImpact(@Nonnull List<SealedEntity> filteredEntities, @Nonnull Set<Integer> filteredEntityIds, @Nonnull ReferenceKey facet, @Nonnull FacetComputationalContext fcc) {
+	@Nonnull
+	private static RequestImpact computeImpact(
+		@Nonnull List<SealedEntity> filteredEntities,
+		@Nonnull Set<Integer> filteredEntityIds,
+		@Nonnull ReferenceKey facet,
+		@Nonnull FacetComputationalContext fcc
+	) {
 		// on already filtered entities
+		final Predicate<? super SealedEntity> newPredicate = fcc.createTestFacetPredicate(facet);
 		final Set<Integer> newResult = filteredEntities.stream()
 			// apply newly created predicate with added current facet query
-			.filter(fcc.createTestFacetPredicate(facet))
+			.filter(newPredicate)
 			// we need only primary keys
 			.map(EntityContract::getPrimaryKey)
 			// in set
 			.collect(Collectors.toSet());
 
+		final int difference = newResult.size() - filteredEntityIds.size();
 		return new RequestImpact(
 			// compute difference with base result
-			newResult.size() - filteredEntityIds.size(),
+			difference,
 			// pass new result count
-			newResult.size()
+			newResult.size(),
+			// calculate has sense
+			!newResult.isEmpty() && (
+				// if there is difference
+				(
+					difference != 0 ||
+						filteredEntities.stream()
+							.anyMatch(fcc.createBaseFacetPredicateWithoutGroupOfFacet(facet))
+				)
+			)
 		);
 	}
 
@@ -453,6 +516,17 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 				final int primaryKey = entityCount == 0 ? 0 : faker.random().nextInt(1, entityCount);
 				return primaryKey == 0 ? null : primaryKey;
 			};
+
+			final AtomicInteger index = new AtomicInteger();
+			dataGenerator.registerValueGenerator(
+				Entities.STORE, ATTRIBUTE_ORDER,
+				faker -> {
+					final int ix = index.incrementAndGet();
+					final int position = ArrayUtils.indexOf(ix, STORE_ORDER);
+					return position == 0 ? Predecessor.HEAD : new Predecessor(STORE_ORDER[position - 1]);
+				}
+			);
+
 			dataGenerator.generateEntities(
 					dataGenerator.getSampleBrandSchema(session),
 					randomEntityPicker,
@@ -478,11 +552,21 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 				.forEach(session::upsertEntity);
 
 			dataGenerator.generateEntities(
-					dataGenerator.getSampleStoreSchema(session),
+					dataGenerator.getSampleStoreSchema(
+						session,
+						schemaBuilder -> {
+							schemaBuilder
+								.withAttribute(
+									ATTRIBUTE_ORDER, Predecessor.class,
+									AttributeSchemaEditor::sortable
+								).updateVia(session);
+							return schemaBuilder.toInstance();
+						}
+					),
 					randomEntityPicker,
 					SEED
 				)
-				.limit(12)
+				.limit(STORE_COUNT)
 				.forEach(session::upsertEntity);
 
 			final List<EntityReference> storedParameterGroups = dataGenerator.generateEntities(
@@ -503,6 +587,12 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 				.map(session::upsertEntity)
 				.toList();
 
+			session.defineEntitySchema(EMPTY_COLLECTION_ENTITY)
+				.withGeneratedPrimaryKey()
+				.withAttribute(ATTRIBUTE_CODE, String.class, AttributeSchemaEditor::unique)
+				.withAttribute(ATTRIBUTE_NAME, String.class, AttributeSchemaEditor::filterable)
+				.updateVia(session);
+
 			final SealedEntitySchema productSchema = dataGenerator.getSampleProductSchema(
 				session,
 				schemaBuilder -> {
@@ -510,6 +600,7 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 						.withReferenceToEntity(Entities.BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE, ReferenceSchemaEditor::faceted)
 						.withReferenceToEntity(Entities.STORE, Entities.STORE, Cardinality.ZERO_OR_MORE, ReferenceSchemaEditor::faceted)
 						.withReferenceToEntity(Entities.CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_MORE, ReferenceSchemaEditor::faceted)
+						.withReferenceToEntity(EMPTY_COLLECTION_ENTITY, EMPTY_COLLECTION_ENTITY, Cardinality.ZERO_OR_MORE, ReferenceSchemaEditor::faceted)
 						.withReferenceToEntity(
 							Entities.PARAMETER, Entities.PARAMETER,
 							Cardinality.ZERO_OR_MORE,
@@ -532,7 +623,7 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 				tuple(
 					"originalProductEntities",
 					storedProducts.stream()
-						.map(it -> session.getEntity(it.getType(), it.getPrimaryKey(), attributeContentAll(), referenceContentAll(), dataInLocalesAll()).orElse(null))
+						.map(it -> session.getEntity(it.getType(), it.getPrimaryKey(), attributeContentAll(), referenceContentAllWithAttributes(), dataInLocalesAll(), priceContentAll()).orElse(null))
 						.collect(toList())
 				),
 				tuple(
@@ -541,7 +632,7 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 						.collect(
 							toMap(
 								EntityReference::getPrimaryKey,
-								it -> session.getEntity(it.getType(), it.getPrimaryKey(), attributeContentAll(), referenceContentAll(), dataInLocalesAll()).orElse(null)
+								it -> session.getEntity(it.getType(), it.getPrimaryKey(), attributeContentAll(), referenceContentAllWithAttributes(), dataInLocalesAll()).orElse(null)
 							)
 						)
 				),
@@ -551,7 +642,7 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 						.collect(
 							toMap(
 								EntityReference::getPrimaryKey,
-								it -> session.getEntity(it.getType(), it.getPrimaryKey(), attributeContentAll(), referenceContentAll(), dataInLocalesAll()).orElse(null)
+								it -> session.getEntity(it.getType(), it.getPrimaryKey(), attributeContentAll(), referenceContentAllWithAttributes(), dataInLocalesAll()).orElse(null)
 							)
 						)
 				),
@@ -569,6 +660,141 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 				)
 			);
 		});
+	}
+
+	@DisplayName("Should throw exception when accessing localized attributes on fetched entities")
+	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
+	@Test
+	void shouldThrowExceptionWhenAccessingLocalizedAttributesOnFetchedEntities(Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				assertThrows(
+					EntityLocaleMissingException.class,
+					() -> session.query(
+						query(
+							collection(Entities.PRODUCT),
+							require(
+								facetSummary(
+									FacetStatisticsDepth.COUNTS,
+									entityFetch(
+										attributeContent(ATTRIBUTE_CODE, ATTRIBUTE_NAME)
+									)
+								),
+								page(1, Integer.MAX_VALUE),
+								debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+							)
+						),
+						EntityReference.class
+					)
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should throw exception when accessing localized attributes on fetched entities")
+	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
+	@Test
+	void shouldThrowExceptionWhenAccessingLocalizedAttributesOnFetchedEntitiesOnExplicitReference(Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				assertThrows(
+					EntityLocaleMissingException.class,
+					() -> session.query(
+						query(
+							collection(Entities.PRODUCT),
+							require(
+								facetSummaryOfReference(
+									Entities.PARAMETER,
+									FacetStatisticsDepth.COUNTS,
+									entityFetch(
+										attributeContent(ATTRIBUTE_CODE, ATTRIBUTE_NAME)
+									)
+								),
+								page(1, Integer.MAX_VALUE),
+								debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+							)
+						),
+						EntityReference.class
+					)
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should not return facet summary for missing references on product")
+	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
+	@Test
+	void shouldNotReturnFacetSummaryForMissingReferencesOnProduct(Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							not(referenceHaving(Entities.BRAND))
+						),
+						require(
+							page(1, 1),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							entityFetch(referenceContent(Entities.BRAND)),
+							facetSummaryOfReference(
+								Entities.BRAND,
+								FacetStatisticsDepth.COUNTS
+							)
+						)
+					),
+					SealedEntity.class
+				);
+
+				assertEquals(1, result.getRecordData().size());
+				assertTrue(result.getRecordData().get(0).getReferences(Entities.BRAND).isEmpty());
+				assertNull(result.getExtraResult(FacetSummary.class).getFacetGroupStatistics(Entities.BRAND));
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return empty facet summary for empty collection")
+	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
+	@Test()
+	void shouldReturnEmptyFacetSummaryForEmptyCollection(Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							facetSummaryOfReference(
+								EMPTY_COLLECTION_ENTITY,
+								FacetStatisticsDepth.COUNTS,
+								filterBy(
+									referenceHaving(
+										Entities.PARAMETER,
+										filterBy(
+											entityHaving(entityPrimaryKeyInSet(1))
+										)
+									)
+								)
+							)
+						)
+					),
+					EntityReference.class
+				);
+
+				final FacetSummary facetSummary = result.getExtraResult(FacetSummary.class);
+				assertNotNull(facetSummary);
+				assertTrue(facetSummary.getReferenceStatistics().isEmpty());
+				return null;
+			}
+		);
 	}
 
 	@DisplayName("Should return products matching random facet")
@@ -970,6 +1196,128 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 		);
 	}
 
+	@DisplayName("Should return facet summary for entire set when price filter is set")
+	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
+	@Test
+	void shouldReturnFacetSummaryForEntireSetWithPriceFilter(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Map<Integer, Integer> parameterGroupMapping) {
+		final BigDecimal from = new BigDecimal("30");
+		final BigDecimal to = new BigDecimal("60");
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final Query query = query(
+					collection(Entities.PRODUCT),
+					filterBy(
+						and(
+							priceInCurrency(CURRENCY_EUR),
+							priceInPriceLists(PRICE_LIST_VIP, PRICE_LIST_BASIC)
+						),
+						userFilter(
+							priceBetween(from, to)
+						)
+					),
+					require(
+						page(1, Integer.MAX_VALUE),
+						debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+						facetSummary(FacetStatisticsDepth.IMPACT)
+					)
+				);
+
+				final EvitaResponse<EntityReference> result = session.query(query, EntityReference.class);
+				final FacetSummary actualFacetSummary = result.getExtraResult(FacetSummary.class);
+
+				final FacetSummaryWithResultCount expectedSummary = computeFacetSummary(
+					session,
+					productSchema,
+					originalProductEntities,
+					product -> product.getPriceForSale(CURRENCY_EUR, null, PRICE_LIST_VIP, PRICE_LIST_BASIC).isPresent(),
+					null,
+					null,
+					null,
+					query,
+					null,
+					__ -> FacetStatisticsDepth.IMPACT,
+					null,
+					null,
+					parameterGroupMapping,
+					null,
+					product -> product.hasPriceInInterval(from, to, QueryPriceMode.WITH_TAX, CURRENCY_EUR, null, PRICE_LIST_VIP, PRICE_LIST_BASIC)
+				);
+
+				assertFacetSummary(expectedSummary, actualFacetSummary);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return sorted facet statistics by predecessor attribute")
+	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
+	@Test
+	void shouldReturnSortedFacetStatisticsByPredecessorAttribute(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final Query query = query(
+					collection(Entities.PRODUCT),
+					filterBy(
+						entityLocaleEquals(Locale.ENGLISH)
+					),
+					require(
+						page(1, Integer.MAX_VALUE),
+						facetSummaryOfReference(
+							Entities.STORE,
+							FacetStatisticsDepth.COUNTS,
+							orderBy(
+								attributeNatural(ATTRIBUTE_ORDER, OrderDirection.ASC)
+							),
+							entityFetch(
+								attributeContentAll()
+							)
+						),
+						debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+					)
+				);
+
+				final EvitaResponse<EntityReference> result = session.query(
+					query,
+					EntityReference.class
+				);
+
+				final FacetSummary actualFacetSummary = result.getExtraResult(FacetSummary.class);
+				final FacetSummaryWithResultCount expectedSummary = computeFacetSummary(
+					session,
+					productSchema,
+					originalProductEntities,
+					sealedEntity -> sealedEntity.getLocales().contains(Locale.ENGLISH),
+					null,
+					refName -> {
+						if (Entities.STORE.equals(refName)) {
+							return Comparator.comparingInt(o -> ArrayUtils.indexOf(o.getFacetEntity().getPrimaryKey(), STORE_ORDER));
+						} else {
+							return null;
+						}
+					},
+					null,
+					query,
+					() -> Set.of(Entities.STORE),
+					__ -> FacetStatisticsDepth.COUNTS,
+					refName -> entityFetch(attributeContentAll()),
+					null,
+					Collections.emptyMap(),
+					null
+				);
+
+				assertFacetSummary(
+					expectedSummary,
+					actualFacetSummary
+				);
+
+				return null;
+			}
+		);
+	}
+
 	@DisplayName("Should return products matching facets identified by filter")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
@@ -1001,6 +1349,14 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 					.stream()
 					.filter(it -> it.getAttribute(ATTRIBUTE_CODE, String.class).compareTo("C") < 0)
 					.mapToInt(EntityContract::getPrimaryKey)
+					.filter(
+						facetId -> originalProductEntities.stream()
+							.anyMatch(
+								it -> it.getReference(Entities.PARAMETER, facetId)
+									.map(ref -> Boolean.FALSE.equals(ref.getAttribute(ATTRIBUTE_TRANSIENT, Boolean.class)))
+									.orElse(false)
+							)
+					)
 					.toArray();
 
 				final FacetSummaryWithResultCount expectedSummary = computeFacetSummary(
@@ -1251,15 +1607,15 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 	@DisplayName("Should return facet summary with parameter selection for hierarchy with statistics")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnFacetSummaryForHierarchyTreeAndParameterFacetWithStatistics(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Hierarchy categoryHierarchy, Map<Integer, Integer> parameterGroupMapping) {
+	void shouldReturnFacetSummaryForHierarchyTreeAndParameterFacetWithStatistics(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Map<Integer, Integer> parameterGroupMapping) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
 				final int allParametersWithinOneGroupResult = queryParameterFacets(
-					productSchema, originalProductEntities, categoryHierarchy, parameterGroupMapping, session, null, 3, 11
+					productSchema, originalProductEntities, parameterGroupMapping, session, null, 3, 11
 				);
 				final int parametersInDifferentGroupsResult = queryParameterFacets(
-					productSchema, originalProductEntities, categoryHierarchy, parameterGroupMapping, session, null, 2, 3, 11
+					productSchema, originalProductEntities, parameterGroupMapping, session, null, 2, 3, 11
 				);
 				assertTrue(
 					parametersInDifferentGroupsResult < allParametersWithinOneGroupResult,
@@ -1322,7 +1678,7 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 	@DisplayName("Should return facet summary with parameter selection for hierarchy with statistics with inverted inter facet relation")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnFacetSummaryForHierarchyTreeAndParameterFacetWithStatisticsAndInvertedInterFacetRelation(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Hierarchy categoryHierarchy, Map<Integer, Integer> parameterGroupMapping) {
+	void shouldReturnFacetSummaryForHierarchyTreeAndParameterFacetWithStatisticsAndInvertedInterFacetRelation(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Map<Integer, Integer> parameterGroupMapping) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -1333,10 +1689,10 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 				assertTrue(facets.length > 1, "There should be at least two facets.");
 
 				final int singleParameterSelectedResult = queryParameterFacets(
-					productSchema, originalProductEntities, categoryHierarchy, parameterGroupMapping, session, null, facets[0]
+					productSchema, originalProductEntities, parameterGroupMapping, session, null, facets[0]
 				);
 				final int twoParametersFromSameGroupResult = queryParameterFacets(
-					productSchema, originalProductEntities, categoryHierarchy, parameterGroupMapping, session, null, facets[0], facets[1]
+					productSchema, originalProductEntities, parameterGroupMapping, session, null, facets[0], facets[1]
 				);
 				assertTrue(
 					twoParametersFromSameGroupResult > singleParameterSelectedResult,
@@ -1344,10 +1700,10 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 				);
 				final Integer groupId = groups.iterator().next();
 				final int singleParameterSelectedResultInverted = queryParameterFacets(
-					productSchema, originalProductEntities, categoryHierarchy, parameterGroupMapping, session, facetGroupsConjunction(Entities.PARAMETER, filterBy(entityPrimaryKeyInSet(groupId))), facets[0]
+					productSchema, originalProductEntities, parameterGroupMapping, session, facetGroupsConjunction(Entities.PARAMETER, filterBy(entityPrimaryKeyInSet(groupId))), facets[0]
 				);
 				final int twoParametersFromSameGroupResultInverted = queryParameterFacets(
-					productSchema, originalProductEntities, categoryHierarchy, parameterGroupMapping, session, facetGroupsConjunction(Entities.PARAMETER, filterBy(entityPrimaryKeyInSet(groupId))), facets[0], facets[1]
+					productSchema, originalProductEntities, parameterGroupMapping, session, facetGroupsConjunction(Entities.PARAMETER, filterBy(entityPrimaryKeyInSet(groupId))), facets[0], facets[1]
 				);
 				assertTrue(
 					twoParametersFromSameGroupResultInverted < singleParameterSelectedResultInverted,
@@ -1361,7 +1717,7 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 	@DisplayName("Should return facet summary with parameter selection for hierarchy with statistics with inverted facet group relation")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnFacetSummaryForHierarchyTreeAndParameterFacetWithStatisticsAndInvertedFacetGroupRelation(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Hierarchy categoryHierarchy, Map<Integer, Integer> parameterGroupMapping) {
+	void shouldReturnFacetSummaryForHierarchyTreeAndParameterFacetWithStatisticsAndInvertedFacetGroupRelation(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Map<Integer, Integer> parameterGroupMapping) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -1377,20 +1733,20 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 				assertEquals(facets.length, groups.length, "Number of facets and groups must be equal.");
 
 				final int singleParameterSelectedResult = queryParameterFacets(
-					productSchema, originalProductEntities, categoryHierarchy, parameterGroupMapping, session, null, facets[0]
+					productSchema, originalProductEntities, parameterGroupMapping, session, null, facets[0]
 				);
 				final int twoParametersFromDifferentGroupResult = queryParameterFacets(
-					productSchema, originalProductEntities, categoryHierarchy, parameterGroupMapping, session, null, facets
+					productSchema, originalProductEntities, parameterGroupMapping, session, null, facets
 				);
 				assertTrue(
 					twoParametersFromDifferentGroupResult < singleParameterSelectedResult,
 					"When selecting multiple facets from their groups should decrease the result"
 				);
 				final int singleParameterSelectedResultWithOr = queryParameterFacets(
-					productSchema, originalProductEntities, categoryHierarchy, parameterGroupMapping, session, facetGroupsDisjunction(Entities.PARAMETER, filterBy(entityPrimaryKeyInSet(groups[1]))), facets[0]
+					productSchema, originalProductEntities, parameterGroupMapping, session, facetGroupsDisjunction(Entities.PARAMETER, filterBy(entityPrimaryKeyInSet(groups[1]))), facets[0]
 				);
 				final int twoParametersFromDifferentGroupResultWithOr = queryParameterFacets(
-					productSchema, originalProductEntities, categoryHierarchy, parameterGroupMapping, session, facetGroupsDisjunction(Entities.PARAMETER, filterBy(entityPrimaryKeyInSet(groups[1]))), facets
+					productSchema, originalProductEntities, parameterGroupMapping, session, facetGroupsDisjunction(Entities.PARAMETER, filterBy(entityPrimaryKeyInSet(groups[1]))), facets
 				);
 				assertTrue(
 					twoParametersFromDifferentGroupResultWithOr > singleParameterSelectedResultWithOr,
@@ -1404,16 +1760,16 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 	@DisplayName("Should return facet summary with parameter selection for hierarchy with statistics with negated meaning of group")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnFacetSummaryForHierarchyTreeAndParameterFacetWithStatisticsAndNegatedGroupImpact(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Hierarchy categoryHierarchy, Map<Integer, Integer> parameterGroupMapping) {
+	void shouldReturnFacetSummaryForHierarchyTreeAndParameterFacetWithStatisticsAndNegatedGroupImpact(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Map<Integer, Integer> parameterGroupMapping) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
 				final int facetId = 3;
 				final int singleParameterSelectedResult = queryParameterFacets(
-					productSchema, originalProductEntities, categoryHierarchy, parameterGroupMapping, session, null, facetId
+					productSchema, originalProductEntities, parameterGroupMapping, session, null, facetId
 				);
 				final int twoParametersFromSameGroupResult = queryParameterFacets(
-					productSchema, originalProductEntities, categoryHierarchy, parameterGroupMapping, session,
+					productSchema, originalProductEntities, parameterGroupMapping, session,
 					facetGroupsNegation(Entities.PARAMETER, filterBy(entityPrimaryKeyInSet(parameterGroupMapping.get(facetId)))),
 					facetId
 				);
@@ -2037,12 +2393,18 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 	 * Simplification method that executes query with facet computation and returns how many record matches the query
 	 * that filters over input parameter facet ids.
 	 */
-	private int queryParameterFacets(EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Hierarchy categoryHierarchy, Map<Integer, Integer> parameterGroupMapping, EvitaSessionContract session, RequireConstraint additionalRequirement, Integer... facetIds) {
+	private int queryParameterFacets(
+		EntitySchemaContract productSchema,
+		List<SealedEntity> originalProductEntities,
+		Map<Integer, Integer> parameterGroupMapping,
+		EvitaSessionContract session,
+		RequireConstraint additionalRequirement,
+		Integer... facetIds
+	) {
 		final Query query = query(
 			collection(Entities.PRODUCT),
 			filterBy(
 				and(
-					hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(2)),
 					userFilter(
 						facetHaving(Entities.PARAMETER, entityPrimaryKeyInSet(facetIds))
 					)
@@ -2062,10 +2424,7 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 			session,
 			productSchema,
 			originalProductEntities,
-			sealedEntity -> sealedEntity
-				.getReferences(Entities.CATEGORY)
-				.stream()
-				.anyMatch(category -> isWithinHierarchy(categoryHierarchy, category, 2)),
+			null,
 			query,
 			null,
 			__ -> FacetStatisticsDepth.IMPACT,
@@ -2405,9 +2764,30 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 			return combineFacetsIntoPredicate(existingFacetPredicates);
 		}
 
+		public Predicate<? super SealedEntity> createBaseFacetPredicateWithoutGroupOfFacet(ReferenceKey facet) {
+			final Predicate<FacetPredicate> matchTypeAndGroup = it -> Objects.equals(facet.referenceName(), it.referenceSchema().getName()) &&
+				Objects.equals(getGroup(facet), it.facetGroupId());
+
+			return combineFacetsIntoPredicate(
+				Stream.concat(
+					Stream.of(
+						// create brand new predicate
+						createFacetGroupPredicate(
+							entitySchema.getReferenceOrThrowException(facet.referenceName()),
+							getGroup(facet),
+							facet.primaryKey()
+						)
+					),
+					// use all previous facet predicates that doesn't match this facet type and group
+					existingFacetPredicates
+						.stream()
+						.filter(matchTypeAndGroup.negate())
+				).toList()
+			);
+		}
+
 		@Nonnull
 		public Predicate<? super SealedEntity> createTestFacetPredicate(@Nonnull ReferenceKey facet) {
-			// create brand new predicate
 			final Predicate<FacetPredicate> matchTypeAndGroup = it -> Objects.equals(facet.referenceName(), it.referenceSchema().getName()) &&
 				Objects.equals(getGroup(facet), it.facetGroupId());
 

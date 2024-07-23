@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.attribute;
 
+import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaGloballyUniqueMutation;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
@@ -56,13 +57,13 @@ class SetAttributeSchemaGloballyUniqueMutationConverterTest {
 	void shouldResolveInputToLocalMutation() {
 		final SetAttributeSchemaGloballyUniqueMutation expectedMutation = new SetAttributeSchemaGloballyUniqueMutation(
 			"code",
-			true
+			GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG
 		);
 
 		final SetAttributeSchemaGloballyUniqueMutation convertedMutation1 = converter.convertFromInput(
 			map()
 				.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
-				.e(SetAttributeSchemaGloballyUniqueMutationDescriptor.UNIQUE_GLOBALLY.name(), true)
+				.e(SetAttributeSchemaGloballyUniqueMutationDescriptor.GLOBAL_UNIQUENESS_TYPE.name(), GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG)
 				.build()
 		);
 		assertEquals(expectedMutation, convertedMutation1);
@@ -70,7 +71,7 @@ class SetAttributeSchemaGloballyUniqueMutationConverterTest {
 		final SetAttributeSchemaGloballyUniqueMutation convertedMutation2 = converter.convertFromInput(
 			map()
 				.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
-				.e(SetAttributeSchemaGloballyUniqueMutationDescriptor.UNIQUE_GLOBALLY.name(), "true")
+				.e(SetAttributeSchemaGloballyUniqueMutationDescriptor.GLOBAL_UNIQUENESS_TYPE.name(), GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG.name())
 				.build()
 		);
 		assertEquals(expectedMutation, convertedMutation2);
@@ -82,7 +83,7 @@ class SetAttributeSchemaGloballyUniqueMutationConverterTest {
 			EvitaInvalidUsageException.class,
 			() -> converter.convertFromInput(
 				map()
-					.e(SetAttributeSchemaGloballyUniqueMutationDescriptor.UNIQUE_GLOBALLY.name(), true)
+					.e(SetAttributeSchemaGloballyUniqueMutationDescriptor.GLOBAL_UNIQUENESS_TYPE.name(), true)
 					.build()
 			)
 		);

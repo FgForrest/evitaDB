@@ -11,7 +11,7 @@
         ],
         "attributes": {
           "global": {
-            "battery-capacity": "125.00000",
+            "batteryCapacity": "125.00000",
             "code": "amazfit-band-5"
           }
         }
@@ -25,7 +25,7 @@
         ],
         "attributes": {
           "global": {
-            "battery-capacity": "160.00000",
+            "batteryCapacity": "160.00000",
             "code": "amazfit-neo"
           }
         }
@@ -39,25 +39,25 @@
         ],
         "attributes": {
           "global": {
-            "battery-capacity": "148.00000",
+            "batteryCapacity": "148.00000",
             "code": "fitbit-inspire-2"
           }
         }
       }
     ],
-    "type": "PAGE",
-    "totalRecordCount": 3,
-    "first": true,
-    "last": true,
-    "hasPrevious": false,
-    "hasNext": false,
-    "singlePage": true,
     "empty": false,
-    "pageSize": 20,
-    "pageNumber": 1,
-    "lastPageNumber": 1,
+    "first": true,
     "firstPageItemNumber": 0,
-    "lastPageItemNumber": 3
+    "hasNext": false,
+    "hasPrevious": false,
+    "last": true,
+    "lastPageItemNumber": 3,
+    "lastPageNumber": 1,
+    "pageNumber": 1,
+    "pageSize": 20,
+    "singlePage": true,
+    "totalRecordCount": 3,
+    "type": "PAGE"
   }
 }
 ```

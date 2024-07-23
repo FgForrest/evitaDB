@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,8 +23,8 @@
 
 package io.evitadb.index.array;
 
-import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
-import io.evitadb.index.transactionalMemory.TransactionalLayerProducer;
+import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
+import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.ArrayUtils.InsertionPosition;
 
@@ -33,11 +33,12 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.lang.reflect.Array;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
 import java.util.function.Predicate;
 
-import static io.evitadb.core.Transaction.getTransactionalMemoryLayer;
+import static io.evitadb.core.Transaction.getTransactionalLayerMaintainer;
 import static io.evitadb.core.Transaction.suppressTransactionalMemoryLayerFor;
 import static io.evitadb.core.Transaction.suppressTransactionalMemoryLayerForWithResult;
 import static java.util.Optional.ofNullable;
@@ -79,6 +80,10 @@ class ComplexObjArrayChanges<T extends TransactionalObject<T, ?> & Comparable<T>
 	 */
 	@Nullable private final Predicate<T> obsoleteChecker;
 	/**
+	 * This comparator is used to sort values in a map.
+	 */
+	private final Comparator<T> comparator;
+	/**
 	 * This function deeply compares contents of the object T with another object T and returns true if the objects
 	 * has same deep contents.
 	 */
@@ -108,23 +113,25 @@ class ComplexObjArrayChanges<T extends TransactionalObject<T, ?> & Comparable<T>
 	 */
 	private T[] memoizedMergedArray;
 
-	ComplexObjArrayChanges(@Nonnull Class<T> objectType, @Nonnull T[] original) {
+	ComplexObjArrayChanges(@Nonnull Class<T> objectType, @Nonnull Comparator<T> comparator, @Nonnull T[] original) {
 		this.objectType = objectType;
 		this.original = original;
 		this.combiner = null;
 		this.reducer = null;
 		this.obsoleteChecker = null;
+		this.comparator = comparator;
 		this.deepComparator = null;
 		this.insertedValues = (T[][]) Array.newInstance(objectType, 0, 0);
 		this.removedValues = (T[]) Array.newInstance(objectType, 0);
 	}
 
-	ComplexObjArrayChanges(@Nonnull Class<T> objectType, @Nonnull T[] original, @Nonnull BiConsumer<T, T> combiner, @Nonnull BiConsumer<T, T> reducer, @Nonnull Predicate<T> obsoleteChecker, @Nonnull BiPredicate<T, T> deepComparator) {
+	ComplexObjArrayChanges(@Nonnull Class<T> objectType, @Nonnull Comparator<T> comparator, @Nonnull T[] original, @Nonnull BiConsumer<T, T> combiner, @Nonnull BiConsumer<T, T> reducer, @Nonnull Predicate<T> obsoleteChecker, @Nonnull BiPredicate<T, T> deepComparator) {
 		this.objectType = objectType;
 		this.original = original;
 		this.combiner = combiner;
 		this.reducer = reducer;
 		this.obsoleteChecker = obsoleteChecker;
+		this.comparator = comparator;
 		this.deepComparator = deepComparator;
 		this.insertedValues = (T[][]) Array.newInstance(objectType, 0, 0);
 		this.removedValues = (T[]) Array.newInstance(objectType, 0);
@@ -146,11 +153,11 @@ class ComplexObjArrayChanges<T extends TransactionalObject<T, ?> & Comparable<T>
 			boolean reduced = false;
 			if (this.removals.length > removalsPeek && this.removals[removalsPeek] == i) {
 				// get record that is removed on that position
-				final T removedValue = getRemovalOnPositionWithoutDiscardingState(getTransactionalMemoryLayer(), i);
+				final T removedValue = getRemovalOnPositionWithoutDiscardingState(getTransactionalLayerMaintainer(), i);
 				// if reducer is present
 				if (reducer != null) {
 					// and the removed value doesn't happen on position of item in original array
-					boolean sameAsOriginal = this.removals[removalsPeek] == position && this.removedValues[removalsPeek].compareTo(this.original[i]) == 0;
+					boolean sameAsOriginal = this.removals[removalsPeek] == position && this.comparator.compare(this.removedValues[removalsPeek], this.original[i]) == 0;
 					if (!sameAsOriginal) {
 						// clone the original item
 						final T clonedOriginal = original[i].makeClone();
@@ -180,7 +187,7 @@ class ComplexObjArrayChanges<T extends TransactionalObject<T, ?> & Comparable<T>
 				} else {
 					// add count of newly added values
 					final T lastInsertedRecord = this.insertedValues[insertionsPeek][this.insertedValues[insertionsPeek].length - 1];
-					boolean sameAsOriginal = this.original.length > i && lastInsertedRecord.compareTo(this.original[i]) == 0;
+					boolean sameAsOriginal = this.original.length > i && this.comparator.compare(lastInsertedRecord, this.original[i]) == 0;
 					// lower the value by one, if one of the modified values is the same as the original value (combinator applies)
 					removalIndex += this.insertedValues[insertionsPeek].length - (sameAsOriginal && !reduced ? 1 : 0);
 				}
@@ -212,12 +219,12 @@ class ComplexObjArrayChanges<T extends TransactionalObject<T, ?> & Comparable<T>
 	 * contained in original array and not removed so far.
 	 */
 	boolean contains(T recordId) {
-		final int delegateIndex = Arrays.binarySearch(original, recordId);
+		final int delegateIndex = Arrays.binarySearch(original, recordId, comparator);
 		if (delegateIndex >= 0) {
 			return Arrays.binarySearch(removals, delegateIndex) < 0;
 		} else {
 			for (T[] insertedValue : insertedValues) {
-				if (Arrays.binarySearch(insertedValue, recordId) >= 0) {
+				if (Arrays.binarySearch(insertedValue, recordId, comparator) >= 0) {
 					return true;
 				}
 			}
@@ -270,7 +277,7 @@ class ComplexObjArrayChanges<T extends TransactionalObject<T, ?> & Comparable<T>
 		for (int i = 0; i < pointPosition; i++) {
 			final T[] insertedValue = this.insertedValues[i];
 			accumulatedPosition += insertedValue.length;
-			if (insertedValue[insertedValue.length - 1].compareTo(this.original[this.insertions[i]]) == 0) {
+			if (this.comparator.compare(insertedValue[insertedValue.length - 1], this.original[this.insertions[i]]) == 0) {
 				accumulatedPosition--;
 			}
 		}
@@ -281,7 +288,7 @@ class ComplexObjArrayChanges<T extends TransactionalObject<T, ?> & Comparable<T>
 				if (insertPoint >= 0) {
 					final T[] insertedValuesRef = this.insertedValues[insertPoint];
 					final T insertedValue = insertedValuesRef[insertedValuesRef.length - 1];
-					if (insertedValue.compareTo(it) == 0) {
+					if (this.comparator.compare(insertedValue, it) == 0) {
 						// we need to avoid creating additional transactional states here
 						suppressTransactionalMemoryLayerFor(
 							it, theIt -> combiner.accept(it, insertedValue)
@@ -365,7 +372,7 @@ class ComplexObjArrayChanges<T extends TransactionalObject<T, ?> & Comparable<T>
 						// compare last processed record in original array and first record to be inserted
 						final T lastDelegateRecord = lastPosition + delegateCopyLength < delegateArray.length ? delegateArray[lastPosition + delegateCopyLength] : null;
 						final T lastInsertedRecord = insertedRecordValues[insertedRecordValues.length - 1];
-						if (lastDelegateRecord != null && lastDelegateRecord.compareTo(lastInsertedRecord) == 0) {
+						if (lastDelegateRecord != null && this.comparator.compare(lastDelegateRecord, lastInsertedRecord) == 0) {
 							// if they match - clone original record
 							final T lastDelegateRecordClone = lastDelegateRecord.makeClone();
 							// and if combiner is available - merge it to the cloned record
@@ -407,7 +414,7 @@ class ComplexObjArrayChanges<T extends TransactionalObject<T, ?> & Comparable<T>
 						final T removedValue = getRemovalOnPosition(transactionalLayer, plan.getPosition());
 
 						// if last record in the result array match the removed record
-						if (lastComputedPosition > 0 && computedArray[lastComputedPosition - 1].compareTo(removedValue) == 0) {
+						if (lastComputedPosition > 0 && this.comparator.compare(computedArray[lastComputedPosition - 1], removedValue) == 0) {
 							// there is addition and removal on the same spot of computed array
 							final T lastDelegateRecordClone = computedArray[lastComputedPosition - 1];
 
@@ -520,10 +527,6 @@ class ComplexObjArrayChanges<T extends TransactionalObject<T, ?> & Comparable<T>
 		return removedInInsertedValues >= 0 ? removedInInsertedValues : computeRemovalIndex(position, 0);
 	}
 
-	/*
-		PRIVATE METHODS
-	 */
-
 	/**
 	 * Returns true if record on certain position in the original array was removed and discards the transactional
 	 * state of the object.
@@ -597,7 +600,7 @@ class ComplexObjArrayChanges<T extends TransactionalObject<T, ?> & Comparable<T>
 		// there is already insertion recorded for requested position
 		final T[] insertedValuesBefore = insertedValues[index];
 		// compute internal place for the newly added record
-		final InsertionPosition innerPosition = ArrayUtils.computeInsertPositionOfObjInOrderedArray(recordId, insertedValuesBefore);
+		final InsertionPosition innerPosition = ArrayUtils.computeInsertPositionOfObjInOrderedArray(recordId, insertedValuesBefore, comparator);
 		if (innerPosition.alreadyPresent()) {
 			// there already is existing record on the place - if we have combined combine the objects, otherwise ignore action
 			if (combiner != null) {
@@ -624,7 +627,7 @@ class ComplexObjArrayChanges<T extends TransactionalObject<T, ?> & Comparable<T>
 		if (removalIndex >= 0) {
 			T removedValue = removedValues[removalIndex];
 			T reducedValue;
-			final boolean recordsAreEqual = removedValue.compareTo(recordId) == 0;
+			final boolean recordsAreEqual = this.comparator.compare(removedValue, recordId) == 0;
 			if (reducer != null) {
 				// we have reducer and both values are equal, apply reducer
 				if (recordsAreEqual) {
@@ -723,7 +726,7 @@ class ComplexObjArrayChanges<T extends TransactionalObject<T, ?> & Comparable<T>
 			if (reducer != null) {
 				for (T value : insertedValuesBefore) {
 					insertedValuesIterationPeek++;
-					if (value.compareTo(recordId) == 0) {
+					if (this.comparator.compare(value, recordId) == 0) {
 						// match found - reduce the record scope
 						reducer.accept(value, recordId);
 						reducedValue = value;
@@ -737,7 +740,7 @@ class ComplexObjArrayChanges<T extends TransactionalObject<T, ?> & Comparable<T>
 				ofNullable(reducedValue).ifPresent(TransactionalObject::removeLayer);
 
 				// remove the record from the insertion set
-				final T[] insertedValuesAfter = ArrayUtils.removeRecordFromOrderedArray(recordId, insertedValuesBefore);
+				final T[] insertedValuesAfter = ArrayUtils.removeRecordFromOrderedArray(recordId, insertedValuesBefore, comparator);
 				insertedValues[insertionIndex] = insertedValuesAfter;
 
 				// if there are no records at the insertion set left after record removal
@@ -798,7 +801,7 @@ class ComplexObjArrayChanges<T extends TransactionalObject<T, ?> & Comparable<T>
 	 * Creates new instance of the record with applied transactional changes if transactional layer is available.
 	 */
 	private static <T> T getTransactionalCopy(TransactionalLayerMaintainer transactionalLayer, TransactionalLayerProducer<?, ?> value) {
-		return transactionalLayer == null ? (T) value : (T) transactionalLayer.getStateCopyWithCommittedChanges(value, null);
+		return transactionalLayer == null ? (T) value : (T) transactionalLayer.getStateCopyWithCommittedChanges(value);
 	}
 
 	/**
@@ -806,7 +809,7 @@ class ComplexObjArrayChanges<T extends TransactionalObject<T, ?> & Comparable<T>
 	 * Transactional state of the original object is not discarded by this operation.
 	 */
 	private static <T> T getTransactionalCopyWithoutDiscardingState(TransactionalLayerMaintainer transactionalLayer, TransactionalLayerProducer<?, ?> value) {
-		return transactionalLayer == null ? (T) value : (T) transactionalLayer.getStateCopyWithCommittedChangesWithoutDiscardingState(value, null);
+		return transactionalLayer == null ? (T) value : (T) transactionalLayer.getStateCopyWithCommittedChangesWithoutDiscardingState(value);
 	}
 
 	/**

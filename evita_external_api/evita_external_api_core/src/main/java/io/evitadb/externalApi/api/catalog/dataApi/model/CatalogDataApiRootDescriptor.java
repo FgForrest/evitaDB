@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -29,8 +29,6 @@ import io.evitadb.externalApi.api.model.EndpointDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 
 import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nonNullRef;
-import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nullableListRef;
-import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nullableRef;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 
 /**
@@ -72,7 +70,7 @@ public interface CatalogDataApiRootDescriptor extends CatalogRootDescriptor {
         .description("""
             Finds and returns single entity from unspecified collection by shared arguments between collections.
             """)
-        .type(nullableRef(EntityDescriptor.THIS_GLOBAL))
+        // type can be entity of any collection
         .build();
 
     EndpointDescriptor LIST_UNKNOWN_ENTITY = EndpointDescriptor.builder()
@@ -82,7 +80,7 @@ public interface CatalogDataApiRootDescriptor extends CatalogRootDescriptor {
         .description("""
             Finds and returns list of entities from unspecified collections by shared arguments between collections.
             """)
-        .type(nullableListRef(EntityDescriptor.THIS_GLOBAL))
+        // type can be list of entities of any collection
         .build();
 
     EndpointDescriptor GET_ENTITY = EndpointDescriptor.builder()

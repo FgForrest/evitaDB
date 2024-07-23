@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,6 +23,7 @@
 
 package io.evitadb.index.hierarchy.suppliers;
 
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.deferred.BitmapSupplier;
 import io.evitadb.core.query.algebra.deferred.DeferredFormula;
 import io.evitadb.index.bitmap.Bitmap;
@@ -54,6 +55,12 @@ public class HierarchyForParentBitmapSupplier extends AbstractHierarchyBitmapSup
 		super(hierarchyIndex, transactionalId);
 		this.parentNode = parentNode;
 		this.excludedNodeTrees = excludedNodeTrees;
+		this.initFields();
+	}
+
+	@Override
+	public void initialize(@Nonnull QueryExecutionContext executionContext) {
+		excludedNodeTrees.initializeIfNotAlreadyInitialized(executionContext);
 	}
 
 	@Override
@@ -61,18 +68,26 @@ public class HierarchyForParentBitmapSupplier extends AbstractHierarchyBitmapSup
 		return hashFunction.hashLongs(
 			new long[]{
 				hashFunction.hashInts(new int[]{CLASS_ID, parentNode}),
-				excludedNodeTrees.computeHash(hashFunction)
+				excludedNodeTrees.getHash()
 			}
 		);
 	}
 
+	@Nonnull
 	@Override
-	public Bitmap get() {
+	protected Bitmap getInternal() {
 		return hierarchyIndex.getHierarchyNodesForParent(parentNode, excludedNodeTrees);
 	}
 
 	@Override
 	public int getEstimatedCardinality() {
-		return hierarchyIndex.getHierarchyNodeCountForParent(parentNode, excludedNodeTrees);
+		/* we don't use excluded node trees here, because it would trigger the formula computation */
+		return hierarchyIndex.getHierarchyNodeCountForParent(parentNode, HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE);
 	}
+
+	@Override
+	public String toString() {
+		return "HIERARCHY FOR PARENT: " + parentNode + " " + excludedNodeTrees;
+	}
+
 }

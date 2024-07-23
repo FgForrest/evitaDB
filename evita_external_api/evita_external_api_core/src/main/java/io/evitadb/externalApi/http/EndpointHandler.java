@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,107 +23,109 @@
 
 package io.evitadb.externalApi.http;
 
+import com.linecorp.armeria.common.HttpData;
+import com.linecorp.armeria.common.HttpHeaderNames;
+import com.linecorp.armeria.common.HttpMethod;
+import com.linecorp.armeria.common.HttpRequest;
+import com.linecorp.armeria.common.HttpResponse;
+import com.linecorp.armeria.common.HttpResponseWriter;
+import com.linecorp.armeria.common.HttpStatus;
+import com.linecorp.armeria.common.MediaType;
+import com.linecorp.armeria.common.ResponseHeaders;
+import com.linecorp.armeria.server.HttpService;
+import com.linecorp.armeria.server.ServiceRequestContext;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.externalApi.exception.ExternalApiInvalidUsageException;
 import io.evitadb.externalApi.exception.HttpExchangeException;
 import io.evitadb.utils.Assert;
-import io.undertow.server.HttpHandler;
-import io.undertow.server.HttpServerExchange;
-import io.undertow.util.HeaderValues;
-import io.undertow.util.Headers;
-import io.undertow.util.StatusCodes;
+import io.netty.channel.EventLoop;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.OutputStream;
 import java.nio.charset.Charset;
 import java.nio.charset.IllegalCharsetNameException;
 import java.nio.charset.StandardCharsets;
 import java.nio.charset.UnsupportedCharsetException;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 /**
- * Base implementation of {@link HttpHandler} for handling endpoints logic with content negotiation, request and response
+ * Base implementation of {@link HttpService} for handling endpoints logic with content negotiation, request and response
  * bodies serialization and so on.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
+ * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
  */
-public abstract class EndpointHandler<E extends EndpointExchange, R> implements HttpHandler {
-
+@Slf4j
+public abstract class EndpointHandler<C extends EndpointExecutionContext> implements HttpService {
+	private static final int STREAM_CHUNK_SIZE = 8192;
 	private static final String CONTENT_TYPE_CHARSET = "; charset=UTF-8";
 
+	@Nonnull
 	@Override
-	public void handleRequest(HttpServerExchange serverExchange) {
-		validateRequest(serverExchange);
+	public HttpResponse serve(@Nonnull ServiceRequestContext ctx, @Nonnull HttpRequest req) {
+		final C executionContext = createExecutionContext(req);
+		validateRequest(req);
 
-		try (final E exchange = createEndpointExchange(
-				serverExchange,
-				serverExchange.getRequestMethod().toString(),
-				getRequestBodyContentType(serverExchange).orElse(null),
-				getPreferredResponseContentType(serverExchange).orElse(null)
-			)) {
-			beforeRequestHandled(exchange);
+		executionContext.provideRequestBodyContentType(resolveRequestBodyContentType(executionContext).orElse(null));
+		executionContext.providePreferredResponseContentType(resolvePreferredResponseContentType(executionContext).orElse(null));
 
-			final EndpointResponse<R> response = doHandleRequest(exchange);
-			if (response instanceof NotFoundEndpointResponse) {
-				throw new HttpExchangeException(StatusCodes.NOT_FOUND, "Requested resource wasn't found.");
-			} else if (response instanceof SuccessEndpointResponse<R> successResponse) {
-				final R result = successResponse.getResult();
-				if (result == null) {
-					sendEmptySuccessResponse(exchange);
-				} else {
-					sendSuccessResponseWithBody(exchange, result);
-				}
-			} else {
-				throw createInternalError("Unsupported response `" + response.getClass().getName() + "`.");
-			}
-		}
+		beforeRequestHandled(executionContext);
+		return HttpResponse.of(
+			Objects.requireNonNull(
+				doHandleRequest(executionContext)
+					.thenApply(response -> {
+						try {
+							afterRequestHandled(executionContext, response);
+
+							if (response instanceof NotFoundEndpointResponse) {
+								throw new HttpExchangeException(HttpStatus.NOT_FOUND.code(), "Requested resource wasn't found.");
+							} else if (response instanceof SuccessEndpointResponse successResponse) {
+								final Object result = successResponse.getResult();
+								if (result == null) {
+									return HttpResponse.builder()
+										.status(HttpStatus.NO_CONTENT)
+										.build();
+								} else {
+									final HttpResponseWriter responseWriter = HttpResponse.streaming();
+									responseWriter.write(
+										ResponseHeaders.of(
+											HttpStatus.OK,
+											HttpHeaderNames.CONTENT_TYPE, executionContext.preferredResponseContentType() + CONTENT_TYPE_CHARSET
+										)
+									);
+									writeResponse(executionContext, responseWriter, result, ctx.eventLoop());
+									if (responseWriter.isOpen()) {
+										responseWriter.close();
+									}
+									return responseWriter;
+								}
+							} else {
+								throw createInternalError("Unsupported response `" + response.getClass().getName() + "`.");
+							}
+						} catch (Exception e) {
+							executionContext.notifyError(e);
+							throw e;
+						}
+					}).whenComplete((response, throwable) -> {
+						executionContext.close();
+					})
+			));
 	}
-
-	/**
-	 * Creates new instance of endpoint exchange for given HTTP server exchange.
-	 */
-	@Nonnull
-	protected abstract E createEndpointExchange(@Nonnull HttpServerExchange serverExchange,
-												@Nonnull String method,
-	                                            @Nullable String requestBodyMediaType,
-	                                            @Nullable String preferredResponseMediaType);
-
-	/**
-	 * Hook method called before actual endpoint handling logic is executed. Default implementation does nothing.
-	 */
-	protected void beforeRequestHandled(@Nonnull E exchange) {
-		// default implementation does nothing
-	}
-
-	/**
-	 * Actual endpoint logic.
-	 */
-	@Nonnull
-	protected abstract EndpointResponse<R> doHandleRequest(@Nonnull E exchange);
-
-	@Nonnull
-	protected abstract <T extends ExternalApiInternalError> T createInternalError(@Nonnull String message);
-
-	@Nonnull
-	protected abstract <T extends ExternalApiInternalError> T createInternalError(@Nonnull String message, @Nonnull Throwable cause);
-
-	@Nonnull
-	protected abstract <T extends ExternalApiInvalidUsageException> T createInvalidUsageException(@Nonnull String message);
 
 	/**
 	 * Defines which HTTP methods can this particular endpoint process.
 	 */
 	@Nonnull
-	public abstract Set<String> getSupportedHttpMethods();
+	public abstract Set<HttpMethod> getSupportedHttpMethods();
 
 	/**
 	 * Defines which mime types are supported for request body.
@@ -144,36 +146,140 @@ public abstract class EndpointHandler<E extends EndpointExchange, R> implements 
 		return new LinkedHashSet<>(0);
 	}
 
+	/**
+	 * Creates new instance of endpoint execution context for given HTTP request.
+	 */
+	@Nonnull
+	protected abstract C createExecutionContext(@Nonnull HttpRequest httpRequest);
 
-	protected void validateRequest(@Nonnull HttpServerExchange exchange) {
+	/**
+	 * Hook method called before actual endpoint handling logic is executed. Default implementation does nothing.
+	 */
+	protected void beforeRequestHandled(@Nonnull C executionContext) {
+		// default implementation does nothing
+	}
+
+	/**
+	 * Hook method called after actual endpoint handling logic is executed. Default implementation does nothing.
+	 */
+	protected void afterRequestHandled(@Nonnull C executionContext, @Nonnull EndpointResponse response) {
+		// default implementation does nothing
+	}
+
+	/**
+	 * Actual endpoint logic.
+	 */
+	@Nonnull
+	protected abstract CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull C executionContext);
+
+	@Nonnull
+	protected abstract <T extends ExternalApiInternalError> T createInternalError(@Nonnull String message);
+
+	@Nonnull
+	protected abstract <T extends ExternalApiInternalError> T createInternalError(@Nonnull String message, @Nonnull Throwable cause);
+
+	@Nonnull
+	protected abstract <T extends ExternalApiInvalidUsageException> T createInvalidUsageException(@Nonnull String message);
+
+	protected void validateRequest(@Nonnull HttpRequest exchange) {
 		if (!hasSupportedHttpMethod(exchange)) {
 			throw new HttpExchangeException(
-				StatusCodes.METHOD_NOT_ALLOWED,
+				HttpStatus.METHOD_NOT_ALLOWED.code(),
 				"Supported methods are " + getSupportedHttpMethods().stream().map(it -> "`" + it + "`").collect(Collectors.joining(", ")) + "."
 			);
 		}
 	}
 
-	private boolean hasSupportedHttpMethod(@Nonnull HttpServerExchange exchange) {
-		return getSupportedHttpMethods().contains(exchange.getRequestMethod().toString());
+	/**
+	 * Reads request body into raw string.
+	 */
+	@Nonnull
+	protected CompletableFuture<String> readRawRequestBody(@Nonnull C executionContext) {
+		Assert.isPremiseValid(
+			!getSupportedRequestContentTypes().isEmpty(),
+			() -> createInternalError("Handler doesn't support reading of request body.")
+		);
+
+		final String bodyContentType = executionContext.requestBodyContentType();
+		final Charset bodyCharset = Arrays.stream(bodyContentType.split(";"))
+			.map(String::trim)
+			.filter(part -> part.startsWith("charset"))
+			.findFirst()
+			.map(charsetPart -> {
+				final String[] charsetParts = charsetPart.split("=");
+				if (charsetParts.length != 2) {
+					throw new HttpExchangeException(HttpStatus.UNSUPPORTED_MEDIA_TYPE.code(), "Charset has invalid format");
+				}
+				return charsetParts[1].trim();
+			})
+			.map(charsetName -> {
+				try {
+					return Charset.forName(charsetName);
+				} catch (IllegalCharsetNameException | UnsupportedCharsetException ex) {
+					throw new HttpExchangeException(HttpStatus.UNSUPPORTED_MEDIA_TYPE.code(), "Unsupported charset.");
+				}
+			})
+			.orElse(StandardCharsets.UTF_8);
+
+		return executionContext.httpRequest()
+			.aggregate()
+			.thenApply(r -> {
+				try (HttpData data = r.content()) {
+					try (InputStream inputStream = data.toInputStream()) {
+						final byte[] buffer = new byte[EndpointHandler.STREAM_CHUNK_SIZE];
+						final StringBuilder stringBuilder = new StringBuilder(64);
+						int bytesRead;
+						while ((bytesRead = inputStream.read(buffer)) != -1) {
+							stringBuilder.append(new String(buffer, 0, bytesRead, bodyCharset));
+						}
+						return stringBuilder.toString();
+					} catch (IOException e) {
+						throw new RuntimeException(e);
+					}
+				}
+			});
+	}
+
+	/**
+	 * Tries to parse input request body JSON into data class.
+	 */
+	@Nonnull
+	protected <T> CompletableFuture<T> parseRequestBody(@Nonnull C executionContext, @Nonnull Class<T> dataClass) {
+		throw createInternalError("Cannot parse request body because handler doesn't support it.");
+	}
+
+	/**
+	 * Serializes a result object into the preferred media type.
+	 *
+	 * @param executionContext endpoint exchange
+	 * @param responseWriter   response writer to write the response to
+	 * @param result           result data from handler to serialize to the response
+	 * @param eventExecutor    event executor to schedule response writing
+	 */
+	protected void writeResponse(@Nonnull C executionContext, @Nonnull HttpResponseWriter responseWriter, @Nonnull Object result, @Nonnull EventLoop eventExecutor) {
+		throw createInternalError("Cannot serialize response body because handler doesn't support it.");
+	}
+
+	private boolean hasSupportedHttpMethod(@Nonnull HttpRequest request) {
+		return getSupportedHttpMethods().contains(request.method());
 	}
 
 	/**
 	 * Validates that request body (if any) has supported media type and if so, returns it.
 	 */
 	@Nonnull
-	private Optional<String> getRequestBodyContentType(@Nonnull HttpServerExchange serverExchange) {
+	private Optional<String> resolveRequestBodyContentType(@Nonnull C executionContext) {
 		if (getSupportedRequestContentTypes().isEmpty()) {
 			// we can ignore all content type headers because we don't accept any request body
 			return Optional.empty();
 		}
 
-		final String bodyContentType = serverExchange.getRequestHeaders().getFirst(Headers.CONTENT_TYPE);
+		final String bodyContentType = executionContext.httpRequest().headers().contentType().toString();
 		Assert.isTrue(
 			bodyContentType != null &&
 				getSupportedRequestContentTypes().stream().anyMatch(bodyContentType::startsWith),
 			() -> new HttpExchangeException(
-				StatusCodes.UNSUPPORTED_MEDIA_TYPE,
+				HttpStatus.UNSUPPORTED_MEDIA_TYPE.code(),
 				"Supported request body media types are " + getSupportedRequestContentTypes().stream().map(it -> "`" + it + "`").collect(Collectors.joining(", ")) + "."
 			)
 		);
@@ -186,13 +292,13 @@ public abstract class EndpointHandler<E extends EndpointExchange, R> implements 
 	 * preferred one by order of {@link #getSupportedResponseContentTypes().
 	 */
 	@Nonnull
-	private Optional<String> getPreferredResponseContentType(@Nonnull HttpServerExchange serverExchange) {
+	private Optional<String> resolvePreferredResponseContentType(@Nonnull C executionContext) {
 		if (getSupportedResponseContentTypes().isEmpty()) {
 			// we can ignore any accept headers because we will not return any body
 			return Optional.empty();
 		}
 
-		final Set<String> acceptHeaders = parseAcceptHeaders(serverExchange);
+		final Set<String> acceptHeaders = parseAcceptHeaders(executionContext);
 		if (acceptHeaders == null) {
 			// missing accept header means that client supports all media types
 			return Optional.of(getSupportedResponseContentTypes().iterator().next());
@@ -210,99 +316,18 @@ public abstract class EndpointHandler<E extends EndpointExchange, R> implements 
 		}
 
 		throw new HttpExchangeException(
-			StatusCodes.NOT_ACCEPTABLE,
+			HttpStatus.NOT_ACCEPTABLE.code(),
 			"Supported response body media types are " + getSupportedResponseContentTypes().stream().map(it -> "`" + it + "`").collect(Collectors.joining(", ")) + "."
 		);
 	}
 
 	@Nullable
-	private static Set<String> parseAcceptHeaders(@Nonnull HttpServerExchange serverExchange) {
-		final HeaderValues acceptHeaders = serverExchange.getRequestHeaders().get(Headers.ACCEPT);
-		if (acceptHeaders == null) {
-			return null;
-		}
-		return acceptHeaders.stream()
-			.flatMap(hv -> Arrays.stream(hv.split(",")))
-			.map(String::strip)
+	private Set<String> parseAcceptHeaders(@Nonnull C executionContext) {
+		final Set<String> acceptHeaders = executionContext.httpRequest().headers().accept()
+			.stream()
+			.map(MediaType::toString)
 			.collect(Collectors.toUnmodifiableSet());
-	}
-
-	/**
-	 * Reads request body into raw string.
-	 */
-	@Nonnull
-	protected String readRawRequestBody(@Nonnull E exchange) {
-		Assert.isPremiseValid(
-			!getSupportedRequestContentTypes().isEmpty(),
-			() -> createInternalError("Handler doesn't support reading of request body.")
-		);
-
-		final String bodyContentType = exchange.requestBodyContentType();
-		final Charset bodyCharset = Arrays.stream(bodyContentType.split(";"))
-			.map(String::trim)
-			.filter(part -> part.startsWith("charset"))
-			.findFirst()
-			.map(charsetPart -> {
-				final String[] charsetParts = charsetPart.split("=");
-				if (charsetParts.length != 2) {
-					throw new HttpExchangeException(StatusCodes.UNSUPPORTED_MEDIA_TYPE, "Charset has invalid format");
-				}
-				return charsetParts[1].trim();
-			})
-			.map(charsetName -> {
-				try {
-					return Charset.forName(charsetName);
-				} catch (IllegalCharsetNameException | UnsupportedCharsetException ex) {
-					throw new HttpExchangeException(StatusCodes.UNSUPPORTED_MEDIA_TYPE, "Unsupported charset.");
-				}
-			})
-			.orElse(StandardCharsets.UTF_8);
-
-		final String body;
-		try (final InputStream is = exchange.serverExchange().getInputStream();
-		     final InputStreamReader isr = new InputStreamReader(is, bodyCharset);
-		     final BufferedReader bf = new BufferedReader(isr)) {
-			body = bf.lines().collect(Collectors.joining("\n"));
-		} catch (IOException e) {
-			throw createInternalError("Could not read request body: ", e);
-		}
-
-		Assert.isTrue(
-			!body.trim().isEmpty(),
-			() -> createInvalidUsageException("Request's body contains no data.")
-		);
-		return body;
-	}
-
-	/**
-	 * Tries to parse input request body JSON into data class.
-	 */
-	@Nonnull
-	protected <T> T parseRequestBody(@Nonnull E exchange, @Nonnull Class<T> dataClass) {
-		throw createInternalError("Cannot parse request body because handler doesn't support it.");
-	}
-
-	/**
-	 * Serializes a result object into the preferred media type.
-	 *
-	 * @param exchange      endpoint exchange
-	 * @param outputStream  output stream to write serialized data to
-	 * @param result        result data from handler to write to response
-	 */
-	protected void writeResult(@Nonnull E exchange, @Nonnull OutputStream outputStream, @Nonnull R result) {
-		throw createInternalError("Cannot serialize response body because handler doesn't support it.");
-	}
-
-	private void sendEmptySuccessResponse(@Nonnull E exchange) {
-		exchange.serverExchange().setStatusCode(StatusCodes.NO_CONTENT);
-		exchange.serverExchange().endExchange();
-	}
-
-	private void sendSuccessResponseWithBody(@Nonnull E exchange, @Nonnull R result) {
-		exchange.serverExchange().setStatusCode(StatusCodes.OK);
-		exchange.serverExchange().getResponseHeaders().put(Headers.CONTENT_TYPE, exchange.preferredResponseContentType() + CONTENT_TYPE_CHARSET);
-		writeResult(exchange, exchange.serverExchange().getOutputStream(), result);
-		exchange.serverExchange().endExchange();
+		return acceptHeaders.isEmpty() ? null : acceptHeaders;
 	}
 
 }

@@ -1,14 +1,14 @@
 query(
-    collection('Product'),
+    collection("Product"),
     filterBy(
-        priceInPriceLists('basic'),
-        priceInCurrency('EUR'),
+        priceInPriceLists("basic"),
+        priceInCurrency("EUR"),
         priceBetween(100, 103)
     ),
     require(
       priceType(WITHOUT_TAX),
       entityFetch(
-        attributeContent('code'),
+        attributeContent("code"),
         priceContentRespectingFilter()
       )
     )

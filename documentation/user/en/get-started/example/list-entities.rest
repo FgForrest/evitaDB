@@ -1,4 +1,4 @@
-POST /rest/test-catalog/product/list
+POST /rest/evita/Product/list
 
 {
   "filterBy": {

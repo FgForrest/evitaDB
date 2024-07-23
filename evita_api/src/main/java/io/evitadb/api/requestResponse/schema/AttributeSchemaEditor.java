@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -115,6 +115,47 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	 */
 	@Nonnull
 	T unique(@Nonnull BooleanSupplier decider);
+
+	/**
+	 * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
+	 * having certain value of this attribute.
+	 *
+	 * The attribute will be filtered / looked up for by its {@link AttributeSchemaContract#getType() type}
+	 * {@link Comparable} contract. If the type is not {@link Comparable} the {@link String#compareTo(String)}
+	 * comparison on its {@link Object#toString()} will be used
+	 *
+	 * As an example of unique attribute can be EAN - there is no sense in having two entities with same EAN, and it's
+	 * better to have this ensured by the database engine.
+	 *
+	 * This method differs from {@link #unique()} in that it is possible to have multiple entities with same value
+	 * of this attribute as long as the attribute is {@link #isLocalized()} and the values relate to different locales.
+	 *
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	T uniqueWithinLocale();
+
+	/**
+	 * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
+	 * having certain value of this attribute among other entities in the same collection.
+	 *
+	 *
+	 * The attribute will be filtered / looked up for by its {@link AttributeSchemaContract#getType() type}
+	 * {@link Comparable} contract. If the type is not {@link Comparable} the {@link String#compareTo(String)}
+	 * comparison on its {@link Object#toString()} will be used
+	 *
+	 * As an example of unique attribute can be EAN - there is no sense in having two entities with same EAN, and it's
+	 * better to have this ensured by the database engine.
+	 *
+	 * This method differs from {@link #unique(BooleanSupplier)} in that it is possible to have multiple entities with
+	 * same value of this attribute as long as the attribute is {@link #isLocalized()} and the values relate
+	 * to different locales.
+	 *
+	 * @param decider returns true when attribute should be unique
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	T uniqueWithinLocale(@Nonnull BooleanSupplier decider);
 
 	/**
 	 * When attribute is sortable, it is possible to sort entities by this attribute. Do not mark attribute

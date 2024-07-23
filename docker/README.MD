@@ -37,8 +37,8 @@ Evita Server is started in entrypoint shell script:
 exec java \
     $EVITA_JAVA_OPTS \
     -jar "evita/bin/evita-server.jar" \
-    "-DconfigFile=$EVITA_CONFIG_FILE" \
-    "-Dstorage.storageDirectory=$EVITA_STORAGE_DIR" \
+    "configDir=$EVITA_CONFIG_FILE" \
+    "storage.storageDirectory=$EVITA_STORAGE_DIR" \
     $EVITA_ARGS
 ```
 

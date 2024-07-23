@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -28,24 +28,32 @@ import io.evitadb.api.query.require.PriceContent;
 import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.data.PriceContract;
-import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.core.query.QueryContext;
+import io.evitadb.core.query.QueryExecutionContext;
+import io.evitadb.core.query.QueryPlanningContext;
+import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.base.ConstantFormula;
+import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.prefetch.EntityToBitmapFilter;
+import io.evitadb.core.query.algebra.price.FilteredOutPriceRecordAccessor;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords.SortingForm;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.ResolvedFilteredPriceRecords;
-import io.evitadb.core.query.filter.FilterByVisitor;
+import io.evitadb.core.query.algebra.price.predicate.PriceAmountPredicate;
+import io.evitadb.core.query.algebra.price.predicate.PriceContractPredicate;
+import io.evitadb.core.query.algebra.price.predicate.PricePredicate;
+import io.evitadb.core.query.response.ServerEntityDecorator;
+import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.function.QuadriFunction;
-import io.evitadb.index.array.CompositeObjectArray;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.price.model.priceRecord.CumulatedVirtualPriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.Assert;
 import io.evitadb.utils.NumberUtils;
 
 import javax.annotation.Nonnull;
@@ -53,17 +61,16 @@ import javax.annotation.Nullable;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Predicate;
 
 /**
  * Implementation of {@link EntityToBitmapFilter} that verifies that the entity has the "selling price" available.
- * The proper "selling price" is derived from the {@link QueryContext} automatically by specifying
+ * The proper "selling price" is derived from the {@link QueryPlanningContext} automatically by specifying
  * {@link PriceContentMode#RESPECTING_FILTER} which in turn retrieves all basic constraints such as price list / currency
  * from the {@link io.evitadb.api.requestResponse.EvitaRequest}. Only the price between must be handled locally.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class SellingPriceAvailableBitmapFilter implements EntityToBitmapFilter, FilteredPriceRecordAccessor {
+public class SellingPriceAvailableBitmapFilter implements EntityToBitmapFilter, FilteredPriceRecordAccessor, FilteredOutPriceRecordAccessor {
 	private static final EntityFetch ENTITY_REQUIRE = new EntityFetch(new PriceContent(PriceContentMode.RESPECTING_FILTER));
 
 	/**
@@ -78,14 +85,21 @@ public class SellingPriceAvailableBitmapFilter implements EntityToBitmapFilter, 
 	/**
 	 * Contains the predicate that must be fulfilled in order selling price is accepted by the filter.
 	 */
-	private final Predicate<PriceContract> filter;
+	private final PriceContractPredicate filter;
 	/**
-	 * Contains array of price records that links to the price ids produced by {@link #filter(FilterByVisitor)}
-	 * method. This object is available once the {@link #filter(FilterByVisitor)}  method has been called.
+	 * Contains array of price records that links to the price ids produced by {@link EntityToBitmapFilter#filter(QueryExecutionContext)}
+	 * method. This object is available once the {@link EntityToBitmapFilter#filter(QueryExecutionContext)}  method has been called.
 	 */
 	private FilteredPriceRecords filteredPriceRecords;
+	/**
+	 * Contains result containing all entities that were filtered out by {@link #filter} predicate.
+	 */
+	private Formula filteredOutRecords;
 
-	public SellingPriceAvailableBitmapFilter(@Nullable String[] additionalPriceLists, @Nonnull Predicate<PriceContract> filter) {
+	public SellingPriceAvailableBitmapFilter(
+		@Nullable String[] additionalPriceLists,
+		@Nonnull PriceContractPredicate filter
+	) {
 		this.entityFetch = ArrayUtils.isEmpty(additionalPriceLists) ? ENTITY_REQUIRE : new EntityFetch(PriceContent.respectingFilter(additionalPriceLists));
 		this.converter = (entityPrimaryKey, indexedPricePlaces, priceQueryMode, priceContract) -> new CumulatedVirtualPriceRecord(
 			entityPrimaryKey,
@@ -98,7 +112,7 @@ public class SellingPriceAvailableBitmapFilter implements EntityToBitmapFilter, 
 	}
 
 	public SellingPriceAvailableBitmapFilter(@Nullable String... additionalPriceLists) {
-		this(additionalPriceLists, priceContract -> true);
+		this(additionalPriceLists, PricePredicate.ALL_CONTRACT_FILTER);
 	}
 
 	@Nonnull
@@ -107,55 +121,75 @@ public class SellingPriceAvailableBitmapFilter implements EntityToBitmapFilter, 
 		return entityFetch;
 	}
 
+	@Nullable
+	@Override
+	public PriceAmountPredicate getRequestedPredicate() {
+		return this.filter.getRequestedPredicate();
+	}
+
+	@Nonnull
+	@Override
+	public Formula getCloneWithPricePredicateFilteredOutResults() {
+		Assert.isPremiseValid(filteredOutRecords != null, "Filter was not yet called on selling price bitmap filter, this is not expected!");
+		return filteredOutRecords;
+	}
+
 	@Nonnull
 	@Override
 	public FilteredPriceRecords getFilteredPriceRecords() {
+		Assert.isPremiseValid(filteredOutRecords != null, "Filter was not yet called on selling price bitmap filter, this is not expected!");
 		return filteredPriceRecords;
 	}
 
 	@Nonnull
 	@Override
-	public Bitmap filter(@Nonnull FilterByVisitor filterByVisitor) {
+	public Bitmap filter(@Nonnull QueryExecutionContext context) {
 		final CompositeObjectArray<PriceRecordContract> theFilteredPriceRecords = new CompositeObjectArray<>(PriceRecordContract.class);
-		final QueryPriceMode queryPriceMode = filterByVisitor.getQueryPriceMode();
+		final QueryPriceMode queryPriceMode = context.getQueryPriceMode();
 		final BaseBitmap result = new BaseBitmap();
+		final BaseBitmap filterOutResult = new BaseBitmap();
 		final AtomicInteger indexedPricePlaces = new AtomicInteger();
 		String entityType = null;
-		final List<EntityDecorator> entities = filterByVisitor.getPrefetchedEntities();
+		final List<ServerEntityDecorator> entities = context.getPrefetchedEntities();
 		if (entities == null) {
 			return EmptyBitmap.INSTANCE;
 		} else {
 			// iterate over all entities
-			for (SealedEntity entity : entities) {
-				final EntityDecorator entityDecorator = (EntityDecorator) entity;
-			/* we can be sure entities are sorted by type because:
-			   1. all entities share the same type
-			   2. or entities are fetched via {@link QueryContext#prefetchEntities(EntityReference[], EntityContentRequire[])}
-			      that fetches them by entity type in bulk
-			*/
+			for (EntityDecorator entity : entities) {
+				/* we can be sure entities are sorted by type because:
+				   1. all entities share the same type
+				   2. or entities are fetched via {@link QueryPlanningContext#prefetchEntities(EntityReference[], EntityContentRequire[])}
+				      that fetches them by entity type in bulk
+				*/
 				final EntitySchemaContract entitySchema = entity.getSchema();
 				if (!Objects.equals(entityType, entitySchema.getName())) {
 					entityType = entitySchema.getName();
 					indexedPricePlaces.set(entitySchema.getIndexedPricePlaces());
 				}
-				final int primaryKey = filterByVisitor.translateEntity(entity);
-				if (entityDecorator.isPriceForSaleContextAvailable()) {
+				final int primaryKey = context.translateEntity(entity);
+				if (entity.isPriceForSaleContextAvailable()) {
 					// check whether they have valid selling price (applying filter on price lists and currency)
-					entityDecorator.getPriceForSale(filter)
+					entity.getPriceForSale(filter)
 						// and if there is still selling price add it to the output result
-						.ifPresent(it -> {
-							theFilteredPriceRecords.add(converter.apply(primaryKey, indexedPricePlaces.get(), queryPriceMode, it));
-							result.add(primaryKey);
-						});
+						.ifPresentOrElse(
+							it -> {
+								theFilteredPriceRecords.add(converter.apply(primaryKey, indexedPricePlaces.get(), queryPriceMode, it));
+								result.add(primaryKey);
+							},
+							() -> filterOutResult.add(primaryKey)
+						);
 				} else {
-					if (entity.getAllPricesForSale().stream().anyMatch(filter)) {
+					if (entity.getPrices().stream().filter(PriceContract::sellable).anyMatch(filter)) {
 						result.add(primaryKey);
+					} else {
+						filterOutResult.add(primaryKey);
 					}
 				}
 
 			}
 			// memoize valid selling prices for sorting purposes
 			this.filteredPriceRecords = new ResolvedFilteredPriceRecords(theFilteredPriceRecords.toArray(), SortingForm.NOT_SORTED);
+			this.filteredOutRecords = filterOutResult.isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(filterOutResult);
 			// return entity ids having selling prices
 			return result;
 		}

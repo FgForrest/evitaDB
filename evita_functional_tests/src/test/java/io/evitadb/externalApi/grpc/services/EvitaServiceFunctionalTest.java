@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -24,14 +24,15 @@
 package io.evitadb.externalApi.grpc.services;
 
 import com.google.protobuf.Empty;
+import com.linecorp.armeria.client.grpc.GrpcClientBuilder;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.core.Evita;
-import io.evitadb.externalApi.grpc.GrpcProvider;
-import io.evitadb.externalApi.grpc.TestChannelCreator;
-import io.evitadb.externalApi.grpc.generated.*;
-import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc.EvitaServiceBlockingStub;
 import io.evitadb.driver.interceptor.ClientSessionInterceptor;
 import io.evitadb.driver.interceptor.ClientSessionInterceptor.SessionIdHolder;
+import io.evitadb.externalApi.grpc.GrpcProvider;
+import io.evitadb.externalApi.grpc.TestGrpcClientBuilderCreator;
+import io.evitadb.externalApi.grpc.generated.*;
+import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc.EvitaServiceBlockingStub;
 import io.evitadb.externalApi.grpc.testUtils.TestDataProvider;
 import io.evitadb.externalApi.system.SystemProvider;
 import io.evitadb.server.EvitaServer;
@@ -40,7 +41,6 @@ import io.evitadb.test.annotation.OnDataSetTearDown;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.extension.EvitaParameterResolver;
-import io.grpc.ManagedChannel;
 import io.grpc.StatusRuntimeException;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.AfterEach;
@@ -72,17 +72,17 @@ class EvitaServiceFunctionalTest {
 
 	@DataSet(value = GRPC_THOUSAND_PRODUCTS, openWebApi = {GrpcProvider.CODE, SystemProvider.CODE}, readOnly = false, destroyAfterClass = true)
 	DataCarrier setUp(Evita evita, EvitaServer evitaServer) {
-		final ManagedChannel channel = TestChannelCreator.getChannel(new ClientSessionInterceptor(), evitaServer.getExternalApiServer());
+		final GrpcClientBuilder clientBuilder = TestGrpcClientBuilderCreator.getBuilder(new ClientSessionInterceptor(), evitaServer.getExternalApiServer());
 		final List<SealedEntity> entities = new TestDataProvider().generateEntities(evita, 10);
 		return new DataCarrier(
 			"entities", entities,
-			"channel", channel
+			"clientBuilder", clientBuilder
 		);
 	}
 
 	@OnDataSetTearDown(GRPC_THOUSAND_PRODUCTS)
-	void onDataSetTearDown(ManagedChannel channel) {
-		channel.shutdown();
+	void onDataSetTearDown(GrpcClientBuilder grpcClientBuilder) {
+
 	}
 
 	@AfterEach
@@ -93,8 +93,8 @@ class EvitaServiceFunctionalTest {
 	@Test
 	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
 	@DisplayName("Should throw an exception when sending non-existent catalog as parameter")
-	void shouldThrowWhenAskingForNonExistingCatalog(ManagedChannel channel) {
-		final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = EvitaServiceGrpc.newBlockingStub(channel);
+	void shouldThrowWhenAskingForNonExistingCatalog(GrpcClientBuilder clientBuilder) {
+		final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = clientBuilder.build(EvitaServiceBlockingStub.class);
 
 		assertThrows(
 			StatusRuntimeException.class,
@@ -108,8 +108,8 @@ class EvitaServiceFunctionalTest {
 	@Test
 	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
 	@DisplayName("Should return sessionId when sending existing catalog as parameter")
-	void shouldReturnSessionIdWhenExistingCatalogPassed(ManagedChannel channel) {
-		final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = EvitaServiceGrpc.newBlockingStub(channel);
+	void shouldReturnSessionIdWhenExistingCatalogPassed(GrpcClientBuilder clientBuilder) {
+		final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = clientBuilder.build(EvitaServiceBlockingStub.class);
 
 		final AtomicReference<GrpcEvitaSessionResponse> response = new AtomicReference<>();
 
@@ -126,8 +126,8 @@ class EvitaServiceFunctionalTest {
 	@Test
 	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
 	@DisplayName("Should get each time new session when asked")
-	void shouldEachTimeGetNewReadOnlySession(ManagedChannel channel) {
-		final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = EvitaServiceGrpc.newBlockingStub(channel);
+	void shouldEachTimeGetNewReadOnlySession(GrpcClientBuilder clientBuilder) {
+		final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = clientBuilder.build(EvitaServiceBlockingStub.class);
 
 		final AtomicReference<GrpcEvitaSessionResponse> response = new AtomicReference<>();
 
@@ -154,8 +154,8 @@ class EvitaServiceFunctionalTest {
 	@Test
 	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
 	@DisplayName("Should return sessionId of ReadWrite session when sending existing catalog as parameter")
-	void shouldReturnSessionIdOfReadWriteSessionWhenExistingCatalogPassed(ManagedChannel channel) {
-		final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = EvitaServiceGrpc.newBlockingStub(channel);
+	void shouldReturnSessionIdOfReadWriteSessionWhenExistingCatalogPassed(GrpcClientBuilder clientBuilder) {
+		final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = clientBuilder.build(EvitaServiceBlockingStub.class);
 
 		final AtomicReference<GrpcEvitaSessionResponse> response = new AtomicReference<>();
 
@@ -173,8 +173,8 @@ class EvitaServiceFunctionalTest {
 	@Test
 	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
 	@DisplayName("Should be able concurrently create sessions and call SessionService using correct sessions specified by its id and type from multiple threads in parallel")
-	void shouldBeAbleConcurrentlyCreateSessionsAndCallSessionService(ManagedChannel channel) throws Exception {
-		final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = EvitaServiceGrpc.newBlockingStub(channel);
+	void shouldBeAbleConcurrentlyCreateSessionsAndCallSessionService(GrpcClientBuilder clientBuilder) throws Exception {
+		final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = clientBuilder.build(EvitaServiceBlockingStub.class);
 
 		final int numberOfThreads = 10;
 		final int iterations = 100;
@@ -197,7 +197,7 @@ class EvitaServiceFunctionalTest {
 									.setCatalogName(TEST_CATALOG)
 									.build()
 							);
-						makeSessionCall(TEST_CATALOG, response.getSessionId(), channel);
+						makeSessionCall(TEST_CATALOG, response.getSessionId(), clientBuilder);
 					}
 					latch.countDown();
 				} catch (Exception ex) {
@@ -207,7 +207,7 @@ class EvitaServiceFunctionalTest {
 			});
 		}
 
-		assertTrue(latch.await(5, TimeUnit.SECONDS), "Timeouted!");
+		assertTrue(latch.await(60, TimeUnit.SECONDS), "Timeouted!");
 
 		if (terminatingException.get() != null) {
 			throw terminatingException.get();
@@ -217,8 +217,8 @@ class EvitaServiceFunctionalTest {
 	@Test
 	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
 	@DisplayName("Should get each time new ReadWrite session when asked")
-	void shouldEachTimeGetNewReadWriteSession(ManagedChannel channel) {
-		final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = EvitaServiceGrpc.newBlockingStub(channel);
+	void shouldEachTimeGetNewReadWriteSession(GrpcClientBuilder clientBuilder) {
+		final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = clientBuilder.build(EvitaServiceBlockingStub.class);
 
 		final AtomicReference<GrpcEvitaSessionResponse> response = new AtomicReference<>();
 
@@ -245,8 +245,8 @@ class EvitaServiceFunctionalTest {
 	@Test
 	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
 	@DisplayName("Should get BinaryReadOnly session when asked")
-	void shouldGetBinaryReadOnlySession(ManagedChannel channel) {
-		final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = EvitaServiceGrpc.newBlockingStub(channel);
+	void shouldGetBinaryReadOnlySession(GrpcClientBuilder clientBuilder) {
+		final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = clientBuilder.build(EvitaServiceBlockingStub.class);
 
 		final AtomicReference<GrpcEvitaSessionResponse> response = new AtomicReference<>();
 
@@ -263,8 +263,8 @@ class EvitaServiceFunctionalTest {
 	@Test
 	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
 	@DisplayName("Should get BinaryReadWrite session when asked")
-	void shouldGetBinaryReadWriteSession(ManagedChannel channel) {
-		final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = EvitaServiceGrpc.newBlockingStub(channel);
+	void shouldGetBinaryReadWriteSession(GrpcClientBuilder clientBuilder) {
+		final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = clientBuilder.build(EvitaServiceBlockingStub.class);
 
 		final AtomicReference<GrpcEvitaSessionResponse> response = new AtomicReference<>();
 
@@ -281,8 +281,8 @@ class EvitaServiceFunctionalTest {
 	@Test
 	@UseDataSet(value = GRPC_THOUSAND_PRODUCTS, destroyAfterTest = true)
 	@DisplayName("Should be able to create new catalog")
-	void shouldBeAbleToCreateNewCatalog(Evita evita, ManagedChannel channel) {
-		final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = EvitaServiceGrpc.newBlockingStub(channel);
+	void shouldBeAbleToCreateNewCatalog(Evita evita, GrpcClientBuilder clientBuilder) {
+		final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = clientBuilder.build(EvitaServiceGrpc.EvitaServiceBlockingStub.class);
 		assertFalse(evita.getCatalogNames().contains(DUMMY_CATALOG));
 		final GrpcDefineCatalogResponse createCatalogResponse = evitaBlockingStub.defineCatalog(
 			GrpcDefineCatalogRequest.newBuilder().setCatalogName(DUMMY_CATALOG).build()
@@ -300,8 +300,8 @@ class EvitaServiceFunctionalTest {
 	@Test
 	@UseDataSet(value = GRPC_THOUSAND_PRODUCTS, destroyAfterTest = true)
 	@DisplayName("Should be able to delete existing catalog")
-	void shouldBeAbleToDeleteExisting(Evita evita, ManagedChannel channel) {
-		final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = EvitaServiceGrpc.newBlockingStub(channel);
+	void shouldBeAbleToDeleteExisting(Evita evita, GrpcClientBuilder clientBuilder) {
+		final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = clientBuilder.build(EvitaServiceGrpc.EvitaServiceBlockingStub.class);
 		if (!evita.getCatalogNames().contains(DUMMY_CATALOG)) {
 			assertNotNull(evita.defineCatalog(DUMMY_CATALOG));
 		}
@@ -318,10 +318,10 @@ class EvitaServiceFunctionalTest {
 	@Test
 	@UseDataSet(value = GRPC_THOUSAND_PRODUCTS, destroyAfterTest = true)
 	@DisplayName("Should be able to rename catalog")
-	void shouldBeAbleToRenameCatalog(Evita evita, ManagedChannel channel) {
+	void shouldBeAbleToRenameCatalog(Evita evita, GrpcClientBuilder clientBuilder) {
 		assertFalse(evita.getCatalogNames().contains(DUMMY_CATALOG));
 
-		final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = EvitaServiceGrpc.newBlockingStub(channel);
+		final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = clientBuilder.build(EvitaServiceGrpc.EvitaServiceBlockingStub.class);
 		final GrpcRenameCatalogResponse renameCatalogResponse = evitaBlockingStub.renameCatalog(
 			GrpcRenameCatalogRequest.newBuilder()
 				.setCatalogName(TEST_CATALOG)
@@ -338,10 +338,10 @@ class EvitaServiceFunctionalTest {
 	@Test
 	@UseDataSet(value = GRPC_THOUSAND_PRODUCTS, destroyAfterTest = true)
 	@DisplayName("Should be able to replace catalog with a new one")
-	void shouldBeAbleToReplaceCatalogWithNewOne(Evita evita, ManagedChannel channel) {
+	void shouldBeAbleToReplaceCatalogWithNewOne(Evita evita, GrpcClientBuilder clientBuilder) {
 		assertFalse(evita.getCatalogNames().contains(DUMMY_CATALOG));
 
-		final EvitaServiceBlockingStub evitaBlockingStub = EvitaServiceGrpc.newBlockingStub(channel);
+		final EvitaServiceBlockingStub evitaBlockingStub = clientBuilder.build(EvitaServiceBlockingStub.class);
 		assertNotNull(evita.defineCatalog(DUMMY_CATALOG));
 		assertTrue(evita.getCatalogNames().contains(DUMMY_CATALOG));
 		assertTrue(() -> evita.queryCatalog(DUMMY_CATALOG, session -> { return session.getAllEntityTypes().isEmpty(); }));
@@ -362,8 +362,8 @@ class EvitaServiceFunctionalTest {
 	@Test
 	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
 	@DisplayName("Should not be able to delete non-existing catalog")
-	void shouldNotBeAbleToDeleteNonExisting(Evita evita, ManagedChannel channel) {
-		final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = EvitaServiceGrpc.newBlockingStub(channel);
+	void shouldNotBeAbleToDeleteNonExisting(Evita evita, GrpcClientBuilder clientBuilder) {
+		final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = clientBuilder.build(EvitaServiceGrpc.EvitaServiceBlockingStub.class);
 		assertFalse(evita.getCatalogNames().contains(DUMMY_CATALOG));
 
 		final GrpcDeleteCatalogIfExistsResponse deleteCatalogResponse = evitaBlockingStub.deleteCatalogIfExists(
@@ -376,16 +376,16 @@ class EvitaServiceFunctionalTest {
 	@Test
 	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
 	@DisplayName("Should return list of available evita catalogs")
-	void shouldReturnListOfEvitaCatalogs(Evita evita, ManagedChannel channel) {
-		final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = EvitaServiceGrpc.newBlockingStub(channel);
+	void shouldReturnListOfEvitaCatalogs(Evita evita, GrpcClientBuilder clientBuilder) {
+		final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = clientBuilder.build(EvitaServiceGrpc.EvitaServiceBlockingStub.class);
 		final List<String> catalogNamesList = evitaBlockingStub.getCatalogNames(Empty.newBuilder().build()).getCatalogNamesList();
 
 		assertArrayEquals(evita.getCatalogNames().toArray(), catalogNamesList.toArray());
 	}
 
-	private void makeSessionCall(@Nonnull String catalogName, @Nonnull String sessionId, @Nonnull ManagedChannel channel) {
+	private void makeSessionCall(@Nonnull String catalogName, @Nonnull String sessionId, @Nonnull GrpcClientBuilder clientBuilder) {
 		SessionIdHolder.setSessionId(catalogName, sessionId);
-		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
+		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = clientBuilder.build(EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub.class);
 
 		final AtomicReference<GrpcEntityTypesResponse> response = new AtomicReference<>();
 

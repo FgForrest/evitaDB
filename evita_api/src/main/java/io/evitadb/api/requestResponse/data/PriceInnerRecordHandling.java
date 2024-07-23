@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -41,10 +41,10 @@ public enum PriceInnerRecordHandling {
 	 */
 	NONE,
 	/**
-	 * Prices with same inner entity id will be sorted descending by priority value and first one
-	 * (i.e. the one with the biggest priority) will be used (others won't be considered at all)
+	 * Prices with same inner entity id will be sorted by price and the one with the lowest price will be used as
+	 * the final price.
 	 */
-	FIRST_OCCURRENCE,
+	LOWEST_PRICE,
 	/**
 	 * Prices with same inner entity id will be added up to a new computed aggregated price, prices must share same
 	 * tax rate percentage, currency and price list id in order to be added up

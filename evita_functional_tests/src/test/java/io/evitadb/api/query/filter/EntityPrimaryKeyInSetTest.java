@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -42,8 +42,27 @@ class EntityPrimaryKeyInSetTest {
 	}
 
 	@Test
+	void shouldCreateViaFactoryClassWorkAsExpectedNullInArray() {
+		final EntityPrimaryKeyInSet entityPrimaryKeyInSet = entityPrimaryKeyInSet(1, null, 7);
+		assertArrayEquals(new int[] {1, 7}, entityPrimaryKeyInSet.getPrimaryKeys());
+	}
+
+	@Test
+	void shouldCreateViaFactoryClassWorkAsExpectedForNullVariable() {
+		final Integer nullInteger = null;
+		final EntityPrimaryKeyInSet entityPrimaryKeyInSet = entityPrimaryKeyInSet(nullInteger);
+		assertNull(entityPrimaryKeyInSet);
+	}
+
+	@Test
+	void shouldCreateViaFactoryClassWorkAsExpectedNullValueInArray() {
+		final EntityPrimaryKeyInSet entityPrimaryKeyInSet = entityPrimaryKeyInSet(new Integer[0]);
+		assertArrayEquals(new int[0], entityPrimaryKeyInSet.getPrimaryKeys());
+	}
+
+	@Test
 	void shouldRecognizeApplicability() {
-		assertFalse(new EntityPrimaryKeyInSet().isApplicable());
+		assertTrue(new EntityPrimaryKeyInSet().isApplicable());
 		assertTrue(entityPrimaryKeyInSet(1).isApplicable());
 		assertTrue(entityPrimaryKeyInSet(1, 5, 7).isApplicable());
 	}

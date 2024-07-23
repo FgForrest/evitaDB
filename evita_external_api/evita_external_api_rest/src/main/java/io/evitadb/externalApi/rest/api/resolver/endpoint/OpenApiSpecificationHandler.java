@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,21 +23,24 @@
 
 package io.evitadb.externalApi.rest.api.resolver.endpoint;
 
+import com.linecorp.armeria.common.HttpData;
+import com.linecorp.armeria.common.HttpMethod;
+import com.linecorp.armeria.common.HttpResponseWriter;
 import io.evitadb.externalApi.http.EndpointResponse;
 import io.evitadb.externalApi.http.MimeTypes;
 import io.evitadb.externalApi.http.SuccessEndpointResponse;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiWriter;
-import io.evitadb.externalApi.rest.io.RestEndpointExchange;
+import io.evitadb.externalApi.rest.io.RestEndpointExecutionContext;
 import io.evitadb.externalApi.rest.io.RestEndpointHandler;
 import io.evitadb.externalApi.rest.io.RestHandlingContext;
-import io.swagger.v3.oas.models.OpenAPI;
-import io.undertow.util.Methods;
+import io.netty.channel.EventLoop;
 
 import javax.annotation.Nonnull;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.OutputStream;
 import java.util.LinkedHashSet;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 
 import static io.evitadb.utils.CollectionUtils.createLinkedHashSet;
 
@@ -46,7 +49,7 @@ import static io.evitadb.utils.CollectionUtils.createLinkedHashSet;
  *
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class OpenApiSpecificationHandler<C extends RestHandlingContext> extends RestEndpointHandler<OpenAPI, C> {
+public class OpenApiSpecificationHandler<C extends RestHandlingContext> extends RestEndpointHandler<C> {
 
 	public OpenApiSpecificationHandler(@Nonnull C restHandlingContext) {
 		super(restHandlingContext);
@@ -54,14 +57,16 @@ public class OpenApiSpecificationHandler<C extends RestHandlingContext> extends 
 
 	@Nonnull
 	@Override
-	protected EndpointResponse<OpenAPI> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
-		return new SuccessEndpointResponse<>(restApiHandlingContext.getOpenApi());
+	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
+		return executionContext.executeAsyncInRequestThreadPool(
+			() -> new SuccessEndpointResponse(restHandlingContext.getOpenApi())
+		);
 	}
 
 	@Nonnull
 	@Override
-	public Set<String> getSupportedHttpMethods() {
-		return Set.of(Methods.GET_STRING);
+	public Set<HttpMethod> getSupportedHttpMethods() {
+		return Set.of(HttpMethod.GET);
 	}
 
 	@Nonnull
@@ -74,8 +79,13 @@ public class OpenApiSpecificationHandler<C extends RestHandlingContext> extends 
 	}
 
 	@Override
-	protected void writeResult(@Nonnull RestEndpointExchange exchange, @Nonnull OutputStream outputStream, @Nonnull OpenAPI openApiSpecification) {
-		final String preferredResponseMediaType = exchange.preferredResponseContentType();
+	protected void writeResponse(
+		@Nonnull RestEndpointExecutionContext executionContext,
+		@Nonnull HttpResponseWriter responseWriter,
+		@Nonnull Object openApiSpecification,
+		@Nonnull EventLoop eventLoop) {
+		final String preferredResponseMediaType = executionContext.preferredResponseContentType();
+		final ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
 		try {
 			if (preferredResponseMediaType.equals(MimeTypes.APPLICATION_YAML)) {
 				OpenApiWriter.toYaml(openApiSpecification, outputStream);
@@ -84,6 +94,7 @@ public class OpenApiSpecificationHandler<C extends RestHandlingContext> extends 
 			} else {
 				throw createInternalError("Should never happen!");
 			}
+			responseWriter.write(HttpData.copyOf(outputStream.toByteArray()));
 		} catch (IOException e) {
 			throw createInternalError("Could not serialize OpenAPI specification: " + e.getMessage());
 		}

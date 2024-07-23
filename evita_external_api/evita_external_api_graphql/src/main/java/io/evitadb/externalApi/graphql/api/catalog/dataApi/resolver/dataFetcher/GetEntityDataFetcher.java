@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -31,6 +31,7 @@ import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.require.EntityFetch;
+import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.query.require.Require;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
@@ -45,8 +46,10 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.Fi
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.OrderConstraintResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.RequireConstraintResolver;
 import io.evitadb.externalApi.graphql.api.resolver.SelectionSetAggregator;
+import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.ReadDataFetcher;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidArgumentException;
 import io.evitadb.externalApi.graphql.exception.GraphQLQueryResolvingInternalError;
+import io.evitadb.externalApi.graphql.metric.event.request.ExecutedEvent;
 import io.evitadb.utils.Assert;
 import lombok.extern.slf4j.Slf4j;
 
@@ -77,7 +80,7 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 @Slf4j
-public class GetEntityDataFetcher implements DataFetcher<DataFetcherResult<EntityClassifier>> {
+public class GetEntityDataFetcher implements DataFetcher<DataFetcherResult<EntityClassifier>>, ReadDataFetcher {
 
 	/**
 	 * Schema of collection to which this fetcher is mapped to.
@@ -104,24 +107,28 @@ public class GetEntityDataFetcher implements DataFetcher<DataFetcherResult<Entit
 	@Override
 	public DataFetcherResult<EntityClassifier> get(@Nonnull DataFetchingEnvironment environment) {
 		final Arguments arguments = Arguments.from(environment, entitySchema);
+		final ExecutedEvent requestExecutedEvent = environment.getGraphQlContext().get(GraphQLContextKey.METRIC_EXECUTED_EVENT);
 
-		final FilterBy filterBy = buildFilterBy(arguments);
-		final Require require = buildRequire(environment, arguments);
-		final Query query = query(
-			collection(entitySchema.getName()),
-			filterBy,
-			require
-		);
+		final Query query = requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() -> {
+			final FilterBy filterBy = buildFilterBy(arguments);
+			final Require require = buildRequire(environment, arguments);
+			return query(
+				collection(entitySchema.getName()),
+				filterBy,
+				require
+			);
+		});
 		log.debug("Generated evitaDB query for single entity fetch of type `{}` is `{}`.", entitySchema.getName(), query);
 
 		final EvitaSessionContract evitaSession = environment.getGraphQlContext().get(GraphQLContextKey.EVITA_SESSION);
 
 		final DataFetcherResult.Builder<EntityClassifier> resultBuilder = DataFetcherResult.newResult();
-		evitaSession.queryOne(query, EntityClassifier.class)
-			.ifPresent(entity -> resultBuilder
-				.data(entity)
-				.localContext(buildResultContext(arguments))
-			);
+		final Optional<EntityClassifier> entityClassifier = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
+			evitaSession.queryOne(query, EntityClassifier.class));
+
+		entityClassifier.ifPresent(entity -> resultBuilder
+			.data(entity)
+			.localContext(buildResultContext(arguments)));
 		return resultBuilder.build();
 	}
 
@@ -166,7 +173,7 @@ public class GetEntityDataFetcher implements DataFetcher<DataFetcherResult<Entit
 	    )
 		    .orElse(null);
 
-	    return require(entityFetch);
+	    return require(entityFetch, priceType(arguments.priceType()));
     }
 
     @Nonnull
@@ -189,6 +196,7 @@ public class GetEntityDataFetcher implements DataFetcher<DataFetcherResult<Entit
                              @Nullable String[] priceInPriceLists,
                              @Nullable OffsetDateTime priceValidIn,
                              boolean priceValidInNow,
+							 @Nonnull QueryPriceMode priceType,
                              @Nonnull Map<AttributeSchemaContract, Object> uniqueAttributes) {
 
 		private static Arguments from(@Nonnull DataFetchingEnvironment environment, @Nonnull EntitySchemaContract entitySchema) {
@@ -205,6 +213,8 @@ public class GetEntityDataFetcher implements DataFetcher<DataFetcherResult<Entit
             final OffsetDateTime priceValidIn = (OffsetDateTime) arguments.remove(GetEntityHeaderDescriptor.PRICE_VALID_IN.name());
             final boolean priceValidInNow = (boolean) Optional.ofNullable(arguments.remove(GetEntityHeaderDescriptor.PRICE_VALID_NOW.name()))
                 .orElse(false);
+			final QueryPriceMode priceType = (QueryPriceMode) Optional.ofNullable(arguments.remove(GetEntityHeaderDescriptor.PRICE_TYPE.name()))
+				.orElse(QueryPriceMode.WITH_TAX);
 
 			// left over arguments are unique attribute filters as defined by schema
 			final Map<AttributeSchemaContract, Object> uniqueAttributes = extractUniqueAttributesFromArguments(arguments, entitySchema);
@@ -223,6 +233,7 @@ public class GetEntityDataFetcher implements DataFetcher<DataFetcherResult<Entit
                 (priceInPriceLists != null ? priceInPriceLists.toArray(String[]::new) : null),
                 priceValidIn,
                 priceValidInNow,
+				priceType,
                 uniqueAttributes
             );
         }

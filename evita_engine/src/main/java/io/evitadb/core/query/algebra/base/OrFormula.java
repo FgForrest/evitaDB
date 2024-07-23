@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -26,11 +26,11 @@ package io.evitadb.core.query.algebra.base;
 import io.evitadb.core.query.algebra.AbstractCacheableFormula;
 import io.evitadb.core.query.algebra.CacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
-import io.evitadb.index.transactionalMemory.TransactionalLayerProducer;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import net.openhft.hashing.LongHashFunction;
@@ -67,29 +67,33 @@ public class OrFormula extends AbstractCacheableFormula {
 	private final long[] indexTransactionId;
 
 	OrFormula(@Nonnull Consumer<CacheableFormula> computationCallback, @Nonnull Formula[] innerFormulas, long[] indexTransactionId, @Nullable Bitmap[] bitmaps) {
-		super(computationCallback, innerFormulas);
+		super(computationCallback);
 		Assert.isTrue(
 			innerFormulas.length > 1 || Objects.requireNonNull(bitmaps).length > 1,
 			"Or formula has no sense with " + innerFormulas.length + " inner formulas / bitmaps!"
 		);
 		this.bitmaps = bitmaps;
 		this.indexTransactionId = indexTransactionId;
+		this.initFields(innerFormulas);
 	}
 
 	public OrFormula(@Nonnull Formula... innerFormulas) {
-		super(null, innerFormulas);
+		super(null);
 		Assert.isTrue(innerFormulas.length > 1, "Or formula has no sense with " + innerFormulas.length + " inner formulas!");
 		this.bitmaps = null;
 		this.indexTransactionId = null;
+		this.initFields(innerFormulas);
 	}
 
 	public OrFormula(long[] indexTransactionId, @Nonnull Bitmap... bitmaps) {
 		super(null);
-		Assert.isTrue(bitmaps.length > 1, "Or formula has no sense with " + innerFormulas.length + " inner bitmaps!");
+		Assert.isTrue(bitmaps.length > 1, "Or formula has no sense with " + bitmaps.length + " inner bitmaps!");
 		this.bitmaps = bitmaps;
 		this.indexTransactionId = indexTransactionId;
+		this.initFields();
 	}
 
+	@Nonnull
 	public Bitmap[] getBitmaps() {
 		return bitmaps == null ? EMPTY_BITMAP_ARRAY : bitmaps;
 	}
@@ -211,13 +215,14 @@ public class OrFormula extends AbstractCacheableFormula {
 		} else {
 			theResult = new BaseBitmap(RoaringBitmap.or(theBitmaps));
 		}
-		return theResult;
+		return theResult.isEmpty() ? EmptyBitmap.INSTANCE : theResult;
 	}
 
 	/*
 		PRIVATE METHODS
 	 */
 
+	@Nonnull
 	private RoaringBitmap[] getRoaringBitmaps() {
 		return ofNullable(this.bitmaps)
 			.map(it -> Arrays

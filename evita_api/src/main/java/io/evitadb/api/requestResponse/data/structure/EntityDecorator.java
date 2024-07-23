@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -52,8 +52,8 @@ import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.dataType.data.ComplexDataObjectConverter;
-import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ReflectionLookup;
 import lombok.Getter;
@@ -286,6 +286,36 @@ public class EntityDecorator implements SealedEntity {
 	 * Creates wrapper around {@link Entity} that filters existing data according passed predicates (which are constructed
 	 * to match query that is used to retrieve the decorator).
 	 *
+	 * @param entity           fully or partially loaded entity - it's usually wider than decorator (may be even complete), decorator
+	 *                         might be obtained from shared global cache
+	 * @param parentEntity     object of the parentEntity
+	 * @param referenceFetcher fetcher that can be used for fetching, filtering and ordering referenced
+	 *                         entities / groups
+	 */
+	public EntityDecorator(
+		@Nonnull EntityDecorator entity,
+		@Nullable EntityClassifierWithParent parentEntity,
+		@Nonnull ReferenceFetcher referenceFetcher
+	) {
+		this(
+			entity.getDelegate(),
+			entity.getSchema(),
+			parentEntity,
+			entity.localePredicate,
+			entity.hierarchyPredicate,
+			entity.attributePredicate,
+			entity.associatedDataPredicate,
+			entity.referencePredicate,
+			entity.pricePredicate,
+			entity.alignedNow,
+			referenceFetcher
+		);
+	}
+
+	/**
+	 * Creates wrapper around {@link Entity} that filters existing data according passed predicates (which are constructed
+	 * to match query that is used to retrieve the decorator).
+	 *
 	 * @param entity                  fully or partially loaded entity - it's usually wider than decorator (may be even complete), decorator
 	 *                                might be obtained from shared global cache
 	 * @param parentEntity            object of the parentEntity
@@ -342,7 +372,7 @@ public class EntityDecorator implements SealedEntity {
 			if (referenceSchema == null) {
 				index = i;
 				referenceSchema = entitySchema.getReference(thisReferenceName)
-					.orElseThrow(() -> new EvitaInternalError("Sanity check!"));
+					.orElseThrow(() -> new GenericEvitaInternalError("Sanity check!"));
 				entityFetcher = referenceFetcher.getEntityFetcher(referenceSchema);
 				entityGroupFetcher = referenceFetcher.getEntityGroupFetcher(referenceSchema);
 				fetchedReferenceComparator = referenceFetcher.getEntityComparator(referenceSchema);
@@ -355,7 +385,7 @@ public class EntityDecorator implements SealedEntity {
 				);
 				index = i;
 				referenceSchema = entitySchema.getReference(thisReferenceName)
-					.orElseThrow(() -> new EvitaInternalError("Sanity check!"));
+					.orElseThrow(() -> new GenericEvitaInternalError("Sanity check!"));
 				entityFetcher = referenceFetcher.getEntityFetcher(referenceSchema);
 				entityGroupFetcher = referenceFetcher.getEntityGroupFetcher(referenceSchema);
 				fetchedReferenceComparator = referenceFetcher.getEntityComparator(referenceSchema);
@@ -1051,20 +1081,61 @@ public class EntityDecorator implements SealedEntity {
 
 	@Nonnull
 	@Override
-	public List<PriceContract> getAllPricesForSale(@Nullable Currency currency, @Nullable OffsetDateTime atTheMoment, @Nullable String... priceListPriority) throws ContextMissingException {
+	public List<PriceContract> getAllPricesForSale(@Nonnull Currency currency, @Nullable OffsetDateTime atTheMoment, @Nonnull String... priceListPriority) throws ContextMissingException {
 		pricePredicate.checkFetched(currency, priceListPriority);
-		return SealedEntity.super.getAllPricesForSale(currency, atTheMoment, priceListPriority);
+		final List<PriceContract> allPricesForSale = SealedEntity.super.getAllPricesForSale(currency, atTheMoment, priceListPriority);
+		if (allPricesForSale.size() > 1) {
+			return allPricesForSale
+				.stream()
+				.sorted(
+					Comparator.comparing(
+						pricePredicate.getQueryPriceMode() == QueryPriceMode.WITH_TAX ?
+							PriceContract::priceWithTax : PriceContract::priceWithoutTax
+					)
+				).toList();
+		} else {
+			return allPricesForSale;
+		}
 	}
 
 	@Nonnull
 	@Override
 	public List<PriceContract> getAllPricesForSale() {
-		pricePredicate.checkPricesFetched();
-		return getAllPricesForSale(
-			pricePredicate.getCurrency(),
-			pricePredicate.getValidIn(),
-			pricePredicate.getPriceLists()
-		);
+		if (pricePredicate.isContextAvailable()) {
+			pricePredicate.checkPricesFetched();
+			return getAllPricesForSale(
+				pricePredicate.getCurrency(),
+				pricePredicate.getValidIn(),
+				pricePredicate.getPriceLists()
+			);
+		} else {
+			throw new ContextMissingException();
+		}
+	}
+
+
+
+	@Nonnull
+	@Override
+	public List<PriceForSaleWithAccompanyingPrices> getAllPricesForSaleWithAccompanyingPrices(@Nullable Currency currency,
+	                                                                                          @Nullable OffsetDateTime atTheMoment,
+	                                                                                          @Nullable String[] priceListPriority,
+	                                                                                          @Nonnull AccompanyingPrice[] accompanyingPricesRequest) {
+		pricePredicate.checkFetched(currency, priceListPriority);
+		final List<PriceForSaleWithAccompanyingPrices> allPricesForSale = SealedEntity.super.getAllPricesForSaleWithAccompanyingPrices(currency, atTheMoment, priceListPriority, accompanyingPricesRequest);
+		if (allPricesForSale.size() > 1) {
+			return allPricesForSale
+				.stream()
+				.sorted(
+					Comparator.comparing(
+						pricePredicate.getQueryPriceMode() == QueryPriceMode.WITH_TAX ?
+							it -> it.priceForSale().priceWithTax() :
+							it -> it.priceForSale().priceWithoutTax()
+					)
+				).toList();
+		} else {
+			return allPricesForSale;
+		}
 	}
 
 	@Override

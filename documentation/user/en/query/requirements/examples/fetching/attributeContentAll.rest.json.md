@@ -6,33 +6,33 @@
       "type": "Brand",
       "version": 1,
       "allLocales": [
-        "en",
-        "cs"
+        "cs",
+        "en"
       ],
       "attributes": {
         "global": {
-          "changed": "2023-09-08T14:08:26+02:00",
+          "changed": "2024-02-25T14:35:38+01:00",
           "code": "samsung",
           "order": -1,
-          "published": "2023-10-21T11:44:03.681+02:00",
+          "published": "2024-04-15T17:41:24.074+02:00",
           "status": "ACTIVE",
           "visibility": "VISIBLE"
         }
       }
     }
   ],
-  "type": "PAGE",
-  "totalRecordCount": 1,
-  "first": true,
-  "last": true,
-  "hasPrevious": false,
-  "hasNext": false,
-  "singlePage": true,
   "empty": false,
-  "pageSize": 20,
-  "pageNumber": 1,
-  "lastPageNumber": 1,
+  "first": true,
   "firstPageItemNumber": 0,
-  "lastPageItemNumber": 1
+  "hasNext": false,
+  "hasPrevious": false,
+  "last": true,
+  "lastPageItemNumber": 1,
+  "lastPageNumber": 1,
+  "pageNumber": 1,
+  "pageSize": 20,
+  "singlePage": true,
+  "totalRecordCount": 1,
+  "type": "PAGE"
 }
 ```

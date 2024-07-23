@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -43,7 +43,7 @@ import io.evitadb.externalApi.graphql.api.builder.FinalGraphQLSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.builder.GraphQLSchemaBuildingContext;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher.NameVariantDataFetcher;
 import io.evitadb.externalApi.graphql.api.dataType.GraphQLScalars;
-import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.ReadDataFetcher;
+import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.AsyncDataFetcher;
 import io.evitadb.externalApi.graphql.api.system.model.CatalogQueryHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.system.model.CreateCatalogMutationHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.system.model.DeleteCatalogIfExistsMutationHeaderDescriptor;
@@ -226,7 +226,12 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 	private BuiltFieldDescriptor buildLivenessField() {
 		return new BuiltFieldDescriptor(
 			SystemRootDescriptor.LIVENESS.to(staticEndpointBuilderTransformer).build(),
-			new LivenessDataFetcher()
+			new AsyncDataFetcher(
+				new LivenessDataFetcher(),
+				buildingContext.getConfig(),
+				buildingContext.getTracingContext(),
+				buildingContext.getEvita()
+			)
 		);
 	}
 
@@ -239,10 +244,11 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 
 		return new BuiltFieldDescriptor(
 			catalogField,
-			new ReadDataFetcher(
+			new AsyncDataFetcher(
 				new CatalogDataFetcher(evita),
-				buildingContext.getEvita(),
-				buildingContext.getEvitaExecutor().orElse(null)
+				buildingContext.getConfig(),
+				buildingContext.getTracingContext(),
+				buildingContext.getEvita()
 			)
 		);
 	}
@@ -251,10 +257,11 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 	private BuiltFieldDescriptor buildCatalogsField() {
 		return new BuiltFieldDescriptor(
 			SystemRootDescriptor.CATALOGS.to(staticEndpointBuilderTransformer).build(),
-			new ReadDataFetcher(
+			new AsyncDataFetcher(
 				new CatalogsDataFetcher(evita),
-				buildingContext.getEvita(),
-				buildingContext.getEvitaExecutor().orElse(null)
+				buildingContext.getConfig(),
+				buildingContext.getTracingContext(),
+				buildingContext.getEvita()
 			)
 		);
 	}
@@ -268,7 +275,12 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 
 		return new BuiltFieldDescriptor(
 			createCatalogField,
-			new CreateCatalogMutatingDataFetcher(evita)
+			new AsyncDataFetcher(
+				new CreateCatalogMutatingDataFetcher(evita),
+				buildingContext.getConfig(),
+				buildingContext.getTracingContext(),
+				buildingContext.getEvita()
+			)
 		);
 	}
 
@@ -281,7 +293,12 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 
 		return new BuiltFieldDescriptor(
 			switchCatalogToAliveStateField,
-			new SwitchCatalogToAliveStateMutatingDataFetcher(evita)
+			new AsyncDataFetcher(
+				new SwitchCatalogToAliveStateMutatingDataFetcher(evita),
+				buildingContext.getConfig(),
+				buildingContext.getTracingContext(),
+				buildingContext.getEvita()
+			)
 		);
 	}
 
@@ -295,7 +312,12 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 
 		return new BuiltFieldDescriptor(
 			renameCatalogField,
-			new RenameCatalogMutatingDataFetcher(evita)
+			new AsyncDataFetcher(
+				new RenameCatalogMutatingDataFetcher(evita),
+				buildingContext.getConfig(),
+				buildingContext.getTracingContext(),
+				buildingContext.getEvita()
+			)
 		);
 	}
 
@@ -309,7 +331,12 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 
 		return new BuiltFieldDescriptor(
 			replaceCatalogField,
-			new ReplaceCatalogMutatingDataFetcher(evita)
+			new AsyncDataFetcher(
+				new ReplaceCatalogMutatingDataFetcher(evita),
+				buildingContext.getConfig(),
+				buildingContext.getTracingContext(),
+				buildingContext.getEvita()
+			)
 		);
 	}
 
@@ -322,7 +349,12 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 
 		return new BuiltFieldDescriptor(
 			deleteCatalogIfExistsCatalogField,
-			new DeleteCatalogIfExistsMutatingDataFetcher(evita)
+			new AsyncDataFetcher(
+				new DeleteCatalogIfExistsMutatingDataFetcher(evita),
+				buildingContext.getConfig(),
+				buildingContext.getTracingContext(),
+				buildingContext.getEvita()
+			)
 		);
 	}
 

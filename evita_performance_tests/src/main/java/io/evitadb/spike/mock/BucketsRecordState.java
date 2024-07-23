@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,15 +23,15 @@
 
 package io.evitadb.spike.mock;
 
+import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.extraResult.translator.histogram.producer.AttributeHistogramProducer.AttributeHistogramRequest;
-import io.evitadb.index.array.CompositeIntArray;
+import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.ArrayBitmap;
 import io.evitadb.index.bitmap.Bitmap;
-import io.evitadb.index.invertedIndex.InvertedIndex;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.index.range.RangeIndex;
 import lombok.Getter;
@@ -69,11 +69,11 @@ public class BucketsRecordState {
 		request = new AttributeHistogramRequest(
 			AttributeSchema._internalBuild("whatever", Integer.class, false),
 			Arrays.asList(
-				new FilterIndex(new InvertedIndex<>(generateBuckets(BUCKET_COUNT, VALUE_COUNT / 5)), new RangeIndex()),
-				new FilterIndex(new InvertedIndex<>(generateBuckets(BUCKET_COUNT, VALUE_COUNT / 5)), new RangeIndex()),
-				new FilterIndex(new InvertedIndex<>(generateBuckets(BUCKET_COUNT, VALUE_COUNT / 5)), new RangeIndex()),
-				new FilterIndex(new InvertedIndex<>(generateBuckets(BUCKET_COUNT, VALUE_COUNT / 5)), new RangeIndex()),
-				new FilterIndex(new InvertedIndex<>(generateBuckets(BUCKET_COUNT, VALUE_COUNT / 5)), new RangeIndex())
+				new FilterIndex(new AttributeKey("whatever"), generateBuckets(BUCKET_COUNT, VALUE_COUNT / 5), new RangeIndex(), Integer.class),
+				new FilterIndex(new AttributeKey("whatever"), generateBuckets(BUCKET_COUNT, VALUE_COUNT / 5), new RangeIndex(), Integer.class),
+				new FilterIndex(new AttributeKey("whatever"), generateBuckets(BUCKET_COUNT, VALUE_COUNT / 5), new RangeIndex(), Integer.class),
+				new FilterIndex(new AttributeKey("whatever"), generateBuckets(BUCKET_COUNT, VALUE_COUNT / 5), new RangeIndex(), Integer.class),
+				new FilterIndex(new AttributeKey("whatever"), generateBuckets(BUCKET_COUNT, VALUE_COUNT / 5), new RangeIndex(), Integer.class)
 			),
 			Collections.emptySet()
 		);

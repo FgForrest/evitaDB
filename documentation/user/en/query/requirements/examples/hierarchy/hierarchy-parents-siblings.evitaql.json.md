@@ -186,6 +186,15 @@
       }
     },
     "queriedEntityCount": 92
+  },
+  {
+    "entity": {
+      "primaryKey": 347154,
+      "attributes": {
+        "code": "bargain-bundles"
+      }
+    },
+    "queriedEntityCount": 2
   }
 ]
 ```

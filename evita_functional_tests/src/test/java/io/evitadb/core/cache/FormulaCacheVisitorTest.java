@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,14 +23,15 @@
 
 package io.evitadb.core.cache;
 
+import io.evitadb.api.configuration.ThreadPoolOptions;
 import io.evitadb.core.EvitaSession;
+import io.evitadb.core.async.Scheduler;
 import io.evitadb.core.cache.model.CacheRecordAdept;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.AndFormula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.OrFormula;
 import io.evitadb.core.query.algebra.facet.UserFilterFormula;
-import io.evitadb.core.scheduling.Scheduler;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import net.openhft.hashing.LongHashFunction;
 import org.junit.jupiter.api.BeforeEach;
@@ -38,7 +39,6 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
 
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static org.junit.jupiter.api.Assertions.*;
@@ -62,11 +62,17 @@ class FormulaCacheVisitorTest {
 
 	@BeforeEach
 	void setUp() {
-		this.cacheEden = new CacheEden(1_000_000, MINIMAL_USAGE_THRESHOLD, 100L);
+		final Scheduler scheduler = new Scheduler(
+			ThreadPoolOptions.requestThreadPoolBuilder()
+				.minThreadCount(4)
+				.maxThreadCount(4)
+				.build()
+		);
+		this.cacheEden = new CacheEden(1_000_000, MINIMAL_USAGE_THRESHOLD, 100L, scheduler);
 		this.cacheAnteroom = new CacheAnteroom(
 			10_000, 30L,
 			cacheEden,
-			new Scheduler(new ScheduledThreadPoolExecutor(4))
+			scheduler
 		);
 	}
 
@@ -80,7 +86,7 @@ class FormulaCacheVisitorTest {
 			inputFormula,
 			cacheAnteroom
 		);
-		assertEquals(inputFormula.computeHash(HASH_FUNCTION), inputFormula.computeHash(HASH_FUNCTION));
+		assertEquals(inputFormula.getHash(), inputFormula.getHash());
 		assertSame(inputFormula, possiblyUpdatedFormula);
 
 		final CacheRecordAdept cacheAdept = cacheAnteroom.getCacheAdept(TEST_CATALOG, SOME_ENTITY, inputFormula);
@@ -103,7 +109,7 @@ class FormulaCacheVisitorTest {
 			inputFormula,
 			cacheAnteroom
 		);
-		assertEquals(inputFormula.computeHash(HASH_FUNCTION), inputFormula.computeHash(HASH_FUNCTION));
+		assertEquals(inputFormula.getHash(), inputFormula.getHash());
 		assertNotSame(inputFormula, possiblyUpdatedFormula);
 
 		// compute the instrumented formula

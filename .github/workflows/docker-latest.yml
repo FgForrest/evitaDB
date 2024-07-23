@@ -14,32 +14,68 @@ jobs:
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
       - uses: actions/checkout@v3        # checkout from Git
+        with:
+          ref: master  # Always checks out the master branch (due to config file)
 
-      - name: Download a single artifact # download `evita-server.jar` artifact if the workflow we react to was successful
+      - name: Download a JAR file to deploy # download `evita-server.jar` artifact if the workflow we react to was successful
         uses: dawidd6/action-download-artifact@v2
         with:
           workflow: ${{ github.event.workflow_run.workflow_id }}
           workflow_conclusion: success
           name: evita-server.jar
+          path: docker
 
-      - name: Build the Docker image    # now build the Docker image, login to DockerHub and push it, then clean everything
+      - name: Download a version information # download `version.txt` artifact if the workflow we react to was successful
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          workflow: ${{ github.event.workflow_run.workflow_id }}
+          workflow_conclusion: success
+          name: version.txt
+
+      - name: Set up QEMU
+        # Add support for more platforms with QEMU (optional)
+        # https://github.com/docker/setup-qemu-action
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          buildkitd-flags: --debug
+          platforms: linux/amd64,linux/arm64/v8
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v1
+        with:
+          username: ${{ vars.CI_REGISTRY_USER }}
+          password: ${{ secrets.CI_REGISTRY_PASSWORD }}
+
+      - name: Extract major version
+        id: major_version
+        # create a new output variable with the major version (like 2024.4)
+        run: |        
+          echo "fullVersion=$(cat version.txt)"
+          echo "fullVersion=$(cat version.txt)" >> $GITHUB_ENV
+          echo "version=$(cat version.txt | cut -d'.' -f1,2)"
+          echo "version=$(cat version.txt | cut -d'.' -f1,2)" >> $GITHUB_ENV    
+          echo "releaseDate=$(date +%Y-%m-%d)" >> $GITHUB_ENV    
+
+      - name: Build and push Docker image
         env:
-          BUILD_ROOT: docker
-          CI_REGISTRY: ${{vars.CI_REGISTRY}}
-          CI_REGISTRY_IMAGE: ${{vars.CI_REGISTRY_IMAGE}}
           RELEASE_IMAGE: "evitadb:latest"
-          CI_REGISTRY_USER: ${{vars.CI_REGISTRY_USER}}
-          CI_REGISTRY_PASSWORD: ${{secrets.CI_REGISTRY_PASSWORD}}
           EVITA_JAR_NAME: evita-server.jar
-        run: |
-          echo "Evita JAR name: $EVITA_JAR_NAME"
-          echo "Build root: $BUILD_ROOT"        
-          mv -v "$EVITA_JAR_NAME" "$BUILD_ROOT/$EVITA_JAR_NAME"    
-          ls -la $BUILD_ROOT        
-          $BUILD_ROOT/build.sh        
-          echo "$CI_REGISTRY_PASSWORD" | docker login "$CI_REGISTRY" -u "$CI_REGISTRY_USER" --password-stdin
-          echo "Pushing image: $CI_REGISTRY_IMAGE/$CI_REGISTRY_USER/$RELEASE_IMAGE"        
-          docker push "$CI_REGISTRY_IMAGE/$CI_REGISTRY_USER/$RELEASE_IMAGE"      
-          docker logout "$CI_REGISTRY"
-          echo "Cleaning"      
-          docker rmi "$CI_REGISTRY_USER/$RELEASE_IMAGE"
+        uses: docker/build-push-action@v3
+        with:
+          context: ./docker
+          file: ./docker/Dockerfile
+          pull: true
+          push: true
+          # push the image with two tags: latest and the version from the version.txt file
+          tags: |
+            ${{ vars.CI_REGISTRY_USER }}/${{ env.RELEASE_IMAGE }}
+            ${{ vars.CI_REGISTRY_USER }}/evitadb:${{ env.version }}
+            ${{ vars.CI_REGISTRY_USER }}/evitadb:${{ env.fullVersion }}
+          platforms: linux/amd64,linux/arm64/v8
+          build-args: |
+            EVITA_JAR_NAME=${{ env.EVITA_JAR_NAME }}
+            VERSION=${{ env.fullVersion }}
+            RELEASE_DATE=${{ env.releaseDate }}

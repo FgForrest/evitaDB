@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,8 +23,9 @@
 
 package io.evitadb.externalApi.http;
 
+import com.linecorp.armeria.server.HttpService;
 import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
-import io.undertow.server.HttpHandler;
+import io.evitadb.externalApi.utils.path.PathHandlingService;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -54,16 +55,14 @@ public interface ExternalApiProvider<T extends AbstractApiConfiguration> {
 	/**
 	 * @return HTTP handler that is responsible for processing all requests addressed to this API
 	 */
-	@Nullable
-	default HttpHandler getApiHandler() {
-		return null;
-	}
+	@Nonnull
+	HttpServiceDefinition[] getHttpServiceDefinitions();
 
 	/**
-	 * Method should return true if the API is managed by the Undertow server.
+	 * Called automatically when entire server is done initializing but not started yet.
 	 */
-	default boolean isManagedByUndertow() {
-		return true;
+	default void afterAllInitialized() {
+		// do nothing
 	}
 
 	/**
@@ -79,4 +78,42 @@ public interface ExternalApiProvider<T extends AbstractApiConfiguration> {
 	default void beforeStop() {
 		// do nothing
 	}
+
+	/**
+	 * Returns TRUE if the API is ready to accept requests. This method should physically test an API call to determine
+	 * the API responds to the requests.
+	 *
+	 * @return TRUE if the API is ready to accept requests
+	 */
+	boolean isReady();
+
+	/**
+	 * Represents HTTP service that is responsible for processing all requests addressed to this API on given sub-path.
+	 *
+	 * @param path sub-path of the API
+	 * @param service HTTP service that is responsible for processing all requests addressed to path
+	 */
+	record HttpServiceDefinition(
+		@Nullable String path,
+		@Nonnull HttpService service,
+		@Nonnull PathHandlingMode pathHandlingMode
+	) {
+
+		public HttpServiceDefinition(@Nonnull HttpService service, @Nonnull PathHandlingMode routing) {
+			this("", service, routing);
+		}
+	}
+
+	enum PathHandlingMode {
+		/**
+		 * Needs to be used for services on root path that execute their own path handling.
+		 */
+		FIXED_PATH_HANDLING,
+		/**
+		 * Might be used for services on sub-paths that can be handled by {@link PathHandlingService}, that can
+		 * be dynamically updated during runtime.
+		 */
+		DYNAMIC_PATH_HANDLING
+	}
+
 }

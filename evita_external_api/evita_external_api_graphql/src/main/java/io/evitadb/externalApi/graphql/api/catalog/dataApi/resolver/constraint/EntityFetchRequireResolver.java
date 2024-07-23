@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -36,16 +36,15 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.HierarchyDataLocator;
-import io.evitadb.externalApi.api.catalog.dataApi.constraint.ReferenceDataLocator;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.InlineReferenceDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesProviderDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GraphQLEntityDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.AccompanyingPriceFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.AssociatedDataFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.AttributesFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.ParentsFieldHeaderDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PriceFieldHeaderDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PriceForSaleFieldHeaderDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PricesFieldHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PriceForSaleDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.ReferenceFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.resolver.SelectionSetAggregator;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidArgumentException;
@@ -77,6 +76,15 @@ import static io.evitadb.utils.CollectionUtils.createHashSet;
  */
 @RequiredArgsConstructor
 public class EntityFetchRequireResolver {
+
+	private static final Set<String> PRICE_FOR_SALE_FIELDS = Set.of(
+		GraphQLEntityDescriptor.PRICE_FOR_SALE.name(),
+		GraphQLEntityDescriptor.ALL_PRICES_FOR_SALE.name()
+	);
+	private static final Set<String> CUSTOM_PRICE_FIELDS = Set.of(
+		GraphQLEntityDescriptor.PRICE.name(), // TOBEDONE #538: deprecated, remove
+		GraphQLEntityDescriptor.PRICES.name()
+	);
 
 	@Nonnull private final Function<String, EntitySchemaContract> entitySchemaFetcher;
 	@Nonnull private final FilterConstraintResolver filterConstraintResolver;
@@ -204,7 +212,9 @@ public class EntityFetchRequireResolver {
 	}
 
 	private boolean needsPrices(@Nonnull SelectionSetAggregator selectionSetAggregator) {
-		return selectionSetAggregator.containsImmediate(GraphQLEntityDescriptor.PRICE.name() + "*");
+		return selectionSetAggregator.containsImmediate(GraphQLEntityDescriptor.PRICE.name() + "*") ||
+			selectionSetAggregator.containsImmediate(GraphQLEntityDescriptor.MULTIPLE_PRICES_FOR_SALE_AVAILABLE.name()) ||
+			selectionSetAggregator.containsImmediate(GraphQLEntityDescriptor.ALL_PRICES_FOR_SALE.name());
 	}
 
 	private boolean needsReferences(@Nonnull SelectionSetAggregator selectionSetAggregator, @Nonnull EntitySchemaContract currentEntitySchema) {
@@ -307,46 +317,33 @@ public class EntityFetchRequireResolver {
 			return Optional.empty();
 		}
 
-		if (selectionSetAggregator.getImmediateFields(GraphQLEntityDescriptor.PRICES.name())
-				.stream()
-				.anyMatch(f -> f.getArguments().get(PricesFieldHeaderDescriptor.PRICE_LISTS.name()) == null || f.getArguments().get(PricesFieldHeaderDescriptor.CURRENCY.name()) != null) ||
-			selectionSetAggregator.getImmediateFields(GraphQLEntityDescriptor.PRICE.name())
-				.stream()
-				.anyMatch(f -> f.getArguments().get(PriceFieldHeaderDescriptor.CURRENCY.name()) != null)) {
+		if (isCustomPriceFieldPresent(selectionSetAggregator) || isCustomPriceForSaleFieldPresent(selectionSetAggregator)) {
 			return Optional.of(priceContentAll());
 		} else {
-			final Set<String> neededPriceLists = createHashSet(10);
-
-			// check price for sale fields
-			neededPriceLists.addAll(
-				selectionSetAggregator.getImmediateFields(GraphQLEntityDescriptor.PRICE_FOR_SALE.name())
-					.stream()
-					.map(f -> (String) f.getArguments().get(PriceForSaleFieldHeaderDescriptor.PRICE_LIST.name()))
-					.filter(Objects::nonNull)
-					.collect(Collectors.toSet())
-			);
-
-			// check price fields
-			neededPriceLists.addAll(
-				selectionSetAggregator.getImmediateFields(GraphQLEntityDescriptor.PRICE.name())
-					.stream()
-					.map(f -> (String) f.getArguments().get(PriceFieldHeaderDescriptor.PRICE_LIST.name()))
-					.collect(Collectors.toSet())
-			);
-
-			// check prices fields
-			//noinspection unchecked
-			neededPriceLists.addAll(
-				selectionSetAggregator.getImmediateFields(GraphQLEntityDescriptor.PRICES.name())
-					.stream()
-					.flatMap(f -> ((List<String>) f.getArguments().get(PricesFieldHeaderDescriptor.PRICE_LISTS.name())).stream())
-					.collect(Collectors.toSet())
-			);
-
-			return Optional.of(priceContent(PriceContentMode.RESPECTING_FILTER, neededPriceLists.toArray(String[]::new)));
+			final String[] accompanyingPriceListsToFetch = resolveAccompanyingPriceLists(selectionSetAggregator);
+			return Optional.of(priceContent(PriceContentMode.RESPECTING_FILTER, accompanyingPriceListsToFetch));
 		}
 	}
 
+	private boolean isCustomPriceFieldPresent(@Nonnull SelectionSetAggregator selectionSetAggregator) {
+		return !selectionSetAggregator.getImmediateFields(CUSTOM_PRICE_FIELDS).isEmpty();
+	}
+
+	private boolean isCustomPriceForSaleFieldPresent(@Nonnull SelectionSetAggregator selectionSetAggregator) {
+		return selectionSetAggregator.getImmediateFields(PRICE_FOR_SALE_FIELDS)
+			.stream()
+			.anyMatch(f -> !f.getArguments().isEmpty());
+	}
+
+	@Nonnull
+	private String[] resolveAccompanyingPriceLists(@Nonnull SelectionSetAggregator selectionSetAggregator) {
+		return selectionSetAggregator.getImmediateFields(PRICE_FOR_SALE_FIELDS)
+			.stream()
+			.flatMap(f -> SelectionSetAggregator.getImmediateFields(PriceForSaleDescriptor.ACCOMPANYING_PRICE.name(), f.getSelectionSet())
+				.stream()
+				.flatMap(apf -> ((List<String>) apf.getArguments().get(AccompanyingPriceFieldHeaderDescriptor.PRICE_LISTS.name())).stream()))
+			.toArray(String[]::new);
+	}
 
 	@Nonnull
 	private List<ReferenceContent> resolveReferenceContent(@Nonnull SelectionSetAggregator selectionSetAggregator,
@@ -411,7 +408,7 @@ public class EntityFetchRequireResolver {
 
 		return Optional.ofNullable(
 			(FilterBy) filterConstraintResolver.resolve(
-				new ReferenceDataLocator(currentEntitySchema.getName(), fieldsForReferenceHolder.referenceSchema().getName()),
+				new InlineReferenceDataLocator(currentEntitySchema.getName(), fieldsForReferenceHolder.referenceSchema().getName()),
 				ReferenceFieldHeaderDescriptor.FILTER_BY.name(),
 				fields.get(0).getArguments().get(ReferenceFieldHeaderDescriptor.FILTER_BY.name())
 			)
@@ -434,7 +431,7 @@ public class EntityFetchRequireResolver {
 
 		return Optional.ofNullable(
 			(OrderBy) orderConstraintResolver.resolve(
-				new ReferenceDataLocator(currentEntitySchema.getName(), fieldsForReferenceHolder.referenceSchema().getName()),
+				new InlineReferenceDataLocator(currentEntitySchema.getName(), fieldsForReferenceHolder.referenceSchema().getName()),
 				ReferenceFieldHeaderDescriptor.ORDER_BY.name(),
 				fieldsForReferenceHolder.fields().get(0).getArguments().get(ReferenceFieldHeaderDescriptor.ORDER_BY.name())
 			)

@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,18 +23,18 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity;
 
-import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 
 /**
- * Descriptor of header parameters of {@link EntityDescriptor#PRICE} field.
+ * Descriptor of header parameters of {@link io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GraphQLEntityDescriptor#PRICE} field.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public
-interface PriceFieldHeaderDescriptor {
+// TOBEDONE #538: deprecated, remove
+@Deprecated
+public interface PriceFieldHeaderDescriptor {
 
 	PropertyDescriptor PRICE_LIST = PropertyDescriptor.builder()
 		.name("priceList")

@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,13 +23,15 @@
 
 package io.evitadb.core.query.extraResult.translator.histogram.producer;
 
+import io.evitadb.api.query.require.HistogramBehavior;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.facet.UserFilterFormula;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordsLookupResult;
-import io.evitadb.core.query.algebra.price.termination.PricePredicate;
+import io.evitadb.core.query.algebra.price.predicate.PricePredicate;
 import io.evitadb.core.query.extraResult.CacheableEvitaResponseExtraResultComputer;
 import io.evitadb.core.query.extraResult.translator.histogram.cache.CacheableHistogram;
 import io.evitadb.core.query.extraResult.translator.histogram.cache.CacheableHistogramContract;
@@ -40,7 +42,7 @@ import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
 import io.evitadb.utils.ArrayUtils;
-import lombok.RequiredArgsConstructor;
+import io.evitadb.utils.Assert;
 import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
@@ -58,8 +60,11 @@ import static java.util.Optional.ofNullable;
 /**
  * DTO that aggregates all data necessary for computing histogram for prices.
  */
-@RequiredArgsConstructor
 public class PriceHistogramComputer implements CacheableEvitaResponseExtraResultComputer<CacheableHistogramContract> {
+	/**
+	 * Execution context from initialization phase.
+	 */
+	protected QueryExecutionContext context;
 	/**
 	 * Contains reference to the lambda that needs to be executed THE FIRST time the histogram produced by this computer
 	 * instance is really computed (and memoized).
@@ -70,6 +75,12 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 	 * this value, but might be optimized to lower count when there are big gaps between columns.
 	 */
 	private final int bucketCount;
+	/**
+	 * Contains behavior that was requested by the user in the query.
+	 *
+	 * @see HistogramBehavior
+	 */
+	@Nonnull private final HistogramBehavior behavior;
 	/**
 	 * Contains {@link EntitySchema#getIndexedPricePlaces()} setting.
 	 */
@@ -101,17 +112,29 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 	 */
 	@Nullable private final FilteredPriceRecordsLookupResult priceRecordsLookupResult;
 	/**
-	 * Contains memoized value of {@link #computeHash(LongHashFunction)} method.
+	 * Contains memoized value of {@link #getHash()} method.
 	 */
-	private Long memoizedHash;
+	private final Long hash;
 	/**
 	 * Contains memoized value of {@link #gatherTransactionalIds()} method.
 	 */
-	private long[] memoizedTransactionalIds;
+	private final long[] transactionalIds;
+	/**
+	 * Contains memoized value of {@link #getEstimatedCost()} ()}  of this formula.
+	 */
+	private final Long estimatedCost;
+	/**
+	 * Contains memoized value of {@link #getCost()}  of this formula.
+	 */
+	private Long cost;
+	/**
+	 * Contains memoized value of {@link #getCostToPerformanceRatio()} of this formula.
+	 */
+	private Long costToPerformance;
 	/**
 	 * Contains memoized value of {@link #gatherTransactionalIds()} computed hash.
 	 */
-	private Long memoizedTransactionalIdHash;
+	private final Long transactionalIdHash;
 	/**
 	 * Contains price record array that all price records that represents source records for price histogram computation.
 	 * It is initialized during {@link #compute()} method and result is memoized, so it's ensured it's computed only once.
@@ -125,6 +148,25 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 
 	public PriceHistogramComputer(
 		int bucketCount,
+		@Nonnull HistogramBehavior behavior,
+		int indexedPricePlaces,
+		@Nonnull QueryPriceMode queryPriceMode,
+		@Nonnull Formula filteringFormula,
+		@Nullable Formula filteringFormulaWithFilteredOutRecords,
+		@Nonnull Collection<FilteredPriceRecordAccessor> filteredPriceRecordAccessors,
+		@Nullable FilteredPriceRecordsLookupResult priceRecordsLookupResult
+	) {
+		this(
+			null, bucketCount, behavior, indexedPricePlaces, queryPriceMode,
+			filteringFormula, filteringFormulaWithFilteredOutRecords, filteredPriceRecordAccessors,
+			priceRecordsLookupResult
+		);
+	}
+
+	private PriceHistogramComputer(
+		@Nullable Consumer<CacheableEvitaResponseExtraResultComputer<CacheableHistogramContract>> selfOperator,
+		int bucketCount,
+		@Nonnull HistogramBehavior behavior,
 		int indexedPricePlaces,
 		@Nonnull QueryPriceMode queryPriceMode,
 		@Nonnull Formula filteringFormula,
@@ -134,77 +176,99 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 	) {
 		this.onComputationCallback = null;
 		this.bucketCount = bucketCount;
+		this.behavior = behavior;
 		this.indexedPricePlaces = indexedPricePlaces;
 		this.queryPriceMode = queryPriceMode;
 		this.filteringFormula = filteringFormula;
 		this.filteringFormulaWithFilteredOutRecords = filteringFormulaWithFilteredOutRecords;
 		this.filteredPriceRecordAccessors = filteredPriceRecordAccessors;
 		this.priceRecordsLookupResult = priceRecordsLookupResult;
-	}
 
-	@Override
-	public long computeHash(@Nonnull LongHashFunction hashFunction) {
-		if (this.memoizedHash == null) {
-			this.memoizedHash = hashFunction.hashLongs(
-				new long[] {
-					bucketCount,
-					queryPriceMode.ordinal(),
-					filteringFormula.computeHash(hashFunction)
-				}
-			);
-		}
-		return this.memoizedHash;
-	}
-
-	@Override
-	public long computeTransactionalIdHash(@Nonnull LongHashFunction hashFunction) {
-		if (this.memoizedTransactionalIdHash == null) {
-			this.memoizedTransactionalIdHash = hashFunction.hashLongs(
-				Arrays.stream(gatherTransactionalIds())
-					.distinct()
-					.sorted()
-					.toArray()
-			);
-		}
-		return this.memoizedTransactionalIdHash;
-	}
-
-	@Nonnull
-	@Override
-	public long[] gatherTransactionalIds() {
-		if (this.memoizedTransactionalIds == null) {
-			this.memoizedTransactionalIds = filteringFormula.gatherTransactionalIds();
-		}
-		return this.memoizedTransactionalIds;
-	}
-
-	@Override
-	public long getEstimatedCost() {
-		return filteringFormula.compute().size() *
+		this.hash = HASH_FUNCTION.hashLongs(
+			new long[]{
+				bucketCount, behavior.ordinal(),
+				queryPriceMode.ordinal(),
+				filteringFormula.getHash()
+			}
+		);
+		this.transactionalIds = filteringFormula.gatherTransactionalIds();
+		this.transactionalIdHash = HASH_FUNCTION.hashLongs(
+			Arrays.stream(this.transactionalIds)
+				.distinct()
+				.sorted()
+				.toArray()
+		);
+		this.estimatedCost = filteringFormula.getEstimatedCardinality() *
 			(filteredPriceRecordAccessors.size() / 2) *
 			getOperationCost();
 	}
 
 	@Override
+	public void initialize(@Nonnull QueryExecutionContext executionContext) {
+		this.context = executionContext;
+		this.filteringFormula.initialize(executionContext);
+	}
+
+	@Override
+	public long getHash() {
+		Assert.isPremiseValid(this.hash != null, "The computer must be initialized prior to calling getHash().");
+		return this.hash;
+	}
+
+	@Override
+	public long getTransactionalIdHash() {
+		Assert.isPremiseValid(this.transactionalIdHash != null, "The computer must be initialized prior to calling getTransactionalIdHash().");
+		return this.transactionalIdHash;
+	}
+
+	@Nonnull
+	@Override
+	public long[] gatherTransactionalIds() {
+		Assert.isPremiseValid(this.transactionalIds != null, "The computer must be initialized prior to calling gatherTransactionalIds().");
+		return this.transactionalIds;
+	}
+
+	@Override
+	public long getEstimatedCost() {
+		Assert.isPremiseValid(this.estimatedCost != null, "The computer must be initialized prior to calling getEstimatedCost().");
+		return this.estimatedCost;
+	}
+
+	@Override
 	public long getCost() {
-		return getPriceRecords().length * getOperationCost();
+		if (this.cost == null) {
+			if (this.memoizedResult == null) {
+				return Long.MAX_VALUE;
+			} else {
+				this.cost = getPriceRecords().length * getOperationCost();
+			}
+		}
+		return this.cost;
 	}
 
 	@Override
 	public long getOperationCost() {
-		return 11267;
+		// if the behavior is optimized we add 33% penalty because some histograms would need to be computed twice
+		return behavior == HistogramBehavior.STANDARD ? 7511 : 11267;
 	}
 
 	@Override
 	public long getCostToPerformanceRatio() {
-		return getCost() / (getOperationCost() * bucketCount);
+		if (this.costToPerformance == null) {
+			if (this.memoizedResult == null) {
+				return Long.MAX_VALUE;
+			} else {
+				this.costToPerformance = getCost() / (getOperationCost() * bucketCount);
+			}
+		}
+		return this.costToPerformance;
 	}
 
 	@Override
 	public FlattenedHistogramComputer toSerializableResult(long extraResultHash, @Nonnull LongHashFunction hashFunction) {
 		return new FlattenedHistogramComputer(
 			extraResultHash,
-			computeHash(hashFunction),
+			getHash(),
 			Arrays.stream(gatherTransactionalIds())
 				.distinct()
 				.sorted()
@@ -223,9 +287,11 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 
 	@Nonnull
 	@Override
-	public CacheableEvitaResponseExtraResultComputer<CacheableHistogramContract> getCloneWithComputationCallback(@Nonnull Consumer<CacheableEvitaResponseExtraResultComputer<CacheableHistogramContract>> selfOperator) {
+	public CacheableEvitaResponseExtraResultComputer<CacheableHistogramContract> getCloneWithComputationCallback(
+		@Nonnull Consumer<CacheableEvitaResponseExtraResultComputer<CacheableHistogramContract>> selfOperator
+	) {
 		return new PriceHistogramComputer(
-			selfOperator, bucketCount, indexedPricePlaces, queryPriceMode,
+			selfOperator, bucketCount, behavior, indexedPricePlaces, queryPriceMode,
 			filteringFormula, filteringFormulaWithFilteredOutRecords,
 			filteredPriceRecordAccessors, priceRecordsLookupResult
 		);
@@ -252,18 +318,29 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 				Arrays.sort(priceRecords, priceComparator);
 
 				// use histogram data cruncher to produce the histogram
-				final HistogramDataCruncher<PriceRecordContract> optimalHistogram = HistogramDataCruncher.createOptimalHistogram(
-					"price histogram", bucketCount, indexedPricePlaces, priceRecords,
-					priceRetriever,
-					value -> 1,
-					value -> indexedPricePlaces == 0 ? new BigDecimal(value) : new BigDecimal(value).scaleByPowerOfTen(-1 * indexedPricePlaces),
-					value -> indexedPricePlaces == 0 ? value.intValueExact() : value.scaleByPowerOfTen(indexedPricePlaces).intValueExact()
-				);
+				final HistogramDataCruncher<PriceRecordContract> resultHistogram;
+				if (behavior == HistogramBehavior.OPTIMIZED) {
+					resultHistogram = HistogramDataCruncher.createOptimalHistogram(
+						"price histogram", bucketCount, indexedPricePlaces, priceRecords,
+						priceRetriever,
+						value -> 1,
+						value -> indexedPricePlaces == 0 ? new BigDecimal(value) : new BigDecimal(value).scaleByPowerOfTen(-1 * indexedPricePlaces),
+						value -> indexedPricePlaces == 0 ? value.intValueExact() : value.scaleByPowerOfTen(indexedPricePlaces).intValueExact()
+					);
+				} else {
+					resultHistogram = new HistogramDataCruncher<>(
+						"price histogram", bucketCount, indexedPricePlaces, priceRecords,
+						priceRetriever,
+						value -> 1,
+						value -> indexedPricePlaces == 0 ? new BigDecimal(value) : new BigDecimal(value).scaleByPowerOfTen(-1 * indexedPricePlaces),
+						value -> indexedPricePlaces == 0 ? value.intValueExact() : value.scaleByPowerOfTen(indexedPricePlaces).intValueExact()
+					);
+				}
 
 				// and finish
 				this.memoizedResult = new CacheableHistogram(
-					optimalHistogram.getHistogram(),
-					optimalHistogram.getMaxValue()
+					resultHistogram.getHistogram(),
+					resultHistogram.getMaxValue()
 				);
 			} else {
 				this.memoizedResult = CacheableHistogramContract.EMPTY;

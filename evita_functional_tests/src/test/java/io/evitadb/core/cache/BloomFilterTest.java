@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,13 +23,16 @@
 
 package io.evitadb.core.cache;
 
-import io.evitadb.index.array.CompositeLongArray;
+import io.evitadb.dataType.array.CompositeLongArray;
 import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.text.DecimalFormat;
 import java.util.PrimitiveIterator.OfLong;
 import java.util.Random;
+
+import static io.evitadb.test.TestConstants.LONG_RUNNING_TEST;
 
 /**
  * This test verifies behaviour of {@link BloomFilter}.
@@ -44,6 +47,7 @@ class BloomFilterTest {
 	private final BloomFilter bloomFilter = new BloomFilter(COUNT, 0.00001);
 
 	@Disabled("Verification of bloom filter implementation test, too long to execute every time")
+	@Tag(LONG_RUNNING_TEST)
 	@Test
 	void shouldFillUpBloomFilter() {
 		int generated = 0;

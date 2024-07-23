@@ -3,7 +3,8 @@ POST /rest/evita/Product/query
 {
   "require" : {
     "attributeHistogram" : {
-      "requestedBucketCount" : 5,
+      "requestedBucketCount" : 20,
+      "behavior" : "STANDARD",
       "attributeNames" : [
         "width",
         "height"

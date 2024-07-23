@@ -7,10 +7,9 @@
       "version": 1,
       "allLocales": [
         "cs",
-        "de",
         "en"
       ],
-      "priceInnerRecordHandling": "FIRST_OCCURRENCE",
+      "priceInnerRecordHandling": "LOWEST_PRICE",
       "attributes": {
         "global": {
           "code": "apple-ipad-10-2-10th-generation-2022"
@@ -333,10 +332,9 @@
       "version": 1,
       "allLocales": [
         "cs",
-        "de",
         "en"
       ],
-      "priceInnerRecordHandling": "FIRST_OCCURRENCE",
+      "priceInnerRecordHandling": "LOWEST_PRICE",
       "attributes": {
         "global": {
           "code": "apple-ipad-10-2-9th-generation-2021"
@@ -416,11 +414,9 @@
       "type": "Product",
       "version": 1,
       "allLocales": [
-        "cs",
-        "de",
         "en"
       ],
-      "priceInnerRecordHandling": "FIRST_OCCURRENCE",
+      "priceInnerRecordHandling": "LOWEST_PRICE",
       "attributes": {
         "global": {
           "code": "apple-ipad-air-5g-5th-generation-2022"
@@ -786,11 +782,9 @@
       "type": "Product",
       "version": 1,
       "allLocales": [
-        "cs",
-        "de",
         "en"
       ],
-      "priceInnerRecordHandling": "FIRST_OCCURRENCE",
+      "priceInnerRecordHandling": "LOWEST_PRICE",
       "attributes": {
         "global": {
           "code": "apple-ipad-mini-6th-generation-2021"
@@ -1222,11 +1216,9 @@
       "type": "Product",
       "version": 1,
       "allLocales": [
-        "cs",
-        "de",
         "en"
       ],
-      "priceInnerRecordHandling": "FIRST_OCCURRENCE",
+      "priceInnerRecordHandling": "LOWEST_PRICE",
       "attributes": {
         "global": {
           "code": "apple-ipad-pro-11-4th-generation-2022"
@@ -1526,11 +1518,9 @@
       "type": "Product",
       "version": 1,
       "allLocales": [
-        "cs",
-        "de",
         "en"
       ],
-      "priceInnerRecordHandling": "FIRST_OCCURRENCE",
+      "priceInnerRecordHandling": "LOWEST_PRICE",
       "attributes": {
         "global": {
           "code": "apple-ipad-pro-12-9-6th-generation-2022"
@@ -1962,11 +1952,9 @@
       "type": "Product",
       "version": 1,
       "allLocales": [
-        "cs",
-        "de",
         "en"
       ],
-      "priceInnerRecordHandling": "FIRST_OCCURRENCE",
+      "priceInnerRecordHandling": "LOWEST_PRICE",
       "attributes": {
         "global": {
           "code": "apple-ipad-pro-5g-12-9-5th-generation-2021"
@@ -2530,11 +2518,9 @@
       "type": "Product",
       "version": 1,
       "allLocales": [
-        "cs",
-        "de",
         "en"
       ],
-      "priceInnerRecordHandling": "FIRST_OCCURRENCE",
+      "priceInnerRecordHandling": "LOWEST_PRICE",
       "attributes": {
         "global": {
           "code": "apple-ipad-pro-11-2nd-generation-2020"
@@ -2724,11 +2710,9 @@
       "type": "Product",
       "version": 1,
       "allLocales": [
-        "cs",
-        "de",
         "en"
       ],
-      "priceInnerRecordHandling": "FIRST_OCCURRENCE",
+      "priceInnerRecordHandling": "LOWEST_PRICE",
       "attributes": {
         "global": {
           "code": "apple-ipad-pro-11-3rd-generation-2021"
@@ -2984,11 +2968,9 @@
       "type": "Product",
       "version": 1,
       "allLocales": [
-        "cs",
-        "de",
         "en"
       ],
-      "priceInnerRecordHandling": "FIRST_OCCURRENCE",
+      "priceInnerRecordHandling": "LOWEST_PRICE",
       "attributes": {
         "global": {
           "code": "apple-ipad-pro-12-9-4th-generation-2020"
@@ -3024,8 +3006,6 @@
       "type": "Product",
       "version": 1,
       "allLocales": [
-        "cs",
-        "de",
         "en"
       ],
       "priceInnerRecordHandling": "NONE",
@@ -3064,8 +3044,6 @@
       "type": "Product",
       "version": 1,
       "allLocales": [
-        "cs",
-        "de",
         "en"
       ],
       "priceInnerRecordHandling": "NONE",
@@ -3148,8 +3126,6 @@
       "type": "Product",
       "version": 1,
       "allLocales": [
-        "cs",
-        "de",
         "en"
       ],
       "priceInnerRecordHandling": "NONE",
@@ -3210,8 +3186,6 @@
       "type": "Product",
       "version": 1,
       "allLocales": [
-        "cs",
-        "de",
         "en"
       ],
       "priceInnerRecordHandling": "NONE",
@@ -3250,11 +3224,9 @@
       "type": "Product",
       "version": 1,
       "allLocales": [
-        "cs",
-        "de",
         "en"
       ],
-      "priceInnerRecordHandling": "FIRST_OCCURRENCE",
+      "priceInnerRecordHandling": "LOWEST_PRICE",
       "attributes": {
         "global": {
           "code": "huawei-honor-pad-6-10-1"
@@ -3290,11 +3262,9 @@
       "type": "Product",
       "version": 1,
       "allLocales": [
-        "cs",
-        "de",
         "en"
       ],
-      "priceInnerRecordHandling": "FIRST_OCCURRENCE",
+      "priceInnerRecordHandling": "LOWEST_PRICE",
       "attributes": {
         "global": {
           "code": "huawei-honor-pad-7-10-1-wifi"
@@ -3352,11 +3322,9 @@
       "type": "Product",
       "version": 1,
       "allLocales": [
-        "cs",
-        "de",
         "en"
       ],
-      "priceInnerRecordHandling": "FIRST_OCCURRENCE",
+      "priceInnerRecordHandling": "LOWEST_PRICE",
       "attributes": {
         "global": {
           "code": "huawei-honor-pad-x7"
@@ -3524,11 +3492,9 @@
       "type": "Product",
       "version": 1,
       "allLocales": [
-        "cs",
-        "de",
         "en"
       ],
-      "priceInnerRecordHandling": "FIRST_OCCURRENCE",
+      "priceInnerRecordHandling": "LOWEST_PRICE",
       "attributes": {
         "global": {
           "code": "huawei-honor-tablet-v6-10-4-5g"
@@ -3674,11 +3640,9 @@
       "type": "Product",
       "version": 1,
       "allLocales": [
-        "cs",
-        "de",
         "en"
       ],
-      "priceInnerRecordHandling": "FIRST_OCCURRENCE",
+      "priceInnerRecordHandling": "LOWEST_PRICE",
       "attributes": {
         "global": {
           "code": "huawei-honor-tablet-v7-10-4-wifi"
@@ -3846,11 +3810,9 @@
       "type": "Product",
       "version": 1,
       "allLocales": [
-        "cs",
-        "de",
         "en"
       ],
-      "priceInnerRecordHandling": "FIRST_OCCURRENCE",
+      "priceInnerRecordHandling": "LOWEST_PRICE",
       "attributes": {
         "global": {
           "code": "huawei-honor-tablet-v7-pro-11-wifi"
@@ -3948,18 +3910,18 @@
       ]
     }
   ],
-  "type": "PAGE",
-  "totalRecordCount": 2347,
-  "first": true,
-  "last": false,
-  "hasPrevious": false,
-  "hasNext": true,
-  "singlePage": false,
   "empty": false,
-  "pageSize": 20,
-  "pageNumber": 1,
-  "lastPageNumber": 118,
+  "first": true,
   "firstPageItemNumber": 0,
-  "lastPageItemNumber": 19
+  "hasNext": true,
+  "hasPrevious": false,
+  "last": false,
+  "lastPageItemNumber": 19,
+  "lastPageNumber": 118,
+  "pageNumber": 1,
+  "pageSize": 20,
+  "singlePage": false,
+  "totalRecordCount": 2348,
+  "type": "PAGE"
 }
 ```

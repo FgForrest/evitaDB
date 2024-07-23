@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -25,11 +25,12 @@ package io.evitadb.index.hierarchy.predicate;
 
 import io.evitadb.api.query.filter.EntityHaving;
 import io.evitadb.api.query.filter.FilterBy;
-import io.evitadb.api.requestResponse.data.AttributesContract;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.AttributeSchemaAccessor;
-import io.evitadb.core.query.QueryContext;
+import io.evitadb.core.query.QueryExecutionContext;
+import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.deferred.DeferredFormula;
 import io.evitadb.core.query.algebra.deferred.FormulaWrapper;
@@ -38,14 +39,15 @@ import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.hierarchy.predicate.HierarchyTraversalPredicate.SelfTraversingPredicate;
+import io.evitadb.utils.Assert;
 import lombok.Getter;
-import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Collections;
 import java.util.Objects;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 /**
  * The predicate evaluates the nested query filter function to get the {@link Bitmap} of all hierarchy entity primary
@@ -72,10 +74,19 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 	 */
 	@Getter @Nonnull private final Formula filteringFormula;
 	/**
+	 * Contains memoized value of {@link #getHash()} method.
+	 */
+	private final Long hash;
+	/**
 	 * Signalizes that the {@link HierarchyTraversalPredicate} reached a node that was marked as "stop" node and its
 	 * children should be tested by a predicate logic as "false".
 	 */
 	private boolean stopNodeEncountered;
+	/**
+	 * True if the {@link #initializeIfNotAlreadyInitialized(QueryExecutionContext)} method was called.
+	 */
+	private boolean initialized;
+
 
 	/**
 	 * This constructor should be used from filtering translators that need to take the attributes on references
@@ -91,7 +102,7 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 	public FilteringFormulaHierarchyEntityPredicate(
 		@Nullable Integer parent,
 		boolean parentResult,
-		@Nonnull QueryContext queryContext,
+		@Nonnull QueryPlanningContext queryContext,
 		@Nonnull FilterBy filterBy,
 		@Nullable ReferenceSchemaContract referenceSchema
 	) {
@@ -126,7 +137,7 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 						null,
 						null,
 						new AttributeSchemaAccessor(queryContext),
-						AttributesContract::getAttribute,
+						(entityContract, attributeName, locale) -> Stream.of(entityContract.getAttributeValue(attributeName, locale)),
 						() -> {
 							filterBy.accept(theFilterByVisitor);
 							// get the result and clear the visitor internal structures
@@ -143,16 +154,18 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 			this.filteringFormula = new DeferredFormula(
 				new FormulaWrapper(
 					theFormula,
-					formula -> {
+					(executionContext, formula) -> {
 						try {
-							queryContext.pushStep(QueryPhase.EXECUTION_FILTER_NESTED_QUERY, stepDescriptionSupplier);
+							executionContext.pushStep(QueryPhase.EXECUTION_FILTER_NESTED_QUERY, stepDescriptionSupplier);
+							formula.initialize(executionContext);
 							return formula.compute();
 						} finally {
-							queryContext.popStep();
+							executionContext.popStep();
 						}
 					}
 				)
 			);
+			this.hash = this.filteringFormula.getHash();
 		} finally {
 			queryContext.popStep();
 		}
@@ -172,6 +185,7 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 		this.parentResult = false;
 		this.filterBy = filterBy;
 		this.filteringFormula = filteringFormula;
+		this.hash = this.filteringFormula.getHash();
 	}
 
 	/**
@@ -184,9 +198,10 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 	 * @param referenceSchema the optional reference schema if the entity targets itself hierarchy tree
 	 */
 	public FilteringFormulaHierarchyEntityPredicate(
-		@Nonnull QueryContext queryContext,
+		@Nonnull QueryPlanningContext queryContext,
 		@Nonnull GlobalEntityIndex entityIndex,
 		@Nonnull FilterBy filterBy,
+		@Nonnull EntitySchemaContract entitySchema,
 		@Nullable ReferenceSchemaContract referenceSchema
 	) {
 		this.parent = null;
@@ -214,16 +229,16 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 					GlobalEntityIndex.class,
 					Collections.singletonList(entityIndex),
 					null,
-					entityIndex.getEntitySchema(),
+					entitySchema,
 					null,
 					null,
 					null,
 					new AttributeSchemaAccessor(
 						queryContext.getCatalogSchema(),
-						entityIndex.getEntitySchema(),
+						entitySchema,
 						null
 					),
-					AttributesContract::getAttribute,
+					(entityContract, attributeName, locale) -> Stream.of(entityContract.getAttributeValue(attributeName, locale)),
 					() -> {
 						filterBy.accept(theFilterByVisitor);
 						// get the result and clear the visitor internal structures
@@ -235,24 +250,34 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 			this.filteringFormula = new DeferredFormula(
 				new FormulaWrapper(
 					theFormula,
-					formula -> {
+					(executionContext, formula) -> {
 						try {
-							queryContext.pushStep(QueryPhase.EXECUTION_FILTER_NESTED_QUERY, stepDescriptionSupplier);
+							executionContext.pushStep(QueryPhase.EXECUTION_FILTER_NESTED_QUERY, stepDescriptionSupplier);
 							return formula.compute();
 						} finally {
-							queryContext.popStep();
+							executionContext.popStep();
 						}
 					}
 				)
 			);
+			this.hash = this.filteringFormula.getHash();
 		} finally {
 			queryContext.popStep();
 		}
 	}
 
 	@Override
-	public long computeHash(@Nonnull LongHashFunction hashFunction) {
-		return filteringFormula.computeHash(hashFunction);
+	public void initializeIfNotAlreadyInitialized(@Nonnull QueryExecutionContext executionContext) {
+		if (!this.initialized) {
+			this.filteringFormula.initialize(executionContext);
+			this.initialized = true;
+		}
+	}
+
+	@Override
+	public long getHash() {
+		Assert.isPremiseValid(this.hash != null, "The predicate hasn't been initialized!");
+		return this.hash;
 	}
 
 	@Override
@@ -284,4 +309,12 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 		return filteringFormula.compute().contains(hierarchyNodeId);
 	}
 
+	@Override
+	public String toString() {
+		return "HIERARCHY (" +
+			"parent=" + parent +
+			", filterBy=" + filterBy +
+			", filteringFormula=" + filteringFormula +
+			')';
+	}
 }

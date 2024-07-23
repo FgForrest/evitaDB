@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -28,11 +28,14 @@ import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.query.require.HierarchyRequireConstraint;
 import io.evitadb.api.query.require.HierarchyStatistics;
+import io.evitadb.api.query.require.HistogramBehavior;
 import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityContract;
+import io.evitadb.api.requestResponse.data.PriceContract;
+import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.extraResult.AttributeHistogram;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary;
@@ -54,9 +57,9 @@ import io.evitadb.externalApi.rest.api.catalog.dataApi.model.extraResult.LevelIn
 import io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.UseDataSet;
-import io.evitadb.utils.MapBuilder;
 import io.evitadb.test.tester.RestTester;
 import io.evitadb.test.tester.RestTester.Request;
+import io.evitadb.utils.MapBuilder;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -76,8 +79,8 @@ import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.query.order.OrderDirection.DESC;
 import static io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator.REST_THOUSAND_PRODUCTS;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
-import static io.evitadb.utils.MapBuilder.map;
 import static io.evitadb.test.generator.DataGenerator.*;
+import static io.evitadb.utils.MapBuilder.map;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -529,7 +532,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 				filterBy(
 					hierarchyWithin(
 						Entities.CATEGORY,
-						entityPrimaryKeyInSet(16)
+						entityPrimaryKeyInSet(26)
 					)
 				),
 				require(
@@ -567,7 +570,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 					"filterBy": {
 						"hierarchyCategoryWithin": {
 							"ofParent": {
-								"entityPrimaryKeyInSet": [16]
+								"entityPrimaryKeyInSet": [26]
 							}
 						}
 					},
@@ -601,7 +604,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 				filterBy(
 					hierarchyWithin(
 						Entities.CATEGORY,
-						entityPrimaryKeyInSet(16)
+						entityPrimaryKeyInSet(26)
 					)
 				),
 				require(
@@ -643,7 +646,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 					"filterBy": {
 						"hierarchyCategoryWithin": {
 							"ofParent": {
-								"entityPrimaryKeyInSet": [16]
+								"entityPrimaryKeyInSet": [26]
 							}
 						}
 					},
@@ -795,6 +798,74 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 					}
 					""",
 				serializeIntArrayToQueryString(pks)
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(DATA_PATH, equalTo(createEntityDtos(entities)));
+	}
+
+	@Test
+	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@DisplayName("Should return all prices for sale for master products")
+	void shouldReturnAllPricesForSaleForMasterProducts(Evita evita, RestTester tester, List<SealedEntity> originalProductEntities) {
+		final var pks = findEntityPks(
+			originalProductEntities,
+			it -> !it.getPriceInnerRecordHandling().equals(PriceInnerRecordHandling.NONE) &&
+				it.getPrices(CURRENCY_CZK)
+					.stream()
+					.filter(PriceContract::sellable)
+					.map(PriceContract::innerRecordId)
+					.distinct()
+					.count() > 1
+		);
+
+		final Set<Integer> pksSet = Arrays.stream(pks).collect(Collectors.toSet());
+		final List<String> priceLists = originalProductEntities.stream()
+			.filter(it -> pksSet.contains(it.getPrimaryKey()))
+			.flatMap(it -> it.getPrices(CURRENCY_CZK).stream().map(PriceContract::priceList))
+			.distinct()
+			.toList();
+		assertTrue(priceLists.size() > 1);
+
+		final List<EntityClassifier> entities = getEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					entityPrimaryKeyInSet(pks),
+					priceInCurrency(CURRENCY_CZK),
+					priceInPriceLists(priceLists.toArray(String[]::new))
+				),
+				require(
+					entityFetch(
+						priceContentRespectingFilter()
+					)
+				)
+			)
+		);
+
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/PRODUCT/query")
+			.httpMethod(Request.METHOD_POST)
+			.requestBody(
+				"""
+                    {
+						"filterBy": {
+						    "entityPrimaryKeyInSet": %s,
+						    "priceInCurrency": "CZK",
+						    "priceInPriceLists": %s
+						},
+						"require": {
+						    "entityFetch": {
+						        "priceContent": {
+						            "contentMode": "RESPECTING_FILTER"
+					            }
+						    }
+						}
+					}
+					""",
+				serializeIntArrayToQueryString(pks),
+				serializeStringArrayToQueryString(priceLists)
 			)
 			.executeAndThen()
 			.statusCode(200)
@@ -1156,7 +1227,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			query(
 				collection(Entities.PRODUCT),
 				filterBy(
-					entityPrimaryKeyInSet(productsWithLotsOfStores.keySet().stream().toArray(Integer[]::new)),
+					entityPrimaryKeyInSet(productsWithLotsOfStores.keySet().toArray(Integer[]::new)),
 					entityLocaleEquals(CZECH_LOCALE)
 				),
 				require(
@@ -1507,9 +1578,6 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
 					{
-						"filterBy": {
-							"attributeAliasIs": "NOT_NULL"
-						},
 						"require": {
 							"page": {
 								"number": 1,
@@ -1517,6 +1585,52 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 							},
 							"attributeHistogram": {
 								"requestedBucketCount": 20,
+								"attributeNames": ["%s"]
+							}
+						}
+					}
+					""",
+				Integer.MAX_VALUE,
+				ATTRIBUTE_QUANTITY)
+			.executeAndThen()
+			.statusCode(200)
+			.body(
+				resultPath(ResponseDescriptor.EXTRA_RESULTS, ExtraResultsDescriptor.ATTRIBUTE_HISTOGRAM, ATTRIBUTE_QUANTITY),
+				equalTo(createAttributeHistogramDto(response, ATTRIBUTE_QUANTITY))
+			);
+	}
+
+	@Test
+	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@DisplayName("Should return optimized attribute histogram")
+	void shouldReturnOptimizedAttributeHistogram(Evita evita, RestTester tester) {
+		final EvitaResponse<EntityClassifier> response = queryEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					attributeIsNotNull(ATTRIBUTE_ALIAS)
+				),
+				require(
+					page(1, Integer.MAX_VALUE),
+					attributeHistogram(20, HistogramBehavior.OPTIMIZED, ATTRIBUTE_QUANTITY)
+				)
+			)
+		);
+
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/PRODUCT/query")
+			.httpMethod(Request.METHOD_POST)
+			.requestBody("""
+					{
+						"require": {
+							"page": {
+								"number": 1,
+								"size": %d
+							},
+							"attributeHistogram": {
+								"requestedBucketCount": 20,
+								"behavior": "OPTIMIZED",
 								"attributeNames": ["%s"]
 							}
 						}
@@ -1559,7 +1673,6 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.requestBody("""
 					{
 						"filterBy": {
-							"attributeAliasIs": "NOT_NULL",
 							"userFilter": [{
 								"attributeQuantityBetween": ["100", "900"]
 							}]
@@ -1595,9 +1708,6 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
 					{
-						"filterBy": {
-							"attributeAliasIs": "NOT_NULL"
-						},
 						"require": {
 							"page": {
 								"number": 1,
@@ -1659,7 +1769,9 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 							"number": 1,
 							"size": %d
 						},
-						"priceHistogram": 20
+						"priceHistogram": {
+							"requestedBucketCount": 20
+						}
 					}
 				}
 				""",
@@ -1707,7 +1819,60 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 							"number": 1,
 							"size": %d
 						},
-						"priceHistogram": 20
+						"priceHistogram": {
+							"requestedBucketCount": 20
+						}
+					}
+				}
+				""",
+				Integer.MAX_VALUE)
+			.executeAndThen()
+			.statusCode(200)
+			.body(
+				resultPath(ResponseDescriptor.EXTRA_RESULTS, ExtraResultsDescriptor.PRICE_HISTOGRAM),
+				equalTo(createPriceHistogramDto(response))
+			);
+	}
+
+	@Test
+	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@DisplayName("Should return optimized price histogram")
+	void shouldReturnOptimizedPriceHistogram(Evita evita, RestTester tester) {
+		final EvitaResponse<EntityClassifier> response = queryEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					and(
+						priceInCurrency(CURRENCY_EUR),
+						priceInPriceLists(PRICE_LIST_VIP, PRICE_LIST_BASIC)
+					)
+				),
+				require(
+					page(1, Integer.MAX_VALUE),
+					priceHistogram(20, HistogramBehavior.OPTIMIZED)
+				)
+			)
+		);
+
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/PRODUCT/query")
+			.httpMethod(Request.METHOD_POST)
+			.requestBody("""
+				{
+					"filterBy": {
+						"priceInCurrency": "EUR",
+						"priceInPriceLists": ["vip", "basic"]
+					},
+					"require": {
+						"page": {
+							"number": 1,
+							"size": %d
+						},
+						"priceHistogram": {
+							"requestedBucketCount": 20,
+							"behavior": "OPTIMIZED"
+						}
 					}
 				}
 				""",
@@ -1744,8 +1909,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 					""",
 				Integer.MAX_VALUE)
 			.executeAndThen()
-			.statusCode(400)
-			.body("message", equalTo("Constraint `priceHistogram` requires non-null value."));
+			.statusCode(400);
 	}
 
 	@UseDataSet(REST_THOUSAND_PRODUCTS)
@@ -2555,7 +2719,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 	@Test
 	@UseDataSet(REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return facet summary with counts for products")
-	void shouldReturnFacetSummaryWithCountsForProducts(Evita evita, RestTester tester) {
+	void shouldReturnNonGroupedFacetSummaryWithCountsForProducts(Evita evita, RestTester tester) {
 		final EvitaResponse<EntityClassifier> response = queryEntities(
 			evita,
 			query(
@@ -2567,7 +2731,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		);
 		assertFalse(response.getExtraResult(FacetSummary.class).getReferenceStatistics().isEmpty());
 
-		final var expectedBody = createFacetSummaryDto(response, Entities.BRAND);
+		final var expectedBody = createNonGroupedFacetSummaryDto(response, Entities.BRAND);
 
 		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/PRODUCT/query")
@@ -2575,7 +2739,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.requestBody("""
 					{
 						"require": {
-							"facetSummary": {
+							"facetBrandSummary": {
 								"statisticsDepth":"COUNTS"
 					        }
 						}
@@ -2593,7 +2757,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 	@Test
 	@UseDataSet(REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return facet summary with impacts and entities for products")
-	void shouldReturnFacetSummaryWithImpactsAndEntitiesForProducts(Evita evita, RestTester tester) {
+	void shouldReturnNonGroupedFacetSummaryWithImpactsAndEntitiesForProducts(Evita evita, RestTester tester) {
 		final EvitaResponse<EntityClassifier> response = queryEntities(
 			evita,
 			query(
@@ -2609,8 +2773,8 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		);
 		assertFalse(response.getExtraResult(FacetSummary.class).getReferenceStatistics().isEmpty());
 
-		final var expectedBody = createFacetSummaryDto(response, Entities.BRAND);
-;
+		final var expectedBody = createNonGroupedFacetSummaryDto(response, Entities.BRAND);
+
 		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/PRODUCT/query")
 			.httpMethod(Request.METHOD_POST)
@@ -2637,6 +2801,91 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			);
 	}
 
+	@Test
+	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@DisplayName("Should return facet summary with counts for products")
+	void shouldReturnFacetSummaryWithCountsForProducts(Evita evita, RestTester tester) {
+		final EvitaResponse<EntityClassifier> response = queryEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				require(
+					facetSummaryOfReference(Entities.PARAMETER, FacetStatisticsDepth.COUNTS)
+				)
+			)
+		);
+		assertFalse(response.getExtraResult(FacetSummary.class).getReferenceStatistics().isEmpty());
+
+		final var expectedBody = createFacetSummaryDto(response, Entities.PARAMETER);
+
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/PRODUCT/query")
+			.httpMethod(Request.METHOD_POST)
+			.requestBody("""
+					{
+						"require": {
+							"facetParameterSummary": {
+								"statisticsDepth":"COUNTS"
+					        }
+						}
+					}
+					""",
+				Integer.MAX_VALUE)
+			.executeAndThen()
+			.statusCode(200)
+			.body(
+				resultPath(ResponseDescriptor.EXTRA_RESULTS, ExtraResultsDescriptor.FACET_SUMMARY, "parameter"),
+				equalTo(expectedBody)
+			);
+	}
+
+	@Test
+	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@DisplayName("Should return facet summary with impacts and entities for products")
+	void shouldReturnFacetSummaryWithImpactsAndEntitiesForProducts(Evita evita, RestTester tester) {
+		final EvitaResponse<EntityClassifier> response = queryEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				require(
+					facetSummaryOfReference(
+						Entities.PARAMETER,
+						FacetStatisticsDepth.IMPACT,
+						entityFetch(attributeContent(ATTRIBUTE_CODE))
+					)
+				)
+			)
+		);
+		assertFalse(response.getExtraResult(FacetSummary.class).getReferenceStatistics().isEmpty());
+
+		final var expectedBody = createFacetSummaryDto(response, Entities.PARAMETER);
+
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/PRODUCT/query")
+			.httpMethod(Request.METHOD_POST)
+			.requestBody("""
+					{
+						"require": {
+							"facetParameterSummary": {
+								"statisticsDepth":"IMPACT",
+								"requirements": {
+					   				"entityFetch": {
+					   					"attributeContent": ["code"]
+					      			}
+					   			}
+					        }
+						}
+					}
+					""",
+				Integer.MAX_VALUE)
+			.executeAndThen()
+			.statusCode(200)
+			.body(
+				resultPath(ResponseDescriptor.EXTRA_RESULTS, ExtraResultsDescriptor.FACET_SUMMARY, "parameter"),
+				equalTo(expectedBody)
+			);
+	}
+
 	@Nonnull
 	private Map<String, Object> createAttributeHistogramDto(@Nonnull EvitaResponse<? extends EntityClassifier> response,
 	                                                        @Nonnull String attributeName) {
@@ -2647,7 +2896,6 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.e(HistogramDescriptor.MAX.name(), histogram.getMax().toString())
 			.e(HistogramDescriptor.BUCKETS.name(), Arrays.stream(histogram.getBuckets())
 				.map(bucket -> map()
-					.e(BucketDescriptor.INDEX.name(), bucket.index())
 					.e(BucketDescriptor.THRESHOLD.name(), bucket.threshold().toString())
 					.e(BucketDescriptor.OCCURRENCES.name(), bucket.occurrences())
 					.e(BucketDescriptor.REQUESTED.name(), bucket.requested())
@@ -2668,7 +2916,6 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.e(HistogramDescriptor.OVERALL_COUNT.name(), priceHistogram.getOverallCount())
 			.e(HistogramDescriptor.BUCKETS.name(), Arrays.stream(priceHistogram.getBuckets())
 				.map(bucket -> map()
-					.e(BucketDescriptor.INDEX.name(), bucket.index())
 					.e(BucketDescriptor.THRESHOLD.name(), bucket.threshold().toString())
 					.e(BucketDescriptor.OCCURRENCES.name(), bucket.occurrences())
 					.e(BucketDescriptor.REQUESTED.name(), bucket.requested())
@@ -2862,6 +3109,38 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			Arguments.of(EnumSet.of(StatisticsType.CHILDREN_COUNT), StatisticsBase.COMPLETE_FILTER),
 			Arguments.of(EnumSet.of(StatisticsType.CHILDREN_COUNT), StatisticsBase.WITHOUT_USER_FILTER)
 		);
+	}
+
+	@Nonnull
+	private Map<String, Object> createNonGroupedFacetSummaryDto(@Nonnull EvitaResponse<? extends EntityClassifier> response,
+	                                                            @Nonnull String referenceName) {
+		final FacetSummary facetSummary = response.getExtraResult(FacetSummary.class);
+
+		return Optional.ofNullable(facetSummary.getFacetGroupStatistics(referenceName))
+			.map(groupStatistics ->
+				map()
+					.e(FacetGroupStatisticsDescriptor.COUNT.name(), groupStatistics.getCount())
+					.e(FacetGroupStatisticsDescriptor.FACET_STATISTICS.name(), groupStatistics.getFacetStatistics()
+						.stream()
+						.map(facetStatistics -> {
+							final MapBuilder facetStatisticsDto = map()
+								.e(FacetStatisticsDescriptor.REQUESTED.name(), facetStatistics.isRequested())
+								.e(FacetStatisticsDescriptor.COUNT.name(), facetStatistics.getCount())
+								.e(FacetStatisticsDescriptor.FACET_ENTITY.name(), createEntityDto(facetStatistics.getFacetEntity()));
+
+							Optional.ofNullable(facetStatistics.getImpact())
+								.ifPresent(impact -> facetStatisticsDto.e(FacetStatisticsDescriptor.IMPACT.name(), map()
+									.e(FacetRequestImpactDescriptor.DIFFERENCE.name(), facetStatistics.getImpact().difference())
+									.e(FacetRequestImpactDescriptor.MATCH_COUNT.name(), facetStatistics.getImpact().matchCount())
+									.e(FacetRequestImpactDescriptor.HAS_SENSE.name(), facetStatistics.getImpact().hasSense())
+									.build()));
+
+							return facetStatisticsDto.build();
+						})
+						.toList())
+					.build()
+			)
+			.orElseThrow(() -> new IllegalStateException("Facet summary must contain facet group statistics for reference " + referenceName));
 	}
 
 	@Nonnull

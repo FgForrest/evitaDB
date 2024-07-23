@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -42,13 +42,13 @@ public class PriceValidInSerializer extends Serializer<PriceValidIn> {
 
 	@Override
 	public void write(Kryo kryo, Output output, PriceValidIn object) {
-		kryo.writeObject(output, object.getTheMoment());
+		kryo.writeObjectOrNull(output, object.getTheMoment(() -> null), OffsetDateTime.class);
 	}
 
 	@Override
 	public PriceValidIn read(Kryo kryo, Input input, Class<? extends PriceValidIn> type) {
-		final OffsetDateTime theMoment = kryo.readObject(input, OffsetDateTime.class);
-		return new PriceValidIn(theMoment);
+		final OffsetDateTime theMoment = kryo.readObjectOrNull(input, OffsetDateTime.class);
+		return theMoment == null ? new PriceValidIn() : new PriceValidIn(theMoment);
 	}
 
 }

@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -24,46 +24,46 @@
 package io.evitadb.externalApi.rest;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.linecorp.armeria.common.HttpRequest;
+import com.linecorp.armeria.common.HttpResponse;
+import com.linecorp.armeria.server.HttpService;
+import com.linecorp.armeria.server.ServiceRequestContext;
 import io.evitadb.api.CatalogContract;
-import io.evitadb.api.requestResponse.cdc.CaptureArea;
 import io.evitadb.api.requestResponse.cdc.CaptureContent;
-import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
-import io.evitadb.api.requestResponse.cdc.Operation;
-import io.evitadb.api.requestResponse.cdc.SchemaSite;
 import io.evitadb.core.CorruptedCatalog;
 import io.evitadb.core.Evita;
-import io.evitadb.externalApi.http.CorsFilter;
+import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.externalApi.http.HttpServiceTlsCheckingDecorator;
 import io.evitadb.externalApi.http.PathNormalizingHandler;
 import io.evitadb.externalApi.rest.api.Rest;
-import io.evitadb.externalApi.rest.api.Rest.Endpoint;
 import io.evitadb.externalApi.rest.api.catalog.CatalogRestBuilder;
-import io.evitadb.externalApi.rest.api.catalog.CatalogRestRefreshingObserver;
 import io.evitadb.externalApi.rest.api.catalog.SystemRestRefreshingObserver;
-import io.evitadb.externalApi.rest.api.openApi.OpenApiSystemEndpoint;
+import io.evitadb.externalApi.rest.api.openApi.OpenApiWriter;
 import io.evitadb.externalApi.rest.api.system.SystemRestBuilder;
 import io.evitadb.externalApi.rest.configuration.RestConfig;
-import io.evitadb.externalApi.rest.exception.OpenApiInternalError;
-import io.evitadb.externalApi.rest.io.CorsEndpoint;
-import io.evitadb.externalApi.rest.io.RestEndpointHandler;
-import io.evitadb.externalApi.rest.io.RestExceptionHandler;
-import io.evitadb.externalApi.utils.UriPath;
+import io.evitadb.externalApi.rest.exception.RestInternalError;
+import io.evitadb.externalApi.rest.io.RestInstanceType;
+import io.evitadb.externalApi.rest.io.RestRouter;
+import io.evitadb.externalApi.rest.metric.event.instance.BuiltEvent;
+import io.evitadb.externalApi.rest.metric.event.instance.BuiltEvent.BuildType;
+import io.evitadb.function.TriFunction;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.StringUtils;
-import io.undertow.Handlers;
-import io.undertow.server.HttpHandler;
-import io.undertow.server.RoutingHandler;
-import io.undertow.server.handlers.BlockingHandler;
-import io.undertow.util.HttpString;
-import io.undertow.util.Methods;
+import io.swagger.v3.oas.models.OpenAPI;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
-import static io.evitadb.utils.CollectionUtils.createConcurrentHashMap;
+import static io.evitadb.utils.CollectionUtils.createHashMap;
 import static io.evitadb.utils.CollectionUtils.createHashSet;
 
 /**
@@ -84,19 +84,25 @@ public class RestManager {
 	@Nonnull private final RestConfig restConfig;
 
 	/**
-	 * All registered endpoint paths for each catalog
-	 */
-	@Nonnull private final Map<String, Set<Endpoint>> registeredCatalogEndpoints = createConcurrentHashMap(20);
-	/**
 	 * REST specific endpoint router.
 	 */
-	private final RoutingHandler restRouter = Handlers.routing();
-	@Nonnull private final Map<UriPath, CorsEndpoint> corsEndpoints = createConcurrentHashMap(20);
+	private final RestRouter restRouter;
+	/**
+	 * All registered catalogs
+	 */
+	@Nonnull private final Set<String> registeredCatalogs = createHashSet(20);
 
-	public RestManager(@Nonnull Evita evita, @Nullable String exposedOn, @Nonnull RestConfig restConfig) {
+	@Nullable private SystemBuildStatistics systemBuildStatistics;
+	@Nonnull private final Map<String, CatalogBuildStatistics> catalogBuildStatistics = createHashMap(20);
+
+	@Nonnull private final TriFunction<ServiceRequestContext, HttpRequest, HttpService, HttpResponse> apiHandlerPortSslValidatingFunction;
+
+	public RestManager(@Nonnull Evita evita, @Nullable String exposedOn, @Nonnull RestConfig restConfig, @Nonnull TriFunction<ServiceRequestContext, HttpRequest, HttpService, HttpResponse> apiHandlerPortSslValidatingFunction) {
 		this.evita = evita;
 		this.exposedOn = exposedOn;
 		this.restConfig = restConfig;
+		this.restRouter = new RestRouter(objectMapper, restConfig);
+		this.apiHandlerPortSslValidatingFunction = apiHandlerPortSslValidatingFunction;
 
 		final long buildingStartTime = System.currentTimeMillis();
 
@@ -107,14 +113,38 @@ public class RestManager {
 		// register initial endpoints
 		registerSystemApi();
 		this.evita.getCatalogs().forEach(catalog -> registerCatalog(catalog.getName()));
-		corsEndpoints.forEach((path, endpoint) -> restRouter.add(Methods.OPTIONS, path.toString(), endpoint.toHandler()));
 
 		log.info("Built REST API in " + StringUtils.formatPreciseNano(System.currentTimeMillis() - buildingStartTime));
 	}
 
 	@Nonnull
-	public HttpHandler getRestRouter() {
-		return new PathNormalizingHandler(restRouter);
+	public HttpService getRestRouter() {
+		return new HttpServiceTlsCheckingDecorator(
+			new PathNormalizingHandler(restRouter), apiHandlerPortSslValidatingFunction
+		);
+	}
+
+	/**
+	 * Builds and registers system API to manage evitaDB
+	 */
+	private void registerSystemApi() {
+		final long instanceBuildStartTime = System.currentTimeMillis();
+
+		final SystemRestBuilder systemRestBuilder = new SystemRestBuilder(exposedOn, restConfig, evita);
+		final long schemaBuildStartTime = System.currentTimeMillis();
+		final Rest api = systemRestBuilder.build();
+		final long schemaBuildDuration = System.currentTimeMillis() - schemaBuildStartTime;
+
+		restRouter.registerSystemApi(api);
+		final long instanceBuildDuration = System.currentTimeMillis() - instanceBuildStartTime;
+
+		// build metrics
+		systemBuildStatistics = SystemBuildStatistics.createNew(
+			instanceBuildDuration,
+			schemaBuildDuration,
+			countOpenApiSchemaLines(api.openApi()),
+			api.openApi().getPaths().size()
+		);
 	}
 
 	/**
@@ -127,39 +157,60 @@ public class RestManager {
 			return;
 		}
 		Assert.isPremiseValid(
-			!registeredCatalogEndpoints.containsKey(catalogName),
-			() -> new OpenApiInternalError("Catalog `" + catalogName + "` has been already registered.")
+			!registeredCatalogs.contains(catalogName),
+			() -> new RestInternalError("Catalog `" + catalogName + "` has been already registered.")
 		);
-		// todo jno: uncomment this after the catalog captures are implemented
-//		catalog.registerChangeCatalogCapture(
-//			new ChangeCatalogCaptureRequest(
-//				CaptureArea.SCHEMA, new SchemaSite(Operation.values()), CaptureContent.HEADER,
-//				catalog.getLastCommittedTransactionId()
-//			)
-//		).subscribe(new CatalogRestRefreshingObserver(this));
 
-		final CatalogRestBuilder catalogRestBuilder = new CatalogRestBuilder(exposedOn, restConfig, evita, catalog);
-		final Rest builtRest = catalogRestBuilder.build();
+		try {
+			final long instanceBuildStartTime = System.currentTimeMillis();
 
-		builtRest.endpoints().forEach(endpoint -> registerCatalogRestEndpoint(catalog, endpoint));
+			// todo jno: uncomment this after the catalog captures are implemented
+			//		catalog.registerChangeCatalogCapture(
+			//			new ChangeCatalogCaptureRequest(
+			//				CaptureArea.SCHEMA, new SchemaSite(Operation.values()), CaptureContent.HEADER,
+			//				catalog.getLastCommittedTransactionId()
+			//			)
+			//		).subscribe(new CatalogRestRefreshingObserver(this));
+
+			final CatalogRestBuilder catalogRestBuilder = new CatalogRestBuilder(exposedOn, restConfig, evita, catalog);
+			final long schemaBuildStartTime = System.currentTimeMillis();
+			final Rest api = catalogRestBuilder.build();
+			final long schemaBuildDuration = System.currentTimeMillis() - schemaBuildStartTime;
+
+			registeredCatalogs.add(catalogName);
+			restRouter.registerCatalogApi(catalogName, api);
+			final long instanceBuildDuration = System.currentTimeMillis() - instanceBuildStartTime;
+
+			// build metrics
+			Assert.isPremiseValid(
+				!catalogBuildStatistics.containsKey(catalogName),
+				() -> new RestInternalError("There are already build statistics present for catalog `" + catalogName + "`.")
+			);
+			final CatalogBuildStatistics buildStatistics = CatalogBuildStatistics.createNew(
+				instanceBuildDuration,
+				schemaBuildDuration,
+				countOpenApiSchemaLines(api.openApi()),
+				api.openApi().getPaths().size()
+			);
+			catalogBuildStatistics.put(catalogName, buildStatistics);
+		} catch (EvitaInternalError ex) {
+			// log and skip the catalog entirely
+			log.error("Catalog `" + catalogName + "` is corrupted and will not accessible by REST API.", ex);
+
+			// cleanup corrupted paths
+			restRouter.unregisterCatalogApi(catalogName);
+			catalogBuildStatistics.remove(catalogName);
+		}
 	}
 
 	/**
 	 * Unregister all REST endpoints of catalog.
 	 */
 	public void unregisterCatalog(@Nonnull String catalogName) {
-		final CatalogContract catalog = evita.getCatalogInstanceOrThrowException(catalogName);
-
-		final Set<Endpoint> endpointsForCatalog = registeredCatalogEndpoints.remove(catalogName);
-		if (endpointsForCatalog != null) {
-			endpointsForCatalog.forEach(endpoint -> {
-				final String catalogPath = constructCatalogPath(catalog, endpoint.path()).toString();
-
-				restRouter.remove(endpoint.method(), catalogPath);
-
-				corsEndpoints.remove(catalogPath);
-				restRouter.remove(Methods.OPTIONS, catalogPath);
-			});
+		final boolean catalogRegistered = registeredCatalogs.remove(catalogName);
+		if (catalogRegistered) {
+			restRouter.unregisterCatalogApi(catalogName);
+			catalogBuildStatistics.remove(catalogName);
 		}
 	}
 
@@ -167,7 +218,7 @@ public class RestManager {
 	 * Update REST endpoints and OpenAPI schema of catalog.
 	 */
 	public void refreshCatalog(@Nonnull String catalogName) {
-		if (!registeredCatalogEndpoints.containsKey(catalogName)) {
+		if (!registeredCatalogs.contains(catalogName)) {
 			// there may be case where initial registration failed and catalog is not registered at all
 			// for example, when catalog was corrupted and is replaced with new fresh one
 			log.info("Could not refresh existing catalog `{}`. Registering new one instead...", catalogName);
@@ -175,72 +226,144 @@ public class RestManager {
 			return;
 		}
 
+		final long instanceBuildStartTime = System.currentTimeMillis();
+
 		final CatalogContract catalog = evita.getCatalogInstanceOrThrowException(catalogName);
 		final CatalogRestBuilder catalogRestBuilder = new CatalogRestBuilder(exposedOn, restConfig, evita, catalog);
-		final Rest builtRest = catalogRestBuilder.build();
+		final long schemaBuildStartTime = System.currentTimeMillis();
+		final Rest newApi = catalogRestBuilder.build();
+		final long schemaBuildDuration = System.currentTimeMillis() - schemaBuildStartTime;
 
-		unregisterCatalog(catalogName);
-		builtRest.endpoints().forEach(endpoint -> registerCatalogRestEndpoint(catalog, endpoint));
-	}
+		restRouter.unregisterCatalogApi(catalogName);
+		restRouter.registerCatalogApi(catalogName, newApi);
+		final long instanceBuildDuration = System.currentTimeMillis() - instanceBuildStartTime;
 
-	/**
-	 * Builds and registers system API to manage evitaDB
-	 */
-	private void registerSystemApi() {
-		final SystemRestBuilder systemRestBuilder = new SystemRestBuilder(exposedOn, restConfig, evita);
-		final Rest builtRest = systemRestBuilder.build();
-		builtRest.endpoints().forEach(this::registerSystemRestEndpoint);
-	}
-
-	/**
-	 * Creates new REST endpoint on specified path with specified {@link Rest} instance.
-	 */
-	private void registerCatalogRestEndpoint(@Nonnull CatalogContract catalog, @Nonnull Rest.Endpoint endpoint) {
-		final Set<Endpoint> endpointsForCatalog = registeredCatalogEndpoints.computeIfAbsent(catalog.getName(), key -> createHashSet(100));
-		endpointsForCatalog.add(endpoint);
-
-		registerRestEndpoint(
-			endpoint.method(),
-			constructCatalogPath(catalog, endpoint.path()),
-			endpoint.handler()
+		// build metrics
+		final CatalogBuildStatistics buildStatistics = catalogBuildStatistics.get(catalogName);
+		Assert.isPremiseValid(
+			buildStatistics != null,
+			() -> new RestInternalError("No build statistics found for catalog `" + catalogName + "`.")
+		);
+		buildStatistics.refresh(
+			instanceBuildDuration,
+			schemaBuildDuration,
+			countOpenApiSchemaLines(newApi.openApi()),
+			newApi.openApi().getPaths().size()
 		);
 	}
 
 	/**
-	 * Creates new REST endpoint on specified path with specified {@link Rest} instance.
+	 * Allows emitting start events when observability facilities are already initialized.
+	 * If we didn't postpone this initialization, events would become lost.
 	 */
-	private void registerSystemRestEndpoint(@Nonnull Rest.Endpoint endpoint) {
-		registerRestEndpoint(
-			endpoint.method(),
-			UriPath.of("/", OpenApiSystemEndpoint.URL_PREFIX, endpoint.path()),
-			endpoint.handler()
+	public void emitObservabilityEvents() {
+		Assert.isPremiseValid(
+			systemBuildStatistics != null,
+			() -> new RestInternalError("No build statistics for system API found.")
 		);
+		if (!systemBuildStatistics.reported().get()) {
+			new BuiltEvent(
+				RestInstanceType.SYSTEM,
+				BuildType.NEW,
+				systemBuildStatistics.instanceBuildDuration(),
+				systemBuildStatistics.schemaBuildDuration(),
+				systemBuildStatistics.schemaDslLines(),
+				systemBuildStatistics.registeredEndpoints()
+			).commit();
+
+			systemBuildStatistics.markAsReported();
+		}
+
+		catalogBuildStatistics.keySet().forEach(this::emitObservabilityEvents);
 	}
 
 	/**
-	 * Registers endpoints into router. Also CORS endpoint is created automatically for this endpoint.
+	 * Allows emitting start events when observability facilities are already initialized.
+	 * If we didn't postpone this initialization, events would become lost.
 	 */
-	private void registerRestEndpoint(@Nonnull HttpString method, @Nonnull UriPath path, @Nonnull RestEndpointHandler<?, ?> handler) {
-		final CorsEndpoint corsEndpoint = corsEndpoints.computeIfAbsent(path, p -> new CorsEndpoint(restConfig));
-		corsEndpoint.addMetadataFromHandler(handler);
-
-		restRouter.add(
-			method,
-			path.toString(),
-			new BlockingHandler(
-				new CorsFilter(
-					new RestExceptionHandler(
-						objectMapper,
-						handler
-					),
-					restConfig.getAllowedOrigins()
-				)
-			)
+	public void emitObservabilityEvents(@Nonnull String catalogName) {
+		final CatalogBuildStatistics buildStatistics = catalogBuildStatistics.get(catalogName);
+		Assert.isPremiseValid(
+			buildStatistics != null,
+			() -> new RestInternalError("No build statistics found for catalog `" + catalogName + "`.")
 		);
+
+		new BuiltEvent(
+			catalogName,
+			RestInstanceType.CATALOG,
+			buildStatistics.buildCount().get() == 1 ? BuildType.NEW : BuildType.REFRESH,
+			buildStatistics.instanceBuildDuration().get(),
+			buildStatistics.schemaBuildDuration().get(),
+			buildStatistics.schemaDslLines().get(),
+			buildStatistics.registeredEndpoints().get()
+		).commit();
 	}
 
-	@Nonnull
-	private UriPath constructCatalogPath(@Nonnull CatalogContract catalog, @Nonnull UriPath endpointPath) {
-		return UriPath.of(catalog.getSchema().getName(), endpointPath);
+	/**
+	 * Counts lines of printed OpenAPI schema in DSL.
+	 */
+	private static long countOpenApiSchemaLines(@Nonnull OpenAPI schema) {
+		final ByteArrayOutputStream out = new ByteArrayOutputStream();
+		try {
+			OpenApiWriter.toYaml(schema, out);
+		} catch (IOException e) {
+			throw new RestInternalError("Failed to count OpenAPI DSL lines.");
+		}
+		return out.toString().lines().count();
+	}
+
+	private record SystemBuildStatistics(@Nonnull AtomicBoolean reported,
+	                                     long instanceBuildDuration,
+	                                     long schemaBuildDuration,
+	                                     long schemaDslLines,
+	                                     long registeredEndpoints) {
+
+		public static SystemBuildStatistics createNew(long instanceBuildDuration,
+		                                              long schemaBuildDuration,
+		                                              long schemaDslLines,
+		                                              long registeredEndpoints) {
+			return new SystemBuildStatistics(
+				new AtomicBoolean(false),
+				instanceBuildDuration,
+				schemaBuildDuration,
+				schemaDslLines,
+				registeredEndpoints
+			);
+		}
+
+		public void markAsReported() {
+			this.reported.set(true);
+		}
+	}
+
+	private record CatalogBuildStatistics(@Nonnull AtomicInteger buildCount,
+										  @Nonnull AtomicLong instanceBuildDuration,
+	                                      @Nonnull AtomicLong schemaBuildDuration,
+	                                      @Nonnull AtomicLong schemaDslLines,
+	                                      @Nonnull AtomicLong registeredEndpoints) {
+
+		public static CatalogBuildStatistics createNew(long instanceBuildDuration,
+		                                               long schemaBuildDuration,
+		                                               long schemaDslLines,
+		                                               long registeredEndpoints) {
+			return new CatalogBuildStatistics(
+				new AtomicInteger(1),
+				new AtomicLong(instanceBuildDuration),
+				new AtomicLong(schemaBuildDuration),
+				new AtomicLong(schemaDslLines),
+				new AtomicLong(registeredEndpoints)
+			);
+		}
+
+		public void refresh(long instanceBuildDuration,
+		                    long schemaBuildDuration,
+		                    long schemaDslLines,
+		                    long registeredEndpoints) {
+			this.buildCount.incrementAndGet();
+			this.instanceBuildDuration.set(instanceBuildDuration);
+			this.schemaBuildDuration.set(schemaBuildDuration);
+			this.schemaDslLines.set(schemaDslLines);
+			this.registeredEndpoints.set(registeredEndpoints);
+		}
 	}
 }

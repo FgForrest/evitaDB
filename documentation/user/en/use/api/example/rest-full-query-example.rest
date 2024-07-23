@@ -11,24 +11,29 @@ POST /rest/evita/Product/query
     "priceValidInNow": true,
     "priceInCurrency": "CZK",
     "priceInPriceLists": ["vip", "loyal-customer", "regular-prices"],
-    "userFilter": {
-      "facetParameterValuesHaving": {
+    "userFilter": [{
+      "facetParameterValuesHaving": [{
         "entityHaving": {
           "attributeCodeInSet": ["gluten-free", "original-recipe"]
         }
-      },
+      }],
       "priceBetween": ["600", "1600"]
-    }
+    }]
   },
   "orderBy": [{
     "attributeCodeNatural": "ASC"
   }],
   "require": {
     "entityFetch": {
-      "attributeContent": "code",
+      "attributeContent": ["code"],
       "referenceCategoriesContent": {}
     },
-    "facetSummary": {},
-    "priceHistogram": 30
+    "facetSummary": {
+      "statisticsDepth": "COUNTS"
+    },
+    "priceHistogram": {
+      "requestedBucketCount" : 30,
+      "behavior" : "STANDARD"
+	}
   }
 }

@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -62,20 +62,21 @@ class FilterFormulaFacetOptimizeVisitorTest {
 				)
 			)
 		);
-		assertEquals(
-			"[#0] OR\n" +
-				"   [#1] OR\n" +
-				"      [#2] [1, 2]\n" +
-				"      [#3] [2, 3]\n" +
-				"   [#4] USER FILTER\n" +
-				"      [#5] AND\n" +
-				"         [#6] [1, 2]\n" +
-				"         [#7] [2, 3]\n" +
-				"      [#8] AND\n" +
-				"         [#9] FACET PARAMETER OR (2 - [1]):  ↦ [7]\n" +
-				"         [#10] FACET BRAND OR (1 - [1]):  ↦ [1]\n" +
-				"         [#11] FACET STORE OR (1 - [1]):  ↦ [2]\n",
-			PrettyPrintingFormulaVisitor.toString(optimizedFormula)
+		assertEquals("""
+			[#0] OR → [1, 2, 3]
+			   [#1] OR → [1, 2, 3]
+			      [#2] [1, 2]
+			      [#3] [2, 3]
+			   [#4] USER FILTER → EMPTY
+			      [#5] AND → [2]
+			         [#6] [1, 2]
+			         [#7] [2, 3]
+			      [#8] AND → EMPTY
+			         [#9] FACET PARAMETER OR (2 - [1]):  ↦ [7]
+			         [#10] FACET BRAND OR (1 - [1]):  ↦ [1]
+			         [#11] FACET STORE OR (1 - [1]):  ↦ [2]
+			""",
+			PrettyPrintingFormulaVisitor.toStringVerbose(optimizedFormula)
 		);
 	}
 
@@ -106,27 +107,28 @@ class FilterFormulaFacetOptimizeVisitorTest {
 				new ConstantFormula(new ArrayBitmap(8, 6))
 			)
 		);
-		assertEquals(
-			"[#0] OR\n" +
-				"   [#1] OR\n" +
-				"      [#2] [1, 2]\n" +
-				"      [#3] [2, 3]\n" +
-				"      [#4] [8, 6]\n" +
-				"   [#5] USER FILTER\n" +
-				"      [#6] AND\n" +
-				"         [#7] [1, 2]\n" +
-				"         [#8] [2, 3]\n" +
-				"      [#9] NOT\n" +
-				"         [#10] FACET PARAMETER OR (10 - [1]):  ↦ [12]\n" +
-				"         [#11] AND\n" +
-				"            [#12] AND\n" +
-				"               [#13] FACET PARAMETER OR (2 - [1]):  ↦ [7]\n" +
-				"               [#14] FACET BRAND OR (1 - [1]):  ↦ [1]\n" +
-				"               [#15] FACET STORE OR (1 - [1]):  ↦ [2]\n" +
-				"            [#16] OR\n" +
-				"               [#17] FACET BRAND OR (1 - [2]):  ↦ [7]\n" +
-				"               [#18] FACET STORE OR (1 - [3]):  ↦ [9]\n",
-			PrettyPrintingFormulaVisitor.toString(optimizedFormula)
+		assertEquals("""
+			[#0] OR → [1, 2, 3, 6, 8]
+			   [#1] OR → [1, 2, 3, 6, 8]
+			      [#2] [1, 2]
+			      [#3] [2, 3]
+			      [#4] [8, 6]
+			   [#5] USER FILTER → EMPTY
+			      [#6] AND → [2]
+			         [#7] [1, 2]
+			         [#8] [2, 3]
+			      [#9] NOT → EMPTY
+			         [#10] FACET PARAMETER OR (10 - [1]):  ↦ [12]
+			         [#11] AND → EMPTY
+			            [#12] AND → EMPTY
+			               [#13] FACET PARAMETER OR (2 - [1]):  ↦ [7]
+			               [#14] FACET BRAND OR (1 - [1]):  ↦ [1]
+			               [#15] FACET STORE OR (1 - [1]):  ↦ [2]
+			            [#16] OR → [7, 9]
+			               [#17] FACET BRAND OR (1 - [2]):  ↦ [7]
+			               [#18] FACET STORE OR (1 - [3]):  ↦ [9]
+			""",
+			PrettyPrintingFormulaVisitor.toStringVerbose(optimizedFormula)
 		);
 	}
 

@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -179,6 +179,28 @@ class DefaultQueryParserTest {
                          )
                     """,
                 "PRODUCT", 1
+            )
+        );
+
+        assertEquals(
+            query(
+                collection("a"),
+                filterBy(attributeEqualsTrue("b")),
+                orderBy(attributeNatural("c"))
+            ),
+            parser.parseQuery(
+                """
+                    query(
+                        collection(?),
+                        filterBy(
+                            attributeEqualsTrue(?),
+                        ),
+                        orderBy(attributeNatural(?),)
+                    )
+                    """,
+                "a",
+                "b",
+                "c"
             )
         );
     }
@@ -384,7 +406,7 @@ class DefaultQueryParserTest {
 
     @Test
     void shouldParseHeadConstraintListString() {
-        final List<HeadConstraint> constraintList2 = parser.parseHeadConstraintList("collection('product'),collection('brand')");
+        final List<HeadConstraint> constraintList2 = parser.parseHeadConstraintListUnsafe("collection('product'),collection('brand')");
         assertEquals(
             List.of(collection("product"), collection("brand")),
             constraintList2
@@ -397,8 +419,8 @@ class DefaultQueryParserTest {
         );
 
         final List<HeadConstraint> constraintList4 = parser.parseHeadConstraintList(
-            "collection('product'),collection(@col)",
-            Map.of("col", "brand")
+            "collection(@product),collection(@col)",
+            Map.of("product", "product", "col", "brand")
         );
         assertEquals(
             List.of(collection("product"), collection("brand")),
@@ -439,7 +461,7 @@ class DefaultQueryParserTest {
 
     @Test
     void shouldParseFilterConstraintList() {
-        final List<FilterConstraint> constraintList2 = parser.parseFilterConstraintList("attributeEqualsTrue('code'),attributeEqualsTrue('age')");
+        final List<FilterConstraint> constraintList2 = parser.parseFilterConstraintListUnsafe("attributeEqualsTrue('code'),attributeEqualsTrue('age')");
         assertEquals(
             List.of(attributeEqualsTrue("code"), attributeEqualsTrue("age")),
             constraintList2
@@ -452,8 +474,8 @@ class DefaultQueryParserTest {
         );
 
         final List<FilterConstraint> constraintList4 = parser.parseFilterConstraintList(
-            "attributeEqualsTrue('code'),attributeEqualsTrue(@name)",
-            Map.of("name", "age")
+            "attributeEqualsTrue(@code),attributeEqualsTrue(@name)",
+            Map.of("code", "code", "name", "age")
         );
         assertEquals(
             List.of(attributeEqualsTrue("code"), attributeEqualsTrue("age")),
@@ -495,7 +517,7 @@ class DefaultQueryParserTest {
 
     @Test
     void shouldParseOrderConstraintList() {
-        final List<OrderConstraint> constraintList2 = parser.parseOrderConstraintList("attributeNatural('code'),attributeNatural('age')");
+        final List<OrderConstraint> constraintList2 = parser.parseOrderConstraintListUnsafe("attributeNatural('code'),attributeNatural('age')");
         assertEquals(
             List.of(attributeNatural("code"), attributeNatural("age")),
             constraintList2
@@ -508,8 +530,8 @@ class DefaultQueryParserTest {
         );
 
         final List<OrderConstraint> constraintList4 = parser.parseOrderConstraintList(
-            "attributeNatural('code'),attributeNatural(@name)",
-            Map.of("name", "age")
+            "attributeNatural(@code),attributeNatural(@name)",
+            Map.of("code", "code", "name", "age")
         );
         assertEquals(
             List.of(attributeNatural("code"), attributeNatural("age")),
@@ -551,7 +573,7 @@ class DefaultQueryParserTest {
 
     @Test
     void shouldParseRequireConstraintList() {
-        final List<RequireConstraint> constraintList2 = parser.parseRequireConstraintList("attributeContent('code'),attributeContent('age')");
+        final List<RequireConstraint> constraintList2 = parser.parseRequireConstraintListUnsafe("attributeContent('code'),attributeContent('age')");
         assertEquals(
             List.of(attributeContent("code"), attributeContent("age")),
             constraintList2
@@ -564,8 +586,8 @@ class DefaultQueryParserTest {
         );
 
         final List<RequireConstraint> constraintList4 = parser.parseRequireConstraintList(
-            "attributeContent('code'),attributeContent(@name)",
-            Map.of("name", "age")
+            "attributeContent(@code),attributeContent(@name)",
+            Map.of("code", "code", "name", "age")
         );
         assertEquals(
             List.of(attributeContent("code"), attributeContent("age")),
@@ -603,28 +625,6 @@ class DefaultQueryParserTest {
     void shouldNotParseRequireConstraintListUnsafe() {
         assertThrows(EvitaQLInvalidQueryError.class, () -> parser.parseRequireConstraintListUnsafe("collection('product')"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parser.parseRequireConstraintListUnsafe("attributeContent('code'),collection('product')"));
-    }
-
-    @Test
-    void shouldParseClassifierString() {
-        assertEquals("a", parser.parseClassifier("'a'"));
-        assertEquals("a", parser.parseClassifier("?", "a"));
-        assertEquals("a", parser.parseClassifier("@param", Map.of("param", "a")));
-    }
-
-    @Test
-    void shouldNotParseClassifierString() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parser.parseClassifier("?"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parser.parseClassifier("?", 1L));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parser.parseClassifier("@name"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parser.parseClassifier("@name", Map.of("col", "some")));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parser.parseClassifier("@name", Map.of("name", 1L)));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parser.parseClassifier("10"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parser.parseClassifier(""));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parser.parseClassifier("_"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parser.parseClassifier("attributeEqualsTrue('a')"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parser.parseClassifier("12 24"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parser.parseClassifier("query(collection('a'))"));
     }
 
     @Test

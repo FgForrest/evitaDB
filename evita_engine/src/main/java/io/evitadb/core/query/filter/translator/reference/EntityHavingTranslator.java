@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -31,9 +31,9 @@ import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.EntityCollection;
-import io.evitadb.core.query.QueryContext;
 import io.evitadb.core.query.QueryPlan;
 import io.evitadb.core.query.QueryPlanner;
+import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
@@ -79,28 +79,25 @@ public class EntityHavingTranslator implements FilteringConstraintTranslator<Ent
 		@Nonnull FilterBy filterBy,
 		@Nullable EntityNestedQueryComparator entityNestedQueryComparator
 	) {
-		final QueryPlan queryPlan;
-		try (
-			final QueryContext nestedQueryContext = referencedEntityCollection.createQueryContext(
-				filterByVisitor.getQueryContext(),
-				filterByVisitor.getEvitaRequest().deriveCopyWith(
-					referencedEntityType,
-					filterBy,
-					ofNullable(entityNestedQueryComparator)
-						.map(EntityNestedQueryComparator::getOrderBy)
-						.map(it -> new OrderBy(it.getChildren()))
-						.orElse(null),
-					ofNullable(entityNestedQueryComparator)
-						.map(EntityNestedQueryComparator::getLocale)
-						.orElse(null)
-				),
-				filterByVisitor.getEvitaSession()
-			)
-		) {
-			queryPlan = QueryPlanner.planNestedQuery(nestedQueryContext);
-			if (entityNestedQueryComparator != null) {
-				entityNestedQueryComparator.setSorter(nestedQueryContext, queryPlan.getSorter());
-			}
+		final QueryPlanningContext nestedQueryContext = referencedEntityCollection.createQueryContext(
+			filterByVisitor.getQueryContext(),
+			filterByVisitor.getEvitaRequest().deriveCopyWith(
+				referencedEntityType,
+				filterBy,
+				ofNullable(entityNestedQueryComparator)
+					.map(EntityNestedQueryComparator::getOrderBy)
+					.map(it -> new OrderBy(it.getChildren()))
+					.orElse(null),
+				ofNullable(entityNestedQueryComparator)
+					.map(EntityNestedQueryComparator::getLocale)
+					.orElse(null)
+			),
+			filterByVisitor.getEvitaSession()
+		);
+
+		final QueryPlan queryPlan = QueryPlanner.planNestedQuery(nestedQueryContext);
+		if (entityNestedQueryComparator != null) {
+			entityNestedQueryComparator.setSorter(nestedQueryContext.createExecutionContext(), queryPlan.getSorter());
 		}
 
 		return queryPlan.getFilter();
@@ -181,12 +178,12 @@ public class EntityHavingTranslator implements FilteringConstraintTranslator<Ent
 							return new DeferredFormula(
 								new FormulaWrapper(
 									outputFormula,
-									formula -> {
+									(executionContext, formula) -> {
 										try {
-											filterByVisitor.pushStep(QueryPhase.EXECUTION_FILTER_NESTED_QUERY, nestedQueryDescription);
+											executionContext.pushStep(QueryPhase.EXECUTION_FILTER_NESTED_QUERY, nestedQueryDescription);
 											return formula.compute();
 										} finally {
-											filterByVisitor.popStep();
+											executionContext.popStep();
 										}
 									}
 								)

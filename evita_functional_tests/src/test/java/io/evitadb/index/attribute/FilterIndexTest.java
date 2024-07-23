@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,6 +23,7 @@
 
 package io.evitadb.index.attribute;
 
+import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.NumberRange;
 import io.evitadb.index.invertedIndex.InvertedIndex;
@@ -39,6 +40,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
@@ -55,8 +57,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 class FilterIndexTest implements TimeBoundedTestSupport {
-	private final FilterIndex stringAttribute = new FilterIndex(String.class);
-	private final FilterIndex rangeAttribute = new FilterIndex(NumberRange.class);
+	private final FilterIndex stringAttribute = new FilterIndex(new AttributeKey("a"), String.class);
+	private final FilterIndex rangeAttribute = new FilterIndex(new AttributeKey("b"), NumberRange.class);
 
 	@Test
 	void shouldInsertNewStringRecordId() {
@@ -180,6 +182,29 @@ class FilterIndexTest implements TimeBoundedTestSupport {
 	}
 
 	@Test
+	void shouldReturnRecordsStartingWith() {
+		// generate records to verify starts with function
+		stringAttribute.addRecord(1, "Alfa");
+		stringAttribute.addRecord(2, "AlfaBeta");
+		stringAttribute.addRecord(3, "Alfeta");
+		stringAttribute.addRecord(4, "Ab");
+		stringAttribute.addRecord(5, "Beta");
+		stringAttribute.addRecord(6, "Betaversion");
+		stringAttribute.addRecord(7, "Bet");
+		stringAttribute.addRecord(8, "Betamax");
+		stringAttribute.addRecord(9, "Gamma");
+		stringAttribute.addRecord(10, "GammaAlfa");
+		stringAttribute.addRecord(11, "GammaBeta");
+
+		assertArrayEquals(new int[] {1, 2}, stringAttribute.getRecordsWhoseValuesStartWith("Alfa").compute().getArray());
+		assertArrayEquals(new int[] {4}, stringAttribute.getRecordsWhoseValuesStartWith("Ab").compute().getArray());
+		assertArrayEquals(new int[] {5, 6, 7, 8}, stringAttribute.getRecordsWhoseValuesStartWith("Bet").compute().getArray());
+		assertArrayEquals(new int[] {5, 6, 8}, stringAttribute.getRecordsWhoseValuesStartWith("Beta").compute().getArray());
+		assertArrayEquals(new int[] {9, 10, 11}, stringAttribute.getRecordsWhoseValuesStartWith("Gamma").compute().getArray());
+		assertArrayEquals(new int[] {11}, stringAttribute.getRecordsWhoseValuesStartWith("GammaBeta").compute().getArray());
+	}
+
+	@Test
 	void shouldReturnRecordsGreaterThan() {
 		fillStringAttribute();
 		assertArrayEquals(new int[] {1, 3, 4}, stringAttribute.getRecordsGreaterThan("B").getArray());
@@ -201,6 +226,30 @@ class FilterIndexTest implements TimeBoundedTestSupport {
 	void shouldReturnRecordsLesserThanEq() {
 		fillStringAttribute();
 		assertArrayEquals(new int[] {1, 2}, stringAttribute.getRecordsLesserThanEq("B").getArray());
+	}
+
+	@Test
+	void shouldReturnRecordsLesserThanLocaleSpecific_Czech() {
+		FilterIndex czechStringAttribute = new FilterIndex(new AttributeKey("a", new Locale("cs", "CZ")), String.class);
+		czechStringAttribute.addRecord(1, "CH");
+		czechStringAttribute.addRecord(2, "E");
+		czechStringAttribute.addRecord(3, "K");
+		czechStringAttribute.addRecord(4, "D");
+		czechStringAttribute.addRecord(5, "C");
+		czechStringAttribute.addRecord(6, "B");
+		assertArrayEquals(new int[] {2, 4, 5, 6}, czechStringAttribute.getRecordsLesserThan("CH").getArray());
+	}
+
+	@Test
+	void shouldReturnRecordsLesserThanLocaleSpecific_English() {
+		FilterIndex czechStringAttribute = new FilterIndex(new AttributeKey("a", Locale.ENGLISH), String.class);
+		czechStringAttribute.addRecord(1, "CH");
+		czechStringAttribute.addRecord(2, "E");
+		czechStringAttribute.addRecord(3, "K");
+		czechStringAttribute.addRecord(4, "D");
+		czechStringAttribute.addRecord(5, "C");
+		czechStringAttribute.addRecord(6, "B");
+		assertArrayEquals(new int[] {5, 6}, czechStringAttribute.getRecordsLesserThan("CH").getArray());
 	}
 
 	@Test
@@ -295,7 +344,7 @@ class FilterIndexTest implements TimeBoundedTestSupport {
 			100,
 			new TestState(
 				new StringBuilder(),
-				new FilterIndex(IntegerNumberRange.class)
+				new FilterIndex(new AttributeKey("c"), IntegerNumberRange.class)
 			),
 			(random, testState) -> {
 				final StringBuilder codeBuffer = testState.code();
@@ -433,8 +482,10 @@ class FilterIndexTest implements TimeBoundedTestSupport {
 
 						committedResult.set(
 							new FilterIndex(
-								committed.getInvertedIndex(),
-								committed.getRangeIndex()
+								new AttributeKey("a"),
+								committed.getInvertedIndex().getValueToRecordBitmap(),
+								committed.getRangeIndex(),
+								Integer.class
 							)
 						);
 					}

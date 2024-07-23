@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -26,7 +26,7 @@ package io.evitadb.dataType;
 import io.evitadb.dataType.data.DataItem;
 import io.evitadb.dataType.exception.InconvertibleDataTypeException;
 import io.evitadb.dataType.exception.UnsupportedDataTypeException;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.MemoryMeasuringConstants;
 import io.evitadb.utils.NumberUtils;
@@ -192,6 +192,15 @@ public class EvitaDataTypes {
 	private static final BiFunction<Class<?>, Serializable, DateTimeRange> DATE_TIME_RANGE_FUNCTION = (requestedType, unknownObject) -> {
 		if (unknownObject instanceof DateTimeRange) {
 			return (DateTimeRange) unknownObject;
+		} else if (unknownObject instanceof OffsetDateTime offsetDateTime) {
+			return DateTimeRange.between(offsetDateTime, offsetDateTime);
+		} else if (unknownObject instanceof LocalDateTime localDateTime) {
+			return DateTimeRange.between(localDateTime.atOffset(ZoneOffset.UTC), localDateTime.atOffset(ZoneOffset.UTC));
+		} else if (unknownObject instanceof LocalDate localDate) {
+			return DateTimeRange.between(
+				localDate.atStartOfDay(ZoneOffset.UTC).toOffsetDateTime(),
+				localDate.atStartOfDay(ZoneOffset.UTC).toOffsetDateTime().plusHours(23).plusMinutes(59).plusSeconds(59).plusNanos(999999999)
+			);
 		} else {
 			final String value = unknownObject.toString();
 			final String[] parsedResult = DateTimeRange.PARSE_FCT.apply(value);
@@ -551,7 +560,14 @@ public class EvitaDataTypes {
 	 */
 	public static boolean isSupportedTypeOrItsArrayOrEnum(@Nonnull Class<?> type) {
 		@SuppressWarnings("unchecked") final Class<? extends Serializable> typeToCheck = type.isArray() ? (Class<? extends Serializable>) type.getComponentType() : (Class<? extends Serializable>) type;
-		return EvitaDataTypes.isSupportedType(typeToCheck) || typeToCheck.isEnum();
+		return EvitaDataTypes.isSupportedType(typeToCheck) || (typeToCheck.isEnum() && typeToCheck.isAnnotationPresent(SupportedEnum.class));
+	}
+
+	/**
+	 * Returns true if passed class represents ANY enum or array of enums.
+	 */
+	public static boolean isEnumOrArrayOfEnums(Class<?> argType) {
+		return argType.isEnum() || (argType.isArray() && argType.getComponentType().isEnum());
 	}
 
 	/**
@@ -706,7 +722,7 @@ public class EvitaDataTypes {
 		} else if (value instanceof Predecessor) {
 			return value.toString();
 		} else if (value == null) {
-			throw new EvitaInternalError(
+			throw new GenericEvitaInternalError(
 				"Null argument value should never ever happen. Null values are excluded in constructor of the class!"
 			);
 		}
@@ -797,39 +813,41 @@ public class EvitaDataTypes {
 	 */
 	private static Object convertSingleObject(@Nonnull Serializable unknownObject, Class<?> requestedType, int allowedDecimalPlaces) {
 		final Object result;
-		if (String.class.isAssignableFrom(requestedType)) {
+		if (String.class.equals(requestedType)) {
 			result = unknownObject.toString();
-		} else if (Byte.class.isAssignableFrom(requestedType)) {
+		} else if (Byte.class.equals(requestedType) || byte.class.equals(requestedType)) {
 			result = WRAPPING_FUNCTION.apply(() -> NumberUtils.convertToByte(BIG_DECIMAL_FUNCTION.apply(requestedType, unknownObject)), () -> new InconvertibleDataTypeException(requestedType, unknownObject));
-		} else if (Short.class.isAssignableFrom(requestedType)) {
+		} else if (Short.class.equals(requestedType) || short.class.equals(requestedType)) {
 			result = WRAPPING_FUNCTION.apply(() -> NumberUtils.convertToShort(BIG_DECIMAL_FUNCTION.apply(requestedType, unknownObject)), () -> new InconvertibleDataTypeException(requestedType, unknownObject));
-		} else if (Integer.class.isAssignableFrom(requestedType)) {
+		} else if (Integer.class.equals(requestedType) || int.class.equals(requestedType)) {
 			result = WRAPPING_FUNCTION.apply(() -> NumberUtils.convertToInt(BIG_DECIMAL_FUNCTION.apply(requestedType, unknownObject)), () -> new InconvertibleDataTypeException(requestedType, unknownObject));
-		} else if (Long.class.isAssignableFrom(requestedType)) {
+		} else if (Long.class.equals(requestedType) || long.class.equals(requestedType)) {
 			result = WRAPPING_FUNCTION.apply(() -> NumberUtils.convertToLong(BIG_DECIMAL_FUNCTION.apply(requestedType, unknownObject)), () -> new InconvertibleDataTypeException(requestedType, unknownObject));
-		} else if (BigDecimal.class.isAssignableFrom(requestedType)) {
+		} else if (BigDecimal.class.equals(requestedType)) {
 			result = NumberUtils.convertToBigDecimal(BIG_DECIMAL_FUNCTION.apply(requestedType, unknownObject));
-		} else if (Boolean.class.isAssignableFrom(requestedType)) {
+		} else if (Boolean.class.equals(requestedType) || boolean.class.equals(requestedType)) {
 			result = BOOLEAN_FUNCTION.apply(requestedType, unknownObject);
-		} else if (Character.class.isAssignableFrom(requestedType)) {
+		} else if (Character.class.equals(requestedType) || char.class.equals(requestedType)) {
 			result = CHAR_FUNCTION.apply(requestedType, unknownObject);
-		} else if (OffsetDateTime.class.isAssignableFrom(requestedType)) {
+		} else if (OffsetDateTime.class.equals(requestedType)) {
 			result = OFFSET_DATE_TIME_FUNCTION.apply(requestedType, unknownObject);
-		} else if (LocalDateTime.class.isAssignableFrom(requestedType)) {
+		} else if (LocalDateTime.class.equals(requestedType)) {
 			result = LOCAL_DATE_TIME_FUNCTION.apply(requestedType, unknownObject);
-		} else if (LocalDate.class.isAssignableFrom(requestedType)) {
+		} else if (LocalDate.class.equals(requestedType)) {
 			result = LOCAL_DATE_FUNCTION.apply(requestedType, unknownObject);
-		} else if (LocalTime.class.isAssignableFrom(requestedType)) {
+		} else if (LocalTime.class.equals(requestedType)) {
 			result = LOCAL_TIME_FUNCTION.apply(requestedType, unknownObject);
-		} else if (DateTimeRange.class.isAssignableFrom(requestedType)) {
+		} else if (DateTimeRange.class.equals(requestedType)) {
 			result = DATE_TIME_RANGE_FUNCTION.apply(requestedType, unknownObject);
 		} else if (NumberRange.class.isAssignableFrom(requestedType)) {
 			result = NUMBER_RANGE_FUNCTION.apply(new TypeWithPrecision(requestedType, allowedDecimalPlaces), unknownObject);
-		} else if (Locale.class.isAssignableFrom(requestedType)) {
+		} else if (Locale.class.equals(requestedType)) {
 			result = LOCALE_FUNCTION.apply(requestedType, unknownObject);
-		} else if (Currency.class.isAssignableFrom(requestedType)) {
+		} else if (Currency.class.equals(requestedType)) {
 			result = CURRENCY_FUNCTION.apply(requestedType, unknownObject);
-		} else if (UUID.class.isAssignableFrom(requestedType)) {
+		} else if (Predecessor.class.equals(requestedType)) {
+			throw new InconvertibleDataTypeException(requestedType, unknownObject);
+		} else if (UUID.class.equals(requestedType)) {
 			result = UUID_FUNCTION.apply(requestedType, unknownObject);
 		} else if (requestedType.isEnum()) {
 			//noinspection unchecked,rawtypes

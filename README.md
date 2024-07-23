@@ -149,6 +149,12 @@ That's it.
 
 ## Prerequisities
 
+To checkout Git repository on Windows you need to have long paths enabled:
+
+```shell
+git config --system core.longpaths true
+```
+
 evitaDB requires and is tested on OpenJDK 17.
 
 Java applications support multiple platforms depending on the
@@ -226,6 +232,30 @@ In order code to be accepted it will fulfill following criteria:
 - all classes and methods will have comprehensible JavaDoc
 - there will be no TODO statements in the code
 - there will be no commented out code
+
+# Standing on giants' shoulders
+
+<table>
+  <tr>
+    <td>
+<p>evitaDB uses the following open source projects:</p>
+
+- [RoaringBitmap](https://github.com/RoaringBitmap/RoaringBitmap) by Daniel Lemire, Richard Statin and others
+- [Kryo](https://github.com/EsotericSoftware/kryo) by Nathan Sweet, Thomas Heigl, Martin Grotzke and others
+- [Netty](https://github.com/netty/netty) and [Armeria](https://github.com/line/armeria) by Trustin Lee, Norman Mauer, Ikhun Um and others
+- [Logback](https://github.com/qos-ch/logback) by Ceki Gülcü and others
+- [Jackson](https://github.com/FasterXML/jackson) by Tatu Saloranta and others
+- [gRPC Java](https://github.com/grpc/grpc-java) by Eric Anderson, Carl Mastrangelo, ZHANG Dapeng, Kun Zhang and others
+- [GraphQL Java](https://github.com/graphql-java/graphql-java) by Andreas Marek, Brad Baker and others
+- [Byte Buddy](https://github.com/raphw/byte-buddy) by Rafael Winterhalter and others
+
+<p>And many others. We are grateful for their work.</p>
+    </td>
+    <td>
+<img src="https://raw.githubusercontent.com/FgForrest/evitaDB/dev/documentation/assets/img/giant_small.png"/>
+    </td>
+  </tr>
+</table>
 
 -------------------------------------------------------------------------
 

@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -52,32 +52,28 @@ import java.util.regex.Pattern;
  * uniqueness of each query. There cannot be multiple constraints with these properties because that would create
  * ambiguity in query search and reconstruction.
  *
- * @param constraintClass class of represented query
- * @param type specifies what is purpose of the query
- * @param propertyType specifies on which data the query will be operating
- * @param fullName base name of condition or operation this query represent, e.g. `equals` + creator suffix.
- *                 Its format must be in camelCase.
- * @param supportedValues description of target data this query can operate on. If null, query doesn't support any values
- * @param creator contains data for reconstructing original constraints
- *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public record ConstraintDescriptor(@Nonnull Class<?> constraintClass,
-	                               @Nonnull ConstraintType type,
-	                               @Nonnull ConstraintPropertyType propertyType,
-	                               @Nonnull String fullName,
-								   @Nonnull String shortDescription,
-								   @Nonnull Set<ConstraintDomain> supportedIn,
-	                               @Nullable SupportedValues supportedValues,
-	                               @Nonnull ConstraintCreator creator) implements Comparable<ConstraintDescriptor> {
+public class ConstraintDescriptor implements Comparable<ConstraintDescriptor> {
 
 	private static final Pattern NAME_PATTERN = Pattern.compile("^[a-z][a-zA-Z]*$");
+
+	@Nonnull private final Class<?> constraintClass;
+	@Nonnull private final ConstraintType type;
+	@Nonnull private final ConstraintPropertyType propertyType;
+	@Nonnull private final String fullName;
+	@Nonnull private final String shortDescription;
+	@Nonnull private final String userDocsLink;
+	@Nonnull private final Set<ConstraintDomain> supportedIn;
+	@Nullable private final SupportedValues supportedValues;
+	@Nonnull private final ConstraintCreator creator;
 
 	public ConstraintDescriptor(@Nonnull Class<?> constraintClass,
 	                            @Nonnull ConstraintType type,
 	                            @Nonnull ConstraintPropertyType propertyType,
 	                            @Nonnull String fullName,
 								@Nonnull String shortDescription,
+								@Nonnull String userDocsLink,
 	                            @Nonnull Set<ConstraintDomain> supportedIn,
 	                            @Nullable SupportedValues supportedValues,
 	                            @Nonnull ConstraintCreator creator) {
@@ -86,6 +82,7 @@ public record ConstraintDescriptor(@Nonnull Class<?> constraintClass,
 		this.propertyType = propertyType;
 		this.fullName = fullName;
 		this.shortDescription = shortDescription;
+		this.userDocsLink = constructFullUserDocsLink(userDocsLink);
 		this.supportedIn = supportedIn;
 		this.supportedValues = supportedValues;
 		this.creator = creator;
@@ -98,6 +95,10 @@ public record ConstraintDescriptor(@Nonnull Class<?> constraintClass,
 			!this.shortDescription.isEmpty(),
 			"Constraint `" + fullName + "` is missing short description."
 		);
+		Assert.isPremiseValid(
+			!userDocsLink.isEmpty() && userDocsLink.charAt(0) == '/',
+			"Constraint `" + fullName + "` is missing user documentation link or the link has incorrect format."
+		);
 
 		if (propertyType == ConstraintPropertyType.GENERIC) {
 			Assert.isPremiseValid(
@@ -105,6 +106,76 @@ public record ConstraintDescriptor(@Nonnull Class<?> constraintClass,
 				"Creator for query `" + this.constraintClass.getName() + "` cannot have classifier because it is generic query."
 			);
 		}
+	}
+
+	/**
+	 * Class of represented constraint.
+	 */
+	@Nonnull
+	public Class<?> constraintClass() {
+		return constraintClass;
+	}
+
+	/**
+	 * Specifies what is purpose of the constraint
+	 */
+	@Nonnull
+	public ConstraintType type() {
+		return type;
+	}
+
+	/**
+	 * Specifies on which data the constraint will be operating.
+	 */
+	@Nonnull
+	public ConstraintPropertyType propertyType() {
+		return propertyType;
+	}
+
+	/**
+	 * Base name of condition or operation this constraint represent, e.g. `equals` + creator suffix.
+	 * Its format must be in camelCase.
+	 */
+	@Nonnull
+	public String fullName() {
+		return fullName;
+	}
+
+	@Nonnull
+	public String shortDescription() {
+		return shortDescription;
+	}
+
+	/**
+	 * Full link to user documentation of this constraint on evitadb.io web.
+	 */
+	@Nonnull
+	public String userDocsLink() {
+		return userDocsLink;
+	}
+
+	/**
+	 * Set of domains in which this constraint is supported in and can be used in when querying.
+	 */
+	@Nonnull
+	public Set<ConstraintDomain> supportedIn() {
+		return supportedIn;
+	}
+
+	/**
+	 * Description of target data this constraint can operate on. If null, query doesn't support any values
+	 */
+	@Nullable
+	public SupportedValues supportedValues() {
+		return supportedValues;
+	}
+
+	/**
+	 * Contains data for reconstructing original constraints.
+	 */
+	@Nonnull
+	public ConstraintCreator creator() {
+		return creator;
 	}
 
 	@Override
@@ -124,6 +195,21 @@ public record ConstraintDescriptor(@Nonnull Class<?> constraintClass,
 	public int hashCode() {
 		// lombok cannot generate equals and hash code for records
 		return Objects.hash(type, propertyType, fullName, creator.hasClassifierParameter(), creator.hasImplicitClassifier());
+	}
+
+	@Override
+	public String toString() {
+		return "ConstraintDescriptor{" +
+			"constraintClass=" + constraintClass +
+			", type=" + type +
+			", propertyType=" + propertyType +
+			", fullName='" + fullName + '\'' +
+			", shortDescription='" + shortDescription + '\'' +
+			", userDocsLink='" + userDocsLink + '\'' +
+			", supportedIn=" + supportedIn +
+			", supportedValues=" + supportedValues +
+			", creator=" + creator +
+			'}';
 	}
 
 	@Override
@@ -157,14 +243,21 @@ public record ConstraintDescriptor(@Nonnull Class<?> constraintClass,
 		return result;
 	}
 
+	@Nonnull
+	private static String constructFullUserDocsLink(@Nonnull String relativeUserDocsLink) {
+		return "https://evitadb.io" + relativeUserDocsLink;
+	}
+
 
 	/**
 	 * Contains metadata about supported data types of target values this query can operate on.
 	 *
 	 * @param dataTypes set of value data types of target data this query can operate on
 	 * @param supportsArrays if target data can be an array of supported data types
+	 * @param nullability whether the constraint supports only nullable data or only nonnull data or both and so on.
 	 */
 	public record SupportedValues(@Nonnull Set<Class<?>> dataTypes,
-	                              boolean supportsArrays) {}
+	                              boolean supportsArrays,
+	                              @Nonnull ConstraintNullabilitySupport nullability) {}
 
 }

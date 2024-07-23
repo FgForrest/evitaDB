@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -25,6 +25,8 @@ package io.evitadb.externalApi.graphql.api.builder;
 
 import graphql.schema.*;
 import graphql.schema.GraphQLSchema.Builder;
+import io.evitadb.api.observability.trace.TracingContext;
+import io.evitadb.api.observability.trace.TracingContextProvider;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
@@ -32,15 +34,12 @@ import io.evitadb.externalApi.graphql.configuration.GraphQLConfig;
 import io.evitadb.externalApi.graphql.exception.GraphQLSchemaBuildingError;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.Executor;
 
 import static graphql.schema.FieldCoordinates.coordinates;
 import static graphql.schema.GraphQLObjectType.newObject;
@@ -51,12 +50,14 @@ import static io.evitadb.utils.CollectionUtils.createHashSet;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-@RequiredArgsConstructor
 public class GraphQLSchemaBuildingContext {
 
-    @Nonnull private final GraphQLConfig config;
-    @Getter @Nonnull private final Evita evita;
-
+    @Getter @Nonnull
+    private final GraphQLConfig config;
+    @Getter @Nonnull
+    private final Evita evita;
+    @Getter
+    private final TracingContext tracingContext;
     @Nonnull
     private final List<GraphQLFieldDefinition> queryFields = new LinkedList<>();
     @Nonnull
@@ -73,15 +74,10 @@ public class GraphQLSchemaBuildingContext {
     @Nonnull
     private final Set<String> registeredCustomEnums = createHashSet(32);
 
-    /**
-     * Returns executor for async data fetcher. If empty, no data fetcher should run in parallel.
-     */
-    @Nonnull
-    public Optional<Executor> getEvitaExecutor() {
-        if (!config.isParallelize()) {
-            return Optional.empty();
-        }
-        return Optional.of(evita.getExecutor());
+    public GraphQLSchemaBuildingContext(@Nonnull GraphQLConfig config, @Nonnull Evita evita) {
+        this.config = config;
+        this.evita = evita;
+        this.tracingContext = TracingContextProvider.getContext();;
     }
 
     /**

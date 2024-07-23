@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -31,19 +31,17 @@ import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.attribute.AttributeFormula;
-import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.prefetch.EntityFilteringFormula;
 import io.evitadb.core.query.algebra.prefetch.SelectionFormula;
-import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.core.query.filter.translator.attribute.alternative.AttributeBitmapFilter;
-import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
+import java.util.Arrays;
 import java.util.Optional;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
@@ -69,21 +67,11 @@ public class AttributeContainsTranslator implements FilteringConstraintTranslato
 				attributeDefinition.isLocalized() ?
 					new AttributeKey(attributeName, filterByVisitor.getLocale()) : new AttributeKey(attributeName),
 				filterByVisitor.applyOnFilterIndexes(
-					attributeDefinition, index -> {
-						/* TOBEDONE JNO naive and slow - use RadixTree */
-						final Formula[] foundRecords = index.getValues()
-							.stream()
-							.filter(it -> ((String)it).contains(textToSearch))
-							.map(index::getRecordsEqualToFormula)
-							.toArray(Formula[]::new);
-						return ArrayUtils.isEmpty(foundRecords) ?
-							EmptyFormula.INSTANCE : FormulaFactory.or(foundRecords);
-					}
+					attributeDefinition, index -> index.getRecordsWhoseValuesContains(textToSearch)
 				)
 			);
 			if (filterByVisitor.isPrefetchPossible()) {
 				return new SelectionFormula(
-					filterByVisitor,
 					filteringFormula,
 					createAlternativeBitmapFilter(filterByVisitor, attributeName, textToSearch)
 				);
@@ -93,7 +81,6 @@ public class AttributeContainsTranslator implements FilteringConstraintTranslato
 		} else {
 			return new EntityFilteringFormula(
 				"attribute contains filter",
-				filterByVisitor,
 				createAlternativeBitmapFilter(filterByVisitor, attributeName, textToSearch)
 			);
 		}
@@ -105,7 +92,7 @@ public class AttributeContainsTranslator implements FilteringConstraintTranslato
 		@Nonnull String attributeName,
 		@Nonnull String textToSearch
 	) {
-		final ProcessingScope processingScope = filterByVisitor.getProcessingScope();
+		final ProcessingScope<?> processingScope = filterByVisitor.getProcessingScope();
 		return new AttributeBitmapFilter(
 			attributeName,
 			processingScope.getRequirements(),
@@ -121,7 +108,7 @@ public class AttributeContainsTranslator implements FilteringConstraintTranslato
 	static void assertStringType(@Nonnull AttributeSchemaContract attributeDefinition) {
 		Assert.isTrue(
 			String.class.equals(attributeDefinition.getType()),
-			"StartsWith query can be used only on String attributes - " + attributeDefinition.getName() + " is " + attributeDefinition.getType() + "!"
+			"StartsWith constraint can be used only on String attributes - `" + attributeDefinition.getName() + "` is `" + attributeDefinition.getType() + "`!"
 		);
 	}
 
@@ -132,8 +119,13 @@ public class AttributeContainsTranslator implements FilteringConstraintTranslato
 				if (attr.isEmpty()) {
 					return false;
 				} else {
+					final Predicate<String> predicate = theValue -> theValue != null && theValue.contains(textToSearch);
 					final Serializable theValue = attr.get().value();
-					return theValue != null && ((String) theValue).contains(textToSearch);
+					if (theValue.getClass().isArray()) {
+						return Arrays.stream((Object[])theValue).map(String.class::cast).anyMatch(predicate);
+					} else {
+						return predicate.test((String)theValue);
+					}
 				}
 			}
 		);

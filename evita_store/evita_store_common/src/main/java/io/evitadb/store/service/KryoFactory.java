@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -33,6 +33,7 @@ import com.esotericsoftware.kryo.serializers.DefaultArraySerializers.ShortArrayS
 import com.esotericsoftware.kryo.serializers.DefaultArraySerializers.StringArraySerializer;
 import com.esotericsoftware.kryo.serializers.DefaultSerializers.EnumSetSerializer;
 import com.esotericsoftware.kryo.serializers.DefaultSerializers.*;
+import com.esotericsoftware.kryo.serializers.TimeSerializers.InstantSerializer;
 import com.esotericsoftware.kryo.serializers.TimeSerializers.LocalDateSerializer;
 import com.esotericsoftware.kryo.serializers.TimeSerializers.LocalDateTimeSerializer;
 import com.esotericsoftware.kryo.serializers.TimeSerializers.LocalTimeSerializer;
@@ -63,6 +64,7 @@ import io.evitadb.utils.Assert;
 import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -83,7 +85,11 @@ import java.util.function.Consumer;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class KryoFactory {
-	private static int BASE_START = 100;
+	private static final int BASE_START = 100;
+
+	static {
+		System.setProperty("kryo.unsafe", "false");
+	}
 
 	private KryoFactory() {
 	}
@@ -194,6 +200,7 @@ public class KryoFactory {
 		kryoInstance.register(Collections.unmodifiableMap(Collections.EMPTY_MAP).getClass(), new MapSerializer<>(count -> Collections.unmodifiableMap(new HashMap<>((int) Math.ceil(count / .75f), .75f))), index++);
 		kryoInstance.register(Collections.emptySet().getClass(), new CollectionsEmptySetSerializer(), index++);
 		kryoInstance.register(Collections.unmodifiableSet(Collections.EMPTY_SET).getClass(), new SetSerializer<>(count -> Collections.unmodifiableSet(new HashSet<>((int) Math.ceil(count / .75f), .75f))), index++);
+		kryoInstance.register(Instant.class, new InstantSerializer(), index++);
 		Assert.isPremiseValid(index < 200, "Index count overflow.");
 		return kryoInstance;
 	}

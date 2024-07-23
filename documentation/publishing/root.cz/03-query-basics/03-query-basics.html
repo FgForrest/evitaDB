@@ -1,0 +1,1272 @@
+<!--
+  ~
+  ~                         _ _        ____  ____
+  ~               _____   _(_) |_ __ _|  _ \| __ )
+  ~              / _ \ \ / / | __/ _` | | | |  _ \
+  ~             |  __/\ V /| | || (_| | |_| | |_) |
+  ~              \___| \_/ |_|\__\__,_|____/|____/
+  ~
+  ~   Copyright (c) 2024
+  ~
+  ~   Licensed under the Business Source License, Version 1.1 (the "License");
+  ~   you may not use this file except in compliance with the License.
+  ~   You may obtain a copy of the License at
+  ~
+  ~   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
+  ~
+  ~   Unless required by applicable law or agreed to in writing, software
+  ~   distributed under the License is distributed on an "AS IS" BASIS,
+  ~   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  ~   See the License for the specific language governing permissions and
+  ~   limitations under the License.
+  -->
+
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+	<meta charset="UTF-8">
+	<title>evitaDB – základy dotazovacího jazyka evitaQL</title>
+</head>
+<body>
+<header>
+	<h1>evitaDB – základy dotazovacího jazyka evitaQL</h1>
+	<time datetime="2024-01-28">28. ledna 2024</time>
+	<p>
+		Článek představuje základní principy dotazovacího jazyka evitaQL, konstrukci dotazů a jejich chování. Rozebereme
+		si nejdůležitější oblasti, ve kterých se evitaDB liší od ostatních databází a ukážeme si, jak je využít ve svůj
+		prospěch.
+	</p>
+</header>
+<article>
+
+	<p>
+		evitaDB je NoSQL databáze s vlastním dotazovacím jazykem, který byl navržen s ohledem na podobnost v různých
+		webových API i programovacích jazycích a srozumitelnost nezasvěcenému čtenáři.
+	</p>
+	<p>
+		Na první pohled by se mohlo zdát, že dotazovací evitaQL jazyk trpí syndromem dlouhých názvů, tolik typickým pro
+		Java vývojáře, kteří jej navrhovali. Pokud se však zamyslíte nad naší argumentací, věříme, že návrh jazyka vám
+		bude dávat smysl.
+	</p>
+	<p>
+		Nejprve si pojďme ukázat krátký příklad jednoduchého evitaQL dotazu:
+	</p>
+
+
+	<pre>query(
+  collection("Product"),
+  filterBy(
+    attributeEquals("status", "ACTIVE"),
+    attributeGreaterThan("battery-life", 10),
+    or(
+      attributeIs("validity", NULL),
+      attributeInRangeNow("validity")
+    )
+  ),
+  orderBy(
+    attributeNatural("orderedQuantity", DESC)
+  ),
+  require(
+    entityFetch(
+      attributeContentAll()
+    )
+  )
+)
+</pre>
+
+	<p>
+		<em><a href="https://demo.evitadb.io/lab?demoSnippetRequest=eyJicmFuY2giOiJkZXYiLCJwYXRoIjoiZG9jdW1lbnRhdGlvbi9wdWJsaXNoaW5nL3Jvb3QuY3ovMDMtcXVlcnktYmFzaWNzL2V4YW1wbGUtcXVlcnkuZXZpdGFxbCJ9">Vyzkoušejte
+			si dotaz v evitaLab</a></em>
+	</p>
+	<em>
+		<h3>Upozornění!</h3>
+		<p>Náš demo server, na který odkazujeme s našimi příklady, je provozovaný na levném sdíleném hostingu. Je
+		tedy možné, že výsledná latence bude proměnlivá v závislosti na aktivitě ostatních aplikací na serveru, které
+		nejsou pod naší kontrolou. Pro lepší představu o latencích dotazů je vhodné si evitaDB server nainstalovat
+		na svém lokálním prostředí nebo počítači, který nevytěžují jiné aplikace.</p>
+	</em>
+	<p>
+		Dříve, než budete pokračovat ve čtení dál, zkuste odhadnout, co tento dotaz představuje a jaká by měla být
+		odpověď databázového serveru. Zkusmo jsme tuto otázku položili i ChatGPT (v. 4) a zdá se, že jeho účel
+		<a href="https://chat.openai.com/share/3ab772a8-d76b-47bd-aed9-3aa198822e21">pochopil velmi dobře</a> i přesto,
+		že evitaQL nebyl v roce 2021 v datech, na kterých se učil.
+	</p>
+	<p>
+		Srozumitelnost jazyka je do jisté míry dána tím, že jeho konstrukce a názvy jednotlivých podmínek odpovídají
+		konstrukci anglické věty: `<u>query</u> <u>collection</u> XY, <u>filter</u> it <u>by</u> <u>attribute</u> A that
+		<u>equals</u> to B, <u>order</u> it <u>by</u> <u>attribute</u> C in <u>natural</u> <u>descending</u> order,
+		<u>require</u> <u>entity</u> to be <u>fetched</u> with entire <u>attribute</u> <u>content</u>`, a nejspíš proto
+		bylo odvození významu pomocí ChatGPT takto přesné.
+	</p>
+	<p>
+		Velkou výhodou takto konstruovaného jazyka je to, že ve webových GraphQL a REST API je jeho znění velmi podobné.
+		Zápis v jazyce Java je identický a v případě C# klienta jsou odlišnosti taktéž minimální. Vývojáři používající
+		různé technologie pro svou práci (např. frontendový tým využívající v JavaScriptu GraphQL formát a backendový
+		tým využívající Java či C# jazyk) si tedy budou navzájem rozumět, i když uvidí dotaz vytvořený druhým týmem v
+		odlišné technologii. Sami se můžete o podobnosti dotazů přesvědčit v <a
+			href="https://evitadb.io/documentation/solve/filtering-products-in-category">naší dokumentaci</a>, pokud si
+		v pravém sloupci budete přepínat mezi různými podporovanými jazyky.
+	</p>
+	<p>
+		Konstrukce jazyka připomíná sadu vnořených funkcí, což dává mnohem větší prostor pro to, aby se v jednotlivých
+		prostředích mohla převést na nativní konstrukty daného jazyka. Tím získáme možnost využít podpory kompilátorů a
+		linterů cílových prostředí ke kontrole obsahu dotazu (např. typové kontroly). Řada IDE také díky tomuto přístupu
+		nabízí vývojářům další podporu ve formě automatického doplňování dotazu, protože na základě typů a schémat ví,
+		jaké konstrukty (podmínky) dávají smysl v daném místě dotazu. Díky automatickému doplňování věříme, že vývojář
+		bude zřídkakdy nucen psát celé názvy podmínek, ale bude mu stačit zapsat pár úvodních písmen slov podmínky a
+		zbytek práce za něj odvede vývojářské prostředí.
+	</p>
+
+	<h2>Klíčové pasáže dotazu</h2>
+
+	<p>
+		Dotaz se skládá ze 4 hlavních bloků, z nichž každý může za určitých situací chybět – tj. žádný z nich není
+		bezpodmínečně povinný:
+	</p>
+	<ol>
+
+		<li><strong>collection</strong> – určuje cílovou kolekci katalogu, na kterou dotaz cílí a může chybět v případě,
+			že se dotazujeme na entity podle <a
+					href="https://evitadb.io/documentation/use/schema?lang=java#global-attribute-schema">globálně
+				unikátních atributů</a>.
+
+		<li><strong>filterBy</strong> – umožňuje omezit počet vrácených entit pouze na takové, které splňují filtrovací
+			podmínku (<a href="https://evitadb.io/documentation/query/basics?lang=java#filter-by">dokumentace</a>).
+
+		<li><strong>orderBy</strong> – definuje způsob řazení vrácených entit (<a
+				href="https://evitadb.io/documentation/query/basics?lang=java#order-by">dokumentace</a>).
+
+		<li><strong>require</strong> – ovlivňuje rozsah (počty, hloubku načtení) vrácených dat, umožňuje ovlivnit
+			chování stroje při vyhodnocování dotazu a definovat dodatečné požadavky na vedlejší výpočty, které souvisí s
+			vyfiltrovanými entitami (<a href="https://evitadb.io/documentation/query/basics?lang=java#require">dokumentace</a>).
+		</li>
+	</ol>
+	<p>
+		Entity v kolekcích se dají vyhledávat podle <a
+			href="https://evitadb.io/documentation/query/filtering/constant#entity-primary-key-in-set">primárních
+		klíčů</a>, existence <a href="https://evitadb.io/documentation/query/filtering/locale#entity-locale-equals">lokalizace
+		do konkrétního jazyka</a>, <a
+			href="https://evitadb.io/documentation/query/filtering/comparable#attribute-equals">shody hodnot
+		atributů</a> nebo <a href="https://evitadb.io/documentation/query/filtering/comparable#attribute-greater-than">porovnání</a>
+		s konstantou na vstupu, <a href="https://evitadb.io/documentation/query/filtering/range#attribute-in-range">překryvu
+		rozsahových hodnot</a>, <a href="https://evitadb.io/documentation/query/filtering/string#attribute-contains">řetězcových
+		operací nad atributy</a>, existencí <a
+			href="https://evitadb.io/documentation/query/filtering/price#price-in-currency">cen</a>, existence <a
+			href="https://evitadb.io/documentation/query/filtering/references#reference-having">reference na jinou
+		entitu</a> či atributů definovaných na této referenci či <a
+			href="https://evitadb.io/documentation/query/filtering/hierarchy#hierarchy-within">zařazení do hierarchické
+		struktury</a>. Samozřejmostí je možnost kombinovat více podmínek dohromady pomocí <a
+			href="https://evitadb.io/documentation/query/filtering/logical#and">logických operátorů</a>.
+	</p>
+	<p>
+		Pokud nejsou uvedeny požadavky na řazení, jsou entity vždy řazeny vzestupně podle primárního klíče – tedy ve
+		formě, která je pro databázi „přirozená“. Řadit ovšem můžete podle <a
+			href="https://evitadb.io/documentation/query/ordering/comparable#attribute-natural">přirozeného pořadí
+		hodnot atributů</a>, <a
+			href="https://evitadb.io/documentation/query/ordering/constant#exact-entity-attribute-value-order">exaktního
+		pořadí atributů</a> či <a
+			href="https://evitadb.io/documentation/query/ordering/constant#exact-entity-primary-key-order">primárních
+		klíčů</a>, <a href="https://evitadb.io/documentation/query/ordering/price#price-natural">cen</a>, <a
+			href="https://evitadb.io/documentation/query/ordering/reference#reference-property">atributů referencí</a>
+		(a to včetně <a
+			href="https://evitadb.io/documentation/query/ordering/reference?lang=evitaql#behaviour-of-zero-or-one-to-many-references-ordering">referenci
+		s kardinalitou „one-to-many</a>“) nebo <a href="https://evitadb.io/documentation/query/ordering/random#random">náhodně</a>.
+	</p>
+	<p>
+		Na výstupu můžeme seznam nalezených entit <a
+			href="https://evitadb.io/documentation/query/requirements/paging#page">stránkovat</a>, <a
+			href="https://evitadb.io/documentation/query/requirements/fetching#entity-fetch">ovlivňovat jejich
+		rozsah</a>, <a href="https://evitadb.io/documentation/query/requirements/fetching#data-in-locales">jazyk</a> a
+		to včetně možnosti <a
+			href="https://evitadb.io/documentation/query/requirements/fetching?lang=evitaql#referenced-entity-group-fetching">načítat
+		graf referencovaných entit</a> do libovolné hloubky s případnou <a
+			href="https://evitadb.io/documentation/query/requirements/fetching?lang=evitaql#filtering-references">filtrací</a>
+		či <a
+			href="https://evitadb.io/documentation/query/requirements/fetching?lang=evitaql#ordering-references">řazen</a>
+		uzlů v rámci načítaného grafu entit. Kromě požadavků na vrácené entity, si můžeme nechat spočítat podklady pro
+		<a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">zobrazení parametrického
+			filtru</a>, <a
+			href="https://evitadb.io/documentation/query/requirements/hierarchy#hierarchy-of-self">menu</a> či <a
+			href="https://evitadb.io/documentation/query/requirements/histogram#attribute-histogram">histogramů
+		hodnot</a>. Ke každému dotazu si můžeme nechat vrátit i <a
+			href="https://evitadb.io/documentation/query/requirements/telemetry#query-telemetry">rozpad výpočtu</a> na
+		straně serveru spolu s informací o času potřebném na jeho jednotlivé kroky (obdoba <a
+			href="https://www.geeksforgeeks.org/explain-in-sql/">EXPLAIN v jazyce SQL</a>).
+	</p>
+	<p>
+		Některé z těchto funkcí si v rychlosti rozebereme v dalších kapitolách tohoto článku s důrazem na ty, které jsou
+		pro evitaDB specifické.
+	</p>
+
+	<h2>Načítání lokalizovaných dat</h2>
+
+	<p>
+		Velká řada katalogů je lokalizovaná do různých národních prostředí. Uživatel se při práci s aplikací na tato
+		data kouká typicky optikou jednoho konkrétního vybraného jazyka. Tento scénář evitaDB řeší následujícím dotazem:
+	</p>
+
+	<pre>query(
+  collection("Product"),
+  filterBy(
+    entityPrimaryKeyInSet(103885, 103911, 105715),
+    entityLocaleEquals("cs")
+  ),
+  orderBy(
+    attributeNatural("name", DESC)
+  ),
+  require(
+    entityFetch(
+      attributeContent("name", "descriptionShort"),
+      associatedDataContent("localization")
+    )
+  )
+)
+</pre>
+	<p>
+		<em><a href="https://demo.evitadb.io/lab?demoSnippetRequest=eyJicmFuY2giOiJkZXYiLCJwYXRoIjoiZG9jdW1lbnRhdGlvbi9wdWJsaXNoaW5nL3Jvb3QuY3ovMDMtcXVlcnktYmFzaWNzL2xvY2FsaXphdGlvbi5ldml0YXFsIn0">Vyzkoušejte
+			si dotaz v evitaLab</a></em>
+	</p>
+
+	<p>
+		Dotaz nám vrátí 3 záznamy v české lokalizaci seřazené sestupně podle české varianty jejich názvu. Pokud by
+		některý ze jmenovaných produktů českou mutaci neobsahoval, vůbec se ve výsledku nevrátí. Použití podmínky
+		`entityLocaleEquals` nejen že ovlivňuje filtraci entity, ale zároveň se stává zdrojem pro volbu implicitního
+		jazyka při získávání hodnot lokalizovaných atributů a asociovaných dat. Pokud změníte hodnotu `locale` na `en`,
+		získáte hodnoty pro anglický jazyk. Pro identifikaci locale se používá zápis ve formátu tzv. <a
+			href="https://en.wikipedia.org/wiki/IETF_language_tag">language tagu</a>, který je univerzálním zápisem pro
+		řadu různých platforem.
+	</p>
+	<p>
+		Ačkoliv tento mechanismus celkem snadno vyřešíte třeba i s běžnou relační databází, jeho nativní podpora
+		databázovým strojem přináší značné zjednodušení při zápisu dotazů, což bude umocněno funkcionalitami
+		popisovanými v dalších kapitolách.
+	</p>
+	<p>
+		V některých případech budete potřebovat získat více než jen jediný jazyk entity – typicky při vytváření entit ať
+		už z administračního rozhraní nebo importem z jiných datových zdrojů. V těchto případech bude konstrukce dotazu
+		mírně odlišná:
+	</p>
+
+
+	<pre>query(
+  collection("Product"),
+  filterBy(
+    entityPrimaryKeyInSet(103885, 103911, 105715)
+  ),
+  require(
+    entityFetch(
+      attributeContent("name", "descriptionShort"),
+      associatedDataContent("localization"),
+      dataInLocales("cs", "en")
+    )
+  )
+)
+</pre>
+	<p>
+		<em><a href="https://demo.evitadb.io/lab?demoSnippetRequest=eyJicmFuY2giOiJkZXYiLCJwYXRoIjoiZG9jdW1lbnRhdGlvbi9wdWJsaXNoaW5nL3Jvb3QuY3ovMDMtcXVlcnktYmFzaWNzL2xvY2FsaXphdGlvbi1hbGwuZXZpdGFxbCJ9">Vyzkoušejte
+			si dotaz v evitaLab</a></em>
+	</p>
+
+	<p>
+		V dotazu došlo ke dvěma změnám – vypadla podmínka `entityLocaleEquals` byla nahrazena žádostí o vrácení
+		lokalizací `cs` a `en` v deklaraci `dataInLocales`, která je součástí `require` bloku.
+	</p>
+	<p>
+		Tato změna způsobí, že dotaz vždy vrátí všechny tři entity dle jejich primárních klíčů bez ohledu na
+		(ne)dostupnost lokalizací. Nalezené entity budou obsahovat lokalizovaná data pro všechny požadované jazyky
+		(pokud taková mají).
+	</p>
+
+	<h2>Načítání grafu entit (join)</h2>
+
+	<p>
+		Podobně jako se v relačních databázích používá klauzule JOIN pro spojování záznamů skrz více tabulek, je v
+		evitaDB možné získávat nejen hlavní entitu, ale skrz reference (odkazy) na další entity celý graf provázaných
+		entit prakticky do libovolné hloubky. Tento mechanismus má samozřejmě svá technická omezení. Teoreticky byste si
+		mohli v rámci jednoho dotazu limitně načíst celý obsah databáze, což jednak nedává smysl a jednak byste se
+		výsledku na větších datových sadách nedočkali ani na seberychlejší databázi.
+	</p>
+	<p>
+		Při načítání entit do hloubky používáme výraz graf entit, protože tento princip byl do značné míry inspirován
+		přístupem GraphQL. Ve své podstatě odpovídá tomu, jak s logickými celky pracují <a
+			href="https://cs.wikipedia.org/wiki/Objektov%C4%9B_rela%C4%8Dn%C3%AD_mapov%C3%A1n%C3%AD">ORM knihovny</a>.
+		Tento přístup je pro aplikační vývojáře přirozenější a používá se jim lépe než relační forma práce s daty.
+	</p>
+	<p>
+		Na následujícím příkladě si ukážeme, jak je možné načíst produkt se všemi hodnotami jeho parametrů (např.
+		červená, Android, 8GB), které se dále odkazují na entitu parametru (barva, operační systém, velikost paměti).
+		Zároveň si vypíšeme i všechny atributy náležící referenci mezi produktem a hodnotou parametru, mezi které patří
+		především bool příznak, zda se jedná o vazbu identifikující variantu produktu:
+	</p>
+
+	<p>
+
+		<img src="erd.png" alt="Vztahový diagram Produkt ⇒ Parametr" title="Vztahový diagram Produkt ⇒ Parametr">
+
+	</p>
+
+
+	<pre>query(
+  collection("Product"),
+  filterBy(
+    entityPrimaryKeyInSet(103885),
+    entityLocaleEquals("cs")
+  ),
+  require(
+    entityFetch(
+      attributeContent("name"),
+      referenceContentWithAttributes(
+        "parameterValues",
+        entityFetch(
+          attributeContent("code", "name"),
+          referenceContentWithAttributes(
+            "parameter",
+            entityFetch(
+              attributeContent("code", "name")
+            )
+          )
+        )
+      )
+    )
+  )
+)
+</pre>
+	<p>
+		<em><a href="https://demo.evitadb.io/lab?demoSnippetRequest=eyJicmFuY2giOiJkZXYiLCJwYXRoIjoiZG9jdW1lbnRhdGlvbi9wdWJsaXNoaW5nL3Jvb3QuY3ovMDMtcXVlcnktYmFzaWNzL2RlZXAtZmV0Y2guZXZpdGFxbCJ9">Vyzkoušejte
+			si dotaz v evitaLab</a></em>
+	</p>
+
+	<p>
+		Na tomto příkladě si můžete všimnout, že požadovaný jazyk stačí deklarovat jednou a všechny načtené entity
+		včetně těch vnořených jej respektují. Vyzkoušejte si místo češtiny vyžádat anglické názvy entit.
+	</p>
+	<p>
+		Příklad je do velké míry zjednodušený, protože i v těch velmi jednoduchých katalozích bude mít položka velké
+		množství relací na okolní entity a nedávalo by smysl se je snažit všechny zohledňovat v tomto článku. Běžné jsou
+		i reference s kardinalitou „1:N“, které se mohou odkazovat na značné množství okolních entit. Proto jazyk
+		umožňuje na úrovni jednotlivých referencí definovat filtrovací podmínky a definovat řazení referencí s
+		kardinalitou větší než jedna:
+	</p>
+
+
+	<pre>query(
+  collection("Product"),
+  filterBy(
+    entityPrimaryKeyInSet(103885)
+  ),
+  require(
+    entityFetch(
+      referenceContentWithAttributes(
+        "parameterValues",
+        filterBy(
+          entityHaving(
+            referenceHaving(
+              "parameter",
+              entityHaving(
+                attributeContains("code", "r")
+              )
+            )
+          )
+        ),
+        orderBy(
+          entityProperty(
+            attributeNatural("code", DESC)
+          )
+        ),
+        entityFetch(
+          attributeContent("code"),
+          referenceContentWithAttributes(
+            "parameter",
+            entityFetch(
+              attributeContent("code")
+            )
+          )
+        )
+      )
+    )
+  )
+)
+</pre>
+	<p>
+		<em><a href="https://demo.evitadb.io/lab?demoSnippetRequest=eyJicmFuY2giOiJkZXYiLCJwYXRoIjoiZG9jdW1lbnRhdGlvbi9wdWJsaXNoaW5nL3Jvb3QuY3ovMDMtcXVlcnktYmFzaWNzL2RlZXAtZmV0Y2gtZmlsdGVyaW5nLWFuZC1zb3J0aW5nLmV2aXRhcWwifQ">Vyzkoušejte
+			si dotaz v evitaLab</a></em>
+	</p>
+
+	<p>
+		Tento dotaz je prakticky shodný s předchozí ukázkou, pouze při načítání hodnot parametrů vrátí pouze ty, které
+		patří do parametru s kódem obsahujícím písmeno `r`. Zároveň tyto hodnoty parametrů seřadí sestupně podle jejich
+		kódu. To zajistí nové podmínky `filterBy` a `orderBy` deklarované na úrovni deklarace zajišťující načtení
+		reference `parameterValues`.
+	</p>
+	<h2>Parametrizované filtry (facety)</h2>
+
+
+	<p>
+		Parametrizované filtry dávají smysl u katalogů s velkým množstvím položek, ve kterých by se uživatel jen těžko
+		vyznal. Parametrické filtry jsme zmiňovali už <a
+			href="https://www.root.cz/clanky/evitadb-predstaveni-rychle-in-memory-databaze-pro-e-commerce/">v prvním
+		článku</a> této série a vidíte je běžně na internetu, takže zde se budeme soustředit pouze na to, jak vám s nimi
+		může pomoci právě evitaDB.
+	</p>
+	<p>
+		Podklady pro zobrazení filtru si můžete nechat připravit v rámci tzv. vedlejších výpočtů, které jsou spojené se
+		základním dotazem na položky katalogu. Dotaz obsahující parametrický filtr by mohl vypadat například následovně:
+	</p>
+
+	<pre>query(
+  collection("Product"),
+  filterBy(
+    attributeEquals("status", "ACTIVE"),
+    userFilter(
+      facetHaving(
+        "groups",
+        entityHaving(
+          attributeEquals("code", "sale")
+        )
+      )
+    )
+  ),
+  require(
+    facetSummary(
+      COUNTS,
+      entityFetch(
+        attributeContent("code")
+      ),
+      entityGroupFetch(
+        attributeContent("code")
+      )
+    )
+  )
+)
+</pre>
+	<p>
+		<em><a href="https://demo.evitadb.io/lab?demoSnippetRequest=eyJicmFuY2giOiJkZXYiLCJwYXRoIjoiZG9jdW1lbnRhdGlvbi9wdWJsaXNoaW5nL3Jvb3QuY3ovMDMtcXVlcnktYmFzaWNzL2ZhY2V0LXN1bW1hcnkuZXZpdGFxbCJ9">Vyzkoušejte
+			si dotaz v evitaLab</a></em>
+	</p>
+
+	<p>
+		Klíčovými položkami tohoto dotazu je `facetSummary` v bloku `require` a `userFilter` v bloku `filterBy`. Z
+		dotazu je patrné, že se snažíme vypsat entity typu `Product`, které splňují nějaké základní vlastnosti – v tomto
+		případě je to reprezentováno podmínkou, že atribut `status` musí obsahovat hodnotu `ACTIVE` (tzv. systémová
+		podmínka) a také uživatelem definované vlastnosti – v tomto případě musí obsahovat referenci `groups` na entitu
+		s kódem `sale`. Rozdělení na systémovou a uživatelskou část filtrovací podmínky je klíčové pro výpočet hodnot v
+		rámci `facetSummary`, jak si vysvětlíme následně.
+	</p>
+	<p>
+		Požadavek na výpočet `facetSummary` vám pro všechny položky, které splňují systémové podmínky základního dotazu,
+		vrátí seznam odkazovaných entit s informací o počtu položek, které se na danou entitu odkazují. Tyto entity jsou
+		seskupeny do logických celků (skupin) podle informací nastavených ve schématu katalogu.
+	</p>
+	<p>
+		Pokud si přečtete dokumentaci o <a href="https://evitadb.io/documentation/use/data-model?lang=java#references">tvorbě
+		schématu</a>, zjistíte, že na úrovni schématu reference je možné označit danou referenci jako `faceted`. Zároveň
+		je možné u každé reference nastavit vazbu na sekundární entitu, která reprezentuje její zařazení do nějaké
+		logické skupiny. Tím, že je tato informace nastavená už na úrovni schématu, si může databázový stroj dopředu
+		připravit požadované indexy a zároveň tento přístup zjednodušuje následné sestavování dotazů, kde již není třeba
+		tyto informace neustále opakovat.
+	</p>
+	<p>
+		V našem dotazu tedy stačí pouze definovat požadavek na výpočet podkladů pro parametrický filtr s žádostí o
+		dotažení atributu `code` jak pro odkazovanou entitu, tak i pro entitu, která reprezentuje logické seskupení
+		odkazovaných entit. evitaDB pak už ví, že si má všímat všech referencí, označených ve schématu jako `faceted` a
+		ví vše o těchto odkazovaných entitách.
+	</p>
+	<p>
+		Pokud si dotaz spustíte v nástroji <a href="https://demo.evitadb.io">evitaLab</a>, vrátí se vám výsledek
+		primárně ve formátu JSON – tedy tak, jak jej budete pravděpodobně konzumovat ve své aplikaci, ale máte zde i
+		možnost v pravé části přepnout pohled na vizualizaci typizovaného parametrizovaného filtru pro jednodušší
+		porozumění vráceným datům. Náhled bude vypadat následovně:
+	</p>
+	<p>
+
+		<img src="facet-summary.png" alt="Výpis parametrů s počty produktů" title="Výpis parametrů s počty produktů">
+
+	</p>
+	<p>
+		Z vizualizace je patrné, že evitaDB vrátila informaci o odkazovaných entitách, kdy na úrovni každé této entity
+		je dostupná informace, kolik produktů se váže ke každé jednotlivé referenci na cílovou entitu (pro entitu `sale`
+		– výprodej – to je 39 produktů, pro `for-men-group` je to 239 atp.). Zároveň je u všech entit, které jsou
+		vyžadované tzv. uživatelským filtrem, informace o tom, že tyto entity jsou součásti požadovaného výběru, a tudíž
+		je jejich položka `zaškrtnutá`. Tyto podklady jsou vypočteny i pro všechny ostatní reference produktu, které
+		jsou ve schématu označeny jako `faceted` – tj. pro sklady, štítky, kategorie, značky a hodnoty parametrů. Pokud
+		si rozkliknete právě hodnoty parametrů, uvidíte, že ty jsou členěny do dvou úrovní, kdy první úroveň
+		reprezentuje parametry a teprve v nich jsou informace o hodnotách.
+	</p>
+	<p>
+		Dotaz reprezentuje pouze základní výstup pro parametrizovaný filtr, který dokážete získat i pomocí
+		alternativních databází, jako jsou <a
+			href="https://www.elastic.co/guide/en/app-search/current/facets-guide.html">Elasticsearch</a>, <a
+			href="https://typesense.org/docs/0.24.0/api/search.html#facet-results">Typesense</a>, <a
+			href="https://www.meilisearch.com/docs/learn/fine_tuning_results/faceted_search">Meilisearch</a> nebo <a
+			href="https://www.algolia.com/doc/guides/managing-results/refine-results/faceting/">Algolia</a>. V evitaDB
+		však můžete při výpočtu požádat o výpočet tzv. „dopadové analýzy“, pro kterou ve výše uvedených databázích
+		neexistuje alternativa.
+	</p>
+	<p>
+		Dopadová analýza spočítá ke každé nabízené entitě informaci o tom, jaký by mělo její zahrnutí do filtru dopad na
+		výsledek dotazu. Prakticky to znamená vypočítat pro každou takovou položku další dodatečný dotaz vycházející ze
+		stávajícího dotazu a rozšířený o podmínku na existenci reference pro tuto, v současnosti nevybranou, entitu.
+	</p>
+	<p>
+		Pro výpočet dopadové analýzy nám stačí změnit typ výpočtu z `COUNTS` na `IMPACT`:
+	</p>
+
+	<pre>query(
+  collection("Product"),
+  filterBy(
+    attributeEquals("status", "ACTIVE"),
+    userFilter(
+      facetHaving(
+        "groups",
+        entityHaving(
+          attributeEquals("code", "sale")
+        )
+      )
+    )
+  ),
+  require(
+    facetSummary(
+      IMPACT,
+      entityFetch(
+        attributeContent("code")
+      ),
+      entityGroupFetch(
+        attributeContent("code")
+      )
+    )
+  )
+)
+</pre>
+	<p>
+		<em><a href="https://demo.evitadb.io/lab?demoSnippetRequest=eyJicmFuY2giOiJkZXYiLCJwYXRoIjoiZG9jdW1lbnRhdGlvbi9wdWJsaXNoaW5nL3Jvb3QuY3ovMDMtcXVlcnktYmFzaWNzL2ZhY2V0LXN1bW1hcnktaW1wYWN0LmV2aXRhcWwifQ">Vyzkoušejte
+			si dotaz v evitaLab</a></em>
+	</p>
+
+	<p>
+		Výpočet je logicky výkonnostně mnohem náročnější, ale ve výsledku u každé položky uvidíte informaci o počtu
+		produktů, které z výsledku zmizí nebo přibudou, pokud do uživatelského výběru zahrnete podmínku na existenci
+		vazby na odpovídající entitu. Pokud se podíváme do nástroje evitaLab na výsledky vizualizace tohoto dotazu pro
+		parametr `Typ displeje`, uvidíme, že výběrem vlastnosti `TFT` displej by ve výběru ze současných 39 produktů
+		zůstalo pouze 12 (tj. o 27 bychom přišli). V případě `OLED` displejů bychom přišli téměř o celý výběr a zůstal
+		by nám pouze jediný produkt, který je aktivní a je ve skupině výprodej.
+	</p>
+	<p>
+
+		<img src="facet-summary-impact.png" alt="Dopadová analýza parametrického filtru" title="Dopadová analýza parametrického filtru">
+
+	</p>
+	<p>
+		Výpočty podkladů pro parametrické filtry vychází z předpokladu „běžných vztahů“ položek v nabídce – tedy že
+		položky ve stejné skupině se spojují logickou vazbou OR a položky v různých skupinách / odlišných referencích se
+		spojují logickou vazbou AND. V praxi se občas setkáváme s odlišnými požadavky, a proto je možné tyto vztahy v
+		rámci dotazu upravit – například stanovit, že logická skupina „alergeny“ se chová tak, že výběr položky „buráky“
+		znamená <a href="https://evitadb.io/documentation/query/requirements/facet?lang=java#facet-groups-negation">vyloučení</a>
+		všech produktů vztahujících se k burákům z výběru. Popřípadě možnost definovat, že u reference typu „štítky“ se
+		jednotlivé entity <a
+			href="https://evitadb.io/documentation/query/requirements/facet?lang=java#facet-groups-conjunction">kombinují
+		logickým AND</a> – tedy že zaškrtnutí štítků „novinka“ a „skladem“, které jsou ve stejné logické skupině
+		znamená, že se vyberou produkty, které jsou na skladě a zároveň se jedná o novinky. Tyto vztahy mají dopad jak
+		na chování podmínky `facetHaving` uvnitř `filterBy` bloku, tak na chování výpočtu v rámci `facetSummary`.
+	</p>
+	<p>
+		Výchozí chování `facetSummary`, kdy se vypočtou všechny údaje pro úplnou sadu referencí označenou jako
+		`faceted`, je na řadě míst nežádoucí, protože dává příliš velký výsledek. Výpočet je tedy možné <a
+			href="https://evitadb.io/documentation/query/requirements/facet?lang=java#facet-summary-of-reference">omezit
+		pouze na určité typy referencí</a> nebo v rámci konkrétního typu reference omezit pouze na entity, které splňují
+		určitou podmínku. Toto chování si můžeme ukázat na příkladu hodnot parametrů (např. červená), které spadají do
+		parametrů (např. barva). Produkt má obvykle celou sadu parametrů, ale pouze podle některých má smysl filtrovat.
+		Můžeme si tedy na úrovni parametru vést informaci o tom, zda má být daný parametr zahrnutý do filtru či slouží
+		pouze k zobrazení dat na detailu produktu. Udělejme to pomocí jednoduchého boolean atributu `isVisibleInFilter`,
+		který bude nastaven na `true` u těch parametrů, které mají být v nabídce uživatelského filtru a upravme dotaz
+		následovně:
+	</p>
+
+	<pre>query(
+  collection("Product"),
+  filterBy(
+    attributeEquals("status", "ACTIVE"),
+    userFilter(
+      facetHaving(
+        "groups",
+        entityHaving(
+          attributeEquals("code", "sale")
+        )
+      )
+    )
+  ),
+  require(
+    facetSummaryOfReference(
+      "parameterValues",
+      IMPACT,
+      filterGroupBy(
+        attributeEquals("isVisibleInFilter", true)
+      ),
+      entityFetch(
+        attributeContent("code")
+      ),
+      entityGroupFetch(
+        attributeContent("code")
+      )
+    )
+  )
+)
+</pre>
+	<p>
+		<em><a href="https://demo.evitadb.io/lab?demoSnippetRequest=eyJicmFuY2giOiJkZXYiLCJwYXRoIjoiZG9jdW1lbnRhdGlvbi9wdWJsaXNoaW5nL3Jvb3QuY3ovMDMtcXVlcnktYmFzaWNzL2ZhY2V0LXN1bW1hcnktb2YtcmVmZXJlbmNlLmV2aXRhcWwifQ">Vyzkoušejte
+			si dotaz v evitaLab</a></em>
+	</p>
+
+	<p>
+		Vidíme, že ve výsledku dotazu zbyla pouze nabídka parametrů, která je ještě znatelně menší než nabídka původní.
+		Kromě filtrování obsahu parametrického filtru je možné nabídku položek i <a
+			href="https://evitadb.io/documentation/query/requirements/facet?lang=evitaql#ordering-facet-summary">seřadit</a>.
+		V rámci načítání entity parametrického filtru samozřejmě funguje i načítání grafu do hloubky, takže ke každé
+		skupině či odkazované entitě si můžete načíst všechna potřebná data v rámci jednoho dotazu.
+	</p>
+
+	<h2>Histogramy</h2>
+
+	<p>
+		Histogramy se občas používají pro vizualizaci rozložení hodnot s velkou kardinalitou na omezené ploše. V praxi
+		se příliš nevídají, ačkoliv jsou šikovnou pomůckou uživateli při výběru v intervalovém filtru.
+	</p>
+	<p>
+		V rámci evitaDB query si můžeme aktuálně říci o výpočet histogramu pro libovolný filtrovatelný atribut číselného
+		typu, ale v blízké budoucnosti plánujeme rozšíření i o <a href="https://github.com/FgForrest/evitaDB/issues/8">výpočet
+		histogramu přes reference</a>. O kalkulaci histogramu pro atribut si říkáme následujícím způsobem:
+	</p>
+
+	<pre>query(
+  collection("Product"),
+  filterBy(
+    priceValidInNow(),
+    priceInPriceLists("basic"),
+    priceInCurrency("EUR"),
+    userFilter(
+      priceBetween(100, 2000),
+      attributeBetween(
+        "battery-capacity", 2000, 6000
+      )
+    )
+  ),
+  require(
+    priceHistogram(30),
+    attributeHistogram(30, "battery-capacity")
+  )
+)
+</pre>
+	<p>
+		<em><a href="https://demo.evitadb.io/lab?demoSnippetRequest=eyJicmFuY2giOiJkZXYiLCJwYXRoIjoiZG9jdW1lbnRhdGlvbi9wdWJsaXNoaW5nL3Jvb3QuY3ovMDMtcXVlcnktYmFzaWNzL2hpc3RvZ3JhbS5ldml0YXFsIn0">Vyzkoušejte
+			si dotaz v evitaLab</a></em>
+	</p>
+
+	<p>
+		V bloku `require` si požádáme o výpočet `priceHistogram` a `attributeHistogram` s uvedením počtu požadovaných
+		sloupců pro výstupní histogram a v případě atributu i o jeho název. Blok `filterBy` opět obsahuje systémovou a
+		uživatelskou podmínku. Uživatelská část podmínky obsahuje rozsah stanovený uživatelem, které mají být vzaty v
+		potaz při výběru odpovídajících entit.
+	</p>
+	<p>
+		Výstupní kalkulaci si opět představíme ve formě vizualizace, kterou nám nabízí nástroj evitaLab:
+	</p>
+	<p>
+
+		<img src="histogram.png" alt="Vizualizace histogramu v evitaLab" title="Vizualizace histogramu v evitaLab">
+
+	</p>
+	<p>
+		Vrácená data nám umožňují vykreslit histogram s četnostmi produktů v rámci různých cenových hladin a číselné
+		hodnoty kapacity baterie. Při výpočtu histogramu se bere v potaz celý dotaz vyjma podmínky týkající se daného
+		atributu / ceny v uživatelské části filtrovací podmínky (`userFilter`). Pokud by tomu tak nebylo, uživatel by
+		nikdy nebyl schopný zase rozšířit svůj původní výběr. Součástí vypočtených sloupců je i informace, jestli daný
+		sloupec nebo jeho část byla součástí uživatelského filtru či nikoliv, což umožňuje vizuálně odlišit část
+		histogramu reprezentovanou současným výběrem produktů.
+	</p>
+	<p>
+		Standardně databáze vrací počet sloupců přesně odpovídající hodnotě požadované v klauzuli histogramu. V rámci
+		uživatelského testování se ovšem ukázalo, že u menšího počtu hodnot lépe funguje tzv. adaptivní přístup, kdy je
+		počet sloupců přizpůsoben datům. Mějme hypotetickou situaci, kdy chceme vizualizovat histogram se 100 sloupci,
+		ale současnému dotazu odpovídají pouze nízké jednotky položek – např. dvě. Pak bychom měli histogram, kde by
+		byly pouze dva sloupce, a to první a poslední, a mezi nimi by byl prázdný prostor.
+	</p>
+	<p>
+		Tento výstup jednak nevypadá vizuálně dobře a často se kvůli šířce sloupců špatně vybírá ten správný rozsah.
+		Proto můžete v histogramu požádat o tzv. „optimální“ výstup, který zaručuje, že nikdy nebude vrácen větší počet
+		sloupců než jste požádali, ale v případě velkých mezer mezi sloupci histogramu bude jejich počet snížen tak, aby
+		mezera nebyla širší než jeden sloupec
+	</p>
+
+	<h2>Hierarchické struktury</h2>
+
+	<p>
+		Valná většina katalogů pohlíží na položky skrze hierarchicky organizované menu kategorií různého druhu typicky
+		tak, že zobrazuje položky z kategorie, kterou má uživatel vybranou, a zároveň i ze všech podkategorií této
+		kategorie. Vzhledem k tomu, že se jedná o tak běžný scénář, má evitaDB pro tuto oblast celou sadu výrazových
+		prostředků a zároveň optimalizuje své indexy tak, aby dotazy do hierarchické struktury byly rychlejší, než
+		dotazy bez tohoto zacílení.
+	</p>
+	<p>
+		V našich příkladech budeme vycházet z následující struktury kategorií, které můžete nalézt i v naší ukázkové
+		datové sadě:
+	</p>
+	<p>
+
+		<img src="hierarchy-dataset.png" alt="Ukázková hierarchie kategorií" title="Ukázková hierarchie kategorií">
+
+	</p>
+	<p>
+		Ukažme si nejprve úplně typický příklad dotazu, který vypíše všechny produkty z kategorie Accessories
+		(Příslušenství):
+	</p>
+
+
+	<pre>query(
+    collection("Product"),
+    filterBy(
+        hierarchyWithin(
+            "categories",
+            attributeEquals("code", "accessories")
+        )
+    ),
+    require(
+        entityFetch(
+            attributeContent("code")
+        )
+    )
+)
+</pre>
+	<p>
+		<em><a href="https://demo.evitadb.io/lab?demoSnippetRequest=eyJicmFuY2giOiJkZXYiLCJwYXRoIjoiZG9jdW1lbnRhdGlvbi9wdWJsaXNoaW5nL3Jvb3QuY3ovMDMtcXVlcnktYmFzaWNzL2hpZXJhcmNoeS13aXRoaW4uZXZpdGFxbCJ9">Vyzkoušejte
+			si dotaz v evitaLab</a></em>
+	</p>
+
+	<p>
+		Dotaz vyhledá všechny záznamy z kolekce produktů, které mají referenci s názvem `categories` odkazující se na
+		entitu s kódem `accessories`. Ze schématu se dozvíme, že reference `categories` cílí na entitu s názvem
+		`Category`, která je označena jako hierarchická. Pokud by nebyla, evitaDB by u tohoto typu dotazu vrátila chybu.
+		Z této informace si evitaDB odvodí, že chcete vrátit všechny kódy produktů v kategorii `accessories` a všech
+		jejích podřízených kategorií. Samozřejmě je možné dotaz upravit tak, že se zobrazí jen produkty v <a
+			href="https://evitadb.io/documentation/query/filtering/hierarchy?lang=evitaql#referenced-entity-2">kategorii
+		přímo zařazené</a> nebo si vylistovat nikoliv seznam produktů, ale <a
+			href="https://evitadb.io/documentation/query/filtering/hierarchy?lang=evitaql#self">přímo podkategorií dané
+		kategorie</a>. V <a href="https://evitadb.io/documentation/query/filtering/hierarchy">dokumentaci</a> najdete
+		ještě řadu dalších možností.
+	</p>
+	<p>
+		Zajímavé jsou především podřízené podmínky `<a
+			href="https://evitadb.io/documentation/query/filtering/hierarchy?lang=evitaql#referenced-entity-4">having</a>`
+		a `<a href="https://evitadb.io/documentation/query/filtering/hierarchy?lang=evitaql#referenced-entity-5">excluding</a>`.
+		Ty umožňují při procházení hierarchie (tj. stromu kategorií) některé části (podstromy) vynechat. Občas jste si
+		mohli všimnout, že v nákupních domech je určitá část regálů za plentou – protože se připravuje nový prodejní
+		prostor se specializovanou nabídkou. Obdobně i v katalozích se často připravují nové části, do kterých mají
+		přístup pouze zaměstnanci, kteří na nich pracují. Tyto funkce nám podobné scénáře umožňují řešit celkem
+		jednoduše:
+	</p>
+
+	<pre>query(
+    collection("Product"),
+    filterBy(
+        hierarchyWithin(
+            "categories",
+            attributeEquals("code", "accessories"),
+            excluding(
+                attributeEquals("code", "wireless-headphones")
+            )
+        )
+    ),
+    require(
+        entityFetch(
+            attributeContent("code")
+        )
+    )
+)
+</pre>
+	<p>
+		<em><a href="https://demo.evitadb.io/lab?demoSnippetRequest=eyJicmFuY2giOiJkZXYiLCJwYXRoIjoiZG9jdW1lbnRhdGlvbi9wdWJsaXNoaW5nL3Jvb3QuY3ovMDMtcXVlcnktYmFzaWNzL2hpZXJhcmNoeS13aXRoaW4tZXhjbHVkaW5nLmV2aXRhcWwifQ">Vyzkoušejte
+			si dotaz v evitaLab</a></em>
+	</p>
+
+	<p>
+		Výše uvedený dotaz simuluje podobný případ – jako návštěvník vidím v kategorii `accessories` všechny produkty,
+		které do ní patří vyjma těch, které jsou zařazeny do podstromu kategorie `wireless-headphones`. Uživatel
+		vystupující jako zaměstnanec, by danou podmínku v dotazu neměl, a tudíž by viděl i za zmíněnou hypotetickou
+		„plentu“. Samozřejmě můžeme celý problém ještě o něco více zobecnit a umožnit uživatelům vidět např. všechny
+		produkty z kategorií, které mají hodnotu atributu `access` nastavenou na `PUBLIC` atp.
+	</p>
+	<p>
+		Podobně elegantním způsobem se dají řešit i časově omezené nabídky. Dejme tomu, že v kategorii příslušenství si
+		chceme dopředu připravit „Vánoční nabídku“, která obsahuje LED osvětlení vánočních stromků, pyrotechniku a
+		podobně. Pokud v entitě kategorie vytvoříme atribut typu `DateTimeRange` s názvem `validity` a nastavíme jeho
+		hodnotu pouze na vánoční období, můžeme potom definovat následující dotaz:
+	</p>
+
+	<pre>query(
+    collection("Product"),
+    filterBy(
+        hierarchyWithin(
+            "categories",
+            attributeEquals("code", "accessories"),
+            having(
+                or(
+                    attributeIsNull("validity"),
+                    attributeInRangeNow("validity")
+                )
+            )
+        )
+    ),
+    require(
+        entityFetch(
+            attributeContent("code")
+        )
+    )
+)
+</pre>
+	<p>
+		<em><a href="https://demo.evitadb.io/lab?demoSnippetRequest=eyJicmFuY2giOiJkZXYiLCJwYXRoIjoiZG9jdW1lbnRhdGlvbi9wdWJsaXNoaW5nL3Jvb3QuY3ovMDMtcXVlcnktYmFzaWNzL2hpZXJhcmNoeS13aXRoaW4taGF2aW5nLmV2aXRhcWwifQ">Vyzkoušejte
+			si dotaz v evitaLab</a></em>
+	</p>
+
+	<p>
+		Tedy: vypiš mi všechny produkty z kategorie `accessories` za předpokladu, že jsou zařazeny v kategorii bez
+		definované platnosti (`validity`) nebo mají definovaný rozsah platnosti, do které spadá současný okamžik.
+	</p>
+	<p>
+		Některé položky bývají zařazeny v různých kategoriích – např. žvýkačky v obchodech uvidíte v sekci „sladkosti“,
+		ale také před pokladnami mezi produkty, na které máte dost času se dívat než zaplatíte. Pokud obchodní dům
+		oplotí sekci sladkostí, protože je předělává do nové podoby, měli byste přestat mít možnost koupit žvýkačky u
+		pokladny? Jistěže ne. Stejně se zachová i evitaDB a pokud nalezne alespoň jednu referenci produktu do viditelné
+		části hierarchického stromu, zahrne tento produkt do výsledků vyhledávání.
+	</p>
+
+	<h3>Transpozice hierarchie</h3>
+
+	<p>
+		Tím však možnosti hierarchického vyhledávání nekončí. Kromě výpisu záznamů náležejících do konkrétního místa
+		stromu běžně potřebujeme současně tuto hierarchickou strukturu vizualizovat v podobě nějakého menu. Bohužel
+		neexistuje nic jako „univerzální menu“ – možností jak pohlížet a vizualizovat hierarchické struktury je celá
+		řada. Oblíbená jsou třeba „mega-menu“:
+	</p>
+	<p>
+
+		<img src="megamenu.png" alt="Mega menu" title="Mega menu">
+
+	</p>
+	<p>
+		Běžně také vidíme jednoduchý výpis nejbližších podřízených kategorií:
+	</p>
+	<p>
+
+		<img src="category-listing.png" alt="Prostý výpis podřízených kategorií" title="Prostý výpis podřízených kategorií">
+
+	</p>
+	<p>
+		Či plně dynamická rozklikávací menu:
+	</p>
+	<p>
+
+		<img src="dynamic-menu.png" alt="Rozklikávací menu" title="Rozklikávací menu">
+
+	</p>
+	<p>
+		Až po různá hybridní řešení, kdy se zobrazují třeba jen kategorie první úrovně a cesta k aktuálně vybrané
+		kategorii se zobrazením kategorií stejné úrovně, jako třeba na následujícím obrázku:
+	</p>
+	<p>
+
+		<img src="hybrid-menu.png" alt="Hybridní levé menu" title="Hybridní levé menu">
+
+	</p>
+	<p>
+		Zcela běžně na stejné stránce potkáte i více různých druhů menu najednou – např. mega-menu, výpis nejbližších
+		podřízených kategorií a levé vertikální menu současně.
+	</p>
+	<p>
+		Otázka tedy zní, jak získat všechny potřebné údaje pro zobrazení menu souvisejících s aktuálním výpisem položek
+		z daného místa hierarchie a příliš nekomplikovat dotazovací jazyk?
+	</p>
+	<p>
+		Pro tyto účely evitaDB využívá možnosti bloku `require`, který dovoluje výpočet přidružených kalkulací
+		souvisejících se základním dotazem. V rámci tohoto bloku je možné nechat si vypočítat <a
+			href="https://evitadb.io/documentation/query/requirements/hierarchy?lang=evitaql#hierarchy-of-reference">všechny
+		potřebné podklady</a> pro to, abychom dokázali sestavit taková menu, jaká budeme potřebovat. Stačí vytvořit
+		požadavek na vytvoření daného řezu hierarchií, pojmenovat si ho a pak si už jen vyzvednout výsledek kalkulace ve
+		výsledných datech. Pro demonstraci si pojďme ukázat, jak by mohla vypadat kalkulace hybridního menu:
+	</p>
+
+
+	<pre>query(
+    collection("Product"),
+    filterBy(
+        hierarchyWithin(
+            "categories",
+            attributeEquals("code", "audio")
+        )
+    ),
+    require(
+        hierarchyOfReference(
+            "categories",
+            fromRoot(
+                "topLevel",
+                entityFetch(attributeContent("code")),
+                stopAt(level(1))
+            ),
+            parents(
+                "parents",
+                entityFetch(attributeContent("code"))
+            ),
+            siblings(
+                "siblings",
+                entityFetch(attributeContent("code"))
+            )
+        )
+    )
+)
+</pre>
+	<p>
+		<em><a href="https://demo.evitadb.io/lab?demoSnippetRequest=eyJicmFuY2giOiJkZXYiLCJwYXRoIjoiZG9jdW1lbnRhdGlvbi9wdWJsaXNoaW5nL3Jvb3QuY3ovMDMtcXVlcnktYmFzaWNzL2hpZXJhcmNoeS1vZi1yZWZlcmVuY2UuZXZpdGFxbCJ9">Vyzkoušejte
+			si dotaz v evitaLab</a></em>
+	</p>
+
+	<p>
+		Tento dotaz kromě produktů vrátí i 3 složky dodatečné kalkulace. Kalkulace `topLevel` obsahuje hierarchické
+		záznamy propojené s vypsanými produkty na kořenové úrovni. Kalkulace `parents` vypíše osu nadřízených
+		hierarchických záznamů vůči záznamu `audio`, na který cílí dotaz pro výpis produktů, a nakonec kalkulace
+		`siblings` vypíše osu sousedních hierarchických záznamů (tj. záznamů sdílejících stejného rodiče jako záznam
+		`audio`). Z těchto dat je pak možné poměrně jednoduše vytvořit kombinované hybridní menu. Záměrně je vybraný
+		jeden ze složitějších případů užití, aby bylo možné demonstrovat kombinace různých řezů hierarchií. Vytvoření
+		megamenu je podstatně jednodušší záležitostí.
+	</p>
+
+	<pre>query(
+    collection("Product"),
+    require(
+        hierarchyOfReference(
+            "categories",
+            fromRoot(
+                "megaMenu",
+                entityFetch(attributeContent("code")),
+                stopAt(level(2))
+            )
+        )
+    )
+)
+</pre>
+	<p>
+		<em><a href="https://demo.evitadb.io/lab?demoSnippetRequest=eyJicmFuY2giOiJkZXYiLCJwYXRoIjoiZG9jdW1lbnRhdGlvbi9wdWJsaXNoaW5nL3Jvb3QuY3ovMDMtcXVlcnktYmFzaWNzL2hpZXJhcmNoeS1tZWdhLW1lbnUuZXZpdGFxbCJ9">Vyzkoušejte
+			si dotaz v evitaLab</a></em>
+	</p>
+
+	<p>
+		<em><strong>Tip:</strong> když si tento dotaz vyzkoušíte v <a
+			href="https://demo.evitadb.io/lab?sharedTab=N4IgLghgRgKgngBwKYgFwiQNwJaQI4A2AtAMYD2AdgM5kEoA040AChAE4QC2Vao5FFJCTDZKASQAmaEBKScyIRiQiQCZAOYA5LinRZcEEAF9GkKABEVh1KDwBXJGzjT7juAAoAOhQAEfn+QEdMKiFF4gzGxkEnbCniAAlPR+3v4+bEj22Blevmn+ABbYjuwkBXAA8gBmAEpIVY5IFCRIufntPvHKYEjqZGzFVPH0qR1pVVGcNWRkYG1jHfGcvRAAsk12w6ML+U0iYHAAYkhgZe4qYANQdj0AwpQ9FHNd0UjxCUnbO-5UYGQIAEE5nRMEgCO4AEwfL5jBIw-xwvJ+RGIxQgTDsbDQOg8dDAUbeIzGIxAA">evitaLab</a>
+		a přepnete záložku výsledků na vizualizaci, uvidíte fragmenty menu v mnohem srozumitelnější podobě.</em>
+	</p>
+	<p>
+		Ke každé položce hierarchického menu je možné si nechat <a
+			href="https://evitadb.io/documentation/query/requirements/hierarchy?lang=evitaql#statistics">vypočítat</a>
+		následující údaje:
+	</p>
+	<ol>
+
+		<li>Počet podřízených hierarchických úrovní.
+
+		<li>Počet záznamů výpisu, které se vztahují k danému hierarchickému záznamu.
+		</li>
+	</ol>
+	<p>
+		Jedná se o prostá čísla, která napoví, jestli dává smysl danou kategorii otevřít, i když jsme si v rámci
+		kalkulací nenechali tyto části stromu vypsat, protože je nutně nepotřebujeme.
+	</p>
+
+
+	<pre>query(
+    collection("Product"),
+    require(
+        hierarchyOfReference(
+            "categories",
+            fromRoot(
+                "megaMenuWithCounts",
+                entityFetch(attributeContent("code")),
+                stopAt(level(2)),
+                statistics(
+                    CHILDREN_COUNT,
+                    QUERIED_ENTITY_COUNT
+                )
+            )
+        )
+    )
+)
+</pre>
+	<p>
+		<em><a href="https://demo.evitadb.io/lab?demoSnippetRequest=eyJicmFuY2giOiJkZXYiLCJwYXRoIjoiZG9jdW1lbnRhdGlvbi9wdWJsaXNoaW5nL3Jvb3QuY3ovMDMtcXVlcnktYmFzaWNzL2hpZXJhcmNoeS1zdGF0aXN0aWNzLmV2aXRhcWwifQ">Vyzkoušejte
+			si dotaz v evitaLab</a></em>
+	</p>
+
+	<p>
+		Čísla korektně reflektují podmínky stanovené ve filtrační části dotazu – pokud jsou tedy některé podstromy
+		podmínkou vyloučeny, nebudou započteny do těchto součtů ani přímo (tj. na úrovni počtu podřízených
+		hierarchických úrovní) ani transitivně (tj. položky do nich zařazené se nezapočítají do počtu záznamů v dané
+		části stromu). Položky zařazené do stromu se načítají očekávaným způsobem – tedy pro strom:
+	</p>
+	<p>
+
+		<img src="mini-tree.png" alt="Ukázkový strom kategorií" title="Ukázkový strom kategorií">
+
+	</p>
+	<p>
+		Počet položek zařazených do stromu `Portables` tvoří součet položek zařazených do třech podřízených kategorií
+		plus počet položek zařazených přímo do kategorie `Portables`. Pokud je některá z položek zařazena zároveň do
+		více kategorií (např. do `Tablets` a `E-readers` zároveň) je do součtu zahrnuta pouze jednou.
+	</p>
+	<h2>Nalezení prodejní ceny</h2>
+
+
+	<p>
+		Stanovení prodejní ceny je potřeba pouze pro třídění položek podle ceny (od nejdražší / nejlevnější) a pro
+		nalezení položek v určité cenové hladině. Pokud u svého katalogu tuto funkcionalitu nepotřebujete, celá tato
+		kapitola se vás netýká.
+	</p>
+	<p>
+		Určení prodejní ceny může být v B2C segmentu velmi přímočaré – tyto katalogy si často drží jen jedinou prodejní
+		cenu či cenu akční. V B2B segmentu je naopak cenotvorba velmi pestrá a různé ERP systémy, které bývají primárním
+		zdrojem cen, přistupují k tvorbě prodejní ceny odlišně. Proto evitaDB obsahuje velmi jednoduchý algoritmus pro
+		výpočet prodejní ceny, který jednak umožňuje tuto cenu spočítat relativně rychle a zároveň umožňuje tyto
+		složitější algoritmy do tohoto zjednodušeného přístupu převést.
+	</p>
+	<p>
+		Každá položka katalogu může mít jednu i více cen v různých měnách, přiřazené k různým ceníkům. Při vyhledávání
+		ceny se potom hledá první cena, která odpovídá kombinaci požadované měny a sady ceníků v pořadí dle důležitosti
+		(tj. pořadí ceníků v položeném dotazu hraje klíčovou roli). Pojďme si hned jeden takový dotaz ukázat:
+	</p>
+
+	<pre>query(
+    collection("Product"),
+    filterBy(
+        priceInPriceLists("management-price", "employee-basic-price", "basic"),
+        priceInCurrency("EUR")
+    ),
+    require(
+      entityFetch(
+        attributeContent("code"),
+        priceContentRespectingFilter()
+      )
+    )
+)
+</pre>
+	<p>
+		<em><a href="https://demo.evitadb.io/lab?demoSnippetRequest=eyJicmFuY2giOiJkZXYiLCJwYXRoIjoiZG9jdW1lbnRhdGlvbi9wdWJsaXNoaW5nL3Jvb3QuY3ovMDMtcXVlcnktYmFzaWNzL3ByaWNlLWZpbHRlci5ldml0YXFsIn0">Vyzkoušejte
+			si dotaz v evitaLab</a></em>
+	</p>
+
+	<p>
+		Pro tento dotaz se algoritmus bude nejdříve snažit u každé položky najít cenu v měně EUR v ceníku
+		`management-price`, a pokud ji nenajde, zkusí ji najít v ceníku `employee-basic-price`. Pokud nebude ani zde,
+		vyzkouší ještě ceník `basic`. Pokud nenajde žádnou cenu, produkt ve výsledné sadě nebude. Algoritmus je velmi
+		jednoduchý, ale doposud se nám vždy podařilo najít způsob, jak na něj cenové politiky na straně zákazníka
+		převést. Často to ovšem vyžaduje předpočítání cen, které na straně ERP neexistují (protože se počítají
+		dynamicky) a trochu <a href="https://evitadb.io/documentation/solve/model-price-policies">kreativity</a>. Stále
+		zvažujeme přínosy možných rozšíření algoritmu, ale zároveň se nechceme připravit o stávající jednoduchost a
+		pochopitelnost.
+	</p>
+	<p>
+		Dalším faktorem, který ve výpočtu ceny často hraje roli, je časové hledisko. Na úrovni ceny je možné stanovit
+		její časovou platnost a do filtračního bloku přidat `<a
+			href="https://evitadb.io/documentation/query/filtering/price?lang=evitaql#price-valid-in">priceValidIn</a>`
+		podmínku, která v daném časovém okamžiku neplatné ceny vyloučí.
+	</p>
+	<p>
+		Simulace výpočtu je dostupná i v našem nástroji evitaLab. Pokud si <a
+			href="https://demo.evitadb.io/lab?sharedTab=N4IgLghgRgKgngBwKYgFwgCYUgWgOYBOAlhiADTjQAKEBEAtgM5qgDGA9gHadKthFcAkqXQYk9duRCtsEADbs8AOQYp0SAG5FIUpJ35g48ZGhBUC7DAFc+IAL4VIUACKyWIAI5WkBOABkITjwrCDw1EE1tCA85KQAzIjkwHwAhOFMCJDifPVYkAAkILSCACgAdECg6TgwKsgACPQM4QuK8EuwwYigrZIBRL3lGculLJDr6ioALEIB3JCIKgEoVqXYCMQI00ykMIkYEOQg4JAxzdmQCfiRmVABtEARielo4AGkkdIonojzBbh8ACVeOsMIUanIiEEpJ1ur0bqgOGIpD88swKPI5H52DI5DcQABdb6hJAAZSIAC81AAmACsxLCSis9CgPjQtLsdiAA">zobrazíte
+		tabulku entit</a>, které obsahují ceny (v případě demo datasetu se jedná o entitu `Product`), můžete se
+		prokliknutím buňky s cenou produktu dostat do podrobnějšího výpisu všech cen produktu. V tom můžete filtrovat
+		podle ceníku a měny, což vám umožňuje i náhled výpočtu prodejní ceny v různých situacích, a tudíž i možnost se s
+		principy výpočtu seznámit blíže:
+	</p>
+	<p>
+
+		<img src="price-grid.png" alt="Výpis cen cen v tabulce" title="Výpis cen cen v tabulce">
+
+	</p>
+	<p>
+		Výpis produktů je možné také podle prodejní ceny filtrovat. Typicky chceme mít možnost vylistovat pouze
+		produkty, které lze koupit v cenovém rozpětí, na které máme připravené finanční prostředky. Podobný dotaz včetně
+		třídění produktů dle prodejní ceny vzestupně (od nejlevnějšího k nejdražšímu) by tedy vypadal takto:
+	</p>
+
+
+	<pre>query(
+    collection("Product"),
+    filterBy(
+        priceInPriceLists("management-price", "employee-basic-price", "basic"),
+        priceInCurrency("EUR"),
+        userFilter(
+           priceBetween(100.0, 125.0)
+        )
+    ),
+    orderBy(
+      priceNatural(ASC)
+    ),
+    require(
+      entityFetch(
+        attributeContent("code"),
+        priceContentRespectingFilter()
+      )
+    )
+)
+</pre>
+	<p>
+		<em><a href="https://demo.evitadb.io/lab?demoSnippetRequest=eyJicmFuY2giOiJkZXYiLCJwYXRoIjoiZG9jdW1lbnRhdGlvbi9wdWJsaXNoaW5nL3Jvb3QuY3ovMDMtcXVlcnktYmFzaWNzL3ByaWNlLW9yZGVyaW5nLmV2aXRhcWwifQ">Vyzkoušejte
+			si dotaz v evitaLab</a></em>
+	</p>
+
+	<p>
+		V dotazu vidíte typické použití, kdy podmínka `priceBetween` je umístěna v kontejneru `userFilter` a to proto,
+		že argumenty této podmínky ovlivňuje uživatel svým zásahem a mohou být za určitých podmínek „porušeny“, kdežto
+		podmínky ležící mimo tento kontejner porušeny být nikdy nesmí. K porušení podmínek dochází například v případě
+		výpočtu `facetSummary`, kdy není vhodné, aby nastavení cenového rozmezí ovlivňovalo výpočet základního počtu
+		produktů pro jednotlivé vlastnosti.
+	</p>
+	<p>
+		Při výpočtu prodejní ceny se standardně používá cena s daní. V případě B2B segmentu je však vhodné pracovat s
+		cenami bez daně, protože plátce DPH zajímá právě tato cena. Přepnutí výpočtu na ceny bez DPH se provádí pomocí
+		`require` požadavku `<a
+			href="https://evitadb.io/documentation/query/requirements/price#price-type">priceType</a>`.
+	</p>
+
+	<h3>Výpočet ceny pro virtuální produkty s agregovanými cenami</h3>
+
+	<h4>Základní produkty</h4>
+
+	<p>
+		V prostředí e-commerce se běžně setkáváme s tzv. základními produkty (často také nazývanými mateřské, primární
+		či v angličtině master / basic / parent), které zastřešují sadu variantních produktů. Typickým příkladem mohou
+		být trička v módním katalogu, která se vyrábí v různých velikostech či barevných odstínech, a přesto se jedná o
+		stejná trička se společným motivem. Protože by byl výpis produktů v tomto případě velmi nepřehledný seskupují se
+		tyto variantní produkty do jednoho společného (zastřešujícího), nicméně virtuálního produktu, který je ve
+		výpisech zastupuje (byť se sám o sobě nedá koupit).
+	</p>
+	<p>
+		V tomto případě potřebujeme ze všech prodejních cen variantních produktů vybrat jednu z cen, která bude
+		zastupovat celou sadu. Výběr jediné ceny je nutný z toho důvodu, aby bylo možné produkt společně s ostatními
+		řadit podle prodejní ceny nebo podle prodejní ceny filtrovat.
+	</p>
+	<p>
+		Tuto úlohu modelujeme tak, že k záznamu virtuálního základního produktu přiřadíme ceny všech jeho variantních
+		produktů a použijeme pole `innerRecordId` pro odlišení sad cen jedné varianty od cen varianty druhé. Virtuálnímu
+		produktu je dále nutné nastavit režim výpočtu ceny na `LOWEST_PRICE`. Tato kombinace způsobí, že pro daný
+		produkt se nejprve vypočítají prodejní ceny pro variantní produkty (tj. separátně pro každou shodnou hodnotu
+		`innerRecordId`) a následně se vybere nejnižší z těchto prodejních cen, která se stane cenou prodejní pro
+		zastupující virtuální produkt. Drobně odlišné chování bude v případě použití `priceBetween` podmínky, kdy dojde
+		před volbou finální ceny k vyfiltrování prodejních cen variantních produktů podle zvoleného rozsahu a teprve
+		potom výběr nejnižší ceny pouze z těch, které zbyly. Tj. z pohledu uživatele dojde k nalezení virtuálního
+		produktu, pokud alespoň jednu z jeho variant lze v požadovaném cenovém rozsahu koupit a tento produkt bude
+		následně označen právě touto nejnižší cenou z požadovaného cenového rozsahu.
+	</p>
+	<p>
+		Způsob dotazování je samozřejmě shodný – změněný způsob výpočtu je daný nastavením údajů na dané entitě.
+		Následující dotaz cílí na produkty, u kterých víme, že se jedná o základní produkty a můžeme tak lépe
+		experimentovat s odlišným výpočtem:
+	</p>
+
+	<pre>query(
+    collection("Product"),
+    filterBy(
+        attributeEquals("productType", "MASTER"),
+        priceInPriceLists("management-price", "employee-basic-price", "basic"),
+        priceInCurrency("EUR"),
+        userFilter(
+           priceBetween(100.0, 125.0)
+        )
+    ),
+    require(
+      entityFetch(
+        attributeContent("code"),
+        priceContentRespectingFilter()
+      )
+    )
+)
+</pre>
+	<p>
+		<em><a href="https://demo.evitadb.io/lab?demoSnippetRequest=eyJicmFuY2giOiJkZXYiLCJwYXRoIjoiZG9jdW1lbnRhdGlvbi9wdWJsaXNoaW5nL3Jvb3QuY3ovMDMtcXVlcnktYmFzaWNzL3ByaWNlLW1hc3Rlci5ldml0YXFsIn0">Vyzkoušejte
+			si dotaz v evitaLab</a></em>
+	</p>
+
+	<p>
+		<em><strong>Poznámka:</strong> do budoucna plánujeme ještě plnohodnotnou <a
+				href="https://github.com/FgForrest/evitaDB/issues/17">podporu seskupování</a> (groupBy) na základě
+			některých atributů entity. Ta by měla umožnit řešit úlohu s variantními produkty ještě jiným způsobem, který
+			má zároveň další pozitivní dopady na problematiku parametrického (facetového) filtrování.</em>
+	</p>
+
+	<h4>Produktové sady (komplety)</h4>
+
+	<p>
+		Existuje ještě další druh virtuálních produktů a to jsou produkty, které se skládají z více položek
+		(pod-produktů) a jsou oceňovány zvlášť. Příkladem může být skříňka, která se skládá z korpusu, dvířek, pantů a
+		madel. Cena skříňky se pak skládá ze součtu cen všech těchto částí, přičemž v B2B prostředí může být tato cena
+		vypočtená různě pro různé zákazníky. Například zákazník „A“ má 30% slevu na madla a panty, kdežto zákazník „B“
+		15% slevu na korpus. Vzhledem k různorodým slevám na různé části není možné vypočítat všechny kombinace slev
+		dopředu a je nutné finální prodejní cenu počítat v reálném čase unikátně pro každého ze zákazníků.
+	</p>
+	<p>
+		Způsob práce s cenami je podobný tomu pro „základní produkty“ popsané v minulé kapitole. Na úrovni virtuálního
+		kompletu jsou evidované ceny všech jeho částí, které se od sebe odlišují identifikátorem v `innerRecordId` ceny.
+		Nicméně na úrovni entity je nastavena výpočetní strategie `SUM`. Pro tyto případy pak postupuje algoritmus tak,
+		že nejdříve vypočte prodejní ceny pro každou z jeho částí dle `innerRecordId`, následně všechny prodejní ceny
+		sečte a tím dojde k výsledné prodejní ceně celého kompletu, která se používá pro následné třídění a filtrování
+		produktů dle ceny.
+	</p>
+	<p>
+		Následujícím dotazem si můžete toto chování sami vyzkoušet:
+	</p>
+
+	<pre>query(
+    collection("Product"),
+    filterBy(
+        attributeEquals("productType", "SET"),
+        priceInPriceLists("management-price", "employee-basic-price", "basic"),
+        priceInCurrency("EUR"),
+        userFilter(
+           priceBetween(500.0, 900.0)
+        )
+    ),
+    require(
+      entityFetch(
+        attributeContent("code"),
+        priceContentRespectingFilter()
+      )
+    )
+)
+</pre>
+	<p>
+		<em><a href="https://demo.evitadb.io/lab?demoSnippetRequest=eyJicmFuY2giOiJkZXYiLCJwYXRoIjoiZG9jdW1lbnRhdGlvbi9wdWJsaXNoaW5nL3Jvb3QuY3ovMDMtcXVlcnktYmFzaWNzL3ByaWNlLXNldC5ldml0YXFsIn0">Vyzkoušejte
+			si dotaz v evitaLab</a></em>
+	</p>
+
+	<h2>Závěr</h2>
+
+	<p>
+		Celým dotazovacím jazykem se prolíná myšlenka získat jediným dotazem všechna data potřebná pro zpracování
+		uživatelského scénáře. Čím méně dotazů, tím menší daň bude nutné zaplatit ve fixních nákladech za uskutečněné
+		požadavky na databázový server (režie na zpracování HTTP požadavku jako takového). Zároveň databáze vidí mnohem
+		širší kontext a umožňuje jí to lépe optimalizovat provedení dotazu a znovu použít již vypočtené mezivýsledky při
+		zpracování dotazu.
+	</p>
+	<p>
+		Ačkoliv byla tato kapitola celkem dlouhá, je patrné, že dotazovací jazyk není tak bohatý jako jazyk SQL, ale
+		pokrývá základní functionality, které budete pro vývoj katalogového systému potřebovat. V budoucnosti chceme
+		přidat alespoň základní podporu pro <a href="https://github.com/FgForrest/evitaDB/issues/23">prostorové
+		dotazy</a>, které by nám dovolily vyhledávat body zájmu v prostoru (například výdejnomaty v oblasti). Stejně tak
+		plánujeme podporu <a href="https://github.com/FgForrest/evitaDB/issues/258">fulltextového vyhledávání</a>. Pokud
+		máte v dané oblasti expertízu a chtěli byste nám ve vývoji pomoci, ozvěte se nám na našem <a
+			href="https://discord.gg/VsNBWxgmSw">Discord kanálu</a> – jakoukoliv pomoc či konzultace s radostí uvítáme.
+	</p>
+	<p>
+		V dalším dílu našeho seriálu si povíme o webových API (GraphQL, REST, gRPC), které databáze automaticky
+		vystavuje, a které můžete využít při vývoji svých aplikací. Věříme, že po přečtení dalšího dílu a vyzkoušení
+		těchto API pochopíte hlouběji, proč je dotazovací jazyk designován takovým způsobem, jakým je.
+	</p>
+
+</article>
+</body>
+</html>

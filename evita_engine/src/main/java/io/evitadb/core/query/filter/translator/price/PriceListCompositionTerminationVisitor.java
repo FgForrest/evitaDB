@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -30,17 +30,18 @@ import io.evitadb.core.query.algebra.FormulaVisitor;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor;
 import io.evitadb.core.query.algebra.price.innerRecordHandling.PriceHandlingContainerFormula;
+import io.evitadb.core.query.algebra.price.predicate.PricePredicate;
+import io.evitadb.core.query.algebra.price.predicate.PriceRecordPredicate;
 import io.evitadb.core.query.algebra.price.priceIndex.PriceIndexProvidingFormula;
 import io.evitadb.core.query.algebra.price.termination.FirstVariantPriceTerminationFormula;
 import io.evitadb.core.query.algebra.price.termination.PlainPriceTerminationFormula;
 import io.evitadb.core.query.algebra.price.termination.PlainPriceTerminationFormulaWithPriceFilter;
 import io.evitadb.core.query.algebra.price.termination.PriceEvaluationContext;
-import io.evitadb.core.query.algebra.price.termination.PricePredicate;
 import io.evitadb.core.query.algebra.price.termination.SumPriceTerminationFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder.LookUp;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
@@ -48,6 +49,7 @@ import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.Deque;
 import java.util.HashSet;
@@ -82,11 +84,11 @@ class PriceListCompositionTerminationVisitor implements FormulaVisitor {
 	 * used to recognizing whether the container formula needs to be reconstructed with new children or old formula can
 	 * be reused (nothing has changed in its children).
 	 */
-	private final Deque<List<Formula>> stack = new LinkedList<>();
+	private final Deque<List<Formula>> stack = new ArrayDeque<>(16);
 	/**
 	 * Price filter is used to filter out entities which price doesn't match the predicate.
 	 */
-	private final PricePredicate priceFilter;
+	private final PriceRecordPredicate priceFilter;
 	/**
 	 * Field is initialized when visitor walks through entire input formula and produces modified result.
 	 */
@@ -100,7 +102,7 @@ class PriceListCompositionTerminationVisitor implements FormulaVisitor {
 	public static Formula translate(
 		@Nonnull List<Formula> formula,
 		@Nonnull QueryPriceMode queryPriceMode,
-		@Nullable PricePredicate priceFilter
+		@Nullable PriceRecordPredicate priceFilter
 	) {
 		final Formula[] result = new Formula[formula.size()];
 		for (int i = 0; i < formula.size(); i++) {
@@ -115,7 +117,7 @@ class PriceListCompositionTerminationVisitor implements FormulaVisitor {
 	}
 
 	@Override
-	public void visit(Formula formula) {
+	public void visit(@Nonnull Formula formula) {
 		final boolean notProcessedYet = !alreadyProcessedFormulas.contains(formula);
 		final Formula processedFormula;
 
@@ -175,15 +177,15 @@ class PriceListCompositionTerminationVisitor implements FormulaVisitor {
 				case NONE -> priceFilter == null ?
 					new PlainPriceTerminationFormula(containerFormula, priceEvaluationContext) :
 					new PlainPriceTerminationFormulaWithPriceFilter(containerFormula, priceEvaluationContext, priceFilter);
-				case FIRST_OCCURRENCE -> new FirstVariantPriceTerminationFormula(
+				case LOWEST_PRICE -> new FirstVariantPriceTerminationFormula(
 					containerFormula, priceEvaluationContext, queryPriceMode,
-					ofNullable(priceFilter).orElse(PricePredicate.NO_FILTER)
+					ofNullable(priceFilter).orElse(PricePredicate.ALL_RECORD_FILTER)
 				);
 				case SUM -> new SumPriceTerminationFormula(
 					containerFormula, priceEvaluationContext, queryPriceMode,
-					ofNullable(priceFilter).orElse(PricePredicate.NO_FILTER)
+					ofNullable(priceFilter).orElse(PricePredicate.ALL_RECORD_FILTER)
 				);
-				case UNKNOWN -> throw new EvitaInternalError("Can't handle unknown price inner record handling!");
+				case UNKNOWN -> throw new GenericEvitaInternalError("Can't handle unknown price inner record handling!");
 			};
 		} else {
 			// otherwise, use the produced formula

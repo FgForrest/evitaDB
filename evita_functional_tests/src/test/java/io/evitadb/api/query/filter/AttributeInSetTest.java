@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -42,9 +42,28 @@ class AttributeInSetTest {
 	}
 
 	@Test
+	void shouldCreateViaFactoryClassWorkAsExpectedNullInArray() {
+		final AttributeInSet attributeInSet = attributeInSet("refs", 1, null, 5);
+		assertArrayEquals(new Comparable<?>[] {1, 5}, attributeInSet.getAttributeValues());
+	}
+
+	@Test
+	void shouldCreateViaFactoryClassWorkAsExpectedForNullVariable() {
+		final Integer nullInteger = null;
+		final AttributeInSet attributeInSet = attributeInSet("refs", nullInteger);
+		assertNull(attributeInSet);
+	}
+
+	@Test
+	void shouldCreateViaFactoryClassWorkAsExpectedNullValueInArray() {
+		final AttributeInSet attributeInSet = attributeInSet("refs", new Integer[0]);
+		assertArrayEquals(new Comparable<?>[0], attributeInSet.getAttributeValues());
+	}
+
+	@Test
 	void shouldRecognizeApplicability() {
 		assertFalse(new AttributeInSet(null).isApplicable());
-		assertFalse(new AttributeInSet("refs").isApplicable());
+		assertTrue(new AttributeInSet("refs").isApplicable());
 		assertTrue(attributeInSet("refs", 1).isApplicable());
 		assertTrue(attributeInSet("refs", 1, 2).isApplicable());
 	}

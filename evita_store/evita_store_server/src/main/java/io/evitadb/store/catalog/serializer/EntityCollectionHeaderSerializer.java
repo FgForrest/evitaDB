@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -39,29 +39,30 @@ import java.util.stream.Collectors;
 
 /**
  * This {@link Serializer} implementation reads/writes {@link EntityCollectionHeader} from/to binary format.
+ * TOBEDONE #538 - Remove this class in the future.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
+@Deprecated
 public class EntityCollectionHeaderSerializer extends AbstractPersistentStorageHeaderSerializer<EntityCollectionHeader> {
 
 	@Override
 	public void write(Kryo kryo, Output output, EntityCollectionHeader object) {
-		output.writeString(object.getEntityType());
-		output.writeVarInt(object.getEntityTypePrimaryKey(), true);
-		output.writeVarLong(object.getVersion(), true);
-		output.writeVarInt(object.getLastPrimaryKey(), true);
-		output.writeVarInt(object.getLastEntityIndexPrimaryKey(), true);
-		output.writeVarInt(object.getRecordCount(), true);
+		output.writeString(object.entityType());
+		output.writeVarInt(object.entityTypePrimaryKey(), true);
+		output.writeVarInt(object.entityTypeFileIndex(), true);
+		output.writeVarLong(object.version(), true);
+		output.writeVarInt(object.lastPrimaryKey(), true);
+		output.writeVarInt(object.lastEntityIndexPrimaryKey(), true);
+		output.writeVarInt(object.recordCount(), true);
+		output.writeDouble(object.activeRecordShare());
 
-		final FileLocation memTableLocation = object.getFileLocation();
-		output.writeBoolean(memTableLocation != null);
-		if (memTableLocation != null) {
-			output.writeVarLong(memTableLocation.startingPosition(), true);
-			output.writeVarInt(memTableLocation.recordLength(), true);
-		}
+		final FileLocation fileOffsetIndexLocation = object.fileLocation();
+		output.writeVarLong(fileOffsetIndexLocation.startingPosition(), true);
+		output.writeVarInt(fileOffsetIndexLocation.recordLength(), true);
 
-		serializeKeys(object.getCompressedKeys(), output, kryo);
-		kryo.writeObjectOrNull(output, object.getGlobalEntityIndexId(), Integer.class);
+		serializeKeys(object.compressedKeys(), output, kryo);
+		kryo.writeObjectOrNull(output, object.globalEntityIndexId(), Integer.class);
 		serializeEntityIndexIds(output, object);
 	}
 
@@ -69,35 +70,51 @@ public class EntityCollectionHeaderSerializer extends AbstractPersistentStorageH
 	public EntityCollectionHeader read(Kryo kryo, Input input, Class<? extends EntityCollectionHeader> type) {
 		final String entityType = input.readString();
 		final int entityTypePrimaryKey = input.readVarInt(true);
+		final int entityTypeFileIndex = input.readVarInt(true);
 		final long version = input.readVarLong(true);
 		final int lastPrimaryKey = input.readVarInt(true);
 		final int lastEntityIndexPrimaryKey = input.readVarInt(true);
 		final int entityCount = input.readVarInt(true);
-		final FileLocation memTableLocation = input.readBoolean() ?
-			new FileLocation(
+		final double activeRecordShare = input.readDouble();
+		final FileLocation fileOffsetIndexLocation = new FileLocation(
 				input.readVarLong(true),
 				input.readVarInt(true)
-			) : null;
+			);
 		final Map<Integer, Object> keys = deserializeKeys(input, kryo);
 
 		final Integer globalIndexKey = kryo.readObjectOrNull(input, Integer.class);
 		final List<Integer> entityIndexIds = deserializeEntityIndexIds(input);
 
 		return new EntityCollectionHeader(
-			entityType, entityTypePrimaryKey, entityCount, lastPrimaryKey, lastEntityIndexPrimaryKey,
-			new PersistentStorageHeader(version, memTableLocation, keys),
-			globalIndexKey, entityIndexIds
+			entityType,
+			entityTypePrimaryKey,
+			entityTypeFileIndex,
+			entityCount,
+			lastPrimaryKey,
+			lastEntityIndexPrimaryKey,
+			activeRecordShare,
+			new PersistentStorageHeader(version, fileOffsetIndexLocation, keys),
+			globalIndexKey,
+			entityIndexIds
 		);
 	}
 
-	private void serializeEntityIndexIds(@Nonnull Output output, @Nonnull EntityCollectionHeader catalogEntityHeader) {
-		final int entityIndexCount = catalogEntityHeader.getUsedEntityIndexIds().size();
+	private static void serializeEntityIndexIds(@Nonnull Output output, @Nonnull EntityCollectionHeader catalogEntityHeader) {
+		final int entityIndexCount = catalogEntityHeader.usedEntityIndexIds().size();
 		output.writeVarInt(entityIndexCount, true);
-		output.writeInts(catalogEntityHeader.getUsedEntityIndexIds().stream().mapToInt(it -> it).toArray(), 0, entityIndexCount, true);
+		output.writeInts(
+			catalogEntityHeader.usedEntityIndexIds()
+				.stream()
+				.mapToInt(it -> it)
+				.toArray(),
+			0,
+			entityIndexCount,
+			true
+		);
 	}
 
 	@Nonnull
-	private List<Integer> deserializeEntityIndexIds(@Nonnull Input input) {
+	private static List<Integer> deserializeEntityIndexIds(@Nonnull Input input) {
 		final int entityIndexCount = input.readVarInt(true);
 		return Arrays.stream(input.readInts(entityIndexCount, true))
 			.boxed()

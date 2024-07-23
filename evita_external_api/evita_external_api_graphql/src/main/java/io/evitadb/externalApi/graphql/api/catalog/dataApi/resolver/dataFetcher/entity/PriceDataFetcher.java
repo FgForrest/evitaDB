@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -45,8 +45,12 @@ import java.util.Optional;
  * to select the valid one at the moment. If not specified by user in entity, datetime of query execution start is used.
  * Expects entity to be {@link EntityDecorator} to hold needed price parameters (validIn, currency ...).
  *
+ * @deprecated The entire `price` field on entities doesn't correctly return price according to price for sale and doesn't
+ *      respect price inner record handling. Use `accompanyingPrice` fields within `priceForSale` field instead.
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
+// TOBEDONE #538: deprecated, remove
+@Deprecated
 public class PriceDataFetcher implements DataFetcher<DataFetcherResult<PriceContract>> {
 
     @Nonnull

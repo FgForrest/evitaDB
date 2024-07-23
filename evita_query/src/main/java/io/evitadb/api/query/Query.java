@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -30,6 +30,7 @@ import io.evitadb.api.query.require.Require;
 import io.evitadb.api.query.visitor.PrettyPrintingVisitor;
 import io.evitadb.api.query.visitor.PrettyPrintingVisitor.StringWithParameters;
 import io.evitadb.api.query.visitor.QueryPurifierVisitor;
+import io.evitadb.utils.PrettyPrintable;
 import lombok.EqualsAndHashCode;
 import lombok.EqualsAndHashCode.CacheStrategy;
 
@@ -62,7 +63,7 @@ import java.util.function.UnaryOperator;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @EqualsAndHashCode(of = {"collection", "filterBy", "orderBy", "require"}, cacheStrategy = CacheStrategy.LAZY)
-public class Query implements Serializable {
+public class Query implements Serializable, PrettyPrintable {
 	@Serial private static final long serialVersionUID = -1797234436133920949L;
 
 	@Nullable private final Collection collection;

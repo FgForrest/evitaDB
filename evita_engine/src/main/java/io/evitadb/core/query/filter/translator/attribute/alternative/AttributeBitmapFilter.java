@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -28,12 +28,12 @@ import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
-import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.prefetch.EntityToBitmapFilter;
-import io.evitadb.core.query.filter.FilterByVisitor;
+import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.function.TriFunction;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
@@ -50,7 +50,7 @@ import java.util.stream.Stream;
 
 /**
  * Implementation of {@link EntityToBitmapFilter} that verifies that the entity has the appropriate attribute value
- * matching the {@link #filter} predicate.
+ * matching the {@link EntityToBitmapFilter#filter} predicate.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -107,8 +107,8 @@ public class AttributeBitmapFilter implements EntityToBitmapFilter {
 
 	@Nonnull
 	@Override
-	public Bitmap filter(@Nonnull FilterByVisitor filterByVisitor) {
-		final List<EntityDecorator> prefetchedEntities = filterByVisitor.getPrefetchedEntities();
+	public Bitmap filter(@Nonnull QueryExecutionContext context) {
+		final List<ServerEntityDecorator> prefetchedEntities = context.getPrefetchedEntities();
 		if (prefetchedEntities == null) {
 			return EmptyBitmap.INSTANCE;
 		} else {
@@ -119,7 +119,7 @@ public class AttributeBitmapFilter implements EntityToBitmapFilter {
 			for (SealedEntity entity : prefetchedEntities) {
 			/* we can be sure entities are sorted by type because:
 			   1. all entities share the same type
-			   2. or entities are fetched via {@link QueryContext#prefetchEntities(EntityReference[], EntityContentRequire[])}
+			   2. or entities are fetched via {@link QueryPlanningContext#prefetchEntities(EntityReference[], EntityContentRequire[])}
 			      that fetches them by entity type in bulk
 			*/
 				final EntitySchemaContract entitySchema = entity.getSchema();
@@ -131,8 +131,11 @@ public class AttributeBitmapFilter implements EntityToBitmapFilter {
 					filter = filterFactory.apply(attributeSchema);
 				}
 				// and filter by predicate
-				if (filter != null && filter.test(attributeValueAccessor.apply(entity, attributeName))) {
-					result.add(filterByVisitor.translateEntity(entity));
+				if (filter != null) {
+					final Stream<Optional<AttributeValue>> valueStream = attributeValueAccessor.apply(entity, attributeName);
+					if (valueStream != null && filter.test(valueStream)) {
+						result.add(context.translateEntity(entity));
+					}
 				}
 			}
 			return result;

@@ -1,13 +1,13 @@
 query(
-    collection('Brand'),
+    collection("Brand"),
     filterBy(
         entityPrimaryKeyInSet(64703),
-        entityLocaleEquals('cs')
+        entityLocaleEquals("cs")
     ),
     require(
         entityFetch(
-            attributeContent('code', 'name'),
-            dataInLocales('cs', 'en')
+            attributeContent("code", "name"),
+            dataInLocales("cs", "en")
         )
     )
 )

@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,10 +23,17 @@
 
 package io.evitadb.store.spi;
 
+import io.evitadb.api.CatalogContract;
 import io.evitadb.api.configuration.StorageOptions;
+import io.evitadb.api.configuration.TransactionOptions;
+import io.evitadb.core.async.ClientRunnableTask;
+import io.evitadb.core.async.Scheduler;
+import io.evitadb.core.file.ExportFileService;
+import io.evitadb.store.exception.InvalidStoragePathException;
+import io.evitadb.store.spi.exception.DirectoryNotEmptyException;
 
 import javax.annotation.Nonnull;
-import java.nio.file.Path;
+import java.io.InputStream;
 
 /**
  * This interface and layer of abstraction was introduced because we want to split data storage / serialization and
@@ -58,7 +65,12 @@ public interface CatalogPersistenceServiceFactory {
 	 */
 	@Nonnull
 	CatalogPersistenceService createNew(
-		String catalogName, @Nonnull StorageOptions storageOptions
+		@Nonnull CatalogContract catalogInstance,
+		@Nonnull String catalogName,
+		@Nonnull StorageOptions storageOptions,
+		@Nonnull TransactionOptions transactionOptions,
+		@Nonnull Scheduler scheduler,
+		@Nonnull ExportFileService exportFileService
 	);
 
 	/**
@@ -67,9 +79,32 @@ public interface CatalogPersistenceServiceFactory {
 	 */
 	@Nonnull
 	CatalogPersistenceService load(
+		@Nonnull CatalogContract catalogInstance,
 		@Nonnull String catalogName,
-		@Nonnull Path catalogStoragePath,
-		@Nonnull StorageOptions storageOptions
+		@Nonnull StorageOptions storageOptions,
+		@Nonnull TransactionOptions transactionOptions,
+		@Nonnull Scheduler scheduler,
+		@Nonnull ExportFileService exportFileService
 	);
+
+	/**
+	 * Checks whether it's possible to create catalog of particular name in the storage directory.
+	 *
+	 * @param catalogName name of the catalog
+	 * @param storageOptions storage options
+	 * @param totalBytesExpected total bytes expected to be read from the input stream
+	 * @param inputStream input stream with the catalog data
+	 * @return normalized name of the catalog to be created in storage directory
+	 *
+	 * @throws DirectoryNotEmptyException if the directory is not empty
+	 * @throws InvalidStoragePathException if the storage path is invalid
+	 */
+	@Nonnull
+	ClientRunnableTask<?> restoreCatalogTo(
+		@Nonnull String catalogName,
+		@Nonnull StorageOptions storageOptions,
+		long totalBytesExpected,
+		@Nonnull InputStream inputStream
+	) throws DirectoryNotEmptyException, InvalidStoragePathException;
 
 }

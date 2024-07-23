@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,25 +23,27 @@
 
 package io.evitadb.index.attribute;
 
+import io.evitadb.api.exception.EntityLocaleMissingException;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.core.Transaction;
+import io.evitadb.core.transaction.memory.TransactionalContainerChanges;
+import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
+import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
+import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.dataType.Predecessor;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.attribute.AttributeIndex.AttributeIndexChanges;
 import io.evitadb.index.attribute.SortIndex.ComparatorSource;
 import io.evitadb.index.map.MapChanges;
 import io.evitadb.index.map.TransactionalMap;
-import io.evitadb.index.transactionalMemory.TransactionalContainerChanges;
-import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
-import io.evitadb.index.transactionalMemory.TransactionalLayerProducer;
-import io.evitadb.index.transactionalMemory.TransactionalObjectVersion;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStorageKey;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
+import io.evitadb.utils.Assert;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -60,7 +62,6 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static io.evitadb.core.Transaction.getTransactionalMemoryLayer;
 import static io.evitadb.core.Transaction.isTransactionAvailable;
 import static io.evitadb.utils.Assert.isTrue;
 import static io.evitadb.utils.Assert.notNull;
@@ -70,13 +71,13 @@ import static java.util.Optional.ofNullable;
 /**
  * Attribute index maintains search look-up indexes for {@link Entity#getAttributeValues()} - i.e. unique, filter
  * and sort index. {@link AttributeIndex} handles all attribute indexes for the {@link Entity#getType()}.
- * 
+ *
  * Thread safety:
- * 
+ *
  * Histogram supports transaction memory. This means, that the histogram can be updated by multiple writers and also
  * multiple readers can read from its original array without spotting the changes made in transactional access. Each
  * transaction is bound to the same thread and different threads doesn't see changes in another threads.
- * 
+ *
  * If no transaction is opened, changes are applied directly to the delegate array. In such case the class is not thread
  * safe for multiple writers!
  *
@@ -135,7 +136,16 @@ public class AttributeIndex implements AttributeIndexContract,
 	}
 
 	/**
-	 * Method creates and verifies validity of attribute key from passed arguments.
+	 * Method creates an attribute key based on the given attribute schema, allowed locales, locale, and value.
+	 * If the attribute schema is localized, it verifies whether the provided locale is allowed and returns
+	 * a new AttributeKey object with the attribute name and locale. If the attribute schema is not localized,
+	 * it returns a new AttributeKey object with only the attribute name.
+	 *
+	 * @param attributeSchema The attribute schema contract.
+	 * @param allowedLocales The set of allowed locales for the entity.
+	 * @param locale The locale to be checked against the allowed locales.
+	 * @param value The value of the attribute.
+	 * @return An AttributeKey object with the attribute name and optional locale.
 	 */
 	@Nonnull
 	public static AttributeKey createAttributeKey(
@@ -146,6 +156,34 @@ public class AttributeIndex implements AttributeIndexContract,
 	) {
 		if (attributeSchema.isLocalized()) {
 			verifyLocalizedAttribute(attributeSchema.getName(), allowedLocales, locale, value);
+			return new AttributeKey(attributeSchema.getName(), locale);
+		} else {
+			return new AttributeKey(attributeSchema.getName());
+		}
+	}
+
+	/**
+	 * Method creates and verifies validity of attribute key from passed arguments.
+	 * This method can be used only for unique indexes and differs from {@link #createAttributeKey(AttributeSchemaContract, Set, Locale, Object)}
+	 * in the sense that it creates locale specific key only if {@link AttributeSchemaContract#isUniqueWithinLocale()} is true.
+	 *
+	 * @param attributeSchema The attribute schema contract.
+	 * @param allowedLocales The set of allowed locales.
+	 * @param locale The locale (can be null).
+	 * @param value The attribute value.
+	 * @return An AttributeKey object with the attribute name and optional locale.
+	 */
+	@Nonnull
+	public static AttributeKey createUniqueAttributeKey(
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull Set<Locale> allowedLocales,
+		@Nullable Locale locale,
+		@Nonnull Object value
+	) {
+		if (attributeSchema.isLocalized()) {
+			verifyLocalizedAttribute(attributeSchema.getName(), allowedLocales, locale, value);
+		}
+		if (attributeSchema.isUniqueWithinLocale()) {
 			return new AttributeKey(attributeSchema.getName(), locale);
 		} else {
 			return new AttributeKey(attributeSchema.getName());
@@ -177,10 +215,14 @@ public class AttributeIndex implements AttributeIndexContract,
 	@Override
 	public void insertUniqueAttribute(@Nonnull AttributeSchemaContract attributeSchema, @Nonnull Set<Locale> allowedLocales, @Nullable Locale locale, @Nonnull Object value, int recordId) {
 		final UniqueIndex theUniqueIndex = this.uniqueIndex.computeIfAbsent(
-			createAttributeKey(attributeSchema, allowedLocales, locale, value),
+			createUniqueAttributeKey(attributeSchema, allowedLocales, locale, value),
 			lookupKey -> {
-				final UniqueIndex newUniqueIndex = new UniqueIndex(entityType, attributeSchema.getName(), attributeSchema.getType());
-				ofNullable(getTransactionalMemoryLayer(this))
+				final UniqueIndex newUniqueIndex = new UniqueIndex(
+					entityType,
+					lookupKey,
+					attributeSchema.getType()
+				);
+				ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
 					.ifPresent(it -> it.addCreatedItem(newUniqueIndex));
 				return newUniqueIndex;
 			}
@@ -196,14 +238,14 @@ public class AttributeIndex implements AttributeIndexContract,
 		@Nonnull Object value,
 		int recordId
 	) {
-		final AttributeKey lookupKey = createAttributeKey(attributeSchema, allowedLocales, locale, value);
+		final AttributeKey lookupKey = createUniqueAttributeKey(attributeSchema, allowedLocales, locale, value);
 		final UniqueIndex theUniqueIndex = this.uniqueIndex.get(lookupKey);
-		notNull(theUniqueIndex, "Unique index for attribute " + attributeSchema.getName() + " not found!");
+		notNull(theUniqueIndex, "Unique index for attribute `" + attributeSchema.getName() + "` not found!");
 		theUniqueIndex.unregisterUniqueKey(value, recordId);
 
 		if (theUniqueIndex.isEmpty()) {
 			this.uniqueIndex.remove(lookupKey);
-			ofNullable(getTransactionalMemoryLayer(this))
+			ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
 				.ifPresent(it -> it.addRemovedItem(theUniqueIndex));
 		}
 	}
@@ -219,8 +261,8 @@ public class AttributeIndex implements AttributeIndexContract,
 		final FilterIndex theFilterIndex = this.filterIndex.computeIfAbsent(
 			createAttributeKey(attributeSchema, allowedLocales, locale, value),
 			lookupKey -> {
-				final FilterIndex newFilterIndex = new FilterIndex(attributeSchema.getPlainType());
-				ofNullable(getTransactionalMemoryLayer(this))
+				final FilterIndex newFilterIndex = new FilterIndex(lookupKey, attributeSchema.getPlainType());
+				ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
 					.ifPresent(it -> it.addCreatedItem(newFilterIndex));
 				return newFilterIndex;
 			}
@@ -243,7 +285,7 @@ public class AttributeIndex implements AttributeIndexContract,
 
 		if (theFilterIndex.isEmpty()) {
 			this.filterIndex.remove(lookupKey);
-			ofNullable(getTransactionalMemoryLayer(this))
+			ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
 				.ifPresent(it -> it.addRemovedItem(theFilterIndex));
 		}
 	}
@@ -259,8 +301,8 @@ public class AttributeIndex implements AttributeIndexContract,
 		final FilterIndex theFilterIndex = this.filterIndex.computeIfAbsent(
 			createAttributeKey(attributeSchema, allowedLocales, locale, value),
 			lookupKey -> {
-				final FilterIndex newFilterIndex = new FilterIndex(attributeSchema.getPlainType());
-				ofNullable(getTransactionalMemoryLayer(this))
+				final FilterIndex newFilterIndex = new FilterIndex(lookupKey, attributeSchema.getPlainType());
+				ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
 					.ifPresent(it -> it.addCreatedItem(newFilterIndex));
 				return newFilterIndex;
 			}
@@ -283,7 +325,7 @@ public class AttributeIndex implements AttributeIndexContract,
 
 		if (theFilterIndex.isEmpty()) {
 			this.filterIndex.remove(lookupKey);
-			ofNullable(getTransactionalMemoryLayer(this))
+			ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
 				.ifPresent(it -> it.addRemovedItem(theFilterIndex));
 		}
 	}
@@ -296,12 +338,13 @@ public class AttributeIndex implements AttributeIndexContract,
 		@Nonnull Object value,
 		int recordId
 	) {
+		final AttributeKey attributeKey = createAttributeKey(attributeSchema, allowedLocales, locale, value);
 		if (value instanceof Predecessor predecessor) {
 			final ChainIndex theSortIndex = this.chainIndex.computeIfAbsent(
-				createAttributeKey(attributeSchema, allowedLocales, locale, value),
+				attributeKey,
 				lookupKey -> {
-					final ChainIndex newSortIndex = new ChainIndex();
-					ofNullable(getTransactionalMemoryLayer(this))
+					final ChainIndex newSortIndex = new ChainIndex(lookupKey);
+					ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
 						.ifPresent(it -> it.addCreatedItem(newSortIndex));
 					return newSortIndex;
 				}
@@ -309,10 +352,10 @@ public class AttributeIndex implements AttributeIndexContract,
 			theSortIndex.upsertPredecessor(predecessor, recordId);
 		} else {
 			final SortIndex theSortIndex = this.sortIndex.computeIfAbsent(
-				createAttributeKey(attributeSchema, allowedLocales, locale, value),
+				attributeKey,
 				lookupKey -> {
-					final SortIndex newSortIndex = new SortIndex(attributeSchema.getPlainType(), locale);
-					ofNullable(getTransactionalMemoryLayer(this))
+					final SortIndex newSortIndex = new SortIndex(attributeSchema.getPlainType(), lookupKey);
+					ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
 						.ifPresent(it -> it.addCreatedItem(newSortIndex));
 					return newSortIndex;
 				}
@@ -324,7 +367,7 @@ public class AttributeIndex implements AttributeIndexContract,
 	@Override
 	public void removeSortAttribute(@Nonnull AttributeSchemaContract attributeSchema, @Nonnull Set<Locale> allowedLocales, @Nullable Locale locale, @Nonnull Object value, int recordId) {
 		final AttributeKey lookupKey = createAttributeKey(attributeSchema, allowedLocales, locale, value);
-		
+
 		if (Predecessor.class.equals(attributeSchema.getType())) {
 			final ChainIndex theChainIndex = this.chainIndex.get(lookupKey);
 			notNull(theChainIndex, "Chain index for attribute `" + attributeSchema.getName() + "` not found!");
@@ -332,7 +375,7 @@ public class AttributeIndex implements AttributeIndexContract,
 
 			if (theChainIndex.isEmpty()) {
 				this.chainIndex.remove(lookupKey);
-				ofNullable(getTransactionalMemoryLayer(this))
+				ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
 					.ifPresent(it -> it.addRemovedItem(theChainIndex));
 			}
 		} else {
@@ -342,7 +385,7 @@ public class AttributeIndex implements AttributeIndexContract,
 
 			if (theSortIndex.isEmpty()) {
 				this.sortIndex.remove(lookupKey);
-				ofNullable(getTransactionalMemoryLayer(this))
+				ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
 					.ifPresent(it -> it.addRemovedItem(theSortIndex));
 			}
 		}
@@ -356,10 +399,11 @@ public class AttributeIndex implements AttributeIndexContract,
 		@Nonnull Object[] value,
 		int recordId
 	) {
+		final AttributeKey attributeKey = locale == null ?
+			new AttributeKey(compoundSchemaContract.getName()) :
+			new AttributeKey(compoundSchemaContract.getName(), locale);
 		final SortIndex theSortIndex = this.sortIndex.computeIfAbsent(
-			locale == null ?
-				new AttributeKey(compoundSchemaContract.getName()) :
-				new AttributeKey(compoundSchemaContract.getName(), locale),
+			attributeKey,
 			lookupKey -> {
 				final SortIndex newSortIndex = new SortIndex(
 					compoundSchemaContract.getAttributeElements()
@@ -370,9 +414,9 @@ public class AttributeIndex implements AttributeIndexContract,
 							it.behaviour()
 						))
 						.toArray(ComparatorSource[]::new),
-					locale
+					lookupKey
 				);
-				ofNullable(getTransactionalMemoryLayer(this))
+				ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
 					.ifPresent(it -> it.addCreatedItem(newSortIndex));
 				return newSortIndex;
 			}
@@ -397,7 +441,7 @@ public class AttributeIndex implements AttributeIndexContract,
 
 		if (theSortIndex.isEmpty()) {
 			this.sortIndex.remove(lookupKey);
-			ofNullable(getTransactionalMemoryLayer(this))
+			ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
 				.ifPresent(it -> it.addRemovedItem(theSortIndex));
 		}
 	}
@@ -410,16 +454,16 @@ public class AttributeIndex implements AttributeIndexContract,
 
 	@Override
 	@Nullable
-	public UniqueIndex getUniqueIndex(@Nonnull AttributeKey lookupKey) {
-		return this.uniqueIndex.get(lookupKey);
-	}
-
-	@Override
-	@Nullable
-	public UniqueIndex getUniqueIndex(@Nonnull String attributeName, @Nullable Locale locale) {
-		return ofNullable(locale)
-			.map(it -> this.uniqueIndex.get(new AttributeKey(attributeName, locale)))
-			.orElseGet(() -> this.uniqueIndex.get(new AttributeKey(attributeName)));
+	public UniqueIndex getUniqueIndex(@Nonnull AttributeSchemaContract attributeSchema, @Nullable Locale locale) {
+		final boolean uniqueWithinLocale = attributeSchema.isUniqueWithinLocale();
+		Assert.isTrue(
+			locale != null || !uniqueWithinLocale,
+			() -> new EntityLocaleMissingException(attributeSchema.getName())
+		);
+		final AttributeKey attributeKey = uniqueWithinLocale ?
+			new AttributeKey(attributeSchema.getName(), locale) :
+			new AttributeKey(attributeSchema.getName());
+		return this.uniqueIndex.get(attributeKey);
 	}
 
 	@Override
@@ -493,19 +537,19 @@ public class AttributeIndex implements AttributeIndexContract,
 	public Collection<StoragePart> getModifiedStorageParts(int entityIndexPrimaryKey) {
 		final List<StoragePart> dirtyParts = new LinkedList<>();
 		for (Entry<AttributeKey, UniqueIndex> entry : uniqueIndex.entrySet()) {
-			ofNullable(entry.getValue().createStoragePart(entityIndexPrimaryKey, entry.getKey()))
+			ofNullable(entry.getValue().createStoragePart(entityIndexPrimaryKey))
 				.ifPresent(dirtyParts::add);
 		}
 		for (Entry<AttributeKey, FilterIndex> entry : filterIndex.entrySet()) {
-			ofNullable(entry.getValue().createStoragePart(entityIndexPrimaryKey, entry.getKey()))
+			ofNullable(entry.getValue().createStoragePart(entityIndexPrimaryKey))
 				.ifPresent(dirtyParts::add);
 		}
 		for (Entry<AttributeKey, SortIndex> entry : sortIndex.entrySet()) {
-			ofNullable(entry.getValue().createStoragePart(entityIndexPrimaryKey, entry.getKey()))
+			ofNullable(entry.getValue().createStoragePart(entityIndexPrimaryKey))
 				.ifPresent(dirtyParts::add);
 		}
 		for (Entry<AttributeKey, ChainIndex> entry : chainIndex.entrySet()) {
-			ofNullable(entry.getValue().createStoragePart(entityIndexPrimaryKey, entry.getKey()))
+			ofNullable(entry.getValue().createStoragePart(entityIndexPrimaryKey))
 				.ifPresent(dirtyParts::add);
 		}
 		return dirtyParts;
@@ -539,13 +583,13 @@ public class AttributeIndex implements AttributeIndexContract,
 
 	@Nonnull
 	@Override
-	public AttributeIndex createCopyWithMergedTransactionalMemory(AttributeIndexChanges layer, @Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Transaction transaction) {
+	public AttributeIndex createCopyWithMergedTransactionalMemory(AttributeIndexChanges layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		final AttributeIndex attributeIndex = new AttributeIndex(
 			entityType,
-			transactionalLayer.getStateCopyWithCommittedChanges(uniqueIndex, transaction),
-			transactionalLayer.getStateCopyWithCommittedChanges(filterIndex, transaction),
-			transactionalLayer.getStateCopyWithCommittedChanges(sortIndex, transaction),
-			transactionalLayer.getStateCopyWithCommittedChanges(chainIndex, transaction)
+			transactionalLayer.getStateCopyWithCommittedChanges(uniqueIndex),
+			transactionalLayer.getStateCopyWithCommittedChanges(filterIndex),
+			transactionalLayer.getStateCopyWithCommittedChanges(sortIndex),
+			transactionalLayer.getStateCopyWithCommittedChanges(chainIndex)
 		);
 		ofNullable(layer).ifPresent(it -> it.clean(transactionalLayer));
 		return attributeIndex;
@@ -571,24 +615,24 @@ public class AttributeIndex implements AttributeIndexContract,
 			final AttributeKey attribute = storageKey.attribute();
 			final UniqueIndex theUniqueIndex = this.uniqueIndex.get(attribute);
 			notNull(theUniqueIndex, "Unique index for attribute `" + attribute + "` was not found!");
-			return theUniqueIndex.createStoragePart(entityIndexPrimaryKey, attribute);
+			return theUniqueIndex.createStoragePart(entityIndexPrimaryKey);
 		} else if (indexType == AttributeIndexType.FILTER) {
 			final AttributeKey attribute = storageKey.attribute();
 			final FilterIndex theFilterIndex = this.filterIndex.get(attribute);
 			notNull(theFilterIndex, "Filter index for attribute `" + attribute + "` was not found!");
-			return theFilterIndex.createStoragePart(entityIndexPrimaryKey, attribute);
+			return theFilterIndex.createStoragePart(entityIndexPrimaryKey);
 		} else if (indexType == AttributeIndexType.SORT) {
 			final AttributeKey attribute = storageKey.attribute();
 			final SortIndex theSortIndex = this.sortIndex.get(attribute);
 			notNull(theSortIndex, "Sort index for attribute `" + attribute + "` was not found!");
-			return theSortIndex.createStoragePart(entityIndexPrimaryKey, attribute);
+			return theSortIndex.createStoragePart(entityIndexPrimaryKey);
 		} else if (indexType == AttributeIndexType.CHAIN) {
 			final AttributeKey attribute = storageKey.attribute();
 			final ChainIndex theChainIndex = this.chainIndex.get(attribute);
 			notNull(theChainIndex, "Chain index for attribute `" + attribute + "` was not found!");
-			return theChainIndex.createStoragePart(entityIndexPrimaryKey, attribute);
+			return theChainIndex.createStoragePart(entityIndexPrimaryKey);
 		} else {
-			throw new EvitaInternalError("Cannot handle attribute storage part key of type `" + indexType + "`");
+			throw new GenericEvitaInternalError("Cannot handle attribute storage part key of type `" + indexType + "`");
 		}
 	}
 

@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -325,9 +325,17 @@ public class FullResponseObjectBuilder {
 			localized
 		);
 
-		return newProperty()
-			.name(referenceSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION))
-			.type(arrayOf(facetGroupStatisticsObject))
+		final boolean isGrouped = referenceSchema.getReferencedGroupType() != null;
+
+		final OpenApiProperty.Builder facetGroupStatisticsFieldBuilder = newProperty()
+			.name(referenceSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION));
+		if (isGrouped) {
+			facetGroupStatisticsFieldBuilder.type(arrayOf(facetGroupStatisticsObject));
+		} else {
+			facetGroupStatisticsFieldBuilder.type(facetGroupStatisticsObject);
+		}
+
+		return facetGroupStatisticsFieldBuilder
 			.build();
 	}
 
@@ -351,18 +359,23 @@ public class FullResponseObjectBuilder {
 			localized
 		);
 
-		final OpenApiObject facetGroupStatisticsObject = FacetGroupStatisticsDescriptor.THIS
+		final OpenApiObject.Builder facetGroupStatisticsObjectBuilder = FacetGroupStatisticsDescriptor.THIS
 			.to(objectBuilderTransformer)
-			.name(constructFacetGroupStatisticsObjectName(entitySchema, referenceSchema, localized))
-			.property(FacetGroupStatisticsDescriptor.GROUP_ENTITY
-				.to(propertyBuilderTransformer)
-				.type(groupEntityObject))
+			.name(constructFacetGroupStatisticsObjectName(entitySchema, referenceSchema, localized));
+
+		if (referenceSchema.getReferencedGroupType() != null) {
+			facetGroupStatisticsObjectBuilder
+				.property(FacetGroupStatisticsDescriptor.GROUP_ENTITY
+					.to(propertyBuilderTransformer)
+					.type(groupEntityObject));
+		}
+
+		facetGroupStatisticsObjectBuilder
 			.property(FacetGroupStatisticsDescriptor.FACET_STATISTICS
 				.to(propertyBuilderTransformer)
-				.type(nonNull(arrayOf(facetStatisticsObject))))
-			.build();
+				.type(nonNull(arrayOf(facetStatisticsObject))));
 
-		return buildingContext.registerType(facetGroupStatisticsObject);
+		return buildingContext.registerType(facetGroupStatisticsObjectBuilder.build());
 	}
 
 	@Nonnull

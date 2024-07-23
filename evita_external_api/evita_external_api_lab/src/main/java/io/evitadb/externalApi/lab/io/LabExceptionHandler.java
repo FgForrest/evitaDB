@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -24,9 +24,9 @@
 package io.evitadb.externalApi.lab.io;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.linecorp.armeria.server.HttpService;
 import io.evitadb.externalApi.lab.LabProvider;
 import io.evitadb.externalApi.rest.io.RestExceptionHandler;
-import io.undertow.server.HttpHandler;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -39,7 +39,7 @@ import javax.annotation.Nonnull;
 @Slf4j
 public class LabExceptionHandler extends RestExceptionHandler {
 
-    public LabExceptionHandler(@Nonnull ObjectMapper objectMapper, @Nonnull HttpHandler next) {
+    public LabExceptionHandler(@Nonnull ObjectMapper objectMapper, @Nonnull HttpService next) {
         super(objectMapper, next);
     }
 

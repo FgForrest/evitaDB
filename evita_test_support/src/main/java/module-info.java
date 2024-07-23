@@ -16,6 +16,7 @@ module evita.test.support {
 	requires org.slf4j;
 	requires ch.qos.logback.core;
 	requires rest.assured;
+	requires java.net.http;
 
 	requires evita.api;
 	requires evita.engine;
@@ -32,4 +33,6 @@ module evita.test.support {
 	requires evita.external.api.graphql;
 	requires evita.external.api.rest;
 	requires evita.external.api.lab;
+	requires okhttp3;
+	requires evita.external.api.observability;
 }

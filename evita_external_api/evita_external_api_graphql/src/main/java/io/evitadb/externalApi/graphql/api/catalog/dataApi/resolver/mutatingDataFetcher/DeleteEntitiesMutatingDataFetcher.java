@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -46,6 +46,8 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.Or
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.RequireConstraintResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.EntityQueryContext;
 import io.evitadb.externalApi.graphql.api.resolver.SelectionSetAggregator;
+import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.WriteDataFetcher;
+import io.evitadb.externalApi.graphql.metric.event.request.ExecutedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -60,6 +62,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.collection;
+import static io.evitadb.api.query.QueryConstraints.entityFetch;
 import static io.evitadb.api.query.QueryConstraints.require;
 import static io.evitadb.api.query.QueryConstraints.strip;
 
@@ -70,7 +73,7 @@ import static io.evitadb.api.query.QueryConstraints.strip;
  */
 @Slf4j
 @RequiredArgsConstructor
-public class DeleteEntitiesMutatingDataFetcher implements DataFetcher<DataFetcherResult<List<SealedEntity>>> {
+public class DeleteEntitiesMutatingDataFetcher implements DataFetcher<DataFetcherResult<List<SealedEntity>>>, WriteDataFetcher {
 
 	/**
 	 * Schema of collection to which this fetcher is mapped to.
@@ -102,20 +105,24 @@ public class DeleteEntitiesMutatingDataFetcher implements DataFetcher<DataFetche
 	@Override
 	public DataFetcherResult<List<SealedEntity>> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
 		final Arguments arguments = Arguments.from(environment);
+		final ExecutedEvent requestExecutedEvent = environment.getGraphQlContext().get(GraphQLContextKey.METRIC_EXECUTED_EVENT);
 
-		final FilterBy filterBy = buildFilterBy(arguments);
-		final OrderBy orderBy = buildOrderBy(arguments);
-		final Require require = buildRequire(environment, arguments, filterBy);
-		final Query query = query(
-			collection(entitySchema.getName()),
-			filterBy,
-			orderBy,
-			require
-		);
+		final Query query = requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() -> {
+			final FilterBy filterBy = buildFilterBy(arguments);
+			final OrderBy orderBy = buildOrderBy(arguments);
+			final Require require = buildRequire(environment, arguments, filterBy);
+			return query(
+				collection(entitySchema.getName()),
+				filterBy,
+				orderBy,
+				require
+			);
+		});
 		log.debug("Generated evitaDB query for entity deletion of type `{}` is `{}`.", entitySchema.getName(), query);
 
 		final EvitaSessionContract evitaSession = environment.getGraphQlContext().get(GraphQLContextKey.EVITA_SESSION);
-		final SealedEntity[] deletedEntities = evitaSession.deleteSealedEntitiesAndReturnBodies(query);
+		final SealedEntity[] deletedEntities = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
+			evitaSession.deleteSealedEntitiesAndReturnBodies(query));
 
 		return DataFetcherResult.<List<SealedEntity>>newResult()
 			.data(Arrays.asList(deletedEntities))
@@ -159,7 +166,7 @@ public class DeleteEntitiesMutatingDataFetcher implements DataFetcher<DataFetche
 			extractDesiredLocale(filterBy),
 			entitySchema
 		);
-		entityFetch.ifPresent(requireConstraints::add);
+		entityFetch.ifPresentOrElse(requireConstraints::add, () -> requireConstraints.add(entityFetch()));
 
 		if (arguments.offset() != null && arguments.limit() != null) {
 			requireConstraints.add(strip(arguments.offset(), arguments.limit()));

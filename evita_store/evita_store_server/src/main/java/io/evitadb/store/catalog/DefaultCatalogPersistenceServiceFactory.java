@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,12 +23,20 @@
 
 package io.evitadb.store.catalog;
 
+import io.evitadb.api.CatalogContract;
 import io.evitadb.api.configuration.StorageOptions;
+import io.evitadb.api.configuration.TransactionOptions;
+import io.evitadb.core.async.ClientRunnableTask;
+import io.evitadb.core.async.Scheduler;
+import io.evitadb.core.file.ExportFileService;
+import io.evitadb.store.catalog.task.RestoreTask;
+import io.evitadb.store.exception.InvalidStoragePathException;
 import io.evitadb.store.spi.CatalogPersistenceService;
 import io.evitadb.store.spi.CatalogPersistenceServiceFactory;
+import io.evitadb.store.spi.exception.DirectoryNotEmptyException;
 
 import javax.annotation.Nonnull;
-import java.nio.file.Path;
+import java.io.InputStream;
 
 /**
  * This implementation is the single and only implementation of {@link CatalogPersistenceServiceFactory}. Instance is
@@ -42,20 +50,47 @@ public class DefaultCatalogPersistenceServiceFactory implements CatalogPersisten
 	@Nonnull
 	@Override
 	public CatalogPersistenceService createNew(
+		@Nonnull CatalogContract catalogInstance,
 		@Nonnull String catalogName,
-		@Nonnull StorageOptions storageOptions
-	) {
-		return new DefaultCatalogPersistenceService(catalogName, storageOptions);
+		@Nonnull StorageOptions storageOptions,
+		@Nonnull TransactionOptions transactionOptions,
+		@Nonnull Scheduler scheduler,
+		@Nonnull ExportFileService exportFileService
+		) {
+		return new DefaultCatalogPersistenceService(
+			catalogName, storageOptions, transactionOptions, scheduler, exportFileService
+		);
 	}
 
 	@Nonnull
 	@Override
 	public CatalogPersistenceService load(
+		@Nonnull CatalogContract catalogInstance,
 		@Nonnull String catalogName,
-		@Nonnull Path catalogStoragePath,
-		@Nonnull StorageOptions storageOptions
+		@Nonnull StorageOptions storageOptions,
+		@Nonnull TransactionOptions transactionOptions,
+		@Nonnull Scheduler scheduler,
+		@Nonnull ExportFileService exportFileService
 	) {
-		return new DefaultCatalogPersistenceService(catalogName, catalogStoragePath, storageOptions);
+		return new DefaultCatalogPersistenceService(
+			catalogInstance, catalogName, storageOptions, transactionOptions, scheduler, exportFileService
+		);
+	}
+
+	@Nonnull
+	@Override
+	public ClientRunnableTask<?> restoreCatalogTo(
+		@Nonnull String catalogName,
+		@Nonnull StorageOptions storageOptions,
+		long totalBytesExpected,
+		@Nonnull InputStream inputStream
+	) throws DirectoryNotEmptyException, InvalidStoragePathException {
+		return new RestoreTask(
+			catalogName,
+			inputStream,
+			totalBytesExpected,
+			storageOptions
+		);
 	}
 
 }

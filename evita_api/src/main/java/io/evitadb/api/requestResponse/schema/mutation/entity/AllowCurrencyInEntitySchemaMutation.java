@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -51,8 +51,6 @@ import java.util.stream.Stream;
  * Mutation implements {@link CombinableEntitySchemaMutation} allowing to resolve conflicts with the same mutation
  * or negative mutation {@link DisallowCurrencyInEntitySchemaMutation} if those mutation are present in the mutation pipeline
  * multiple times.
- *
- * TOBEDONE JNO - write tests
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -98,8 +96,8 @@ public class AllowCurrencyInEntitySchemaMutation implements CombinableEntitySche
 				.toArray(Currency[]::new);
 
 			return new MutationCombinationResult<>(
-				currenciesToRemove.isEmpty() ? null : new DisallowCurrencyInEntitySchemaMutation(currenciesToRemove),
-				currenciesToAdd.length == currencies.length ? existingMutation : (currenciesToAdd.length == 0 ? null : new AllowCurrencyInEntitySchemaMutation(currenciesToAdd))
+				currenciesToRemove.isEmpty() ? null : (currenciesToRemove.size() == ((DisallowCurrencyInEntitySchemaMutation) existingMutation).getCurrencies().size() ? existingMutation : new DisallowCurrencyInEntitySchemaMutation(currenciesToRemove)),
+				currenciesToAdd.length == currencies.length ? this : (currenciesToAdd.length == 0 ? null : new AllowCurrencyInEntitySchemaMutation(currenciesToAdd))
 			);
 		} else {
 			return null;

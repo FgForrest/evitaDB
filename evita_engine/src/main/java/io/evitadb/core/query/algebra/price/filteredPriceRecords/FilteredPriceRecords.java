@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -29,12 +29,12 @@ import io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordsLookupResult;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder.LookUp;
-import io.evitadb.exception.EvitaInternalError;
-import io.evitadb.index.array.CompositeIntArray;
-import io.evitadb.index.array.CompositeObjectArray;
+import io.evitadb.dataType.array.CompositeIntArray;
+import io.evitadb.dataType.array.CompositeObjectArray;
+import io.evitadb.dataType.iterator.BatchArrayIterator;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
-import io.evitadb.index.iterator.BatchArrayIterator;
 import io.evitadb.index.iterator.RoaringBitmapBatchArrayIterator;
 import io.evitadb.index.price.PriceListAndCurrencyPriceIndex;
 import io.evitadb.index.price.model.priceRecord.PriceRecord;
@@ -126,7 +126,7 @@ public interface FilteredPriceRecords extends Serializable {
 					lazyEvaluatedEntityPriceRecords.get()
 				);
 			} else {
-				throw new EvitaInternalError("Both resolved and lazy price records are present!");
+				throw new GenericEvitaInternalError("Both resolved and lazy price records are present!");
 			}
 		}
 	}
@@ -141,14 +141,13 @@ public interface FilteredPriceRecords extends Serializable {
 			.map(LazyEvaluatedEntityPriceRecords.class::cast)
 			.flatMap(it -> Arrays.stream(it.getPriceIndexes()))
 			.toArray(PriceListAndCurrencyPriceIndex[]::new);
-		final Optional<LazyEvaluatedEntityPriceRecords> lazyEvaluatedEntityPriceRecords = ArrayUtils.isEmpty(priceIndexes) ?
+		return ArrayUtils.isEmpty(priceIndexes) ?
 			empty() :
 			of(
 				new LazyEvaluatedEntityPriceRecords(
 					priceIndexes
 				)
 			);
-		return lazyEvaluatedEntityPriceRecords;
 	}
 
 	@Nonnull

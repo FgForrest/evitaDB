@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -28,10 +28,12 @@ import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.InitialEntityBuilder;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
-import io.evitadb.core.query.filter.translator.TestFilterByVisitor;
-import io.evitadb.core.query.filter.translator.price.PriceBetweenTranslator;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
+import io.evitadb.core.query.algebra.price.predicate.PricePredicate.PriceContractPredicate;
+import io.evitadb.core.query.filter.translator.TestQueryExecutionContext;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.test.Entities;
@@ -40,17 +42,22 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import javax.annotation.Nonnull;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Currency;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static io.evitadb.api.query.QueryConstraints.*;
+import static java.util.Optional.of;
 
 /**
  * This test verifies behaviour of {@link SellingPriceAvailableBitmapFilter}.
@@ -60,7 +67,20 @@ import static io.evitadb.api.query.QueryConstraints.*;
 class SellingPriceAvailableBitmapFilterTest {
 	private static final EntitySchema PRODUCT_SCHEMA = EntitySchema._internalBuild(Entities.PRODUCT);
 	private static final CatalogSchema CATALOG_SCHEMA = CatalogSchema._internalBuild(
-		TestConstants.TEST_CATALOG, Collections.emptyMap(), EnumSet.allOf(CatalogEvolutionMode.class), entitySchema -> PRODUCT_SCHEMA
+		TestConstants.TEST_CATALOG, Collections.emptyMap(), EnumSet.allOf(CatalogEvolutionMode.class),
+		new EntitySchemaProvider() {
+			@Nonnull
+			@Override
+			public Collection<EntitySchemaContract> getEntitySchemas() {
+				return List.of(PRODUCT_SCHEMA);
+			}
+
+			@Nonnull
+			@Override
+			public Optional<EntitySchemaContract> getEntitySchema(@Nonnull String entityType) {
+				return of(PRODUCT_SCHEMA);
+			}
+		}
 	);
 	private static final String PRICE_LIST_BASIC = "basic";
 	private static final String PRICE_LIST_VIP = "vip";
@@ -107,8 +127,7 @@ class SellingPriceAvailableBitmapFilterTest {
 	void shouldFilterEntitiesByCurrencyAndPriceList() {
 		final SellingPriceAvailableBitmapFilter filter = new SellingPriceAvailableBitmapFilter(null);
 		final Bitmap result = filter.filter(
-			new TestFilterByVisitor(
-				CATALOG_SCHEMA,
+			new TestQueryExecutionContext(
 				PRODUCT_SCHEMA,
 				Query.query(
 					collection(Entities.PRODUCT),
@@ -136,8 +155,7 @@ class SellingPriceAvailableBitmapFilterTest {
 	void shouldFilterEntitiesByCurrencyAndPriceListWithDifferentPriceLists() {
 		final SellingPriceAvailableBitmapFilter filter = new SellingPriceAvailableBitmapFilter(PRICE_LIST_REFERENCE);
 		final Bitmap result = filter.filter(
-			new TestFilterByVisitor(
-				CATALOG_SCHEMA,
+			new TestQueryExecutionContext(
 				PRODUCT_SCHEMA,
 				Query.query(
 					collection(Entities.PRODUCT),
@@ -165,11 +183,12 @@ class SellingPriceAvailableBitmapFilterTest {
 	void shouldFilterEntitiesByCurrencyAndPriceListAndPriceFilter() {
 		final SellingPriceAvailableBitmapFilter filter = new SellingPriceAvailableBitmapFilter(
 			new String[] {PRICE_LIST_REFERENCE},
-			PriceBetweenTranslator.createPredicate(new BigDecimal("90"), new BigDecimal("130"), QueryPriceMode.WITH_TAX, 0)
+			new PriceContractPredicate(
+				new BigDecimal("90"), new BigDecimal("130"), QueryPriceMode.WITH_TAX, 0
+			)
 		);
 		final Bitmap result = filter.filter(
-			new TestFilterByVisitor(
-				CATALOG_SCHEMA,
+			new TestQueryExecutionContext(
 				PRODUCT_SCHEMA,
 				Query.query(
 					collection(Entities.PRODUCT),
@@ -198,11 +217,12 @@ class SellingPriceAvailableBitmapFilterTest {
 	void shouldFilterEntitiesByCurrencyAndPriceListAndPriceFilterBasicFirst() {
 		final SellingPriceAvailableBitmapFilter filter = new SellingPriceAvailableBitmapFilter(
 			new String[] {PRICE_LIST_REFERENCE},
-			PriceBetweenTranslator.createPredicate(new BigDecimal("90"), new BigDecimal("130"), QueryPriceMode.WITH_TAX, 0)
+			new PriceContractPredicate(
+				new BigDecimal("90"), new BigDecimal("130"), QueryPriceMode.WITH_TAX, 0
+			)
 		);
 		final Bitmap result = filter.filter(
-			new TestFilterByVisitor(
-				CATALOG_SCHEMA,
+			new TestQueryExecutionContext(
 				PRODUCT_SCHEMA,
 				Query.query(
 					collection(Entities.PRODUCT),
@@ -231,8 +251,7 @@ class SellingPriceAvailableBitmapFilterTest {
 	void shouldFilterEntitiesByCurrencyAndPriceListAndValidity() {
 		final SellingPriceAvailableBitmapFilter filter = new SellingPriceAvailableBitmapFilter(PRICE_LIST_REFERENCE);
 		final Bitmap result = filter.filter(
-			new TestFilterByVisitor(
-				CATALOG_SCHEMA,
+			new TestQueryExecutionContext(
 				PRODUCT_SCHEMA,
 				Query.query(
 					collection(Entities.PRODUCT),
@@ -261,8 +280,7 @@ class SellingPriceAvailableBitmapFilterTest {
 	void shouldFilterEntitiesByCurrencyAndPriceListAndValidityInFarFuture() {
 		final SellingPriceAvailableBitmapFilter filter = new SellingPriceAvailableBitmapFilter(PRICE_LIST_REFERENCE);
 		final Bitmap result = filter.filter(
-			new TestFilterByVisitor(
-				CATALOG_SCHEMA,
+			new TestQueryExecutionContext(
 				PRODUCT_SCHEMA,
 				Query.query(
 					collection(Entities.PRODUCT),

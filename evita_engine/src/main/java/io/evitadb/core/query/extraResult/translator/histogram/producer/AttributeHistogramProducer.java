@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,12 +23,14 @@
 
 package io.evitadb.core.query.extraResult.translator.histogram.producer;
 
+import io.evitadb.api.query.require.HistogramBehavior;
 import io.evitadb.api.requestResponse.EvitaResponseExtraResult;
 import io.evitadb.api.requestResponse.extraResult.AttributeHistogram;
 import io.evitadb.api.requestResponse.extraResult.Histogram;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.attribute.AttributeFormula;
 import io.evitadb.core.query.algebra.base.AndFormula;
@@ -38,12 +40,10 @@ import io.evitadb.core.query.algebra.facet.UserFilterFormula;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaCloner;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder.LookUp;
-import io.evitadb.core.query.extraResult.CacheableExtraResultProducer;
-import io.evitadb.core.query.extraResult.ExtraResultCacheAccessor;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.extraResult.translator.histogram.FilterFormulaAttributeOptimizeVisitor;
 import io.evitadb.core.query.extraResult.translator.histogram.cache.CacheableHistogramContract;
-import io.evitadb.index.array.CompositeObjectArray;
+import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
@@ -75,7 +75,7 @@ import static java.util.Optional.ofNullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class AttributeHistogramProducer implements CacheableExtraResultProducer {
+public class AttributeHistogramProducer implements ExtraResultProducer {
 	/**
 	 * Type of the queried entity - {@link EntitySchema#getName()}.
 	 */
@@ -86,15 +86,15 @@ public class AttributeHistogramProducer implements CacheableExtraResultProducer 
 	 */
 	private final int bucketCount;
 	/**
+	 * Contains behavior that was requested by the user in the query.
+	 * @see HistogramBehavior
+	 */
+	@Nonnull private final HistogramBehavior behavior;
+	/**
 	 * Contains filtering formula tree that was used to produce results so that computed sub-results can be used for
 	 * sorting.
 	 */
 	@Nonnull private final Formula filterFormula;
-	/**
-	 * Provides access to the default extra result computer logic that allows to store or withdraw extra results
-	 * from cache.
-	 */
-	@Nonnull private final ExtraResultCacheAccessor extraResultCacheAccessor;
 	/**
 	 * Contains list of requests for attribute histograms. Requests contain all data necessary for histogram computation.
 	 */
@@ -103,28 +103,14 @@ public class AttributeHistogramProducer implements CacheableExtraResultProducer 
 	public AttributeHistogramProducer(
 		@Nonnull String entityType,
 		int bucketCount,
-		@Nonnull Formula filterFormula,
-		@Nonnull ExtraResultCacheAccessor extraResultCacheAccessor
+		@Nonnull HistogramBehavior behavior,
+		@Nonnull Formula filterFormula
 	) {
 		this.entityType = entityType;
 		this.bucketCount = bucketCount;
+		this.behavior = behavior;
 		this.filterFormula = filterFormula;
-		this.extraResultCacheAccessor = extraResultCacheAccessor;
 		this.histogramRequests = new HashMap<>();
-	}
-
-	private AttributeHistogramProducer(
-		@Nonnull String entityType,
-		int bucketCount,
-		@Nonnull Formula filterFormula,
-		@Nonnull ExtraResultCacheAccessor extraResultCacheAccessor,
-		@Nonnull Map<String, AttributeHistogramRequest> histogramRequests
-	) {
-		this.entityType = entityType;
-		this.bucketCount = bucketCount;
-		this.filterFormula = filterFormula;
-		this.extraResultCacheAccessor = extraResultCacheAccessor;
-		this.histogramRequests = histogramRequests;
 	}
 
 	/**
@@ -137,7 +123,7 @@ public class AttributeHistogramProducer implements CacheableExtraResultProducer 
 	 * record that is not part of the `filteringFormula` output). Empty buckets are discarded along the way.
 	 */
 	static <T extends Comparable<T>> ValueToRecordBitmap<T>[] getCombinedAndFilteredBucketArray(
-		@Nonnull Formula filteringFormula,
+		@Nullable Formula filteringFormula,
 		@Nonnull ValueToRecordBitmap<T>[][] histogramBitmaps
 	) {
 		if (ArrayUtils.isEmpty(histogramBitmaps)) {
@@ -146,7 +132,12 @@ public class AttributeHistogramProducer implements CacheableExtraResultProducer 
 		}
 
 		// prepare filtering bitmap
-		final RoaringBitmap filteredRecordIds = RoaringBitmapBackedBitmap.getRoaringBitmap(filteringFormula.compute());
+		final RoaringBitmap filteredRecordIds;
+		if (filteringFormula == null) {
+			filteredRecordIds = null;
+		} else {
+			filteredRecordIds = RoaringBitmapBackedBitmap.getRoaringBitmap(filteringFormula.compute());
+		}
 		// prepare output elastic array
 		@SuppressWarnings("rawtypes") final CompositeObjectArray<ValueToRecordBitmap> finalBuckets = new CompositeObjectArray<>(ValueToRecordBitmap.class, false);
 
@@ -259,16 +250,19 @@ public class AttributeHistogramProducer implements CacheableExtraResultProducer 
 	 */
 	@SuppressWarnings("rawtypes")
 	private static <T extends Comparable<T>> void addBucket(
-		@Nonnull RoaringBitmap filteredRecordIds,
+		@Nullable RoaringBitmap filteredRecordIds,
 		@Nonnull CompositeObjectArray<ValueToRecordBitmap> finalBuckets,
 		@Nonnull ValueToRecordBitmap<T> theBucket
 	) {
-		final BaseBitmap recordIds = new BaseBitmap(
-			RoaringBitmap.and(
-				filteredRecordIds,
-				RoaringBitmapBackedBitmap.getRoaringBitmap(theBucket.getRecordIds())
-			)
-		);
+		final Bitmap recordIds = filteredRecordIds == null ?
+			theBucket.getRecordIds() :
+			new BaseBitmap(
+				RoaringBitmap.and(
+					filteredRecordIds,
+					RoaringBitmapBackedBitmap.getRoaringBitmap(theBucket.getRecordIds())
+				)
+			);
+
 		if (!recordIds.isEmpty()) {
 			finalBuckets.add(
 				new ValueToRecordBitmap<>(
@@ -312,7 +306,7 @@ public class AttributeHistogramProducer implements CacheableExtraResultProducer 
 	/**
 	 * Adds a request for histogram computation passing all data necessary for the computation.
 	 * Method doesn't compute the histogram - just registers the requirement to be resolved later
-	 * in the {@link ExtraResultProducer#fabricate(List)} )}  method.
+	 * in the {@link ExtraResultProducer#fabricate(QueryExecutionContext, List)} )}  method.
 	 */
 	public void addAttributeHistogramRequest(
 		@Nonnull AttributeSchemaContract attributeSchema,
@@ -338,9 +332,10 @@ public class AttributeHistogramProducer implements CacheableExtraResultProducer 
 
 	@Nullable
 	@Override
-	public <T extends Serializable> EvitaResponseExtraResult fabricate(@Nonnull List<T> entities) {
+	public <T extends Serializable> EvitaResponseExtraResult fabricate(@Nonnull QueryExecutionContext context, @Nonnull List<T> entities) {
 		// create optimized formula that offers best memoized intermediate results reuse
 		final Formula optimizedFormula = FilterFormulaAttributeOptimizeVisitor.optimize(filterFormula, histogramRequests.keySet());
+
 		// create clone of the optimized formula without user filter contents
 		final Map<String, Predicate<BigDecimal>> userFilterFormulaPredicates = new HashMap<>();
 		final Formula baseFormulaWithoutUserFilter = FormulaCloner.clone(
@@ -368,13 +363,11 @@ public class AttributeHistogramProducer implements CacheableExtraResultProducer 
 				.filter(entry -> hasSenseWithMandatoryFilter(baseFormulaWithoutUserFilter, entry.getValue()))
 				.map(entry -> {
 					final AttributeHistogramRequest histogramRequest = entry.getValue();
-					final CacheableHistogramContract optimalHistogram = extraResultCacheAccessor.analyse(
-						entityType,
-						new AttributeHistogramComputer(
-							histogramRequest.getAttributeName(),
-							optimizedFormula, bucketCount, histogramRequest
-						)
-					).compute();
+					final AttributeHistogramComputer computer = new AttributeHistogramComputer(
+						histogramRequest.getAttributeName(),
+						optimizedFormula, bucketCount, behavior, histogramRequest
+					);
+					final CacheableHistogramContract optimalHistogram = context.analyse(computer).compute();
 					if (optimalHistogram == CacheableHistogramContract.EMPTY) {
 						return null;
 					} else {
@@ -382,7 +375,8 @@ public class AttributeHistogramProducer implements CacheableExtraResultProducer 
 						return new AttributeHistogramWrapper(
 							entry.getKey(),
 							optimalHistogram.convertToHistogram(
-								ofNullable(userFilterFormulaPredicates.get(entry.getKey())).orElseGet(() -> value -> false)
+								ofNullable(userFilterFormulaPredicates.get(entry.getKey()))
+									.orElseGet(() -> value -> true)
 							)
 						);
 					}
@@ -399,10 +393,12 @@ public class AttributeHistogramProducer implements CacheableExtraResultProducer 
 
 	@Nonnull
 	@Override
-	public AttributeHistogramProducer cloneInstance(@Nonnull ExtraResultCacheAccessor cacheAccessor) {
-		return new AttributeHistogramProducer(
-			entityType, bucketCount, filterFormula, cacheAccessor, histogramRequests
-		);
+	public String getDescription() {
+		if (histogramRequests.size() == 1) {
+			return "attribute `" + histogramRequests.keySet().iterator().next() +"` histogram";
+		} else {
+			return "attributes " + histogramRequests.keySet().stream().map(it -> '`' + it + '`').collect(Collectors.joining(" ,")) +" histogram";
+		}
 	}
 
 	/**
@@ -410,9 +406,12 @@ public class AttributeHistogramProducer implements CacheableExtraResultProducer 
 	 * at least single entity primary key left?
 	 */
 	private static boolean hasSenseWithMandatoryFilter(
-		@Nonnull Formula filteringFormula,
+		@Nullable Formula filteringFormula,
 		@Nonnull AttributeHistogramRequest request
 	) {
+		if (filteringFormula == null) {
+			return true;
+		}
 		// collect all records from the filter indexes for this attribute
 		final Bitmap[] histogramBitmaps = request
 			.attributeIndexes()
@@ -432,10 +431,11 @@ public class AttributeHistogramProducer implements CacheableExtraResultProducer 
 				.toArray();
 			histogramBitmapsFormula = new OrFormula(indexTransactionIds, histogramBitmaps);
 		}
-		return !new AndFormula(
+		final AndFormula finalFormula = new AndFormula(
 			histogramBitmapsFormula,
 			filteringFormula
-		)
+		);
+		return !finalFormula
 			.compute()
 			.isEmpty();
 	}

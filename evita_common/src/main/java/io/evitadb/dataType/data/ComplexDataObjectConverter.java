@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -999,20 +999,21 @@ public class ComplexDataObjectConverter<T extends Serializable> {
 	 * Context also allows us to process {@link @DiscardedData} annotations and allow continuous model evolution.
 	 */
 	private static class ExtractionContext {
+		private static final String NULL_STRING = "";
 		/**
 		 * Stack containing name of the lastExtractedProperty allows to reconstruct "property path" for signalling
 		 * complete (deep-wise) name of the not extracted property.
 		 */
-		private final Deque<String> lastExtractedProperty = new LinkedList<>();
+		private final Deque<String> lastExtractedProperty = new ArrayDeque<>(16);
 		/**
 		 * Stack containing "property path" for signalling complete (deep-wise) name of the not extracted property.
 		 */
-		private final Deque<String> propertyPath = new LinkedList<>();
+		private final Deque<String> propertyPath = new ArrayDeque<>(16);
 		/**
 		 * Stack of properties that are expected to be extracted into the result Java object. The stack / set is used
 		 * to check that every data item gets converted into some Java property.
 		 */
-		private final Deque<Set<String>> propertySets = new LinkedList<>();
+		private final Deque<Set<String>> propertySets = new ArrayDeque<>(16);
 		/**
 		 * Contains information about all properties found in the {@link ComplexDataObject} that were not deserialized
 		 * and thus lead to information loss.
@@ -1060,7 +1061,7 @@ public class ComplexDataObjectConverter<T extends Serializable> {
 				propertyPath.push((propertyPath.isEmpty() ? "" : ".") + lastExtractedProperty.peek());
 			}
 			propertySets.push(new HashSet<>(propertyNames));
-			lastExtractedProperty.push(null);
+			lastExtractedProperty.push(NULL_STRING);
 		}
 
 		/**
@@ -1094,7 +1095,7 @@ public class ComplexDataObjectConverter<T extends Serializable> {
 		}
 
 		/**
-		 * Clears information about position in tha array.
+		 * Clears information about position in the array.
 		 */
 		public void popIndex() {
 			if (!propertySets.isEmpty()) {

@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -24,11 +24,16 @@
 package io.evitadb.externalApi.graphql.api.catalog.schemaApi;
 
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
 import io.evitadb.core.Evita;
+import io.evitadb.externalApi.api.catalog.model.VersionedDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.AttributeSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.CatalogSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.EntitySchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.GlobalAttributeSchemaDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.NamedSchemaDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.NamedSchemaWithDeprecationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ReferenceSchemaDescriptor;
 import io.evitadb.externalApi.graphql.GraphQLProvider;
 import io.evitadb.test.Entities;
@@ -44,8 +49,8 @@ import java.util.List;
 
 import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.GRAPHQL_THOUSAND_PRODUCTS;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
-import static io.evitadb.utils.MapBuilder.map;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
+import static io.evitadb.utils.MapBuilder.map;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -113,7 +118,7 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 				UPDATE_CATALOG_SCHEMA_PATH,
 				equalTo(
 					map()
-						.e(CatalogSchemaDescriptor.VERSION.name(), initialCatalogSchemVersion)
+						.e(VersionedDescriptor.VERSION.name(), initialCatalogSchemVersion)
 						.build()
 				)
 			);
@@ -153,8 +158,8 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 				UPDATE_CATALOG_SCHEMA_PATH,
 				equalTo(
 					map()
-						.e(CatalogSchemaDescriptor.VERSION.name(), initialCatalogSchemVersion + 1)
-						.e(CatalogSchemaDescriptor.DESCRIPTION.name(), "desc")
+						.e(VersionedDescriptor.VERSION.name(), initialCatalogSchemVersion + 1)
+						.e(NamedSchemaDescriptor.DESCRIPTION.name(), "desc")
 						.build()
 				)
 			);
@@ -177,8 +182,8 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 							{
 								createGlobalAttributeSchemaMutation: {
 									name: "mySpecialCode"
-									unique: true
-									uniqueGlobally: true
+									uniquenessType: UNIQUE_WITHIN_COLLECTION
+									globalUniquenessType: UNIQUE_WITHIN_CATALOG
 									filterable: true
 									sortable: true
 									localized: false
@@ -201,7 +206,7 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 				UPDATE_CATALOG_SCHEMA_PATH,
 				equalTo(
 					map()
-						.e(CatalogSchemaDescriptor.VERSION.name(), initialCatalogSchemVersion + 1)
+						.e(VersionedDescriptor.VERSION.name(), initialCatalogSchemVersion + 1)
 						.build()
 				)
 			);
@@ -217,8 +222,8 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 								name
 								description
 								deprecationNotice
-								unique
-								uniqueGlobally
+								uniquenessType
+								globalUniquenessType
 								filterable
 								sortable
 								localized
@@ -241,18 +246,18 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 					map()
 						.e(CatalogSchemaDescriptor.ATTRIBUTES.name(), map()
 							.e("mySpecialCode", map()
-								.e(GlobalAttributeSchemaDescriptor.NAME.name(), "mySpecialCode")
-								.e(GlobalAttributeSchemaDescriptor.DESCRIPTION.name(), null)
-								.e(GlobalAttributeSchemaDescriptor.DEPRECATION_NOTICE.name(), null)
-								.e(GlobalAttributeSchemaDescriptor.UNIQUE.name(), true)
-								.e(GlobalAttributeSchemaDescriptor.UNIQUE_GLOBALLY.name(), true)
-								.e(GlobalAttributeSchemaDescriptor.FILTERABLE.name(), true)
-								.e(GlobalAttributeSchemaDescriptor.SORTABLE.name(), true)
-								.e(GlobalAttributeSchemaDescriptor.LOCALIZED.name(), false)
-								.e(GlobalAttributeSchemaDescriptor.NULLABLE.name(), false)
-								.e(GlobalAttributeSchemaDescriptor.TYPE.name(), String.class.getSimpleName())
-								.e(GlobalAttributeSchemaDescriptor.DEFAULT_VALUE.name(), null)
-								.e(GlobalAttributeSchemaDescriptor.INDEXED_DECIMAL_PLACES.name(), 0)
+								.e(NamedSchemaDescriptor.NAME.name(), "mySpecialCode")
+								.e(NamedSchemaDescriptor.DESCRIPTION.name(), null)
+								.e(NamedSchemaWithDeprecationDescriptor.DEPRECATION_NOTICE.name(), null)
+								.e(AttributeSchemaDescriptor.UNIQUENESS_TYPE.name(), AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION.name())
+								.e(GlobalAttributeSchemaDescriptor.GLOBAL_UNIQUENESS_TYPE.name(), GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG.name())
+								.e(AttributeSchemaDescriptor.FILTERABLE.name(), true)
+								.e(AttributeSchemaDescriptor.SORTABLE.name(), true)
+								.e(AttributeSchemaDescriptor.LOCALIZED.name(), false)
+								.e(AttributeSchemaDescriptor.NULLABLE.name(), false)
+								.e(AttributeSchemaDescriptor.TYPE.name(), String.class.getSimpleName())
+								.e(AttributeSchemaDescriptor.DEFAULT_VALUE.name(), null)
+								.e(AttributeSchemaDescriptor.INDEXED_DECIMAL_PLACES.name(), 0)
 								.build())
 							.build())
 						.build()
@@ -286,7 +291,7 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 				UPDATE_CATALOG_SCHEMA_PATH,
 				equalTo(
 					map()
-						.e(CatalogSchemaDescriptor.VERSION.name(), initialCatalogSchemVersion + 2)
+						.e(VersionedDescriptor.VERSION.name(), initialCatalogSchemVersion + 2)
 						.build()
 				)
 			);
@@ -326,7 +331,7 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 				UPDATE_CATALOG_SCHEMA_PATH,
 				equalTo(
 					map()
-						.e(CatalogSchemaDescriptor.VERSION.name(), initialCatalogSchemaVersion + 1)
+						.e(VersionedDescriptor.VERSION.name(), initialCatalogSchemaVersion + 1)
 						.build()
 				)
 			);
@@ -366,8 +371,8 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 				MY_NEW_COLLECTION_SCHEMA_PATH,
 				equalTo(
 					map()
-						.e(EntitySchemaDescriptor.NAME.name(), NEW_COLLECTION_NAME)
-						.e(EntitySchemaDescriptor.VERSION.name(), 1)
+						.e(NamedSchemaDescriptor.NAME.name(), NEW_COLLECTION_NAME)
+						.e(VersionedDescriptor.VERSION.name(), 1)
 						.e(EntitySchemaDescriptor.ALL_ATTRIBUTES.name(), List.of())
 						.e(EntitySchemaDescriptor.ALL_ASSOCIATED_DATA.name(), List.of())
 						.e(EntitySchemaDescriptor.ALL_REFERENCES.name(), List.of())
@@ -403,7 +408,7 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 										{
 											createAttributeSchemaMutation: {
 												name: "code"
-												unique: true
+												uniquenessType: UNIQUE_WITHIN_COLLECTION
 												filterable: true
 												sortable: true
 												localized: false
@@ -439,7 +444,7 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 				UPDATE_CATALOG_SCHEMA_PATH,
 				equalTo(
 					map()
-						.e(CatalogSchemaDescriptor.VERSION.name(), initialCatalogSchemaVersion + 1)
+						.e(VersionedDescriptor.VERSION.name(), initialCatalogSchemaVersion + 1)
 						.build()
 				)
 			);
@@ -458,7 +463,7 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 								name
 								description
 								deprecationNotice
-								unique
+								uniquenessType
 								filterable
 								sortable
 								localized
@@ -496,14 +501,14 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 				MY_NEW_COLLECTION_SCHEMA_PATH,
 				equalTo(
 					map()
-						.e(EntitySchemaDescriptor.NAME.name(), NEW_COLLECTION_NAME)
-						.e(EntitySchemaDescriptor.VERSION.name(), 3)
+						.e(NamedSchemaDescriptor.NAME.name(), NEW_COLLECTION_NAME)
+						.e(VersionedDescriptor.VERSION.name(), 3)
 						.e(EntitySchemaDescriptor.ATTRIBUTES.name(), map()
 							.e(ATTRIBUTE_CODE, map()
-								.e(AttributeSchemaDescriptor.NAME.name(), ATTRIBUTE_CODE)
-								.e(AttributeSchemaDescriptor.DESCRIPTION.name(), null)
-								.e(AttributeSchemaDescriptor.DEPRECATION_NOTICE.name(), null)
-								.e(AttributeSchemaDescriptor.UNIQUE.name(), true)
+								.e(NamedSchemaDescriptor.NAME.name(), ATTRIBUTE_CODE)
+								.e(NamedSchemaDescriptor.DESCRIPTION.name(), null)
+								.e(NamedSchemaWithDeprecationDescriptor.DEPRECATION_NOTICE.name(), null)
+								.e(AttributeSchemaDescriptor.UNIQUENESS_TYPE.name(), AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION.name())
 								.e(AttributeSchemaDescriptor.FILTERABLE.name(), true)
 								.e(AttributeSchemaDescriptor.SORTABLE.name(), true)
 								.e(AttributeSchemaDescriptor.LOCALIZED.name(), false)
@@ -516,9 +521,9 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 						.e(EntitySchemaDescriptor.ALL_ASSOCIATED_DATA.name(), List.of())
 						.e(EntitySchemaDescriptor.REFERENCES.name(), map()
 							.e("tags", map()
-								.e(ReferenceSchemaDescriptor.NAME.name(), "tags")
-								.e(ReferenceSchemaDescriptor.DESCRIPTION.name(), null)
-								.e(ReferenceSchemaDescriptor.DEPRECATION_NOTICE.name(), null)
+								.e(NamedSchemaDescriptor.NAME.name(), "tags")
+								.e(NamedSchemaDescriptor.DESCRIPTION.name(), null)
+								.e(NamedSchemaWithDeprecationDescriptor.DEPRECATION_NOTICE.name(), null)
 								.e(ReferenceSchemaDescriptor.CARDINALITY.name(), Cardinality.ZERO_OR_MORE.name())
 								.e(ReferenceSchemaDescriptor.REFERENCED_ENTITY_TYPE.name(), "tag")
 								.e(ReferenceSchemaDescriptor.REFERENCED_ENTITY_TYPE_MANAGED.name(), false)
@@ -573,15 +578,15 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
 			.body(
-				UPDATE_CATALOG_SCHEMA_PATH + "." + CatalogSchemaDescriptor.VERSION.name(),
+				UPDATE_CATALOG_SCHEMA_PATH + "." + VersionedDescriptor.VERSION.name(),
 				equalTo(initialCatalogSchemaVersion + 1)
 			)
 			.body(
-				UPDATE_CATALOG_SCHEMA_PATH + "." + CatalogSchemaDescriptor.ALL_ENTITY_SCHEMAS.name() + "." + EntitySchemaDescriptor.NAME.name(),
+				UPDATE_CATALOG_SCHEMA_PATH + "." + CatalogSchemaDescriptor.ALL_ENTITY_SCHEMAS.name() + "." + NamedSchemaDescriptor.NAME.name(),
 				containsInRelativeOrder(NEW_COLLECTION_NAME)
 			)
 			.body(
-				UPDATE_CATALOG_SCHEMA_PATH + "." + CatalogSchemaDescriptor.ALL_ENTITY_SCHEMAS.name() + "." + EntitySchemaDescriptor.NAME.name(),
+				UPDATE_CATALOG_SCHEMA_PATH + "." + CatalogSchemaDescriptor.ALL_ENTITY_SCHEMAS.name() + "." + NamedSchemaDescriptor.NAME.name(),
 				not(containsInRelativeOrder(Entities.PRODUCT))
 			);
 
@@ -616,15 +621,15 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
 			.body(
-				UPDATE_CATALOG_SCHEMA_PATH + "." + CatalogSchemaDescriptor.VERSION.name(),
+				UPDATE_CATALOG_SCHEMA_PATH + "." + VersionedDescriptor.VERSION.name(),
 				equalTo(initialCatalogSchemaVersion + 2)
 			)
 			.body(
-				UPDATE_CATALOG_SCHEMA_PATH + "." + CatalogSchemaDescriptor.ALL_ENTITY_SCHEMAS.name() + "." + EntitySchemaDescriptor.NAME.name(),
+				UPDATE_CATALOG_SCHEMA_PATH + "." + CatalogSchemaDescriptor.ALL_ENTITY_SCHEMAS.name() + "." + NamedSchemaDescriptor.NAME.name(),
 				containsInRelativeOrder(Entities.PRODUCT)
 			)
 			.body(
-				UPDATE_CATALOG_SCHEMA_PATH + "." + CatalogSchemaDescriptor.ALL_ENTITY_SCHEMAS.name() + "." + EntitySchemaDescriptor.NAME.name(),
+				UPDATE_CATALOG_SCHEMA_PATH + "." + CatalogSchemaDescriptor.ALL_ENTITY_SCHEMAS.name() + "." + NamedSchemaDescriptor.NAME.name(),
 				not(containsInRelativeOrder(NEW_COLLECTION_NAME))
 			);
 	}
@@ -644,7 +649,7 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 			.executeAndThen()
 			.extract()
 			.jsonPath()
-			.get(CATALOG_SCHEMA_PATH + "." + CatalogSchemaDescriptor.VERSION.name());
+			.get(CATALOG_SCHEMA_PATH + "." + VersionedDescriptor.VERSION.name());
 	}
 
 	private void removeCollection(@Nonnull GraphQLTester tester, @Nonnull String entityType, int expectedCatalogVersion) {
@@ -675,7 +680,7 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 				UPDATE_CATALOG_SCHEMA_PATH,
 				equalTo(
 					map()
-						.e(CatalogSchemaDescriptor.VERSION.name(), expectedCatalogVersion)
+						.e(VersionedDescriptor.VERSION.name(), expectedCatalogVersion)
 						.build()
 				)
 			);

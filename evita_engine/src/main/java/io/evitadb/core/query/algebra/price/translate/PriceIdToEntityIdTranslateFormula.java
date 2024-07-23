@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -37,8 +37,8 @@ import io.evitadb.core.query.algebra.price.priceIndex.PriceIdContainerFormula;
 import io.evitadb.core.query.algebra.price.termination.PriceEvaluationContext;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder.LookUp;
-import io.evitadb.exception.EvitaInternalError;
-import io.evitadb.index.array.CompositeObjectArray;
+import io.evitadb.dataType.array.CompositeObjectArray;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
@@ -59,7 +59,7 @@ import java.util.Collection;
 import java.util.function.Consumer;
 
 /**
- * PriceIdToEntityIdTranslateFormula translates price ids to entity ids in its {@link #compute()} method.
+ * PriceIdToEntityIdTranslateFormula translates price ids to entity ids in its {@link Formula#compute()} method.
  *
  * This formula consumes {@link Bitmap} of {@link PriceRecord#internalPriceId()} and
  * computes {@link Formula} of {@link PriceRecord#entityPrimaryKey() entity ids}. It also uses information
@@ -72,27 +72,34 @@ public class PriceIdToEntityIdTranslateFormula extends AbstractCacheableFormula 
 	private static final long CLASS_ID = -8575853054010280485L;
 
 	/**
-	 * Contains array of price records that links to the price ids produced by {@link #compute()} method. This array
-	 * is available once the {@link #compute()} method has been called.
+	 * Contains array of price records that links to the price ids produced by {@link Formula#compute()} method. This array
+	 * is available once the {@link Formula#compute()} method has been called.
 	 */
 	private FilteredPriceRecords filteredPriceRecords;
 
 	public PriceIdToEntityIdTranslateFormula(@Nonnull Formula delegate) {
-		super(null, delegate);
+		super(null);
+		this.initFields(delegate);
 	}
 
 	private PriceIdToEntityIdTranslateFormula(@Nullable Consumer<CacheableFormula> computationCallback, @Nonnull FilteredPriceRecords filteredPriceRecords, @Nonnull Formula delegate) {
-		super(computationCallback, delegate);
+		super(computationCallback);
 		this.filteredPriceRecords = filteredPriceRecords;
+		this.initFields(delegate);
 	}
 
 	/**
 	 * Returns delegate formula of this container.
 	 */
+	@Nonnull
 	public Formula getDelegate() {
 		return this.innerFormulas[0];
 	}
 
+	/**
+	 * Returns bitmap of price ids produced by the delegate formula.
+	 */
+	@Nonnull
 	public Bitmap getPriceIdBitmap() {
 		return getDelegate().compute();
 	}
@@ -114,7 +121,8 @@ public class PriceIdToEntityIdTranslateFormula extends AbstractCacheableFormula 
 	@Override
 	public FlattenedFormula toSerializableFormula(long formulaHash, @Nonnull LongHashFunction hashFunction) {
 		return new FlattenedFormulaWithFilteredPrices(
-			formulaHash, computeTransactionalIdHash(hashFunction),
+			formulaHash,
+			getTransactionalIdHash(),
 			Arrays.stream(gatherTransactionalIds())
 				.distinct()
 				.sorted()
@@ -206,7 +214,7 @@ public class PriceIdToEntityIdTranslateFormula extends AbstractCacheableFormula 
 			}
 
 			if (!priceIdBitmap.isEmpty()) {
-				throw new EvitaInternalError(
+				throw new GenericEvitaInternalError(
 					"These prices weren't translated to entity id: " + Arrays.toString(priceIdBitmap.getArray())
 				);
 			}
@@ -226,7 +234,7 @@ public class PriceIdToEntityIdTranslateFormula extends AbstractCacheableFormula 
 
 	@Override
 	public int getEstimatedCardinality() {
-		return Arrays.stream(this.innerFormulas).mapToInt(Formula::getEstimatedCardinality).sum();
+		return Arrays.stream(this.innerFormulas).mapToInt(formula -> formula.getEstimatedCardinality()).sum();
 	}
 
 	@Override

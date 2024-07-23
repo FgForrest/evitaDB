@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -28,7 +28,7 @@ import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.graphql.configuration.GraphQLConfig;
 import io.evitadb.externalApi.http.ExternalApiProvider;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
-import io.undertow.server.HttpHandler;
+import io.evitadb.externalApi.http.ExternalApiServer;
 
 import javax.annotation.Nonnull;
 
@@ -54,9 +54,8 @@ public class GraphQLProviderRegistrar implements ExternalApiProviderRegistrar<Gr
 
     @Nonnull
     @Override
-    public ExternalApiProvider<GraphQLConfig> register(@Nonnull Evita evita, @Nonnull ApiOptions apiOptions, @Nonnull GraphQLConfig graphQLConfig) {
-        final GraphQLManager graphQLManager = new GraphQLManager(evita, graphQLConfig);
-        final HttpHandler apiHandler = graphQLManager.getGraphQLRouter();
-        return new GraphQLProvider(graphQLConfig, apiHandler);
+    public ExternalApiProvider<GraphQLConfig> register(@Nonnull Evita evita, @Nonnull ExternalApiServer externalApiServer, @Nonnull ApiOptions apiOptions, @Nonnull GraphQLConfig graphQLConfig) {
+        final GraphQLManager graphQLManager = new GraphQLManager(evita, graphQLConfig, getApiHandlerPortTlsValidatingFunction(graphQLConfig));
+        return new GraphQLProvider(graphQLConfig, graphQLManager);
     }
 }

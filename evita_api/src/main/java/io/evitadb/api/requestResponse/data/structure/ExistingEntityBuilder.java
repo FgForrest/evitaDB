@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -37,9 +37,9 @@ import io.evitadb.api.requestResponse.data.mutation.associatedData.AssociatedDat
 import io.evitadb.api.requestResponse.data.mutation.attribute.AttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.RemoveAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
-import io.evitadb.api.requestResponse.data.mutation.entity.ParentMutation;
-import io.evitadb.api.requestResponse.data.mutation.entity.RemoveParentMutation;
-import io.evitadb.api.requestResponse.data.mutation.entity.SetParentMutation;
+import io.evitadb.api.requestResponse.data.mutation.parent.ParentMutation;
+import io.evitadb.api.requestResponse.data.mutation.parent.RemoveParentMutation;
+import io.evitadb.api.requestResponse.data.mutation.parent.SetParentMutation;
 import io.evitadb.api.requestResponse.data.mutation.price.PriceMutation;
 import io.evitadb.api.requestResponse.data.mutation.price.SetPriceInnerRecordHandlingMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.InsertReferenceMutation;
@@ -61,7 +61,7 @@ import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.dataType.DateTimeRange;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 import lombok.experimental.Delegate;
@@ -196,7 +196,7 @@ public class ExistingEntityBuilder implements EntityBuilder {
 			this.pricesBuilder.addMutation(innerRecordHandlingMutation);
 		} else {
 			// SHOULD NOT EVER HAPPEN
-			throw new EvitaInternalError("Unknown mutation: " + localMutation.getClass());
+			throw new GenericEvitaInternalError("Unknown mutation: " + localMutation.getClass());
 		}
 	}
 
@@ -728,7 +728,7 @@ public class ExistingEntityBuilder implements EntityBuilder {
 										final AttributeKey attributeKey = attributeMutation.getAttributeKey();
 										if (attributeMutation instanceof UpsertAttributeMutation upsertAttributeMutation) {
 											final boolean attributeSameAsPreviousOne = this.baseEntity.getReference(referenceAttributeMutation.getReferenceKey())
-												.flatMap(ref -> ref.getAttributeValue(attributeKey))
+												.flatMap(ref -> ref.getAttributeSchema(attributeKey.attributeName()).isPresent() ? ref.getAttributeValue(attributeKey) : Optional.empty())
 												.map(attribute -> Objects.equals(attribute.value(), upsertAttributeMutation.getAttributeValue()))
 												.orElse(false);
 											return !attributeSameAsPreviousOne;
@@ -758,21 +758,23 @@ public class ExistingEntityBuilder implements EntityBuilder {
 		);
 		final ReferenceKey referenceKey = new ReferenceKey(referenceName, referencedPrimaryKey);
 		Assert.isTrue(getReference(referenceName, referencedPrimaryKey).isPresent(), "There's no reference of type " + referenceName + " and primary key " + referencedPrimaryKey + "!");
+
+		// remove possibly added / updated reference mutation
+		this.referenceMutations.remove(referenceKey);
+
 		final Optional<ReferenceContract> theReference = baseEntity.getReferenceWithoutSchemaCheck(referenceKey)
 			.filter(referencePredicate);
-		Assert.isTrue(
-			theReference.isPresent(),
-			"Reference to " + referenceName + " and primary key " + referenceKey +
-				" is not present on the entity " + baseEntity.getType() + " and id " +
-				baseEntity.getPrimaryKey() + "!"
-		);
-		this.referenceMutations.put(
-			referenceKey,
-			Collections.singletonList(
-				new RemoveReferenceMutation(referenceKey)
-			)
-		);
-		this.removedReferences.add(referenceKey);
+		if (theReference.isPresent()) {
+			// if the reference was part of the previous entity version we build upon, remove it as-well
+			this.referenceMutations.put(
+				referenceKey,
+				Collections.singletonList(
+					new RemoveReferenceMutation(referenceKey)
+				)
+			);
+			this.removedReferences.add(referenceKey);
+		}
+
 		return this;
 	}
 
@@ -896,6 +898,18 @@ public class ExistingEntityBuilder implements EntityBuilder {
 		return toMutation()
 			.map(it -> it.mutate(baseEntity.getSchema(), baseEntity))
 			.orElse(baseEntity);
+	}
+
+	/**
+	 * Checks if the given reference is present in the base entity.
+	 *
+	 * @param reference the reference to check
+	 * @return true if the reference is present in the base entity, false otherwise
+	 */
+	public boolean isPresentInBaseEntity(@Nonnull ReferenceContract reference) {
+		return this.baseEntity.getReference(reference.getReferenceKey())
+			.map(Droppable::exists)
+			.orElse(false);
 	}
 
 	@Nullable

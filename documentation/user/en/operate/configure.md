@@ -1,7 +1,7 @@
 ---
 title: Configuration
 perex: This article is a complete configuration guide for evitaDB instance.
-date: '1.3.2023'
+date: '14.7.2024'
 author: 'Ing. Jan Novotný'
 proofreading: 'done'
 ---
@@ -13,12 +13,23 @@ snippet:
 name: evitaDB                                     # [see Name configuration](#name)
 
 server:                                           # [see Server configuration](#server-configuration)
-  coreThreadCount: 4
-  maxThreadCount: 16
-  threadPriority: 5
-  queueSize: 100
-  shortRunningThreadsTimeoutInSeconds: 1
-  killTimedOutShortRunningThreadsEverySeconds: 30
+  requestThreadPool:
+    minThreadCount: 4
+    maxThreadCount: 16
+    threadPriority: 5
+    queueSize: 100
+  transactionThreadPool:
+    minThreadCount: 4
+    maxThreadCount: 16
+    threadPriority: 5
+    queueSize: 100
+  serviceThreadPool:
+    minThreadCount: 4
+    maxThreadCount: 16
+    threadPriority: 5
+    queueSize: 100
+  queryTimeoutInMilliseconds: 5s
+  transactionTimeoutInMilliseconds: 5M
   closeSessionsAfterSecondsOfInactivity: 60
   readOnly: false
   quiet: false
@@ -30,6 +41,16 @@ storage:                                          # [see Storage configuration](
   outputBufferSize: 4MB
   maxOpenedReadHandles: 12
   computeCRC32C: true
+  minimalActiveRecordShare: 0.5
+  fileSizeCompactionThresholdBytes: 100MB
+
+transaction:                                      # [see Transaction configuration](#transaction-configuration)
+  transactionWorkDirectory: /tmp/evitaDB/transaction
+  transactionMemoryBufferLimitSizeBytes: 16MB
+  transactionMemoryRegionCount: 256
+  walFileSizeBytes: 16MB
+  walFileCountKept: 8
+  flushFrequencyInMillis: 1s
 
 cache:                                            # [see Cache configuration](#cache-configuration)
   enabled: true
@@ -42,7 +63,12 @@ cache:                                            # [see Cache configuration](#c
 
 api:                                              # [see API configuration](#api-configuration)
   exposedOn: null
-  ioThreads: 4
+  workerGroupThreads: 4
+  serviceWorkerGroupThreads: 4
+  idleTimeoutInMillis: 2K
+  requestTimeoutInMillis: 2K
+  keepAlive: true
+  maxEntitySizeInBytes: 2MB
   accessLog: false
   certificate:                                    # [see TLS configuration](#tls-configuration) 
     generateAndUseSelfSigned: true
@@ -54,35 +80,47 @@ api:                                              # [see API configuration](#api
   endpoints:
     system:                                       # [see System API configuration](#system-api-configuration)
       enabled: true
-      host: localhost:5557
-      tlsEnabled: false
+      host: localhost:5555
+      tlsMode: FORCE_NO_TLS
       allowedOrigins: null
     graphQL:                                      # [see GraphQL API configuration](#graphql-api-configuration)
       enabled: true
       host: localhost:5555
-      tlsEnabled: true
+      tlsMode: FORCE_TLS
       allowedOrigins: null
       parallelize: true
     rest:                                         # [see REST API configuration](#rest-api-configuration)
       enabled: true
       host: localhost:5555
-      tlsEnabled: true
+      tlsMode: FORCE_TLS
       allowedOrigins: null
     gRPC:                                         # [see gRPC API configuration](#grpc-api-configuration)
       enabled: true
-      host: localhost:5556
+      host: localhost:5555
+      tlsMode: FORCE_TLS
+      exposeDocsService: false
       mTLS:
         enabled: false
         allowedClientCertificatePaths: []
     lab:                                          # [see evitaLab configuration](#evitalab-configuration)
       enabled: true
       host: localhost:5555
-      tlsEnabled: true
+      tlsMode: FORCE_TLS
       allowedOrigins: null
       gui:
         enabled: true
         readOnly: false
         preconfiguredConnections: null
+    observability:                                # [see Observability configuration](#observability-configuration)
+      enabled: true
+      host: localhost:5555
+      exposedHost: null
+      tlsMode: FORCE_NO_TLS
+      allowedOrigins: null
+      tracing:
+        endpoint: null
+        protocol: grpc
+      allowedEvents: null
 ```
 
 <Note type="info">
@@ -209,17 +247,72 @@ Yes there are - you can use standardized metric system shortcuts for counts and 
 
 <NoteTitle toggles="true">
 
-##### Where the default configuration bundled with Docker image is located?
+##### Where is the default configuration bundled with the Docker image?
 </NoteTitle>
 
-The default configuration file is located in the file <SourceClass>docker/evita-configuration.yaml</SourceClass>.
+The default configuration file is located in the file <SourceClass>evita_server/src/main/resources/evita-configuration.yaml</SourceClass>.
 As you can see, it contains variables that allow the propagation of arguments from the command line / environment
-variables that are present when the server is started. The format used in this file is :
+variables that are present when the server is started. The format used in this file is:
 
 ```
 ${argument_name:defaultValue}
 ```
 </Note>
+
+## Overriding defaults
+
+There are several ways to override the defaults specified in the <SourceClass>evita_server/src/main/resources/evita-configuration.yaml</SourceClass> 
+file on the classpath.
+
+### Environment Variables
+
+Any configuration property can be overridden by setting an environment variable with a specially crafted name. The name
+of the variable can be calculated from the variable used in the default config file, which is always constructed from 
+the path to the property in the configuration file. The calculation consists of capitalizing the variable name and 
+replacing all dots with underscores. For example, the `server.coreThreadCount` property can be overridden by setting
+the `SERVER_CORETHREADCOUNT` environment variable.
+
+### Command Line Arguments
+
+Any configuration property can also be overridden by setting a command line argument with the following format
+
+```shell
+java -jar "target/evita-server.jar" "storage.storageDirectory=../data"
+```
+
+Application arguments have priority over environment variables.
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### How do I set application arguments in a Docker container?
+
+</NoteTitle>
+
+When using Docker containers, you can set application arguments in the `EVITA_ARGS` environment variable - for example
+
+```shell
+docker run -i --rm --net=host -e EVITA_ARGS="storage.storageDirectory=../data" index.docker.io/evitadb/evitadb:latest
+```
+
+</Note>
+
+### Custom configuration file
+
+Finally, the configuration file can be overridden by specifying a custom configuration file in the configuration folder
+specified by the `configDir` application argument. The custom configuration file must be in the same YAML format as 
+the default configuration, but may only contain a subset of the properties to be overridden. It's also possible to 
+define multiple override files. The files are applied in alphabetical order of their names. If you are building your 
+own Docker image, you can use the following command to override the configuration file:
+
+```shell
+COPY "your_file.yaml" "$EVITA_CONFIG_DIR"
+```
+
+If you have a more complex concatenated pipeline, you can copy multiple files to this folder at different stages of 
+the pipeline - but you must maintain the proper alphabetical order of the files so that overrides are applied the way
+you want.
 
 ## Name
 
@@ -233,6 +326,63 @@ from another and to handle unique server certificates correctly.
 ## Server configuration
 
 This section contains general settings for the evitaDB server. It allows configuring thread pools, queues, timeouts:
+
+<dl>
+    <dt>requestThreadPool</dt>
+    <dd>
+        <p>Sets limits on the core thread pool used to serve all incoming requests. Threads from this pool handle all 
+        queries and updates until the transaction is committed/rolled back. See [separate chapter](#thread-pool-configuration) 
+        for more information.</p>
+    </dd>
+    <dt>transactionThreadPool</dt>
+    <dd>
+        <p>Sets limits on the transaction thread pool used to process transactions when they're committed. I.e. conflict
+        resolution, inclusion in trunk, and replacement of shared indexes used. See [separate chapter](#thread-pool-configuration) 
+        for more information.</p>
+    </dd>
+    <dt>serviceThreadPool</dt>
+    <dd>
+        <p>Sets limits on the service thread pool used for service tasks such as maintenance, backup creation, backup
+        restoration, and so on. See [separate chapter](#thread-pool-configuration) for more information.</p>
+    </dd>
+    <dt>queryTimeoutInMilliseconds</dt>
+    <dd>
+        <p>**Default:** `5s`</p>
+        <p>Sets the timeout in milliseconds after which threads executing read-only session requests should timeout and 
+        abort their execution.</p>
+    </dd>
+    <dt>transactionTimeoutInMilliseconds</dt>
+    <dd>
+        <p>**Default:** `5m`</p>
+        <p>Sets the timeout in milliseconds after which threads executing read-write session requests should timeout and 
+        abort their execution.</p>
+    </dd>
+    <dt>closeSessionsAfterSecondsOfInactivity</dt>
+    <dd>
+        <p>**Default:** `60`</p>
+        <p>It specifies the maximum acceptable period of 
+        <SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaSessionContract.java</SourceClass> inactivity before 
+        it is forcibly closed by the server side.</p>
+    </dd>
+    <dt>readOnly</dt>
+    <dd>
+        <p>**Default:** `false`</p>
+        <p>It switches the evitaDB server into read-only mode, where no updates are allowed and the server only provides 
+           read access to the data of the catalogs present in the data directory at the start of the server instance.</p>
+    </dd>
+    <dt>quiet</dt>
+    <dd>
+        <p>**Default:** `false`</p>
+        <p>It disables logging of helper info messages (e.g.: startup info). Note that it doesn't disable the main logging
+           handled by the [Slf4j](https://www.slf4j.org/) logging facade.</p>
+         <Note type="warning">
+            This setting should not be used when running multiple server instances inside single JVM because it is currently
+            not thread-safe.            
+        </Note>
+    </dd>
+</dl>
+
+### Thread pool configuration
 
 <dl>
     <dt>coreThreadCount</dt>
@@ -259,41 +409,6 @@ This section contains general settings for the evitaDB server. It allows configu
         <p>It defines the maximum number of tasks that can accumulate in the queue waiting for the free thread from 
         the thread pool to process them. Tasks that exceed this limit will be discarded (new requests/other tasks will 
         fail with an exception).</p>
-    </dd>
-    <dt>shortRunningThreadsTimeoutInSeconds</dt>
-    <dd>
-        <p>**Default:** `1`</p>
-        <p>It sets the timeout in seconds after which threads that are supposed to be short-running should timeout and 
-        cancel its execution.</p>
-    </dd>
-    <dt>killTimedOutShortRunningThreadsEverySeconds</dt>
-    <dd>
-        <p>**Default:** `30`</p>
-        <p>It sets an interval in seconds in which short-running timed out threads are forced to be killed (unfortunately, 
-        it's not guarantied that the threads will be actually killed) and stack traces are printed</p>
-    </dd>
-    <dt>closeSessionsAfterSecondsOfInactivity</dt>
-    <dd>
-        <p>**Default:** `60`</p>
-        <p>It specifies the maximum acceptable period of 
-        <SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaSessionContract.java</SourceClass> inactivity before 
-        it is forcibly closed by the server side.</p>
-    </dd>
-    <dt>readOnly</dt>
-    <dd>
-        <p>**Default:** `false`</p>
-        <p>It switches the evitaDB server into read-only mode, where no updates are allowed and the server only provides 
-           read access to the data of the catalogs present in the data directory at the start of the server instance.</p>
-    </dd>
-    <dt>quiet</dt>
-    <dd>
-        <p>**Default:** `false`</p>
-        <p>It disables logging of helper info messages (e.g.: startup info). Note that it doesn't disable the main logging
-           handled by the [Slf4j](https://www.slf4j.org/) logging facade.</p>
-         <Note type="warning">
-            This setting should not be used when running multiple server instances inside single JVM because it is currently
-            not thread-safe.            
-        </Note>
     </dd>
 </dl>
 
@@ -346,6 +461,75 @@ This section contains configuration options for the storage layer of the databas
             It is strongly recommended that this setting be set to `true`, as it will report potentially corrupt records as 
             early as possible.
         </Note>
+    </dd>
+    <dt>minimalActiveRecordShare</dt>
+    <dd>
+        <p>**Default:** `0.5` (when waste exceeds 50% the file is compacted)</p>
+        <p>Minimal share of active records in the data file. If the share is lower and the file size exceeds also
+            `fileSizeCompactionThresholdBytes` limit, the file will be compacted. It means new file containing only 
+            active records will be written next to original file.</p>
+    </dd>
+    <dt>fileSizeCompactionThresholdBytes</dt>
+    <dd>
+        <p>**Default:** `100MB`</p>
+        <p>Minimal file size threshold for compaction. If the file size is lower, the file will not be compacted even 
+            if the share of active records is lower than the minimal share.</p>
+    </dd>
+    <dt>timeTravelEnabled</dt>
+    <dd>
+        <p>**Default:** `true`</p>
+        <p>When set to true, the data files are not removed immediately after compacting, but are kept on disk as long 
+        as there is history available in the WAL log. This allows a snapshot of the database to be taken at any point 
+        in the history covered by the WAL log. From the snapshot, the database can be restored to the exact point in 
+        time with all the data available at that time.</p>
+    </dd>
+</dl>
+
+## Transaction configuration
+
+This section contains configuration options for the storage layer of the database dedicated to transaction handling.
+
+<dl>
+    <dt>transactionWorkDirectory</dt>
+    <dd>
+        <p>**Default:** `/tmp/evitaDB/transaction`</p>
+        <p>Directory on local disk where Evita creates temporary folders and files for transactional transaction. 
+            By default, temporary directory is used - but it is a good idea to set your own directory to avoid problems 
+            with disk space.</p>
+    </dd>
+    <dt>transactionMemoryBufferLimitSizeBytes</dt>
+    <dd>
+        <p>**Default:** `16MB`</p>
+        <p>Number of bytes that are allocated on off-heap memory for transaction memory buffer. This buffer is used to 
+            store temporary (isolated) transactional data before they are committed to the database.
+            If the buffer is full, the transaction data are immediately written to the disk and the transaction 
+            processing gets slower.</p>
+    </dd>
+    <dt>transactionMemoryRegionCount</dt>
+    <dd>
+        <p>**Default:** `256`</p>
+        <p>Number of slices of the `transactionMemoryBufferLimitSizeBytes` buffer.
+            The more slices the smaller they get and the higher the probability that the buffer will be full and will 
+            have to be copied to the disk.</p>
+    </dd>
+    <dt>walFileSizeBytes</dt>
+    <dd>
+        <p>**Default:** `16MB`</p>
+        <p>Size of the Write-Ahead Log (WAL) file in bytes before it is rotated.</p>
+    </dd>
+    <dt>walFileCountKept</dt>
+    <dd>
+        <p>**Default:** `8`</p>
+        <p>Number of WAL files to keep. Increase this number in combination with `walFileSizeBytes` if you want to
+            keep longer history of changes.</p>
+    </dd>
+    <dt>flushFrequencyInMillis</dt>
+    <dd>
+        <p>**Default:** `1s`</p>
+        <p>The frequency of flushing the transactional data to the disk when they are sequentially processed.
+            If database process the (small) transaction very quickly, it may decide to process next transaction before 
+            flushing changes to the disk. If the client waits for `WAIT_FOR_INDEX_PROPAGATION` he may wait entire 
+            `flushFrequencyInMillis` milliseconds before he gets the response.</p>
     </dd>
 </dl>
 
@@ -403,6 +587,7 @@ is resolved.
     <dd>
         <p>**Default:** `null`, which means that evitaDB uses 25% of the free memory measured at the moment it starts and loads all data into it</p>
         <p>evitaDB tries to estimate the memory size of each cached object and avoid exceeding this threshold.</p>
+
         <Note type="question">
 
         <NoteTitle toggles="true">
@@ -422,11 +607,6 @@ is resolved.
 This section of the configuration allows you to selectively enable, disable, and tweak specific APIs.
 
 <dl>
-    <dt>ioThreads</dt>
-    <dd>
-        <p>**Default:** `4`</p>
-        <p>Defines the number of IO threads that will be used by Undertow for accept and send HTTP payload.</p>
-    </dd>
     <dt>exposedOn</dt>
     <dd>
         <p>When evitaDB is running in a Docker container and the ports are exposed on the host systems 
@@ -434,6 +614,42 @@ This section of the configuration allows you to selectively enable, disable, and
            evitaDB is available on that host system. By specifying the `exposedOn` property you can specify
            the name (without port) of the host system host name that will be used by all API endpoints without
            specific `exposedHost` configuration property to use that host name and appropriate port.</p>
+    </dd>
+    <dt>workerGroupThreads</dt>
+    <dd>
+        <p>**Default:** `number of CPUs`</p>
+        <p>Defines the number of IO threads that will be used by Armeria for accept and send HTTP payload.</p>
+    </dd>
+    <dt>serviceWorkerGroupThreads</dt>
+    <dd>
+        <p>**Default:** `number of CPUs * 2`</p>
+        <p>Defines the number of service threads used by Armeria to handle requests. The main logic usually does not run
+        within these threads, but within evitaDB's internal thread pools.</p>
+    </dd>
+    <dt>idleTimeoutInMillis</dt>
+    <dd>
+        <p>**Default:** `2K`</p>
+        <p>The amount of time a connection can be idle for before it is timed out. An idle connection is a connection 
+            that has had no data transfer in the idle timeout period. Note that this is a fairly coarse grained approach,
+            and small values will cause problems for requests with a long processing time.</p>
+    </dd>
+    <dt>requestTimeoutInMillis</dt>
+    <dd>
+        <p>**Default:** `2K`</p>
+        <p>The amount of time a connection can sit idle without processing a request, before it is closed by the server.</p>
+    </dd>
+    <dt>keepAlive</dt>
+    <dd>
+        <p>**Default:** `true`</p>
+        <p>If this is true then a Connection: keep-alive header will be added to responses, even when it is not strictly 
+            required by the specification.</p>
+    </dd>
+    <dt>maxEntitySizeInBytes</dt>
+    <dd>
+        <p>**Default:** `2MB`</p>
+        <p>The default maximum size of a request entity. If entity body is larger than this limit then a IOException 
+            will be thrown at some point when reading the request (on the first read for fixed length requests, when too 
+            much data has been read for chunked requests).</p>
     </dd>
     <dt>accessLog</dt>
     <dd>
@@ -478,6 +694,7 @@ It allows configuring these settings:
     <NoteTitle toggles="false">
         
     ##### Tip
+
     </NoteTitle>
 
       It is recommended to provide the private key password using command line argument (environment variable) 
@@ -524,11 +741,15 @@ provide an unsecured connection for security reasons.
            evitaDB is available on that host system. If you specify this property, the `exposeOn` global property
            is no longer used.</p>
     </dd>
-    <dt>tlsEnabled</dt>
+    <dt>tlsMode</dt>
     <dd>
-        <p>**Default:** `true`</p>
-        <p>Whether the [TLS](./tls.md) should be enabled for the GraphQL API. If multiple APIs share the same port, 
-        all such APIs need to have set the same `tlsEnabled` value, or each API must have its own port.</p>
+        <p>**Default:** `FORCE_TLS`</p>
+        <p>Whether to enable the [TLS](./tls.md) for the GraphQL API. Three modes are available:</p>
+        <ol>
+            <li>`FORCE_TLS`: Only encrypted (TLS) communication is allowed.</li>
+            <li>`FORCE_NO_TLS`: Only unencrypted (non-TLS) communication is allowed.</li>
+            <li>`RELAXED`: Both variants will be available, depending on the client's choice.</li>
+        </ol>
     </dd>
     <dt>allowedOrigins</dt>
     <dd>
@@ -565,11 +786,15 @@ provide an unsecured connection for security reasons.
            evitaDB is available on that host system. If you specify this property, the `exposeOn` global property
            is no longer used.</p>
     </dd>
-    <dt>tlsEnabled</dt>
+    <dt>tlsMode</dt>
     <dd>
-        <p>**Default:** `true`</p>
-        <p>Whether the [TLS](./tls.md) should be enabled for the REST API. If multiple APIs share the same port, 
-        all such APIs need to have set the same `tlsEnabled` value, or each API must have its own port.</p>
+        <p>**Default:** `FORCE_TLS`</p>
+        <p>Whether to enable the [TLS](./tls.md) for the REST API. Three modes are available:</p>
+        <ol>
+            <li>`FORCE_TLS`: Only encrypted (TLS) communication is allowed.</li>
+            <li>`FORCE_NO_TLS`: Only unencrypted (non-TLS) communication is allowed.</li>
+            <li>`RELAXED`: Both variants will be available, depending on the client's choice.</li>
+        </ol>
     </dd>
     <dt>allowedOrigins</dt>
     <dd>
@@ -600,6 +825,22 @@ provide an unsecured connection for security reasons.
            the internally resolved local host name and port usually don't match the host name and port 
            evitaDB is available on that host system. If you specify this property, the `exposeOn` global property
            is no longer used.</p>
+    </dd>
+    <dt>tlsMode</dt>
+    <dd>
+        <p>**Default:** `FORCE_TLS`</p>
+        <p>Whether to enable the [TLS](./tls.md) for the gRPC API. Three modes are available:</p>
+        <ol>
+            <li>`FORCE_TLS`: Only encrypted (TLS) communication is allowed.</li>
+            <li>`FORCE_NO_TLS`: Only unencrypted (non-TLS) communication is allowed.</li>
+            <li>`RELAXED`: Both variants will be available, depending on the client's choice.</li>
+        </ol>
+    </dd>
+    <dt>exposeDocsService</dt>
+    <dd>
+        <p>**Default:** `false`</p>
+        <p>It enables / disables the gRPC service, which provides documentation for the gRPC API and allows to
+        experimentally call any of the services from the web UI and examine its output.</p>
     </dd>
 </dl>
 
@@ -637,18 +878,24 @@ more information.
     </dd>
     <dt>host</dt>
     <dd>
-        <p>**Default:** `localhost:5557`</p>
+        <p>**Default:** `localhost:5555`</p>
         <p>It specifies the host and port on which the system API should listen. The value must be different from all 
         other APIs because the system API needs to run on the insecure HTTP protocol while the other APIs use the secure one.</p>
         <p>The system endpoint allows anyone to view public <Term location="/documentation/user/en/operate/tls.md">certificate authority</Term> 
         <Term location="/documentation/user/en/operate/tls.md">certificate</Term> and it also provides information for 
         [default `mTLS` implementation](tls.md#default-mtls-behaviour-not-secure).</p>
     </dd>
-    <dt>tlsEnabled</dt>
+    <dt>tlsMode</dt>
     <dd>
-        <p>**Default:** `false`</p>
-        <p>Whether the [TLS](./tls.md) should be enabled for the System API. If multiple APIs share the same port, 
-        all such APIs need to have set the same `tlsEnabled` value, or each API must have its own port.</p>
+        <p>**Default:** `FORCE_NO_TLS`</p>
+        <p>Whether to enable the [TLS](./tls.md) for the System API. Although all modes are available, if you need 
+        the client to retrieve the self-signed server certificate to add it to the "trusted" certificate store, you must 
+        leave the unencrypted channel open.</p>
+        <ol>
+            <li>`FORCE_TLS`: Only encrypted (TLS) communication is allowed.</li>
+            <li>`FORCE_NO_TLS`: Only unencrypted (non-TLS) communication is allowed.</li>
+            <li>`RELAXED`: Both variants will be available, depending on the client's choice.</li>
+        </ol>
     </dd>
     <dt>allowedOrigins</dt>
     <dd>
@@ -683,12 +930,15 @@ Besides that, it can also serve an entire evitaLab web client as its copy is bui
            evitaDB is available on that host system. If you specify this property, the `exposeOn` global property
            is no longer used.</p>
     </dd>
-    <dt>tlsEnabled</dt>
+    <dt>tlsMode</dt>
     <dd>
-        <p>**Default:** `true`</p>
-        <p>Whether the [TLS](./tls.md) should be enabled for the evitaLab API/evitaLab web client. 
-        If multiple APIs share the same port, 
-        all such APIs need to have set the same `tlsEnabled` value, or each API must have its own port.</p>
+        <p>**Default:** `FORCE_TLS`</p>
+        <p>Whether to enable the [TLS](./tls.md) for the evitaLab web client. Three modes are available:</p>
+        <ol>
+            <li>`FORCE_TLS`: Only encrypted (TLS) communication is allowed.</li>
+            <li>`FORCE_NO_TLS`: Only unencrypted (non-TLS) communication is allowed.</li>
+            <li>`RELAXED`: Both variants will be available, depending on the client's choice.</li>
+        </ol>
     </dd>
     <dt>allowedOrigins</dt>
     <dd>
@@ -744,5 +994,60 @@ This configuration controls how the actual evitaLab web client will be served th
         it is exposed on a different public domain and port, not on a localhost. Without custom connection configuration
         pointing to the public domain, the evitaLab web client would try to connect to the server on localhost.
         </p>
+    </dd>
+</dl>
+
+### Observability configuration
+
+The configuration controls all observability facilities exposed to the external systems. Currently, it's the endpoint
+pro scraping Prometheus metrics, OTEL trace exporter and Java Flight Recorder events recording facilities.
+
+<dl>
+    <dt>enabled</dt>
+    <dd>
+        <p>**Default:** `true`</p>
+        <p>It enables / disables observability API.</p>
+    </dd>
+    <dt>host</dt>
+    <dd>
+        <p>**Default:** `localhost:5555`</p>
+        <p>It specifies the host and port that the evitaLab API/evitaLab web client should listen on.
+        The value may be identical to the GraphQL API and REST API, but not to the gRPC or System API.</p>
+    </dd>
+    <dt>exposedHost</dt>
+    <dd>
+        <p>When evitaDB is running in a Docker container and the ports are exposed on the host systems 
+           the internally resolved local host name and port usually don't match the host name and port 
+           evitaDB is available on that host system. If you specify this property, the `exposeOn` global property
+           is no longer used.</p>
+    </dd>
+    <dd>
+        <p>**Default:** `FORCE_NO_TLS`</p>
+        <p>Whether to enable the [TLS](./tls.md) for the observability endpoints. Three modes are available:</p>
+        <ol>
+            <li>`FORCE_TLS`: Only encrypted (TLS) communication is allowed.</li>
+            <li>`FORCE_NO_TLS`: Only unencrypted (non-TLS) communication is allowed.</li>
+            <li>`RELAXED`: Both variants will be available, depending on the client's choice.</li>
+        </ol>
+    </dd>
+    <dt>allowedOrigins</dt>
+    <dd>
+        <p>**Default:** `null`</p>
+        <p>Specifies comma separated [origins](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Origin) 
+        that are allowed to consume the evitaLab API/evitaLab web client. If no origins are specified, i.e. `null`,
+        all origins are allowed automatically.</p>
+    </dd>
+    <dt>tracing.endpoint</dt>
+    <dd>
+        <p>**Default:** `null`</p>
+        <p>Specifies the URL to the [OTEL collector](https://opentelemetry.io/docs/collector/) that collects the traces.
+        It's a good idea to run the collector on the same host as evitaDB so that it can further filter out traces and
+        avoid unnecessary remote network communication.</p>
+    </dd>
+    <dt>tracing.protocol</dt>
+    <dd>
+        <p>**Default:** `grpc`</p>
+        <p>Specifies the protocol used between the application and the OTEL collector to pass the traces. Possible 
+        values are `grpc` and `http`. gRPC is much more performant and is the preferred option.</p>
     </dd>
 </dl>

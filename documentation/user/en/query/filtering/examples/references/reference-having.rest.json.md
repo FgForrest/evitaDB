@@ -7,8 +7,8 @@
         "type": "Product",
         "version": 1,
         "allLocales": [
-          "en",
-          "cs"
+          "cs",
+          "en"
         ],
         "relatedProducts": [
           {
@@ -572,19 +572,19 @@
         ]
       }
     ],
-    "type": "PAGE",
-    "totalRecordCount": 2918,
-    "first": true,
-    "last": false,
-    "hasPrevious": false,
-    "hasNext": true,
-    "singlePage": false,
     "empty": false,
-    "pageSize": 20,
-    "pageNumber": 1,
-    "lastPageNumber": 146,
+    "first": true,
     "firstPageItemNumber": 0,
-    "lastPageItemNumber": 19
+    "hasNext": true,
+    "hasPrevious": false,
+    "last": false,
+    "lastPageItemNumber": 19,
+    "lastPageNumber": 146,
+    "pageNumber": 1,
+    "pageSize": 20,
+    "singlePage": false,
+    "totalRecordCount": 2918,
+    "type": "PAGE"
   }
 }
 ```

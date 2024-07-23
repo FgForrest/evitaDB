@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -207,7 +207,7 @@ public class SortIndexChanges implements Serializable {
 	 */
 	public void prepare() {
 		// force computation of the value index
-		getValueIndex(sortIndex.sortedRecordsValues, sortIndex.valueCardinalities);
+		getValueIndex(this.sortIndex.sortedRecordsValues, this.sortIndex.valueCardinalities);
 	}
 
 	/**
@@ -253,7 +253,7 @@ public class SortIndexChanges implements Serializable {
 	}
 
 	/**
-	 * Computes value index if it hasn't exist yet. Result of this method is memoized. Method computes startung index
+	 * Computes value index if it hasn't exist yet. Result of this method is memoized. Method computes starting index
 	 * (position) of the record ids block that belongs to specific value from {@link SortIndex#sortedRecordsValues} and
 	 * {@link SortIndex#valueCardinalities} information.
 	 */
@@ -331,6 +331,7 @@ public class SortIndexChanges implements Serializable {
 		 * Decrements start index of the block.
 		 */
 		public void decrement() {
+			Assert.isPremiseValid(this.index > 0, "Index of the value start index cannot be negative!");
 			this.index--;
 		}
 

@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,9 +23,12 @@
 
 package io.evitadb.documentation.rest;
 
+import io.evitadb.documentation.Environment;
 import io.evitadb.documentation.TestContext;
 import io.evitadb.test.client.RestClient;
 import lombok.Getter;
+
+import javax.annotation.Nonnull;
 
 /**
  * Context creates new {@link RestClient} instance that is connected to the demo server.
@@ -40,9 +43,9 @@ public class RestTestContext implements TestContext {
 	@Getter
 	private final RestClient restClient;
 
-	public RestTestContext() {
-		this.restClient = new RestClient("https://demo.evitadb.io:5555");
-		// for local documentation testing
-//		this.restClient = new RestClient("https://localhost:5555", false);
+	public RestTestContext(@Nonnull Environment profile) {
+		this.restClient = profile == Environment.LOCALHOST ?
+			new RestClient("https://localhost:5555", false, false) :
+			new RestClient("https://demo.evitadb.io:5555", true, false);
 	}
 }

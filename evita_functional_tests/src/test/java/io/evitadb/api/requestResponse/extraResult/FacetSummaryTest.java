@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -54,7 +54,7 @@ class FacetSummaryTest {
 	}
 
 	@Nonnull
-	private FacetSummary createFacetSummary() {
+	private static FacetSummary createFacetSummary() {
 		final ReferenceSchema parameter = ReferenceSchema._internalBuild(
 			"parameter", "parameter", false, Cardinality.ZERO_OR_MORE, "parameterGroup", false, true, true
 		);
@@ -66,8 +66,8 @@ class FacetSummaryTest {
 					14,
 					Arrays.asList(
 						new FacetStatistics(new EntityReference("parameter", 1), true, 5, null),
-						new FacetStatistics(new EntityReference("parameter", 2), false, 6, new RequestImpact(6, 11)),
-						new FacetStatistics(new EntityReference("parameter", 3), false, 3, new RequestImpact(3, 8))
+						new FacetStatistics(new EntityReference("parameter", 2), false, 6, new RequestImpact(6, 11, true)),
+						new FacetStatistics(new EntityReference("parameter", 3), false, 3, new RequestImpact(3, 8, true))
 					)
 				),
 				new FacetGroupStatistics(
@@ -76,8 +76,8 @@ class FacetSummaryTest {
 					14,
 					Arrays.asList(
 						new FacetStatistics(new EntityReference("parameter", 4), true, 5, null),
-						new FacetStatistics(new EntityReference("parameter", 5), false, 6, new RequestImpact(6, 11)),
-						new FacetStatistics(new EntityReference("parameter", 6), false, 3, new RequestImpact(3, 8))
+						new FacetStatistics(new EntityReference("parameter", 5), false, 6, new RequestImpact(6, 11, true)),
+						new FacetStatistics(new EntityReference("parameter", 6), false, 3, new RequestImpact(3, 8, true))
 					)
 				)
 			)

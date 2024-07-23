@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -26,6 +26,7 @@ package io.evitadb.externalApi.rest.api.testSuite;
 import com.github.javafaker.Faker;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.order.OrderDirection;
+import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.Cardinality;
@@ -70,6 +71,7 @@ public class TestDataGenerator {
 	public static final String ENTITY_EMPTY_WITHOUT_PK = "emptyWithoutPk";
 	public static final String ENTITY_BRAND_GROUP = "BrandGroup";
 	public static final String ENTITY_STORE_GROUP = "BrandGroup";
+	public static final String ATTRIBUTE_RELATIVE_URL = "relativeUrl";
 	public static final String ATTRIBUTE_SIZE = "size";
 	public static final String ATTRIBUTE_CREATED = "created";
 	public static final String ATTRIBUTE_MANUFACTURED = "manufactured";
@@ -101,9 +103,19 @@ public class TestDataGenerator {
 				.openForWrite()
 				.withAttribute(ATTRIBUTE_CODE, String.class, whichIs -> whichIs.sortable().uniqueGlobally())
 				.withAttribute(ATTRIBUTE_URL, String.class, whichIs -> whichIs.localized().uniqueGlobally())
+				.withAttribute(ATTRIBUTE_RELATIVE_URL, String.class, whichIs -> whichIs.localized().uniqueGloballyWithinLocale().nullable())
 				.updateVia(session);
 
-			final DataGenerator dataGenerator = new DataGenerator();
+			final DataGenerator dataGenerator = new DataGenerator(faker -> {
+				final int rndPIRH = faker.random().nextInt(10);
+				if (rndPIRH < 6) {
+					return PriceInnerRecordHandling.NONE;
+				} else if (rndPIRH < 8) {
+					return PriceInnerRecordHandling.LOWEST_PRICE;
+				} else {
+					return PriceInnerRecordHandling.SUM;
+				}
+			});
 			final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> {
 				final int entityCount = session.getEntityCollectionSize(entityType);
 				final int primaryKey = entityCount == 0 ? 0 : faker.random().nextInt(1, entityCount);
@@ -180,6 +192,7 @@ public class TestDataGenerator {
 						schemaBuilder -> {
 							schemaBuilder
 								.withDescription("This is a description")
+								.withGlobalAttribute(ATTRIBUTE_RELATIVE_URL)
 								.withAttribute(ATTRIBUTE_QUANTITY, BigDecimal.class, whichIs -> whichIs
 									.withDescription("This is a description")
 									.filterable()
@@ -246,6 +259,15 @@ public class TestDataGenerator {
 									Entities.STORE,
 									Cardinality.ZERO_OR_MORE,
 									whichIs -> whichIs.faceted().withGroupType(ENTITY_STORE_GROUP)
+								)
+								.withReferenceToEntity(
+									Entities.PARAMETER,
+									Entities.PARAMETER,
+									Cardinality.EXACTLY_ONE,
+									whichIs -> whichIs
+										.faceted()
+										.withAttribute(ATTRIBUTE_MARKET_SHARE, BigDecimal.class)
+										.withGroupTypeRelatedToEntity(Entities.PARAMETER_GROUP)
 								);
 						}
 					),

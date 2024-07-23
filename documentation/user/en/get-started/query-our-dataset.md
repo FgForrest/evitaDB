@@ -1,8 +1,8 @@
 ---
 title: Query our dataset
 perex: |
-   This article will show you how to connect to our demo instance or spin up a demo instance on your own hardware and 
-   experiment with the evitaDB query language.  
+   This article will show you how to connect to our demo instance or spin up a demo instance on your own hardware and
+   experiment with the evitaDB query language.
 date: '17.1.2023'
 author: 'Ing. Jan Novotný'
 proofreading: 'done'
@@ -10,7 +10,7 @@ preferredLang: 'java'
 ---
 
 While it is much better to play with the schema and data that suits your own e-commerce use case, we believe that
-many of you will want to test the Query API without too much work. Therefore, we have created a sample schema of 
+many of you will want to test the Query API without too much work. Therefore, we have created a sample schema of
 the virtual e-commerce store with data for more than a thousand products for you to play with right away.
 
 There are two ways in which you can play with this data set:
@@ -20,17 +20,17 @@ There are two ways in which you can play with this data set:
 
 ## Use our evitaDB.io server instance
 
-We host the demo dataset directly on the [evitadb.io](https://evitadb.io) site, but to make sure it works reliably for 
-all of you, we had to make it read-only. So you cannot make any changes to it. But you can still use it to test all our 
+We host the demo dataset directly on the [evitadb.io](https://evitadb.io) site, but to make sure it works reliably for
+all of you, we had to make it read-only. So you cannot make any changes to it. But you can still use it to test all our
 web APIs and all supported drivers.
 
-The next limitation is that the server is hosted on cheap shared infrastructure of  
-[Contabo hosting](https://contabo.com/en/vps/) (which has been known to buy old servers to provide low-cost hosting 
+The next limitation is that the server is hosted on cheap shared infrastructure of
+[Contabo hosting](https://contabo.com/en/vps/) (which has been known to buy old servers to provide low-cost hosting
 services) with following specs:
 
 ![Server specs](assets/contabo-hosting.png)
 
-If you experience slow responses, let us know and 
+If you experience slow responses, let us know and
 [try evitaDB on your hardware instead](#run-your-own-evitadb-server-with-our-dataset).
 
 You can access all our APIs on these addresses:
@@ -39,11 +39,11 @@ You can access all our APIs on these addresses:
    - you can explore GraphQL API with our dataset using [online GraphiQL editor](https://cloud.hasura.io/public/graphiql?endpoint=https%3A%2F%2Fdemo.evitadb.io%3A5555%2Fgql%2Fevita) (for more, visit [GraphQL](../use/connectors/graphql.md) documentation)
 - `REST` API: [https://demo.evitadb.io:5555/rest/](https://demo.evitadb.io:5555/rest/evita)
    - you can fetch OpenAPI schema just be sending GET request to this URL (for more, visit [REST](../use/connectors/rest.md) documentation)
-- `gRPC` API: [https://demo.evitadb.io:5556/](https://demo.evitadb.io:5556/)
+- `gRPC` API: [https://demo.evitadb.io:5555/](https://demo.evitadb.io:5555/)
 
 ## Run your own evitaDB server with our dataset
 
-This option requires more work, but you will have control over the performance, and you will be able to modify any data 
+This option requires more work, but you will have control over the performance, and you will be able to modify any data
 in the set. To access the dataset on your hardware, you need to:
 
 1. [download the archive with the dataset](https://evitadb.io/download/evita-demo-dataset.zip)
@@ -63,13 +63,14 @@ in the set. To access the dataset on your hardware, you need to:
 4. start the evitaDB server
    ```shell
    docker run --name evitadb -i --net=host \
+          -e "EVITA_ARGS=api.exposedOn=localhost" \
           -v "./data:/evita/data" \
           index.docker.io/evitadb/evitadb:latest
-   
-   # there is open issue https://github.com/docker/roadmap/issues/238 for Windows / Mac OS 
+
+   # there is open issue https://github.com/docker/roadmap/issues/238 for Windows / Mac OS
    # and you need to open ports manually and propagate host IP address to the container
-   docker run --name evitadb -i -p 5555:5555 -p 5556:5556 -p 5557:5557 \
-          -e "api.exposedOn=localhost" \
+   docker run --name evitadb -i -p 5555:5555 \
+          -e "EVITA_ARGS=api.exposedOn=localhost" \
           -v "./data:/evita/data" \
           index.docker.io/evitadb/evitadb:latest
    ```
@@ -78,13 +79,13 @@ When this procedure is completed you should see the similar output in the consol
 
 ```plain
 
-            _ _        ____  ____  
-  _____   _(_) |_ __ _|  _ \| __ ) 
- / _ \ \ / / | __/ _` | | | |  _ \ 
+            _ _        ____  ____
+  _____   _(_) |_ __ _|  _ \| __ )
+ / _ \ \ / / | __/ _` | | | |  _ \
 |  __/\ V /| | || (_| | |_| | |_) |
- \___| \_/ |_|\__\__,_|____/|____/ 
+ \___| \_/ |_|\__\__,_|____/|____/
 
-alpha build 0.8.ALPHA
+beta build 2024.8.4 (keep calm and report bugs 😉)
 Visit us at: https://evitadb.io
 
 19:45:37.088 INFO  i.e.s.c.DefaultCatalogPersistenceService - Catalog `evita` is being loaded and  it contains:
@@ -109,11 +110,11 @@ Visit us at: https://evitadb.io
 Root CA Certificate fingerprint:        43:51:C6:A0:9C:21:9A:8A:BE:18:2B:53:93:CF:4E:1A:CE:7F:FF:B0:16:99:A5:4C:22:52:25:09:72:6F:5C:E3
 API `graphQL` listening on              https://localhost:5555/gql/
 API `rest` listening on                 https://localhost:5555/rest/
-API `gRPC` listening on                 https://localhost:5556/
-API `system` listening on               http://localhost:5557/system/
-   - server certificate served at:      http://localhost:5557/system/evitaDB-CA-selfSigned.crt
-   - client certificate served at:      http://localhost:5557/system/client.crt
-   - client private key served at:      http://localhost:5557/system/client.key
+API `gRPC` listening on                 https://localhost:5555/
+API `system` listening on               http://localhost:5555/system/
+   - server certificate served at:      http://localhost:5555/system/evitaDB-CA-selfSigned.crt
+   - client certificate served at:      http://localhost:5555/system/client.crt
+   - client private key served at:      http://localhost:5555/system/client.key
 
 ************************* WARNING!!! *************************
 You use mTLS with automatically generated client certificate.
@@ -125,21 +126,40 @@ Supply the certificate for production manually and set `useGeneratedCertificate`
 It means that your evitaDB server is up and running, and also that it has loaded the `evita` catalog dataset with some
 thousands of products.
 
-<LanguageSpecific to="evitaql,java">
+<LS to="e,j">
 
 ## Connect the Java client
 
-Open your Java IDE and create an <SourceClass>evita_external_api/evita_external_api_grpc/client/src/main/java/io/evitadb/driver/EvitaClient.java</SourceClass>
+Open your Java IDE and add the following dependency to your project:
+
+<CodeTabs>
+<CodeTabsBlock>
+```Maven
+<dependency>
+    <groupId>io.evitadb</groupId>
+    <artifactId>evita_java_driver</artifactId>
+    <version>2024.8.4</version>
+</dependency>
+```
+</CodeTabsBlock>
+<CodeTabsBlock>
+```Gradle
+implementation 'io.evitadb:evita_java_driver:2024.8.4'
+```
+</CodeTabsBlock>
+</CodeTabs>
+
+Then, create an <SourceClass>evita_external_api/evita_external_api_grpc/client/src/main/java/io/evitadb/driver/EvitaClient.java</SourceClass>
 instance:
 
-<SourceCodeTabs local>
+<SourceCodeTabs langSpecificTabOnly local>
 [Connect the demo server](/documentation/user/en/get-started/example/connect-demo-server.java)
 </SourceCodeTabs>
 
-After that you can create a new session and try any of the evitaQL queries described in 
+After that you can create a new session and try any of the evitaQL queries described in
 [the reference documentation](../query/basics.md):
 
-<SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/connect-demo-server.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Query the demo server](/documentation/user/en/get-started/example/query-demo-server.java)
 </SourceCodeTabs>
@@ -157,15 +177,40 @@ If you need more hints for querying the data, try [the query API chapter](../use
 
 </Note>
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="csharp">
+<LS to="c">
 
 ## Connect the C# client
 
-**Work in progress**
+Open your .NET IDE and create an instance of <SourceClass>EvitaDB.Client/EvitaClient.cs</SourceClass>:
 
-This article will be extended when the C# driver implementation is done.
+<SourceCodeTabs langSpecificTabOnly local>
+[Connect the demo server](/documentation/user/en/get-started/example/connect-demo-server.cs)
+</SourceCodeTabs>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### Why is EvitaClient initialized with static async method instead of constructor?
+
+</NoteTitle>
+
+In the initialization process, the client needs to get `server-name` from evitaDB's *system* endpoint and in case of
+usage of generated self-signed certificates, it needs to get the certificate from the server. Since both of these operations
+are asynchronous in .NET, we decided to make the initialization process asynchronous as well. These asynchronous calls
+cannot be done  in the constructor (without blocking the main application thread, which could cause serious problems in
+your application), so we decided to use static async method instead.
+</Note>
+
+After that you can create a new session and try any of the evitaQL queries described in
+[the reference documentation](../query/basics.md):
+
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/connect-demo-server.java" langSpecificTabOnly>
+
+[Query the demo server](/documentation/user/en/get-started/example/query-demo-server.cs)
+</SourceCodeTabs>
 
 <Note type="info">
 
@@ -179,9 +224,9 @@ For complete instructions on setting up a C# client, see [the C# drivers chapter
 If you need more hints for querying the data, try [the query API chapter](../use/query-api.md).
 </Note>
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="graphql">
+<LS to="g">
 
 ## Connect to the GraphQL API
 
@@ -191,7 +236,7 @@ the URL of the catalog data API of our demo catalog `https://demo.evitadb.io:555
 After that you can send GraphQL requests to that URL and try any of the GraphQL queries described in
 [the reference documentation](../query/basics.md):
 
-<SourceCodeTabs requires="ignoreTest" langSpecificTabOnly>
+<SourceCodeTabs langSpecificTabOnly>
 
 [Query the demo server](/documentation/user/en/get-started/example/query-demo-server.graphql)
 </SourceCodeTabs>
@@ -209,9 +254,9 @@ If you need more hints for querying the data, try [the query API chapter](../use
 
 </Note>
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="rest">
+<LS to="r">
 
 ## Connect to the REST API
 
@@ -221,7 +266,7 @@ the basic URL of the catalog data API of our demo catalog `https://demo.evitadb.
 After that you can send REST requests to different variants of that URL and try any of the REST queries described in
 [the reference documentation](../query/basics.md):
 
-<SourceCodeTabs requires="ignoreTest" langSpecificTabOnly>
+<SourceCodeTabs langSpecificTabOnly>
 
 [Query the demo server](/documentation/user/en/get-started/example/query-demo-server.rest)
 </SourceCodeTabs>
@@ -239,4 +284,4 @@ If you need more hints for querying the data, try [the query API chapter](../use
 
 </Note>
 
-</LanguageSpecific>
+</LS>

@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -25,17 +25,22 @@ package io.evitadb.externalApi.graphql.api.catalog.dataApi;
 
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.PriceContract;
+import io.evitadb.api.requestResponse.data.PricesContract.AccompanyingPrice;
+import io.evitadb.api.requestResponse.data.PricesContract.PriceForSaleWithAccompanyingPrices;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.externalApi.ExternalApiFunctionTestsSupport;
 import io.evitadb.externalApi.api.catalog.dataApi.model.AssociatedDataDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GlobalEntityDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GraphQLEntityDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PriceForSaleDescriptor;
 import io.evitadb.externalApi.graphql.api.testSuite.GraphQLEndpointFunctionalTest;
 import io.evitadb.test.Entities;
-import io.evitadb.utils.MapBuilder;
 import io.evitadb.test.tester.GraphQLTester;
+import io.evitadb.utils.MapBuilder;
 import io.evitadb.utils.StringUtils;
 
 import javax.annotation.Nonnull;
@@ -45,16 +50,20 @@ import java.time.format.DateTimeFormatter;
 import java.util.Collection;
 import java.util.Currency;
 import java.util.Deque;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
-import static io.evitadb.utils.MapBuilder.map;
 import static io.evitadb.test.generator.DataGenerator.*;
+import static io.evitadb.utils.MapBuilder.map;
 import static org.hamcrest.Matchers.nullValue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Ancestor for tests for GraphQL catalog endpoint.
@@ -162,7 +171,7 @@ public abstract class CatalogGraphQLDataEndpointFunctionalTest extends GraphQLEn
 		priceFormatter.setCurrency(CURRENCY_CZK);
 
 		return map()
-			.e(EntityDescriptor.PRICE.name(), map()
+			.e(GraphQLEntityDescriptor.PRICE.name(), map()
 				.e(PriceDescriptor.PRICE_WITH_TAX.name(), priceFormatter.format(entity.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).iterator().next().priceWithTax()))
 				.build())
 			.build();
@@ -189,11 +198,60 @@ public abstract class CatalogGraphQLDataEndpointFunctionalTest extends GraphQLEn
 			.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
 			.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
 			.e(EntityDescriptor.PRICE_FOR_SALE.name(), map()
-				.e(TYPENAME_FIELD, PriceDescriptor.THIS.name())
-				.e(PriceDescriptor.CURRENCY.name(), CURRENCY_CZK.toString())
-				.e(PriceDescriptor.PRICE_LIST.name(), PRICE_LIST_BASIC)
-				.e(PriceDescriptor.PRICE_WITH_TAX.name(), entity.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).iterator().next().priceWithTax().toString())
+				.e(TYPENAME_FIELD, PriceForSaleDescriptor.THIS.name())
+				.e(PriceForSaleDescriptor.CURRENCY.name(), CURRENCY_CZK.toString())
+				.e(PriceForSaleDescriptor.PRICE_LIST.name(), PRICE_LIST_BASIC)
+				.e(PriceForSaleDescriptor.PRICE_WITH_TAX.name(), entity.getPriceForSale(CURRENCY_CZK, null, PRICE_LIST_BASIC)
+					.orElseThrow()
+					.priceWithTax()
+					.toString())
 				.build())
+			.build();
+	}
+
+	@Nonnull
+	protected Map<String, Object> createEntityDtoWithOnlyOnePriceForSale(@Nonnull SealedEntity entity) {
+		return map()
+			.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
+			.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
+			.e(EntityDescriptor.PRICE_FOR_SALE.name(), map()
+				.e(TYPENAME_FIELD, PriceForSaleDescriptor.THIS.name())
+				.e(PriceForSaleDescriptor.CURRENCY.name(), CURRENCY_CZK.toString())
+				.e(PriceForSaleDescriptor.PRICE_LIST.name(), PRICE_LIST_BASIC)
+				.e(PriceForSaleDescriptor.PRICE_WITH_TAX.name(), entity.getPriceForSale(CURRENCY_CZK, null, PRICE_LIST_BASIC)
+					.orElseThrow()
+					.priceWithTax()
+					.toString())
+				.build())
+			.e(GraphQLEntityDescriptor.MULTIPLE_PRICES_FOR_SALE_AVAILABLE.name(), false)
+			.build();
+	}
+
+	@Nonnull
+	protected Map<String, Object> createEntityDtoWithAllPricesForSale(@Nonnull SealedEntity entity, @Nonnull String... priceLists) {
+		return map()
+			.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
+			.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
+			.e(GraphQLEntityDescriptor.MULTIPLE_PRICES_FOR_SALE_AVAILABLE.name(), true)
+			.e(GraphQLEntityDescriptor.ALL_PRICES_FOR_SALE.name(), entity.getAllPricesForSale(CURRENCY_CZK, null, priceLists)
+				.stream()
+				.map(price -> map()
+					.e(TYPENAME_FIELD, PriceForSaleDescriptor.THIS.name())
+					.e(PriceForSaleDescriptor.CURRENCY.name(), CURRENCY_CZK.toString())
+					.e(PriceForSaleDescriptor.PRICE_LIST.name(), price.priceList())
+					.e(PriceForSaleDescriptor.PRICE_WITH_TAX.name(), price.priceWithTax().toString())
+					.e(PriceForSaleDescriptor.INNER_RECORD_ID.name(), price.innerRecordId())
+					.build())
+				.toList())
+			.build();
+	}
+
+	@Nonnull
+	protected Map<String, Object> createEntityDtoWithMultiplePricesForSaleAvailable(@Nonnull SealedEntity entity, boolean multiplePricesForSaleAvailable) {
+		return map()
+			.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
+			.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
+			.e(GraphQLEntityDescriptor.MULTIPLE_PRICES_FOR_SALE_AVAILABLE.name(), multiplePricesForSaleAvailable)
 			.build();
 	}
 
@@ -209,12 +267,28 @@ public abstract class CatalogGraphQLDataEndpointFunctionalTest extends GraphQLEn
 		return map()
 			.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
 			.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
-			.e(EntityDescriptor.PRICE.name(), map()
+			.e(GraphQLEntityDescriptor.PRICE.name(), map()
 				.e(TYPENAME_FIELD, PriceDescriptor.THIS.name())
 				.e(PriceDescriptor.CURRENCY.name(), currency.toString())
 				.e(PriceDescriptor.PRICE_LIST.name(), priceList)
 				.e(PriceDescriptor.PRICE_WITH_TAX.name(), prices.iterator().next().priceWithTax().toString())
 				.build())
+			.build();
+	}
+
+	@Nonnull
+	protected Map<String, Object> createEntityDtoWithPrices(@Nonnull SealedEntity entity) {
+		return map()
+			.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
+			.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
+			.e(EntityDescriptor.PRICES.name(), List.of(
+				map()
+					.e(TYPENAME_FIELD, PriceDescriptor.THIS.name())
+					.e(PriceDescriptor.CURRENCY.name(), CURRENCY_CZK.toString())
+					.e(PriceDescriptor.PRICE_LIST.name(), PRICE_LIST_BASIC)
+					.e(PriceDescriptor.PRICE_WITH_TAX.name(), entity.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).iterator().next().priceWithTax().toString())
+					.build()
+			))
 			.build();
 	}
 
@@ -228,6 +302,80 @@ public abstract class CatalogGraphQLDataEndpointFunctionalTest extends GraphQLEn
 				.e(ASSOCIATED_DATA_LABELS, map()
 					.build())
 				.build())
+			.build();
+	}
+
+	@Nonnull
+	protected Map<String, Object> createEntityDtoWithAccompanyingPricesForSinglePriceForSale(@Nonnull SealedEntity entity) {
+		final String vipPrice = "vipPrice";
+
+		final EntityDecorator entityDecorator = ((EntityDecorator) entity);
+		final Optional<PriceForSaleWithAccompanyingPrices> prices = entityDecorator.getPriceForSaleWithAccompanyingPrices(
+			CURRENCY_CZK,
+			null,
+			new String[]{PRICE_LIST_BASIC},
+			new AccompanyingPrice[]{
+				new AccompanyingPrice(PriceForSaleDescriptor.ACCOMPANYING_PRICE.name(), PRICE_LIST_REFERENCE),
+				new AccompanyingPrice(vipPrice, PRICE_LIST_VIP)
+			}
+		);
+		assertTrue(prices.isPresent());
+
+		return map()
+			.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
+			.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
+			.e(GraphQLEntityDescriptor.PRICE_FOR_SALE.name(), map()
+				.e(TYPENAME_FIELD, PriceForSaleDescriptor.THIS.name())
+				.e(PriceForSaleDescriptor.PRICE_WITH_TAX.name(), prices.get().priceForSale().priceWithTax().toString())
+				.e(PriceForSaleDescriptor.ACCOMPANYING_PRICE.name(), prices.get().accompanyingPrices().get(PriceForSaleDescriptor.ACCOMPANYING_PRICE.name())
+					.map(price -> map()
+						.e(TYPENAME_FIELD, PriceDescriptor.THIS.name())
+						.e(PriceDescriptor.PRICE_WITH_TAX.name(), price.priceWithTax().toString()))
+					.orElse(null))
+				.e(vipPrice, prices.get().accompanyingPrices().get(vipPrice)
+					.map(price -> map()
+						.e(TYPENAME_FIELD, PriceDescriptor.THIS.name())
+						.e(PriceDescriptor.PRICE_WITH_TAX.name(), price.priceWithTax().toString()))
+					.orElse(null))
+				.build())
+			.build();
+	}
+
+	@Nonnull
+	protected Map<String, Object> createEntityDtoWithAccompanyingPricesForAllPricesForSale(@Nonnull SealedEntity entity) {
+		final String vipPrice = "vipPrice";
+
+		final EntityDecorator entityDecorator = ((EntityDecorator) entity);
+		final List<PriceForSaleWithAccompanyingPrices> allPrices = entityDecorator.getAllPricesForSaleWithAccompanyingPrices(
+			CURRENCY_CZK,
+			null,
+			new String[]{PRICE_LIST_BASIC},
+			new AccompanyingPrice[]{
+				new AccompanyingPrice(PriceForSaleDescriptor.ACCOMPANYING_PRICE.name(), PRICE_LIST_REFERENCE),
+				new AccompanyingPrice(vipPrice, PRICE_LIST_VIP)
+			}
+		);
+		assertFalse(allPrices.isEmpty());
+
+		return map()
+			.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
+			.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
+			.e(GraphQLEntityDescriptor.ALL_PRICES_FOR_SALE.name(), allPrices.stream()
+				.map(prices -> map()
+					.e(TYPENAME_FIELD, PriceForSaleDescriptor.THIS.name())
+					.e(PriceForSaleDescriptor.PRICE_WITH_TAX.name(), prices.priceForSale().priceWithTax().toString())
+					.e(PriceForSaleDescriptor.ACCOMPANYING_PRICE.name(), prices.accompanyingPrices().get(PriceForSaleDescriptor.ACCOMPANYING_PRICE.name())
+						.map(price -> map()
+							.e(TYPENAME_FIELD, PriceDescriptor.THIS.name())
+							.e(PriceDescriptor.PRICE_WITH_TAX.name(), price.priceWithTax().toString()))
+						.orElse(null))
+					.e(vipPrice, prices.accompanyingPrices().get(vipPrice)
+						.map(price -> map()
+							.e(TYPENAME_FIELD, PriceDescriptor.THIS.name())
+							.e(PriceDescriptor.PRICE_WITH_TAX.name(), price.priceWithTax().toString()))
+						.orElse(null))
+					.build())
+				.toList())
 			.build();
 	}
 
@@ -281,6 +429,31 @@ public abstract class CatalogGraphQLDataEndpointFunctionalTest extends GraphQLEn
 						.build();
 				})
 				.toList())
+			.build();
+	}
+
+	@Nonnull
+	protected Map<String, Object> createTargetEntityDto(@Nonnull Map<String, Object> entityDto) {
+		return map()
+			.e(GlobalEntityDescriptor.TARGET_ENTITY.name(), entityDto)
+			.build();
+	}
+
+	@Nonnull
+	protected Map<String, Object> createTargetEntityDto(@Nonnull Map<String, Object> entityDto, boolean extractCommonFields) {
+		if (!extractCommonFields) {
+			return createTargetEntityDto(entityDto);
+		}
+		final MapBuilder newEntityDto = map();
+
+		final Map<String, Object> newTargetEntityDto = new HashMap<>(entityDto);
+		Optional.ofNullable(newTargetEntityDto.remove(EntityDescriptor.PRIMARY_KEY.name()))
+			.ifPresent(it -> newEntityDto.e(EntityDescriptor.PRIMARY_KEY.name(), it));
+		Optional.ofNullable(newTargetEntityDto.remove(EntityDescriptor.TYPE.name()))
+			.ifPresent(it -> newEntityDto.e(EntityDescriptor.TYPE.name(), it));
+
+		return newEntityDto
+			.e(GlobalEntityDescriptor.TARGET_ENTITY.name(), newTargetEntityDto)
 			.build();
 	}
 }

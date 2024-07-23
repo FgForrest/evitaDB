@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -31,18 +31,16 @@ import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.attribute.AttributeFormula;
-import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.prefetch.EntityFilteringFormula;
 import io.evitadb.core.query.algebra.prefetch.SelectionFormula;
-import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.core.query.filter.translator.attribute.alternative.AttributeBitmapFilter;
-import io.evitadb.utils.ArrayUtils;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
+import java.util.Arrays;
 import java.util.Optional;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
@@ -72,20 +70,13 @@ public class AttributeStartsWithTranslator implements FilteringConstraintTransla
 				filterByVisitor.applyOnFilterIndexes(
 					attributeDefinition, index -> {
 						/* TOBEDONE JNO naive and slow - use RadixTree */
-						final Formula[] foundRecords = index.getValues()
-							.stream()
-							.filter(it -> ((String)it).startsWith(textToSearch))
-							.map(index::getRecordsEqualToFormula)
-							.toArray(Formula[]::new);
-						return ArrayUtils.isEmpty(foundRecords) ?
-							EmptyFormula.INSTANCE : FormulaFactory.or(foundRecords);
+						return index.getRecordsWhoseValuesStartWith(textToSearch);
 					}
 				)
 			);
 
 			if (filterByVisitor.isPrefetchPossible()) {
 				return new SelectionFormula(
-					filterByVisitor,
 					filteringFormula,
 					createAlternativeBitmapFilter(filterByVisitor, attributeName, textToSearch)
 				);
@@ -95,7 +86,6 @@ public class AttributeStartsWithTranslator implements FilteringConstraintTransla
 		} else {
 			return new EntityFilteringFormula(
 				"attribute starts with filter",
-				filterByVisitor,
 				createAlternativeBitmapFilter(filterByVisitor, attributeName, textToSearch)
 			);
 		}
@@ -127,8 +117,13 @@ public class AttributeStartsWithTranslator implements FilteringConstraintTransla
 				if (attr.isEmpty()) {
 					return false;
 				} else {
+					final Predicate<String> predicate = theValue -> theValue != null && theValue.startsWith(textToSearch);
 					final Serializable theValue = attr.get().value();
-					return theValue != null && ((String) theValue).startsWith(textToSearch);
+					if (theValue.getClass().isArray()) {
+						return Arrays.stream((Object[])theValue).map(String.class::cast).anyMatch(predicate);
+					} else {
+						return predicate.test((String)theValue);
+					}
 				}
 			}
 		);

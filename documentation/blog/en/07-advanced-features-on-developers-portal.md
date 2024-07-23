@@ -51,7 +51,7 @@ Each code block is then rendered as an individual tab within the `<CodeTabsBlock
 <dependency>
     <groupId>io.evitadb</groupId>
     <artifactId>evita_test_support</artifactId>
-    <version>0.6-SNAPSHOT</version>
+    <version>2024.8.4</version>
     <scope>test</scope>
 </dependency>
 ```
@@ -101,15 +101,15 @@ different formats. At the same time, it does not make sense to display all forma
 be interested only in the variant he intends to use during integration. However, this posed a challenge due to various
 obstacles, such as page indexing and print support.
 
-It all started with the `<LanguageSpecific />` component. I believe that from its name and markup, you can already
+It all started with the `<LS />` component. I believe that from its name and markup, you can already
 understand the purpose of this component.
 
 ##### Markup
 
 ```md
-<LanguageSpecific to="evitaql,java">
+<LS to="e,j">
 // content specific to Java and EvitaQL
-</LanguageSpecific>
+</LS>
 ```
 
 Now, let's move on to the next step, which involves creating a user-friendly switch to allow users to easily switch
@@ -171,7 +171,7 @@ parameter `?codelang={preferredLanguage}`. This will preserve the correct preset
 link to the clipboard and sends it to someone else. This person will then get the same page variant as the person who
 sent the link.
 
-The component is now aware of preferred language. In case of `<LanguageSpecific />` component, show the actual content
+The component is now aware of preferred language. In case of `<LS />` component, show the actual content
 depending on your preferred programming language.
 
 <Note type="info">
@@ -183,7 +183,7 @@ On smaller screens, you'll display the preferred language switch after clicking 
 ##### Markup
 
 ```md
-<LanguageSpecific to="evitaql,java">
+<LS to="e,j">
 
 ---
 > This block of text is specific to `evitaql` programming language.
@@ -191,12 +191,12 @@ On smaller screens, you'll display the preferred language switch after clicking 
 > Go ahead and try to switch.
 
 ---
-</LanguageSpecific>
+</LS>
 ```
 
 ##### Result
 
-<LanguageSpecific to="evitaql,java">
+<LS to="e,j">
 
 ---
 > This block of text is specific to `evitaql` and `java` programming language.
@@ -204,9 +204,9 @@ On smaller screens, you'll display the preferred language switch after clicking 
 > Go ahead and try to switch.
 
 ---
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="rest">
+<LS to="r">
 
 ---
 > This block of text is specific to `Rest` programming language.
@@ -214,9 +214,9 @@ On smaller screens, you'll display the preferred language switch after clicking 
 > Go ahead and try to switch.
 
 ---
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="graphql">
+<LS to="g">
 
 ---
 > This block of text is specific to `GraphQL` programming language.
@@ -224,7 +224,7 @@ On smaller screens, you'll display the preferred language switch after clicking 
 > Go ahead and try to switch.
 
 ---
-</LanguageSpecific>
+</LS>
 
 
 Other Custom component aware of the user preferred language is [above shown `<SourceCodeTabs/>`](#result-1).
@@ -236,11 +236,11 @@ prioritizing visual accessibility, even if it leads to layout shifting. Moreover
 document, our component render function incorporates supplementary elements to enhance the visibility of this
 functionality.
 
-So when you try to print this page, you'll see that the `<LanguageSpecific />` examples shown above are available and
+So when you try to print this page, you'll see that the `<LS />` examples shown above are available and
 ready to be printed. The print preview is similar to what you see on the Github itself, where all the content is visible
 regardless.
 
-![`<LanguageSpecific />` component print example](assets/images/07-print-example.png "`Custom <LanguageSpecific />` component print example.")
+![`<LS />` component print example](assets/images/07-print-example.png "`Custom <LS />` component print example.")
 
 ## What's next
 

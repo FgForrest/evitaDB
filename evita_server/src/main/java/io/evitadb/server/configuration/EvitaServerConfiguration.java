@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -27,6 +27,7 @@ import io.evitadb.api.configuration.CacheOptions;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.StorageOptions;
+import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.externalApi.configuration.ApiOptions;
 
 import javax.annotation.Nonnull;
@@ -35,17 +36,19 @@ import javax.annotation.Nonnull;
  * Encapsulating DTO record allowing to setup {@link EvitaConfiguration} and {@link ApiOptions} within one root object.
  * This class is used by Jackson to deserialize settings from configuration YAML file.
  *
- * @param name    refers to {@link EvitaConfiguration#name()}
- * @param server  refers to {@link EvitaConfiguration#server()}
- * @param storage refers to {@link EvitaConfiguration#storage()}
- * @param cache   refers to {@link EvitaConfiguration#cache()}
- * @param api     contains configuration for API endpoints
+ * @param name         refers to {@link EvitaConfiguration#name()}
+ * @param server       refers to {@link EvitaConfiguration#server()}
+ * @param storage      refers to {@link EvitaConfiguration#storage()}
+ * @param transaction refers to {@link EvitaConfiguration#transaction()}
+ * @param cache        refers to {@link EvitaConfiguration#cache()}
+ * @param api          contains configuration for API endpoints
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public record EvitaServerConfiguration(
 	@Nonnull String name,
 	@Nonnull ServerOptions server,
 	@Nonnull StorageOptions storage,
+	@Nonnull TransactionOptions transaction,
 	@Nonnull CacheOptions cache,
 	@Nonnull ApiOptions api
 ) {

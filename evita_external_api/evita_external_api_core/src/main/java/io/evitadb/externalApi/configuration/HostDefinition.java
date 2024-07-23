@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -32,14 +32,24 @@ import java.net.InetAddress;
  * Defines a host and port combination.
  *
  * @param host defines the hostname and port the endpoints will listen on
+ * @param localhost contains TRUE if configuration option represents a loop-back host (self)
  * @param port defines the port API endpoint will listen on
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public record HostDefinition(
 	@Nonnull InetAddress host,
+	boolean localhost,
 	int port
 ) {
+
+	/**
+	 * Returns IP address with port as a single string.
+	 */
+	@Nonnull
+	public String hostWithPort() {
+		return host.getHostAddress() + ":" + port;
+	}
 
 	/**
 	 * Returns human comprehensible host name of the configured host.
@@ -47,6 +57,14 @@ public record HostDefinition(
 	@Nonnull
 	public String hostName() {
 		return NetworkUtils.getHostName(host);
+	}
+
+	/**
+	 * Returns human comprehensible host name of the configured host and port.
+	 */
+	@Nonnull
+	public String hostNameWithPort() {
+		return hostName() + ":" + port;
 	}
 
 }

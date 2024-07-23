@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,20 +23,23 @@
 
 package io.evitadb.index.invertedIndex;
 
-import io.evitadb.core.Transaction;
+import io.evitadb.ConsistencySensitiveDataStructure;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.base.OrFormula;
 import io.evitadb.core.query.algebra.deferred.DeferredFormula;
-import io.evitadb.index.array.CompositeObjectArray;
+import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
+import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
+import io.evitadb.dataType.array.CompositeObjectArray;
+import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.array.TransactionalComplexObjArray;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
+import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.invertedIndex.suppliers.HistogramBitmapSupplier;
-import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
-import io.evitadb.index.transactionalMemory.VoidTransactionMemoryProducer;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
@@ -48,6 +51,7 @@ import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.function.BiFunction;
 
@@ -55,34 +59,47 @@ import java.util.function.BiFunction;
  * Histogram index is based on <a href="https://en.wikipedia.org/wiki/Histogram">Histogram data structure</a>. It's
  * organized as a set of "buckets" ordered from minimal to maximal {@link Comparable} value. Each bucket has assigned
  * bitmap (ordered distinct set of primitive integer values) that are assigned to bucket {@link ValueToRecordBitmap#getValue()}.
- * 
+ *
  * Search in histogram is possible via. binary search with O(log n) complexity due its sorted nature. Set of records
  * are easily available as the set assigned to that value. Range look-ups are also available as boolean OR of all bitmaps
  * from / to looked up value threshold.
- * 
+ *
  * Histogram MUST NOT contain same record id in multiple buckets. This prerequisite is not checked internally by this
  * data structure and client code must this ensure by its internal logic! If this prerequisite is not met, histogram
  * may return confusing results.
- * 
+ *
  * Thread safety:
- * 
+ *
  * Histogram supports transaction memory. This means, that the histogram can be updated by multiple writers and also
  * multiple readers can read from it's original array without spotting the changes made in transactional access. Each
  * transaction is bound to the same thread and different threads doesn't see changes in another threads.
- * 
+ *
  * If no transaction is opened, changes are applied directly to the delegate array. In such case the class is not thread
  * safe for multiple writers!
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
 @ThreadSafe
-@EqualsAndHashCode
-public class InvertedIndex<T extends Comparable<T>> implements VoidTransactionMemoryProducer<InvertedIndex<T>>, Serializable {
+@EqualsAndHashCode(exclude = {"dirty", "comparator"})
+public class InvertedIndex<T extends Comparable<T>> implements
+	IndexDataStructure,
+	ConsistencySensitiveDataStructure,
+	VoidTransactionMemoryProducer<InvertedIndex<T>>,
+	Serializable
+{
 	@Serial private static final long serialVersionUID = 3019703951858227807L;
+	/**
+	 * This is internal flag that tracks whether the index contents became dirty and needs to be persisted.
+	 */
+	private final TransactionalBoolean dirty;
 	/**
 	 * The buckets contain ordered comparable values with bitmaps of all records with such value.
 	 */
 	private final TransactionalComplexObjArray<ValueToRecordBitmap<T>> valueToRecordBitmap;
+	/**
+	 * Instance of comparator that should be used for values in {@link #valueToRecordBitmap}
+	 */
+	@Nonnull @Getter private final Comparator<T> comparator;
 
 	/**
 	 * This lambda lay out records by {@link ValueToRecordBitmap#getValue()} one after another.
@@ -114,38 +131,66 @@ public class InvertedIndex<T extends Comparable<T>> implements VoidTransactionMe
 	 * Method verifies that {@link ValueToRecordBitmap#getValue()}s in passed set are monotonically increasing and contain
 	 * no duplicities.
 	 */
-	private static <T extends Comparable<T>> void assertValueIsMonotonic(@Nonnull ValueToRecordBitmap<T>[] points) {
+	@Nonnull
+	private static <T extends Comparable<T>> ConsistencyReport checkConsistency(@Nonnull ValueToRecordBitmap<T>[] points, @Nonnull Comparator<T> comparator) {
+		final StringBuilder report = new StringBuilder(256);
 		T previous = null;
 		for (ValueToRecordBitmap<T> bucket : points) {
-			Assert.isTrue(
-				previous == null || previous.compareTo(bucket.getValue()) < 0,
-				"Histogram values are not monotonic - conflicting values: " + previous + ", " + bucket.getValue()
-			);
+			T finalPrevious = previous;
+			if (!(previous == null || comparator.compare(previous, bucket.getValue()) < 0)) {
+				report.append("Histogram values are not monotonic - conflicting values: ").append(finalPrevious).append(", ").append(bucket.getValue()).append(".\n");
+			}
 			previous = bucket.getValue();
+		}
+		if (report.isEmpty()) {
+			return new ConsistencyReport(ConsistencyState.CONSISTENT, null);
+		} else {
+			return new ConsistencyReport(ConsistencyState.BROKEN, report.toString());
 		}
 	}
 
-	public InvertedIndex() {
+	public InvertedIndex(@Nonnull Comparator<T> comparator) {
 		//noinspection unchecked, rawtypes
-		valueToRecordBitmap = new TransactionalComplexObjArray<>(
+		this.valueToRecordBitmap = new TransactionalComplexObjArray<>(
 			new ValueToRecordBitmap[0],
 			ValueToRecordBitmap::add,
 			ValueToRecordBitmap::remove,
 			ValueToRecordBitmap::isEmpty,
+			(Comparator<ValueToRecordBitmap<T>>) (o1, o2) -> comparator.compare(o1.getValue(), o2.getValue()),
 			ValueToRecordBitmap::deepEquals
 		);
+		this.comparator = comparator;
+		this.dirty = new TransactionalBoolean(false);
 	}
 
-	public InvertedIndex(@Nonnull ValueToRecordBitmap<T>[] buckets) {
+	public InvertedIndex(@Nonnull ValueToRecordBitmap<T>[] buckets, @Nonnull Comparator<T> comparator) {
+		this(buckets, comparator, false);
+	}
+
+	private InvertedIndex(@Nonnull ValueToRecordBitmap<T>[] buckets, @Nonnull Comparator<T> comparator, boolean internal) {
 		// contract check
-		assertValueIsMonotonic(buckets);
+		if (!internal) {
+			final ConsistencyReport consistencyReport = checkConsistency(buckets, comparator);
+			if (consistencyReport.state() != ConsistencySensitiveDataStructure.ConsistencyState.CONSISTENT) {
+				throw new MonotonicRowCorruptedException(consistencyReport.report());
+			}
+		}
 		this.valueToRecordBitmap = new TransactionalComplexObjArray<>(
 			buckets,
 			ValueToRecordBitmap::add,
 			ValueToRecordBitmap::remove,
 			ValueToRecordBitmap::isEmpty,
+			(o1, o2) -> comparator.compare(o1.getValue(), o2.getValue()),
 			ValueToRecordBitmap::deepEquals
 		);
+		this.comparator = comparator;
+		this.dirty = new TransactionalBoolean(false);
+	}
+
+	@Nonnull
+	@Override
+	public ConsistencyReport getConsistencyReport() {
+		return checkConsistency(this.valueToRecordBitmap.getArray(), this.comparator);
 	}
 
 	/**
@@ -157,6 +202,7 @@ public class InvertedIndex<T extends Comparable<T>> implements VoidTransactionMe
 	public int addRecord(@Nonnull T value, int recordId) {
 		final ValueToRecordBitmap<T> bucket = new ValueToRecordBitmap<>(value, EmptyBitmap.INSTANCE);
 		bucket.addRecord(recordId);
+		this.dirty.setToTrue();
 		return valueToRecordBitmap.addReturningIndex(bucket);
 	}
 
@@ -168,6 +214,7 @@ public class InvertedIndex<T extends Comparable<T>> implements VoidTransactionMe
 		Assert.isTrue(!ArrayUtils.isEmpty(recordId), "Record ids must be not null and non empty!");
 		final ValueToRecordBitmap<T> bucket = new ValueToRecordBitmap<>(value, EmptyBitmap.INSTANCE);
 		bucket.addRecord(recordId);
+		this.dirty.setToTrue();
 		valueToRecordBitmap.add(bucket);
 	}
 
@@ -180,6 +227,7 @@ public class InvertedIndex<T extends Comparable<T>> implements VoidTransactionMe
 	 */
 	public int removeRecord(@Nonnull T value, int... recordId) {
 		Assert.isTrue(!ArrayUtils.isEmpty(recordId), "Record ids must be not null and non-empty!");
+		this.dirty.setToTrue();
 		return valueToRecordBitmap.remove(new ValueToRecordBitmap<>(value, new BaseBitmap(recordId)));
 	}
 
@@ -234,12 +282,12 @@ public class InvertedIndex<T extends Comparable<T>> implements VoidTransactionMe
 	 * Returns entire content of this histogram as "subset" that allows easy access to the record ids inside.
 	 * Records returned by this {@link InvertedIndexSubSet} are sorted by the order of the bucket
 	 * {@link ValueToRecordBitmap#getValue()}.
-	 * 
+	 *
 	 * This histogram:
 	 * A: [1, 4]
 	 * B: [2, 9]
 	 * C: [3]
-	 * 
+	 *
 	 * Will return subset providing record ids bitmap in form of: [3, 2, 9, 1, 4]
 	 */
 	@Nonnull
@@ -262,12 +310,12 @@ public class InvertedIndex<T extends Comparable<T>> implements VoidTransactionMe
 	/**
 	 * Returns entire content of this histogram as "subset" that allows easy access to the record ids inside.
 	 * Records returned by this {@link InvertedIndexSubSet} are sorted by record id value.
-	 * 
+	 *
 	 * This histogram:
 	 * A: [1, 4]
 	 * B: [2, 9]
 	 * C: [3]
-	 * 
+	 *
 	 * Will return subset providing record ids bitmap in form of: [1, 2, 3, 4, 9]
 	 */
 	@Nonnull
@@ -344,18 +392,33 @@ public class InvertedIndex<T extends Comparable<T>> implements VoidTransactionMe
 			'}';
 	}
 
+	@Override
+	public void resetDirty() {
+		this.dirty.setToFalse();
+	}
+
 	/*
 		Implementation of TransactionalLayerProducer
 	 */
 
 	@Nonnull
 	@Override
-	public InvertedIndex<T> createCopyWithMergedTransactionalMemory(Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Transaction transaction) {
-		return new InvertedIndex<>(transactionalLayer.getStateCopyWithCommittedChanges(this.valueToRecordBitmap, transaction));
+	public InvertedIndex<T> createCopyWithMergedTransactionalMemory(Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
+		final Boolean isDirty = transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
+		if (isDirty) {
+			return new InvertedIndex<>(
+				transactionalLayer.getStateCopyWithCommittedChanges(this.valueToRecordBitmap),
+				this.comparator,
+				true
+			);
+		} else {
+			return this;
+		}
 	}
 
 	@Override
 	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
+		transactionalLayer.removeTransactionalMemoryLayerIfExists(this.dirty);
 		transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
 		this.valueToRecordBitmap.removeLayer(transactionalLayer);
 	}
@@ -397,10 +460,10 @@ public class InvertedIndex<T extends Comparable<T>> implements VoidTransactionMe
 	 */
 	@Nonnull
 	private ValueToRecordBitmap<T>[] getRecordsInternal(@Nullable T moreThanEq, @Nullable T lessThanEq, @Nonnull BoundsHandling boundsHandling) {
-		final HistogramBounds<T> histogramBounds = new HistogramBounds<>(valueToRecordBitmap.getArray(), moreThanEq, lessThanEq, boundsHandling);
+		final HistogramBounds<T> histogramBounds = new HistogramBounds<>(this.valueToRecordBitmap.getArray(), moreThanEq, lessThanEq, boundsHandling, this.comparator);
 		@SuppressWarnings("unchecked") final ValueToRecordBitmap<T>[] result = new ValueToRecordBitmap[histogramBounds.getNormalizedEndIndex() - histogramBounds.getNormalizedStartIndex()];
 		int index = -1;
-		final Iterator<ValueToRecordBitmap<T>> it = valueToRecordBitmap.iterator();
+		final Iterator<ValueToRecordBitmap<T>> it = this.valueToRecordBitmap.iterator();
 		while (it.hasNext()) {
 			final ValueToRecordBitmap<T> bucket = it.next();
 			index++;
@@ -436,14 +499,14 @@ public class InvertedIndex<T extends Comparable<T>> implements VoidTransactionMe
 		 */
 		@Getter private final int normalizedEndIndex;
 
-		HistogramBounds(@Nonnull ValueToRecordBitmap<T>[] points, @Nullable T moreThanEq, @Nullable T lessThanEq, @Nonnull BoundsHandling boundsHandling) {
+		HistogramBounds(@Nonnull ValueToRecordBitmap<T>[] points, @Nullable T moreThanEq, @Nullable T lessThanEq, @Nonnull BoundsHandling boundsHandling, @Nonnull Comparator<T> comparator) {
 			Assert.isTrue(
-				moreThanEq == null || lessThanEq == null || moreThanEq.compareTo(lessThanEq) <= 0,
+				moreThanEq == null || lessThanEq == null || comparator.compare(moreThanEq, lessThanEq) <= 0,
 				"From must be lower than to: " + moreThanEq + " vs. " + lessThanEq
 			);
 
 			if (moreThanEq != null) {
-				final int startIndex = Arrays.binarySearch(points, new ValueToRecordBitmap<>(moreThanEq));
+				final int startIndex = ArrayUtils.binarySearch(points, new ValueToRecordBitmap<>(moreThanEq), (b1, b2) -> comparator.compare(b1.getValue(), b2.getValue()));
 				if (boundsHandling == BoundsHandling.EXCLUSIVE) {
 					normalizedStartIndex = startIndex >= 0 ? startIndex + 1 : -1 * (startIndex) - 1;
 				} else {
@@ -454,7 +517,7 @@ public class InvertedIndex<T extends Comparable<T>> implements VoidTransactionMe
 			}
 
 			if (lessThanEq != null) {
-				final int endIndex = Arrays.binarySearch(points, new ValueToRecordBitmap<>(lessThanEq));
+				final int endIndex = ArrayUtils.binarySearch(points, new ValueToRecordBitmap<>(lessThanEq), (b1, b2) -> comparator.compare(b1.getValue(), b2.getValue()));
 				if (boundsHandling == BoundsHandling.EXCLUSIVE) {
 					normalizedEndIndex = endIndex >= 0 ? endIndex : (-1 * (endIndex) - 1);
 				} else {
@@ -466,4 +529,14 @@ public class InvertedIndex<T extends Comparable<T>> implements VoidTransactionMe
 		}
 
 	}
+
+	/* TOBEDONE #538 - remove, the data should be correct by then */
+	public static class MonotonicRowCorruptedException extends EvitaInternalError {
+		@Serial private static final long serialVersionUID = -4632659049907667781L;
+
+		public MonotonicRowCorruptedException(@Nonnull String message) {
+			super(message);
+		}
+	}
+
 }

@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -25,13 +25,12 @@ package io.evitadb.core.query.algebra.base;
 
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.index.array.CompositeIntArray;
+import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
+import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.index.bitmap.ArrayBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
-import io.evitadb.index.transactionalMemory.TransactionalLayerProducer;
-import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import lombok.Data;
 import net.openhft.hashing.LongHashFunction;
@@ -69,7 +68,7 @@ public class JoinFormula extends AbstractFormula {
 	/**
 	 * Computes next integer to be included in result map.
 	 */
-	private static int computeNextInt(PriorityQueue<IntIteratorPointer> priorityQueue) {
+	private static int computeNext(@Nonnull PriorityQueue<IntIteratorPointer> priorityQueue) {
 		// finish when priority queue is empty
 		if (!priorityQueue.isEmpty()) {
 			// poll pointer with the lowest number from the queue
@@ -100,16 +99,107 @@ public class JoinFormula extends AbstractFormula {
 		return priorityQueue;
 	}
 
+	/**
+	 * Use more performant way when merging two bitmaps.
+	 *
+	 * @param iterators array of two iterators
+	 * @param intArray  array to store merged numbers
+	 */
+	private static void joinTwoBitmaps(@Nonnull IntIterator[] iterators, @Nonnull CompositeIntArray intArray) {
+		boolean leftAdded = true;
+		boolean rightAdded = true;
+		int leftValue = Integer.MIN_VALUE;
+		int rightValue = Integer.MIN_VALUE;
+		while (iterators[0].hasNext() && iterators[1].hasNext()) {
+			leftValue = leftAdded ? iterators[0].next() : leftValue;
+			rightValue = rightAdded ? iterators[1].next() : rightValue;
+			if (leftValue < rightValue) {
+				intArray.add(leftValue);
+				leftAdded = true;
+				rightAdded = false;
+			} else if (leftValue > rightValue) {
+				intArray.add(rightValue);
+				rightAdded = true;
+				leftAdded = false;
+			} else {
+				intArray.add(leftValue);
+				intArray.add(rightValue);
+				leftAdded = true;
+				rightAdded = true;
+			}
+		}
+		// quickly add remaining numbers from one non-empty iterator left
+		if (!leftAdded) {
+			intArray.add(leftValue);
+		}
+		if (!rightAdded) {
+			intArray.add(rightValue);
+		}
+		while (iterators[0].hasNext()) {
+			intArray.add(iterators[0].next());
+		}
+		while (iterators[1].hasNext()) {
+			intArray.add(iterators[1].next());
+		}
+	}
+
+	@Nonnull
+	private static IntIterator[] getImmutableRoaringBitmapIterators(@Nonnull Bitmap[] bitmaps) {
+		return Arrays.stream(bitmaps)
+			.map(RoaringBitmapBackedBitmap::getRoaringBitmap)
+			.map(it -> it.getBatchIterator().asIntIterator(new int[256]))
+			.toArray(IntIterator[]::new);
+	}
+
 	public JoinFormula(long indexTransactionId, @Nonnull Bitmap... bitmaps) {
-		super();
-		Assert.isTrue(bitmaps.length > 0, "Join formula has to have at least one bitmap - otherwise use EmptyFormula.INSTANCE.");
-		this.bitmaps = bitmaps;
+		this.bitmaps = Arrays.stream(bitmaps)
+			.filter(it -> !(it instanceof EmptyBitmap))
+			.toArray(Bitmap[]::new);
+		Assert.isTrue(this.bitmaps.length > 1, "Join formula has to have at least two bitmaps - otherwise use EmptyFormula.INSTANCE or just the bitmap itself.");
 		this.indexTransactionId = new long[]{indexTransactionId};
+		this.initFields();
+	}
+
+	/**
+	 * Returns a new OrFormula object using the indexTransactionId and bitmaps of this JoinFormula.
+	 *
+	 * @return a Formula object representing the logical OR operation on the indexTransactionId and bitmaps
+	 */
+	@Nonnull
+	public Formula getAsOrFormula() {
+		return new OrFormula(this.indexTransactionId, this.bitmaps);
 	}
 
 	@Override
 	public String toString() {
+		return "JOIN: " + Arrays.stream(bitmaps).map(it -> String.valueOf(it.size())).collect(Collectors.joining(", ")) + " primary keys";
+	}
+
+	@Nonnull
+	@Override
+	public String toStringVerbose() {
 		return "JOIN: " + Arrays.stream(bitmaps).map(Bitmap::toString).collect(Collectors.joining(", "));
+	}
+
+	@Nonnull
+	@Override
+	public Formula getCloneWithInnerFormulas(@Nonnull Formula... innerFormulas) {
+		throw new UnsupportedOperationException("Join formula doesn't support inner formulas, just bitmaps.");
+	}
+
+	@Override
+	public int getEstimatedCardinality() {
+		return Arrays.stream(this.bitmaps).mapToInt(Bitmap::size).sum();
+	}
+
+	@Override
+	public long getOperationCost() {
+		return 2560;
+	}
+
+	@Override
+	protected boolean isFormulaOrderSignificant() {
+		return true;
 	}
 
 	@Nonnull
@@ -144,11 +234,6 @@ public class JoinFormula extends AbstractFormula {
 	}
 
 	@Override
-	public int getEstimatedCardinality() {
-		return Arrays.stream(this.bitmaps).mapToInt(Bitmap::size).sum();
-	}
-
-	@Override
 	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
 		if (bitmaps.length > EXCESSIVE_HIGH_CARDINALITY) {
 			return hashFunction.hashLongs(indexTransactionId);
@@ -171,11 +256,6 @@ public class JoinFormula extends AbstractFormula {
 	}
 
 	@Override
-	protected boolean isFormulaOrderSignificant() {
-		return true;
-	}
-
-	@Override
 	protected long getClassId() {
 		return CLASS_ID;
 	}
@@ -184,50 +264,33 @@ public class JoinFormula extends AbstractFormula {
 	protected long getCostInternal() {
 		return ofNullable(this.bitmaps)
 			.map(it -> Arrays.stream(it).mapToLong(Bitmap::size).sum())
-			.orElseGet(super::getCostInternal);
-	}
-
-	@Nonnull
-	@Override
-	public Formula getCloneWithInnerFormulas(@Nonnull Formula... innerFormulas) {
-		throw new UnsupportedOperationException("Join formula doesn't support inner formulas, just bitmaps.");
-	}
-
-	@Override
-	public long getOperationCost() {
-		return 2560;
-	}
-
-	@Nonnull
-	@Override
-	protected Bitmap computeInternal() {
-		// init priority queue that will produce numbers from all bitmaps from lowest to highest keeping duplicates
-		final IntIterator[] iterators = getImmutableRoaringBitmapIterators();
-		if (ArrayUtils.isEmpty(iterators)) {
-			return EmptyBitmap.INSTANCE;
-		}
-		final PriorityQueue<IntIteratorPointer> priorityQueue = initIntPriorityQueue(iterators);
-		// init array that can extend itself
-		final CompositeIntArray intArray = new CompositeIntArray();
-		// iterate number by number until priority queue is exhausted.
-		int number;
-		while ((number = computeNextInt(priorityQueue)) != END_OF_STREAM) {
-			intArray.add(number);
-		}
-		// now just wrap array into a bitmap
-		return new ArrayBitmap(intArray);
+			.orElseGet(() -> super.getCostInternal());
 	}
 
 	/*
 		PRIVATE METHODS
 	 */
 
-	private IntIterator[] getImmutableRoaringBitmapIterators() {
-		return Arrays.stream(bitmaps)
-				.filter(it -> !(it instanceof EmptyBitmap))
-				.map(RoaringBitmapBackedBitmap::getRoaringBitmap)
-				.map(it -> it.getBatchIterator().asIntIterator(new int[256]))
-				.toArray(IntIterator[]::new);
+	@Nonnull
+	@Override
+	protected Bitmap computeInternal() {
+		// init priority queue that will produce numbers from all bitmaps from lowest to highest keeping duplicates
+		final IntIterator[] iterators = getImmutableRoaringBitmapIterators(bitmaps);
+		final CompositeIntArray intArray = new CompositeIntArray();
+		if (iterators.length == 2) {
+			// if there are two iterators, just merge them into one bitmap
+			joinTwoBitmaps(iterators, intArray);
+		} else {
+			final PriorityQueue<IntIteratorPointer> priorityQueue = initIntPriorityQueue(iterators);
+			// init array that can extend itself
+			// iterate number by number until priority queue is exhausted.
+			int number;
+			while ((number = computeNext(priorityQueue)) != END_OF_STREAM) {
+				intArray.add(number);
+			}
+		}
+		// now just wrap array into a bitmap
+		return new ArrayBitmap(intArray);
 	}
 
 	/**

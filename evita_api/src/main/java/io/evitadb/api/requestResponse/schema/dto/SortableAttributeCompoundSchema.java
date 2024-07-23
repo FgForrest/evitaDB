@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -26,7 +26,6 @@ package io.evitadb.api.requestResponse.schema.dto;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.utils.NamingConvention;
-import lombok.EqualsAndHashCode;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -37,6 +36,7 @@ import java.io.Serial;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -49,7 +49,6 @@ import static io.evitadb.utils.Assert.notNull;
  */
 @Immutable
 @ThreadSafe
-@EqualsAndHashCode
 public class SortableAttributeCompoundSchema implements SortableAttributeCompoundSchemaContract {
 	@Serial private static final long serialVersionUID = 1640604843846015381L;
 	@Getter @Nonnull private final String name;
@@ -141,6 +140,29 @@ public class SortableAttributeCompoundSchema implements SortableAttributeCompoun
 	@Override
 	public String getNameVariant(@Nonnull NamingConvention namingConvention) {
 		return nameVariants.get(namingConvention);
+	}
+
+	@Override
+	public boolean equals(Object o) {
+		if (this == o) return true;
+		if (o == null || getClass() != o.getClass()) return false;
+
+		SortableAttributeCompoundSchema that = (SortableAttributeCompoundSchema) o;
+
+		if (!name.equals(that.name)) return false;
+		if (!Objects.equals(description, that.description)) return false;
+		if (!Objects.equals(deprecationNotice, that.deprecationNotice))
+			return false;
+		return attributeElements.equals(that.attributeElements);
+	}
+
+	@Override
+	public int hashCode() {
+		int result = name.hashCode();
+		result = 31 * result + (description != null ? description.hashCode() : 0);
+		result = 31 * result + (deprecationNotice != null ? deprecationNotice.hashCode() : 0);
+		result = 31 * result + attributeElements.hashCode();
+		return result;
 	}
 
 	@Override

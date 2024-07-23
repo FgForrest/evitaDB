@@ -6,8 +6,6 @@
       "type": "Product",
       "version": 1,
       "allLocales": [
-        "cs",
-        "de",
         "en"
       ],
       "priceInnerRecordHandling": "NONE",
@@ -42,18 +40,18 @@
       }
     }
   ],
-  "type": "PAGE",
-  "totalRecordCount": 1,
-  "first": true,
-  "last": true,
-  "hasPrevious": false,
-  "hasNext": false,
-  "singlePage": true,
   "empty": false,
-  "pageSize": 20,
-  "pageNumber": 1,
-  "lastPageNumber": 1,
+  "first": true,
   "firstPageItemNumber": 0,
-  "lastPageItemNumber": 1
+  "hasNext": false,
+  "hasPrevious": false,
+  "last": true,
+  "lastPageItemNumber": 1,
+  "lastPageNumber": 1,
+  "pageNumber": 1,
+  "pageSize": 20,
+  "singlePage": true,
+  "totalRecordCount": 1,
+  "type": "PAGE"
 }
 ```

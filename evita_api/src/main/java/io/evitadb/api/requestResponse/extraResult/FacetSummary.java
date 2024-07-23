@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -36,8 +36,9 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.dataType.EvitaDataTypes;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.PrettyPrintable;
 import lombok.AccessLevel;
 import lombok.Data;
 import lombok.Getter;
@@ -104,7 +105,7 @@ public class FacetSummary implements EvitaResponseExtraResult, PrettyPrintable {
 								it -> it.getGroupEntity().getPrimaryKey(),
 								Function.identity(),
 								(o, o2) -> {
-									throw new EvitaInternalError(
+									throw new GenericEvitaInternalError(
 										"Unexpected duplicate facet group statistics."
 									);
 								},
@@ -139,7 +140,7 @@ public class FacetSummary implements EvitaResponseExtraResult, PrettyPrintable {
 										group -> group.getGroupEntity().getPrimaryKey(),
 										Function.identity(),
 										(o, o2) -> {
-											throw new EvitaInternalError(
+											throw new GenericEvitaInternalError(
 												"There is already facet group for reference `" + it.getKey() +
 													"` with id `" + o.getGroupEntity().getPrimaryKey() + "`."
 											);
@@ -291,7 +292,7 @@ public class FacetSummary implements EvitaResponseExtraResult, PrettyPrintable {
 								statistics
 									.getFacetStatistics()
 									.stream()
-									.map(facet -> "\t\t[" + (facet.isRequested() ? "X" : " ") + "] " +
+									.map(facet -> "\t\t[" + (facet.isRequested() ? "X" : (ofNullable(facet.getImpact()).map(RequestImpact::hasSense).orElse(true) ? " " : "-")) + "] " +
 										ofNullable(facetRenderer.apply(facet)).filter(it -> !it.isBlank()).orElseGet(() -> String.valueOf(facet.getFacetEntity().getPrimaryKey())) +
 										" (" + facet.getCount() + ")" +
 										ofNullable(facet.getImpact()).map(RequestImpact::toString).map(it -> " " + it).orElse(""))
@@ -360,8 +361,12 @@ public class FacetSummary implements EvitaResponseExtraResult, PrettyPrintable {
 	 * @param difference Projected number of entities that are added or removed from result if the query is altered by adding this
 	 *                   facet to filtering query in comparison to current result.
 	 * @param matchCount Projected number of filtered entities if the query is altered by adding this facet to filtering query.
+	 * @param hasSense   Selection has sense - TRUE if there is at least one entity still present in the result if
+	 *                   the query is altered by adding this facet to filtering query. In case of OR relation between
+	 *                   facets it's also true only if there is at least one entity present in the result when all other
+	 *                   facets in the same group are removed and only this facet is requested.
 	 */
-	public record RequestImpact(int difference, int matchCount) implements Serializable {
+	public record RequestImpact(int difference, int matchCount, boolean hasSense) implements Serializable {
 		@Serial private static final long serialVersionUID = 8332603848272953977L;
 
 		/**
@@ -372,24 +377,16 @@ public class FacetSummary implements EvitaResponseExtraResult, PrettyPrintable {
 			return difference;
 		}
 
-		/**
-		 * Selection has sense - TRUE if there is at least one entity still present in the result if the query is
-		 * altered by adding this facet to filtering query.
-		 */
-		public boolean hasSense() {
-			return matchCount > 0;
-		}
-
 		@Override
 		public boolean equals(Object o) {
 			if (this == o) return true;
 			if (!(o instanceof RequestImpact that)) return false;
-			return difference() == that.difference() && matchCount() == that.matchCount();
+			return difference() == that.difference() && this.matchCount() == that.matchCount() && this.hasSense() == that.hasSense();
 		}
 
 		@Override
 		public int hashCode() {
-			return Objects.hash(difference(), matchCount());
+			return Objects.hash(difference(), matchCount(), hasSense());
 		}
 
 		@Override
@@ -562,7 +559,7 @@ public class FacetSummary implements EvitaResponseExtraResult, PrettyPrintable {
 						it -> it.getFacetEntity().getPrimaryKey(),
 						Function.identity(),
 						(facetStatistics1, facetStatistics2) -> {
-							throw new EvitaInternalError("Statistics are expected to be unique!");
+							throw new GenericEvitaInternalError("Statistics are expected to be unique!");
 						},
 						LinkedHashMap::new
 					)

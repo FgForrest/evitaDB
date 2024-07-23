@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -46,13 +46,14 @@ import io.evitadb.dataType.LongNumberRange;
 import io.evitadb.dataType.NumberRange;
 import io.evitadb.dataType.Range;
 import io.evitadb.dataType.ShortNumberRange;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.Arrays;
 import java.util.Optional;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
@@ -108,7 +109,7 @@ public class AttributeBetweenTranslator implements FilteringConstraintTranslator
 					comparableTo = getOffsetDateTimeComparable(toTargetType(to, OffsetDateTime.class), Long.MAX_VALUE);
 					requestedPredicate = null;
 				} else {
-					throw new EvitaInternalError("Unexpected Range type!");
+					throw new GenericEvitaInternalError("Unexpected Range type!");
 				}
 				filteringFormula = new AttributeFormula(
 					attributeDefinition.isLocalized() ?
@@ -158,7 +159,6 @@ public class AttributeBetweenTranslator implements FilteringConstraintTranslator
 			}
 			if (filterByVisitor.isPrefetchPossible()) {
 				return new SelectionFormula(
-					filterByVisitor,
 					filteringFormula,
 					createAlternativeBitmapFilter(filterByVisitor, attributeName, from, to)
 				);
@@ -168,7 +168,6 @@ public class AttributeBetweenTranslator implements FilteringConstraintTranslator
 		} else {
 			return new EntityFilteringFormula(
 				"attribute between filter",
-				filterByVisitor,
 				createAlternativeBitmapFilter(filterByVisitor, attributeName, from, to)
 			);
 		}
@@ -197,7 +196,7 @@ public class AttributeBetweenTranslator implements FilteringConstraintTranslator
 					} else if (DateTimeRange.class.isAssignableFrom(attributeSchema.getPlainType())) {
 						return getDateTimePredicate((OffsetDateTime) comparableFrom, (OffsetDateTime) comparableTo);
 					} else {
-						throw new EvitaInternalError("Unexpected type!");
+						throw new GenericEvitaInternalError("Unexpected type!");
 					}
 				} else {
 					return getComparablePredicate(comparableFrom, comparableTo);
@@ -231,17 +230,24 @@ public class AttributeBetweenTranslator implements FilteringConstraintTranslator
 				if (attr.isEmpty()) {
 					return false;
 				} else {
+					final Predicate<Comparable> predicate = theValue -> {
+						if (theValue == null) {
+							return false;
+						} else if (comparableValueFrom != null && comparableValueTo != null) {
+							return ((DateTimeRange) theValue).overlaps(DateTimeRange.between(comparableValueFrom, comparableValueTo));
+						} else if (comparableValueFrom != null) {
+							return ((DateTimeRange) theValue).overlaps(DateTimeRange.since(comparableValueFrom));
+						} else if (comparableValueTo != null) {
+							return ((DateTimeRange) theValue).overlaps(DateTimeRange.until(comparableValueTo));
+						} else {
+							throw new GenericEvitaInternalError("Between query can never be created with both bounds null!");
+						}
+					};
 					final Serializable theValue = attr.get().value();
-					if (theValue == null) {
-						return false;
-					} else if (comparableValueFrom != null && comparableValueTo != null) {
-						return ((DateTimeRange) theValue).overlaps(DateTimeRange.between(comparableValueFrom, comparableValueTo));
-					} else if (comparableValueFrom != null) {
-						return ((DateTimeRange) theValue).overlaps(DateTimeRange.since(comparableValueFrom));
-					} else if (comparableValueTo != null) {
-						return ((DateTimeRange) theValue).overlaps(DateTimeRange.until(comparableValueTo));
+					if (theValue.getClass().isArray()) {
+						return Arrays.stream((Object[])theValue).map(Comparable.class::cast).anyMatch(predicate);
 					} else {
-						throw new EvitaInternalError("Between query can never be created with both bounds null!");
+						return predicate.test((Comparable)theValue);
 					}
 				}
 			}
@@ -256,53 +262,60 @@ public class AttributeBetweenTranslator implements FilteringConstraintTranslator
 				if (attr.isEmpty()) {
 					return false;
 				} else {
+					final Predicate<Comparable> predicate = theValue -> {
+						if (theValue == null) {
+							return false;
+						} else if (comparableValueFrom != null && comparableValueTo != null) {
+							if (comparableValueFrom instanceof BigDecimal || comparableValueTo instanceof BigDecimal) {
+								return ((BigDecimalNumberRange) theValue).overlaps(BigDecimalNumberRange.between((BigDecimal) comparableValueFrom, (BigDecimal) comparableValueTo));
+							} else if (comparableValueFrom instanceof Long || comparableValueTo instanceof Long) {
+								return ((LongNumberRange) theValue).overlaps(LongNumberRange.between((Long) comparableValueFrom, (Long) comparableValueTo));
+							} else if (comparableValueFrom instanceof Integer || comparableValueTo instanceof Integer) {
+								return ((IntegerNumberRange) theValue).overlaps(IntegerNumberRange.between((Integer) comparableValueFrom, (Integer) comparableValueTo));
+							} else if (comparableValueFrom instanceof Short || comparableValueTo instanceof Short) {
+								return ((ShortNumberRange) theValue).overlaps(ShortNumberRange.between((Short) comparableValueFrom, (Short) comparableValueTo));
+							} else if (comparableValueFrom instanceof Byte || comparableValueTo instanceof Byte) {
+								return ((ByteNumberRange) theValue).overlaps(ByteNumberRange.between((Byte) comparableValueFrom, (Byte) comparableValueTo));
+							} else {
+								throw new GenericEvitaInternalError("Unexpected input type: " + comparableValueFrom + ", " + comparableValueTo);
+							}
+						} else if (comparableValueFrom != null) {
+							if (comparableValueFrom instanceof BigDecimal) {
+								return ((BigDecimalNumberRange) theValue).overlaps(BigDecimalNumberRange.from((BigDecimal) comparableValueFrom));
+							} else if (comparableValueFrom instanceof Long) {
+								return ((LongNumberRange) theValue).overlaps(LongNumberRange.from((Long) comparableValueFrom));
+							} else if (comparableValueFrom instanceof Integer) {
+								return ((IntegerNumberRange) theValue).overlaps(IntegerNumberRange.from((Integer) comparableValueFrom));
+							} else if (comparableValueFrom instanceof Short) {
+								return ((ShortNumberRange) theValue).overlaps(ShortNumberRange.from((Short) comparableValueFrom));
+							} else if (comparableValueFrom instanceof Byte) {
+								return ((ByteNumberRange) theValue).overlaps(ByteNumberRange.from((Byte) comparableValueFrom));
+							} else {
+								throw new GenericEvitaInternalError("Unexpected input type: " + comparableValueFrom);
+							}
+						} else if (comparableValueTo != null) {
+							if (comparableValueTo instanceof BigDecimal) {
+								return ((BigDecimalNumberRange) theValue).overlaps(BigDecimalNumberRange.to((BigDecimal) comparableValueTo));
+							} else if (comparableValueTo instanceof Long) {
+								return ((LongNumberRange) theValue).overlaps(LongNumberRange.to((Long) comparableValueTo));
+							} else if (comparableValueTo instanceof Integer) {
+								return ((IntegerNumberRange) theValue).overlaps(IntegerNumberRange.to((Integer) comparableValueTo));
+							} else if (comparableValueTo instanceof Short) {
+								return ((ShortNumberRange) theValue).overlaps(ShortNumberRange.to((Short) comparableValueTo));
+							} else if (comparableValueTo instanceof Byte) {
+								return ((ByteNumberRange) theValue).overlaps(ByteNumberRange.to((Byte) comparableValueTo));
+							} else {
+								throw new GenericEvitaInternalError("Unexpected input type: " + comparableValueTo);
+							}
+						} else {
+							throw new GenericEvitaInternalError("Between query can never be created with both bounds null!");
+						}
+					};
 					final Serializable theValue = attr.get().value();
-					if (theValue == null) {
-						return false;
-					} else if (comparableValueFrom != null && comparableValueTo != null) {
-						if (comparableValueFrom instanceof BigDecimal || comparableValueTo instanceof BigDecimal) {
-							return ((BigDecimalNumberRange) theValue).overlaps(BigDecimalNumberRange.between((BigDecimal) comparableValueFrom, (BigDecimal) comparableValueTo));
-						} else if (comparableValueFrom instanceof Long || comparableValueTo instanceof Long) {
-							return ((LongNumberRange) theValue).overlaps(LongNumberRange.between((Long) comparableValueFrom, (Long) comparableValueTo));
-						} else if (comparableValueFrom instanceof Integer || comparableValueTo instanceof Integer) {
-							return ((IntegerNumberRange) theValue).overlaps(IntegerNumberRange.between((Integer) comparableValueFrom, (Integer) comparableValueTo));
-						} else if (comparableValueFrom instanceof Short || comparableValueTo instanceof Short) {
-							return ((ShortNumberRange) theValue).overlaps(ShortNumberRange.between((Short) comparableValueFrom, (Short) comparableValueTo));
-						} else if (comparableValueFrom instanceof Byte || comparableValueTo instanceof Byte) {
-							return ((ByteNumberRange) theValue).overlaps(ByteNumberRange.between((Byte) comparableValueFrom, (Byte) comparableValueTo));
-						} else {
-							throw new EvitaInternalError("Unexpected input type: " + comparableValueFrom + ", " + comparableValueTo);
-						}
-					} else if (comparableValueFrom != null) {
-						if (comparableValueFrom instanceof BigDecimal) {
-							return ((BigDecimalNumberRange) theValue).overlaps(BigDecimalNumberRange.from((BigDecimal) comparableValueFrom));
-						} else if (comparableValueFrom instanceof Long) {
-							return ((LongNumberRange) theValue).overlaps(LongNumberRange.from((Long) comparableValueFrom));
-						} else if (comparableValueFrom instanceof Integer) {
-							return ((IntegerNumberRange) theValue).overlaps(IntegerNumberRange.from((Integer) comparableValueFrom));
-						} else if (comparableValueFrom instanceof Short) {
-							return ((ShortNumberRange) theValue).overlaps(ShortNumberRange.from((Short) comparableValueFrom));
-						} else if (comparableValueFrom instanceof Byte) {
-							return ((ByteNumberRange) theValue).overlaps(ByteNumberRange.from((Byte) comparableValueFrom));
-						} else {
-							throw new EvitaInternalError("Unexpected input type: " + comparableValueFrom);
-						}
-					} else if (comparableValueTo != null) {
-						if (comparableValueTo instanceof BigDecimal) {
-							return ((BigDecimalNumberRange) theValue).overlaps(BigDecimalNumberRange.to((BigDecimal) comparableValueTo));
-						} else if (comparableValueTo instanceof Long) {
-							return ((LongNumberRange) theValue).overlaps(LongNumberRange.to((Long) comparableValueTo));
-						} else if (comparableValueTo instanceof Integer) {
-							return ((IntegerNumberRange) theValue).overlaps(IntegerNumberRange.to((Integer) comparableValueTo));
-						} else if (comparableValueTo instanceof Short) {
-							return ((ShortNumberRange) theValue).overlaps(ShortNumberRange.to((Short) comparableValueTo));
-						} else if (comparableValueTo instanceof Byte) {
-							return ((ByteNumberRange) theValue).overlaps(ByteNumberRange.to((Byte) comparableValueTo));
-						} else {
-							throw new EvitaInternalError("Unexpected input type: " + comparableValueTo);
-						}
+					if (theValue.getClass().isArray()) {
+						return Arrays.stream((Object[])theValue).map(Comparable.class::cast).anyMatch(predicate);
 					} else {
-						throw new EvitaInternalError("Between query can never be created with both bounds null!");
+						return predicate.test((Comparable)theValue);
 					}
 				}
 			}
@@ -317,17 +330,24 @@ public class AttributeBetweenTranslator implements FilteringConstraintTranslator
 				if (attr.isEmpty()) {
 					return false;
 				} else {
+					final Predicate<Comparable> predicate = theValue -> {
+						if (theValue == null) {
+							return false;
+						} else if (comparableFrom != null && comparableTo != null) {
+							return theValue.compareTo(comparableFrom) >= 0 && theValue.compareTo(comparableTo) <= 0;
+						} else if (comparableFrom != null) {
+							return theValue.compareTo(comparableFrom) >= 0;
+						} else if (comparableTo != null) {
+							return theValue.compareTo(comparableTo) <= 0;
+						} else {
+							throw new GenericEvitaInternalError("Between query can never be created with both bounds null!");
+						}
+					};
 					final Serializable theValue = attr.get().value();
-					if (theValue == null) {
-						return false;
-					} else if (comparableFrom != null && comparableTo != null) {
-						return ((Comparable) theValue).compareTo(comparableFrom) >= 0 && ((Comparable) theValue).compareTo(comparableTo) <= 0;
-					} else if (comparableFrom != null) {
-						return ((Comparable) theValue).compareTo(comparableFrom) >= 0;
-					} else if (comparableTo != null) {
-						return ((Comparable) theValue).compareTo(comparableTo) <= 0;
+					if (theValue.getClass().isArray()) {
+						return Arrays.stream((Object[])theValue).map(Comparable.class::cast).anyMatch(predicate);
 					} else {
-						throw new EvitaInternalError("Between query can never be created with both bounds null!");
+						return predicate.test((Comparable)theValue);
 					}
 				}
 			}

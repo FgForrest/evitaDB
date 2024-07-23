@@ -7,7 +7,6 @@
       "version": 1,
       "allLocales": [
         "cs",
-        "de",
         "en"
       ],
       "priceInnerRecordHandling": "NONE",
@@ -47,10 +46,9 @@
       "version": 1,
       "allLocales": [
         "cs",
-        "de",
         "en"
       ],
-      "priceInnerRecordHandling": "FIRST_OCCURRENCE",
+      "priceInnerRecordHandling": "LOWEST_PRICE",
       "attributes": {
         "global": {
           "code": "apple-ipad-10-2-10th-generation-2022"
@@ -244,7 +242,8 @@
         "priceWithTax": "499.0",
         "taxRate": "21.0",
         "validity": null
-      }
+      },
+      "multiplePricesForSaleAvailable": true
     },
     {
       "primaryKey": 103988,
@@ -252,10 +251,9 @@
       "version": 1,
       "allLocales": [
         "cs",
-        "de",
         "en"
       ],
-      "priceInnerRecordHandling": "FIRST_OCCURRENCE",
+      "priceInnerRecordHandling": "LOWEST_PRICE",
       "attributes": {
         "global": {
           "code": "apple-ipad-10-2-9th-generation-2021"
@@ -295,18 +293,17 @@
         "priceWithTax": "462.0",
         "taxRate": "21.0",
         "validity": null
-      }
+      },
+      "multiplePricesForSaleAvailable": true
     },
     {
       "primaryKey": 104008,
       "type": "Product",
       "version": 1,
       "allLocales": [
-        "cs",
-        "de",
         "en"
       ],
-      "priceInnerRecordHandling": "FIRST_OCCURRENCE",
+      "priceInnerRecordHandling": "LOWEST_PRICE",
       "attributes": {
         "global": {
           "code": "apple-ipad-air-5g-5th-generation-2022"
@@ -544,18 +541,17 @@
         "priceWithTax": "760.0",
         "taxRate": "21.0",
         "validity": null
-      }
+      },
+      "multiplePricesForSaleAvailable": true
     },
     {
       "primaryKey": 104084,
       "type": "Product",
       "version": 1,
       "allLocales": [
-        "cs",
-        "de",
         "en"
       ],
-      "priceInnerRecordHandling": "FIRST_OCCURRENCE",
+      "priceInnerRecordHandling": "LOWEST_PRICE",
       "attributes": {
         "global": {
           "code": "apple-ipad-mini-6th-generation-2021"
@@ -749,18 +745,17 @@
         "priceWithTax": "650.0",
         "taxRate": "21.0",
         "validity": null
-      }
+      },
+      "multiplePricesForSaleAvailable": true
     },
     {
       "primaryKey": 104171,
       "type": "Product",
       "version": 1,
       "allLocales": [
-        "cs",
-        "de",
         "en"
       ],
-      "priceInnerRecordHandling": "FIRST_OCCURRENCE",
+      "priceInnerRecordHandling": "LOWEST_PRICE",
       "attributes": {
         "global": {
           "code": "apple-ipad-pro-11-4th-generation-2022"
@@ -998,18 +993,17 @@
         "priceWithTax": "750.0",
         "taxRate": "21.0",
         "validity": null
-      }
+      },
+      "multiplePricesForSaleAvailable": true
     },
     {
       "primaryKey": 104227,
       "type": "Product",
       "version": 1,
       "allLocales": [
-        "cs",
-        "de",
         "en"
       ],
-      "priceInnerRecordHandling": "FIRST_OCCURRENCE",
+      "priceInnerRecordHandling": "LOWEST_PRICE",
       "attributes": {
         "global": {
           "code": "apple-ipad-pro-12-9-6th-generation-2022"
@@ -1247,18 +1241,17 @@
         "priceWithTax": "1025.0",
         "taxRate": "21.0",
         "validity": null
-      }
+      },
+      "multiplePricesForSaleAvailable": true
     },
     {
       "primaryKey": 104305,
       "type": "Product",
       "version": 1,
       "allLocales": [
-        "cs",
-        "de",
         "en"
       ],
-      "priceInnerRecordHandling": "FIRST_OCCURRENCE",
+      "priceInnerRecordHandling": "LOWEST_PRICE",
       "attributes": {
         "global": {
           "code": "apple-ipad-pro-5g-12-9-5th-generation-2021"
@@ -1496,18 +1489,17 @@
         "priceWithTax": "650.0",
         "taxRate": "21.0",
         "validity": null
-      }
+      },
+      "multiplePricesForSaleAvailable": true
     },
     {
       "primaryKey": 104368,
       "type": "Product",
       "version": 1,
       "allLocales": [
-        "cs",
-        "de",
         "en"
       ],
-      "priceInnerRecordHandling": "FIRST_OCCURRENCE",
+      "priceInnerRecordHandling": "LOWEST_PRICE",
       "attributes": {
         "global": {
           "code": "apple-ipad-pro-11-2nd-generation-2020"
@@ -1613,18 +1605,17 @@
         "priceWithTax": "670.0",
         "taxRate": "21.0",
         "validity": null
-      }
+      },
+      "multiplePricesForSaleAvailable": true
     },
     {
       "primaryKey": 104392,
       "type": "Product",
       "version": 1,
       "allLocales": [
-        "cs",
-        "de",
         "en"
       ],
-      "priceInnerRecordHandling": "FIRST_OCCURRENCE",
+      "priceInnerRecordHandling": "LOWEST_PRICE",
       "attributes": {
         "global": {
           "code": "apple-ipad-pro-11-3rd-generation-2021"
@@ -1862,18 +1853,17 @@
         "priceWithTax": "940.0",
         "taxRate": "21.0",
         "validity": null
-      }
+      },
+      "multiplePricesForSaleAvailable": true
     },
     {
       "primaryKey": 104423,
       "type": "Product",
       "version": 1,
       "allLocales": [
-        "cs",
-        "de",
         "en"
       ],
-      "priceInnerRecordHandling": "FIRST_OCCURRENCE",
+      "priceInnerRecordHandling": "LOWEST_PRICE",
       "attributes": {
         "global": {
           "code": "apple-ipad-pro-12-9-4th-generation-2020"
@@ -1935,15 +1925,14 @@
         "priceWithTax": "739.0",
         "taxRate": "21.0",
         "validity": null
-      }
+      },
+      "multiplePricesForSaleAvailable": true
     },
     {
       "primaryKey": 104435,
       "type": "Product",
       "version": 1,
       "allLocales": [
-        "cs",
-        "de",
         "en"
       ],
       "priceInnerRecordHandling": "NONE",
@@ -1982,8 +1971,6 @@
       "type": "Product",
       "version": 1,
       "allLocales": [
-        "cs",
-        "de",
         "en"
       ],
       "priceInnerRecordHandling": "NONE",
@@ -2022,8 +2009,6 @@
       "type": "Product",
       "version": 1,
       "allLocales": [
-        "cs",
-        "de",
         "en"
       ],
       "priceInnerRecordHandling": "NONE",
@@ -2062,8 +2047,6 @@
       "type": "Product",
       "version": 1,
       "allLocales": [
-        "cs",
-        "de",
         "en"
       ],
       "priceInnerRecordHandling": "NONE",
@@ -2102,8 +2085,6 @@
       "type": "Product",
       "version": 1,
       "allLocales": [
-        "cs",
-        "de",
         "en"
       ],
       "priceInnerRecordHandling": "NONE",
@@ -2142,8 +2123,6 @@
       "type": "Product",
       "version": 1,
       "allLocales": [
-        "cs",
-        "de",
         "en"
       ],
       "priceInnerRecordHandling": "NONE",
@@ -2182,8 +2161,6 @@
       "type": "Product",
       "version": 1,
       "allLocales": [
-        "cs",
-        "de",
         "en"
       ],
       "priceInnerRecordHandling": "NONE",
@@ -2222,8 +2199,6 @@
       "type": "Product",
       "version": 1,
       "allLocales": [
-        "cs",
-        "de",
         "en"
       ],
       "priceInnerRecordHandling": "NONE",
@@ -2262,11 +2237,9 @@
       "type": "Product",
       "version": 1,
       "allLocales": [
-        "cs",
-        "de",
         "en"
       ],
-      "priceInnerRecordHandling": "FIRST_OCCURRENCE",
+      "priceInnerRecordHandling": "LOWEST_PRICE",
       "attributes": {
         "global": {
           "code": "huawei-honor-pad-6-10-1"
@@ -2306,21 +2279,22 @@
         "priceWithTax": "385.0",
         "taxRate": "21.0",
         "validity": null
-      }
+      },
+      "multiplePricesForSaleAvailable": true
     }
   ],
-  "type": "PAGE",
-  "totalRecordCount": 4125,
-  "first": true,
-  "last": false,
-  "hasPrevious": false,
-  "hasNext": true,
-  "singlePage": false,
   "empty": false,
-  "pageSize": 20,
-  "pageNumber": 1,
-  "lastPageNumber": 207,
+  "first": true,
   "firstPageItemNumber": 0,
-  "lastPageItemNumber": 19
+  "hasNext": true,
+  "hasPrevious": false,
+  "last": false,
+  "lastPageItemNumber": 19,
+  "lastPageNumber": 207,
+  "pageNumber": 1,
+  "pageSize": 20,
+  "singlePage": false,
+  "totalRecordCount": 4127,
+  "type": "PAGE"
 }
 ```

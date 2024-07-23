@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -100,6 +100,108 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 	private static final String ATTRIBUTE_SHORTCUT = "shortcut";
 	private static final int SEED = 40;
 	private final DataGenerator dataGenerator = new DataGenerator();
+
+	@Nonnull
+	private static CardinalityProvider computeCardinalities(
+		one.edee.oss.pmptt.model.Hierarchy categoryHierarchy,
+		List<SealedEntity> allProducts,
+		Map<Integer, SealedEntity> categoryIndex,
+		Predicate<SealedEntity> filterPredicate,
+		TestHierarchyPredicate treeFilterPredicate,
+		TestHierarchyPredicate scopePredicate,
+		EmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour
+	) {
+		final Set<Integer> categoriesWithValidPath = new HashSet<>();
+		for (SealedEntity category : categoryIndex.values()) {
+			final List<HierarchyItem> parentItems = categoryHierarchy.getParentItems(String.valueOf(category.getPrimaryKey()));
+			if (scopePredicate.test(category, parentItems)) {
+				categoriesWithValidPath.add(category.getPrimaryKey());
+			}
+		}
+		final Collection<SealedEntity> filteredProducts = allProducts.stream()
+			.filter(filterPredicate)
+			.toList();
+		final Cardinalities categoryCardinalities = new Cardinalities();
+
+		final Set<List<Integer>> emptyCategories = new HashSet<>();
+		for (SealedEntity category : categoryIndex.values()) {
+			final int categoryId = category.getPrimaryKey();
+			final List<HierarchyItem> parentItems = categoryHierarchy.getParentItems(String.valueOf(categoryId));
+			final List<Integer> categoryPath = Stream.concat(
+				parentItems
+					.stream()
+					.map(it -> Integer.parseInt(it.getCode())),
+				Stream.of(categoryId)
+			).toList();
+
+			if (categoryPath.stream().allMatch(cid -> treeFilterPredicate.test(categoryIndex.get(cid), parentItems))) {
+				int cid = categoryPath.get(categoryPath.size() - 1);
+				final int[] productIds = filteredProducts
+					.stream()
+					.filter(it -> it.getReference(Entities.CATEGORY, cid).isPresent())
+					.mapToInt(EntityContract::getPrimaryKey)
+					.toArray();
+				if (emptyHierarchicalEntityBehaviour == REMOVE_EMPTY && ArrayUtils.isEmpty(productIds)) {
+					emptyCategories.add(categoryPath);
+				} else {
+					categoryCardinalities.record(categoryPath, productIds, categoriesWithValidPath::contains);
+					for (int i = categoryPath.size() - 1; i > 0; i--) {
+						final List<Integer> parentPath = categoryPath.subList(0, i);
+						if (emptyCategories.contains(parentPath)) {
+							if (parentPath.size() > 1) {
+								categoryCardinalities.recordCategoryVisible(parentPath.get(parentPath.size() - 2));
+							}
+							emptyCategories.remove(parentPath);
+						} else {
+							break;
+						}
+					}
+				}
+			}
+		}
+		return categoryCardinalities;
+	}
+
+	@Nonnull
+	private static Hierarchy computeExpectedStatistics(
+		one.edee.oss.pmptt.model.Hierarchy categoryHierarchy,
+		List<SealedEntity> allProducts,
+		Map<Integer, SealedEntity> categoryIndex,
+		Predicate<SealedEntity> filterPredicate,
+		TestHierarchyPredicate treeFilterPredicate,
+		TestHierarchyPredicate scopePredicate,
+		Function<CardinalityProvider, HierarchyStatisticsTuple> statisticsComputer
+	) {
+		return computeExpectedStatistics(
+			categoryHierarchy, allProducts, categoryIndex, filterPredicate, treeFilterPredicate, scopePredicate,
+			REMOVE_EMPTY, statisticsComputer
+		);
+	}
+
+	@Nonnull
+	private static Hierarchy computeExpectedStatistics(
+		one.edee.oss.pmptt.model.Hierarchy categoryHierarchy,
+		List<SealedEntity> allProducts,
+		Map<Integer, SealedEntity> categoryIndex,
+		Predicate<SealedEntity> filterPredicate,
+		TestHierarchyPredicate treeFilterPredicate,
+		TestHierarchyPredicate scopePredicate,
+		EmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour,
+		Function<CardinalityProvider, HierarchyStatisticsTuple> statisticsComputer
+	) {
+		final CardinalityProvider categoryCardinalities = computeCardinalities(
+			categoryHierarchy, allProducts, categoryIndex, filterPredicate,
+			treeFilterPredicate, scopePredicate, emptyHierarchicalEntityBehaviour
+		);
+		final HierarchyStatisticsTuple result = statisticsComputer.apply(categoryCardinalities);
+		final Map<String, List<LevelInfo>> theResults = Map.of(
+			result.name(), result.levelInfos()
+		);
+		return new Hierarchy(
+			Collections.emptyMap(),
+			Collections.singletonMap(Entities.CATEGORY, theResults)
+		);
+	}
 
 	@DataSet(value = THOUSAND_PRODUCTS, destroyAfterClass = true)
 	DataCarrier setUp(Evita evita) {
@@ -190,7 +292,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 				tuple(
 					"originalProductEntities",
 					storedProducts.stream()
-						.map(it -> session.getEntity(it.getType(), it.getPrimaryKey(), attributeContentAll(), referenceContentAll(), dataInLocalesAll()).orElseThrow())
+						.map(it -> session.getEntity(it.getType(), it.getPrimaryKey(), attributeContentAll(), referenceContentAllWithAttributes(), dataInLocalesAll()).orElseThrow())
 						.collect(Collectors.toList())
 				),
 				tuple(
@@ -2667,117 +2769,52 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 		);
 	}
 
-	@Nonnull
-	private Integer[] getParentIds(one.edee.oss.pmptt.model.Hierarchy categoryHierarchy, int categoryId) {
-		return Stream.concat(
-				categoryHierarchy
-					.getParentItems(String.valueOf(categoryId))
-					.stream()
-					.map(it -> Integer.parseInt(it.getCode())),
-				Stream.of(categoryId)
-			)
-			.toArray(Integer[]::new);
-	}
+	@DisplayName("Should return same results for prefetched calculation")
+	@UseDataSet(THOUSAND_PRODUCTS)
+	@Test
+	void shouldSameResultsForPrefetchedCalculation(Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityLocaleEquals(Locale.ENGLISH),
+							hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(7))
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_POSSIBLE_CACHING_TREES, DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS),
+							entityFetchAll()
+						)
+					),
+					SealedEntity.class
+				);
 
-	@Nonnull
-	private CardinalityProvider computeCardinalities(
-		one.edee.oss.pmptt.model.Hierarchy categoryHierarchy,
-		List<SealedEntity> allProducts,
-		Map<Integer, SealedEntity> categoryIndex,
-		Predicate<SealedEntity> filterPredicate,
-		TestHierarchyPredicate treeFilterPredicate,
-		TestHierarchyPredicate scopePredicate,
-		EmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour
-	) {
-		final Set<Integer> categoriesWithValidPath = new HashSet<>();
-		for (SealedEntity category : categoryIndex.values()) {
-			final List<HierarchyItem> parentItems = categoryHierarchy.getParentItems(String.valueOf(category.getPrimaryKey()));
-			if (scopePredicate.test(category, parentItems)) {
-				categoriesWithValidPath.add(category.getPrimaryKey());
+				final EvitaResponse<SealedEntity> resultUsingPrefetch = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityLocaleEquals(Locale.ENGLISH),
+							hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(7))
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_POSSIBLE_CACHING_TREES, DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.PREFER_PREFETCHING),
+							entityFetchAll()
+						)
+					),
+					SealedEntity.class
+				);
+
+				assertEquals(
+					result.getTotalRecordCount(),
+					resultUsingPrefetch.getTotalRecordCount()
+				);
+
+				return null;
 			}
-		}
-		final Collection<SealedEntity> filteredProducts = allProducts.stream()
-			.filter(filterPredicate)
-			.toList();
-		final Cardinalities categoryCardinalities = new Cardinalities();
-
-		final Set<List<Integer>> emptyCategories = new HashSet<>();
-		for (SealedEntity category : categoryIndex.values()) {
-			final int categoryId = category.getPrimaryKey();
-			final List<HierarchyItem> parentItems = categoryHierarchy.getParentItems(String.valueOf(categoryId));
-			final List<Integer> categoryPath = Stream.concat(
-				parentItems
-					.stream()
-					.map(it -> Integer.parseInt(it.getCode())),
-				Stream.of(categoryId)
-			).toList();
-
-			if (categoryPath.stream().allMatch(cid -> treeFilterPredicate.test(categoryIndex.get(cid), parentItems))) {
-				int cid = categoryPath.get(categoryPath.size() - 1);
-				final int[] productIds = filteredProducts
-					.stream()
-					.filter(it -> it.getReference(Entities.CATEGORY, cid).isPresent())
-					.mapToInt(EntityContract::getPrimaryKey)
-					.toArray();
-				if (emptyHierarchicalEntityBehaviour == REMOVE_EMPTY && ArrayUtils.isEmpty(productIds)) {
-					emptyCategories.add(categoryPath);
-				} else {
-					categoryCardinalities.record(categoryPath, productIds, categoriesWithValidPath::contains);
-					for (int i = categoryPath.size() - 1; i > 0; i--) {
-						final List<Integer> parentPath = categoryPath.subList(0, i);
-						if (emptyCategories.contains(parentPath)) {
-							if (parentPath.size() > 1) {
-								categoryCardinalities.recordCategoryVisible(parentPath.get(parentPath.size() - 2));
-							}
-							emptyCategories.remove(parentPath);
-						} else {
-							break;
-						}
-					}
-				}
-			}
-		}
-		return categoryCardinalities;
-	}
-
-	@Nonnull
-	private Hierarchy computeExpectedStatistics(
-		one.edee.oss.pmptt.model.Hierarchy categoryHierarchy,
-		List<SealedEntity> allProducts,
-		Map<Integer, SealedEntity> categoryIndex,
-		Predicate<SealedEntity> filterPredicate,
-		TestHierarchyPredicate treeFilterPredicate,
-		TestHierarchyPredicate scopePredicate,
-		Function<CardinalityProvider, HierarchyStatisticsTuple> statisticsComputer
-	) {
-		return computeExpectedStatistics(
-			categoryHierarchy, allProducts, categoryIndex, filterPredicate, treeFilterPredicate, scopePredicate,
-			REMOVE_EMPTY, statisticsComputer
-		);
-	}
-
-	@Nonnull
-	private Hierarchy computeExpectedStatistics(
-		one.edee.oss.pmptt.model.Hierarchy categoryHierarchy,
-		List<SealedEntity> allProducts,
-		Map<Integer, SealedEntity> categoryIndex,
-		Predicate<SealedEntity> filterPredicate,
-		TestHierarchyPredicate treeFilterPredicate,
-		TestHierarchyPredicate scopePredicate,
-		EmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour,
-		Function<CardinalityProvider, HierarchyStatisticsTuple> statisticsComputer
-	) {
-		final CardinalityProvider categoryCardinalities = computeCardinalities(
-			categoryHierarchy, allProducts, categoryIndex, filterPredicate,
-			treeFilterPredicate, scopePredicate, emptyHierarchicalEntityBehaviour
-		);
-		final HierarchyStatisticsTuple result = statisticsComputer.apply(categoryCardinalities);
-		final Map<String, List<LevelInfo>> theResults = Map.of(
-			result.name(), result.levelInfos()
-		);
-		return new Hierarchy(
-			Collections.emptyMap(),
-			Collections.singletonMap(Entities.CATEGORY, theResults)
 		);
 	}
 

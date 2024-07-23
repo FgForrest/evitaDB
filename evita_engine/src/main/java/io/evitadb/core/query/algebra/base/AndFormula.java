@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -27,11 +27,11 @@ import io.evitadb.core.query.algebra.AbstractCacheableFormula;
 import io.evitadb.core.query.algebra.CacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
+import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
-import io.evitadb.index.transactionalMemory.TransactionalLayerProducer;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import net.openhft.hashing.LongHashFunction;
@@ -68,22 +68,25 @@ public class AndFormula extends AbstractCacheableFormula {
 	private static final Bitmap[] EMPTY_BITMAP_ARRAY = new Bitmap[0];
 	private final Bitmap[] bitmaps;
 	private final long[] indexTransactionId;
+	private List<Formula> sortedFormulasByComplexity;
 
 	AndFormula(@Nonnull Consumer<CacheableFormula> computationCallback, @Nonnull Formula[] innerFormulas, long[] indexTransactionId, @Nullable Bitmap[] bitmaps) {
-		super(computationCallback, innerFormulas);
+		super(computationCallback);
 		Assert.isTrue(
 			innerFormulas.length > 1 || Objects.requireNonNull(bitmaps).length > 1,
 			"And formula has no sense with " + innerFormulas.length + " inner formulas / bitmaps!"
 		);
 		this.bitmaps = bitmaps;
 		this.indexTransactionId = indexTransactionId;
+		this.initFields(innerFormulas);
 	}
 
 	public AndFormula(@Nonnull Formula... innerFormulas) {
-		super(null, innerFormulas);
+		super(null);
 		Assert.isTrue(innerFormulas.length > 1, "And formula has no sense with " + innerFormulas.length + " inner formulas!");
 		this.bitmaps = null;
 		this.indexTransactionId = null;
+		this.initFields(innerFormulas);
 	}
 
 	public AndFormula(long[] indexTransactionId, @Nonnull Bitmap... bitmaps) {
@@ -91,8 +94,10 @@ public class AndFormula extends AbstractCacheableFormula {
 		Assert.isTrue(bitmaps.length > 1, "And formula has no sense with " + bitmaps.length + " inner bitmaps!");
 		this.bitmaps = bitmaps;
 		this.indexTransactionId = indexTransactionId;
+		this.initFields();
 	}
 
+	@Nonnull
 	public Bitmap[] getBitmaps() {
 		return bitmaps == null ? EMPTY_BITMAP_ARRAY : bitmaps;
 	}
@@ -106,6 +111,15 @@ public class AndFormula extends AbstractCacheableFormula {
 			return innerFormulas[0];
 		} else {
 			return new AndFormula(innerFormulas);
+		}
+	}
+
+	@Override
+	public int getEstimatedCardinality() {
+		if (bitmaps == null) {
+			return Arrays.stream(this.innerFormulas).mapToInt(formula -> formula.getEstimatedCardinality()).min().orElse(0);
+		} else {
+			return Arrays.stream(this.bitmaps).mapToInt(Bitmap::size).min().orElse(0);
 		}
 	}
 
@@ -154,15 +168,6 @@ public class AndFormula extends AbstractCacheableFormula {
 	}
 
 	@Override
-	public int getEstimatedCardinality() {
-		if (bitmaps == null) {
-			return Arrays.stream(this.innerFormulas).mapToInt(Formula::getEstimatedCardinality).min().orElse(0);
-		} else {
-			return Arrays.stream(this.bitmaps).mapToInt(Bitmap::size).min().orElse(0);
-		}
-	}
-
-	@Override
 	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
 		if (bitmaps == null) {
 			return 0L;
@@ -191,17 +196,44 @@ public class AndFormula extends AbstractCacheableFormula {
 	@Override
 	protected long getCostInternal() {
 		return ofNullable(this.bitmaps)
-			.map(it -> Arrays.stream(it).mapToLong(Bitmap::size).sum())
-			.orElseGet(super::getCostInternal);
+			.map(it -> {
+				long cost = 0L;
+				for (Bitmap bitmap : bitmaps) {
+					if (bitmap == EmptyBitmap.INSTANCE) {
+						break;
+					}
+					cost += bitmap.size() * getOperationCost();
+				}
+				return cost;
+			})
+			.orElseGet(() -> {
+				long cost = 0L;
+				for (Formula innerFormula : this.sortedFormulasByComplexity) {
+					final Bitmap innerResult = innerFormula.compute();
+					cost += innerFormula.getCost() + innerResult.size() * getOperationCost();
+					if (innerResult == EmptyBitmap.INSTANCE) {
+						break;
+					}
+				}
+				return cost;
+			});
 	}
 
 	@Override
-	public String toString() {
-		if (ArrayUtils.isEmpty(bitmaps)) {
-			return "AND";
-		} else {
-			return "AND: " + Arrays.stream(bitmaps).map(Bitmap::toString).collect(Collectors.joining(", "));
-		}
+	protected long getCostToPerformanceInternal() {
+		return ofNullable(this.bitmaps)
+			.map(it -> getCost() / Math.max(1, compute().size()))
+			.orElseGet(() -> {
+				long costToPerformance = 0L;
+				for (Formula innerFormula : this.sortedFormulasByComplexity) {
+					final Bitmap innerResult = innerFormula.compute();
+					if (innerResult == EmptyBitmap.INSTANCE) {
+						break;
+					}
+					costToPerformance += innerFormula.getCostToPerformanceRatio();
+				}
+				return costToPerformance + getCost() / Math.max(1, compute().size());
+			});
 	}
 
 	@Nonnull
@@ -216,13 +248,23 @@ public class AndFormula extends AbstractCacheableFormula {
 		} else {
 			theResult = RoaringBitmapBackedBitmap.and(theBitmaps);
 		}
-		return theResult;
+		return theResult.isEmpty() ? EmptyBitmap.INSTANCE : theResult;
+	}
+
+	@Override
+	public String toString() {
+		if (ArrayUtils.isEmpty(bitmaps)) {
+			return "AND";
+		} else {
+			return "AND: " + Arrays.stream(bitmaps).map(Bitmap::toString).collect(Collectors.joining(", "));
+		}
 	}
 
 	/*
 		PRIVATE METHODS
 	 */
 
+	@Nonnull
 	private RoaringBitmap[] getRoaringBitmaps() {
 		return ofNullable(this.bitmaps)
 			.map(it -> Arrays
@@ -232,13 +274,15 @@ public class AndFormula extends AbstractCacheableFormula {
 			)
 			.orElseGet(
 				() -> {
-					final List<Formula> formulasFromEasiestToHardest = Arrays.stream(getInnerFormulas())
-						.sorted(Comparator.comparingLong(TransactionalDataRelatedStructure::getEstimatedCost))
-						.collect(Collectors.toList());
-					final RoaringBitmap[] theBitmaps = new RoaringBitmap[formulasFromEasiestToHardest.size()];
+					if (this.sortedFormulasByComplexity == null) {
+						this.sortedFormulasByComplexity = Arrays.stream(getInnerFormulas())
+							.sorted(Comparator.comparingLong(TransactionalDataRelatedStructure::getEstimatedCost))
+							.toList();
+					}
+					final RoaringBitmap[] theBitmaps = new RoaringBitmap[this.sortedFormulasByComplexity.size()];
 					// go from the cheapest formula to the more expensive and compute one by one
-					for (int i = 0; i < formulasFromEasiestToHardest.size(); i++) {
-						final Formula formula = formulasFromEasiestToHardest.get(i);
+					for (int i = 0; i < this.sortedFormulasByComplexity.size(); i++) {
+						final Formula formula = this.sortedFormulasByComplexity.get(i);
 						final Bitmap computedBitmap = formula.compute();
 						// if you encounter formula that returns nothing immediately return nothing - hence AND
 						if (computedBitmap.isEmpty()) {

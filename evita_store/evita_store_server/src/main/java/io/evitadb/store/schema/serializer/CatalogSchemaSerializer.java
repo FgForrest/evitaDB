@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -29,12 +29,17 @@ import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.store.entity.model.schema.CatalogSchemaStoragePart;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.NamingConvention;
+import lombok.RequiredArgsConstructor;
 
+import javax.annotation.Nonnull;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -92,10 +97,27 @@ public class CatalogSchemaSerializer extends Serializer<CatalogSchema> {
 			version,
 			catalogName, nameVariants, description, catalogEvolutionMode,
 			attributeSchema,
-			entityType -> theCatalog
-				.getEntitySchema(entityType)
-				.orElse(null)
+			new DeserializedEntitySchemaAccessor(theCatalog)
 		);
 	}
 
+	/**
+	 * A class that provides access to deserialized entity schemas.
+	 */
+	@RequiredArgsConstructor
+	private static class DeserializedEntitySchemaAccessor implements EntitySchemaProvider {
+		private final CatalogContract theCatalog;
+
+		@Nonnull
+		@Override
+		public Collection<EntitySchemaContract> getEntitySchemas() {
+			return theCatalog.getEntitySchemaIndex().values();
+		}
+
+		@Nonnull
+		@Override
+		public Optional<EntitySchemaContract> getEntitySchema(@Nonnull String entityType) {
+			return theCatalog.getEntitySchema(entityType).map(EntitySchemaContract.class::cast);
+		}
+	}
 }

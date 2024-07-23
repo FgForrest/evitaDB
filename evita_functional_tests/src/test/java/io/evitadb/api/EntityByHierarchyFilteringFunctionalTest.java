@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -24,6 +24,7 @@
 package io.evitadb.api;
 
 import com.github.javafaker.Faker;
+import io.evitadb.api.exception.EntityLocaleMissingException;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.query.require.EmptyHierarchicalEntityBehaviour;
@@ -86,6 +87,7 @@ import static io.evitadb.utils.AssertionUtils.assertResultIs;
 import static java.util.Optional.ofNullable;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -249,10 +251,6 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 					.stream()
 					.map(it -> Integer.parseInt(it.getCode()))
 					.noneMatch(excluded::contains);
-		final Set<Integer> included = originalCategoryEntities.stream()
-			.filter(includedPredicate)
-			.map(EntityContract::getPrimaryKey)
-			.collect(Collectors.toSet());
 
 		evita.queryCatalog(
 			TEST_CATALOG,
@@ -260,7 +258,9 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 				final EvitaResponse<EntityReference> result = session.query(
 					query(
 						collection(Entities.CATEGORY),
-						filterBy(hierarchyWithinRootSelf(having(entityPrimaryKeyInSet(included.toArray(new Integer[0]))))),
+						filterBy(hierarchyWithinRootSelf(having(entityPrimaryKeyInSet(originalCategoryEntities.stream()
+							.filter(includedPredicate)
+							.map(EntityContract::getPrimaryKey).distinct().toArray(Integer[]::new))))),
 						require(
 							page(1, Integer.MAX_VALUE),
 							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
@@ -735,6 +735,45 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 		);
 	}
 
+	@DisplayName("Should fail to return hierarchical entities with localize attribute without specifying locale")
+	@UseDataSet(THOUSAND_CATEGORIES)
+	@Test
+	void shouldFailToRetrieveEntitiesWithLocalizedAttributesWithoutSpecifyingLocale(Evita evita, Map<Integer, SealedEntity> originalCategoryIndex, one.edee.oss.pmptt.model.Hierarchy categoryHierarchy) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				assertThrows(
+					EntityLocaleMissingException.class,
+					() -> {
+						session.query(
+							query(
+								collection(Entities.CATEGORY),
+								filterBy(hierarchyWithinSelf(entityPrimaryKeyInSet(1))),
+								require(
+									page(1, Integer.MAX_VALUE),
+									debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+									hierarchyOfSelf(
+										fromRoot(
+											"megaMenu",
+											entityFetch(
+												attributeContent(
+													ATTRIBUTE_NAME
+												)
+											)
+										)
+									)
+								)
+							),
+							EntityReference.class
+						);
+					}
+				);
+
+				return null;
+			}
+		);
+	}
+
 	@DisplayName("Should return cardinalities for categories when filter constraint is eliminated")
 	@UseDataSet(THOUSAND_CATEGORIES)
 	@Test
@@ -765,17 +804,15 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 					categoryHierarchy, originalCategoryIndex,
 					languagePredicate,
 					languagePredicate,
-					categoryCardinalities -> {
-						return new HierarchyStatisticsTuple(
-							"megaMenu",
-							computeChildren(
-								session, null, categoryHierarchy, categoryCardinalities,
-								false,
-								false, false,
-								1
-							)
-						);
-					}
+					categoryCardinalities -> new HierarchyStatisticsTuple(
+						"megaMenu",
+						computeChildren(
+							session, null, categoryHierarchy, categoryCardinalities,
+							false,
+							false, false,
+							1
+						)
+					)
 				);
 
 				final Hierarchy statistics = result.getExtraResult(Hierarchy.class);

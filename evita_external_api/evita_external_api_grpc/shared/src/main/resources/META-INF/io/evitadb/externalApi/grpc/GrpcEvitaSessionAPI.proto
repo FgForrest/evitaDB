@@ -23,6 +23,13 @@ message GrpcCatalogStateResponse {
   GrpcCatalogState state = 1;
 }
 
+// Request to GetCatalogSchema request.
+message GrpcGetCatalogSchemaRequest {
+  // True, if the schema should include name variants for it and all sub-schemas.
+  // This could considerably increase the size of the response.
+  bool nameVariants = 1;
+}
+
 // Response to GetCatalogSchema request.
 message GrpcCatalogSchemaResponse {
   // The current catalog schema.
@@ -33,6 +40,9 @@ message GrpcCatalogSchemaResponse {
 message GrpcEntitySchemaRequest {
   // The entity type for which the schema is requested.
   string entityType = 1;
+  // True, if the schema should include name variants for it and all sub-schemas.
+  // This could considerably increase the size of the response.
+  bool nameVariants = 2;
 }
 
 // Response to GetEntitySchema request.
@@ -208,10 +218,39 @@ message GrpcEntityCollectionSizeResponse {
   int32 size = 1;
 }
 
+// Response for Close request that commits or rollbacks the changes in the session.
+message GrpcCloseRequest {
+  // Contains the requested commit behaviour
+  GrpcCommitBehavior commitBehaviour = 1;
+}
+
+// Response for Close request that commits or rollbacks the changes in the session.
+message GrpcCloseResponse {
+  // Contains next catalog version
+  int64 catalogVersion = 1;
+}
+
 // Response for GoLiveAndClose request that switches the catalog to ALIVE state and closes the session.
 message GrpcGoLiveAndCloseResponse {
   // True, if the catalog was switched to ALIVE state.
   bool success = 1;
+  // Contains next catalog version
+  int64 catalogVersion = 2;
+}
+
+// Response to a catalog backup request.
+message GrpcBackupCatalogRequest {
+  // The moment in time to which the catalog should be backed up. Might be null for current time.
+  GrpcOffsetDateTime pastMoment = 1;
+  // True, if the WAL should be included in the backup. Use false if you want to restore catalog in exact state as
+  // it was at the pastMoment.
+  bool includingWAL = 2;
+}
+
+// Response to a catalog backup request.
+message GrpcBackupCatalogResponse {
+  // the task that is used to backup the catalog and getting its progress
+  GrpcTaskStatus taskStatus = 1;
 }
 
 // Request for acquiring the list of all entity types.
@@ -228,6 +267,12 @@ message GrpcQueryRequest {
   repeated GrpcQueryParam positionalQueryParams = 2;
   // The named query parameters.
   map<string, GrpcQueryParam> namedQueryParams = 3;
+}
+
+// Request for specifying a query to be executed.
+message GrpcQueryUnsafeRequest {
+  // The string part of the parametrised query.
+  string query = 1;
 }
 
 // Response to Query request.
@@ -334,17 +379,11 @@ message GrpcDeleteEntitiesResponse {
 }
 
 // Request for opening a transaction.
-message GrpcOpenTransactionResponse {
-  // True, if the transaction was opened before corresponding request.
-  bool alreadyOpenedBefore = 1;
+message GrpcTransactionResponse {
+  // The current version of the catalog the transaction is bound to.
+  int64 catalogVersion = 1;
   // The id of the opened transaction.
-  int64 transactionId = 2;
-}
-
-// Request for closing a transaction.
-message GrpcCloseTransactionRequest {
-  // If true, tha changes made by the transaction will be omitted and rollbacked.
-  bool rollback = 1;
+  GrpcUuid transactionId = 2;
 }
 
 // Structure that supports storing all possible parameters that could be used within query.
@@ -391,46 +430,52 @@ message GrpcQueryParam {
     GrpcStatisticsBase statisticsBase = 19;
     // The statistics type enum value.
     GrpcStatisticsType statisticsType = 20;
+    // The histogram behavior enum value.
+    GrpcHistogramBehavior histogramBehavior = 21;
+    // The managed references behaviour
+    GrpcManagedReferencesBehaviour managedReferencesBehaviour = 22;
 
     // The string array value.
-    GrpcStringArray stringArrayValue = 21;
+    GrpcStringArray stringArrayValue = 101;
     // The integer array value.
-    GrpcIntegerArray integerArrayValue = 22;
+    GrpcIntegerArray integerArrayValue = 102;
     // The long array value.
-    GrpcLongArray longArrayValue = 23;
+    GrpcLongArray longArrayValue = 103;
     // The boolean array value.
-    GrpcBooleanArray booleanArrayValue = 24;
+    GrpcBooleanArray booleanArrayValue = 104;
     // The big decimal array value.
-    GrpcBigDecimalArray bigDecimalArrayValue = 25;
+    GrpcBigDecimalArray bigDecimalArrayValue = 105;
     // The date time range array value.
-    GrpcDateTimeRangeArray dateTimeRangeArrayValue = 26;
+    GrpcDateTimeRangeArray dateTimeRangeArrayValue = 106;
     // The integer number range array value.
-    GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 27;
+    GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 107;
     // The long number range array value.
-    GrpcLongNumberRangeArray longNumberRangeArrayValue = 28;
+    GrpcLongNumberRangeArray longNumberRangeArrayValue = 108;
     // The big decimal number range array value.
-    GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 29;
+    GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 109;
     // The offset date time array value.
-    GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 30;
+    GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 110;
     // The locale array value.
-    GrpcLocaleArray localeArrayValue = 31;
+    GrpcLocaleArray localeArrayValue = 111;
     // The currency array value.
-    GrpcCurrencyArray currencyArrayValue = 32;
+    GrpcCurrencyArray currencyArrayValue = 112;
     // The facet statistics depth array value.
-    GrpcFacetStatisticsDepthArray facetStatisticsDepthArrayValue = 33;
+    GrpcFacetStatisticsDepthArray facetStatisticsDepthArrayValue = 113;
     // The query price mode array value.
-    GrpcQueryPriceModeArray queryPriceModelArrayValue = 34;
+    GrpcQueryPriceModeArray queryPriceModelArrayValue = 114;
     // The price content mode array value.
-    GrpcPriceContentModeArray priceContentModeArrayValue = 35;
+    GrpcPriceContentModeArray priceContentModeArrayValue = 115;
     // The attribute special value array value.
-    GrpcAttributeSpecialValueArray attributeSpecialArrayValue = 36;
+    GrpcAttributeSpecialValueArray attributeSpecialArrayValue = 116;
     // The order direction array value.
-    GrpcOrderDirectionArray orderDirectionArrayValue = 37;
+    GrpcOrderDirectionArray orderDirectionArrayValue = 117;
     // The empty hierarchical entity behaviour array value.
-    GrpcEmptyHierarchicalEntityBehaviourArray emptyHierarchicalEntityBehaviourArrayValue = 38;
-    GrpcStatisticsBaseArray statisticsBaseArrayValue = 39;
+    GrpcEmptyHierarchicalEntityBehaviourArray emptyHierarchicalEntityBehaviourArrayValue = 118;
+    GrpcStatisticsBaseArray statisticsBaseArrayValue = 119;
     // The statistics type array value.
-    GrpcStatisticsTypeArray statisticsTypeArrayValue = 40;
+    GrpcStatisticsTypeArray statisticsTypeArrayValue = 120;
+    // The histogram behavior enum value.
+    GrpcHistogramBehaviorTypeArray histogramBehaviorTypeArrayValue = 121;
   }
 }
 
@@ -460,7 +505,7 @@ message GrpcRegisterChangeCatalogCaptureResponse {
 // be fetched by specifying a complex queries.
 service EvitaSessionService {
   // Procedure that returns the current (the one on which the used session operates) catalog schema.
-  rpc GetCatalogSchema(google.protobuf.Empty) returns (GrpcCatalogSchemaResponse);
+  rpc GetCatalogSchema(GrpcGetCatalogSchemaRequest) returns (GrpcCatalogSchemaResponse);
   // Procedure that returns the current state of the catalog.
   rpc GetCatalogState(google.protobuf.Empty) returns (GrpcCatalogStateResponse);
   // Procedure that returns the schema of a specific entity type.
@@ -469,8 +514,10 @@ service EvitaSessionService {
   rpc GetAllEntityTypes(google.protobuf.Empty) returns (GrpcEntityTypesResponse);
   // Procedure that changes the state of the catalog to ALIVE and closes the session.
   rpc GoLiveAndClose(google.protobuf.Empty) returns (GrpcGoLiveAndCloseResponse);
+  // Procedure used to backup an existing catalog.
+  rpc BackupCatalog(GrpcBackupCatalogRequest) returns (GrpcBackupCatalogResponse);
   // Procedure that closes the session.
-  rpc Close(google.protobuf.Empty) returns (google.protobuf.Empty);
+  rpc Close(GrpcCloseRequest) returns (GrpcCloseResponse);
 
   // Procedure that executes passed parametrised query and returns zero or one entity.
   rpc QueryOne(GrpcQueryRequest) returns (GrpcQueryOneResponse);
@@ -478,6 +525,15 @@ service EvitaSessionService {
   rpc QueryList(GrpcQueryRequest) returns (GrpcQueryListResponse);
   // Procedure that executes passed parametrised query and returns a data chunk with computed extra results.
   rpc Query(GrpcQueryRequest) returns (GrpcQueryResponse);
+  // Procedure that executes passed query with embedded variables and returns zero or one entity.
+  // Do not use in your applications! This method is unsafe and should be used only for internal purposes.
+  rpc QueryOneUnsafe(GrpcQueryUnsafeRequest) returns (GrpcQueryOneResponse);
+  // Procedure that executes passed query with embedded variables and returns a list of entities.
+  // Do not use in your applications! This method is unsafe and should be used only for internal purposes.
+  rpc QueryListUnsafe(GrpcQueryUnsafeRequest) returns (GrpcQueryListResponse);
+  // Procedure that executes passed query with embedded variables and returns a data chunk with computed extra results.
+  // Do not use in your applications! This method is unsafe and should be used only for internal purposes.
+  rpc QueryUnsafe(GrpcQueryUnsafeRequest) returns (GrpcQueryResponse);
   // Procedure that find entity by passed entity type and primary key and return it by specified richness by passed parametrised require query part.
   rpc GetEntity(GrpcEntityRequest) returns (GrpcEntityResponse);
 
@@ -511,9 +567,7 @@ service EvitaSessionService {
   rpc DeleteEntities(GrpcDeleteEntitiesRequest) returns (GrpcDeleteEntitiesResponse);
 
   // Procedure that opens a transaction.
-  rpc OpenTransaction(google.protobuf.Empty) returns (GrpcOpenTransactionResponse);
-  // Procedure that closes a transaction.
-  rpc CloseTransaction(GrpcCloseTransactionRequest) returns (google.protobuf.Empty);
-
+  rpc GetTransactionId(google.protobuf.Empty) returns (GrpcTransactionResponse);
+  // TODO JNO - document me
   rpc RegisterChangeCatalogCapture(GrpcRegisterChangeCatalogCaptureRequest) returns (stream GrpcRegisterChangeCatalogCaptureResponse);
 }

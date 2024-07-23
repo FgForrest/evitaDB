@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -50,6 +50,7 @@ import javax.annotation.Nonnull;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
@@ -63,7 +64,11 @@ import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.extension.DataCarrier.tuple;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CATEGORY_PRIORITY;
+import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_NAME;
+import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_URL;
+import static io.evitadb.test.generator.DataGenerator.CURRENCY_EUR;
 import static java.util.Optional.ofNullable;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * This test verifies whether entities can be filtered by attributes.
@@ -84,6 +89,26 @@ public class EntityByReferenceAttributeOrderingFunctionalTest {
 	private static final int SEED = 40;
 
 	@Nonnull
+	private static Comparator<SealedEntity> createBrandReferencePrimaryKeyComparator() {
+		return (sealedEntityA, sealedEntityB) -> {
+			final ReferenceContract o1 = sealedEntityA.getReferences(Entities.BRAND).stream()
+				.findFirst()
+				.orElse(null);
+			final ReferenceContract o2 = sealedEntityB.getReferences(Entities.BRAND).stream()
+				.findFirst()
+				.orElse(null);
+			if (o1 == null && o2 != null) {
+				return 1;
+			} else if (o2 == null && o1 != null) {
+				return -1;
+			} else if (o1 == null) {
+				return Integer.compare(sealedEntityA.getPrimaryKey(), sealedEntityB.getPrimaryKey());
+			} else {
+				return Integer.compare(o2.getReferencedPrimaryKey(), o1.getReferencedPrimaryKey());
+			}
+		};
+	}
+
 	private static Comparator<SealedEntity> createBrandReferenceComparator() {
 		return (sealedEntityA, sealedEntityB) -> {
 			final ReferenceContract o1 = sealedEntityA.getReferences(Entities.BRAND).stream()
@@ -217,7 +242,7 @@ public class EntityByReferenceAttributeOrderingFunctionalTest {
 									whichIs ->
 										/* we can specify special attributes on relation */
 										whichIs.indexed()
-											.withAttribute(ATTRIBUTE_STORE_PRIORITY, Long.class, thatIs -> thatIs.sortable())
+											.withAttribute(ATTRIBUTE_STORE_PRIORITY, Long.class, thatIs -> thatIs.filterable().sortable())
 								);
 						}
 					),
@@ -237,6 +262,78 @@ public class EntityByReferenceAttributeOrderingFunctionalTest {
 				tuple("categoryHierarchy", dataGenerator.getHierarchy(Entities.CATEGORY))
 			);
 		});
+	}
+
+	@DisplayName("Should return entities sorted by primary key of referenced entity")
+	@UseDataSet(HUNDRED_PRODUCTS_WITH_REFERENCES)
+	@Test
+	void shouldSortEntitiesAccordingToPrimaryKeyOnReferencedEntity(Evita evita, List<SealedEntity> originalProductEntities) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> resultA = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						orderBy(
+							referenceProperty(
+								Entities.BRAND,
+								entityProperty(
+									entityPrimaryKeyNatural(DESC)
+								)
+							)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+
+				assertSortedResultIs(
+					originalProductEntities,
+					resultA.getRecordData(),
+					sealedEntity -> true,
+					createBrandReferencePrimaryKeyComparator()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return entities sorted by primary key of referenced entity (directly)")
+	@UseDataSet(HUNDRED_PRODUCTS_WITH_REFERENCES)
+	@Test
+	void shouldSortEntitiesAccordingToPrimaryKeyOnReferencedEntityDirectly(Evita evita, List<SealedEntity> originalProductEntities) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> resultA = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						orderBy(
+							referenceProperty(
+								Entities.BRAND,
+								entityPrimaryKeyNatural(DESC)
+							)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+
+				assertSortedResultIs(
+					originalProductEntities,
+					resultA.getRecordData(),
+					sealedEntity -> true,
+					createBrandReferencePrimaryKeyComparator()
+				);
+				return null;
+			}
+		);
 	}
 
 	@DisplayName("Should return entities sorted by attribute defined on referenced entity")
@@ -469,6 +566,63 @@ public class EntityByReferenceAttributeOrderingFunctionalTest {
 						.anyMatch(it -> categoryIds.contains(it.getReferencedPrimaryKey())),
 					createCategoryReferenceComparator(depthFirstOrder, categoryIds)
 				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should allow filtering on non-fetched references")
+	@UseDataSet(HUNDRED_PRODUCTS_WITH_REFERENCES)
+	@Test
+	void shouldFilterOnNonFetchedReferences(Evita evita, List<SealedEntity> originalProductEntities) {
+		final SealedEntity entity = originalProductEntities
+			.stream()
+			.filter(it -> it.getLocales().contains(Locale.ENGLISH) && !it.getPrices(CURRENCY_EUR, "basic").isEmpty())
+			.filter(it -> it.getReferences(Entities.STORE).stream().anyMatch(it2 -> it2.getAttribute(ATTRIBUTE_STORE_PRIORITY, Long.class) != null))
+			.findFirst()
+			.orElseThrow();
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> result = session.query(
+							query(
+								collection(Entities.PRODUCT),
+								filterBy(
+									and(
+										entityLocaleEquals(Locale.ENGLISH),
+										attributeEquals(ATTRIBUTE_URL, entity.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH)),
+										priceInPriceLists("basic"),
+										priceInCurrency(CURRENCY_EUR)
+									)
+								),
+								require(
+									debug(DebugMode.PREFER_PREFETCHING),
+									entityFetch(
+										referenceContentWithAttributes(
+											Entities.STORE,
+											filterBy(
+												attributeGreaterThanEquals(
+													ATTRIBUTE_STORE_PRIORITY,
+													entity.getReferences(Entities.STORE)
+														.stream()
+														.map(it -> it.getAttribute(ATTRIBUTE_STORE_PRIORITY, Long.class))
+														.findFirst()
+														.orElseThrow()
+												)
+											),
+											attributeContent(ATTRIBUTE_STORE_PRIORITY),
+											entityFetch(
+												attributeContent(ATTRIBUTE_NAME),
+												dataInLocales(Locale.ENGLISH)
+											)
+										)
+									)
+								)
+							),
+							SealedEntity.class
+						);
+				assertEquals(1, result.getRecordData().size());
 				return null;
 			}
 		);

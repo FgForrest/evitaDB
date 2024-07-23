@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -44,7 +44,7 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class DataLocatorResolver {
 
-	private static final Set<ConstraintDomain> CONSTRAINT_DOMAINS_WITH_REFERENCE = Set.of(ConstraintDomain.REFERENCE, ConstraintDomain.HIERARCHY, ConstraintDomain.HIERARCHY_TARGET, ConstraintDomain.FACET);
+	private static final Set<ConstraintDomain> CONSTRAINT_DOMAINS_WITH_REFERENCE = Set.of(ConstraintDomain.REFERENCE, ConstraintDomain.INLINE_REFERENCE, ConstraintDomain.HIERARCHY, ConstraintDomain.HIERARCHY_TARGET, ConstraintDomain.FACET);
 
 	@Nonnull private final CatalogSchemaContract catalogSchema;
 
@@ -57,12 +57,13 @@ public class DataLocatorResolver {
 	 *
 	 * @param parentDataLocator parent data locator to the new child data locator of child constraints, data locator of current constraint container
 	 * @param desiredChildDomainOfParameter domain of child constraint parameter to use for child constraints of current container
+	 * @return resolved child data locator or empty if data for the child locator is missing, but it is still logically correct
 	 */
 	@Nonnull
-	public DataLocator resolveChildParameterDataLocator(@Nonnull DataLocator parentDataLocator,
-	                                                    @Nonnull ConstraintDomain desiredChildDomainOfParameter) {
+	public Optional<DataLocator> resolveChildParameterDataLocator(@Nonnull DataLocator parentDataLocator,
+	                                                              @Nonnull ConstraintDomain desiredChildDomainOfParameter) {
 		if (desiredChildDomainOfParameter == ConstraintDomain.DEFAULT || parentDataLocator.targetDomain().equals(desiredChildDomainOfParameter)) {
-			return parentDataLocator;
+			return Optional.of(parentDataLocator);
 		} else if (CONSTRAINT_DOMAINS_WITH_REFERENCE.contains(desiredChildDomainOfParameter)) {
 			Assert.isPremiseValid(
 				parentDataLocator instanceof DataLocatorWithReference,
@@ -77,14 +78,21 @@ public class DataLocatorResolver {
 						childReferenceName != null,
 						() -> new ExternalApiInternalError("Child domain `" + ConstraintDomain.REFERENCE + "` requires explicit reference name.")
 					);
-					yield new ReferenceDataLocator(childEntityType, childReferenceName);
+					yield Optional.of(new ReferenceDataLocator(childEntityType, childReferenceName));
+				}
+				case INLINE_REFERENCE -> {
+					Assert.isPremiseValid(
+						childReferenceName != null,
+						() -> new ExternalApiInternalError("Child domain `" + ConstraintDomain.INLINE_REFERENCE + "` requires explicit reference name.")
+					);
+					yield Optional.of(new InlineReferenceDataLocator(childEntityType, childReferenceName));
 				}
 				case HIERARCHY -> {
 					Assert.isPremiseValid(
 						parentDataLocator instanceof HierarchyDataLocator,
 						() -> new ExternalApiInternalError("Cannot switch to `" + desiredChildDomainOfParameter + "` domain because parent domain doesn't locate any hierarchy.")
 					);
-					yield new HierarchyDataLocator(childEntityType, childReferenceName);
+					yield Optional.of(new HierarchyDataLocator(childEntityType, childReferenceName));
 				}
 				case HIERARCHY_TARGET -> {
 					Assert.isPremiseValid(
@@ -92,9 +100,9 @@ public class DataLocatorResolver {
 						() -> new ExternalApiInternalError("Cannot switch to `" + desiredChildDomainOfParameter + "` domain because parent domain doesn't locate any hierarchy.")
 					);
 					if (childReferenceName == null) {
-						yield new EntityDataLocator(childEntityType);
+						yield Optional.of(new EntityDataLocator(childEntityType));
 					} else {
-						yield new ReferenceDataLocator(childEntityType, childReferenceName);
+						yield Optional.of(new ReferenceDataLocator(childEntityType, childReferenceName));
 					}
 				}
 				case FACET -> {
@@ -102,7 +110,7 @@ public class DataLocatorResolver {
 						parentDataLocator instanceof FacetDataLocator,
 						() -> new ExternalApiInternalError("Cannot switch to `" + desiredChildDomainOfParameter + "` domain because parent domain doesn't locate any facets.")
 					);
-					yield new FacetDataLocator(childEntityType, childReferenceName);
+					yield Optional.of(new FacetDataLocator(childEntityType, childReferenceName));
 				}
 				default -> throw new ExternalApiInternalError("Unsupported domain `" + desiredChildDomainOfParameter + "`.");
 			};
@@ -110,8 +118,8 @@ public class DataLocatorResolver {
 			if (parentDataLocator instanceof final DataLocatorWithReference dataLocatorWithReference) {
 				if (dataLocatorWithReference.referenceName() == null) {
 					return switch (desiredChildDomainOfParameter) {
-						case GENERIC -> new GenericDataLocator(dataLocatorWithReference.entityType());
-						case ENTITY -> new EntityDataLocator(dataLocatorWithReference.entityType());
+						case GENERIC -> Optional.of(new GenericDataLocator(dataLocatorWithReference.entityType()));
+						case ENTITY -> Optional.of(new EntityDataLocator(dataLocatorWithReference.entityType()));
 						default -> throw new ExternalApiInternalError("Unsupported domain `" + desiredChildDomainOfParameter + "`.");
 					};
 				} else {
@@ -120,12 +128,24 @@ public class DataLocatorResolver {
 
 					final String referencedEntityType = referenceSchema.getReferencedEntityType();
 					return switch (desiredChildDomainOfParameter) {
-						case GENERIC -> new GenericDataLocator(referencedEntityType);
+						case GENERIC -> Optional.of(new GenericDataLocator(referencedEntityType));
 						case ENTITY -> {
 							if (referenceSchema.isReferencedEntityTypeManaged()) {
-								yield new EntityDataLocator(referencedEntityType);
+								yield Optional.of(new EntityDataLocator(referencedEntityType));
 							} else {
-								yield new ExternalEntityDataLocator(referencedEntityType);
+								yield Optional.of(new ExternalEntityDataLocator(referencedEntityType));
+							}
+						}
+						case GROUP_ENTITY -> {
+							final String referencedGroupType = referenceSchema.getReferencedGroupType();
+							if (referencedGroupType == null) {
+								// we can logically do this switch, but we don't have data for it
+								yield Optional.empty();
+							}
+							if (referenceSchema.isReferencedGroupTypeManaged()) {
+								yield Optional.of(new EntityDataLocator(referencedGroupType));
+							} else {
+								yield Optional.of(new ExternalEntityDataLocator(referencedGroupType));
 							}
 						}
 						default -> throw new ExternalApiInternalError("Unsupported domain `" + desiredChildDomainOfParameter + "`.");
@@ -133,14 +153,14 @@ public class DataLocatorResolver {
 				}
 			} else if (parentDataLocator instanceof ExternalEntityDataLocator) {
 				return switch (desiredChildDomainOfParameter) {
-					case GENERIC -> new GenericDataLocator(parentDataLocator.entityType());
-					case ENTITY -> new ExternalEntityDataLocator(parentDataLocator.entityType());
+					case GENERIC -> Optional.of(new GenericDataLocator(parentDataLocator.entityType()));
+					case ENTITY -> Optional.of(new ExternalEntityDataLocator(parentDataLocator.entityType()));
 					default -> throw new ExternalApiInternalError("Unsupported domain `" + desiredChildDomainOfParameter + "`.");
 				};
 			} else {
 				return switch (desiredChildDomainOfParameter) {
-					case GENERIC -> new GenericDataLocator(parentDataLocator.entityType());
-					case ENTITY -> new EntityDataLocator(parentDataLocator.entityType());
+					case GENERIC -> Optional.of(new GenericDataLocator(parentDataLocator.entityType()));
+					case ENTITY -> Optional.of(new EntityDataLocator(parentDataLocator.entityType()));
 					default -> throw new ExternalApiInternalError("Unsupported domain `" + desiredChildDomainOfParameter + "`.");
 				};
 			}
@@ -199,7 +219,7 @@ public class DataLocatorResolver {
 				} else {
 					// if reference constraint doesn't have classifier, it means it is either in another reference container or it is some more general constraint
 					if (constraintDescriptor.propertyType().equals(ConstraintPropertyType.REFERENCE)) {
-						if (parentDataLocator instanceof ReferenceDataLocator ||
+						if (parentDataLocator instanceof AbstractReferenceDataLocator ||
 							parentDataLocator instanceof EntityDataLocator) {
 							yield parentDataLocator;
 						}

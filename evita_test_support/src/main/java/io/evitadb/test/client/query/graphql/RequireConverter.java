@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,16 +23,18 @@
 
 package io.evitadb.test.client.query.graphql;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.test.client.query.FilterConstraintToJsonConverter;
+import io.evitadb.test.client.query.JsonConstraint;
 import io.evitadb.test.client.query.OrderConstraintToJsonConverter;
 import io.evitadb.test.client.query.RequireConstraintToJsonConverter;
-import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 
 import javax.annotation.Nonnull;
 import java.util.Optional;
@@ -49,17 +51,14 @@ abstract class RequireConverter {
 	@Nonnull protected final Query query;
 	@Nonnull protected final JsonNodeFactory jsonNodeFactory;
 
-	@Nonnull protected final GraphQLInputJsonPrinter inputJsonPrinter;
 	@Nonnull protected final FilterConstraintToJsonConverter filterConstraintToJsonConverter;
 	@Nonnull protected final OrderConstraintToJsonConverter orderConstraintToJsonConverter;
 	@Nonnull protected final RequireConstraintToJsonConverter requireConstraintToJsonConverter;
 
 	public RequireConverter(@Nonnull CatalogSchemaContract catalogSchema,
-	                        @Nonnull Query query,
-	                        @Nonnull GraphQLInputJsonPrinter inputJsonPrinter) {
+	                        @Nonnull Query query) {
 		this.catalogSchema = catalogSchema;
 		this.query = query;
-		this.inputJsonPrinter = inputJsonPrinter;
 		this.jsonNodeFactory = new JsonNodeFactory(true);
 		this.filterConstraintToJsonConverter = new FilterConstraintToJsonConverter(catalogSchema);
 		this.orderConstraintToJsonConverter = new OrderConstraintToJsonConverter(catalogSchema);
@@ -71,23 +70,23 @@ abstract class RequireConverter {
 	}
 
 	@Nonnull
-	protected Optional<String> convertFilterConstraint(@Nonnull DataLocator dataLocator,
+	protected Optional<JsonNode> convertFilterConstraint(@Nonnull DataLocator dataLocator,
 	                                                   @Nonnull FilterConstraint filterConstraint) {
 		return filterConstraintToJsonConverter.convert(dataLocator, filterConstraint)
-			.map(it -> inputJsonPrinter.print(it.value()));
+			.map(JsonConstraint::value);
 	}
 
 	@Nonnull
-	protected Optional<String> convertOrderConstraint(@Nonnull DataLocator dataLocator,
-	                                                  @Nonnull OrderConstraint orderConstraint) {
+	protected Optional<JsonNode> convertOrderConstraint(@Nonnull DataLocator dataLocator,
+	                                                    @Nonnull OrderConstraint orderConstraint) {
 		return orderConstraintToJsonConverter.convert(dataLocator, orderConstraint)
-			.map(it -> inputJsonPrinter.print(it.value()));
+			.map(JsonConstraint::value);
 	}
 
 	@Nonnull
-	protected Optional<String> convertRequireConstraint(@Nonnull DataLocator dataLocator,
+	protected Optional<JsonNode> convertRequireConstraint(@Nonnull DataLocator dataLocator,
 	                                                    @Nonnull RequireConstraint requireConstraint) {
 		return requireConstraintToJsonConverter.convert(dataLocator, requireConstraint)
-			.map(it -> inputJsonPrinter.print(it.value()));
+			.map(JsonConstraint::value);
 	}
 }

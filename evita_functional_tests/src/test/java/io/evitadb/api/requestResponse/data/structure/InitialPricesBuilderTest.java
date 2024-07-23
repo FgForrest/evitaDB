@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -27,12 +27,15 @@ import io.evitadb.api.exception.AmbiguousPriceException;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.PricesContract;
+import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 import java.util.Collection;
 import java.util.Currency;
+import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -51,13 +54,13 @@ class InitialPricesBuilderTest extends AbstractBuilderTest {
 
 	@Test
 	void shouldCreateEntityWithPrices() {
-		final PricesContract prices = builder.setPriceInnerRecordHandling(PriceInnerRecordHandling.FIRST_OCCURRENCE)
+		final PricesContract prices = builder.setPriceInnerRecordHandling(PriceInnerRecordHandling.LOWEST_PRICE)
 				.setPrice(1, "basic", CZK, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)
 				.setPrice(2, "reference", CZK, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, false)
 				.setPrice(3, "basic", EUR, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)
 				.setPrice(4, "reference", EUR, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, false)
 				.build();
-		assertEquals(PriceInnerRecordHandling.FIRST_OCCURRENCE, prices.getPriceInnerRecordHandling());
+		assertEquals(PriceInnerRecordHandling.LOWEST_PRICE, prices.getPriceInnerRecordHandling());
 		assertEquals(4, prices.getPrices().size());
 		assertPrice(prices.getPrice(1, "basic", CZK), BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true);
 		assertPrice(prices.getPrice(2, "reference", CZK), BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, false);
@@ -97,6 +100,66 @@ class InitialPricesBuilderTest extends AbstractBuilderTest {
 		assertEquals(2, basicPrices.size());
 		assertTrue(basicPrices.stream().anyMatch(it -> it.priceId() == 1));
 		assertTrue(basicPrices.stream().anyMatch(it -> it.priceId() == 2));
+	}
+
+	@Test
+	void shouldCorrectlyComputeAllPricesForSaleForNoneStrategy() {
+		final PricesContract prices = builder
+			.setPriceInnerRecordHandling(PriceInnerRecordHandling.NONE)
+			.setPrice(1, "basic", CZK, 1, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)
+			.setPrice(2, "vip", CZK, 1, BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.TEN, true)
+			.setPrice(3, "basic", CZK, 2, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)
+			.setPrice(4, "vip", CZK, 2, BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.TEN, true)
+			.build();
+
+		final List<PriceContract> allPricesForSale = prices.getAllPricesForSale(CZK, null, "vip", "basic");
+		assertEquals(1, allPricesForSale.size());
+		// this is ambiguous situation - we can't decide which price to use
+		assertTrue(Set.of(2, 4).contains(allPricesForSale.get(0).priceId()));
+	}
+
+	@Test
+	void shouldCorrectlyComputeAllPricesForSaleForFirstOccurrenceStrategy() {
+		final PricesContract prices = builder
+			.setPriceInnerRecordHandling(PriceInnerRecordHandling.LOWEST_PRICE)
+			.setPrice(1, "basic", CZK, 1, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)
+			.setPrice(2, "vip", CZK, 1, BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.TEN, true)
+			.setPrice(3, "basic", CZK, 2, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)
+			.setPrice(4, "vip", CZK, 2, BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.TEN, true)
+			.setPrice(5, "basic", CZK, 3, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)
+			.setPrice(6, "notCalculated", CZK, 3, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)
+			.build();
+
+		final List<PriceContract> allPricesForSale = prices.getAllPricesForSale(CZK, null, "vip", "basic");
+		assertEquals(3, allPricesForSale.size());
+		for (PriceContract price : allPricesForSale) {
+			assertTrue(Set.of(2, 4, 5).contains(price.priceId()));
+		}
+	}
+
+	@Test
+	void shouldCorrectlyComputeAllPricesForSaleForSumStrategy() {
+		final PricesContract prices = builder
+			.setPriceInnerRecordHandling(PriceInnerRecordHandling.SUM)
+			.setPrice(1, "basic", CZK, 1, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)
+			.setPrice(2, "vip", CZK, 1, BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.TEN, true)
+			.setPrice(3, "basic", CZK, 2, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)
+			.setPrice(4, "vip", CZK, 2, BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.TEN, true)
+			.setPrice(5, "basic", CZK, 3, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)
+			.setPrice(6, "notCalculated", CZK, 3, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)
+			.build();
+
+		final List<PriceContract> allPricesForSale = prices.getAllPricesForSale(CZK, null, "vip", "basic");
+		assertEquals(1, allPricesForSale.size());
+		final PriceContract priceContract = allPricesForSale.get(0);
+
+		assertEquals(
+			new Price(
+				new PriceKey(2, "vip", CZK), null,
+				new BigDecimal("21"), new BigDecimal("21"), BigDecimal.ZERO, null, true
+			),
+			priceContract
+		);
 	}
 
 	@SuppressWarnings("OptionalUsedAsFieldOrParameterType")

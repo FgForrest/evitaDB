@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -27,8 +27,10 @@ import io.evitadb.exception.EvitaInvalidUsageException;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.Locale;
 
 /**
  * Exception is thrown when there is attempt to index entity with conflicting attribute which violates unique query.
@@ -44,10 +46,18 @@ public class UniqueValueViolationException extends EvitaInvalidUsageException {
 	@Getter private final String newRecordType;
 	@Getter private final int newRecordId;
 
-	public UniqueValueViolationException(@Nonnull String attributeName, @Nonnull Serializable value, @Nonnull String existingRecordType, int existingRecordId, @Nonnull String newRecordType, int newRecordId) {
+	public UniqueValueViolationException(
+		@Nonnull String attributeName,
+		@Nullable Locale locale,
+		@Nonnull Serializable value,
+		@Nonnull String existingRecordType,
+		int existingRecordId,
+		@Nonnull String newRecordType,
+		int newRecordId
+	) {
 		super(
 			"Unique value is already present for entity `" + existingRecordType + "` `" + attributeName +
-				"` key: " + value + " (existing: " + existingRecordId + ", " +
+				"` key: `" + value + "`" + (locale == null ? "" : " in locale `" + locale.toLanguageTag() + "`") + " (existing: " + existingRecordId + ", " +
 				"new: " + newRecordId + (existingRecordType.compareTo(newRecordType) == 0 ? "" : " of entity `" + newRecordType + "`") + ")!"
 		);
 		this.attributeName = attributeName;

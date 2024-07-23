@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -37,8 +37,10 @@ import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescript
  */
 public interface LivenessDescriptor {
 
-	PropertyDescriptor ALIVE = PropertyDescriptor.builder()
-		.name("alive")
+	String LIVENESS_SUFFIX = "liveness";
+
+	PropertyDescriptor LIVENESS = PropertyDescriptor.builder()
+		.name(LIVENESS_SUFFIX)
 		.description("""
 			Whether REST API is alive and can handle requests.
 			""")
@@ -50,6 +52,6 @@ public interface LivenessDescriptor {
 		.description("""
 			Holds information about liveness of REST API.
 			""")
-		.staticFields(List.of(ALIVE))
+		.staticFields(List.of(LIVENESS))
 		.build();
 }

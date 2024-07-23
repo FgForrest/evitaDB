@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -63,32 +63,42 @@ public class AttributeInSetTranslator implements FilteringConstraintTranslator<A
 	public Formula translate(@Nonnull AttributeInSet attributeInSet, @Nonnull FilterByVisitor filterByVisitor) {
 		final String attributeName = attributeInSet.getAttributeName();
 		final Serializable[] comparedValues = attributeInSet.getAttributeValues();
+
+		if (ArrayUtils.isEmpty(comparedValues)) {
+			return EmptyFormula.INSTANCE;
+		}
+
 		final AttributeSchemaContract attributeDefinition = filterByVisitor.getAttributeSchema(attributeName, AttributeTrait.FILTERABLE);
 		final List<? extends Serializable> valueStream = Arrays.stream(comparedValues)
 			.map(it -> EvitaDataTypes.toTargetType(it, attributeDefinition.getPlainType()))
 			.map(it -> it instanceof Comparable<?> comparable ? comparable : String.valueOf(it))
-			.map(it -> (Serializable)it)
+			.map(it -> (Serializable) it)
 			.toList();
 
 		if (attributeDefinition instanceof GlobalAttributeSchema globalAttributeSchema &&
 			globalAttributeSchema.isUniqueGlobally()) {
 			// when entity type is not known and attribute is unique globally - access catalog index instead
-			return filterByVisitor.applyOnGlobalUniqueIndex(
-				attributeDefinition,
-				index -> {
-					final EntityReferenceContract[] filteredEntityMaskedIds = valueStream.stream()
-						.map(it -> index.getEntityReferenceByUniqueValue(it, filterByVisitor.getLocale()))
-						.filter(Objects::nonNull)
-						.toArray(EntityReferenceContract[]::new);
+			return new AttributeFormula(
+				attributeDefinition.isLocalized() ?
+					new AttributeKey(attributeName, filterByVisitor.getLocale()) : new AttributeKey(attributeName),
+				filterByVisitor.applyOnGlobalUniqueIndex(
+					globalAttributeSchema,
+					index -> {
+						final EntityReferenceContract[] filteredEntityMaskedIds = valueStream.stream()
+							.map(it -> index.getEntityReferenceByUniqueValue(it, filterByVisitor.getLocale()))
+							.filter(Objects::nonNull)
+							.toArray(EntityReferenceContract[]::new);
 
-					return ArrayUtils.isEmpty(filteredEntityMaskedIds) ?
-						EmptyFormula.INSTANCE :
-						new MultipleEntityFormula(
-							new BaseBitmap(
-								filterByVisitor.translateEntityReference(filteredEntityMaskedIds)
-							)
-						);
-				}
+						return ArrayUtils.isEmpty(filteredEntityMaskedIds) ?
+							EmptyFormula.INSTANCE :
+							new MultipleEntityFormula(
+								new long[] { index.getId() },
+								new BaseBitmap(
+									filterByVisitor.translateEntityReference(filteredEntityMaskedIds)
+								)
+							);
+					}
+				)
 			);
 		} else if (attributeDefinition.isUnique()) {
 			// if attribute is unique prefer O(1) hash map lookup over histogram

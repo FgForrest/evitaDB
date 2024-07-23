@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -181,23 +181,23 @@ class ExistingAttributesBuilderTest extends AbstractBuilderTest {
 		final Attributes<EntityAttributeSchemaContract> attributes = builder.build();
 
 		assertEquals(
-			EntityAttributeSchema._internalBuild("int", false, false, false, false, false, false, Integer.class, null),
+			EntityAttributeSchema._internalBuild("int", null, false, false, false, false, false, Integer.class, null),
 			attributes.getAttributeSchema("int").orElse(null)
 		);
 		assertEquals(
-			EntityAttributeSchema._internalBuild("short", false, false, false, false, false, false, Short.class, null),
+			EntityAttributeSchema._internalBuild("short", null, false, false, false, false, false, Short.class, null),
 			attributes.getAttributeSchema("short").orElse(null)
 		);
 		assertEquals(
-			EntityAttributeSchema._internalBuild("range", false, false, false, false, false, false, IntegerNumberRange.class, null),
+			EntityAttributeSchema._internalBuild("range", null, false, false, false, false, false, IntegerNumberRange.class, null),
 			attributes.getAttributeSchema("range").orElse(null)
 		);
 		assertEquals(
-			EntityAttributeSchema._internalBuild("bigDecimal", false, false, false, false, false, false, BigDecimal.class, null),
+			EntityAttributeSchema._internalBuild("bigDecimal", null, false, false, false, false, false, BigDecimal.class, null),
 			attributes.getAttributeSchema("bigDecimal").orElse(null)
 		);
 		assertEquals(
-			EntityAttributeSchema._internalBuild("greetings", false, false, false, true, false, false, String.class, null),
+			EntityAttributeSchema._internalBuild("greetings", null, false, false, true, false, false, String.class, null),
 			attributes.getAttributeSchema("greetings").orElse(null)
 		);
 	}

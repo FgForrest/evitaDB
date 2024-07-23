@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -24,6 +24,7 @@
 package io.evitadb.core.query.extraResult;
 
 import io.evitadb.api.requestResponse.EvitaResponseExtraResult;
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.extraResult.translator.RequireTranslator;
 
 import javax.annotation.Nonnull;
@@ -45,6 +46,15 @@ public interface ExtraResultProducer {
 	 * creates the producer instance.
 	 */
 	@Nullable
-	<T extends Serializable> EvitaResponseExtraResult fabricate(@Nonnull List<T> entities);
+	<T extends Serializable> EvitaResponseExtraResult fabricate(@Nonnull QueryExecutionContext context, @Nonnull List<T> entities);
+
+	/**
+	 * Returns the description of the producer in human-readable form without any sensitive data that can be logged
+	 * or shown in traces.
+	 *
+	 * @return the description of the producer
+	 */
+	@Nonnull
+	String getDescription();
 
 }

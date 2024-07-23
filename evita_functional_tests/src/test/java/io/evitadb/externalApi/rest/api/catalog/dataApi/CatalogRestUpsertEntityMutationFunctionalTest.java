@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -60,11 +60,11 @@ import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator.*;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
-import static io.evitadb.utils.MapBuilder.map;
 import static io.evitadb.test.generator.DataGenerator.ASSOCIATED_DATA_LABELS;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_NAME;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_QUANTITY;
 import static io.evitadb.test.generator.DataGenerator.CZECH_LOCALE;
+import static io.evitadb.utils.MapBuilder.map;
 import static org.hamcrest.Matchers.containsInRelativeOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -156,14 +156,14 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 
 	@Test
 	@UseDataSet(value = REST_THOUSAND_PRODUCTS_FOR_UPDATE, destroyAfterTest = true)
-	@DisplayName("Should return error when missing mutations for product update")
-	void shouldReturnErrorWhenMissingMutationsForProductUpdate(RestTester tester) {
+	@DisplayName("Should return error when missing mutations for product insert")
+	void shouldReturnErrorWhenMissingMutationsForProductInsert(RestTester tester) {
 		tester.test(TEST_CATALOG)
-			.httpMethod(Request.METHOD_PUT)
-			.urlPathSuffix("/PRODUCT/100")
+			.httpMethod(Request.METHOD_POST)
+			.urlPathSuffix("/PRODUCT/")
 			.requestBody("""
                     {
-                        "entityExistence": "MUST_EXIST"
+                        "entityExistence": "MUST_NOT_EXIST"
                     }
                     """)
 			.executeAndThen()
@@ -523,8 +523,6 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
                 """)
 			.executeAndThen()
 			.statusCode(200);
-			//.body("", equalTo(expectedBodyWithNewPrice));
-		//todo result will be without priceForSale
 
 		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/PRODUCT/list")
@@ -555,6 +553,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 			.e(EntityDescriptor.VERSION.name(), entity.version() + 2)
 			.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
 			.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.NONE.name())
+			.e(EntityDescriptor.PRICES.name(), List.of())
 			.build();
 
 		tester.test(TEST_CATALOG)

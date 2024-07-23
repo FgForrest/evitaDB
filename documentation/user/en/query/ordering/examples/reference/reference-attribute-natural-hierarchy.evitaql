@@ -1,23 +1,23 @@
 query(
-    collection('Product'),
+    collection("Product"),
     filterBy(
         hierarchyWithin(
-            'categories',
-            attributeEquals('code', 'accessories')
+            "categories",
+            attributeEquals("code", "accessories")
         )
     ),
      orderBy(
          referenceProperty(
-             'categories',
-             attributeNatural('orderInCategory', ASC)
+             "categories",
+             attributeNatural("orderInCategory", ASC)
          )
      ),
      require(
          entityFetch(
-             attributeContent('code'),
+             attributeContent("code"),
              referenceContentWithAttributes(
-                'categories',
-                attributeContent('orderInCategory')
+                "categories",
+                attributeContent("orderInCategory")
              )
          )
      )

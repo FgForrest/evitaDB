@@ -5,7 +5,9 @@ option java_multiple_files = true;
 option csharp_namespace = "EvitaDB";
 
 import "google/protobuf/empty.proto";
+import "google/protobuf/wrappers.proto";
 import "GrpcEnums.proto";
+import "GrpcEvitaDataTypes.proto";
 import "GrpcCatalogSchemaMutation.proto";
 import "GrpcChangeCatalogCapture.proto";
 
@@ -13,8 +15,10 @@ import "GrpcChangeCatalogCapture.proto";
 message GrpcEvitaSessionRequest {
   // The name of the catalog for which the session is to be created.
   string catalogName = 1;
+  // Commit behaviour
+  GrpcCommitBehavior commitBehavior = 2;
   // For testing purposes. Flag indicating that all changes by the session should be rollbacked after the session is closed.
-  bool dryRun = 2;
+  bool dryRun = 3;
 }
 
 // Response to a session creation request.
@@ -23,8 +27,12 @@ message GrpcEvitaSessionResponse {
   string sessionId = 1;
   // Type of the created session.
   GrpcSessionType sessionType = 2;
+  // Commit behaviour
+  GrpcCommitBehavior commitBehaviour = 3;
   // State of the catalog after the session was created.
-  GrpcCatalogState catalogState = 3;
+  GrpcCatalogState catalogState = 4;
+  // UUID of the catalog the session is bound to.
+  string catalogId = 5;
 }
 
 // Request to terminate a session.
@@ -130,14 +138,15 @@ service EvitaService {
   rpc GetCatalogNames(google.protobuf.Empty) returns (GrpcCatalogNamesResponse);
   // Procedure used to define a new catalog.
   rpc DefineCatalog(GrpcDefineCatalogRequest) returns (GrpcDefineCatalogResponse);
-  // Procedure used to rename an existing catalog.
-  rpc RenameCatalog(GrpcRenameCatalogRequest) returns (GrpcRenameCatalogResponse);
-  // Procedure used to replace an existing catalog.
-  rpc ReplaceCatalog(GrpcReplaceCatalogRequest) returns (GrpcReplaceCatalogResponse);
   // Procedure used to delete an existing catalog.
   rpc DeleteCatalogIfExists(GrpcDeleteCatalogIfExistsRequest) returns (GrpcDeleteCatalogIfExistsResponse);
   // Procedure used to update the catalog with a set of mutations.
   rpc Update(GrpcUpdateEvitaRequest) returns (google.protobuf.Empty);
-
+  // Procedure used to rename an existing catalog.
+  rpc RenameCatalog(GrpcRenameCatalogRequest) returns (GrpcRenameCatalogResponse);
+  // Procedure used to replace an existing catalog.
+  rpc ReplaceCatalog(GrpcReplaceCatalogRequest) returns (GrpcReplaceCatalogResponse);
+  /* TODO JNO - document me */
   rpc RegisterSystemChangeCapture(GrpcRegisterSystemChangeCaptureRequest) returns (stream GrpcRegisterSystemChangeCaptureResponse);
+
 }

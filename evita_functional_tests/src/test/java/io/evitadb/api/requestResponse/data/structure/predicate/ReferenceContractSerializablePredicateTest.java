@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.data.structure.predicate;
 
+import io.evitadb.api.query.require.ManagedReferencesBehaviour;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaRequest.AttributeRequest;
 import io.evitadb.api.requestResponse.EvitaRequest.RequirementContext;
@@ -64,7 +65,7 @@ class ReferenceContractSerializablePredicateTest {
 			.stream()
 			.collect(Collectors.toMap(
 					Function.identity(),
-					it -> new RequirementContext(AttributeRequest.EMPTY, null, null, null, null)
+					it -> new RequirementContext(ManagedReferencesBehaviour.ANY, AttributeRequest.EMPTY, null, null, null, null)
 				)
 			);
 	}
@@ -84,7 +85,7 @@ class ReferenceContractSerializablePredicateTest {
 	@Nonnull
 	private static RequirementContext createRequirementContext(String... attributes) {
 		return new RequirementContext(
-			new AttributeRequest(Set.of(attributes), true),
+			ManagedReferencesBehaviour.ANY, new AttributeRequest(Set.of(attributes), true),
 			null, null, null, null
 		);
 	}
@@ -93,6 +94,7 @@ class ReferenceContractSerializablePredicateTest {
 	void shouldCreateRicherCopyForNoReferences() {
 		final ReferenceContractSerializablePredicate noReferencesRequired = new ReferenceContractSerializablePredicate(
 			Collections.emptyMap(),
+			null,
 			false,
 			null,
 			Collections.emptySet()
@@ -110,6 +112,7 @@ class ReferenceContractSerializablePredicateTest {
 	void shouldNotCreateRicherCopyForNoReferences() {
 		final ReferenceContractSerializablePredicate noReferencesRequired = new ReferenceContractSerializablePredicate(
 			Collections.emptyMap(),
+			null,
 			true,
 			null,
 			Collections.emptySet()
@@ -127,6 +130,7 @@ class ReferenceContractSerializablePredicateTest {
 	void shouldNotCreateRicherCopyForNoReferencesWhenReferencesPresent() {
 		final ReferenceContractSerializablePredicate noReferencesRequired = new ReferenceContractSerializablePredicate(
 			Collections.emptyMap(),
+			null,
 			true,
 			null,
 			Collections.emptySet()
@@ -144,6 +148,7 @@ class ReferenceContractSerializablePredicateTest {
 	void shouldCreateRicherCopyForReferences() {
 		final ReferenceContractSerializablePredicate referencesRequired = new ReferenceContractSerializablePredicate(
 			Collections.emptyMap(),
+			null,
 			true,
 			null,
 			Collections.emptySet()
@@ -161,6 +166,7 @@ class ReferenceContractSerializablePredicateTest {
 	void shouldNotCreateRicherCopyForReferences() {
 		final ReferenceContractSerializablePredicate noReferencesRequired = new ReferenceContractSerializablePredicate(
 			toAttributeRequestIndex(getDefaultRequirementContext()),
+			null,
 			true,
 			null,
 			Collections.emptySet()
@@ -180,6 +186,7 @@ class ReferenceContractSerializablePredicateTest {
 			toAttributeRequestIndex(
 				getDefaultRequirementContext(Arrays.asList("A", "B"))
 			),
+			null,
 			true,
 			null,
 			Collections.emptySet()
@@ -197,6 +204,7 @@ class ReferenceContractSerializablePredicateTest {
 	void shouldCreateRicherCopyForRicherCopyOfAttributePredicate() {
 		final ReferenceContractSerializablePredicate noReferencesRequired = new ReferenceContractSerializablePredicate(
 			Collections.emptyMap(),
+			null,
 			true,
 			null,
 			Collections.emptySet()
@@ -217,6 +225,7 @@ class ReferenceContractSerializablePredicateTest {
 	void shouldCreateRicherCopyForGlobalAndLocalizedAttributes() {
 		final ReferenceContractSerializablePredicate noReferencesRequired = new ReferenceContractSerializablePredicate(
 			Collections.emptyMap(),
+			null,
 			true,
 			null,
 			new HashSet<>(Collections.singletonList(Locale.ENGLISH))
@@ -237,6 +246,7 @@ class ReferenceContractSerializablePredicateTest {
 	void shouldNotCreateRicherCopyForGlobalAndLocalizedAttributes() {
 		final ReferenceContractSerializablePredicate noReferencesRequired = new ReferenceContractSerializablePredicate(
 			Collections.emptyMap(),
+			null,
 			true,
 			null,
 			new HashSet<>(Arrays.asList(Locale.ENGLISH, Locale.CANADA))
@@ -256,6 +266,7 @@ class ReferenceContractSerializablePredicateTest {
 	void shouldNotCreateRicherCopyForGlobalAndLocalizedAttributesSubset() {
 		final ReferenceContractSerializablePredicate noReferencesRequired = new ReferenceContractSerializablePredicate(
 			Collections.emptyMap(),
+			null,
 			true,
 			null,
 			new HashSet<>(Arrays.asList(Locale.ENGLISH, Locale.CANADA))
@@ -275,6 +286,7 @@ class ReferenceContractSerializablePredicateTest {
 	void shouldCreateRicherCopyForAttributesByName() {
 		final ReferenceContractSerializablePredicate referencesRequired = new ReferenceContractSerializablePredicate(
 			Collections.emptyMap(),
+			null,
 			false,
 			null,
 			new HashSet<>(Collections.singletonList(Locale.ENGLISH))
@@ -301,6 +313,7 @@ class ReferenceContractSerializablePredicateTest {
 			Map.of(
 				"A", createRequirementContext("D", "E").attributeRequest()
 			),
+			null,
 			true,
 			null,
 			new HashSet<>(Collections.singletonList(Locale.ENGLISH))
@@ -327,6 +340,7 @@ class ReferenceContractSerializablePredicateTest {
 			Map.of(
 				"A", createRequirementContext("D", "E").attributeRequest()
 			),
+			null,
 			true,
 			null,
 			new HashSet<>(Collections.singletonList(Locale.ENGLISH))
@@ -354,6 +368,7 @@ class ReferenceContractSerializablePredicateTest {
 			Map.of(
 				"A", createRequirementContext().attributeRequest()
 			),
+			null,
 			true,
 			null,
 			new HashSet<>(Collections.singletonList(Locale.ENGLISH))

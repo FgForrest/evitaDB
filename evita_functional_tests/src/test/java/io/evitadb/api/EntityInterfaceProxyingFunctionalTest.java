@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -317,12 +317,17 @@ public class EntityInterfaceProxyingFunctionalTest extends AbstractEntityProxyin
 		assertThrows(ContextMissingException.class, product::getPriceForSale);
 		assertEquals(empty(), product.getPriceForSaleIfPresent());
 
-		final PriceContract[] allPricesForSale = product.getAllPricesForSale();
-		final PriceContract[] expectedAllPricesForSale = originalProduct.getAllPricesForSale().toArray(PriceContract[]::new);
-		assertEquals(expectedAllPricesForSale.length, allPricesForSale.length);
-		assertArrayEquals(expectedAllPricesForSale, allPricesForSale);
+		PriceContract[] expectedAllPricesForSale = null;
+		try {
+			final PriceContract[] allPricesForSale = product.getAllPricesForSale();
+			expectedAllPricesForSale = originalProduct.getAllPricesForSale().toArray(PriceContract[]::new);
+			assertEquals(expectedAllPricesForSale.length, allPricesForSale.length);
+			assertArrayEquals(expectedAllPricesForSale, allPricesForSale);
+		} catch (ContextMissingException ex) {
+			assertFalse(originalProduct.isPriceForSaleContextAvailable());
+		}
 
-		if (expectedAllPricesForSale.length > 0) {
+		if (expectedAllPricesForSale != null && expectedAllPricesForSale.length > 0) {
 			final PriceContract expectedPrice = expectedAllPricesForSale[0];
 			assertEquals(
 				expectedPrice,
@@ -528,7 +533,7 @@ public class EntityInterfaceProxyingFunctionalTest extends AbstractEntityProxyin
 			ProductInterface.class, 1, entityFetchAllContent()
 		).orElse(null);
 
-		assertNotNull(product.getEntity());
+		assertNotNull(product.entity());
 		assertProduct(
 			theProduct,
 			product,
@@ -899,7 +904,7 @@ public class EntityInterfaceProxyingFunctionalTest extends AbstractEntityProxyin
 		final SealedEntity theProduct = originalProducts
 			.stream()
 			.filter(it -> it.getReferences(Entities.CATEGORY).size() > 1)
-			.filter(it -> it.getAllPricesForSale().size() > 1)
+			.filter(it -> it.getPrices().stream().anyMatch(PriceContract::sellable))
 			.findFirst()
 			.orElseThrow();
 
@@ -918,7 +923,10 @@ public class EntityInterfaceProxyingFunctionalTest extends AbstractEntityProxyin
 						referenceContentAllWithAttributes(
 							entityFetch(
 								hierarchyContent(
-									entityFetchAll()
+									entityFetch(
+										attributeContentAll(),
+										associatedDataContentAll()
+									)
 								),
 								attributeContentAll(),
 								associatedDataContentAll()
@@ -954,7 +962,7 @@ public class EntityInterfaceProxyingFunctionalTest extends AbstractEntityProxyin
 		final SealedEntity theProduct = originalProducts
 			.stream()
 			.filter(it -> it.getReferences(Entities.CATEGORY).size() > 1)
-			.filter(it -> it.getAllPricesForSale().size() > 1)
+			.filter(it -> it.getPrices().stream().anyMatch(PriceContract::sellable))
 			.findFirst()
 			.orElseThrow();
 

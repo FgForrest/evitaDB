@@ -1,0 +1,16 @@
+{
+  queryProduct(
+    filterBy: {
+      attributeCodeStartsWith: "garmin"
+    },
+    orderBy: [
+      {
+        attributeCodeNatural: ASC
+      }
+    ]
+  ) {
+    extraResults {
+      queryTelemetry
+    }
+  }
+}

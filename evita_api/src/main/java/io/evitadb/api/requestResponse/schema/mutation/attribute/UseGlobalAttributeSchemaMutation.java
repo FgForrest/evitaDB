@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -31,7 +31,7 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
-import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
 import io.evitadb.utils.Assert;
 import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
@@ -48,8 +48,6 @@ import java.util.stream.Stream;
 
 /**
  * Mutation is responsible for introducing a {@link GlobalAttributeSchemaContract} into an {@link EvitaSessionContract}.
- *
- * TOBEDONE JNO - write tests
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -72,9 +70,7 @@ public class UseGlobalAttributeSchemaMutation implements EntityAttributeSchemaMu
 	public <S extends AttributeSchemaContract> S mutate(@Nullable CatalogSchemaContract catalogSchema, @Nullable S attributeSchema, @Nonnull Class<S> schemaType) {
 		Assert.isPremiseValid(catalogSchema != null, "Catalog schema is mandatory!");
 		//noinspection unchecked
-		return (S) catalogSchema.getAttribute(name).orElseThrow(
-			() -> new EvitaInvalidUsageException("No global attribute with name `" + name + "` found in catalog `" + catalogSchema.getName() + "`.")
-		);
+		return (S) catalogSchema.getAttribute(name).orElse(null);
 	}
 
 	@Nullable
@@ -89,7 +85,13 @@ public class UseGlobalAttributeSchemaMutation implements EntityAttributeSchemaMu
 			)
 		);
 		final AttributeSchemaContract existingAttributeSchema = entitySchema.getAttribute(name).orElse(null);
-		if (existingAttributeSchema == null) {
+		if (existingAttributeSchema != null && !(existingAttributeSchema instanceof GlobalAttributeSchema)) {
+			// ups, there is conflict in attribute settings
+			throw new InvalidSchemaMutationException(
+				"The attribute `" + name + "` already exists in entity `" + entitySchema.getName() + "` schema and" +
+					" has different definition. To alter existing attribute schema you need to use different mutations."
+			);
+		} else if (existingAttributeSchema == null || !existingAttributeSchema.equals(newAttributeSchema)) {
 			return EntitySchema._internalBuild(
 				entitySchema.version() + 1,
 				entitySchema.getName(),
@@ -103,7 +105,7 @@ public class UseGlobalAttributeSchemaMutation implements EntityAttributeSchemaMu
 				entitySchema.getLocales(),
 				entitySchema.getCurrencies(),
 				Stream.concat(
-						entitySchema.getAttributes().values().stream(),
+						entitySchema.getAttributes().values().stream().filter(it -> !it.getName().equals(name)),
 						Stream.of(newAttributeSchema)
 					)
 					.collect(
@@ -117,15 +119,9 @@ public class UseGlobalAttributeSchemaMutation implements EntityAttributeSchemaMu
 				entitySchema.getEvolutionMode(),
 				entitySchema.getSortableAttributeCompounds()
 			);
-		} else if (existingAttributeSchema.equals(newAttributeSchema)) {
+		} else {
 			// the mutation must have been applied previously - return the schema we don't need to alter
 			return entitySchema;
-		} else {
-			// ups, there is conflict in attribute settings
-			throw new InvalidSchemaMutationException(
-				"The attribute `" + name + "` already exists in entity `" + entitySchema.getName() + "` schema and" +
-					" has different definition. To alter existing attribute schema you need to use different mutations."
-			);
 		}
 	}
 

@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -146,14 +146,11 @@ public interface CacheableHistogramContract extends Serializable {
 	/**
 	 * Data object that carries out threshold in histogram (or bucket if you will) along with number of occurrences in it.
 	 *
-	 * @param index       Contains index (starting with zero) of the bucket in the histogram. First bucket / column of the histogram
-	 *                    will have index zero, second bucket / column one and so forth.
 	 * @param threshold   Contains threshold (left bound - inclusive) of the bucket.
 	 * @param occurrences Contains number of entity occurrences in this bucket - e.g. number of entities that has monitored property value
 	 *                    between previous bucket threshold (exclusive) and this bucket threshold (inclusive)
 	 */
 	record CacheableBucket(
-		int index,
 		@Nonnull BigDecimal threshold,
 		int occurrences
 	) implements Serializable {

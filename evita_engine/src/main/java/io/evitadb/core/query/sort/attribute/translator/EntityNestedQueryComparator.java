@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -31,8 +31,9 @@ import io.evitadb.api.query.order.EntityProperty;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.structure.ReferenceComparator;
 import io.evitadb.api.requestResponse.data.structure.ReferenceDecorator;
-import io.evitadb.core.query.QueryContext;
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.QueryPlan;
+import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.sort.ConditionalSorter;
 import io.evitadb.core.query.sort.Sorter;
@@ -55,7 +56,7 @@ import static java.util.Optional.ofNullable;
  * In order to sort efficiently this comparator binds to the nested query execution and prior to calling
  * {@link #compare(ReferenceContract, ReferenceContract)} these two methods needs to be called in specific order:
  *
- * - {@link #setSorter(QueryContext, Sorter)} or {@link #setGroupSorter(QueryContext, Sorter)} which initializes
+ * - {@link #setSorter(QueryExecutionContext, Sorter)} or {@link #setGroupSorter(QueryExecutionContext, Sorter)} which initializes
  * the sorted provided by nested {@link QueryPlan}
  * - {@link #setFilteredEntities(int[], int[], Function)}  which initializes filtered referenced records and allows to
  * prepare all internal datastructures required form efficient comparisons
@@ -112,9 +113,7 @@ public class EntityNestedQueryComparator implements ReferenceComparator {
 	@Nonnull
 	private static int[] getSortedEntities(@Nonnull int[] filteredEntities, @Nullable SorterTuple theSorter) {
 		final Sorter firstApplicableSorter = theSorter == null ?
-			null : ConditionalSorter.getFirstApplicableSorter(
-			theSorter.sorter(), theSorter.queryContext()
-		);
+			null : ConditionalSorter.getFirstApplicableSorter(theSorter.queryContext(), theSorter.sorter());
 
 		if (firstApplicableSorter == null) {
 			return filteredEntities;
@@ -174,7 +173,7 @@ public class EntityNestedQueryComparator implements ReferenceComparator {
 	 * Initializes the query context used for evaluation nested {@link QueryPlan} and the {@link Sorter} that was
 	 * identified by this plan.
 	 */
-	public void setSorter(@Nonnull QueryContext queryContext, @Nullable Sorter sorter) {
+	public void setSorter(@Nonnull QueryExecutionContext queryContext, @Nullable Sorter sorter) {
 		this.sorter = new SorterTuple(queryContext, sorter);
 	}
 
@@ -182,13 +181,13 @@ public class EntityNestedQueryComparator implements ReferenceComparator {
 	 * Initializes the query context used for evaluation nested {@link QueryPlan} and the {@link Sorter} that was
 	 * identified by this plan.
 	 */
-	public void setGroupSorter(@Nonnull QueryContext queryContext, @Nullable Sorter sorter) {
+	public void setGroupSorter(@Nonnull QueryExecutionContext queryContext, @Nullable Sorter sorter) {
 		this.groupSorter = new SorterTuple(queryContext, sorter);
 	}
 
 	/**
 	 * Initializes internal datastructures by using previously identified {@link Sorter}. This method needs to be
-	 * preceded by {@link #setSorter(QueryContext, Sorter)} call.
+	 * preceded by {@link #setSorter(QueryExecutionContext, Sorter)} call.
 	 */
 	public void setFilteredEntities(
 		@Nullable int[] filteredEntities,
@@ -282,13 +281,13 @@ public class EntityNestedQueryComparator implements ReferenceComparator {
 	}
 
 	/**
-	 * Tuple containing {@link QueryContext} and {@link Sorter} that needs to be used in combination in this comparator.
+	 * Tuple containing {@link QueryPlanningContext} and {@link Sorter} that needs to be used in combination in this comparator.
 	 *
 	 * @param queryContext the reference to the query context used for nested query plan evaluation
 	 * @param sorter       the reference to created referenced entity sorter
 	 */
 	private record SorterTuple(
-		@Nonnull QueryContext queryContext,
+		@Nonnull QueryExecutionContext queryContext,
 		@Nullable Sorter sorter
 	) {
 

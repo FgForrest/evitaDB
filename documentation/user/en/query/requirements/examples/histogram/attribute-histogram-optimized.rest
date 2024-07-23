@@ -1,0 +1,13 @@
+POST /rest/evita/Product/query
+
+{
+  "require" : {
+    "attributeHistogram" : {
+      "requestedBucketCount" : 20,
+      "behavior" : "OPTIMIZED",
+      "attributeNames" : [
+        "width"
+      ]
+    }
+  }
+}

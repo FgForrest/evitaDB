@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -73,6 +73,8 @@ import java.util.Optional;
  * inRange("age", 63)
  * </pre>
  *
+ * <p><a href="https://evitadb.io/documentation/query/filtering/range#attribute-in-range">Visit detailed user documentation</a></p>
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
@@ -80,7 +82,8 @@ import java.util.Optional;
 	shortDescription = "Compares value of the attribute with passed value and checks if the range value of that " +
 		"attribute contains the passed value within its limits (both ends are inclusive). " +
 		"The constraint can be used only for Range data type values.",
-	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE },
+	userDocsLink = "/documentation/query/filtering/range#attribute-in-range",
+	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE, ConstraintDomain.INLINE_REFERENCE },
 	supportedValues = @ConstraintSupportedValues(
 		supportedTypes = {
 			DateTimeRange.class,
@@ -93,6 +96,7 @@ import java.util.Optional;
 	)
 )
 public class AttributeInRange extends AbstractAttributeFilterConstraintLeaf implements IndexUsingConstraint, ConstraintWithSuffix {
+	private static final String SUFFIX_NOW = "now";
 	@Serial private static final long serialVersionUID = -6018832750772234247L;
 
 	private AttributeInRange(Serializable... arguments) {
@@ -109,6 +113,7 @@ public class AttributeInRange extends AbstractAttributeFilterConstraintLeaf impl
 		);
 	}
 
+	@Creator(suffix = SUFFIX_NOW)
 	public AttributeInRange(@Nonnull @Classifier String attributeName) {
 		super(attributeName);
 	}
@@ -164,7 +169,7 @@ public class AttributeInRange extends AbstractAttributeFilterConstraintLeaf impl
 	@Nonnull
 	@Override
 	public Optional<String> getSuffixIfApplied() {
-		return getArguments().length == 1 ? Optional.of("Now") : Optional.empty();
+		return getArguments().length == 1 ? Optional.of(SUFFIX_NOW) : Optional.empty();
 	}
 
 	@Nonnull

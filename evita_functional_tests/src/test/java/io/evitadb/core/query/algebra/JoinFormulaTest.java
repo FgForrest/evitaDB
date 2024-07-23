@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -24,7 +24,7 @@
 package io.evitadb.core.query.algebra;
 
 import io.evitadb.core.query.algebra.base.JoinFormula;
-import io.evitadb.index.array.CompositeIntArray;
+import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.index.bitmap.ArrayBitmap;
 import io.evitadb.index.bitmap.BaseBitmap;
 import org.junit.jupiter.api.Test;
@@ -86,6 +86,84 @@ class JoinFormulaTest {
 			new JoinFormula(
 				1L,
 				new BaseBitmap(1, 3, 4, 5, 8),
+				new BaseBitmap()
+			)
+				.compute().getArray()
+		);
+	}
+
+	@Test
+	void shouldHandleOneBitmapBeingSubsetOfOther() {
+		assertArrayEquals(
+			new int[]{1, 1, 2, 2, 3, 3, 4, 5, 5},
+			new JoinFormula(
+				1L,
+				new BaseBitmap(1, 2, 3, 4, 5),
+				new BaseBitmap(1, 2, 3, 5)
+			)
+				.compute().getArray()
+		);
+	}
+
+	@Test
+	void shouldHandleOverlappingBitmaps() {
+		assertArrayEquals(
+			new int[]{1, 1, 2, 3, 4, 5, 5, 7, 8, 8},
+			new JoinFormula(
+				1L,
+				new BaseBitmap(1, 2, 5, 7, 8),
+				new BaseBitmap(1, 3, 4, 5, 8)
+			)
+				.compute().getArray()
+		);
+	}
+
+	@Test
+	void shouldHandleFirstBitmapConsiderablySmaller() {
+		assertArrayEquals(
+			new int[]{1, 2, 2, 3, 4, 5},
+			new JoinFormula(
+				1L,
+				new BaseBitmap(2),
+				new BaseBitmap(1, 2, 3, 4, 5)
+			)
+				.compute().getArray()
+		);
+	}
+
+	@Test
+	void shouldHandleSecondBitmapConsiderablySmaller() {
+		assertArrayEquals(
+			new int[]{1, 2, 2, 3, 4, 5},
+			new JoinFormula(
+				1L,
+				new BaseBitmap(1, 2, 3, 4, 5),
+				new BaseBitmap(2)
+			)
+				.compute().getArray()
+		);
+	}
+
+	@Test
+	void shouldHandleBitmapsHavingNoCommonElements() {
+		assertArrayEquals(
+			new int[]{1, 2, 3, 4, 5, 6, 7, 8, 9, 10},
+			new JoinFormula(
+				1L,
+				new BaseBitmap(1, 2, 3, 4, 5),
+				new BaseBitmap(6, 7, 8, 9, 10)
+			)
+				.compute().getArray()
+		);
+	}
+
+	@Test
+	void shouldHandleOneBitmapBeingEmpty() {
+		assertArrayEquals(
+			new int[]{1, 2, 3, 4, 5},
+			new JoinFormula(
+				1L,
+				new BaseBitmap(1, 2, 3, 4, 5),
 				new BaseBitmap()
 			)
 				.compute().getArray()

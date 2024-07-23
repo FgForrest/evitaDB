@@ -11,7 +11,7 @@
         ],
         "attributes": {
           "global": {
-            "battery-life": "45.00000",
+            "batteryLife": "45.00000",
             "code": "amazfit-bip"
           }
         }
@@ -25,25 +25,25 @@
         ],
         "attributes": {
           "global": {
-            "battery-life": "365.00000",
+            "batteryLife": "365.00000",
             "code": "garmin-vivofit-jr-3"
           }
         }
       }
     ],
-    "type": "PAGE",
-    "totalRecordCount": 2,
-    "first": true,
-    "last": true,
-    "hasPrevious": false,
-    "hasNext": false,
-    "singlePage": true,
     "empty": false,
-    "pageSize": 20,
-    "pageNumber": 1,
-    "lastPageNumber": 1,
+    "first": true,
     "firstPageItemNumber": 0,
-    "lastPageItemNumber": 2
+    "hasNext": false,
+    "hasPrevious": false,
+    "last": true,
+    "lastPageItemNumber": 2,
+    "lastPageNumber": 1,
+    "pageNumber": 1,
+    "pageSize": 20,
+    "singlePage": true,
+    "totalRecordCount": 2,
+    "type": "PAGE"
   }
 }
 ```

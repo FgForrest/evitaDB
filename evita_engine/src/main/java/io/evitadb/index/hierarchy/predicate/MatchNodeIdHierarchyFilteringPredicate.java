@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,7 +23,8 @@
 
 package io.evitadb.index.hierarchy.predicate;
 
-import net.openhft.hashing.LongHashFunction;
+import io.evitadb.core.query.QueryExecutionContext;
+import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -38,20 +39,32 @@ public class MatchNodeIdHierarchyFilteringPredicate implements HierarchyFilterin
 	@Serial private static final long serialVersionUID = -785434923550857430L;
 	private static final int CLASS_ID = -550857430;
 	private final int matchNodeId;
+	private final Long hash;
 
 	public MatchNodeIdHierarchyFilteringPredicate(int matchNodeId) {
 		this.matchNodeId = matchNodeId;
-	}
-
-	@Override
-	public long computeHash(@Nonnull LongHashFunction hashFunction) {
-		return hashFunction.hashInts(
+		this.hash = TransactionalDataRelatedStructure.HASH_FUNCTION.hashInts(
 			new int[]{CLASS_ID, matchNodeId}
 		);
 	}
 
 	@Override
+	public void initializeIfNotAlreadyInitialized(@Nonnull QueryExecutionContext executionContext) {
+		// do nothing
+	}
+
+	@Override
+	public long getHash() {
+		return hash;
+	}
+
+	@Override
 	public boolean test(int nodeId) {
 		return nodeId == matchNodeId;
+	}
+
+	@Override
+	public String toString() {
+		return "MATCH NODE " + matchNodeId;
 	}
 }

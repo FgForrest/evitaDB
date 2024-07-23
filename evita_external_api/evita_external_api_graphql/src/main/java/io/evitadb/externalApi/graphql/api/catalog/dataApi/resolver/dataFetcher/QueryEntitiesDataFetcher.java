@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -52,7 +52,9 @@ import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.QueryEntitiesHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.*;
 import io.evitadb.externalApi.graphql.api.resolver.SelectionSetAggregator;
+import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.ReadDataFetcher;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidResponseUsageException;
+import io.evitadb.externalApi.graphql.metric.event.request.ExecutedEvent;
 import io.evitadb.utils.Assert;
 import lombok.extern.slf4j.Slf4j;
 
@@ -82,7 +84,7 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 @Slf4j
-public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<EvitaResponse<EntityClassifier>>> {
+public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<EvitaResponse<EntityClassifier>>>, ReadDataFetcher {
 
 	/**
 	 * Schema of collection to which this fetcher is mapped to.
@@ -161,20 +163,24 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
     @Override
     public DataFetcherResult<EvitaResponse<EntityClassifier>> get(@Nonnull DataFetchingEnvironment environment) {
         final Arguments arguments = Arguments.from(environment);
+		final ExecutedEvent requestExecutedEvent = environment.getGraphQlContext().get(GraphQLContextKey.METRIC_EXECUTED_EVENT);
 
-		final FilterBy filterBy = buildFilterBy(arguments);
-		final OrderBy orderBy = buildOrderBy(arguments);
-		final Require require = buildRequire(environment, arguments, extractDesiredLocale(filterBy));
-		final Query query = query(
-			collection(entitySchema.getName()),
-			filterBy,
-			orderBy,
-			require
-		);
+	    final Query query = requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() -> {
+			final FilterBy filterBy = buildFilterBy(arguments);
+			final OrderBy orderBy = buildOrderBy(arguments);
+			final Require require = buildRequire(environment, arguments, extractDesiredLocale(filterBy));
+			return query(
+				collection(entitySchema.getName()),
+				filterBy,
+				orderBy,
+				require
+			);
+		});
 		log.debug("Generated evitaDB query for entity query fetch of type `{}` is `{}`.", entitySchema.getName(), query);
 
 		final EvitaSessionContract evitaSession = environment.getGraphQlContext().get(GraphQLContextKey.EVITA_SESSION);
-		final EvitaResponse<EntityClassifier> response = evitaSession.query(query, EntityClassifier.class);
+		final EvitaResponse<EntityClassifier> response = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
+			evitaSession.query(query, EntityClassifier.class));
 
 		return DataFetcherResult.<EvitaResponse<EntityClassifier>>newResult()
 			.data(response)
@@ -279,7 +285,7 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 	}
 
 	@Nonnull
-	private EntityQueryContext buildResultContext(@Nonnull Query query) {
+	private static EntityQueryContext buildResultContext(@Nonnull Query query) {
 		final Locale desiredLocale = Optional.ofNullable(QueryUtils.findFilter(query, EntityLocaleEquals.class))
 			.map(EntityLocaleEquals::getLocale)
 			.orElse(null);
@@ -290,11 +296,8 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 
 		final Optional<PriceValidIn> priceValidInConstraint = Optional.ofNullable(QueryUtils.findFilter(query, PriceValidIn.class));
 		final OffsetDateTime desiredPriceValidIn = priceValidInConstraint
-			.map(PriceValidIn::getTheMoment)
+			.map(it -> it.getTheMoment(() -> OffsetDateTime.MIN))
 			.orElse(null);
-		final boolean desiredpriceValidInNow = priceValidInConstraint
-			.map(it -> it.getTheMoment() == null)
-			.orElse(false);
 
 		final String[] desiredPriceInPriceLists = Optional.ofNullable(QueryUtils.findFilter(query, PriceInPriceLists.class))
 			.map(PriceInPriceLists::getPriceLists)
@@ -304,8 +307,8 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 			desiredLocale,
 			desiredPriceInCurrency,
 			desiredPriceInPriceLists,
-			desiredPriceValidIn,
-			desiredpriceValidInNow
+			desiredPriceValidIn == OffsetDateTime.MIN ? null : desiredPriceValidIn,
+			desiredPriceValidIn == OffsetDateTime.MIN
 		);
 	}
 

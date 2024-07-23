@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,6 +23,10 @@
 
 package io.evitadb.store.schema;
 
+import com.esotericsoftware.kryo.Kryo;
+import com.esotericsoftware.kryo.io.Input;
+import com.esotericsoftware.kryo.io.Output;
+import io.evitadb.api.mock.EmptyEntitySchemaAccessor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -31,6 +35,7 @@ import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.dataType.DateTimeRange;
+import io.evitadb.store.service.KryoFactory;
 import io.evitadb.test.Entities;
 import io.evitadb.test.TestConstants;
 import io.evitadb.utils.NamingConvention;
@@ -52,7 +57,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * This test verifies {@link SchemaSerializationService} serialization and deserialization.
+ * This test verifies {@link EntitySchema} serialization and deserialization.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -62,20 +67,25 @@ class SchemaSerializationServiceTest {
 	void shouldSerializeAndDeserializeSchema() {
 		final EntitySchema productSchema = EntitySchema._internalBuild(Entities.PRODUCT);
 		final ByteArrayOutputStream baos = new ByteArrayOutputStream(2048);
-		final SchemaSerializationService schemaSerializationService = new SchemaSerializationService();
+		final Kryo kryo = KryoFactory.createKryo(SchemaKryoConfigurer.INSTANCE);
 		final EntitySchemaContract createdSchema = constructSomeSchema(
 				new InternalEntitySchemaBuilder(
-						CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, NamingConvention.generate(TestConstants.TEST_CATALOG), EnumSet.allOf(CatalogEvolutionMode.class),  entityType -> null),
+						CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, NamingConvention.generate(TestConstants.TEST_CATALOG), EnumSet.allOf(CatalogEvolutionMode.class), EmptyEntitySchemaAccessor.INSTANCE),
 						productSchema
 				)
 		);
 
-		schemaSerializationService.serialize((EntitySchema) createdSchema, baos);
+		try (final Output output = new Output(baos)) {
+			kryo.writeObject(output, createdSchema);
+		}
 		final byte[] serializedSchema = baos.toByteArray();
 		assertNotNull(serializedSchema);
 		assertTrue(serializedSchema.length > 0);
 
-		final EntitySchema deserializedSchema = schemaSerializationService.deserialize(new ByteArrayInputStream(serializedSchema));
+		final EntitySchema deserializedSchema;
+		try (final Input input = new Input(new ByteArrayInputStream(serializedSchema))) {
+			deserializedSchema = kryo.readObject(input, EntitySchema.class);
+		}
 		assertEquals(createdSchema, deserializedSchema);
 		assertExactlyEquals(createdSchema, deserializedSchema);
 	}

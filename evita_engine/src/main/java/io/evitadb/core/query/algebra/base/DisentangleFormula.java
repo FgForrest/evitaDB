@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -27,10 +27,10 @@ import io.evitadb.core.query.algebra.AbstractCacheableFormula;
 import io.evitadb.core.query.algebra.CacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.price.CacheablePriceFormula;
+import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
-import io.evitadb.index.transactionalMemory.TransactionalLayerProducer;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import net.openhft.hashing.LongHashFunction;
@@ -87,20 +87,23 @@ public class DisentangleFormula extends AbstractCacheableFormula implements Cach
 	private final Bitmap controlBitmap;
 
 	public DisentangleFormula(@Nonnull Formula mainBitmap, @Nonnull Formula controlBitmap) {
-		super(null, mainBitmap, controlBitmap);
+		super(null);
 		this.mainBitmap = null;
 		this.controlBitmap = null;
+		this.initFields(mainBitmap, controlBitmap);
 	}
 
 	public DisentangleFormula(@Nonnull Bitmap mainBitmap, @Nonnull Bitmap controlBitmap) {
 		super(null);
 		this.mainBitmap = mainBitmap;
 		this.controlBitmap = controlBitmap;
+		this.initFields();
 	}
 	DisentangleFormula(@Nullable Consumer<CacheableFormula> computationCallback, @Nullable Bitmap mainBitmap, @Nullable Bitmap controlBitmap, @Nullable Formula... formulas) {
-		super(computationCallback, formulas);
+		super(computationCallback);
 		this.mainBitmap = mainBitmap;
 		this.controlBitmap = controlBitmap;
+		this.initFields(formulas);
 		Assert.isTrue(
 			(ArrayUtils.isEmpty(innerFormulas) && (mainBitmap != null && controlBitmap != null)) ||
 			(innerFormulas.length == 2 && (mainBitmap == null && controlBitmap == null)),
@@ -210,6 +213,16 @@ public class DisentangleFormula extends AbstractCacheableFormula implements Cach
 	@Override
 	public String toString() {
 		if (mainBitmap != null && controlBitmap != null) {
+			return "DISENTANGLE: main " + mainBitmap.size() + ", control: " + controlBitmap.size() + " primary keys";
+		} else {
+			return "DISENTANGLE";
+		}
+	}
+
+	@Nonnull
+	@Override
+	public String toStringVerbose() {
+		if (mainBitmap != null && controlBitmap != null) {
 			return "DISENTANGLE: " + Stream.of(mainBitmap, controlBitmap).map(Bitmap::toString).collect(Collectors.joining(", "));
 		} else {
 			return "DISENTANGLE";
@@ -241,7 +254,7 @@ public class DisentangleFormula extends AbstractCacheableFormula implements Cach
 		PRIVATE METHODS
 	 */
 
-	private int computeNextInt(OfInt mainIt, OfInt controlIt, AtomicInteger controlNumberRef) {
+	private static int computeNextInt(OfInt mainIt, OfInt controlIt, AtomicInteger controlNumberRef) {
 		if (mainIt.hasNext()) {
 			do {
 				final int nextNumberAdept = mainIt.next();

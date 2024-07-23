@@ -1,0 +1,21 @@
+POST /rest/evita/Product/query
+
+{
+  "filterBy": {
+    "entityPrimaryKeyInSet": [1, 2, 3],
+    "attributeStatusEquals": "VISIBLE"
+  },
+  "orderBy": [
+    { "attributeCodeNatural": "ASC" },
+    { "attributeCatalogNumberNatural": "DESC" }
+  ],
+  "require": {
+    "entityFetch": {
+      "attributeContentAll": true,
+      "priceContentAll": true
+    },
+    "facetBrandSummary": {
+      "statisticsDepth" : "COUNTS"
+    }
+  }
+}

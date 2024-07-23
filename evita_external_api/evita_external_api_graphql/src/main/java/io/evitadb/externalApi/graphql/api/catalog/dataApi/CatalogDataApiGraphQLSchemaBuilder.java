@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -54,6 +54,7 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.Ord
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.RequireConstraintSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.DeleteEntitiesMutationHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GetEntityHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GlobalEntityDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.ListEntitiesHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.ListUnknownEntitiesHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.OnDataChangeHeaderDescriptor;
@@ -75,7 +76,7 @@ import io.evitadb.externalApi.graphql.api.dataType.DataTypesConverter;
 import io.evitadb.externalApi.graphql.api.dataType.GraphQLScalars;
 import io.evitadb.externalApi.graphql.api.model.EndpointDescriptorToGraphQLFieldTransformer;
 import io.evitadb.externalApi.graphql.api.model.ObjectDescriptorToGraphQLEnumTypeTransformer;
-import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.ReadDataFetcher;
+import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.AsyncDataFetcher;
 import io.evitadb.externalApi.graphql.configuration.GraphQLConfig;
 
 import javax.annotation.Nonnull;
@@ -251,10 +252,11 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	private BuiltFieldDescriptor buildCollectionsField() {
 		return new BuiltFieldDescriptor(
 			CatalogDataApiRootDescriptor.COLLECTIONS.to(staticEndpointBuilderTransformer).build(),
-			new ReadDataFetcher(
+			new AsyncDataFetcher(
 				new CollectionsDataFetcher(),
-				buildingContext.getEvita(),
-				buildingContext.getEvitaExecutor().orElse(null)
+				buildingContext.getConfig(),
+				buildingContext.getTracingContext(),
+				buildingContext.getEvita()
 			)
 		);
 	}
@@ -262,7 +264,8 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	@Nullable
 	private BuiltFieldDescriptor buildGetUnknownEntityField() {
 		final GraphQLFieldDefinition.Builder getUnknownEntityFieldBuilder = CatalogDataApiRootDescriptor.GET_UNKNOWN_ENTITY
-			.to(staticEndpointBuilderTransformer);
+			.to(staticEndpointBuilderTransformer)
+			.type(typeRef(GlobalEntityDescriptor.THIS.name()));
 
 		// build globally unique attribute filters
 		final List<GlobalAttributeSchemaContract> globalAttributes = buildingContext.getCatalog()
@@ -286,17 +289,26 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 				.build())
 			.forEach(getUnknownEntityFieldBuilder::argument);
 
+		final boolean localeArgumentNeeded = globalAttributes.stream()
+			.anyMatch(GlobalAttributeSchemaContract::isUniqueGloballyWithinLocale);
+		if (localeArgumentNeeded) {
+			getUnknownEntityFieldBuilder.argument(UnknownEntityHeaderDescriptor.LOCALE
+				.to(argumentBuilderTransformer)
+				.type(typeRef(LOCALE_ENUM.name())));
+		}
+
 		getUnknownEntityFieldBuilder.argument(UnknownEntityHeaderDescriptor.JOIN.to(argumentBuilderTransformer));
 
 		return new BuiltFieldDescriptor(
 			getUnknownEntityFieldBuilder.build(),
-			new ReadDataFetcher(
+			new AsyncDataFetcher(
 				new GetUnknownEntityDataFetcher(
 					buildingContext.getSchema(),
 					buildingContext.getSupportedLocales()
 				),
-				buildingContext.getEvita(),
-				buildingContext.getEvitaExecutor().orElse(null)
+				buildingContext.getConfig(),
+				buildingContext.getTracingContext(),
+				buildingContext.getEvita()
 			)
 		);
 	}
@@ -305,6 +317,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	private BuiltFieldDescriptor buildListUnknownEntityField() {
 		final Builder listUnknownEntityFieldBuilder = CatalogDataApiRootDescriptor.LIST_UNKNOWN_ENTITY
 			.to(staticEndpointBuilderTransformer)
+			.type(nonNull(list(nonNull(typeRef(GlobalEntityDescriptor.THIS.name())))))
 			.argument(ListUnknownEntitiesHeaderDescriptor.LIMIT.to(argumentBuilderTransformer));
 
 		// build globally unique attribute filters
@@ -329,17 +342,26 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 				.build())
 			.forEach(listUnknownEntityFieldBuilder::argument);
 
+		final boolean localeArgumentNeeded = globalAttributes.stream()
+			.anyMatch(GlobalAttributeSchemaContract::isUniqueGloballyWithinLocale);
+		if (localeArgumentNeeded) {
+			listUnknownEntityFieldBuilder.argument(ListUnknownEntitiesHeaderDescriptor.LOCALE
+				.to(argumentBuilderTransformer)
+				.type(typeRef(LOCALE_ENUM.name())));
+		}
+
 		listUnknownEntityFieldBuilder.argument(ListUnknownEntitiesHeaderDescriptor.JOIN.to(argumentBuilderTransformer));
 
 		return new BuiltFieldDescriptor(
 			listUnknownEntityFieldBuilder.build(),
-			new ReadDataFetcher(
+			new AsyncDataFetcher(
 				new ListUnknownEntitiesDataFetcher(
 					buildingContext.getSchema(),
 					buildingContext.getSupportedLocales()
 				),
-				buildingContext.getEvita(),
-				buildingContext.getEvitaExecutor().orElse(null)
+				buildingContext.getConfig(),
+				buildingContext.getTracingContext(),
+				buildingContext.getEvita()
 			)
 		);
 	}
@@ -372,6 +394,8 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 				.argument(GetEntityHeaderDescriptor.PRICE_VALID_IN
 					.to(argumentBuilderTransformer))
 				.argument(GetEntityHeaderDescriptor.PRICE_VALID_NOW
+					.to(argumentBuilderTransformer))
+				.argument(GetEntityHeaderDescriptor.PRICE_TYPE
 					.to(argumentBuilderTransformer));
 		}
 
@@ -390,13 +414,14 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 
 		return new BuiltFieldDescriptor(
 			singleEntityFieldBuilder.build(),
-			new ReadDataFetcher(
+			new AsyncDataFetcher(
 				new GetEntityDataFetcher(
 					buildingContext.getSchema(),
 					entitySchema
 				),
-				buildingContext.getEvita(),
-				buildingContext.getEvitaExecutor().orElse(null)
+				buildingContext.getConfig(),
+				buildingContext.getTracingContext(),
+				buildingContext.getEvita()
 			)
 		);
 	}
@@ -422,13 +447,14 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 
 		return new BuiltFieldDescriptor(
 			entityListFieldBuilder.build(),
-			new ReadDataFetcher(
+			new AsyncDataFetcher(
 				new ListEntitiesDataFetcher(
 					buildingContext.getSchema(),
 					entitySchema
 				),
-				buildingContext.getEvita(),
-				buildingContext.getEvitaExecutor().orElse(null)
+				buildingContext.getConfig(),
+				buildingContext.getTracingContext(),
+				buildingContext.getEvita()
 			)
 		);
 	}
@@ -460,13 +486,14 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 
 		return new BuiltFieldDescriptor(
 			entityQueryFieldBuilder.build(),
-			new ReadDataFetcher(
+			new AsyncDataFetcher(
 				new QueryEntitiesDataFetcher(
 					buildingContext.getSchema(),
 					entitySchema
 				),
-				buildingContext.getEvita(),
-				buildingContext.getEvitaExecutor().orElse(null)
+				buildingContext.getConfig(),
+				buildingContext.getTracingContext(),
+				buildingContext.getEvita()
 			)
 		);
 	}
@@ -478,10 +505,11 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 			CatalogDataApiRootDescriptor.COUNT_COLLECTION
 				.to(new EndpointDescriptorToGraphQLFieldTransformer(propertyDataTypeBuilderTransformer, entitySchema))
 				.build(),
-			new ReadDataFetcher(
+			new AsyncDataFetcher(
 				new CollectionSizeDataFetcher(entitySchema),
-				buildingContext.getEvita(),
-				buildingContext.getEvitaExecutor().orElse(null)
+				buildingContext.getConfig(),
+				buildingContext.getTracingContext(),
+				buildingContext.getEvita()
 			)
 		);
 	}
@@ -509,7 +537,12 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 
 		return new BuiltFieldDescriptor(
 			upsertEntityFieldBuilder.build(),
-			new UpsertEntityMutatingDataFetcher(CDO_OBJECT_MAPPER, buildingContext.getSchema(), entitySchema)
+			new AsyncDataFetcher(
+				new UpsertEntityMutatingDataFetcher(CDO_OBJECT_MAPPER, buildingContext.getSchema(), entitySchema),
+				buildingContext.getConfig(),
+				buildingContext.getTracingContext(),
+				buildingContext.getEvita()
+			)
 		);
 	}
 
@@ -534,7 +567,12 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 
 		return new BuiltFieldDescriptor(
 			deleteEntityByQueryField,
-			new DeleteEntitiesMutatingDataFetcher(buildingContext.getSchema(), entitySchema)
+			new AsyncDataFetcher(
+				new DeleteEntitiesMutatingDataFetcher(buildingContext.getSchema(), entitySchema),
+				buildingContext.getConfig(),
+				buildingContext.getTracingContext(),
+				buildingContext.getEvita()
+			)
 		);
 	}
 

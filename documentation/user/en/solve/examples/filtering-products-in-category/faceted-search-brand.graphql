@@ -1,0 +1,52 @@
+{
+  queryProduct(
+    filterBy: {
+      entityLocaleEquals: en,
+      hierarchyCategoriesWithin: {
+        ofParent: {
+          attributeUrlEquals: "/en/smartwatches"
+        }
+      },
+      userFilter: [
+        {
+          facetBrandHaving: [
+            {
+              entityPrimaryKeyInSet: [
+                66465
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ) {
+    extraResults {
+      facetSummary {
+        brand {
+          count
+          facetStatistics(
+            orderBy: [
+              {
+                attributeNameNatural: ASC
+              }
+            ]
+          ) {
+            requested
+            count
+            impact {
+              difference
+              matchCount
+              hasSense
+            }
+            facetEntity {
+              primaryKey
+              attributes {
+                name
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

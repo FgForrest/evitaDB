@@ -1,4 +1,4 @@
-POST /rest/test-catalog/product/list
+POST /rest/evita/Product/list
 
 {
   "filterBy": {
@@ -15,7 +15,7 @@ POST /rest/test-catalog/product/list
       "attributeContentAll": true,
       "associatedDataContentAll": true,
       "priceContentAll": true,
-      "referenceContentAllWithAttribtues": {},
+      "referenceContentAllWithAttributes": {},
       "dataInLocales": []
     }
   }

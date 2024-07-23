@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.grpc.builders.query.extraResults;
 
+import io.evitadb.api.mock.EmptyEntitySchemaAccessor;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.InitialEntityBuilder;
@@ -76,10 +77,10 @@ public class GrpcFacetSummaryBuilderTest {
 					new EntityReference(Objects.requireNonNull(types[0].getReferencedGroupType()), 1),
 					15,
 					List.of(
-						new FacetStatistics(new EntityReference(types[0].getReferencedEntityType(), 1), true, 5, new RequestImpact(1, 7)),
-						new FacetStatistics(new EntityReference(types[0].getReferencedEntityType(), 2), false, 4, new RequestImpact(5, 6)),
-						new FacetStatistics(new EntityReference(types[0].getReferencedEntityType(), 3), false, 5, new RequestImpact(6, 6)),
-						new FacetStatistics(new EntityReference(types[0].getReferencedEntityType(), 4), false, 1, new RequestImpact(4, 58))
+						new FacetStatistics(new EntityReference(types[0].getReferencedEntityType(), 1), true, 5, new RequestImpact(1, 7, true)),
+						new FacetStatistics(new EntityReference(types[0].getReferencedEntityType(), 2), false, 4, new RequestImpact(5, 6, true)),
+						new FacetStatistics(new EntityReference(types[0].getReferencedEntityType(), 3), false, 5, new RequestImpact(6, 6, true)),
+						new FacetStatistics(new EntityReference(types[0].getReferencedEntityType(), 4), false, 1, new RequestImpact(4, 58, true))
 					)
 				),
 				new FacetGroupStatistics(
@@ -87,10 +88,10 @@ public class GrpcFacetSummaryBuilderTest {
 					createGroupEntity("testGroup2"),
 					15,
 					List.of(
-						new FacetStatistics(createFacetEntity(types[1].getReferencedEntityType(), 1, "phone1"), true, 5, new RequestImpact(55, 7)),
-						new FacetStatistics(createFacetEntity(types[1].getReferencedEntityType(), 2, "phone2"), false, 4, new RequestImpact(7, 8)),
-						new FacetStatistics(createFacetEntity(types[1].getReferencedEntityType(), 3, "phone3"), false, 5, new RequestImpact(6, 6)),
-						new FacetStatistics(createFacetEntity(types[1].getReferencedEntityType(), 4, "phone4"), false, 1, new RequestImpact(7, 4))
+						new FacetStatistics(createFacetEntity(types[1].getReferencedEntityType(), 1, "phone1"), true, 5, new RequestImpact(55, 7, true)),
+						new FacetStatistics(createFacetEntity(types[1].getReferencedEntityType(), 2, "phone2"), false, 4, new RequestImpact(7, 8, true)),
+						new FacetStatistics(createFacetEntity(types[1].getReferencedEntityType(), 3, "phone3"), false, 5, new RequestImpact(6, 6, true)),
+						new FacetStatistics(createFacetEntity(types[1].getReferencedEntityType(), 4, "phone4"), false, 1, new RequestImpact(7, 4, true))
 					)
 				),
 				new FacetGroupStatistics(
@@ -98,10 +99,10 @@ public class GrpcFacetSummaryBuilderTest {
 					null,
 					29,
 					List.of(
-						new FacetStatistics(new EntityReference(types[2].getReferencedEntityType(), 1), true, 8, new RequestImpact(1, 5)),
-						new FacetStatistics(new EntityReference(types[2].getReferencedEntityType(), 2), false, 9, new RequestImpact(2, 66)),
-						new FacetStatistics(new EntityReference(types[2].getReferencedEntityType(), 3), false, 7, new RequestImpact(3, 76)),
-						new FacetStatistics(new EntityReference(types[2].getReferencedEntityType(), 4), false, 5, new RequestImpact(4, 8))
+						new FacetStatistics(new EntityReference(types[2].getReferencedEntityType(), 1), true, 8, new RequestImpact(1, 5, true)),
+						new FacetStatistics(new EntityReference(types[2].getReferencedEntityType(), 2), false, 9, new RequestImpact(2, 66, true)),
+						new FacetStatistics(new EntityReference(types[2].getReferencedEntityType(), 3), false, 7, new RequestImpact(3, 76, true)),
+						new FacetStatistics(new EntityReference(types[2].getReferencedEntityType(), 4), false, 5, new RequestImpact(4, 8, true))
 					)
 				)
 			)
@@ -117,7 +118,7 @@ public class GrpcFacetSummaryBuilderTest {
 	public static SealedEntity createGroupEntity(String groupEntityType) {
 		return new InitialEntityBuilder(
 			new InternalEntitySchemaBuilder(
-				CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, Map.of(), EnumSet.allOf(CatalogEvolutionMode.class), entityType -> null),
+				CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, Map.of(), EnumSet.allOf(CatalogEvolutionMode.class), EmptyEntitySchemaAccessor.INSTANCE),
 				EntitySchema._internalBuild(groupEntityType)
 			)
 				.withAttribute("code", String.class)
@@ -134,7 +135,7 @@ public class GrpcFacetSummaryBuilderTest {
 	public static SealedEntity createFacetEntity(@Nonnull String type, int pk, @Nonnull String code) {
 		return new InitialEntityBuilder(
 			new InternalEntitySchemaBuilder(
-				CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, Map.of(), EnumSet.allOf(CatalogEvolutionMode.class), entityType -> null),
+				CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, Map.of(), EnumSet.allOf(CatalogEvolutionMode.class), EmptyEntitySchemaAccessor.INSTANCE),
 				EntitySchema._internalBuild(type)
 			)
 				.withAttribute("code", String.class)
@@ -144,4 +145,5 @@ public class GrpcFacetSummaryBuilderTest {
 			.setAttribute("code", code)
 			.toInstance();
 	}
+
 }

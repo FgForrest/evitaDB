@@ -9,6 +9,9 @@ POST /rest/evita/Product/query
     "priceValidInNow" : true
   },
   "require" : {
-    "priceHistogram" : 10
+    "priceHistogram" : {
+      "requestedBucketCount" : 20,
+      "behavior" : "STANDARD"
+    }
   }
 }

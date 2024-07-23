@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -58,7 +58,7 @@ class ConstraintDescriptorProviderTest {
 
 	@Test
 	void shouldHaveProcessedConstraints() {
-		assertEquals(89, ConstraintDescriptorProvider.getAllConstraints().size());
+		assertEquals(91, ConstraintDescriptorProvider.getAllConstraints().size());
 	}
 
 	@Test
@@ -134,8 +134,8 @@ class ConstraintDescriptorProviderTest {
 
 	@Test
 	void shouldFindAllConstraintsForSpecificType() {
-		assertEquals(36, ConstraintDescriptorProvider.getConstraints(ConstraintType.FILTER).size());
-		assertEquals(12, ConstraintDescriptorProvider.getConstraints(ConstraintType.ORDER).size());
+		assertEquals(37, ConstraintDescriptorProvider.getConstraints(ConstraintType.FILTER).size());
+		assertEquals(13, ConstraintDescriptorProvider.getConstraints(ConstraintType.ORDER).size());
 	}
 
 	@Test
@@ -157,7 +157,8 @@ class ConstraintDescriptorProviderTest {
 			ConstraintPropertyType.ATTRIBUTE,
 			ConstraintDomain.ENTITY,
 			String.class,
-			false
+			false,
+			true
 		);
 		assertEquals(
 			List.of(
@@ -185,6 +186,7 @@ class ConstraintDescriptorProviderTest {
 				ConstraintPropertyType.ATTRIBUTE,
 				ConstraintDomain.HIERARCHY,
 				String.class,
+				false,
 				false
 			).isEmpty()
 		);
@@ -194,6 +196,7 @@ class ConstraintDescriptorProviderTest {
 			ConstraintPropertyType.ATTRIBUTE,
 			ConstraintDomain.ENTITY,
 			String.class,
+			false,
 			false
 		);
 		assertEquals(
@@ -214,14 +217,16 @@ class ConstraintDescriptorProviderTest {
 				ConstraintPropertyType.ATTRIBUTE,
 				ConstraintDomain.ENTITY,
 				String.class,
-				true
+				true,
+				false
 			).isEmpty()
 		);
 	}
 
 	@ConstraintDefinition(
 		name = "something",
-		shortDescription = "This is a constraint."
+		shortDescription = "This is a constraint.",
+		userDocsLink = "/link"
 	)
 	private static class UnknownConstraint extends ConstraintLeaf<FilterConstraint> implements FilterConstraint, AttributeConstraint<FilterConstraint> {
 

@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -33,23 +33,23 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.AttributeSchemaAccessor;
 import io.evitadb.core.query.PrefetchRequirementCollector;
-import io.evitadb.core.query.QueryContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.function.IntBiFunction;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.GlobalEntityIndex;
+import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.hierarchy.HierarchyIndex;
 import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * Context captures the context of the top {@link HierarchyOfSelf} / {@link HierarchyOfReference} constraint
  * evaluation context to be used in {@link AbstractHierarchyStatisticsComputer}.
  *
- * @param queryContext                           Reference to the query context that allows to access entity bodies.
  * @param entitySchema                           Target entity schema of the entity.
  * @param referenceSchema                        Target entity schema of the entity.
  * @param hierarchyFilter                        Contains {@link HierarchyWithin} or {@link HierarchyWithinRoot} filtering query if it was part of the query filter.
@@ -60,7 +60,7 @@ import java.util.function.Function;
  * @param removeEmptyResults                     Contains true if hierarchy statistics should be stripped of results with zero occurrences.
  */
 public record HierarchyProducerContext(
-	@Nonnull QueryContext queryContext,
+	@Nonnull Supplier<Bitmap> rootHierarchyNodesSupplier,
 	@Nonnull EntitySchemaContract entitySchema,
 	@Nullable ReferenceSchemaContract referenceSchema,
 	@Nonnull AttributeSchemaAccessor attributeSchemaAccessor,

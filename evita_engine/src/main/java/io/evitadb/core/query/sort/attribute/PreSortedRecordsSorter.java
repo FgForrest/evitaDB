@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,8 +23,7 @@
 
 package io.evitadb.core.query.sort.attribute;
 
-import io.evitadb.core.query.QueryContext;
-import io.evitadb.core.query.algebra.AbstractFormula;
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.sort.CacheableSorter;
 import io.evitadb.core.query.sort.ConditionalSorter;
@@ -32,7 +31,7 @@ import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProv
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.core.query.sort.attribute.cache.FlattenedMergedSortedRecordsProvider;
 import io.evitadb.index.attribute.SortedRecordsSupplier;
-import lombok.RequiredArgsConstructor;
+import io.evitadb.utils.Assert;
 import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
@@ -45,10 +44,10 @@ import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
 /**
- * This sorter sorts {@link AbstractFormula#compute()} result according to {@link SortedRecordsProvider} that contains information
+ * This sorter sorts {@link Formula#compute()} result according to {@link SortedRecordsProvider} that contains information
  * about record ids in already sorted fashion. This sorter executes following operation:
  *
- * - creates mask of positions in presorted array that refer to the {@link AbstractFormula#compute()} result
+ * - creates mask of positions in presorted array that refer to the {@link Formula#compute()} result
  * - copies slice of record ids in the presorted array that conform to the mask (in the order of presorted array)
  * the slice respects requested start and end index
  * - if the result is complete it is returned, if there is space left and there were record ids that were not found
@@ -56,17 +55,12 @@ import java.util.stream.Stream;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@RequiredArgsConstructor
 public class PreSortedRecordsSorter extends AbstractRecordsSorter implements CacheableSorter, ConditionalSorter {
 	private static final long CLASS_ID = 795011057191754417L;
 	/**
 	 * This callback will be called when this sorter is computed.
 	 */
 	private final Consumer<CacheableSorter> computationCallback;
-	/**
-	 * This is the type of entity that is being sorted.
-	 */
-	private final String entityType;
 	/**
 	 * This instance will be used by this sorter to access pre sorted arrays of entities.
 	 */
@@ -80,41 +74,63 @@ public class PreSortedRecordsSorter extends AbstractRecordsSorter implements Cac
 	 */
 	private SortedRecordsProvider[] memoizedSortedRecordsProviders;
 	/**
-	 * Contains memoized value of {@link #computeHash(LongHashFunction)} method.
+	 * Contains memoized value of {@link #getEstimatedCost()}  of this formula.
 	 */
-	private Long memoizedHash;
+	private final Long estimatedCost;
+	/**
+	 * Contains memoized value of {@link #getHash()} method.
+	 */
+	private final Long hash;
 	/**
 	 * Contains memoized value of {@link #gatherTransactionalIds()} method.
 	 */
-	private long[] memoizedTransactionalIds;
+	private final long[] transactionalIds;
 	/**
 	 * Contains memoized value of {@link #gatherTransactionalIds()} computed hash.
 	 */
-	private Long memoizedTransactionalIdHash;
+	private final Long transactionalIdHash;
 	/**
 	 * Contains memoized value of {@link #getSortedRecordsProviders()} method.
 	 */
 	private MergedSortedRecordsSupplier memoizedResult;
 
 	public PreSortedRecordsSorter(
-		@Nonnull String entityType,
 		@Nonnull Supplier<SortedRecordsProvider[]> sortedRecordsSupplier
 	) {
-		this.computationCallback = null;
-		this.entityType = entityType;
-		this.sortedRecordsSupplier = sortedRecordsSupplier;
-		this.unknownRecordIdsSorter = null;
+		this(null, sortedRecordsSupplier, null);
 	}
 
-	@Nonnull
-	@Override
-	public Sorter andThen(Sorter sorterForUnknownRecords) {
-		return new PreSortedRecordsSorter(
-			computationCallback,
-			entityType,
-			sortedRecordsSupplier,
-			sorterForUnknownRecords
+	private PreSortedRecordsSorter(
+		@Nullable Consumer<CacheableSorter> computationCallback,
+		@Nonnull Supplier<SortedRecordsProvider[]> sortedRecordsSupplier,
+		@Nullable Sorter unknownRecordIdsSorter
+	) {
+		this.computationCallback = computationCallback;
+		this.sortedRecordsSupplier = sortedRecordsSupplier;
+		this.unknownRecordIdsSorter = unknownRecordIdsSorter;
+		this.hash = HASH_FUNCTION.hashLongs(
+			Stream.of(
+					LongStream.of(CLASS_ID),
+					LongStream.of(
+						Arrays.stream(getSortedRecordsProviders())
+							.filter(SortedRecordsSupplier.class::isInstance)
+							.map(SortedRecordsSupplier.class::cast)
+							.mapToLong(SortedRecordsSupplier::getTransactionalId)
+							.toArray()
+					)
+				)
+				.flatMapToLong(Function.identity())
+				.toArray()
 		);
+		this.transactionalIds = Arrays.stream(getSortedRecordsProviders())
+			.filter(SortedRecordsSupplier.class::isInstance)
+			.map(SortedRecordsSupplier.class::cast)
+			.mapToLong(SortedRecordsSupplier::getTransactionalId)
+			.toArray();
+		this.transactionalIdHash = HASH_FUNCTION.hashLongs(this.transactionalIds);
+		this.estimatedCost = Arrays.stream(getSortedRecordsProviders())
+			.mapToInt(SortedRecordsProvider::getRecordCount)
+			.sum() * getOperationCost();
 	}
 
 	@Nonnull
@@ -122,9 +138,18 @@ public class PreSortedRecordsSorter extends AbstractRecordsSorter implements Cac
 	public Sorter cloneInstance() {
 		return new PreSortedRecordsSorter(
 			computationCallback,
-			entityType,
 			sortedRecordsSupplier,
 			null
+		);
+	}
+
+	@Nonnull
+	@Override
+	public Sorter andThen(Sorter sorterForUnknownRecords) {
+		return new PreSortedRecordsSorter(
+			computationCallback,
+			sortedRecordsSupplier,
+			sorterForUnknownRecords
 		);
 	}
 
@@ -135,64 +160,39 @@ public class PreSortedRecordsSorter extends AbstractRecordsSorter implements Cac
 	}
 
 	@Override
-	public long computeHash(@Nonnull LongHashFunction hashFunction) {
-		if (memoizedHash == null) {
-			memoizedHash = hashFunction.hashLongs(
-				Stream.of(
-						LongStream.of(CLASS_ID),
-						LongStream.of(
-							Arrays.stream(getSortedRecordsProviders())
-								.filter(SortedRecordsSupplier.class::isInstance)
-								.map(SortedRecordsSupplier.class::cast)
-								.mapToLong(SortedRecordsSupplier::getTransactionalId)
-								.toArray()
-						)
-					)
-					.flatMapToLong(Function.identity())
-					.toArray()
-			);
-		}
-		return memoizedHash;
-	}
-
-	private SortedRecordsProvider[] getSortedRecordsProviders() {
-		if (memoizedSortedRecordsProviders == null) {
-			memoizedSortedRecordsProviders = sortedRecordsSupplier.get();
-		}
-		return memoizedSortedRecordsProviders;
+	public int sortAndSlice(@Nonnull QueryExecutionContext queryContext, @Nonnull Formula input, int startIndex, int endIndex, @Nonnull int[] result, int peak) {
+		return getMemoizedResult().sortAndSlice(queryContext, input, startIndex, endIndex, result, peak);
 	}
 
 	@Override
-	public long computeTransactionalIdHash(@Nonnull LongHashFunction hashFunction) {
-		if (memoizedTransactionalIdHash == null) {
-			memoizedTransactionalIdHash = hashFunction.hashLongs(gatherTransactionalIds());
-		}
-		return memoizedTransactionalIdHash;
+	public void initialize(@Nonnull QueryExecutionContext executionContext) {
+		// do nothing
+	}
+
+	@Override
+	public long getHash() {
+		return this.hash;
+	}
+
+	@Override
+	public long getTransactionalIdHash() {
+		return this.transactionalIdHash;
 	}
 
 	@Nonnull
 	@Override
 	public long[] gatherTransactionalIds() {
-		if (memoizedTransactionalIds == null) {
-			memoizedTransactionalIds = Arrays.stream(getSortedRecordsProviders())
-				.filter(SortedRecordsSupplier.class::isInstance)
-				.map(SortedRecordsSupplier.class::cast)
-				.mapToLong(SortedRecordsSupplier::getTransactionalId)
-				.toArray();
-		}
-		return memoizedTransactionalIds;
+		return this.transactionalIds;
 	}
 
 	@Override
 	public long getEstimatedCost() {
-		return Arrays.stream(getSortedRecordsProviders())
-			.mapToInt(SortedRecordsProvider::getRecordCount)
-			.sum() * getOperationCost();
+		return this.estimatedCost;
 	}
 
 	@Override
 	public long getCost() {
-		return getEstimatedCost();
+		return this.estimatedCost;
 	}
 
 	@Override
@@ -202,14 +202,15 @@ public class PreSortedRecordsSorter extends AbstractRecordsSorter implements Cac
 
 	@Override
 	public long getCostToPerformanceRatio() {
-		return getEstimatedCost();
+		Assert.isPremiseValid(this.estimatedCost != null, "Sorter must be initialized prior to calling getCostToPerformanceRatio().");
+		return this.estimatedCost;
 	}
 
 	@Override
 	public FlattenedMergedSortedRecordsProvider toSerializableResult(long extraResultHash, @Nonnull LongHashFunction hashFunction) {
 		return new FlattenedMergedSortedRecordsProvider(
-			computeHash(hashFunction),
-			computeTransactionalIdHash(hashFunction),
+			getHash(),
+			getTransactionalIdHash(),
 			gatherTransactionalIds(),
 			getMemoizedResult()
 		);
@@ -223,25 +224,19 @@ public class PreSortedRecordsSorter extends AbstractRecordsSorter implements Cac
 		);
 	}
 
-	@Override
-	public boolean shouldApply(@Nonnull QueryContext queryContext) {
-		return queryContext.getPrefetchedEntities() == null;
-	}
-
-	@Override
-	public int sortAndSlice(@Nonnull QueryContext queryContext, @Nonnull Formula input, int startIndex, int endIndex, @Nonnull int[] result, int peak) {
-		return getMemoizedResult().sortAndSlice(queryContext, input, startIndex, endIndex, result, peak);
-	}
-
 	@Nonnull
 	@Override
 	public CacheableSorter getCloneWithComputationCallback(@Nonnull Consumer<CacheableSorter> selfOperator) {
 		return new PreSortedRecordsSorter(
 			selfOperator,
-			entityType,
 			sortedRecordsSupplier,
 			unknownRecordIdsSorter
 		);
+	}
+
+	@Override
+	public boolean shouldApply(@Nonnull QueryExecutionContext queryContext) {
+		return queryContext.getPrefetchedEntities() == null;
 	}
 
 	@Nonnull
@@ -257,5 +252,13 @@ public class PreSortedRecordsSorter extends AbstractRecordsSorter implements Cac
 			}
 		}
 		return memoizedResult;
+	}
+
+	@Nonnull
+	private SortedRecordsProvider[] getSortedRecordsProviders() {
+		if (memoizedSortedRecordsProviders == null) {
+			memoizedSortedRecordsProviders = sortedRecordsSupplier.get();
+		}
+		return memoizedSortedRecordsProviders;
 	}
 }

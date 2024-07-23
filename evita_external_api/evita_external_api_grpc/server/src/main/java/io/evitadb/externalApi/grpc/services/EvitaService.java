@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -33,15 +33,19 @@ import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
 import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
 import io.evitadb.core.Evita;
+import io.evitadb.externalApi.grpc.constants.GrpcHeaders;
 import io.evitadb.externalApi.grpc.dataType.ChangeCatalogCaptureConverter;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingTopLevelCatalogSchemaMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.SchemaMutationConverter;
 import io.evitadb.externalApi.grpc.services.interceptors.ServerSessionInterceptor;
+import io.evitadb.externalApi.trace.ExternalApiTracingContextProvider;
 import io.evitadb.utils.UUIDUtil;
+import io.grpc.Metadata;
 import io.grpc.stub.CallStreamObserver;
 import io.grpc.stub.ServerCallStreamObserver;
 import io.grpc.stub.StreamObserver;
+import lombok.extern.slf4j.Slf4j;
 import org.reactivestreams.FlowAdapters;
 
 import javax.annotation.Nonnull;
@@ -56,10 +60,11 @@ import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toC
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcCatalogState;
 
 /**
- * This service contains methods that could be called by gRPC clients on {@link Evita}
+ * This service contains methods that could be called by gRPC clients on {@link EvitaContract}.
  *
  * @author Tomáš Pozler, 2022
  */
+@Slf4j
 public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 
 	private static final SchemaMutationConverter<TopLevelCatalogSchemaMutation, GrpcTopLevelCatalogSchemaMutation> CATALOG_SCHEMA_MUTATION_CONVERTER =
@@ -69,16 +74,12 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	 * Instance of Evita upon which will be executed service calls
 	 */
 	@Nonnull private final Evita evita;
-	/**
-	 * API client context.
-	 */
-	@Nonnull private final GrpcClientContext clientContext;
 
 	/**
-	 * Builds array of {@link SessionFlags} based on session type and rollback transactions flag.
+	 * Builds array of {@link SessionFlags} based on session type and rollback transaction flag.
 	 *
 	 * @param sessionType          type of the session
-	 * @param rollbackTransactions if true, all transactions will be rolled back on session close
+	 * @param rollbackTransactions if true, all transaction will be rolled back on session close
 	 * @return built array of {@link SessionFlags}
 	 */
 	@Nullable
@@ -96,9 +97,21 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 		return flags.isEmpty() ? null : flags.toArray(new SessionFlags[0]);
 	}
 
+	/**
+	 * Executes entire lambda function within the scope of a tracing context.
+	 */
+	private static void executeWithClientContext(@Nonnull Runnable lambda) {
+		final Metadata metadata = ServerSessionInterceptor.METADATA.get();
+		ExternalApiTracingContextProvider.getContext()
+			.executeWithinBlock(
+				GrpcHeaders.getGrpcTraceTaskNameWithMethodName(metadata),
+				metadata,
+				lambda
+			);
+	}
+
 	public EvitaService(@Nonnull Evita evita) {
 		this.evita = evita;
-		this.clientContext = new GrpcClientContext(evita);
 	}
 
 	/**
@@ -108,7 +121,7 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	 * @param responseObserver observer on which errors might be thrown and result returned
 	 */
 	@Override
-	public void createReadOnlySession(@Nonnull GrpcEvitaSessionRequest request, @Nonnull StreamObserver<GrpcEvitaSessionResponse> responseObserver) {
+	public void createReadOnlySession(GrpcEvitaSessionRequest request, StreamObserver<GrpcEvitaSessionResponse> responseObserver) {
 		createSessionAndBuildResponse(responseObserver, request.getCatalogName(), GrpcSessionType.READ_ONLY, request.getDryRun());
 	}
 
@@ -119,7 +132,7 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	 * @param responseObserver observer on which errors might be thrown and result returned
 	 */
 	@Override
-	public void createReadWriteSession(@Nonnull GrpcEvitaSessionRequest request, @Nonnull StreamObserver<GrpcEvitaSessionResponse> responseObserver) {
+	public void createReadWriteSession(GrpcEvitaSessionRequest request, StreamObserver<GrpcEvitaSessionResponse> responseObserver) {
 		createSessionAndBuildResponse(responseObserver, request.getCatalogName(), GrpcSessionType.READ_WRITE, request.getDryRun());
 	}
 
@@ -130,7 +143,7 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	 * @param responseObserver observer on which errors might be thrown and result returned
 	 */
 	@Override
-	public void createBinaryReadOnlySession(@Nonnull GrpcEvitaSessionRequest request, @Nonnull StreamObserver<GrpcEvitaSessionResponse> responseObserver) {
+	public void createBinaryReadOnlySession(GrpcEvitaSessionRequest request, StreamObserver<GrpcEvitaSessionResponse> responseObserver) {
 		createSessionAndBuildResponse(responseObserver, request.getCatalogName(), GrpcSessionType.BINARY_READ_ONLY, request.getDryRun());
 	}
 
@@ -141,7 +154,7 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	 * @param responseObserver observer on which errors might be thrown and result returned
 	 */
 	@Override
-	public void createBinaryReadWriteSession(@Nonnull GrpcEvitaSessionRequest request, @Nonnull StreamObserver<GrpcEvitaSessionResponse> responseObserver) {
+	public void createBinaryReadWriteSession(GrpcEvitaSessionRequest request, StreamObserver<GrpcEvitaSessionResponse> responseObserver) {
 		createSessionAndBuildResponse(responseObserver, request.getCatalogName(), GrpcSessionType.BINARY_READ_WRITE, request.getDryRun());
 	}
 
@@ -152,7 +165,7 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	 * @param responseObserver observer on which errors might be thrown and result returned
 	 */
 	@Override
-	public void terminateSession(@Nonnull GrpcEvitaSessionTerminationRequest request, @Nonnull StreamObserver<GrpcEvitaSessionTerminationResponse> responseObserver) {
+	public void terminateSession(GrpcEvitaSessionTerminationRequest request, StreamObserver<GrpcEvitaSessionTerminationResponse> responseObserver) {
 		executeWithClientContext(() -> {
 			final boolean terminated = evita.getSessionById(request.getCatalogName(), UUIDUtil.uuid(request.getSessionId()))
 				.map(session -> {
@@ -176,7 +189,7 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	 * @see EvitaContract#getCatalogNames() (String)
 	 */
 	@Override
-	public void getCatalogNames(@Nonnull Empty request, @Nonnull StreamObserver<GrpcCatalogNamesResponse> responseObserver) {
+	public void getCatalogNames(Empty request, StreamObserver<GrpcCatalogNamesResponse> responseObserver) {
 		executeWithClientContext(() -> {
 			responseObserver.onNext(GrpcCatalogNamesResponse.newBuilder()
 				.addAllCatalogNames(evita.getCatalogNames())
@@ -241,7 +254,8 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	 * @see EvitaContract#deleteCatalogIfExists(String)
 	 */
 	@Override
-	public void deleteCatalogIfExists(@Nonnull GrpcDeleteCatalogIfExistsRequest request, @Nonnull StreamObserver<GrpcDeleteCatalogIfExistsResponse> responseObserver) {
+	public void deleteCatalogIfExists(GrpcDeleteCatalogIfExistsRequest
+		                                  request, StreamObserver<GrpcDeleteCatalogIfExistsResponse> responseObserver) {
 		executeWithClientContext(() -> {
 			boolean success = evita.deleteCatalogIfExists(request.getCatalogName());
 			responseObserver.onNext(GrpcDeleteCatalogIfExistsResponse.newBuilder().setSuccess(success).build());
@@ -249,18 +263,17 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 		});
 	}
 
-
 	/**
 	 * Applies catalog mutation affecting entire catalog.
 	 */
 	@Override
-	public void update(@Nonnull GrpcUpdateEvitaRequest request, @Nonnull StreamObserver<Empty> responseObserver) {
-		final TopLevelCatalogSchemaMutation[] schemaMutations = request.getSchemaMutationsList()
-			.stream()
-			.map(CATALOG_SCHEMA_MUTATION_CONVERTER::convert)
-			.toArray(TopLevelCatalogSchemaMutation[]::new);
-
+	public void update(GrpcUpdateEvitaRequest request, StreamObserver<Empty> responseObserver) {
 		executeWithClientContext(() -> {
+			final TopLevelCatalogSchemaMutation[] schemaMutations = request.getSchemaMutationsList()
+				.stream()
+				.map(CATALOG_SCHEMA_MUTATION_CONVERTER::convert)
+				.toArray(TopLevelCatalogSchemaMutation[]::new);
+
 			evita.update(schemaMutations);
 			responseObserver.onNext(Empty.getDefaultInstance());
 			responseObserver.onCompleted();
@@ -273,13 +286,16 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	 * @param responseObserver     observer on which errors might be thrown and result returned
 	 * @param catalogName          name of the catalog on which should be session created
 	 * @param sessionType          type of the session
-	 * @param rollbackTransactions if true, all transactions will be rolled back on session close
+	 * @param rollbackTransactions if true, all transaction will be rolled back on session close
 	 */
-	private void createSessionAndBuildResponse(@Nonnull StreamObserver<GrpcEvitaSessionResponse> responseObserver, @Nonnull String catalogName, @Nonnull GrpcSessionType sessionType, boolean rollbackTransactions) {
-		final SessionFlags[] flags = getSessionFlags(sessionType, rollbackTransactions);
+	private void createSessionAndBuildResponse
+	(@Nonnull StreamObserver<GrpcEvitaSessionResponse> responseObserver, @Nonnull String
+		catalogName, @Nonnull GrpcSessionType sessionType, boolean rollbackTransactions) {
 		executeWithClientContext(() -> {
+			final SessionFlags[] flags = getSessionFlags(sessionType, rollbackTransactions);
 			final EvitaSessionContract session = evita.createSession(new SessionTraits(catalogName, flags));
 			responseObserver.onNext(GrpcEvitaSessionResponse.newBuilder()
+				.setCatalogId(session.getCatalogId().toString())
 				.setSessionId(session.getId().toString())
 				.setCatalogState(toGrpcCatalogState(session.getCatalogState()))
 				.setSessionType(sessionType)
@@ -289,17 +305,10 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	}
 
 	/**
-	 * Executes entire lambda function within the scope of client context.
+	 * TODO JNO - revisit and document?
+	 * @param request
+	 * @param responseObserver
 	 */
-	private void executeWithClientContext(@Nonnull Runnable lambda) {
-		clientContext.executeWithClientAndRequestId(
-			ServerSessionInterceptor.CLIENT_ADDRESS.get(),
-			ServerSessionInterceptor.CLIENT_ID.get(),
-			ServerSessionInterceptor.REQUEST_ID.get(),
-			lambda
-		);
-	}
-
 	@Override
 	public void registerSystemChangeCapture(GrpcRegisterSystemChangeCaptureRequest request, StreamObserver<GrpcRegisterSystemChangeCaptureResponse> responseObserver) {
 		final Publisher<ChangeSystemCapture> publisher = evita.registerSystemChangeCapture(
@@ -312,6 +321,11 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 		publisher.subscribe(new ChangeSystemCOnversionSubsriber(observer));
 	}
 
+	/**
+	 * TODO JNO - document
+	 * @param <C>
+	 * @param <G>
+	 */
 	private static abstract class ConversionSubscriber<C extends ChangeCapture, G> implements Subscriber<C> {
 
 		private final Subscriber<G> delegate;
@@ -351,6 +365,7 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 		protected abstract G convertCapture(@Nonnull C capture);
 	}
 
+	/* todo jno - rename and document */
 	private static class ChangeSystemCOnversionSubsriber extends ConversionSubscriber<ChangeSystemCapture, GrpcRegisterSystemChangeCaptureResponse> {
 
 		public ChangeSystemCOnversionSubsriber(@Nonnull CallStreamObserver<GrpcRegisterSystemChangeCaptureResponse> downstream) {

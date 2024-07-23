@@ -1,31 +1,59 @@
-public interface ProductEditor implements InstanceEditor<Product> {
+/*
+ *
+ *                         _ _        ____  ____
+ *               _____   _(_) |_ __ _|  _ \| __ )
+ *              / _ \ \ / / | __/ _` | | | |  _ \
+ *             |  __/\ V /| | || (_| | |_| | |_) |
+ *              \___| \_/ |_|\__\__,_|____/|____/
+ *
+ *   Copyright (c) 2024
+ *
+ *   Licensed under the Business Source License, Version 1.1 (the "License");
+ *   you may not use this file except in compliance with the License.
+ *   You may obtain a copy of the License at
+ *
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
+ *
+ *   Unless required by applicable law or agreed to in writing, software
+ *   distributed under the License is distributed on an "AS IS" BASIS,
+ *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *   See the License for the specific language governing permissions and
+ *   limitations under the License.
+ */
 
-	void setCode(@Nonnull String code);
+public interface ProductEditor extends Product, InstanceEditor<Product> {
+
+	ProductEditor setCode(String code);
+
+	ProductEditor setName(String name, Locale locale);
+
+	ProductEditor setEAN(String ean);
 
 	@AttributeRef("manufacturedBefore")
-	void setYears(int... year);
+	ProductEditor setYears(int... year);
 
-	void setReferencedFiles(@Nonnull Product.ReferencedFiles files);
+	ProductEditor setReferencedFiles(ReferencedFiles files);
 
-	void setParentEntity(@Nullable Integer parentId);
+	ProductEditor setParentEntity(Integer parentId);
 
 	@Price
-	void setPrices(PriceContract... price);
+	ProductEditor setPrices(PriceContract... price);
 
-	@Reference
-	void setMarketingBrand(int brandId, @Nonnull Consumer<BrandEditor> brandEditor);
-
-	@Reference
-	void addOrUpdateLicensingBrand(int brandId, @Nonnull Consumer<BrandEditor> brandEditor);
+	@ReferenceRef("marketingBrand")
+	ProductEditor addOrUpdateMarketingBrand(int brandId, @CreateWhenMissing Consumer<BrandEditor> brandEditor);
 
 	@ReferenceRef("licensingBrands")
-	void removeLicensingBrandById(int brandId);
+	ProductEditor addOrUpdateLicensingBrand(int brandId, @CreateWhenMissing Consumer<BrandEditor> brandEditor);
 
-	interface BrandEditor extends Product.Brand {
+	@ReferenceRef("licensingBrands")
+	@RemoveWhenExists
+	ProductEditor removeLicensingBrandById(int brandId);
 
-		void setBrandGroup(@Nullable Integer brandGroupId);
+	interface BrandEditor extends Brand {
 
-		void setMarket(@NullableString market);
+		BrandEditor setBrandGroup(Integer brandGroupId);
+
+		BrandEditor setMarket(String market);
 
 	}
 

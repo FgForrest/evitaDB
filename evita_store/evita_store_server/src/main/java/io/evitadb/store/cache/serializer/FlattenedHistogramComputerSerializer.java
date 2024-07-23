@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -53,7 +53,6 @@ public class FlattenedHistogramComputerSerializer extends AbstractFlattenedFormu
 		final CacheableBucket[] buckets = histogram.getBuckets();
 		output.writeVarInt(buckets.length, true);
 		for (CacheableBucket bucket : buckets) {
-			output.writeVarInt(bucket.index(), true);
 			output.writeVarInt(bucket.occurrences(), true);
 			kryo.writeObject(output, bucket.threshold());
 		}
@@ -68,10 +67,9 @@ public class FlattenedHistogramComputerSerializer extends AbstractFlattenedFormu
 		final int bucketCount = input.readVarInt(true);
 		final CacheableBucket[] buckets = new CacheableBucket[bucketCount];
 		for(int i = 0; i < bucketCount; i++) {
-			final int index = input.readVarInt(true);
 			final int occurrences = input.readVarInt(true);
 			final BigDecimal threshold = kryo.readObject(input, BigDecimal.class);
-			buckets[i] = new CacheableBucket(index, threshold, occurrences);
+			buckets[i] = new CacheableBucket(threshold, occurrences);
 		}
 
 		return new FlattenedHistogramComputer(

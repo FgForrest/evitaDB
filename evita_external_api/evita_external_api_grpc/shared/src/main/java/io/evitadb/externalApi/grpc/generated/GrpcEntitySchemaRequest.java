@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -80,6 +80,11 @@ private static final long serialVersionUID = 0L;
             java.lang.String s = input.readStringRequireUtf8();
 
             entityType_ = s;
+            break;
+          }
+          case 16: {
+
+            nameVariants_ = input.readBool();
             break;
           }
           default: {
@@ -160,6 +165,22 @@ private static final long serialVersionUID = 0L;
     }
   }
 
+  public static final int NAMEVARIANTS_FIELD_NUMBER = 2;
+  private boolean nameVariants_;
+  /**
+   * <pre>
+   * True, if the schema should include name variants for it and all sub-schemas.
+   * This could considerably increase the size of the response.
+   * </pre>
+   *
+   * <code>bool nameVariants = 2;</code>
+   * @return The nameVariants.
+   */
+  @java.lang.Override
+  public boolean getNameVariants() {
+    return nameVariants_;
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -177,6 +198,9 @@ private static final long serialVersionUID = 0L;
     if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(entityType_)) {
       com.google.protobuf.GeneratedMessageV3.writeString(output, 1, entityType_);
     }
+    if (nameVariants_ != false) {
+      output.writeBool(2, nameVariants_);
+    }
     unknownFields.writeTo(output);
   }
 
@@ -188,6 +212,10 @@ private static final long serialVersionUID = 0L;
     size = 0;
     if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(entityType_)) {
       size += com.google.protobuf.GeneratedMessageV3.computeStringSize(1, entityType_);
+    }
+    if (nameVariants_ != false) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeBoolSize(2, nameVariants_);
     }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
@@ -206,6 +234,8 @@ private static final long serialVersionUID = 0L;
 
     if (!getEntityType()
         .equals(other.getEntityType())) return false;
+    if (getNameVariants()
+        != other.getNameVariants()) return false;
     if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
@@ -219,6 +249,9 @@ private static final long serialVersionUID = 0L;
     hash = (19 * hash) + getDescriptor().hashCode();
     hash = (37 * hash) + ENTITYTYPE_FIELD_NUMBER;
     hash = (53 * hash) + getEntityType().hashCode();
+    hash = (37 * hash) + NAMEVARIANTS_FIELD_NUMBER;
+    hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
+        getNameVariants());
     hash = (29 * hash) + unknownFields.hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -358,6 +391,8 @@ private static final long serialVersionUID = 0L;
       super.clear();
       entityType_ = "";
 
+      nameVariants_ = false;
+
       return this;
     }
 
@@ -385,6 +420,7 @@ private static final long serialVersionUID = 0L;
     public io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaRequest buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaRequest result = new io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaRequest(this);
       result.entityType_ = entityType_;
+      result.nameVariants_ = nameVariants_;
       onBuilt();
       return result;
     }
@@ -436,6 +472,9 @@ private static final long serialVersionUID = 0L;
       if (!other.getEntityType().isEmpty()) {
         entityType_ = other.entityType_;
         onChanged();
+      }
+      if (other.getNameVariants() != false) {
+        setNameVariants(other.getNameVariants());
       }
       this.mergeUnknownFields(other.unknownFields);
       onChanged();
@@ -558,6 +597,52 @@ private static final long serialVersionUID = 0L;
   checkByteStringIsUtf8(value);
 
       entityType_ = value;
+      onChanged();
+      return this;
+    }
+
+    private boolean nameVariants_ ;
+    /**
+     * <pre>
+     * True, if the schema should include name variants for it and all sub-schemas.
+     * This could considerably increase the size of the response.
+     * </pre>
+     *
+     * <code>bool nameVariants = 2;</code>
+     * @return The nameVariants.
+     */
+    @java.lang.Override
+    public boolean getNameVariants() {
+      return nameVariants_;
+    }
+    /**
+     * <pre>
+     * True, if the schema should include name variants for it and all sub-schemas.
+     * This could considerably increase the size of the response.
+     * </pre>
+     *
+     * <code>bool nameVariants = 2;</code>
+     * @param value The nameVariants to set.
+     * @return This builder for chaining.
+     */
+    public Builder setNameVariants(boolean value) {
+
+      nameVariants_ = value;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * True, if the schema should include name variants for it and all sub-schemas.
+     * This could considerably increase the size of the response.
+     * </pre>
+     *
+     * <code>bool nameVariants = 2;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearNameVariants() {
+
+      nameVariants_ = false;
       onChanged();
       return this;
     }

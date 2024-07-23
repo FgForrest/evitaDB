@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,27 +23,29 @@
 
 package io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint;
 
+import com.linecorp.armeria.common.HttpMethod;
 import io.evitadb.externalApi.http.EndpointResponse;
 import io.evitadb.externalApi.http.SuccessEndpointResponse;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.dto.CollectionPointer;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.CollectionsEndpointHeaderDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.resolver.endpoint.CatalogRestHandlingContext;
 import io.evitadb.externalApi.rest.io.JsonRestHandler;
-import io.evitadb.externalApi.rest.io.RestEndpointExchange;
-import io.undertow.util.Methods;
+import io.evitadb.externalApi.rest.io.RestEndpointExecutionContext;
+import io.evitadb.externalApi.rest.metric.event.request.ExecutedEvent;
 
 import javax.annotation.Nonnull;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * This handler is used to get list of names (and counts) of existing collections withing one catalog.
  *
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class CollectionsHandler extends JsonRestHandler<List<CollectionPointer>, CatalogRestHandlingContext> {
+public class CollectionsHandler extends JsonRestHandler<CatalogRestHandlingContext> {
 
 	public CollectionsHandler(@Nonnull CatalogRestHandlingContext restHandlingContext) {
 		super(restHandlingContext);
@@ -51,26 +53,39 @@ public class CollectionsHandler extends JsonRestHandler<List<CollectionPointer>,
 
 	@Nonnull
 	@Override
-	protected EndpointResponse<List<CollectionPointer>> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
-		final Map<String, Object> parametersFromRequest = getParametersFromRequest(exchange);
-		final Boolean withCounts = (Boolean) parametersFromRequest.get(CollectionsEndpointHeaderDescriptor.ENTITY_COUNT.name());
+	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
+		return executionContext.executeAsyncInRequestThreadPool(
+			() -> {
+				final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
 
-		final List<CollectionPointer> collections = exchange.session()
-			.getAllEntityTypes()
-			.stream()
-			.map(entityType -> new CollectionPointer(
-				entityType,
-				withCounts != null && withCounts ? exchange.session().getEntityCollectionSize(entityType) : null
-			))
-			.toList();
+				final Map<String, Object> parametersFromRequest = getParametersFromRequest(executionContext);
+				final Boolean withCounts = (Boolean) parametersFromRequest.get(CollectionsEndpointHeaderDescriptor.ENTITY_COUNT.name());
 
-		return new SuccessEndpointResponse<>(collections);
+				requestExecutedEvent.finishInputDeserialization();
+
+				final List<CollectionPointer> collections = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
+					executionContext.session()
+						.getAllEntityTypes()
+						.stream()
+						.map(entityType -> new CollectionPointer(
+							entityType,
+							withCounts != null && withCounts ? executionContext.session().getEntityCollectionSize(entityType) : null
+						))
+						.toList());
+				requestExecutedEvent.finishOperationExecution();
+
+				final Object result = convertResultIntoSerializableObject(executionContext, collections);
+				requestExecutedEvent.finishResultSerialization();
+
+				return new SuccessEndpointResponse(result);
+			}
+		);
 	}
 
 	@Nonnull
 	@Override
-	public Set<String> getSupportedHttpMethods() {
-		return Set.of(Methods.GET_STRING);
+	public Set<HttpMethod> getSupportedHttpMethods() {
+		return Set.of(HttpMethod.GET);
 	}
 
 	@Nonnull

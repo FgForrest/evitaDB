@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -25,6 +25,7 @@ package io.evitadb.api.query.parser.visitor;
 
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.parser.ParseContext;
+import io.evitadb.api.query.parser.ParseMode;
 import io.evitadb.api.query.parser.ParserExecutor;
 import io.evitadb.api.query.parser.ParserFactory;
 import io.evitadb.api.query.parser.error.EvitaQLInvalidQueryError;
@@ -46,13 +47,13 @@ class EvitaQLRequireConstraintListVisitorTest {
 
     @Test
     void shouldParseRequireConstraintList() {
-        final List<RequireConstraint> constraintList1 = parseRequireConstraintList("attributeContent('code')");
+        final List<RequireConstraint> constraintList1 = parseRequireConstraintListUnsafe("attributeContent('code')");
         assertEquals(
             List.of(attributeContent("code")),
             constraintList1
         );
 
-        final List<RequireConstraint> constraintList2 = parseRequireConstraintList("attributeContent('code'),attributeContent('age')");
+        final List<RequireConstraint> constraintList2 = parseRequireConstraintListUnsafe("attributeContent('code'),attributeContent('age')");
         assertEquals(
             List.of(attributeContent("code"), attributeContent("age")),
             constraintList2
@@ -64,7 +65,7 @@ class EvitaQLRequireConstraintListVisitorTest {
             constraintList3
         );
 
-        final List<RequireConstraint> constraintList4 = parseRequireConstraintList("attributeContent('code'),attributeContent(?)", "age");
+        final List<RequireConstraint> constraintList4 = parseRequireConstraintList("attributeContent(?),attributeContent(?)", "code", "age");
         assertEquals(
             List.of(attributeContent("code"), attributeContent("age")),
             constraintList4
@@ -88,6 +89,21 @@ class EvitaQLRequireConstraintListVisitorTest {
     private List<RequireConstraint> parseRequireConstraintList(@Nonnull String string, @Nonnull Object... positionalArguments) {
         return ParserExecutor.execute(
             new ParseContext(positionalArguments),
+            () -> ParserFactory.getParser(string).requireConstraintListUnit().requireConstraintList().accept(new EvitaQLRequireConstraintListVisitor())
+        );
+    }
+
+    /**
+     * Using generated EvitaQL parser tries to parse string as grammar rule "requireConstraintListUnit"
+     *
+     * @param string string to parse
+     * @return parsed query
+     */
+    private List<RequireConstraint> parseRequireConstraintListUnsafe(@Nonnull String string) {
+        final ParseContext context = new ParseContext();
+        context.setMode(ParseMode.UNSAFE);
+        return ParserExecutor.execute(
+            context,
             () -> ParserFactory.getParser(string).requireConstraintListUnit().requireConstraintList().accept(new EvitaQLRequireConstraintListVisitor())
         );
     }

@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -25,11 +25,13 @@ package io.evitadb.externalApi.rest.api.catalog.dataApi;
 
 import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.requestResponse.EvitaResponse;
+import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.FetchEntityEndpointHeaderDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.ListUnknownEntitiesEndpointHeaderDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.QueryHeaderFilterArgumentsJoinType;
 import io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.UseDataSet;
@@ -44,13 +46,14 @@ import java.util.Locale;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
+import static io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator.ATTRIBUTE_RELATIVE_URL;
 import static io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator.REST_THOUSAND_PRODUCTS;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
-import static io.evitadb.utils.MapBuilder.map;
 import static io.evitadb.test.generator.DataGenerator.ASSOCIATED_DATA_LABELS;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_NAME;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_URL;
+import static io.evitadb.utils.MapBuilder.map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -165,7 +168,7 @@ class CatalogRestListUnknownEntitiesQueryFunctionalTest extends CatalogRestDataE
 			.requestParams(map()
 				.e(ATTRIBUTE_CODE, List.of(codeAttribute))
 				.e(ATTRIBUTE_URL, List.of(urlAttribute))
-				.e(ListUnknownEntitiesEndpointHeaderDescriptor.FILTER_JOIN.name(), "OR")
+				.e(ListUnknownEntitiesEndpointHeaderDescriptor.FILTER_JOIN.name(), QueryHeaderFilterArgumentsJoinType.OR.toString())
 				.build())
 			.executeAndThen()
 			.statusCode(200)
@@ -178,6 +181,52 @@ class CatalogRestListUnknownEntitiesQueryFunctionalTest extends CatalogRestDataE
 					)
 				)
 			);
+	}
+
+	@Test
+	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
+	@DisplayName("Should return unknown entity by globally unique locale specific attribute without specifying collection")
+	void shouldReturnUnknownEntityByGloballyUniqueLocaleSpecificAttributeWithoutSpecifyingCollection(Evita evita, List<SealedEntity> originalProductEntities, RestTester tester) {
+		final AttributeValue relativeUrl = getRandomAttributeValueObject(originalProductEntities, ATTRIBUTE_RELATIVE_URL);
+
+		final EntityClassifier entity = getEntity(
+			evita,
+			query(
+				filterBy(
+					attributeEquals(ATTRIBUTE_RELATIVE_URL, relativeUrl.value()),
+					entityLocaleEquals(relativeUrl.key().locale())
+				)
+			)
+		);
+
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/entity/list")
+			.httpMethod(Request.METHOD_GET)
+			.requestParams(map()
+				.e(ATTRIBUTE_RELATIVE_URL, List.of(relativeUrl.value()))
+				.e(FetchEntityEndpointHeaderDescriptor.LOCALE.name(), relativeUrl.key().locale().toLanguageTag())
+				.e(FetchEntityEndpointHeaderDescriptor.BODY_FETCH.name(), false)
+				.build())
+			.executeAndThen()
+			.statusCode(200)
+			.body("", equalTo(List.of(createEntityDto(entity))));
+	}
+
+	@Test
+	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
+	@DisplayName("Should return error when filtering by globally unique local specific attribute without locale")
+	void shouldReturnErrorWhenFilteringByGloballyUniqueLocalSpecificAttributeWithoutLocale(Evita evita, List<SealedEntity> originalProductEntities, RestTester tester) {
+		final AttributeValue relativeUrl = getRandomAttributeValueObject(originalProductEntities, ATTRIBUTE_RELATIVE_URL);
+
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/entity/list")
+			.httpMethod(Request.METHOD_GET)
+			.requestParams(map()
+				.e(ATTRIBUTE_RELATIVE_URL, List.of(relativeUrl.value()))
+				.e(FetchEntityEndpointHeaderDescriptor.BODY_FETCH.name(), false)
+				.build())
+			.executeAndThen()
+			.statusCode(400);
 	}
 
 	@Test

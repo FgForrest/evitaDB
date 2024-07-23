@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,12 +23,14 @@
 
 package io.evitadb.externalApi.lab;
 
+import com.linecorp.armeria.server.HttpService;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.http.ExternalApiProvider;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
+import io.evitadb.externalApi.http.ExternalApiServer;
+import io.evitadb.externalApi.http.HttpServiceTlsCheckingDecorator;
 import io.evitadb.externalApi.lab.configuration.LabConfig;
-import io.undertow.server.HttpHandler;
 
 import javax.annotation.Nonnull;
 
@@ -54,9 +56,9 @@ public class LabProviderRegistrar implements ExternalApiProviderRegistrar<LabCon
 
 	@Nonnull
 	@Override
-	public ExternalApiProvider<LabConfig> register(@Nonnull Evita evita, @Nonnull ApiOptions apiOptions, @Nonnull LabConfig labConfig) {
+	public ExternalApiProvider<LabConfig> register(@Nonnull Evita evita, @Nonnull ExternalApiServer externalApiServer, @Nonnull ApiOptions apiOptions, @Nonnull LabConfig labConfig) {
 		final LabManager labManager = new LabManager(evita, apiOptions, labConfig);
-		final HttpHandler apiHandler = labManager.getLabRouter();
-		return new LabProvider(labConfig, apiHandler);
+		final HttpService apiHandler = labManager.getLabRouter();
+		return new LabProvider(labConfig, new HttpServiceTlsCheckingDecorator(apiHandler, getApiHandlerPortTlsValidatingFunction(labConfig)));
 	}
 }

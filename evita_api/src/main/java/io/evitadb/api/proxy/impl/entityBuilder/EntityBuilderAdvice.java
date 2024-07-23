@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -95,7 +95,7 @@ public class EntityBuilderAdvice implements Advice<SealedEntityProxy> {
 			},
 			(proxy, method, args, methodContext, proxyState, invokeSuper) ->
 				proxyState.createReferencedEntityProxy(
-					methodContext, proxyState.getEntity()
+					methodContext, proxyState.entity()
 				)
 		);
 	}
@@ -120,7 +120,7 @@ public class EntityBuilderAdvice implements Advice<SealedEntityProxy> {
 			(proxy, method, args, methodContext, proxyState, invokeSuper) -> {
 				final LocalMutation<?, ?>[] mutations = (LocalMutation<?, ?>[]) args[0];
 				final Object theProxy = proxyState.createReferencedEntityProxy(
-					methodContext, proxyState.getEntity()
+					methodContext, proxyState.entity()
 				);
 				final SealedEntityProxyState targetProxyState = (SealedEntityProxyState) ((ProxyStateAccessor)theProxy).getProxyState();
 				targetProxyState.getEntityBuilderWithMutations(Arrays.asList(mutations));
@@ -149,7 +149,7 @@ public class EntityBuilderAdvice implements Advice<SealedEntityProxy> {
 				@SuppressWarnings("unchecked")
 				final Collection<LocalMutation<?, ?>> mutations = (Collection<LocalMutation<?, ?>>) args[0];
 				final Object theProxy = proxyState.createReferencedEntityProxy(
-					methodContext, proxyState.getEntity()
+					methodContext, proxyState.entity()
 				);
 				final SealedEntityProxyState targetProxyState = (SealedEntityProxyState) ((ProxyStateAccessor)theProxy).getProxyState();
 				targetProxyState.getEntityBuilderWithMutations(mutations);
@@ -200,7 +200,7 @@ public class EntityBuilderAdvice implements Advice<SealedEntityProxy> {
 			(method, proxyState) -> method,
 			(proxy, method, args, methodContext, proxyState, invokeSuper) -> {
 				proxyState.propagateReferenceMutations();
-				return proxyState.getEntityBuilderIfPresent()
+				return proxyState.entityBuilderIfPresent()
 					.map(InstanceEditor::toInstance)
 					.map(EntityContract.class::cast)
 					.map(proxyState::cloneProxy)
@@ -217,7 +217,7 @@ public class EntityBuilderAdvice implements Advice<SealedEntityProxy> {
 			(method, proxyState) -> method,
 			(proxy, method, args, methodContext, proxyState, invokeSuper) -> {
 				proxyState.propagateReferenceMutations();
-				return proxyState.getEntityBuilderIfPresent()
+				return proxyState.entityBuilderIfPresent()
 					.flatMap(InstanceEditor::toMutation);
 			}
 		);

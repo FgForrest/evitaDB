@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -27,6 +27,7 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
+import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.AttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateGlobalAttributeSchemaMutation;
@@ -76,8 +77,8 @@ public final class GlobalAttributeSchemaBuilder
 				baseSchema.getName(),
 				baseSchema.getDescription(),
 				baseSchema.getDeprecationNotice(),
-				baseSchema.isUnique(),
-				baseSchema.isUniqueGlobally(),
+				baseSchema.getUniquenessType(),
+				baseSchema.getGlobalUniquenessType(),
 				baseSchema.isFilterable(),
 				baseSchema.isSortable(),
 				baseSchema.isLocalized(),
@@ -98,10 +99,22 @@ public final class GlobalAttributeSchemaBuilder
 	@Override
 	@Nonnull
 	public GlobalAttributeSchemaBuilder uniqueGlobally() {
-		this.mutations.add(
+		this.updatedSchemaDirty = addMutations(
 			new SetAttributeSchemaGloballyUniqueMutation(
 				toInstance().getName(),
-				true
+				GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG
+			)
+		);
+		return this;
+	}
+
+	@Override
+	@Nonnull
+	public GlobalAttributeSchemaBuilder uniqueGloballyWithinLocale() {
+		this.updatedSchemaDirty = addMutations(
+			new SetAttributeSchemaGloballyUniqueMutation(
+				toInstance().getName(),
+				GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG_LOCALE
 			)
 		);
 		return this;
@@ -115,7 +128,24 @@ public final class GlobalAttributeSchemaBuilder
 			addMutations(
 				new SetAttributeSchemaGloballyUniqueMutation(
 					toInstance().getName(),
-					decider.getAsBoolean()
+					decider.getAsBoolean() ?
+						GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG : GlobalAttributeUniquenessType.NOT_UNIQUE
+				)
+			)
+		);
+		return this;
+	}
+
+	@Override
+	@Nonnull
+	public GlobalAttributeSchemaBuilder uniqueGloballyWithinLocale(@Nonnull BooleanSupplier decider) {
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				new SetAttributeSchemaGloballyUniqueMutation(
+					toInstance().getName(),
+					decider.getAsBoolean() ?
+						GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG_LOCALE : GlobalAttributeUniquenessType.NOT_UNIQUE
 				)
 			)
 		);

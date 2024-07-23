@@ -8,11 +8,11 @@ preferredLang: 'java'
 ---
 
 evitaDB is a [Java application](https://openjdk.org/), and you can run it as an
-[embedded database](../use/connectors/java.md) in any Java application or as 
-[a separate service](../operate/run.md) connected to applications via 
+[embedded database](../use/connectors/java.md) in any Java application or as
+[a separate service](../operate/run.md) connected to applications via
 the HTTPS protocol using one of the provided web APIs.
 
-<LanguageSpecific to="java">
+<LS to="j">
 
 <Note type="question">
 
@@ -21,7 +21,7 @@ the HTTPS protocol using one of the provided web APIs.
 ##### What platforms are supported?
 </NoteTitle>
 
-Java applications support multiple platforms depending on the 
+Java applications support multiple platforms depending on the
 [JRE/JDK vendor](https://wiki.openjdk.org/display/Build/Supported+Build+Platforms). All major hardware
 architectures (x86_64, ARM64) and operating systems (Linux, MacOS, Windows) are supported. Due to the size of our
 team, we regularly test evitaDB only on the Linux AMD64 platform (which you can also use on Windows thanks to the
@@ -37,19 +37,19 @@ you might encounter, and we'll try to fix them as soon as possible.
 ##### What are the pros &amp; cons of running embedded evitaDB?
 </NoteTitle>
 
-Embedded evitaDB will be faster, because you can work directly with the data objects fetched from disk, and you don't 
-need to go through several translation layers required for remote API access. You could also disable all standard APIs 
+Embedded evitaDB will be faster, because you can work directly with the data objects fetched from disk, and you don't
+need to go through several translation layers required for remote API access. You could also disable all standard APIs
 and avoid running an embedded HTTP server, which takes its toll on system load.
 
 The downside is that your application heap will be cluttered with large evitaDB data structures of in-memory indexes,
 which makes it harder to find memory leaks in your application. We recommend to use embedded evitaDB for
-[writing tests](../use/api/write-tests.md), which greatly simplifies integration testing with evitaDB and allows for 
+[writing tests](../use/api/write-tests.md), which greatly simplifies integration testing with evitaDB and allows for
 fast and easy setup / teardown of the test data.
 </Note>
 
 <Note type="info">
-This introductory article describes how to run evitaDB in embedded mode. If you prefer to run evitaDB in client & server 
-mode, please refer to the separate chapters describing [how to run evitaDB in Docker](../operate/run.md) and 
+This introductory article describes how to run evitaDB in embedded mode. If you prefer to run evitaDB in client & server
+mode, please refer to the separate chapters describing [how to run evitaDB in Docker](../operate/run.md) and
 [how to set up EvitaClient](../use/connectors/java.md).
 </Note>
 
@@ -63,14 +63,14 @@ To integrate evitaDB into your project, use the following steps:
 <dependency>
     <groupId>io.evitadb</groupId>
     <artifactId>evita_db</artifactId>
-    <version>0.8.ALPHA</version>
+    <version>2024.8.4</version>
     <type>pom</type>
 </dependency>
 ```
 </CodeTabsBlock>
 <CodeTabsBlock>
 ```Gradle
-implementation 'io.evitadb:evita_db:0.8.ALPHA'
+implementation 'io.evitadb:evita_db:2024.8.4'
 ```
 </CodeTabsBlock>
 </CodeTabs>
@@ -96,7 +96,7 @@ recent updates to the database.
 ### Enabling evitaDB web APIs
 
 If you want evitaDB to be able to open its web APIs (you still need to [configure this](../operate/configure.md)), you
-also need to add dependencies on these API variants. If you don't do this, you will get a 
+also need to add dependencies on these API variants. If you don't do this, you will get a
 <SourceClass>evita_external_api/evita_external_api_core/src/main/java/io/evitadb/externalApi/exception/ExternalApiInternalError.java</SourceClass>
 exception when you enable the corresponding API in evitaDB's configuration.
 
@@ -108,14 +108,14 @@ exception when you enable the corresponding API in evitaDB's configuration.
 <dependency>
     <groupId>io.evitadb</groupId>
     <artifactId>evita_external_api_grpc</artifactId>
-    <version>0.8.ALPHA</version>
+    <version>2024.8.4</version>
     <type>pom</type>
 </dependency>
 ```
 </CodeTabsBlock>
 <CodeTabsBlock>
 ```Gradle
-implementation 'io.evitadb:evita_external_api_grpc:0.8.ALPHA'
+implementation 'io.evitadb:evita_external_api_grpc:2024.8.4'
 ```
 </CodeTabsBlock>
 </CodeTabs>
@@ -128,14 +128,14 @@ implementation 'io.evitadb:evita_external_api_grpc:0.8.ALPHA'
 <dependency>
     <groupId>io.evitadb</groupId>
     <artifactId>evita_external_api_graphql</artifactId>
-    <version>0.8.ALPHA</version>
+    <version>2024.8.4</version>
     <type>pom</type>
 </dependency>
 ```
 </CodeTabsBlock>
 <CodeTabsBlock>
 ```Gradle
-implementation 'io.evitadb:evita_external_api_graphql:0.8.ALPHA'
+implementation 'io.evitadb:evita_external_api_graphql:2024.8.4'
 ```
 </CodeTabsBlock>
 </CodeTabs>
@@ -148,14 +148,14 @@ implementation 'io.evitadb:evita_external_api_graphql:0.8.ALPHA'
 <dependency>
     <groupId>io.evitadb</groupId>
     <artifactId>evita_external_api_rest</artifactId>
-    <version>0.8.ALPHA</version>
+    <version>2024.8.4</version>
     <type>pom</type>
 </dependency>
 ```
 </CodeTabsBlock>
 <CodeTabsBlock>
 ```Gradle
-implementation 'io.evitadb:evita_external_api_rest:0.8.ALPHA'
+implementation 'io.evitadb:evita_external_api_rest:2024.8.4'
 ```
 </CodeTabsBlock>
 </CodeTabs>
@@ -166,7 +166,7 @@ The evitaDB web APIs are maintained by a separate class <SourceClass>evita_exter
 You must instantiate and configure this class and pass it a reference to the
 <SourceClass>evita_engine/src/main/java/io/evitadb/core/Evita.java</SourceClass> instance:
 
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/server-startup.java" local>    
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/server-startup.java" local>
 [Example of web API startup in Java](/documentation/user/en/get-started/example/api-startup.java)
 </SourceCodeTabs>
 
@@ -175,7 +175,7 @@ Don't forget to close the APIs when your application ends by calling the `close`
 the <SourceClass>evita_external_api/evita_external_api_core/src/main/java/io/evitadb/externalApi/http/ExternalApiServer.java</SourceClass>
 instance. One of the options is to listen to Java process termination:
 
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/api-startup.java" local>    
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/api-startup.java" local>
 [Example of web API teardown in Java](/documentation/user/en/get-started/example/server-teardown.java)
 </SourceCodeTabs>
 
@@ -185,14 +185,14 @@ You should see the following information logged to the console when you start th
 
 ```plain
 Root CA Certificate fingerprint:        CERTIFICATE AUTHORITY FINGERPRINT
-API `gRPC` listening on                 https://your-domain:5556/
+API `gRPC` listening on                 https://your-domain:5555/
 API `graphQL` listening on              https://your-domain:5555/gql/
 API `rest` listening on                 https://your-domain:5555/rest/
-API `system` listening on               http://your-domain:5557/system/
+API `system` listening on               http://your-domain:5555/system/
 ```
 
-</LanguageSpecific>
-<LanguageSpecific to="evitaql,graphql,rest,csharp">
+</LS>
+<LS to="e,g,r,c">
 
 ### Install Docker
 
@@ -207,26 +207,27 @@ You can do both in one command using `docker run`. This is the easiest way to ru
 
 ```shell
 # Linux variant: run on foreground, destroy container after exit, use host ports without NAT
-docker run --name evitadb -i --rm --net=host \ 
-index.docker.io/evitadb/evitadb:latest
+docker run --name evitadb -i --rm --net=host \
+       -e "EVITA_ARGS=api.exposedOn=localhost" \
+       index.docker.io/evitadb/evitadb:latest
 
-# Windows / MacOS: there is open issue https://github.com/docker/roadmap/issues/238 
+# Windows / MacOS: there is open issue https://github.com/docker/roadmap/issues/238
 # and you need to open ports manually and propagate host IP address to the container
-docker run --name evitadb -i --rm -p 5555:5555 -p 5556:5556 -p 5557:5557 \
-       -e "api.exposedOn=localhost" \ 
+docker run --name evitadb -i --rm -p 5555:5555 \
+       -e "EVITA_ARGS=api.exposedOn=localhost" \
        index.docker.io/evitadb/evitadb:latest
 ```
 
 When you start the evitaDB server you should see the following information in the console output:
 
 ```plain
-            _ _        ____  ____  
-  _____   _(_) |_ __ _|  _ \| __ ) 
- / _ \ \ / / | __/ _` | | | |  _ \ 
+            _ _        ____  ____
+  _____   _(_) |_ __ _|  _ \| __ )
+ / _ \ \ / / | __/ _` | | | |  _ \
 |  __/\ V /| | || (_| | |_| | |_) |
- \___| \_/ |_|\__\__,_|____/|____/ 
+ \___| \_/ |_|\__\__,_|____/|____/
 
-alpha build 0.9-SNAPSHOT (keep calm and report bugs 😉)
+beta build 2024.8.4 (keep calm and report bugs 😉)
 Visit us at: https://evitadb.io
 
 Log config used: META-INF/logback.xml
@@ -237,13 +238,13 @@ Server name: evitaDB-a22be76c5dbd8c33
 Root CA Certificate fingerprint:        8A:78:A6:ED:E9:D6:83:0F:8D:99:A6:F2:1A:D5:41:B9:12:40:24:67:55:84:2C:4A:65:F7:B5:E7:33:00:35:9C
 API `graphQL` listening on              https://localhost:5555/gql/
 API `rest` listening on                 https://localhost:5555/rest/
-API `gRPC` listening on                 https://localhost:5556/
-API `system` listening on               http://localhost:5557/system/
-   - server name served at:             http://localhost:5557/system/server-name
-   - CA certificate served at:          http://localhost:5557/system/evitaDB-CA-selfSigned.crt
-   - server certificate served at:      http://localhost:5557/system/server.crt
-   - client certificate served at:      http://localhost:5557/system/client.crt
-   - client private key served at:      http://localhost:5557/system/client.key
+API `gRPC` listening on                 https://localhost:5555/
+API `system` listening on               http://localhost:5555/system/
+   - server name served at:             http://localhost:5555/system/server-name
+   - CA certificate served at:          http://localhost:5555/system/evitaDB-CA-selfSigned.crt
+   - server certificate served at:      http://localhost:5555/system/server.crt
+   - client certificate served at:      http://localhost:5555/system/client.crt
+   - client private key served at:      http://localhost:5555/system/client.key
 
 ************************* WARNING!!! *************************
 You use mTLS with automatically generated client certificate.
@@ -256,8 +257,8 @@ API `lab` listening on                  https://localhost:5555/lab/
 
 More information about running evitaDB Server in Docker is available in the [separate chapter](../operate/run.md).
 
-</LanguageSpecific>
+</LS>
 
 ## What's next?
 
-You may want to [create your first database](create-first-database.md) or [play with our dataset](query-our-dataset.md). 
+You may want to [create your first database](create-first-database.md) or [play with our dataset](query-our-dataset.md).

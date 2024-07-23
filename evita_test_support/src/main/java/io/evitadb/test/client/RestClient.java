@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -24,15 +24,16 @@
 package io.evitadb.test.client;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
+import okhttp3.MediaType;
+import okhttp3.Request;
+import okhttp3.RequestBody;
+import okhttp3.Response;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
-import java.net.HttpURLConnection;
-import java.net.URISyntaxException;
-import java.net.URL;
 import java.util.Optional;
 
 /**
@@ -42,56 +43,51 @@ import java.util.Optional;
  */
 public class RestClient extends ApiClient {
 
-	public RestClient(@Nonnull String url) {
-		super(url);
-	}
-
-	public RestClient(@Nonnull String url, boolean validateSsl) {
-		super(url, validateSsl);
+	public RestClient(@Nonnull String url, boolean validateSsl, boolean useConnectionPool) {
+		super(url, validateSsl, useConnectionPool);
 	}
 
 	@Nullable
 	public Optional<JsonNode> call(@Nonnull String method, @Nonnull String resource, @Nullable String body) {
-		HttpURLConnection connection = null;
-		try {
-			connection = createConnection(method, resource);
-			if (body != null && !body.isBlank()) {
-				writeRequestBody(connection, body);
-			}
+		final Request request = createRequest(method, resource, body);
 
-			connection.connect();
-
-			final int responseCode = connection.getResponseCode();
+		try (Response response = client.newCall(request).execute()) {
+			final int responseCode = response.code();
 			if (responseCode == 200) {
-				return Optional.of(readResponseBody(connection.getInputStream()));
+				final JsonNode responseBody = readResponseBody(response.body());
+				validateResponseBody(responseBody);
+
+				return Optional.of(responseBody);
 			}
 			if (responseCode == 404) {
 				return Optional.empty();
 			}
 			if (responseCode >= 400 && responseCode <= 499) {
-				final JsonNode errorResponse = readResponseBody(connection.getErrorStream());
-				final String errorResponseString = objectMapper.writeValueAsString(errorResponse);
-				throw new EvitaInternalError("Call to REST server `" + this.url + resource + "` ended with status " + responseCode + " and response: \n" + errorResponseString);
+				final String errorResponseString = response.body() != null ? response.body().string() : "no response body";
+				throw new GenericEvitaInternalError("Call to REST server `" + this.url + resource + "` ended with status " + responseCode + " and response: \n" + errorResponseString);
 			}
 
-			throw new EvitaInternalError("Call to REST server `" + this.url + resource + "` ended with status " + responseCode);
-		} catch (IOException | URISyntaxException e) {
-			throw new EvitaInternalError("Unexpected error.", e);
-		} finally {
-			if (connection != null) {
-				connection.disconnect();
-			}
+			throw new GenericEvitaInternalError("Call to REST server `" + this.url + resource + "` ended with status " + responseCode);
+		} catch (IOException e) {
+			throw new GenericEvitaInternalError("Unexpected error.", e);
 		}
 	}
 
 	@Nonnull
-	private  HttpURLConnection createConnection(@Nonnull String method, @Nonnull String resource) throws IOException, URISyntaxException {
-		final URL url = new URL(this.url + resource);
-		final HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-		connection.setRequestProperty("Accept", "application/json");
-		connection.setRequestProperty("Content-Type", "application/json");
-		connection.setRequestMethod(method);
-		connection.setDoOutput(true);
-		return connection;
+	private Request createRequest(@Nonnull String method, @Nonnull String resource, @Nullable String body) {
+		return new Request.Builder()
+			.url(this.url + resource)
+			.addHeader("Accept", "application/json")
+			.addHeader("Content-Type", "application/json")
+			.method(method, body != null && !body.isBlank() ? RequestBody.create(body, MediaType.parse("application/json")) : null)
+			.build();
+
+	}
+
+	private static void validateResponseBody(@Nonnull JsonNode responseBody) {
+		Assert.isPremiseValid(
+			responseBody != null && !responseBody.isNull(),
+			"Call to REST server ended with empty data."
+		);
 	}
 }

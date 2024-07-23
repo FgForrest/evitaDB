@@ -1,0 +1,33 @@
+receivers:
+  otlp:
+    protocols:
+      http:
+        include_metadata: true
+        cors:
+          allowed_origins:
+            - "*"
+          allowed_headers:
+            - "*"
+          max_age: 7200
+  filelog:
+    include: [ "/tmp/evita-temp/*.log" ]
+    start_at: beginning
+
+exporters:
+  otlp:
+    endpoint: host.docker.internal:4317
+    tls:
+      insecure: true
+  logging:
+    loglevel: debug
+  loki:
+    endpoint: "http://loki:3100"
+
+service:
+  pipelines:
+    traces:
+      receivers: [ otlp ]
+      exporters: [ otlp, logging ]
+    logs:
+      receivers: [ filelog ]
+      exporters: [ loki ]

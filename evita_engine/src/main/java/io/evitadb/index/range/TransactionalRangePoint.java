@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,19 +23,18 @@
 
 package io.evitadb.index.range;
 
-import io.evitadb.core.Transaction;
+import io.evitadb.core.transaction.memory.TransactionalCreatorMaintainer;
+import io.evitadb.core.transaction.memory.TransactionalLayerCreator;
+import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
+import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
 import io.evitadb.index.array.TransactionalObject;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
-import io.evitadb.index.transactionalMemory.TransactionalCreatorMaintainer;
-import io.evitadb.index.transactionalMemory.TransactionalLayerCreator;
-import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
-import io.evitadb.index.transactionalMemory.VoidTransactionMemoryProducer;
+import io.evitadb.index.bool.TransactionalBoolean;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
@@ -59,24 +58,31 @@ import java.util.Objects;
 @EqualsAndHashCode(of = "threshold")
 public class TransactionalRangePoint implements TransactionalObject<TransactionalRangePoint, Void>, VoidTransactionMemoryProducer<TransactionalRangePoint>, RangePoint<TransactionalRangePoint>, TransactionalCreatorMaintainer, Serializable {
 	@Serial private static final long serialVersionUID = -7357845800177404940L;
+	/**
+	 * This is internal flag that tracks whether the index contents became dirty and needs to be persisted.
+	 */
+	private final TransactionalBoolean dirty;
 	@Getter private final long threshold;
 	@Getter private TransactionalBitmap starts = new TransactionalBitmap();
 	@Getter private TransactionalBitmap ends = new TransactionalBitmap();
 
 	public TransactionalRangePoint(long threshold) {
 		this.threshold = threshold;
+		this.dirty = new TransactionalBoolean();
 	}
 
 	public TransactionalRangePoint(long threshold, int[] starts, int[] ends) {
 		this.threshold = threshold;
 		this.starts = new TransactionalBitmap(starts);
 		this.ends = new TransactionalBitmap(ends);
+		this.dirty = new TransactionalBoolean();
 	}
 
 	public TransactionalRangePoint(long threshold, Bitmap starts, Bitmap ends) {
 		this.threshold = threshold;
 		this.starts = new TransactionalBitmap(starts);
 		this.ends = new TransactionalBitmap(ends);
+		this.dirty = new TransactionalBoolean();
 	}
 
 	/**
@@ -84,6 +90,7 @@ public class TransactionalRangePoint implements TransactionalObject<Transactiona
 	 */
 	public void addStart(int recordId) {
 		this.starts.add(recordId);
+		this.dirty.setToTrue();
 	}
 
 	/**
@@ -91,6 +98,7 @@ public class TransactionalRangePoint implements TransactionalObject<Transactiona
 	 */
 	public void addEnd(int recordId) {
 		this.ends.add(recordId);
+		this.dirty.setToTrue();
 	}
 
 	/**
@@ -98,6 +106,7 @@ public class TransactionalRangePoint implements TransactionalObject<Transactiona
 	 */
 	public void addStarts(int[] recordIds) {
 		this.starts.addAll(recordIds);
+		this.dirty.setToTrue();
 	}
 
 	/**
@@ -105,6 +114,7 @@ public class TransactionalRangePoint implements TransactionalObject<Transactiona
 	 */
 	public void addEnds(int[] recordIds) {
 		this.ends.addAll(recordIds);
+		this.dirty.setToTrue();
 	}
 
 	/**
@@ -112,6 +122,7 @@ public class TransactionalRangePoint implements TransactionalObject<Transactiona
 	 */
 	public void removeStarts(int[] recordIds) {
 		this.starts.removeAll(recordIds);
+		this.dirty.setToTrue();
 	}
 
 	/**
@@ -119,6 +130,7 @@ public class TransactionalRangePoint implements TransactionalObject<Transactiona
 	 */
 	public void removeEnds(int[] recordIds) {
 		this.ends.removeAll(recordIds);
+		this.dirty.setToTrue();
 	}
 
 	/**
@@ -148,23 +160,29 @@ public class TransactionalRangePoint implements TransactionalObject<Transactiona
 	@Override
 	public Collection<TransactionalLayerCreator<?>> getMaintainedTransactionalCreators() {
 		return Arrays.asList(
-			this.starts, this.ends
+			this.dirty, this.starts, this.ends
 		);
 	}
 
 	@Nonnull
 	@Override
-	public TransactionalRangePoint createCopyWithMergedTransactionalMemory(Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Transaction transaction) {
-		return new TransactionalRangePoint(
-			threshold,
-			transactionalLayer.getStateCopyWithCommittedChanges(starts, transaction),
-			transactionalLayer.getStateCopyWithCommittedChanges(ends, transaction)
-		);
+	public TransactionalRangePoint createCopyWithMergedTransactionalMemory(Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
+		final Boolean isDirty = transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
+		if (isDirty) {
+			return new TransactionalRangePoint(
+				threshold,
+				transactionalLayer.getStateCopyWithCommittedChanges(starts),
+				transactionalLayer.getStateCopyWithCommittedChanges(ends)
+			);
+		} else {
+			return this;
+		}
 	}
 
 	@Override
 	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
+		this.dirty.removeLayer(transactionalLayer);
 		this.starts.removeLayer(transactionalLayer);
 		this.ends.removeLayer(transactionalLayer);
 	}

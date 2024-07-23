@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -63,6 +63,7 @@ import java.util.stream.Collectors;
 public class GraphQLQueryConverter {
 
 	private static final String DEFAULT_CATALOG_NAME = "evita";
+	@Nonnull private static final GraphQLInputJsonPrinter INPUT_JSON_PRINTER = new GraphQLInputJsonPrinter();
 
 	@Nonnull private final Set<Class<? extends Constraint<?>>> allowedRequireConstraints = Set.of(
 		Require.class,
@@ -71,7 +72,6 @@ public class GraphQLQueryConverter {
 		FacetGroupsNegation.class,
 		PriceType.class
 	);
-	@Nonnull private final GraphQLInputJsonPrinter inputJsonPrinter = new GraphQLInputJsonPrinter();
 
 	@Nullable private final EvitaContract evita;
 
@@ -115,14 +115,12 @@ public class GraphQLQueryConverter {
 		if (query.getFilterBy() != null) {
 			rootConstraints.add(
 				filterConstraintToJsonConverter.convert(new EntityDataLocator(entityType), query.getFilterBy())
-					.filter(it -> !it.value().isEmpty())
 					.orElseThrow(() -> new IllegalStateException("Root JSON filter constraint cannot be null if original query has filter constraint."))
 			);
 		}
 		if (query.getOrderBy() != null) {
 			rootConstraints.add(
 				orderConstraintToJsonConverter.convert(new GenericDataLocator(entityType), query.getOrderBy())
-					.filter(it -> !it.value().isEmpty())
 					.orElseThrow(() -> new IllegalStateException("Root JSON order constraint cannot be null if original query has order constraint."))
 			);
 		}
@@ -134,7 +132,7 @@ public class GraphQLQueryConverter {
 
 		return rootConstraints.stream()
 			.filter(Objects::nonNull)
-			.map(it -> it.key() + ": " + inputJsonPrinter.print(it.value()))
+			.map(it -> it.key() + ": " + INPUT_JSON_PRINTER.print(it.value()))
 			.collect(Collectors.joining(",\n"))
 			.lines()
 			.map(it -> "    " + it)
@@ -144,13 +142,13 @@ public class GraphQLQueryConverter {
 	@Nonnull
 	private String convertOutputFields(@Nonnull CatalogSchemaContract catalogSchema,
 	                                   @Nonnull Query query) {
-		final EntityFetchConverter entityFetchConverter = new EntityFetchConverter(catalogSchema, query, inputJsonPrinter);
-		final RecordsConverter recordsConverter = new RecordsConverter(catalogSchema, query, inputJsonPrinter);
-		final FacetSummaryConverter facetSummaryConverter = new FacetSummaryConverter(catalogSchema, query, inputJsonPrinter);
-		final HierarchyOfConverter hierarchyOfConverter = new HierarchyOfConverter(catalogSchema, query, inputJsonPrinter);
-		final AttributeHistogramConverter attributeHistogramConverter = new AttributeHistogramConverter(catalogSchema, query, inputJsonPrinter);
-		final PriceHistogramConverter priceHistogramConverter = new PriceHistogramConverter(catalogSchema, query, inputJsonPrinter);
-		final QueryTelemetryConverter queryTelemetryConverter = new QueryTelemetryConverter(catalogSchema, query, inputJsonPrinter);
+		final EntityFetchConverter entityFetchConverter = new EntityFetchConverter(catalogSchema, query);
+		final RecordsConverter recordsConverter = new RecordsConverter(catalogSchema, query);
+		final FacetSummaryConverter facetSummaryConverter = new FacetSummaryConverter(catalogSchema, query);
+		final HierarchyOfConverter hierarchyOfConverter = new HierarchyOfConverter(catalogSchema, query);
+		final AttributeHistogramConverter attributeHistogramConverter = new AttributeHistogramConverter(catalogSchema, query);
+		final PriceHistogramConverter priceHistogramConverter = new PriceHistogramConverter(catalogSchema, query);
+		final QueryTelemetryConverter queryTelemetryConverter = new QueryTelemetryConverter(catalogSchema, query);
 
 		final String entityType = query.getCollection().getEntityType();
 		final Locale locale = Optional.ofNullable(query.getFilterBy())
@@ -171,11 +169,12 @@ public class GraphQLQueryConverter {
 			final Page page = QueryUtils.findConstraint(require, Page.class, SeparateEntityContentRequireContainer.class);
 			final Strip strip = QueryUtils.findConstraint(require, Strip.class, SeparateEntityContentRequireContainer.class);
 			final List<Constraint<?>> extraResultConstraints = QueryUtils.findConstraints(require, c -> c instanceof ExtraResultRequireConstraint);
+			final QueryTelemetry queryTelemetry = QueryUtils.findConstraint(require, QueryTelemetry.class);
 
 			recordsConverter.convert(fieldsBuilder, entityType, locale, entityFetch, page, strip, !extraResultConstraints.isEmpty());
 
 			// build extra results
-			if (!extraResultConstraints.isEmpty()) {
+			if (!extraResultConstraints.isEmpty() || queryTelemetry != null) {
 				fieldsBuilder.addObjectField(ResponseDescriptor.EXTRA_RESULTS, extraResultsBuilder -> {
 					facetSummaryConverter.convert(
 						extraResultsBuilder,
@@ -203,8 +202,8 @@ public class GraphQLQueryConverter {
 					Optional.ofNullable(QueryUtils.findConstraint(require, PriceHistogram.class))
 						.ifPresent(priceHistogram -> priceHistogramConverter.convert(extraResultsBuilder, priceHistogram));
 
-					Optional.ofNullable(QueryUtils.findConstraint(require, QueryTelemetry.class))
-						.ifPresent(queryTelemetry -> queryTelemetryConverter.convert(extraResultsBuilder, queryTelemetry));
+					Optional.ofNullable(queryTelemetry)
+						.ifPresent(it -> queryTelemetryConverter.convert(extraResultsBuilder, it));
 				});
 			}
 		}

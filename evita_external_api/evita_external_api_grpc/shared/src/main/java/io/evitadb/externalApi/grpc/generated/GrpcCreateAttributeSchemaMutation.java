@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -45,6 +45,7 @@ private static final long serialVersionUID = 0L;
   }
   private GrpcCreateAttributeSchemaMutation() {
     name_ = "";
+    unique_ = 0;
     type_ = 0;
   }
 
@@ -111,8 +112,9 @@ private static final long serialVersionUID = 0L;
             break;
           }
           case 32: {
+            int rawValue = input.readEnum();
 
-            unique_ = input.readBool();
+            unique_ = rawValue;
             break;
           }
           case 40: {
@@ -325,19 +327,32 @@ private static final long serialVersionUID = 0L;
   }
 
   public static final int UNIQUE_FIELD_NUMBER = 4;
-  private boolean unique_;
+  private int unique_;
   /**
    * <pre>
    * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
    * having certain value of this attribute among other entities in the same collection.
    * </pre>
    *
-   * <code>bool unique = 4;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 4;</code>
+   * @return The enum numeric value on the wire for unique.
+   */
+  @java.lang.Override public int getUniqueValue() {
+    return unique_;
+  }
+  /**
+   * <pre>
+   * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
+   * having certain value of this attribute among other entities in the same collection.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 4;</code>
    * @return The unique.
    */
-  @java.lang.Override
-  public boolean getUnique() {
-    return unique_;
+  @java.lang.Override public io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType getUnique() {
+    @SuppressWarnings("deprecation")
+    io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType result = io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType.valueOf(unique_);
+    return result == null ? io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType.UNRECOGNIZED : result;
   }
 
   public static final int FILTERABLE_FIELD_NUMBER = 5;
@@ -534,8 +549,8 @@ private static final long serialVersionUID = 0L;
     if (deprecationNotice_ != null) {
       output.writeMessage(3, getDeprecationNotice());
     }
-    if (unique_ != false) {
-      output.writeBool(4, unique_);
+    if (unique_ != io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType.NOT_UNIQUE.getNumber()) {
+      output.writeEnum(4, unique_);
     }
     if (filterable_ != false) {
       output.writeBool(5, filterable_);
@@ -581,9 +596,9 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(3, getDeprecationNotice());
     }
-    if (unique_ != false) {
+    if (unique_ != io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType.NOT_UNIQUE.getNumber()) {
       size += com.google.protobuf.CodedOutputStream
-        .computeBoolSize(4, unique_);
+        .computeEnumSize(4, unique_);
     }
     if (filterable_ != false) {
       size += com.google.protobuf.CodedOutputStream
@@ -644,8 +659,7 @@ private static final long serialVersionUID = 0L;
       if (!getDeprecationNotice()
           .equals(other.getDeprecationNotice())) return false;
     }
-    if (getUnique()
-        != other.getUnique()) return false;
+    if (unique_ != other.unique_) return false;
     if (getFilterable()
         != other.getFilterable()) return false;
     if (getSortable()
@@ -686,8 +700,7 @@ private static final long serialVersionUID = 0L;
       hash = (53 * hash) + getDeprecationNotice().hashCode();
     }
     hash = (37 * hash) + UNIQUE_FIELD_NUMBER;
-    hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
-        getUnique());
+    hash = (53 * hash) + unique_;
     hash = (37 * hash) + FILTERABLE_FIELD_NUMBER;
     hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
         getFilterable());
@@ -863,7 +876,7 @@ private static final long serialVersionUID = 0L;
         deprecationNotice_ = null;
         deprecationNoticeBuilder_ = null;
       }
-      unique_ = false;
+      unique_ = 0;
 
       filterable_ = false;
 
@@ -993,8 +1006,8 @@ private static final long serialVersionUID = 0L;
       if (other.hasDeprecationNotice()) {
         mergeDeprecationNotice(other.getDeprecationNotice());
       }
-      if (other.getUnique() != false) {
-        setUnique(other.getUnique());
+      if (other.unique_ != 0) {
+        setUniqueValue(other.getUniqueValue());
       }
       if (other.getFilterable() != false) {
         setFilterable(other.getFilterable());
@@ -1473,18 +1486,17 @@ private static final long serialVersionUID = 0L;
       return deprecationNoticeBuilder_;
     }
 
-    private boolean unique_ ;
+    private int unique_ = 0;
     /**
      * <pre>
      * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
      * having certain value of this attribute among other entities in the same collection.
      * </pre>
      *
-     * <code>bool unique = 4;</code>
-     * @return The unique.
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 4;</code>
+     * @return The enum numeric value on the wire for unique.
      */
-    @java.lang.Override
-    public boolean getUnique() {
+    @java.lang.Override public int getUniqueValue() {
       return unique_;
     }
     /**
@@ -1493,11 +1505,11 @@ private static final long serialVersionUID = 0L;
      * having certain value of this attribute among other entities in the same collection.
      * </pre>
      *
-     * <code>bool unique = 4;</code>
-     * @param value The unique to set.
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 4;</code>
+     * @param value The enum numeric value on the wire for unique to set.
      * @return This builder for chaining.
      */
-    public Builder setUnique(boolean value) {
+    public Builder setUniqueValue(int value) {
 
       unique_ = value;
       onChanged();
@@ -1509,12 +1521,46 @@ private static final long serialVersionUID = 0L;
      * having certain value of this attribute among other entities in the same collection.
      * </pre>
      *
-     * <code>bool unique = 4;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 4;</code>
+     * @return The unique.
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType getUnique() {
+      @SuppressWarnings("deprecation")
+      io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType result = io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType.valueOf(unique_);
+      return result == null ? io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType.UNRECOGNIZED : result;
+    }
+    /**
+     * <pre>
+     * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
+     * having certain value of this attribute among other entities in the same collection.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 4;</code>
+     * @param value The unique to set.
+     * @return This builder for chaining.
+     */
+    public Builder setUnique(io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType value) {
+      if (value == null) {
+        throw new NullPointerException();
+      }
+
+      unique_ = value.getNumber();
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
+     * having certain value of this attribute among other entities in the same collection.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 4;</code>
      * @return This builder for chaining.
      */
     public Builder clearUnique() {
 
-      unique_ = false;
+      unique_ = 0;
       onChanged();
       return this;
     }

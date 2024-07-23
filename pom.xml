@@ -7,13 +7,13 @@
   ~             |  __/\ V /| | || (_| | |_| | |_) |
   ~              \___| \_/ |_|\__\__,_|____/|____/
   ~
-  ~   Copyright (c) 2023
+  ~   Copyright (c) 2023-2024
   ~
   ~   Licensed under the Business Source License, Version 1.1 (the "License");
   ~   you may not use this file except in compliance with the License.
   ~   You may obtain a copy of the License at
   ~
-  ~   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+  ~   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
   ~
   ~   Unless required by applicable law or agreed to in writing, software
   ~   distributed under the License is distributed on an "AS IS" BASIS,
@@ -21,12 +21,11 @@
   ~   See the License for the specific language governing permissions and
   ~   limitations under the License.
   -->
-
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>io.evitadb</groupId>
 	<artifactId>evita_root</artifactId>
-	<version>0.10-SNAPSHOT</version>
+	<version>2024.9-SNAPSHOT</version>
 	<packaging>pom</packaging>
 	<name>evitaDB - Root &amp; modules aggregator</name>
 	<url>https://evitadb.io</url>
@@ -97,28 +96,28 @@
 
 	<organization>
 		<name>FG Forrest, a.s.</name>
-		<url>http://www.fg.cz</url>
+		<url>https://www.fg.cz</url>
 	</organization>
 
 	<properties>
 		<java.version>17</java.version>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-		<slf4j.version>2.0.7</slf4j.version>
-		<logback.version>1.4.11</logback.version>
+		<slf4j.version>2.0.12</slf4j.version>
+		<logback.version>1.5.3</logback.version>
 		<kryo.version>5.0.3</kryo.version>
 		<jackson.version>2.15.2</jackson.version>
 		<snakeyaml.version>2.2</snakeyaml.version>
-		<roaringbitmap.version>1.0.0</roaringbitmap.version>
-		<junit.jupiter.version>5.10.0</junit.jupiter.version>
+		<roaringbitmap.version>1.0.1</roaringbitmap.version>
+		<junit.jupiter.version>5.10.2</junit.jupiter.version>
 		<maven.compiler.version>3.10.1</maven.compiler.version>
 		<maven.toolchains.version>3.0.0</maven.toolchains.version>
-		<jboss.version>3.5.0.Final</jboss.version>
-		<lombok.version>1.18.24</lombok.version>
-		<grpc.version>1.59.0</grpc.version>
-		<bouncyCastle.version>1.70</bouncyCastle.version>
-		<!--Compatible versions with gRPC could be found here: https://github.com/grpc/grpc-java/blob/master/SECURITY.md#netty -->
-		<nettyHandler.version>4.1.100.Final</nettyHandler.version>
+		<lombok.version>1.18.30</lombok.version>
+		<grpc.version>1.63.0</grpc.version>
+		<bouncyCastle.version>1.78</bouncyCastle.version>
 		<swagger.version>2.2.15</swagger.version>
+		<armeria.version>1.28.4</armeria.version>
+		<prometheus.version>1.3.1</prometheus.version>
+		<byteBuddy.version>1.14.17</byteBuddy.version>
 	</properties>
 
 	<modules>
@@ -157,6 +156,11 @@
 				<groupId>one.edee.oss</groupId>
 				<artifactId>proxycian_bytebuddy</artifactId>
 				<version>1.3.10</version>
+			</dependency>
+			<dependency>
+				<groupId>com.squareup.okhttp3</groupId>
+				<artifactId>okhttp</artifactId>
+				<version>5.0.0-alpha.14</version>
 			</dependency>
 			<dependency>
 				<groupId>org.apache.maven.plugins</groupId>
@@ -222,6 +226,16 @@
 				<groupId>org.jboss.threads</groupId>
 				<artifactId>jboss-threads</artifactId>
 				<version>${jboss.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>org.jboss.xnio</groupId>
+				<artifactId>xnio-api</artifactId>
+				<version>${xnio.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>org.jboss.xnio</groupId>
+				<artifactId>xnio-nio</artifactId>
+				<version>${xnio.version}</version>
 			</dependency>
 			<dependency>
 				<groupId>commons-io</groupId>
@@ -425,8 +439,6 @@
 					<compilerVersion>${java.version}</compilerVersion>
 					<compilerArgs>
 						<arg>-parameters</arg>
-						<arg>--add-exports</arg>
-						<arg>ch.qos.logback.core/ch.qos.logback.core.hook=evita.server</arg>
 					</compilerArgs>
 					<annotationProcessorPaths>
 						<path>

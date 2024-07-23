@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -26,8 +26,10 @@ package io.evitadb.externalApi.rest.api.catalog.schemaApi.resolver.endpoint;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.CollectionRestHandlingContext;
 import io.evitadb.externalApi.rest.api.catalog.schemaApi.resolver.serializer.EntitySchemaJsonSerializer;
+import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.externalApi.rest.io.JsonRestHandler;
-import io.evitadb.externalApi.rest.io.RestEndpointExchange;
+import io.evitadb.externalApi.rest.io.RestEndpointExecutionContext;
+import io.evitadb.utils.Assert;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -39,7 +41,7 @@ import java.util.LinkedHashSet;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @Slf4j
-public abstract class EntitySchemaHandler extends JsonRestHandler<EntitySchemaContract, CollectionRestHandlingContext> {
+public abstract class EntitySchemaHandler extends JsonRestHandler<CollectionRestHandlingContext> {
 
 	@Nonnull
 	private final EntitySchemaJsonSerializer entitySchemaJsonSerializer;
@@ -57,9 +59,13 @@ public abstract class EntitySchemaHandler extends JsonRestHandler<EntitySchemaCo
 
 	@Nonnull
 	@Override
-	protected Object convertResultIntoSerializableObject(@Nonnull RestEndpointExchange exchange, @Nonnull EntitySchemaContract entitySchema) {
+	protected Object convertResultIntoSerializableObject(@Nonnull RestEndpointExecutionContext exchange, @Nonnull Object entitySchema) {
+		Assert.isPremiseValid(
+			entitySchema instanceof EntitySchemaContract,
+			() -> new RestInternalError("Entity schema must be instance of EntitySchemaContract, but was `" + entitySchema.getClass().getName() + "`.")
+		);
 		return entitySchemaJsonSerializer.serialize(
-			entitySchema,
+			(EntitySchemaContract) entitySchema,
 			exchange.session()::getEntitySchemaOrThrow
 		);
 	}

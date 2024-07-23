@@ -1,0 +1,13 @@
+query(
+    collection("Product"),
+    filterBy(
+        priceInPriceLists("management-price", "employee-basic-price", "basic"),
+        priceInCurrency("EUR")
+    ),
+    require(
+      entityFetch(
+        attributeContent("code"),
+        priceContentRespectingFilter()
+      )
+    )
+)

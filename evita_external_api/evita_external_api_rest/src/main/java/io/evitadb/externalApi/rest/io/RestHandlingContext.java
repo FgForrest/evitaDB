@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -25,9 +25,10 @@ package io.evitadb.externalApi.rest.io;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.evitadb.core.Evita;
+import io.evitadb.externalApi.trace.ExternalApiTracingContextProvider;
+import io.evitadb.externalApi.utils.ExternalApiTracingContext;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.Operation;
-import lombok.AllArgsConstructor;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -44,7 +45,7 @@ public class RestHandlingContext {
 	@Nonnull @Getter protected final ObjectMapper objectMapper;
 
 	@Nonnull @Getter protected final Evita evita;
-	@Nonnull @Getter protected final RestClientContext clientContext;
+	@Nonnull @Getter protected final ExternalApiTracingContext<Object> tracingContext;
 
 	@Nonnull @Getter private final OpenAPI openApi;
 	@Nonnull @Getter private final Map<String, Class<? extends Enum<?>>> enumMapping;
@@ -60,7 +61,7 @@ public class RestHandlingContext {
 	                           boolean localized) {
 		this.objectMapper = objectMapper;
 		this.evita = evita;
-		this.clientContext = new RestClientContext(evita);
+		this.tracingContext = ExternalApiTracingContextProvider.getContext();
 		this.openApi = openApi;
 		this.enumMapping = enumMapping;
 		this.endpointOperation = endpointOperation;

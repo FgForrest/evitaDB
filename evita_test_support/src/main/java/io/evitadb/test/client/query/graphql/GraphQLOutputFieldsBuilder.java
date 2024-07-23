@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,21 +23,17 @@
 
 package io.evitadb.test.client.query.graphql;
 
-import io.evitadb.dataType.EvitaDataTypes;
+import com.fasterxml.jackson.databind.JsonNode;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import io.evitadb.test.client.query.ObjectJsonSerializer;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.io.Serializable;
-import java.util.Arrays;
-import java.util.Collection;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -72,7 +68,7 @@ public class GraphQLOutputFieldsBuilder {
 		if (arguments.length == 0) {
 			lines.add(getCurrentIndentation() + fieldName);
 		} else if (arguments.length == 1) {
-			final Argument argument = arguments[0].apply(offset + level + 1);
+			final Argument argument = arguments[0].apply(offset + level + 1, false);
 			final String serializedArgument = argument.toString();
 			if (serializedArgument.contains("\n")) {
 				lines.add(getCurrentIndentation() + fieldName + "(");
@@ -87,7 +83,7 @@ public class GraphQLOutputFieldsBuilder {
 			lines.add(getCurrentIndentation() + fieldName + "(");
 			level++;
 			for (ArgumentSupplier argumentSupplier : arguments) {
-				final Argument argument = argumentSupplier.apply(offset + level);
+				final Argument argument = argumentSupplier.apply(offset + level, true);
 				lines.add(argument.toString());
 			}
 			level--;
@@ -127,7 +123,7 @@ public class GraphQLOutputFieldsBuilder {
 		if (arguments.length == 0) {
 			lines.add(getCurrentIndentation() + (alias != null ? alias + ": " : "") + fieldName + " {");
 		} else if (arguments.length == 1) {
-			final Argument argument = arguments[0].apply(offset + level + 1);
+			final Argument argument = arguments[0].apply(offset + level + 1, false);
 			final String serializedArgument = argument.toString();
 			if (serializedArgument.contains("\n")) {
 				lines.add(getCurrentIndentation() + (alias != null ? alias + ": " : "") + fieldName + "(");
@@ -142,7 +138,7 @@ public class GraphQLOutputFieldsBuilder {
 			lines.add(getCurrentIndentation() + (alias != null ? alias + ": " : "") + fieldName + "(");
 			level++;
 			for (ArgumentSupplier argumentSupplier : arguments) {
-				final Argument argument = argumentSupplier.apply(offset + level);
+				final Argument argument = argumentSupplier.apply(offset + level, true);
 				lines.add(argument.toString());
 			}
 			level--;
@@ -172,23 +168,34 @@ public class GraphQLOutputFieldsBuilder {
 	}
 
 	@FunctionalInterface
-	public interface ArgumentSupplier extends Function<Integer, Argument> {}
+	public interface ArgumentSupplier extends BiFunction<Integer, Boolean, Argument> {}
 
 	public record Argument(@Nonnull PropertyDescriptor argumentDescriptor,
-	                       int multilineOffset,
+	                       int offset,
+						   boolean multipleArguments,
 	                       @Nonnull Object value) {
 		@Override
 		public String toString() {
-			final String serializedValue = INPUT_JSON_PRINTER.print(OBJECT_JSON_SERIALIZER.serializeObject(value));
-			return offsetMultilineArgument(multilineOffset, argumentDescriptor.name() + ": " + serializedValue);
+			final String serializedValue;
+			if (value instanceof JsonNode jsonNode) {
+				serializedValue = INPUT_JSON_PRINTER.print(jsonNode);
+			} else if (value.getClass().isEnum()) {
+				serializedValue = value.toString();
+			} else {
+				serializedValue = INPUT_JSON_PRINTER.print(OBJECT_JSON_SERIALIZER.serializeObject(value));
+			}
+			return offsetArgument(argumentDescriptor.name() + ": " + serializedValue);
 		}
 
 		@Nonnull
-		private String offsetMultilineArgument(int mutlilineOffset, @Nonnull String argument) {
-			if (argument.contains("\n") && mutlilineOffset > 0) {
+		private String offsetArgument(@Nonnull String argument) {
+			if (argument.contains("\n") && offset > 0) {
 				return argument.lines()
-					.map(line -> INDENTATION.repeat(mutlilineOffset) + line)
+					.map(line -> INDENTATION.repeat(offset) + line)
 					.collect(Collectors.joining("\n"));
+			}
+			if (multipleArguments) {
+				return INDENTATION.repeat(offset) + argument;
 			}
 			return argument;
 		}

@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -94,28 +94,58 @@ public interface GrpcCatalogSchemaOrBuilder extends
   com.google.protobuf.StringValueOrBuilder getDescriptionOrBuilder();
 
   /**
+   * <pre>
+   * set of evolution modes that allow to specify how strict is evitaDB when unknown information is presented to her
+   * for the first time. When no evolution mode is set, each violation of the catalog schema is
+   * reported by an exception. This behaviour can be changed by this evolution mode, however.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogEvolutionMode catalogEvolutionMode = 4;</code>
    * @return A list containing the catalogEvolutionMode.
    */
   java.util.List<io.evitadb.externalApi.grpc.generated.GrpcCatalogEvolutionMode> getCatalogEvolutionModeList();
   /**
+   * <pre>
+   * set of evolution modes that allow to specify how strict is evitaDB when unknown information is presented to her
+   * for the first time. When no evolution mode is set, each violation of the catalog schema is
+   * reported by an exception. This behaviour can be changed by this evolution mode, however.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogEvolutionMode catalogEvolutionMode = 4;</code>
    * @return The count of catalogEvolutionMode.
    */
   int getCatalogEvolutionModeCount();
   /**
+   * <pre>
+   * set of evolution modes that allow to specify how strict is evitaDB when unknown information is presented to her
+   * for the first time. When no evolution mode is set, each violation of the catalog schema is
+   * reported by an exception. This behaviour can be changed by this evolution mode, however.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogEvolutionMode catalogEvolutionMode = 4;</code>
    * @param index The index of the element to return.
    * @return The catalogEvolutionMode at the given index.
    */
   io.evitadb.externalApi.grpc.generated.GrpcCatalogEvolutionMode getCatalogEvolutionMode(int index);
   /**
+   * <pre>
+   * set of evolution modes that allow to specify how strict is evitaDB when unknown information is presented to her
+   * for the first time. When no evolution mode is set, each violation of the catalog schema is
+   * reported by an exception. This behaviour can be changed by this evolution mode, however.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogEvolutionMode catalogEvolutionMode = 4;</code>
    * @return A list containing the enum numeric values on the wire for catalogEvolutionMode.
    */
   java.util.List<java.lang.Integer>
   getCatalogEvolutionModeValueList();
   /**
+   * <pre>
+   * set of evolution modes that allow to specify how strict is evitaDB when unknown information is presented to her
+   * for the first time. When no evolution mode is set, each violation of the catalog schema is
+   * reported by an exception. This behaviour can be changed by this evolution mode, however.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogEvolutionMode catalogEvolutionMode = 4;</code>
    * @param index The index of the value to return.
    * @return The enum numeric value on the wire of catalogEvolutionMode at the given index.
@@ -210,4 +240,48 @@ public interface GrpcCatalogSchemaOrBuilder extends
 
   io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema getAttributesOrThrow(
       java.lang.String key);
+
+  /**
+   * <pre>
+   * Contains catalog name converted to different naming conventions.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 6;</code>
+   */
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant>
+      getNameVariantList();
+  /**
+   * <pre>
+   * Contains catalog name converted to different naming conventions.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 6;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcNameVariant getNameVariant(int index);
+  /**
+   * <pre>
+   * Contains catalog name converted to different naming conventions.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 6;</code>
+   */
+  int getNameVariantCount();
+  /**
+   * <pre>
+   * Contains catalog name converted to different naming conventions.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 6;</code>
+   */
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder>
+      getNameVariantOrBuilderList();
+  /**
+   * <pre>
+   * Contains catalog name converted to different naming conventions.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 6;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder getNameVariantOrBuilder(
+      int index);
 }

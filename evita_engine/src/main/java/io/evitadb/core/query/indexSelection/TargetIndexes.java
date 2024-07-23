@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -33,6 +33,7 @@ import lombok.Data;
 import javax.annotation.Nonnull;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Stream;
 
 /**
  * This data transfer object encapsulates set of {@link EntityIndex} that relate to specific {@link FilterConstraint}.
@@ -96,4 +97,19 @@ public class TargetIndexes<T extends Index<?>> {
 		return this.indexes.size() == 1 && this.indexes.get(0) instanceof CatalogIndex;
 	}
 
+	/**
+	 * Returns a stream of elements of the requested type from the indexes.
+	 *
+	 * @param requestedType the Class object representing the requested type of elements
+	 * @param <S> the type parameter for the requested elements
+	 * @return a Stream of elements of the requested type from the indexes
+	 * @throws NullPointerException if requestedType is null
+	 */
+	@Nonnull
+	public <S> Stream<S> getIndexStream(@Nonnull Class<S> requestedType) {
+		return this.indexes
+			.stream()
+			.filter(requestedType::isInstance)
+			.map(requestedType::cast);
+	}
 }

@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -25,16 +25,20 @@ package io.evitadb.externalApi;
 
 import io.evitadb.api.query.Query;
 import io.evitadb.api.requestResponse.EvitaResponse;
+import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.core.Evita;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import io.evitadb.test.Entities;
+import org.apache.commons.io.IOUtils;
 
 import javax.annotation.Nonnull;
+import java.io.IOException;
 import java.io.Serializable;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -58,6 +62,33 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 public interface ExternalApiFunctionTestsSupport {
+
+	default String readFromClasspath(String path) throws IOException {
+		return IOUtils.toString(
+			Objects.requireNonNull(ExternalApiFunctionTestsSupport.class.getClassLoader().getResourceAsStream(path)),
+			StandardCharsets.UTF_8
+		);
+	}
+
+	/**
+	 * Returns value of "random" value in the dataset.
+	 */
+	default AttributeValue getRandomAttributeValueObject(@Nonnull List<SealedEntity> originalProductEntities, @Nonnull String attributeName) {
+		return getRandomAttributeValueObject(originalProductEntities, attributeName, 10);
+	}
+
+	/**
+	 * Returns value of "random" value in the dataset.
+	 */
+	default AttributeValue getRandomAttributeValueObject(@Nonnull List<SealedEntity> originalProductEntities, @Nonnull String attributeName, int order) {
+		return originalProductEntities
+			.stream()
+			.flatMap(it -> it.getAttributeValues(attributeName).stream())
+			.filter(Objects::nonNull)
+			.skip(order)
+			.findFirst()
+			.orElseThrow(() -> new IllegalStateException("Failed to localize `" + attributeName + "` attribute!"));
+	}
 
 	/**
 	 * Returns value of "random" value in the dataset.
@@ -125,7 +156,7 @@ public interface ExternalApiFunctionTestsSupport {
 			.filter(filter)
 			.findFirst()
 			.map(SealedEntity::getPrimaryKey)
-			.orElseThrow(() -> new EvitaInternalError("No entity to test."));
+			.orElseThrow(() -> new GenericEvitaInternalError("No entity to test."));
 	}
 
 	default int findEntityWithPricePk(@Nonnull List<SealedEntity> originalProductEntities) {
@@ -276,7 +307,7 @@ public interface ExternalApiFunctionTestsSupport {
 					assertFalse(entities.isEmpty());
 				}
 				return entities.stream()
-					.peek(it -> validator.accept(it))
+					.peek(validator::accept)
 					.toList();
 			}
 		);
@@ -355,12 +386,12 @@ public interface ExternalApiFunctionTestsSupport {
 
 	@Nonnull
 	default String serializeStringArrayToQueryString(@Nonnull List<String> items) {
-		return Arrays.toString(items.stream().map(it -> "\"" + it.toString() + "\"").toArray());
+		return Arrays.toString(items.stream().map(it -> "\"" + it + "\"").toArray());
 	}
 
 	@Nonnull
 	default String serializeStringArrayToQueryString(@Nonnull String[] items) {
-		return Arrays.toString(Arrays.stream(items).map(it -> "\"" + it.toString() + "\"").toArray());
+		return Arrays.toString(Arrays.stream(items).map(it -> "\"" + it + "\"").toArray());
 	}
 
 	@Nonnull

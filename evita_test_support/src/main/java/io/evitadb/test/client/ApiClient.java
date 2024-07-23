@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -25,23 +25,21 @@ package io.evitadb.test.client;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
+import okhttp3.ConnectionPool;
+import okhttp3.OkHttpClient;
+import okhttp3.ResponseBody;
 
 import javax.annotation.Nonnull;
-import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.OutputStream;
-import java.net.HttpURLConnection;
-import java.nio.charset.StandardCharsets;
 import java.security.KeyManagementException;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.X509Certificate;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Ancestor for simple clients calling mainly JSON-based HTTP APIs.
@@ -53,20 +51,26 @@ abstract class ApiClient {
 	protected static final ObjectMapper objectMapper = new ObjectMapper();
 
 	@Nonnull protected final String url;
+	@Nonnull protected final OkHttpClient client;
 
-	protected ApiClient(@Nonnull String url) {
-		this(url, true);
+	protected ApiClient(@Nonnull String url, boolean validateSsl, boolean useConnectionPool) {
+		this.url = url;
+		this.client = createClient(validateSsl, useConnectionPool);
 	}
 
-	protected ApiClient(@Nonnull String url, boolean validateSsl) {
-		this.url = url;
+	protected OkHttpClient createClient(boolean validateSsl, boolean useConnectionPool) {
+		final OkHttpClient.Builder clientBuilder = new OkHttpClient.Builder();
+
+		if (!useConnectionPool) {
+			clientBuilder.connectionPool(new ConnectionPool(0, 1, TimeUnit.NANOSECONDS));
+		}
 
 		if (!validateSsl) {
 			// Create a trust manager that does not validate certificate chains
 			final TrustManager[] trustAllCerts = new TrustManager[] {
 				new X509TrustManager() {
 					public X509Certificate[] getAcceptedIssuers() {
-						return null;
+						return new X509Certificate[0];
 					}
 					public void checkClientTrusted(X509Certificate[] certs, String authType) {}
 					public void checkServerTrusted(X509Certificate[] certs, String authType) {}
@@ -77,37 +81,26 @@ abstract class ApiClient {
 			try {
 				sc = SSLContext.getInstance("SSL");
 			} catch (NoSuchAlgorithmException e) {
-				throw new EvitaInternalError("Cannot get SSL context.", e);
+				throw new GenericEvitaInternalError("Cannot get SSL context.", e);
 			}
 			try {
 				sc.init(null, trustAllCerts, new java.security.SecureRandom());
 			} catch (KeyManagementException e) {
-				throw new EvitaInternalError("Cannot init SSL context with custom trust manager.", e);
+				throw new GenericEvitaInternalError("Cannot init SSL context with custom trust manager.", e);
 			}
-			HttpsURLConnection.setDefaultSSLSocketFactory(sc.getSocketFactory());
 
-			// Install the all-trusting host verifier
-			HttpsURLConnection.setDefaultHostnameVerifier((hostname, session) -> true);
-		}
-	}
+			// Create an all-trusting host verifier
+			HostnameVerifier hostnameVerifier = (hostname, session) -> true;
 
-	protected void writeRequestBody(@Nonnull HttpURLConnection connection, @Nonnull String body) throws IOException {
-		try (OutputStream os = connection.getOutputStream()) {
-			byte[] input = body.getBytes(StandardCharsets.UTF_8);
-			os.write(input, 0, input.length);
+			clientBuilder
+				.sslSocketFactory(sc.getSocketFactory(), (X509TrustManager) trustAllCerts[0])
+				.hostnameVerifier(hostnameVerifier);
 		}
+		return clientBuilder.build();
 	}
 
 	@Nonnull
-	protected JsonNode readResponseBody(@Nonnull InputStream bodyStream) throws IOException {
-		final StringBuilder rawResponseBody = new StringBuilder();
-		try (BufferedReader br = new BufferedReader(new InputStreamReader(bodyStream, StandardCharsets.UTF_8))) {
-			String responseLine;
-			while ((responseLine = br.readLine()) != null) {
-				rawResponseBody.append(responseLine.trim());
-			}
-		}
-
-		return objectMapper.readTree(rawResponseBody.toString());
+	protected JsonNode readResponseBody(@Nonnull ResponseBody responseBody) throws IOException {
+		return objectMapper.readTree(responseBody.string());
 	}
 }

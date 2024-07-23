@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,7 +23,7 @@
 
 package io.evitadb.test;
 
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import org.apache.commons.io.FileUtils;
 import org.junit.jupiter.params.provider.Arguments;
@@ -47,10 +47,6 @@ import java.util.stream.Stream;
  */
 public interface EvitaTestSupport extends TestConstants {
 	/**
-	 * Default name of the evita configuration file.
-	 */
-	String DEFAULT_EVITA_CONFIGURATION_FILE = "evita-configuration.yaml";
-	/**
 	 * Default data folder for evita data in tests.
 	 */
 	Path BASE_PATH = Path.of(System.getProperty("java.io.tmpdir") + File.separator + "evita" + File.separator);
@@ -63,18 +59,21 @@ public interface EvitaTestSupport extends TestConstants {
 	 * Method copies `evita-configuration.yaml` from the classpath to the temporary directory on the filesystem so that
 	 * evita server that is going to be started in tests will be able to find it.
 	 *
+	 * @param folderName        name of the folder where the configuration file will be stored
+	 * @param classPathLocation classpath location of the source configuration file
+	 * @param targetFileName    name of the target configuration file
 	 * @return path of the exported configuration file
 	 */
 	@Nonnull
-	static Path bootstrapEvitaServerConfigurationFile(@Nonnull String folderName) {
+	static Path bootstrapEvitaServerConfigurationFileFrom(@Nonnull String folderName, @Nonnull String classPathLocation, @Nonnull String targetFileName) {
 		final Path dir = Path.of(System.getProperty("java.io.tmpdir"))
 			.resolve("evita")
 			.resolve(folderName);
 		if (!dir.toFile().exists()) {
 			Assert.isTrue(dir.toFile().mkdirs(), "Cannot set up folder: " + dir);
 		}
-		final Path configFilePath = dir.resolve(DEFAULT_EVITA_CONFIGURATION_FILE);
-		try (final InputStream sourceIs = TestConstants.class.getResourceAsStream("/" + DEFAULT_EVITA_CONFIGURATION_FILE)) {
+		final Path configFilePath = dir.resolve(targetFileName);
+		try (final InputStream sourceIs = TestConstants.class.getResourceAsStream(classPathLocation)) {
 			Files.copy(
 				Objects.requireNonNull(sourceIs),
 				configFilePath,
@@ -82,12 +81,12 @@ public interface EvitaTestSupport extends TestConstants {
 			);
 		} catch (IOException e) {
 			throw new RuntimeException(
-				"Failed to copy evita `" + DEFAULT_EVITA_CONFIGURATION_FILE + "` to `" + configFilePath + "` due to: " + e.getMessage(),
+				"Failed to copy evita `" + targetFileName + "` to `" + configFilePath + "` due to: " + e.getMessage(),
 				e
 			);
 		}
 
-		return configFilePath;
+		return dir;
 	}
 
 	/**
@@ -122,7 +121,7 @@ public interface EvitaTestSupport extends TestConstants {
 		try {
 			cleanTestDirectory();
 		} catch (IOException e) {
-			throw new EvitaInternalError("Cannot empty target directory!", e);
+			throw new GenericEvitaInternalError("Cannot empty target directory!", e);
 		}
 	}
 
@@ -133,7 +132,7 @@ public interface EvitaTestSupport extends TestConstants {
 		try {
 			cleanTestSubDirectory(directory);
 		} catch (IOException e) {
-			throw new EvitaInternalError("Cannot empty target directory!", e);
+			throw new GenericEvitaInternalError("Cannot empty target directory!", e);
 		}
 	}
 
@@ -165,7 +164,7 @@ public interface EvitaTestSupport extends TestConstants {
 			dataPath = Path.of(externallyDefinedPath);
 		}
 		if (!dataPath.toFile().exists()) {
-			throw new EvitaInternalError("Data directory `" + dataPath + "` does not exist!");
+			throw new GenericEvitaInternalError("Data directory `" + dataPath + "` does not exist!");
 		}
 		return dataPath;
 	}

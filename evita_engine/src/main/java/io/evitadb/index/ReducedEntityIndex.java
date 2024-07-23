@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,22 +23,24 @@
 
 package io.evitadb.index;
 
+import io.evitadb.api.CatalogState;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
-import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
-import io.evitadb.core.EntityCollection;
-import io.evitadb.core.Transaction;
+import io.evitadb.core.Catalog;
+import io.evitadb.core.CatalogRelatedDataStructure;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
+import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
 import io.evitadb.index.attribute.AttributeIndex;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.facet.FacetIndex;
 import io.evitadb.index.hierarchy.HierarchyIndex;
+import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.index.price.PriceIndexContract;
 import io.evitadb.index.price.PriceRefIndex;
-import io.evitadb.index.price.PriceSuperIndex;
-import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
-import io.evitadb.index.transactionalMemory.VoidTransactionMemoryProducer;
+import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.store.model.StoragePart;
+import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStorageKey;
 import lombok.Getter;
 import lombok.experimental.Delegate;
 
@@ -47,7 +49,7 @@ import javax.annotation.Nullable;
 import java.util.Collection;
 import java.util.Locale;
 import java.util.Map;
-import java.util.function.Supplier;
+import java.util.Set;
 
 /**
  * Reduced entity index is a "helper" index that maintains primarily bitmaps of primary keys that are connected to
@@ -61,7 +63,7 @@ import java.util.function.Supplier;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public class ReducedEntityIndex extends EntityIndex
-	implements VoidTransactionMemoryProducer<ReducedEntityIndex> {
+	implements VoidTransactionMemoryProducer<ReducedEntityIndex>, CatalogRelatedDataStructure<ReducedEntityIndex> {
 	/**
 	 * This part of index collects information about prices of the entities. It provides data that are necessary for
 	 * constructing {@link Formula} tree for the constraints related to the prices.
@@ -71,19 +73,17 @@ public class ReducedEntityIndex extends EntityIndex
 
 	public ReducedEntityIndex(
 		int primaryKey,
-		@Nonnull EntityIndexKey entityIndexKey,
-		@Nonnull Supplier<EntitySchema> schemaAccessor,
-		@Nonnull Supplier<PriceSuperIndex> superIndexAccessor
+		@Nonnull String entityType,
+		@Nonnull EntityIndexKey entityIndexKey
 	) {
-		super(primaryKey, entityIndexKey, schemaAccessor);
-		this.priceIndex = new PriceRefIndex(superIndexAccessor);
+		super(primaryKey, entityType, entityIndexKey);
+		this.priceIndex = new PriceRefIndex();
 	}
 
 	public ReducedEntityIndex(
 		int primaryKey,
 		@Nonnull EntityIndexKey entityIndexKey,
 		int version,
-		@Nonnull Supplier<EntitySchema> schemaAccessor,
 		@Nonnull Bitmap entityIds,
 		@Nonnull Map<Locale, TransactionalBitmap> entityIdsByLanguage,
 		@Nonnull AttributeIndex attributeIndex,
@@ -92,16 +92,59 @@ public class ReducedEntityIndex extends EntityIndex
 		@Nonnull FacetIndex facetIndex
 	) {
 		super(
-			primaryKey, entityIndexKey, version, schemaAccessor,
+			primaryKey, entityIndexKey, version,
 			entityIds, entityIdsByLanguage,
-			attributeIndex, hierarchyIndex, facetIndex, priceIndex);
+			attributeIndex, hierarchyIndex, facetIndex, priceIndex
+		);
+		this.priceIndex = priceIndex;
+	}
+
+	public ReducedEntityIndex(
+		int primaryKey,
+		@Nonnull EntityIndexKey indexKey,
+		int version,
+		@Nonnull TransactionalBitmap entityIds,
+		@Nonnull TransactionalMap<Locale, TransactionalBitmap> entityIdsByLanguage,
+		@Nonnull AttributeIndex attributeIndex,
+		@Nonnull HierarchyIndex hierarchyIndex,
+		@Nonnull FacetIndex facetIndex,
+		boolean originalHierarchyIndexEmpty,
+		@Nonnull Integer originalInternalPriceIdSequence,
+		@Nonnull Set<AttributeIndexStorageKey> originalAttributeIndexes,
+		@Nonnull Set<PriceIndexKey> originalPriceIndexes,
+		@Nonnull Set<String> originalFacetIndexes,
+		@Nonnull PriceRefIndex priceIndex
+	) {
+		super(
+			primaryKey, indexKey, version, entityIds,
+			entityIdsByLanguage, attributeIndex, hierarchyIndex, facetIndex,
+			originalHierarchyIndexEmpty, originalInternalPriceIdSequence,
+			originalAttributeIndexes, originalPriceIndexes, originalFacetIndexes
+		);
 		this.priceIndex = priceIndex;
 	}
 
 	@Override
-	public void updateReferencesTo(@Nonnull EntityCollection newCollection) {
-		super.updateReferencesTo(newCollection);
-		this.priceIndex.updateReferencesTo(newCollection::getPriceSuperIndex);
+	public void attachToCatalog(@Nullable String entityType, @Nonnull Catalog catalog) {
+		this.priceIndex.attachToCatalog(entityType, catalog);
+	}
+
+	@Nonnull
+	@Override
+	public ReducedEntityIndex createCopyForNewCatalogAttachment(@Nonnull CatalogState catalogState) {
+		return new ReducedEntityIndex(
+			this.primaryKey, this.indexKey, this.version,
+			this.entityIds, this.entityIdsByLanguage,
+			this.attributeIndex,
+			this.hierarchyIndex,
+			this.facetIndex,
+			this.originalHierarchyIndexEmpty,
+			this.originalInternalPriceIdSequence,
+			this.originalAttributeIndexes,
+			this.originalPriceIndexes,
+			this.originalFacetIndexes,
+			this.priceIndex.createCopyForNewCatalogAttachment(catalogState)
+		);
 	}
 
 	@Override
@@ -131,17 +174,17 @@ public class ReducedEntityIndex extends EntityIndex
 
 	@Nonnull
 	@Override
-	public ReducedEntityIndex createCopyWithMergedTransactionalMemory(@Nullable Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Transaction transaction) {
+	public ReducedEntityIndex createCopyWithMergedTransactionalMemory(@Nullable Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		// we can safely throw away dirty flag now
-		final Boolean wasDirty = transactionalLayer.getStateCopyWithCommittedChanges(this.dirty, transaction);
+		final Boolean wasDirty = transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
 		return new ReducedEntityIndex(
-			primaryKey, indexKey, version + (wasDirty ? 1 : 0), schemaAccessor,
-			transactionalLayer.getStateCopyWithCommittedChanges(this.entityIds, transaction),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.entityIdsByLanguage, transaction),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.attributeIndex, transaction),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.priceIndex, transaction),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.hierarchyIndex, transaction),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.facetIndex, transaction)
+			this.primaryKey, this.indexKey, this.version + (wasDirty ? 1 : 0),
+			transactionalLayer.getStateCopyWithCommittedChanges(this.entityIds),
+			transactionalLayer.getStateCopyWithCommittedChanges(this.entityIdsByLanguage),
+			transactionalLayer.getStateCopyWithCommittedChanges(this.attributeIndex),
+			transactionalLayer.getStateCopyWithCommittedChanges(this.priceIndex),
+			transactionalLayer.getStateCopyWithCommittedChanges(this.hierarchyIndex),
+			transactionalLayer.getStateCopyWithCommittedChanges(this.facetIndex)
 		);
 	}
 

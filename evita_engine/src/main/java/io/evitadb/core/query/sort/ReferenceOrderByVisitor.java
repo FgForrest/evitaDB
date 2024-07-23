@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -34,7 +34,7 @@ import io.evitadb.api.query.order.EntityProperty;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.requestResponse.data.structure.ReferenceComparator;
 import io.evitadb.api.requestResponse.data.structure.ReferenceFetcher;
-import io.evitadb.core.query.QueryContext;
+import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.sort.attribute.translator.AttributeNaturalTranslator;
 import io.evitadb.core.query.sort.attribute.translator.EntityGroupPropertyTranslator;
@@ -42,7 +42,7 @@ import io.evitadb.core.query.sort.attribute.translator.EntityNestedQueryComparat
 import io.evitadb.core.query.sort.attribute.translator.EntityPropertyTranslator;
 import io.evitadb.core.query.sort.translator.OrderByTranslator;
 import io.evitadb.core.query.sort.translator.ReferenceOrderingConstraintTranslator;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.CollectionUtils;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -78,7 +78,7 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor {
 	/**
 	 * Reference to the query context that allows to access entity bodies, indexes, original request and much more.
 	 */
-	@Delegate private final QueryContext queryContext;
+	@Delegate private final QueryPlanningContext queryContext;
 	/**
 	 * Pre-initialized comparator initialized during entity filtering (if it's performed) allowing to order references
 	 * by sorter defined on referenced entity (requiring nested query).
@@ -95,7 +95,7 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor {
 	 */
 	@Nonnull
 	public static OrderingDescriptor getComparator(
-		@Nonnull QueryContext queryContext,
+		@Nonnull QueryPlanningContext queryContext,
 		@Nonnull OrderConstraint orderBy
 	) {
 		final ReferenceOrderByVisitor orderVisitor = new ReferenceOrderByVisitor(queryContext);
@@ -148,7 +148,7 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor {
 			(ReferenceOrderingConstraintTranslator<OrderConstraint>) TRANSLATORS.get(orderConstraint.getClass());
 		isPremiseValid(
 			translator != null,
-			"No translator found for query `" + orderConstraint.getClass() + "`!"
+			"No translator found for constraint `" + orderConstraint.getClass() + "`!"
 		);
 
 		// if query is a container query
@@ -167,7 +167,7 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor {
 			translator.createComparator(orderConstraint, this);
 		} else {
 			// sanity check only
-			throw new EvitaInternalError("Should never happen");
+			throw new GenericEvitaInternalError("Should never happen");
 		}
 	}
 

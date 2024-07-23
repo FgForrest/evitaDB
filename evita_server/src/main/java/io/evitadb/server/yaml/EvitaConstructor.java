@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -46,12 +46,12 @@ public class EvitaConstructor extends SafeConstructor {
 	 *
 	 * @param yamlParser instance of YAML parser yet to be created. The instance should be the same as used with this constructor
 	 * @param stringSubstitutor instance of string substitutor for resolving variables in included YAML files
-	 * @param mainConfigFileLocation location of main configuration file to be used as a base for relative paths in included YAML files
+	 * @param configDirLocation location of main configuration file to be used as a base for relative paths in included YAML files
 	 */
 	public EvitaConstructor(@Nonnull AtomicReference<Yaml> yamlParser,
 	                        @Nonnull StringSubstitutor stringSubstitutor,
-	                        @Nonnull Path mainConfigFileLocation) {
+	                        @Nonnull Path configDirLocation) {
 		super(new LoaderOptions());
-		yamlConstructors.put(new Tag("!include"), new IncludeConstruct(yamlParser, stringSubstitutor, mainConfigFileLocation));
+		yamlConstructors.put(new Tag("!include"), new IncludeConstruct(yamlParser, stringSubstitutor, configDirLocation));
 	}
 }

@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -73,11 +73,14 @@ import java.io.Serializable;
  * also returns a computed subcategories data structure that lists the flat category list the currently focused category
  * Audio.
  *
+ * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#distance">Visit detailed user documentation</a></p>
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 @ConstraintDefinition(
 	name = "distance",
 	shortDescription = "The constraint limits the traversing in stop at container at specified distance (number of nodes in path).",
+	userDocsLink = "/documentation/query/requirements/hierarchy#distance",
 	supportedIn = ConstraintDomain.HIERARCHY
 )
 public class HierarchyDistance extends AbstractRequireConstraintLeaf implements HierarchyStopAtRequireConstraint {

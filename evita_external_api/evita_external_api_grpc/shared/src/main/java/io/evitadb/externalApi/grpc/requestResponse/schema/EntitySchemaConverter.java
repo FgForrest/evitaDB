@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -65,6 +65,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.stream.Collectors;
 
+import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toGrpcNameVariant;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.*;
 import static java.util.Optional.ofNullable;
 
@@ -81,9 +82,12 @@ public class EntitySchemaConverter {
 
 	/**
 	 * Creates {@link GrpcEntitySchema} from {@link EntitySchemaContract}.
+	 *
+	 * @param entitySchema        entity schema to convert
+	 * @param includeNameVariants whether to include name variants
 	 */
 	@Nonnull
-	public static GrpcEntitySchema convert(@Nonnull EntitySchemaContract entitySchema) {
+	public static GrpcEntitySchema convert(@Nonnull EntitySchemaContract entitySchema, boolean includeNameVariants) {
 		final GrpcEntitySchema.Builder builder = GrpcEntitySchema.newBuilder()
 			.setName(entitySchema.getName())
 			.setWithGeneratedPrimaryKey(entitySchema.isWithGeneratedPrimaryKey())
@@ -92,10 +96,10 @@ public class EntitySchemaConverter {
 			.setIndexedPricePlaces(entitySchema.getIndexedPricePlaces())
 			.addAllLocales(entitySchema.getLocales().stream().map(EvitaDataTypesConverter::toGrpcLocale).toList())
 			.addAllCurrencies(entitySchema.getCurrencies().stream().map(EvitaDataTypesConverter::toGrpcCurrency).toList())
-			.putAllAttributes(toGrpcAttributeSchemas(entitySchema.getAttributes()))
-			.putAllSortableAttributeCompounds(toGrpcSortableAttributeCompoundSchemas(entitySchema.getSortableAttributeCompounds()))
-			.putAllAssociatedData(toGrpcAssociatedDataSchemas(entitySchema.getAssociatedData()))
-			.putAllReferences(toGrpcReferenceSchemas(entitySchema.getReferences()))
+			.putAllAttributes(toGrpcAttributeSchemas(entitySchema.getAttributes(), includeNameVariants))
+			.putAllSortableAttributeCompounds(toGrpcSortableAttributeCompoundSchemas(entitySchema.getSortableAttributeCompounds(), includeNameVariants))
+			.putAllAssociatedData(toGrpcAssociatedDataSchemas(entitySchema.getAssociatedData(), includeNameVariants))
+			.putAllReferences(toGrpcReferenceSchemas(entitySchema.getReferences(), includeNameVariants))
 			.addAllEvolutionMode(entitySchema.getEvolutionMode().stream().map(EvitaEnumConverter::toGrpcEvolutionMode).toList())
 			.setVersion(entitySchema.version());
 
@@ -104,6 +108,13 @@ public class EntitySchemaConverter {
 		}
 		if (entitySchema.getDeprecationNotice() != null) {
 			builder.setDeprecationNotice(StringValue.newBuilder().setValue(entitySchema.getDeprecationNotice()).build());
+		}
+
+		if (includeNameVariants) {
+			entitySchema.getNameVariants()
+				.forEach(
+					(namingConvention, nameVariant) -> builder.addNameVariant(toGrpcNameVariant(namingConvention, nameVariant))
+				);
 		}
 
 		return builder.build();
@@ -170,17 +181,46 @@ public class EntitySchemaConverter {
 	}
 
 	/**
+	 * Creates list of {@link GrpcAttributeElement} from the {@link AttributeElement}.
+	 */
+	@Nonnull
+	public static List<GrpcAttributeElement> toGrpcAttributeElement(@Nonnull Collection<AttributeElement> attributeElementsList) {
+		return attributeElementsList
+			.stream()
+			.map(
+				it -> GrpcAttributeElement.newBuilder()
+					.setAttributeName(it.attributeName())
+					.setDirection(toGrpcOrderDirection(it.direction()))
+					.setBehaviour(toGrpcOrderBehaviour(it.behaviour()))
+					.build()
+			)
+			.toList();
+	}
+
+	/**
+	 * Creates list of {@link AttributeElement} from the {@link GrpcAttributeElement}.
+	 */
+	@Nonnull
+	public static List<AttributeElement> toAttributeElement(@Nonnull Collection<GrpcAttributeElement> attributeElementsList) {
+		return attributeElementsList
+			.stream()
+			.map(it -> new AttributeElement(it.getAttributeName(), toOrderDirection(it.getDirection()), toOrderBehaviour(it.getBehaviour())))
+			.toList();
+	}
+
+	/**
 	 * From passed map where keys are representing attribute names and values {@link AttributeSchema} will be built a new map where values are converted
 	 * to {@link GrpcAttributeSchema}.
 	 *
 	 * @param originalAttributeSchemas map of {@link AttributeSchema} to be converted to map of {@link GrpcAttributeSchema}
+	 * @param includeNameVariants      if true, name variants will be included in the result
 	 * @return map where keys are representing attribute names and values are {@link GrpcAttributeSchema}
 	 */
 	@Nonnull
-	private static Map<String, GrpcAttributeSchema> toGrpcAttributeSchemas(@Nonnull Map<String, ? extends AttributeSchemaContract> originalAttributeSchemas) {
+	private static Map<String, GrpcAttributeSchema> toGrpcAttributeSchemas(@Nonnull Map<String, ? extends AttributeSchemaContract> originalAttributeSchemas, boolean includeNameVariants) {
 		final Map<String, GrpcAttributeSchema> attributeSchemas = CollectionUtils.createHashMap(originalAttributeSchemas.size());
 		for (Map.Entry<String, ? extends AttributeSchemaContract> entry : originalAttributeSchemas.entrySet()) {
-			attributeSchemas.put(entry.getKey(), toGrpcAttributeSchema(entry.getValue()));
+			attributeSchemas.put(entry.getKey(), toGrpcAttributeSchema(entry.getValue(), includeNameVariants));
 		}
 		return attributeSchemas;
 	}
@@ -188,17 +228,18 @@ public class EntitySchemaConverter {
 	/**
 	 * Converts single {@link AttributeSchema} to {@link GrpcAttributeSchema}.
 	 *
-	 * @param attributeSchema instance of {@link AttributeSchema} to be converted to {@link GrpcAttributeSchema}
+	 * @param attributeSchema     instance of {@link AttributeSchema} to be converted to {@link GrpcAttributeSchema}
+	 * @param includeNameVariants if true, name variants will be included in the result
 	 * @return built instance of {@link GrpcAttributeSchema}
 	 */
 	@Nonnull
-	private static GrpcAttributeSchema toGrpcAttributeSchema(@Nonnull AttributeSchemaContract attributeSchema) {
+	private static GrpcAttributeSchema toGrpcAttributeSchema(@Nonnull AttributeSchemaContract attributeSchema, boolean includeNameVariants) {
 		final boolean isGlobal = attributeSchema instanceof GlobalAttributeSchemaContract;
 		final boolean isEntity = attributeSchema instanceof EntityAttributeSchemaContract;
 		final GrpcAttributeSchema.Builder builder = GrpcAttributeSchema.newBuilder()
 			.setName(attributeSchema.getName())
 			.setSchemaType(EvitaEnumConverter.toGrpcAttributeSchemaType(attributeSchema.getClass()))
-			.setUnique(attributeSchema.isUnique())
+			.setUnique(EvitaEnumConverter.toGrpcAttributeUniquenessType(attributeSchema.getUniquenessType()))
 			.setFilterable(attributeSchema.isFilterable())
 			.setSortable(attributeSchema.isSortable())
 			.setLocalized(attributeSchema.isLocalized())
@@ -221,7 +262,14 @@ public class EntitySchemaConverter {
 		if (isGlobal) {
 			final GlobalAttributeSchemaContract globalAttributeSchema = (GlobalAttributeSchemaContract) attributeSchema;
 			builder.setRepresentative(globalAttributeSchema.isRepresentative());
-			builder.setUniqueGlobally(globalAttributeSchema.isUniqueGlobally());
+			builder.setUniqueGlobally(EvitaEnumConverter.toGrpcGlobalAttributeUniquenessType(globalAttributeSchema.getGlobalUniquenessType()));
+		}
+
+		if (includeNameVariants) {
+			attributeSchema.getNameVariants()
+				.forEach(
+					(namingConvention, nameVariant) -> builder.addNameVariant(toGrpcNameVariant(namingConvention, nameVariant))
+				);
 		}
 
 		return builder.build();
@@ -233,13 +281,14 @@ public class EntitySchemaConverter {
 	 *
 	 * @param originalSortableAttributeCompoundSchemas map of {@link SortableAttributeCompoundSchema} to be converted
 	 *                                                 to map of {@link GrpcSortableAttributeCompoundSchema}
+	 * @param includeNameVariants                      if true, name variants will be included in the result
 	 * @return map where keys are representing attribute names and values are {@link GrpcSortableAttributeCompoundSchema}
 	 */
 	@Nonnull
-	private static Map<String, GrpcSortableAttributeCompoundSchema> toGrpcSortableAttributeCompoundSchemas(@Nonnull Map<String, SortableAttributeCompoundSchemaContract> originalSortableAttributeCompoundSchemas) {
+	private static Map<String, GrpcSortableAttributeCompoundSchema> toGrpcSortableAttributeCompoundSchemas(@Nonnull Map<String, SortableAttributeCompoundSchemaContract> originalSortableAttributeCompoundSchemas, boolean includeNameVariants) {
 		final Map<String, GrpcSortableAttributeCompoundSchema> attributeSchemas = CollectionUtils.createHashMap(originalSortableAttributeCompoundSchemas.size());
 		for (Map.Entry<String, SortableAttributeCompoundSchemaContract> entry : originalSortableAttributeCompoundSchemas.entrySet()) {
-			attributeSchemas.put(entry.getKey(), toGrpcSortableAttributeCompoundSchema(entry.getValue()));
+			attributeSchemas.put(entry.getKey(), toGrpcSortableAttributeCompoundSchema(entry.getValue(), includeNameVariants));
 		}
 		return attributeSchemas;
 	}
@@ -247,19 +296,27 @@ public class EntitySchemaConverter {
 	/**
 	 * Converts single {@link SortableAttributeCompoundSchema} to {@link GrpcSortableAttributeCompoundSchema}.
 	 *
-	 * @param attributeSchema instance of {@link SortableAttributeCompoundSchema} to be converted to {@link GrpcSortableAttributeCompoundSchema}
+	 * @param attributeCompoundSchema instance of {@link SortableAttributeCompoundSchema} to be converted to {@link GrpcSortableAttributeCompoundSchema}
+	 * @param includeNameVariants if true, name variants will be included in the result
 	 * @return built instance of {@link GrpcSortableAttributeCompoundSchema}
 	 */
 	@Nonnull
-	private static GrpcSortableAttributeCompoundSchema toGrpcSortableAttributeCompoundSchema(@Nonnull SortableAttributeCompoundSchemaContract attributeSchema) {
+	private static GrpcSortableAttributeCompoundSchema toGrpcSortableAttributeCompoundSchema(@Nonnull SortableAttributeCompoundSchemaContract attributeCompoundSchema, boolean includeNameVariants) {
 		final GrpcSortableAttributeCompoundSchema.Builder builder = GrpcSortableAttributeCompoundSchema.newBuilder()
-			.setName(attributeSchema.getName())
-			.addAllAttributeElements(toGrpcAttributeElement(attributeSchema.getAttributeElements()));
+			.setName(attributeCompoundSchema.getName())
+			.addAllAttributeElements(toGrpcAttributeElement(attributeCompoundSchema.getAttributeElements()));
 
-		ofNullable(attributeSchema.getDescription())
+		ofNullable(attributeCompoundSchema.getDescription())
 			.ifPresent(it -> builder.setDescription(StringValue.newBuilder().setValue(it).build()));
-		ofNullable(attributeSchema.getDeprecationNotice())
+		ofNullable(attributeCompoundSchema.getDeprecationNotice())
 			.ifPresent(it -> builder.setDeprecationNotice(StringValue.newBuilder().setValue(it).build()));
+
+		if (includeNameVariants) {
+			attributeCompoundSchema.getNameVariants()
+				.forEach(
+					(namingConvention, nameVariant) -> builder.addNameVariant(toGrpcNameVariant(namingConvention, nameVariant))
+				);
+		}
 
 		return builder.build();
 	}
@@ -269,13 +326,14 @@ public class EntitySchemaConverter {
 	 * to {@link GrpcAssociatedDataSchema}.
 	 *
 	 * @param originalAssociatedDataSchemas map of {@link AssociatedDataSchema} to be converted to map of {@link GrpcAssociatedDataSchema}
+	 * @param includeNameVariants if true, name variants will be included in the result
 	 * @return map where keys are representing associated data names and values are {@link GrpcAssociatedDataSchema}
 	 */
 	@Nonnull
-	private static Map<String, GrpcAssociatedDataSchema> toGrpcAssociatedDataSchemas(@Nonnull Map<String, AssociatedDataSchemaContract> originalAssociatedDataSchemas) {
+	private static Map<String, GrpcAssociatedDataSchema> toGrpcAssociatedDataSchemas(@Nonnull Map<String, AssociatedDataSchemaContract> originalAssociatedDataSchemas, boolean includeNameVariants) {
 		final Map<String, GrpcAssociatedDataSchema> associatedDataSchemas = CollectionUtils.createHashMap(originalAssociatedDataSchemas.size());
 		for (Map.Entry<String, AssociatedDataSchemaContract> entry : originalAssociatedDataSchemas.entrySet()) {
-			associatedDataSchemas.put(entry.getKey(), toGrpcAssociatedDataSchema(entry.getValue()));
+			associatedDataSchemas.put(entry.getKey(), toGrpcAssociatedDataSchema(entry.getValue(), includeNameVariants));
 		}
 		return associatedDataSchemas;
 	}
@@ -284,10 +342,11 @@ public class EntitySchemaConverter {
 	 * Converts single {@link AssociatedDataSchema} to {@link GrpcAssociatedDataSchema}.
 	 *
 	 * @param associatedDataSchema instance of {@link AssociatedDataSchema} to be converted to {@link GrpcAssociatedDataSchema}
+	 * @param includeNameVariants if true, name variants will be included in the result
 	 * @return built instance of {@link GrpcAssociatedDataSchema}
 	 */
 	@Nonnull
-	private static GrpcAssociatedDataSchema toGrpcAssociatedDataSchema(@Nonnull AssociatedDataSchemaContract associatedDataSchema) {
+	private static GrpcAssociatedDataSchema toGrpcAssociatedDataSchema(@Nonnull AssociatedDataSchemaContract associatedDataSchema, boolean includeNameVariants) {
 		final GrpcAssociatedDataSchema.Builder builder = GrpcAssociatedDataSchema.newBuilder()
 			.setName(associatedDataSchema.getName())
 			.setType(EvitaDataTypesConverter.toGrpcEvitaAssociatedDataDataType(associatedDataSchema.getType()))
@@ -301,6 +360,13 @@ public class EntitySchemaConverter {
 			builder.setDeprecationNotice(StringValue.newBuilder().setValue(associatedDataSchema.getDeprecationNotice()).build());
 		}
 
+		if (includeNameVariants) {
+			associatedDataSchema.getNameVariants()
+				.forEach(
+					(namingConvention, nameVariant) -> builder.addNameVariant(toGrpcNameVariant(namingConvention, nameVariant))
+				);
+		}
+
 		return builder.build();
 	}
 
@@ -309,13 +375,14 @@ public class EntitySchemaConverter {
 	 * to {@link GrpcReferenceSchema}.
 	 *
 	 * @param originalReferenceSchemas map of {@link ReferenceSchema} to be converted to map of {@link GrpcReferenceSchema}
+	 * @param includeNameVariants if true, name variants will be included in the result
 	 * @return map where keys are representing associated data names and values are {@link GrpcReferenceSchema}
 	 */
 	@Nonnull
-	private static Map<String, GrpcReferenceSchema> toGrpcReferenceSchemas(@Nonnull Map<String, ReferenceSchemaContract> originalReferenceSchemas) {
+	private static Map<String, GrpcReferenceSchema> toGrpcReferenceSchemas(@Nonnull Map<String, ReferenceSchemaContract> originalReferenceSchemas, boolean includeNameVariants) {
 		final Map<String, GrpcReferenceSchema> referenceSchemas = CollectionUtils.createHashMap(originalReferenceSchemas.size());
 		for (Map.Entry<String, ReferenceSchemaContract> entry : originalReferenceSchemas.entrySet()) {
-			referenceSchemas.put(entry.getKey(), toGrpcReferenceSchema(entry.getValue()));
+			referenceSchemas.put(entry.getKey(), toGrpcReferenceSchema(entry.getValue(), includeNameVariants));
 		}
 		return referenceSchemas;
 	}
@@ -324,10 +391,11 @@ public class EntitySchemaConverter {
 	 * Converts single {@link ReferenceSchema} to {@link GrpcReferenceSchema}.
 	 *
 	 * @param referenceSchema instance of {@link ReferenceSchema} to be converted to {@link GrpcReferenceSchema}
+	 * @param includeNameVariants if true, name variants will be included in the result
 	 * @return built instance of {@link GrpcReferenceSchema}
 	 */
 	@Nonnull
-	private static GrpcReferenceSchema toGrpcReferenceSchema(@Nonnull ReferenceSchemaContract referenceSchema) {
+	private static GrpcReferenceSchema toGrpcReferenceSchema(@Nonnull ReferenceSchemaContract referenceSchema, boolean includeNameVariants) {
 		final GrpcReferenceSchema.Builder builder = GrpcReferenceSchema.newBuilder()
 			.setName(referenceSchema.getName())
 			.setCardinality(toGrpcCardinality(referenceSchema.getCardinality()))
@@ -336,8 +404,8 @@ public class EntitySchemaConverter {
 			.setGroupTypeRelatesToEntity(referenceSchema.isReferencedGroupTypeManaged())
 			.setIndexed(referenceSchema.isIndexed())
 			.setFaceted(referenceSchema.isFaceted())
-			.putAllAttributes(toGrpcAttributeSchemas(referenceSchema.getAttributes()))
-			.putAllSortableAttributeCompounds(toGrpcSortableAttributeCompoundSchemas(referenceSchema.getSortableAttributeCompounds()));
+			.putAllAttributes(toGrpcAttributeSchemas(referenceSchema.getAttributes(), includeNameVariants))
+			.putAllSortableAttributeCompounds(toGrpcSortableAttributeCompoundSchemas(referenceSchema.getSortableAttributeCompounds(), includeNameVariants));
 
 		if (referenceSchema.getReferencedGroupType() != null) {
 			builder.setGroupType(StringValue.newBuilder().setValue(referenceSchema.getReferencedGroupType()).build());
@@ -347,6 +415,13 @@ public class EntitySchemaConverter {
 		}
 		if (referenceSchema.getDeprecationNotice() != null) {
 			builder.setDeprecationNotice(StringValue.newBuilder().setValue(referenceSchema.getDeprecationNotice()).build());
+		}
+
+		if (includeNameVariants) {
+			referenceSchema.getNameVariants()
+				.forEach(
+					(namingConvention, nameVariant) -> builder.addNameVariant(toGrpcNameVariant(namingConvention, nameVariant))
+				);
 		}
 
 		return builder.build();
@@ -365,8 +440,8 @@ public class EntitySchemaConverter {
 					NamingConvention.generate(attributeSchema.getName()),
 					attributeSchema.hasDescription() ? attributeSchema.getDescription().getValue() : null,
 					attributeSchema.hasDeprecationNotice() ? attributeSchema.getDeprecationNotice().getValue() : null,
-					attributeSchema.getUnique(),
-					attributeSchema.getUniqueGlobally(),
+					EvitaEnumConverter.toAttributeUniquenessType(attributeSchema.getUnique()),
+					EvitaEnumConverter.toGlobalAttributeUniquenessType(attributeSchema.getUniqueGlobally()),
 					attributeSchema.getFilterable(),
 					attributeSchema.getSortable(),
 					attributeSchema.getLocalized(),
@@ -387,7 +462,7 @@ public class EntitySchemaConverter {
 					NamingConvention.generate(attributeSchema.getName()),
 					attributeSchema.hasDescription() ? attributeSchema.getDescription().getValue() : null,
 					attributeSchema.hasDeprecationNotice() ? attributeSchema.getDeprecationNotice().getValue() : null,
-					attributeSchema.getUnique(),
+					EvitaEnumConverter.toAttributeUniquenessType(attributeSchema.getUnique()),
 					attributeSchema.getFilterable(),
 					attributeSchema.getSortable(),
 					attributeSchema.getLocalized(),
@@ -408,7 +483,7 @@ public class EntitySchemaConverter {
 					NamingConvention.generate(attributeSchema.getName()),
 					attributeSchema.hasDescription() ? attributeSchema.getDescription().getValue() : null,
 					attributeSchema.hasDeprecationNotice() ? attributeSchema.getDeprecationNotice().getValue() : null,
-					attributeSchema.getUnique(),
+					EvitaEnumConverter.toAttributeUniquenessType(attributeSchema.getUnique()),
 					attributeSchema.getFilterable(),
 					attributeSchema.getSortable(),
 					attributeSchema.getLocalized(),
@@ -494,34 +569,6 @@ public class EntitySchemaConverter {
 			sortableAttributeCompound.hasDeprecationNotice() ? sortableAttributeCompound.getDeprecationNotice().getValue() : null,
 			toAttributeElement(sortableAttributeCompound.getAttributeElementsList())
 		);
-	}
-
-	/**
-	 * Creates list of {@link GrpcAttributeElement} from the {@link AttributeElement}.
-	 */
-	@Nonnull
-	public static List<GrpcAttributeElement> toGrpcAttributeElement(@Nonnull Collection<AttributeElement> attributeElementsList) {
-		return attributeElementsList
-			.stream()
-			.map(
-				it -> GrpcAttributeElement.newBuilder()
-					.setAttributeName(it.attributeName())
-					.setDirection(toGrpcOrderDirection(it.direction()))
-					.setBehaviour(toGrpcOrderBehaviour(it.behaviour()))
-					.build()
-			)
-			.toList();
-	}
-
-	/**
-	 * Creates list of {@link AttributeElement} from the {@link GrpcAttributeElement}.
-	 */
-	@Nonnull
-	public static List<AttributeElement> toAttributeElement(@Nonnull Collection<GrpcAttributeElement> attributeElementsList) {
-		return attributeElementsList
-			.stream()
-			.map(it -> new AttributeElement(it.getAttributeName(), toOrderDirection(it.getDirection()), toOrderBehaviour(it.getBehaviour())))
-			.toList();
 	}
 
 }

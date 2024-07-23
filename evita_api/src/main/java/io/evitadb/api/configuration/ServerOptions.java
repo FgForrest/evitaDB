@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -30,43 +30,39 @@ import lombok.ToString;
 import javax.annotation.Nonnull;
 
 /**
- * DTO contains base server wide settings for the evitaDB.
+ * Record contains base server wide settings for the evitaDB.
  *
- * @param coreThreadCount                               Defines count of threads that are spun up in {@link java.util.concurrent.ExecutorService} for handling
- *                                                      input requests as well as maintenance tasks. The more catalog in Evita
- *                                                      DB there is, the higher count of thread count might be required.
- * @param maxThreadCount                                Defines count of threads that might by spun up at the maximum (i.e. when
- *                                                      there are not enough threads to process input requests and background tasks)
- * @param threadPriority                                Defines a {@link Thread#getPriority()} for background threads. The number must be in
- *                                                      interval 1-10. The threads with higher priority should be preferred over the ones
- *                                                      with lesser priority.
- * @param queueSize                                     maximum amount of task accepted to thread pool to wait for a free thread
- * @param shortRunningThreadsTimeoutInSeconds 	        sets the timeout in seconds after which threads that are supposed to be short-running should timeout and cancel its execution
- * @param killTimedOutShortRunningThreadsEverySeconds   sets interval in seconds in which short-running timed out threads are forced to be killed (unfortunately, it's not guarantied that the threads will be actually killed) and stack traces are printed
- * @param closeSessionsAfterSecondsOfInactivity         sets the timeout in seconds after which the session is closed
- *                                                      automatically if there is no activity observed on it
- * @param readOnly                                      starts the database in full read-only mode that forbids to execute write
- *                                                      operations on {@link EntityContract} level and open read-write
- *                                                      {@link EvitaSessionContract}
+ * @param requestThreadPool                     Defines limits for core thread pool that is used for serving all incoming
+ *                                              requests. Threads from this pool handles all queries and updates up until
+ *                                              the transaction is committed / rolled-back.
+ * @param transactionThreadPool                 Sets limits on the transaction thread pool used to process transactions
+ *                                              when they're committed. I.e. conflict resolution, inclusion in trunk,
+ *                                              and replacement of shared indexes used.
+ * @param serviceThreadPool                     Sets limits on the service thread pool used for service tasks such as
+ *                                              maintenance, backup creation, backup restoration, and so on.
+ * @param queryTimeoutInMilliseconds            Sets the timeout in milliseconds after which threads executing read-only
+ *                                              session requests should timeout and abort their execution.
+ * @param transactionTimeoutInMilliseconds      Sets the timeout in milliseconds after which threads executing
+ *                                              read-write session requests should timeout and abort their execution.
+ * @param closeSessionsAfterSecondsOfInactivity Sets the timeout in seconds after which the session is automatically
+ *                                              closed if no activity is observed on it.
+ * @param readOnly                              starts the database in full read-only mode, prohibiting write operations
+ *                                              on {@link EntityContract} level and open read-write {@link EvitaSessionContract}.
+ * @param quiet                                 If true, all output to the system console is suppressed.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public record ServerOptions(
-	int coreThreadCount,
-	int maxThreadCount,
-	int threadPriority,
-	int queueSize,
-	int shortRunningThreadsTimeoutInSeconds,
-	int killTimedOutShortRunningThreadsEverySeconds,
+	@Nonnull ThreadPoolOptions requestThreadPool,
+	@Nonnull ThreadPoolOptions transactionThreadPool,
+	@Nonnull ThreadPoolOptions serviceThreadPool,
+	long queryTimeoutInMilliseconds,
+	long transactionTimeoutInMilliseconds,
 	int closeSessionsAfterSecondsOfInactivity,
 	boolean readOnly,
 	boolean quiet
 ) {
-	public static final int DEFAULT_CORE_THREAD_COUNT = Runtime.getRuntime().availableProcessors() * 10;
-	public static final int DEFAULT_MAX_THREAD_COUNT = Runtime.getRuntime().availableProcessors() * 20;
-	public static final int DEFAULT_THREAD_PRIORITY = 5;
-	public static final int DEFAULT_QUEUE_SIZE = 100;
-	public static final int DEFAULT_SHORT_RUNNING_THREADS_TIMEOUT_IN_SECONDS = 1;
-	public static final int DEFAULT_KILL_TIMED_OUT_SHORT_RUNNING_THREADS_EVERY_SECONDS = 30;
+	public static final long DEFAULT_QUERY_TIMEOUT_IN_MILLISECONDS = 5000L;
+	public static final long DEFAULT_TRANSACTION_TIMEOUT_IN_MILLISECONDS = 300 * 1000L;
 	public static final int DEFAULT_CLOSE_SESSIONS_AFTER_SECONDS_OF_INACTIVITY = 60 * 20;
 	public static final boolean DEFAULT_READ_ONLY = false;
 	public static final boolean DEFAULT_QUIET = false;
@@ -87,12 +83,11 @@ public record ServerOptions(
 
 	public ServerOptions() {
 		this(
-			DEFAULT_CORE_THREAD_COUNT,
-			DEFAULT_MAX_THREAD_COUNT,
-			DEFAULT_THREAD_PRIORITY,
-			DEFAULT_QUEUE_SIZE,
-			DEFAULT_SHORT_RUNNING_THREADS_TIMEOUT_IN_SECONDS,
-			DEFAULT_KILL_TIMED_OUT_SHORT_RUNNING_THREADS_EVERY_SECONDS,
+			ThreadPoolOptions.requestThreadPoolBuilder().build(),
+			ThreadPoolOptions.transactionThreadPoolBuilder().build(),
+			ThreadPoolOptions.serviceThreadPoolBuilder().build(),
+			DEFAULT_QUERY_TIMEOUT_IN_MILLISECONDS,
+			DEFAULT_TRANSACTION_TIMEOUT_IN_MILLISECONDS,
 			DEFAULT_CLOSE_SESSIONS_AFTER_SECONDS_OF_INACTIVITY,
 			DEFAULT_READ_ONLY,
 			DEFAULT_QUIET
@@ -104,12 +99,11 @@ public record ServerOptions(
 	 */
 	@ToString
 	public static class Builder {
-		private int coreThreadCount = DEFAULT_CORE_THREAD_COUNT;
-		private int maxThreadCount = DEFAULT_MAX_THREAD_COUNT;
-		private int threadPriority = DEFAULT_THREAD_PRIORITY;
-		private int queueSize = DEFAULT_QUEUE_SIZE;
-		private int shortRunningThreadsTimeoutInSeconds = DEFAULT_SHORT_RUNNING_THREADS_TIMEOUT_IN_SECONDS;
-		private int killTimedOutShortRunningThreadsEverySeconds = DEFAULT_KILL_TIMED_OUT_SHORT_RUNNING_THREADS_EVERY_SECONDS;
+		private ThreadPoolOptions requestThreadPool = ThreadPoolOptions.requestThreadPoolBuilder().build();
+		private ThreadPoolOptions transactionThreadPool = ThreadPoolOptions.transactionThreadPoolBuilder().build();
+		private ThreadPoolOptions serviceThreadPool = ThreadPoolOptions.serviceThreadPoolBuilder().build();
+		private long queryTimeoutInMilliseconds = DEFAULT_QUERY_TIMEOUT_IN_MILLISECONDS;
+		private long transactionTimeoutInMilliseconds = DEFAULT_TRANSACTION_TIMEOUT_IN_MILLISECONDS;
 		private int closeSessionsAfterSecondsOfInactivity = DEFAULT_CLOSE_SESSIONS_AFTER_SECONDS_OF_INACTIVITY;
 		private boolean readOnly = DEFAULT_READ_ONLY;
 		private boolean quiet = DEFAULT_QUIET;
@@ -118,70 +112,72 @@ public record ServerOptions(
 		}
 
 		Builder(@Nonnull ServerOptions serverOptions) {
-			this.coreThreadCount = serverOptions.coreThreadCount;
-			this.maxThreadCount = serverOptions.maxThreadCount;
-			this.threadPriority = serverOptions.threadPriority;
-			this.queueSize = serverOptions.queueSize;
-			this.shortRunningThreadsTimeoutInSeconds = serverOptions.shortRunningThreadsTimeoutInSeconds;
-			this.killTimedOutShortRunningThreadsEverySeconds = serverOptions.killTimedOutShortRunningThreadsEverySeconds;
-			this.closeSessionsAfterSecondsOfInactivity = serverOptions.closeSessionsAfterSecondsOfInactivity;
-			this.readOnly = serverOptions.readOnly;
-			this.quiet = serverOptions.quiet;
+			this.requestThreadPool = serverOptions.requestThreadPool();
+			this.transactionThreadPool = serverOptions.transactionThreadPool();
+			this.serviceThreadPool = serverOptions.serviceThreadPool();
+			this.queryTimeoutInMilliseconds = serverOptions.queryTimeoutInMilliseconds();
+			this.transactionTimeoutInMilliseconds = serverOptions.transactionTimeoutInMilliseconds();
+			this.closeSessionsAfterSecondsOfInactivity = serverOptions.closeSessionsAfterSecondsOfInactivity();
+			this.readOnly = serverOptions.readOnly();
+			this.quiet = serverOptions.quiet();
 		}
 
-		public ServerOptions.Builder coreThreadCount(int coreThreadCount) {
-			this.coreThreadCount = coreThreadCount;
+		@Nonnull
+		public ServerOptions.Builder requestThreadPool(@Nonnull ThreadPoolOptions requestThreadPool) {
+			this.requestThreadPool = requestThreadPool;
 			return this;
 		}
 
-		public ServerOptions.Builder maxThreadCount(int maxThreadCount) {
-			this.maxThreadCount = maxThreadCount;
+		@Nonnull
+		public ServerOptions.Builder transactionThreadPool(@Nonnull ThreadPoolOptions transactionThreadPool) {
+			this.transactionThreadPool = transactionThreadPool;
 			return this;
 		}
 
-		public ServerOptions.Builder threadPriority(int threadPriority) {
-			this.threadPriority = threadPriority;
+		@Nonnull
+		public ServerOptions.Builder serviceThreadPool(@Nonnull ThreadPoolOptions serviceThreadPool) {
+			this.serviceThreadPool = serviceThreadPool;
 			return this;
 		}
 
-		public ServerOptions.Builder queueSize(int queueSize) {
-			this.queueSize = queueSize;
+		@Nonnull
+		public ServerOptions.Builder queryTimeoutInMilliseconds(long queryTimeoutInMilliseconds) {
+			this.queryTimeoutInMilliseconds = queryTimeoutInMilliseconds;
 			return this;
 		}
 
-		public ServerOptions.Builder shortRunningThreadsTimeoutInSeconds(int shortRunningThreadsTimeoutInSeconds) {
-			this.shortRunningThreadsTimeoutInSeconds = shortRunningThreadsTimeoutInSeconds;
+		@Nonnull
+		public ServerOptions.Builder transactionTimeoutInMilliseconds(long transactionTimeoutInMilliseconds) {
+			this.transactionTimeoutInMilliseconds = transactionTimeoutInMilliseconds;
 			return this;
 		}
 
-		public ServerOptions.Builder killTimedOutShortRunningThreadsEverySeconds(int killTimedOutShortRunningThreadsEverySeconds) {
-			this.killTimedOutShortRunningThreadsEverySeconds = killTimedOutShortRunningThreadsEverySeconds;
-			return this;
-		}
-
+		@Nonnull
 		public ServerOptions.Builder closeSessionsAfterSecondsOfInactivity(int closeSessionsAfterSecondsOfInactivity) {
 			this.closeSessionsAfterSecondsOfInactivity = closeSessionsAfterSecondsOfInactivity;
 			return this;
 		}
 
+		@Nonnull
 		public ServerOptions.Builder readOnly(boolean readOnly) {
 			this.readOnly = readOnly;
 			return this;
 		}
 
+		@Nonnull
 		public ServerOptions.Builder quiet(boolean quiet) {
 			this.quiet = quiet;
 			return this;
 		}
 
+		@Nonnull
 		public ServerOptions build() {
 			return new ServerOptions(
-				coreThreadCount,
-				maxThreadCount,
-				threadPriority,
-				queueSize,
-				shortRunningThreadsTimeoutInSeconds,
-				killTimedOutShortRunningThreadsEverySeconds,
+				requestThreadPool,
+				transactionThreadPool,
+				serviceThreadPool,
+				queryTimeoutInMilliseconds,
+				transactionTimeoutInMilliseconds,
 				closeSessionsAfterSecondsOfInactivity,
 				readOnly,
 				quiet

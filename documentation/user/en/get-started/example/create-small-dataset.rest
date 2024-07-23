@@ -1,4 +1,4 @@
-PUT /rest/test-catalog/brand/2
+PUT /rest/evita/Brand/2
 
 {
   "entityExistence": "MUST_NOT_EXIST",
@@ -12,7 +12,9 @@ PUT /rest/test-catalog/brand/2
   ]
 }
 
-PUT /rest/test-catalog/brand/3
+---
+
+PUT /rest/evita/Brand/3
 
 {
   "entityExistence": "MUST_NOT_EXIST",
@@ -26,7 +28,9 @@ PUT /rest/test-catalog/brand/3
   ]
 }
 
-PUT /rest/test-catalog/brand/4
+---
+
+PUT /rest/evita/Brand/4
 
 {
   "entityExistence": "MUST_NOT_EXIST",
@@ -40,7 +44,9 @@ PUT /rest/test-catalog/brand/4
   ]
 }
 
-PUT /rest/test-catalog/category/1
+---
+
+PUT /rest/evita/Category/1
 
 {
   "entityExistence": "MUST_NOT_EXIST",
@@ -62,7 +68,9 @@ PUT /rest/test-catalog/category/1
   ]
 }
 
-PUT /rest/test-catalog/category/2
+---
+
+PUT /rest/evita/Category/2
 
 {
   "entityExistence": "MUST_NOT_EXIST",
@@ -84,7 +92,9 @@ PUT /rest/test-catalog/category/2
   ]
 }
 
-PUT /rest/test-catalog/category/3
+---
+
+PUT /rest/evita/Category/3
 
 {
   "entityExistence": "MUST_NOT_EXIST",
@@ -106,7 +116,9 @@ PUT /rest/test-catalog/category/3
   ]
 }
 
-POST /rest/test-catalog/product
+---
+
+POST /rest/evita/Product
 
 {
   "entityExistence": "MUST_NOT_EXIST",
@@ -187,7 +199,9 @@ POST /rest/test-catalog/product
   ]
 }
 
-POST /rest/test-catalog/product
+---
+
+POST /rest/evita/Product
 
 {
   "entityExistence": "MUST_NOT_EXIST",
@@ -270,7 +284,9 @@ POST /rest/test-catalog/product
   ]
 }
 
-POST /rest/test-catalog/product
+---
+
+POST /rest/evita/Product
 
 {
   "entityExistence": "MUST_NOT_EXIST",
@@ -352,7 +368,9 @@ POST /rest/test-catalog/product
   ]
 }
 
-POST /rest/test-catalog/product
+---
+
+POST /rest/evita/Product
 
 {
   "entityExistence": "MUST_NOT_EXIST",
@@ -433,7 +451,9 @@ POST /rest/test-catalog/product
   ]
 }
 
-POST /rest/test-catalog/product
+---
+
+POST /rest/evita/Product
 
 {
   "entityExistence": "MUST_NOT_EXIST",

@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -225,9 +225,11 @@ public class ProxycianFactory implements ProxyFactory {
 					if (stateInitializer != null) {
 						stateInitializer.accept(proxyState);
 					}
+					final ProxyRecipe recipe = recipeLocator.apply(cacheKey);
 					return ByteBuddyProxyGenerator.instantiate(
-						recipeLocator.apply(cacheKey),
-						proxyState
+						recipe,
+						proxyState,
+						recipe.getInterfaces()[0].getClassLoader()
 					);
 				} else if (!isFinal(expectedType)) {
 					final BestMatchingEntityConstructorWithExtractionLambda<T> bestMatchingConstructor = findBestMatchingConstructor(
@@ -241,11 +243,13 @@ public class ProxycianFactory implements ProxyFactory {
 					if (stateInitializer != null) {
 						stateInitializer.accept(proxyState);
 					}
+					final ProxyRecipe recipe = recipeLocator.apply(cacheKey);
 					return ByteBuddyProxyGenerator.instantiate(
-						recipeLocator.apply(cacheKey),
+						recipe,
 						proxyState,
 						bestMatchingConstructor.constructor().getParameterTypes(),
-						bestMatchingConstructor.constructorArguments(entity)
+						bestMatchingConstructor.constructorArguments(entity),
+						recipe.getInterfaces()[0].getClassLoader()
 					);
 				} else {
 					final BestMatchingEntityConstructorWithExtractionLambda<T> bestMatchingConstructor = findBestMatchingConstructor(
@@ -293,15 +297,17 @@ public class ProxycianFactory implements ProxyFactory {
 				);
 			} else {
 				if (expectedType.isInterface()) {
+					final ProxyRecipe recipe = recipeLocator.apply(cacheKey);
 					return ByteBuddyProxyGenerator.instantiate(
-						recipeLocator.apply(cacheKey),
+						recipe,
 						new SealedEntityReferenceProxyState(
 							entity, entityPrimaryKeySupplier,
 							referencedEntitySchemas, reference,
 							mainType, expectedType, recipes,
 							collectedRecipes, reflectionLookup,
 							instanceCache
-						)
+						),
+						recipe.getInterfaces()[0].getClassLoader()
 					);
 				} else if (isAbstract(expectedType)) {
 					final BestMatchingReferenceConstructorWithExtractionLambda<T> bestMatchingConstructor = findBestMatchingConstructor(
@@ -309,8 +315,9 @@ public class ProxycianFactory implements ProxyFactory {
 						reference.getReferenceSchemaOrThrow(), reflectionLookup,
 						new DirectProxyFactory(recipes, collectedRecipes, reflectionLookup)
 					);
+					final ProxyRecipe recipe = recipeLocator.apply(cacheKey);
 					return ByteBuddyProxyGenerator.instantiate(
-						recipeLocator.apply(cacheKey),
+						recipe,
 						new SealedEntityReferenceProxyState(
 							entity, entityPrimaryKeySupplier,
 							referencedEntitySchemas, reference,
@@ -319,7 +326,8 @@ public class ProxycianFactory implements ProxyFactory {
 							instanceCache
 						),
 						bestMatchingConstructor.constructor().getParameterTypes(),
-						bestMatchingConstructor.constructorArguments(entity, reference)
+						bestMatchingConstructor.constructorArguments(entity, reference),
+						recipe.getInterfaces()[0].getClassLoader()
 					);
 				} else {
 					final BestMatchingReferenceConstructorWithExtractionLambda<T> bestMatchingConstructor = findBestMatchingConstructor(

@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -30,6 +30,7 @@ import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.store.dataType.exception.StoredVersionNotSupportedException;
 import io.evitadb.utils.Assert;
 
+import javax.annotation.Nonnull;
 import java.io.ObjectStreamClass;
 import java.util.Collections;
 import java.util.HashMap;
@@ -52,7 +53,7 @@ public class SerialVersionBasedSerializer<T> extends Serializer<T> {
 	private final long currentSerializerUID;
 	private Map<Long, Serializer<T>> backwardCompatibleSerializers;
 
-	public SerialVersionBasedSerializer(Serializer<T> currentVersionSerializer, Class<T> targetClass) {
+	public SerialVersionBasedSerializer(@Nonnull Serializer<T> currentVersionSerializer, @Nonnull Class<T> targetClass) {
 		this.currentSerializerUID = ObjectStreamClass.lookup(targetClass).getSerialVersionUID();;
 		this.currentVersionSerializer = currentVersionSerializer;
 	}
@@ -63,13 +64,15 @@ public class SerialVersionBasedSerializer<T> extends Serializer<T> {
 	 * Java class structures through the time while still be able to deserialize old binary data even if they are
 	 * not fully compatible with the current state.
 	 */
-	public void addBackwardCompatibleSerializer(long serialVersionUID, Serializer<T> backwardCompatibleSerializer) {
+	@Nonnull
+	public SerialVersionBasedSerializer<T> addBackwardCompatibleSerializer(long serialVersionUID, @Nonnull Serializer<T> backwardCompatibleSerializer) {
 		final Map<Long, Serializer<T>> serializerIndex = ofNullable(backwardCompatibleSerializers)
 			.orElseGet(() -> {
 				this.backwardCompatibleSerializers = new HashMap<>(32);
 				return this.backwardCompatibleSerializers;
 			});
 		serializerIndex.put(serialVersionUID, backwardCompatibleSerializer);
+		return this;
 	}
 
 	/**

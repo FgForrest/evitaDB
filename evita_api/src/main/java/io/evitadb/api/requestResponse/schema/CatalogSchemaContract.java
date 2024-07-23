@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -24,11 +24,14 @@
 package io.evitadb.api.requestResponse.schema;
 
 import io.evitadb.api.CatalogContract;
+import io.evitadb.api.exception.SchemaAlteringException;
 import io.evitadb.api.requestResponse.data.ContentComparator;
 import io.evitadb.api.requestResponse.data.Versioned;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.exception.EvitaInvalidUsageException;
 
 import javax.annotation.Nonnull;
+import java.util.Collection;
 import java.util.Optional;
 import java.util.Set;
 
@@ -44,9 +47,11 @@ import java.util.Set;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public interface CatalogSchemaContract
-	extends NamedSchemaContract,
+	extends
 	Versioned,
+	NamedSchemaContract,
 	ContentComparator<CatalogSchemaContract>,
+	EntitySchemaProvider,
 	AttributeSchemaProvider<GlobalAttributeSchemaContract> {
 
 	/**
@@ -56,6 +61,14 @@ public interface CatalogSchemaContract
 	 */
 	@Nonnull
 	Set<CatalogEvolutionMode> getCatalogEvolutionMode();
+
+	/**
+	 * Returns a collection of all entity schemas in catalog.
+	 *
+	 * @return a collection of entity schemas in catalog
+	 */
+	@Nonnull
+	Collection<EntitySchemaContract> getEntitySchemas();
 
 	/**
 	 * Returns entity schema that is connected with passed `entityType` or NULL if such entity collection doesn't
@@ -73,4 +86,13 @@ public interface CatalogSchemaContract
 		return getEntitySchema(entityType)
 			.orElseThrow(() -> new EvitaInvalidUsageException("Schema for entity with name `" + entityType + "` was not found!"));
 	}
+
+	/**
+	 * Validates the current state of the object. If the object is not valid, {@link SchemaAlteringException} is thrown.
+	 * Method validates all entity schemas using {@link EntitySchemaContract#validate(CatalogSchemaContract)}.
+	 *
+	 * @throws SchemaAlteringException if current schema contains validation errors
+	 */
+	void validate() throws SchemaAlteringException;
+
 }

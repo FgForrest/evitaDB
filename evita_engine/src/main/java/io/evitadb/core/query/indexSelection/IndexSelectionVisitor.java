@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -38,18 +38,19 @@ import io.evitadb.api.query.filter.IndexUsingConstraint;
 import io.evitadb.api.query.filter.ReferenceHaving;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.core.query.QueryContext;
+import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.hierarchy.HierarchyWithinRootTranslator;
 import io.evitadb.core.query.filter.translator.hierarchy.HierarchyWithinTranslator;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.CatalogIndexKey;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
+import io.evitadb.index.Index;
 import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.bitmap.Bitmap;
 import lombok.Getter;
@@ -74,12 +75,12 @@ import java.util.Optional;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class IndexSelectionVisitor implements ConstraintVisitor {
-	private final QueryContext queryContext;
-	@Getter private final List<TargetIndexes> targetIndexes = new LinkedList<>();
+	private final QueryPlanningContext queryContext;
+	@Getter private final List<TargetIndexes<? extends Index<?>>> targetIndexes = new LinkedList<>();
 	@Getter private boolean targetIndexQueriedByOtherConstraints;
 	private FilterByVisitor filterByVisitor;
 
-	public IndexSelectionVisitor(@Nonnull QueryContext queryContext) {
+	public IndexSelectionVisitor(@Nonnull QueryPlanningContext queryContext) {
 		this.queryContext = queryContext;
 		final Optional<EntityIndex> entityIndex = queryContext.getIndex(new EntityIndexKey(EntityIndexType.GLOBAL));
 		if (entityIndex.isPresent()) {
@@ -151,7 +152,7 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 						);
 					} else {
 						//sanity check only
-						throw new EvitaInternalError("Should never happen");
+						throw new GenericEvitaInternalError("Should never happen");
 					}
 					if (requestedHierarchyNodesFormula instanceof EmptyFormula) {
 						// if target entity has no global index present, it means that the query cannot be fulfilled
@@ -160,7 +161,7 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 					}
 					// locate all hierarchy indexes
 					final Bitmap requestedHierarchyNodes = requestedHierarchyNodesFormula.compute();
-					final List<EntityIndex> theTargetIndexes = new ArrayList<>(requestedHierarchyNodes.size());
+					final List<ReducedEntityIndex> theTargetIndexes = new ArrayList<>(requestedHierarchyNodes.size());
 					for (Integer hierarchyEntityId : requestedHierarchyNodes) {
 						queryContext.getIndex(
 							new EntityIndexKey(
@@ -168,7 +169,7 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 								new ReferenceKey(filteredHierarchyReferenceName, hierarchyEntityId)
 							)
 						)
-							.map(EntityIndex.class::cast)
+							.map(ReducedEntityIndex.class::cast)
 							.ifPresent(theTargetIndexes::add);
 					}
 					// add indexes as potential target indexes
@@ -177,7 +178,7 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 							EntityIndexType.REFERENCED_HIERARCHY_NODE.name() +
 								" composed of " + requestedHierarchyNodes.size() + " indexes",
 							constraint,
-							EntityIndex.class,
+							ReducedEntityIndex.class,
 							theTargetIndexes
 						)
 					);

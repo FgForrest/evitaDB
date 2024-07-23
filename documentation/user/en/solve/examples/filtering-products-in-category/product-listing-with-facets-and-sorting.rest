@@ -1,0 +1,117 @@
+POST /rest/evita/Product/query
+
+{
+  "filterBy" : {
+    "entityLocaleEquals" : "en",
+    "hierarchyCategoriesWithin" : {
+      "ofParent" : {
+        "attributeUrlEquals" : "/en/smartwatches"
+      }
+    },
+    "attributeStatusEquals" : "ACTIVE",
+    "or" : [
+      {
+        "attributeValidityInRangeNow" : true
+      },
+      {
+        "attributeValidityIs" : "NULL"
+      }
+    ],
+    "referenceStocksHaving" : [
+      {
+        "attributeQuantityOnStockGreaterThan" : "0"
+      }
+    ],
+    "priceInCurrency" : "EUR",
+    "priceInPriceLists" : [
+      "basic"
+    ],
+    "priceValidInNow" : true,
+    "userFilter" : [
+      {
+        "facetBrandHaving" : [
+          {
+            "entityPrimaryKeyInSet" : [
+              66465
+            ]
+          }
+        ],
+        "priceBetween" : [
+          "50",
+          "400"
+        ]
+      }
+    ]
+  },
+  "orderBy" : [
+    {
+      "attributeOrderNatural" : "ASC"
+    }
+  ],
+  "require" : {
+    "entityFetch" : {
+      "attributeContent" : [
+        "name"
+      ],
+      "referenceStocksContentWithAttributes" : {
+        "attributeContent" : [
+          "quantityOnStock"
+        ]
+      },
+      "priceContentRespectingFilter" : [
+        "reference"
+      ]
+    },
+    "facetBrandSummary" : {
+      "statisticsDepth" : "IMPACT",
+      "requirements" : {
+        "entityFetch" : {
+          "attributeContent" : [
+            "name"
+          ]
+        }
+      },
+      "orderBy" : [
+        {
+          "attributeNameNatural" : "ASC"
+        }
+      ]
+    },
+    "facetParameterValuesSummary" : {
+      "statisticsDepth" : "IMPACT",
+      "requirements" : {
+        "entityFetch" : {
+          "attributeContent" : [
+            "name"
+          ]
+        },
+        "entityGroupFetch" : {
+          "attributeContent" : [
+            "name"
+          ]
+        }
+      },
+      "filterGroupBy" : {
+        "attributeIsVisibleInFilterEquals" : true
+      },
+      "orderBy" : [
+        {
+          "attributeOrderNatural" : "ASC"
+        }
+      ],
+      "orderGroupBy" : [
+        {
+          "attributeOrderNatural" : "ASC"
+        }
+      ]
+    },
+    "priceHistogram" : {
+      "requestedBucketCount" : 10,
+      "behavior" : "STANDARD"
+    },
+    "page" : {
+      "number" : 1,
+      "size" : 16
+    }
+  }
+}

@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -34,10 +34,8 @@ import io.evitadb.performance.setup.CatalogSetup;
 import io.evitadb.test.TestConstants;
 import io.evitadb.test.generator.DataGenerator;
 import lombok.Getter;
-import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.State;
-import org.openjdk.jmh.annotations.TearDown;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
@@ -76,7 +74,7 @@ public abstract class AbstractArtificialBenchmarkState<S> implements TestConstan
 			return PriceInnerRecordHandling.NONE;
 		} else if (selectedOption < 9) {
 			// 30% of variant products
-			return PriceInnerRecordHandling.FIRST_OCCURRENCE;
+			return PriceInnerRecordHandling.LOWEST_PRICE;
 		} else {
 			// 10% of set products
 			return PriceInnerRecordHandling.SUM;

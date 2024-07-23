@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -26,14 +26,14 @@ package io.evitadb.core.query.sort.attribute;
 import com.carrotsearch.hppc.ObjectIntHashMap;
 import com.carrotsearch.hppc.ObjectIntMap;
 import io.evitadb.api.requestResponse.data.EntityContract;
-import io.evitadb.core.query.QueryContext;
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.sort.EntityComparator;
 import io.evitadb.core.query.sort.NoSorter;
 import io.evitadb.core.query.sort.Sorter;
-import io.evitadb.index.array.CompositeObjectArray;
+import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.index.attribute.SortIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
@@ -124,7 +124,7 @@ public class AttributeExactSorter extends AbstractRecordsSorter {
 	}
 
 	@Override
-	public int sortAndSlice(@Nonnull QueryContext queryContext, @Nonnull Formula input, int startIndex, int endIndex, @Nonnull int[] result, int peak) {
+	public int sortAndSlice(@Nonnull QueryExecutionContext queryContext, @Nonnull Formula input, int startIndex, int endIndex, @Nonnull int[] result, int peak) {
 		final Bitmap selectedRecordIds = input.compute();
 		if (selectedRecordIds.isEmpty()) {
 			return 0;
@@ -141,7 +141,7 @@ public class AttributeExactSorter extends AbstractRecordsSorter {
 	 * Sorts the selected primary key ids by the order of attributes in {@link SortIndex}.
 	 */
 	private int sortOutputBasedOnIndex(
-		@Nonnull QueryContext queryContext, int startIndex, int endIndex, @Nonnull Bitmap selectedRecordIds,
+		@Nonnull QueryExecutionContext queryContext, int startIndex, int endIndex, @Nonnull Bitmap selectedRecordIds,
 		@Nonnull int[] result, int peak
 	) {
 		final int[] entireResult = selectedRecordIds.getArray();
@@ -188,7 +188,7 @@ public class AttributeExactSorter extends AbstractRecordsSorter {
 	 * by comparator in the place.
 	 */
 	private int sortOutputByPrefetchedEntities(
-		@Nonnull QueryContext queryContext, int startIndex, int endIndex, @Nonnull Bitmap selectedRecordIds,
+		@Nonnull QueryExecutionContext queryContext, int startIndex, int endIndex, @Nonnull Bitmap selectedRecordIds,
 		@Nonnull int[] result, int peak
 	) {
 		// collect entity primary keys

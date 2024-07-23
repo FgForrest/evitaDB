@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -26,12 +26,13 @@ package io.evitadb.externalApi.lab.api.resolver.endpoint;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
-import io.evitadb.externalApi.api.ExternalApiNamingConventions;
 import io.evitadb.externalApi.lab.api.model.CatalogsHeaderDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.schemaApi.resolver.serializer.CatalogSchemaJsonSerializer;
+import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.externalApi.rest.exception.RestInvalidArgumentException;
 import io.evitadb.externalApi.rest.io.JsonRestHandler;
-import io.evitadb.externalApi.rest.io.RestEndpointExchange;
+import io.evitadb.externalApi.rest.io.RestEndpointExecutionContext;
+import io.evitadb.utils.Assert;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -46,7 +47,7 @@ import java.util.Optional;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @Slf4j
-public abstract class CatalogSchemaHandler extends JsonRestHandler<CatalogSchemaContract, LabApiHandlingContext> {
+public abstract class CatalogSchemaHandler extends JsonRestHandler<LabApiHandlingContext> {
 
 	@Nonnull
 	private final CatalogSchemaJsonSerializer catalogSchemaJsonSerializer;
@@ -64,26 +65,30 @@ public abstract class CatalogSchemaHandler extends JsonRestHandler<CatalogSchema
 
 	@Nullable
 	@Override
-	protected Optional<EvitaSessionContract> createSession(@Nonnull RestEndpointExchange exchange) {
+	protected Optional<EvitaSessionContract> createSession(@Nonnull RestEndpointExecutionContext exchange) {
 		// creates session based on url parameters instead of static context
 
 		final Map<String, Object> parameters = getParametersFromRequest(exchange);
 		final String catalogName = (String) parameters.get(CatalogsHeaderDescriptor.NAME.name());
-		final CatalogContract catalog = restApiHandlingContext.getEvita().getCatalogInstance(catalogName)
+		final CatalogContract catalog = restHandlingContext.getEvita().getCatalogInstance(catalogName)
 			.orElseThrow(() -> new RestInvalidArgumentException("Catalog `" + catalogName + "` does not exist."));
 
 		if (modifiesData()) {
-			return Optional.of(restApiHandlingContext.getEvita().createReadWriteSession(catalog.getName()));
+			return Optional.of(restHandlingContext.getEvita().createReadWriteSession(catalog.getName()));
 		} else {
-			return Optional.of(restApiHandlingContext.getEvita().createReadOnlySession(catalog.getName()));
+			return Optional.of(restHandlingContext.getEvita().createReadOnlySession(catalog.getName()));
 		}
 	}
 
 	@Nonnull
 	@Override
-	protected Object convertResultIntoSerializableObject(@Nonnull RestEndpointExchange exchange, @Nonnull CatalogSchemaContract catalogSchema) {
+	protected Object convertResultIntoSerializableObject(@Nonnull RestEndpointExecutionContext exchange, @Nonnull Object catalogSchema) {
+		Assert.isPremiseValid(
+			catalogSchema instanceof CatalogSchemaContract,
+			() -> new RestInternalError("Expected catalog schema, but got `" + catalogSchema.getClass().getName() + "`.")
+		);
 		return catalogSchemaJsonSerializer.serialize(
-			catalogSchema,
+			(CatalogSchemaContract) catalogSchema,
 			exchange.session()::getEntitySchemaOrThrow,
 			exchange.session().getAllEntityTypes()
 		);

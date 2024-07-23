@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -30,7 +30,6 @@ import io.evitadb.api.query.Query;
 import io.evitadb.api.query.QueryParser;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser;
-import io.evitadb.api.query.parser.visitor.EvitaQLClassifierTokenVisitor;
 import io.evitadb.api.query.parser.visitor.EvitaQLFilterConstraintListVisitor;
 import io.evitadb.api.query.parser.visitor.EvitaQLHeadConstraintListVisitor;
 import io.evitadb.api.query.parser.visitor.EvitaQLOrderConstraintListVisitor;
@@ -60,7 +59,6 @@ public class DefaultQueryParser implements QueryParser {
     private final EvitaQLFilterConstraintListVisitor filterConstraintListVisitor = new EvitaQLFilterConstraintListVisitor();
     private final EvitaQLOrderConstraintListVisitor orderConstraintListVisitor = new EvitaQLOrderConstraintListVisitor();
     private final EvitaQLRequireConstraintListVisitor requireConstraintListVisitor = new EvitaQLRequireConstraintListVisitor();
-    private final EvitaQLClassifierTokenVisitor classifierTokenVisitor = new EvitaQLClassifierTokenVisitor();
     private final EvitaQLValueTokenVisitor valueTokenVisitor = EvitaQLValueTokenVisitor.withAllDataTypesAllowed();
 
     /**
@@ -219,30 +217,6 @@ public class DefaultQueryParser implements QueryParser {
     @Override
     public List<RequireConstraint> parseRequireConstraintList(@Nonnull String requireConstraintList, @Nonnull Map<String, Object> namedArguments, @Nonnull List<Object> positionalArguments) {
         return parseRequireConstraintList(requireConstraintList, new ParseContext(namedArguments, positionalArguments));
-    }
-
-    @Nonnull
-    @Override
-    public String parseClassifier(@Nonnull String classifier) {
-        return parseClassifier(classifier, new ParseContext());
-    }
-
-    @Nonnull
-    @Override
-    public String parseClassifier(@Nonnull String classifier, @Nonnull Object positionalArgument) {
-        return parseClassifier(classifier, new ParseContext(positionalArgument));
-    }
-
-    @Nonnull
-    @Override
-    public String parseClassifier(@Nonnull String classifier, @Nonnull Map<String, Object> namedArguments) {
-        return parseClassifier(classifier, new ParseContext(namedArguments));
-    }
-
-    @Nonnull
-    @Override
-    public String parseClassifier(@Nonnull String classifier, @Nonnull Map<String, Object> namedArguments, @Nonnull Object positionalArgument) {
-        return parseClassifier(classifier, new ParseContext(namedArguments, positionalArgument));
     }
 
     @Nonnull
@@ -469,16 +443,6 @@ public class DefaultQueryParser implements QueryParser {
         return ParserExecutor.execute(
             context,
             () -> parser.requireConstraintListUnit().requireConstraintList().accept(requireConstraintListVisitor)
-        );
-    }
-
-    @Nonnull
-    public String parseClassifier(@Nonnull String classifier, @Nonnull ParseContext context) {
-        context.setMode(ParseMode.UNSAFE);
-        final EvitaQLParser parser = ParserFactory.getParser(classifier);
-        return ParserExecutor.execute(
-            context,
-            () -> parser.classifierTokenUnit().classifierToken().accept(classifierTokenVisitor).asSingleClassifier()
         );
     }
 

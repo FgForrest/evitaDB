@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -22,6 +22,10 @@
  */
 
 package io.evitadb.externalApi.grpc.constants;
+
+import io.grpc.Metadata;
+
+import javax.annotation.Nonnull;
 
 /**
  * Shared gRPC constant repository. The constants that we want o be shared between the Java client and the gRPC server.
@@ -35,19 +39,30 @@ public interface GrpcHeaders {
 	 */
 	String CATALOG_NAME_HEADER = "catalogName";
 	/**
-	 * Constant string representing sessionId that is used to fetch session from context.
+	 * Constant string representing sessionId that is used to fetch session from the context.
 	 */
 	String SESSION_ID_HEADER = "sessionId";
 	/**
-	 * Constant string representing client address (IP address) that is used to identify the client.
+	 * Constant string representing metadata that is used to fetch gRPC metadata object from the context.
 	 */
-	String CLIENT_ADDRESS_HEADER = "clientAddress";
+	String METADATA_HEADER = "metadata";
+	/**
+	 * Constant string representing metadata that is used to fetch gRPC method name from the context.
+	 */
+	String METHOD_NAME_HEADER = "methodName";
 	/**
 	 * Constant string representing clientId that is used to fetch session from context.
 	 */
 	String CLIENT_ID_HEADER = "clientId";
+
 	/**
-	 * Constant string representing requestId that is used to fetch session from context.
+	 * Returns the gRPC trace task name with method name.
+	 *
+	 * @param metadata gRPC metadata object
+	 * @return gRPC trace task name with method name
 	 */
-	String REQUEST_ID_HEADER = "requestId";
+	static String getGrpcTraceTaskNameWithMethodName(@Nonnull Metadata metadata) {
+		final Metadata.Key<String> methodName = Metadata.Key.of(METHOD_NAME_HEADER, Metadata.ASCII_STRING_MARSHALLER);
+		return "gRPC - " + metadata.get(methodName);
+	}
 }

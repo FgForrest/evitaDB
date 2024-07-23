@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -52,7 +52,7 @@ import static io.swagger.v3.oas.models.PathItem.HttpMethod.*;
 
 /**
  * Single REST endpoint with schema description and handler builder for building data endpoints.
- * It combines {@link PathItem}, {@link Operation} and {@link io.undertow.server.HttpHandler} into one place with useful defaults.
+ * It combines {@link PathItem}, {@link Operation} and {@link com.linecorp.armeria.server.HttpService} into one place with useful defaults.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
@@ -70,7 +70,7 @@ public class OpenApiLabApiEndpoint extends OpenApiEndpoint<LabApiHandlingContext
 	                              @Nonnull List<OpenApiEndpointParameter> parameters,
 	                              @Nullable OpenApiSimpleType requestBody,
 	                              @Nonnull OpenApiSimpleType successResponse,
-	                              @Nonnull Function<LabApiHandlingContext, RestEndpointHandler<?, LabApiHandlingContext>> handlerBuilder) {
+	                              @Nonnull Function<LabApiHandlingContext, RestEndpointHandler<LabApiHandlingContext>> handlerBuilder) {
 		super(method, path, false, operationId, description, deprecationNotice, parameters, requestBody, successResponse, handlerBuilder);
 	}
 
@@ -84,7 +84,7 @@ public class OpenApiLabApiEndpoint extends OpenApiEndpoint<LabApiHandlingContext
 
 	@Nonnull
 	@Override
-	public RestEndpointHandler<?, LabApiHandlingContext> toHandler(@Nonnull ObjectMapper objectMapper,
+	public RestEndpointHandler<LabApiHandlingContext> toHandler(@Nonnull ObjectMapper objectMapper,
 	                                                               @Nonnull Evita evita,
 	                                                               @Nonnull OpenAPI openApi,
 	                                                               @Nonnull Map<String, Class<? extends Enum<?>>> enumMapping) {
@@ -111,7 +111,7 @@ public class OpenApiLabApiEndpoint extends OpenApiEndpoint<LabApiHandlingContext
 		@Nullable private OpenApiSimpleType requestBody;
 		@Nullable private OpenApiSimpleType successResponse;
 
-		@Nullable private Function<LabApiHandlingContext, RestEndpointHandler<?, LabApiHandlingContext>> handlerBuilder;
+		@Nullable private Function<LabApiHandlingContext, RestEndpointHandler<LabApiHandlingContext>> handlerBuilder;
 
 		private Builder() {
 			this.parameters = new LinkedList<>();
@@ -218,7 +218,7 @@ public class OpenApiLabApiEndpoint extends OpenApiEndpoint<LabApiHandlingContext
 		 * Sets handler builder.
 		 */
 		@Nonnull
-		public Builder handler(@Nonnull Function<LabApiHandlingContext, RestEndpointHandler<?, LabApiHandlingContext>> handlerBuilder) {
+		public Builder handler(@Nonnull Function<LabApiHandlingContext, RestEndpointHandler<LabApiHandlingContext>> handlerBuilder) {
 			this.handlerBuilder = handlerBuilder;
 			return this;
 		}

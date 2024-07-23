@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -53,7 +53,7 @@ import static java.util.Optional.ofNullable;
  * {@link ParentStatisticsComputer} optionally accompanied by {@link SiblingsStatisticsTravelingComputer} registered
  * inside {@link HierarchyStatisticsProducer}. The computer instance has all pointer necessary to compute result.
  * All operations in this translator are relatively cheap comparing to final result computation, that is deferred to
- * {@link HierarchyStatisticsProducer#fabricate(List)} method.
+ * {@link ExtraResultProducer#fabricate(io.evitadb.core.query.QueryExecutionContext, List)} method.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -67,10 +67,26 @@ public class HierarchyParentsTranslator
 		final Optional<HierarchyStatistics> statistics = parents.getStatistics();
 		final HierarchyProducerContext context = producer.getContext(parents.getName());
 		final HierarchyTraversalPredicate scopePredicate = parents.getStopAt()
-			.map(it -> stopAtConstraintToPredicate(TraversalDirection.BOTTOM_UP, it, context.queryContext(), context.entityIndex(), context.referenceSchema()))
+			.map(
+				it -> stopAtConstraintToPredicate(
+					TraversalDirection.BOTTOM_UP,
+					it,
+					extraResultPlanningVisitor.getQueryContext(),
+					context.entityIndex(),
+					context.entitySchema(),
+					context.referenceSchema()
+				)
+			)
 			.orElse(HierarchyTraversalPredicate.NEVER_STOP_PREDICATE);
 		final SiblingsStatisticsTravelingComputer siblingsStatisticsComputer = parents.getSiblings()
-			.map(it -> createComputer(context, it, parents.getEntityFetch().orElse(null), statistics.orElse(null)))
+			.map(
+				it -> createComputer(
+					context, it,
+					parents.getEntityFetch().orElse(null),
+					statistics.orElse(null),
+					extraResultPlanningVisitor
+				)
+			)
 			.orElse(null);
 
 		if (context.hierarchyFilter() instanceof HierarchyWithin) {
@@ -81,7 +97,8 @@ public class HierarchyParentsTranslator
 					context,
 					createEntityFetcher(
 						parents.getEntityFetch().orElse(null),
-						producer.getContext(parents.getName())
+						producer.getContext(parents.getName()),
+						extraResultPlanningVisitor
 					),
 					context.hierarchyFilterPredicateProducer(),
 					extraResultPlanningVisitor.getQueryContext().getHierarchyHavingPredicate(),
@@ -104,24 +121,35 @@ public class HierarchyParentsTranslator
 	 * traversed parent node.
 	 */
 	@Nonnull
-	private SiblingsStatisticsTravelingComputer createComputer(
+	private static SiblingsStatisticsTravelingComputer createComputer(
 		@Nonnull HierarchyProducerContext context,
 		@Nonnull HierarchySiblings siblings,
 		@Nullable EntityFetch parentEntityFetch,
-		@Nullable HierarchyStatistics parentStatistics
+		@Nullable HierarchyStatistics parentStatistics,
+		@Nonnull ExtraResultPlanningVisitor extraResultPlanner
 	) {
 		final Optional<HierarchyStatistics> statistics = siblings.getStatistics().or(() -> ofNullable(parentStatistics));
 		final HierarchyTraversalPredicate scopePredicate = siblings.getStopAt()
-			.map(it -> stopAtConstraintToPredicate(TraversalDirection.TOP_DOWN, it, context.queryContext(), context.entityIndex(), context.referenceSchema()))
+			.map(
+				it -> stopAtConstraintToPredicate(
+					TraversalDirection.TOP_DOWN,
+					it,
+					extraResultPlanner.getQueryContext(),
+					context.entityIndex(),
+					context.entitySchema(),
+					context.referenceSchema()
+				)
+			)
 			.orElse((hierarchyNodeId, level, distance) -> distance == 0);
 		return new SiblingsStatisticsTravelingComputer(
 			context,
 			createEntityFetcher(
 				siblings.getEntityFetch().orElse(parentEntityFetch),
-				context
+				context,
+				extraResultPlanner
 			),
 			context.hierarchyFilterPredicateProducer(),
-			context.queryContext().getHierarchyHavingPredicate(),
+			extraResultPlanner.getQueryContext().getHierarchyHavingPredicate(),
 			scopePredicate,
 			statistics.map(HierarchyStatistics::getStatisticsBase).orElse(null),
 			statistics.map(HierarchyStatistics::getStatisticsType).orElseGet(() -> EnumSet.noneOf(StatisticsType.class))

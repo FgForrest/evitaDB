@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -25,7 +25,6 @@ package io.evitadb.externalApi.rest.api.openApi;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.evitadb.core.Evita;
-import io.evitadb.externalApi.rest.api.openApi.OpenApiEndpointParameter.ParameterLocation;
 import io.evitadb.externalApi.rest.api.system.resolver.endpoint.SystemRestHandlingContext;
 import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
 import io.evitadb.externalApi.rest.io.RestEndpointHandler;
@@ -49,7 +48,7 @@ import static io.swagger.v3.oas.models.PathItem.HttpMethod.*;
 
 /**
  * Single REST endpoint with schema description and handler builder for building system-specific endpoints.
- * It combines {@link PathItem}, {@link Operation} and {@link io.undertow.server.HttpHandler} into one place with useful defaults.
+ * It combines {@link PathItem}, {@link Operation} and {@link com.linecorp.armeria.server.HttpService} into one place with useful defaults.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
@@ -65,7 +64,7 @@ public class OpenApiSystemEndpoint extends OpenApiEndpoint<SystemRestHandlingCon
 	                              @Nonnull List<OpenApiEndpointParameter> parameters,
 	                              @Nullable OpenApiSimpleType requestBody,
 	                              @Nonnull OpenApiSimpleType successResponse,
-	                              @Nonnull Function<SystemRestHandlingContext, RestEndpointHandler<?, SystemRestHandlingContext>> handlerBuilder) {
+	                              @Nonnull Function<SystemRestHandlingContext, RestEndpointHandler<SystemRestHandlingContext>> handlerBuilder) {
 		super(method, path, false, operationId, description, deprecationNotice, parameters, requestBody, successResponse, handlerBuilder);
 	}
 
@@ -79,7 +78,7 @@ public class OpenApiSystemEndpoint extends OpenApiEndpoint<SystemRestHandlingCon
 
 	@Nonnull
 	@Override
-	public RestEndpointHandler<?, SystemRestHandlingContext> toHandler(@Nonnull ObjectMapper objectMapper,
+	public RestEndpointHandler<SystemRestHandlingContext> toHandler(@Nonnull ObjectMapper objectMapper,
 	                                                                   @Nonnull Evita evita,
 	                                                                   @Nonnull OpenAPI openApi,
 	                                                                   @Nonnull Map<String, Class<? extends Enum<?>>> enumMapping) {
@@ -107,7 +106,7 @@ public class OpenApiSystemEndpoint extends OpenApiEndpoint<SystemRestHandlingCon
 		@Nullable private OpenApiSimpleType requestBody;
 		@Nullable private OpenApiSimpleType successResponse;
 
-		@Nullable private Function<SystemRestHandlingContext, RestEndpointHandler<?, SystemRestHandlingContext>> handlerBuilder;
+		@Nullable private Function<SystemRestHandlingContext, RestEndpointHandler<SystemRestHandlingContext>> handlerBuilder;
 
 		private Builder() {
 			this.parameters = new LinkedList<>();
@@ -166,34 +165,6 @@ public class OpenApiSystemEndpoint extends OpenApiEndpoint<SystemRestHandlingCon
 		}
 
 		/**
-		 * Adds single query parameter.
-		 */
-		@Nonnull
-		public Builder queryParameter(@Nonnull OpenApiEndpointParameter queryParameter) {
-			Assert.isPremiseValid(
-				queryParameter.getLocation().equals(ParameterLocation.QUERY),
-				() -> new OpenApiBuildingError("Only query parameters are supported here.")
-			);
-			this.parameters.add(queryParameter);
-			return this;
-		}
-
-		/**
-		 * Adds list of query parameters to existing query parameters.
-		 */
-		@Nonnull
-		public Builder queryParameters(@Nonnull List<OpenApiEndpointParameter> queryParameters) {
-			queryParameters.forEach(queryParameter ->
-				Assert.isPremiseValid(
-					queryParameter.getLocation().equals(ParameterLocation.QUERY),
-					() -> new OpenApiBuildingError("Only query parameters are supported here.")
-				)
-			);
-			this.parameters.addAll(queryParameters);
-			return this;
-		}
-
-		/**
 		 * Sets type of request body if any.
 		 */
 		@Nonnull
@@ -215,7 +186,7 @@ public class OpenApiSystemEndpoint extends OpenApiEndpoint<SystemRestHandlingCon
 		 * Sets handler builder.
 		 */
 		@Nonnull
-		public Builder handler(@Nonnull Function<SystemRestHandlingContext, RestEndpointHandler<?, SystemRestHandlingContext>> handlerBuilder) {
+		public Builder handler(@Nonnull Function<SystemRestHandlingContext, RestEndpointHandler<SystemRestHandlingContext>> handlerBuilder) {
 			this.handlerBuilder = handlerBuilder;
 			return this;
 		}

@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,7 +23,7 @@
 
 package io.evitadb.core.query.sort;
 
-import io.evitadb.core.query.QueryContext;
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
 
 import javax.annotation.Nonnull;
@@ -42,17 +42,17 @@ public interface ConditionalSorter extends Sorter {
 	 * the chain of sorters.
 	 */
 	@Nullable
-	static Sorter getFirstApplicableSorter(@Nullable Sorter sorter, @Nonnull QueryContext queryContext) {
-		while (sorter instanceof ConditionalSorter conditionalSorter && !conditionalSorter.shouldApply(queryContext)) {
+	static Sorter getFirstApplicableSorter(@Nonnull QueryExecutionContext context, @Nullable Sorter sorter) {
+		while (sorter instanceof ConditionalSorter conditionalSorter && !conditionalSorter.shouldApply(context)) {
 			sorter = conditionalSorter.getNextSorter();
 		}
 		return sorter;
 	}
 
 	/**
-	 * Method must return TRUE in case the sorter {@link #sortAndSlice(QueryContext, Formula, int, int)} should be
+	 * Method must return TRUE in case the sorter {@link #sortAndSlice(QueryExecutionContext, Formula, int, int, int[], int)}  should be
 	 * applied on the query result.
 	 */
-	boolean shouldApply(@Nonnull QueryContext queryContext);
+	boolean shouldApply(@Nonnull QueryExecutionContext queryContext);
 
 }

@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -48,6 +48,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Supplier;
+import java.util.regex.Pattern;
 
 import static io.evitadb.documentation.UserDocumentationTest.readFile;
 import static io.evitadb.documentation.UserDocumentationTest.resolveSiblingWithDifferentExtension;
@@ -68,6 +69,16 @@ import static org.junit.jupiter.api.Assertions.fail;
  */
 @RequiredArgsConstructor
 public class GraphQLExecutable extends JsonExecutable implements Executable, EvitaTestSupport {
+
+	/**
+	 * Pattern of keywords for identify system instance.
+	 */
+	private static final Pattern SYSTEM_INSTANCE_KEYWORDS_PATTERN = Pattern.compile("(createCatalog|switchCatalogToAliveState)");
+	/**
+	 * Pattern of keywords for identify schema instance.
+	 */
+	private static final Pattern SCHEMA_INSTANCE_KEYWORDS_PATTERN = Pattern.compile("(update[a-zA-Z]+Schema\\()");
+
 	/**
 	 * Provides access to the {@link GraphQLTestContext} instance.
 	 */
@@ -201,10 +212,20 @@ public class GraphQLExecutable extends JsonExecutable implements Executable, Evi
 	@Override
 	public void execute() throws Throwable {
 		final String theQuery = sourceContent;
+
+		final String instancePath;
+		if (SYSTEM_INSTANCE_KEYWORDS_PATTERN.matcher(theQuery).find()) {
+			instancePath = "/gql/system";
+		} else if (SCHEMA_INSTANCE_KEYWORDS_PATTERN.matcher(theQuery).find()) {
+			instancePath = "/gql/evita/schema";
+		} else {
+			instancePath = "/gql/evita";
+		}
+
 		final GraphQLClient graphQLClient = testContextAccessor.get().getGraphQLClient();
 		final JsonNode theResult;
 		try {
-			theResult = graphQLClient.call(theQuery);
+			theResult = graphQLClient.call(instancePath, theQuery).orElseThrow();
 		} catch (Exception ex) {
 			fail("The query " + theQuery + " failed: " + ex.getMessage(), ex);
 			return;

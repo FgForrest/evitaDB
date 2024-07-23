@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -28,7 +28,7 @@ import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.dataType.DateTimeRange;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 
 import java.time.OffsetDateTime;
 
@@ -68,7 +68,7 @@ public class DateTimeRangeSerializer extends Serializer<DateTimeRange> {
 		} else if (to != null) {
 			return DateTimeRange.until(to);
 		} else {
-			throw new EvitaInternalError("The range have both bounds null. It should have not been created in the first place!");
+			throw new GenericEvitaInternalError("The range have both bounds null. It should have not been created in the first place!");
 		}
 	}
 

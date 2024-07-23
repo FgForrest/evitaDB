@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -35,50 +35,86 @@ import java.util.Optional;
 /**
  * Configuration options related to the key-value storage.
  *
- * @param storageDirectory     Directory on local disk where Evita files are stored.
- *                             By default, temporary directory is used - but it is highly recommended setting your own
- *                             directory if you don't want to lose the data.
- * @param lockTimeoutSeconds   This timeout represents a time in seconds that is tolerated to wait for lock acquiring.
- *                             Locks are used to get handle to open file. Set of open handles is limited to
- *                             {@link #maxOpenedReadHandles} for read operations and single write handle for write
- *                             operations (only single thread is expected to append to a file).
- * @param waitOnCloseSeconds   This timeout represents a time that will MemTable wait for processes to release their
- *                             read handles to file. After this timeout files will be closed by force and processes may
- *                             experience an exception.
- * @param outputBufferSize     The output buffer size determines how large a buffer is kept in memory for output
- *                             purposes. The size of the buffer limits the maximum size of an individual record in the
- *                             key/value data store.
- * @param maxOpenedReadHandles Maximum number of simultaneously opened {@link java.io.InputStream} to MemTable file.
- * @param computeCRC32C        Contains setting that determined whether CRC32C checksums will be computed for written
- *                             records and also whether the CRC32C checksum will be checked on record read.
+ * @param storageDirectory                   Directory on local disk where Evita data files are stored.
+ *                                           By default, temporary directory is used - but it is highly recommended setting your own
+ *                                           directory if you don't want to lose the data.
+ *                                           recommended setting your own directory with dedicated disk space.
+ * @param exportDirectory                    Directory on local disk where Evita files are exported - for example, backups,
+ *                                           JFR recordings, query recordings etc.
+ * @param lockTimeoutSeconds                 This timeout represents a time in seconds that is tolerated to wait for lock acquiring.
+ *                                           Locks are used to get handle to open file. Set of open handles is limited to
+ *                                           {@link #maxOpenedReadHandles} for read operations and single write handle for write
+ *                                           operations (only single thread is expected to append to a file).
+ * @param waitOnCloseSeconds                 This timeout represents a time that will file offset index wait for processes to release their
+ *                                           read handles to file. After this timeout files will be closed by force and processes may
+ *                                           experience an exception.
+ * @param outputBufferSize                   The output buffer size determines how large a buffer is kept in memory for output
+ *                                           purposes. The size of the buffer limits the maximum size of an individual record in the
+ *                                           key/value data store.
+ * @param maxOpenedReadHandles               Maximum number of simultaneously opened {@link java.io.InputStream} to file offset index file.
+ * @param computeCRC32C                      Contains setting that determined whether CRC32C checksums will be computed for written
+ *                                           records and also whether the CRC32C checksum will be checked on record read.
+ * @param minimalActiveRecordShare           Minimal share of active records in the file. If the share is lower, the file will
+ *                                           be compacted.
+ * @param fileSizeCompactionThresholdBytes   Minimal file size threshold for compaction. If the file size is lower,
+ *                                           the file will not be compacted even if the share of active records is lower
+ *                                           than the minimal share.
+ * @param timeTravelEnabled                  When set to true, the data files are not removed immediately after compacting,
+ *                                           but are kept on disk as long as there is history available in the WAL log.
+ *                                           This allows a snapshot of the database to be taken at any point in
+ *                                           the history covered by the WAL log. From the snapshot, the database can be
+ *                                           restored to the exact point in time with all the data available at that time.
+ * @param exportDirectorySizeLimitBytes      Maximum overall size of the export directory. When this threshold
+ *                                           is exceeded the oldest files will automatically be removed until the
+ *                                           size drops below the limit.
+ * @param exportFileHistoryExpirationSeconds Maximal age of exported file in seconds. When age is exceeded the file
+ *                                           will be automatically removed.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @Builder
 public record StorageOptions(
 	@Nullable Path storageDirectory,
+	@Nullable Path exportDirectory,
 	long lockTimeoutSeconds,
 	long waitOnCloseSeconds,
 	int outputBufferSize,
 	int maxOpenedReadHandles,
-	boolean computeCRC32C
+	boolean computeCRC32C,
+	double minimalActiveRecordShare,
+	long fileSizeCompactionThresholdBytes,
+	boolean timeTravelEnabled,
+	long exportDirectorySizeLimitBytes,
+	long exportFileHistoryExpirationSeconds
 ) {
 
 	public static final int DEFAULT_OUTPUT_BUFFER_SIZE = 2_097_152;
-	public static final Path DEFAULT_DIRECTORY = Paths.get("").resolve("data");
+	public static final Path DEFAULT_DATA_DIRECTORY = Paths.get("").resolve("data");
+	public static final Path DEFAULT_EXPORT_DIRECTORY = Paths.get("").resolve("export");
 	public static final int DEFAULT_LOCK_TIMEOUT_SECONDS = 5;
 	public static final int DEFAULT_WAIT_ON_CLOSE_SECONDS = 5;
 	public static final int DEFAULT_MAX_OPENED_READ_HANDLES = Runtime.getRuntime().availableProcessors();
 	public static final boolean DEFAULT_COMPUTE_CRC = true;
+	public static final double DEFAULT_MINIMAL_ACTIVE_RECORD_SHARE = 0.5;
+	public static final long DEFAULT_MINIMAL_FILE_SIZE_COMPACTION_THRESHOLD = 104_857_600L;
+	public static final boolean DEFAULT_TIME_TRAVEL_ENABLED = true;
+	public static final long DEFAULT_EXPORT_DIRECTORY_SIZE_LIMIT_BYTES = 1_073_741_824L;
+	public static final long DEFAULT_EXPORT_FILE_HISTORY_EXPIRATION_SECONDS = 604_800L;
 
 	/**
 	 * Builder method is planned to be used only in tests.
 	 */
 	public static StorageOptions temporary() {
 		return new StorageOptions(
-			Path.of(System.getProperty("java.io.tmpdir"), "evita"),
+			Path.of(System.getProperty("java.io.tmpdir"), "evita/data"),
+			Path.of(System.getProperty("java.io.tmpdir"), "evita/export"),
 			5, 5, DEFAULT_OUTPUT_BUFFER_SIZE,
 			Runtime.getRuntime().availableProcessors(),
-			true
+			true,
+			DEFAULT_MINIMAL_ACTIVE_RECORD_SHARE,
+			DEFAULT_MINIMAL_FILE_SIZE_COMPACTION_THRESHOLD,
+			DEFAULT_TIME_TRAVEL_ENABLED,
+			DEFAULT_EXPORT_DIRECTORY_SIZE_LIMIT_BYTES,
+			DEFAULT_EXPORT_FILE_HISTORY_EXPIRATION_SECONDS
 		);
 	}
 
@@ -92,28 +128,53 @@ public record StorageOptions(
 	/**
 	 * Builder for the storage options. Recommended to use to avoid binary compatibility problems in the future.
 	 */
-	public static StorageOptions.Builder builder(StorageOptions storageOptions) {
+	public static StorageOptions.Builder builder(@Nonnull StorageOptions storageOptions) {
 		return new StorageOptions.Builder(storageOptions);
 	}
 
 	public StorageOptions() {
 		this(
-			DEFAULT_DIRECTORY,
+			DEFAULT_DATA_DIRECTORY,
+			DEFAULT_EXPORT_DIRECTORY,
 			DEFAULT_LOCK_TIMEOUT_SECONDS,
 			DEFAULT_WAIT_ON_CLOSE_SECONDS,
 			DEFAULT_OUTPUT_BUFFER_SIZE,
 			DEFAULT_MAX_OPENED_READ_HANDLES,
-			DEFAULT_COMPUTE_CRC
+			DEFAULT_COMPUTE_CRC,
+			DEFAULT_MINIMAL_ACTIVE_RECORD_SHARE,
+			DEFAULT_MINIMAL_FILE_SIZE_COMPACTION_THRESHOLD,
+			DEFAULT_TIME_TRAVEL_ENABLED,
+			DEFAULT_EXPORT_DIRECTORY_SIZE_LIMIT_BYTES,
+			DEFAULT_EXPORT_FILE_HISTORY_EXPIRATION_SECONDS
 		);
 	}
 
-	public StorageOptions(@Nullable Path storageDirectory, long lockTimeoutSeconds, long waitOnCloseSeconds, int outputBufferSize, int maxOpenedReadHandles, boolean computeCRC32C) {
-		this.storageDirectory = Optional.ofNullable(storageDirectory).orElse(DEFAULT_DIRECTORY);
+	public StorageOptions(
+		@Nullable Path storageDirectory,
+		@Nullable Path exportDirectory,
+		long lockTimeoutSeconds,
+		long waitOnCloseSeconds,
+		int outputBufferSize,
+		int maxOpenedReadHandles,
+		boolean computeCRC32C,
+		double minimalActiveRecordShare,
+		long fileSizeCompactionThresholdBytes,
+		boolean timeTravelEnabled,
+		long exportDirectorySizeLimitBytes,
+		long exportFileHistoryExpirationSeconds
+	) {
+		this.storageDirectory = Optional.ofNullable(storageDirectory).orElse(DEFAULT_DATA_DIRECTORY);
+		this.exportDirectory = Optional.ofNullable(exportDirectory).orElse(DEFAULT_EXPORT_DIRECTORY);
 		this.lockTimeoutSeconds = lockTimeoutSeconds;
 		this.waitOnCloseSeconds = waitOnCloseSeconds;
 		this.outputBufferSize = outputBufferSize;
 		this.maxOpenedReadHandles = maxOpenedReadHandles;
 		this.computeCRC32C = computeCRC32C;
+		this.minimalActiveRecordShare = minimalActiveRecordShare;
+		this.fileSizeCompactionThresholdBytes = fileSizeCompactionThresholdBytes;
+		this.timeTravelEnabled = timeTravelEnabled;
+		this.exportDirectorySizeLimitBytes = exportDirectorySizeLimitBytes;
+		this.exportFileHistoryExpirationSeconds = exportFileHistoryExpirationSeconds;
 	}
 
 	/**
@@ -122,7 +183,16 @@ public record StorageOptions(
 	@Nonnull
 	public Path storageDirectoryOrDefault() {
 		return storageDirectory == null ?
-			DEFAULT_DIRECTORY : storageDirectory;
+			DEFAULT_DATA_DIRECTORY : storageDirectory;
+	}
+
+	/**
+	 * Method returns null safe export directory.
+	 */
+	@Nonnull
+	public Path exportDirectoryOrDefault() {
+		return exportDirectory == null ?
+			DEFAULT_EXPORT_DIRECTORY : exportDirectory;
 	}
 
 	/**
@@ -130,63 +200,124 @@ public record StorageOptions(
 	 */
 	@ToString
 	public static class Builder {
-		private Path storageDirectory = DEFAULT_DIRECTORY;
+		private Path storageDirectory = DEFAULT_DATA_DIRECTORY;
+		private Path exportDirectory = DEFAULT_EXPORT_DIRECTORY;
 		private long lockTimeoutSeconds = DEFAULT_LOCK_TIMEOUT_SECONDS;
 		private long waitOnCloseSeconds = DEFAULT_WAIT_ON_CLOSE_SECONDS;
 		private int outputBufferSize = DEFAULT_OUTPUT_BUFFER_SIZE;
 		private int maxOpenedReadHandles = DEFAULT_MAX_OPENED_READ_HANDLES;
 		private boolean computeCRC32C = DEFAULT_COMPUTE_CRC;
+		private double minimalActiveRecordShare = DEFAULT_MINIMAL_ACTIVE_RECORD_SHARE;
+		private long fileSizeCompactionThresholdBytes = DEFAULT_MINIMAL_FILE_SIZE_COMPACTION_THRESHOLD;
+		private boolean timeTravelEnabled = DEFAULT_TIME_TRAVEL_ENABLED;
+		private long exportDirectorySizeLimitBytes = DEFAULT_EXPORT_DIRECTORY_SIZE_LIMIT_BYTES;
+		private long exportFileHistoryExpirationSeconds = DEFAULT_EXPORT_FILE_HISTORY_EXPIRATION_SECONDS;
 
 		Builder() {
 		}
 
 		Builder(@Nonnull StorageOptions storageOptions) {
 			this.storageDirectory = storageOptions.storageDirectory;
+			this.exportDirectory = storageOptions.exportDirectory;
 			this.lockTimeoutSeconds = storageOptions.lockTimeoutSeconds;
 			this.waitOnCloseSeconds = storageOptions.waitOnCloseSeconds;
 			this.outputBufferSize = storageOptions.outputBufferSize;
 			this.maxOpenedReadHandles = storageOptions.maxOpenedReadHandles;
 			this.computeCRC32C = storageOptions.computeCRC32C;
+			this.minimalActiveRecordShare = storageOptions.minimalActiveRecordShare;
+			this.fileSizeCompactionThresholdBytes = storageOptions.fileSizeCompactionThresholdBytes;
+			this.timeTravelEnabled = storageOptions.timeTravelEnabled;
+			this.exportDirectorySizeLimitBytes = storageOptions.exportDirectorySizeLimitBytes;
+			this.exportFileHistoryExpirationSeconds = storageOptions.exportFileHistoryExpirationSeconds;
 		}
 
-		public Builder storageDirectory(Path storageDirectory) {
+		@Nonnull
+		public Builder storageDirectory(@Nonnull Path storageDirectory) {
 			this.storageDirectory = storageDirectory;
 			return this;
 		}
 
+		@Nonnull
+		public Builder exportDirectory(@Nonnull Path exportDirectory) {
+			this.exportDirectory = exportDirectory;
+			return this;
+		}
+
+		@Nonnull
 		public Builder lockTimeoutSeconds(long lockTimeoutSeconds) {
 			this.lockTimeoutSeconds = lockTimeoutSeconds;
 			return this;
 		}
 
+		@Nonnull
 		public Builder waitOnCloseSeconds(long waitOnCloseSeconds) {
 			this.waitOnCloseSeconds = waitOnCloseSeconds;
 			return this;
 		}
 
+		@Nonnull
 		public Builder outputBufferSize(int outputBufferSize) {
 			this.outputBufferSize = outputBufferSize;
 			return this;
 		}
 
+		@Nonnull
 		public Builder maxOpenedReadHandles(int maxOpenedReadHandles) {
 			this.maxOpenedReadHandles = maxOpenedReadHandles;
 			return this;
 		}
 
+		@Nonnull
 		public Builder computeCRC32(boolean computeCRC32) {
 			this.computeCRC32C = computeCRC32;
 			return this;
 		}
 
+		@Nonnull
+		public Builder minimalActiveRecordShare(double minimalActiveRecordShare) {
+			this.minimalActiveRecordShare = minimalActiveRecordShare;
+			return this;
+		}
+
+		@Nonnull
+		public Builder fileSizeCompactionThresholdBytes(long fileSizeCompactionThresholdBytes) {
+			this.fileSizeCompactionThresholdBytes = fileSizeCompactionThresholdBytes;
+			return this;
+		}
+
+		@Nonnull
+		public Builder timeTravelEnabled(boolean timeTravelEnabled) {
+			this.timeTravelEnabled = timeTravelEnabled;
+			return this;
+		}
+
+		@Nonnull
+		public Builder exportDirectorySizeLimitBytes(long exportDirectorySizeLimitBytes) {
+			this.exportDirectorySizeLimitBytes = exportDirectorySizeLimitBytes;
+			return this;
+		}
+
+		@Nonnull
+		public Builder exportFileHistoryExpirationSeconds(long exportFileHistoryExpirationSeconds) {
+			this.exportFileHistoryExpirationSeconds = exportFileHistoryExpirationSeconds;
+			return this;
+		}
+
+		@Nonnull
 		public StorageOptions build() {
 			return new StorageOptions(
 				storageDirectory,
+				exportDirectory,
 				lockTimeoutSeconds,
 				waitOnCloseSeconds,
 				outputBufferSize,
 				maxOpenedReadHandles,
-				computeCRC32C
+				computeCRC32C,
+				minimalActiveRecordShare,
+				fileSizeCompactionThresholdBytes,
+				timeTravelEnabled,
+				exportDirectorySizeLimitBytes,
+				exportFileHistoryExpirationSeconds
 			);
 		}
 
