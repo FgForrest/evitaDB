@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -31,19 +31,20 @@ import javax.annotation.Nullable;
  * The request contains the recipe for the messages that the subscriber is interested in, and that are sent to it by
  * {@link ChangeCapturePublisher}.
  *
- * @param area               the requested area of the capture
- * @param site               the filter for the events to be sent, limits the amount of events sent to the subscriber
- * @param content            the requested content of the capture, by default only the header information is sent
- * @param sinceTransactionId specifies the initial capture point for the CDC stream, it must always provide a last
- *                           known transaction id from the client point of view
- *
+ * @param area         the requested area of the capture
+ * @param site         the filter for the events to be sent, limits the amount of events sent to the subscriber
+ * @param content      the requested content of the capture, by default only the header information is sent
+ * @param sinceVersion specifies the initial capture point for the CDC stream, it must always provide a last
+ *                     known version from the client point of view
+ * @param sinceIndex   specifies the initial capture point for the CDC stream, is is optional and can be used
+ *                     to specify continuation point within enclosing block of events
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public record ChangeCatalogCaptureRequest(
 	@Nullable CaptureArea area,
 	@Nullable CaptureSite site,
 	@Nonnull CaptureContent content,
-	// todo jno: what should client enter here when it wants to subscribe only to future events? Especially in GQL/REST where transaction IDs are not present?
-	long sinceTransactionId
+	long sinceVersion,
+	@Nullable Integer sinceIndex
 ) implements ChangeCaptureRequest {
 }

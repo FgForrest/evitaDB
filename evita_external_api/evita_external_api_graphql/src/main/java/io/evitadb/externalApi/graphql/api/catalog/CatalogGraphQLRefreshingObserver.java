@@ -23,7 +23,7 @@
 
 package io.evitadb.externalApi.graphql.api.catalog;
 
-import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
+import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.externalApi.graphql.GraphQLManager;
 import lombok.RequiredArgsConstructor;
 
@@ -37,7 +37,7 @@ import java.util.concurrent.Flow.Subscription;
  */
 // TOBEDONE LHO: consider more efficient GraphQL schema updating when only part of Evita schema is updated
 @RequiredArgsConstructor
-public class CatalogGraphQLRefreshingObserver implements Subscriber<ChangeCatalogCapture> {
+public class CatalogGraphQLRefreshingObserver implements Subscriber<ChangeSystemCapture> {
 
 	private final GraphQLManager graphQLManager;
 	private Subscription subscription;
@@ -49,7 +49,7 @@ public class CatalogGraphQLRefreshingObserver implements Subscriber<ChangeCatalo
 	}
 
 	@Override
-	public void onNext(ChangeCatalogCapture item) {
+	public void onNext(ChangeSystemCapture item) {
 		// todo lho: make use of the lastId when implemented?
 		graphQLManager.registerCatalog(item.catalog());
 		subscription.request(1);

@@ -18,16 +18,17 @@ message GrpcChangeSystemCapture {
 }
 
 message GrpcChangeCatalogCapture {
-  GrpcCaptureArea area = 1;
-  string catalog = 2;
-  string entityType = 3;
-  google.protobuf.Int32Value version = 4;
-  GrpcOperation operation = 5;
+  int64 version = 1;
+  int32 index = 2;
+  GrpcCaptureArea area = 3;
+  string entityType = 4;
+  google.protobuf.Int32Value entityVersion = 5;
+  GrpcOperation operation = 6;
   oneof body {
-    GrpcEntityMutation entityMutation = 6;
-    GrpcLocalMutation localMutation = 7;
-    GrpcEntitySchemaMutation entitySchemaMutation = 8;
-    GrpcLocalCatalogSchemaMutation catalogSchemaMutation = 9;
+    GrpcEntityMutation entityMutation = 7;
+    GrpcLocalMutation localMutation = 8;
+    GrpcEntitySchemaMutation entitySchemaMutation = 9;
+    GrpcLocalCatalogSchemaMutation catalogSchemaMutation = 10;
   }
 }
 

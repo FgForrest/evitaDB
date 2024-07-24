@@ -31,123 +31,123 @@ public interface GrpcChangeCatalogCaptureOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureArea area = 1;</code>
+   * <code>int64 version = 1;</code>
+   * @return The version.
+   */
+  long getVersion();
+
+  /**
+   * <code>int32 index = 2;</code>
+   * @return The index.
+   */
+  int getIndex();
+
+  /**
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureArea area = 3;</code>
    * @return The enum numeric value on the wire for area.
    */
   int getAreaValue();
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureArea area = 1;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureArea area = 3;</code>
    * @return The area.
    */
   io.evitadb.externalApi.grpc.generated.GrpcCaptureArea getArea();
 
   /**
-   * <code>string catalog = 2;</code>
-   * @return The catalog.
-   */
-  java.lang.String getCatalog();
-  /**
-   * <code>string catalog = 2;</code>
-   * @return The bytes for catalog.
-   */
-  com.google.protobuf.ByteString
-      getCatalogBytes();
-
-  /**
-   * <code>string entityType = 3;</code>
+   * <code>string entityType = 4;</code>
    * @return The entityType.
    */
   java.lang.String getEntityType();
   /**
-   * <code>string entityType = 3;</code>
+   * <code>string entityType = 4;</code>
    * @return The bytes for entityType.
    */
   com.google.protobuf.ByteString
       getEntityTypeBytes();
 
   /**
-   * <code>.google.protobuf.Int32Value version = 4;</code>
-   * @return Whether the version field is set.
+   * <code>.google.protobuf.Int32Value entityVersion = 5;</code>
+   * @return Whether the entityVersion field is set.
    */
-  boolean hasVersion();
+  boolean hasEntityVersion();
   /**
-   * <code>.google.protobuf.Int32Value version = 4;</code>
-   * @return The version.
+   * <code>.google.protobuf.Int32Value entityVersion = 5;</code>
+   * @return The entityVersion.
    */
-  com.google.protobuf.Int32Value getVersion();
+  com.google.protobuf.Int32Value getEntityVersion();
   /**
-   * <code>.google.protobuf.Int32Value version = 4;</code>
+   * <code>.google.protobuf.Int32Value entityVersion = 5;</code>
    */
-  com.google.protobuf.Int32ValueOrBuilder getVersionOrBuilder();
+  com.google.protobuf.Int32ValueOrBuilder getEntityVersionOrBuilder();
 
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOperation operation = 5;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOperation operation = 6;</code>
    * @return The enum numeric value on the wire for operation.
    */
   int getOperationValue();
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOperation operation = 5;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOperation operation = 6;</code>
    * @return The operation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcOperation getOperation();
 
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityMutation entityMutation = 6;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityMutation entityMutation = 7;</code>
    * @return Whether the entityMutation field is set.
    */
   boolean hasEntityMutation();
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityMutation entityMutation = 6;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityMutation entityMutation = 7;</code>
    * @return The entityMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcEntityMutation getEntityMutation();
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityMutation entityMutation = 6;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityMutation entityMutation = 7;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcEntityMutationOrBuilder getEntityMutationOrBuilder();
 
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocalMutation localMutation = 7;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocalMutation localMutation = 8;</code>
    * @return Whether the localMutation field is set.
    */
   boolean hasLocalMutation();
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocalMutation localMutation = 7;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocalMutation localMutation = 8;</code>
    * @return The localMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcLocalMutation getLocalMutation();
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocalMutation localMutation = 7;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocalMutation localMutation = 8;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcLocalMutationOrBuilder getLocalMutationOrBuilder();
 
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation entitySchemaMutation = 8;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation entitySchemaMutation = 9;</code>
    * @return Whether the entitySchemaMutation field is set.
    */
   boolean hasEntitySchemaMutation();
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation entitySchemaMutation = 8;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation entitySchemaMutation = 9;</code>
    * @return The entitySchemaMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation getEntitySchemaMutation();
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation entitySchemaMutation = 8;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation entitySchemaMutation = 9;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutationOrBuilder getEntitySchemaMutationOrBuilder();
 
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation catalogSchemaMutation = 9;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation catalogSchemaMutation = 10;</code>
    * @return Whether the catalogSchemaMutation field is set.
    */
   boolean hasCatalogSchemaMutation();
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation catalogSchemaMutation = 9;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation catalogSchemaMutation = 10;</code>
    * @return The catalogSchemaMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation getCatalogSchemaMutation();
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation catalogSchemaMutation = 9;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation catalogSchemaMutation = 10;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutationOrBuilder getCatalogSchemaMutationOrBuilder();
 

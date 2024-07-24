@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -202,13 +202,13 @@ public class CatalogChangeObserver {
 					case HEADER -> {
 						captureHeader = captureHeader == null ?
 							// todo jno implement counter
-							new ChangeCatalogCapture(0, CaptureArea.SCHEMA, catalog, entityType, version, operation, null) : captureHeader;
+							new ChangeCatalogCapture(0, 0, CaptureArea.SCHEMA, entityType, version, operation, null) : captureHeader;
 						captureBlock.notify(observer.uuid(), captureHeader);
 					}
 					case BODY -> {
 						captureBody = captureBody == null ?
 							// todo jno implement counter
-							new ChangeCatalogCapture(0, CaptureArea.SCHEMA, catalog, entityType, version, operation, mutation) : captureBody;
+							new ChangeCatalogCapture(0, 0, CaptureArea.SCHEMA, entityType, version, operation, mutation) : captureBody;
 						captureBlock.notify(observer.uuid(), captureBody);
 					}
 				}
@@ -222,13 +222,13 @@ public class CatalogChangeObserver {
 							case HEADER -> {
 								captureHeader = captureHeader == null ?
 									// todo jno implement counter
-									new ChangeCatalogCapture(0, CaptureArea.SCHEMA, catalog, entityType, version, operation, null) : captureHeader;
+									new ChangeCatalogCapture(0, 0, CaptureArea.SCHEMA, entityType, version, operation, null) : captureHeader;
 								captureBlock.notify(observer.uuid(), captureHeader);
 							}
 							case BODY -> {
 								captureBody = captureBody == null ?
 									// todo jno implement counter
-									new ChangeCatalogCapture(0, CaptureArea.SCHEMA, catalog, entityType, version, operation, mutation) : captureBody;
+									new ChangeCatalogCapture(0, 0, CaptureArea.SCHEMA, entityType, version, operation, mutation) : captureBody;
 								captureBlock.notify(observer.uuid(), captureBody);
 							}
 						}
@@ -386,7 +386,7 @@ public class CatalogChangeObserver {
 							captureHeader.updateAndGet(
 								cdc -> cdc == null ?
 									// todo jno implement counter
-									new ChangeCatalogCapture(0, CaptureArea.DATA, catalog, entityType, version, operation, null) :
+									new ChangeCatalogCapture(0, 0, CaptureArea.DATA, entityType, version, operation, null) :
 									cdc
 							)
 						);
@@ -397,7 +397,7 @@ public class CatalogChangeObserver {
 							captureBody.updateAndGet(
 								cdc -> cdc == null ?
 									// todo jno implement counter
-									new ChangeCatalogCapture(0, CaptureArea.DATA, catalog, entityType, version, operation, mutation) :
+									new ChangeCatalogCapture(0, 0, CaptureArea.DATA, entityType, version, operation, mutation) :
 									cdc
 							)
 						);

@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -84,9 +84,10 @@ public class ChangeCatalogCaptureConverter {
 	}
 
 	public static ChangeSystemCapture toChangeSystemCapture(GrpcChangeSystemCapture grpcChangeSystemCapture) {
-		/* TODO TPO - redesign */
+		/* TODO JNO - redesign */
 		return new ChangeSystemCapture(
 //			UUID.randomUUID(),
+			0,
 			0,
 			grpcChangeSystemCapture.getCatalog(),
 			toOperation(grpcChangeSystemCapture.getOperation()),
@@ -107,12 +108,9 @@ public class ChangeCatalogCaptureConverter {
 			builder.setCatalogSchemaMutation(LOCAL_CATALOG_SCHEMA_MUTATION_CONVERTER.convert(localCatalogSchemaMutation));
 		}
 
-		if (changeCatalogCapture.version() != null) {
-			builder.setVersion(Int32Value.newBuilder().setValue(changeCatalogCapture.version()).build());
-		}
-
 		return builder
-			.setCatalog(changeCatalogCapture.catalog())
+			.setVersion(changeCatalogCapture.version())
+			.setIndex(changeCatalogCapture.index())
 			.setEntityType(changeCatalogCapture.entityType())
 			.setOperation(EvitaEnumConverter.toGrpcOperation(changeCatalogCapture.operation()))
 			.build();
@@ -132,11 +130,11 @@ public class ChangeCatalogCaptureConverter {
 		};
 		return new ChangeCatalogCapture(
 			// todo jno/tpo: implement counter
-			0,
+			grpcChangeCatalogCapture.getVersion(),
+			grpcChangeCatalogCapture.getIndex(),
 			toCaptureArea(grpcChangeCatalogCapture.getArea()),
-			grpcChangeCatalogCapture.getCatalog(),
 			grpcChangeCatalogCapture.getEntityType(),
-			grpcChangeCatalogCapture.getVersion().equals(Int32Value.getDefaultInstance()) ? null : grpcChangeCatalogCapture.getVersion().getValue(),
+			grpcChangeCatalogCapture.getEntityVersion().equals(Int32Value.getDefaultInstance()) ? null : grpcChangeCatalogCapture.getEntityVersion().getValue(),
 			toOperation(grpcChangeCatalogCapture.getOperation()),
 			mutation
 		);

@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -30,11 +30,25 @@ package io.evitadb.api.requestResponse.cdc;
  */
 public enum Operation {
 
+	/**
+	 * Create operation - i.e. there was no data with such identity before, and it was created.
+	 */
 	CREATE,
+	/**
+	 * Update operation - i.e. there was data with such identity before, and it was updated.
+	 */
 	UPDATE,
+	/**
+	 * Remove operation - i.e. there was data with such identity before, and it was removed.
+	 */
 	REMOVE,
-	// todo jno: is this what you had in mind when we talked about the need to signalize the begin and the end of the transaction?
+	/**
+	 * Delimiting operation signaling the beginning of a transaction.
+	 */
 	TRANSACTION_BEGIN,
+	/**
+	 * Delimiting operation signaling the end of a transaction.
+	 */
 	TRANSACTION_END
 
 }

@@ -23,7 +23,7 @@
 
 package io.evitadb.externalApi.rest.api.catalog;
 
-import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
+import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.externalApi.rest.RestManager;
 import lombok.RequiredArgsConstructor;
 
@@ -37,7 +37,7 @@ import java.util.concurrent.Flow.Subscription;
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
 @RequiredArgsConstructor
-public class CatalogRestRefreshingObserver implements Subscriber<ChangeCatalogCapture> {
+public class CatalogRestRefreshingObserver implements Subscriber<ChangeSystemCapture> {
 
 	@Nonnull private final RestManager restManager;
 	private Subscription subscription;
@@ -49,7 +49,7 @@ public class CatalogRestRefreshingObserver implements Subscriber<ChangeCatalogCa
 	}
 
 	@Override
-	public void onNext(ChangeCatalogCapture item) {
+	public void onNext(ChangeSystemCapture item) {
 		// todo lho: make use of the lastId when implemented?
 		restManager.registerCatalog(item.catalog());
 		subscription.request(1);

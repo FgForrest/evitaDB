@@ -81,5 +81,4 @@ module evita.external.api.core {
 	requires io.netty.transport;
 	requires io.netty.handler;
 	requires io.netty.common;
-	requires evita.external.api.graphql;
 }

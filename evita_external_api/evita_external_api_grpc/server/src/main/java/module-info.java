@@ -63,6 +63,7 @@ module evita.external.api.grpc {
 	requires io.grpc;
 	requires io.netty.transport;
 	requires io.grpc.protobuf;
+	requires io.grpc.services;
 	requires io.grpc.stub;
 
 	requires com.linecorp.armeria;
