@@ -663,17 +663,6 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		}
 	}
 
-	@Nonnull
-	@Override
-	public EntityCollectionContract createCollectionForEntity(@Nonnull String entityType, @Nonnull EvitaSessionContract session) {
-		if (entityCollections.containsKey(entityType)) {
-			return entityCollections.get(entityType);
-		} else {
-			updateSchema(new CreateEntitySchemaMutation(entityType));
-			return Objects.requireNonNull(entityCollections.get(entityType));
-		}
-	}
-
 	@Override
 	@Nonnull
 	public Optional<EntityCollectionContract> getCollectionForEntity(@Nonnull String entityType) {
